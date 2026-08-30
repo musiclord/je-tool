@@ -23,6 +23,9 @@ Thin-Bridge Action-Dispatcher：前端與 C# 之間只走 action 通道，Applic
 接收摘要與有界分頁。本機案件使用 SQLite 或 DuckDB（免伺服器、免系統管理權限），SQL Server 保留為
 線上實作；三種資料庫在相同輸入下必須得到相同業務結果。
 
+各層的執行期關係、資料庫分流與 Excel 發布路徑見
+[`docs/architecture/`](docs/architecture/README.md)。
+
 ## 系統需求
 
 | 項目 | 說明 |

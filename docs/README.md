@@ -11,6 +11,7 @@
 |:---|:---|
 | JET 為什麼存在、目前先服務什麼、正式環境有何限制 | [`project-context.md`](project-context.md) |
 | JET 是什麼、資料怎麼流動 | [`jet-guide.md`](jet-guide.md) |
+| JET 執行時各層如何串接、資料庫如何分流 | [`architecture/README.md`](architecture/README.md) |
 | 新儲存庫整理到哪裡 | [`development-status.md`](development-status.md) |
 | 開發環境與目前可用入口 | [`development-guide.md`](development-guide.md) |
 | 大型開發如何跨 session 續接與關閉 | [`development-workflow.md`](development-workflow.md) |

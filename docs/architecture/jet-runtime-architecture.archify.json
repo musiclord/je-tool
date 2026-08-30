@@ -1,0 +1,243 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "JET 執行期架構",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/musiclord/je-tool",
+      "revision": "c89e3dd338d049fe3b0fcbc180cf12564ae4a2bd"
+    },
+    "viewBox": [1300, 660],
+    "views": [
+      {
+        "id": "action-path",
+        "label": "操作路徑",
+        "focus": ["auditor", "winforms-host", "web-frontend", "bridge", "application"],
+        "note": "桌面操作只經 jet-api.js 的 postMessage 進入 Bridge，再由 ActionDispatcher 交給對應 handler。"
+      },
+      {
+        "id": "decision-and-provider",
+        "label": "裁定與資料庫分流",
+        "focus": ["application", "audit-core", "persistence", "local-case", "sql-server"],
+        "note": "AuditCore 產生計畫與裁定；ProviderRouting 依 project.json 的 databaseProvider 選 SQLite、DuckDB 或 SQL Server。"
+      },
+      {
+        "id": "import-and-report",
+        "label": "匯入與報表",
+        "focus": ["source-files", "file-io", "persistence", "report-artifacts"],
+        "note": "來源表格串流寫入 staging；Excel 以 keyset 分頁串流寫出，完整暫存後才發布到案件資料夾。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "auditor",
+      "type": "external",
+      "label": "查核人員",
+      "sublabel": "桌面操作",
+      "pos": [24, 40],
+      "size": [120, 72]
+    },
+    {
+      "id": "winforms-host",
+      "type": "frontend",
+      "label": "WinForms 主程式",
+      "sublabel": "Form1 託管 WebView2",
+      "pos": [254, 40],
+      "size": [170, 72],
+      "sources": [
+        { "path": "src/JET/JET/Program.cs", "line": 11, "label": "Main" },
+        { "path": "src/JET/JET/Form1.cs", "line": 450, "end_line": 509, "label": "InitializeWebViewAsync" },
+        { "path": "src/JET/JET/JetApplicationRuntime.cs", "line": 9, "label": "JetApplicationRuntime" }
+      ]
+    },
+    {
+      "id": "web-frontend",
+      "type": "frontend",
+      "label": "Web 前端",
+      "sublabel": "wwwroot 六步驟頁面",
+      "pos": [544, 40],
+      "size": [160, 72],
+      "sources": [
+        { "path": "src/JET/JET/wwwroot/index.html", "line": 10, "end_line": 24, "label": "script 載入順序" },
+        { "path": "src/JET/JET/wwwroot/js/jet-api.js", "line": 15, "end_line": 48, "label": "JetApi.invoke" }
+      ]
+    },
+    {
+      "id": "bridge",
+      "type": "messagebus",
+      "label": "Bridge",
+      "sublabel": "WebMessage 收發與 dispatch",
+      "pos": [824, 40],
+      "size": [176, 72],
+      "sources": [
+        { "path": "src/JET/JET/Bridge/JetWebMessageBridge.cs", "line": 27, "end_line": 62, "label": "OnWebMessageReceived" },
+        { "path": "src/JET/JET/Bridge/ActionDispatcher.cs", "line": 63, "end_line": 115, "label": "DispatchAsync" },
+        { "path": "src/JET/JET/Bridge/WebViewEventPublisher.cs", "line": 29, "end_line": 51, "label": "Publish" }
+      ]
+    },
+    {
+      "id": "source-files",
+      "type": "external",
+      "label": "來源表格",
+      "sublabel": ".xlsx / .csv / .txt",
+      "pos": [24, 210],
+      "size": [120, 72],
+      "sources": [
+        { "path": "src/JET/JET/Infrastructure/FileIO/CompositeTabularFileReader.cs", "line": 31, "end_line": 37, "label": "支援的副檔名" }
+      ]
+    },
+    {
+      "id": "file-io",
+      "type": "backend",
+      "label": "Infrastructure 檔案讀寫",
+      "sublabel": "SAX 讀取器、Excel 寫出器",
+      "pos": [544, 210],
+      "size": [160, 72],
+      "sources": [
+        { "path": "src/JET/JET/Infrastructure/FileIO/CompositeTabularFileReader.cs", "line": 9, "label": "CompositeTabularFileReader" },
+        { "path": "src/JET/JET/Infrastructure/Export/WorkpaperWriter.cs", "line": 46, "label": "WorkpaperWriter" },
+        { "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.cs", "line": 14, "label": "LegacyReportWriter" }
+      ]
+    },
+    {
+      "id": "application",
+      "type": "backend",
+      "label": "Application handlers",
+      "sublabel": "action handler 與 ProjectSession",
+      "pos": [824, 210],
+      "size": [176, 72],
+      "sources": [
+        { "path": "src/JET/JET/AppCompositionRoot.cs", "line": 543, "end_line": 659, "label": "handler 註冊" },
+        { "path": "src/JET/JET/Application/Ports/IApplicationActionHandler.cs", "line": 5, "label": "IApplicationActionHandler" },
+        { "path": "src/JET/JET/Application/ProjectSession.cs", "line": 16, "label": "ProjectSession" }
+      ]
+    },
+    {
+      "id": "audit-core",
+      "type": "backend",
+      "label": "Domain + AuditCore",
+      "sublabel": "契約、規則、計畫與裁定",
+      "pos": [1104, 210],
+      "size": [170, 72],
+      "sources": [
+        { "path": "src/JET/JET/AuditCore/JetAuditProgram.cs", "line": 11, "label": "JetAuditProgram" },
+        { "path": "src/JET/JET/AuditCore/ISqlDialect.cs", "line": 10, "label": "ISqlDialect" },
+        { "path": "src/JET/JET/Domain/ProjectDocument.cs", "line": 14, "label": "ProjectDocument" }
+      ]
+    },
+    {
+      "id": "persistence",
+      "type": "backend",
+      "label": "Infrastructure 資料庫實作",
+      "sublabel": "依 databaseProvider 分流",
+      "pos": [824, 380],
+      "size": [176, 72],
+      "sources": [
+        { "path": "src/JET/JET/Infrastructure/Persistence/Routing/ProviderSelection.cs", "line": 11, "label": "ProviderSelection.Pick" },
+        { "path": "src/JET/JET/Infrastructure/Persistence/Routing/ProjectProviderResolver.cs", "line": 15, "label": "ResolveAsync" },
+        { "path": "src/JET/JET/Infrastructure/Persistence/Local/ILocalProjectDatabase.cs", "line": 14, "label": "ILocalProjectDatabase" }
+      ]
+    },
+    {
+      "id": "report-artifacts",
+      "type": "external",
+      "label": "正式 Excel 產物",
+      "sublabel": "六種報告與 manifest",
+      "pos": [544, 550],
+      "size": [160, 72],
+      "sources": [
+        { "path": "src/JET/JET/Domain/Contracts/ReportArtifactContracts.cs", "line": 4, "end_line": 12, "label": "ReportArtifactKind" },
+        { "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs", "line": 109, "end_line": 140, "label": "暫存與發布" },
+        { "path": "src/JET/JET/Domain/Abstractions/IReportArtifactStore.cs", "line": 14, "end_line": 20, "label": "WriteBatchAsync 契約" }
+      ]
+    },
+    {
+      "id": "local-case",
+      "type": "database",
+      "label": "本機案件資料庫",
+      "sublabel": "jet.db 或 jet.duckdb",
+      "pos": [824, 550],
+      "size": [176, 72],
+      "sources": [
+        { "path": "src/JET/JET/Infrastructure/Persistence/JetProjectFolder.cs", "line": 10, "end_line": 38, "label": "案件資料夾規約" },
+        { "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs", "line": 12, "label": "SqliteProjectDatabase" },
+        { "path": "src/JET/JET/Infrastructure/Persistence/DuckDb/DuckDbProjectDatabase.cs", "line": 14, "end_line": 17, "label": "DuckDbProjectDatabase" }
+      ]
+    },
+    {
+      "id": "sql-server",
+      "type": "database",
+      "label": "SQL Server 單一資料庫",
+      "sublabel": "每案件一個 prj_ schema",
+      "pos": [1104, 550],
+      "size": [170, 72],
+      "sources": [
+        { "path": "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerProjectDatabase.cs", "line": 24, "end_line": 43, "label": "單庫連線與 schema" },
+        { "path": "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlConnectionStringFactory.cs", "line": 9, "end_line": 19, "label": "連線字串來源" },
+        { "path": "src/JET/JET/AppCompositionRoot.cs", "line": 137, "label": "JET_SQLSERVER_CONNECTION" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "JET 桌面程序（單一執行檔）",
+      "wraps": ["winforms-host", "web-frontend", "bridge", "file-io", "application", "audit-core", "persistence"],
+      "pad": 24
+    },
+    {
+      "kind": "security-group",
+      "label": "案件資料夾 {root}\\{projectId}",
+      "wraps": ["report-artifacts", "local-case"],
+      "pad": 12
+    }
+  ],
+  "connections": [
+    { "id": "auditor-to-host", "from": "auditor", "to": "winforms-host", "label": "操作視窗", "variant": "emphasis" },
+    { "id": "host-to-web", "from": "winforms-host", "to": "web-frontend", "label": "託管 wwwroot" },
+    { "id": "web-to-bridge", "from": "web-frontend", "to": "bridge", "label": "postMessage request", "variant": "emphasis", "labelDy": 28 },
+    { "id": "bridge-to-web", "from": "bridge", "to": "web-frontend", "label": "response / event", "variant": "dashed" },
+    { "id": "bridge-to-application", "from": "bridge", "to": "application", "label": "dispatch action", "variant": "emphasis", "labelDy": 62 },
+    { "id": "application-to-file-io", "from": "application", "to": "file-io", "label": "讀來源、寫報表" },
+    { "id": "application-to-audit-core", "from": "application", "to": "audit-core", "label": "Plan / Finalize" },
+    { "id": "application-to-persistence", "from": "application", "to": "persistence", "label": "repository 介面", "labelDy": 62 },
+    { "id": "audit-core-to-persistence", "from": "audit-core", "to": "persistence", "label": "typed plan、SQL 方言", "variant": "dashed" },
+    { "id": "file-io-to-persistence", "from": "file-io", "to": "persistence", "label": "keyset 分頁讀取" },
+    { "id": "source-to-file-io", "from": "source-files", "to": "file-io", "label": "串流讀取" },
+    { "id": "file-io-to-reports", "from": "file-io", "to": "report-artifacts", "label": "暫存後原子發布", "variant": "emphasis", "labelDy": 231 },
+    { "id": "persistence-to-local", "from": "persistence", "to": "local-case", "label": "jet.db / jet.duckdb", "labelDy": 62 },
+    { "id": "persistence-to-sql", "from": "persistence", "to": "sql-server", "label": "prj_ schema" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "責任邊界",
+      "items": [
+        "前端只做操作與呈現，不做審計裁定",
+        "Bridge 只傳 request、response 與非權威 event",
+        "原生檔案對話框也走 host.* action：handler 經 IHostShell 交回 Form1 執行",
+        "規則與裁定集中在 Domain 與 AuditCore"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "資料庫分流",
+      "items": [
+        "project.json 的 databaseProvider 在建案時選定，之後不變",
+        "sqlite 與 duckdb 共用同一套 Local* repository；sqlServer 另有實作",
+        "三種 provider 在相同輸入下必須得到相同業務結果"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "大量資料與正式產物",
+      "items": [
+        "匯入以 OpenXmlSaxTableReader 與 CsvTableReader 串流寫入 staging",
+        "篩選、彙總與分頁留在資料庫；前端只收摘要與有界頁面",
+        "六種正式報告先暫存在案件資料夾，完整後原子發布並寫入 report-artifacts.json"
+      ]
+    }
+  ]
+}
