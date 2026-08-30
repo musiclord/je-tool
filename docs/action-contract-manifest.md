@@ -194,5 +194,5 @@
 | 報告產物種類 | `Domain/Contracts/ReportArtifactContracts.cs` |
 
 過往 1,000 行的逐 action 說明保存在
-[`history/new-je-tool/action-contract-manifest-new-je-tool.md`](history/new-je-tool/action-contract-manifest-new-je-tool.md)。
+[`history/superseded/action-contract-manifest-2026-08.md`](history/superseded/action-contract-manifest-2026-08.md)。
 它能協助追查舊設計，但欄位有疑義時仍要回到現行處理器與測試核對。

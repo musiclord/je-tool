@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "JET (Debug)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "verify: Build (Debug)",
+      "program": "${workspaceFolder}/src/JET/JET/bin/Debug/net10.0-windows/JET.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/JET/JET",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "JET (attach)",
+      "type": "coreclr",
+      "request": "attach"
+    }
+  ]
+}

@@ -4,6 +4,7 @@
     ".github/copilot-instructions.md",
     "AGENTS.md",
     "README.md",
+    "CONTRIBUTING.md",
     "CLAUDE.md",
     "tools/README.md",
     "docs/README.md",
@@ -18,10 +19,13 @@
     "docs/jet-frontend-description.md",
     "docs/action-contract-manifest.md",
     "docs/data-and-legacy.md",
+    "docs/sqlserver-enterprise-deferred.md",
     "docs/business-logic-provenance.md",
     "docs/repository-lineage.md",
     "docs/specs/2026-08-28-harness-rebuild-plan.md",
-    "docs/specs/2026-08-29-agent-governance-and-context-plan.md"
+    "docs/specs/2026-08-29-agent-governance-and-context-plan.md",
+    "docs/specs/2026-08-30-repository-consolidation-plan.md",
+    "docs/history/README.md"
   ],
   "forbiddenClaims": [
     {
@@ -35,6 +39,14 @@
     {
       "id": "stale-post-harness-closure",
       "text": "除了後續驗證框架、正式驗證及第一次提交與推送外"
+    },
+    {
+      "id": "stale-unborn-main",
+      "text": "`main` 尚無提交"
+    },
+    {
+      "id": "stale-history-by-source-repo",
+      "text": "docs/history/je-testing/"
     }
   ],
   "styleWarnings": [
@@ -170,6 +182,46 @@
       "id": "company-ai-network-boundary",
       "file": "docs/project-context.md",
       "text": "無法存取 AI 相關網路服務"
+    },
+    {
+      "id": "history-index-points-to-log",
+      "file": "docs/history/README.md",
+      "text": "development-log.md"
+    },
+    {
+      "id": "readme-build-entry",
+      "file": "README.md",
+      "text": "tools/verify.ps1"
+    },
+    {
+      "id": "agent-enforcement-layer",
+      "file": "docs/agent-compatibility.md",
+      "text": ".claude/settings.json"
+    },
+    {
+      "id": "contributing-points-to-workflow",
+      "file": "CONTRIBUTING.md",
+      "text": "docs/development-workflow.md"
+    },
+    {
+      "id": "agents-map-not-encyclopedia",
+      "file": "AGENTS.md",
+      "text": "tools/verify.ps1"
+    },
+    {
+      "id": "status-points-to-sqlserver-deferred",
+      "file": "docs/development-status.md",
+      "text": "sqlserver-enterprise-deferred.md"
+    },
+    {
+      "id": "guide-keeps-kct-mainline",
+      "file": "docs/jet-guide.md",
+      "text": "KCT"
+    },
+    {
+      "id": "agents-fact-fidelity",
+      "file": "AGENTS.md",
+      "text": "事實保真"
     }
   ],
   "manualReview": [

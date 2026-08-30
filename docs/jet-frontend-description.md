@@ -83,5 +83,5 @@ GL 與 TB 可以由一個或多個檔案匯入。前端先讓使用者選檔，�
 | 樣式 | `wwwroot/css/` |
 
 完整舊版畫面規格保存在
-[`history/new-je-tool/jet-frontend-description-new-je-tool.md`](history/new-je-tool/jet-frontend-description-new-je-tool.md)。
+[`history/superseded/jet-frontend-description-2026-08.md`](history/superseded/jet-frontend-description-2026-08.md)。
 那份文件適合追查舊決策，不是新增 UI 時要逐段照抄的模板。

@@ -185,8 +185,9 @@ Phase 5 不讀取私人案件，也不代表 JE／TB 正式匯入與底稿比對
 `privateData.pathInspected` 會明確記錄這次是否真的查看過私人案件資料夾。一般驗證必須是 `false`。
 `PrivateCase` 還要記錄沒有私人路徑進入收據，而且 `outputsRetained` 必須是 `false`。
 
-`ReleaseCandidate` 會先核對第一次根提交候選清單。現在 `main` 尚無提交，無法用 `checkout` 建立乾淨副本。
-因此，框架會逐一複製清單中的未忽略檔案、核對雜湊，並在快照內
+`ReleaseCandidate` 會先核對候選清單與 Git 尚未忽略的檔案完全一致。它不用 `checkout` 建立乾淨副本，
+因為候選範圍是以「實際未被忽略的檔案」定義的，包含尚未追蹤的新檔；`checkout` 只會取出 HEAD 已記錄的
+內容，漏掉的部分不會被發現。因此框架會逐一複製清單中的未忽略檔案、核對雜湊，並在快照內
 建立一次性的 Git 索引，讓隱私與 Git 規則測試能檢查和第一次提交相同的範圍。來源儲存庫不會用來建立
 快照索引；框架會在建立快照前後比較來源的 cached stage entries，兩者不同就失敗。快照中依序執行
 Contract、Documentation、Public（Release）、Package、Gui 與 Excel；

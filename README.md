@@ -1,49 +1,91 @@
 # JET
 
-JET 是一套 Windows 桌面審計工具，以 .NET 10、WinForms 與 WebView2 執行。大量資料主要留在
-SQLite、DuckDB 或 SQL Server 中處理，前端只接收摘要和分頁結果。
+JET（Journal Entry Testing）是一套 Windows 桌面審計工具，用來執行傳票測試：把總帳與試算表匯入本機
+案件、配對欄位、建立有效母體並驗證完整性、依風險條件篩選傳票，最後輸出六份審計底稿。它取代原本在
+CaseWare IDEA 中進行、依賴少數熟悉 IDEA 或 SQL 的人才能完成的工作，讓查核人員在一般公司電腦上就能
+完成整個流程。專案背景與環境限制見 [`docs/project-context.md`](docs/project-context.md)。
 
-專案從 CaseWare IDEA、台大課程合作與 Excel VBA／Access 實作逐步演進到目前架構。近期先讓 GA 能在
-公司限制下以本機方式完成原本 IDEA JET 的工作，再處理新的 KCT 條件；完整背景與環境限制見
-[`docs/project-context.md`](docs/project-context.md)。
+## 主要功能
 
-這個目錄是由 `je-testing` 與 `new-je-tool` 整理而成的新儲存庫。兩個來源專案的 Git 歷史不會匯入，也不另建
-mirror、bundle 或逐筆提交對照；後續開發需要的背景已整理到 [`docs/`](docs/README.md) 和
-[`legacy/`](legacy/README.md)。`je-tool` 完成遠端讀回驗證後，既有來源 GitHub 儲存庫可設為唯讀封存，
-但不再是 JET 執行或判定規則的必要條件。
+- 六步驟工作流程：建立案件 → 匯入 GL／TB 與支援資料 → 欄位配對 → 資料驗證 → 條件篩選 → 匯出底稿
+- 完整性測試、控制總數核對、空值測試，以及期後核准、非營業日、非授權編製者等預篩選風險訊號
+- 進階條件篩選：以 AND／OR 層級組合金額、日期、文字與分錄性質條件，可保存為情境重複使用
+- 六份正式報表（驗證、科目配對、INF 抽樣、預篩選、條件篩選、工作底稿）直接填入 Excel 範本
+- 案件以自含資料夾保存，正常關閉後可整個搬到別的磁碟或電腦繼續作業
 
-## 目前狀態
+## 技術與定位
 
-- 產品程式位於 `src/JET/`。
-- `data/` 內的十份工作簿是使用者決定保留的 JET 業務範例，檔名也是本儲存庫的命名依據。這些檔案已用
-  唯讀方式檢查結構與 SHA-256，確認和 `new-je-tool` 的對應來源相同；遷移期間不會重新儲存或改寫內容。
-- 舊驗證框架專用的真實案件測試、執行腳本與發布腳本已退出。產品功能、合成測試、解析器、比較器、
-  路徑安全檢查及資料結構規則仍然保留。
-- `new-je-tool` 的臨時前端交接資料夾 `design_handoff_jet_frontend/` 已決定不遷移。後續設計會以現行產品和
-  `docs/jet-template-v1.html`、`docs/jet-template-v2.html` 為起點。
-- 舊的測試結果、建置輸出、執行產物和私人案件資料夾留在原本的本機範圍，不會成為新驗證框架的輸入、
-  判定依據或歷史證明。
-- 新驗證框架已完成 Phase 1 至 Phase 7。`Provider`、`Package`（Release）及隔離的 GUI 情境都已通過；原生
-  Excel 也已用同一輪產生的六份合成報表，完成開啟、重算、另存、重新開啟與 PDF 輸出。Phase 6 已接上
-  正式 `PrivateCase` 入口，並依使用者決定同時比較六份底稿的內容與版面、按規則與實際母體檢查 INF，
-  成功或失敗都清除本次私人副本與輸出。三項業務差異已依使用者裁定修正；情境 1 的整張傳票口徑只套用
-  在單獨的「未預期借貸組合」，不會擴張其他情境。同一私人案件已分別用 SQLite 與 SQL Server 通過 INF、
-  業務結果及六份底稿的內容與版面比較，兩次都完成清理且沒有把私人路徑寫進收據。Phase 7 的
-  `ReleaseCandidate` 也已在第一次根提交候選快照中完整通過；它沒有讀取私人案件，快照與來源 Git index
-  都已按規則收尾。
-- `Documentation` 命令會攔截缺檔、必要指向缺漏及已確認過時的事實；風格疑點只會提出 warning。修改文件後
-  仍要人工讀完改動段落，不能只看命令結果。
-- `main` 尚無提交。目前只整理第一次根提交的候選內容，不會自動暫存、提交或推送。
-- `AGENTS.md` 是各 AI Agent 的共用權威；`CLAUDE.md` 與 `.github/copilot-instructions.md` 是薄轉接檔。相容
-  方式見 [`docs/agent-compatibility.md`](docs/agent-compatibility.md)。
+單一執行檔的 .NET 10 WinForms 應用程式，畫面由 WebView2 承載網頁前端。分層採
+Thin-Bridge Action-Dispatcher：前端與 C# 之間只走 action 通道，Application 層以 CQRS 處理流程，
+審計規則集中在 Domain 與 AuditCore，資料庫實作隔離在 Infrastructure。
 
-第一次接手請依序閱讀：
+大量資料不進入前端或應用層記憶體：篩選、彙總與連接都以參數化、集合式 SQL 在資料庫內完成，前端只
+接收摘要與有界分頁。本機案件使用 SQLite 或 DuckDB（免伺服器、免系統管理權限），SQL Server 保留為
+線上實作；三種資料庫在相同輸入下必須得到相同業務結果。
 
-1. [`docs/project-context.md`](docs/project-context.md)
-2. [`docs/jet-guide.md`](docs/jet-guide.md)
-3. [`docs/development-status.md`](docs/development-status.md)
-4. [`docs/development-guide.md`](docs/development-guide.md)
-5. [`docs/development-workflow.md`](docs/development-workflow.md)
-6. [`docs/harness.md`](docs/harness.md)
+## 系統需求
 
-機敏資料、私人案件資料夾及 Git 操作限制見 [`AGENTS.md`](AGENTS.md)。
+| 項目 | 說明 |
+|:---|:---|
+| 作業系統 | Windows x64 |
+| .NET SDK | 10.0.400（[`global.json`](global.json) 允許同功能帶內較新修補版本） |
+| PowerShell | 7.4 以上，驗證入口需要 |
+| WebView2 | Microsoft Edge WebView2 執行階段 |
+| Microsoft Excel | 選用，只有 `Excel` 驗證路線需要 |
+| SQL Server | 選用，只有 `Provider` 驗證路線需要，且必須是專用測試環境 |
+
+## 快速開始
+
+```powershell
+git clone https://github.com/musiclord/je-tool.git
+cd je-tool
+
+pwsh -NoProfile -File tools/verify.ps1 -Command Restore
+pwsh -NoProfile -File tools/verify.ps1 -Command Build -Configuration Debug
+
+dotnet run --project src/JET/JET/JET.csproj -c Debug
+```
+
+方案檔是 [`src/JET/JET.slnx`](src/JET/JET.slnx)，應用程式專案是 `src/JET/JET/JET.csproj`。
+
+## 測試
+
+所有正式驗證從 `tools/verify.ps1` 進入，它負責共享鎖、執行收據、輸出遮蔽與清理驗證：
+
+```powershell
+# 日常改動：跑指定測試並補跑架構檢查
+pwsh -NoProfile -File tools/verify.ps1 -Command Focused -Filter 'JET.Tests.Domain.MappingValidatorTests'
+
+# 完整公開測試（不需外部服務）
+pwsh -NoProfile -File tools/verify.ps1 -Command Public
+
+# 列出全部命令
+pwsh -NoProfile -File tools/verify.ps1 -Command Help
+```
+
+結束碼：`0` 通過、`1` 失敗、`2` 受阻（尚無正誤結論，不能當成通過）、`3` 用法錯誤、`4` 框架本身錯誤。
+另有 `Provider`、`Package`、`Gui`、`Excel`、`PrivateCase`、`ReleaseCandidate` 六條較重的路線，見
+[`tools/README.md`](tools/README.md)。
+
+## 專案結構
+
+| 目錄 | 內容 |
+|:---|:---|
+| [`src/`](src/) | 產品程式與測試 |
+| [`tools/`](tools/) | 驗證框架 |
+| [`docs/`](docs/README.md) | 現行說明、技術參考與歷史文件 |
+| [`data/`](data/) | 十份參考工作簿，檔名是儲存庫內工作簿命名的依據 |
+| [`legacy/`](legacy/README.md) | IDEA、VBA 與早期 .NET 的對照來源，不是現行程式樹 |
+| `artifacts/` | 本機執行證據，由 Git 忽略 |
+
+## 文件
+
+第一次接手依序閱讀：
+
+1. [`docs/project-context.md`](docs/project-context.md) — 為什麼存在、先服務什麼、環境有何限制
+2. [`docs/jet-guide.md`](docs/jet-guide.md) — 系統是什麼、資料怎麼流動
+3. [`docs/development-status.md`](docs/development-status.md) — 現在做到哪裡、有什麼延後事項
+4. [`docs/development-guide.md`](docs/development-guide.md) — 開發環境與可用入口
+
+完整導覽見 [`docs/README.md`](docs/README.md)；設計脈絡與已被取代的舊版本在
+[`docs/history/`](docs/history/README.md)。

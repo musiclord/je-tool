@@ -23,14 +23,16 @@
 
 完整來源文件也留有可檢索副本：
 
-- [`history/new-je-tool/jet-guide-new-je-tool.md`](history/new-je-tool/jet-guide-new-je-tool.md)：
+- [`history/superseded/jet-guide-2026-08.md`](history/superseded/jet-guide-2026-08.md)：
   與來源指南只有 19 組已裁定的檔名／定位文字正規化。
-- [`history/new-je-tool/action-contract-manifest-new-je-tool.md`](history/new-je-tool/action-contract-manifest-new-je-tool.md)
-  與 [`history/new-je-tool/jet-frontend-description-new-je-tool.md`](history/new-je-tool/jet-frontend-description-new-je-tool.md)：
+- [`history/superseded/action-contract-manifest-2026-08.md`](history/superseded/action-contract-manifest-2026-08.md)
+  與 [`history/superseded/jet-frontend-description-2026-08.md`](history/superseded/jet-frontend-description-2026-08.md)：
   核對時與來源對應文件內容相同。
-- [`history/new-je-tool/development-log-new-je-tool.md`](history/new-je-tool/development-log-new-je-tool.md)
-  與 [`history/new-je-tool/development-status-new-je-tool.md`](history/new-je-tool/development-status-new-je-tool.md)：
-  只供理解來源專案當時的決策、已知限制與驗證背景，不能冒充 `je-tool` 現況。
+- [`history/superseded/development-status-2026-08.md`](history/superseded/development-status-2026-08.md)：
+  只供理解遷移基準當時的已知限制與驗證背景，不能冒充 `je-tool` 現況。
+- [`history/development-log.md`](history/development-log.md)：
+  合併後的開發紀錄，涵蓋 2026-06-04 到 2026-08-26 兩個世代的決策脈絡。查遷移基準當時的決策時只看
+  2026-07 以後的條目；更早的條目描述的是前一個世代。同樣不能冒充 `je-tool` 現況。
 
 ## 現行業務主線
 

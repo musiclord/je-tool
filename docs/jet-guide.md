@@ -1,6 +1,6 @@
 # JET 專案指南
 
-更新日期：2026-08-27
+更新日期：2026-08-30
 
 JET（Journal Entry Testing）是一套 Windows 桌面工具，用來整理總帳分錄與試算表、執行查核規則，
 再輸出 Excel 底稿。這份指南先說清楚產品怎麼運作；程式使用的精確欄位與 action 名稱另見程式碼與
@@ -59,6 +59,9 @@ JET 把原本分散在 IDEA、VBA 與人工 Excel 步驟裡的流程，整理成
 資料品質問題與查核命中是兩件事。無法形成有效母體時應停止後續規則；某筆分錄命中風險訊號，
 則是提供查核方向，不等於資料本身無效。
 
+母體完整性的逐項判定只在「資料驗證與測試」這一個畫面呈現；流程總覽等其他畫面只摘要既有的後端裁定，
+不建立第二套判定面。這是 2026-08-20 的裁定，避免同一件事在兩處給出不同答案。
+
 ## 5. 預篩選
 
 預篩選提供一組可重複計算的風險訊號，例如期後核准、特定摘要、非營業日、尾數型態、非授權
@@ -71,6 +74,14 @@ JET 把原本分散在 IDEA、VBA 與人工 Excel 步驟裡的流程，整理成
 
 進階篩選讓使用者把多個條件組成情境，先預覽，再保存結果。條件可以針對文字、日期、金額、
 借貸性質、科目配對、風險訊號與已配對的額外欄位。
+
+實務主線是 KCT A–J 條件清單：GA 可以勾選 KCT 條件、預篩選述詞與自訂條件，收斂出要測試的分錄。
+KCT 卡、預篩選述詞與自訂條件都收斂到同一份條件語法樹；`prescreen` 類規則在篩選中直接重用
+`GlRulePredicates` 即時計算，不讀取先前預篩選執行的命中檔。A–J 與現行執行的完整對應、KCT 的
+legacy 來源邊界，見遷移基準指南
+[`history/superseded/jet-guide-2026-08.md`](history/superseded/jet-guide-2026-08.md) §3–§4；
+KCT 正式全稱與新條件仍待使用者提供，現況見
+[`development-status.md`](development-status.md) 的延後事項。
 
 篩選的核心原則是：
 
@@ -102,8 +113,18 @@ SQLite 與 DuckDB 是本地資料庫實作；每個案件以一個自含資料�
 SQL Server 是線上資料庫實作，使用共享資料庫中的案件範圍。三種實作在相同輸入與相同契約下應得到
 相同結果；不能把資料庫差異當成合理的業務差異。
 
+選擇 SQLite 與 DuckDB 作為本地實作的理由來自正式環境限制（見
+[`project-context.md`](project-context.md)）：兩者都免伺服器、免系統管理權限、單一案件資料夾自含，
+一般 GA 不需要管理資料庫服務就能作業。歷史量測已用 DuckDB 驗證 500 萬到 2,000 萬列母體的匯入、
+驗證、預篩選與底稿輸出。兩個引擎能力不完全相同——例如 DuckDB 1.5.3 沒有 trigger，`audit_event_log`
+的 append-only 在 SQLite 與 SQL Server 由資料庫層強制，在 DuckDB 維持程式紀律——這類差異由
+Infrastructure 吸收，不得外溢成業務行為差異。
+
 本地案件的可攜性以前提為「JET 已正常離開案件，再冷複製完整案件資料夾」。正在使用的資料庫、
 WAL 熱複製與 SQL Server 案件不在這個保證內。
+
+本地案件不做刪案留痕：2026-08-20 裁定本地案件屬個人工作性質，持久刪案證據是中心化管理議題，
+只屬於 SQL Server 線；企業範圍見 [`sqlserver-enterprise-deferred.md`](sqlserver-enterprise-deferred.md)。
 
 ## 9. 系統分層
 
@@ -147,6 +168,6 @@ Infrastructure 或 UI 邊界。
 一律視為 JET 問題。
 
 遷移基準的完整 2,000 行指南保存在
-[`history/new-je-tool/jet-guide-new-je-tool.md`](history/new-je-tool/jet-guide-new-je-tool.md)。它用來查找本指南
+[`history/superseded/jet-guide-2026-08.md`](history/superseded/jet-guide-2026-08.md)。它用來查找本指南
 省略的精確規則與來源決策，但不會凌駕 `je-tool` 後續經核准的新行為；追溯與衝突處理見
 [`business-logic-provenance.md`](business-logic-provenance.md)。

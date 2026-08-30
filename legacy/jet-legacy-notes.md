@@ -2,7 +2,7 @@
 
 > **這是歷史歸檔，只供對照業務語意與設計意圖之用，不是現行指引。** 內容來自上一代 JET 的開發筆記，也就是 Caseware IDEA 搭配 IDEAScript、以及 Excel VBA 搭配 Access 的那個時期。凡是與受查者有關的識別資訊，以及其他不宜進版控的內容，一律已經移除或改成佔位符，例如 `〈受查者〉`、`〈path〉`、`〈會計科目〉`、`〈金額〉`、`〈傳票號碼〉`。
 >
-> 現行的權威一律以 [`../docs/jet-guide.md`](../docs/jet-guide.md)、[`../docs/action-contract-manifest.md`](../docs/action-contract-manifest.md)、[`../docs/jet-frontend-description.md`](../docs/jet-frontend-description.md) 三份文件為準；需要回查遷移當時的完整章節與歷史代號時，才讀 [`../docs/history/new-je-tool/jet-guide-new-je-tool.md`](../docs/history/new-je-tool/jet-guide-new-je-tool.md)。至於棄用上一代的原因、VBA 的分層方式、以及 IDEAScript 的函式地圖，見 [`README.md`](README.md)。請不要逐行把這裡的腳本翻成 C#。這份筆記保存的是審計方法論與設計動機，可作為差異分析的歷史 oracle；它不是任何已不存在 skill 或 harness 的執行契約。文中引用的 R1–R8、V、A 等歷史代號，只供回查完整來源指南 §4 的登錄表。
+> 現行的權威一律以 [`../docs/jet-guide.md`](../docs/jet-guide.md)、[`../docs/action-contract-manifest.md`](../docs/action-contract-manifest.md)、[`../docs/jet-frontend-description.md`](../docs/jet-frontend-description.md) 三份文件為準；需要回查遷移當時的完整章節與歷史代號時，才讀 [`../docs/history/superseded/jet-guide-2026-08.md`](../docs/history/superseded/jet-guide-2026-08.md)。至於棄用上一代的原因、VBA 的分層方式、以及 IDEAScript 的函式地圖，見 [`README.md`](README.md)。請不要逐行把這裡的腳本翻成 C#。這份筆記保存的是審計方法論與設計動機，可作為差異分析的歷史 oracle；它不是任何已不存在 skill 或 harness 的執行契約。文中引用的 R1–R8、V、A 等歷史代號，只供回查完整來源指南 §4 的登錄表。
 
 ---
 
@@ -79,7 +79,7 @@
 7. **Join 預篩選結果**：分兩次 join。先以傳票號碼與日期 join 傳票層的彙總，把各個預篩選 tag 帶進來；再以傳票號碼與項次 join 分錄層的彙總，把明細層的 tag 帶進來。
 8. **輸出檔命名（歷史）**：輸出多份檔案，命名與內容如下——`#GL#.IDM` 是期間內的標準化 GL、`#GL#In_Period_Doc_Sum` 是傳票層的合計與不平清單、`#GL_Account_Sum` 是會科層的期間合計、`#Completeness_calculate` 是 GL 與 TB 合併後加上差異、`#Completeness_Check` 是 `ABS(差異)>0` 的科目，依此類推。
 
-**對應到現行架構。** 下列精確章節均指 [`../docs/history/new-je-tool/jet-guide-new-je-tool.md`](../docs/history/new-je-tool/jet-guide-new-je-tool.md)：標準化欄名見 §18；借貸淨額與 DEBIT/CREDIT 拆分見 §1.5.3、§2.1；科目配對見 §2.3，以及 `unexpected_account_pair`（§6.1）；期間擷取對應 `period_in_out`。現行規則一律以參數化的集合式 SQL 執行（§1.5.2），不會重現 IDEAScript 逐欄建虛擬欄位的做法。
+**對應到現行架構。** 下列精確章節均指 [`../docs/history/superseded/jet-guide-2026-08.md`](../docs/history/superseded/jet-guide-2026-08.md)：標準化欄名見 §18；借貸淨額與 DEBIT/CREDIT 拆分見 §1.5.3、§2.1；科目配對見 §2.3，以及 `unexpected_account_pair`（§6.1）；期間擷取對應 `period_in_out`。現行規則一律以參數化的集合式 SQL 執行（§1.5.2），不會重現 IDEAScript 逐欄建虛擬欄位的做法。
 
 ---
 

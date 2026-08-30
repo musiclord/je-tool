@@ -1,0 +1,80 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "verify: Help",
+      "detail": "列出驗證框架目前可用的命令與參數",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/verify.ps1", "-Command", "Help"],
+      "problemMatcher": []
+    },
+    {
+      "label": "verify: Build (Debug)",
+      "detail": "先還原再建置。日常開發用這個，不要直接 dotnet build",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/verify.ps1", "-Command", "Build", "-Configuration", "Debug"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "verify: Focused",
+      "detail": "執行名稱符合輸入片段的測試，並固定補跑架構檢查",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/verify.ps1", "-Command", "Focused", "-Filter", "${input:testFilter}"],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "verify: Public",
+      "detail": "完整公開測試。不需外部服務，至少要找到 3,000 個案例",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/verify.ps1", "-Command", "Public"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "verify: Documentation",
+      "detail": "檢查受管文件的缺檔、必要指向與已確認過時的事實。改過文件後必跑",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/verify.ps1", "-Command", "Documentation"],
+      "problemMatcher": []
+    },
+    {
+      "label": "verify: Contract",
+      "detail": "只檢查驗證框架本身的鎖、子程序、逾時、收據與清理",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/verify.ps1", "-Command", "Contract"],
+      "problemMatcher": []
+    },
+    {
+      "label": "verify: harness self-test",
+      "detail": "驗證框架自己的契約測試，不是第二個產品驗證入口",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/tests/verify-contract.tests.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "run: JET (Debug)",
+      "detail": "直接啟動桌面程式。這是診斷用途，不產生驗證收據",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/src/JET/JET/JET.csproj", "-c", "Debug"],
+      "problemMatcher": "$msCompile"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "testFilter",
+      "type": "promptString",
+      "description": "測試方法或類別的完整名稱片段（不接受萬用字元）",
+      "default": "JET.Tests.Domain.MappingValidatorTests"
+    }
+  ]
+}

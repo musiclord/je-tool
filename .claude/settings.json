@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Bash(dotnet test *)",
+      "PowerShell(dotnet test *)",
+      "Bash(git add -A *)",
+      "Bash(git add --all *)",
+      "Bash(git add -u *)",
+      "Bash(git add . *)",
+      "Bash(git write-tree *)",
+      "Bash(git stash --all *)",
+      "Bash(git stash -a *)",
+      "PowerShell(git add -A *)",
+      "PowerShell(git add --all *)",
+      "PowerShell(git add -u *)",
+      "PowerShell(git add . *)",
+      "PowerShell(git write-tree *)",
+      "PowerShell(git stash --all *)",
+      "PowerShell(git stash -a *)",
+      "Read(/data/test-case/**)",
+      "Read(/data/temporary-test-case/**)",
+      "Read(/data/legacy-parity-work/**)",
+      "Read(/data/private/**)",
+      "Read(/data/real-case/**)",
+      "Read(/data/customer-data/**)",
+      "Edit(/data/test-case/**)",
+      "Edit(/data/temporary-test-case/**)",
+      "Edit(/data/legacy-parity-work/**)",
+      "Edit(/data/private/**)",
+      "Edit(/data/real-case/**)",
+      "Edit(/data/customer-data/**)",
+      "Edit(/docs/jet-template-v1.html)",
+      "Edit(/docs/jet-template-v2.html)"
+    ],
+    "ask": [
+      "Edit(/docs/history/**)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git remote *)",
+      "Bash(git reset *)",
+      "Bash(git checkout *)",
+      "Bash(git restore *)",
+      "Bash(git clean *)",
+      "Bash(git stash *)",
+      "Bash(git add *)",
+      "PowerShell(git commit *)",
+      "PowerShell(git push *)",
+      "PowerShell(git remote *)",
+      "PowerShell(git reset *)",
+      "PowerShell(git checkout *)",
+      "PowerShell(git restore *)",
+      "PowerShell(git clean *)",
+      "PowerShell(git stash *)",
+      "PowerShell(git add *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -NonInteractive -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-context.ps1\"",
+            "timeout": 30,
+            "statusMessage": "讀取 JET 儲存庫現況"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -NonInteractive -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/managed-doc-notice.ps1\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -NonInteractive -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/verification-debt.ps1\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

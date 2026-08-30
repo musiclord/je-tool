@@ -1,6 +1,6 @@
 # JET 文件導覽
 
-更新日期：2026-08-29
+更新日期：2026-08-30
 
 這裡把現況、操作、技術參考與歷史分開。一般閱讀先看現行文件；只有需要追查設計來源時才進入
 [`history/`](history/README.md) 或 [`../legacy/`](../legacy/README.md)。
@@ -15,15 +15,17 @@
 | 開發環境與目前可用入口 | [`development-guide.md`](development-guide.md) |
 | 大型開發如何跨 session 續接與關閉 | [`development-workflow.md`](development-workflow.md) |
 | CaseWare IDEA 的替代範圍與完成條件 | [`idea-replacement-scope.md`](idea-replacement-scope.md) |
-| Copilot、Claude、Codex 與 VS Code 如何共用規則 | [`agent-compatibility.md`](agent-compatibility.md) |
+| Copilot、Claude、Codex 與 VS Code 如何共用規則，以及 Claude Code 的攔截層與 hook | [`agent-compatibility.md`](agent-compatibility.md) |
 | 新驗證框架的責任、資料與判定界線 | [`harness.md`](harness.md) |
 | 驗證框架的重建階段與完成紀錄 | [`specs/2026-08-28-harness-rebuild-plan.md`](specs/2026-08-28-harness-rebuild-plan.md) |
+| 目前的大型計畫：儲存庫收斂與 Agent 工具層 | [`specs/2026-08-30-repository-consolidation-plan.md`](specs/2026-08-30-repository-consolidation-plan.md) |
 | 畫面結構與六個操作步驟 | [`jet-frontend-description.md`](jet-frontend-description.md) |
 | 前端與 C# 之間的 action 通道 | [`action-contract-manifest.md`](action-contract-manifest.md) |
 | `data/`、程式隨附範本與 `legacy/` 的分工 | [`data-and-legacy.md`](data-and-legacy.md) |
+| SQL Server 企業環境的延後範圍與已知安全缺口 | [`sqlserver-enterprise-deferred.md`](sqlserver-enterprise-deferred.md) |
 | 業務邏輯從哪裡來、衝突時如何裁決 | [`business-logic-provenance.md`](business-logic-provenance.md) |
 | 來源專案的關係與新儲存庫決策 | [`repository-lineage.md`](repository-lineage.md) |
-| 第一次根提交的完整候選路徑 | [`first-root-commit-candidate.txt`](first-root-commit-candidate.txt) |
+| `ReleaseCandidate` 的候選檔案清單（檔名沿用第一次根提交時期） | [`first-root-commit-candidate.txt`](first-root-commit-candidate.txt) |
 
 ## 文件權威
 
@@ -38,6 +40,20 @@
 當時脈絡，不代表現行儲存庫缺檔或未完成遷移。
 
 `jet-template-v1.html` 與 `jet-template-v2.html` 是使用者已裁定保留的版本，不參與一般文件重寫。
+
+## 寫作規範
+
+- 每份文件只處理一個主要用途。現況、操作方法、技術參考、歷史與執行紀錄分開，同一資訊只維護一處；
+  不能把舊專案的通過結果、逐次數字或對話紀錄當成 `je-tool` 現況。
+- 中文使用台灣常見、自然的說法。固定命令、程式名稱與必要術語可以保留英文，第一次出現時說明用途。
+- 不自行創造近義詞、縮寫、階段名稱或流程名稱。每句只放一個主要意思，避免連續括號、斜線、箭頭與
+  名詞堆疊。
+- 舊句子已經不自然時可以整段重寫，不必保留先前 Agent 的句型；但文件中的現況必須有程式、測試、決策
+  或本次執行紀錄支持。
+- 引用或遷移他處內容時先找到原文，查核對象、檔名、數字與裁定逐字照抄；名稱有新舊對應時把對應寫明，
+  不得默默替換成現行名稱。找不到出處的聲明刪掉或標成待確認，不以合理推測填空。
+- 新名詞的准入條件：程式、UI、資料結構或外部標準本來就存在的名稱，或確實會反覆使用且能用一句白話
+  定義的概念。其他情況用普通中文說清楚，不替它命名。
 
 ## 文件完成前
 

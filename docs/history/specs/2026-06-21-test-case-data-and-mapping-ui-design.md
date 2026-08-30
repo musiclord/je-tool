@@ -18,14 +18,14 @@
 
 ## 背景與現況(實證自原始碼)
 
-- 配對介面切換在 [mapping-step.js](../../../../../src/JET/JET/wwwroot/js/steps/mapping-step.js) 的 `uiModeToggleHtml`,內部值 `classic` / `grid`,顯示字串為「經典三欄表 / 二維配對表」。
+- 配對介面切換在 [mapping-step.js](../../../src/JET/JET/wwwroot/js/steps/mapping-step.js) 的 `uiModeToggleHtml`,內部值 `classic` / `grid`,顯示字串為「經典三欄表 / 二維配對表」。
 - 已提交摘要卡在同檔 `summarySection`,以 `mapping-summary__pill` 列出「欄位 ↔ 來源欄名」,不顯示資料、不呈二維表。
-- demo 假資料工廠在 [DemoDataFactory.cs](../../../../../src/JET/JET/Application/Support/DemoDataFactory.cs):`GlRowCount = 2_000`(**明細列**,非傳票;約 500 張傳票)、`TbAccountCount = 100`;以固定 LCG 確定性生成,埋有部分規則種子。
-- demo 透過與使用者相同的 file-based 匯入管線落地([DemoWorkbookWriter.cs](../../../../../src/JET/JET/Infrastructure/Export/DemoWorkbookWriter.cs) 寫 xlsx → `import.*.fromFile` 讀入);測試共用管線見 [DemoProjectPipeline.cs](../../../../../src/JET/tests/JET.Tests/Application/DemoProjectPipeline.cs)。
+- demo 假資料工廠在 [DemoDataFactory.cs](../../../src/JET/JET/Application/Support/DemoDataFactory.cs):`GlRowCount = 2_000`(**明細列**,非傳票;約 500 張傳票)、`TbAccountCount = 100`;以固定 LCG 確定性生成,埋有部分規則種子。
+- demo 透過與使用者相同的 file-based 匯入管線落地([DemoWorkbookWriter.cs](../../../src/JET/JET/Infrastructure/Export/DemoWorkbookWriter.cs) 寫 xlsx → `import.*.fromFile` 讀入);測試共用管線見 [DemoProjectPipeline.cs](../../../src/JET/tests/JET.Tests/Application/DemoProjectPipeline.cs)。
 
 ### 現況 oracle 缺口(本設計要修)
 
-逐條核對 [RuleCatalog.cs](../../../../../src/JET/JET/AuditCore/RuleCatalog.cs)、[GlRulePredicates.cs](../../../../../src/JET/JET/AuditCore/GlRulePredicates.cs)、[PrescreenRunHandler.cs](../../../../../src/JET/JET/Application/Handlers/PrescreenRunHandler.cs) 後確認:
+逐條核對 [RuleCatalog.cs](../../../src/JET/JET/AuditCore/RuleCatalog.cs)、[GlRulePredicates.cs](../../../src/JET/JET/AuditCore/GlRulePredicates.cs)、[PrescreenRunHandler.cs](../../../src/JET/JET/Application/Handlers/PrescreenRunHandler.cs) 後確認:
 
 1. **規則綠燈條件是「命中數 > 0」**(`StatusOf`:count > 0 → `V`,否則 `na`)。要讓每條規則在 demo 都亮綠,demo 必須對每條都產生 **> 0 且已知** 的命中。
 2. **trailingZeros 種子是錯的**:prescreen 固定門檻 6(`TrailingZeroThreshold.DefaultZerosThreshold = 6`),即「金額為 1,000,000 的整數倍」(`amount_scaled % 10^10 = 0`,moneyScale 10⁴)。現有種子金額 `500,000` 只有 5 個尾零,**不會命中**。
@@ -220,10 +220,10 @@ oracle 測試即斷言「實跑命中數 == 文件化常數」。
 - `IDemoFileWriter` 新增 `WriteAuthorizedPreparerAsync`;`DemoWorkbookWriter` 實作(ClosedXML,單欄姓名);四種檔案寫出以 process 靜態 `Lazy` 記憶化(維持 ClosedXML,見 C.5)。
 - 新增 `DemoExportAuthorizedPreparerFileHandler`;`AppCompositionRoot` 註冊;`jet-api.js` `SUPPORTED_ACTIONS` 加入。
 
-**前端 mock 流程**([import-step.js](../../../../../src/JET/JET/wwwroot/js/steps/import-step.js) `mockImportData`)**:
+**前端 mock 流程**([import-step.js](../../../src/JET/JET/wwwroot/js/steps/import-step.js) `mockImportData`)**:
 - 在科目配對之後加一段:`demo.exportAuthorizedPreparerFile` → `import.authorizedPreparer.fromFile` → `Store.setAuthorizedPreparerState(...)`;完成訊息補上「授權編製人員 N 位」。
 
-**測試管線**([DemoProjectPipeline.cs](../../../../../src/JET/tests/JET.Tests/Application/DemoProjectPipeline.cs) `SetupAsync`)**:
+**測試管線**([DemoProjectPipeline.cs](../../../src/JET/tests/JET.Tests/Application/DemoProjectPipeline.cs) `SetupAsync`)**:
 - 新增可選旗標 `importAccountMapping`(預設 true)、`importAuthorizedPreparer`(預設 true),匯入科目配對與授權名單,使完整 oracle 可被斷言。預設改為「完整匯入」以涵蓋 R3/R10;既有測試若依賴「無科目配對 → unexpectedAccountPair=na」須改用旗標關閉(plan 逐一處理)。
 
 ## 測試策略(每一處都要有測試角度)
