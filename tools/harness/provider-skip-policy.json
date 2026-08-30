@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "capabilityGroups": [
+    {
+      "name": "LocalDbExpress",
+      "uniformOutcome": true,
+      "skipReason": {
+        "normalization": "trimCollapseWhitespaceV1",
+        "normalizedSha256": "746B4B5DA3201A8DF04463650B692D369C843D0F3825C8A4DE9A6A8962A55CE0"
+      },
+      "members": [
+        "JET.Tests.Infrastructure.SqlServerExpressPhaseOutTests.EnsureCreated_OnExpressEngine_ThrowsUnsupported"
+      ]
+    }
+  ]
+}

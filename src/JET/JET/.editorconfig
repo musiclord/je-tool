@@ -1,0 +1,13 @@
+# JET 主專案設定（作用於 src/JET/JET 及其子資料夾——涵蓋 Application、Domain、Infrastructure、Bridge 四層）。
+#
+# 四層依 jet-guide.md §14 把檔案分進子資料夾（Application：Ports/Contracts/Support/Handlers；
+# Domain：Abstractions/Contracts/Rules/Primitives；Infrastructure：Persistence/{Sqlite,SqlServer,Routing}、
+# Sql/FileIO/Export/Diagnostics），但**刻意維持單層 namespace（JET.Application、JET.Domain、JET.Infrastructure）**
+# ——資料夾只做人為分類、不驅動 namespace，符合 §14「資料夾結構不強制 Clean Core」。
+#
+# 因此關閉「namespace 需與資料夾結構相符」的分析建議（IDE0130），避免 Visual Studio 對子資料夾內的
+# 檔案顯示誤導性提示。此設定不改變任何編譯行為（IDE0130 預設僅為建議級、不進 build 警告），
+# 只是把「分資料夾但不分 namespace」這個決定寫成白紙黑字，一次涵蓋四層。
+[*.cs]
+dotnet_style_namespace_match_folder = false
+dotnet_diagnostic.IDE0130.severity = none

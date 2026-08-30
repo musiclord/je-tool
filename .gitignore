@@ -1,0 +1,90 @@
+# ===== IDE and operating-system files =====
+.vs/
+.vshistory/
+.idea/
+*.user
+*.rsuser
+*.userosscache
+*.suo
+*.sln.docstates
+*.DotSettings.user
+.DS_Store
+Thumbs.db
+
+# Keep shared VS Code settings, ignore other local state.
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Local agent settings and logs are machine-specific.
+.claude/settings.local.json
+.claude/backups/
+CLAUDE.local.md
+.codex-log/
+
+# ===== .NET outputs =====
+[Bb]in/
+[Oo]bj/
+publish/
+out/
+artifacts/
+TestResults/
+*.binlog
+*.trx
+*.coverage
+*.coveragexml
+x64/
+x86/
+*.log
+
+# ===== NuGet and local CLI caches =====
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+.dotnet/
+
+# ===== JET runtime data =====
+projects/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+EBWebView/
+*.WebView2/
+
+# ===== Legacy application artifacts =====
+*.frx
+*.accdb
+
+# Agent transcripts and raw execution dumps are not project documentation.
+docs/specs/*-execution-details.md
+
+# ===== Secrets and local configuration =====
+*.env
+.env.*
+!.env.example
+!.env.template
+appsettings.Development.json
+
+# Optional mutation-test output.
+StrykerOutput/
+
+# ===== Private case data =====
+# Reviewed reference workbooks may live directly under data/. Generic JE, GL,
+# and TB source names remain blocked because they were previously used for
+# real-case fixtures. Add a reviewed synthetic fixture under a descriptive name.
+/data/JE.*
+/data/GL.*
+/data/TB.*
+/data/private/
+/data/real-case/
+/data/customer-data/
+
+# Keep these as the final effective rules so later negation rules cannot bring
+# any private workspace back into Git.
+/data/temporary-test-case/
+/data/legacy-parity-work/
+/data/test-case/

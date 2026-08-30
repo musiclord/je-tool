@@ -1,0 +1,18 @@
+{
+  "stryker-config": {
+    "project": "JET.csproj",
+    "configuration": "Release",
+    "test-runner": "mtp",
+    "concurrency": 1,
+    "mutation-level": "Basic",
+    "mutate": [
+      "**/Domain/Primitives/TabularHeaderNormalizer.cs",
+      "**/Domain/Primitives/MoneyScaling.cs",
+      "**/Domain/Rules/TypedFieldConditions.cs",
+      "**/AuditCore/FilterCompilation.cs"
+    ],
+    "coverage-analysis": "perTest",
+    "reporters": ["json", "cleartext"],
+    "thresholds": { "break": 0 }
+  }
+}

@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "runnerContractVersion": "8.0",
+  "limits": {
+    "defaultTimeoutSeconds": 1800,
+    "maximumTimeoutSeconds": 3600,
+    "maximumWaitSeconds": 3600,
+    "maximumCapturedBytesPerStream": 262144
+  },
+  "testSettings": {
+    "project": "src/JET/tests/JET.Tests/JET.Tests.csproj",
+    "targetFramework": "net10.0-windows",
+    "seed": 20260828,
+    "publicMinimumExpectedTests": 3000,
+    "publicSkipPolicy": "public-skip-policy.json",
+    "providerConnectionEnvironmentVariable": "JET_SQLSERVER_CONNECTION",
+    "providerLocalMinimumExpectedTests": 20,
+    "providerSqlMinimumExpectedTests": 259,
+    "providerLocalDbMinimumExpectedTests": 1,
+    "providerLocalParityMethodPatterns": [
+      "*ProviderParity*"
+    ],
+    "providerSqlTraits": [
+      "Capability=SqlServer"
+    ],
+    "providerLocalDbTraits": [
+      "Capability=LocalDbExpress"
+    ],
+    "providerSkipPolicy": "provider-skip-policy.json",
+    "privateCaseMinimumExpectedTests": 2,
+    "privateCaseRootEnvironmentVariable": "JET_PRIVATE_CASE_ROOT",
+    "privateCaseManifestEnvironmentVariable": "JET_PRIVATE_CASE_MANIFEST",
+    "privateCaseProviderEnvironmentVariable": "JET_PRIVATE_CASE_PROVIDER",
+    "packageMinimumExpectedTests": 70,
+    "packageMethodPatterns": [
+      "*AccountMappingTemplatePackageDiffTests*",
+      "*InfDirectTemplatePackageTests*",
+      "*PrescreenDirectTemplatePackageTests*",
+      "*ValidationDirectTemplatePackageTests*",
+      "*WorkpaperDirectTemplatePackageTests*",
+      "*ReportArtifactExportTests*",
+      "*ReportArtifactOpenXmlParityTests*",
+      "*SixReportWorkflowJourneyTests*",
+      "*EmbeddedReportTemplateFailureTests*"
+    ],
+    "excludedProfiles": [
+      "PrivateCase",
+      "Provider",
+      "Scale"
+    ],
+    "protectedWorkspaceMethodPatterns": [],
+    "focusedGuardNamespaces": [
+      "JET.Tests.Architecture"
+    ],
+    "environmentVariablesToRemove": [
+      "JET_ACCOUNT_MAPPING_EVIDENCE_PATH",
+      "JET_AGENT_GUI_CHILD",
+      "JET_AGENT_GUI_ROOT",
+      "JET_LEGACY_PARITY_KEEP_OUTPUTS",
+      "JET_LEGACY_PARITY_PROVIDER",
+      "JET_LEGACY_PARITY_STOP_AFTER",
+      "JET_PRESCREEN_MONTHLY_BENCHMARK",
+      "JET_PRESCREEN_MONTHLY_BENCHMARK_OUTPUT",
+      "JET_PRIVATE_CASE_MANIFEST",
+      "JET_PRIVATE_CASE_PROVIDER",
+      "JET_PRIVATE_CASE_ROOT",
+      "JET_PROJECTS_ROOT",
+      "JET_SIX_REPORT_EVIDENCE_DIR",
+      "JET_SQLSERVER_CONNECTION",
+      "JET_STEP41_BASELINE_ROOT",
+      "JET_STEP41_PARITY_EVIDENCE_ROOT",
+      "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+      "WEBVIEW2_USER_DATA_FOLDER"
+    ],
+    "providerEnvironmentVariablesToRemove": [
+      "JET_ACCOUNT_MAPPING_EVIDENCE_PATH",
+      "JET_AGENT_GUI_CHILD",
+      "JET_AGENT_GUI_ROOT",
+      "JET_LEGACY_PARITY_KEEP_OUTPUTS",
+      "JET_LEGACY_PARITY_PROVIDER",
+      "JET_LEGACY_PARITY_STOP_AFTER",
+      "JET_PRESCREEN_MONTHLY_BENCHMARK",
+      "JET_PRESCREEN_MONTHLY_BENCHMARK_OUTPUT",
+      "JET_PRIVATE_CASE_MANIFEST",
+      "JET_PRIVATE_CASE_PROVIDER",
+      "JET_PRIVATE_CASE_ROOT",
+      "JET_PROJECTS_ROOT",
+      "JET_SIX_REPORT_EVIDENCE_DIR",
+      "JET_STEP41_BASELINE_ROOT",
+      "JET_STEP41_PARITY_EVIDENCE_ROOT",
+      "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+      "WEBVIEW2_USER_DATA_FOLDER"
+    ]
+  },
+  "packageSettings": {
+    "project": "src/JET/JET/JET.csproj",
+    "sourceRoot": "src/JET/JET",
+    "publishProfile": "FolderProfile",
+    "runtimeIdentifier": "win-x64",
+    "verifier": "tools/harness/JetPackageVerifier.ps1",
+    "templateRelativePaths": [
+      "Templates/AccountMapping.xlsx",
+      "Templates/CriteriaSelectionReport.xlsx",
+      "Templates/INFReport.xlsx",
+      "Templates/PrescreeningReport.xlsx",
+      "Templates/ValidationReport.xlsx",
+      "Templates/WorkingPaper.xlsx",
+      "Templates/Holiday2025TW.xlsx",
+      "Templates/MakeUpDay2025TW.xlsx"
+    ]
+  },
+  "guiSettings": {
+    "applicationProject": "src/JET/JET/JET.csproj",
+    "applicationExecutable": "src/JET/JET/bin/AgentGuiTest/net10.0-windows/JET.exe",
+    "driverProject": "tools/harness/gui-driver/GuiDriver.csproj",
+    "driverAssembly": "tools/harness/gui-driver/bin/Release/net10.0-windows/Jet.GuiDriver.dll",
+    "configuration": "AgentGuiTest",
+    "scenarios": [
+      {
+        "name": "startup-smoke",
+        "timeoutSeconds": 120,
+        "actionBudget": 4,
+        "expectedActionCount": 1,
+        "screenshotBudget": 0
+      },
+      {
+        "name": "synthetic-sqlite-create",
+        "timeoutSeconds": 150,
+        "actionBudget": 16,
+        "expectedActionCount": 15,
+        "screenshotBudget": 0
+      }
+    ]
+  },
+  "excelSettings": {
+    "driverProject": "tools/harness/excel-driver/ExcelDriver.csproj",
+    "driverAssembly": "tools/harness/excel-driver/bin/Release/net10.0-windows/Jet.ExcelDriver.dll",
+    "configuration": "Release",
+    "fixtureMethodPattern": "*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationRun_AndPublishesSixCurrentArtifacts*",
+    "fixtureEnvironmentVariable": "JET_SIX_REPORT_EVIDENCE_DIR",
+    "scenario": "synthetic-report-roundtrip",
+    "timeoutSeconds": 180,
+    "reportKinds": [
+      "accountMapping",
+      "criteriaSelectionReport",
+      "infReport",
+      "prescreenReport",
+      "validationReport",
+      "workingPaper"
+    ]
+  },
+  "documentationSettings": {
+    "verifier": "tools/harness/JetDocumentationCheck.ps1",
+    "policy": "tools/harness/documentation-check.json"
+  },
+  "releaseCandidateSettings": {
+    "candidateManifest": "docs/first-root-commit-candidate.txt",
+    "snapshotWorkspaceRoot": "artifacts/harness/rc",
+    "privateCaseIncluded": false,
+    "liveProviderIncluded": false,
+    "steps": [
+      {
+        "name": "contract",
+        "command": "Contract",
+        "configuration": "Release",
+        "noRestore": false
+      },
+      {
+        "name": "documentation",
+        "command": "Documentation",
+        "configuration": "Release",
+        "noRestore": false
+      },
+      {
+        "name": "public",
+        "command": "Public",
+        "configuration": "Release",
+        "noRestore": false
+      },
+      {
+        "name": "package",
+        "command": "Package",
+        "configuration": "Release",
+        "noRestore": true
+      },
+      {
+        "name": "gui",
+        "command": "Gui",
+        "configuration": "AgentGuiTest",
+        "noRestore": false
+      },
+      {
+        "name": "excel",
+        "command": "Excel",
+        "configuration": "Release",
+        "noRestore": false
+      }
+    ]
+  },
+  "configurations": [
+    "Debug",
+    "Release",
+    "AgentGuiTest"
+  ],
+  "contractScenarios": [
+    "Normal",
+    "ChildFailure",
+    "Timeout",
+    "OutputLimit",
+    "NuGetUnavailable",
+    "HoldLock",
+    "ReceiptFailure",
+    "SensitiveOutput",
+    "ReadOnlyCleanup",
+    "CleanupFailure"
+  ],
+  "commands": {
+    "Contract": {
+      "lane": "Foundation",
+      "enabled": true,
+      "requiresExclusiveLock": true,
+      "privateDataAccess": false
+    },
+    "Restore": {
+      "lane": "Foundation",
+      "enabled": true,
+      "requiresExclusiveLock": false,
+      "privateDataAccess": false
+    },
+    "Build": {
+      "lane": "Foundation",
+      "enabled": true,
+      "requiresExclusiveLock": false,
+      "privateDataAccess": false
+    },
+    "Documentation": {
+      "lane": "Foundation",
+      "enabled": true,
+      "requiresExclusiveLock": false,
+      "privateDataAccess": false
+    },
+    "Focused": {
+      "lane": "Focused",
+      "enabled": true,
+      "requiresExclusiveLock": true,
+      "privateDataAccess": false
+    },
+    "Public": {
+      "lane": "Public",
+      "enabled": true,
+      "requiresExclusiveLock": true,
+      "privateDataAccess": false
+    },
+    "Provider": {
+      "lane": "Provider",
+      "enabled": true,
+      "requiresExclusiveLock": true,
+      "privateDataAccess": false
+    },
+    "Package": {
+      "lane": "Package",
+      "enabled": true,
+      "requiresExclusiveLock": true,
+      "privateDataAccess": false
+    },
+    "Gui": {
+      "lane": "Gui",
+      "enabled": true,
+      "requiresExclusiveLock": true,
+      "privateDataAccess": false
+    },
+    "Excel": {
+      "lane": "Excel",
+      "enabled": true,
+      "requiresExclusiveLock": true,
+      "privateDataAccess": false
+    },
+    "PrivateCase": {
+      "lane": "PrivateCase",
+      "enabled": true,
+      "requiresExclusiveLock": true,
+      "privateDataAccess": true
+    },
+    "ReleaseCandidate": {
+      "lane": "ReleaseCandidate",
+      "enabled": true,
+      "requiresExclusiveLock": true,
+      "privateDataAccess": false
+    }
+  },
+  "lanes": {
+    "Foundation": {
+      "stage": 1,
+      "enabled": true,
+      "privateDataAccess": false
+    },
+    "Focused": {
+      "stage": 2,
+      "enabled": true,
+      "privateDataAccess": false
+    },
+    "Public": {
+      "stage": 2,
+      "enabled": true,
+      "privateDataAccess": false
+    },
+    "Provider": {
+      "stage": 3,
+      "enabled": true,
+      "privateDataAccess": false
+    },
+    "Package": {
+      "stage": 3,
+      "enabled": true,
+      "privateDataAccess": false
+    },
+    "Gui": {
+      "stage": 4,
+      "enabled": true,
+      "privateDataAccess": false
+    },
+    "Excel": {
+      "stage": 5,
+      "enabled": true,
+      "privateDataAccess": false
+    },
+    "PrivateCase": {
+      "stage": 6,
+      "enabled": true,
+      "privateDataAccess": true
+    },
+    "ReleaseCandidate": {
+      "stage": 7,
+      "enabled": true,
+      "privateDataAccess": false
+    }
+  }
+}

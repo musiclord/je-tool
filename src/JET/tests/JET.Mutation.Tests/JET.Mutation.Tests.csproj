@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>JET.Tests</AssemblyName>
+    <RootNamespace>JET.Tests</RootNamespace>
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+    <EnableWindowsTargeting Condition="'$(OS)' != 'Windows_NT'">true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FsCheck.Xunit.v3" Version="3.3.4" />
+    <PackageReference Include="Microsoft.Testing.Platform" Version="2.3.2" />
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" Version="2.3.2" />
+    <PackageReference Include="xunit.v3.mtp-v2" Version="3.2.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\JET\JET.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Mutation 的 initial discovery 只看這六個既有 pure-rule tests；不複製 oracle。 -->
+    <Compile Include="..\JET.Tests\Domain\TabularHeaderNormalizerTests.cs"
+             Link="Domain\TabularHeaderNormalizerTests.cs" />
+    <Compile Include="..\JET.Tests\Domain\MoneyScalingTests.cs"
+             Link="Domain\MoneyScalingTests.cs" />
+    <Compile Include="..\JET.Tests\AuditCore\TypedFieldCompilationTests.cs"
+             Link="AuditCore\TypedFieldCompilationTests.cs" />
+    <Compile Include="..\JET.Tests\AuditCore\FilterCompilationTests.cs"
+             Link="AuditCore\FilterCompilationTests.cs" />
+    <Compile Include="..\JET.Tests\AuditCore\AdvancedFilterAstCompilationTests.cs"
+             Link="AuditCore\AdvancedFilterAstCompilationTests.cs" />
+    <Compile Include="..\JET.Tests\AuditCore\AccountPairCategorySelectionCompilationTests.cs"
+             Link="AuditCore\AccountPairCategorySelectionCompilationTests.cs" />
+  </ItemGroup>
+
+</Project>

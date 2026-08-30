@@ -1,0 +1,1179 @@
+{
+  "schemaVersion": 2,
+  "signatures": [
+    {
+      "id": 1,
+      "properties": [
+        {
+          "property": "numberFormat.code",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "properties": [
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "properties": [
+        {
+          "property": "numberFormat.code",
+          "value": "0.00"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "properties": [
+        {
+          "property": "numberFormat.code",
+          "value": "mm-dd-yy"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "properties": [
+        {
+          "property": "alignment.vertical",
+          "value": "top"
+        },
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "border.bottom.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.bottom.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.left.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.left.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.right.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.right.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.top.style",
+          "value": "thin"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "properties": [
+        {
+          "property": "alignment.vertical",
+          "value": "top"
+        },
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "border.bottom.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.bottom.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.left.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.left.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.right.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.right.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.top.style",
+          "value": "thin"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "properties": [
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.bold",
+          "value": "true"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        },
+        {
+          "property": "font.size",
+          "value": "18"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "properties": [
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "font.bold",
+          "value": "true"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "properties": [
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "properties": [
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "#,##0"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "properties": [
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "left"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "#,##0"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "right"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "border.bottom.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.bottom.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.left.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.left.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.right.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.right.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.top.style",
+          "value": "thin"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "center"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF4472C4"
+        },
+        {
+          "property": "border.top.style",
+          "value": "thin"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.bold",
+          "value": "true"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "center"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.bold",
+          "value": "true"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "center"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "border.left.colorArgb",
+          "value": "FF4472C4"
+        },
+        {
+          "property": "border.left.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF4472C4"
+        },
+        {
+          "property": "border.top.style",
+          "value": "thin"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.bold",
+          "value": "true"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "center"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "border.bottom.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.bottom.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.left.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.left.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.right.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.right.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.top.style",
+          "value": "thin"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "signatureId": 1,
+      "ranges": [
+        "R1!B1:B200",
+        "R2!B1:B200",
+        "R3!B1:B11",
+        "R4!B1:B200",
+        "R5!B1:B9",
+        "R6!C1:C200",
+        "R7!H1:H200"
+      ]
+    },
+    {
+      "signatureId": 2,
+      "ranges": [
+        "R1!A1:A200",
+        "R1!E1:G200",
+        "R1!I1:I200",
+        "R2!A1:A200",
+        "R2!E1:G200",
+        "R2!I1:I200",
+        "R3!A1:A11",
+        "R3!E1:G11",
+        "R3!I1:I11",
+        "R4!A1:A200",
+        "R4!E1:G200",
+        "R4!I1:I200",
+        "R5!A1:A9",
+        "R6!A1:B200",
+        "R7!B1:C200",
+        "R7!E1:G200"
+      ]
+    },
+    {
+      "signatureId": 3,
+      "ranges": [
+        "R1!H1:H200",
+        "R2!H1:H200",
+        "R3!H1:H11",
+        "R4!H1:H200",
+        "R5!C1:D9",
+        "R6!D1:E200",
+        "R7!I1:I200"
+      ]
+    },
+    {
+      "signatureId": 4,
+      "ranges": [
+        "R1!C1:D200",
+        "R2!C1:D200",
+        "R3!C1:D11",
+        "R4!C1:D200",
+        "R7!A1:A200",
+        "R7!D1:D200"
+      ]
+    },
+    {
+      "signatureId": 5,
+      "ranges": [
+        "Pre-screening_Report!C9"
+      ]
+    },
+    {
+      "signatureId": 6,
+      "ranges": [
+        "Pre-screening_Report!B10:D14",
+        "Pre-screening_Report!B8:D8",
+        "Pre-screening_Report!B9",
+        "Pre-screening_Report!D9"
+      ]
+    },
+    {
+      "signatureId": 7,
+      "ranges": [
+        "Pre-screening_Report!B1:C1"
+      ]
+    },
+    {
+      "signatureId": 8,
+      "ranges": [
+        "Pre-screening_Report!B2:D5",
+        "Pre-screening_Report!D1"
+      ]
+    },
+    {
+      "signatureId": 9,
+      "ranges": [
+        "Pre-screening_Report!B6"
+      ]
+    },
+    {
+      "signatureId": 10,
+      "ranges": [
+        "Pre-screening_Report!D6:F6"
+      ]
+    },
+    {
+      "signatureId": 11,
+      "ranges": [
+        "Pre-screening_Report!A1:A5"
+      ]
+    },
+    {
+      "signatureId": 12,
+      "ranges": [
+        "Pre-screening_Report!E1:F5"
+      ]
+    },
+    {
+      "signatureId": 13,
+      "ranges": [
+        "Pre-screening_Report!E8:F14"
+      ]
+    },
+    {
+      "signatureId": 14,
+      "ranges": [
+        "Pre-screening_Report!B7:D7"
+      ]
+    },
+    {
+      "signatureId": 15,
+      "ranges": [
+        "Pre-screening_Report!E7:F7"
+      ]
+    },
+    {
+      "signatureId": 16,
+      "ranges": [
+        "Pre-screening_Report!A7"
+      ]
+    },
+    {
+      "signatureId": 17,
+      "ranges": [
+        "Pre-screening_Report!A8:A14"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "location": "$workbook",
+      "property": "default.font.name",
+      "value": "Arial"
+    },
+    {
+      "location": "$workbook",
+      "property": "default.font.size",
+      "value": "10"
+    },
+    {
+      "location": "Pre-screening_Report!cellStream",
+      "property": "cellCount",
+      "value": "82"
+    },
+    {
+      "location": "Pre-screening_Report!cellStream",
+      "property": "sha256",
+      "value": "C8B9374D227B48BEBBB2213AD68EAADF2A310CF29FECD015B74CA1C71F4C0514"
+    },
+    {
+      "location": "Pre-screening_Report!column:1-1",
+      "property": "style.font.name",
+      "value": "微軟正黑體"
+    },
+    {
+      "location": "Pre-screening_Report!column:1-1",
+      "property": "width",
+      "value": "13.54296875"
+    },
+    {
+      "location": "Pre-screening_Report!column:2-2",
+      "property": "style.font.name",
+      "value": "微軟正黑體"
+    },
+    {
+      "location": "Pre-screening_Report!column:2-2",
+      "property": "width",
+      "value": "71.1796875"
+    },
+    {
+      "location": "Pre-screening_Report!column:3-3",
+      "property": "style.alignment.wrapText",
+      "value": "true"
+    },
+    {
+      "location": "Pre-screening_Report!column:3-3",
+      "property": "style.font.name",
+      "value": "微軟正黑體"
+    },
+    {
+      "location": "Pre-screening_Report!column:3-3",
+      "property": "width",
+      "value": "40.1796875"
+    },
+    {
+      "location": "Pre-screening_Report!column:34-16384",
+      "property": "style.font.name",
+      "value": "微軟正黑體"
+    },
+    {
+      "location": "Pre-screening_Report!column:4-4",
+      "property": "style.font.name",
+      "value": "微軟正黑體"
+    },
+    {
+      "location": "Pre-screening_Report!column:4-4",
+      "property": "width",
+      "value": "47.453125"
+    },
+    {
+      "location": "Pre-screening_Report!column:5-5",
+      "property": "style.font.name",
+      "value": "微軟正黑體"
+    },
+    {
+      "location": "Pre-screening_Report!column:5-5",
+      "property": "width",
+      "value": "22.1796875"
+    },
+    {
+      "location": "Pre-screening_Report!column:6-6",
+      "property": "style.font.name",
+      "value": "微軟正黑體"
+    },
+    {
+      "location": "Pre-screening_Report!column:6-6",
+      "property": "width",
+      "value": "20.54296875"
+    },
+    {
+      "location": "Pre-screening_Report!column:7-33",
+      "property": "style.font.name",
+      "value": "微軟正黑體"
+    },
+    {
+      "location": "Pre-screening_Report!column:7-33",
+      "property": "width",
+      "value": "9.1796875"
+    },
+    {
+      "location": "Pre-screening_Report!merge:A1:A5",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "Pre-screening_Report!merge:B1:D5",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "Pre-screening_Report!merge:E1:F1",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "Pre-screening_Report!merge:E2:F2",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "Pre-screening_Report!merge:E3:F3",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "Pre-screening_Report!merge:E4:F4",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "Pre-screening_Report!merge:E5:F5",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "Pre-screening_Report!pageSetup",
+      "property": "horizontalDpi",
+      "value": "300"
+    },
+    {
+      "location": "Pre-screening_Report!pageSetup",
+      "property": "orientation",
+      "value": "portrait"
+    },
+    {
+      "location": "Pre-screening_Report!pageSetup",
+      "property": "paperSize",
+      "value": "9"
+    },
+    {
+      "location": "Pre-screening_Report!pageSetup",
+      "property": "verticalDpi",
+      "value": "300"
+    },
+    {
+      "location": "Pre-screening_Report!row:10",
+      "property": "height",
+      "value": "38.15"
+    },
+    {
+      "location": "Pre-screening_Report!row:8",
+      "property": "height",
+      "value": "26"
+    },
+    {
+      "location": "Pre-screening_Report!row:9",
+      "property": "height",
+      "value": "62.5"
+    },
+    {
+      "location": "Pre-screening_Report!sheetFormat",
+      "property": "defaultColumnWidth",
+      "value": "8.7265625"
+    },
+    {
+      "location": "Pre-screening_Report!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "13"
+    },
+    {
+      "location": "Pre-screening_Report!sheetView:1",
+      "property": "zoomScale",
+      "value": "90"
+    },
+    {
+      "location": "R1!cellStream",
+      "property": "cellCount",
+      "value": "66033"
+    },
+    {
+      "location": "R1!cellStream",
+      "property": "sha256",
+      "value": "D75C66922CFA251D5828C50C89EAE4EBCED0741F35FB02C4BF39EE79C5009010"
+    },
+    {
+      "location": "R1!column:1-1",
+      "property": "width",
+      "value": "17.453125"
+    },
+    {
+      "location": "R1!column:2-2",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "R1!column:3-3",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "R1!column:4-4",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "R1!column:5-6",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "R1!column:7-7",
+      "property": "width",
+      "value": "52.26953125"
+    },
+    {
+      "location": "R1!column:8-8",
+      "property": "width",
+      "value": "12.6328125"
+    },
+    {
+      "location": "R1!column:9-9",
+      "property": "width",
+      "value": "147.81640625"
+    },
+    {
+      "location": "R1!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "R2!cellStream",
+      "property": "cellCount",
+      "value": "10188"
+    },
+    {
+      "location": "R2!cellStream",
+      "property": "sha256",
+      "value": "9060B3AE2F56510DB9C5CE0D608CAFFCF96F3F3A74B096CE2FB9887ED953EC5F"
+    },
+    {
+      "location": "R2!column:1-1",
+      "property": "width",
+      "value": "17.453125"
+    },
+    {
+      "location": "R2!column:2-2",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "R2!column:3-3",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "R2!column:4-4",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "R2!column:5-6",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "R2!column:7-7",
+      "property": "width",
+      "value": "52.26953125"
+    },
+    {
+      "location": "R2!column:8-8",
+      "property": "width",
+      "value": "12.6328125"
+    },
+    {
+      "location": "R2!column:9-9",
+      "property": "width",
+      "value": "166.26953125"
+    },
+    {
+      "location": "R2!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "R3!cellStream",
+      "property": "cellCount",
+      "value": "99"
+    },
+    {
+      "location": "R3!cellStream",
+      "property": "sha256",
+      "value": "5A1073F64481253AA80E1FCC9E0F3D2AE3350BD4BF2D9B261082EECE6CF8AC8B"
+    },
+    {
+      "location": "R3!column:1-1",
+      "property": "width",
+      "value": "17.453125"
+    },
+    {
+      "location": "R3!column:2-2",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "R3!column:3-3",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "R3!column:4-4",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "R3!column:5-7",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "R3!column:8-8",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "R3!column:9-9",
+      "property": "width",
+      "value": "48.08984375"
+    },
+    {
+      "location": "R3!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "R4!cellStream",
+      "property": "cellCount",
+      "value": "26298"
+    },
+    {
+      "location": "R4!cellStream",
+      "property": "sha256",
+      "value": "53FEFF5E6BA84BA673153CA255C791AB2550D89AA7A854EC4959B00C7237FBC0"
+    },
+    {
+      "location": "R4!column:1-1",
+      "property": "width",
+      "value": "17.453125"
+    },
+    {
+      "location": "R4!column:2-2",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "R4!column:3-3",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "R4!column:4-4",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "R4!column:5-6",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "R4!column:7-7",
+      "property": "width",
+      "value": "37.1796875"
+    },
+    {
+      "location": "R4!column:8-8",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "R4!column:9-9",
+      "property": "width",
+      "value": "255.6328125"
+    },
+    {
+      "location": "R4!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "R5!cellStream",
+      "property": "cellCount",
+      "value": "36"
+    },
+    {
+      "location": "R5!cellStream",
+      "property": "sha256",
+      "value": "E787C43F5435E605D4CA03AF442D314A92710CDC9AD05EB593B78E055DCC1B0F"
+    },
+    {
+      "location": "R5!column:1-1",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "R5!column:2-2",
+      "property": "width",
+      "value": "13.6328125"
+    },
+    {
+      "location": "R5!column:3-3",
+      "property": "width",
+      "value": "26.08984375"
+    },
+    {
+      "location": "R5!column:4-4",
+      "property": "width",
+      "value": "27.54296875"
+    },
+    {
+      "location": "R5!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "R6!cellStream",
+      "property": "cellCount",
+      "value": "1540"
+    },
+    {
+      "location": "R6!cellStream",
+      "property": "sha256",
+      "value": "AC70EE90B865DF94EFFA30F30B4A7968FA8922CC2312EA355F5E673B331D3EB9"
+    },
+    {
+      "location": "R6!column:1-1",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "R6!column:2-2",
+      "property": "width",
+      "value": "52.26953125"
+    },
+    {
+      "location": "R6!column:3-3",
+      "property": "width",
+      "value": "13.6328125"
+    },
+    {
+      "location": "R6!column:4-4",
+      "property": "width",
+      "value": "26.08984375"
+    },
+    {
+      "location": "R6!column:5-5",
+      "property": "width",
+      "value": "27.54296875"
+    },
+    {
+      "location": "R6!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "R7!cellStream",
+      "property": "cellCount",
+      "value": "2970"
+    },
+    {
+      "location": "R7!cellStream",
+      "property": "sha256",
+      "value": "611CAD1373E3C49F7F2C3A8CA24A117C434D1E28FEA42FE1D677D6B86C92FAF7"
+    },
+    {
+      "location": "R7!column:1-1",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "R7!column:2-2",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "R7!column:3-3",
+      "property": "width",
+      "value": "17.453125"
+    },
+    {
+      "location": "R7!column:4-4",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "R7!column:5-5",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "R7!column:6-6",
+      "property": "width",
+      "value": "18.26953125"
+    },
+    {
+      "location": "R7!column:7-7",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "R7!column:8-8",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "R7!column:9-9",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "R7!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    }
+  ]
+}

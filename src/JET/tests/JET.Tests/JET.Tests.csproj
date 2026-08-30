@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- xUnit1051 newly flags ~1,000 intentional CancellationToken.None calls which are test inputs
+         (including cancellation semantics); keep other analyzer warnings active and gate them. -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+    <Configurations>Debug;Release;AgentGuiTest</Configurations>
+    <EnableWindowsTargeting Condition="'$(OS)' != 'Windows_NT'">true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'AgentGuiTest'">
+    <DefineConstants>$(DefineConstants);JET_AGENT_GUI_TEST</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FsCheck.Xunit.v3" Version="3.3.4" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.9.0" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CrashDump" Version="2.3.2" />
+    <PackageReference Include="Microsoft.Testing.Extensions.HangDump" Version="2.3.2" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.3.2" />
+    <PackageReference Include="Microsoft.Testing.Platform" Version="2.3.2" />
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" Version="2.3.2" />
+    <!-- 架構依賴方向的機器守衛（LayerDependencyTests）：以 IL 掃描層級 namespace 之間的依賴，
+         把「Application 不得依賴 Infrastructure」等 AGENTS.md 鐵律從人工審查升級為 CI 可擋。 -->
+    <PackageReference Include="NetArchTest.Rules" Version="1.3.2" />
+    <PackageReference Include="xunit.v3.mtp-v2" Version="3.2.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\JET\JET.csproj" />
+  </ItemGroup>
+
+</Project>

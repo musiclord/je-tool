@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 2,
+  "files": [
+    ".github/copilot-instructions.md",
+    "AGENTS.md",
+    "README.md",
+    "CLAUDE.md",
+    "tools/README.md",
+    "docs/README.md",
+    "docs/project-context.md",
+    "docs/jet-guide.md",
+    "docs/development-guide.md",
+    "docs/development-workflow.md",
+    "docs/development-status.md",
+    "docs/idea-replacement-scope.md",
+    "docs/agent-compatibility.md",
+    "docs/harness.md",
+    "docs/jet-frontend-description.md",
+    "docs/action-contract-manifest.md",
+    "docs/data-and-legacy.md",
+    "docs/business-logic-provenance.md",
+    "docs/repository-lineage.md",
+    "docs/specs/2026-08-28-harness-rebuild-plan.md",
+    "docs/specs/2026-08-29-agent-governance-and-context-plan.md"
+  ],
+  "forbiddenClaims": [
+    {
+      "id": "stale-harness-remainder",
+      "text": "第一次提交前的剩餘工作，是完成全新的驗證框架"
+    },
+    {
+      "id": "stale-private-case-rebuild",
+      "text": "私人案件注入與正確底稿比對仍要重新建立"
+    },
+    {
+      "id": "stale-post-harness-closure",
+      "text": "除了後續驗證框架、正式驗證及第一次提交與推送外"
+    }
+  ],
+  "styleWarnings": [
+    {
+      "id": "named-closure",
+      "text": "具名規範閉環"
+    },
+    {
+      "id": "evidence-return",
+      "text": "驗證證據回流"
+    },
+    {
+      "id": "candidate-output-run",
+      "text": "候選輸出執行"
+    },
+    {
+      "id": "safe-preflight",
+      "text": "安全前置"
+    },
+    {
+      "id": "current-stop-point",
+      "text": "目前停止點"
+    },
+    {
+      "id": "public-gate",
+      "text": "公開守門"
+    },
+    {
+      "id": "entry-blocked",
+      "text": "入口完成；正式驗證受阻"
+    },
+    {
+      "id": "test-text-evidence",
+      "text": "測試文字證據"
+    },
+    {
+      "id": "mixed-provider-parity",
+      "text": "provider 一致性"
+    },
+    {
+      "id": "architecture-gate",
+      "text": "架構守門"
+    },
+    {
+      "id": "contract-guard",
+      "text": "契約守衛"
+    },
+    {
+      "id": "retirement-guard",
+      "text": "淘汰守衛"
+    },
+    {
+      "id": "first-red-short-form",
+      "text": "首紅"
+    },
+    {
+      "id": "wiring-error",
+      "text": "接線錯誤"
+    },
+    {
+      "id": "public-boundary",
+      "text": "公開邊界"
+    },
+    {
+      "id": "capability-group",
+      "text": "能力群組"
+    },
+    {
+      "id": "public-baseline",
+      "text": "公開基線"
+    },
+    {
+      "id": "regression-guard",
+      "text": "回歸守衛"
+    },
+    {
+      "id": "encryption-negotiation",
+      "text": "加密交涉"
+    }
+  ],
+  "requiredMarkers": [
+    {
+      "id": "shared-agent-authority",
+      "file": "AGENTS.md",
+      "text": "docs/agent-compatibility.md"
+    },
+    {
+      "id": "development-continuity",
+      "file": "AGENTS.md",
+      "text": "docs/development-workflow.md"
+    },
+    {
+      "id": "explicit-staging-only",
+      "file": "AGENTS.md",
+      "text": "git add -A"
+    },
+    {
+      "id": "no-ai-attribution",
+      "file": "AGENTS.md",
+      "text": "Co-Authored-By"
+    },
+    {
+      "id": "claude-imports-agents",
+      "file": "CLAUDE.md",
+      "text": "@AGENTS.md"
+    },
+    {
+      "id": "copilot-points-to-agents",
+      "file": ".github/copilot-instructions.md",
+      "text": "[`AGENTS.md`](../AGENTS.md)"
+    },
+    {
+      "id": "readme-project-context",
+      "file": "README.md",
+      "text": "docs/project-context.md"
+    },
+    {
+      "id": "status-active-plan",
+      "file": "docs/development-status.md",
+      "text": "目前大型計畫"
+    },
+    {
+      "id": "status-deferred-items",
+      "file": "docs/development-status.md",
+      "text": "已知但延後的事項"
+    },
+    {
+      "id": "agent-deferred-items-continuity",
+      "file": "AGENTS.md",
+      "text": "已知但延後的事項"
+    },
+    {
+      "id": "company-ai-network-boundary",
+      "file": "docs/project-context.md",
+      "text": "無法存取 AI 相關網路服務"
+    }
+  ],
+  "manualReview": [
+    "讀者能否在第一次閱讀就知道誰做了什麼，以及結果是什麼",
+    "是否只保留必要的固定名稱，並在第一次出現時說明用途",
+    "每項現況是否有程式、測試、決策或本次執行紀錄支持",
+    "改寫是否保留數字、條件、例外、不確定性、schema、UI 行為及使用者裁定",
+    "不熟悉本輪內容的人能否用自己的話說明專案目的、採用理由與下一步"
+  ]
+}

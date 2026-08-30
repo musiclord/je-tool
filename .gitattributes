@@ -1,0 +1,51 @@
+# Default to text detection, then make the current repository formats explicit.
+* text=auto
+
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.editorconfig text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.cs text eol=lf
+*.csproj text eol=lf
+*.slnx text eol=lf
+*.targets text eol=lf
+*.ps1 text eol=lf
+*.psm1 text eol=lf
+*.psd1 text eol=lf
+*.resx text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.drawio text eol=lf
+*.pubxml text eol=lf
+*.txt text eol=lf
+
+# Preserve archived IDEA/VBA source bytes instead of normalizing historical files.
+legacy/**/*.bas -text -whitespace
+legacy/**/*.cls -text -whitespace
+legacy/**/*.frm -text -whitespace
+
+# Office containers, fonts, and related assets are binary.
+*.xlsx binary
+*.xlsm binary
+*.xls binary
+*.accdb binary
+*.mdb binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.frx binary
+
+# Preserve pinned upstream license files byte-for-byte.
+src/JET/JET/wwwroot/assets/fonts/**/OFL.txt -text -eol -whitespace
+
+# Appearance fixtures are canonical UTF-8 JSON artifacts; preserve serializer bytes exactly.
+src/JET/tests/JET.Tests/Infrastructure/Fixtures/legacy-sample-appearance/*.json -text -eol -whitespace

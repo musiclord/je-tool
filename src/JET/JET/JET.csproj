@@ -1,0 +1,72 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Configurations>Debug;Release;AgentGuiTest</Configurations>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting Condition="'$(OS)' != 'Windows_NT'">true</EnableWindowsTargeting>
+    <!-- DuckDB 原生庫無 win-x86 版（第二本地引擎，spec §6 裁決）：RID 由 win-x64;win-x86 縮為 win-x64。 -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <!-- Agent 專用的真實 WebView2 GUI 測試組態。一般 Debug/F5 與 Release/publish 都不編入此入口。 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'AgentGuiTest'">
+    <DefineConstants>TRACE;JET_AGENT_GUI_TEST</DefineConstants>
+    <Optimize>false</Optimize>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>portable</DebugType>
+    <IsPublishable>false</IsPublishable>
+  </PropertyGroup>
+
+  <Target Name="RejectAgentGuiTestPublish"
+          BeforeTargets="Publish"
+          Condition="'$(Configuration)' == 'AgentGuiTest'">
+    <Error Text="AgentGuiTest is an isolated test configuration and cannot be published." />
+  </Target>
+
+  <ItemGroup>
+    <Content Include="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="Templates\AccountMapping.xlsx;Templates\CriteriaSelectionReport.xlsx;Templates\INFReport.xlsx;Templates\PrescreeningReport.xlsx;Templates\ValidationReport.xlsx;Templates\WorkingPaper.xlsx;Templates\Holiday2025TW.xlsx;Templates\MakeUpDay2025TW.xlsx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 只複製非機密的資料庫名稱與啟動選項。完整 SQL 連線由環境變數提供。 -->
+    <None Update="appsettings*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ClosedXML 僅供 DemoWorkbookWriter(dev-only 寫檔)；匯入讀取走 DocumentFormat.OpenXml SAX -->
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <!-- DuckDB 第二本地引擎（含原生庫；spec §6）：與 SQLite 共用 Local* repository 家族，
+         引擎差異收進 DuckDb 引擎類與參數轉接器。原生庫僅 win-x64。 -->
+    <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.3" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.6" />
+    <!-- 安全覆蓋:MDS 10.0.x 仍傳遞鎖定有漏洞的 SQLitePCLRaw 2.1.11(CVE-2025-6965 / GHSA-2m69-gcr7-jv3q）。
+         顯式釘到 3.0.3(內建 SQLite 3.50.4.2;3.0.1 起原生套件改名為 SourceGear.sqlite3,有漏洞的 lib.e_sqlite3 因此離開相依圖)。 -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.2" />
+    <!-- 讀取 appsettings 中的非機密選項；完整 SQL 連線不會從 JSON 組合。 -->
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+    <!-- 診斷日誌（第三層、dev-only）：M.E.Logging + LoggerMessage 來源產生器 -->
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
+    <PackageReference Include="Sep" Version="0.12.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="JET.Tests" />
+  </ItemGroup>
+
+</Project>

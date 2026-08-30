@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "capabilityGroups": [
+    {
+      "name": "FileSystemLinks",
+      "uniformOutcome": true,
+      "skipReason": {
+        "normalization": "trimCollapseWhitespaceV1",
+        "normalizedSha256": "DFC8C0ABD5392B049EDA4D17543FA231DEBD42AAB50481337032063FB6B9EDBE"
+      },
+      "members": [
+        "JET.Tests.Infrastructure.ProjectReportArtifactConcurrencyTests.Cleanup_CandidateReplacedBySymbolicLink_RejectsWithoutDeletingTarget",
+        "JET.Tests.Infrastructure.ProjectReportArtifactConcurrencyTests.CleanupRecovery_DanglingAuditReceiptLink_FailsClosed",
+        "JET.Tests.Infrastructure.ProjectReportArtifactConcurrencyTests.CleanupRecovery_DanglingQuarantineLink_FailsClosed",
+        "JET.Tests.Infrastructure.ProjectReportArtifactConcurrencyTests.ReadCatalog_DanglingJournalLink_FailsClosed",
+        "JET.Tests.Infrastructure.ProjectReportArtifactConcurrencyTests.ReadCatalog_DanglingManifestLink_FailsClosed",
+        "JET.Tests.Infrastructure.ProjectReportArtifactStoreTests.ResolvePathAsync_ArtifactFileIsSymbolicLink_RejectsLinkedTarget",
+        "JET.Tests.Infrastructure.ProjectReportArtifactStoreTests.WriteAsync_ReparsePointInProjectAncestor_RejectsBeforeCreatingArtifact"
+      ]
+    }
+  ]
+}

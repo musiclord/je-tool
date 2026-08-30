@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>分錄測試自動化工具 (JE Testing Tool)</title>
+  <link rel="stylesheet" href="./css/app.css">
+  <!-- 載入順序：傳輸（jet-api）→ 狀態（state）→ 共用核心（ui-core）→
+       各步驟渲染器（自行註冊）→ 總覽 BI 區塊渲染器 → 開發面板 → 殼層與啟動（app） -->
+  <script defer src="./js/jet-api.js"></script>
+  <script defer src="./js/state.js"></script>
+  <script defer src="./js/ui-core.js"></script>
+  <script defer src="./js/steps/create-step.js"></script>
+  <script defer src="./js/steps/import-step.js"></script>
+  <script defer src="./js/steps/mapping-step.js"></script>
+  <script defer src="./js/steps/validate-step.js"></script>
+  <script defer src="./js/steps/filter-step.js"></script>
+  <script defer src="./js/steps/export-step.js"></script>
+  <script defer src="./js/data-preview.js"></script>
+  <script defer src="./vendor/echarts/5.5.0/echarts.min.js"></script>
+  <script defer src="./js/overview-bi.js"></script>
+  <script defer src="./js/dev-panel.js"></script>
+  <script defer src="./js/dev-log-panel.js"></script>
+  <script defer src="./js/app.js"></script>
+</head>
+<body>
+  <main id="app" class="app-shell" data-jet-root>
+    <!-- 頂部標題列 -->
+    <header class="app-header">
+      <div class="app-header__brand">
+        <span class="app-header__eyebrow">Journal Entry Testing</span>
+        <h1 class="app-header__title">分錄測試自動化工具</h1>
+      </div>
+      <div class="app-header__status">
+        <span class="badge" data-bind="user-identity" title="使用者身分與編號（啟動後由應用程式確認）">偵測中</span>
+        <!-- 流程總覽（4b）開啟鈕：僅 workflow 視圖顯示（比照 back-picker 的 hidden 切換）。
+             6 點點陣圖示（第 5 點訊號紅），純 CSS/HTML，不引入圖檔或 icon 字型。 -->
+        <button type="button" class="overview-btn" data-action="overview-open"
+          title="開啟流程總覽：查看六步進度、目前焦點與母體摘要" hidden>
+          <span class="overview-btn__dots" aria-hidden="true">
+            <span class="overview-btn__dot"></span><span class="overview-btn__dot"></span><span class="overview-btn__dot"></span>
+            <span class="overview-btn__dot"></span><span class="overview-btn__dot overview-btn__dot--signal"></span><span class="overview-btn__dot"></span>
+          </span>
+          <span class="overview-btn__text">流程總覽</span>
+        </button>
+        <button type="button" class="btn btn--ghost" data-action="open-project-folder"
+          title="在檔案總管開啟目前專案的資料夾" hidden>開啟專案資料夾</button>
+        <button type="button" class="btn btn--ghost" data-action="app-back-picker" data-bind="back-picker"
+          title="保存目前進度並回到專案選擇畫面，可切換其他專案" hidden>回專案選擇</button>
+        <button type="button" class="btn btn--ghost" data-action="app-exit"
+          title="保存目前進度到專案資料庫，下次開啟時回到相同位置">儲存並結束</button>
+      </div>
+    </header>
+
+    <!-- 案件狀態摘要 -->
+    <section class="case-summary" aria-label="案件狀態摘要">
+      <div class="case-summary__item">
+        <span class="case-summary__label">案件編號</span>
+        <span class="case-summary__value case-summary__value--mono" data-bind="case-id">尚未建立</span>
+      </div>
+      <div class="case-summary__item">
+        <span class="case-summary__label">客戶名稱</span>
+        <span class="case-summary__value" data-bind="case-client">—</span>
+      </div>
+      <div class="case-summary__item">
+        <span class="case-summary__label">查核期間</span>
+        <span class="case-summary__value case-summary__value--mono" data-bind="case-period">—</span>
+      </div>
+      <div class="case-summary__item">
+        <span class="case-summary__label">目前階段</span>
+        <span class="case-summary__value" data-bind="case-step">建立案件</span>
+      </div>
+      <!-- 「目前步驟」＝步驟位置（step+1）；左欄目錄與流程總覽的「進度」＝已完成步驟數。
+           兩者數值不同，標籤不可互換（design 02 §B 語意區分）。 -->
+      <div class="case-summary__item">
+        <span class="case-summary__label">目前步驟</span>
+        <span class="case-summary__value case-summary__value--mono" data-bind="case-progress">1 / 6</span>
+      </div>
+    </section>
+
+    <!-- 主要工作區：picker 有獨立 inline 回饋；workflow 的狀態與訊息面板位於 app-body 左欄。 -->
+    <div class="app-main" data-bind="app-main">
+      <!-- 專案選擇畫面（啟動入口；選定或建立專案後切換到工作流程） -->
+      <section class="project-picker" aria-label="專案選擇" data-bind="project-picker" hidden></section>
+
+      <div class="app-body" data-bind="app-body">
+        <!-- 左欄：目錄（TOC）＋進度＋底部可收合訊息 -->
+        <div class="toc-col">
+          <span class="toc-col__eyebrow">目錄</span>
+
+          <!-- 主要流程步驟：app.js 於此注入目錄清單與進度列 -->
+          <nav class="step-nav" aria-label="流程步驟" data-bind="step-nav"></nav>
+
+          <!-- 狀態 / 訊息區：搬到左欄底部；picker 視圖時 app-body 隱藏，picker 操作錯誤改由獨立 inline 回饋顯示。
+               已開啟案件的歷史持久化於專案資料庫（log.append / log.recent）。 -->
+          <aside class="messages messages--collapsed" aria-label="狀態與訊息" data-bind="messages-panel">
+            <button type="button" class="messages__rail" data-action="messages-toggle"
+              title="展開狀態與訊息" aria-expanded="false">
+              <span class="messages__rail-label">訊息</span>
+              <span class="messages__badge" data-bind="message-badge" hidden>0</span>
+            </button>
+            <div class="messages__panel" aria-live="polite">
+              <div class="messages__header">
+                <h2 class="messages__title">訊息</h2>
+                <div class="messages__header-actions">
+                  <button type="button" class="messages__copy" data-action="messages-copy"
+                    title="複製最近 100 則操作紀錄" aria-label="複製最近 100 則操作紀錄">複製紀錄</button>
+                  <button type="button" class="messages__collapse" data-action="messages-toggle"
+                    title="收合訊息面板" aria-label="收合訊息面板">▾ 收合</button>
+                </div>
+              </div>
+              <ul class="messages__list" data-bind="message-list"></ul>
+            </div>
+          </aside>
+        </div>
+
+        <!-- 中欄：由上而下步驟文件流 -->
+        <section class="content" aria-label="步驟內容" data-bind="content"></section>
+
+        <!-- 右欄：常駐資料預覽（頁籤切換資料表＋橫向捲動表格）。
+             picker 視圖時整個 app-body 以 hidden 隱藏，右欄一併隱藏（不再單獨切換 hidden）。
+             data-preview.js 於 [data-bind=data-preview-body] 注入表格，於 __tabs／__note 注入頁籤與註記；
+             收合狀態由 state.dataPreviewCollapsed 驅動 app.js 切 .data-preview--collapsed（純 UI）。 -->
+        <aside class="data-preview" aria-label="資料預覽" data-bind="data-preview">
+          <!-- 左邊界拖曳把手：欄多時可拖寬以便檢閱，回流程時拖窄或用收合鈕。
+               寬度存於 --data-preview-width（inline），不進 state、不進後端 payload（純 UI）。 -->
+          <div class="data-preview__resize" role="separator" aria-orientation="vertical"
+            aria-label="拖曳調整資料預覽寬度（雙擊還原）" title="拖曳調整寬度・雙擊還原"></div>
+          <div class="data-preview__head">
+            <span class="data-preview__eyebrow">資料預覽 · 常駐</span>
+            <button type="button" class="data-preview__collapse"
+              title="收合資料預覽" aria-label="收合資料預覽">▾ 收合</button>
+          </div>
+          <div class="data-preview__rail" role="button" tabindex="0"
+            title="展開資料預覽" aria-label="展開資料預覽">◂ 資料預覽</div>
+          <nav class="data-preview__tabs" aria-label="資料預覽資料表"></nav>
+          <div class="data-preview__body" data-bind="data-preview-body"></div>
+          <div class="data-preview__note"></div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- 流程總覽（4b）：標題列「流程總覽」開啟的補充視窗（modal overlay）。
+         純檢視、不改變流程狀態（導航除外）；資料全讀既有 state（見 app.js renderOverview）。
+         背景遮罩掛 overview-close（卡片內動態 ✕ 亦同，由 app.js render）；卡片內容由 app.js 於開啟時填入。
+         顯示與否由純 UI 狀態 state.overviewOpen 驅動（app.js 切 [hidden]）。 -->
+    <div class="overview-modal" hidden>
+      <div class="overview-modal__backdrop" data-action="overview-close"></div>
+      <div class="overview-modal__card" role="dialog" aria-modal="true" aria-labelledby="overview-title"></div>
+    </div>
+
+    <!-- 開發工具：資料庫檢視（僅 Debug 組建顯示與註冊，非審計 workflow） -->
+    <details class="dev-panel" data-bind="dev-panel">
+      <!-- 標題 provider 中立:provider 標籤讀 project.json,可能與實際路由後端不一致(孤兒/快取情境),
+           標題不背書;實際引擎資訊看面板內 dev-info 行(路由後 inspector 回報)。 -->
+      <summary class="dev-panel__summary">DEV — 資料庫檢視</summary>
+      <div class="dev-panel__body" data-bind="dev-panel-body"></div>
+    </details>
+
+    <!-- 開發工具：診斷日誌匯出 NDJSON（僅 Debug 組建顯示與註冊，非審計 workflow） -->
+    <details class="dev-panel" data-bind="dev-log-panel">
+      <summary class="dev-panel__summary">DEV — 診斷日誌匯出（NDJSON）</summary>
+      <div class="dev-panel__body" data-bind="dev-log-panel-body"></div>
+    </details>
+  </main>
+  <!-- 切換六步文件流時的單次定位宣告；放在 inert 主樹之外，不顯示、不進 state 或 wire。 -->
+  <div class="visually-hidden" data-bind="step-announcer" role="status"
+    aria-live="polite" aria-atomic="true"></div>
+  <!-- 作業進行中的整介面阻斷遮罩：<main> 的兄弟節點（不在被設 inert 的子樹內）。
+       作業進行中 app.js 立即對 <main> 設 inert（擋滑鼠／鍵盤／焦點），此可見層延遲約 200ms 才顯示。 -->
+  <div class="busy-overlay" data-bind="busy-overlay" role="status" aria-live="polite" hidden>
+    <div class="busy-overlay__box">
+      <span class="busy-overlay__spinner" aria-hidden="true"></span>
+      <span class="busy-overlay__copy">
+        <span class="busy-overlay__label" data-bind="busy-label">處理中…請稍候</span>
+        <span class="busy-overlay__elapsed" data-bind="busy-elapsed" aria-live="off" hidden></span>
+        <span class="busy-overlay__guidance" data-bind="busy-guidance" hidden></span>
+      </span>
+      <button type="button" class="busy-overlay__cancel" data-action="cancel-operation" hidden>取消作業</button>
+    </div>
+  </div>
+  <noscript>JET 需要啟用 JavaScript 才能運作。</noscript>
+</body>
+</html>

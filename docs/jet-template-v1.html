@@ -1,0 +1,2657 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分錄測試自動化工具 (JE Testing Tool)</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --surface3: #30363d;
+    --border: #30363d;
+    --accent: #f0a500;
+    --accent2: #3fb950;
+    --accent3: #58a6ff;
+    --danger: #f85149;
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --text3: #6e7681;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+  /* HEADER */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    height: 56px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .header-logo span { color: var(--text2); font-weight: 400; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  .badge {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    padding: 3px 8px; border-radius: 3px;
+    background: var(--surface3); color: var(--text2);
+    border: 1px solid var(--border);
+  }
+
+  /* LAYOUT */
+  .layout { display: flex; height: calc(100vh - 56px); }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px; min-width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    overflow-y: auto;
+  }
+  .sidebar-section { margin-bottom: 8px; }
+  .sidebar-label {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    color: var(--text3); letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 0 16px; margin-bottom: 8px;
+  }
+  .step-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 10px 16px;
+    background: none; border: none; cursor: pointer;
+    color: var(--text2); font-family: var(--sans); font-size: 13px;
+    text-align: left; transition: all 0.15s;
+    border-left: 2px solid transparent;
+  }
+  .step-btn:hover { background: var(--surface2); color: var(--text); }
+  .step-btn.active {
+    background: var(--surface2); color: var(--accent);
+    border-left-color: var(--accent);
+  }
+  .step-btn.done { color: var(--accent2); }
+  .step-btn.done .step-num { background: var(--accent2); color: var(--bg); }
+  .step-num {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--surface3); color: var(--text3);
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .step-btn.active .step-num { background: var(--accent); color: var(--bg); }
+
+  /* MAIN */
+  .main { flex: 1; overflow-y: auto; padding: 32px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* CARDS */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 24px; margin-bottom: 20px;
+  }
+  .card-title {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--text2); letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 16px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  }
+
+  /* FORMS */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    color: var(--text2); letter-spacing: 0.5px;
+  }
+  .form-input, .form-select {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px;
+    color: var(--text); font-family: var(--sans); font-size: 13px;
+    outline: none; transition: border-color 0.15s;
+    width: 100%;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--accent3); }
+  .form-select option { background: var(--surface2); }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 18px; border-radius: 6px; border: none; cursor: pointer;
+    font-family: var(--sans); font-size: 13px; font-weight: 500;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: var(--bg); }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-secondary {
+    background: var(--surface2); color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--surface3); }
+  .btn-success { background: var(--accent2); color: var(--bg); }
+  .btn-success:hover { opacity: 0.85; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { opacity: 0.85; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* UPLOAD ZONE */
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: 8px;
+    padding: 32px; text-align: center; cursor: pointer;
+    transition: all 0.2s; position: relative;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent); background: rgba(240,165,0,0.05);
+  }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 32px; margin-bottom: 12px; }
+  .upload-text { color: var(--text2); font-size: 13px; }
+  .upload-text strong { color: var(--accent); }
+  .file-loaded {
+    border-color: var(--accent2);
+    background: rgba(63,185,80,0.05);
+  }
+  .file-loaded .upload-icon { color: var(--accent2); }
+
+  /* COLUMN MAPPING */
+  .mapping-table { width: 100%; border-collapse: collapse; }
+  .mapping-table th {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    color: var(--text3); letter-spacing: 1px; text-transform: uppercase;
+    padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left;
+  }
+  .mapping-table td { padding: 8px 12px; border-bottom: 1px solid var(--surface3); }
+  .mapping-table tr:last-child td { border-bottom: none; }
+  .required-tag {
+    font-family: var(--mono); font-size: 9px; font-weight: 600;
+    color: var(--danger); background: rgba(248,81,73,0.1);
+    padding: 2px 5px; border-radius: 3px; margin-left: 6px;
+  }
+  .optional-tag {
+    font-family: var(--mono); font-size: 9px; font-weight: 600;
+    color: var(--text3); background: var(--surface3);
+    padding: 2px 5px; border-radius: 3px; margin-left: 6px;
+  }
+
+  /* CHECKBOX ITEMS */
+  .check-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px; border-radius: 6px; cursor: pointer;
+    transition: background 0.1s; border: 1px solid transparent;
+  }
+  .check-item:hover { background: var(--surface2); }
+  .check-item.checked { background: var(--surface2); border-color: var(--accent); }
+  .check-item input[type=checkbox] { margin-top: 2px; accent-color: var(--accent); flex-shrink: 0; }
+  .check-item-label { font-size: 13px; color: var(--text); }
+  .check-item-desc { font-size: 11px; color: var(--text2); margin-top: 3px; }
+  .check-count {
+    margin-left: auto; font-family: var(--mono); font-size: 11px;
+    color: var(--accent3); background: rgba(88,166,255,0.1);
+    padding: 2px 8px; border-radius: 3px; flex-shrink: 0;
+  }
+
+  /* RESULTS TABLE */
+  .results-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .results-table th {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    color: var(--text3); letter-spacing: 1px; text-transform: uppercase;
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    text-align: left; background: var(--surface2); white-space: nowrap;
+    position: sticky; top: 0;
+  }
+  .results-table td {
+    padding: 7px 10px; border-bottom: 1px solid var(--surface3);
+    color: var(--text2); font-family: var(--mono);
+    max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .results-table tr:hover td { background: var(--surface2); color: var(--text); }
+  .results-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.01); }
+  .table-wrap { overflow: auto; max-height: 400px; border-radius: 6px; border: 1px solid var(--border); }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px; flex: 1; min-width: 140px;
+  }
+  .stat-val {
+    font-family: var(--mono); font-size: 22px; font-weight: 600;
+    color: var(--text); margin-bottom: 4px;
+  }
+  .stat-label { font-size: 11px; color: var(--text3); }
+
+  /* ALERTS */
+  .alert {
+    padding: 12px 16px; border-radius: 6px; font-size: 13px;
+    display: flex; align-items: flex-start; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .alert-info { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); color: var(--accent3); }
+  .alert-success { background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.3); color: var(--accent2); }
+  .alert-warning { background: rgba(240,165,0,0.1); border: 1px solid rgba(240,165,0,0.3); color: var(--accent); }
+  .alert-danger { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); color: var(--danger); }
+
+  /* PROGRESS */
+  .progress-bar-wrap {
+    background: var(--surface3); border-radius: 4px; height: 6px;
+    overflow: hidden; margin: 8px 0;
+  }
+  .progress-bar-fill {
+    height: 100%; background: var(--accent2); border-radius: 4px;
+    transition: width 0.3s;
+  }
+
+  /* FILTER ROW */
+  .filter-row {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .filter-row .form-input { width: auto; flex: 1; min-width: 150px; }
+
+  /* TEXT INPUT WITH CHIP AREA */
+  .keyword-area {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px; min-height: 60px;
+    display: flex; flex-wrap: wrap; gap: 6px; cursor: text;
+  }
+  .keyword-area:focus-within { border-color: var(--accent3); }
+  .chip {
+    background: var(--surface3); border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 8px;
+    font-family: var(--mono); font-size: 11px; color: var(--text);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .chip-remove { cursor: pointer; color: var(--text3); line-height: 1; font-size: 13px; }
+  .chip-remove:hover { color: var(--danger); }
+  .keyword-input {
+    background: none; border: none; outline: none;
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    flex: 1; min-width: 100px;
+  }
+
+  /* SECTION TITLE */
+  .section-title {
+    font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 6px;
+  }
+  .section-sub { font-size: 13px; color: var(--text2); margin-bottom: 24px; }
+
+  /* DIVIDER */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* ACTION ROW */
+  .action-row { display: flex; gap: 12px; align-items: center; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .tab-btn {
+    padding: 10px 18px; background: none; border: none; cursor: pointer;
+    font-family: var(--sans); font-size: 13px; color: var(--text2);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+  /* STEP 4 ADVANCED FILTER */
+  .filter-section {
+    border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 12px; overflow: hidden;
+  }
+  .filter-section-header {
+    padding: 10px 14px; background: var(--surface2);
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .filter-section-body { padding: 14px; }
+  .filter-tag {
+    display: inline-flex; align-items: center;
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    padding: 2px 7px; border-radius: 3px; margin-left: 8px;
+  }
+  .tag-blue { background: rgba(88,166,255,0.15); color: var(--accent3); }
+  .tag-orange { background: rgba(240,165,0,0.15); color: var(--accent); }
+
+  /* RESULT CRITERIA ITEM */
+  .criteria-result-item {
+    border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  .criteria-result-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; background: var(--surface2);
+  }
+  .criteria-result-body {
+    padding: 14px 16px; border-top: 1px solid var(--border);
+    display: none;
+  }
+  .criteria-result-body.open { display: block; }
+
+  /* LOADING OVERLAY */
+  .loading-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(13,17,23,0.8); z-index: 999;
+    align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+  }
+  .loading-overlay.active { display: flex; }
+  .loading-spinner {
+    width: 40px; height: 40px; border: 3px solid var(--surface3);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .form-grid, .form-grid-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div style="color:var(--text2);font-size:13px;font-family:var(--mono)" id="loadingMsg">處理中...</div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-logo">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="2" y="2" width="7" height="7" rx="1" fill="var(--accent)" opacity="0.9"/>
+      <rect x="11" y="2" width="7" height="7" rx="1" fill="var(--accent)" opacity="0.5"/>
+      <rect x="2" y="11" width="7" height="7" rx="1" fill="var(--accent)" opacity="0.5"/>
+      <rect x="11" y="11" width="7" height="7" rx="1" fill="var(--accent)" opacity="0.3"/>
+    </svg>
+    JE Testing Tool <span>/ 分錄測試自動化工具</span>
+  </div>
+  <div class="header-right">
+    <span class="badge" id="entityBadge">未設定案件</span>
+    <span class="badge" style="color:var(--accent2)" id="statusBadge">步驟一 待執行</span>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">作業流程</div>
+      <button class="step-btn active" onclick="goToStep(1)" id="sideBtn1">
+        <div class="step-num">1</div> 基本資訊與欄位配對
+      </button>
+      <button class="step-btn" onclick="goToStep(2)" id="sideBtn2">
+        <div class="step-num">2</div> 上傳輔助檔案
+      </button>
+      <button class="step-btn" onclick="goToStep(3)" id="sideBtn3">
+        <div class="step-num">3</div> 預先篩選程序
+      </button>
+      <button class="step-btn" onclick="goToStep(4)" id="sideBtn4">
+        <div class="step-num">4</div> 進階篩選作業
+      </button>
+      <button class="step-btn" onclick="goToStep(5)" id="sideBtn5">
+        <div class="step-num">5</div> 產生工作底稿
+      </button>
+    </div>
+    <div class="sidebar-section" style="margin-top:24px">
+      <div class="sidebar-label">資料狀態</div>
+      <div style="padding:0 16px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px">
+          <span id="glStatus">⬜ GL 未載入</span>
+        </div>
+        <div style="font-size:12px;color:var(--text3)">
+          <span id="tbStatus">⬜ TB 未載入</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+
+    <!-- STEP 1 -->
+    <div class="page active" id="page1">
+      <div class="section-title">步驟一：基本資訊 及 測試資料欄位配對</div>
+      <div class="section-sub">設定案件基本資訊，並上傳 GL 與 TB 資料檔案進行欄位配對。</div>
+
+      <!-- Basic Info -->
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>案件基本資訊</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">案件客戶名稱</label>
+            <input class="form-input" id="entityName" placeholder="輸入客戶名稱" oninput="updateEntityBadge()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">產業別</label>
+            <select class="form-select" id="industry">
+              <option>製造業</option><option>金融業</option><option>科技業</option>
+              <option>零售業</option><option>服務業</option><option>醫療業</option>
+              <option>建設業</option><option>其他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">財務報導期間 — 開始日</label>
+            <input class="form-input" id="periodStart" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label">財務報導期間 — 結束日</label>
+            <input class="form-input" id="periodEnd" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label">期末財務報表準備期間 — 開始日</label>
+            <input class="form-input" id="lastPeriodStart" type="date">
+          </div>
+        </div>
+      </div>
+
+      <!-- GL Upload -->
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>傳票分錄檔 (General Ledger / Journal Entry)</div>
+        <div class="upload-zone" id="glUploadZone">
+          <input type="file" accept=".xlsx,.xls,.csv" id="glFileInput" onchange="handleGLFile(event)">
+          <div class="upload-icon">📂</div>
+          <div class="upload-text"><strong>點擊或拖曳</strong> 上傳 GL / JE 檔案</div>
+          <div class="upload-text" style="margin-top:4px;font-size:11px">支援 .xlsx, .xls, .csv 格式</div>
+        </div>
+        <div id="glMappingArea" style="display:none;margin-top:20px">
+          <div style="margin-bottom:12px;font-size:12px;color:var(--accent2)" id="glFileLabel"></div>
+          <table class="mapping-table">
+            <thead>
+              <tr>
+                <th>欄位名稱</th>
+                <th>說明</th>
+                <th>對應您的欄位</th>
+              </tr>
+            </thead>
+            <tbody id="glMappingBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TB Upload -->
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>試算表 (Trial Balance)</div>
+        <div class="upload-zone" id="tbUploadZone">
+          <input type="file" accept=".xlsx,.xls,.csv" id="tbFileInput" onchange="handleTBFile(event)">
+          <div class="upload-icon">📂</div>
+          <div class="upload-text"><strong>點擊或拖曳</strong> 上傳 TB 檔案</div>
+          <div class="upload-text" style="margin-top:4px;font-size:11px">支援 .xlsx, .xls, .csv 格式</div>
+        </div>
+        <div id="tbMappingArea" style="display:none;margin-top:20px">
+          <div style="margin-bottom:12px;font-size:12px;color:var(--accent2)" id="tbFileLabel"></div>
+          <table class="mapping-table">
+            <thead>
+              <tr><th>欄位名稱</th><th>說明</th><th>對應您的欄位</th></tr>
+            </thead>
+            <tbody id="tbMappingBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="step1ValidationMsg"></div>
+      <div class="action-row">
+        <button class="btn btn-primary" onclick="completeStep1()">確認並繼續 →</button>
+        <div style="font-size:12px;color:var(--text3)" id="step1Status"></div>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="page" id="page2">
+      <div class="section-title">步驟二：上傳輔助設定檔</div>
+      <div class="section-sub">上傳科目配對、國定假日及補班日資料。部分為非必要設定，但將影響預先篩選的準確性。</div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>必要設定</div>
+        <!-- Account Mapping -->
+        <div style="margin-bottom:20px">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">
+            特定科目配對 (Account Mapping)
+            <span class="required-tag">必要</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:12px">
+            用於 #3 未預期特定借貸組合測試。需包含科目編號、科目名稱、類型(收入/應收/現金)等欄位。
+          </div>
+          <div class="upload-zone" id="accMapZone" style="padding:16px">
+            <input type="file" accept=".xlsx,.xls,.csv" id="accMapInput" onchange="handleAccMapFile(event)">
+            <div class="upload-text">點擊上傳科目配對檔 (.xlsx/.csv) <span id="accMapStatus" style="color:var(--accent2)"></span></div>
+          </div>
+        </div>
+
+        <!-- Weekend Setting -->
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">
+            非工作日設定 <span class="required-tag">必要</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:12px">請勾選非工作日的週末</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="wkMon" accent-color="var(--accent)"> 星期一
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="wkTue"> 星期二
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="wkWed"> 星期三
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="wkThu"> 星期四
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="wkFri"> 星期五
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="wkSat" checked> 星期六
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="wkSun" checked> 星期日
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>非必要設定（建議上傳以提升篩選精確度）</div>
+
+        <div style="margin-bottom:20px">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">
+            國定假日檔案 <span class="optional-tag">選填</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px">CSV 格式，每列一個日期（格式：YYYY-MM-DD）</div>
+          <div class="upload-zone" id="holidayZone" style="padding:16px">
+            <input type="file" accept=".xlsx,.xls,.csv" id="holidayInput" onchange="handleHolidayFile(event)">
+            <div class="upload-text">點擊上傳國定假日檔 <span id="holidayStatus" style="color:var(--accent2)"></span></div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">
+            補班日/結帳日檔案 <span class="optional-tag">選填</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px">CSV 格式，每列一個日期</div>
+          <div class="upload-zone" id="makeupZone" style="padding:16px">
+            <input type="file" accept=".xlsx,.xls,.csv" id="makeupInput" onchange="handleMakeupFile(event)">
+            <div class="upload-text">點擊上傳補班日/結帳日檔 <span id="makeupStatus" style="color:var(--accent2)"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-secondary" onclick="goToStep(1)">← 返回</button>
+        <button class="btn btn-primary" onclick="completeStep2()">確認並繼續 →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="page" id="page3">
+      <div class="section-title">步驟三：預先篩選程序 (Pre-screening)</div>
+      <div class="section-sub">執行標準化的預先篩選程序，協助查核團隊識別潛在高風險分錄。</div>
+
+      <div class="alert alert-info">
+        <span>ℹ️</span>
+        <span>執行預先篩選程序的目的，係協助查核團隊進一步定義出特定的高風險條件，以辨認不尋常的分錄進行測試。這些程序個別的用途僅作為初步判斷使用，其本身將不會是實際設定之高風險範圍條件。</span>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>標準化預先篩選程序</div>
+        <div id="routineList">
+          <div class="check-item" id="r1item">
+            <input type="checkbox" id="r1check" onchange="toggleCheckItem('r1item',this)">
+            <div style="flex:1">
+              <div class="check-item-label">#1. 於期末財務報表準備期間核准之分錄</div>
+              <div class="check-item-desc">將列出在期末財務報表準備期間開始日及之後核准的分錄</div>
+            </div>
+            <div class="check-count" id="r1count">—</div>
+          </div>
+          <div class="check-item" id="r2item">
+            <input type="checkbox" id="r2check" onchange="toggleCheckItem('r2item',this)">
+            <div style="flex:1">
+              <div class="check-item-label">#2. 分錄摘要出現特定描述</div>
+              <div class="check-item-desc">搜尋包含特定描述文字：Adj, Rev, Reclass, Suspense, Error, Wrong, 調整, 迴轉, 沖銷, 重分類, 避險, 重編, 錯誤, 計畫外, 預算外</div>
+            </div>
+            <div class="check-count" id="r2count">—</div>
+          </div>
+          <div class="check-item" id="r3item">
+            <input type="checkbox" id="r3check" onchange="toggleCheckItem('r3item',this)">
+            <div style="flex:1">
+              <div class="check-item-label">#3. 未預期出現之特定借貸組合</div>
+              <div class="check-item-desc">列出分錄貸方為收入，但借方不是應收帳款、現金或預收款之傳票</div>
+            </div>
+            <div class="check-count" id="r3count">—</div>
+          </div>
+          <div class="check-item" id="r4item">
+            <input type="checkbox" id="r4check" onchange="toggleCheckItem('r4item',this)">
+            <div style="flex:1">
+              <div class="check-item-label">#4. 分錄金額中有連續 0 的尾數</div>
+              <div class="check-item-desc">依 JE 母體中借方平均金額決定 0 的尾數位數（例如平均金額 2,391,281 → 篩選有 000,000 的連續尾數）</div>
+            </div>
+            <div class="check-count" id="r4count">—</div>
+          </div>
+          <div class="check-item" id="r5item">
+            <input type="checkbox" id="r5check" onchange="toggleCheckItem('r5item',this)">
+            <div style="flex:1">
+              <div class="check-item-label">#5. 依分錄編製者彙總分錄</div>
+              <div class="check-item-desc">依分錄建立人員彙總，列出各人員的分錄筆數及金額</div>
+            </div>
+            <div class="check-count" id="r5count">—</div>
+          </div>
+          <div class="check-item" id="r6item">
+            <input type="checkbox" id="r6check" onchange="toggleCheckItem('r6item',this)">
+            <div style="flex:1">
+              <div class="check-item-label">#6. 較少使用之科目</div>
+              <div class="check-item-desc">找出在總帳期間使用次數低於平均值的科目所對應之分錄</div>
+            </div>
+            <div class="check-count" id="r6count">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="prescreenProgress" style="display:none" class="card">
+        <div class="card-title"><div class="dot"></div>執行進度</div>
+        <div id="prescreenLog" style="font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.8"></div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-secondary" onclick="goToStep(2)">← 返回</button>
+        <button class="btn btn-primary" onclick="runPreScreening()" id="btnRunPrescreen">確認執行預先篩選</button>
+        <button class="btn btn-secondary" onclick="exportValidationReport()" id="btnExpValidation" style="display:none">📊 匯出 Validation Report</button>
+        <button class="btn btn-secondary" onclick="exportPreScreeningReport()" id="btnExpPrescreen" style="display:none">📋 匯出 Pre-screening Report</button>
+        <button class="btn btn-primary" onclick="goToStep(4)" id="btnGoStep4" style="display:none">進行進階篩選 →</button>
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="page" id="page4">
+      <div class="section-title">步驟四：進階篩選作業</div>
+      <div class="section-sub">設定高風險分錄的篩選條件，可保留最多 10 種篩選條件，逐一執行並查看結果。</div>
+
+      <!-- Filter Conditions -->
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>使用預先設定之參數條件</div>
+
+        <div class="filter-section">
+          <div class="filter-section-header">
+            <input type="checkbox" id="f_isManual">
+            <span>篩選人工編制傳票</span>
+            <span class="filter-tag tag-blue">手動判斷</span>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <div class="filter-section-header">
+            <input type="checkbox" id="f_debitOnly">
+            <span>僅考量借方傳票</span>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <div class="filter-section-header">
+            <input type="checkbox" id="f_creditOnly">
+            <span>僅考量貸方傳票</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>搜尋特定日期範圍</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <div style="margin-bottom:8px">
+              <input type="checkbox" id="f_dateRange1"> <label style="font-size:13px" for="f_dateRange1">
+                <select class="form-select" id="f_dateField1" style="display:inline;width:auto;margin:0 8px">
+                  <option value="">— 選擇日期欄位 —</option>
+                </select>
+                日期區間篩選
+              </label>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input class="form-input" type="date" id="f_dateFrom1" placeholder="從">
+              <span style="color:var(--text3)">到</span>
+              <input class="form-input" type="date" id="f_dateTo1">
+            </div>
+          </div>
+          <div>
+            <div style="margin-bottom:8px">
+              <input type="checkbox" id="f_dateRange2"> <label style="font-size:13px" for="f_dateRange2">
+                <select class="form-select" id="f_dateField2" style="display:inline;width:auto;margin:0 8px">
+                  <option value="">— 選擇日期欄位 —</option>
+                </select>
+                日期區間篩選
+              </label>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input class="form-input" type="date" id="f_dateFrom2">
+              <span style="color:var(--text3)">到</span>
+              <input class="form-input" type="date" id="f_dateTo2">
+            </div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="f_weekendPost"> 總帳日期在非工作日之週末
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="f_holidayPost"> 總帳日期在國定假日
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="f_weekendDoc"> 核准日期在非工作日之週末
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="f_holidayDoc"> 核准日期在國定假日
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>篩選其他文字欄位</div>
+        <div id="charFilterArea">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" id="charFilterGrid">
+            <!-- dynamically populated -->
+          </div>
+        </div>
+        <div id="noCharFields" class="alert alert-warning" style="margin-top:12px">
+          請先完成步驟一欄位配對後，此處將顯示可用的文字欄位篩選。
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>考量數字欄位篩選條件</div>
+        <div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;align-items:center">
+          <input type="checkbox" id="f_numRange">
+          <select class="form-select" id="f_numField">
+            <option value="">— 選擇數字欄位 —</option>
+          </select>
+          <span style="color:var(--text3);font-size:13px">從</span>
+          <input class="form-input" type="number" id="f_numFrom" style="width:120px" placeholder="最小值">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="color:var(--text3);font-size:13px">到</span>
+            <input class="form-input" type="number" id="f_numTo" style="width:120px" placeholder="最大值">
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="f_rout4"> 分錄金額中有連續 0 的尾數（預先篩選結果）
+          </label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="f_rout4extra"> 額外的特定尾數：
+            <input class="form-input" type="text" id="f_rout4text" style="width:120px" placeholder="例: 000">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>使用預先篩選結果</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label class="check-item" id="fi_r1">
+            <input type="checkbox" id="f_r1" onchange="toggleCheckItem('fi_r1',this)">
+            <div style="flex:1"><div class="check-item-label">於期末財務報表準備期間核准之分錄</div></div>
+            <div class="check-count" id="fi_r1count">—</div>
+          </label>
+          <label class="check-item" id="fi_r2">
+            <input type="checkbox" id="f_r2" onchange="toggleCheckItem('fi_r2',this)">
+            <div style="flex:1"><div class="check-item-label">分錄摘要出現特定描述</div></div>
+            <div class="check-count" id="fi_r2count">—</div>
+          </label>
+          <label class="check-item" id="fi_r3">
+            <input type="checkbox" id="f_r3" onchange="toggleCheckItem('fi_r3',this)">
+            <div style="flex:1"><div class="check-item-label">未預期出現之特定借貸組合</div></div>
+            <div class="check-count" id="fi_r3count">—</div>
+          </label>
+          <label class="check-item" id="fi_r4">
+            <input type="checkbox" id="f_r4" onchange="toggleCheckItem('fi_r4',this)">
+            <div style="flex:1"><div class="check-item-label">分錄金額中有連續 0 的尾數</div></div>
+            <div class="check-count" id="fi_r4count">—</div>
+          </label>
+          <label class="check-item" id="fi_r5">
+            <input type="checkbox" id="f_r5" onchange="toggleCheckItem('fi_r5',this)">
+            <div style="flex:1"><div class="check-item-label">依分錄編製者彙總分錄</div></div>
+            <div class="check-count" id="fi_r5count">—</div>
+          </label>
+          <label class="check-item" id="fi_r6">
+            <input type="checkbox" id="f_r6" onchange="toggleCheckItem('fi_r6',this)">
+            <div style="flex:1"><div class="check-item-label">較少使用之科目</div></div>
+            <div class="check-count" id="fi_r6count">—</div>
+          </label>
+          <label class="check-item" id="fi_descNull">
+            <input type="checkbox" id="f_descNull" onchange="toggleCheckItem('fi_descNull',this)">
+            <div style="flex:1"><div class="check-item-label">分錄無摘要描述（空白摘要）</div></div>
+            <div class="check-count" id="fi_descNullCount">—</div>
+          </label>
+        </div>
+      </div>
+
+      <div class="action-row" style="margin-bottom:20px">
+        <button class="btn btn-secondary" onclick="goToStep(3)">← 返回</button>
+        <button class="btn btn-primary" onclick="runAdvancedFilter()" id="btnRunFilter">執行篩選</button>
+        <button class="btn btn-secondary" onclick="viewFilterResults()" id="btnViewResults" style="display:none">查看篩選結果</button>
+        <button class="btn btn-success" onclick="exportSummaryReport()" id="btnExpSummary" style="display:none">📊 匯出彙總報告</button>
+        <button class="btn btn-secondary" onclick="exportCriteriaReport()" id="btnExpCriteria" style="display:none">📋 匯出 Criteria Selection Report</button>
+      </div>
+
+      <!-- Results -->
+      <div id="filterResultsArea" style="display:none">
+        <div class="card">
+          <div class="card-title"><div class="dot"></div>篩選結果 <span class="check-count" id="savedCriteriaCount">0 / 10</span></div>
+          <div id="criteriaResultsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 5 -->
+    <div class="page" id="page5">
+      <div class="section-title">步驟五：產生工作底稿</div>
+      <div class="section-sub">選擇要匯出的篩選條件結果，並說明選擇原因，產生 JE 測試工作底稿。</div>
+
+      <div class="alert alert-info">
+        <span>ℹ️</span>
+        <span>符合條件的完整分錄都將自動彙總到 JE 工作底稿。請按下每個篩選條件左邊的按鈕，並說明選擇該篩選條件的理由。</span>
+      </div>
+
+      <!-- Summary Stats -->
+      <div class="stats-bar" id="step5Stats"></div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>請選擇要匯出的篩選條件結果</div>
+        <div id="wpCriteriaList">
+          <div class="alert alert-warning">
+            <span>⚠️</span>
+            <span>請先完成步驟四的篩選作業，才能在此選擇要匯出的條件。</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-secondary" onclick="goToStep(4)">← 返回</button>
+        <button class="btn btn-success" onclick="exportWorkPaper()" id="btnExportWP">📄 匯出完整工作底稿 (WorkingPaper)</button>
+        <button class="btn btn-secondary" onclick="viewStep4Results()" id="btnStep5ViewResults">查看篩選結果</button>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- Result Preview Modal -->
+<div id="resultModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;overflow:auto;padding:40px 20px">
+  <div style="max-width:900px;margin:0 auto;background:var(--surface);border-radius:10px;border:1px solid var(--border);overflow:hidden">
+    <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+      <div style="font-family:var(--mono);font-size:13px;font-weight:600" id="modalTitle">篩選結果</div>
+      <button onclick="closeModal()" class="btn btn-secondary btn-sm">關閉</button>
+    </div>
+    <div style="padding:20px">
+      <div id="modalContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// =================== STATE ===================
+const state = {
+  step: 1,
+  stepDone: { 1: false, 2: false, 3: false, 4: false },
+  entityName: '',
+  periodStart: '', periodEnd: '', lastPeriodStart: '',
+
+  glData: null, glColumns: [], glFile: '',
+  tbData: null, tbColumns: [], tbFile: '',
+  accMapData: null,
+  holidays: [],
+  makeupDays: [],
+
+  // GL field mapping
+  glMapping: {
+    docNum: '', lineID: '', postDate: '', docDate: '',
+    accNum: '', accName: '', description: '', jeSource: '',
+    createBy: '', approveBy: '', manual: '',
+    amount: '', debitAmount: '', creditAmount: '',
+    dcField: '', dcDebitCode: '',
+    userDef1: '', userDef2: '', userDef3: '',
+  },
+
+  // TB field mapping
+  tbMapping: { accNum: '', accName: '', amount: '', debitAmt: '', creditAmt: '' },
+
+  weekends: [6, 0], // Sat=6, Sun=0
+
+  // Pre-screening results
+  prescreenResults: { r1: [], r2: [], r3: [], r4: [], r5: [], r6: [] },
+
+  // Criteria saved (up to 10)
+  savedCriteria: [],
+
+  // WP rationale
+  wpRationale: {}
+};
+
+// =================== GL FIELD DEFINITIONS ===================
+const GL_FIELDS = [
+  { key: 'docNum',      label: '傳票號碼',     req: true,  type: 'mix' },
+  { key: 'lineID',      label: '傳票文件項次', req: true,  type: 'num' },
+  { key: 'postDate',    label: '總帳日期',     req: true,  type: 'date' },
+  { key: 'docDate',     label: '傳票核准日',   req: false, type: 'date' },
+  { key: 'accNum',      label: '會計科目編號', req: true,  type: 'mix' },
+  { key: 'accName',     label: '會計科目名稱', req: true,  type: 'mix' },
+  { key: 'description', label: '傳票摘要',     req: true,  type: 'mix' },
+  { key: 'jeSource',    label: '分錄來源模組', req: false, type: 'mix' },
+  { key: 'createBy',    label: '傳票建立人員', req: false, type: 'mix' },
+  { key: 'approveBy',   label: '傳票核准人員', req: false, type: 'mix' },
+  { key: 'manual',      label: '人工/自動分錄',req: false, type: 'num' },
+  { key: 'amount',      label: '傳票金額（單欄）', req: false, type: 'num' },
+  { key: 'debitAmount', label: '借方金額', req: false, type: 'num' },
+  { key: 'creditAmount',label: '貸方金額', req: false, type: 'num' },
+  { key: 'dcField',     label: '借貸別欄位', req: false, type: 'mix' },
+  { key: 'dcDebitCode', label: '借方標識代碼', req: false, type: 'text', placeholder: '例: D 或 1' },
+];
+
+const TB_FIELDS = [
+  { key: 'accNum',   label: '會計科目編號', req: true },
+  { key: 'accName',  label: '會計科目名稱', req: true },
+  { key: 'amount',   label: '年度變動金額', req: false },
+  { key: 'debitAmt', label: '借方金額',     req: false },
+  { key: 'creditAmt',label: '貸方金額',     req: false },
+];
+
+// =================== UI HELPERS ===================
+function goToStep(n) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page' + n).classList.add('active');
+  document.getElementById('sideBtn' + n).classList.add('active');
+  state.step = n;
+  updateStatusBadge();
+  if (n === 4) populateStep4Fields();
+  if (n === 5) populateStep5();
+}
+
+function updateEntityBadge() {
+  const val = document.getElementById('entityName').value;
+  document.getElementById('entityBadge').textContent = val || '未設定案件';
+  state.entityName = val;
+}
+
+function updateStatusBadge() {
+  const labels = ['步驟一 執行中','步驟二 執行中','步驟三 執行中','步驟四 執行中','步驟五 執行中'];
+  document.getElementById('statusBadge').textContent = labels[state.step - 1];
+}
+
+function markStepDone(n) {
+  state.stepDone[n] = true;
+  const btn = document.getElementById('sideBtn' + n);
+  btn.classList.add('done');
+  btn.querySelector('.step-num').textContent = '✓';
+}
+
+function showLoading(msg) {
+  document.getElementById('loadingMsg').textContent = msg || '處理中...';
+  document.getElementById('loadingOverlay').classList.add('active');
+}
+function hideLoading() { document.getElementById('loadingOverlay').classList.remove('active'); }
+
+function toggleCheckItem(id, cb) {
+  document.getElementById(id).classList.toggle('checked', cb.checked);
+}
+
+function closeModal() { document.getElementById('resultModal').style.display = 'none'; }
+
+function showModal(title, html) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('resultModal').style.display = 'block';
+}
+
+// =================== FILE READING ===================
+function readFileAsWorkbook(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array', cellDates: true });
+      resolve(wb);
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function workbookToJSON(wb) {
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws, { raw: false, defval: '' });
+}
+
+function getColumns(data) {
+  if (!data || !data.length) return [];
+  return Object.keys(data[0]);
+}
+
+// =================== STEP 1 ===================
+async function handleGLFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  showLoading('載入 GL 資料...');
+  try {
+    const wb = await readFileAsWorkbook(file);
+    state.glData = workbookToJSON(wb);
+    state.glColumns = getColumns(state.glData);
+    state.glFile = file.name;
+    document.getElementById('glFileLabel').textContent = `✅ 已載入：${file.name}（${state.glData.length.toLocaleString()} 筆）`;
+    document.getElementById('glUploadZone').classList.add('file-loaded');
+    document.getElementById('glMappingArea').style.display = 'block';
+    renderGLMapping();
+    document.getElementById('glStatus').textContent = `✅ GL 已載入 (${state.glData.length.toLocaleString()} 筆)`;
+    document.getElementById('glStatus').style.color = 'var(--accent2)';
+  } catch(e) {
+    alert('讀取 GL 檔案失敗：' + e.message);
+  }
+  hideLoading();
+}
+
+async function handleTBFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  showLoading('載入 TB 資料...');
+  try {
+    const wb = await readFileAsWorkbook(file);
+    state.tbData = workbookToJSON(wb);
+    state.tbColumns = getColumns(state.tbData);
+    state.tbFile = file.name;
+    document.getElementById('tbFileLabel').textContent = `✅ 已載入：${file.name}（${state.tbData.length.toLocaleString()} 筆）`;
+    document.getElementById('tbUploadZone').classList.add('file-loaded');
+    document.getElementById('tbMappingArea').style.display = 'block';
+    renderTBMapping();
+    document.getElementById('tbStatus').textContent = `✅ TB 已載入 (${state.tbData.length.toLocaleString()} 筆)`;
+    document.getElementById('tbStatus').style.color = 'var(--accent2)';
+  } catch(e) {
+    alert('讀取 TB 檔案失敗：' + e.message);
+  }
+  hideLoading();
+}
+
+function renderGLMapping() {
+  const cols = ['', ...state.glColumns];
+  const body = document.getElementById('glMappingBody');
+  body.innerHTML = GL_FIELDS.map(f => {
+    const isText = f.type === 'text';
+    const savedVal = state.glMapping[f.key] || '';
+    if (isText) {
+      return `<tr>
+        <td>${f.label} ${f.req ? '<span class="required-tag">必要</span>' : '<span class="optional-tag">選填</span>'}</td>
+        <td style="color:var(--text3);font-size:12px">—</td>
+        <td><input class="form-input" style="width:180px" value="${savedVal}" placeholder="${f.placeholder||''}"
+          onchange="state.glMapping['${f.key}']=this.value"></td>
+      </tr>`;
+    }
+    const autoMatch = autoMatchColumn(f.label, state.glColumns);
+    if (autoMatch && !savedVal) state.glMapping[f.key] = autoMatch;
+    const selVal = state.glMapping[f.key] || '';
+    return `<tr>
+      <td>${f.label} ${f.req ? '<span class="required-tag">必要</span>' : '<span class="optional-tag">選填</span>'}</td>
+      <td style="color:var(--text3);font-size:12px">${f.type === 'date' ? '日期欄' : f.type === 'num' ? '數字欄' : '文字欄'}</td>
+      <td>
+        <select class="form-select" style="width:200px" onchange="state.glMapping['${f.key}']=this.value">
+          ${cols.map(c => `<option value="${c}" ${c===selVal?'selected':''}>${c||'— 不配對 —'}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderTBMapping() {
+  const cols = ['', ...state.tbColumns];
+  const body = document.getElementById('tbMappingBody');
+  body.innerHTML = TB_FIELDS.map(f => {
+    const autoMatch = autoMatchColumn(f.label, state.tbColumns);
+    if (autoMatch && !state.tbMapping[f.key]) state.tbMapping[f.key] = autoMatch;
+    const selVal = state.tbMapping[f.key] || '';
+    return `<tr>
+      <td>${f.label} ${f.req ? '<span class="required-tag">必要</span>' : '<span class="optional-tag">選填</span>'}</td>
+      <td style="color:var(--text3);font-size:12px">—</td>
+      <td>
+        <select class="form-select" style="width:200px" onchange="state.tbMapping['${f.key}']=this.value">
+          ${cols.map(c => `<option value="${c}" ${c===selVal?'selected':''}>${c||'— 不配對 —'}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function autoMatchColumn(label, columns) {
+  // Chinese and English keyword matching
+  const keywords = {
+    '傳票號碼': ['voucher','doc num','document','傳票號碼','単号','JE','je_num','journal'],
+    '傳票文件項次': ['line','item','line_id','項次','明細'],
+    '總帳日期': ['post date','posting','過帳日','總帳日','postdate','gl_date','entry_date'],
+    '傳票核准日': ['approve','approval','核准日','doc_date','document_date'],
+    '會計科目編號': ['acc num','account no','acct','科目編號','account_id','acct_no'],
+    '會計科目名稱': ['acc name','account name','科目名稱','acct_name'],
+    '傳票摘要': ['desc','remark','narration','摘要','description','memo'],
+    '分錄來源模組': ['source','module','來源'],
+    '傳票建立人員': ['created by','creator','建立人','prepare','maker'],
+    '傳票核准人員': ['approved by','approver','核准人','reviewer'],
+    '傳票金額（單欄）': ['amount','金額','amt'],
+    '借方金額': ['debit','dr','借方'],
+    '貸方金額': ['credit','cr','貸方'],
+    '借貸別欄位': ['dc','dr_cr','debit_credit','借貸'],
+    '年度變動金額': ['change','movement','變動','net'],
+  };
+  const kws = keywords[label];
+  if (!kws) return '';
+  for (const col of columns) {
+    const low = col.toLowerCase();
+    if (kws.some(k => low.includes(k.toLowerCase()))) return col;
+  }
+  return '';
+}
+
+function completeStep1() {
+  const msg = document.getElementById('step1ValidationMsg');
+  const errors = [];
+  if (!document.getElementById('entityName').value) errors.push('請輸入案件客戶名稱');
+  if (!document.getElementById('periodStart').value) errors.push('請設定財務報導期間開始日');
+  if (!document.getElementById('periodEnd').value) errors.push('請設定財務報導期間結束日');
+  if (!state.glData) errors.push('請上傳傳票分錄檔 (GL)');
+  if (!state.tbData) errors.push('請上傳試算表 (TB)');
+
+  if (state.glData) {
+    const req = GL_FIELDS.filter(f => f.req);
+    req.forEach(f => {
+      if (!state.glMapping[f.key]) errors.push(`GL 欄位配對：請配對「${f.label}」`);
+    });
+  }
+
+  if (errors.length) {
+    msg.innerHTML = `<div class="alert alert-danger"><span>❌</span><div>${errors.map(e=>`<div>${e}</div>`).join('')}</div></div>`;
+    return;
+  }
+
+  // Save basic info
+  state.entityName = document.getElementById('entityName').value;
+  state.periodStart = document.getElementById('periodStart').value;
+  state.periodEnd = document.getElementById('periodEnd').value;
+  state.lastPeriodStart = document.getElementById('lastPeriodStart').value;
+
+  msg.innerHTML = `<div class="alert alert-success"><span>✅</span><span>步驟一設定完成！GL: ${state.glData.length.toLocaleString()} 筆，TB: ${state.tbData.length.toLocaleString()} 筆</span></div>`;
+  markStepDone(1);
+  goToStep(2);
+}
+
+// =================== STEP 2 ===================
+async function handleAccMapFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  showLoading('載入科目配對資料...');
+  try {
+    const wb = await readFileAsWorkbook(file);
+    state.accMapData = workbookToJSON(wb);
+    document.getElementById('accMapStatus').textContent = ` ✅ ${file.name} (${state.accMapData.length} 筆)`;
+    document.getElementById('accMapZone').classList.add('file-loaded');
+  } catch(e) { alert('讀取失敗：' + e.message); }
+  hideLoading();
+}
+
+async function handleHolidayFile(event) {
+  const file = event.target.files[0]; if (!file) return;
+  showLoading('載入國定假日資料...');
+  try {
+    const wb = await readFileAsWorkbook(file);
+    const rows = workbookToJSON(wb);
+    state.holidays = rows.map(r => Object.values(r)[0]).filter(Boolean);
+    document.getElementById('holidayStatus').textContent = ` ✅ ${state.holidays.length} 筆`;
+  } catch(e) { alert('讀取失敗：' + e.message); }
+  hideLoading();
+}
+
+async function handleMakeupFile(event) {
+  const file = event.target.files[0]; if (!file) return;
+  showLoading('載入補班日資料...');
+  try {
+    const wb = await readFileAsWorkbook(file);
+    const rows = workbookToJSON(wb);
+    state.makeupDays = rows.map(r => Object.values(r)[0]).filter(Boolean);
+    document.getElementById('makeupStatus').textContent = ` ✅ ${state.makeupDays.length} 筆`;
+  } catch(e) { alert('讀取失敗：' + e.message); }
+  hideLoading();
+}
+
+function completeStep2() {
+  // Save weekend settings
+  state.weekends = [];
+  if (document.getElementById('wkMon').checked) state.weekends.push(1);
+  if (document.getElementById('wkTue').checked) state.weekends.push(2);
+  if (document.getElementById('wkWed').checked) state.weekends.push(3);
+  if (document.getElementById('wkThu').checked) state.weekends.push(4);
+  if (document.getElementById('wkFri').checked) state.weekends.push(5);
+  if (document.getElementById('wkSat').checked) state.weekends.push(6);
+  if (document.getElementById('wkSun').checked) state.weekends.push(0);
+  markStepDone(2);
+  goToStep(3);
+}
+
+// =================== STEP 3: Pre-screening ===================
+const KEYWORDS_R2 = ['adj','rev','reclass','suspense','error','wrong','調整','迴轉','沖銷','重分類','避險','重編','錯誤','計畫外','預算外'];
+
+function getGLVal(row, key) {
+  const col = state.glMapping[key];
+  return col ? (row[col] || '') : '';
+}
+function getGLNum(row, key) {
+  const v = getGLVal(row, key);
+  return parseFloat(v) || 0;
+}
+
+function getEntryAmount(row) {
+  const m = state.glMapping;
+  if (m.amount) return parseFloat(row[m.amount]) || 0;
+  if (m.debitAmount && m.creditAmount) {
+    const d = parseFloat(row[m.debitAmount]) || 0;
+    const c = parseFloat(row[m.creditAmount]) || 0;
+    return d - c;
+  }
+  if (m.dcField && m.amount && m.dcDebitCode) {
+    const dc = (row[m.dcField] || '').toString().trim().toUpperCase();
+    const amt = parseFloat(row[m.amount]) || 0;
+    return dc === m.dcDebitCode.toUpperCase() ? amt : -amt;
+  }
+  return 0;
+}
+
+function getEntryDebit(row) {
+  const m = state.glMapping;
+  if (m.debitAmount) return parseFloat(row[m.debitAmount]) || 0;
+  const a = getEntryAmount(row);
+  return a > 0 ? a : 0;
+}
+
+function isWeekend(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  return state.weekends.includes(d.getDay());
+}
+
+function isHoliday(dateStr) {
+  if (!dateStr || !state.holidays.length) return false;
+  return state.holidays.some(h => h.toString().includes(dateStr.toString().substring(0, 10)));
+}
+
+function trailingZeros(num) {
+  if (!num || num === 0) return 0;
+  const abs = Math.abs(Math.round(num));
+  const s = abs.toString();
+  let count = 0;
+  for (let i = s.length - 1; i >= 0; i--) {
+    if (s[i] === '0') count++;
+    else break;
+  }
+  return count;
+}
+
+async function runPreScreening() {
+  if (!state.glData) { alert('請先完成步驟一，載入 GL 資料'); return; }
+  showLoading('執行預先篩選程序...');
+
+  const logEl = document.getElementById('prescreenLog');
+  document.getElementById('prescreenProgress').style.display = 'block';
+
+  const log = (msg) => { logEl.innerHTML += `<div>${msg}</div>`; };
+  const gl = state.glData;
+  const m = state.glMapping;
+
+  log('▶ 開始執行預先篩選程序...');
+
+  // R1: 期末財務報表準備期間
+  const r1 = [];
+  if (state.lastPeriodStart) {
+    const threshold = new Date(state.lastPeriodStart);
+    gl.forEach(row => {
+      const dateVal = getGLVal(row, 'docDate') || getGLVal(row, 'postDate');
+      if (dateVal) {
+        const d = new Date(dateVal);
+        if (!isNaN(d) && d >= threshold) r1.push(row);
+      }
+    });
+    log(`✅ #1 期末準備期間核准分錄：${r1.length} 筆`);
+  } else {
+    log(`⚠️ #1 跳過（未設定期末財務報表準備期間開始日）`);
+  }
+  state.prescreenResults.r1 = r1;
+  document.getElementById('r1count').textContent = r1.length;
+  document.getElementById('fi_r1count').textContent = r1.length;
+  if (r1.length) document.getElementById('r1check').checked = true, document.getElementById('r1item').classList.add('checked');
+
+  await sleep(50);
+
+  // R2: 摘要含特定關鍵字
+  const r2 = gl.filter(row => {
+    const desc = (getGLVal(row, 'description') || '').toLowerCase();
+    return KEYWORDS_R2.some(k => desc.includes(k.toLowerCase()));
+  });
+  state.prescreenResults.r2 = r2;
+  log(`✅ #2 摘要含特定描述：${r2.length} 筆`);
+  document.getElementById('r2count').textContent = r2.length;
+  document.getElementById('fi_r2count').textContent = r2.length;
+  if (r2.length) document.getElementById('r2check').checked = true, document.getElementById('r2item').classList.add('checked');
+
+  await sleep(50);
+
+  // R3: 未預期借貸組合（需科目配對檔）
+  let r3 = [];
+  if (state.accMapData) {
+    const incomeAccs = new Set();
+    const arAccs = new Set();
+    const cashAccs = new Set();
+    const advanceAccs = new Set();
+    state.accMapData.forEach(row => {
+      const t = (Object.values(row)[2] || '').toString().toLowerCase();
+      const code = (Object.values(row)[0] || '').toString().trim();
+      if (t.includes('收入') || t.includes('revenue') || t.includes('income')) incomeAccs.add(code);
+      if (t.includes('應收') || t.includes('receivable')) arAccs.add(code);
+      if (t.includes('現金') || t.includes('cash') || t.includes('bank')) cashAccs.add(code);
+      if (t.includes('預收') || t.includes('advance') || t.includes('deferred')) advanceAccs.add(code);
+    });
+
+    r3 = gl.filter(row => {
+      const accNum = (getGLVal(row, 'accNum') || '').trim();
+      const amt = getEntryAmount(row);
+      const isCrIncome = amt < 0 && incomeAccs.has(accNum);
+      const isDrExpected = amt > 0 && (arAccs.has(accNum) || cashAccs.has(accNum) || advanceAccs.has(accNum));
+      return isCrIncome && !isDrExpected;
+    });
+    log(`✅ #3 未預期借貸組合：${r3.length} 筆`);
+  } else {
+    log(`⚠️ #3 跳過（未上傳科目配對檔）`);
+  }
+  state.prescreenResults.r3 = r3;
+  document.getElementById('r3count').textContent = r3.length || '—';
+  document.getElementById('fi_r3count').textContent = r3.length || '—';
+
+  await sleep(50);
+
+  // R4: 連續 0 尾數
+  const debits = gl.map(r => getEntryDebit(r)).filter(v => v > 0);
+  const avgDebit = debits.length ? debits.reduce((a, b) => a + b, 0) / debits.length : 0;
+  const avgLen = avgDebit > 0 ? Math.floor(Math.log10(avgDebit)) : 3;
+  const zerosThreshold = Math.max(3, avgLen - 1);
+  const r4 = gl.filter(row => {
+    const amt = Math.abs(getEntryAmount(row));
+    return trailingZeros(amt) >= zerosThreshold;
+  });
+  state.prescreenResults.r4 = r4;
+  state.r4ZerosThreshold = zerosThreshold;
+  log(`✅ #4 連續 ${zerosThreshold} 個 0 尾數：${r4.length} 筆（借方平均金額 ${Math.round(avgDebit).toLocaleString()}）`);
+  document.getElementById('r4count').textContent = r4.length;
+  document.getElementById('fi_r4count').textContent = r4.length;
+  if (r4.length) document.getElementById('r4check').checked = true, document.getElementById('r4item').classList.add('checked');
+
+  await sleep(50);
+
+  // R5: 依分錄編製者彙總
+  let r5 = [];
+  if (m.createBy) {
+    const byCreator = {};
+    gl.forEach(row => {
+      const creator = getGLVal(row, 'createBy') || '(未知)';
+      if (!byCreator[creator]) byCreator[creator] = { count: 0, rows: [] };
+      byCreator[creator].count++;
+      byCreator[creator].rows.push(row);
+    });
+    // Return all rows, but store summary
+    state.prescreenResults.r5Summary = byCreator;
+    r5 = gl; // All entries but shown summarised
+    const creatorCount = Object.keys(byCreator).length;
+    log(`✅ #5 依編製者彙總：${creatorCount} 位人員，共 ${gl.length} 筆`);
+  } else {
+    log(`⚠️ #5 跳過（未配對傳票建立人員欄位）`);
+  }
+  state.prescreenResults.r5 = r5;
+  document.getElementById('r5count').textContent = state.prescreenResults.r5Summary ? Object.keys(state.prescreenResults.r5Summary).length + ' 人' : '—';
+  document.getElementById('fi_r5count').textContent = document.getElementById('r5count').textContent;
+
+  await sleep(50);
+
+  // R6: 較少使用之科目
+  const accFreq = {};
+  gl.forEach(row => {
+    const acc = getGLVal(row, 'accNum') || '?';
+    accFreq[acc] = (accFreq[acc] || 0) + 1;
+  });
+  const freqVals = Object.values(accFreq);
+  const avgFreq = freqVals.length ? freqVals.reduce((a, b) => a + b, 0) / freqVals.length : 1;
+  const rareAccs = Object.keys(accFreq).filter(a => accFreq[a] < avgFreq * 0.25);
+  const r6 = gl.filter(row => rareAccs.includes(getGLVal(row, 'accNum') || '?'));
+  state.prescreenResults.r6 = r6;
+  log(`✅ #6 較少使用之科目（低於平均 25%）：${rareAccs.length} 個科目，${r6.length} 筆`);
+  document.getElementById('r6count').textContent = r6.length;
+  document.getElementById('fi_r6count').textContent = r6.length;
+  if (r6.length) document.getElementById('r6check').checked = true, document.getElementById('r6item').classList.add('checked');
+
+  // Null description
+  const descNullRows = gl.filter(row => !(getGLVal(row, 'description') || '').trim());
+  state.prescreenResults.descNull = descNullRows;
+  document.getElementById('fi_descNullCount').textContent = descNullRows.length;
+  log(`✅ 空白摘要分錄：${descNullRows.length} 筆`);
+
+  log('');
+  log(`✅ 預先篩選程序執行完成！`);
+
+  document.getElementById('btnExpValidation').style.display = 'inline-flex';
+  document.getElementById('btnExpPrescreen').style.display = 'inline-flex';
+  document.getElementById('btnGoStep4').style.display = 'inline-flex';
+  markStepDone(3);
+  hideLoading();
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// =================== STEP 4 ===================
+function populateStep4Fields() {
+  const dateCols = ['', ...state.glColumns.filter(c => {
+    const k = c.toLowerCase();
+    return k.includes('date') || k.includes('日');
+  })];
+  const numCols = ['', ...state.glColumns.filter(c => {
+    const k = c.toLowerCase();
+    return k.includes('amount') || k.includes('金額') || k.includes('amt');
+  })];
+  const mixCols = state.glColumns;
+
+  // Populate date fields
+  ['f_dateField1','f_dateField2'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = dateCols.map(c => `<option value="${c}">${c || '— 選擇日期欄位 —'}</option>`).join('');
+  });
+
+  // Populate num fields
+  const numSel = document.getElementById('f_numField');
+  numSel.innerHTML = numCols.map(c => `<option value="${c}">${c || '— 選擇數字欄位 —'}</option>`).join('');
+
+  // Populate char filter grid
+  const charGrid = document.getElementById('charFilterGrid');
+  const noCharMsg = document.getElementById('noCharFields');
+  const charFields = [];
+  Object.entries(state.glMapping).forEach(([key, col]) => {
+    if (!col) return;
+    const f = GL_FIELDS.find(x => x.key === key);
+    if (f && (f.type === 'mix' || f.type === 'char') && !['amount','debitAmount','creditAmount','lineID','manual'].includes(key)) {
+      charFields.push({ key, col, label: f.label });
+    }
+  });
+
+  if (charFields.length) {
+    noCharMsg.style.display = 'none';
+    charGrid.innerHTML = charFields.slice(0, 6).map((f, i) => `
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <input type="checkbox" id="f_charChk${i}" onchange="toggleCharFilter(${i})">
+          <select class="form-select" style="flex:1" id="f_charField${i}">
+            ${mixCols.map(c => `<option value="${c}" ${c===f.col?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div id="f_charKeywordArea${i}" style="display:none">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">輸入關鍵字（逗號分隔）</div>
+          <input class="form-input" type="text" id="f_charKeywords${i}" placeholder="例: 調整,沖銷">
+          <div style="margin-top:6px;display:flex;gap:8px">
+            <select class="form-select" id="f_charType${i}" style="flex:1">
+              <option value="contains">包含</option>
+              <option value="exact">完全符合</option>
+              <option value="notContains">包含就排除</option>
+              <option value="notExact">完全符合才排除</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } else {
+    noCharMsg.style.display = 'block';
+    charGrid.innerHTML = '';
+  }
+
+  // Sync pre-screen results
+  const pr = state.prescreenResults;
+  ['r1','r2','r3','r4','r5','r6'].forEach(k => {
+    const el = document.getElementById(`fi_${k}count`);
+    if (el) el.textContent = pr[k] ? pr[k].length : '—';
+  });
+}
+
+function toggleCharFilter(i) {
+  const chk = document.getElementById(`f_charChk${i}`);
+  const area = document.getElementById(`f_charKeywordArea${i}`);
+  if (area) area.style.display = chk.checked ? 'block' : 'none';
+}
+
+function runAdvancedFilter() {
+  if (!state.glData) { alert('請先完成步驟一'); return; }
+  showLoading('執行進階篩選...');
+
+  setTimeout(() => {
+    const conditions = gatherFilterConditions();
+    if (!conditions.length) {
+      hideLoading();
+      alert('請至少選擇一個篩選條件');
+      return;
+    }
+
+    let filtered = [...state.glData];
+
+    // Apply each condition group
+    conditions.forEach(cond => {
+      const rows = applyCondition(state.glData, cond);
+      cond.resultRows = rows;
+      cond.count = rows.length;
+    });
+
+    // Show save dialog
+    hideLoading();
+    showFilterRunResults(conditions);
+  }, 100);
+}
+
+function gatherFilterConditions() {
+  const conds = [];
+
+  // Manual
+  if (document.getElementById('f_isManual').checked && state.glMapping.manual) {
+    conds.push({ label: '人工編制傳票', type: 'manual' });
+  }
+
+  // Debit only
+  if (document.getElementById('f_debitOnly').checked) {
+    conds.push({ label: '僅借方傳票', type: 'debitOnly' });
+  }
+
+  // Credit only
+  if (document.getElementById('f_creditOnly').checked) {
+    conds.push({ label: '僅貸方傳票', type: 'creditOnly' });
+  }
+
+  // Date ranges
+  if (document.getElementById('f_dateRange1').checked) {
+    const field = document.getElementById('f_dateField1').value;
+    const from = document.getElementById('f_dateFrom1').value;
+    const to = document.getElementById('f_dateTo1').value;
+    if (field && (from || to)) conds.push({ label: `日期篩選(${field}): ${from||''}~${to||''}`, type: 'dateRange', field, from, to });
+  }
+  if (document.getElementById('f_dateRange2').checked) {
+    const field = document.getElementById('f_dateField2').value;
+    const from = document.getElementById('f_dateFrom2').value;
+    const to = document.getElementById('f_dateTo2').value;
+    if (field && (from || to)) conds.push({ label: `日期篩選(${field}): ${from||''}~${to||''}`, type: 'dateRange', field, from, to });
+  }
+
+  // Weekend/holiday
+  if (document.getElementById('f_weekendPost').checked) {
+    conds.push({ label: '總帳日期在非工作日週末', type: 'weekendPost' });
+  }
+  if (document.getElementById('f_weekendDoc').checked) {
+    conds.push({ label: '核准日期在非工作日週末', type: 'weekendDoc' });
+  }
+  if (document.getElementById('f_holidayPost').checked && state.holidays.length) {
+    conds.push({ label: '總帳日期在國定假日', type: 'holidayPost' });
+  }
+  if (document.getElementById('f_holidayDoc').checked && state.holidays.length) {
+    conds.push({ label: '核准日期在國定假日', type: 'holidayDoc' });
+  }
+
+  // Numeric range
+  if (document.getElementById('f_numRange').checked) {
+    const field = document.getElementById('f_numField').value;
+    const from = document.getElementById('f_numFrom').value;
+    const to = document.getElementById('f_numTo').value;
+    if (field && (from || to)) conds.push({ label: `數字篩選(${field}): ${from||''}~${to||''}`, type: 'numRange', field, from: parseFloat(from)||null, to: parseFloat(to)||null });
+  }
+
+  // Round numbers extra
+  if (document.getElementById('f_rout4extra').checked) {
+    const text = document.getElementById('f_rout4text').value.trim();
+    if (text) conds.push({ label: `額外尾數篩選: ...${text}`, type: 'roundNum', pattern: text });
+  }
+
+  // Pre-screening results
+  ['r1','r2','r3','r4','r5','r6'].forEach(k => {
+    if (document.getElementById(`f_${k}`).checked) {
+      const rows = state.prescreenResults[k];
+      if (rows && rows.length) conds.push({ label: `預先篩選 #${k.replace('r','')}: ${k === 'r1' ? '期末準備期間' : k === 'r2' ? '摘要特定描述' : k === 'r3' ? '未預期借貸' : k === 'r4' ? '連續0尾數' : k === 'r5' ? '依編製者彙總' : '較少使用科目'}`, type: 'prescreened', prescreenKey: k });
+    }
+  });
+
+  if (document.getElementById('f_descNull').checked) {
+    conds.push({ label: '空白摘要分錄', type: 'descNull' });
+  }
+
+  // Char filters
+  for (let i = 0; i < 6; i++) {
+    const chk = document.getElementById(`f_charChk${i}`);
+    if (!chk || !chk.checked) continue;
+    const field = document.getElementById(`f_charField${i}`)?.value;
+    const keywords = document.getElementById(`f_charKeywords${i}`)?.value;
+    const filterType = document.getElementById(`f_charType${i}`)?.value;
+    if (field && keywords) {
+      const kws = keywords.split(',').map(k => k.trim()).filter(Boolean);
+      conds.push({ label: `文字篩選(${field}): ${kws.join('/')}`, type: 'charFilter', field, keywords: kws, filterType });
+    }
+  }
+
+  return conds;
+}
+
+function applyCondition(gl, cond) {
+  switch(cond.type) {
+    case 'manual':
+      return gl.filter(r => {
+        const v = getGLVal(r, 'manual');
+        return v && v.toString() === '1';
+      });
+
+    case 'debitOnly':
+      return gl.filter(r => getEntryAmount(r) > 0);
+
+    case 'creditOnly':
+      return gl.filter(r => getEntryAmount(r) < 0);
+
+    case 'dateRange': {
+      return gl.filter(r => {
+        const v = r[cond.field];
+        if (!v) return false;
+        const d = new Date(v);
+        if (cond.from && d < new Date(cond.from)) return false;
+        if (cond.to && d > new Date(cond.to)) return false;
+        return true;
+      });
+    }
+
+    case 'weekendPost':
+      return gl.filter(r => isWeekend(getGLVal(r, 'postDate')));
+
+    case 'weekendDoc':
+      return gl.filter(r => isWeekend(getGLVal(r, 'docDate') || getGLVal(r, 'postDate')));
+
+    case 'holidayPost':
+      return gl.filter(r => isHoliday(getGLVal(r, 'postDate')));
+
+    case 'holidayDoc':
+      return gl.filter(r => isHoliday(getGLVal(r, 'docDate') || getGLVal(r, 'postDate')));
+
+    case 'numRange': {
+      return gl.filter(r => {
+        const v = parseFloat(r[cond.field]) || 0;
+        if (cond.from !== null && v < cond.from) return false;
+        if (cond.to !== null && v > cond.to) return false;
+        return true;
+      });
+    }
+
+    case 'roundNum':
+      return gl.filter(r => {
+        const a = Math.abs(getEntryAmount(r)).toString();
+        return a.endsWith(cond.pattern);
+      });
+
+    case 'prescreened':
+      return state.prescreenResults[cond.prescreenKey] || [];
+
+    case 'descNull':
+      return state.prescreenResults.descNull || gl.filter(r => !(getGLVal(r, 'description') || '').trim());
+
+    case 'charFilter': {
+      return gl.filter(r => {
+        const v = (r[cond.field] || '').toString().toLowerCase();
+        const match = cond.keywords.some(k => {
+          return cond.filterType === 'exact' ? v === k.toLowerCase() : v.includes(k.toLowerCase());
+        });
+        if (cond.filterType === 'notContains' || cond.filterType === 'notExact') return !match;
+        return match;
+      });
+    }
+
+    default:
+      return gl;
+  }
+}
+
+function showFilterRunResults(conditions) {
+  const total = state.savedCriteria.length;
+  if (total >= 10) {
+    alert('已達最大保留條件數量（10條）');
+    return;
+  }
+
+  const html = `
+    <div class="alert alert-info"><span>ℹ️</span><span>以下為本次篩選結果，請確認是否保留以進行後續工作底稿產出。</span></div>
+    ${conditions.map((c, i) => `
+      <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px">
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--text)">${c.label}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px">篩選結果：<strong style="color:var(--accent3)">${c.count || c.resultRows?.length || 0}</strong> 筆</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="previewConditionRows(${i})">預覽</button>
+        <button class="btn btn-success btn-sm" onclick="saveCondition(${i})">保留此條件</button>
+      </div>
+    `).join('')}
+    <div style="margin-top:16px;font-size:12px;color:var(--text3)">目前已保留條件：${total} / 10</div>
+  `;
+
+  // Store temp conditions
+  window._tempConditions = conditions;
+  showModal('篩選執行結果', html);
+
+  document.getElementById('btnViewResults').style.display = 'inline-flex';
+  document.getElementById('btnExpSummary').style.display = 'inline-flex';
+  document.getElementById('btnExpCriteria').style.display = 'inline-flex';
+}
+
+function previewConditionRows(i) {
+  const cond = window._tempConditions[i];
+  const rows = cond.resultRows || [];
+  if (!rows.length) { alert('此條件無符合資料'); return; }
+  showModal(`預覽：${cond.label}（${rows.length} 筆）`, renderTableHTML(rows.slice(0, 100)));
+}
+
+function saveCondition(i) {
+  if (state.savedCriteria.length >= 10) { alert('已達最大 10 條'); return; }
+  const cond = window._tempConditions[i];
+  state.savedCriteria.push({ ...cond, id: state.savedCriteria.length + 1 });
+  updateSavedCriteriaCount();
+  renderCriteriaResults();
+  document.getElementById('filterResultsArea').style.display = 'block';
+  alert(`已保留條件「${cond.label}」（第 ${state.savedCriteria.length} 條）`);
+}
+
+function updateSavedCriteriaCount() {
+  document.getElementById('savedCriteriaCount').textContent = `${state.savedCriteria.length} / 10`;
+}
+
+function renderCriteriaResults() {
+  const list = document.getElementById('criteriaResultsList');
+  list.innerHTML = state.savedCriteria.map((c, i) => `
+    <div class="criteria-result-item">
+      <div class="criteria-result-header">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--accent);min-width:60px">條件 ${i+1}</div>
+        <div style="flex:1;font-size:13px">${c.label}</div>
+        <div class="check-count">${c.count || c.resultRows?.length || 0} 筆</div>
+        <button class="btn btn-secondary btn-sm" onclick="toggleCriteriaBody(${i})">詳情</button>
+        <button class="btn btn-danger btn-sm" onclick="removeCriteria(${i})">移除</button>
+      </div>
+      <div class="criteria-result-body" id="crBody${i}">
+        <div class="table-wrap">${renderTableHTML((c.resultRows||[]).slice(0,50))}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleCriteriaBody(i) {
+  const body = document.getElementById(`crBody${i}`);
+  body.classList.toggle('open');
+}
+
+function removeCriteria(i) {
+  if (confirm('確定移除此篩選條件？')) {
+    state.savedCriteria.splice(i, 1);
+    state.savedCriteria.forEach((c, idx) => c.id = idx + 1);
+    updateSavedCriteriaCount();
+    renderCriteriaResults();
+  }
+}
+
+function viewFilterResults() {
+  renderCriteriaResults();
+  document.getElementById('filterResultsArea').style.display = 'block';
+  document.getElementById('filterResultsArea').scrollIntoView({ behavior: 'smooth' });
+}
+
+function exportSummaryReport() {
+  if (!state.savedCriteria.length) { alert('請先保留至少一個篩選條件'); return; }
+  showLoading('產生彙總報告...');
+  setTimeout(() => {
+    const wb = XLSX.utils.book_new();
+
+    state.savedCriteria.forEach((c, i) => {
+      const rows = c.resultRows || [];
+      if (rows.length) {
+        const ws = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, `條件${i+1}_${c.label.substring(0,15)}`);
+      }
+    });
+
+    // Summary sheet
+    const summaryData = state.savedCriteria.map((c, i) => ({
+      '篩選條件': `條件 ${i+1}`,
+      '說明': c.label,
+      '筆數': c.resultRows?.length || 0,
+    }));
+    const sumWs = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, sumWs, '彙總');
+    XLSX.writeFile(wb, `JE_PreScreening_Summary_${state.entityName || 'Report'}.xlsx`);
+    hideLoading();
+  }, 200);
+}
+
+// =================== STEP 5 ===================
+function populateStep5() {
+  const statsEl = document.getElementById('step5Stats');
+  const totalRows = state.glData ? state.glData.length : 0;
+  const criteriaCount = state.savedCriteria.length;
+  const allHitRows = new Set();
+  state.savedCriteria.forEach(c => (c.resultRows || []).forEach(r => allHitRows.add(r)));
+
+  statsEl.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-val">${totalRows.toLocaleString()}</div>
+      <div class="stat-label">GL 總分錄筆數</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">${criteriaCount}</div>
+      <div class="stat-label">已保留篩選條件</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">${allHitRows.size.toLocaleString()}</div>
+      <div class="stat-label">篩選後分錄筆數（去重）</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">${totalRows ? ((allHitRows.size / totalRows) * 100).toFixed(1) + '%' : '—'}</div>
+      <div class="stat-label">篩選覆蓋率</div>
+    </div>
+  `;
+
+  const list = document.getElementById('wpCriteriaList');
+  if (!criteriaCount) {
+    list.innerHTML = `<div class="alert alert-warning"><span>⚠️</span><span>請先完成步驟四的篩選作業，才能在此選擇要匯出的條件。</span></div>`;
+    return;
+  }
+
+  list.innerHTML = state.savedCriteria.map((c, i) => `
+    <div style="border:1px solid var(--border);border-radius:6px;margin-bottom:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface2)">
+        <input type="checkbox" id="wp_sel${i}" style="accent-color:var(--accent)">
+        <div style="flex:1">
+          <span style="font-family:var(--mono);font-size:11px;color:var(--accent)">條件 ${i+1}</span>
+          <span style="font-size:13px;margin-left:8px">${c.label}</span>
+        </div>
+        <span class="check-count">${c.resultRows?.length || 0} 筆</span>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--border)">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:6px">選擇理由 <span class="required-tag">必填</span></div>
+        <textarea class="form-input" id="wp_rationale${i}" rows="2" placeholder="請說明選擇此篩選條件的查核理由..." style="resize:vertical">${state.wpRationale[i]||''}</textarea>
+      </div>
+    </div>
+  `).join('');
+}
+
+function viewStep4Results() {
+  renderCriteriaResults();
+  goToStep(4);
+  document.getElementById('filterResultsArea').style.display = 'block';
+}
+
+// =================== HELPER: XLSX STYLING VIA AOA ===================
+// Builds a styled workbook sheet using array-of-arrays
+
+function fmt(v) { return v === null || v === undefined ? '' : v; }
+
+function calcGLStats() {
+  const gl = state.glData || [];
+  const m = state.glMapping;
+  let totalDebit = 0, totalCredit = 0, net = 0;
+  gl.forEach(r => {
+    if (m.debitAmount) totalDebit += parseFloat(r[m.debitAmount]) || 0;
+    if (m.creditAmount) totalCredit += Math.abs(parseFloat(r[m.creditAmount]) || 0);
+    if (m.amount) {
+      const a = parseFloat(r[m.amount]) || 0;
+      if (a > 0) totalDebit += a; else totalCredit += Math.abs(a);
+    }
+  });
+  net = totalDebit - totalCredit;
+  return { total: gl.length, totalDebit, totalCredit, net };
+}
+
+function getGLValDirect(row, fieldName) {
+  return fieldName ? (row[fieldName] || '') : '';
+}
+
+function buildValidationData() {
+  const gl = state.glData || [];
+  const tb = state.tbData || [];
+  const m = state.glMapping;
+  const tm = state.tbMapping;
+  const stats = calcGLStats();
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('zh-TW');
+
+  // V1: no account code
+  const v1 = gl.filter(r => !(getGLVal(r,'accNum')||'').trim()).length;
+  // V2: no doc num
+  const v2 = gl.filter(r => !(getGLVal(r,'docNum')||'').trim()).length;
+  // V3: no description
+  const v3 = gl.filter(r => !(getGLVal(r,'description')||'').trim()).length;
+  // V4: approval date out of period
+  const v4 = gl.filter(r => {
+    const d = getGLVal(r,'docDate') || getGLVal(r,'postDate');
+    if (!d || !state.periodStart || !state.periodEnd) return false;
+    const dt = new Date(d);
+    return dt < new Date(state.periodStart) || dt > new Date(state.periodEnd);
+  }).length;
+
+  // V5: TB vs GL rollforward by account
+  const tbAccAmt = {};
+  tb.forEach(r => {
+    const acc = (r[tm.accNum]||'').trim();
+    if (!acc) return;
+    let amt = 0;
+    if (tm.amount) amt = parseFloat(r[tm.amount]) || 0;
+    else if (tm.debitAmt && tm.creditAmt) amt = (parseFloat(r[tm.debitAmt])||0) - (parseFloat(r[tm.creditAmt])||0);
+    tbAccAmt[acc] = (tbAccAmt[acc]||0) + amt;
+  });
+  const glAccAmt = {};
+  gl.forEach(r => {
+    const acc = (getGLVal(r,'accNum')||'').trim();
+    if (!acc) return;
+    const amt = getEntryAmount(r);
+    glAccAmt[acc] = (glAccAmt[acc]||0) + amt;
+  });
+  const diffAccounts = [];
+  Object.keys(tbAccAmt).forEach(acc => {
+    const diff = (tbAccAmt[acc]||0) - (glAccAmt[acc]||0);
+    if (Math.abs(diff) > 0.01) {
+      const tbName = tb.find(r => (r[tm.accNum]||'').trim() === acc);
+      diffAccounts.push({ acc, name: tbName ? (tbName[tm.accName]||'') : '', tbAmt: tbAccAmt[acc], glAmt: glAccAmt[acc]||0, diff });
+    }
+  });
+  const v5 = diffAccounts.length;
+
+  // V6: out-of-balance vouchers
+  const docBalance = {};
+  gl.forEach(r => {
+    const doc = (getGLVal(r,'docNum')||'_').trim();
+    docBalance[doc] = (docBalance[doc]||0) + getEntryAmount(r);
+  });
+  const v6 = Object.values(docBalance).filter(v => Math.abs(v) > 0.01).length;
+
+  return { stats, v1, v2, v3, v4, v5, v6, diffAccounts, dateStr };
+}
+
+// =================== EXPORT: VALIDATION REPORT ===================
+function exportValidationReport() {
+  if (!state.glData) { alert('請先完成步驟一'); return; }
+  showLoading('產生 Validation Report...');
+  setTimeout(() => {
+    const { stats, v1, v2, v3, v4, v5, v6, diffAccounts, dateStr } = buildValidationData();
+    const wb = XLSX.utils.book_new();
+    const gl = state.glData;
+    const m = state.glMapping;
+
+    // ---- Sheet 1: ValidationReport ----
+    const vr = [
+      [null, 'Validation Report', null, null, `Client: ${state.entityName}`],
+      [null, null, null, null, `Year End: ${state.periodEnd}`],
+      [null, null, null, null, null],
+      [null, null, null, null, `Prepared by: `],
+      [null, null, null, null, `Prepared date: ${dateStr}`],
+      [null, null, null, null, null],
+      ['Basic Information', null, null, null, null],
+      ['No', '描述', 'Description', null, 'Value'],
+      [1, '會計分錄的檔案名稱', 'Name of Journal Entries Transaction file', null, state.glFile],
+      [2, '會計分錄的借貸淨額(應為0)', 'Net amount of journal entries (it should be equal to zero)', null, stats.net.toFixed(2)],
+      [3, '會計分錄的借方合計金額', 'Total DEBIT amount of journal entries', null, stats.totalDebit.toFixed(2)],
+      [4, '會計分錄的貸方合計金額', 'Total CREDIT amount of journal entries', null, stats.totalCredit.toFixed(2)],
+      [5, '會計分錄的筆數', 'Number of journal entries', null, stats.total],
+      [6, '試算表的檔案名稱', 'Name of Trial Balance file', null, state.tbFile],
+      [7, '試算表的會計科目數量', 'Number of accounts in TB file', null, state.tbData?.length || 0],
+      [null, null, null, null, null],
+      [null, null, null, null, null],
+      ['Validation Information', null, null, null, null],
+      ['No', '描述', 'Description', 'Number', 'Proposed Resolution'],
+      [1, '無會計科目編號之分錄筆數', 'Number of JEs without account code', v1, v1 > 0 ? '請參照V_Report 1' : 'N/A'],
+      [2, '無傳票號碼之分錄筆數', 'Number of JEs without journal entry number', v2, v2 > 0 ? '請參照V_Report 2' : 'N/A'],
+      [3, '無傳票摘要之分錄筆數', 'Number of JEs without journal entry description', v3, v3 > 0 ? '請參照V_Report 3' : 'N/A'],
+      [4, '傳票核准日不在會計期間內之分錄筆數', 'Approval date is out of the financial period', v4, v4 > 0 ? '請參照V_Report 4' : 'N/A'],
+      [5, 'JE取得之完整性測試\n(檢驗試算表各科目的期初與期末餘額之變動數是否等於該科目於JE的借貸餘額)', 'Completeness/rollforward test', v5, v5 > 0 ? '請參照V_Report 5' : v5 === 0 && state.tbData ? '無差異，完整性測試通過' : 'TB未上傳，無法執行'],
+      [6, '個別傳票是否借貸不平測試', 'Out of Balance Journal Entries', v6, v6 > 0 ? '請參照V_Report 6' : 'N/A'],
+    ];
+    const vrWs = XLSX.utils.aoa_to_sheet(vr);
+    vrWs['!cols'] = [{wch:6},{wch:35},{wch:55},{wch:12},{wch:40}];
+    XLSX.utils.book_append_sheet(wb, vrWs, 'ValidationReport');
+
+    // ---- V_Report 1: No Account Code ----
+    const v1rows = gl.filter(r => !(getGLVal(r,'accNum')||'').trim());
+    if (v1rows.length) {
+      const ws = XLSX.utils.json_to_sheet(v1rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'V_Report 1-無科目編號');
+    }
+
+    // ---- V_Report 2: No Doc Num ----
+    const v2rows = gl.filter(r => !(getGLVal(r,'docNum')||'').trim());
+    if (v2rows.length) {
+      const ws = XLSX.utils.json_to_sheet(v2rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'V_Report 2-無傳票號碼');
+    }
+
+    // ---- V_Report 3: No Description ----
+    const v3rows = gl.filter(r => !(getGLVal(r,'description')||'').trim());
+    if (v3rows.length) {
+      const ws = XLSX.utils.json_to_sheet(v3rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'V_Report 3-無摘要');
+    }
+
+    // ---- V_Report 4: Date out of period ----
+    const v4rows = gl.filter(r => {
+      const d = getGLVal(r,'docDate') || getGLVal(r,'postDate');
+      if (!d || !state.periodStart || !state.periodEnd) return false;
+      const dt = new Date(d);
+      return dt < new Date(state.periodStart) || dt > new Date(state.periodEnd);
+    });
+    if (v4rows.length) {
+      const ws = XLSX.utils.json_to_sheet(v4rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'V_Report 4-日期超出期間');
+    }
+
+    // ---- V_Report 5: TB vs GL rollforward ----
+    if (diffAccounts.length) {
+      const diffData = [['試算表科目編號','試算表科目名稱','試算表科目變動金額(A)','JE借貸金額彙總(B)','差異數(B-A)']];
+      diffAccounts.forEach(d => diffData.push([d.acc, d.name, d.tbAmt.toFixed(2), d.glAmt.toFixed(2), d.diff.toFixed(2)]));
+      const ws = XLSX.utils.aoa_to_sheet(diffData);
+      ws['!cols'] = [{wch:18},{wch:30},{wch:20},{wch:20},{wch:15}];
+      XLSX.utils.book_append_sheet(wb, ws, 'V_Report 5-完整性測試');
+    } else if (state.tbData) {
+      const ws = XLSX.utils.aoa_to_sheet([['結果','無差異，完整性測試通過']]);
+      XLSX.utils.book_append_sheet(wb, ws, 'V_Report 5-完整性測試');
+    }
+
+    // ---- V_Report 6: Out of balance ----
+    const docBalance = {};
+    gl.forEach(r => {
+      const doc = (getGLVal(r,'docNum')||'_').trim();
+      if (!docBalance[doc]) docBalance[doc] = 0;
+      docBalance[doc] += getEntryAmount(r);
+    });
+    const oobDocs = Object.entries(docBalance).filter(([,v]) => Math.abs(v) > 0.01);
+    if (oobDocs.length) {
+      const oobData = [['傳票號碼','借貸不平金額'],...oobDocs.map(([d,v])=>[d, v.toFixed(2)])];
+      const ws = XLSX.utils.aoa_to_sheet(oobData);
+      XLSX.utils.book_append_sheet(wb, ws, 'V_Report 6-借貸不平');
+    }
+
+    // ---- 欄位資訊 sheet ----
+    const fieldData = [['欄位名稱','配對欄位']];
+    Object.entries(state.glMapping).forEach(([k,v]) => { if(v) fieldData.push([k,v]); });
+    const fWs = XLSX.utils.aoa_to_sheet(fieldData);
+    XLSX.utils.book_append_sheet(wb, fWs, '自動化工具-檔案欄位資訊');
+
+    XLSX.writeFile(wb, `ValidationReport_${state.entityName||'JE'}_${state.periodEnd||'output'}.xlsx`);
+    hideLoading();
+    alert('✅ Validation Report 已產生！');
+  }, 200);
+}
+
+// =================== EXPORT: PRE-SCREENING REPORT ===================
+function exportPreScreeningReport() {
+  if (!state.glData) { alert('請先執行步驟三的預先篩選'); return; }
+  showLoading('產生 Pre-screening Report...');
+  setTimeout(() => {
+    const pr = state.prescreenResults;
+    const wb = XLSX.utils.book_new();
+
+    // ---- Summary sheet ----
+    const summary = [
+      [null, 'Pre-screening Report', null, null, null, null],
+      [null, null, null, null, null, null],
+      [null, null, null, null, null, null],
+      [null, null, null, null, null, null],
+      [null, null, null, null, null, null],
+      [null, null, null, null, null, null],
+      ['狀態', '預先篩選的程序', '篩選條件之說明', '篩選之結果', '符合條件之傳票數量', '符合條件之分錄筆數'],
+      [
+        pr.r1.length > 0 ? '有符合項目' : '無符合項目',
+        '# 1. 於期末財務報表準備期間核准並入到查核年度總帳之分錄',
+        `將篩選期末關帳開始日 ${state.lastPeriodStart||'(未設定)'} 之後核准並入到查核年度總帳之分錄`,
+        pr.r1.length > 0 ? '請參照 R1 明細' : '無符合項目',
+        countVouchers(pr.r1), pr.r1.length
+      ],
+      [
+        pr.r2.length > 0 ? '有符合項目' : '無符合項目',
+        '# 2. 分錄摘要出現特定描述',
+        '預設特定描述文字包含 Adj, Rev, Reclass, Suspense, Error, Wrong, 調整, 迴轉, 沖銷, 重分類, 避險, 重編, 錯誤, 計畫外, 預算外等',
+        pr.r2.length > 0 ? '請參照 R2 明細' : '無符合項目',
+        countVouchers(pr.r2), pr.r2.length
+      ],
+      [
+        pr.r3.length > 0 ? '有符合項目' : (state.accMapData ? '無符合項目' : '未設定科目配對'),
+        '# 3. 未預期出現之特定借貸組合',
+        '預設將列出分錄貸方為收入，但借方不是應收帳款、現金(含銀行存款)或預收款之傳票',
+        pr.r3.length > 0 ? '請參照 R3 明細' : (state.accMapData ? '無符合項目' : '未設定科目配對，無法執行'),
+        countVouchers(pr.r3), pr.r3.length
+      ],
+      [
+        pr.r4.length > 0 ? '有符合項目' : '無符合項目',
+        '# 4. 分錄金額中有連續0的尾數(0的位數依分錄金額平均數決定)',
+        `設定連續0的位數為：${state.r4ZerosThreshold || 3} 位`,
+        pr.r4.length > 0 ? '請參照 R4 明細' : '無符合項目',
+        countVouchers(pr.r4), pr.r4.length
+      ],
+      [
+        pr.r5Summary ? '已彙總' : '未設定編製者欄位',
+        '# 5. 依分錄編製者彙總分錄',
+        '依分錄建立人員彙總分錄數量與金額',
+        pr.r5Summary ? '請參照 R5 彙總' : '未配對傳票建立人員欄位',
+        pr.r5Summary ? Object.keys(pr.r5Summary).length + ' 位' : 0,
+        state.glData?.length || 0
+      ],
+      [
+        pr.r6.length > 0 ? '有符合項目' : '無符合項目',
+        '# 6. 較少使用之科目',
+        '將依科目使用次數與科目編號由小到大排序',
+        pr.r6.length > 0 ? '請參照 R6 明細' : '無符合項目',
+        countVouchers(pr.r6), pr.r6.length
+      ],
+      [
+        (pr.descNull||[]).length > 0 ? '有符合項目' : '無符合項目',
+        '# 分錄無摘要描述(即空白摘要)',
+        '篩選分錄摘要欄位為空白之分錄',
+        (pr.descNull||[]).length > 0 ? '請參照 空白摘要 明細' : '無符合項目',
+        countVouchers(pr.descNull||[]), (pr.descNull||[]).length
+      ],
+    ];
+    const sumWs = XLSX.utils.aoa_to_sheet(summary);
+    sumWs['!cols'] = [{wch:12},{wch:42},{wch:55},{wch:20},{wch:20},{wch:20}];
+    XLSX.utils.book_append_sheet(wb, sumWs, 'Pre-screening_Report');
+
+    // ---- Detail sheets ----
+    const addDetailSheet = (rows, name) => {
+      if (!rows || !rows.length) return;
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, name.substring(0,31));
+    };
+    addDetailSheet(pr.r1, 'R1-期末準備期間分錄');
+    addDetailSheet(pr.r2, 'R2-特定摘要分錄');
+    addDetailSheet(pr.r3, 'R3-未預期借貸組合');
+    addDetailSheet(pr.r4, 'R4-連續0尾數分錄');
+
+    // R5 summary
+    if (pr.r5Summary) {
+      const r5data = [['分錄編製者','傳票數量','分錄筆數','分錄金額合計']];
+      Object.entries(pr.r5Summary).forEach(([creator, info]) => {
+        const totalAmt = info.rows.reduce((s,r) => s + Math.abs(getEntryAmount(r)), 0);
+        const vouchers = new Set(info.rows.map(r => getGLVal(r,'docNum'))).size;
+        r5data.push([creator, vouchers, info.count, totalAmt.toFixed(2)]);
+      });
+      const r5Ws = XLSX.utils.aoa_to_sheet(r5data);
+      r5Ws['!cols'] = [{wch:25},{wch:12},{wch:12},{wch:18}];
+      XLSX.utils.book_append_sheet(wb, r5Ws, 'R5-依編製者彙總');
+    }
+
+    addDetailSheet(pr.r6, 'R6-較少使用科目分錄');
+    addDetailSheet(pr.descNull||[], '空白摘要分錄');
+
+    XLSX.writeFile(wb, `Pre-screeningReport_${state.entityName||'JE'}_${state.periodEnd||'output'}.xlsx`);
+    hideLoading();
+    alert('✅ Pre-screening Report 已產生！');
+  }, 200);
+}
+
+// =================== EXPORT: CRITERIA SELECTION REPORT ===================
+function exportCriteriaReport() {
+  if (!state.savedCriteria.length) { alert('請先在步驟四保留篩選條件'); return; }
+  showLoading('產生 Criteria Selection Report...');
+  setTimeout(() => {
+    const wb = XLSX.utils.book_new();
+    const dateStr = new Date().toLocaleDateString('zh-TW');
+
+    // Summary sheet
+    const header = [
+      [null, 'Criteria Selection Summary Information', `Client: ${state.entityName}`, `Prepared by: `, null, null, null, null, null, null, null],
+      [null, null, `Year End: ${state.periodEnd}`, `Prepared date: ${dateStr}`, null, null, null, null, null, null, null],
+      [null, null, null, null, null, null, null, null, null, null, null],
+      ['編號', '條件的內容', '符合條件的傳票數量', '符合條件的分錄筆數', null, null, null, null, null, null, null],
+    ];
+    state.savedCriteria.forEach((c, i) => {
+      header.push([`C${i+1}`, c.label, countVouchers(c.resultRows||[]), (c.resultRows||[]).length]);
+    });
+    const sumWs = XLSX.utils.aoa_to_sheet(header);
+    sumWs['!cols'] = [{wch:8},{wch:55},{wch:20},{wch:20}];
+    XLSX.utils.book_append_sheet(wb, sumWs, 'Summary Inforamtion');
+
+    // Individual criteria sheets
+    state.savedCriteria.forEach((c, i) => {
+      const rows = c.resultRows || [];
+      if (!rows.length) return;
+      const sheetName = `C${i+1}_${c.label.substring(0,20)}`;
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0,31));
+    });
+
+    XLSX.writeFile(wb, `CriteriaSelectionReport_${state.entityName||'JE'}_${state.periodEnd||'output'}.xlsx`);
+    hideLoading();
+    alert('✅ Criteria Selection Report 已產生！');
+  }, 200);
+}
+
+// =================== EXPORT: WORKING PAPER (Full) ===================
+function countVouchers(rows) {
+  if (!rows || !rows.length) return 0;
+  const docField = state.glMapping.docNum;
+  if (!docField) return rows.length;
+  return new Set(rows.map(r => r[docField]||'').filter(Boolean)).size;
+}
+
+function exportWorkPaper() {
+  showLoading('產生工作底稿...');
+  setTimeout(() => {
+    const selected = [];
+    const errors = [];
+
+    state.savedCriteria.forEach((c, i) => {
+      const chk = document.getElementById(`wp_sel${i}`);
+      if (!chk || !chk.checked) return;
+      const rationale = (document.getElementById(`wp_rationale${i}`)?.value || '').trim();
+      if (!rationale) { errors.push(`條件 ${i+1}：請說明選擇理由`); return; }
+      state.wpRationale[i] = rationale;
+      selected.push({ ...c, rationale, idx: i });
+    });
+
+    if (errors.length) { hideLoading(); alert('請填寫以下必要資訊：\n' + errors.join('\n')); return; }
+    if (!selected.length) { hideLoading(); alert('請至少勾選一個篩選條件'); return; }
+
+    const wb = XLSX.utils.book_new();
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('zh-TW');
+    const entity = state.entityName || '[公司名稱]';
+    const period = `${state.periodStart||'xxxx/xx/xx'}~${state.periodEnd||'xxxx/xx/xx'}`;
+    const lastStart = state.lastPeriodStart || 'xxxx/xx/xx';
+    const { stats, v1, v2, v3, v4, v5, v6, diffAccounts } = buildValidationData();
+
+    // ---- 資料預先整理之說明 ----
+    const preNote = [
+      [entity],
+      [`測試資料期間 [${period}]`],
+      [null],
+      [null],
+      ['請於下方加入針對JE Testing Tool所需資料預先整理之說明底稿(CAATs Document)。'],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(preNote), '資料預先整理之說明');
+
+    // ---- JE WorkingPaper說明 ----
+    const wpNote = [
+      ['說明：','此JE測試的WorkPaper係透過JE Testing Tool產生之工作底稿，並依下列步驟分別記錄會計分錄測試(JE Testing)所需之程序。'],
+      ['IT相關考量：是否有測試GITC且有任何RDE依賴該GITC來因應資料正確性、完整性及有效性的風險',null,null,null,null,null,null,null,null,null,null,'No'],
+      ['攸關資料考量：是否已確認JE資料完整性，並取得最新版TB(試算表)來核對',null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,'Yes/No'],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wpNote), 'JE WorkingPaper說明');
+
+    // ---- step1 完整性測試 ----
+    const s1 = [
+      [entity],
+      [`測試資料期間 [${period}]`],
+      [`財務報表準備期間-開始日 [${lastStart}]`],
+      ['此處底稿係記錄JE測試母體的完整性'],
+      [null],
+      ['Step 1'],
+      ['評估母體完整性：'],
+      [null,'i) 母體#1)財務報表關帳後才入帳之分錄或其他調整：查核團隊將取得財務報表與會計記錄核對。相關分錄與調節將記錄在step5，並提供期後分錄的完整性的證據。'],
+      [null,'ii) 母體#2) 於整個財務報導期間與期末財務報表準備期間所產生之分錄'],
+      [null,'取得受查者之當期試算表檔案與會計分錄明細檔，進行各科目金額的推滾與比對，以確認試算表各科目之本期異動是否與總帳分錄(JE)之該科目借貸方的加總餘額一致。'],
+      [null],
+      [null],
+      [null],
+      [null],
+      ['結論：', v5 === 0 && state.tbData ? '基於上述程序，查核團隊對於JE測試母體之完整性，已取得足夠的查核證據。' : '查核團隊已完成以下完整性測試程序。'],
+      [null],
+      [null,'#針對試算表科目金額本期異動與會計分錄(JE)進行推滾比對之清單列示如下：'],
+      [null],
+      [null,'試算表科目\n編號','試算表科目\n名稱','試算表科目\n變動金額\n(A)','該科目於會計分錄之\n本期借貸金額彙總\n(B)','差異數\n(B)-(A)'],
+    ];
+    // Add diff data rows
+    if (diffAccounts.length) {
+      diffAccounts.forEach(d => s1.push([null, d.acc, d.name, d.tbAmt.toFixed(2), d.glAmt.toFixed(2), d.diff.toFixed(2)]));
+    } else if (state.tbData) {
+      s1.push([null,'(所有科目差異均為0，完整性測試通過)']);
+    }
+    const s1Ws = XLSX.utils.aoa_to_sheet(s1);
+    s1Ws['!cols'] = [{wch:10},{wch:55},{wch:25},{wch:18},{wch:22},{wch:15}];
+    XLSX.utils.book_append_sheet(wb, s1Ws, 'step1 完整性測試');
+
+    // ---- step1-1 借貸不平測試 ----
+    const docBalance = {};
+    (state.glData||[]).forEach(r => {
+      const doc = (getGLVal(r,'docNum')||'_').trim();
+      docBalance[doc] = (docBalance[doc]||0) + getEntryAmount(r);
+    });
+    const oobDocs = Object.entries(docBalance).filter(([,v]) => Math.abs(v) > 0.01);
+    const s11 = [
+      [entity],
+      [`測試資料期間 [${period}]`],
+      [`財務報表準備期間-開始日 [${lastStart}]`],
+      ['此處底稿係記錄JE測試母體的是否有借貸不平情形'],
+      [null],
+      ['Step 1-1'],
+      ['評估個別傳票是否借貸不平：'],
+      [null,'針對前面Step1提到JE母體#2，依傳票號碼進行小計彙總，確認是否有借貸餘額不為0的情形。'],
+      [null],
+      [null],
+      [null],
+      ['結論：', oobDocs.length === 0 ? '所有傳票借貸平衡，無借貸不平之情形。' : `發現 ${oobDocs.length} 張傳票存在借貸不平情形，請參照明細確認原因。`],
+    ];
+    if (oobDocs.length) {
+      s11.push([null,'傳票號碼','借貸不平金額']);
+      oobDocs.forEach(([d,v]) => s11.push([null, d, v.toFixed(2)]));
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s11), 'step1-1 借貸不平測試');
+
+    // ---- step1-2 分錄編製人員說明 ----
+    const s12 = [
+      [entity],
+      [`測試資料期間 [${period}]`],
+      [`財務報表準備期間-開始日 [${lastStart}]`],
+      ['此處底稿係記錄JE測試母體的分錄編製人員'],
+      [null],
+      ['Step 1-2'],
+      ['評估是否有不適合的分錄編製人員：'],
+      [null,'查核團隊針對從JE測試母體所彙總的編製人員清單，說明及確認各編製人員是否適當。'],
+      [null],
+      [null],
+      [null,'編製人員\n(來自JE測試母體)','屬於自動或人工','經手之傳票數目','經手之傳票金額彙總','部門','職稱或職務','是否為適當編製人員之說明'],
+    ];
+    if (state.prescreenResults.r5Summary) {
+      Object.entries(state.prescreenResults.r5Summary).forEach(([creator, info]) => {
+        const totalAmt = info.rows.reduce((s,r) => s + Math.abs(getEntryAmount(r)), 0);
+        const vouchers = new Set(info.rows.map(r => getGLVal(r,'docNum'))).size;
+        s12.push([null, creator, '', vouchers, totalAmt.toFixed(2), '', '', '']);
+      });
+    }
+    const s12Ws = XLSX.utils.aoa_to_sheet(s12);
+    s12Ws['!cols'] = [{wch:10},{wch:25},{wch:12},{wch:12},{wch:18},{wch:12},{wch:15},{wch:35}];
+    XLSX.utils.book_append_sheet(wb, s12Ws, 'step1-2 分錄編製人員說明');
+
+    // ---- step1-3 完整性測試之差異說明 ----
+    const s13 = [
+      [entity],
+      [`測試資料期間 [${period}]`],
+      [`財務報表準備期間-開始日 [${lastStart}]`],
+      ['此處底稿係記錄JE測試母體於完整性測試有部分科目出現差異的回應與理由'],
+      [null],
+      ['Step 1-3'],
+      ['評估於Step1完整性測試中有部分科目出現差異的原因：'],
+      [null,'針對前面Step1的試算表個別科目本期異動金額與會計分錄本期借貸餘額出現差異之科目的相關傳票明細進行檢視，以確認差異原因。'],
+      [null],[null],[null],[null],
+      ['結論：', diffAccounts.length === 0 ? '無科目出現差異，無需填寫此底稿。' : '基於上述程序，查核團隊對出現差異之科目均已取得足夠的查核證據。'],
+      [null],
+      [null,'出現差異之個別科目說明：'],
+      [null],
+      [null,'試算表科目編號','試算表科目名稱','於Step1之差異金額','差異原因之說明','說明如何進行調節','調節後之差異金額或剩餘差異之說明'],
+    ];
+    diffAccounts.forEach(d => s13.push([null, d.acc, d.name, d.diff.toFixed(2), '', '', '']));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s13), 'step1-3 完整性測試之差異說明');
+
+    // ---- step2 可靠性測試 (template - auditor fills in) ----
+    const s2 = [
+      [entity],
+      [`財務報表期間 [${period}]`],
+      ['證實測試 - 會計分錄及其他調整'],
+      ['此Report將提供測試JE母體攸關資料元素可靠性之樣本'],
+      [null],
+      ['測試說明：',null,'1. 依照KAEG-I，JE攸關母體有納入高風險條件(HRC)的欄位即攸關資料元素(RDE)，需先確認RDE的可靠性後，方執行高風險篩選條件。'],
+      [null,null,'2. 上述提到之高風險條件的RDE大多屬於非財務性質，例如篩選條件考量過帳日期、分錄摘要的關鍵字等。'],
+      [null,null,'3. 若高風險條件亦有使用會計科目編號、科目名稱或金額等欄位來進行篩選，則這些納入篩選條件的欄位亦屬於RDE。'],
+      [null,null,'4. JE的RDE可靠性確認包括確認完整性及正確性，此處可靠性測試係針對JE RDE的正確性進行測試。'],
+      [null,null,'5. 需依照屬性抽樣表格選取樣本核對會計傳票附件以確認RDE的正確性。最低測試樣本量為60筆。'],
+      [null],
+      [null],
+      ['測試程序：(若JE高風險條件(HRC)不包含下列A~G程序提到的欄位，則該測試程序可設為N/A)'],
+      ['A.',null,'財務類型RDE：確認是否已於JE母體完整性測試時，完成此類RDE的測試。若無，則確認分錄金額是否與傳票附件符合。'],
+      ['B.','過帳日期/過帳時間：屬內部交易過帳者，核至經核准的內部交易日期。'],
+      ['C.','傳票建立日期/分錄時間：根據案件情況及所選樣本來判斷選擇程序來執行，以驗證其可靠性。'],
+      ['D.','分錄編製人員(或過帳人員)：確認分錄的類型及其過帳人員是否符合內部政策定義。'],
+      ['E.','分錄來源：核對分錄至傳票附件內容，以確認是否符合其所標註的分錄來源。'],
+      ['F.','分錄備註/說明：評估該輸入是否有特定的內部原則或方法要遵循。'],
+      ['G.','除上述以外之RDE'],
+      [null],
+      [null],
+      [null],
+      [null],
+      [null],
+      [null],
+      [null],
+      ['樣本編號',null,'擬測試其正確性的攸關資料元素(即RDE)',null,null,null,null,null,null,null,null,null,'測試結果',null,null,null,null,null,null,'說明詳細測試過程'],
+      [null,null,'財務類型RDE(對應測試結果A)',null,null,null,'非財務類型RDE(對應測試結果B~G)'],
+      [null,'傳票號碼\n(分錄編號)','會計科目編號','會計科目名稱','借貸方\n代號\n(若有)','金額 - 借(貸)','總帳日期','傳票核准日期\n(若有)','分錄編製人員\n(或過帳人員)','分錄來源或\n人工/自動分錄判斷(若有)','分錄備註/說明','其他有用在高風險條件的RDE欄位\n(若有，請自行新增修改)','財務類型','非財務類型',null,null,null,null,null,'(例如：向誰詢問、觀察或檢視哪些內容)'],
+      [null,null,null,null,null,null,null,null,null,null,null,null,'A','B','C','D','E','F','G',null],
+    ];
+    for (let i = 1; i <= 60; i++) {
+      s2.push([`${i}.`]);
+    }
+    const s2Ws = XLSX.utils.aoa_to_sheet(s2);
+    s2Ws['!cols'] = [{wch:8},{wch:18},{wch:18},{wch:20},{wch:8},{wch:15},{wch:14},{wch:16},{wch:18},{wch:18},{wch:18},{wch:18},{wch:8},{wch:6},{wch:6},{wch:6},{wch:6},{wch:6},{wch:6},{wch:35}];
+    XLSX.utils.book_append_sheet(wb, s2Ws, 'step2 可靠性測試');
+
+    // ---- step3 高風險條件彙總 ----
+    const s3 = [
+      [entity],
+      [`財務報表期間 [${period}]`],
+      ['證實測試 - 會計分錄及其他調整'],
+      [null],
+      ['測試目的','取得查核證據，以測試會計分錄及其他調整：\ni)  不存在因舞弊所導致的重大不實表達；\nii) 有適當的支持性文件；\niii) 反映了相關的事項、情況和交易，並且\niv) 按照財務報導架構，記錄在正確的會計期間。'],
+      [null],
+      ['測試範圍', `整個財務報導期間 ${period}，GL 共 ${stats.total.toLocaleString()} 筆`],
+      [null],
+      ['選擇該測試範圍的理由'],
+      [null],
+      [null],[null],[null],[null],
+      ['Step 3'],
+      ['辨認高風險條件','風險評估及查核程序：'],
+      [null,'查核團隊基於下列程序來辨識JE測試之攸關母體及高風險範圍條件。辨認出高風險範圍條件，並篩選符合條件之分錄進行測試。'],
+      [null],
+      [null,null,'高風險範圍條件','選擇此篩選條件的原因/理由','符合條件之傳票數目'],
+    ];
+    selected.forEach((c, i) => {
+      s3.push([null, `C${i+1}`, c.label, c.rationale, countVouchers(c.resultRows||[])]);
+    });
+    // Fill up to C10 if fewer
+    for (let i = selected.length; i < 10; i++) {
+      s3.push([null, `C${i+1}`, null, null, null]);
+    }
+    const s3Ws = XLSX.utils.aoa_to_sheet(s3);
+    s3Ws['!cols'] = [{wch:12},{wch:8},{wch:50},{wch:45},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, s3Ws, 'step3 高風險條件彙總');
+
+    // ---- step4 符合高風險條件傳票 (voucher summary) ----
+    const allVouchersMap = {};
+    selected.forEach((c, i) => {
+      (c.resultRows||[]).forEach(r => {
+        const docNum = getGLVal(r,'docNum') || '—';
+        if (!allVouchersMap[docNum]) {
+          allVouchersMap[docNum] = {
+            docNum,
+            postDate: getGLVal(r,'postDate'),
+            createBy: getGLVal(r,'createBy'),
+            totalAmt: 0,
+            tags: {}
+          };
+        }
+        allVouchersMap[docNum].totalAmt += Math.abs(getEntryAmount(r));
+        allVouchersMap[docNum].tags[`C${i+1}`] = '✓';
+      });
+    });
+
+    const s4Header = [entity, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null];
+    const s4Header2 = [`財務報表期間 [${period}]`];
+    const s4 = [s4Header, s4Header2,
+      ['證實測試 - 會計分錄及其他調整'],
+      [null],
+      ['測試目的','取得查核證據，以測試會計分錄及其他調整：'],
+      [null],
+      ['測試程序','A.核至相關傳票之複核紀錄，以確認該分錄之過帳係經適當核准。\nB.核至相關傳票附件，以確認該分錄所載內容與附件一致。\nC.詢問負責人員編製分錄之細節，以確認該分錄編製無存在不合理之情形。'],
+      [null],[null],[null],
+      [null,null,null,null,null,'決定進行測試之高風險範圍條件',null,null,null,null,null,null,null,null,null,'查核程序',null,null,'有無舞弊\n或不實表達\n(Yes/No)','說明詳細測試過程'],
+      ['編號','傳票號碼','總帳日期','編製者','傳票總金額',...selected.map((_,i)=>`C${i+1}`),...Array(10-selected.length).fill(null),'A','B','C',null,'說明'],
+      ['因為設定高風險範圍條件，從母體#2挑選之分錄傳票'],
+    ];
+    let idx = 1;
+    Object.values(allVouchersMap).forEach(v => {
+      const row = [idx++, v.docNum, v.postDate, v.createBy, v.totalAmt.toFixed(2)];
+      selected.forEach((_,i) => row.push(v.tags[`C${i+1}`] || ''));
+      for(let i=selected.length;i<10;i++) row.push(null);
+      row.push('','','','','');
+      s4.push(row);
+    });
+    const s4Ws = XLSX.utils.aoa_to_sheet(s4);
+    XLSX.utils.book_append_sheet(wb, s4Ws, 'step4 符合高風險條件傳票');
+
+    // ---- step4-1 符合高風險條件傳票明細 ----
+    const allDetailRows = [];
+    selected.forEach((c, ci) => {
+      (c.resultRows||[]).forEach(r => {
+        const row = {
+          'DOCUMENT_NUM_JE': getGLVal(r,'docNum'),
+          'DOCUMENT_LINE_ID_JE': getGLVal(r,'lineID'),
+          'POSTING_DATE_JE': getGLVal(r,'postDate'),
+          'DOCUMENT_DATE_JE': getGLVal(r,'docDate'),
+          'ACCOUNT_NUM_JE': getGLVal(r,'accNum'),
+          'ACCOUNT_DESC_JE': getGLVal(r,'accName'),
+          'DESC_JE': getGLVal(r,'description'),
+          'CREATE_BY_JE': getGLVal(r,'createBy'),
+          'APPROVE_BY_JE': getGLVal(r,'approveBy'),
+          'DEBIT_AMOUNT_JE': getEntryDebit(r).toFixed(2),
+          'CREDIT_AMOUNT_JE': (Math.abs(getEntryAmount(r)) - getEntryDebit(r)).toFixed(2),
+          'MANUAL_JE': getGLVal(r,'manual'),
+          'SOURCE_JE': getGLVal(r,'jeSource'),
+        };
+        // C-tags
+        selected.forEach((_,i) => { row[`C${i+1}_Tag`] = (i===ci) ? '✓' : ''; });
+        allDetailRows.push(row);
+      });
+    });
+    // Deduplicate by docNum + lineID
+    const seen = new Set();
+    const dedupRows = allDetailRows.filter(r => {
+      const key = `${r.DOCUMENT_NUM_JE}_${r.DOCUMENT_LINE_ID_JE}_${r.POSTING_DATE_JE}`;
+      if (seen.has(key)) {
+        // If seen, just update C-tags
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+
+    if (dedupRows.length) {
+      const d41 = [
+        [entity],
+        [`財務報表期間 [${period}]`],
+        ['符合高風險範圍條件之傳票明細'],
+        [null],
+        Object.keys(dedupRows[0]),
+        ...dedupRows.map(r => Object.values(r))
+      ];
+      const s41Ws = XLSX.utils.aoa_to_sheet(d41);
+      XLSX.utils.book_append_sheet(wb, s41Ws, 'step4-1 符合高風險條件傳票明細');
+    }
+
+    // ---- step5 財務報表關帳後調整之分錄 ----
+    const s5data = [
+      ['若查核團隊發現受查客戶在財務報表關帳後，尚有入帳之調整分錄(Post-closing entries)，或未入帳直接對財務報表之調整(Other adjustments)，則可將此類調整記錄於此處，或說明無此類情形。'],
+      [null],
+    ];
+    const r1rows = state.prescreenResults.r1 || [];
+    if (r1rows.length) {
+      s5data.push(['以下為於期末財務報表準備期間核准之分錄（來自Pre-screening #1）：']);
+      s5data.push([null]);
+      s5data.push(Object.keys(r1rows[0] || {}));
+      r1rows.forEach(r => s5data.push(Object.values(r)));
+    } else {
+      s5data.push(['查核期間無發現財務報表關帳後調整之分錄。']);
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s5data), 'step5 財務報表關帳後調整之分錄');
+
+    // ---- 自動化工具-檔案欄位資訊 ----
+    const fieldInfo = [['欄位邏輯名稱','配對的原始欄位名稱']];
+    Object.entries(state.glMapping).forEach(([k,v]) => { if(v) fieldInfo.push([k,v]); });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(fieldInfo), '自動化工具-檔案欄位資訊');
+
+    // ---- 自動化工具-假期假日資訊 ----
+    const holInfo = [['假日日期'], ...state.holidays.map(h=>[h])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(holInfo), '自動化工具-假期假日資訊');
+
+    // ---- 自動化工具-科目配對資訊 ----
+    let accInfo;
+    if (state.accMapData && state.accMapData.length) {
+      accInfo = [Object.keys(state.accMapData[0]), ...state.accMapData.map(r=>Object.values(r))];
+    } else {
+      accInfo = [['GL_Number','GL_Name','Standardized Account Name']];
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(accInfo), '自動化工具-科目配對資訊');
+
+    XLSX.writeFile(wb, `WorkingPaper_${state.entityName||'JE'}_${state.periodEnd||now.toISOString().slice(0,10)}.xlsx`);
+    hideLoading();
+    alert('✅ 完整工作底稿 (WorkingPaper) 已成功產生！\n\n包含以下工作表：\n• 資料預先整理之說明\n• JE WorkingPaper說明\n• step1 完整性測試\n• step1-1 借貸不平測試\n• step1-2 分錄編製人員說明\n• step1-3 完整性測試之差異說明\n• step2 可靠性測試\n• step3 高風險條件彙總\n• step4 符合高風險條件傳票\n• step4-1 符合高風險條件傳票明細\n• step5 財務報表關帳後調整之分錄\n• 自動化工具相關資訊');
+  }, 300);
+}
+
+// =================== TABLE RENDER ===================
+function renderTableHTML(rows) {
+  if (!rows || !rows.length) return '<div style="color:var(--text3);padding:12px;font-size:13px">無資料</div>';
+  const cols = Object.keys(rows[0]);
+  return `
+    <table class="results-table">
+      <thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r => `<tr>${cols.map(c => `<td title="${r[c]||''}">${r[c]||''}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>
+    ${rows.length === 100 ? '<div style="font-size:11px;color:var(--text3);padding:8px">僅顯示前 100 筆</div>' : ''}
+  `;
+}
+
+// Drag & Drop for upload zones
+['glUploadZone','tbUploadZone','accMapZone','holidayZone','makeupZone'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragover'); });
+  el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); el.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const input = el.querySelector('input[type=file]');
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change'));
+  });
+});
+
+// Init
+updateStatusBadge();
+</script>
+</body>
+</html>

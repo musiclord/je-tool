@@ -1,0 +1,716 @@
+{
+  "schemaVersion": 2,
+  "signatures": [
+    {
+      "id": 1,
+      "properties": [
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "properties": [
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        },
+        {
+          "property": "protection.locked",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "left"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "left"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "top"
+        },
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        },
+        {
+          "property": "protection.locked",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "left"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "top"
+        },
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        },
+        {
+          "property": "protection.locked",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "left"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF4472C4"
+        },
+        {
+          "property": "border.top.style",
+          "value": "thin"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.bold",
+          "value": "true"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        },
+        {
+          "property": "font.size",
+          "value": "18"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        },
+        {
+          "property": "protection.locked",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "left"
+        },
+        {
+          "property": "border.bottom.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.bottom.style",
+          "value": "double"
+        },
+        {
+          "property": "border.left.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.left.style",
+          "value": "dashed"
+        },
+        {
+          "property": "border.right.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.right.style",
+          "value": "dashed"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.top.style",
+          "value": "double"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        },
+        {
+          "property": "protection.locked",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "center"
+        },
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.size",
+          "value": "13"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        },
+        {
+          "property": "protection.locked",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "center"
+        },
+        {
+          "property": "border.left.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.left.style",
+          "value": "dashed"
+        },
+        {
+          "property": "border.right.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.right.style",
+          "value": "dashed"
+        },
+        {
+          "property": "font.name",
+          "value": "微软雅黑"
+        },
+        {
+          "property": "protection.locked",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "center"
+        },
+        {
+          "property": "border.bottom.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.bottom.style",
+          "value": "double"
+        },
+        {
+          "property": "border.left.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.left.style",
+          "value": "dashed"
+        },
+        {
+          "property": "border.right.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.right.style",
+          "value": "dashed"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.top.style",
+          "value": "double"
+        },
+        {
+          "property": "font.name",
+          "value": "微软雅黑"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        },
+        {
+          "property": "protection.locked",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "properties": [
+        {
+          "property": "border.bottom.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.bottom.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.left.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.left.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.right.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.right.style",
+          "value": "thin"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF000000"
+        },
+        {
+          "property": "border.top.style",
+          "value": "thin"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "properties": [
+        {
+          "property": "border.bottom.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.bottom.style",
+          "value": "double"
+        },
+        {
+          "property": "border.left.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.left.style",
+          "value": "dashed"
+        },
+        {
+          "property": "border.right.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.right.style",
+          "value": "dashed"
+        },
+        {
+          "property": "border.top.colorArgb",
+          "value": "FF808080"
+        },
+        {
+          "property": "border.top.style",
+          "value": "double"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        },
+        {
+          "property": "protection.locked",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "properties": [
+        {
+          "property": "font.bold",
+          "value": "true"
+        },
+        {
+          "property": "font.name",
+          "value": "新細明體"
+        },
+        {
+          "property": "font.size",
+          "value": "11"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "properties": [
+        {
+          "property": "font.name",
+          "value": "新細明體"
+        },
+        {
+          "property": "font.size",
+          "value": "11"
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "signatureId": 1,
+      "ranges": [
+        "AccountMapping!B4:B190"
+      ]
+    },
+    {
+      "signatureId": 2,
+      "ranges": [
+        "AccountMapping!C4:C190"
+      ]
+    },
+    {
+      "signatureId": 3,
+      "ranges": [
+        "AccountMapping!A4:A190"
+      ]
+    },
+    {
+      "signatureId": 4,
+      "ranges": [
+        "AccountMapping!B2:C2"
+      ]
+    },
+    {
+      "signatureId": 5,
+      "ranges": [
+        "AccountMapping!A2"
+      ]
+    },
+    {
+      "signatureId": 6,
+      "ranges": [
+        "AccountMapping!B1:C1"
+      ]
+    },
+    {
+      "signatureId": 7,
+      "ranges": [
+        "AccountMapping!A3"
+      ]
+    },
+    {
+      "signatureId": 8,
+      "ranges": [
+        "AccountMapping!A1"
+      ]
+    },
+    {
+      "signatureId": 9,
+      "ranges": [
+        "AccountMapping!D3"
+      ]
+    },
+    {
+      "signatureId": 10,
+      "ranges": [
+        "AccountMapping!C3"
+      ]
+    },
+    {
+      "signatureId": 11,
+      "ranges": [
+        "List!A9"
+      ]
+    },
+    {
+      "signatureId": 12,
+      "ranges": [
+        "AccountMapping!B3"
+      ]
+    },
+    {
+      "signatureId": 13,
+      "ranges": [
+        "List!A1"
+      ]
+    },
+    {
+      "signatureId": 14,
+      "ranges": [
+        "List!A10:A200",
+        "List!A2:A8"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "location": "$workbook",
+      "property": "default.font.name",
+      "value": "Arial"
+    },
+    {
+      "location": "$workbook",
+      "property": "default.font.size",
+      "value": "10"
+    },
+    {
+      "location": "AccountMapping!cellStream",
+      "property": "cellCount",
+      "value": "571"
+    },
+    {
+      "location": "AccountMapping!cellStream",
+      "property": "sha256",
+      "value": "4AA200C1C8CD01738BECED46A90F0EFE359CF8F4C185480470EF0FB8E5E3498A"
+    },
+    {
+      "location": "AccountMapping!column:1-1",
+      "property": "style.alignment.horizontal",
+      "value": "left"
+    },
+    {
+      "location": "AccountMapping!column:1-1",
+      "property": "style.numberFormat.code",
+      "value": "@"
+    },
+    {
+      "location": "AccountMapping!column:1-1",
+      "property": "width",
+      "value": "21.81640625"
+    },
+    {
+      "location": "AccountMapping!column:2-2",
+      "property": "style.numberFormat.code",
+      "value": "@"
+    },
+    {
+      "location": "AccountMapping!column:2-2",
+      "property": "width",
+      "value": "36.81640625"
+    },
+    {
+      "location": "AccountMapping!column:3-3",
+      "property": "style.numberFormat.code",
+      "value": "@"
+    },
+    {
+      "location": "AccountMapping!column:3-3",
+      "property": "style.protection.locked",
+      "value": "false"
+    },
+    {
+      "location": "AccountMapping!column:3-3",
+      "property": "width",
+      "value": "74.26953125"
+    },
+    {
+      "location": "AccountMapping!column:4-4",
+      "property": "style.protection.locked",
+      "value": "false"
+    },
+    {
+      "location": "AccountMapping!column:4-4",
+      "property": "width",
+      "value": "13.54296875"
+    },
+    {
+      "location": "AccountMapping!column:5-16384",
+      "property": "style.protection.locked",
+      "value": "false"
+    },
+    {
+      "location": "AccountMapping!merge:A2:C2",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "AccountMapping!merge:B1:C1",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "AccountMapping!pageSetup",
+      "property": "horizontalDpi",
+      "value": "300"
+    },
+    {
+      "location": "AccountMapping!pageSetup",
+      "property": "orientation",
+      "value": "portrait"
+    },
+    {
+      "location": "AccountMapping!pageSetup",
+      "property": "paperSize",
+      "value": "9"
+    },
+    {
+      "location": "AccountMapping!pageSetup",
+      "property": "verticalDpi",
+      "value": "300"
+    },
+    {
+      "location": "AccountMapping!row:1",
+      "property": "height",
+      "value": "52.75"
+    },
+    {
+      "location": "AccountMapping!row:2",
+      "property": "height",
+      "value": "45.65"
+    },
+    {
+      "location": "AccountMapping!row:3",
+      "property": "height",
+      "value": "15.5"
+    },
+    {
+      "location": "AccountMapping!row:4",
+      "property": "height",
+      "value": "13"
+    },
+    {
+      "location": "AccountMapping!sheetFormat",
+      "property": "defaultColumnWidth",
+      "value": "9.1796875"
+    },
+    {
+      "location": "AccountMapping!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "AccountMapping!sheetProtection",
+      "property": "objects",
+      "value": "true"
+    },
+    {
+      "location": "AccountMapping!sheetProtection",
+      "property": "scenarios",
+      "value": "true"
+    },
+    {
+      "location": "AccountMapping!sheetProtection",
+      "property": "sheet",
+      "value": "true"
+    },
+    {
+      "location": "List!cellStream",
+      "property": "cellCount",
+      "value": "16392"
+    },
+    {
+      "location": "List!cellStream",
+      "property": "sha256",
+      "value": "392C30F1E477454B92CFBBCE13CED013A668BF3B3DEF5E818994DDD0D06548A4"
+    },
+    {
+      "location": "List!column:1-1",
+      "property": "style.font.name",
+      "value": "新細明體"
+    },
+    {
+      "location": "List!column:1-1",
+      "property": "style.font.size",
+      "value": "11"
+    },
+    {
+      "location": "List!column:1-1",
+      "property": "width",
+      "value": "17.81640625"
+    },
+    {
+      "location": "List!column:2-16384",
+      "property": "style.font.name",
+      "value": "新細明體"
+    },
+    {
+      "location": "List!column:2-16384",
+      "property": "style.font.size",
+      "value": "11"
+    },
+    {
+      "location": "List!pageSetup",
+      "property": "orientation",
+      "value": "portrait"
+    },
+    {
+      "location": "List!sheetFormat",
+      "property": "defaultColumnWidth",
+      "value": "9.1796875"
+    },
+    {
+      "location": "List!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "14.5"
+    }
+  ]
+}

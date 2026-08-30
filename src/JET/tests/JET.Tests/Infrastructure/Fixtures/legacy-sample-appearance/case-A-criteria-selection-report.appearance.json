@@ -1,0 +1,1094 @@
+{
+  "schemaVersion": 2,
+  "signatures": [
+    {
+      "id": 1,
+      "properties": [
+        {
+          "property": "numberFormat.code",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "properties": [
+        {
+          "property": "numberFormat.code",
+          "value": "@"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "properties": [
+        {
+          "property": "numberFormat.code",
+          "value": "0.00"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "properties": [
+        {
+          "property": "numberFormat.code",
+          "value": "mm-dd-yy"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "properties": [
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "properties": [
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "properties": [
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "left"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "left"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "alignment.wrapText",
+          "value": "true"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        },
+        {
+          "property": "numberFormat.code",
+          "value": "#,##0"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "center"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        },
+        {
+          "property": "font.size",
+          "value": "18"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "center"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.bold",
+          "value": "true"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "properties": [
+        {
+          "property": "alignment.horizontal",
+          "value": "center"
+        },
+        {
+          "property": "alignment.vertical",
+          "value": "center"
+        },
+        {
+          "property": "fill.foregroundArgb",
+          "value": "FF03448B"
+        },
+        {
+          "property": "fill.pattern",
+          "value": "solid"
+        },
+        {
+          "property": "font.bold",
+          "value": "true"
+        },
+        {
+          "property": "font.colorArgb",
+          "value": "FFFFFFFF"
+        },
+        {
+          "property": "font.name",
+          "value": "微軟正黑體"
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "signatureId": 1,
+      "ranges": [
+        "#Criteria Select 1!AA1:AA11",
+        "#Criteria Select 1!AC1:AC11",
+        "#Criteria Select 1!AE1:AE11",
+        "#Criteria Select 1!B1:B11",
+        "#Criteria Select 1!P1:P11",
+        "#Criteria Select 1!W1:W11",
+        "#Criteria Select 1!Y1:Y11",
+        "#Criteria Select 2!AA1:AA200",
+        "#Criteria Select 2!AC1:AC200",
+        "#Criteria Select 2!AE1:AE200",
+        "#Criteria Select 2!B1:B200",
+        "#Criteria Select 2!P1:P200",
+        "#Criteria Select 2!W1:W200",
+        "#Criteria Select 2!Y1:Y200",
+        "#Criteria Select 3!AA1",
+        "#Criteria Select 3!AC1",
+        "#Criteria Select 3!AE1",
+        "#Criteria Select 3!B1",
+        "#Criteria Select 3!P1",
+        "#Criteria Select 3!W1",
+        "#Criteria Select 3!Y1",
+        "#Criteria Select 4!AA1",
+        "#Criteria Select 4!AC1",
+        "#Criteria Select 4!AE1",
+        "#Criteria Select 4!B1",
+        "#Criteria Select 4!P1",
+        "#Criteria Select 4!W1",
+        "#Criteria Select 4!Y1",
+        "#Criteria Select 5!AA1:AA200",
+        "#Criteria Select 5!AC1:AC200",
+        "#Criteria Select 5!AE1:AE200",
+        "#Criteria Select 5!B1:B200",
+        "#Criteria Select 5!P1:P200",
+        "#Criteria Select 5!W1:W200",
+        "#Criteria Select 5!Y1:Y200",
+        "#Criteria Select 6!AA1:AA200",
+        "#Criteria Select 6!AC1:AC200",
+        "#Criteria Select 6!AE1:AE200",
+        "#Criteria Select 6!B1:B200",
+        "#Criteria Select 6!P1:P200",
+        "#Criteria Select 6!W1:W200",
+        "#Criteria Select 6!Y1:Y200"
+      ]
+    },
+    {
+      "signatureId": 2,
+      "ranges": [
+        "#Criteria Select 1!A1:A11",
+        "#Criteria Select 1!AB1:AB11",
+        "#Criteria Select 1!AD1:AD11",
+        "#Criteria Select 1!AF1:AH11",
+        "#Criteria Select 1!AK1:BA11",
+        "#Criteria Select 1!E1:G11",
+        "#Criteria Select 1!I1:I11",
+        "#Criteria Select 1!L1:O11",
+        "#Criteria Select 1!Q1:S11",
+        "#Criteria Select 1!V1:V11",
+        "#Criteria Select 1!X1:X11",
+        "#Criteria Select 1!Z1:Z11",
+        "#Criteria Select 2!A1:A200",
+        "#Criteria Select 2!AB1:AB200",
+        "#Criteria Select 2!AD1:AD200",
+        "#Criteria Select 2!AF1:AH200",
+        "#Criteria Select 2!AK1:BB200",
+        "#Criteria Select 2!E1:G200",
+        "#Criteria Select 2!I1:I200",
+        "#Criteria Select 2!L1:O200",
+        "#Criteria Select 2!Q1:S200",
+        "#Criteria Select 2!V1:V200",
+        "#Criteria Select 2!X1:X200",
+        "#Criteria Select 2!Z1:Z200",
+        "#Criteria Select 3!A1",
+        "#Criteria Select 3!AB1",
+        "#Criteria Select 3!AD1",
+        "#Criteria Select 3!AF1:AH1",
+        "#Criteria Select 3!AK1:BC1",
+        "#Criteria Select 3!E1:G1",
+        "#Criteria Select 3!I1",
+        "#Criteria Select 3!L1:O1",
+        "#Criteria Select 3!Q1:S1",
+        "#Criteria Select 3!V1",
+        "#Criteria Select 3!X1",
+        "#Criteria Select 3!Z1",
+        "#Criteria Select 4!A1",
+        "#Criteria Select 4!AB1",
+        "#Criteria Select 4!AD1",
+        "#Criteria Select 4!AF1:AH1",
+        "#Criteria Select 4!AK1:BC1",
+        "#Criteria Select 4!E1:G1",
+        "#Criteria Select 4!I1",
+        "#Criteria Select 4!L1:O1",
+        "#Criteria Select 4!Q1:S1",
+        "#Criteria Select 4!V1",
+        "#Criteria Select 4!X1",
+        "#Criteria Select 4!Z1",
+        "#Criteria Select 5!A1:A200",
+        "#Criteria Select 5!AB1:AB200",
+        "#Criteria Select 5!AD1:AD200",
+        "#Criteria Select 5!AF1:AH200",
+        "#Criteria Select 5!AK1:BC200",
+        "#Criteria Select 5!E1:G200",
+        "#Criteria Select 5!I1:I200",
+        "#Criteria Select 5!L1:O200",
+        "#Criteria Select 5!Q1:S200",
+        "#Criteria Select 5!V1:V200",
+        "#Criteria Select 5!X1:X200",
+        "#Criteria Select 5!Z1:Z200",
+        "#Criteria Select 6!A1:A200",
+        "#Criteria Select 6!AB1:AB200",
+        "#Criteria Select 6!AD1:AD200",
+        "#Criteria Select 6!AF1:AH200",
+        "#Criteria Select 6!AK1:BA200",
+        "#Criteria Select 6!E1:G200",
+        "#Criteria Select 6!I1:I200",
+        "#Criteria Select 6!L1:O200",
+        "#Criteria Select 6!Q1:S200",
+        "#Criteria Select 6!V1:V200",
+        "#Criteria Select 6!X1:X200",
+        "#Criteria Select 6!Z1:Z200"
+      ]
+    },
+    {
+      "signatureId": 3,
+      "ranges": [
+        "#Criteria Select 1!AI1:AJ11",
+        "#Criteria Select 1!H1:H11",
+        "#Criteria Select 1!J1:K11",
+        "#Criteria Select 1!T1:U11",
+        "#Criteria Select 2!AI1:AJ200",
+        "#Criteria Select 2!H1:H200",
+        "#Criteria Select 2!J1:K200",
+        "#Criteria Select 2!T1:U200",
+        "#Criteria Select 3!AI1:AJ1",
+        "#Criteria Select 3!H1",
+        "#Criteria Select 3!J1:K1",
+        "#Criteria Select 3!T1:U1",
+        "#Criteria Select 4!AI1:AJ1",
+        "#Criteria Select 4!H1",
+        "#Criteria Select 4!J1:K1",
+        "#Criteria Select 4!T1:U1",
+        "#Criteria Select 5!AI1:AJ200",
+        "#Criteria Select 5!H1:H200",
+        "#Criteria Select 5!J1:K200",
+        "#Criteria Select 5!T1:U200",
+        "#Criteria Select 6!AI1:AJ200",
+        "#Criteria Select 6!H1:H200",
+        "#Criteria Select 6!J1:K200",
+        "#Criteria Select 6!T1:U200"
+      ]
+    },
+    {
+      "signatureId": 4,
+      "ranges": [
+        "#Criteria Select 1!C1:D11",
+        "#Criteria Select 2!C1:D200",
+        "#Criteria Select 3!C1:D1",
+        "#Criteria Select 4!C1:D1",
+        "#Criteria Select 5!C1:D200",
+        "#Criteria Select 6!C1:D200"
+      ]
+    },
+    {
+      "signatureId": 5,
+      "ranges": [
+        "Summary Inforamtion!A2"
+      ]
+    },
+    {
+      "signatureId": 6,
+      "ranges": [
+        "Summary Inforamtion!A1"
+      ]
+    },
+    {
+      "signatureId": 7,
+      "ranges": [
+        "Summary Inforamtion!A5:D25"
+      ]
+    },
+    {
+      "signatureId": 8,
+      "ranges": [
+        "Summary Inforamtion!E1:K2"
+      ]
+    },
+    {
+      "signatureId": 9,
+      "ranges": [
+        "Summary Inforamtion!C1:D2"
+      ]
+    },
+    {
+      "signatureId": 10,
+      "ranges": [
+        "Summary Inforamtion!B1:B2"
+      ]
+    },
+    {
+      "signatureId": 11,
+      "ranges": [
+        "Summary Inforamtion!A4",
+        "Summary Inforamtion!C4:D4"
+      ]
+    },
+    {
+      "signatureId": 12,
+      "ranges": [
+        "Summary Inforamtion!B4"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "location": "#Criteria Select 1!cellStream",
+      "property": "cellCount",
+      "value": "583"
+    },
+    {
+      "location": "#Criteria Select 1!cellStream",
+      "property": "sha256",
+      "value": "0FCA01901A379D50FBEEF8F64535F751C2EDFBBC4B06752AC686CE04ECFB2890"
+    },
+    {
+      "location": "#Criteria Select 1!column:1-1",
+      "property": "width",
+      "value": "17.453125"
+    },
+    {
+      "location": "#Criteria Select 1!column:10-11",
+      "property": "width",
+      "value": "14.36328125"
+    },
+    {
+      "location": "#Criteria Select 1!column:12-13",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 1!column:14-14",
+      "property": "width",
+      "value": "12.36328125"
+    },
+    {
+      "location": "#Criteria Select 1!column:15-15",
+      "property": "width",
+      "value": "22.7265625"
+    },
+    {
+      "location": "#Criteria Select 1!column:16-16",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 1!column:17-18",
+      "property": "width",
+      "value": "8.54296875"
+    },
+    {
+      "location": "#Criteria Select 1!column:19-19",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "#Criteria Select 1!column:2-2",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "#Criteria Select 1!column:20-20",
+      "property": "width",
+      "value": "12.36328125"
+    },
+    {
+      "location": "#Criteria Select 1!column:3-3",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "#Criteria Select 1!column:4-4",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 1!column:5-7",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "#Criteria Select 1!column:8-8",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 1!column:9-9",
+      "property": "width",
+      "value": "48.08984375"
+    },
+    {
+      "location": "#Criteria Select 1!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "#Criteria Select 2!cellStream",
+      "property": "cellCount",
+      "value": "1242918"
+    },
+    {
+      "location": "#Criteria Select 2!cellStream",
+      "property": "sha256",
+      "value": "5A06FD5605A9BFECC70549D4453D73C49C95B8C6A5CC01BE17C879B99989F9F0"
+    },
+    {
+      "location": "#Criteria Select 2!column:1-1",
+      "property": "width",
+      "value": "17.453125"
+    },
+    {
+      "location": "#Criteria Select 2!column:10-11",
+      "property": "width",
+      "value": "14.36328125"
+    },
+    {
+      "location": "#Criteria Select 2!column:12-13",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 2!column:14-14",
+      "property": "width",
+      "value": "12.36328125"
+    },
+    {
+      "location": "#Criteria Select 2!column:15-15",
+      "property": "width",
+      "value": "56.26953125"
+    },
+    {
+      "location": "#Criteria Select 2!column:16-16",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 2!column:17-18",
+      "property": "width",
+      "value": "8.54296875"
+    },
+    {
+      "location": "#Criteria Select 2!column:19-19",
+      "property": "width",
+      "value": "13"
+    },
+    {
+      "location": "#Criteria Select 2!column:2-2",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "#Criteria Select 2!column:20-20",
+      "property": "width",
+      "value": "12.36328125"
+    },
+    {
+      "location": "#Criteria Select 2!column:3-3",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "#Criteria Select 2!column:4-4",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 2!column:5-6",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "#Criteria Select 2!column:7-7",
+      "property": "width",
+      "value": "30.7265625"
+    },
+    {
+      "location": "#Criteria Select 2!column:8-8",
+      "property": "width",
+      "value": "12.6328125"
+    },
+    {
+      "location": "#Criteria Select 2!column:9-9",
+      "property": "width",
+      "value": "134.1796875"
+    },
+    {
+      "location": "#Criteria Select 2!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "#Criteria Select 3!cellStream",
+      "property": "cellCount",
+      "value": "55"
+    },
+    {
+      "location": "#Criteria Select 3!cellStream",
+      "property": "sha256",
+      "value": "0B1B2B7B903C431F9B59640E1FAAEC006B4B01A20829ADD6A4DC9BCED50137CA"
+    },
+    {
+      "location": "#Criteria Select 3!column:1-1",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 3!column:10-11",
+      "property": "width",
+      "value": "14.36328125"
+    },
+    {
+      "location": "#Criteria Select 3!column:12-13",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 3!column:14-14",
+      "property": "width",
+      "value": "6.7265625"
+    },
+    {
+      "location": "#Criteria Select 3!column:15-16",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 3!column:17-19",
+      "property": "width",
+      "value": "8.54296875"
+    },
+    {
+      "location": "#Criteria Select 3!column:2-2",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "#Criteria Select 3!column:20-20",
+      "property": "width",
+      "value": "12.36328125"
+    },
+    {
+      "location": "#Criteria Select 3!column:3-3",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "#Criteria Select 3!column:4-4",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 3!column:5-7",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "#Criteria Select 3!column:8-9",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 3!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "#Criteria Select 4!cellStream",
+      "property": "cellCount",
+      "value": "55"
+    },
+    {
+      "location": "#Criteria Select 4!cellStream",
+      "property": "sha256",
+      "value": "0B1B2B7B903C431F9B59640E1FAAEC006B4B01A20829ADD6A4DC9BCED50137CA"
+    },
+    {
+      "location": "#Criteria Select 4!column:1-1",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 4!column:10-11",
+      "property": "width",
+      "value": "14.36328125"
+    },
+    {
+      "location": "#Criteria Select 4!column:12-13",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 4!column:14-14",
+      "property": "width",
+      "value": "6.7265625"
+    },
+    {
+      "location": "#Criteria Select 4!column:15-16",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 4!column:17-19",
+      "property": "width",
+      "value": "8.54296875"
+    },
+    {
+      "location": "#Criteria Select 4!column:2-2",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "#Criteria Select 4!column:20-20",
+      "property": "width",
+      "value": "12.36328125"
+    },
+    {
+      "location": "#Criteria Select 4!column:3-3",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "#Criteria Select 4!column:4-4",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 4!column:5-7",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "#Criteria Select 4!column:8-9",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 4!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "#Criteria Select 5!cellStream",
+      "property": "cellCount",
+      "value": "17545"
+    },
+    {
+      "location": "#Criteria Select 5!cellStream",
+      "property": "sha256",
+      "value": "C35EEAAAA9BF1A115A95511938A4C0C42B834CF7E9ABC0E1693780E1B6AADD7F"
+    },
+    {
+      "location": "#Criteria Select 5!column:1-1",
+      "property": "width",
+      "value": "17.453125"
+    },
+    {
+      "location": "#Criteria Select 5!column:10-11",
+      "property": "width",
+      "value": "14.36328125"
+    },
+    {
+      "location": "#Criteria Select 5!column:12-13",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 5!column:14-14",
+      "property": "width",
+      "value": "12.36328125"
+    },
+    {
+      "location": "#Criteria Select 5!column:15-16",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 5!column:17-19",
+      "property": "width",
+      "value": "8.54296875"
+    },
+    {
+      "location": "#Criteria Select 5!column:2-2",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "#Criteria Select 5!column:20-20",
+      "property": "width",
+      "value": "12.36328125"
+    },
+    {
+      "location": "#Criteria Select 5!column:3-3",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "#Criteria Select 5!column:4-4",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 5!column:5-6",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "#Criteria Select 5!column:7-7",
+      "property": "width",
+      "value": "18.26953125"
+    },
+    {
+      "location": "#Criteria Select 5!column:8-8",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 5!column:9-9",
+      "property": "width",
+      "value": "15.453125"
+    },
+    {
+      "location": "#Criteria Select 5!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "#Criteria Select 6!cellStream",
+      "property": "cellCount",
+      "value": "363633"
+    },
+    {
+      "location": "#Criteria Select 6!cellStream",
+      "property": "sha256",
+      "value": "03FD73F8B8CCFDBE8DE989C3DB3505361E87AA819ABDFA02BBEC9771ED3C8800"
+    },
+    {
+      "location": "#Criteria Select 6!column:1-1",
+      "property": "width",
+      "value": "17.453125"
+    },
+    {
+      "location": "#Criteria Select 6!column:10-11",
+      "property": "width",
+      "value": "14.36328125"
+    },
+    {
+      "location": "#Criteria Select 6!column:12-13",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 6!column:14-14",
+      "property": "width",
+      "value": "12.36328125"
+    },
+    {
+      "location": "#Criteria Select 6!column:15-15",
+      "property": "width",
+      "value": "117.54296875"
+    },
+    {
+      "location": "#Criteria Select 6!column:16-16",
+      "property": "width",
+      "value": "4.90625"
+    },
+    {
+      "location": "#Criteria Select 6!column:17-18",
+      "property": "width",
+      "value": "8.54296875"
+    },
+    {
+      "location": "#Criteria Select 6!column:19-19",
+      "property": "width",
+      "value": "13"
+    },
+    {
+      "location": "#Criteria Select 6!column:2-2",
+      "property": "width",
+      "value": "18.08984375"
+    },
+    {
+      "location": "#Criteria Select 6!column:20-20",
+      "property": "width",
+      "value": "12.36328125"
+    },
+    {
+      "location": "#Criteria Select 6!column:3-3",
+      "property": "width",
+      "value": "13.7265625"
+    },
+    {
+      "location": "#Criteria Select 6!column:4-4",
+      "property": "width",
+      "value": "11.81640625"
+    },
+    {
+      "location": "#Criteria Select 6!column:5-6",
+      "property": "width",
+      "value": "15.7265625"
+    },
+    {
+      "location": "#Criteria Select 6!column:7-7",
+      "property": "width",
+      "value": "52.26953125"
+    },
+    {
+      "location": "#Criteria Select 6!column:8-8",
+      "property": "width",
+      "value": "12.6328125"
+    },
+    {
+      "location": "#Criteria Select 6!column:9-9",
+      "property": "width",
+      "value": "106.453125"
+    },
+    {
+      "location": "#Criteria Select 6!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    },
+    {
+      "location": "$workbook",
+      "property": "default.font.name",
+      "value": "Arial"
+    },
+    {
+      "location": "$workbook",
+      "property": "default.font.size",
+      "value": "10"
+    },
+    {
+      "location": "Summary Inforamtion!cellStream",
+      "property": "cellCount",
+      "value": "110"
+    },
+    {
+      "location": "Summary Inforamtion!cellStream",
+      "property": "sha256",
+      "value": "A9C9608747C3127FD6C3734E31BD1DCD5B82BB5B7571057809AF8E09771D5AD6"
+    },
+    {
+      "location": "Summary Inforamtion!column:1-1",
+      "property": "style.alignment.vertical",
+      "value": "center"
+    },
+    {
+      "location": "Summary Inforamtion!column:1-1",
+      "property": "width",
+      "value": "23.54296875"
+    },
+    {
+      "location": "Summary Inforamtion!column:12-16384",
+      "property": "style.alignment.vertical",
+      "value": "center"
+    },
+    {
+      "location": "Summary Inforamtion!column:2-2",
+      "property": "style.alignment.vertical",
+      "value": "center"
+    },
+    {
+      "location": "Summary Inforamtion!column:2-2",
+      "property": "width",
+      "value": "95"
+    },
+    {
+      "location": "Summary Inforamtion!column:3-3",
+      "property": "style.alignment.vertical",
+      "value": "center"
+    },
+    {
+      "location": "Summary Inforamtion!column:3-3",
+      "property": "width",
+      "value": "22.1796875"
+    },
+    {
+      "location": "Summary Inforamtion!column:4-4",
+      "property": "style.alignment.vertical",
+      "value": "center"
+    },
+    {
+      "location": "Summary Inforamtion!column:4-4",
+      "property": "width",
+      "value": "20.7265625"
+    },
+    {
+      "location": "Summary Inforamtion!column:5-11",
+      "property": "style.alignment.vertical",
+      "value": "center"
+    },
+    {
+      "location": "Summary Inforamtion!column:5-11",
+      "property": "width",
+      "value": "200.7265625"
+    },
+    {
+      "location": "Summary Inforamtion!merge:A1:A2",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "Summary Inforamtion!merge:B1:B2",
+      "property": "present",
+      "value": "true"
+    },
+    {
+      "location": "Summary Inforamtion!pageSetup",
+      "property": "horizontalDpi",
+      "value": "300"
+    },
+    {
+      "location": "Summary Inforamtion!pageSetup",
+      "property": "orientation",
+      "value": "portrait"
+    },
+    {
+      "location": "Summary Inforamtion!pageSetup",
+      "property": "paperSize",
+      "value": "9"
+    },
+    {
+      "location": "Summary Inforamtion!pageSetup",
+      "property": "verticalDpi",
+      "value": "300"
+    },
+    {
+      "location": "Summary Inforamtion!row:1",
+      "property": "height",
+      "value": "25"
+    },
+    {
+      "location": "Summary Inforamtion!row:2",
+      "property": "height",
+      "value": "25"
+    },
+    {
+      "location": "Summary Inforamtion!row:4",
+      "property": "height",
+      "value": "13"
+    },
+    {
+      "location": "Summary Inforamtion!row:7",
+      "property": "height",
+      "value": "25"
+    },
+    {
+      "location": "Summary Inforamtion!row:8",
+      "property": "height",
+      "value": "25"
+    },
+    {
+      "location": "Summary Inforamtion!row:9",
+      "property": "height",
+      "value": "25"
+    },
+    {
+      "location": "Summary Inforamtion!sheetFormat",
+      "property": "defaultColumnWidth",
+      "value": "9.1796875"
+    },
+    {
+      "location": "Summary Inforamtion!sheetFormat",
+      "property": "defaultRowHeight",
+      "value": "12.5"
+    }
+  ]
+}
