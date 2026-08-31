@@ -1,6 +1,6 @@
 # JET 開發入口
 
-更新日期：2026-08-30
+更新日期：2026-08-31
 
 `je-tool` 已完成驗證框架的 Phase 1 至 Phase 7，所有正式檢查都從 `tools/verify.ps1` 進入。`Provider`、
 Release `Package`、兩個 GUI 情境與六份合成報表的原生 Excel 開啟與儲存檢查都有完整通過紀錄。完整分工見
@@ -10,11 +10,45 @@ Release `Package`、兩個 GUI 情境與六份合成報表的原生 Excel 開啟
 ## 環境與入口
 
 - Windows x64
-- .NET SDK 10.0.400；`global.json` 只允許同一功能帶內較新的修補版本
+- .NET SDK 10.0.201 以上；`global.json` 允許使用後續的 .NET 10 功能帶
+- VS Code 搭配 Microsoft C# 擴充套件，或 Visual Studio 2026 18.0 以上
 - WinForms 與 Microsoft Edge WebView2 執行階段
 - Microsoft Excel 桌面版；只有執行 `Excel` 路線時需要
 - 方案檔：`src/JET/JET.slnx`
 - 應用程式：`src/JET/JET/JET.csproj`
+
+先確認目前這個終端與建置工作實際取得哪一個 `dotnet`，再檢查該位置是否有 SDK：
+
+```powershell
+where.exe dotnet
+Get-Command dotnet -All
+dotnet --list-sdks
+dotnet --version
+```
+
+`new-je-tool` 與目前 `je-tool` 都要求 `10.0.201` 並使用 `latestFeature`；在同一個 VS Code 終端內，兩個
+儲存庫的 `dotnet --version` 應得到相同結果。`global.json` 會在同一個 .NET 10 版本內選擇已安裝的較新
+功能帶，因此不再要求每台電腦都安裝 `10.0.400`。
+
+電腦可能同時存在系統安裝、Visual Studio 管理或 VS Code C# Dev Kit 取得的 .NET。若
+`C:\Program Files\dotnet\dotnet.exe --list-sdks` 是空的，但 `new-je-tool` 在同一個 VS Code 視窗仍可 F5，
+先比對兩邊 build task 顯示的實際 executable，不要直接判定整台電腦缺 SDK。只有實際執行 build 的那一份
+`dotnet --list-sdks` 也完全空白時，才需要為 VS Code 補裝 .NET 10 SDK。
+
+## VS Code F5 與 Visual Studio 發佈
+
+VS Code 應開啟儲存庫根目錄，而不是只開啟 `src/JET/`。選擇 `JET (Debug)` 後按 F5，`preLaunchTask`
+會直接執行 `dotnet build`，再以 `JET.dll` 啟動偵錯；這條日常入口不需要 PowerShell 7。
+`verify: Build (Debug)` 仍保留給需要驗證收據的情況，不再阻擋 F5。命令面板中的 `Tasks: Run Task` 另有
+`publish`，會以既有 `FolderProfile` 產生與 Visual Studio 相同的 Release x64 自含式單檔封裝。
+
+Visual Studio 請開啟 `src/JET/JET.slnx`，將 `JET` 設為啟始專案。建置與 F5 通過後，在方案總管對 `JET`
+按右鍵選「發佈」，選擇既有的 `FolderProfile` 再按「發佈」。設定檔位於
+`src/JET/JET/Properties/PublishProfiles/FolderProfile.pubxml`，輸出位於
+`src/JET/JET/bin/Release/net10.0-windows/publish/win-x64/`。這是資料夾發佈，不是 ClickOnce；結果是
+Windows x64、自含式，主程式為單一 `JET.exe`，並在同一資料夾保留必要的設定、Excel 範本與前端資產。
+VS Code 能 F5 不代表 Visual Studio 已安裝自己的 SDK；如果 Visual Studio 仍顯示 `NETSDK1141`，應在
+Visual Studio Installer 確認已安裝「.NET 桌面開發」workload 與 .NET 10 個別元件。
 
 ## 目前可用的共用命令
 

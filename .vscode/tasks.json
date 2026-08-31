@@ -2,6 +2,38 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "build",
+      "detail": "VS Code F5 的快速建置入口；不依賴 PowerShell 驗證框架",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/JET/JET/JET.csproj",
+        "--configuration",
+        "Debug",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+      ],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish",
+      "detail": "使用 Visual Studio 同一份 FolderProfile 產生 Release x64 單檔封裝",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "publish",
+        "${workspaceFolder}/src/JET/JET/JET.csproj",
+        "--configuration",
+        "Release",
+        "/property:PublishProfile=FolderProfile",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
       "label": "verify: Help",
       "detail": "列出驗證框架目前可用的命令與參數",
       "type": "process",
@@ -15,7 +47,7 @@
       "type": "process",
       "command": "pwsh",
       "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/verify.ps1", "-Command", "Build", "-Configuration", "Debug"],
-      "group": { "kind": "build", "isDefault": true },
+      "group": "build",
       "problemMatcher": "$msCompile"
     },
     {

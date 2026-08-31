@@ -31,8 +31,9 @@ Thin-Bridge Action-Dispatcher：前端與 C# 之間只走 action 通道，Applic
 | 項目 | 說明 |
 |:---|:---|
 | 作業系統 | Windows x64 |
-| .NET SDK | 10.0.400（[`global.json`](global.json) 允許同功能帶內較新修補版本） |
-| PowerShell | 7.4 以上，驗證入口需要 |
+| .NET SDK | 10.0.201 以上的 .NET 10 SDK（[`global.json`](global.json) 允許後續 .NET 10 功能帶） |
+| 開發工具 | VS Code 搭配 Microsoft C# 擴充套件，或 Visual Studio 2026 18.0 以上 |
+| PowerShell | 7.4 以上；只有正式驗證入口需要，VS Code F5 與發佈不依賴它 |
 | WebView2 | Microsoft Edge WebView2 執行階段 |
 | Microsoft Excel | 選用，只有 `Excel` 驗證路線需要 |
 | SQL Server | 選用，只有 `Provider` 驗證路線需要，且必須是專用測試環境 |
@@ -50,6 +51,12 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug
 ```
 
 方案檔是 [`src/JET/JET.slnx`](src/JET/JET.slnx)，應用程式專案是 `src/JET/JET/JET.csproj`。
+
+在 VS Code 開啟儲存庫根目錄，選擇 `JET (Debug)` 後按 F5；啟動前會直接以 `dotnet build` 建置應用程式。
+在 Visual Studio 開啟方案檔後，將 `JET` 設為啟始專案即可建置及偵錯。要產生公司測試用的 x64 單檔版本，
+在 `JET` 專案的「發佈」頁選擇既有的 `FolderProfile`；也可在 VS Code 執行 `publish` 工作。輸出位於
+`src/JET/JET/bin/Release/net10.0-windows/publish/win-x64/`，主程式為單一 `JET.exe`，同一資料夾另保留
+執行時需要的設定、Excel 範本與前端資產。
 
 ## 測試
 
