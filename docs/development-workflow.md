@@ -1,6 +1,6 @@
 # JET 大型開發與跨 session 續接
 
-更新日期：2026-08-30
+更新日期：2026-09-01
 
 這份文件只處理需要跨多個步驟或多個 session 的開發。小型、可在一次工作內完成並驗證的修改，不必建立
 額外流程文件。
@@ -30,6 +30,21 @@
 
 計畫不複製完整程式差異、逐行終端輸出或每一次 receipt 路徑。詳細證據留在本次 ignored 執行目錄；計畫只
 保存換機或重新 clone 後仍看得懂的摘要。
+
+## 專案記憶與跨 session 收斂
+
+JET 的專案記憶是受版控的現行文件、程式、測試與目前計畫，不是某一個 Agent 的對話或本機 memory。
+Task／thread、memory、compaction 摘要與 ignored receipt 可以協助找回來源，但不能單獨建立規則或證明
+目前狀態。完整層級、分類與回寫位置見
+[`../.agents/harness/convergence-and-memory.md`](../.agents/harness/convergence-and-memory.md)。
+
+使用者明確呼叫 `$jet-converge` 時，由 `.agents/skills/jet-converge/SKILL.md` 收集多個 session 的觀點、
+需求、功能與待完成事項，先區分已確認、候選、衝突、延後、已取代與無依據，再用目前核心業務與重啟條件
+收斂。收斂結果只有在使用者確認並授權保存後才寫回現行文件；不建立第二份 backlog、`CONTEXT.md`、ADR
+或 session dump。
+
+待完成事項若要長期保留，至少要寫清楚背景、目前邊界、現在不做的原因、重啟條件與重啟後第一個可驗證
+動作。只有標題或曾在對話提過的想法，不直接進入 `development-status.md`。
 
 ## 新 session 如何開始
 

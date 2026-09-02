@@ -1,7 +1,13 @@
+.agents/harness/convergence-and-memory.md
+.agents/skills/jet-converge/SKILL.md
+.agents/skills/jet-converge/agents/openai.yaml
+.agents/skills/jet-converge/references/session-synthesis.md
+.agents/skills/jet-converge/references/upstream-provenance.md
 .claude/hooks/managed-doc-notice.ps1
 .claude/hooks/session-context.ps1
 .claude/hooks/verification-debt.ps1
 .claude/settings.json
+.claude/skills/jet-converge/SKILL.md
 .gitattributes
 .github/copilot-instructions.md
 .gitignore
@@ -24,6 +30,10 @@ data/WorkingPaper.xlsx
 docs/README.md
 docs/action-contract-manifest.md
 docs/agent-compatibility.md
+docs/architecture/README.md
+docs/architecture/jet-runtime-architecture.archify.json
+docs/architecture/jet-runtime-architecture.html
+docs/architecture/jet-runtime-architecture.png
 docs/business-logic-provenance.md
 docs/data-and-legacy.md
 docs/development-guide.md
@@ -69,6 +79,7 @@ docs/repository-lineage.md
 docs/specs/2026-08-28-harness-rebuild-plan.md
 docs/specs/2026-08-29-agent-governance-and-context-plan.md
 docs/specs/2026-08-30-repository-consolidation-plan.md
+docs/specs/2026-09-01-frontend-sync-devlog-mutation-plan.md
 docs/sqlserver-enterprise-deferred.md
 global.json
 legacy/JET-legacy/Application/Commands/CommitMapping/CommitMappingCommandHandler.cs
@@ -376,6 +387,7 @@ src/JET/JET/Domain/Contracts/ReportExportContracts.cs
 src/JET/JET/Domain/Contracts/ReportWorkbookMetadataContracts.cs
 src/JET/JET/Domain/Contracts/ResultPageColumns.cs
 src/JET/JET/Domain/Contracts/RuleRunContracts.cs
+src/JET/JET/Domain/Contracts/SupportDiagnosticLogContracts.cs
 src/JET/JET/Domain/Contracts/ValidationContracts.cs
 src/JET/JET/Domain/Contracts/WorkpaperContracts.cs
 src/JET/JET/Domain/Contracts/WorkpaperReferenceContracts.cs
@@ -413,6 +425,7 @@ src/JET/JET/Domain/Rules/QuarterEndWindows.cs
 src/JET/JET/Domain/Rules/ReportArtifactRetentionPolicy.cs
 src/JET/JET/Domain/Rules/TbRowProjector.cs
 src/JET/JET/Domain/Rules/TypedFieldConditions.cs
+src/JET/JET/Domain/SupportDiagnosticNdjson.cs
 src/JET/JET/Form1.Designer.cs
 src/JET/JET/Form1.cs
 src/JET/JET/Form1.resx
@@ -420,6 +433,7 @@ src/JET/JET/Infrastructure/Diagnostics/DiagnosticDb.cs
 src/JET/JET/Infrastructure/Diagnostics/DiagnosticLogEntryFactory.cs
 src/JET/JET/Infrastructure/Diagnostics/NdjsonFileLoggerProvider.cs
 src/JET/JET/Infrastructure/Diagnostics/RingBufferLoggerProvider.cs
+src/JET/JET/Infrastructure/Diagnostics/SupportRingBufferLoggerProvider.cs
 src/JET/JET/Infrastructure/Export/AccountMappingTemplateWriter.cs
 src/JET/JET/Infrastructure/Export/DemoWorkbookWriter.cs
 src/JET/JET/Infrastructure/Export/DirectTemplateStreamingSheetWriter.cs
@@ -775,6 +789,7 @@ src/JET/tests/JET.Tests/Application/ProgramMilestoneProgressTests.cs
 src/JET/tests/JET.Tests/Application/ProjectAuditLoggingJourneyTests.cs
 src/JET/tests/JET.Tests/Application/ProjectCreateHandlerCompensationTests.cs
 src/JET/tests/JET.Tests/Application/ProjectDeleteArtifactLeaseTests.cs
+src/JET/tests/JET.Tests/Application/ProjectDeleteCorruptJournalTests.cs
 src/JET/tests/JET.Tests/Application/ProjectFolderPortabilityTests.cs
 src/JET/tests/JET.Tests/Application/ProjectHandlersTests.cs
 src/JET/tests/JET.Tests/Application/ProjectLeaseLockTests.cs
@@ -865,6 +880,7 @@ src/JET/tests/JET.Tests/Architecture/ResponsiveLayoutFrontendTests.cs
 src/JET/tests/JET.Tests/Architecture/SchemaIsolationGuardTests.cs
 src/JET/tests/JET.Tests/Architecture/SchemaIsolationJourneyTests.cs
 src/JET/tests/JET.Tests/Architecture/SensitiveDataPolicyTests.cs
+src/JET/tests/JET.Tests/Architecture/StoreNotificationConventionFrontendTests.cs
 src/JET/tests/JET.Tests/Architecture/SupportedActionsParityTests.cs
 src/JET/tests/JET.Tests/Architecture/TestEvidencePolicyTests.cs
 src/JET/tests/JET.Tests/Architecture/TypedFilterFrontendTests.cs
@@ -898,6 +914,7 @@ src/JET/tests/JET.Tests/AuditCore/TypedFieldCompilationTests.cs
 src/JET/tests/JET.Tests/AuditCore/ValidationProgramTests.cs
 src/JET/tests/JET.Tests/AuditCore/ValidationReportProgramTests.cs
 src/JET/tests/JET.Tests/AuditCore/WorkpaperProgramTests.cs
+src/JET/tests/JET.Tests/Bridge/BridgeCorrelationContractTests.cs
 src/JET/tests/JET.Tests/Bridge/BridgeErrorMappingTests.cs
 src/JET/tests/JET.Tests/Bridge/RequestCancellationRegistryTests.cs
 src/JET/tests/JET.Tests/Bridge/WebViewEventPublisherTests.cs
@@ -1152,6 +1169,7 @@ src/JET/tests/JET.Tests/Infrastructure/Stage8TrackOAppearanceRegistryTests.cs
 src/JET/tests/JET.Tests/Infrastructure/Stage8TrackWAppearanceTests.cs
 src/JET/tests/JET.Tests/Infrastructure/Stage9ExportDatabaseAppearanceCoverageTests.cs
 src/JET/tests/JET.Tests/Infrastructure/Stage9TrackedLegacyAppearanceSnapshotTests.cs
+src/JET/tests/JET.Tests/Infrastructure/SupportRingBufferLoggerProviderTests.cs
 src/JET/tests/JET.Tests/Infrastructure/TbOpenCloseProjectionTests.cs
 src/JET/tests/JET.Tests/Infrastructure/TbProjectionLoggingTests.cs
 src/JET/tests/JET.Tests/Infrastructure/TestCsvBuilder.cs

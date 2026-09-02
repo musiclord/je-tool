@@ -1,6 +1,6 @@
 # JET 前端說明
 
-更新日期：2026-08-27
+更新日期：2026-09-01
 
 JET 的前端是放在 WinForms WebView2 裡的 HTML、CSS 與 JavaScript。它負責讓使用者操作案件、查看摘要
 與有界明細；審計規則、資料有效性與報告內容由後端決定。
@@ -23,6 +23,10 @@ JET 的前端是放在 WinForms WebView2 裡的 HTML、CSS 與 JavaScript。它�
 
 建立案件時選定 provider。案件名稱錯誤由後端用結構化 `error.field = "caseName"` 指回欄位，前端不
 解析錯誤句子猜測焦點。
+
+載入或刪除失敗時，picker 在原操作位置保留錯誤，並提供「複製錯誤」與「輸出支援日誌」。後者使用
+同一次錯誤回應的 correlation id，把去識別紀錄直接寫到該案件目錄；不需要先成功載入案件，也不依賴
+Release 中不會顯示的 DEV 面板。報告 journal 衝突仍拒絕載入，但使用者確認後可以刪除整個案件。
 
 ## 六個步驟
 
@@ -62,6 +66,23 @@ GL 與 TB 可以由一個或多個檔案匯入。前端先讓使用者選檔，�
 - 切換步驟可以保存位置，但不能把「看過某頁」誤寫成「業務條件已完成」。
 - 上游資料、mapping 或規則版本改變後，前端要顯示 stale，不沿用舊結果。
 - Background response 必須確認仍屬同一案件與同一 request，不能覆寫後來載入的 state。
+- 通知慣例（2026-09-01 收斂，整個前端唯一）：凡是會改變任何衍生畫面輸出的 store 寫入一律
+  bump（`contentVersion` 進版、面板重建）；「只 notify」僅限「唯一視覺反映就是使用者正在編輯的
+  那個控制項本身」的連續文字輸入，且必須在 blur 後延遲一次 bump 收斂。select／radio／checkbox
+  是離散提交，永遠直接 bump。重建後的輸入焦點與捲動由 `app.js` 的 `renderContent` 依焦點識別
+  屬性與 `data-preserve-scroll` 標記統一還原，步驟模組不得各自發明保留機制。已文件化的唯一
+  例外是 filter-step 的規則值編輯（連續輸入且重建成本高，以就地抽換 read-back 與預覽面板收斂）。
+  守衛測試：`JET.Tests.Architecture.StoreNotificationConventionFrontendTests`。
+
+欄位配對的必填鐵軌與「確認配對」按鈕都由同一份 draft 推導。下拉選擇會立即 bump；中央內容重建後，
+只依每個控制項明示且唯一的 `data-focus-key` 還原焦點，並還原 `data-preserve-scroll` 容器。這避免右側
+仍顯示「待指派」、按鈕維持停用，或重繪把焦點送回錯誤控制項。
+
+## 診斷日誌
+
+- 「輸出支援日誌」是 Release 可用的去識別紀錄，案件尚未成功載入時也能從 picker 使用。
+- Debug 的「DEV — 診斷日誌匯出」保留較完整的原始紀錄，必須先開啟案件；畫面明示內容可能含案件資料。
+- 兩種輸出都由後端直接寫入目前案件目錄。前端不接受任意路徑，也不自行組合或過濾 NDJSON。
 
 ## 作業、取消與關閉
 

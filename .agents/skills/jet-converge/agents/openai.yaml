@@ -1,0 +1,7 @@
+interface:
+  display_name: "JET Converge"
+  short_description: "收斂跨 session 的觀點、需求、功能與待完成事項"
+  default_prompt: "Use $jet-converge to reconcile scattered JET viewpoints and deferred items into decisions aligned with the core business."
+
+policy:
+  allow_implicit_invocation: false

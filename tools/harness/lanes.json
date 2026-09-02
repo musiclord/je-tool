@@ -129,6 +129,20 @@
         "actionBudget": 16,
         "expectedActionCount": 15,
         "screenshotBudget": 0
+      },
+      {
+        "name": "mapping-required-sync",
+        "timeoutSeconds": 180,
+        "actionBudget": 12,
+        "expectedActionCount": 10,
+        "screenshotBudget": 0
+      },
+      {
+        "name": "conflicted-journal-recovery",
+        "timeoutSeconds": 180,
+        "actionBudget": 8,
+        "expectedActionCount": 5,
+        "screenshotBudget": 0
       }
     ]
   },

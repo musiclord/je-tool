@@ -1,6 +1,12 @@
 {
   "schemaVersion": 2,
   "files": [
+    ".agents/harness/convergence-and-memory.md",
+    ".agents/skills/jet-converge/SKILL.md",
+    ".agents/skills/jet-converge/agents/openai.yaml",
+    ".agents/skills/jet-converge/references/session-synthesis.md",
+    ".agents/skills/jet-converge/references/upstream-provenance.md",
+    ".claude/skills/jet-converge/SKILL.md",
     ".github/copilot-instructions.md",
     "AGENTS.md",
     "README.md",
@@ -137,6 +143,31 @@
       "id": "development-continuity",
       "file": "AGENTS.md",
       "text": "docs/development-workflow.md"
+    },
+    {
+      "id": "jet-converge-canonical-skill",
+      "file": "AGENTS.md",
+      "text": ".agents/skills/jet-converge/SKILL.md"
+    },
+    {
+      "id": "convergence-memory-harness",
+      "file": "docs/development-workflow.md",
+      "text": ".agents/harness/convergence-and-memory.md"
+    },
+    {
+      "id": "jet-converge-explicit-only",
+      "file": ".agents/skills/jet-converge/agents/openai.yaml",
+      "text": "allow_implicit_invocation: false"
+    },
+    {
+      "id": "claude-jet-converge-thin-wrapper",
+      "file": ".claude/skills/jet-converge/SKILL.md",
+      "text": ".agents/skills/jet-converge/SKILL.md"
+    },
+    {
+      "id": "jet-converge-project-memory",
+      "file": ".agents/harness/convergence-and-memory.md",
+      "text": "repository 是專案記憶"
     },
     {
       "id": "explicit-staging-only",

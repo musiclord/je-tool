@@ -41,6 +41,7 @@
     cancellationRequested: false,
     projects: [],              // picker 最近接受的 snapshot：本機清單，或使用者手動同步後的本機＋線上清單
     pickerFeedback: null,      // picker 就地錯誤（訊息面板在 workflow app-body 內，picker 期間不可見）
+    pickerFeedbackContext: null, // { projectId, errorCode, correlationId, exportedPath }；只供複製與支援日誌匯出
     // project.list 的頂層 online 區塊 { reachable, principal, message? }（僅手動線上同步後存在）。
     // null 表示目前是 project.listLocal snapshot、尚未手動同步；picker 不得把它誤稱為「線上無案件」。
     online: null,
@@ -118,6 +119,13 @@
   // 單調遞增、跨 resetWorkflow 不歸零：歸零會讓「舊專案的在途請求＋新專案」出現版本撞號的窗口。
   var filterDraftRev = 0;
 
+  // 通知慣例（整個前端唯一）：凡是會改變任何衍生畫面輸出的寫入，一律 bump()（contentVersion
+  // 進版、面板重建）；「只 notify()」僅保留給「唯一視覺反映就是使用者正在編輯的那個控制項本身」
+  // 的連續文字輸入（input 事件），且必須在 blur 邊界配一次延遲 bump 收斂，讓按鈕可用性、清單與
+  // 提示等衍生畫面在互動結束時對齊。select／radio／checkbox 是離散提交，永遠直接 bump。
+  // 重建後的輸入焦點與捲動由 app.js renderContent 依焦點識別屬性與 data-preserve-scroll 統一
+  // 還原，步驟模組不得各自發明保留機制。已文件化的唯一例外：filter-step 規則值編輯
+  // （patchFilterRule＋softRefreshReadback／softExpirePreviewPane，連續輸入且重建成本高）。
   function notify() {
     for (var i = 0; i < listeners.length; i++) {
       listeners[i](state);
@@ -246,8 +254,14 @@
       bump();
     },
 
-    setPickerFeedback: function (message) {
+    setPickerFeedback: function (message, context) {
       state.pickerFeedback = message || null;
+      state.pickerFeedbackContext = message && context ? {
+        projectId: context.projectId || null,
+        errorCode: context.errorCode || null,
+        correlationId: context.correlationId || null,
+        exportedPath: context.exportedPath || null
+      } : null;
       // 純 picker 呈現狀態；renderPicker 的 memo key 直接納入此值，不需 bump workflow contentVersion。
       notify();
     },
@@ -474,7 +488,9 @@
       } else {
         delete state.mapping[kind].draft[key];
       }
-      notify(); // 草稿變動不重建面板（select 已是最新值）
+      // 草稿餵給必填鐵軌、「確認配對」可用性與 GL 政策區的分支顯示，依通知慣例必須 bump；
+      // 重繪後的焦點與捲動由 renderContent 統一還原，不在此犧牲衍生畫面的即時性。
+      bump();
     },
 
     // 對照表格用：把某來源欄指派給某 JET 欄位（空 fieldKey = 此欄不對應）。

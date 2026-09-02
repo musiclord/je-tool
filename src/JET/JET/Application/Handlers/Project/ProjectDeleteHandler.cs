@@ -60,8 +60,8 @@ public sealed class ProjectDeleteHandler(
         };
         await using var heldDeletionLease = deletionLease;
 
-        // 授權通過後才取得案件外的 artifact lease。它會先復原 pending mutation journal，並一路保持到
-        // provider 資料與案件資料夾處理完成，避免匯出／清理與刪案跨程序交錯。
+        // 授權通過後才取得案件外的 artifact lease。刪案路徑只排除其他 artifact reader/writer，不先
+        // 讀取或復原即將一併刪除的 journal；lease 一路保持到 provider 資料與案件資料夾處理完成。
         await using var artifactDeletionLease = await reportArtifactStore.AcquireProjectDeletionLeaseAsync(
             projectId,
             cancellationToken);

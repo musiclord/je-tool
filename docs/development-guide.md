@@ -3,7 +3,7 @@
 更新日期：2026-08-31
 
 `je-tool` 已完成驗證框架的 Phase 1 至 Phase 7，所有正式檢查都從 `tools/verify.ps1` 進入。`Provider`、
-Release `Package`、兩個 GUI 情境與六份合成報表的原生 Excel 開啟與儲存檢查都有完整通過紀錄。完整分工見
+Release `Package`、四個 GUI 情境與六份合成報表的原生 Excel 開啟與儲存檢查都有完整通過紀錄。完整分工見
 [`harness.md`](harness.md)，建置順序見
 [`specs/2026-08-28-harness-rebuild-plan.md`](specs/2026-08-28-harness-rebuild-plan.md)。
 
@@ -83,9 +83,9 @@ pwsh -NoProfile -File tools/verify.ps1 -Command ReleaseCandidate -Configuration 
 可追蹤設定，通過後才會建置、執行輸出檔案測試，並在本次專屬暫存目錄產生 Release 封裝。`Provider`、
 `Package` 與完整 `ReleaseCandidate` 都已有通過紀錄。
 
-`Gui` 會分別執行啟動檢查與合成 SQLite 建案。第二個情境會從真實 JET 畫面輸入固定的合成資料，確認建案後
-進入匯入步驟，而且本次暫存目錄中確實產生 `project.json` 與 `jet.db`。這兩個情境不使用私人案件，也不代表
-JE／TB 匯入、篩選或底稿匯出已完成驗收。
+`Gui` 會執行啟動、合成 SQLite 建案、欄位配對必填同步及損壞 journal 復原四個情境。它會從真實 JET
+畫面輸入建案資料、操作 mapping 下拉、從 picker 匯出去識別支援日誌並確認刪案；每個情境都使用自己的
+合成暫存根。這些情境不使用私人案件，也不代表篩選、底稿匯出或原生檔案對話框已完成驗收。
 
 `Excel` 會先由現行產品測試產生六份合成報表，再逐份交給原生 Excel 開啟、完整重算、另存、重新開啟並
 輸出第一頁 PDF。來源檔不能被改動，副本不能帶有外部連結，公式錯誤也不能增加。這條路線只接受本次暫存

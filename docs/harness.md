@@ -93,9 +93,12 @@ SQLite／DuckDB 本機工作為優先、SQL Server 中心化方向暫緩的決�
 才建置、執行目前的報告與範本測試，並把 publish 輸出放在本次執行專屬的暫存目錄。封裝清單直接由同一次
 執行的現行來源與產物產生，不採用舊 P5 基準，暫存封裝在收尾時自動移除。
 
-`Gui` 固定使用 `AgentGuiTest`，透過 WebView2 的本機偵錯連線依序執行兩個隔離情境。`startup-smoke` 確認
-頁面、bridge、`systemPing`、專案選擇畫面和離開按鈕。`synthetic-sqlite-create` 則從可見表單輸入固定的合成
-資料，建立 SQLite 專案、進入匯入步驟，再核對本次暫存目錄中的 `project.json` 與 `jet.db`。
+`Gui` 固定使用 `AgentGuiTest`，透過 WebView2 的本機偵錯連線依序執行四個隔離情境。`startup-smoke` 確認
+頁面、bridge、`systemPing`、專案選擇畫面和離開按鈕。`synthetic-sqlite-create` 從可見表單輸入固定合成資料，
+建立 SQLite 專案、進入匯入步驟，再核對本次暫存目錄中的 `project.json` 與 `jet.db`。
+`mapping-required-sync` 從已提交的合成 mapping 按「重新配對」，實際清空並補回一個必填欄位，確認右側
+缺漏狀態、提交資格與焦點同步。`conflicted-journal-recovery` 建立封閉的報告 journal 衝突，在 Release
+可見介面確認載入錯誤、去識別支援日誌與確認刪案都能完成。
 
 驅動程式位於 `tools/harness/gui-driver/`；資料夾名稱使用小寫並以連字號分隔，C# 型別、namespace 和組件則
 維持 .NET 的 PascalCase。外部只能選擇已列出的情境，不能提供腳本、元素選取器或其他動作。驅動程式不下載
@@ -112,7 +115,11 @@ Excel 驅動程式不接受外部指定的工作簿路徑，只能使用本次�
 Phase 5 不讀取私人案件，也不代表 JE／TB 正式匯入與底稿比對已通過。
 
 效能壓力測試、變異測試（mutation testing）或測試涵蓋率，只有在確實能回答獨立問題時才加入，
-不會只因舊驗證框架曾經包含這些項目就恢復。
+不會只因舊驗證框架曾經包含這些項目就恢復。2026-09-01 以 Stryker.NET 4.16.0 和正確的
+`--test-runner mtp` 實跑確認：工具能分析 .NET 10 並啟動 MTP，但 MTP runner 仍是 preview，會繞過
+JET harness 的安全篩選而執行 PrivateCase；上游也已知會忽略每個 mutant 的測試選取。它目前不安裝、
+不成為正式或日常 gate。斷言強度繼續由 first-red、獨立 oracle、FsCheck、provider parity 與 GUI／Excel
+邊界測試共同補強；這些做法各自回答不同問題，不能宣稱等同 mutation score。
 
 ## 資料與判定依據
 

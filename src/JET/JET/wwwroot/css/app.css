@@ -1229,6 +1229,20 @@ kbd {
   line-height: 1.55;
 }
 
+.picker-feedback__export-result {
+  margin-top: 5px;
+  color: var(--color-ink);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.picker-feedback__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 7px;
+}
+
 .picker-panel__list {
   display: flex;
   flex-direction: column;

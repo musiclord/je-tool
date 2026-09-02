@@ -57,16 +57,25 @@ public sealed class ActionDispatcher
     /// <summary>
     /// 每次 dispatch 生成 correlation_id 並以 <see cref="ILogger.BeginScope"/> 建立 scope——
     /// 同一 LoggerFactory 的子層 logger（Handler/Repository）在該 async 流程內自動帶入（AsyncLocal）。
-    /// 記錄 action 生命週期（start/end/error、duration_ms、result_status）;診斷日誌為 dev-only,
-    /// Release 用 no-op logger。
+    /// 記錄 action 生命週期（start/end/error、duration_ms、result_status）；Debug provider 保存完整診斷，
+    /// Release provider 只接收已去識別的 allowlist 支援事件。
     /// </summary>
-    public async Task<object?> DispatchAsync(string action, JsonElement payload, CancellationToken cancellationToken)
+    public async Task<object?> DispatchAsync(
+        string action,
+        JsonElement payload,
+        CancellationToken cancellationToken,
+        string? correlationId = null)
     {
+        correlationId = string.IsNullOrWhiteSpace(correlationId)
+            ? Guid.NewGuid().ToString("N")
+            : correlationId;
+        var supportProjectId = TryReadSupportProjectId(payload);
         using var scope = _logger.BeginScope(new Dictionary<string, object?>
         {
-            ["correlation_id"] = Guid.NewGuid().ToString("N"),
+            ["correlation_id"] = correlationId,
             ["action"] = action,
             ["project_id"] = _session.CurrentProjectId,
+            ["support_project_id"] = supportProjectId,
         });
 
         var stopwatch = Stopwatch.StartNew();
@@ -97,7 +106,14 @@ public sealed class ActionDispatcher
         }
         catch (Exception exception)
         {
-            DispatcherDiagnostics.ActionError(_logger, action, stopwatch.ElapsedMilliseconds, exception);
+            DispatcherDiagnostics.ActionError(
+                _logger,
+                action,
+                stopwatch.ElapsedMilliseconds,
+                exception is JetActionException actionException
+                    ? actionException.Code
+                    : JetErrorCodes.BridgeError,
+                exception);
 
             // 引擎錯誤映射：業務錯誤（JetActionException）原樣放行；其餘例外先過映射點，
             // 可辨識者（登入失敗/唯一鍵衝突/死鎖/逾時）以明確錯誤碼取代裸 bridge_error。
@@ -112,6 +128,19 @@ public sealed class ActionDispatcher
         {
             executionLease?.Dispose();
         }
+    }
+
+    private static string? TryReadSupportProjectId(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object
+            || !payload.TryGetProperty("projectId", out var property)
+            || property.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var value = property.GetString();
+        return ProjectNameRules.IsValid(value) ? value : null;
     }
 
 }
@@ -131,8 +160,13 @@ internal static partial class DispatcherDiagnostics
     public static partial void ActionEnd(ILogger logger, string action, string result_status, long duration_ms);
 
     [LoggerMessage(EventId = 1002, EventName = "action.error", Level = LogLevel.Error,
-        Message = "action {action} failed in {duration_ms} ms")]
-    public static partial void ActionError(ILogger logger, string action, long duration_ms, Exception exception);
+        Message = "action {action} failed in {duration_ms} ms code={error_code}")]
+    public static partial void ActionError(
+        ILogger logger,
+        string action,
+        long duration_ms,
+        string error_code,
+        Exception exception);
 }
 
 /// <summary>

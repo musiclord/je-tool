@@ -5,7 +5,6 @@ using JET.Domain;
 using JET.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace JET;
 
@@ -13,6 +12,7 @@ public static class AppCompositionRoot
 {
     /// <summary>診斷日誌 ring buffer 容量（dev-only;滿則覆寫最舊）。</summary>
     private const int DiagnosticLogCapacity = 10_000;
+    private const int SupportLogCapacity = 2_000;
 
     public static JetApplicationRuntime CreateRuntime(IHostShell hostShell, IJetEventPublisher? eventPublisher = null)
     {
@@ -120,7 +120,6 @@ public static class AppCompositionRoot
     {
         var folder = new JetProjectFolder(projectsRootPath);
         var projectStore = new JsonFileProjectStore(folder);
-        var baseReportArtifactStore = new ProjectReportArtifactStore(folder);
         var sqliteDatabase = new SqliteProjectDatabase(folder);
         // 第二本地引擎（每專案一個 jet.duckdb；與 sqlite 同 folder、共用 Local* repository 家族）。
         var duckDbDatabase = new DuckDbProjectDatabase(folder);
@@ -187,27 +186,33 @@ public static class AppCompositionRoot
         // 使用者編號本機離線快取(user-profile.json):線上不可達時 whoAmI 據此退階;測試釘 temp 目錄,不碰真 %LOCALAPPDATA%。
         var userProfileCache = new UserProfileCache(userProfileDirectory ?? GetUserProfileDirectory());
 
-        // 診斷日誌(第三層、dev-only):啟用 dev 工具時才建 ring buffer provider 並組 LoggerFactory;
-        // Release(enableDevTools=false)用 NullLoggerFactory,所有 log 變 no-op、零成本。需在 repo 之前建立。
+        // Release-safe 支援日誌永遠註冊，只收 Information+ allowlist 並在寫入 buffer 前去識別；Debug
+        // 另掛原有完整 ring/file sink。Release minimum level=Information，不格式化 sql/tx 的 Debug 內容。
+        var supportDiagnostic = new SupportRingBufferLoggerProvider(SupportLogCapacity);
         var diagnostic = enableDevTools
             ? diagnosticLoggerProvider ?? new RingBufferLoggerProvider(DiagnosticLogCapacity)
             : null;
         // 診斷日誌檔案 sink(dev-only):與 ring buffer 並列,讓 agent 跑完 app 後直接讀 NDJSON 執行時日誌。
-        // 僅在啟用 dev 工具且指定目錄時建立;Release(diagnostic 為 null)整條日誌仍 no-op、不產生檔案。
+        // 僅在啟用 dev 工具且指定目錄時建立；Release 不建立 raw sink，另有去識別 support buffer。
         var diagnosticFile = diagnostic is not null && diagnosticLogDirectory is not null
             ? new NdjsonFileLoggerProvider(diagnosticLogDirectory)
             : null;
-        var loggerFactory = diagnostic is null
-            ? (ILoggerFactory)NullLoggerFactory.Instance
-            : LoggerFactory.Create(builder =>
+        var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(diagnostic is null ? LogLevel.Information : LogLevel.Trace);
+            builder.AddProvider(supportDiagnostic);
+            if (diagnostic is not null)
             {
-                builder.SetMinimumLevel(LogLevel.Trace); // 診斷日誌全收（sql/tx 為 Debug 級）
                 builder.AddProvider(diagnostic);
                 if (diagnosticFile is not null)
                 {
                     builder.AddProvider(diagnosticFile);
                 }
-            });
+            }
+        });
+        var baseReportArtifactStore = new ProjectReportArtifactStore(
+            folder,
+            logger: loggerFactory.CreateLogger<ProjectReportArtifactStore>());
         var runtimeResources = new RuntimeOwnedResources(loggerFactory, localFileLockService);
 
         // 啟動健康檢查（非阻斷、Task 9）：SQL Server 已設定（base 連線字串非空）時，連一次 master
@@ -651,6 +656,7 @@ public static class AppCompositionRoot
                 ruleRunStore, resultStaleStateStore, filterScenarioStore, reportArtifactStore, currentPrincipal, session),
             new LogAppendHandler(messageLogStore, session),
             new LogRecentHandler(messageLogStore, session),
+            new SupportLogExportHandler(supportDiagnostic, projectStore, folder),
             new HostSelectFileHandler(hostShell, hostDialogProjectContext),
             new HostSelectFilesHandler(hostShell, hostDialogProjectContext),
             new HostSelectSavePathHandler(hostShell, hostDialogProjectContext),
@@ -689,6 +695,13 @@ public static class AppCompositionRoot
                 handlers.Add(new DevDbReconcileHandler(
                     new SqlServerControlPlaneReconciler(sqlServerConnectionOptions, projectStore), providerResolver));
                 handlers.Add(new DevLogExportHandler(diagnostic!));
+                // dev.log.exportFile：單鍵把完整診斷日誌篩成目前案件後，直接寫入該案件目錄。
+                // sink 不可讀時退回同一程序的 ring buffer；不另選路徑，也不退到 %LOCALAPPDATA%。
+                handlers.Add(new DevLogExportFileHandler(
+                    diagnostic!,
+                    diagnosticFile?.FilePath,
+                    projectStore,
+                    folder));
             }
 
             // 引擎錯誤映射：先辨識 SQLite／DuckDB 強型樣，再辨識 SqlException；

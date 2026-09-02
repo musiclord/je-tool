@@ -18,8 +18,12 @@ public sealed class FrontendHardeningContractTests
         var css = ReadFrontend("css", "app.css");
 
         Assert.Contains("pickerFeedback: null", state, StringComparison.Ordinal);
+        Assert.Contains("pickerFeedbackContext: null", state, StringComparison.Ordinal);
         Assert.Contains("setPickerFeedback: function", state, StringComparison.Ordinal);
-        Assert.Contains("pickerFeedbackHtml(state.pickerFeedback)", app, StringComparison.Ordinal);
+        Assert.Contains(
+            "pickerFeedbackHtml(state.pickerFeedback, state.pickerFeedbackContext)",
+            app,
+            StringComparison.Ordinal);
         Assert.Contains("role=\"alert\"", app, StringComparison.Ordinal);
         Assert.Contains("aria-live=\"polite\"", app, StringComparison.Ordinal);
         Assert.Contains("state.pickerFeedback", ExtractFunction(app, "renderPicker"), StringComparison.Ordinal);
@@ -28,8 +32,21 @@ public sealed class FrontendHardeningContractTests
         const string errorHook = "onError: function (message) { Store.setPickerFeedback(message); }";
         Assert.Contains(errorHook, ExtractFunction(core, "loadProjects"), StringComparison.Ordinal);
         Assert.Contains(errorHook, ExtractFunction(core, "syncOnlineProjects"), StringComparison.Ordinal);
-        Assert.Contains(errorHook, ExtractFunction(core, "openProject"), StringComparison.Ordinal);
-        Assert.Contains(errorHook, ExtractFunction(app, "bindPicker"), StringComparison.Ordinal);
+
+        var openProject = ExtractFunction(core, "openProject");
+        Assert.Contains("onError: function (message, error)", openProject, StringComparison.Ordinal);
+        Assert.Contains("projectId: projectId", openProject, StringComparison.Ordinal);
+        Assert.Contains("errorCode: error && error.code", openProject, StringComparison.Ordinal);
+        Assert.Contains("correlationId: error && error.correlationId", openProject, StringComparison.Ordinal);
+
+        var picker = ExtractFunction(app, "bindPicker");
+        Assert.Contains("onError: function (message, error)", picker, StringComparison.Ordinal);
+        Assert.Contains("projectId: target.id", picker, StringComparison.Ordinal);
+        Assert.Contains("errorCode: error && error.code", picker, StringComparison.Ordinal);
+        Assert.Contains("correlationId: error && error.correlationId", picker, StringComparison.Ordinal);
+        Assert.Contains("data-action=\"picker-copy-error\"", app, StringComparison.Ordinal);
+        Assert.Contains("data-action=\"picker-support-export\"", app, StringComparison.Ordinal);
+        Assert.Contains("supportLogExport", picker, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -244,6 +261,8 @@ public sealed class FrontendHardeningContractTests
         Assert.Contains("callbacks.reject", rejectAll, StringComparison.Ordinal);
         Assert.Contains("global.addEventListener('pagehide', rejectAllPending)", api, StringComparison.Ordinal);
         Assert.Contains("'project.load': true", app, StringComparison.Ordinal);
+        Assert.Contains("err.correlationId = typeof message.correlationId === 'string'", api, StringComparison.Ordinal);
+        Assert.Contains("'support.log.export'", api, StringComparison.Ordinal);
     }
 
     [Fact]

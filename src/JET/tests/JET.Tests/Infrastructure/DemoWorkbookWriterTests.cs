@@ -39,4 +39,25 @@ public sealed class DemoWorkbookWriterTests
         Assert.Equal(first.FilePath, second.FilePath); // 同一行程只寫一次,重用同檔
         Assert.True(File.Exists(first.FilePath));
     }
+
+    [Fact]
+    public async Task RunOwnedWriter_WithClosedFixtureData_WritesOnlyThatFixture()
+    {
+        using var root = new TempProjectRoot();
+        var full = DemoDataFactory.Create();
+        var fixture = full with
+        {
+            GlRows = full.GlRows.Take(4).ToArray(),
+            TbRows = full.TbRows.Take(3).ToArray(),
+        };
+        var writer = new DemoWorkbookWriter(root.Path, fixture);
+
+        var gl = await writer.WriteGlAsync(fixture, CancellationToken.None);
+        var tb = await writer.WriteTbAsync(fixture, CancellationToken.None);
+
+        using var glWorkbook = new XLWorkbook(gl.FilePath);
+        using var tbWorkbook = new XLWorkbook(tb.FilePath);
+        Assert.Equal(5, glWorkbook.Worksheets.First().RowsUsed().Count());
+        Assert.Equal(4, tbWorkbook.Worksheets.First().RowsUsed().Count());
+    }
 }

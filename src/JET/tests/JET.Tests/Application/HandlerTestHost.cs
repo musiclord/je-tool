@@ -80,10 +80,15 @@ internal sealed class HandlerTestHost : IDisposable
     public async Task<JsonElement> DispatchAsync(
         string action,
         string payloadJson = "{}",
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? correlationId = null)
     {
         using var payload = JsonDocument.Parse(payloadJson);
-        var data = await Dispatcher.DispatchAsync(action, payload.RootElement, cancellationToken);
+        var data = await Dispatcher.DispatchAsync(
+            action,
+            payload.RootElement,
+            cancellationToken,
+            correlationId);
 
         // 把匿名物件 response 轉成 JsonElement，斷言時走 wire shape
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions(JsonSerializerDefaults.Web));

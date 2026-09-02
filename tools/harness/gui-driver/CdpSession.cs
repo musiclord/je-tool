@@ -104,6 +104,25 @@ internal sealed class CdpSession : IAsyncDisposable
             .ConfigureAwait(false);
     }
 
+    internal Task PressKeyAsync(string key, CancellationToken cancellationToken)
+    {
+        var keyDefinition = key switch
+        {
+            "ArrowDown" => (Code: "ArrowDown", VirtualKey: 0x28),
+            "ArrowUp" => (Code: "ArrowUp", VirtualKey: 0x26),
+            "Home" => (Code: "Home", VirtualKey: 0x24),
+            "End" => (Code: "End", VirtualKey: 0x23),
+            "Enter" => (Code: "Enter", VirtualKey: 0x0D),
+            "Tab" => (Code: "Tab", VirtualKey: 0x09),
+            _ => throw new GuiInfrastructureException("keyboard_key_invalid")
+        };
+        return DispatchNavigationKeyAsync(
+            key,
+            keyDefinition.Code,
+            keyDefinition.VirtualKey,
+            cancellationToken);
+    }
+
     private async Task DispatchCharacterAsync(char character, CancellationToken cancellationToken)
     {
         var uppercase = char.IsAsciiLetterUpper(character);

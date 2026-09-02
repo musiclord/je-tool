@@ -48,9 +48,14 @@ public sealed class DevToolsGatingTests
     {
         using var host = new HandlerTestHost(enableDevTools: false);
 
-        // dev.log.export 同 dev.db.*：Release 不註冊 → unknown action
+        // dev.log.export / dev.log.exportFile 同 dev.db.*：Release 不註冊 → unknown action
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => host.DispatchAsync("dev.log.export"));
+        await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => host.DispatchAsync("dev.log.exportFile"));
+
+        // 可分享的支援日誌不是 DEV 工具：Release 也必須註冊，才能在案件載入失敗時從 picker 匯出。
+        Assert.Contains("support.log.export", host.Dispatcher.RegisteredActions);
     }
 
     [Fact]

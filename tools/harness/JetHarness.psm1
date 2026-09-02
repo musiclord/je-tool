@@ -419,10 +419,12 @@ function Read-JetRegistry {
     $guiScenarios = @($guiSettings.scenarios)
     $expectedGuiScenarios = @(
         [ordered]@{ name = 'startup-smoke'; timeoutSeconds = 120; actionBudget = 4; expectedActionCount = 1; screenshotBudget = 0 },
-        [ordered]@{ name = 'synthetic-sqlite-create'; timeoutSeconds = 150; actionBudget = 16; expectedActionCount = 15; screenshotBudget = 0 }
+        [ordered]@{ name = 'synthetic-sqlite-create'; timeoutSeconds = 150; actionBudget = 16; expectedActionCount = 15; screenshotBudget = 0 },
+        [ordered]@{ name = 'mapping-required-sync'; timeoutSeconds = 180; actionBudget = 12; expectedActionCount = 10; screenshotBudget = 0 },
+        [ordered]@{ name = 'conflicted-journal-recovery'; timeoutSeconds = 180; actionBudget = 8; expectedActionCount = 5; screenshotBudget = 0 }
     )
     if ($guiScenarios.Count -ne $expectedGuiScenarios.Count) {
-        throw [InvalidDataException]::new('GUI scenarios must contain only the two reviewed scenarios.')
+        throw [InvalidDataException]::new('GUI scenarios must contain only the four reviewed scenarios.')
     }
     for ($index = 0; $index -lt $expectedGuiScenarios.Count; $index++) {
         $scenario = $guiScenarios[$index]
@@ -2384,6 +2386,22 @@ function Invoke-JetGuiScenarioStep {
                     [bool]$manifest.assertions.projectJsonExists -and
                     [bool]$manifest.assertions.sqliteDatabaseExists -and
                     [bool]$manifest.assertions.storedProjectMatches
+            }
+            'mapping-required-sync' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [bool]$manifest.assertions.mappingProjectLoaded -and
+                    [bool]$manifest.assertions.mappingBaselineReady -and
+                    [bool]$manifest.assertions.requiredRailBecameIncomplete -and
+                    [bool]$manifest.assertions.requiredRailRecovered -and
+                    [bool]$manifest.assertions.mappingFocusPreserved
+            }
+            'conflicted-journal-recovery' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [bool]$manifest.assertions.conflictFeedbackVisible -and
+                    [bool]$manifest.assertions.supportExportAvailable -and
+                    [bool]$manifest.assertions.supportLogWritten -and
+                    [bool]$manifest.assertions.supportLogSafe -and
+                    [bool]$manifest.assertions.conflictedProjectDeleted
             }
             default { $false }
         }

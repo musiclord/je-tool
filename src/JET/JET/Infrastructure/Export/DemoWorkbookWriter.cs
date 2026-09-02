@@ -29,15 +29,15 @@ public sealed class DemoWorkbookWriter : IDemoFileWriter
     {
     }
 
-    internal DemoWorkbookWriter(string outputRoot)
+    internal DemoWorkbookWriter(string outputRoot, DemoProjectData? fixtureData = null)
     {
         var outputDirectory = Path.GetFullPath(outputRoot);
-        runOwnedGlFile = new(() => WriteGlCore(DemoDataFactory.Create(), outputDirectory));
-        runOwnedTbFile = new(() => WriteTbCore(DemoDataFactory.Create(), outputDirectory));
+        runOwnedGlFile = new(() => WriteGlCore(fixtureData ?? DemoDataFactory.Create(), outputDirectory));
+        runOwnedTbFile = new(() => WriteTbCore(fixtureData ?? DemoDataFactory.Create(), outputDirectory));
         runOwnedAccountMappingFile =
-            new(() => WriteAccountMappingCore(DemoDataFactory.Create(), outputDirectory));
+            new(() => WriteAccountMappingCore(fixtureData ?? DemoDataFactory.Create(), outputDirectory));
         runOwnedAuthorizedPreparerFile =
-            new(() => WriteAuthorizedPreparerCore(DemoDataFactory.Create(), outputDirectory));
+            new(() => WriteAuthorizedPreparerCore(fixtureData ?? DemoDataFactory.Create(), outputDirectory));
     }
 
     public Task<DemoExportedFile> WriteGlAsync(DemoProjectData data, CancellationToken cancellationToken)

@@ -1,6 +1,6 @@
 # JET 驗證框架使用說明
 
-`tools/verify.ps1` 是儲存庫唯一的公開驗證入口。Phase 1 至 Phase 7 已完成；`Provider`、`Package`、兩個 GUI
+`tools/verify.ps1` 是儲存庫唯一的公開驗證入口。Phase 1 至 Phase 7 已完成；`Provider`、`Package`、四個 GUI
 情境、六份合成報表的原生 Excel 檢查、SQLite／SQL Server 的同一私人案件，以及完整 `ReleaseCandidate`
 都有通過紀錄。
 
@@ -62,15 +62,19 @@ stderr 與 TRX 也會在保存前遮蔽。
 禁止出現的執行期資料；清單以本次現行來源產生，不沿用舊 P5 基準。暫存封裝完成後會自動移除，只保留清單
 與有限大小的紀錄。實際 publish 會占用較多 CPU 與磁碟，執行前應先確認本機負載。
 
-`Gui` 固定使用 `AgentGuiTest` 組態。它會先建置一次，再分別用全新的暫存目錄執行兩個情境：
+`Gui` 固定使用 `AgentGuiTest` 組態。它會先建置一次，再分別用全新的暫存目錄執行四個情境：
 
 - `startup-smoke` 檢查頁面、`JetApi`、`systemPing`、專案選擇畫面及離開按鈕，最後按下「儲存並結束」。
 - `synthetic-sqlite-create` 從可見畫面點選新增專案，以鍵盤事件輸入六個固定的合成欄位，沿用畫面預設的
   SQLite，建立專案並進入匯入步驟。通過前還會核對本次暫存根目錄中的 `project.json` 與 `jet.db`。
+- `mapping-required-sync` 從已提交的合成 mapping 進入「重新配對」，清空並補回一個必填欄位，確認右側
+  缺漏狀態即時往返、提交資格回復，而且重建後仍聚焦同一個下拉。
+- `conflicted-journal-recovery` 建立合成報告 journal 衝突，在 Release 可見介面確認錯誤可複製、支援日誌
+  可安全寫入案件目錄，並在確認後刪除原本無法載入的案件。
 
 驅動程式位於 `tools/harness/gui-driver/`。外部只能選擇上述固定情境，不能傳入 JavaScript、selector 或任意
 動作；程式也不使用 Selenium、EdgeDriver 或網路下載。每個情境都必須由 JET 自行結束，並完成程序與暫存
-目錄清理。這兩項結果不代表 JE／TB 匯入、原生對話框或私人案件已完成驗收。
+目錄清理。這四項結果不代表原生檔案對話框或私人案件已完成驗收。
 
 `Excel` 固定使用 Release。它先執行產生六份合成報表的現行測試，把同一輪產生的工作簿放進本次專屬暫存目錄，
 再由 `tools/harness/excel-driver/` 逐份使用原生 Excel 開啟。每份工作簿都要以唯讀方式開啟、停用巨集與外部連結

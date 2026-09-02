@@ -36,6 +36,9 @@ internal static class DiagnosticLogEntryFactory
                             case "correlation_id": correlationId = kv.Value?.ToString(); break;
                             case "transaction_id": transactionId = kv.Value?.ToString(); break;
                             case "project_id": projectId = kv.Value?.ToString(); break;
+                            // Release-safe provider 只用於程序內案件篩選；raw dev log 不額外揭露載入／刪除
+                            // payload 中的案件名稱。已開啟案件仍沿既有 project_id 欄位記錄。
+                            case "support_project_id": break;
                             default: fields[kv.Key] = kv.Value; break;
                         }
                     }

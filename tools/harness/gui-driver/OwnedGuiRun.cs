@@ -49,8 +49,17 @@ internal sealed partial class OwnedGuiRun : IDisposable
         "webview2",
         "EBWebView",
         "DevToolsActivePort");
+    internal string FixtureTracePath => Path.Combine(
+        RootPath,
+        "children",
+        "primary",
+        "logs",
+        "agent-gui-fixtures.ndjson");
 
-    internal static OwnedGuiRun Create(TimeSpan timeout, int actionBudget)
+    internal static OwnedGuiRun Create(
+        TimeSpan timeout,
+        int actionBudget,
+        IReadOnlyList<string> fixtures)
     {
         if (actionBudget is < 1 or > 40)
         {
@@ -79,7 +88,7 @@ internal sealed partial class OwnedGuiRun : IDisposable
                 actionBudget,
                 screenshotBudget = 0,
                 childCount = 1,
-                fixtures = Array.Empty<string>()
+                fixtures
             };
             var markerPath = Path.Combine(rootPath, MarkerFileName);
             using var stream = new FileStream(markerPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read);

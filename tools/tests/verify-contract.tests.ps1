@@ -325,8 +325,9 @@ try {
                 [string]$registry.testSettings.privateCaseProviderEnvironmentVariable) -join ',') -ceq
             'JET_PRIVATE_CASE_ROOT,JET_PRIVATE_CASE_MANIFEST,JET_PRIVATE_CASE_PROVIDER') `
         -Message 'PrivateCase must use only the reviewed explicit input boundary.'
-    Assert-Contract -Condition ((@($registry.guiSettings.scenarios.name) -join ',') -ceq 'startup-smoke,synthetic-sqlite-create') `
-        -Message 'The GUI lane must contain only the two reviewed scenarios.'
+    Assert-Contract -Condition ((@($registry.guiSettings.scenarios.name) -join ',') -ceq `
+            'startup-smoke,synthetic-sqlite-create,mapping-required-sync,conflicted-journal-recovery') `
+        -Message 'The GUI lane must contain only the four reviewed scenarios.'
     Assert-Contract -Condition ([string]$registry.excelSettings.scenario -ceq 'synthetic-report-roundtrip') `
         -Message 'The Excel lane must retain its one reviewed synthetic scenario.'
     Assert-Contract -Condition ((@($registry.excelSettings.reportKinds) -join ',') -ceq `
@@ -408,6 +409,50 @@ try {
     )
     Assert-Contract -Condition ($invalidHarnessDirectoryNames.Count -eq 0) `
         -Message 'Harness subdirectory names must use lowercase kebab-case.'
+
+    $jetConvergePaths = @(
+        '.agents/harness/convergence-and-memory.md',
+        '.agents/skills/jet-converge/SKILL.md',
+        '.agents/skills/jet-converge/agents/openai.yaml',
+        '.agents/skills/jet-converge/references/session-synthesis.md',
+        '.agents/skills/jet-converge/references/upstream-provenance.md',
+        '.claude/skills/jet-converge/SKILL.md'
+    )
+    foreach ($jetConvergePath in $jetConvergePaths) {
+        Assert-Contract -Condition (Test-Path -LiteralPath (Join-Path $repositoryRoot $jetConvergePath) -PathType Leaf) `
+            -Message "$jetConvergePath must exist for the reviewed convergence boundary."
+    }
+    $jetConvergeSkillText = Get-Content -LiteralPath (Join-Path $repositoryRoot `
+        '.agents/skills/jet-converge/SKILL.md') -Raw -Encoding utf8
+    $jetConvergePolicyText = Get-Content -LiteralPath (Join-Path $repositoryRoot `
+        '.agents/skills/jet-converge/agents/openai.yaml') -Raw -Encoding utf8
+    $jetConvergeHarnessText = Get-Content -LiteralPath (Join-Path $repositoryRoot `
+        '.agents/harness/convergence-and-memory.md') -Raw -Encoding utf8
+    $jetConvergeClaudeText = Get-Content -LiteralPath (Join-Path $repositoryRoot `
+        '.claude/skills/jet-converge/SKILL.md') -Raw -Encoding utf8
+    $agentsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'AGENTS.md') -Raw -Encoding utf8
+    Assert-Contract -Condition ($jetConvergeSkillText.Contains('name: jet-converge', [StringComparison]::Ordinal) -and
+        $jetConvergeSkillText.Contains('.agents/harness/convergence-and-memory.md', [StringComparison]::Ordinal) -and
+        $jetConvergeSkillText.Contains('docs/project-context.md', [StringComparison]::Ordinal) -and
+        $jetConvergeSkillText.Contains('docs/idea-replacement-scope.md', [StringComparison]::Ordinal)) `
+        -Message 'The canonical skill must retain its name, memory harness, and core-business anchors.'
+    Assert-Contract -Condition ($jetConvergePolicyText.Contains('allow_implicit_invocation: false', [StringComparison]::Ordinal) -and
+        $jetConvergePolicyText.Contains('Use $jet-converge', [StringComparison]::Ordinal)) `
+        -Message 'jet-converge must remain explicit-only and expose a usable Codex prompt.'
+    Assert-Contract -Condition ($jetConvergeClaudeText.Contains('disable-model-invocation: true', [StringComparison]::Ordinal) -and
+        $jetConvergeClaudeText.Contains('.agents/skills/jet-converge/SKILL.md', [StringComparison]::Ordinal)) `
+        -Message 'The Claude adapter must stay explicit-only and point to the canonical skill.'
+    Assert-Contract -Condition ($jetConvergeHarnessText.Contains('repository 是專案記憶', [StringComparison]::Ordinal) -and
+        $jetConvergeHarnessText.Contains('已知但延後', [StringComparison]::Ordinal) -and
+        $jetConvergeHarnessText.Contains('重啟條件', [StringComparison]::Ordinal)) `
+        -Message 'The convergence harness must retain repository authority and deferred-item restart conditions.'
+    Assert-Contract -Condition ($agentsText.Contains('.agents/skills/jet-converge/SKILL.md', [StringComparison]::Ordinal) -and
+        $agentsText.Contains('.agents/harness/convergence-and-memory.md', [StringComparison]::Ordinal)) `
+        -Message 'AGENTS.md must route explicit convergence and cross-session memory to the reviewed files.'
+    Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot '.reversa')) -and
+        -not (Test-Path -LiteralPath (Join-Path $repositoryRoot '_reversa_sdd'))) `
+        -Message 'External Reversa state roots must not become a second JET memory system.'
+    $scenarioNames.Add('JetConvergeBoundary')
 
     Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot 'tools/ExcelAcceptanceDriver'))) `
         -Message 'The old PascalCase Excel acceptance driver directory must not return.'

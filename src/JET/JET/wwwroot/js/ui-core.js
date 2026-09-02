@@ -1065,7 +1065,13 @@
         });
       });
     }, {
-      onError: function (message) { Store.setPickerFeedback(message); }
+      onError: function (message, error) {
+        Store.setPickerFeedback(message, {
+          projectId: projectId,
+          errorCode: error && error.code,
+          correlationId: error && error.correlationId
+        });
+      }
     });
   }
 

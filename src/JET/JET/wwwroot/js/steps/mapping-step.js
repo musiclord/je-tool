@@ -27,10 +27,6 @@
     tb: Ui.createLatestResponseGuard()
   };
 
-  // 對照表格橫向捲動的暫存位置：指派欄位觸發全步重繪前捕捉、重繪後還原（見 bindMappingSection）。
-  // null = 本輪重繪非由欄位指派引發（例如切模式），不還原、讓捲動自然歸零。
-  var pendingGridScroll = { gl: null, tb: null };
-
   // 來源欄值分布快取（mapping.valueProfile）：以「批次 + 來源欄」為鍵。
   // 形狀：{ loading:true } | { error:true } | { blankCount, distinctCount, values, truncated }
   // 這是後端 set-based 聚合的有界結果；前端不掃描來源列、不自行統計。
@@ -43,7 +39,6 @@
     valueProfileGuard.invalidate();
     editing = { gl: false, tb: false };
     sourceCache = { gl: null, tb: null };
-    pendingGridScroll = { gl: null, tb: null };
     valueProfileCache = {};
   });
 
@@ -343,7 +338,8 @@
       return '<label class="mode-option">' +
         '<input type="radio" name="gl-approval-mode" value="' + m.value + '"' +
           (options.approvalDateMode === m.value ? ' checked' : '') +
-          ' data-option-bind="approvalDateMode" aria-describedby="gl-approval-help">' +
+          ' data-option-bind="approvalDateMode" data-focus-key="gl-approval-mode-' + m.value +
+          '" aria-describedby="gl-approval-help">' +
         '<span>' + m.label + '</span></label>';
     }).join('');
 
@@ -428,7 +424,7 @@
       body +
       selected +
       '<label class="value-option">' +
-        '<input type="checkbox" data-option-bind="includeBlank"' +
+        '<input type="checkbox" data-option-bind="includeBlank" data-focus-key="gl-include-blank"' +
           (policy.includeBlank ? ' checked' : '') + '>' +
         '<span class="value-option__text">空白也視為已過帳</span>' +
       '</label>' +
@@ -543,11 +539,13 @@
             '<label class="visually-hidden" for="rde-label-' + index + '">' +
               Ui.esc(column) + ' 的顯示名稱</label>' +
             '<input class="form__input form__input--tiny" type="text" id="rde-label-' + index + '"' +
-              ' data-rde-label="' + Ui.esc(column) + '" value="' + Ui.esc(hit.label) +
+              ' data-rde-label="' + Ui.esc(column) + '" data-focus-key="rde-label-' + Ui.esc(column) +
+              '" value="' + Ui.esc(hit.label) +
               '" maxlength="' + Ui.RDE_MAX_LABEL_LENGTH + '">' +
             '<label class="visually-hidden" for="rde-type-' + index + '">' +
               Ui.esc(column) + ' 的資料型別</label>' +
-            '<select id="rde-type-' + index + '" data-rde-type="' + Ui.esc(column) + '">' +
+            '<select id="rde-type-' + index + '" data-rde-type="' + Ui.esc(column) +
+              '" data-focus-key="rde-type-' + Ui.esc(column) + '">' +
               Ui.RDE_VALUE_TYPES.map(function (t) {
                 return '<option value="' + t.value + '"' +
                   (hit.valueType === t.value ? ' selected' : '') + '>' + t.label + '</option>';
@@ -557,7 +555,8 @@
         : '';
       return '<li class="rde-field' + (hit ? ' is-selected' : '') + '">' +
         '<label class="value-option">' +
-          '<input type="checkbox" data-rde-column="' + Ui.esc(column) + '"' + (hit ? ' checked' : '') + '>' +
+          '<input type="checkbox" data-rde-column="' + Ui.esc(column) +
+            '" data-focus-key="rde-column-' + Ui.esc(column) + '"' + (hit ? ' checked' : '') + '>' +
           '<span class="value-option__text">' + Ui.esc(column) + '</span>' +
         '</label>' +
         controls +
@@ -719,7 +718,7 @@
         Number(cache.totalCount).toLocaleString() + ' 列</p>';
     }
 
-    return '<div class="map-grid-wrap"><table class="map-grid">' +
+    return '<div class="map-grid-wrap" data-preserve-scroll="map-grid-' + kind + '"><table class="map-grid">' +
       '<thead><tr class="map-grid__assign">' + assignRow + '</tr>' +
       '<tr class="map-grid__head">' + headRow + '</tr></thead>' +
       '<tbody>' + bodyHtml + '</tbody></table></div>' + note;
@@ -759,7 +758,8 @@
           Ui.esc(f.label) + '</option>';
       }).join('');
       return '<th class="map-grid__cell' + (assigned ? ' is-assigned' : '') + '">' +
-        '<select class="map-grid__select" data-map-col="' + Ui.esc(col) + '">' + opts + '</select>' +
+        '<select class="map-grid__select" data-map-col="' + Ui.esc(col) +
+          '" data-focus-key="map-grid-' + kind + '-' + Ui.esc(col) + '">' + opts + '</select>' +
         '</th>';
     }).join('');
 
@@ -791,7 +791,7 @@
         Number(cache.totalCount).toLocaleString() + ' 列</p>';
     }
 
-    return '<div class="map-grid-wrap"><table class="map-grid">' +
+    return '<div class="map-grid-wrap" data-preserve-scroll="map-grid-' + kind + '"><table class="map-grid">' +
       '<thead><tr class="map-grid__assign">' + assignRow + '</tr>' +
       '<tr class="map-grid__head">' + headRow + '</tr></thead>' +
       '<tbody>' + bodyHtml + '</tbody></table></div>' + note;
@@ -838,7 +838,7 @@
     var modeRadios = modes.map(function (m) {
       return '<label class="mode-option">' +
         '<input type="radio" name="mode-' + kind + '" value="' + m.value + '"' +
-          (mode === m.value ? ' checked' : '') + '>' +
+          (mode === m.value ? ' checked' : '') + ' data-focus-key="mode-' + kind + '-' + m.value + '">' +
         '<span>' + m.label + '</span></label>';
     }).join('');
 
@@ -851,7 +851,8 @@
         '<label class="map-literal__label">' + Ui.esc(litField.label) +
           (litReq ? ' <em class="form__req">*</em>' : '') + '</label>' +
         '<input class="form__input map-literal__input" type="text" data-mapping-key="' + litField.key +
-          '" value="' + Ui.esc(litVal) + '" placeholder="如 D 或 1">' +
+          '" data-focus-key="mapping-' + kind + '-' + litField.key + '" value="' +
+          Ui.esc(litVal) + '" placeholder="如 D 或 1">' +
         '<span class="map-literal__hint">借方的代碼字面值（不是欄位名稱）</span></div>';
     }
 
@@ -896,7 +897,7 @@
     var modeRadios = modes.map(function (m) {
       return '<label class="mode-option">' +
         '<input type="radio" name="mode-' + kind + '" value="' + m.value + '"' +
-          (mode === m.value ? ' checked' : '') + '>' +
+          (mode === m.value ? ' checked' : '') + ' data-focus-key="mode-' + kind + '-' + m.value + '">' +
         '<span>' + m.label + '</span></label>';
     }).join('');
 
@@ -912,13 +913,15 @@
       var control;
       if (field.literal) {
         control = '<input class="form__input mapping-table__input" type="text" data-mapping-key="' + field.key +
-          '" value="' + Ui.esc(current) + '" placeholder="如 D 或 1">';
+          '" data-focus-key="mapping-' + kind + '-' + field.key + '" value="' +
+          Ui.esc(current) + '" placeholder="如 D 或 1">';
       } else {
         var options = '<option value="">—</option>' + importInfo.columns.map(function (col) {
           return '<option value="' + Ui.esc(col) + '"' + (col === current ? ' selected' : '') + '>' +
             Ui.esc(col) + '</option>';
         }).join('');
-        control = '<select class="mapping-table__select" data-mapping-key="' + field.key + '">' +
+        control = '<select class="mapping-table__select" data-mapping-key="' + field.key +
+          '" data-focus-key="mapping-' + kind + '-' + field.key + '">' +
           options + '</select>';
       }
 
@@ -947,7 +950,7 @@
         banner +
         '<div class="mode-group">' + modeRadios + '</div>' +
         '<div class="map-layout">' +
-          '<div class="map-layout__main mapping-table-wrap"><table class="mapping-table">' +
+          '<div class="map-layout__main mapping-table-wrap" data-preserve-scroll="mapping-table-' + kind + '"><table class="mapping-table">' +
             '<thead><tr><th>JET 邏輯欄位</th><th>欄位代碼</th><th>來源欄位</th></tr></thead>' +
             '<tbody>' + rows + '</tbody>' +
           '</table></div>' +
@@ -1169,6 +1172,11 @@
           })
         });
       });
+      // blur 後延遲一個 event-loop 才收斂：讓 Tab／滑鼠先把焦點交給下一個控制項，renderContent
+      // 再依其顯式 data-focus-key 還原，避免 change 同步重繪把焦點搶回原文字欄。
+      input.addEventListener('blur', function () {
+        global.setTimeout(Store.touch, 0);
+      });
     });
 
     section.querySelectorAll('[data-rde-type]').forEach(function (select) {
@@ -1210,13 +1218,10 @@
     }
 
     // 標頭下拉：指派來源欄 → JET 欄位（維持一對一；字面值欄不視為欄位指派）。
+    // bump 全步重繪後的捲動與焦點由 renderContent 依 data-preserve-scroll 與焦點識別屬性統一還原。
     var literalKeys = fields.filter(function (f) { return f.literal; }).map(function (f) { return f.key; });
     section.querySelectorAll('[data-map-col]').forEach(function (sel) {
       sel.addEventListener('change', function () {
-        // 指派前先記下橫向捲動位置：assignColumnToField 會 bump 觸發全步重繪、新表捲動歸零，
-        // 重繪後 bindMappingSection 依 pendingGridScroll 還原（見下方），使用者不必反覆左右捲動。
-        var wrap = sel.closest('.map-grid-wrap');
-        pendingGridScroll[kind] = wrap ? wrap.scrollLeft : null;
         Store.assignColumnToField(kind, sel.getAttribute('data-map-col'), sel.value, literalKeys);
       });
     });
@@ -1228,12 +1233,12 @@
       });
     });
 
-    // 字面值輸入（grid/classic 共用）與 classic 的欄位下拉：寫入 draft。
-    // INPUT（字面值）或已提交時重建——讓 grid 必填鐵軌與偏離橫幅即時更新；classic 的 SELECT 不重建以保流暢。
+    // 字面值輸入（grid/classic 共用）與 classic 的欄位下拉：寫入 draft。setMappingDraft 依通知
+    // 慣例 bump 全步重繪，必填鐵軌、「確認配對」可用性、偏離橫幅與 GL 政策區同步更新；
+    // 焦點與捲動由 renderContent 框架層還原，此處不再自行判斷是否重建。
     section.querySelectorAll('[data-mapping-key]').forEach(function (control) {
       control.addEventListener('change', function () {
         Store.setMappingDraft(kind, control.getAttribute('data-mapping-key'), control.value.trim());
-        if (control.tagName === 'INPUT' || Store.getState().mapping[kind].committed) { Store.touch(); }
       });
     });
 
@@ -1250,14 +1255,10 @@
     }
 
     // 草稿態（或已提交摘要卡）有二維表 → 惰性載入來源原貌。
+    // 捲動位置由 renderContent 依 data-preserve-scroll 統一還原，此處不再持有本地暫存。
     var gridWrap = section.querySelector('.map-grid-wrap');
     if (gridWrap) {
       ensureSourcePreview(kind, Store.getState().importState[kind]);
-      // 還原上一輪指派前捕捉到的橫向捲動；只在確由欄位指派引發的重繪才還原，還原後清空。
-      if (pendingGridScroll[kind] != null) {
-        gridWrap.scrollLeft = pendingGridScroll[kind];
-        pendingGridScroll[kind] = null;
-      }
     }
 
     // 簡易清單的「預覽來源資料」：開資料預覽看來源原貌（grid 模式無此鈕）。

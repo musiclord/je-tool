@@ -1,6 +1,6 @@
 # JET 開發現況
 
-更新日期：2026-08-30
+更新日期：2026-09-02
 
 ## 目前狀態
 
@@ -8,24 +8,29 @@
 本目錄內；`je-testing` 與 `new-je-tool` 不再是執行或驗證依賴，來源 Git 歷史也不會匯入。Branch、HEAD 與
 遠端同步狀態屬於會變動的執行狀態，接手時應直接查 Git，不能只依這份文件判斷。
 
-驗證框架 Phase 1 至 Phase 7 已完成。公開產品測試、provider、Release 封裝、兩個隔離 GUI 情境、六份合成
+驗證框架 Phase 1 至 Phase 7 已完成。公開產品測試、provider、Release 封裝、四個隔離 GUI 情境、六份合成
 報表的原生 Excel 檢查，以及先前明示授權的 SQLite／SQL Server 私人案件都曾分別通過。這些結果只能描述
 當次執行；候選內容變動後，仍要依變更範圍重跑正式命令。
 
 ## 目前大型計畫
 
-[`specs/2026-08-30-repository-consolidation-plan.md`](specs/2026-08-30-repository-consolidation-plan.md)：
-歷史文件依時間軸重組、過時事實修正、Claude Code 攔截層與三個 hook、跨 agent 相容性查核；第二輪再依
-harness engineering 共識把 `AGENTS.md` 改寫為 83 行的地圖、`README.md` 回歸標準 GitHub 佈局、新增
-`CONTRIBUTING.md`，被移出的細則逐條併入 `docs/` 對應文件。實作與驗證都已完成：`Documentation`（24 份
-受管文件 0 error 0 warning）、`Contract` 與驗證框架契約測試通過，候選清單重建為 1,200 個路徑並與 Git
-未忽略檔案一致。剩餘動作是使用者驗證後另行授權提交，提交後執行完整 `ReleaseCandidate`。這項工作沒有
-改產品業務行為。
+[`specs/2026-09-01-frontend-sync-devlog-mutation-plan.md`](specs/2026-09-01-frontend-sync-devlog-mutation-plan.md)：
+本輪把 Claude 已做的前端與 DEV 日誌修改，和使用者回報的報告 journal 衝突一起收斂。欄位配對改成
+衍生畫面寫入必定 bump，並由框架層還原焦點與捲動；Release 新增可從 picker 使用的去識別支援日誌，
+Debug 原始日誌則只匯出目前案件；損壞 journal 仍拒絕載入，但確認刪案不再先做 recovery。四個 GUI
+情境已實跑通過，包含必填欄位往返與損壞案件「顯示錯誤 → 輸出支援日誌 → 刪除」。Stryker.NET 4.16.0
+能以 MTP 分析 .NET 10，但會繞過 JET harness 的 PrivateCase 篩選，且上游 MTP preview 有測試選取失效
+與固定逾時缺陷，因此不安裝、不列入正式 gate。本輪 `Contract`、`Documentation`、`Public`
+（3,402／3,402 executed passed）與四個 `Gui` 情境均通過。2026-09-02 依使用者裁定先修正提交前複審記錄
+的 `dev.log.exportFile` fallback 缺陷（first-red 測試加上 `ProjectLogFileWriter` 例外分層），相關 `Focused`
+重跑通過後，依同一授權以單一 commit 提交並推送整輪成果。狀態：待使用者驗收。
 
 前一項計畫
-[`specs/2026-08-29-agent-governance-and-context-plan.md`](specs/2026-08-29-agent-governance-and-context-plan.md)
-已完成：跨 Agent 規則、專案背景、IDEA 替代範圍、跨 session 續接與文件檢查分級都已實作、驗證及確認。
-使用者另於 2026-08-30 明示授權第一次根提交及一次 `main -> origin/main` 推送。
+[`specs/2026-08-30-repository-consolidation-plan.md`](specs/2026-08-30-repository-consolidation-plan.md)
+已完成：歷史文件依時間軸重組、過時事實修正、Claude Code 攔截層與 hook、`AGENTS.md`／`README.md`
+改寫都已實作並驗證，使用者已於 2026-08-30 驗證並授權提交，改動已進 Git（2026-08-31 session 開始時
+工作樹乾淨）。該計畫檔記載的收尾動作「提交後執行完整 `ReleaseCandidate`」在本文件沒有執行紀錄，
+重啟大型驗證前先確認或補跑。
 
 ## 目前產品與方向
 
@@ -69,7 +74,7 @@ harness engineering 共識把 `AGENTS.md` 改寫為 83 行的地圖、`README.md
 | 公司正式部署環境 | 正式環境不能假設有系統管理員權限或 AI 網路服務；最低 Windows／Office 版本、安裝方式、允許的本機資料庫與檔案傳遞仍未知。個人電腦的通過結果不能代替公司驗收。 | 公司能提供實際政策、帳號、設備或代表性測試環境時，另立部署與操作驗收計畫。 |
 | KCT 後續條件 | 目前先讓 GA 完成原 IDEA JET 的本機替代；既有 KCT A–J 條件行為保留（前端 `FILTER_KCT_CHECKLIST`、後端 `FilterCompilation` 與 `GlRulePredicates`），A–J 與現行執行的對應已於 2026-08-18 回流當時的指南（現存於 [`history/superseded/jet-guide-2026-08.md`](history/superseded/jet-guide-2026-08.md) §3–§4）。前代已查過當時指定的 `ideascript.bas`、`JE_Tool.ism` 與 draw.io 流程圖，查無 KCT 正式名稱、A–J 原始清單、KCT 全稱或條件 B 的 BS／IS／PPE 分類表；這些來源的正規化文字版本現存為 `legacy/idea-script.bas` 與 `legacy/idea-tool.bas`，不必再回頭搜尋。 | 使用者或 KCT 小組提供正式來源與條件清單後，再建立新的功能計畫；不先推測實作。 |
 | IDEA 替代的完整人工驗收 | 已知主線包含匯入、欄位配對、完整性、Account Mapping、條件篩選與底稿，但原 IDEA 的完整功能、條件、底稿及人工判讀清單尚未逐項確認。 | 使用者、GA 或保存資料能提供完整清單時，逐項補入 `idea-replacement-scope.md` 並安排公司條件下的操作驗收。 |
-| 斷言強度量測（變異測試） | 現行 harness 能證明測試有跑、沒有被偷偷跳過：`Public` 要求至少找到 3,000 個案例，跳過的測試必須逐一登記在 `public-skip-policy.json` 並比對跳過原因的雜湊，`Focused` 選不到測試或遇到跳過就失敗。這些都證明不了斷言夠嚴，目前靠 first-red 紀律以流程補。2026-08-30 移除了前代留下但已失效的變異測試設定：`JET.Mutation.Tests` 不在 `JET.slnx` 內、沒有任何建置路徑會碰到它，組件名稱又與正式測試專案相同，而安裝工具用的 `.config/dotnet-tools.json` 並未遷移。 | 出現具體的斷言強度疑慮，例如審查再度發現空斷言或測試對行為改變不敏感時，才重新評估。屆時要先確認它回答的是現行 harness 答不了的問題，並解決組件同名與方案未納入的問題，不因舊設定曾經存在就恢復。 |
+| 斷言強度量測（變異測試） | 現行 harness 能證明測試有執行且未被偷偷略過，但 mutation testing 回答的是另一個問題：斷言能否抓到刻意注入的行為變化。2026-09-01 以 Stryker.NET 4.16.0、`--test-runner mtp`、單一 Domain 檔實跑；它能分析 .NET 10、找到 3,668 項測試並啟動 MTP，先前「完全不支援 MTP」的結論不成立。不過它繞過 `tools/verify.ps1` 的安全環境與 profile 排除，初始 run 實際碰到兩個未授權 PrivateCase 測試；MTP runner 仍標為 preview，上游 issue #3754 也確認每個 mutant 的測試選取會被忽略，issue #3692 則記錄固定三分鐘 RPC 上限。工具、報告與 `.config` 設定已全數清除。 | 不把 Stryker 或其他 mutation 套件放進日常／正式 gate，也不另造只為工具服務的測試專案。日常以 first-red、獨立 oracle、FsCheck、provider parity、GUI 與 Excel 邊界測試補強；這些方法不冒充 mutation score。只有上游 MTP runner 能遵守測試篩選與 mutant test selection，並解除固定逾時後，才以同一個單檔煙霧重新評估。 |
 
 這些資料不足不會阻止已確認的技術修正，但在補齊前不能宣稱 IDEA 替代範圍、SQL Server live 相容性或
 公司部署驗收已全部完成。
@@ -86,6 +91,29 @@ harness engineering 共識把 `AGENTS.md` 改寫為 83 行的地圖、`README.md
 - 前代的 `JET_PBC_DIR` 大檔煙霧測試家族（114 MB PBC fixture）沒有遷入 `je-tool`，相關的
   skip 登錄機制也隨舊驗證框架退役。若日後需要大檔煙霧驗證，依現行框架另立路線，不復刻舊機制。
 
+2026-09-01 提交前複審（全量 diff、八個獨立審查角度）另記錄下列品質項目，供後續 session 收斂；收斂時
+逐項驗證後才從表中移除。複審同時記錄的 `dev.log.exportFile` fallback 待修缺陷已於 2026-09-02 依使用者
+裁定修正並以 first-red 測試驗證，見
+[`specs/2026-09-01-frontend-sync-devlog-mutation-plan.md`](specs/2026-09-01-frontend-sync-devlog-mutation-plan.md)
+的「缺陷修正（2026-09-02）」：
+
+- 支援日誌鏈路的重複實作：`SupportDiagnosticRingBuffer` 與 `RingBufferLoggerProvider.cs` 的
+  `DiagnosticRingBuffer` 環形緩衝邏輯逐欄相同（僅 entry 型別不同）；`DevLogHandlers.cs` 內兩個
+  handler 各持一份相同的 `ToAsyncLines`；`SupportDiagnosticNdjson` 與 `DiagnosticNdjson` 各自維護
+  幾乎相同的 serializer 選項。收斂方向：泛型 ring buffer、`ToAsyncLines` 併入 `ProjectLogFileWriter`、
+  共用 NDJSON 選項來源。
+- `tools/harness/gui-driver/GuiScenarios.cs`：`visible()` JS helper 已有 8 份逐字複本、probe 輪詢骨架
+  5 份；`conflicted-journal-recovery` 以中文錯誤訊息子字串斷言 journal 衝突，訊息改字會誤紅（同檔
+  `ValidateSupportLog` 已示範以 `artifact_recovery_conflict` 穩定碼斷言）。收斂方向：抽共用 probe
+  helper 常數，並改以錯誤碼或 `data-*` 屬性斷言。
+- `SupportRingBufferLogger` 以寫死的 `"support.log.export"` 字串排除自身事件，action 政策滲入
+  logging 層；日後若有其他要排除的 action，應集中到 action 分類表管理。
+- `ProjectLogFileWriter.WriteAsync` 的 `OperationCanceledException` 與 `JetActionException` 兩個 catch
+  與末端 catch-all 行為相同，屬冗餘分支。
+- 效能觀察（未量測，僅在實測成為瓶頸時處理）：Release 每次 action dispatch 為 support provider 配置
+  一次 Dictionary 與 scope 走訪；`dev.log.exportFile` 對 sink 全檔逐行 `JsonDocument.Parse` 只為讀
+  `projectId`；`setMappingDraft` 每次選擇即整面板重建（正確性優先的既定裁定，見 `state.js` 通知慣例）。
+
 ## Git 交付與來源儲存庫退役
 
 - 第一次根提交候選已完成正式驗證。使用者已確認完整內容、`main` 與 `origin`，並明示授權建立唯一的根提交
@@ -101,7 +129,9 @@ harness engineering 共識把 `AGENTS.md` 改寫為 83 行的地圖、`README.md
 - `PrivateCase` 永遠需要當次明示授權，不會自動加入公開 CI 或 `ReleaseCandidate`。
 - 原生 Excel 目前只證明這台開發電腦的 Excel 16.0；其他版本與公司正式環境仍需另外驗收。
 - `.claude/` 與 `.vscode/` 已依 2026-08-30 的裁定補上必要內容：Claude Code 的 permission 攔截、三個 hook，
-  以及對應 `tools/verify.ps1` 的 VS Code 工作。內容全部依 `je-tool` 現況新寫，沒有從舊專案複製 skill、
-  output style、plugin 設定或逐次驗證紀錄。責任與界線見 [`agent-compatibility.md`](agent-compatibility.md)。
-- `.agents/` 與 `.config/` 維持空目錄。前者要等決定是否為 Codex 另建 skill 入口才需要；後者原本只用來
-  安裝變異測試工具，該工具已退出（見下表）。
+  以及對應 `tools/verify.ps1` 的 VS Code 工作。2026-09-01 再依使用者明示需求，新增一個按 `je-tool`
+  現況重建、只能明示呼叫的 `jet-converge`；它不是把舊專案的 skills、output style、plugin 設定或逐次驗證
+  紀錄整批搬回來。正式版本位於 `.agents/skills/jet-converge/`，Claude 只保留薄包裝，責任與界線見
+  [`agent-compatibility.md`](agent-compatibility.md)。
+- `.agents/` 現在也保存跨工具共用的收斂與專案記憶 harness；`.config/` 仍維持空目錄，原本用來安裝的
+  變異測試工具已退出（見下表）。

@@ -106,6 +106,7 @@
     // 把 wire 錯誤碼掛到 Error 上，供 Ui.run 區分（如 operation_in_progress → 「請稍候」）。
     var err = new Error(detail);
     err.code = message.error && message.error.code ? message.error.code : null;
+    err.correlationId = typeof message.correlationId === 'string' ? message.correlationId : null;
     err.field = message.error && typeof message.error.field === 'string'
       ? message.error.field
       : null;
@@ -192,6 +193,7 @@
     'report.cleanupConfirm',
     'log.append',
     'log.recent',
+    'support.log.export',
     'host.selectFile',
     'host.selectFiles',
     'host.selectSavePath',
@@ -200,7 +202,8 @@
     'dev.db.overview',
     'dev.db.tableData',
     'dev.db.reconcile',
-    'dev.log.export'
+    'dev.log.export',
+    'dev.log.exportFile'
   ];
 
   // action name → lowerCamelCase method：第一段保留小寫，後續段首字母大寫。

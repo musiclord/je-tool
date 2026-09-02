@@ -1,6 +1,6 @@
 # JET 的 AI Agent 相容方式
 
-更新日期：2026-08-30
+更新日期：2026-09-01
 
 JET 不為每一個 AI 工具維護一套獨立規則。完整共用規則只放在根目錄 `AGENTS.md`；其他檔案只負責讓
 各工具找到同一份規則，或保留平台無法可靠追蹤連結時必須先看到的安全摘要。
@@ -10,7 +10,7 @@ JET 不為每一個 AI 工具維護一套獨立規則。完整共用規則只放
 | 工具 | 儲存庫入口 | 本專案做法 |
 |:---|:---|:---|
 | Codex | `AGENTS.md` | 直接讀取共用權威 |
-| Claude Code | `CLAUDE.md` | 用 `@AGENTS.md` 原生匯入共用權威，不複製完整規則 |
+| Claude Code | `CLAUDE.md` | 用 `@AGENTS.md` 原生匯入共用權威；專案 skill 只保留薄入口 |
 | GitHub Copilot | `.github/copilot-instructions.md` | 指向 `AGENTS.md`，並保留 Git、機敏資料與驗證入口的短摘要 |
 | VS Code AI Agent | `.github/copilot-instructions.md` 與 `AGENTS.md` | 使用 workspace 指示檔；不需要複製舊專案的 VS Code 實驗性設定 |
 
@@ -20,20 +20,35 @@ Visual Studio、JetBrains 與 GitHub.com 的 Chat 不會，只讀 `.github/copil
 的安全摘要是那三個介面唯一會看到的規則，不能刪減，也不能建立和 `AGENTS.md` 相反的規則。VS Code 同時
 載入多種指示檔時內容不保證固定順序，結論相同。
 
+## Repo-scoped `jet-converge`
+
+Codex 會從 repository root 的 `.agents/skills/` 發現專案 skill；`jet-converge` 的唯一正本是
+`.agents/skills/jet-converge/SKILL.md`。`agents/openai.yaml` 設為 explicit-only，只有使用者輸入
+`$jet-converge` 才啟動完整訪談，避免一般小修正被擴張成大型規劃。
+
+Claude Code 的 `.claude/skills/jet-converge/SKILL.md` 只轉讀同一份正本，不保存第二套內容。GitHub
+Copilot 或不支援 repo skill selector 的介面仍可從 `AGENTS.md` 指向的
+`.agents/harness/convergence-and-memory.md` 使用相同的專案記憶與收斂邊界，但不宣稱支援 `$jet-converge`
+命令。
+
+Codex 會自動偵測 skill 檔案變更；若目前 session 的 skill 清單尚未出現，重新啟動 Codex。技能採漸進載入：
+平常只暴露名稱與描述，被選取後才讀完整 `SKILL.md`，跨 session 的細節再按需讀 `references/`。
+
 ## 載入預算
 
-兩個主要 host 對指示檔都有量的限制，超出時不會報錯，只會靜默截斷或降低遵循度。2026-08-30 量測：
+兩個主要 host 對指示檔都有量的限制，超出時不會報錯，只會靜默截斷或降低遵循度。2026-09-01 量測：
 
 | Host | 限制 | 目前用量 |
 |:---|:---|:---|
-| Codex | 各層 `AGENTS.md` 合併總量預設 32 KiB | `AGENTS.md` 5,357 bytes，約 16% |
-| Claude Code | 官方建議單檔 200 行以內；`@AGENTS.md` import 不會降低 context 用量 | `CLAUDE.md` 9 行＋`AGENTS.md` 83 行＝92 行 |
+| Codex | 各層 `AGENTS.md` 合併總量預設 32 KiB | `AGENTS.md` 7,392 bytes，約 23% |
+| Claude Code | 官方建議單檔 200 行以內；`@AGENTS.md` import 不會降低 context 用量 | `CLAUDE.md` 10 行＋`AGENTS.md` 107 行＝117 行 |
 
 2026-08-30 依 harness engineering 的共識把 `AGENTS.md` 從 131 行的規則全文改寫為 83 行的地圖：只保留
 不可協商的邊界、常用命令與指向各文件的導航表；被移出的細則都在 `docs/` 有唯一的家（寫作規範在
 `docs/README.md`，資料與 legacy 規則在 `docs/data-and-legacy.md`，驗證細節在 `docs/harness.md` 與
-`tools/README.md`）。之後在 `AGENTS.md` 新增內容前，先確認它是邊界或導航，不是可以放進 `docs/` 的
-細節。
+`tools/README.md`）。2026-09-01 為 `$jet-converge` 補上 explicit-only 路由與專案記憶導航後為 107 行；
+完整流程仍留在 `.agents/`，沒有搬進入口。之後在 `AGENTS.md` 新增內容前，先確認它是邊界或導航，不是
+可以放進 `docs/` 的細節。
 
 在 `AGENTS.md` 新增規則前先重新量測。中文 UTF-8 每字 3 bytes，行數少不代表 bytes 少。接近上限時優先
 刪掉可由 codebase 或架構測試推得的內容，不要複製到轉接檔分攤。
@@ -87,6 +102,16 @@ push 前必須由使用者另行確認」。
 這三個 hook 與 `permissions` 都是 Claude Code 專屬。Codex、Copilot 與 VS Code AI Agent 看不到它們，
 因此任何規則、驗收條件或架構判斷都不得以它們為前提。
 
+## 本機 memory 與專案記憶
+
+Codex 與 Claude 的本機 memory 可協助找回舊 session，但背景更新不一定即時，也可能因權限、外部 context
+或 host 設定而不產生。它們是回想層，不是 JET 的唯一事實來源；必要的團隊規則、目前計畫、裁定、延後
+事項與重啟條件仍寫在 `AGENTS.md`、現行文件和測試。
+
+`jet-converge` 可以利用 host 提供的 task／thread 與 memory 找候選來源，但每項結論要回到原訊息、目前
+repository 或使用者本輪裁定。不得手工編輯 Codex 生成的 memory 來代替專案文件，也不得把私人案件內容
+放進 memory 或收斂紀錄。
+
 ## 共用驗證框架
 
 不論由哪一個 Agent 執行，正式驗證都從下列入口開始：
@@ -117,7 +142,9 @@ workspace。若使用 Claude Code，再用其 memory 檢視確認根目錄 `CLAU
 - [GitHub Copilot 指示檔支援矩陣](https://docs.github.com/en/copilot/reference/custom-instructions-support)
 - [VS Code custom instructions](https://code.visualstudio.com/docs/agent-customization/custom-instructions)
 - [Claude Code 專案記憶與 `AGENTS.md` 匯入](https://code.claude.com/docs/zh-CN/memory)
-- [OpenAI 使用 `AGENTS.md` 保存專案脈絡](https://openai.com/business/guides-and-resources/how-openai-uses-codex/)
+- [OpenAI Codex 建立與載入 skills](https://learn.chatgpt.com/docs/build-skills)
+- [OpenAI Codex 的 `AGENTS.md` 載入方式](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+- [OpenAI Codex 本機 memories](https://learn.chatgpt.com/docs/customization/memories)
 
 ## 不由儲存庫檔案保證的事情
 

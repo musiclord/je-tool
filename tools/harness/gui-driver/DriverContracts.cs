@@ -3,19 +3,32 @@ using System.Text.Json;
 
 namespace Jet.GuiDriver;
 
-internal sealed record GuiScenarioDefinition(string Name, int ActionLimit);
+internal sealed record GuiScenarioDefinition(
+    string Name,
+    int ActionLimit,
+    IReadOnlyList<string> Fixtures);
 
 internal static class GuiScenarioCatalog
 {
     internal const string StartupSmoke = "startup-smoke";
     internal const string SyntheticSqliteCreate = "synthetic-sqlite-create";
+    internal const string MappingRequiredSync = "mapping-required-sync";
+    internal const string ConflictedJournalRecovery = "conflicted-journal-recovery";
 
     internal static bool TryResolve(string name, out GuiScenarioDefinition definition)
     {
         definition = name switch
         {
-            StartupSmoke => new GuiScenarioDefinition(StartupSmoke, 4),
-            SyntheticSqliteCreate => new GuiScenarioDefinition(SyntheticSqliteCreate, 16),
+            StartupSmoke => new GuiScenarioDefinition(StartupSmoke, 4, []),
+            SyntheticSqliteCreate => new GuiScenarioDefinition(SyntheticSqliteCreate, 16, []),
+            MappingRequiredSync => new GuiScenarioDefinition(
+                MappingRequiredSync,
+                12,
+                ["seed-mapping-ready-project"]),
+            ConflictedJournalRecovery => new GuiScenarioDefinition(
+                ConflictedJournalRecovery,
+                8,
+                ["seed-conflicted-journal-project", "release-visible-surface"]),
             _ => null!
         };
         return definition is not null;
@@ -121,6 +134,16 @@ internal sealed class GuiAssertions
     internal bool ProjectJsonExists { get; set; }
     internal bool SqliteDatabaseExists { get; set; }
     internal bool StoredProjectMatches { get; set; }
+    internal bool MappingProjectLoaded { get; set; }
+    internal bool MappingBaselineReady { get; set; }
+    internal bool RequiredRailBecameIncomplete { get; set; }
+    internal bool RequiredRailRecovered { get; set; }
+    internal bool MappingFocusPreserved { get; set; }
+    internal bool ConflictFeedbackVisible { get; set; }
+    internal bool SupportExportAvailable { get; set; }
+    internal bool SupportLogWritten { get; set; }
+    internal bool SupportLogSafe { get; set; }
+    internal bool ConflictedProjectDeleted { get; set; }
 }
 
 internal sealed class GuiProcessEvidence
@@ -222,7 +245,17 @@ internal static class ManifestWriter
                 projectCodeVisible = outcome.Assertions.ProjectCodeVisible,
                 projectJsonExists = outcome.Assertions.ProjectJsonExists,
                 sqliteDatabaseExists = outcome.Assertions.SqliteDatabaseExists,
-                storedProjectMatches = outcome.Assertions.StoredProjectMatches
+                storedProjectMatches = outcome.Assertions.StoredProjectMatches,
+                mappingProjectLoaded = outcome.Assertions.MappingProjectLoaded,
+                mappingBaselineReady = outcome.Assertions.MappingBaselineReady,
+                requiredRailBecameIncomplete = outcome.Assertions.RequiredRailBecameIncomplete,
+                requiredRailRecovered = outcome.Assertions.RequiredRailRecovered,
+                mappingFocusPreserved = outcome.Assertions.MappingFocusPreserved,
+                conflictFeedbackVisible = outcome.Assertions.ConflictFeedbackVisible,
+                supportExportAvailable = outcome.Assertions.SupportExportAvailable,
+                supportLogWritten = outcome.Assertions.SupportLogWritten,
+                supportLogSafe = outcome.Assertions.SupportLogSafe,
+                conflictedProjectDeleted = outcome.Assertions.ConflictedProjectDeleted
             },
             process = new
             {

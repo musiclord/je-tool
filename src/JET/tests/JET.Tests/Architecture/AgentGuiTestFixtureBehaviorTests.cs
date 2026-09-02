@@ -104,11 +104,14 @@ public sealed class AgentGuiTestFixtureBehaviorTests
                     AgentGuiTestFixtures.SeedCompletenessIneligibleProjectId,
                     AgentGuiTestFixtures.SeedStaleArtifactProjectId,
                     AgentGuiTestFixtures.SeedSixStageCompleteProjectId,
+                    AgentGuiTestFixtures.SeedMappingReadyProjectId,
+                    AgentGuiTestFixtures.SeedConflictedJournalProjectId,
                 },
                 fixtureId => Assert.True(AgentGuiTestFixtures.IsAllowedFixtureId(fixtureId)));
-            Assert.True(demoRoot.StartsWith(
+            Assert.StartsWith(
                 childRoot + Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase));
+                demoRoot,
+                StringComparison.OrdinalIgnoreCase);
 
             var method = typeof(AgentGuiTestFixtures).GetMethod(
                 nameof(AgentGuiTestFixtures.SeedProjectStateAsync),

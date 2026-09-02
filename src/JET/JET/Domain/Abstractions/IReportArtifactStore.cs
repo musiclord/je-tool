@@ -58,8 +58,8 @@ public interface IReportArtifactStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// 供 project.delete 在授權通過後取得。lease 位於案件資料夾外，先完成 pending recovery，
-    /// 並保持到 provider 資料與案件資料夾刪除結束。
+    /// 供 project.delete 在授權通過後取得。lease 位於案件資料夾外，只排除其他 artifact 操作，
+    /// 不讀取或復原案件內 journal；並保持到 provider 資料與案件資料夾刪除結束。
     /// </summary>
     Task<IAsyncDisposable> AcquireProjectDeletionLeaseAsync(
         string projectId,

@@ -64,6 +64,10 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 - 需要跨多個步驟或 session 的工作，一次只保留一份現行大型計畫（`docs/specs/`）。進度、裁定與下一動作
   要寫進計畫檔，不能只存在聊天、Agent memory 或被忽略的執行紀錄裡。
 - 大型工作結束或使用者詢問未完成事項時，逐項回報「已知但延後的事項」的背景、邊界與重啟條件。
+- 使用者明確呼叫 `$jet-converge` 時，完整讀取 `.agents/skills/jet-converge/SKILL.md`；一般狀態查詢或範圍
+  已明確的小修正，不自動展開完整收斂訪談。
+- 需要整理多個 session 的觀點、需求、功能或待完成事項時，依
+  `.agents/harness/convergence-and-memory.md` 把 repository 當專案記憶，task／memory 只作查找線索。
 
 ## 地圖
 
@@ -77,6 +81,7 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 | `data/` 工作簿與 `legacy/` 的角色和限制 | `docs/data-and-legacy.md` |
 | 文件寫作規範與收尾檢查 | `docs/README.md` |
 | 各工具的載入方式、預算與 Claude Code 強制層 | `docs/agent-compatibility.md` |
+| 跨 session 觀點、待完成事項與專案記憶如何收斂 | `.agents/harness/convergence-and-memory.md` |
 | 來源專案關係與已裁定的遷移邊界 | `docs/repository-lineage.md` |
 
 **動工前先讀**（依這次要碰的東西）：

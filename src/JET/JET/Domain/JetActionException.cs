@@ -58,6 +58,8 @@ public static class JetErrorCodes
     public const string ArtifactNotFound = "artifact_not_found";
     public const string ArtifactCatalogChanged = "artifact_catalog_changed";
     public const string ArtifactCleanupFailed = "artifact_cleanup_failed";
+    public const string ArtifactRecoveryConflict = "artifact_recovery_conflict";
+    public const string SupportLogExportFailed = "support_log_export_failed";
     public const string GlAmountsAllZero = "gl_amounts_all_zero";
     public const string EmptyEffectivePopulation = "empty_effective_population";
 

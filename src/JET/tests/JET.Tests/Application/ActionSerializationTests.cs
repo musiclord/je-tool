@@ -337,6 +337,9 @@ public sealed class ActionSerializationTests
     [InlineData("project.heartbeat", false)]
     [InlineData("project.releaseLock", false)]
     [InlineData("host.selectFiles", false)]
+    [InlineData("dev.log.export", false)]
+    [InlineData("dev.log.exportFile", false)]
+    [InlineData("support.log.export", false)]
     public void Policy_ClassifiesKnownActions(string action, bool exclusive)
         => Assert.Equal(exclusive, ActionExecutionPolicy.IsExclusive(action));
 

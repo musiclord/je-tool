@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace JET.Infrastructure;
 
@@ -42,20 +44,26 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
     private readonly JetProjectFolder _folder;
     private readonly TimeProvider _timeProvider;
     private readonly ReportArtifactStoreTestHooks? _testHooks;
+    private readonly ILogger<ProjectReportArtifactStore> _logger;
 
-    public ProjectReportArtifactStore(JetProjectFolder folder, TimeProvider? timeProvider = null)
-        : this(folder, timeProvider, testHooks: null)
+    public ProjectReportArtifactStore(
+        JetProjectFolder folder,
+        TimeProvider? timeProvider = null,
+        ILogger<ProjectReportArtifactStore>? logger = null)
+        : this(folder, timeProvider, testHooks: null, logger)
     {
     }
 
     internal ProjectReportArtifactStore(
         JetProjectFolder folder,
         TimeProvider? timeProvider,
-        ReportArtifactStoreTestHooks? testHooks)
+        ReportArtifactStoreTestHooks? testHooks,
+        ILogger<ProjectReportArtifactStore>? logger = null)
     {
         _folder = folder ?? throw new ArgumentNullException(nameof(folder));
         _timeProvider = timeProvider ?? TimeProvider.System;
         _testHooks = testHooks;
+        _logger = logger ?? NullLogger<ProjectReportArtifactStore>.Instance;
     }
 
     public async Task<ReportArtifact> WriteAsync(
@@ -612,18 +620,9 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
         CancellationToken cancellationToken)
     {
         var paths = GetProjectPaths(projectId, requireProjectDirectory: true);
-        var lease = await AcquireLeaseAsync(paths, cancellationToken).ConfigureAwait(false);
-        try
-        {
-            await RecoverPendingMutationAsync(paths).ConfigureAwait(false);
-            CleanupUnjournaledTemporaryFiles(paths);
-            return lease;
-        }
-        catch
-        {
-            await lease.DisposeAsync().ConfigureAwait(false);
-            throw;
-        }
+        // 刪案只需要排除其他 artifact reader/writer；即將永久刪除整案時，不先要求損壞的 journal
+        // 成功 recovery。此方法只取得案件外 lease，不讀取或改動任何案件內檔案。
+        return await AcquireLeaseAsync(paths, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<RecoveryDisposition> RecoverPendingMutationAsync(ProjectPaths paths)
@@ -655,10 +654,24 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             return RecoveryDisposition.Committed;
         }
 
-        throw RecoveryFailed("報告產物 journal 與目前 manifest 皆不相符；已保留現場，未猜測復原。");
+        ReportArtifactStoreDiagnostics.RecoveryConflict(
+            _logger,
+            journal.Operation,
+            "neither",
+            "none",
+            "unknown",
+            "unknown",
+            "unknown",
+            "unknown",
+            0,
+            0,
+            false,
+            false,
+            JetErrorCodes.ArtifactRecoveryConflict);
+        throw RecoveryConflict("報告產物 journal 與目前 manifest 皆不相符；已保留現場，未猜測復原。");
     }
 
-    private static async Task RollbackUncommittedMutationAsync(
+    private async Task RollbackUncommittedMutationAsync(
         ProjectPaths paths,
         MutationJournal journal)
     {
@@ -692,11 +705,37 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
                             && InspectPathEntry(ResolveContainedPath(
                                 paths.ProjectDirectory,
                                 retiredAtSamePath.ToFileName)) == PathEntryKind.Missing;
-                        if (!quarantineMissing
-                            || !await FileMatchesExpectedAsync(finalPath, retiredAtSamePath!)
-                                .ConfigureAwait(false))
+                        var oldFallbackMatches = quarantineMissing
+                            && await FileMatchesExpectedAsync(finalPath, retiredAtSamePath!)
+                                .ConfigureAwait(false);
+                        if (!oldFallbackMatches)
                         {
-                            throw RecoveryFailed("報告覆寫回滾的正式檔內容不符合 journal。");
+                            var quarantineState = retiredAtSamePath is null
+                                ? "notApplicable"
+                                : InspectPathEntry(ResolveContainedPath(
+                                    paths.ProjectDirectory,
+                                    retiredAtSamePath.ToFileName)).ToString();
+                            var artifactKind = journal.AfterArtifacts
+                                .FirstOrDefault(item => string.Equals(
+                                    item.ArtifactId,
+                                    transition.ArtifactId,
+                                    StringComparison.Ordinal))?.Kind
+                                ?? "unknown";
+                            ReportArtifactStoreDiagnostics.RecoveryConflict(
+                                _logger,
+                                journal.Operation,
+                                "before",
+                                transition.Role ?? "unknown",
+                                artifactKind,
+                                InspectPathEntry(stagePath).ToString(),
+                                finalEntry.ToString(),
+                                quarantineState,
+                                transition.Bytes,
+                                new FileInfo(finalPath).Length,
+                                false,
+                                oldFallbackMatches,
+                                JetErrorCodes.ArtifactRecoveryConflict);
+                            throw RecoveryConflict("報告覆寫回滾的正式檔內容不符合 journal。");
                         }
                     }
                 }
@@ -2286,6 +2325,9 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
     private static JetActionException RecoveryFailed(string message)
         => new(JetErrorCodes.FileReadError, message);
 
+    private static JetActionException RecoveryConflict(string message)
+        => new(JetErrorCodes.ArtifactRecoveryConflict, message);
+
     private static void DeleteControlFile(string path)
     {
         var entry = InspectPathEntry(path);
@@ -2443,6 +2485,29 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
         RegularFile,
         Directory
     }
+}
+
+internal static partial class ReportArtifactStoreDiagnostics
+{
+    [LoggerMessage(
+        EventId = 2200,
+        EventName = "artifact.recovery.conflict",
+        Level = LogLevel.Error,
+        Message = "artifact recovery conflict operation={operation} manifest={manifest_state} role={transition_role} kind={artifact_kind} stage={stage_state} final={final_state} quarantine={quarantine_state} expectedBytes={expected_bytes} actualBytes={actual_bytes} newMatch={new_content_matches} oldFallback={old_fallback_matches} code={error_code}")]
+    public static partial void RecoveryConflict(
+        ILogger logger,
+        string operation,
+        string manifest_state,
+        string transition_role,
+        string artifact_kind,
+        string stage_state,
+        string final_state,
+        string quarantine_state,
+        long expected_bytes,
+        long actual_bytes,
+        bool new_content_matches,
+        bool old_fallback_matches,
+        string error_code);
 }
 
 internal enum ReportArtifactStoreCheckpoint

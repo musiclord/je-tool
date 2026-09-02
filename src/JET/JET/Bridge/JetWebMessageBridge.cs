@@ -28,6 +28,7 @@ public sealed class JetWebMessageBridge(CoreWebView2 webView, ActionDispatcher d
     {
         JetRequestEnvelope? request = null;
         var requestId = string.Empty;
+        var correlationId = Guid.NewGuid().ToString("N");
 
         try
         {
@@ -52,12 +53,16 @@ public sealed class JetWebMessageBridge(CoreWebView2 webView, ActionDispatcher d
 
             var data = await dispatcher.CancellationRegistry.RunAsync(
                 request.RequestId,
-                cancellationToken => dispatcher.DispatchAsync(request.Action, request.Payload, cancellationToken));
-            Post(new JetResponseEnvelope(request.RequestId, true, data, null));
+                cancellationToken => dispatcher.DispatchAsync(
+                    request.Action,
+                    request.Payload,
+                    cancellationToken,
+                    correlationId));
+            Post(new JetResponseEnvelope(request.RequestId, true, data, null, correlationId));
         }
         catch (Exception ex)
         {
-            Post(new JetResponseEnvelope(requestId, false, null, ToErrorDto(ex)));
+            Post(new JetResponseEnvelope(requestId, false, null, ToErrorDto(ex), correlationId));
         }
     }
 
@@ -104,7 +109,8 @@ internal sealed record JetResponseEnvelope(
     string RequestId,
     bool Ok,
     object? Data,
-    JetErrorDto? Error);
+    JetErrorDto? Error,
+    string CorrelationId);
 
 public sealed record JetErrorDto(
     string Code,

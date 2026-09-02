@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 診斷日誌的 DB helper（dev-only;logger 為 no-op〔Release〕時零行為差異,只多一次 Stopwatch）。
+/// 診斷日誌的 DB helper（raw SQL 為 Debug；Release logger 關閉 Debug 時不格式化 SQL 參數）。
 /// SQL:逐呼叫點以擴充方法記錄完整命令、參數 name=value、duration_ms、rows_affected、provider。
 /// 透明 decorator 不可行（concrete 連線型別、SqlBulkCopy、provider 參數型別會被破壞）,故逐呼叫點接入。
 /// </summary>
@@ -17,7 +17,10 @@ internal static class DiagnosticDb
     {
         var stopwatch = Stopwatch.StartNew();
         var rows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        DiagnosticDbLog.SqlExecuted(logger, command.CommandText, FormatParameters(command), stopwatch.ElapsedMilliseconds, rows, provider);
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            DiagnosticDbLog.SqlExecuted(logger, command.CommandText, FormatParameters(command), stopwatch.ElapsedMilliseconds, rows, provider);
+        }
         return rows;
     }
 
@@ -26,7 +29,10 @@ internal static class DiagnosticDb
     {
         var stopwatch = Stopwatch.StartNew();
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        DiagnosticDbLog.SqlExecuted(logger, command.CommandText, FormatParameters(command), stopwatch.ElapsedMilliseconds, -1, provider);
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            DiagnosticDbLog.SqlExecuted(logger, command.CommandText, FormatParameters(command), stopwatch.ElapsedMilliseconds, -1, provider);
+        }
         return reader;
     }
 
@@ -35,7 +41,10 @@ internal static class DiagnosticDb
     {
         var stopwatch = Stopwatch.StartNew();
         var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-        DiagnosticDbLog.SqlExecuted(logger, command.CommandText, FormatParameters(command), stopwatch.ElapsedMilliseconds, -1, provider);
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            DiagnosticDbLog.SqlExecuted(logger, command.CommandText, FormatParameters(command), stopwatch.ElapsedMilliseconds, -1, provider);
+        }
         return result;
     }
 

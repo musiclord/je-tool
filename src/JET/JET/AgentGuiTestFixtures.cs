@@ -5,6 +5,7 @@ using System.Text.Json;
 using JET.Application;
 using JET.Bridge;
 using JET.Domain;
+using JET.Infrastructure;
 
 namespace JET;
 
@@ -38,6 +39,10 @@ internal sealed class AgentGuiTestFixtures
         "seed-stale-artifact-project";
     internal const string SeedSixStageCompleteProjectId =
         "seed-six-stage-complete-project";
+    internal const string SeedConflictedJournalProjectId =
+        "seed-conflicted-journal-project";
+    internal const string SeedMappingReadyProjectId =
+        "seed-mapping-ready-project";
     internal const int MaximumFixtureCount = 3;
     internal const string TraceFileName = "agent-gui-fixtures.ndjson";
 
@@ -47,6 +52,8 @@ internal sealed class AgentGuiTestFixtures
         SeedCompletenessIneligibleProjectId,
         SeedStaleArtifactProjectId,
         SeedSixStageCompleteProjectId,
+        SeedConflictedJournalProjectId,
+        SeedMappingReadyProjectId,
     ];
 
     private static readonly TimeSpan ProjectListDelay = TimeSpan.FromMilliseconds(750);
@@ -71,6 +78,7 @@ internal sealed class AgentGuiTestFixtures
 
     private readonly HashSet<string> _fixtureIds;
     private readonly FixtureTrace _trace;
+    private readonly string _projectsRootPath;
     private readonly SemaphoreSlim _projectListGate = new(1, 1);
     private readonly SemaphoreSlim _projectListLocalGate = new(1, 1);
     private readonly SemaphoreSlim _glPreviewGate = new(1, 1);
@@ -92,6 +100,7 @@ internal sealed class AgentGuiTestFixtures
     internal AgentGuiTestFixtures(AgentGuiTestProfile profile)
     {
         _fixtureIds = new HashSet<string>(profile.FixtureIds, StringComparer.Ordinal);
+        _projectsRootPath = profile.ProjectsRootPath;
         _delayRemaining = IsEnabled(DelayProjectListOnceId) ? 1 : 0;
         _failureRemaining = IsEnabled(FailProjectListOnceId) ? 1 : 0;
         _projectListLocalFailureRemaining = IsEnabled(FailProjectListLocalOnceId) ? 1 : 0;
@@ -122,7 +131,9 @@ internal sealed class AgentGuiTestFixtures
             or SeedExportReadyProjectId
             or SeedCompletenessIneligibleProjectId
             or SeedStaleArtifactProjectId
-            or SeedSixStageCompleteProjectId;
+            or SeedSixStageCompleteProjectId
+            or SeedConflictedJournalProjectId
+            or SeedMappingReadyProjectId;
 
     /// <summary>
     /// 建立 GUI 驗證所需的封閉、確定性專案。fixture 不接收 action、路徑或資料參數；
@@ -141,40 +152,90 @@ internal sealed class AgentGuiTestFixtures
         _trace.Write(seed.FixtureId, "seed.started");
         try
         {
-            var demo = DemoDataFactory.Create();
+            var demo = seed.CreateConflictedJournal ? null : DemoDataFactory.Create();
             await DispatchAsync(dispatcher, "project.create", new
             {
                 caseName = seed.ProjectId,
                 projectCode = seed.ProjectCode,
                 entityName = seed.EntityName,
                 operatorId = "agent-gui",
-                periodStart = demo.PeriodStart,
-                periodEnd = demo.PeriodEnd,
-                lastPeriodStart = demo.LastPeriodStart,
+                periodStart = demo?.PeriodStart ?? "2025-01-01",
+                periodEnd = demo?.PeriodEnd ?? "2025-12-31",
+                lastPeriodStart = demo?.LastPeriodStart,
                 databaseProvider = "sqlite",
             }, cancellationToken).ConfigureAwait(false);
 
-            var glFile = await DispatchAsync(
-                dispatcher, "demo.exportGlFile", new { }, cancellationToken).ConfigureAwait(false);
+            if (seed.CreateConflictedJournal)
+            {
+                await DispatchAsync(
+                    dispatcher,
+                    "project.releaseLock",
+                    new { },
+                    cancellationToken).ConfigureAwait(false);
+                await CreateConflictedJournalAsync(seed.ProjectId, cancellationToken)
+                    .ConfigureAwait(false);
+                _trace.Write(seed.FixtureId, "seed.completed");
+                return;
+            }
+
+            var activeDemo = demo
+                ?? throw new InvalidOperationException("Non-journal Agent GUI fixture requires demo data.");
+            if (seed.UseSmallMappingData)
+            {
+                activeDemo = activeDemo with
+                {
+                    GlRows = activeDemo.GlRows.Take(4).ToArray(),
+                    TbRows = activeDemo.TbRows.Take(4).ToArray(),
+                };
+            }
+
+            JsonElement glFile;
+            JsonElement tbFile;
+            if (seed.MappingReadyOnly)
+            {
+                var writer = new DemoWorkbookWriter(DemoWorkbookRootPath, activeDemo);
+                var gl = await writer.WriteGlAsync(activeDemo, cancellationToken).ConfigureAwait(false);
+                var tb = await writer.WriteTbAsync(activeDemo, cancellationToken).ConfigureAwait(false);
+                glFile = JsonSerializer.SerializeToElement(new { filePath = gl.FilePath, fileName = gl.FileName });
+                tbFile = JsonSerializer.SerializeToElement(new { filePath = tb.FilePath, fileName = tb.FileName });
+            }
+            else
+            {
+                glFile = await DispatchAsync(
+                    dispatcher, "demo.exportGlFile", new { }, cancellationToken).ConfigureAwait(false);
+                tbFile = await DispatchAsync(
+                    dispatcher, "demo.exportTbFile", new { }, cancellationToken).ConfigureAwait(false);
+            }
             await DispatchAsync(dispatcher, "import.gl.fromFile", new
             {
                 filePath = glFile.GetProperty("filePath").GetString(),
                 fileName = glFile.GetProperty("fileName").GetString(),
             }, cancellationToken).ConfigureAwait(false);
 
-            var tbFile = await DispatchAsync(
-                dispatcher, "demo.exportTbFile", new { }, cancellationToken).ConfigureAwait(false);
             if (seed.MakeCompletenessIneligible)
             {
                 MakeRunOwnedTbCompletenessIneligible(
                     tbFile,
-                    demo.TbMapping[TbMappingKeys.DebitAmt]);
+                    activeDemo.TbMapping[TbMappingKeys.DebitAmt]);
             }
             await DispatchAsync(dispatcher, "import.tb.fromFile", new
             {
                 filePath = tbFile.GetProperty("filePath").GetString(),
                 fileName = tbFile.GetProperty("fileName").GetString(),
             }, cancellationToken).ConfigureAwait(false);
+
+            if (seed.MappingReadyOnly)
+            {
+                await CommitMappingsAsync(dispatcher, activeDemo, cancellationToken).ConfigureAwait(false);
+                await DispatchAsync(dispatcher, "project.saveProgress", new
+                {
+                    currentStep = 2,
+                }, cancellationToken).ConfigureAwait(false);
+                await DispatchAsync(
+                    dispatcher, "project.releaseLock", new { }, cancellationToken).ConfigureAwait(false);
+                _trace.Write(seed.FixtureId, "seed.completed");
+                return;
+            }
 
             var accountMappingFile = await DispatchAsync(
                 dispatcher,
@@ -200,23 +261,14 @@ internal sealed class AgentGuiTestFixtures
 
             await DispatchAsync(dispatcher, "import.holiday", new
             {
-                dates = demo.Holidays,
+                dates = activeDemo.Holidays,
             }, cancellationToken).ConfigureAwait(false);
             await DispatchAsync(dispatcher, "import.makeupDay", new
             {
-                dates = demo.MakeupDays,
+                dates = activeDemo.MakeupDays,
             }, cancellationToken).ConfigureAwait(false);
 
-            await DispatchAsync(dispatcher, "mapping.commit.gl", new
-            {
-                mapping = demo.GlMapping,
-                amountMode = demo.GlAmountMode,
-            }, cancellationToken).ConfigureAwait(false);
-            await DispatchAsync(dispatcher, "mapping.commit.tb", new
-            {
-                mapping = demo.TbMapping,
-                changeMode = demo.TbChangeMode,
-            }, cancellationToken).ConfigureAwait(false);
+            await CommitMappingsAsync(dispatcher, activeDemo, cancellationToken).ConfigureAwait(false);
             var validation = await DispatchAsync(
                 dispatcher, "validate.run", new { }, cancellationToken).ConfigureAwait(false);
             if (seed.CompleteLifecycle)
@@ -268,7 +320,10 @@ internal sealed class AgentGuiTestFixtures
                 "Agent GUI Export Fixture",
                 MakeCompletenessIneligible: false,
                 CompleteLifecycle: false,
-                RefreshValidationAfterReports: false),
+                RefreshValidationAfterReports: false,
+                CreateConflictedJournal: false,
+                MappingReadyOnly: false,
+                UseSmallMappingData: false),
             SeedCompletenessIneligibleProjectId => new(
                 SeedCompletenessIneligibleProjectId,
                 "agent-gui-completeness-ineligible",
@@ -276,7 +331,10 @@ internal sealed class AgentGuiTestFixtures
                 "Agent GUI Completeness Ineligible Fixture",
                 MakeCompletenessIneligible: true,
                 CompleteLifecycle: false,
-                RefreshValidationAfterReports: false),
+                RefreshValidationAfterReports: false,
+                CreateConflictedJournal: false,
+                MappingReadyOnly: false,
+                UseSmallMappingData: false),
             SeedStaleArtifactProjectId => new(
                 SeedStaleArtifactProjectId,
                 "agent-gui-stale-artifact",
@@ -284,7 +342,10 @@ internal sealed class AgentGuiTestFixtures
                 "Agent GUI Stale Artifact Fixture",
                 MakeCompletenessIneligible: false,
                 CompleteLifecycle: true,
-                RefreshValidationAfterReports: true),
+                RefreshValidationAfterReports: true,
+                CreateConflictedJournal: false,
+                MappingReadyOnly: false,
+                UseSmallMappingData: false),
             SeedSixStageCompleteProjectId => new(
                 SeedSixStageCompleteProjectId,
                 "agent-gui-six-stage-complete",
@@ -292,7 +353,32 @@ internal sealed class AgentGuiTestFixtures
                 "Agent GUI Six Stage Complete Fixture",
                 MakeCompletenessIneligible: false,
                 CompleteLifecycle: true,
-                RefreshValidationAfterReports: false),
+                RefreshValidationAfterReports: false,
+                CreateConflictedJournal: false,
+                MappingReadyOnly: false,
+                UseSmallMappingData: false),
+            SeedConflictedJournalProjectId => new(
+                SeedConflictedJournalProjectId,
+                "agent-gui-journal-conflict",
+                "AGENT-GUI-JOURNAL",
+                "Agent GUI Journal Conflict Fixture",
+                MakeCompletenessIneligible: false,
+                CompleteLifecycle: false,
+                RefreshValidationAfterReports: false,
+                CreateConflictedJournal: true,
+                MappingReadyOnly: false,
+                UseSmallMappingData: false),
+            SeedMappingReadyProjectId => new(
+                SeedMappingReadyProjectId,
+                "agent-gui-mapping-ready",
+                "AGENT-GUI-MAPPING",
+                "Agent GUI Mapping Ready Fixture",
+                MakeCompletenessIneligible: false,
+                CompleteLifecycle: false,
+                RefreshValidationAfterReports: false,
+                CreateConflictedJournal: false,
+                MappingReadyOnly: true,
+                UseSmallMappingData: true),
             null => null,
             _ => throw new InvalidOperationException("Unknown closed Agent GUI project-state seed fixture."),
         };
@@ -395,6 +481,83 @@ internal sealed class AgentGuiTestFixtures
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    private static async Task CommitMappingsAsync(
+        ActionDispatcher dispatcher,
+        DemoProjectData demo,
+        CancellationToken cancellationToken)
+    {
+        await DispatchAsync(dispatcher, "mapping.commit.gl", new
+        {
+            mapping = demo.GlMapping,
+            amountMode = demo.GlAmountMode,
+        }, cancellationToken).ConfigureAwait(false);
+        await DispatchAsync(dispatcher, "mapping.commit.tb", new
+        {
+            mapping = demo.TbMapping,
+            changeMode = demo.TbChangeMode,
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task CreateConflictedJournalAsync(
+        string projectId,
+        CancellationToken cancellationToken)
+    {
+        var folder = new JetProjectFolder(_projectsRootPath);
+        var store = new ProjectReportArtifactStore(folder);
+        await store.WriteAsync(
+            projectId,
+            ArtifactRequest("11111111111111111111111111111111", "old"),
+            cancellationToken).ConfigureAwait(false);
+        var crashingStore = new ProjectReportArtifactStore(
+            folder,
+            TimeProvider.System,
+            new ReportArtifactStoreTestHooks
+            {
+                OnCheckpoint = checkpoint =>
+                {
+                    if (checkpoint == ReportArtifactStoreCheckpoint.FileTransitionsApplied)
+                    {
+                        throw new ReportArtifactStoreSimulatedCrashException(
+                            "closed Agent GUI journal interruption");
+                    }
+                }
+            });
+        try
+        {
+            await crashingStore.WriteAsync(
+                projectId,
+                ArtifactRequest("22222222222222222222222222222222", "new"),
+                cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException("Conflicted journal fixture did not interrupt the write.");
+        }
+        catch (ReportArtifactStoreSimulatedCrashException)
+        {
+        }
+
+        var projectDirectory = folder.GetProjectDirectory(projectId);
+        var journalPath = Path.Combine(projectDirectory, ProjectReportArtifactStore.JournalFileName);
+        var formalFiles = Directory.GetFiles(projectDirectory, "*.xlsx");
+        if (!File.Exists(journalPath) || formalFiles.Length != 1)
+        {
+            throw new InvalidOperationException("Conflicted journal fixture did not retain closed evidence.");
+        }
+
+        await File.WriteAllTextAsync(
+            formalFiles[0],
+            "conflicted-copy",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static ReportArtifactWriteRequest ArtifactRequest(
+        string validationRunId,
+        string content) =>
+        new(
+            ReportArtifactKind.ValidationReport,
+            new ReportArtifactSourceRefs(ValidationRunId: validationRunId),
+            (output, cancellationToken) => output.WriteAsync(
+                Encoding.UTF8.GetBytes(content),
+                cancellationToken).AsTask());
+
     private sealed record ProjectSeedDefinition(
         string FixtureId,
         string ProjectId,
@@ -402,7 +565,10 @@ internal sealed class AgentGuiTestFixtures
         string EntityName,
         bool MakeCompletenessIneligible,
         bool CompleteLifecycle,
-        bool RefreshValidationAfterReports);
+        bool RefreshValidationAfterReports,
+        bool CreateConflictedJournal,
+        bool MappingReadyOnly,
+        bool UseSmallMappingData);
 
     private static async Task<JsonElement> DispatchAsync(
         ActionDispatcher dispatcher,

@@ -25,7 +25,11 @@ public sealed class FrontendEscapingTests
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
 
         Assert.Contains(
-            "data-map-col=\"' + Ui.esc(col) + '\"",
+            "data-map-col=\"' + Ui.esc(col) +",
+            mapping,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "data-focus-key=\"map-grid-' + kind + '-' + Ui.esc(col) + '\">",
             mapping,
             StringComparison.Ordinal);
         Assert.Contains(

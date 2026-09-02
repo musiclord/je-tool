@@ -121,15 +121,21 @@ public sealed class DispatcherDiagnosticsTests
         var logger = factory.CreateLogger("dispatcher-tests");
         var exception = new InvalidOperationException("boom");
 
-        JET.Bridge.DispatcherDiagnostics.ActionError(logger, "validate.run", 7, exception);
+        JET.Bridge.DispatcherDiagnostics.ActionError(
+            logger,
+            "validate.run",
+            7,
+            JetErrorCodes.BridgeError,
+            exception);
 
         var entry = Assert.Single(provider.Snapshot());
         Assert.Equal("Error", entry.Level);
         Assert.Equal("dispatcher-tests", entry.Category);
         Assert.Equal("action.error", entry.EventName);
-        Assert.Equal("action validate.run failed in 7 ms", entry.Message);
+        Assert.Equal("action validate.run failed in 7 ms code=bridge_error", entry.Message);
         Assert.Equal("validate.run", entry.Fields["action"]?.ToString());
         Assert.Equal(7L, entry.Fields["duration_ms"]);
+        Assert.Equal(JetErrorCodes.BridgeError, entry.Fields["error_code"]?.ToString());
         Assert.False(entry.Fields.ContainsKey("result_status"));
         Assert.Contains("InvalidOperationException", entry.Exception);
         Assert.Contains("boom", entry.Exception);

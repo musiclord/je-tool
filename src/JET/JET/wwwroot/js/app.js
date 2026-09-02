@@ -412,11 +412,22 @@
     );
   }
 
-  function pickerFeedbackHtml(message) {
+  function pickerFeedbackHtml(message, context) {
     if (!message) { return ''; }
+    var actions = context && context.projectId
+      ? '<span class="picker-feedback__actions">' +
+          '<button type="button" class="btn btn--ghost" data-action="picker-copy-error">複製錯誤</button>' +
+          '<button type="button" class="btn btn--ghost" data-action="picker-support-export">輸出支援日誌</button>' +
+        '</span>'
+      : '';
+    var exportResult = context && context.exportedPath
+      ? '<span class="picker-feedback__export-result">支援日誌已輸出：' + Ui.esc(context.exportedPath) + '</span>'
+      : '';
     return '<div class="picker-feedback" role="alert" aria-live="polite">' +
       '<strong class="picker-feedback__title">無法完成操作</strong>' +
       '<span class="picker-feedback__body">' + Ui.esc(message) + '</span>' +
+      exportResult +
+      actions +
       '</div>';
   }
 
@@ -428,7 +439,10 @@
     // 讓 whoAmI 晚於首次 picker 繪製抵達時仍能重繪、把註記從 online.principal 升級為「短名・U編號」。
     var user = state.currentUser;
     var identityKey = user ? (user.shortName + '/' + user.userNumber) : '';
-    var key = 'picker|' + state.contentVersion + '|' + identityKey + '|' + (state.pickerFeedback || '');
+    var feedbackContext = state.pickerFeedbackContext || {};
+    var key = 'picker|' + state.contentVersion + '|' + identityKey + '|' + (state.pickerFeedback || '') + '|' +
+      (feedbackContext.projectId || '') + '|' + (feedbackContext.correlationId || '') + '|' +
+      (feedbackContext.exportedPath || '');
     if (key === lastPickerKey) { return; }
     lastPickerKey = key;
 
@@ -478,7 +492,7 @@
       '<div class="picker-panel">' +
         '<h2 class="picker-panel__title">選擇專案</h2>' +
         '<p class="picker-panel__hint">點整列即可開啟既有查核專案，或從最底列新增專案開始。</p>' +
-        pickerFeedbackHtml(state.pickerFeedback) +
+        pickerFeedbackHtml(state.pickerFeedback, state.pickerFeedbackContext) +
         '<section class="picker-section">' +
           '<div class="picker-section__head">' +
             '<h3 class="picker-section__title">線上資料庫（SQL Server）</h3>' +
@@ -591,6 +605,46 @@
     container.querySelector('[data-action="picker-refresh-local"]').addEventListener('click', Ui.loadProjects);
     container.querySelector('[data-action="picker-sync-online"]').addEventListener('click', Ui.syncOnlineProjects);
 
+    var copyError = container.querySelector('[data-action="picker-copy-error"]');
+    if (copyError) {
+      copyError.addEventListener('click', function () {
+        var current = Store.getState();
+        var context = current.pickerFeedbackContext || {};
+        var detail = [
+          current.pickerFeedback || '',
+          context.errorCode ? 'errorCode=' + context.errorCode : '',
+          context.correlationId ? 'correlationId=' + context.correlationId : ''
+        ].filter(Boolean).join('\r\n');
+        writeClipboardText(detail).then(function () {
+          copyError.textContent = '已複製';
+        }, function () {
+          copyError.textContent = '複製失敗';
+        });
+      });
+    }
+
+    var exportSupport = container.querySelector('[data-action="picker-support-export"]');
+    if (exportSupport) {
+      exportSupport.addEventListener('click', function () {
+        var current = Store.getState();
+        var context = current.pickerFeedbackContext;
+        if (!context || !context.projectId) { return; }
+        var originalMessage = current.pickerFeedback;
+        Ui.run('輸出支援日誌', function () {
+          return global.JetApi.supportLogExport({
+            projectId: context.projectId,
+            correlationId: context.correlationId || null
+          }).then(function (data) {
+            Store.setPickerFeedback(
+              originalMessage,
+              Object.assign({}, context, { exportedPath: data.filePath }));
+          });
+        }, {
+          onError: function (message) { Store.setPickerFeedback(message, context); }
+        });
+      });
+    }
+
     if (modal) {
       modal.querySelectorAll('[data-action="modal-cancel"]').forEach(function (el) {
         el.addEventListener('click', function () { closeModal(true); });
@@ -620,7 +674,13 @@
         }, {
           refresh: Ui.loadProjects,
           refreshWhen: 'success',
-          onError: function (message) { Store.setPickerFeedback(message); }
+          onError: function (message, error) {
+            Store.setPickerFeedback(message, {
+              projectId: target.id,
+              errorCode: error && error.code,
+              correlationId: error && error.correlationId
+            });
+          }
         }).then(function () {
           restoreProjectDeleteFocus(target);
         });
@@ -880,6 +940,38 @@
     });
   }
 
+  // 「凡寫入即 bump 重繪」慣例（state.js）的框架層配套：只有顯式標記唯一 data-focus-key 的控制項
+  // 才還原焦點，避免以通用 data-bind/data-action 猜測而把焦點送到同名的錯誤元素。
+  function captureContentFocusSelector(container) {
+    var active = document.activeElement;
+    if (!active || !container.contains(active)) { return null; }
+    var key = active.getAttribute('data-focus-key');
+    return key ? '[data-focus-key="' + global.CSS.escape(key) + '"]' : null;
+  }
+
+  function captureContentScrollPositions(container) {
+    var positions = {};
+    container.querySelectorAll('[data-preserve-scroll]').forEach(function (element) {
+      if (element.scrollLeft || element.scrollTop) {
+        positions[element.getAttribute('data-preserve-scroll')] = {
+          left: element.scrollLeft,
+          top: element.scrollTop
+        };
+      }
+    });
+    return positions;
+  }
+
+  function restoreContentScrollPositions(container, positions) {
+    Object.keys(positions).forEach(function (key) {
+      var element = container.querySelector('[data-preserve-scroll="' + global.CSS.escape(key) + '"]');
+      if (element) {
+        element.scrollLeft = positions[key].left;
+        element.scrollTop = positions[key].top;
+      }
+    });
+  }
+
   function renderContent(state, current) {
     var container = Ui.$('content');
     if (!container) { return; }
@@ -896,6 +988,8 @@
     var activeElement = document.activeElement;
     var preserveStepHeadingFocus = !!activeElement && activeElement.matches(
       '[data-bind="current-step-title"][data-step-index="' + state.currentStepIndex + '"]');
+    var focusSelector = captureContentFocusSelector(container);
+    var scrollPositions = captureContentScrollPositions(container);
 
     var html = workpaperHeaderHtml(state) + '<div class="stepflow">';
     Store.STEPS.forEach(function (step, index) {
@@ -919,6 +1013,15 @@
     if (!state.stepFlowCollapsed) {
       var body = container.querySelector('.stepflow-item--current .stepflow-item__body');
       if (body) { Ui.renderStep(current.id, body, state); }
+    }
+
+    // 同一步驟內的資料更新重繪：還原標記容器的捲動與輸入焦點；跨步切換不還原
+    //（新步驟由 focusCurrentStepHeading 設定起始焦點，捲動另由上方捲頂邏輯處理）。
+    if (!stepChanged) {
+      restoreContentScrollPositions(container, scrollPositions);
+      if (focusSelector && !preserveStepHeadingFocus) {
+        focusElement(container.querySelector(focusSelector));
+      }
     }
 
     bindStepFlow(container);
@@ -1976,6 +2079,18 @@
     if (copyMessagesButton) {
       copyMessagesButton.addEventListener('click', function () {
         copyRecentMessages(copyMessagesButton);
+      });
+    }
+    var supportLogButton = document.querySelector('[data-action="support-log-export"]');
+    if (supportLogButton) {
+      supportLogButton.addEventListener('click', function () {
+        var project = Store.getState().project;
+        if (!project) { return; }
+        Ui.run('輸出支援日誌', function () {
+          return global.JetApi.supportLogExport({ projectId: project.projectId }).then(function (data) {
+            Store.addMessage('支援日誌已輸出：' + data.filePath, 'info');
+          });
+        });
       });
     }
 

@@ -1,6 +1,6 @@
 # JET action 介面契約
 
-更新日期：2026-08-27
+更新日期：2026-09-01
 
 這份文件是前端、WebView2 Bridge 與 C# 處理器之間的 action 登錄表。它適合用來搜尋 action 名稱，
 不需要逐段閱讀。
@@ -27,7 +27,8 @@
   "requestId": "<same id>",
   "ok": true,
   "data": {},
-  "error": null
+  "error": null,
+  "correlationId": "<server-generated id>"
 }
 ```
 
@@ -42,12 +43,14 @@
     "code": "<stable code>",
     "message": "<human-readable message>",
     "field": "<optional payload field>"
-  }
+  },
+  "correlationId": "<server-generated id>"
 }
 ```
 
 `error.field` 只能由後端在能明確指出欄位時提供。前端不得從錯誤文字猜欄位；目前建案名稱錯誤會
-使用 `caseName`。完整錯誤碼登錄位於 `Domain/JetActionException.cs`。
+使用 `caseName`。`correlationId` 串起同一次 action 的開始、結束或錯誤事件；picker 可用它輸出該次
+去識別支援紀錄。完整錯誤碼登錄位於 `Domain/JetActionException.cs`。
 
 ## 主程式進度事件
 
@@ -92,6 +95,10 @@
 - `project.heartbeat`
 - `project.releaseLock`
 - `project.loadDemo`（開發／GUI 測試專用）
+
+報告產物 journal 無法安全復原時，`project.load` 以 `artifact_recovery_conflict` 保留現場並拒絕載入，
+不猜測哪一份檔案正確。使用者已在 picker 確認永久刪案時，`project.delete` 只取得案件外的 artifact lease，
+不先復原即將一併刪除的 journal，因此損壞案件不會反過來卡死刪除流程。
 
 ### 合成 demo 檔案
 
@@ -169,6 +176,7 @@
 
 - `log.append`
 - `log.recent`
+- `support.log.export`
 - `host.selectFile`
 - `host.selectFiles`
 - `host.selectSavePath`
@@ -178,8 +186,17 @@
 - `dev.db.tableData`
 - `dev.db.reconcile`
 - `dev.log.export`
+- `dev.log.exportFile`
 
-`dev.*` action 只服務開發面板。一般使用者流程不能依賴它們。
+`support.log.export` 在 Release 與 Debug 都可用。輸入 `{ projectId, correlationId? }`；只從有界記憶體
+取出該案件的 allowlist 事件，若有 correlation 則再縮成該次操作。內容在進入 buffer 前就已去識別：
+不保存 SQL、參數值、檔名、絕對路徑、案件名稱或原始 exception message。輸出固定為案件目錄內的
+`JET-support-*.txt`，每行一個 JSON；案件目錄不存在或是 reparse point 時直接失敗，不改寫到其他位置。
+
+`dev.*` action 只服務開發面板，一般使用者流程不能依賴。`dev.log.exportFile` 輸入 `{ projectId }`，
+從本次 Debug 程序的完整檔案 sink 篩出該案件；sink 不可讀時退回 ring buffer，並於回應標記 `source`。
+這份原始紀錄可能含 SQL、參數及案件資料，只能留在本機診斷；輸出固定為該案件目錄內的
+`JET-dev-log-*.txt`。兩個檔案匯出都回傳 `filePath` 與 `lineCount`，並以同目錄暫存檔完成後原子改名。
 
 ## 找精確欄位的位置
 

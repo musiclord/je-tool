@@ -58,7 +58,10 @@ internal static class GuiRunner
         OwnedGuiRun? ownedRun = null;
         try
         {
-            ownedRun = OwnedGuiRun.Create(options.Timeout, options.Scenario.ActionLimit);
+            ownedRun = OwnedGuiRun.Create(
+                options.Timeout,
+                options.Scenario.ActionLimit,
+                options.Scenario.Fixtures);
             using var deadline = new CancellationTokenSource(options.Timeout);
             var process = ownedRun.StartApplication(options.ApplicationPath);
             outcome.Process.ProcessId = process.Id;

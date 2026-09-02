@@ -106,6 +106,8 @@ public static class ActionExecutionPolicy
         "dev.db.tableData",
         "dev.db.reconcile",
         "dev.log.export",
+        "dev.log.exportFile", // 讀 sink 檔／ring buffer、寫選定案件目錄中的獨立 DEV 文字檔
+        "support.log.export", // 寫選定案件資料夾中的獨立支援文字檔，不改業務資料或 artifact catalog
     };
 
     /// <summary>此 action 是否為變更型（需序列化）。未歸類者 fail-safe 回 true。</summary>

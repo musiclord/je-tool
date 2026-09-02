@@ -1,7 +1,8 @@
 /*
-  開發者面板：診斷日誌匯出 NDJSON（dev-only，非審計 workflow）。
-  後端 dev.log.export 回診斷日誌 ring buffer 的完整 NDJSON（action/SQL/transaction/exception/milestone），
-  以唯讀 textarea 呈現可複製字串，供開發測試把完整系統真相交給 AI 驗證。
+  開發者面板：診斷日誌單鍵輸出（dev-only，非審計 workflow）。
+  按「輸出日誌」發 dev.log.exportFile：後端把完整診斷日誌（檔案 sink 全量；sink 不可讀時退
+  ring buffer 並標記 source）寫成 .txt 到目前案件資料夾，回傳實際路徑與筆數。完整 DEV 日誌可能
+  含 SQL 與參數值，只供本機開發診斷；可分享給支援人員／agent 的版本請用「輸出支援日誌」。
 */
 (function (global) {
   'use strict';
@@ -14,56 +15,26 @@
 
     body.innerHTML =
       '<div class="dev-panel__controls">' +
-        '<button type="button" class="btn btn--ghost" data-action="dev-log-refresh">重新整理</button>' +
-        '<button type="button" class="btn btn--ghost" data-action="dev-log-copy">複製</button>' +
-        '<span class="dev-panel__info" data-bind="dev-log-info">尚未載入。</span>' +
-      '</div>' +
-      '<textarea class="dev-panel__log" data-bind="dev-log-text" readonly rows="16" spellcheck="false" ' +
-        'placeholder="按「重新整理」載入完整診斷日誌（NDJSON）…"></textarea>';
+        '<button type="button" class="btn btn--ghost" data-action="dev-log-export-file">輸出日誌</button>' +
+        '<span class="dev-panel__info" data-bind="dev-log-info">完整 DEV 日誌可能含案件資料，僅限本機檢查。</span>' +
+      '</div>';
 
-    body.querySelector('[data-action="dev-log-refresh"]').addEventListener('click', devLogRefresh);
-    body.querySelector('[data-action="dev-log-copy"]').addEventListener('click', devLogCopy);
+    body.querySelector('[data-action="dev-log-export-file"]').addEventListener('click', devLogExportFile);
   }
 
-  function devLogRefresh() {
-    Ui.run('匯出診斷日誌', function () {
-      return global.JetApi.devLogExport({}).then(function (data) {
-        var ndjson = (data && data.ndjson) || '';
-        var textarea = Ui.$('dev-log-text');
-        if (textarea) { textarea.value = ndjson; }
-        var count = ndjson ? ndjson.split('\n').length : 0;
-        Ui.setText('dev-log-info', '共 ' + count + ' 筆（NDJSON）');
-      });
-    });
-  }
-
-  function devLogCopy() {
-    var textarea = Ui.$('dev-log-text');
-    if (!textarea || !textarea.value) {
-      Ui.setText('dev-log-info', '尚無內容可複製（請先「重新整理」）。');
+  function devLogExportFile() {
+    var project = global.JetStore.getState().project;
+    if (!project) {
+      Ui.setText('dev-log-info', '尚未開啟案件，無法輸出完整 DEV 日誌。');
       return;
     }
-
-    function done() {
-      Ui.setText('dev-log-info', '已複製（' + textarea.value.split('\n').length + ' 列）。');
-    }
-
-    function fallback() {
-      textarea.focus();
-      textarea.select();
-      try {
-        global.document.execCommand('copy');
-        done();
-      } catch (e) {
-        Ui.setText('dev-log-info', '請手動全選並複製（Ctrl+A、Ctrl+C）。');
-      }
-    }
-
-    if (global.navigator && global.navigator.clipboard && global.navigator.clipboard.writeText) {
-      global.navigator.clipboard.writeText(textarea.value).then(done, fallback);
-    } else {
-      fallback();
-    }
+    Ui.run('輸出診斷日誌', function () {
+      return global.JetApi.devLogExportFile({ projectId: project.projectId }).then(function (data) {
+        Ui.setText('dev-log-info',
+          '已輸出 ' + Number(data.lineCount).toLocaleString() + ' 筆：' + data.filePath +
+          (data.source === 'ringBuffer' ? '（sink 檔不可讀，內容為 ring buffer 快照）' : ''));
+      });
+    });
   }
 
   Ui.initDevLogPanel = initDevLogPanel;

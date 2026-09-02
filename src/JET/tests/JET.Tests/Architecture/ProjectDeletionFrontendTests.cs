@@ -15,7 +15,10 @@ public sealed class ProjectDeletionFrontendTests
             new Regex(
                 @"Ui\.run\('刪除專案', function \(\) \{(?s:.*?)projectDelete\((?s:.*?)\}\s*,\s*\{\s*refresh:\s*Ui\.loadProjects,\s*refreshWhen:\s*'success'(?s:.*?)\}\);"),
             app);
-        Assert.Contains("onError: function (message) { Store.setPickerFeedback(message); }", app, StringComparison.Ordinal);
+        Assert.Contains("onError: function (message, error)", app, StringComparison.Ordinal);
+        Assert.Contains("projectId: target.id", app, StringComparison.Ordinal);
+        Assert.Contains("errorCode: error && error.code", app, StringComparison.Ordinal);
+        Assert.Contains("correlationId: error && error.correlationId", app, StringComparison.Ordinal);
 
         var deleteRunStart = app.IndexOf("Ui.run('刪除專案'", StringComparison.Ordinal);
         Assert.True(deleteRunStart >= 0);

@@ -1,6 +1,6 @@
 # JET 文件導覽
 
-更新日期：2026-08-30
+更新日期：2026-09-01
 
 這裡把現況、操作、技術參考與歷史分開。一般閱讀先看現行文件；只有需要追查設計來源時才進入
 [`history/`](history/README.md) 或 [`../legacy/`](../legacy/README.md)。
@@ -15,6 +15,7 @@
 | 新儲存庫整理到哪裡 | [`development-status.md`](development-status.md) |
 | 開發環境與目前可用入口 | [`development-guide.md`](development-guide.md) |
 | 大型開發如何跨 session 續接與關閉 | [`development-workflow.md`](development-workflow.md) |
+| 多個 session 的觀點、需求與待完成事項如何收斂 | [`../.agents/harness/convergence-and-memory.md`](../.agents/harness/convergence-and-memory.md) |
 | CaseWare IDEA 的替代範圍與完成條件 | [`idea-replacement-scope.md`](idea-replacement-scope.md) |
 | Copilot、Claude、Codex 與 VS Code 如何共用規則，以及 Claude Code 的攔截層與 hook | [`agent-compatibility.md`](agent-compatibility.md) |
 | 新驗證框架的責任、資料與判定界線 | [`harness.md`](harness.md) |

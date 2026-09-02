@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using JET.Domain;
 using JET.Infrastructure;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace JET.Tests.Infrastructure;
@@ -578,6 +579,78 @@ public sealed class ProjectReportArtifactConcurrencyTests
         await lease.DisposeAsync();
         var catalog = await blockedRead;
         Assert.Empty(catalog.Artifacts);
+    }
+
+    [Fact]
+    public async Task ProjectDeletionLease_ConflictedWriteJournal_AcquiresWithoutRecoveringOrChangingEvidence()
+    {
+        using var root = new TempProjectRoot();
+        var (folder, projectDirectory) = CreateProject(root);
+        var clock = new MutableTimeProvider(BaseUtc);
+        var seed = new ProjectReportArtifactStore(folder, clock);
+        await seed.WriteAsync(ProjectId, Request(ValidationRun1, "old"), CancellationToken.None);
+        clock.Advance();
+        var crashing = CrashAt(folder, clock, ReportArtifactStoreCheckpoint.FileTransitionsApplied);
+
+        await Assert.ThrowsAsync<ReportArtifactStoreSimulatedCrashException>(() => crashing.WriteAsync(
+            ProjectId,
+            Request(ValidationRun2, "new"),
+            CancellationToken.None));
+
+        var journalPath = Path.Combine(projectDirectory, ProjectReportArtifactStore.JournalFileName);
+        var formalPath = Assert.Single(Directory.GetFiles(projectDirectory, "*.xlsx"));
+        await File.WriteAllTextAsync(formalPath, "conflicted-copy");
+        var journalBefore = await File.ReadAllBytesAsync(journalPath);
+        var formalBefore = await File.ReadAllBytesAsync(formalPath);
+
+        await using var lease = await new ProjectReportArtifactStore(folder, clock)
+            .AcquireProjectDeletionLeaseAsync(ProjectId, CancellationToken.None);
+
+        Assert.Equal(journalBefore, await File.ReadAllBytesAsync(journalPath));
+        Assert.Equal(formalBefore, await File.ReadAllBytesAsync(formalPath));
+    }
+
+    [Fact]
+    public async Task ConflictedWriteJournal_FailsClosedWithSpecificCodeAndSafeRecoveryEvent()
+    {
+        using var root = new TempProjectRoot();
+        var (folder, projectDirectory) = CreateProject(root);
+        var clock = new MutableTimeProvider(BaseUtc);
+        var seed = new ProjectReportArtifactStore(folder, clock);
+        await seed.WriteAsync(ProjectId, Request(ValidationRun1, "old"), CancellationToken.None);
+        clock.Advance();
+        var crashing = CrashAt(folder, clock, ReportArtifactStoreCheckpoint.FileTransitionsApplied);
+        await Assert.ThrowsAsync<ReportArtifactStoreSimulatedCrashException>(() => crashing.WriteAsync(
+            ProjectId,
+            Request(ValidationRun2, "new"),
+            CancellationToken.None));
+        var formalPath = Assert.Single(Directory.GetFiles(projectDirectory, "*.xlsx"));
+        await File.WriteAllTextAsync(formalPath, "conflicted-copy");
+
+        using var provider = new SupportRingBufferLoggerProvider(capacity: 8);
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(provider));
+        var logger = loggerFactory.CreateLogger<ProjectReportArtifactStore>();
+        using var scope = logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["correlation_id"] = "recovery-correlation",
+            ["support_project_id"] = ProjectId,
+        });
+        var store = new ProjectReportArtifactStore(folder, clock, logger);
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            store.ReadCatalogAsync(ProjectId, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.ArtifactRecoveryConflict, exception.Code);
+        var entry = Assert.Single(provider.Snapshot());
+        Assert.Equal("artifact.recovery.conflict", entry.EventName);
+        Assert.Equal("recovery-correlation", entry.CorrelationId);
+        Assert.Equal(ProjectId, entry.InternalProjectId);
+        Assert.Equal("before", entry.Fields["manifest_state"]);
+        Assert.Equal(JetErrorCodes.ArtifactRecoveryConflict, entry.Fields["error_code"]);
+        var serialized = SupportDiagnosticNdjson.SerializeLine(entry);
+        Assert.DoesNotContain(ProjectId, serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain(projectDirectory, serialized, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(Path.GetFileName(formalPath), serialized, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
