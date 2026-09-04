@@ -52,8 +52,6 @@ public static class ActionExecutionPolicy
         "export.criteriaSelectionReport",
         "export.workpaperStream",
         "export.accountMappingTemplate",
-        "report.cleanupPreview",
-        "report.cleanupConfirm",
     };
 
     // handler 自行試取共用閘；不得同時放進 ExclusiveActions，否則 dispatcher 先取後會自我阻塞。

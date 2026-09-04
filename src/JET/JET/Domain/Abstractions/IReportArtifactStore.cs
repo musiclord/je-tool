@@ -1,7 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 專案內正式報告的窄儲存介面。實作負責同目錄暫存、原子發布、雜湊與相對路徑索引；
+/// 專案內報告檔的窄儲存介面。實作只做三件事：把內容寫成同目錄暫存檔、完整後改名、在 manifest
+/// 記下 JET 寫了什麼。它不核對檔案內容，也不因為檔案在 JET 之外被改而拒絕任何操作；
 /// Application 只提供報告內容，不得指定任意檔案系統路徑。
 /// </summary>
 public interface IReportArtifactStore
@@ -12,24 +13,22 @@ public interface IReportArtifactStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// 批次內所有內容都完成暫存後才發布。任何寫入、發布或索引更新失敗時，整批不會出現在索引中。
+    /// 批次內所有內容都完成暫存後才逐一改名發布。任何一份寫入失敗時，已有的正式檔不會變成半成品，
+    /// 尚未成功的那些不會出現在清單中。
     /// </summary>
     Task<IReadOnlyList<ReportArtifact>> WriteBatchAsync(
         string projectId,
         IReadOnlyList<ReportArtifactWriteRequest> requests,
         CancellationToken cancellationToken);
 
+    /// <summary>列出 manifest 記錄的報告，並依磁碟現況填入 <see cref="ReportArtifact.FileState"/>。</summary>
     Task<IReadOnlyList<ReportArtifact>> ListAsync(
         string projectId,
         CancellationToken cancellationToken);
 
-    /// <summary>在同一把 project-scoped cross-process lock 內復原 pending journal 並讀取語意 revision。</summary>
-    Task<ReportArtifactCatalog> ReadCatalogAsync(
-        string projectId,
-        CancellationToken cancellationToken);
-
     /// <summary>
-    /// 只供本機 host 使用。回傳值是已驗證仍位於指定專案資料夾內的絕對路徑，不得寫入 manifest 或 wire response。
+    /// 只供本機 host 使用。回傳值是位於指定專案資料夾內的絕對路徑，不得寫入 manifest 或 wire response。
+    /// 檔案已不在時回 <see cref="JetErrorCodes.FileNotFound"/>，訊息告訴使用者重新匯出即可。
     /// </summary>
     Task<string> ResolvePathAsync(
         string projectId,
@@ -47,19 +46,8 @@ public interface IReportArtifactStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// 以 expected revision 防止 preview→confirm TOCTOU，並原子發布 manifest、project-local audit 與檔案清理。
-    /// candidates 只能由後端 policy 產生，wire payload 不得提供 IDs。
-    /// </summary>
-    Task<ReportArtifactCleanupResult> CleanupAsync(
-        string projectId,
-        string expectedCatalogRevision,
-        IReadOnlyList<ReportArtifactCleanupCandidate> candidates,
-        string requestedBy,
-        CancellationToken cancellationToken);
-
-    /// <summary>
-    /// 供 project.delete 在授權通過後取得。lease 位於案件資料夾外，只排除其他 artifact 操作，
-    /// 不讀取或復原案件內 journal；並保持到 provider 資料與案件資料夾刪除結束。
+    /// 供 project.delete 在授權通過後取得。lease 位於案件資料夾外，只排除其他報告寫入，
+    /// 並保持到 provider 資料與案件資料夾刪除結束。
     /// </summary>
     Task<IAsyncDisposable> AcquireProjectDeletionLeaseAsync(
         string projectId,
@@ -67,11 +55,8 @@ public interface IReportArtifactStore
 }
 
 /// <summary>
-/// Internal capability implemented by the production artifact store so an
-/// export can announce the exact pre-journal publishing boundary. It is kept
-/// separate from the public storage contract: callers cannot manufacture a
-/// publishing event before temporary files have been closed, flushed and
-/// hashed by the store.
+/// 由正式 store 實作的內部能力：匯出可以在檔案改名前收到「即將發布哪一種報告」的回呼，供進度事件用。
+/// 與公開契約分開，是因為回呼只能在暫存檔已完整寫出之後才發出。
 /// </summary>
 internal interface IReportArtifactPublishingStore
 {

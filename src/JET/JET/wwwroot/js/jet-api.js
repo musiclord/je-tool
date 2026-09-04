@@ -189,8 +189,6 @@
     'export.criteriaSelectionReport',
     'export.workpaperStream',
     'export.accountMappingTemplate',
-    'report.cleanupPreview',
-    'report.cleanupConfirm',
     'log.append',
     'log.recent',
     'support.log.export',

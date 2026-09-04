@@ -32,8 +32,7 @@
     'export.accountMappingTemplate': true,
     'export.prescreenReport': true,
     'export.criteriaSelectionReport': true,
-    'export.workpaperStream': true,
-    'report.cleanupConfirm': true
+    'export.workpaperStream': true
   };
 
   // 增量渲染狀態
@@ -414,19 +413,29 @@
 
   function pickerFeedbackHtml(message, context) {
     if (!message) { return ''; }
+    // DEV 按鈕只在 Debug 組建出現（system.ping.devToolsEnabled）。載入失敗時案件尚未開啟，面板內的
+    // 「輸出日誌」用不到，所以原始診斷日誌的出口也放在這裡，並帶同一次 correlation。
+    var devToolsEnabled = !!Store.getState().devToolsEnabled;
     var actions = context && context.projectId
       ? '<span class="picker-feedback__actions">' +
           '<button type="button" class="btn btn--ghost" data-action="picker-copy-error">複製錯誤</button>' +
           '<button type="button" class="btn btn--ghost" data-action="picker-support-export">輸出支援日誌</button>' +
+          (devToolsEnabled
+            ? '<button type="button" class="btn btn--ghost" data-action="picker-dev-log-export">輸出診斷日誌（DEV）</button>'
+            : '') +
         '</span>'
       : '';
     var exportResult = context && context.exportedPath
       ? '<span class="picker-feedback__export-result">支援日誌已輸出：' + Ui.esc(context.exportedPath) + '</span>'
       : '';
+    var devExportResult = context && context.devExportedPath
+      ? '<span class="picker-feedback__export-result">診斷日誌已輸出：' + Ui.esc(context.devExportedPath) + '</span>'
+      : '';
     return '<div class="picker-feedback" role="alert" aria-live="polite">' +
       '<strong class="picker-feedback__title">無法完成操作</strong>' +
       '<span class="picker-feedback__body">' + Ui.esc(message) + '</span>' +
       exportResult +
+      devExportResult +
       actions +
       '</div>';
   }
@@ -442,7 +451,7 @@
     var feedbackContext = state.pickerFeedbackContext || {};
     var key = 'picker|' + state.contentVersion + '|' + identityKey + '|' + (state.pickerFeedback || '') + '|' +
       (feedbackContext.projectId || '') + '|' + (feedbackContext.correlationId || '') + '|' +
-      (feedbackContext.exportedPath || '');
+      (feedbackContext.exportedPath || '') + '|' + (feedbackContext.devExportedPath || '');
     if (key === lastPickerKey) { return; }
     lastPickerKey = key;
 
@@ -638,6 +647,30 @@
             Store.setPickerFeedback(
               originalMessage,
               Object.assign({}, context, { exportedPath: data.filePath }));
+          });
+        }, {
+          onError: function (message) { Store.setPickerFeedback(message, context); }
+        });
+      });
+    }
+
+    // Debug 組建：把含 SQL 與參數的原始診斷日誌連同這次失敗的 correlation 寫到同一個案件目錄。
+    var exportDevLog = container.querySelector('[data-action="picker-dev-log-export"]');
+    if (exportDevLog) {
+      exportDevLog.addEventListener('click', function () {
+        var current = Store.getState();
+        var context = current.pickerFeedbackContext;
+        if (!context || !context.projectId) { return; }
+        var originalMessage = current.pickerFeedback;
+        Ui.run('輸出診斷日誌', function () {
+          return global.JetApi.devLogExportFile({
+            projectId: context.projectId,
+            correlationId: context.correlationId || null
+          }).then(function (data) {
+            var note = data.source === 'ringBuffer' ? '（sink 檔不可讀，內容為 ring buffer 快照）' : '';
+            Store.setPickerFeedback(
+              originalMessage,
+              Object.assign({}, context, { devExportedPath: data.filePath + note }));
           });
         }, {
           onError: function (message) { Store.setPickerFeedback(message, context); }

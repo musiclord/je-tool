@@ -15,8 +15,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 六份正式報告的 application 驗收測試。Oracle 來自 action manifest、
-/// 六報告本地格式盤點與一個自含的兩列 GL/TB 母體；不讀取外部參考檔或真實帳務資料。
+/// 五份正式報告與科目配對範本工作檔的 application 驗收測試。Oracle 來自 action manifest、
+/// 六種工作簿的本地格式盤點與一個自含的兩列 GL/TB 母體；不讀取外部參考檔或真實帳務資料。
 /// </summary>
 public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixture)
     : IClassFixture<ReportArtifactExportFixture>
@@ -128,10 +128,11 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
         Assert.False(response.TryGetProperty("outputPath", out _));
         Assert.False(response.TryGetProperty("filePath", out _));
 
+        // 2026-09-02 起科目配對範本是工作檔，由 export.accountMappingTemplate 單獨產生；驗證批次只剩兩份。
         var artifacts = response.GetProperty("artifacts");
-        Assert.Equal(3, artifacts.GetArrayLength());
+        Assert.Equal(2, artifacts.GetArrayLength());
         Assert.Equal(
-            new[] { "accountMapping", "infReport", "validationReport" },
+            new[] { "infReport", "validationReport" },
             artifacts.EnumerateArray()
                 .Select(artifact => artifact.GetProperty("kind").GetString())
                 .Order(StringComparer.Ordinal)
@@ -139,10 +140,10 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
         Assert.All(artifacts.EnumerateArray(), artifact => AssertProjectLocalArtifact(host, projectId, artifact, runId));
 
         var projectDirectory = Path.Combine(host.ProjectsRoot, projectId);
-        Assert.Equal(3, Directory.GetFiles(projectDirectory, "*.xlsx").Length);
+        Assert.Equal(2, Directory.GetFiles(projectDirectory, "*.xlsx").Length);
         using var manifest = JsonDocument.Parse(
             File.ReadAllText(Path.Combine(projectDirectory, "report-artifacts.json")));
-        Assert.Equal(3, manifest.RootElement.GetArrayLength());
+        Assert.Equal(2, manifest.RootElement.GetArrayLength());
     }
 
     [Fact]
@@ -162,21 +163,20 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             projectDirectory,
             ProjectReportArtifactStore.ManifestFileName);
         var store = new ProjectReportArtifactStore(new JetProjectFolder(host.ProjectsRoot));
-        var priorCatalog = await store.ReadCatalogAsync(projectId, CancellationToken.None);
-        Assert.Equal(3, priorCatalog.Artifacts.Count);
+        var priorArtifacts = await store.ListAsync(projectId, CancellationToken.None);
+        Assert.Equal(2, priorArtifacts.Count);
         Assert.Equal(
             new[]
             {
                 ReportArtifactKind.ValidationReport,
-                ReportArtifactKind.AccountMapping,
                 ReportArtifactKind.InfReport
             },
-            priorCatalog.Artifacts.Select(artifact => artifact.Kind).ToArray());
+            priorArtifacts.Select(artifact => artifact.Kind).ToArray());
         var priorWorkbookPaths = Directory.GetFiles(projectDirectory, "*.xlsx")
             .Select(Path.GetFullPath)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        Assert.Equal(3, priorWorkbookPaths.Length);
+        Assert.Equal(2, priorWorkbookPaths.Length);
         var priorWorkbookBytes = priorWorkbookPaths.ToDictionary(
             path => path,
             File.ReadAllBytes,
@@ -227,8 +227,8 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             projectDirectory,
             ProjectReportArtifactStore.JournalFileName)));
 
-        var currentCatalog = await store.ReadCatalogAsync(projectId, CancellationToken.None);
-        AssertReportArtifactCatalogEqual(priorCatalog, currentCatalog);
+        var currentArtifacts = await store.ListAsync(projectId, CancellationToken.None);
+        AssertReportArtifactListEqual(priorArtifacts, currentArtifacts);
 
         var cancelledEvents = publisher.ValidationEvents.Skip(eventStart).ToArray();
         Assert.Contains(
@@ -853,8 +853,7 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
     [Fact]
     public async Task AccountMappingReport_WritesLegacyHeadersAndContinuousEditableCategoryRange()
     {
-        var response = await fixture.ExportValidationArtifactsAsync();
-        var path = fixture.ArtifactPath(FindArtifact(response, "accountMapping"));
+        var path = await fixture.ExportAccountMappingTemplatePathAsync();
 
         using var workbook = new XLWorkbook(path);
         Assert.Equal(
@@ -1233,7 +1232,7 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
         var reportTemplates = new[]
         {
             (
-                OutputPath: fixture.ArtifactPath(FindArtifact(validation, "accountMapping")),
+                OutputPath: await fixture.ExportAccountMappingTemplatePathAsync(),
                 TemplateName: "AccountMapping.xlsx",
                 AllowCoverEmbeddedDocumentRemoval: false),
             (
@@ -1335,16 +1334,15 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
         validationResponse.GetProperty("artifacts").EnumerateArray()
             .Single(artifact => artifact.GetProperty("kind").GetString() == kind);
 
-    private static void AssertReportArtifactCatalogEqual(
-        ReportArtifactCatalog expected,
-        ReportArtifactCatalog actual)
+    private static void AssertReportArtifactListEqual(
+        IReadOnlyList<ReportArtifact> expected,
+        IReadOnlyList<ReportArtifact> actual)
     {
-        Assert.Equal(expected.Revision, actual.Revision);
-        var expectedArtifacts = expected.Artifacts
+        var expectedArtifacts = expected
             .OrderBy(artifact => artifact.Kind)
             .ThenBy(artifact => artifact.ArtifactId, StringComparer.Ordinal)
             .ToArray();
-        var actualArtifacts = actual.Artifacts
+        var actualArtifacts = actual
             .OrderBy(artifact => artifact.Kind)
             .ThenBy(artifact => artifact.ArtifactId, StringComparer.Ordinal)
             .ToArray();
@@ -1358,7 +1356,8 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             Assert.Equal(expectedArtifact.RelativeFileName, actualArtifact.RelativeFileName);
             Assert.Equal(expectedArtifact.GeneratedUtc, actualArtifact.GeneratedUtc);
             Assert.Equal(expectedArtifact.Bytes, actualArtifact.Bytes);
-            Assert.Equal(expectedArtifact.Sha256, actualArtifact.Sha256);
+            Assert.Equal(expectedArtifact.LastWriteUtc, actualArtifact.LastWriteUtc);
+            Assert.Equal(expectedArtifact.FileState, actualArtifact.FileState);
             Assert.Equal(expectedArtifact.Stale, actualArtifact.Stale);
             Assert.Equal(
                 expectedArtifact.SourceRef.ValidationRunId,
@@ -1420,7 +1419,7 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
         string runId)
     {
         Assert.Equal(
-            new[] { "artifactId", "bytes", "fileName", "generatedUtc", "kind", "sha256", "sourceRef", "stale" },
+            new[] { "artifactId", "bytes", "fileName", "fileState", "generatedUtc", "kind", "sourceRef", "stale" },
             artifact.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal).ToArray());
 
         var fileName = artifact.GetProperty("fileName").GetString()!;
@@ -1837,6 +1836,15 @@ public sealed class ReportArtifactExportFixture : IAsyncLifetime
     internal Task<JsonElement> ExportValidationArtifactsAsync() => Host.DispatchAsync(
         "export.validationArtifacts",
         JsonSerializer.Serialize(new { runId = ValidationRunId }));
+
+    /// <summary>科目配對範本是工作檔：回傳完整路徑，不在 reportArtifacts 裡。</summary>
+    internal async Task<string> ExportAccountMappingTemplatePathAsync()
+    {
+        var response = await Host.DispatchAsync(
+            "export.accountMappingTemplate",
+            JsonSerializer.Serialize(new { runId = ValidationRunId }));
+        return response.GetProperty("filePath").GetString()!;
+    }
 
     internal Task<JsonElement> ExportPrescreenReportAsync() => Host.DispatchAsync(
         "export.prescreenReport",

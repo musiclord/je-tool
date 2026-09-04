@@ -10,7 +10,7 @@
 | [OpenAI AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md) | 官方文件當日版本 | 根目錄權威與專案內近端指示；保持 `AGENTS.md` 簡短 | 不把完整 skill 複製進 `AGENTS.md` |
 | [OpenAI Memories](https://learn.chatgpt.com/docs/customization/memories) | 官方文件當日版本 | 本機記憶是查找線索；必要規則與團隊知識留在受版控文件 | 不把本機 memory 當唯一權威，也不手工維護 Codex 生成記憶 |
 | [mattpocock/skills](https://github.com/mattpocock/skills) | `6654f6b60cd9d5be8b54c6fafe44346dabeb3b76` | `grilling` 的決策樹前緣、分輪問題、Agent 自行查證；`domain-modeling` 的名詞衝突與程式交叉檢查 | 不建立 `CONTEXT.md`／ADR；不安裝整套 skills 或 issue 流程 |
-| [sandeco/reversa](https://github.com/sandeco/reversa) | `4cc8f7298dd73268d7eddc01e0dbcc59da074696` | Framer → Explorer → Challenger → Arbiter → Pre-Spec；中心假設、便宜驗證、分歧保留 | 不安裝 agent 群、不建立 `.reversa/`、`_reversa_sdd/` 或平行規格系統 |
+| [sandeco/reversa](https://github.com/sandeco/reversa) | `4cc8f7298dd73268d7eddc01e0dbcc59da074696` | Framer、Explorer、Challenger、Arbiter、Pre-Spec 五個階段依序進行；中心假設、便宜驗證、分歧保留 | 不安裝 agent 群、不建立 `.reversa/`、`_reversa_sdd/` 或平行規格系統 |
 | [obra/superpowers](https://github.com/obra/superpowers) | `b36e0829c6d0140e93cfef2ca599b1b07d4a7797` | 先查專案脈絡、2–3 個方向、設計自我審查；外部事實需要時先研究 | 不採全面 hard gate、自動 commit、專屬 specs/plans 根或強制子代理流程 |
 
 ## 更新原則

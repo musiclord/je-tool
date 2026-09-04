@@ -137,7 +137,7 @@ public sealed class WorkpaperOwnershipTests
         var composition = ReadProduct("AppCompositionRoot.cs");
         var writer = ReadProduct("Infrastructure", "Export", "WorkpaperWriter.cs");
 
-        Assert.Contains("ReportArtifactCleanupSupport.RefreshCatalogAsync", handler, StringComparison.Ordinal);
+        Assert.Contains("ReportExportSupport.RefreshArtifactsAsync", handler, StringComparison.Ordinal);
         Assert.Contains("JetAuditProgram.Plan(", handler, StringComparison.Ordinal);
         Assert.Contains("JetAuditProgram.ExecuteAsync(", handler, StringComparison.Ordinal);
         Assert.Contains("JetAuditProgram.Finalize(", handler, StringComparison.Ordinal);

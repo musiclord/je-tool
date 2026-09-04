@@ -87,7 +87,7 @@ public sealed class ExportWorkpaperTypedSeamTests
         Assert.Equal(1, artifactStore.MarkStaleCalls);
         Assert.False(artifactStore.CriteriaWasMarkedStale);
         Assert.True(artifactStore.OldWorkingPaperWasMarkedStale);
-        Assert.Equal(1, artifactStore.ReadCatalogCalls);
+        Assert.Equal(1, artifactStore.ListCalls);
 
         Assert.Equal(projectId, writer.Context?.ProjectId);
         Assert.Equal(validationRunId, writer.Context?.ValidationRunId);
@@ -202,7 +202,7 @@ public sealed class ExportWorkpaperTypedSeamTests
                 [1]),
             generatedUtc,
             1,
-            new string('a', 64),
+            LastWriteUtc: null,
             Stale: false);
 
     private static ReportArtifact StaleWorkingPaper(DateTimeOffset generatedUtc) => new(
@@ -216,7 +216,7 @@ public sealed class ExportWorkpaperTypedSeamTests
             [1]),
         generatedUtc.AddMinutes(-1),
         1,
-        new string('b', 64),
+        LastWriteUtc: null,
         Stale: false);
 
     private sealed class RecordingPlanWriter(List<string> order) : IWorkpaperPlanWriter
@@ -405,7 +405,7 @@ public sealed class ExportWorkpaperTypedSeamTests
 
         public int MarkStaleCalls { get; private set; }
 
-        public int ReadCatalogCalls { get; private set; }
+        public int ListCalls { get; private set; }
 
         public bool CriteriaWasMarkedStale { get; private set; }
 
@@ -429,7 +429,7 @@ public sealed class ExportWorkpaperTypedSeamTests
                 request.SourceRef,
                 new DateTimeOffset(2026, 7, 19, 3, 10, 0, TimeSpan.Zero),
                 output.Length,
-                new string('c', 64),
+                LastWriteUtc: null,
                 Stale: false);
         }
 
@@ -441,17 +441,10 @@ public sealed class ExportWorkpaperTypedSeamTests
 
         public Task<IReadOnlyList<ReportArtifact>> ListAsync(
             string projectId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ReportArtifact>>(artifacts);
-
-        public Task<ReportArtifactCatalog> ReadCatalogAsync(
-            string projectId,
             CancellationToken cancellationToken)
         {
-            ReadCatalogCalls++;
-            return Task.FromResult(new ReportArtifactCatalog(
-                "catalog-current",
-                artifacts));
+            ListCalls++;
+            return Task.FromResult<IReadOnlyList<ReportArtifact>>(artifacts);
         }
 
         public Task<string> ResolvePathAsync(
@@ -486,14 +479,6 @@ public sealed class ExportWorkpaperTypedSeamTests
                 .ToArray();
             return Task.FromResult(OldWorkingPaperWasMarkedStale ? 1 : 0);
         }
-
-        public Task<ReportArtifactCleanupResult> CleanupAsync(
-            string projectId,
-            string expectedCatalogRevision,
-            IReadOnlyList<ReportArtifactCleanupCandidate> candidates,
-            string requestedBy,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
 
         public Task<IAsyncDisposable> AcquireProjectDeletionLeaseAsync(
             string projectId,

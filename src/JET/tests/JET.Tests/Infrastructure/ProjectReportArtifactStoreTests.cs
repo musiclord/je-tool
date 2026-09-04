@@ -1,963 +1,315 @@
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
+using System.Text.RegularExpressions;
 using JET.Domain;
 using JET.Infrastructure;
-using JET.Tests.TestInfrastructure;
+using JET.Tests.Application;
+using Microsoft.Extensions.Logging;
 using Xunit;
-using Xunit.v3;
 
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 專案內報告 artifact store 的真實檔案系統測試。
-/// oracle：使用者裁決的本地資料邊界、固定 manifest 欄位與 temp→正式檔批次發布規則。
+/// 報告檔儲存的最小單元測試（2026-09-02 重寫後）。只涵蓋這個 store 自己的承諾：寫壞或取消不留暫存檔、
+/// Working Paper 每次新檔、其餘覆蓋同名檔、舊 manifest 仍能列出、檔案狀態如實回報、殘留的舊控制檔
+/// 直接清掉。不核對內容、不擋載入，那些是它刻意不做的事。
 /// </summary>
 public sealed class ProjectReportArtifactStoreTests
 {
-    private static readonly DateTimeOffset FixedUtc =
-        new(2026, 7, 10, 1, 2, 3, 456, TimeSpan.Zero);
+    private const string ProjectId = "store-unit-project";
 
     [Fact]
-    public async Task WriteAsync_ValidReport_PersistsContentAndHashInsideProjectDirectory()
+    public async Task WriteAsync_ContentWriterThrows_LeavesNoTemporaryFileAndNoManifest()
     {
         using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var content = Encoding.UTF8.GetBytes("local-only-report");
-
-        var artifact = await store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), content),
-            CancellationToken.None);
-
-        var expectedPath = Path.Combine(projectDirectory, artifact.RelativeFileName);
-        Assert.Equal(content, await File.ReadAllBytesAsync(expectedPath, CancellationToken.None));
-        Assert.Equal(content.LongLength, artifact.Bytes);
-        Assert.Equal(Convert.ToHexString(SHA256.HashData(content)), artifact.Sha256);
-        Assert.Equal(Path.GetFileName(expectedPath), artifact.RelativeFileName);
-    }
-
-    [Fact]
-    public async Task PublishingBoundary_SeesClosedStageBeforeJournalOrFinalArtifact()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var content = Encoding.UTF8.GetBytes("publishing-boundary");
-        var observed = false;
-
-        var artifact = await ((IReportArtifactPublishingStore)store).WriteWithPublishingAsync(
-            ProjectId,
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), content),
-            kind =>
-            {
-                observed = true;
-                Assert.Equal(ReportArtifactKind.ValidationReport, kind);
-                Assert.False(File.Exists(Path.Combine(
-                    projectDirectory,
-                    ProjectReportArtifactStore.ManifestFileName)));
-                Assert.False(File.Exists(Path.Combine(
-                    projectDirectory,
-                    ProjectReportArtifactStore.JournalFileName)));
-                Assert.Empty(Directory.GetFiles(projectDirectory, "*.xlsx"));
-
-                var stagePath = Assert.Single(Directory.GetFiles(
-                    projectDirectory,
-                    ".report-artifact-stage-*.tmp"));
-                using var stage = File.Open(
-                    stagePath,
-                    FileMode.Open,
-                    FileAccess.ReadWrite,
-                    FileShare.None);
-                var stagedContent = new byte[content.Length];
-                stage.ReadExactly(stagedContent);
-                Assert.Equal(content, stagedContent);
-            },
-            CancellationToken.None);
-
-        Assert.True(observed);
-        Assert.True(File.Exists(Path.Combine(projectDirectory, artifact.RelativeFileName)));
-    }
-
-    [Fact]
-    public async Task PublishingBoundary_CancellationStopsRemainingBatchAndLeavesNoArtifact()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        using var cancellation = new CancellationTokenSource();
-        var observed = new List<ReportArtifactKind>();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            ((IReportArtifactPublishingStore)store).WriteBatchWithPublishingAsync(
-                ProjectId,
-                [
-                    Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-                    Request(ReportArtifactKind.AccountMapping, ValidationRefs(), [2])
-                ],
-                kind =>
-                {
-                    observed.Add(kind);
-                    Assert.Equal(2, Directory.GetFiles(
-                        projectDirectory,
-                        ".report-artifact-stage-*.tmp").Length);
-                    Assert.Empty(Directory.GetFiles(projectDirectory, "*.xlsx"));
-                    Assert.False(File.Exists(Path.Combine(
-                        projectDirectory,
-                        ProjectReportArtifactStore.JournalFileName)));
-                    cancellation.Cancel();
-                },
-                cancellation.Token));
-
-        Assert.Equal([ReportArtifactKind.ValidationReport], observed);
-        Assert.Empty(Directory.GetFiles(projectDirectory, "*.xlsx"));
-        Assert.Empty(Directory.GetFiles(projectDirectory, "*.tmp"));
-        Assert.False(File.Exists(Path.Combine(
-            projectDirectory,
-            ProjectReportArtifactStore.ManifestFileName)));
-        Assert.False(File.Exists(Path.Combine(
-            projectDirectory,
-            ProjectReportArtifactStore.JournalFileName)));
-    }
-
-    [Fact]
-    public async Task WriteAsync_ValidReport_GeneratesBackendOwnedFileName()
-    {
-        using var root = new TempProjectRoot();
-        var (store, _) = CreateStore(root);
-
-        var artifact = await store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.InfReport, ValidationRefs(), [1, 2, 3]),
-            CancellationToken.None);
-
-        Assert.Equal(
-            $"{ProjectId}_INFReport.xlsx",
-            artifact.RelativeFileName);
-        Assert.DoesNotContain(artifact.ArtifactId, artifact.RelativeFileName, StringComparison.Ordinal);
-        Assert.DoesNotContain("20260710010203456", artifact.RelativeFileName, StringComparison.Ordinal);
-        Assert.DoesNotContain('/', artifact.RelativeFileName);
-        Assert.DoesNotContain('\\', artifact.RelativeFileName);
-    }
-
-    [Fact]
-    public async Task WriteAsync_SameKindAgain_AtomicallyReplacesCatalogAndStableFile()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var first = await store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.WorkingPaper, ScenarioRefs("revision-1"), [1, 2, 3]),
-            CancellationToken.None);
-
-        var second = await store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.WorkingPaper, ScenarioRefs("revision-2"), [4, 5]),
-            CancellationToken.None);
-
-        Assert.Equal($"{ProjectId}_WorkingPaper.xlsx", first.RelativeFileName);
-        Assert.Equal(first.RelativeFileName, second.RelativeFileName);
-        Assert.NotEqual(first.ArtifactId, second.ArtifactId);
-        Assert.Equal([4, 5], await File.ReadAllBytesAsync(
-            Path.Combine(projectDirectory, second.RelativeFileName),
-            CancellationToken.None));
-        Assert.Equal(
-            second.RelativeFileName,
-            Path.GetFileName(Assert.Single(Directory.GetFiles(projectDirectory, "*.xlsx"))));
-
-        var current = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
-        Assert.Equal(second.ArtifactId, current.ArtifactId);
-        Assert.Equal("revision-2", current.SourceRef.ScenarioRevision);
-        Assert.False(current.Stale);
-    }
-
-    [Fact]
-    public async Task WriteBatchAsync_DuplicateKinds_RejectsBeforeWriting()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => store.WriteBatchAsync(
-            ProjectId,
-            [
-                Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-                Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [2])
-            ],
-            CancellationToken.None));
-
-        Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
-        Assert.Empty(Directory.GetFiles(projectDirectory));
-    }
-
-    [Fact]
-    public async Task WriteAsync_NewCriteriaMissingValidationRun_RejectsInvalidPayload()
-    {
-        using var root = new TempProjectRoot();
-        var (store, _) = CreateStore(root);
-
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => store.WriteAsync(
-            ProjectId,
-            Request(
-                ReportArtifactKind.CriteriaSelectionReport,
-                new ReportArtifactSourceRefs(
-                    ScenarioRevision: "revision-1",
-                    ScenarioPositions: [1]),
-                [1]),
-            CancellationToken.None));
-
-        Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
-    }
-
-    [Theory]
-    [InlineData(ReportArtifactKind.CriteriaSelectionReport)]
-    [InlineData(ReportArtifactKind.WorkingPaper)]
-    public async Task WriteAsync_NewScenarioReportWithoutPrescreenRun_Persists(
-        ReportArtifactKind kind)
-    {
-        using var root = new TempProjectRoot();
-        var (store, _) = CreateStore(root);
-
-        var artifact = await store.WriteAsync(
-            ProjectId,
-            Request(
-                kind,
-                new ReportArtifactSourceRefs(
-                    ValidationRunId: ValidationRunId,
-                    ScenarioRevision: "revision-1",
-                    ScenarioPositions: [1]),
-                [1]),
-            CancellationToken.None);
-
-        Assert.Null(artifact.SourceRef.PrescreenRunId);
-    }
-
-    [Fact]
-    public async Task WriteAsync_ManifestEntry_ContainsOnlyAllowlistedFields()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var refs = new ReportArtifactSourceRefs(
-            ValidationRunId: ValidationRunId,
-            ScenarioRevision: "2026-07-10T01:02:03.4560000Z",
-            ScenarioPositions: [1, 3]);
-
-        await store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.WorkingPaper, refs, [4, 5, 6]),
-            CancellationToken.None);
-
-        await using var manifest = File.OpenRead(
-            Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName));
-        using var document = await JsonDocument.ParseAsync(
-            manifest,
-            cancellationToken: CancellationToken.None);
-        var entry = document.RootElement[0];
-        var fieldNames = entry.EnumerateObject().Select(property => property.Name).Order().ToArray();
-
-        Assert.Equal(
-            new[] { "artifactId", "bytes", "generatedUtc", "kind", "relativeFileName", "sha256", "sourceRef", "stale" },
-            fieldNames);
-        Assert.Equal("workingPaper", entry.GetProperty("kind").GetString());
-        Assert.Equal(
-            new[] { "scenarioPositions", "scenarioRevision", "validationRunId" },
-            entry.GetProperty("sourceRef").EnumerateObject().Select(property => property.Name).Order().ToArray());
-        Assert.False(entry.GetProperty("sourceRef").TryGetProperty("prescreenRunId", out _));
-    }
-
-    [Theory]
-    [InlineData("infReport", "INF", "_", "Report", "validationRunId")]
-    [InlineData("prescreenReport", "Pre", "-", "screeningReport", "prescreenRunId")]
-    public async Task ListAsync_PreRenameArtifactFileName_RemainsReadable(
-        string kind,
-        string prefix,
-        string separator,
-        string suffix,
-        string sourceRefProperty)
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var artifactId = "23232323232323232323232323232323";
-        var fileName = string.Concat(ProjectId, "_", prefix, separator, suffix, ".xlsx");
-        var json = $$"""
-            [
-              {
-                "artifactId": "{{artifactId}}",
-                "kind": "{{kind}}",
-                "relativeFileName": "{{fileName}}",
-                "sourceRef": { "{{sourceRefProperty}}": "{{ValidationRunId}}" },
-                "generatedUtc": "2026-07-10T01:02:03.456Z",
-                "bytes": 7,
-                "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-                "stale": false
-              }
-            ]
-            """;
-        await File.WriteAllTextAsync(
-            Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName),
-            json,
-            CancellationToken.None);
-
-        var artifact = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
-
-        Assert.Equal(fileName, artifact.RelativeFileName);
-        Assert.Equal(kind, ReportArtifactKindValues.ToValue(artifact.Kind));
-    }
-
-    [Theory]
-    [InlineData("infReport", "Pre-screeningReport", "validationRunId")]
-    [InlineData("infReport", "INF-Report", "validationRunId")]
-    [InlineData("prescreenReport", "Pre_screeningReport", "prescreenRunId")]
-    public async Task ListAsync_PreRenameArtifactFileName_NearMissOrWrongKind_Rejects(
-        string kind,
-        string suffix,
-        string sourceRefProperty)
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var fileName = $"{ProjectId}_{suffix}.xlsx";
-        var json = $$"""
-            [
-              {
-                "artifactId": "23232323232323232323232323232323",
-                "kind": "{{kind}}",
-                "relativeFileName": "{{fileName}}",
-                "sourceRef": { "{{sourceRefProperty}}": "{{ValidationRunId}}" },
-                "generatedUtc": "2026-07-10T01:02:03.456Z",
-                "bytes": 7,
-                "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-                "stale": false
-              }
-            ]
-            """;
-        await File.WriteAllTextAsync(
-            Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName),
-            json,
-            CancellationToken.None);
-
-        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
-            store.ListAsync(ProjectId, CancellationToken.None));
-
-        Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-    }
-
-    [Fact]
-    public async Task ListAsync_LegacyCriteriaMissingRequiredRunTuple_ReadsAsStaleAndMigratesOnNextRewrite()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var artifactId = "33333333333333333333333333333333";
-        var fileName = $"{ProjectId}_20260710010203456_CriteriaSelectionReport_{artifactId}.xlsx";
-        var json = $$"""
-            [
-              {
-                "artifactId": "{{artifactId}}",
-                "kind": "criteriaSelectionReport",
-                "relativeFileName": "{{fileName}}",
-                "sourceRefs": { "scenarioRevision": "revision-legacy" },
-                "createdUtc": "2026-07-10T01:02:03.456Z",
-                "bytes": 7,
-                "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-                "stale": false
-              }
-            ]
-            """;
-        await File.WriteAllTextAsync(
-            Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName),
-            json,
-            CancellationToken.None);
-
-        var artifact = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
-
-        Assert.Equal(artifactId, artifact.ArtifactId);
-        Assert.Equal(FixedUtc, artifact.GeneratedUtc);
-        Assert.Equal("revision-legacy", artifact.SourceRef.ScenarioRevision);
-        Assert.Null(artifact.SourceRef.ValidationRunId);
-        Assert.Null(artifact.SourceRef.PrescreenRunId);
-        Assert.Equal(fileName, artifact.RelativeFileName);
-        Assert.True(artifact.Stale);
-
-        await store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-            CancellationToken.None);
-        using var migrated = JsonDocument.Parse(await File.ReadAllTextAsync(
-            Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName),
-            CancellationToken.None));
-        var migratedEntry = migrated.RootElement.EnumerateArray()
-            .Single(entry => entry.GetProperty("artifactId").GetString() == artifactId);
-        Assert.True(migratedEntry.TryGetProperty("sourceRef", out _));
-        Assert.True(migratedEntry.TryGetProperty("generatedUtc", out _));
-        Assert.False(migratedEntry.TryGetProperty("sourceRefs", out _));
-        Assert.False(migratedEntry.TryGetProperty("createdUtc", out _));
-    }
-
-    [Fact]
-    public async Task ListAsync_ManifestExceedsByteLimit_RejectsBeforeDeserialization()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        await File.WriteAllBytesAsync(
-            Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName),
-            new byte[checked((int)ProjectReportArtifactStore.MaxManifestBytes) + 1],
-            CancellationToken.None);
-
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => store.ListAsync(
-            ProjectId,
-            CancellationToken.None));
-
-        Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-    }
-
-    [Fact]
-    public async Task ListAsync_ManifestExceedsEntryLimit_RejectsBeforeValidatingEntries()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var json = "[" + string.Join(
-            ',',
-            Enumerable.Repeat("{}", ProjectReportArtifactStore.MaxManifestEntries + 1)) + "]";
-        await File.WriteAllTextAsync(
-            Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName),
-            json,
-            CancellationToken.None);
-
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => store.ListAsync(
-            ProjectId,
-            CancellationToken.None));
-
-        Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-    }
-
-    [Fact]
-    public async Task WriteBatchAsync_AllWritersSucceed_PublishesWholeBatch()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var requests = new[]
-        {
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-            Request(ReportArtifactKind.AccountMapping, ValidationRefs(), [2]),
-            Request(ReportArtifactKind.InfReport, ValidationRefs(), [3])
-        };
-
-        var artifacts = await store.WriteBatchAsync(
-            ProjectId,
-            requests,
-            CancellationToken.None);
-
-        Assert.Equal(3, artifacts.Count);
-        Assert.Equal(3, Directory.GetFiles(projectDirectory, "*.xlsx").Length);
-        Assert.Equal(3, (await store.ListAsync(ProjectId, CancellationToken.None)).Count);
-    }
-
-    [Fact]
-    public async Task WriteBatchAsync_LaterWriterFails_RemovesWholeBatchAndTemporaryFiles()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var requests = new[]
-        {
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-            new ReportArtifactWriteRequest(
-                ReportArtifactKind.AccountMapping,
-                ValidationRefs(),
-                (_, _) => throw new InvalidOperationException("fixture failure"))
-        };
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => store.WriteBatchAsync(
-            ProjectId,
-            requests,
-            CancellationToken.None));
-
-        Assert.Empty(Directory.GetFiles(projectDirectory, "*.xlsx"));
-        Assert.Empty(Directory.GetFiles(projectDirectory, "*.tmp"));
-        Assert.False(File.Exists(Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName)));
-    }
-
-    [Fact]
-    public async Task WriteBatchAsync_CancelledDuringStaging_RemovesWholeBatchAndTemporaryFiles()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        using var cancellation = new CancellationTokenSource();
-        var requests = new[]
-        {
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-            new ReportArtifactWriteRequest(
-                ReportArtifactKind.AccountMapping,
-                ValidationRefs(),
-                (_, token) =>
-                {
-                    cancellation.Cancel();
-                    return Task.FromCanceled(token);
-                })
-        };
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.WriteBatchAsync(
-            ProjectId,
-            requests,
-            cancellation.Token));
-
-        Assert.Empty(Directory.GetFiles(projectDirectory, "*.xlsx"));
-        Assert.Empty(Directory.GetFiles(projectDirectory, "*.tmp"));
-        Assert.False(File.Exists(Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName)));
-    }
-
-    [Fact]
-    public async Task WriteBatchAsync_ManifestPublishFails_RollsBackPublishedFiles()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        Directory.CreateDirectory(Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName));
-
-        await Assert.ThrowsAsync<IOException>(() => store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-            CancellationToken.None));
-
-        Assert.Empty(Directory.GetFiles(projectDirectory, "*.xlsx"));
-        Assert.Empty(Directory.GetFiles(projectDirectory, "*.tmp"));
-    }
-
-    [Fact]
-    public async Task WriteBatchAsync_NewBatchFails_PreservesPreviouslyCommittedArtifact()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var committed = await store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-            CancellationToken.None);
-        var failing = new ReportArtifactWriteRequest(
-            ReportArtifactKind.PrescreenReport,
-            new ReportArtifactSourceRefs(PrescreenRunId: PrescreenRunId),
-            (_, _) => throw new InvalidOperationException("fixture failure"));
+        var (store, directory) = Create(root);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.WriteAsync(
             ProjectId,
-            failing,
+            Request(ReportArtifactKind.ValidationReport, async (output, cancellationToken) =>
+            {
+                await output.WriteAsync(new byte[] { 1, 2, 3 }, cancellationToken);
+                throw new InvalidOperationException("writer failed halfway");
+            }),
             CancellationToken.None));
 
-        Assert.True(File.Exists(Path.Combine(projectDirectory, committed.RelativeFileName)));
-        Assert.Equal(committed.ArtifactId, Assert.Single(
-            await store.ListAsync(ProjectId, CancellationToken.None)).ArtifactId);
+        Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+        Assert.Empty(Directory.GetFiles(directory, "*.xlsx"));
+        Assert.False(File.Exists(Path.Combine(directory, ProjectReportArtifactStore.ManifestFileName)));
+        Assert.Empty(await store.ListAsync(ProjectId, CancellationToken.None));
     }
 
     [Fact]
-    public async Task AccountMappingDirectWriter_CancelDuringFirstSheet_PreservesPriorArtifactAndManifest()
+    public async Task WriteAsync_CancelledInsideWriter_LeavesNoTemporaryFileAndKeepsPriorArtifact()
     {
         using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var writer = new AccountMappingTemplateWriter();
-        var initialRows = new AccountMappingTemplateRow[]
-        {
-            new("1101", "Cash"),
-            new("4100", "Revenue")
-        };
-        var committed = await store.WriteAsync(
+        var (store, directory) = Create(root);
+        var prior = await store.WriteAsync(
             ProjectId,
-            new ReportArtifactWriteRequest(
-                ReportArtifactKind.AccountMapping,
-                ValidationRefs(),
-                (output, cancellationToken) =>
-                    writer.WriteAsync(output, initialRows, cancellationToken)),
+            Request(ReportArtifactKind.InfReport, Bytes(7, 7, 7)),
             CancellationToken.None);
-        var artifactPath = Path.Combine(projectDirectory, committed.RelativeFileName);
-        var manifestPath = Path.Combine(
-            projectDirectory,
-            ProjectReportArtifactStore.ManifestFileName);
-        var committedBytes = await File.ReadAllBytesAsync(artifactPath);
-        var committedManifest = await File.ReadAllBytesAsync(manifestPath);
-
+        var priorPath = Path.Combine(directory, prior.RelativeFileName);
         using var cancellation = new CancellationTokenSource();
-        var progress = new List<WorkpaperProgress>();
-        var progressWriter = Assert.IsAssignableFrom<IAccountMappingTemplateProgressWriter>(writer);
-        var replacementRows = new CancelingAccountMappingRows(cancellation);
-        var replacement = new ReportArtifactWriteRequest(
-            ReportArtifactKind.AccountMapping,
-            ValidationRefs(),
-            (output, cancellationToken) => progressWriter.WriteAsync(
-                output,
-                replacementRows,
-                cancellationToken,
-                snapshot =>
-                {
-                    progress.Add(snapshot);
-                }));
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            store.WriteAsync(ProjectId, replacement, cancellation.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.WriteAsync(
+            ProjectId,
+            Request(ReportArtifactKind.InfReport, async (output, cancellationToken) =>
+            {
+                await output.WriteAsync(new byte[] { 9 }, cancellationToken);
+                cancellation.Cancel();
+                cancellationToken.ThrowIfCancellationRequested();
+            }),
+            cancellation.Token));
 
-        Assert.Empty(progress);
-        Assert.Equal(committedBytes, await File.ReadAllBytesAsync(artifactPath));
-        Assert.Equal(committedManifest, await File.ReadAllBytesAsync(manifestPath));
-        var current = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
-        Assert.Equal(committed.ArtifactId, current.ArtifactId);
-        Assert.Equal(committed.Sha256, current.Sha256);
-        Assert.Empty(Directory.GetFiles(projectDirectory, ".report-artifact-stage-*.tmp"));
-        Assert.False(File.Exists(Path.Combine(
-            projectDirectory,
-            ProjectReportArtifactStore.JournalFileName)));
+        Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+        Assert.Equal(new byte[] { 7, 7, 7 }, await File.ReadAllBytesAsync(priorPath));
+        var listed = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
+        Assert.Equal(prior.ArtifactId, listed.ArtifactId);
+        Assert.Equal(ReportArtifactFileState.AsPublished, listed.FileState);
     }
 
     [Fact]
-    public async Task ResolvePathAsync_KnownArtifact_ReturnsAbsoluteProjectLocalPath()
+    public async Task WriteAsync_WorkingPaper_WritesNewVersionFileEachTimeAndKeepsOldVersions()
     {
         using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var artifact = await store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.CriteriaSelectionReport, ScenarioRefs(), [1]),
-            CancellationToken.None);
+        var time = new FixedTimeProvider(new DateTimeOffset(2026, 9, 2, 1, 2, 3, TimeSpan.Zero));
+        var (store, directory) = Create(root, time);
 
-        var resolved = await store.ResolvePathAsync(
-            ProjectId,
-            artifact.ArtifactId,
-            CancellationToken.None);
+        var first = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.WorkingPaper, Bytes(1)), CancellationToken.None);
+        var second = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.WorkingPaper, Bytes(2)), CancellationToken.None);
+        time.Now = time.Now.AddMinutes(1);
+        var third = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.WorkingPaper, Bytes(3)), CancellationToken.None);
 
-        Assert.Equal(Path.Combine(projectDirectory, artifact.RelativeFileName), resolved);
-        Assert.True(Path.IsPathFullyQualified(resolved));
+        var prefix = ProjectFileNames.SafePrefix(ProjectId);
+        var pattern = new Regex($"^{Regex.Escape(prefix)}_WorkingPaper_\\d{{8}}-\\d{{6}}(-\\d+)?\\.xlsx$");
+        foreach (var artifact in new[] { first, second, third })
+        {
+            Assert.Matches(pattern, artifact.RelativeFileName);
+            Assert.True(File.Exists(Path.Combine(directory, artifact.RelativeFileName)));
+        }
+
+        // 同一秒內第二次匯出補流水號；時間走了以後又回到純時間戳。
+        Assert.NotEqual(first.RelativeFileName, second.RelativeFileName);
+        Assert.NotEqual(second.RelativeFileName, third.RelativeFileName);
+        Assert.Equal(3, Directory.GetFiles(directory, "*_WorkingPaper_*.xlsx").Length);
+        Assert.Equal(new byte[] { 1 }, await File.ReadAllBytesAsync(Path.Combine(directory, first.RelativeFileName)));
+
+        var listed = await store.ListAsync(ProjectId, CancellationToken.None);
+        Assert.Equal(
+            new[] { first.ArtifactId, second.ArtifactId, third.ArtifactId }.Order(StringComparer.Ordinal),
+            listed.Select(artifact => artifact.ArtifactId).Order(StringComparer.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(ReportArtifactKind.ValidationReport, "ValidationReport")]
+    [InlineData(ReportArtifactKind.InfReport, "INFReport")]
+    [InlineData(ReportArtifactKind.PrescreenReport, "PrescreeningReport")]
+    [InlineData(ReportArtifactKind.CriteriaSelectionReport, "CriteriaSelectionReport")]
+    public async Task WriteAsync_OtherReportKinds_OverwriteSameFileNameAndKeepOneEntryPerKind(
+        ReportArtifactKind kind, string fileSuffix)
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+
+        var first = await store.WriteAsync(ProjectId, Request(kind, Bytes(1)), CancellationToken.None);
+        var second = await store.WriteAsync(ProjectId, Request(kind, Bytes(2, 2)), CancellationToken.None);
+
+        Assert.Equal(first.RelativeFileName, second.RelativeFileName);
+        Assert.Equal($"{ProjectFileNames.SafePrefix(ProjectId)}_{fileSuffix}.xlsx", second.RelativeFileName);
+        Assert.Single(Directory.GetFiles(directory, "*.xlsx"));
+        Assert.Equal(new byte[] { 2, 2 }, await File.ReadAllBytesAsync(Path.Combine(directory, second.RelativeFileName)));
+
+        var listed = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
+        Assert.Equal(second.ArtifactId, listed.ArtifactId);
+        Assert.Equal(2, listed.Bytes);
     }
 
     [Fact]
-    public async Task ResolvePathAsync_TraversalLikeArtifactId_RejectsInvalidPayload()
+    public async Task WriteAsync_LockedReport_KeepsPriorFileAndSucceedsAfterRelease()
     {
         using var root = new TempProjectRoot();
-        var (store, _) = CreateStore(root);
+        var (store, directory) = Create(root);
+        var first = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.ValidationReport, Bytes(1, 2)), CancellationToken.None);
+        var path = Path.Combine(directory, first.RelativeFileName);
 
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => store.ResolvePathAsync(
-            ProjectId,
-            @"..\..\outside.xlsx",
-            CancellationToken.None));
+        using (var locked = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var error = await Assert.ThrowsAsync<JetActionException>(() => store.WriteAsync(
+                ProjectId, Request(ReportArtifactKind.ValidationReport, Bytes(3, 4)), CancellationToken.None));
+            Assert.Equal(JetErrorCodes.FileReadError, error.Code);
+            Assert.Contains("關閉", error.Message, StringComparison.Ordinal);
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+        }
 
-        Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
-    }
-
-    [FileSystemLinksFact]
-    public async Task WriteAsync_ReparsePointInProjectAncestor_RejectsBeforeCreatingArtifact()
-    {
-        using var root = new TempProjectRoot();
-        var actualRoot = Path.Combine(root.Path, "actual-root");
-        var linkedRoot = Path.Combine(root.Path, "linked-root");
-        Directory.CreateDirectory(Path.Combine(actualRoot, ProjectId));
-        CreateDirectoryLink(linkedRoot, actualRoot);
-        var store = new ProjectReportArtifactStore(
-            new JetProjectFolder(linkedRoot),
-            new FixedTimeProvider(FixedUtc));
-
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-            CancellationToken.None));
-
-        Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        Assert.Empty(Directory.GetFiles(Path.Combine(actualRoot, ProjectId), "*.xlsx"));
-    }
-
-    [FileSystemLinksFact]
-    public async Task ResolvePathAsync_ArtifactFileIsSymbolicLink_RejectsLinkedTarget()
-    {
-        using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var artifact = await store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-            CancellationToken.None);
-        var artifactPath = Path.Combine(projectDirectory, artifact.RelativeFileName);
-        var linkedTarget = Path.Combine(root.Path, "outside-report.xlsx");
-        File.Move(artifactPath, linkedTarget);
-        CreateFileLink(artifactPath, linkedTarget);
-
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => store.ResolvePathAsync(
-            ProjectId,
-            artifact.ArtifactId,
-            CancellationToken.None));
-
-        Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
+        Assert.Equal(new byte[] { 1, 2 }, await File.ReadAllBytesAsync(path));
+        Assert.Equal(first.ArtifactId, Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None)).ArtifactId);
+        var retried = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.ValidationReport, Bytes(3, 4)), CancellationToken.None);
+        Assert.Equal(first.RelativeFileName, retried.RelativeFileName);
+        Assert.Equal(new byte[] { 3, 4 }, await File.ReadAllBytesAsync(path));
+        Assert.Equal(ReportArtifactFileState.AsPublished, Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None)).FileState);
     }
 
     [Fact]
-    public async Task ListAsync_TamperedTraversalFileName_RejectsManifest()
+    public async Task ListAsync_SameLengthEdit_UsesWriteTimeAndReexportClearsWarning()
     {
         using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var json = $$"""
+        var (store, directory) = Create(root);
+        var first = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.InfReport, Bytes(1, 2)), CancellationToken.None);
+        var path = Path.Combine(directory, first.RelativeFileName);
+        await File.WriteAllBytesAsync(path, new byte[] { 3, 4 });
+        File.SetLastWriteTimeUtc(path, first.LastWriteUtc!.Value.UtcDateTime.AddMinutes(1));
+        Assert.Equal(first.Bytes, new FileInfo(path).Length);
+        Assert.Equal(ReportArtifactFileState.ModifiedOutside, Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None)).FileState);
+
+        await store.WriteAsync(ProjectId, Request(ReportArtifactKind.InfReport, Bytes(5, 6)), CancellationToken.None);
+        Assert.Equal(new byte[] { 5, 6 }, await File.ReadAllBytesAsync(path));
+        Assert.Equal(ReportArtifactFileState.AsPublished, Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None)).FileState);
+    }
+
+    [Fact]
+    public async Task ListAsync_ReportsFileStateWithoutBlocking()
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+        var untouched = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.ValidationReport, Bytes(1)), CancellationToken.None);
+        var edited = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.InfReport, Bytes(1)), CancellationToken.None);
+        var deleted = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.PrescreenReport, Bytes(1)), CancellationToken.None);
+
+        // 模擬審計員用 Excel 存檔（內容變長）與直接刪檔。
+        await File.AppendAllTextAsync(Path.Combine(directory, edited.RelativeFileName), "edited outside JET");
+        File.Delete(Path.Combine(directory, deleted.RelativeFileName));
+
+        var listed = (await store.ListAsync(ProjectId, CancellationToken.None))
+            .ToDictionary(artifact => artifact.ArtifactId);
+        Assert.Equal(ReportArtifactFileState.AsPublished, listed[untouched.ArtifactId].FileState);
+        Assert.Equal(ReportArtifactFileState.ModifiedOutside, listed[edited.ArtifactId].FileState);
+        Assert.Equal(ReportArtifactFileState.Missing, listed[deleted.ArtifactId].FileState);
+        Assert.Equal(3, listed.Count);
+    }
+
+    [Fact]
+    public async Task ListAsync_LegacyManifest_IgnoresSha256AndAccountMappingEntries()
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+        var validationFile = "legacy_ValidationReport.xlsx";
+        await File.WriteAllBytesAsync(Path.Combine(directory, validationFile), new byte[] { 5, 5, 5, 5 });
+        await File.WriteAllTextAsync(
+            Path.Combine(directory, ProjectReportArtifactStore.ManifestFileName),
+            $$"""
             [
               {
-                "artifactId": "{{ValidationRunId}}",
+                "artifactId": "0123456789abcdef0123456789abcdef",
                 "kind": "validationReport",
-                "relativeFileName": "..\\outside.xlsx",
-                "sourceRefs": { "validationRunId": "{{ValidationRunId}}" },
-                "createdUtc": "2026-07-10T01:02:03.456Z",
-                "bytes": 0,
-                "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+                "relativeFileName": "{{validationFile}}",
+                "sourceRefs": { "validationRunId": "run-1" },
+                "createdUtc": "2026-08-01T00:00:00+00:00",
+                "bytes": 4,
+                "sha256": "{{new string('a', 64)}}",
+                "stale": false
+              },
+              {
+                "artifactId": "fedcba9876543210fedcba9876543210",
+                "kind": "accountMapping",
+                "relativeFileName": "legacy_AccountMapping.xlsx",
+                "sourceRefs": { "validationRunId": "run-1" },
+                "createdUtc": "2026-08-01T00:00:00+00:00",
+                "bytes": 10,
+                "sha256": "{{new string('b', 64)}}",
                 "stale": false
               }
             ]
-            """;
-        await File.WriteAllTextAsync(
-            Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName),
-            json,
-            CancellationToken.None);
+            """);
 
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => store.ListAsync(
-            ProjectId,
-            CancellationToken.None));
+        var listed = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
 
-        Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
+        Assert.Equal("0123456789abcdef0123456789abcdef", listed.ArtifactId);
+        Assert.Equal(ReportArtifactKind.ValidationReport, listed.Kind);
+        Assert.Equal("run-1", listed.SourceRef.ValidationRunId);
+        Assert.Equal(new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero), listed.GeneratedUtc);
+        Assert.NotEqual(ReportArtifactFileState.Missing, listed.FileState);
     }
 
     [Fact]
-    public async Task ListAsync_TamperedRootedFileName_RejectsManifest()
+    public async Task ListAsync_LeftoverLegacyJournal_IsDeletedAndLogged()
     {
         using var root = new TempProjectRoot();
-        var (store, projectDirectory) = CreateStore(root);
-        var json = $$"""
-            [
-              {
-                "artifactId": "{{ValidationRunId}}",
-                "kind": "validationReport",
-                "relativeFileName": "C:\\legacy-machine\\outside.xlsx",
-                "sourceRefs": { "validationRunId": "{{ValidationRunId}}" },
-                "createdUtc": "2026-07-10T01:02:03.456Z",
-                "bytes": 0,
-                "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-                "stale": false
-              }
-            ]
-            """;
-        await File.WriteAllTextAsync(
-            Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName),
-            json,
-            CancellationToken.None);
+        var logger = new RecordingLogger();
+        var (store, directory) = Create(root, logger: logger);
+        var journalPath = Path.Combine(directory, ProjectReportArtifactStore.JournalFileName);
+        await File.WriteAllTextAsync(journalPath, """{ "formatVersion": 1, "operation": "writeBatch" }""");
 
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => store.ListAsync(
-            ProjectId,
-            CancellationToken.None));
+        var listed = await store.ListAsync(ProjectId, CancellationToken.None);
 
-        Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
+        Assert.Empty(listed);
+        Assert.False(File.Exists(journalPath));
+        Assert.Contains("artifact.journal.discarded", logger.EventNames);
     }
 
     [Fact]
-    public async Task MarkStaleAsync_Kind_MarksOnlyMatchingArtifacts()
+    public async Task ListAsync_UnreadableManifest_IsSetAsideAndListingContinuesEmpty()
     {
         using var root = new TempProjectRoot();
-        var (store, _) = CreateStore(root);
-        await store.WriteBatchAsync(
-            ProjectId,
-            [
-                Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-                Request(ReportArtifactKind.PrescreenReport, new ReportArtifactSourceRefs(PrescreenRunId: PrescreenRunId), [2])
-            ],
-            CancellationToken.None);
+        var logger = new RecordingLogger();
+        var (store, directory) = Create(root, logger: logger);
+        var manifestPath = Path.Combine(directory, ProjectReportArtifactStore.ManifestFileName);
+        await File.WriteAllTextAsync(manifestPath, "{");
 
-        var changed = await store.MarkStaleAsync(
-            ProjectId,
-            ReportArtifactKind.ValidationReport,
-            CancellationToken.None);
-        var artifacts = await store.ListAsync(ProjectId, CancellationToken.None);
+        var listed = await store.ListAsync(ProjectId, CancellationToken.None);
 
-        Assert.Equal(1, changed);
-        Assert.True(artifacts.Single(artifact => artifact.Kind == ReportArtifactKind.ValidationReport).Stale);
-        Assert.False(artifacts.Single(artifact => artifact.Kind == ReportArtifactKind.PrescreenReport).Stale);
+        Assert.Empty(listed);
+        Assert.False(File.Exists(manifestPath));
+        Assert.Single(Directory.GetFiles(directory, "report-artifacts.unreadable-*.json"));
+        Assert.Contains("artifact.manifest.reset", logger.EventNames);
+
+        // 之後照常寫入，清單從空的重新開始。
+        var written = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.InfReport, Bytes(1)), CancellationToken.None);
+        Assert.Equal(written.ArtifactId, Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None)).ArtifactId);
     }
 
-    [Fact]
-    public async Task MarkStaleAsync_SourcePredicate_MarksOnlyOlderRevision()
-    {
-        using var root = new TempProjectRoot();
-        var (store, _) = CreateStore(root);
-        await store.WriteBatchAsync(
-            ProjectId,
-            [
-                Request(ReportArtifactKind.CriteriaSelectionReport, ScenarioRefs("revision-1"), [1]),
-                Request(ReportArtifactKind.WorkingPaper, ScenarioRefs("revision-2"), [2])
-            ],
-            CancellationToken.None);
-
-        var changed = await store.MarkStaleAsync(
-            ProjectId,
-            artifact => artifact.SourceRef.ScenarioRevision == "revision-1",
-            CancellationToken.None);
-        var artifacts = await new ProjectReportArtifactStore(
-                new JetProjectFolder(root.Path),
-                new FixedTimeProvider(FixedUtc))
-            .ListAsync(ProjectId, CancellationToken.None);
-
-        Assert.Equal(1, changed);
-        Assert.True(artifacts.Single(artifact => artifact.SourceRef.ScenarioRevision == "revision-1").Stale);
-        Assert.False(artifacts.Single(artifact => artifact.SourceRef.ScenarioRevision == "revision-2").Stale);
-    }
-
-    [Fact]
-    public async Task WriteAsync_MissingProject_DoesNotCreateProjectDirectory()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var store = new ProjectReportArtifactStore(folder, new FixedTimeProvider(FixedUtc));
-
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => store.WriteAsync(
-            ProjectId,
-            Request(ReportArtifactKind.ValidationReport, ValidationRefs(), [1]),
-            CancellationToken.None));
-
-        Assert.Equal(JetErrorCodes.ProjectNotFound, exception.Code);
-        Assert.False(Directory.Exists(folder.GetProjectDirectory(ProjectId)));
-    }
-
-    private const string ProjectId = "報告產物測試案件";
-    private const string ValidationRunId = "11111111111111111111111111111111";
-    private const string PrescreenRunId = "22222222222222222222222222222222";
-
-    private static (ProjectReportArtifactStore Store, string ProjectDirectory) CreateStore(TempProjectRoot root)
+    private static (ProjectReportArtifactStore Store, string ProjectDirectory) Create(
+        TempProjectRoot root,
+        TimeProvider? timeProvider = null,
+        ILogger<ProjectReportArtifactStore>? logger = null)
     {
         var folder = new JetProjectFolder(root.Path);
-        var projectDirectory = Path.GetFullPath(folder.GetProjectDirectory(ProjectId));
-        Directory.CreateDirectory(projectDirectory);
-        return (new ProjectReportArtifactStore(folder, new FixedTimeProvider(FixedUtc)), projectDirectory);
+        var directory = folder.GetProjectDirectory(ProjectId);
+        Directory.CreateDirectory(directory);
+        return (new ProjectReportArtifactStore(folder, timeProvider, logger), directory);
     }
 
     private static ReportArtifactWriteRequest Request(
         ReportArtifactKind kind,
-        ReportArtifactSourceRefs sourceRefs,
-        byte[] content)
-        => new(
-            kind,
-            sourceRefs,
-            (output, cancellationToken) => output.WriteAsync(content, cancellationToken).AsTask());
+        ReportArtifactContentWriter writer) =>
+        new(kind, new ReportArtifactSourceRefs(ValidationRunId: "run-1", PrescreenRunId: "prescreen-1", ScenarioRevision: "rev-1", ScenarioPositions: [1]), writer);
 
-    private static ReportArtifactSourceRefs ValidationRefs()
-        => new(ValidationRunId: ValidationRunId);
+    private static ReportArtifactContentWriter Bytes(params byte[] content) =>
+        (output, cancellationToken) => output.WriteAsync(content, cancellationToken).AsTask();
 
-    private static ReportArtifactSourceRefs ScenarioRefs(string revision = "revision-1")
-        => new(
-            ValidationRunId: ValidationRunId,
-            ScenarioRevision: revision,
-            ScenarioPositions: [1, 2]);
-
-    private static void CreateDirectoryLink(string linkPath, string targetPath)
-        => Directory.CreateSymbolicLink(linkPath, targetPath);
-
-    private static void CreateFileLink(string linkPath, string targetPath)
-        => File.CreateSymbolicLink(linkPath, targetPath);
-
-    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
-        public override DateTimeOffset GetUtcNow() => utcNow;
+        public DateTimeOffset Now { get; set; } = now;
+
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 
-    private sealed class CancelingAccountMappingRows(CancellationTokenSource cancellation)
-        : IReadOnlyList<AccountMappingTemplateRow>
+    private sealed class RecordingLogger : ILogger<ProjectReportArtifactStore>
     {
-        private readonly AccountMappingTemplateRow[] _rows =
-        [
-            new("1101", "Cash changed"),
-            new("2160", "Deposits"),
-            new("4100", "Revenue changed")
-        ];
-        private int _accesses;
+        public List<string> EventNames { get; } = [];
 
-        public int Count => _rows.Length;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
-        public AccountMappingTemplateRow this[int index]
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
         {
-            get
+            if (eventId.Name is not null)
             {
-                if (Interlocked.Increment(ref _accesses) == 3)
-                {
-                    cancellation.Cancel();
-                }
-                return _rows[index];
+                EventNames.Add(eventId.Name);
             }
-        }
-
-        public IEnumerator<AccountMappingTemplateRow> GetEnumerator()
-        {
-            for (var index = 0; index < Count; index++)
-            {
-                yield return this[index];
-            }
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-    }
-}
-
-/// <summary>只有測試主機能建立真實 filesystem link 時才執行連結攻擊測試。</summary>
-[AttributeUsage(AttributeTargets.Method)]
-internal sealed class FileSystemLinksFactAttribute : FactAttribute, ITraitAttribute
-{
-    private static readonly Lazy<bool> Available = new(Probe);
-
-    public const string SkipReason = "目前測試主機無法建立真實 filesystem link。";
-
-    public static bool IsAvailable => Available.Value;
-
-    public FileSystemLinksFactAttribute(
-        [CallerFilePath] string? sourceFilePath = null,
-        [CallerLineNumber] int sourceLineNumber = -1)
-        : base(sourceFilePath, sourceLineNumber)
-    {
-        Skip = SkipReason;
-        SkipType = typeof(FileSystemLinksFactAttribute);
-        SkipUnless = nameof(IsAvailable);
-    }
-
-    public IReadOnlyCollection<KeyValuePair<string, string>> GetTraits() =>
-        TestProfileTraits.FileSystemLinks;
-
-    private static bool Probe()
-    {
-        var probeRoot = Path.Combine(Path.GetTempPath(), $"jet-link-probe-{Guid.NewGuid():N}");
-        var directoryTarget = Path.Combine(probeRoot, "directory-target");
-        var directoryLink = Path.Combine(probeRoot, "directory-link");
-        var fileTarget = Path.Combine(probeRoot, "file-target.tmp");
-        var fileLink = Path.Combine(probeRoot, "file-link.tmp");
-
-        try
-        {
-            Directory.CreateDirectory(directoryTarget);
-            Directory.CreateSymbolicLink(directoryLink, directoryTarget);
-            File.WriteAllBytes(fileTarget, [1]);
-            File.CreateSymbolicLink(fileLink, fileTarget);
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is UnauthorizedAccessException
-                or PlatformNotSupportedException
-                or IOException)
-        {
-            return false;
-        }
-        finally
-        {
-            DeleteProbeFile(fileLink);
-            DeleteProbeDirectory(directoryLink);
-            DeleteProbeDirectory(probeRoot, recursive: true);
-        }
-    }
-
-    private static void DeleteProbeFile(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // 探測清理由 OS best effort 處理，不改變此測試是否可執行的判斷。
-        }
-    }
-
-    private static void DeleteProbeDirectory(string path, bool recursive = false)
-    {
-        try
-        {
-            Directory.Delete(path, recursive);
-        }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException)
-        {
-            // 同上；測試本體另用自己的 temp root，不依賴 probe 殘留。
         }
     }
 }

@@ -44,6 +44,8 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "import.milestone",
         "projection.milestone",
         "artifact.recovery.conflict",
+        "artifact.journal.discarded",
+        "artifact.manifest.reset",
     };
 
     private static readonly HashSet<string> AllowedFields = new(StringComparer.Ordinal)
@@ -67,6 +69,12 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "new_content_matches",
         "old_fallback_matches",
         "error_code",
+        "old_expected_bytes",
+        "journal_written_utc",
+        "final_written_utc",
+        "final_modified_after_journal",
+        "final_in_use",
+        "final_read_only",
     };
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull =>
@@ -172,6 +180,8 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
             "import.milestone" => $"import milestone {fields.GetValueOrDefault("phase") ?? "unknown"}",
             "projection.milestone" => $"projection milestone {fields.GetValueOrDefault("phase") ?? "unknown"}",
             "artifact.recovery.conflict" => "report artifact recovery conflict",
+            "artifact.journal.discarded" => "discarded a leftover report journal from the previous store design",
+            "artifact.manifest.reset" => "report manifest was unreadable and has been set aside",
             _ => eventName,
         };
     }

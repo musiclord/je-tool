@@ -1,76 +1,25 @@
 using System.Text.Json;
-using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Application;
 
-/// <summary>Validation batch 的 AccountMapping 單檔重試入口；只發布到目前專案 artifact store。</summary>
+/// <summary>
+/// export.accountMappingTemplate：把 GL∪TB 科目母體寫成給審計員填分類的範本工作檔。固定檔名、直接寫進
+/// 案件資料夾、每次覆蓋；它不是報告，不進報告清單，也不核對內容。審計員用 Excel 開它填 C 欄、存回
+/// 原檔，再用 import.accountMapping.fromFile 匯回。
+/// </summary>
 public sealed class ExportAccountMappingTemplateHandler(
     IAccountMappingExportRepository repository,
     IAccountMappingTemplateWriter writer,
     IRuleRunStore runStore,
     IProjectStore projectStore,
-    IReportArtifactStore artifactStore,
+    IProjectExportLocator projectLocator,
     ProjectSession session,
-    IJetEventPublisher eventPublisher) : IApplicationActionHandler
+    IJetEventPublisher? eventPublisher = null,
+    IAccountTaxonomyStore? taxonomyStore = null,
+    IMappingStateStore? mappingStore = null) : IApplicationActionHandler
 {
-    private readonly IAccountTaxonomyStore? taxonomyStore;
-    private readonly IMappingStateStore? mappingStore;
-
-    internal ExportAccountMappingTemplateHandler(
-        IAccountMappingExportRepository repository,
-        IAccountMappingTemplateWriter writer,
-        IRuleRunStore runStore,
-        IProjectStore projectStore,
-        IReportArtifactStore artifactStore,
-        ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IAccountTaxonomyStore taxonomyStore)
-        : this(repository, writer, runStore, projectStore, artifactStore, session, eventPublisher)
-    {
-        this.taxonomyStore = taxonomyStore ?? throw new ArgumentNullException(nameof(taxonomyStore));
-    }
-
-    internal ExportAccountMappingTemplateHandler(
-        IAccountMappingExportRepository repository,
-        IAccountMappingTemplateWriter writer,
-        IRuleRunStore runStore,
-        IProjectStore projectStore,
-        IReportArtifactStore artifactStore,
-        ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IAccountTaxonomyStore taxonomyStore,
-        IMappingStateStore mappingStore)
-        : this(
-            repository,
-            writer,
-            runStore,
-            projectStore,
-            artifactStore,
-            session,
-            eventPublisher,
-            taxonomyStore)
-    {
-        this.mappingStore = mappingStore ?? throw new ArgumentNullException(nameof(mappingStore));
-    }
-
-    public ExportAccountMappingTemplateHandler(
-        IAccountMappingExportRepository repository,
-        IAccountMappingTemplateWriter writer,
-        IRuleRunStore runStore,
-        IProjectStore projectStore,
-        IReportArtifactStore artifactStore,
-        ProjectSession session)
-        : this(
-            repository,
-            writer,
-            runStore,
-            projectStore,
-            artifactStore,
-            session,
-            new NullEventPublisher())
-    {
-    }
+    private readonly IJetEventPublisher _eventPublisher = eventPublisher ?? new NullEventPublisher();
 
     public string Action => "export.accountMappingTemplate";
 
@@ -79,18 +28,20 @@ public sealed class ExportAccountMappingTemplateHandler(
         var runId = PayloadReader.GetOptionalString(payload, "runId")
             ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'runId'。");
         var projectId = session.RequireProjectId();
-        var progressSession = new ExportProgressSession(eventPublisher, cancellationToken);
-        var artifactProgress = progressSession.Start(ReportArtifactKind.AccountMapping);
+        var progressSession = new ExportProgressSession(_eventPublisher, cancellationToken);
+        var progress = progressSession.Start(ReportArtifactKind.AccountMapping);
         var run = await ReportExportSupport.RequireCurrentRunAsync(
             runStore, projectId, RuleRunKinds.Validate, runId, cancellationToken);
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+
         var formalWriter = writer as IFormalAccountMappingTemplateWriter;
         if (formalWriter is not null && (taxonomyStore is null || mappingStore is null))
         {
             throw new InvalidOperationException(
-                "Formal account mapping export requires mapping and taxonomy metadata stores.");
+                "Formal account mapping template requires mapping and taxonomy metadata stores.");
         }
+
         var taxonomy = taxonomyStore is null
             ? AccountTaxonomyCatalog.BuiltInSnapshot
             : await taxonomyStore.ReadAsync(projectId, cancellationToken);
@@ -111,17 +62,14 @@ public sealed class ExportAccountMappingTemplateHandler(
         {
             throw new JetActionException(
                 JetErrorCodes.NoTargetData,
-                "尚無可產生科目配對報告的 GL／TB 科目母體。");
+                "尚無可產生科目配對範本的 GL／TB 科目母體；先匯入 GL 與 TB 並執行資料驗證。");
         }
 
-        var plan = JetAuditProgram.Plan(new ReportExportRequest(
-            Action,
+        var fileName = ProjectFileNames.AccountMappingTemplate(projectId);
+        var filePath = await ProjectWorkFileWriter.WriteAsync(
+            projectLocator,
             projectId,
-            ValidationRunId: run.RunId,
-            WorkbookMetadata: workbookMetadata));
-        var request = new ReportArtifactWriteRequest(
-            plan.ArtifactKinds[0],
-            plan.SourceRef,
+            fileName,
             async (stream, ct) =>
             {
                 if (formalWriter is not null)
@@ -130,9 +78,9 @@ public sealed class ExportAccountMappingTemplateHandler(
                         stream,
                         rows,
                         taxonomy.Categories,
-                        plan.WorkbookMetadata!,
+                        workbookMetadata!,
                         ct,
-                        artifactProgress.WriterProgress);
+                        progress.WriterProgress);
                 }
                 else if (writer is IAccountMappingTaxonomyTemplateWriter taxonomyWriter)
                 {
@@ -141,32 +89,29 @@ public sealed class ExportAccountMappingTemplateHandler(
                         rows,
                         taxonomy.Categories,
                         ct,
-                        artifactProgress.WriterProgress);
+                        progress.WriterProgress);
                 }
                 else if (writer is IAccountMappingTemplateProgressWriter progressWriter)
                 {
-                    await progressWriter.WriteAsync(stream, rows, ct, artifactProgress.WriterProgress);
+                    await progressWriter.WriteAsync(stream, rows, ct, progress.WriterProgress);
                 }
                 else
                 {
                     await writer.WriteAsync(stream, rows, ct);
                 }
 
-                artifactProgress.FinalizingWorkbook();
-            });
-        var facts = await JetAuditProgram.ExecuteAsync(
-            plan,
-            new ReportArtifactExecutionPort(artifactStore, [request],
-                _ => artifactProgress.PublishingArtifact()),
+                progress.FinalizingWorkbook();
+            },
             cancellationToken);
-        var result = JetAuditProgram.Finalize(plan, facts);
-        var artifact = result.Artifacts.Single();
+        progress.PublishingArtifact();
 
         return new
         {
             ok = true,
-            artifact = ReportExportSupport.ArtifactWire(artifact),
-            rowCount = rows.Count
+            filePath,
+            fileName,
+            rowCount = rows.Count,
+            validationRunId = run.RunId
         };
     }
 }

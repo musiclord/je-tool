@@ -50,7 +50,6 @@ internal interface IReportExportFactsPort
 public static partial class JetAuditProgram
 {
     private const string ValidationArtifactsAction = "export.validationArtifacts";
-    private const string AccountMappingTemplateAction = "export.accountMappingTemplate";
     private const string PrescreenReportAction = "export.prescreenReport";
     private const string CriteriaSelectionReportAction = "export.criteriaSelectionReport";
 
@@ -80,23 +79,16 @@ public static partial class JetAuditProgram
 
         var (kinds, sourceRef, useAtomicBatch) = request.ActionName switch
         {
+            // 帳戶對應範本自 2026-09-02 起是工作檔，不在報告匯出計畫裡；驗證批次只剩兩份報告。
             ValidationArtifactsAction => (
                 Kinds(
                     ReportArtifactKind.ValidationReport,
-                    ReportArtifactKind.AccountMapping,
                     ReportArtifactKind.InfReport),
                 new ReportArtifactSourceRefs(
                     ValidationRunId: Required(
                         request.ValidationRunId,
                         nameof(request.ValidationRunId))),
                 true),
-            AccountMappingTemplateAction => (
-                Kinds(ReportArtifactKind.AccountMapping),
-                new ReportArtifactSourceRefs(
-                    ValidationRunId: Required(
-                        request.ValidationRunId,
-                        nameof(request.ValidationRunId))),
-                false),
             PrescreenReportAction => (
                 Kinds(ReportArtifactKind.PrescreenReport),
                 new ReportArtifactSourceRefs(

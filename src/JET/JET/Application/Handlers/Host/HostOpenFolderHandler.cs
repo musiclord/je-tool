@@ -51,7 +51,9 @@ public sealed class HostOpenFolderHandler(
         catch (JetActionException exception) when (
             exception.Code is JetErrorCodes.FileNotFound or JetErrorCodes.FileReadError)
         {
-            throw new JetActionException(JetErrorCodes.ArtifactNotFound, "找不到目前專案中的指定報告產物。");
+            throw new JetActionException(
+                JetErrorCodes.ArtifactNotFound,
+                "找不到這份報告的檔案，可能已被移動或刪除；重新匯出即可。");
         }
 
         await hostShell.RevealInExplorerAsync(path, cancellationToken);

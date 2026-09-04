@@ -43,8 +43,6 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         var handler = new ExportValidationArtifactsHandler(
             validationWriter,
             new NoOpInfWriter(),
-            new OneRowAccountMappingRepository(),
-            new NoOpAccountMappingWriter(),
             new FixedRunStore(new RuleRunRecord(
                 runId,
                 RuleRunKinds.Validate,
@@ -155,8 +153,6 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         var handler = new ExportValidationArtifactsHandler(
             validationWriter,
             new NoOpInfWriter(),
-            new OneRowAccountMappingRepository(),
-            new NoOpAccountMappingWriter(),
             new FixedRunStore(new RuleRunRecord(
                 runId,
                 RuleRunKinds.Validate,
@@ -205,7 +201,6 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             new[]
             {
                 ReportArtifactKind.ValidationReport,
-                ReportArtifactKind.AccountMapping,
                 ReportArtifactKind.InfReport
             },
             artifactStore.Requests.Select(request => request.Kind).ToArray());
@@ -233,8 +228,6 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         var handler = new ExportValidationArtifactsHandler(
             validationWriter,
             new NoOpInfWriter(),
-            new OneRowAccountMappingRepository(),
-            new NoOpAccountMappingWriter(),
             new FixedRunStore(new RuleRunRecord(
                 runId,
                 RuleRunKinds.Validate,
@@ -607,7 +600,7 @@ public sealed class ExportValidationArtifactsTypedSeamTests
                     request.SourceRef,
                     generatedUtc,
                     output.Length,
-                    new string('0', 64),
+                    LastWriteUtc: null,
                     Stale: false));
             }
 
@@ -615,11 +608,6 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         }
 
         public Task<IReadOnlyList<ReportArtifact>> ListAsync(
-            string projectId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ReportArtifactCatalog> ReadCatalogAsync(
             string projectId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -639,14 +627,6 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         public Task<int> MarkStaleAsync(
             string projectId,
             Func<ReportArtifact, bool> predicate,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ReportArtifactCleanupResult> CleanupAsync(
-            string projectId,
-            string expectedCatalogRevision,
-            IReadOnlyList<ReportArtifactCleanupCandidate> candidates,
-            string requestedBy,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

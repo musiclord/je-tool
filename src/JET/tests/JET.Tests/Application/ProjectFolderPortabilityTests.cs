@@ -132,14 +132,16 @@ public sealed class ProjectFolderPortabilityTests
             var resampledInfSample = await WalkInfSampleAsync(target);
             Assert.Equal(sourceInfSample, resampledInfSample);
 
-            var cleanupPreview = await target.DispatchAsync("report.cleanupPreview");
-            Assert.True(cleanupPreview.GetProperty("candidateCount").GetInt32() >= 1);
-            var movedArtifactCandidate = Assert.Single(
-                cleanupPreview.GetProperty("candidates").EnumerateArray(),
-                candidate => candidate.GetProperty("artifactId").GetString() == artifactId);
-            Assert.Equal(artifactFileName, movedArtifactCandidate.GetProperty("fileName").GetString());
-            Assert.DoesNotContain(sourceRoot.Path, cleanupPreview.GetRawText(), StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain(targetRoot.Path, cleanupPreview.GetRawText(), StringComparison.OrdinalIgnoreCase);
+            // 搬到新根後，報告清單仍列出同一筆產物，且 wire 上沒有任何一邊的絕對路徑。
+            var reloaded = await target.DispatchAsync(
+                "project.load",
+                JsonSerializer.Serialize(new { projectId }));
+            var movedArtifact = Assert.Single(
+                reloaded.GetProperty("reportArtifacts").EnumerateArray(),
+                artifact => artifact.GetProperty("artifactId").GetString() == artifactId);
+            Assert.Equal(artifactFileName, movedArtifact.GetProperty("fileName").GetString());
+            Assert.DoesNotContain(sourceRoot.Path, reloaded.GetRawText(), StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(targetRoot.Path, reloaded.GetRawText(), StringComparison.OrdinalIgnoreCase);
 
             AssertManifestUsesRelativeFileNames(targetProjectDirectory, artifactId, artifactFileName);
             await target.DispatchAsync(

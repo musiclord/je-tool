@@ -191,8 +191,10 @@ public sealed class WorkpaperDirectTemplateArtifactAtomicityTests
     }
 
     [Fact]
-    public async Task DirectWriter_ExistingWorkingPaperLockedByExcelLikeHandle_PreservesPriorArtifactAndManifest()
+    public async Task DirectWriter_ExistingWorkingPaperLockedByExcelLikeHandle_WritesNewVersionAndLeavesLockedFileAlone()
     {
+        // 2026-09-02 裁定：Working Paper 每次匯出都是新版本檔。舊版被 Excel 開著不會擋住匯出，也不會被改寫；
+        // 修改前這個測試預期 IOException，因為舊設計會嘗試覆蓋同名檔。
         using var prepared = await PrepareAsync();
         var writer = (IWorkpaperPlanWriter)CreateWriter(
             prepared.Database,
@@ -202,6 +204,7 @@ public sealed class WorkpaperDirectTemplateArtifactAtomicityTests
             ReplacementContext(prepared.Context),
             prepared.Plan);
 
+        ReportArtifact published;
         using (var blocker = new FileStream(
                    prepared.Snapshot.ArtifactPath,
                    FileMode.Open,
@@ -209,16 +212,28 @@ public sealed class WorkpaperDirectTemplateArtifactAtomicityTests
                    FileShare.None))
         {
             Assert.True(blocker.Length > 0);
-            await Assert.ThrowsAnyAsync<IOException>(() =>
-                prepared.Store.WriteAsync(
-                    prepared.ProjectId,
-                    replacement,
-                    CancellationToken.None));
+            published = await prepared.Store.WriteAsync(
+                prepared.ProjectId,
+                replacement,
+                CancellationToken.None);
         }
 
-        await AssertCommittedSnapshotUnchangedAsync(
-            prepared,
-            recoverPendingMutation: true);
+        Assert.Equal(ReportArtifactKind.WorkingPaper, published.Kind);
+        Assert.NotEqual(prepared.Snapshot.Artifact.RelativeFileName, published.RelativeFileName);
+        var publishedPath = Path.GetFullPath(Path.Combine(prepared.ProjectDirectory, published.RelativeFileName));
+        Assert.True(File.Exists(publishedPath));
+        Assert.Equal(
+            prepared.Snapshot.WorkbookBytes,
+            await File.ReadAllBytesAsync(prepared.Snapshot.ArtifactPath, CancellationToken.None));
+        Assert.Equal(
+            prepared.Snapshot.WorkbookPaths.Append(publishedPath).Order(StringComparer.Ordinal).ToArray(),
+            CurrentWorkbookPaths(prepared.ProjectDirectory));
+
+        var listed = await prepared.Store.ListAsync(prepared.ProjectId, CancellationToken.None);
+        Assert.Equal(2, listed.Count(artifact => artifact.Kind == ReportArtifactKind.WorkingPaper));
+        Assert.Contains(listed, artifact => artifact.ArtifactId == prepared.Snapshot.Artifact.ArtifactId);
+        Assert.Contains(listed, artifact => artifact.ArtifactId == published.ArtifactId);
+        AssertNoTemporaryState(prepared.ProjectDirectory);
     }
 
     private static async Task<PreparedCase> PrepareAsync()
@@ -498,7 +513,6 @@ public sealed class WorkpaperDirectTemplateArtifactAtomicityTests
         Assert.Equal(expected.RelativeFileName, actual.RelativeFileName);
         Assert.Equal(expected.GeneratedUtc, actual.GeneratedUtc);
         Assert.Equal(expected.Bytes, actual.Bytes);
-        Assert.Equal(expected.Sha256, actual.Sha256);
         Assert.Equal(expected.Stale, actual.Stale);
         Assert.Equal(
             expected.SourceRef.ValidationRunId,

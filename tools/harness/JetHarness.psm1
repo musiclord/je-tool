@@ -421,7 +421,7 @@ function Read-JetRegistry {
         [ordered]@{ name = 'startup-smoke'; timeoutSeconds = 120; actionBudget = 4; expectedActionCount = 1; screenshotBudget = 0 },
         [ordered]@{ name = 'synthetic-sqlite-create'; timeoutSeconds = 150; actionBudget = 16; expectedActionCount = 15; screenshotBudget = 0 },
         [ordered]@{ name = 'mapping-required-sync'; timeoutSeconds = 180; actionBudget = 12; expectedActionCount = 10; screenshotBudget = 0 },
-        [ordered]@{ name = 'conflicted-journal-recovery'; timeoutSeconds = 180; actionBudget = 8; expectedActionCount = 5; screenshotBudget = 0 }
+        [ordered]@{ name = 'edited-report-still-loads'; timeoutSeconds = 180; actionBudget = 8; expectedActionCount = 4; screenshotBudget = 0 }
     )
     if ($guiScenarios.Count -ne $expectedGuiScenarios.Count) {
         throw [InvalidDataException]::new('GUI scenarios must contain only the four reviewed scenarios.')
@@ -468,7 +468,7 @@ function Read-JetRegistry {
     if ([string]$excelSettings.driverProject -cne 'tools/harness/excel-driver/ExcelDriver.csproj' -or
         [string]$excelSettings.driverAssembly -cne 'tools/harness/excel-driver/bin/Release/net10.0-windows/Jet.ExcelDriver.dll' -or
         [string]$excelSettings.configuration -cne 'Release' -or
-        [string]$excelSettings.fixtureMethodPattern -cne '*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationRun_AndPublishesSixCurrentArtifacts*' -or
+        [string]$excelSettings.fixtureMethodPattern -cne '*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate*' -or
         [string]$excelSettings.fixtureEnvironmentVariable -cne 'JET_SIX_REPORT_EVIDENCE_DIR' -or
         $environmentNames -cnotcontains ([string]$excelSettings.fixtureEnvironmentVariable) -or
         [string]$excelSettings.scenario -cne 'synthetic-report-roundtrip' -or
@@ -1004,12 +1004,42 @@ function Read-JetSkipPolicy {
     return $policy
 }
 
+function Format-JetFailureMessage {
+    param(
+        [AllowNull()] [string] $Message,
+        [Parameter(Mandatory = $true)] [string] $RepositoryRoot
+    )
+
+    # 失敗訊息只保留一行、最多 240 字，並把儲存庫根目錄與使用者目錄換成固定標記。
+    # TRX 在進到這裡之前已由 Protect-JetSensitiveTestEvidence 遮蔽本次明示的敏感值。
+    if ([string]::IsNullOrWhiteSpace($Message)) {
+        return $null
+    }
+    $text = [Text.RegularExpressions.Regex]::Replace($Message.Trim(), '\s+', ' ')
+    $replacements = @(
+        @([IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\', '/'), '[repository]'),
+        @([Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile), '[user-profile]'))
+    foreach ($pair in $replacements) {
+        $value = [string]$pair[0]
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            continue
+        }
+        $text = $text.Replace($value, [string]$pair[1], [StringComparison]::OrdinalIgnoreCase)
+        $text = $text.Replace($value.Replace('\', '/'), [string]$pair[1], [StringComparison]::OrdinalIgnoreCase)
+    }
+    if ($text.Length -gt 240) {
+        $text = $text.Substring(0, 240) + '...'
+    }
+    return $text
+}
+
 function Read-JetTrxResult {
     param(
         [Parameter(Mandatory = $true)] [string] $RepositoryRoot,
         [Parameter(Mandatory = $true)] [string] $RunDirectory,
         [Parameter(Mandatory = $true)] [string] $TrxPath,
-        [Parameter(Mandatory = $true)] [string] $SummaryPath
+        [Parameter(Mandatory = $true)] [string] $SummaryPath,
+        [switch] $WithholdFailureMessages
     )
 
     if (-not (Test-JetDescendantPath -Root $RunDirectory -Candidate $TrxPath) -or
@@ -1087,20 +1117,31 @@ function Read-JetTrxResult {
             $skipReasonHash = Get-JetTextSha256 -Value (Normalize-JetSkipReason -Reason $message)
         }
 
+        # 失敗訊息不進 summary 與 records，只用來組出收據裡的第一個失敗；私人案件路線會整個保留不寫。
+        $failureMessage = $null
+        if ($outcome -ceq 'Failed') {
+            $failureMessage = [string]$result.SelectSingleNode('t:Output/t:ErrorInfo/t:Message', $namespace)?.InnerText
+        }
+
         $rawRecords.Add([pscustomobject]@{
             Fqn = $fqn
             DisplayName = $displayName
             Outcome = $outcome
             SkipReasonSha256 = $skipReasonHash
+            FailureMessage = $failureMessage
         })
     }
 
     $records = New-Object 'System.Collections.Generic.List[object]'
+    $failureMessages = [Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
     foreach ($group in @($rawRecords | Group-Object { "$($_.Fqn)`u{001f}$($_.DisplayName)" } | Sort-Object Name)) {
         $ordinal = 0
         foreach ($item in @($group.Group | Sort-Object Outcome, Fqn, DisplayName)) {
             $ordinal++
             $identity = "$($item.Fqn)`u{001f}$($item.DisplayName)`u{001f}$ordinal"
+            if ($item.Outcome -ceq 'Failed' -and -not [string]::IsNullOrWhiteSpace([string]$item.FailureMessage)) {
+                $failureMessages[$identity] = [string]$item.FailureMessage
+            }
             $records.Add([pscustomobject]@{
                 identity = $identity
                 fqn = $item.Fqn
@@ -1134,9 +1175,28 @@ function Read-JetTrxResult {
     }
     Write-JetAtomicJson -Path $SummaryPath -Value $summary
 
+    # 收據直接寫出依名稱排序的第一個失敗測試與它的訊息，讓讀收據的人或 agent 不必再翻 TRX。
+    $firstFailure = $null
+    $firstFailedRecord = @($recordArray | Where-Object outcome -CEQ 'Failed' | Select-Object -First 1)
+    if ($firstFailedRecord.Count -gt 0) {
+        $firstIdentity = [string]$firstFailedRecord[0].identity
+        $firstMessage = if ($WithholdFailureMessages -or -not $failureMessages.ContainsKey($firstIdentity)) {
+            $null
+        }
+        else {
+            Format-JetFailureMessage -Message $failureMessages[$firstIdentity] -RepositoryRoot $RepositoryRoot
+        }
+        $firstFailure = [ordered]@{
+            fqn = [string]$firstFailedRecord[0].fqn
+            message = $firstMessage
+            messageWithheld = [bool]$WithholdFailureMessages
+        }
+    }
+
     return [pscustomobject]@{
         Summary = $summary
         Records = $recordArray
+        FirstFailure = $firstFailure
         Receipt = [ordered]@{
             counters = $summary.counters
             inventorySha256 = $summary.inventorySha256
@@ -1144,6 +1204,7 @@ function Read-JetTrxResult {
             trxSha256 = $summary.trxSha256
             trx = Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $TrxPath
             summary = Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $SummaryPath
+            firstFailure = $firstFailure
             failedTests = @($recordArray | Where-Object outcome -CEQ 'Failed' | Select-Object -First 20 -ExpandProperty fqn)
             skippedTests = @($recordArray | Where-Object outcome -CEQ 'Skipped' | Select-Object -First 20 | ForEach-Object {
                     [ordered]@{ fqn = $_.fqn; reasonSha256 = $_.skipReasonSha256 }
@@ -1309,6 +1370,7 @@ function Invoke-JetChildStep {
         durationSeconds = [Math]::Round(($completedUtc - $startedUtc).TotalSeconds, 3)
         classification = [ordered]@{
             reason = $classificationReason
+            detail = $null
         }
         process = [ordered]@{
             processId = $result.ProcessId
@@ -1624,7 +1686,8 @@ function Invoke-JetTestStep {
         [hashtable] $EnvironmentVariablesToSet = @{},
         [string[]] $SensitiveValuesToRedact = @(),
         [ValidateSet('NoSkips', 'BlockOnSkip', 'ProviderRequired', 'PublicPolicy', 'ProviderPolicy')]
-        [string] $SkipPolicy = 'NoSkips'
+        [string] $SkipPolicy = 'NoSkips',
+        [switch] $WithholdFailureMessages
     )
 
     $testExecutableRelative = "src/JET/tests/JET.Tests/bin/$Configuration/$($Registry.testSettings.targetFramework)/JET.Tests.exe"
@@ -1681,16 +1744,34 @@ function Invoke-JetTestStep {
             -RepositoryRoot $RepositoryRoot `
             -RunDirectory $RunDirectory `
             -TrxPath $trxPath `
-            -SummaryPath $summaryPath
+            -SummaryPath $summaryPath `
+            -WithholdFailureMessages:$WithholdFailureMessages
         $step['test'] = $parsed.Receipt
 
         if ($parsed.Summary.counters.total -lt $MinimumExpectedTests) {
             $step.status = 'failed'
             $step.classification.reason = 'test_count_below_minimum'
         }
-        elseif ($parsed.Summary.counters.failed -gt 0 -and $step.status -ceq 'passed') {
-            $step.status = 'failed'
-            $step.classification.reason = 'trx_contains_failed_tests'
+        elseif ($parsed.Summary.counters.failed -gt 0) {
+            # 測試程式因失敗回非零結束碼時，status 早已是 failed 而 reason 仍空；這裡一律補上原因與
+            # 第一個失敗的細節，讓 firstRed 不再只有 child_failed。
+            if ($step.status -ceq 'passed') {
+                $step.status = 'failed'
+            }
+            if ([string]::IsNullOrWhiteSpace([string]$step.classification.reason)) {
+                $step.classification.reason = 'trx_contains_failed_tests'
+            }
+            if ($null -ne $parsed.FirstFailure) {
+                $failedCount = [int]$parsed.Summary.counters.failed
+                $detail = "$failedCount failed. $($parsed.FirstFailure.fqn)"
+                if ($parsed.FirstFailure.messageWithheld) {
+                    $detail += ' (message withheld: private case)'
+                }
+                elseif (-not [string]::IsNullOrWhiteSpace([string]$parsed.FirstFailure.message)) {
+                    $detail += ": $($parsed.FirstFailure.message)"
+                }
+                $step.classification['detail'] = $detail
+            }
         }
 
         switch -CaseSensitive ($SkipPolicy) {
@@ -2395,13 +2476,16 @@ function Invoke-JetGuiScenarioStep {
                     [bool]$manifest.assertions.requiredRailRecovered -and
                     [bool]$manifest.assertions.mappingFocusPreserved
             }
-            'conflicted-journal-recovery' {
+            'edited-report-still-loads' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
-                    [bool]$manifest.assertions.conflictFeedbackVisible -and
+                    [bool]$manifest.assertions.editedReportLoaded -and
+                    [bool]$manifest.assertions.modifiedOutsideVisible -and
+                    [bool]$manifest.assertions.workpaperExportEnabled -and
+                    [bool]$manifest.assertions.cleanupPanelAbsent -and
                     [bool]$manifest.assertions.supportExportAvailable -and
                     [bool]$manifest.assertions.supportLogWritten -and
                     [bool]$manifest.assertions.supportLogSafe -and
-                    [bool]$manifest.assertions.conflictedProjectDeleted
+                    [bool]$manifest.assertions.legacyJournalDiscarded
             }
             default { $false }
         }
@@ -2807,6 +2891,62 @@ function Invoke-JetGitLines {
     return [pscustomobject]@{
         ExitCode = $exitCode
         Lines = @($output | ForEach-Object { [string]$_ })
+    }
+}
+
+function Get-JetTestAssertionDrift {
+    param([Parameter(Mandatory = $true)] [string] $RepositoryRoot)
+
+    # 比對 HEAD 與工作樹在 src/JET/tests 下的差異，回答「這次改動有沒有拿掉斷言、刪掉測試或加上 Skip」。
+    # 這是警示不是判定：數字大於 0 只表示要說明原因，不會讓命令失敗。ReleaseCandidate 快照沒有 HEAD，
+    # 或環境沒有 git 時，記為未量測。
+    try {
+        $diff = Invoke-JetGitLines -RepositoryRoot $RepositoryRoot -Arguments @(
+            'diff', 'HEAD', '--unified=0', '--no-color', '--', 'src/JET/tests')
+    }
+    catch {
+        return [ordered]@{ measured = $false; reason = 'git_unavailable' }
+    }
+    if ($diff.ExitCode -ne 0) {
+        return [ordered]@{ measured = $false; reason = 'git_diff_unavailable' }
+    }
+
+    $assertionsRemoved = 0
+    $assertionsAdded = 0
+    $factsOrTheoriesRemoved = 0
+    $skipsAdded = 0
+    $files = [Collections.Generic.SortedSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($line in $diff.Lines) {
+        if ($line.StartsWith('+++ b/', [StringComparison]::Ordinal)) {
+            [void]$files.Add($line.Substring(6))
+            continue
+        }
+        if ($line.StartsWith('---', [StringComparison]::Ordinal) -or
+            $line.StartsWith('+++', [StringComparison]::Ordinal) -or
+            $line.StartsWith('@@', [StringComparison]::Ordinal) -or
+            $line.StartsWith('diff ', [StringComparison]::Ordinal) -or
+            $line.StartsWith('index ', [StringComparison]::Ordinal)) {
+            continue
+        }
+        if ($line.StartsWith('-', [StringComparison]::Ordinal)) {
+            if ([regex]::IsMatch($line, '\bAssert\.')) { $assertionsRemoved++ }
+            if ([regex]::IsMatch($line, '\[\s*(Fact|Theory)\b')) { $factsOrTheoriesRemoved++ }
+        }
+        elseif ($line.StartsWith('+', [StringComparison]::Ordinal)) {
+            if ([regex]::IsMatch($line, '\bAssert\.')) { $assertionsAdded++ }
+            if ([regex]::IsMatch($line, '\bSkip\s*=')) { $skipsAdded++ }
+        }
+    }
+
+    return [ordered]@{
+        measured = $true
+        baseline = 'HEAD'
+        files = @($files)
+        assertionsRemoved = $assertionsRemoved
+        assertionsAdded = $assertionsAdded
+        factsOrTheoriesRemoved = $factsOrTheoriesRemoved
+        skipsAdded = $skipsAdded
+        needsExplanation = ($assertionsRemoved -gt 0 -or $factsOrTheoriesRemoved -gt 0 -or $skipsAdded -gt 0)
     }
 }
 
@@ -3278,12 +3418,25 @@ function Get-JetFirstRed {
 
     foreach ($step in $Steps) {
         if ($step.status -cne 'passed') {
+            # detail 是選用欄位：測試步驟會放第一個失敗測試與訊息，其他步驟沒有。步驟可能是 hashtable，
+            # 也可能是從子收據讀回的 PSCustomObject，所以兩種都要能讀。
+            $detail = $null
+            $classification = $step.classification
+            if ($classification -is [Collections.IDictionary]) {
+                if ($classification.Contains('detail')) {
+                    $detail = $classification['detail']
+                }
+            }
+            elseif ($null -ne $classification -and $null -ne $classification.PSObject.Properties['detail']) {
+                $detail = $classification.detail
+            }
             return [ordered]@{
                 kind = 'step'
                 name = $step.name
                 status = $step.status
                 exitCode = $step.process.exitCode
                 reason = $step.classification.reason
+                detail = $detail
             }
         }
     }
@@ -3750,7 +3903,8 @@ function Invoke-JetHarness {
                             -EnvironmentVariablesToRemove @($registry.testSettings.environmentVariablesToRemove) `
                             -EnvironmentVariablesToSet $privatePreflight.EnvironmentVariablesToSet `
                             -SensitiveValuesToRedact $privateSensitiveValues `
-                            -SkipPolicy NoSkips
+                            -SkipPolicy NoSkips `
+                            -WithholdFailureMessages
                         $steps.Add($privateCase)
                     }
                 }
@@ -4070,6 +4224,7 @@ function Invoke-JetHarness {
                     excludedProfiles = @($registry.testSettings.excludedProfiles)
                     protectedWorkspaceTests = 'excluded'
                     sanitizedEnvironmentVariables = @($registry.testSettings.environmentVariablesToRemove)
+                    assertionDrift = Get-JetTestAssertionDrift -RepositoryRoot $repositoryFull
                 }
             }
             'Provider' {
@@ -4183,6 +4338,7 @@ function Invoke-JetHarness {
             exitCode = $receipt.exitCode
             runId = $context.RunId
             receipt = Get-JetRelativePath -RepositoryRoot $repositoryFull -Path $context.ReceiptPath
+            firstRed = $receipt.firstRed
             privateData = $receipt.privateData
         })
         return $exitCode

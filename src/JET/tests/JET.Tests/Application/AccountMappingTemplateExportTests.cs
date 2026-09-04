@@ -423,10 +423,11 @@ public sealed class AccountMappingTemplateExportTests
                 JsonSerializer.Serialize(new { runId }));
             Assert.True(export.GetProperty("ok").GetBoolean());
             Assert.Equal(3, export.GetProperty("rowCount").GetInt32());
-            templatePath = Path.Combine(
-                host.ProjectsRoot,
-                projectId,
-                export.GetProperty("artifact").GetProperty("fileName").GetString()!);
+            templatePath = export.GetProperty("filePath").GetString()!;
+            Assert.Equal(
+                Path.Combine(host.ProjectsRoot, projectId),
+                Path.GetDirectoryName(templatePath),
+                StringComparer.OrdinalIgnoreCase);
 
             // 審計員填 C 欄（1101→Cash、2101→Receivables、5101→Revenue），原檔另存後上傳。
             var fill = new Dictionary<string, string>
@@ -479,8 +480,8 @@ public sealed class AccountMappingTemplateExportTests
         var export = await host.DispatchAsync(
             "export.accountMappingTemplate",
             JsonSerializer.Serialize(new { runId }));
-        var fileName = export.GetProperty("artifact").GetProperty("fileName").GetString()!;
-        var templatePath = Path.Combine(host.ProjectsRoot, projectId, fileName);
+        var templatePath = export.GetProperty("filePath").GetString()!;
+        var fileName = Path.GetFileName(templatePath);
 
         Assert.Equal(".xlsx", Path.GetExtension(fileName));
 
@@ -522,10 +523,11 @@ public sealed class AccountMappingTemplateExportTests
         var runId = validate.GetProperty("resultRef").GetProperty("runId").GetString();
         var data = await host.DispatchAsync("export.accountMappingTemplate",
             JsonSerializer.Serialize(new { runId }));
-        var outputPath = Path.Combine(
-            host.ProjectsRoot,
-            ctx.ProjectId,
-            data.GetProperty("artifact").GetProperty("fileName").GetString()!);
+        var outputPath = data.GetProperty("filePath").GetString()!;
+        Assert.Equal(
+            Path.Combine(host.ProjectsRoot, ctx.ProjectId),
+            Path.GetDirectoryName(outputPath),
+            StringComparer.OrdinalIgnoreCase);
 
         Assert.True(data.GetProperty("ok").GetBoolean());
         Assert.False(data.TryGetProperty("outputPath", out _));
@@ -588,10 +590,7 @@ public sealed class AccountMappingTemplateExportTests
             {
                 runId = sqliteValidate.GetProperty("resultRef").GetProperty("runId").GetString()
             }));
-        var sqliteOut = Path.Combine(
-            sqliteHost.ProjectsRoot,
-            sqliteProject.ProjectId,
-            sqliteExport.GetProperty("artifact").GetProperty("fileName").GetString()!);
+        var sqliteOut = sqliteExport.GetProperty("filePath").GetString()!;
         List<(string Code, string Name)> sqliteRows;
         sqliteRows = ReadTemplateRows(sqliteOut);
 
@@ -605,10 +604,7 @@ public sealed class AccountMappingTemplateExportTests
                 {
                     runId = sqlValidate.GetProperty("resultRef").GetProperty("runId").GetString()
                 }));
-            var sqlServerOut = Path.Combine(
-                sqlServerHost.ProjectsRoot,
-                sqlProject.ProjectId,
-                sqlExport.GetProperty("artifact").GetProperty("fileName").GetString()!);
+            var sqlServerOut = sqlExport.GetProperty("filePath").GetString()!;
             var sqlServerRows = ReadTemplateRows(sqlServerOut);
 
             // provider 等價：範本列（code + name）逐項相同。

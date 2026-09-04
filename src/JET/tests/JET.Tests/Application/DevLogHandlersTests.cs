@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.Domain;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -131,6 +132,42 @@ public sealed class DevLogHandlersTests
         var filePath = export.GetProperty("filePath").GetString()!;
         Assert.True(File.Exists(filePath));
         Assert.Contains("action.start", await File.ReadAllTextAsync(filePath));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DevLogExportFile_IncludesFailedActionLinesByCorrelation_WhenNoProjectIsOpen(bool withSink)
+    {
+        // picker 上載入失敗時案件尚未開啟，那次 action 的診斷紀錄沒有 projectId，只有 correlationId。
+        // 匯出要能靠 correlationId 把這些行一起帶出，否則最需要診斷的那次失敗反而不在檔案裡。
+        using var host = new HandlerTestHost(enableDevTools: true, withDiagnosticLogFile: withSink);
+        var projectId = await CreateProjectAsync(host);
+        // project.create 會把新案件設成目前案件；回到 picker 時前端會呼叫 project.releaseLock 離場，
+        // 之後的 action 才像真實 picker 一樣沒有 project_id scope。
+        await host.DispatchAsync("project.releaseLock");
+        const string correlationId = "picker-load-failure";
+        await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+            "project.load",
+            JsonSerializer.Serialize(new { projectId = "missing-project" }),
+            CancellationToken.None,
+            correlationId));
+
+        var without = await host.DispatchAsync(
+            "dev.log.exportFile",
+            JsonSerializer.Serialize(new { projectId }));
+        var withoutText = await File.ReadAllTextAsync(without.GetProperty("filePath").GetString()!);
+        Assert.DoesNotContain(correlationId, withoutText, StringComparison.Ordinal);
+
+        var export = await host.DispatchAsync(
+            "dev.log.exportFile",
+            JsonSerializer.Serialize(new { projectId, correlationId }));
+        var text = await File.ReadAllTextAsync(export.GetProperty("filePath").GetString()!);
+
+        Assert.Equal(withSink ? "fileSink" : "ringBuffer", export.GetProperty("source").GetString());
+        Assert.Contains(correlationId, text, StringComparison.Ordinal);
+        Assert.Contains("action.error", text, StringComparison.Ordinal);
+        Assert.Contains("\"action\":\"project.load\"", text, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -13,7 +13,7 @@ internal static class GuiScenarioCatalog
     internal const string StartupSmoke = "startup-smoke";
     internal const string SyntheticSqliteCreate = "synthetic-sqlite-create";
     internal const string MappingRequiredSync = "mapping-required-sync";
-    internal const string ConflictedJournalRecovery = "conflicted-journal-recovery";
+    internal const string EditedReportStillLoads = "edited-report-still-loads";
 
     internal static bool TryResolve(string name, out GuiScenarioDefinition definition)
     {
@@ -25,10 +25,10 @@ internal static class GuiScenarioCatalog
                 MappingRequiredSync,
                 12,
                 ["seed-mapping-ready-project"]),
-            ConflictedJournalRecovery => new GuiScenarioDefinition(
-                ConflictedJournalRecovery,
+            EditedReportStillLoads => new GuiScenarioDefinition(
+                EditedReportStillLoads,
                 8,
-                ["seed-conflicted-journal-project", "release-visible-surface"]),
+                ["seed-edited-report-project", "release-visible-surface"]),
             _ => null!
         };
         return definition is not null;
@@ -139,11 +139,14 @@ internal sealed class GuiAssertions
     internal bool RequiredRailBecameIncomplete { get; set; }
     internal bool RequiredRailRecovered { get; set; }
     internal bool MappingFocusPreserved { get; set; }
-    internal bool ConflictFeedbackVisible { get; set; }
+    internal bool EditedReportLoaded { get; set; }
+    internal bool ModifiedOutsideVisible { get; set; }
+    internal bool WorkpaperExportEnabled { get; set; }
+    internal bool CleanupPanelAbsent { get; set; }
     internal bool SupportExportAvailable { get; set; }
     internal bool SupportLogWritten { get; set; }
     internal bool SupportLogSafe { get; set; }
-    internal bool ConflictedProjectDeleted { get; set; }
+    internal bool LegacyJournalDiscarded { get; set; }
 }
 
 internal sealed class GuiProcessEvidence
@@ -251,11 +254,14 @@ internal static class ManifestWriter
                 requiredRailBecameIncomplete = outcome.Assertions.RequiredRailBecameIncomplete,
                 requiredRailRecovered = outcome.Assertions.RequiredRailRecovered,
                 mappingFocusPreserved = outcome.Assertions.MappingFocusPreserved,
-                conflictFeedbackVisible = outcome.Assertions.ConflictFeedbackVisible,
+                editedReportLoaded = outcome.Assertions.EditedReportLoaded,
+                modifiedOutsideVisible = outcome.Assertions.ModifiedOutsideVisible,
+                workpaperExportEnabled = outcome.Assertions.WorkpaperExportEnabled,
+                cleanupPanelAbsent = outcome.Assertions.CleanupPanelAbsent,
                 supportExportAvailable = outcome.Assertions.SupportExportAvailable,
                 supportLogWritten = outcome.Assertions.SupportLogWritten,
                 supportLogSafe = outcome.Assertions.SupportLogSafe,
-                conflictedProjectDeleted = outcome.Assertions.ConflictedProjectDeleted
+                legacyJournalDiscarded = outcome.Assertions.LegacyJournalDiscarded
             },
             process = new
             {

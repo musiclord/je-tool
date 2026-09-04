@@ -33,8 +33,8 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
   remote。計畫完成、測試通過或工作樹可提交都不是授權。
 - 禁止 `git add -A`、`git add --all`、`git add -u`、`git add .` 與 `git write-tree`；獲准 stage 也只加入
   使用者確認的明確路徑，避免忽略規則改變時把私人資料寫入 Git object store。
-- Commit 訊息與 PR 內文不得自行加入 `Co-Authored-By`、`Generated with` 等 AI 署名；內容只寫結果、必要
-  理由、風險與實際驗證，不逐檔重述 diff。
+- Commit 訊息用繁體中文：標題一行說清楚改了什麼；內文最多幾點寫結果、必要理由、風險與實際驗證，不逐檔
+  重述 diff，也不加 `Co-Authored-By`、`Generated with` 等 AI 署名。PR 內文同樣規則。
 
 **事實保真**（適用於所有改寫、轉述與遷移）
 
@@ -44,12 +44,35 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
   「查不到」是合法答案，比看起來完整的猜測有價值。
 - 不自行創造專案名詞，不把暫時性描述升格成正式規範，不刪除條件、例外與不確定性。
 
+**寫給人的文字**（文件、計畫檔、commit 訊息與回覆都算）
+
+- 讀者是第一次接觸專案的維護者。用台灣常見的日常中文寫完整句子；固定命令、程式名稱與必要術語保留
+  英文，第一次出現時說用途。
+- 不用 `＋`、`／`、`→` 把名詞串成句子，改寫成「和」「或」「然後」；不用兩層括號，一句只講一件事。
+- 驗證框架的工作用語（receipt、gate、lane、`紅燈`、`綠燈`）不進面向人的文字，改說收據、檢查、路線、
+  通過、失敗；`first-red` 是框架固定名稱，第一次出現時說明是「第一次失敗的證據」。
+- 寫完重讀一次，找形近錯字，並確認讀者能一句話說出誰做了什麼、結果如何。要整段改寫或收到 style
+  warning 時，依 `.agents/skills/jet-readable-docs/SKILL.md` 一段一段處理。
+
+**測試**
+
+- 日常開發與測試以 SQLite 和 DuckDB 為主。SQL Server 開發目前暫緩；只有使用者當次明示需要時，才啟動
+  本機服務或執行 live `Provider`、SQL Server `PrivateCase`。不能因環境有連線設定或想補齊驗證就自行加跑。
+- 本機 SQL Server 平時保持手動啟動且停止。開發測試收尾時確認服務狀態；當次若用到本機 SQL Server，
+  無論成功、失敗或中止，都要停止服務並確認沒有留下 `sqlservr.exe`。細節見
+  [`tools/README.md`](tools/README.md#日常資料庫測試與服務收尾)。
+- 不得為了讓測試通過而放寬、刪除或跳過既有斷言，也不得把預期值改成由被測程式算出來；新增測試不受此限。
+  要改既有測試時，先寫明原因，並保留第一次失敗的證據。
+
 **架構**（完整規格見 `docs/jet-guide.md`）
 
 - UI 只負責操作與呈現；審計判斷留在 Domain、AuditCore、Application 與資料庫實作邊界。
 - 前端與 C# 之間只走既有 `JetApi` action channel；修改 action 時同步核對 handler、registry、文件與測試。
 - 大量資料留在資料庫集合式處理；前端與 session state 只接收摘要、metadata 與有界分頁。
 - 金額、日期、欄位配對與 provider 等價規則不得只為單一案件或單一 provider 特化。
+- 預設審計員可信：不為防範審計員自己的操作加關卡或核對；只有第六步匯出的正式輸出不得被 JET 默默
+  改寫或覆蓋，其他檔案與中間結果能重算就不擋人。要新增會擋住使用者的錯誤時，先寫出使用者接下來能
+  做什麼（原則與起因見 `docs/project-context.md`）。
 
 ## 有歧義時
 
@@ -80,6 +103,7 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 | 驗證框架的責任、命令與判定界線 | `docs/harness.md`、`tools/README.md` |
 | `data/` 工作簿與 `legacy/` 的角色和限制 | `docs/data-and-legacy.md` |
 | 文件寫作規範與收尾檢查 | `docs/README.md` |
+| 面向人的文字怎麼改寫，以及改寫範例 | `.agents/skills/jet-readable-docs/SKILL.md` |
 | 各工具的載入方式、預算與 Claude Code 強制層 | `docs/agent-compatibility.md` |
 | 跨 session 觀點、待完成事項與專案記憶如何收斂 | `.agents/harness/convergence-and-memory.md` |
 | 來源專案關係與已裁定的遷移邊界 | `docs/repository-lineage.md` |
@@ -89,11 +113,11 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 | 要做的事 | 先讀 |
 |:---|:---|
 | 改驗證、預篩選、篩選或抽樣規則 | `docs/jet-guide.md` §4–§6；精確規則與 KCT A–J 對應在 `docs/history/superseded/jet-guide-2026-08.md`；衝突裁決走 `docs/business-logic-provenance.md` |
-| 改 action、payload 或前端 | `docs/action-contract-manifest.md`＋`docs/jet-frontend-description.md` |
-| 改報表輸出或範本 | `docs/jet-guide.md` §7＋`docs/data-and-legacy.md` |
+| 改 action、payload 或前端 | `docs/action-contract-manifest.md` 與 `docs/jet-frontend-description.md` |
+| 改報表輸出或範本 | `docs/jet-guide.md` §7 與 `docs/data-and-legacy.md` |
 | 碰資料庫實作或 SQL Server | `docs/jet-guide.md` §8；企業多人範圍與已知安全缺口在 `docs/sqlserver-enterprise-deferred.md` |
-| 與 IDEA／VBA 舊行為比對 | `docs/jet-guide.md` §17＋`legacy/jet-legacy-notes.md`；差異只分五類，不自創例外 |
-| 立案或接手大型開發 | `docs/development-status.md`＋`docs/development-workflow.md` |
+| 與 IDEA／VBA 舊行為比對 | `docs/jet-guide.md` §17 與 `legacy/jet-legacy-notes.md`；差異只分五類，不自創例外 |
+| 立案或接手大型開發 | `docs/development-status.md` 與 `docs/development-workflow.md` |
 
 `CLAUDE.md` 與 `.github/copilot-instructions.md` 是薄轉接檔，不建立第二套規則。本檔是 context 不是
 強制層；`.claude/` 的 permissions 與 hooks 把上述禁令升級為 Claude Code 的執行前攔截，但只在

@@ -41,7 +41,7 @@
     cancellationRequested: false,
     projects: [],              // picker 最近接受的 snapshot：本機清單，或使用者手動同步後的本機＋線上清單
     pickerFeedback: null,      // picker 就地錯誤（訊息面板在 workflow app-body 內，picker 期間不可見）
-    pickerFeedbackContext: null, // { projectId, errorCode, correlationId, exportedPath }；只供複製與支援日誌匯出
+    pickerFeedbackContext: null, // { projectId, errorCode, correlationId, exportedPath, devExportedPath }；只供複製、支援日誌與 DEV 診斷日誌匯出
     // project.list 的頂層 online 區塊 { reachable, principal, message? }（僅手動線上同步後存在）。
     // null 表示目前是 project.listLocal snapshot、尚未手動同步；picker 不得把它誤稱為「線上無案件」。
     online: null,
@@ -260,7 +260,8 @@
         projectId: context.projectId || null,
         errorCode: context.errorCode || null,
         correlationId: context.correlationId || null,
-        exportedPath: context.exportedPath || null
+        exportedPath: context.exportedPath || null,
+        devExportedPath: context.devExportedPath || null
       } : null;
       // 純 picker 呈現狀態；renderPicker 的 memo key 直接納入此值，不需 bump workflow contentVersion。
       notify();

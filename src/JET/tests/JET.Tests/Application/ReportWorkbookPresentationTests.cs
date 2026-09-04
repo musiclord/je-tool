@@ -141,6 +141,11 @@ public sealed class ReportWorkbookPresentationTests(ReportArtifactExportFixture 
             ReportArtifactKindValues.WorkingPaper,
             fixture.ArtifactPath(workpaper.GetProperty("artifact")));
 
+        // 科目配對範本是工作檔，不在報告批次裡，但字型規範同樣適用。
+        reports.Add(
+            ReportArtifactKindValues.AccountMapping,
+            await fixture.ExportAccountMappingTemplatePathAsync());
+
         return reports;
     }
 

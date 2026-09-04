@@ -1,6 +1,6 @@
 # JET 開發現況
 
-更新日期：2026-09-02
+更新日期：2026-09-04
 
 ## 目前狀態
 
@@ -18,12 +18,30 @@
 本輪把 Claude 已做的前端與 DEV 日誌修改，和使用者回報的報告 journal 衝突一起收斂。欄位配對改成
 衍生畫面寫入必定 bump，並由框架層還原焦點與捲動；Release 新增可從 picker 使用的去識別支援日誌，
 Debug 原始日誌則只匯出目前案件；損壞 journal 仍拒絕載入，但確認刪案不再先做 recovery。四個 GUI
-情境已實跑通過，包含必填欄位往返與損壞案件「顯示錯誤 → 輸出支援日誌 → 刪除」。Stryker.NET 4.16.0
-能以 MTP 分析 .NET 10，但會繞過 JET harness 的 PrivateCase 篩選，且上游 MTP preview 有測試選取失效
-與固定逾時缺陷，因此不安裝、不列入正式 gate。本輪 `Contract`、`Documentation`、`Public`
+情境已實跑通過，包含必填欄位往返，以及損壞案件從顯示錯誤、輸出支援日誌到確認刪除的整段流程。
+Stryker.NET 4.16.0 能以 MTP 分析 .NET 10，但會繞過 JET harness 的 PrivateCase 篩選，且上游 MTP preview
+有測試選取失效與固定逾時缺陷，因此不安裝、不列入正式 gate。本輪 `Contract`、`Documentation`、`Public`
 （3,402／3,402 executed passed）與四個 `Gui` 情境均通過。2026-09-02 依使用者裁定先修正提交前複審記錄
 的 `dev.log.exportFile` fallback 缺陷（first-red 測試加上 `ProjectLogFileWriter` 例外分層），相關 `Focused`
-重跑通過後，依同一授權以單一 commit 提交並推送整輪成果。狀態：待使用者驗收。
+重跑通過後，依同一授權以單一 commit 提交並推送整輪成果；使用者確認第一階段沒問題。同日公司測試環境
+撞到 `artifact_recovery_conflict`，追出科目配對範本與報告產物儲存的假設互相矛盾，使用者裁定在同一份
+計畫進行第二階段：儲存只留暫存改名、範本改為工作檔、Working Paper 改成版本檔、移除清理功能。
+第二階段同日實作完成：`Focused`、`Public`（3,328／3,328 executed passed、0 skip）、`Contract`、框架自身
+測試、`Package`、四個 `Gui` 情境（含新的 `edited-report-still-loads`）、`Excel` 與 `Documentation` 全部
+通過；`Provider`、`PrivateCase` 與公司環境實機驗收未執行。狀態：第二階段待使用者驗收，成果未提交。
+
+2026-09-04 接手後依使用者要求更新測試循環：封裝納入報告儲存回歸測試，Excel 輸入改由範本原檔往返
+並重新匯出驗證報告的旅程產生，GUI 明確檢查外部修改提醒、匯出按鈕與清理面板移除。新鎖檔測試發現
+報告與範本改名發布時會漏出原始存取例外，已補上關閉檔案及檢查權限後重試的提示。Release 公開測試
+3,335 項、封裝測試 91 項、四個 GUI 情境與六份工作簿的原生 Excel 檢查全部通過，框架自身測試為
+399 個斷言、28 個情境。第一次 NuGet 連線受阻與修正過程記在同一份計畫。完整 `ReleaseCandidate` 因
+工作樹未提交而停在 `candidate_source_dirty`。使用者隨後已授權將本輪成果提交並推送，供測試環境人工
+驗收；本次交付須在提交後重跑完整候選驗證。計畫保持待使用者驗收，Working Paper 歷史版本顯示方式仍
+待確認。交付後等使用者回報驗收結果並指示後續項目，不自行展開其他開發。
+
+同日提交前複審另發現 Working Paper 的稽核紀錄仍把舊版本算成已取代。新斷言先證明第二次匯出的
+`replaced_count` 錯為 1，修正為排除 Working Paper 後，對應 `Focused` 與 298 項架構檢查通過；
+一般報告覆蓋的計數保留，完整公開測試會在提交後的候選驗證重跑。
 
 前一項計畫
 [`specs/2026-08-30-repository-consolidation-plan.md`](specs/2026-08-30-repository-consolidation-plan.md)
@@ -66,7 +84,7 @@ Debug 原始日誌則只匯出目前案件；損壞 journal 仍拒絕載入，�
 
 | 事項 | 背景與目前邊界 | 何時重啟 |
 |:---|:---|:---|
-| SQL Server live `Provider` 驗證 | 產品與測試仍保留 SQL Server 相容性，但目前只有個人電腦可能具備環境，公司端權限、網路、身分及維運方式未定。一般 `ReleaseCandidate` 不要求 `JET_SQLSERVER_CONNECTION`，也不能代表 live SQL Server 已通過。 | 使用者明示要驗證本機 SQL Server，且已準備專用 `JET_Test`、最低必要權限及只存在於當次程序的連線資訊時，完整執行 `Provider`；若沙盒阻擋，保留 first-red 後在獲准的本機 Windows 邊界原樣 fresh rerun。 |
+| SQL Server live `Provider` 驗證 | 2026-09-02 使用者確認 SQL Server 開發暫緩，日常開發與測試集中在 SQLite 和 DuckDB。既有 SQL Server 相容性保留；一般 `ReleaseCandidate` 不要求 `JET_SQLSERVER_CONNECTION`，也不能代表 live SQL Server 已通過。本機服務平時關閉，使用後依 [`tools/README.md`](../tools/README.md#日常資料庫測試與服務收尾) 完成收尾。公司端權限、網路、身分及維運方式仍未定。 | 使用者當次明示要驗證本機 SQL Server，且已準備專用 `JET_Test`、最低必要權限及只存在於當次程序的連線資訊時，完整執行 `Provider`；若沙盒阻擋，保留 first-red 後在獲准的本機 Windows 邊界原樣 fresh rerun。成功、失敗或中止後都要關閉本機服務，不把 live 驗證列入日常例行工作。 |
 | SQL Server 企業多人環境 | 四個已確認的多人安全缺口（真實身分驗證、serverOnly 刪除、noAccess metadata 隱藏、SQL Server 2022 版本硬閘）與多人共用案件、使用鎖、容量資訊的驗收範圍，完整記錄在 [`sqlserver-enterprise-deferred.md`](sqlserver-enterprise-deferred.md)。只記錄、不推測實作。 | 公司能提供 SQL Server 2022、至少兩個真實帳號、DBA 支援與已核定的授權政策時，依該文件另立短期驗收計畫。 |
 | 預篩選的後續收斂 | 預篩選規則目錄已於 2026-08-20 凍結，逐筆命中改為輔助訊號，Pre-screening Report 改為純可選輸出（匯出面默認勾選）。該報告的長期去留（縮編或退役）與預篩選條件的最終棄用清單，當時裁定留待另場收斂。 | 使用者要求收斂 Pre-screening Report 去留或條件棄用清單時另立計畫；在此之前不新增逐筆預篩選規則。 |
 | audit log 查詢介面、匯出與保留政策 | 本機案件的最小 audit log 已落地（schema v9 資料庫層 append-only；DuckDB 因引擎沒有 trigger 維持程式紀律）。查詢介面、匯出、保留政策與企業部署稽核當時裁定另案，屬企業線範圍。SQLite／DuckDB 的刪案留痕已於 2026-08-20 裁決不做。 | 隨 SQL Server 企業線一併重啟，或使用者明示要先做本機查詢介面時另立計畫。 |
@@ -103,16 +121,42 @@ Debug 原始日誌則只匯出目前案件；損壞 journal 仍拒絕載入，�
   幾乎相同的 serializer 選項。收斂方向：泛型 ring buffer、`ToAsyncLines` 併入 `ProjectLogFileWriter`、
   共用 NDJSON 選項來源。
 - `tools/harness/gui-driver/GuiScenarios.cs`：`visible()` JS helper 已有 8 份逐字複本、probe 輪詢骨架
-  5 份；`conflicted-journal-recovery` 以中文錯誤訊息子字串斷言 journal 衝突，訊息改字會誤紅（同檔
-  `ValidateSupportLog` 已示範以 `artifact_recovery_conflict` 穩定碼斷言）。收斂方向：抽共用 probe
-  helper 常數，並改以錯誤碼或 `data-*` 屬性斷言。
+  5 份。2026-09-02 `conflicted-journal-recovery` 已整個換成 `edited-report-still-loads`，不再有錯誤碼斷言。
+  收斂方向：抽共用 probe helper 常數。
 - `SupportRingBufferLogger` 以寫死的 `"support.log.export"` 字串排除自身事件，action 政策滲入
   logging 層；日後若有其他要排除的 action，應集中到 action 分類表管理。
+- 本機單人案件上的多人機制（2026-09-02 使用者裁定先不動）：科目分類儲存的 revision 衝突
+  `taxonomy_revision_conflict`、案件鎖 `project_locked`、一次只允許一項變更作業的
+  `operation_in_progress`。它們是為兩個人或兩個程序同時操作同一案件設計的；本機 SQLite／DuckDB 案件
+  屬個人工作，單人幾乎不會觸發，但每一個都是使用者可能撞到卻沒有出路的死巷。目前邊界：SQL Server 線
+  仍需要這些機制，所以不能整個拿掉。重啟條件：出現兩個 JET 同時開同一本機案件的實際需求，或使用者在
+  單人操作時實際撞到其中一個錯誤；重啟後第一個可驗證動作是把本機 provider 的這三種錯誤改成提醒並以
+  旅程測試證明流程不中斷。
 - `ProjectLogFileWriter.WriteAsync` 的 `OperationCanceledException` 與 `JetActionException` 兩個 catch
   與末端 catch-all 行為相同，屬冗餘分支。
 - 效能觀察（未量測，僅在實測成為瓶頸時處理）：Release 每次 action dispatch 為 support provider 配置
   一次 Dictionary 與 scope 走訪；`dev.log.exportFile` 對 sink 全檔逐行 `JsonDocument.Parse` 只為讀
   `projectId`；`setMappingDraft` 每次選擇即整面板重建（正確性優先的既定裁定，見 `state.js` 通知慣例）。
+
+2026-09-04 第二階段（報告產物儲存拆解，實作與驗證都在 2026-09-02）收尾時另記下列項目。它們是這次裁定的代價或還沒回頭清的殘留，
+不阻擋驗收；下一個 session 依使用者指示逐項處理：
+
+- Working Paper 版本檔會一直累積。清理功能已依裁定拿掉，使用者自行刪檔，第六步清單會把刪掉的標成
+  「檔案不存在，重新匯出即可」。`report-artifacts.json` 有 4,096 筆上限，超過時匯出會失敗並提示刪掉不再
+  需要的舊版；長年反覆匯出的案件才可能碰到。重啟條件：使用者回報資料夾雜亂或實際撞到上限。
+- 只為讀舊資料保留的名稱：`ReportArtifactKind.AccountMapping` 讓舊 manifest 的範本條目能被略過而不是
+  讓整份清單失效；`ProjectAuditOperations.ReportCleanup` 讓舊的 audit 列仍能被辨認；測試裡的
+  `LegacyReportKind.AccountMapping` 現在代表範本工作簿而不是報告。收斂方向：確認沒有舊版建立的案件
+  還在使用後，一起移除並更新 `ReportArtifactKindValuesTests`。
+- `ProjectWorkFileWriter` 與 `ProjectReportArtifactStore` 各有一套「寫暫存檔、完整後改名、Excel 佔用時
+  的提示、檔名必須在案件資料夾內」。兩套目前行為一致，日後修其中一邊要記得另一邊；可抽成共用 helper。
+- 報告檔的 reparse point 鏈檢查已隨 store 重寫移除，這是「相信使用者」的已接受風險（見計畫檔第二階段
+  「範圍外」）；GUI 驅動程式的 `OwnedGuiRun.RejectReparsePoint` 是測試治具自己的檢查，仍保留。
+- 第六步畫面每種報告只顯示最新一份：`ui-core.js` 的 `findCurrentReportArtifact` 依 `generatedUtc` 取符合
+  目前驗證與情境版本的最新產物，所以 Working Paper 的舊版本只存在於案件資料夾與 `project.load` 的
+  `reportArtifacts`，畫面上看不到。計畫第二階段的使用者流程寫的是「列出所有版本檔、最新在上」，這一點
+  尚未實作，2026-09-04 收尾時才發現。收斂方向：由使用者裁定要顯示全部版本還是維持只顯示最新；若要
+  全部顯示，改 `export-step.js` 對 `workingPaper` 的取法並補前端守衛測試。
 
 ## Git 交付與來源儲存庫退役
 

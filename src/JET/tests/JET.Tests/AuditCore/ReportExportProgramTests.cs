@@ -21,7 +21,6 @@ public sealed class ReportExportProgramTests
                 "export.validationArtifacts",
                 [
                     ReportArtifactKind.ValidationReport,
-                    ReportArtifactKind.AccountMapping,
                     ReportArtifactKind.InfReport
                 ],
                 "validation-run",
@@ -29,17 +28,7 @@ public sealed class ReportExportProgramTests
                 null,
                 [],
                 true,
-                "export.validationArtifacts：產出 validationReport、accountMapping、infReport。"
-            },
-            {
-                "export.accountMappingTemplate",
-                [ReportArtifactKind.AccountMapping],
-                "validation-run",
-                null,
-                null,
-                [],
-                false,
-                "export.accountMappingTemplate：產出 accountMapping。"
+                "export.validationArtifacts：產出 validationReport、infReport。"
             },
             {
                 "export.prescreenReport",
@@ -129,7 +118,7 @@ public sealed class ReportExportProgramTests
                     plan.SourceRef,
                     new DateTimeOffset(2026, 7, 19, 0, 0, 0, TimeSpan.Zero),
                     1,
-                    new string('A', 64),
+                    LastWriteUtc: null,
                     Stale: false))
                 .ToArray();
 

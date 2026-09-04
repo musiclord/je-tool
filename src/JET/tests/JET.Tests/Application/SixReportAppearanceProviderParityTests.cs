@@ -22,9 +22,9 @@ public sealed class SixReportAppearanceProviderParityTests
 {
     private const long PinnedSampleSeed = 8_082_025;
 
+    // 五份正式報告在 reportArtifacts；科目配對範本是工作檔，另以 filePath 取得後一起比對外觀。
     private static readonly string[] ExpectedKinds =
     [
-        "accountMapping",
         "criteriaSelectionReport",
         "infReport",
         "prescreenReport",
@@ -98,6 +98,10 @@ public sealed class SixReportAppearanceProviderParityTests
         _ = await host.DispatchAsync(
             "export.validationArtifacts",
             JsonSerializer.Serialize(new { runId = validationRunId }));
+        var accountMappingTemplate = await host.DispatchAsync(
+            "export.accountMappingTemplate",
+            JsonSerializer.Serialize(new { runId = validationRunId }));
+        var accountMappingTemplatePath = accountMappingTemplate.GetProperty("filePath").GetString()!;
 
         var prescreen = await host.DispatchAsync("prescreen.run");
         var prescreenRunId = prescreen
@@ -194,6 +198,15 @@ public sealed class SixReportAppearanceProviderParityTests
 
             snapshots.Add(kind, WorkbookAppearanceSnapshot.Capture(path, expectedMetadata));
         }
+
+        if (!File.Exists(accountMappingTemplatePath))
+        {
+            throw new InvalidDataException("Account mapping template work file was not written.");
+        }
+
+        snapshots.Add(
+            "accountMapping",
+            WorkbookAppearanceSnapshot.Capture(accountMappingTemplatePath, expectedMetadata));
 
         return new ProviderSnapshot(databaseProvider, snapshots);
     }

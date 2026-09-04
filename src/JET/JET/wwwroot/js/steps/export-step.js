@@ -12,8 +12,6 @@
   var selectedScenarioPositions = null;
   var selectionRevision = null;
   var lastSheetStats = null;
-  var cleanupPreview = null;
-  var cleanupFeedback = null;
   // Pre-screening Report 預設納入輸出家族；使用者可取消，取消後只影響這一份。
   var includePrescreenReport = true;
 
@@ -21,8 +19,6 @@
     selectedScenarioPositions = null;
     selectionRevision = null;
     lastSheetStats = null;
-    cleanupPreview = null;
-    cleanupFeedback = null;
     includePrescreenReport = true;
   });
 
@@ -186,144 +182,6 @@
     );
   }
 
-  function cleanupReasonLabel(reason) {
-    if (reason === 'stale') { return '上游資料版本已失效'; }
-    if (reason === 'retention') { return '超出保留範圍'; }
-    return reason || '原因未提供';
-  }
-
-  function cleanupFeedbackHtml() {
-    if (!cleanupFeedback) { return ''; }
-    var level = cleanupFeedback.level === 'success'
-      ? 'success'
-      : (cleanupFeedback.level === 'error' ? 'error' : 'info');
-    return '<p class="report-cleanup__feedback report-cleanup__feedback--' + level + '" role="status">' +
-      Ui.esc(cleanupFeedback.text) + '</p>';
-  }
-
-  function cleanupPanelHtml() {
-    var feedback = cleanupFeedbackHtml();
-    if (!cleanupPreview) {
-      return (
-        '<section class="report-cleanup" aria-labelledby="report-cleanup-heading">' +
-          '<div class="report-cleanup__head">' +
-            '<div>' +
-              '<h3 class="report-cleanup__title" id="report-cleanup-heading">清理舊報告版本</h3>' +
-              '<p class="report-cleanup__hint">先由系統確認可清理清單；此步驟不會刪除、封存或移動正式報告。</p>' +
-            '</div>' +
-            '<button type="button" class="btn btn--ghost" data-action="preview-report-cleanup">檢查可清理版本</button>' +
-          '</div>' +
-          feedback +
-          '<p class="report-cleanup__empty">尚未檢查。目前不會自動清理任何版本。</p>' +
-        '</section>'
-      );
-    }
-
-    var hasCandidates = cleanupPreview.candidateCount > 0;
-    var candidates = Array.isArray(cleanupPreview.candidates) ? cleanupPreview.candidates : [];
-    var candidateRows = candidates.map(function (candidate) {
-      return (
-        '<li class="report-cleanup__candidate">' +
-          '<span class="report-cleanup__candidate-copy">' +
-            '<span class="report-cleanup__candidate-name">' + Ui.esc(candidate.fileName || '未命名報告') + '</span>' +
-            '<span class="report-cleanup__candidate-meta">' +
-              Ui.esc(candidate.kind || '報告類型未提供') + ' · ' +
-              Ui.esc(candidate.generatedUtc || '時間未提供') + ' · ' +
-              Ui.esc(candidate.bytes) + ' 位元組</span>' +
-            '<span class="report-cleanup__candidate-id">報告識別碼：' + Ui.esc(candidate.artifactId) + '</span>' +
-          '</span>' +
-          '<span class="report-cleanup__reason">' + Ui.esc(cleanupReasonLabel(candidate.reason)) + '</span>' +
-        '</li>'
-      );
-    }).join('');
-
-    return (
-      '<section class="report-cleanup report-cleanup--' + (hasCandidates ? 'warning' : 'clear') +
-        '" aria-labelledby="report-cleanup-heading">' +
-        '<div class="report-cleanup__head">' +
-          '<div>' +
-            '<h3 class="report-cleanup__title" id="report-cleanup-heading">清理舊報告版本</h3>' +
-            '<p class="report-cleanup__hint">清單由系統依目前報告紀錄判定，畫面不自行增減。</p>' +
-          '</div>' +
-          '<button type="button" class="btn btn--ghost" data-action="preview-report-cleanup">重新檢查</button>' +
-        '</div>' +
-        feedback +
-        '<p class="report-cleanup__summary">可清理 ' + Ui.esc(cleanupPreview.candidateCount) +
-          ' 份，共 ' + Ui.esc(cleanupPreview.candidateBytes) + ' 位元組。</p>' +
-        (hasCandidates
-          ? '<ul class="report-cleanup__candidates">' + candidateRows + '</ul>' +
-            '<div class="report-cleanup__confirm">' +
-              '<p>這會永久刪除上列正式報告，並在目前案件留下清理稽核紀錄。</p>' +
-              '<button type="button" class="btn btn--danger" data-action="confirm-report-cleanup">刪除 ' +
-                Ui.esc(cleanupPreview.candidateCount) + ' 份舊報告</button>' +
-            '</div>'
-          : '<p class="report-cleanup__empty">目前沒有需要清理的報告版本。</p>') +
-      '</section>'
-    );
-  }
-
-  function requestCleanupPreview(preserveFeedback) {
-    var retainedFeedback = preserveFeedback ? cleanupFeedback : null;
-    if (!preserveFeedback) { cleanupFeedback = null; }
-    return Ui.run('檢查可清理版本', function () {
-      return global.JetApi.reportCleanupPreview({})
-        .then(function (data) {
-          cleanupPreview = data || null;
-          Store.touch();
-        })
-        .catch(function (error) {
-          cleanupPreview = null;
-          cleanupFeedback = retainedFeedback
-            ? {
-                level: retainedFeedback.level,
-                text: retainedFeedback.text + ' 最新候選重新檢查失敗，請稍後再按「重新檢查」。'
-              }
-            : {
-                level: 'error',
-                text: '無法取得最新清理預覽；本次只執行預覽，沒有刪除報告。'
-              };
-          Store.touch();
-          throw error;
-        });
-    });
-  }
-
-  function confirmReportCleanup() {
-    if (!cleanupPreview || !cleanupPreview.catalogRevision || cleanupPreview.candidateCount <= 0) {
-      return Promise.resolve();
-    }
-    var catalogRevision = cleanupPreview.catalogRevision;
-
-    return Ui.run('刪除舊報告', function () {
-      return global.JetApi.reportCleanupConfirm({ catalogRevision: catalogRevision })
-        .then(function (data) {
-          Store.setReportArtifacts(data.reportArtifacts || []);
-          cleanupPreview = null;
-          cleanupFeedback = {
-            level: 'success',
-            text: '已刪除 ' + data.deletedCount + ' 份舊報告（' + data.deletedBytes +
-              ' 位元組），稽核編號 ' + data.auditId + '。'
-          };
-          Store.touch();
-        })
-        .catch(function (error) {
-          cleanupPreview = null;
-          cleanupFeedback = error && error.code === 'operation_cancelled'
-            ? { level: 'info', text: '清理已取消；將重新檢查目前候選。' }
-            : (error && error.code === 'artifact_catalog_changed'
-              ? { level: 'info', text: '報告清單已變更；將重新檢查後再由你確認。' }
-              : { level: 'error', text: '清理未完成；將重新檢查目前候選。' });
-          Store.touch();
-          throw error;
-        });
-    }, {
-      refresh: function () {
-        return requestCleanupPreview(true);
-      },
-      refreshWhen: 'settled'
-    });
-  }
-
   function render(container, state) {
     if (!state.project) {
       container.innerHTML = Ui.noProjectPanel('匯出底稿');
@@ -383,7 +241,6 @@
           Ui.reportArtifactListHtml(workpapers, '尚未產生目前版本的 WorkingPaper。') +
           sheetStatsHtml() +
         '</section>' +
-        cleanupPanelHtml() +
         Ui.stepFooterHtml(state) +
       '</div>';
 
@@ -473,8 +330,6 @@
   function exportWorkpaper(payload) {
     return global.JetApi.exportWorkpaperStream(payload).then(function (data) {
       lastSheetStats = data.sheetStats || [];
-      cleanupPreview = null;
-      cleanupFeedback = null;
       Store.upsertReportArtifacts([data.artifact]);
       Store.addMessage('已在專案目錄產生 WorkingPaper（' +
         lastSheetStats.length + ' 張工作表）。', 'info');
@@ -485,18 +340,6 @@
   function bind(container) {
     bindScenarioSelection(container);
     bindPrescreenExportOption(container);
-
-    var cleanupPreviewButton = container.querySelector('[data-action="preview-report-cleanup"]');
-    if (cleanupPreviewButton) {
-      cleanupPreviewButton.addEventListener('click', function () {
-        requestCleanupPreview(false);
-      });
-    }
-
-    var cleanupConfirmButton = container.querySelector('[data-action="confirm-report-cleanup"]');
-    if (cleanupConfirmButton) {
-      cleanupConfirmButton.addEventListener('click', confirmReportCleanup);
-    }
 
     var button = container.querySelector('[data-action="export-workpaper"]');
     if (!button) { return; }

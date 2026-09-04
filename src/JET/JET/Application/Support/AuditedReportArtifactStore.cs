@@ -3,8 +3,8 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 正式報告 catalog 的單一 audit 裝飾器：成功發布／汰換與明示清理完成後各 append 一筆
-/// project-local audit event。檔案 store 仍擁有原子 package publication 與 cleanup journal。
+/// 正式報告清單的單一 audit 裝飾器：成功發布或汰換後 append 一筆 project-local audit event。
+/// 檔案 store 只負責暫存改名與 manifest；清理功能已於 2026-09-02 移除。
 /// </summary>
 internal sealed class AuditedReportArtifactStore(
     IReportArtifactStore inner,
@@ -78,10 +78,6 @@ internal sealed class AuditedReportArtifactStore(
         string projectId,
         CancellationToken cancellationToken) => inner.ListAsync(projectId, cancellationToken);
 
-    public Task<ReportArtifactCatalog> ReadCatalogAsync(
-        string projectId,
-        CancellationToken cancellationToken) => inner.ReadCatalogAsync(projectId, cancellationToken);
-
     public Task<string> ResolvePathAsync(
         string projectId,
         string artifactId,
@@ -97,30 +93,6 @@ internal sealed class AuditedReportArtifactStore(
         Func<ReportArtifact, bool> predicate,
         CancellationToken cancellationToken) => inner.MarkStaleAsync(projectId, predicate, cancellationToken);
 
-    public async Task<ReportArtifactCleanupResult> CleanupAsync(
-        string projectId,
-        string expectedCatalogRevision,
-        IReadOnlyList<ReportArtifactCleanupCandidate> candidates,
-        string requestedBy,
-        CancellationToken cancellationToken)
-    {
-        var result = await inner.CleanupAsync(
-            projectId,
-            expectedCatalogRevision,
-            candidates,
-            requestedBy,
-            cancellationToken);
-        await auditLog.AppendAsync(
-            projectId,
-            ProjectAuditEvent.Create(
-                ProjectAuditOperations.ReportCleanup,
-                ProjectAuditTargetTypes.ReportCatalog,
-                "formalReports",
-                result.DeletedCount),
-            CancellationToken.None);
-        return result;
-    }
-
     public Task<IAsyncDisposable> AcquireProjectDeletionLeaseAsync(
         string projectId,
         CancellationToken cancellationToken) =>
@@ -131,9 +103,10 @@ internal sealed class AuditedReportArtifactStore(
         IEnumerable<ReportArtifactKind> kinds,
         CancellationToken cancellationToken)
     {
-        var selected = kinds.ToHashSet();
-        var catalog = await inner.ReadCatalogAsync(projectId, cancellationToken);
-        return catalog.Artifacts.LongCount(artifact => selected.Contains(artifact.Kind));
+        // Working Paper 每次新增版本，舊檔仍保留，不計入同名覆蓋的數量。
+        var selected = kinds.Where(static kind => kind != ReportArtifactKind.WorkingPaper).ToHashSet();
+        var artifacts = await inner.ListAsync(projectId, cancellationToken);
+        return artifacts.LongCount(artifact => selected.Contains(artifact.Kind));
     }
 
     private Task RecordPublishedAsync(

@@ -18,7 +18,7 @@
 | 匯入 CSV／TXT／XLSX 的 GL／TB 並做欄位配對 | `Application`、`AuditCore`、`Domain` 與 provider 實作 | `Public`；SQL Server 實跑另用 `Provider` | IDEA 原流程是否還有未列入的來源格式 |
 | 資料驗證與有效母體判定 | 現行驗證、INF 與失效規則 | `Public`、明示授權的 `PrivateCase` | 使用者認定的完整 IDEA 驗收案例 |
 | 預篩選與多條件篩選 | 後端規則及集合式 SQL，不由前端計算 | `Public`、明示執行的 `Provider`／`PrivateCase` | IDEA 原本全部必要條件清單 |
-| 產生審計底稿 | 六份固定報告與原生 Excel 檢查 | `Package`、`Excel`、`PrivateCase` | 各底稿是否還有未列入的人工判讀要求 |
+| 產生審計底稿 | 五份報告、一份科目配對工作檔與原生 Excel 檢查 | `Package`、`Excel`、`PrivateCase` | 各底稿是否還有未列入的人工判讀要求 |
 | 不同資料庫得到相同業務結果 | SQLite、DuckDB、SQL Server provider 邊界 | live SQL Server 就緒時明示執行完整 `Provider` | 正式環境是否實際啟用 SQL Server |
 | 大量資料不進入前端或 Application 全量記憶體 | 資料庫集合式處理、摘要與分頁 | 架構測試、`Public` | 目標資料量及公司硬體基準 |
 

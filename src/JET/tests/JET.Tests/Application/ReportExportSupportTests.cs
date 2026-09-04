@@ -113,6 +113,6 @@ public sealed class ReportExportSupportTests
             source,
             new DateTimeOffset(2026, 7, 10, 1, 2, 0, TimeSpan.Zero),
             0,
-            new string('0', 64),
+            LastWriteUtc: null,
             Stale: false);
 }

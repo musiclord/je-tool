@@ -17,17 +17,25 @@ public sealed class ExportProgressEventTests
     ];
 
     [Fact]
-    public void AccountMappingHandler_RetainsPreProgressPublicConstructor()
+    public void AccountMappingHandler_WritesWorkFileThroughProjectLocatorNotArtifactStore()
     {
+        // 範本是工作檔：handler 只拿案件資料夾定位器，不再依賴報告 store。
         Assert.NotNull(typeof(ExportAccountMappingTemplateHandler).GetConstructor(
         [
             typeof(IAccountMappingExportRepository),
             typeof(IAccountMappingTemplateWriter),
             typeof(IRuleRunStore),
             typeof(IProjectStore),
-            typeof(IReportArtifactStore),
-            typeof(ProjectSession)
+            typeof(IProjectExportLocator),
+            typeof(ProjectSession),
+            typeof(IJetEventPublisher),
+            typeof(IAccountTaxonomyStore),
+            typeof(IMappingStateStore)
         ]));
+        Assert.DoesNotContain(
+            typeof(ExportAccountMappingTemplateHandler).GetConstructors()
+                .SelectMany(constructor => constructor.GetParameters()),
+            parameter => parameter.ParameterType == typeof(IReportArtifactStore));
     }
 
     [Fact]
@@ -44,11 +52,11 @@ public sealed class ExportProgressEventTests
             JsonSerializer.Serialize(new { runId = validationRunId }));
         AssertProgressContract(
             validationExport,
-            ["validationReport", "accountMapping", "infReport"]);
+            ["validationReport", "infReport"]);
         Assert.Equal(
-            ["validationReport", "accountMapping", "infReport"],
+            ["validationReport", "infReport"],
             validationExport.Events
-                .TakeLast(3)
+                .TakeLast(2)
                 .Select(update =>
                 {
                     Assert.Equal("publishingArtifact", update.GetProperty("phase").GetString());

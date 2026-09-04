@@ -153,22 +153,29 @@ public sealed class LocalProjectLockHandlerTests
             await creator.DispatchAsync("project.create", CreatePayload(projectId, provider));
         }
 
-        var artifactManifest = Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName);
-        await File.WriteAllTextAsync(artifactManifest, "{");
+        // 同上：以唯讀 project.json 讓載入在取鎖之後失敗。
+        var projectJson = Path.Combine(projectDirectory, JetProjectFolder.ProjectJsonFileName);
+        File.SetAttributes(projectJson, FileAttributes.ReadOnly);
 
         using var failingHost = new HandlerTestHost(projectsRootPath: root.Path);
-        var loadError = await Assert.ThrowsAsync<JetActionException>(
-            () => failingHost.DispatchAsync("project.load", LoadPayload(projectId)));
-        Assert.Equal(JetErrorCodes.FileReadError, loadError.Code);
+        try
+        {
+            var loadError = await Assert.ThrowsAsync<JetActionException>(
+                () => failingHost.DispatchAsync("project.load", LoadPayload(projectId)));
+            Assert.Equal(JetErrorCodes.FileReadError, loadError.Code);
 
-        var sessionError = await Assert.ThrowsAsync<JetActionException>(
-            () => failingHost.DispatchAsync("project.saveProgress", """{ "currentStep": 2 }"""));
-        Assert.Equal(JetErrorCodes.NoActiveProject, sessionError.Code);
+            var sessionError = await Assert.ThrowsAsync<JetActionException>(
+                () => failingHost.DispatchAsync("project.saveProgress", """{ "currentStep": 2 }"""));
+            Assert.Equal(JetErrorCodes.NoActiveProject, sessionError.Code);
 
-        var listed = SingleProject(await failingHost.DispatchAsync("project.list"), projectId);
-        Assert.Equal(JsonValueKind.Null, listed.GetProperty("lastOpenedUtc").ValueKind);
+            var listed = SingleProject(await failingHost.DispatchAsync("project.list"), projectId);
+            Assert.Equal(JsonValueKind.Null, listed.GetProperty("lastOpenedUtc").ValueKind);
+        }
+        finally
+        {
+            File.SetAttributes(projectJson, FileAttributes.Normal);
+        }
 
-        File.Delete(artifactManifest);
         using var retryingHost = new HandlerTestHost(projectsRootPath: root.Path);
         var retried = await retryingHost.DispatchAsync("project.load", LoadPayload(projectId));
         Assert.Equal(projectId, retried.GetProperty("project").GetProperty("projectId").GetString());
@@ -185,24 +192,29 @@ public sealed class LocalProjectLockHandlerTests
         using var owner = new HandlerTestHost(projectsRootPath: root.Path);
         using var contender = new HandlerTestHost(projectsRootPath: root.Path);
         var projectId = NewProjectId(provider, "reload-failure");
-        var artifactManifest = Path.Combine(
-            root.Path,
-            projectId,
-            ProjectReportArtifactStore.ManifestFileName);
+        // 2026-09-02 起壞掉的報告清單不再擋載入，所以改用唯讀的 project.json 讓載入在取鎖之後、
+        // 寫回 LastOpened 時失敗；測的仍是「取鎖後失敗」的鎖行為。
+        var projectJson = Path.Combine(root.Path, projectId, JetProjectFolder.ProjectJsonFileName);
 
         await owner.DispatchAsync("project.create", CreatePayload(projectId, provider));
         await owner.DispatchAsync("project.load", LoadPayload(projectId));
-        await File.WriteAllTextAsync(artifactManifest, "{");
+        File.SetAttributes(projectJson, FileAttributes.ReadOnly);
+        try
+        {
+            var reloadError = await Assert.ThrowsAsync<JetActionException>(
+                () => owner.DispatchAsync("project.load", LoadPayload(projectId)));
+            Assert.Equal(JetErrorCodes.FileReadError, reloadError.Code);
 
-        var reloadError = await Assert.ThrowsAsync<JetActionException>(
-            () => owner.DispatchAsync("project.load", LoadPayload(projectId)));
-        Assert.Equal(JetErrorCodes.FileReadError, reloadError.Code);
+            var held = await Assert.ThrowsAsync<JetActionException>(
+                () => contender.DispatchAsync("project.load", LoadPayload(projectId)));
+            Assert.Equal(JetErrorCodes.ProjectLocked, held.Code);
+        }
+        finally
+        {
+            // 斷言失敗時也要還原屬性，否則 TempProjectRoot 清不掉資料夾，會蓋掉真正的失敗原因。
+            File.SetAttributes(projectJson, FileAttributes.Normal);
+        }
 
-        var held = await Assert.ThrowsAsync<JetActionException>(
-            () => contender.DispatchAsync("project.load", LoadPayload(projectId)));
-        Assert.Equal(JetErrorCodes.ProjectLocked, held.Code);
-
-        File.Delete(artifactManifest);
         await owner.DispatchAsync("project.releaseLock");
         var loaded = await contender.DispatchAsync("project.load", LoadPayload(projectId));
         Assert.Equal(projectId, loaded.GetProperty("project").GetProperty("projectId").GetString());

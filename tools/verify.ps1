@@ -6,7 +6,7 @@
 
 .DESCRIPTION
     提供驗證框架自身檢查、文件用語檢查、Restore、Build、Focused／Public 產品測試、Provider／Package
-    驗證、隔離的 GUI 情境、六份合成報表的原生 Excel 往返檢查、明示授權的 PrivateCase，以及在一次性
+    驗證、隔離的 GUI 情境、五份合成報告與科目配對工作檔的原生 Excel 往返檢查、明示授權的 PrivateCase，以及在一次性
     候選快照中依序執行公開必要檢查的 ReleaseCandidate。
 #>
 

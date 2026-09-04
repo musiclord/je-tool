@@ -7,8 +7,6 @@ namespace JET.Application;
 public sealed class ExportValidationArtifactsHandler(
     IValidationReportWriter validationWriter,
     IInfReportWriter infWriter,
-    IAccountMappingExportRepository accountMappingRows,
-    IAccountMappingTemplateWriter accountMappingWriter,
     IRuleRunStore runStore,
     IProjectStore projectStore,
     IReportArtifactStore artifactStore,
@@ -23,8 +21,6 @@ public sealed class ExportValidationArtifactsHandler(
     internal ExportValidationArtifactsHandler(
         IValidationReportWriter validationWriter,
         IInfReportWriter infWriter,
-        IAccountMappingExportRepository accountMappingRows,
-        IAccountMappingTemplateWriter accountMappingWriter,
         IRuleRunStore runStore,
         IProjectStore projectStore,
         IReportArtifactStore artifactStore,
@@ -36,8 +32,6 @@ public sealed class ExportValidationArtifactsHandler(
         : this(
             validationWriter,
             infWriter,
-            accountMappingRows,
-            accountMappingWriter,
             runStore,
             projectStore,
             artifactStore,
@@ -53,8 +47,6 @@ public sealed class ExportValidationArtifactsHandler(
     internal ExportValidationArtifactsHandler(
         IValidationReportWriter validationWriter,
         IInfReportWriter infWriter,
-        IAccountMappingExportRepository accountMappingRows,
-        IAccountMappingTemplateWriter accountMappingWriter,
         IRuleRunStore runStore,
         IProjectStore projectStore,
         IReportArtifactStore artifactStore,
@@ -65,8 +57,6 @@ public sealed class ExportValidationArtifactsHandler(
         : this(
             validationWriter,
             infWriter,
-            accountMappingRows,
-            accountMappingWriter,
             runStore,
             projectStore,
             artifactStore,
@@ -82,8 +72,6 @@ public sealed class ExportValidationArtifactsHandler(
     internal ExportValidationArtifactsHandler(
         IValidationReportWriter validationWriter,
         IInfReportWriter infWriter,
-        IAccountMappingExportRepository accountMappingRows,
-        IAccountMappingTemplateWriter accountMappingWriter,
         IRuleRunStore runStore,
         IProjectStore projectStore,
         IReportArtifactStore artifactStore,
@@ -96,8 +84,6 @@ public sealed class ExportValidationArtifactsHandler(
         : this(
             validationWriter,
             infWriter,
-            accountMappingRows,
-            accountMappingWriter,
             runStore,
             projectStore,
             artifactStore,
@@ -122,7 +108,6 @@ public sealed class ExportValidationArtifactsHandler(
         var progressByKind = new Dictionary<ReportArtifactKind, ExportArtifactProgress>
         {
             [ReportArtifactKind.ValidationReport] = progressSession.Start(ReportArtifactKind.ValidationReport),
-            [ReportArtifactKind.AccountMapping] = progressSession.Start(ReportArtifactKind.AccountMapping),
             [ReportArtifactKind.InfReport] = progressSession.Start(ReportArtifactKind.InfReport)
         };
         var run = await ReportExportSupport.RequireCurrentRunAsync(
@@ -130,7 +115,6 @@ public sealed class ExportValidationArtifactsHandler(
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
         var requiresFormalMetadata = validationWriter is IFormalPlannedValidationReportWriter
-            || accountMappingWriter is IFormalAccountMappingTemplateWriter
             || infWriter is IFormalInfReportWriter;
         if (requiresFormalMetadata
             && (_accountTaxonomyStore is null || _mappingStateStore is null))
@@ -138,9 +122,6 @@ public sealed class ExportValidationArtifactsHandler(
             throw new InvalidOperationException(
                 "Formal validation artifacts require mapping and taxonomy metadata stores.");
         }
-        var taxonomy = _accountTaxonomyStore is null
-            ? AccountTaxonomyCatalog.BuiltInSnapshot
-            : await _accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
         ReportWorkbookMetadata? workbookMetadata = null;
         IReadOnlyList<GlRdeFieldMetadata> allRdeFields = [];
         if (_accountTaxonomyStore is not null && _mappingStateStore is not null)
@@ -153,13 +134,6 @@ public sealed class ExportValidationArtifactsHandler(
                 cancellationToken);
             allRdeFields = ReportWorkbookMetadataFactory.AllRdeFields(workbookMetadata);
         }
-        var rows = await accountMappingRows.FetchTemplateRowsAsync(
-            projectId, document.PeriodStart, document.PeriodEnd, cancellationToken);
-        if (rows.Count == 0)
-        {
-            throw new JetActionException(JetErrorCodes.NoTargetData, "完整性測試科目母體為空，無法產出驗證報告批次。");
-        }
-
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
             Action,
             projectId,
@@ -280,42 +254,6 @@ public sealed class ExportValidationArtifactsHandler(
                 }),
             new(
                 plan.ArtifactKinds[1],
-                plan.SourceRef,
-                async (stream, ct) =>
-                {
-                    var progress = progressByKind[ReportArtifactKind.AccountMapping];
-                    if (accountMappingWriter is IFormalAccountMappingTemplateWriter formalWriter)
-                    {
-                        await formalWriter.WriteFormalAsync(
-                            stream,
-                            rows,
-                            taxonomy.Categories,
-                            plan.WorkbookMetadata!,
-                            ct,
-                            progress.WriterProgress);
-                    }
-                    else if (accountMappingWriter is IAccountMappingTaxonomyTemplateWriter taxonomyWriter)
-                    {
-                        await taxonomyWriter.WriteAsync(
-                            stream,
-                            rows,
-                            taxonomy.Categories,
-                            ct,
-                            progress.WriterProgress);
-                    }
-                    else if (accountMappingWriter is IAccountMappingTemplateProgressWriter progressWriter)
-                    {
-                        await progressWriter.WriteAsync(stream, rows, ct, progress.WriterProgress);
-                    }
-                    else
-                    {
-                        await accountMappingWriter.WriteAsync(stream, rows, ct);
-                    }
-
-                    progress.FinalizingWorkbook();
-                }),
-            new(
-                plan.ArtifactKinds[2],
                 plan.SourceRef,
                 async (stream, ct) =>
                 {

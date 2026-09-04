@@ -172,7 +172,28 @@ internal static class GuiScenarios
         })()
         """;
 
-    private const string ConflictPickerProbeScript = """
+    private const string EditedReportPickerProbeScript = """
+        (function () {
+          function visible(element) {
+            if (!element || element.hidden) { return false; }
+            var style = window.getComputedStyle(element);
+            var rect = element.getBoundingClientRect();
+            return style.display !== 'none' && style.visibility !== 'hidden'
+              && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
+          }
+          var open = document.querySelector(
+            '[data-action="picker-open"][data-project-id="agent-gui-edited-report"]');
+          var rect = open ? open.getBoundingClientRect() : null;
+          return {
+            visible: visible(open),
+            x: rect ? rect.left + (rect.width / 2) : 0,
+            y: rect ? rect.top + (rect.height / 2) : 0
+          };
+        })()
+        """;
+
+    // 第六步清單、訊息面板與離開按鈕一次量完；報告檔狀態只比對固定的中文標示，不讀檔名。
+    private const string EditedReportStepProbeScript = """
         (function () {
           function visible(element) {
             if (!element || element.hidden) { return false; }
@@ -185,72 +206,36 @@ internal static class GuiScenarios
             var rect = element ? element.getBoundingClientRect() : null;
             return { x: rect ? rect.left + rect.width / 2 : 0, y: rect ? rect.top + rect.height / 2 : 0 };
           }
-          var open = document.querySelector(
-            '[data-action="picker-open"][data-project-id="agent-gui-journal-conflict"]');
-          var remove = document.querySelector(
-            '[data-action="picker-delete"][data-project-id="agent-gui-journal-conflict"]');
+          function texts(selector) {
+            return Array.prototype.slice.call(document.querySelectorAll(selector))
+              .map(function (element) { return element.textContent.trim(); });
+          }
+          var states = texts('.report-artifact__state');
+          var messages = texts('.messages__list .messages__text');
+          var feedback = document.querySelector('.picker-feedback');
+          var rail = document.querySelector('.messages__rail[data-action="messages-toggle"]');
+          var exportButton = document.querySelector('[data-action="support-log-export"]');
           var exit = document.querySelector('[data-action="app-exit"]');
-          var openPoint = point(open);
-          var deletePoint = point(remove);
+          var railPoint = point(rail);
+          var exportPoint = point(exportButton);
           var exitPoint = point(exit);
           return {
-            openVisible: visible(open),
-            openX: openPoint.x,
-            openY: openPoint.y,
-            deleteVisible: visible(remove),
-            deleteX: deletePoint.x,
-            deleteY: deletePoint.y,
+            artifactCount: document.querySelectorAll('.report-artifact').length,
+            modifiedOutsideVisible: states.some(function (text) { return text.indexOf('已在 JET 之外修改') >= 0; }),
+            workpaperExportEnabled: !!document.querySelector('[data-action="export-workpaper"]:not(:disabled)'),
+            cleanupPanelAbsent: !document.querySelector('[data-action^="report-cleanup"]')
+              && document.body.innerText.indexOf('清理舊報告版本') < 0,
+            pickerFeedbackVisible: visible(feedback),
+            railVisible: visible(rail),
+            railX: railPoint.x,
+            railY: railPoint.y,
+            exportVisible: visible(exportButton),
+            exportX: exportPoint.x,
+            exportY: exportPoint.y,
+            supportLogMessageVisible: messages.some(function (text) { return text.indexOf('支援日誌已輸出') >= 0; }),
             exitVisible: visible(exit),
             exitX: exitPoint.x,
             exitY: exitPoint.y
-          };
-        })()
-        """;
-
-    private const string ConflictFeedbackProbeScript = """
-        (function () {
-          function visible(element) {
-            if (!element || element.hidden) { return false; }
-            var style = window.getComputedStyle(element);
-            var rect = element.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden'
-              && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
-          }
-          var feedback = document.querySelector('.picker-feedback');
-          var exportButton = document.querySelector('[data-action="picker-support-export"]');
-          var copyButton = document.querySelector('[data-action="picker-copy-error"]');
-          var result = document.querySelector('.picker-feedback__export-result');
-          var devLogPanel = document.querySelector('[data-bind="dev-log-panel"]');
-          var rect = exportButton ? exportButton.getBoundingClientRect() : null;
-          return {
-            feedbackVisible: visible(feedback),
-            feedbackText: feedback ? feedback.textContent.trim() : '',
-            exportVisible: visible(exportButton),
-            copyVisible: visible(copyButton),
-            devLogPanelVisible: visible(devLogPanel),
-            exportX: rect ? rect.left + rect.width / 2 : 0,
-            exportY: rect ? rect.top + rect.height / 2 : 0,
-            exportResultVisible: visible(result),
-            exportResultText: result ? result.textContent.trim() : ''
-          };
-        })()
-        """;
-
-    private const string DeleteConfirmProbeScript = """
-        (function () {
-          function visible(element) {
-            if (!element || element.hidden) { return false; }
-            var style = window.getComputedStyle(element);
-            var rect = element.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden'
-              && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
-          }
-          var confirm = document.querySelector('[data-action="modal-confirm"]');
-          var rect = confirm ? confirm.getBoundingClientRect() : null;
-          return {
-            visible: visible(confirm),
-            x: rect ? rect.left + rect.width / 2 : 0,
-            y: rect ? rect.top + rect.height / 2 : 0
           };
         })()
         """;
@@ -272,7 +257,7 @@ internal static class GuiScenarios
                 cdp, ownedRun, process, initialUi, outcome, cancellationToken),
             GuiScenarioCatalog.MappingRequiredSync => ExecuteMappingRequiredSyncAsync(
                 cdp, ownedRun, process, outcome, cancellationToken),
-            GuiScenarioCatalog.ConflictedJournalRecovery => ExecuteConflictedJournalRecoveryAsync(
+            GuiScenarioCatalog.EditedReportStillLoads => ExecuteEditedReportStillLoadsAsync(
                 cdp, ownedRun, process, outcome, cancellationToken),
             _ => throw new GuiInfrastructureException("scenario_not_implemented")
         };
@@ -488,110 +473,99 @@ internal static class GuiScenarios
         outcome.Assertions.ExitRequested = true;
     }
 
-    private static async Task ExecuteConflictedJournalRecoveryAsync(
+    private static async Task ExecuteEditedReportStillLoadsAsync(
         CdpSession cdp,
         OwnedGuiRun ownedRun,
         Process process,
         GuiRunOutcome outcome,
         CancellationToken cancellationToken)
     {
-        const string projectId = "agent-gui-journal-conflict";
+        // 預設審計員可信：Working Paper 在 JET 之外被改過、舊版輸出紀錄檔還留著，案件仍要能開。
+        const string projectId = "agent-gui-edited-report";
         await WaitForFixtureEventAsync(
             ownedRun,
             process,
-            "seed-conflicted-journal-project",
+            "seed-edited-report-project",
             "seed.completed",
             cancellationToken).ConfigureAwait(false);
-        var picker = await WaitForConflictPickerAsync(
+        var picker = await WaitForPointAsync(
             cdp,
             process,
-            requireProject: true,
+            EditedReportPickerProbeScript,
+            "visible",
+            "application_exited_before_edited_report_fixture",
             cancellationToken).ConfigureAwait(false);
         await ClickAsync(
             cdp,
-            ReadDouble(picker, "openX"),
-            ReadDouble(picker, "openY"),
+            ReadDouble(picker, "x"),
+            ReadDouble(picker, "y"),
             outcome,
             cancellationToken).ConfigureAwait(false);
 
-        var feedback = await WaitForConflictFeedbackAsync(
+        var exportStep = await WaitForEditedReportStepAsync(
             cdp,
             process,
-            requireExportResult: false,
+            probe => ReadInt32(probe, "artifactCount") > 0
+                && ReadBoolean(probe, "modifiedOutsideVisible"),
             cancellationToken).ConfigureAwait(false);
-        outcome.Assertions.ConflictFeedbackVisible =
-            ReadString(feedback, "feedbackText").Contains(
-                "報告覆寫回滾的正式檔內容不符合 journal",
-                StringComparison.Ordinal);
-        outcome.Assertions.SupportExportAvailable =
-            ReadBoolean(feedback, "exportVisible")
-            && ReadBoolean(feedback, "copyVisible")
-            && !ReadBoolean(feedback, "devLogPanelVisible");
-        if (!outcome.Assertions.ConflictFeedbackVisible
-            || !outcome.Assertions.SupportExportAvailable)
+        outcome.Assertions.EditedReportLoaded = !ReadBoolean(exportStep, "pickerFeedbackVisible");
+        outcome.Assertions.ModifiedOutsideVisible = ReadBoolean(exportStep, "modifiedOutsideVisible");
+        outcome.Assertions.WorkpaperExportEnabled = ReadBoolean(exportStep, "workpaperExportEnabled");
+        outcome.Assertions.CleanupPanelAbsent = ReadBoolean(exportStep, "cleanupPanelAbsent");
+        if (!outcome.Assertions.EditedReportLoaded)
         {
-            throw new GuiCheckException("journal_conflict_feedback_invalid");
+            throw new GuiCheckException("edited_report_load_feedback_visible");
+        }
+        if (!outcome.Assertions.ModifiedOutsideVisible
+            || !outcome.Assertions.WorkpaperExportEnabled
+            || !outcome.Assertions.CleanupPanelAbsent)
+        {
+            throw new GuiCheckException("edited_report_workflow_contract_failed");
         }
 
+        if (!ReadBoolean(exportStep, "exportVisible"))
+        {
+            // 訊息面板預設收合，展開才看得到「輸出支援日誌」。
+            await ClickAsync(
+                cdp,
+                ReadDouble(exportStep, "railX"),
+                ReadDouble(exportStep, "railY"),
+                outcome,
+                cancellationToken).ConfigureAwait(false);
+            exportStep = await WaitForEditedReportStepAsync(
+                cdp,
+                process,
+                probe => ReadBoolean(probe, "exportVisible"),
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        outcome.Assertions.SupportExportAvailable = ReadBoolean(exportStep, "exportVisible");
         await ClickAsync(
             cdp,
-            ReadDouble(feedback, "exportX"),
-            ReadDouble(feedback, "exportY"),
+            ReadDouble(exportStep, "exportX"),
+            ReadDouble(exportStep, "exportY"),
             outcome,
             cancellationToken).ConfigureAwait(false);
-        var exported = await WaitForConflictFeedbackAsync(
+        var exported = await WaitForEditedReportStepAsync(
             cdp,
             process,
-            requireExportResult: true,
+            probe => ReadBoolean(probe, "supportLogMessageVisible"),
             cancellationToken).ConfigureAwait(false);
-        if (!ReadString(exported, "exportResultText").Contains("支援日誌已輸出", StringComparison.Ordinal))
-        {
-            throw new GuiCheckException("support_log_export_feedback_invalid");
-        }
 
         ValidateSupportLog(ownedRun, projectId, outcome.Assertions);
 
-        picker = await WaitForConflictPickerAsync(
-            cdp,
-            process,
-            requireProject: true,
-            cancellationToken).ConfigureAwait(false);
-        await ClickAsync(
-            cdp,
-            ReadDouble(picker, "deleteX"),
-            ReadDouble(picker, "deleteY"),
-            outcome,
-            cancellationToken).ConfigureAwait(false);
-        var confirm = await WaitForPointAsync(
-            cdp,
-            process,
-            DeleteConfirmProbeScript,
-            "visible",
-            "application_exited_before_delete_confirmation",
-            cancellationToken).ConfigureAwait(false);
-        await ClickAsync(
-            cdp,
-            ReadDouble(confirm, "x"),
-            ReadDouble(confirm, "y"),
-            outcome,
-            cancellationToken).ConfigureAwait(false);
-
-        var afterDelete = await WaitForConflictPickerAsync(
-            cdp,
-            process,
-            requireProject: false,
-            cancellationToken).ConfigureAwait(false);
         var projectDirectory = Path.Combine(ownedRun.ProjectsRootPath, projectId);
-        outcome.Assertions.ConflictedProjectDeleted = !Directory.Exists(projectDirectory);
-        if (!outcome.Assertions.ConflictedProjectDeleted)
+        outcome.Assertions.LegacyJournalDiscarded = Directory.Exists(projectDirectory)
+            && !File.Exists(Path.Combine(projectDirectory, ".report-artifacts.mutation-v1.json"));
+        if (!outcome.Assertions.LegacyJournalDiscarded)
         {
-            throw new GuiCheckException("conflicted_project_directory_retained");
+            throw new GuiCheckException("legacy_journal_retained");
         }
 
         await ClickAsync(
             cdp,
-            ReadDouble(afterDelete, "exitX"),
-            ReadDouble(afterDelete, "exitY"),
+            ReadDouble(exported, "exitX"),
+            ReadDouble(exported, "exitY"),
             outcome,
             cancellationToken).ConfigureAwait(false);
         outcome.Assertions.ExitRequested = true;
@@ -799,56 +773,22 @@ internal static class GuiScenarios
         }
     }
 
-    private static async Task<JsonElement> WaitForConflictPickerAsync(
+    private static async Task<JsonElement> WaitForEditedReportStepAsync(
         CdpSession cdp,
         Process process,
-        bool requireProject,
+        Func<JsonElement, bool> accepted,
         CancellationToken cancellationToken)
     {
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfExited(process, "application_exited_during_journal_recovery");
-            var probe = await cdp.EvaluateAsync(ConflictPickerProbeScript, cancellationToken)
+            ThrowIfExited(process, "application_exited_during_edited_report_load");
+            var probe = await cdp.EvaluateAsync(EditedReportStepProbeScript, cancellationToken)
                 .ConfigureAwait(false);
-            var projectStateMatches = requireProject
-                ? ReadBoolean(probe, "openVisible")
-                    && ReadBoolean(probe, "deleteVisible")
-                    && ReadDouble(probe, "openX") > 0
-                    && ReadDouble(probe, "openY") > 0
-                    && ReadDouble(probe, "deleteX") > 0
-                    && ReadDouble(probe, "deleteY") > 0
-                : !ReadBoolean(probe, "openVisible") && !ReadBoolean(probe, "deleteVisible");
-            if (projectStateMatches
+            if (accepted(probe)
                 && ReadBoolean(probe, "exitVisible")
                 && ReadDouble(probe, "exitX") > 0
                 && ReadDouble(probe, "exitY") > 0)
-            {
-                return probe;
-            }
-
-            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private static async Task<JsonElement> WaitForConflictFeedbackAsync(
-        CdpSession cdp,
-        Process process,
-        bool requireExportResult,
-        CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfExited(process, "application_exited_during_support_export");
-            var probe = await cdp.EvaluateAsync(ConflictFeedbackProbeScript, cancellationToken)
-                .ConfigureAwait(false);
-            if (ReadBoolean(probe, "feedbackVisible")
-                && ReadBoolean(probe, "exportVisible")
-                && ReadBoolean(probe, "copyVisible")
-                && ReadDouble(probe, "exportX") > 0
-                && ReadDouble(probe, "exportY") > 0
-                && (!requireExportResult || ReadBoolean(probe, "exportResultVisible")))
             {
                 return probe;
             }
@@ -892,7 +832,6 @@ internal static class GuiScenarios
             .ToArray();
         var eventNames = new List<string>(lines.Length);
         var correlations = new HashSet<string>(StringComparer.Ordinal);
-        var hasRecoveryCode = false;
         foreach (var line in lines)
         {
             using var document = JsonDocument.Parse(line);
@@ -909,25 +848,18 @@ internal static class GuiScenarios
             {
                 correlations.Add(correlation.GetString()!);
             }
-            if (root.TryGetProperty("fields", out var fields)
-                && fields.ValueKind == JsonValueKind.Object
-                && fields.TryGetProperty("error_code", out var errorCode)
-                && errorCode.GetString() == "artifact_recovery_conflict")
-            {
-                hasRecoveryCode = true;
-            }
         }
 
+        // 這個關卡防的是「載入被報告檔卡住」與「日誌洩漏檔名或路徑」，不防審計員改檔。
         var text = string.Join('\n', lines).Replace("\\\\", "\\", StringComparison.Ordinal);
         assertions.SupportLogSafe =
             eventNames.Contains("support.snapshot", StringComparer.Ordinal)
-            && eventNames.Contains("artifact.recovery.conflict", StringComparer.Ordinal)
-            && eventNames.Contains("action.error", StringComparer.Ordinal)
-            && hasRecoveryCode
-            && correlations.Count == 1
+            && eventNames.Contains("artifact.journal.discarded", StringComparer.Ordinal)
+            && !eventNames.Contains("action.error", StringComparer.Ordinal)
+            && correlations.Count >= 1
             && !text.Contains(projectId, StringComparison.OrdinalIgnoreCase)
             && !text.Contains(projectsRoot, StringComparison.OrdinalIgnoreCase)
-            && !text.Contains("conflicted-copy", StringComparison.Ordinal)
+            && !text.Contains("WorkingPaper", StringComparison.Ordinal)
             && !text.Contains(".xlsx", StringComparison.OrdinalIgnoreCase)
             && !text.Contains("parameters", StringComparison.OrdinalIgnoreCase);
         if (!assertions.SupportLogSafe)

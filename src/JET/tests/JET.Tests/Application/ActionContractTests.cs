@@ -509,9 +509,10 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         // 先跑一次 validate/prescreen,讓 latestRuns 兩格都有值(物件而非 null)。
         var validation = await host.DispatchAsync("validate.run");
         await host.DispatchAsync("prescreen.run");
-        // 至少建立一筆 artifact，讓 project.load 的元素形狀（含 sha256）確實被鎖住。
+        // 至少建立一筆正式報告 artifact，讓 project.load 的元素形狀（含 fileState）確實被鎖住。
+        // 科目配對範本自 2026-09-02 起是工作檔，不會出現在 reportArtifacts。
         await host.DispatchAsync(
-            "export.accountMappingTemplate",
+            "export.validationArtifacts",
             JsonSerializer.Serialize(new
             {
                 runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()
@@ -597,8 +598,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         {
             JsonShape.HasExactKeys(
                 artifact,
-                "artifactId", "kind", "fileName", "generatedUtc", "bytes", "sha256", "sourceRef", "stale");
-            JsonShape.Str(artifact, "sha256");
+                "artifactId", "kind", "fileName", "generatedUtc", "bytes", "fileState", "sourceRef", "stale");
+            JsonShape.Str(artifact, "fileState");
             var sourceRef = JsonShape.Obj(artifact, "sourceRef");
             JsonShape.HasExactKeys(
                 sourceRef, "validationRunId", "prescreenRunId", "scenarioRevision", "scenarioPositions");
@@ -723,90 +724,6 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(1, MappingVersion(loaded, "tb"));
         await RecommitTbAsync();
         Assert.False(ReviewRequired(await LoadAsync()));
-    }
-
-    [Fact]
-    public async Task ReportCleanupActions_ResponseShapes_AreLocked()
-    {
-        using var host = new HandlerTestHost();
-        await DemoProjectPipeline.SetupAsync(host);
-        var firstValidation = await host.DispatchAsync("validate.run");
-        var firstValidationRunId = firstValidation
-            .GetProperty("resultRef").GetProperty("runId").GetString();
-        await host.DispatchAsync(
-            "export.accountMappingTemplate",
-            JsonSerializer.Serialize(new { runId = firstValidationRunId }));
-
-        // 規格 oracle：新 validation run 會使舊 AccountMapping 成為 stale 清理候選。
-        // 另留一份目前有效的 PrescreenReport，讓 confirm 後仍能鎖住 artifact 元素形狀。
-        await host.DispatchAsync("validate.run");
-        var prescreen = await host.DispatchAsync("prescreen.run");
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString();
-        await host.DispatchAsync(
-            "export.prescreenReport",
-            JsonSerializer.Serialize(new { runId = prescreenRunId }));
-
-        var preview = await host.DispatchAsync("report.cleanupPreview");
-        JsonShape.HasExactKeys(
-            preview, "catalogRevision", "candidateCount", "candidateBytes", "candidates");
-        JsonShape.Str(preview, "catalogRevision");
-        JsonShape.Number(preview, "candidateCount");
-        JsonShape.Number(preview, "candidateBytes");
-        Assert.Equal(1, preview.GetProperty("candidateCount").GetInt32());
-        JsonShape.Element(JsonShape.Arr(preview, "candidates"), candidate =>
-        {
-            JsonShape.HasExactKeys(
-                candidate, "artifactId", "kind", "fileName", "generatedUtc", "bytes", "reason");
-            JsonShape.Str(candidate, "artifactId");
-            JsonShape.Str(candidate, "kind");
-            JsonShape.Str(candidate, "fileName");
-            JsonShape.Str(candidate, "generatedUtc");
-            JsonShape.Number(candidate, "bytes");
-            JsonShape.Str(candidate, "reason");
-            Assert.Equal("stale", candidate.GetProperty("reason").GetString());
-        });
-
-        var confirmed = await host.DispatchAsync(
-            "report.cleanupConfirm",
-            JsonSerializer.Serialize(new
-            {
-                catalogRevision = preview.GetProperty("catalogRevision").GetString()
-            }));
-        JsonShape.HasExactKeys(
-            confirmed,
-            "ok", "deletedCount", "deletedBytes", "auditId", "catalogRevision", "reportArtifacts");
-        Assert.Equal(JsonValueKind.True, confirmed.GetProperty("ok").ValueKind);
-        JsonShape.Number(confirmed, "deletedCount");
-        JsonShape.Number(confirmed, "deletedBytes");
-        JsonShape.Str(confirmed, "auditId");
-        JsonShape.Str(confirmed, "catalogRevision");
-        var artifacts = JsonShape.Arr(confirmed, "reportArtifacts");
-        Assert.Single(artifacts.EnumerateArray());
-        JsonShape.Element(artifacts, artifact =>
-        {
-            JsonShape.HasExactKeys(
-                artifact,
-                "artifactId", "kind", "fileName", "generatedUtc", "bytes", "sha256", "sourceRef", "stale");
-            JsonShape.Str(artifact, "artifactId");
-            JsonShape.Str(artifact, "kind");
-            JsonShape.Str(artifact, "fileName");
-            JsonShape.Str(artifact, "generatedUtc");
-            JsonShape.Number(artifact, "bytes");
-            JsonShape.Str(artifact, "sha256");
-            Assert.Contains(
-                artifact.GetProperty("stale").ValueKind,
-                new[] { JsonValueKind.True, JsonValueKind.False });
-            var sourceRef = JsonShape.Obj(artifact, "sourceRef");
-            JsonShape.HasExactKeys(
-                sourceRef,
-                "validationRunId", "prescreenRunId", "scenarioRevision", "scenarioPositions");
-            JsonShape.Str(sourceRef, "validationRunId", nullable: true);
-            JsonShape.Str(sourceRef, "prescreenRunId", nullable: true);
-            JsonShape.Str(sourceRef, "scenarioRevision", nullable: true);
-            Assert.Contains(
-                sourceRef.GetProperty("scenarioPositions").ValueKind,
-                new[] { JsonValueKind.Array, JsonValueKind.Null });
-        });
     }
 
     [Fact]
@@ -1038,7 +955,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             Assert.Equal(JsonValueKind.True, data.GetProperty("ok").ValueKind);
             var artifact = JsonShape.Obj(data, "artifact");
             JsonShape.HasExactKeys(artifact,
-                "artifactId", "kind", "fileName", "generatedUtc", "bytes", "sha256", "sourceRef", "stale");
+                "artifactId", "kind", "fileName", "generatedUtc", "bytes", "fileState", "sourceRef", "stale");
+            JsonShape.Str(artifact, "fileState");
             JsonShape.Str(artifact, "artifactId");
             JsonShape.Str(artifact, "kind");
             JsonShape.Str(artifact, "fileName");
@@ -1068,13 +986,39 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
+    public async Task ExportAccountMappingTemplate_ResponseShape_IsLocked()
+    {
+        // 範本是工作檔：回傳完整路徑讓前端顯示，不再回 artifact 物件、不進報告清單。
+        using var host = new HandlerTestHost();
+        await DemoProjectPipeline.SetupAsync(host);
+        var validation = await host.DispatchAsync("validate.run");
+        var data = await host.DispatchAsync(
+            "export.accountMappingTemplate",
+            JsonSerializer.Serialize(new
+            {
+                runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()
+            }));
+
+        JsonShape.HasExactKeys(data, "ok", "filePath", "fileName", "rowCount", "validationRunId");
+        Assert.Equal(JsonValueKind.True, data.GetProperty("ok").ValueKind);
+        JsonShape.Str(data, "filePath");
+        JsonShape.Str(data, "fileName");
+        JsonShape.Number(data, "rowCount");
+        JsonShape.Str(data, "validationRunId");
+        Assert.True(Path.IsPathFullyQualified(data.GetProperty("filePath").GetString()!));
+        Assert.Equal(
+            Path.GetFileName(data.GetProperty("filePath").GetString()!),
+            data.GetProperty("fileName").GetString());
+    }
+
+    [Fact]
     public async Task HostOpenFolder_ResponseShape_IsLocked()
     {
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host);
         var validation = await host.DispatchAsync("validate.run");
         var exported = await host.DispatchAsync(
-            "export.accountMappingTemplate",
+            "export.validationArtifacts",
             JsonSerializer.Serialize(new
             {
                 runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()
@@ -1083,7 +1027,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             "host.openFolder",
             JsonSerializer.Serialize(new
             {
-                artifactId = exported.GetProperty("artifact").GetProperty("artifactId").GetString()
+                artifactId = exported.GetProperty("artifacts")[0].GetProperty("artifactId").GetString()
             }));
 
         JsonShape.HasExactKeys(data, "ok");

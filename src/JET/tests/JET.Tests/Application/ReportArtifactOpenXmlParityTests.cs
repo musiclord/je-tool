@@ -210,6 +210,14 @@ public sealed class ReportArtifactOpenXmlParityTests(ReportArtifactExportFixture
         var workpaperArtifact = workpaper.GetProperty("artifact");
         AddSnapshot(result, ReportArtifactKindValues.WorkingPaper, workpaperArtifact);
 
+        // 科目配對範本是工作檔，直接以回傳的完整路徑取快照；重新產生後內容同樣要穩定。
+        var templatePath = await fixture.ExportAccountMappingTemplatePathAsync();
+        Assert.True(
+            result.TryAdd(
+                ReportArtifactKindValues.AccountMapping,
+                NormalizedOpenXmlWorkbookSnapshot.Capture(templatePath)),
+            "Duplicate report artifact kind 'accountMapping'.");
+
         return result;
     }
 

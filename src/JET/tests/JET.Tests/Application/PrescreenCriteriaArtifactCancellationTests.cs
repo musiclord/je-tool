@@ -415,7 +415,6 @@ public sealed class PrescreenCriteriaArtifactCancellationTests
         Assert.Equal(expected.RelativeFileName, actual.RelativeFileName);
         Assert.Equal(expected.GeneratedUtc, actual.GeneratedUtc);
         Assert.Equal(expected.Bytes, actual.Bytes);
-        Assert.Equal(expected.Sha256, actual.Sha256);
         Assert.Equal(expected.Stale, actual.Stale);
         Assert.Equal(
             expected.SourceRef.ValidationRunId,

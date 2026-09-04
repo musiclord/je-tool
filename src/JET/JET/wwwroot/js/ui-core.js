@@ -1290,11 +1290,17 @@
         : generated.toLocaleString('zh-Hant', { hour12: false });
       var bytes = Number(artifact.bytes);
       var bytesText = isNaN(bytes) ? '大小未知' : bytes.toLocaleString('en-US') + ' 位元組';
+      // 檔案狀態只是提醒：審計員在 JET 之外改過或刪了檔案都不擋，重新匯出就好。
+      var fileStateText = artifact.fileState === 'modifiedOutside'
+        ? '已在 JET 之外修改'
+        : (artifact.fileState === 'missing' ? '檔案不存在，重新匯出即可' : '');
       return (
         '<div class="report-artifact">' +
           '<span class="report-artifact__copy">' +
             '<span class="report-artifact__name">' + esc(artifact.fileName || '未命名報告') + '</span>' +
-            '<span class="report-artifact__meta">' + esc(generatedText) + ' · ' + esc(bytesText) + '</span>' +
+            '<span class="report-artifact__meta">' + esc(generatedText) + ' · ' + esc(bytesText) +
+              (fileStateText ? ' · <span class="report-artifact__state">' + esc(fileStateText) + '</span>' : '') +
+            '</span>' +
           '</span>' +
         '</div>'
       );

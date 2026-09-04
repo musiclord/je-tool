@@ -1,0 +1,7 @@
+interface:
+  display_name: "JET Readable Docs"
+  short_description: "把面向人的中文文件、計畫、commit 訊息與回覆改成事實不變的白話"
+  default_prompt: "Use $jet-readable-docs to rewrite this JET text for a first-time maintainer without changing any fact."
+
+policy:
+  allow_implicit_invocation: true

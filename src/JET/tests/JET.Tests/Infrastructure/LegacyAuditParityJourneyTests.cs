@@ -17,9 +17,9 @@ public sealed class LegacyAuditParityJourneyTests
     [InlineData((int)LegacyAuditParityCheckpoint.Import, 7)]
     [InlineData((int)LegacyAuditParityCheckpoint.Mapping, 9)]
     [InlineData((int)LegacyAuditParityCheckpoint.Validate, 11)]
-    [InlineData((int)LegacyAuditParityCheckpoint.Prescreen, 13)]
-    [InlineData((int)LegacyAuditParityCheckpoint.Filter, 18)]
-    [InlineData((int)LegacyAuditParityCheckpoint.Export, 20)]
+    [InlineData((int)LegacyAuditParityCheckpoint.Prescreen, 14)]
+    [InlineData((int)LegacyAuditParityCheckpoint.Filter, 19)]
+    [InlineData((int)LegacyAuditParityCheckpoint.Export, 21)]
     public async Task SyntheticJourney_StopsAtCheckpointAndUsesFormalActionPrefix(
         int checkpointValue,
         int expectedActionCount)

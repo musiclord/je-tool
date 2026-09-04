@@ -12,9 +12,6 @@ public sealed class ReportExportOwnershipTests
         "ExportValidationArtifactsHandler",
         "Application/Handlers/ExportReportHandlers.cs")]
     [InlineData(
-        "ExportAccountMappingTemplateHandler",
-        "Application/Handlers/ExportAccountMappingTemplateHandler.cs")]
-    [InlineData(
         "ExportPrescreenReportHandler",
         "Application/Handlers/ExportReportHandlers.cs")]
     [InlineData(
@@ -33,6 +30,21 @@ public sealed class ReportExportOwnershipTests
             "new ReportArtifactExecutionPort(artifactStore,",
             handler,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AccountMappingTemplateHandler_WritesWorkFileOutsideReportLifecycle()
+    {
+        // 2026-09-02 裁定：範本是工作檔，不走報告 plan／artifact store，也不進 manifest。
+        var handler = ReadTypeSource(
+            "ExportAccountMappingTemplateHandler",
+            "Application/Handlers/ExportAccountMappingTemplateHandler.cs");
+
+        Assert.DoesNotContain("JetAuditProgram.Plan(", handler, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportArtifactExecutionPort", handler, StringComparison.Ordinal);
+        Assert.DoesNotContain("IReportArtifactStore", handler, StringComparison.Ordinal);
+        Assert.Contains("ProjectWorkFileWriter.WriteAsync(", handler, StringComparison.Ordinal);
+        Assert.Contains("ProjectFileNames.AccountMappingTemplate(", handler, StringComparison.Ordinal);
     }
 
     [Fact]

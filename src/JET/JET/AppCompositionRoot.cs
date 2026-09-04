@@ -637,8 +637,7 @@ public static class AppCompositionRoot
                 workpaperWriter, workpaperPlanningFactsPort, filterScenarioStore, filterRunMaterializeService, ruleRunStore,
                 resultStaleStateStore, projectStore, reportArtifactStore, session, events, mappingStore, accountTaxonomyStore),
             new ExportValidationArtifactsHandler(
-                legacyReportWriter, legacyReportWriter, accountMappingExportRepository,
-                accountMappingTemplateWriter, ruleRunStore, projectStore, reportArtifactStore, session, events,
+                legacyReportWriter, legacyReportWriter, ruleRunStore, projectStore, reportArtifactStore, session, events,
                 validationReportPlanningFactsPort, fieldDefinitionFactsPort, accountTaxonomyStore, mappingStore),
             new ExportPrescreenReportHandler(
                 legacyReportWriter, ruleRunStore, projectStore, reportArtifactStore, session, events,
@@ -647,13 +646,10 @@ public static class AppCompositionRoot
                 legacyReportWriter, filterScenarioStore, filterRunMaterializeService,
                 ruleRunStore, projectStore, reportArtifactStore, session, events, accountTaxonomyStore,
                 mappingStore),
+            // 帳戶對應範本是給審計員填寫的工作檔，直接寫進案件資料夾，不經報告 store。
             new ExportAccountMappingTemplateHandler(
                 accountMappingExportRepository, accountMappingTemplateWriter, ruleRunStore,
-                projectStore, reportArtifactStore, session, events, accountTaxonomyStore, mappingStore),
-            new ReportCleanupPreviewHandler(
-                ruleRunStore, resultStaleStateStore, filterScenarioStore, reportArtifactStore, session),
-            new ReportCleanupConfirmHandler(
-                ruleRunStore, resultStaleStateStore, filterScenarioStore, reportArtifactStore, currentPrincipal, session),
+                projectStore, folder, session, events, accountTaxonomyStore, mappingStore),
             new LogAppendHandler(messageLogStore, session),
             new LogRecentHandler(messageLogStore, session),
             new SupportLogExportHandler(supportDiagnostic, projectStore, folder),

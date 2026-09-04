@@ -109,13 +109,41 @@ internal static class ReportExportSupport
         return selected;
     }
 
+    /// <summary>
+    /// 先依目前的 run 與篩選版本把過期報告標為 stale，再列出清單。stale 判定只委派
+    /// <see cref="IsSourceStale(ReportArtifact, RuleRunRecord?, RuleRunRecord?, bool, string?, IReadOnlyCollection{int})"/>，
+    /// 不建立第二份 run／revision 規則。
+    /// </summary>
+    public static async Task<IReadOnlyList<ReportArtifact>> RefreshArtifactsAsync(
+        string projectId,
+        RuleRunRecord? latestValidate,
+        RuleRunRecord? latestPrescreen,
+        bool filterStale,
+        string? currentFilterRevision,
+        IReadOnlyCollection<int> scenarioPositions,
+        IReportArtifactStore artifactStore,
+        CancellationToken cancellationToken)
+    {
+        await artifactStore.MarkStaleAsync(
+            projectId,
+            artifact => IsSourceStale(
+                artifact,
+                latestValidate,
+                latestPrescreen,
+                filterStale,
+                currentFilterRevision,
+                scenarioPositions),
+            cancellationToken);
+        return await artifactStore.ListAsync(projectId, cancellationToken);
+    }
+
     public static async Task<ReportArtifact> RequireCurrentCriteriaSelectionReportAsync(
         IReportArtifactStore store,
         string projectId,
-        ReportArtifactCatalog refreshedCatalog,
+        IReadOnlyList<ReportArtifact> refreshedArtifacts,
         CancellationToken cancellationToken)
     {
-        var current = refreshedCatalog.Artifacts
+        var current = refreshedArtifacts
             .Where(artifact => artifact.Kind == ReportArtifactKind.CriteriaSelectionReport)
             .Where(artifact => !artifact.Stale)
             .OrderByDescending(artifact => artifact.GeneratedUtc)
@@ -158,7 +186,7 @@ internal static class ReportExportSupport
         fileName = artifact.RelativeFileName,
         generatedUtc = artifact.GeneratedUtc,
         bytes = artifact.Bytes,
-        sha256 = artifact.Sha256,
+        fileState = ReportArtifactFileStateValues.ToValue(artifact.FileState),
         sourceRef = new
         {
             validationRunId = artifact.SourceRef.ValidationRunId,
@@ -195,7 +223,6 @@ internal static class ReportExportSupport
         return artifact.Kind switch
         {
             ReportArtifactKind.ValidationReport
-                or ReportArtifactKind.AccountMapping
                 or ReportArtifactKind.InfReport
                 => source.ValidationRunId is null
                     || !string.Equals(

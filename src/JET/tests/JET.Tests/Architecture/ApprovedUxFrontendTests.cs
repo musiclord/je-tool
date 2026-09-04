@@ -128,9 +128,6 @@ public sealed class ApprovedUxFrontendTests
 
         AssertCssDeclaration(css, ".picker-panel", "border-radius", "0");
         AssertCssDeclaration(css, ".modal__card", "border-radius", "0");
-        AssertCssDeclaration(css, ".report-cleanup", "border-radius", "0");
-        AssertCssDeclaration(css, ".report-cleanup__feedback", "border-radius", "0");
-        AssertCssDeclaration(css, ".report-cleanup__candidate", "border-radius", "0");
         AssertCssDeclaration(css, ".project-row:hover", "box-shadow", "none");
         Assert.Matches(
             new Regex(@"\.project-provider\s*\{[^}]*border-radius:\s*9999px;", RegexOptions.Singleline),

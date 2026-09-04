@@ -96,9 +96,10 @@
 - `project.releaseLock`
 - `project.loadDemo`（開發／GUI 測試專用）
 
-報告產物 journal 無法安全復原時，`project.load` 以 `artifact_recovery_conflict` 保留現場並拒絕載入，
-不猜測哪一份檔案正確。使用者已在 picker 確認永久刪案時，`project.delete` 只取得案件外的 artifact lease，
-不先復原即將一併刪除的 journal，因此損壞案件不會反過來卡死刪除流程。
+`project.load` 不會因為報告檔而拒絕載入。報告檔在 JET 之外被改寫、改名或刪除時，回應的 `reportArtifacts`
+每筆多一個 `fileState`（`asPublished`、`modifiedOutside`、`missing`）讓前端標示，重新匯出即可。舊版留下的
+輸出紀錄檔 `.report-artifacts.mutation-v1.json` 會在載入時直接刪除，並記一筆 `artifact.journal.discarded`
+支援日誌事件。`project.delete` 只取得案件外的 artifact lease，刪案不受報告檔狀態影響。
 
 ### 合成 demo 檔案
 
@@ -167,10 +168,12 @@
 - `export.workpaperStream`
 - `export.accountMappingTemplate`
 
-### 報告產物清理
-
-- `report.cleanupPreview`
-- `report.cleanupConfirm`
+`export.validationArtifacts` 只發布 Validation Report 與 INF Report 兩份，同名檔覆蓋。
+`export.workpaperStream` 每次寫新的版本檔 `<案件前綴>_WorkingPaper_<yyyyMMdd-HHmmss>.xlsx`，不覆蓋、不刪
+舊版。`export.accountMappingTemplate` 產生的是工作檔，不是報告：固定檔名 `<案件前綴>_AccountMapping.xlsx`
+寫進案件資料夾、可反覆覆寫、不進 `reportArtifacts`，回應為 `{ ok, filePath, fileName, rowCount,
+validationRunId }`；審計員用 Excel 填完 C 欄存回原檔，再由 `import.accountMapping.fromFile` 讀同一路徑。
+2026-09-02 以前的 `report.cleanupPreview`／`report.cleanupConfirm` 已移除。
 
 ### 訊息、原生視窗與開發工具
 
@@ -193,8 +196,10 @@
 不保存 SQL、參數值、檔名、絕對路徑、案件名稱或原始 exception message。輸出固定為案件目錄內的
 `JET-support-*.txt`，每行一個 JSON；案件目錄不存在或是 reparse point 時直接失敗，不改寫到其他位置。
 
-`dev.*` action 只服務開發面板，一般使用者流程不能依賴。`dev.log.exportFile` 輸入 `{ projectId }`，
-從本次 Debug 程序的完整檔案 sink 篩出該案件；sink 不可讀時退回 ring buffer，並於回應標記 `source`。
+`dev.*` action 只服務開發面板，一般使用者流程不能依賴。`dev.log.exportFile` 輸入
+`{ projectId, correlationId? }`，從本次 Debug 程序的完整檔案 sink 篩出該案件的紀錄；有 correlationId 時
+也一併帶出同一次操作的紀錄，因為 picker 上載入或刪除失敗時案件尚未開啟，那次 action 的紀錄只有
+correlation、沒有案件 id。sink 不可讀時退回 ring buffer，並於回應標記 `source`。
 這份原始紀錄可能含 SQL、參數及案件資料，只能留在本機診斷；輸出固定為該案件目錄內的
 `JET-dev-log-*.txt`。兩個檔案匯出都回傳 `filePath` 與 `lineCount`，並以同目錄暫存檔完成後原子改名。
 

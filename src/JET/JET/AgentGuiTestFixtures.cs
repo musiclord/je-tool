@@ -39,8 +39,8 @@ internal sealed class AgentGuiTestFixtures
         "seed-stale-artifact-project";
     internal const string SeedSixStageCompleteProjectId =
         "seed-six-stage-complete-project";
-    internal const string SeedConflictedJournalProjectId =
-        "seed-conflicted-journal-project";
+    internal const string SeedEditedReportProjectId =
+        "seed-edited-report-project";
     internal const string SeedMappingReadyProjectId =
         "seed-mapping-ready-project";
     internal const int MaximumFixtureCount = 3;
@@ -52,7 +52,7 @@ internal sealed class AgentGuiTestFixtures
         SeedCompletenessIneligibleProjectId,
         SeedStaleArtifactProjectId,
         SeedSixStageCompleteProjectId,
-        SeedConflictedJournalProjectId,
+        SeedEditedReportProjectId,
         SeedMappingReadyProjectId,
     ];
 
@@ -132,7 +132,7 @@ internal sealed class AgentGuiTestFixtures
             or SeedCompletenessIneligibleProjectId
             or SeedStaleArtifactProjectId
             or SeedSixStageCompleteProjectId
-            or SeedConflictedJournalProjectId
+            or SeedEditedReportProjectId
             or SeedMappingReadyProjectId;
 
     /// <summary>
@@ -152,34 +152,20 @@ internal sealed class AgentGuiTestFixtures
         _trace.Write(seed.FixtureId, "seed.started");
         try
         {
-            var demo = seed.CreateConflictedJournal ? null : DemoDataFactory.Create();
+            var demo = DemoDataFactory.Create();
             await DispatchAsync(dispatcher, "project.create", new
             {
                 caseName = seed.ProjectId,
                 projectCode = seed.ProjectCode,
                 entityName = seed.EntityName,
                 operatorId = "agent-gui",
-                periodStart = demo?.PeriodStart ?? "2025-01-01",
-                periodEnd = demo?.PeriodEnd ?? "2025-12-31",
-                lastPeriodStart = demo?.LastPeriodStart,
+                periodStart = demo.PeriodStart,
+                periodEnd = demo.PeriodEnd,
+                lastPeriodStart = demo.LastPeriodStart,
                 databaseProvider = "sqlite",
             }, cancellationToken).ConfigureAwait(false);
 
-            if (seed.CreateConflictedJournal)
-            {
-                await DispatchAsync(
-                    dispatcher,
-                    "project.releaseLock",
-                    new { },
-                    cancellationToken).ConfigureAwait(false);
-                await CreateConflictedJournalAsync(seed.ProjectId, cancellationToken)
-                    .ConfigureAwait(false);
-                _trace.Write(seed.FixtureId, "seed.completed");
-                return;
-            }
-
-            var activeDemo = demo
-                ?? throw new InvalidOperationException("Non-journal Agent GUI fixture requires demo data.");
+            var activeDemo = demo;
             if (seed.UseSmallMappingData)
             {
                 activeDemo = activeDemo with
@@ -278,6 +264,10 @@ internal sealed class AgentGuiTestFixtures
                     validation,
                     cancellationToken).ConfigureAwait(false);
             }
+            if (seed.EditReportOutsideJet)
+            {
+                await EditReportOutsideJetAsync(seed.ProjectId, cancellationToken).ConfigureAwait(false);
+            }
             if (seed.RefreshValidationAfterReports)
             {
                 await DispatchAsync(
@@ -321,7 +311,7 @@ internal sealed class AgentGuiTestFixtures
                 MakeCompletenessIneligible: false,
                 CompleteLifecycle: false,
                 RefreshValidationAfterReports: false,
-                CreateConflictedJournal: false,
+                EditReportOutsideJet: false,
                 MappingReadyOnly: false,
                 UseSmallMappingData: false),
             SeedCompletenessIneligibleProjectId => new(
@@ -332,7 +322,7 @@ internal sealed class AgentGuiTestFixtures
                 MakeCompletenessIneligible: true,
                 CompleteLifecycle: false,
                 RefreshValidationAfterReports: false,
-                CreateConflictedJournal: false,
+                EditReportOutsideJet: false,
                 MappingReadyOnly: false,
                 UseSmallMappingData: false),
             SeedStaleArtifactProjectId => new(
@@ -343,7 +333,7 @@ internal sealed class AgentGuiTestFixtures
                 MakeCompletenessIneligible: false,
                 CompleteLifecycle: true,
                 RefreshValidationAfterReports: true,
-                CreateConflictedJournal: false,
+                EditReportOutsideJet: false,
                 MappingReadyOnly: false,
                 UseSmallMappingData: false),
             SeedSixStageCompleteProjectId => new(
@@ -354,18 +344,18 @@ internal sealed class AgentGuiTestFixtures
                 MakeCompletenessIneligible: false,
                 CompleteLifecycle: true,
                 RefreshValidationAfterReports: false,
-                CreateConflictedJournal: false,
+                EditReportOutsideJet: false,
                 MappingReadyOnly: false,
                 UseSmallMappingData: false),
-            SeedConflictedJournalProjectId => new(
-                SeedConflictedJournalProjectId,
-                "agent-gui-journal-conflict",
-                "AGENT-GUI-JOURNAL",
-                "Agent GUI Journal Conflict Fixture",
+            SeedEditedReportProjectId => new(
+                SeedEditedReportProjectId,
+                "agent-gui-edited-report",
+                "AGENT-GUI-EDITED",
+                "Agent GUI Edited Report Fixture",
                 MakeCompletenessIneligible: false,
-                CompleteLifecycle: false,
+                CompleteLifecycle: true,
                 RefreshValidationAfterReports: false,
-                CreateConflictedJournal: true,
+                EditReportOutsideJet: true,
                 MappingReadyOnly: false,
                 UseSmallMappingData: false),
             SeedMappingReadyProjectId => new(
@@ -376,7 +366,7 @@ internal sealed class AgentGuiTestFixtures
                 MakeCompletenessIneligible: false,
                 CompleteLifecycle: false,
                 RefreshValidationAfterReports: false,
-                CreateConflictedJournal: false,
+                EditReportOutsideJet: false,
                 MappingReadyOnly: true,
                 UseSmallMappingData: true),
             null => null,
@@ -498,65 +488,23 @@ internal sealed class AgentGuiTestFixtures
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task CreateConflictedJournalAsync(
+    /// <summary>
+    /// 模擬審計員在 JET 之外改過 Working Paper，並留下舊設計的 journal：新設計載入時要照常開啟、把
+    /// journal 清掉，並在第六步清單把那份底稿標示為「已在 JET 之外修改」。
+    /// </summary>
+    private async Task EditReportOutsideJetAsync(
         string projectId,
         CancellationToken cancellationToken)
     {
         var folder = new JetProjectFolder(_projectsRootPath);
-        var store = new ProjectReportArtifactStore(folder);
-        await store.WriteAsync(
-            projectId,
-            ArtifactRequest("11111111111111111111111111111111", "old"),
-            cancellationToken).ConfigureAwait(false);
-        var crashingStore = new ProjectReportArtifactStore(
-            folder,
-            TimeProvider.System,
-            new ReportArtifactStoreTestHooks
-            {
-                OnCheckpoint = checkpoint =>
-                {
-                    if (checkpoint == ReportArtifactStoreCheckpoint.FileTransitionsApplied)
-                    {
-                        throw new ReportArtifactStoreSimulatedCrashException(
-                            "closed Agent GUI journal interruption");
-                    }
-                }
-            });
-        try
-        {
-            await crashingStore.WriteAsync(
-                projectId,
-                ArtifactRequest("22222222222222222222222222222222", "new"),
-                cancellationToken).ConfigureAwait(false);
-            throw new InvalidOperationException("Conflicted journal fixture did not interrupt the write.");
-        }
-        catch (ReportArtifactStoreSimulatedCrashException)
-        {
-        }
-
         var projectDirectory = folder.GetProjectDirectory(projectId);
-        var journalPath = Path.Combine(projectDirectory, ProjectReportArtifactStore.JournalFileName);
-        var formalFiles = Directory.GetFiles(projectDirectory, "*.xlsx");
-        if (!File.Exists(journalPath) || formalFiles.Length != 1)
-        {
-            throw new InvalidOperationException("Conflicted journal fixture did not retain closed evidence.");
-        }
-
+        var workingPaper = Directory.GetFiles(projectDirectory, "*_WorkingPaper_*.xlsx").Single();
+        await File.AppendAllTextAsync(workingPaper, "edited outside JET", cancellationToken).ConfigureAwait(false);
         await File.WriteAllTextAsync(
-            formalFiles[0],
-            "conflicted-copy",
+            Path.Combine(projectDirectory, ProjectReportArtifactStore.JournalFileName),
+            """{ "formatVersion": 1, "operation": "writeBatch" }""",
             cancellationToken).ConfigureAwait(false);
     }
-
-    private static ReportArtifactWriteRequest ArtifactRequest(
-        string validationRunId,
-        string content) =>
-        new(
-            ReportArtifactKind.ValidationReport,
-            new ReportArtifactSourceRefs(ValidationRunId: validationRunId),
-            (output, cancellationToken) => output.WriteAsync(
-                Encoding.UTF8.GetBytes(content),
-                cancellationToken).AsTask());
 
     private sealed record ProjectSeedDefinition(
         string FixtureId,
@@ -566,7 +514,7 @@ internal sealed class AgentGuiTestFixtures
         bool MakeCompletenessIneligible,
         bool CompleteLifecycle,
         bool RefreshValidationAfterReports,
-        bool CreateConflictedJournal,
+        bool EditReportOutsideJet,
         bool MappingReadyOnly,
         bool UseSmallMappingData);
 

@@ -3,11 +3,15 @@
 .agents/skills/jet-converge/agents/openai.yaml
 .agents/skills/jet-converge/references/session-synthesis.md
 .agents/skills/jet-converge/references/upstream-provenance.md
+.agents/skills/jet-readable-docs/SKILL.md
+.agents/skills/jet-readable-docs/agents/openai.yaml
+.agents/skills/jet-readable-docs/references/rewrite-examples.md
 .claude/hooks/managed-doc-notice.ps1
 .claude/hooks/session-context.ps1
 .claude/hooks/verification-debt.ps1
 .claude/settings.json
 .claude/skills/jet-converge/SKILL.md
+.claude/skills/jet-readable-docs/SKILL.md
 .gitattributes
 .github/copilot-instructions.md
 .gitignore
@@ -282,7 +286,6 @@ src/JET/JET/Application/Handlers/Query/QuerySourceQualityPageHandler.cs
 src/JET/JET/Application/Handlers/Query/QueryTagMatrixRowPageHandler.cs
 src/JET/JET/Application/Handlers/Query/QueryTagMatrixScenariosHandler.cs
 src/JET/JET/Application/Handlers/Query/QueryTagMatrixVoucherPageHandler.cs
-src/JET/JET/Application/Handlers/ReportArtifactCleanupHandlers.cs
 src/JET/JET/Application/Handlers/SystemDatabaseInfoHandler.cs
 src/JET/JET/Application/Handlers/SystemPingHandler.cs
 src/JET/JET/Application/Handlers/SystemWhoAmIHandler.cs
@@ -308,6 +311,7 @@ src/JET/JET/Application/Support/MappingReviewPrerequisite.cs
 src/JET/JET/Application/Support/PayloadReader.cs
 src/JET/JET/Application/Support/PrescreenReportProjectionParser.cs
 src/JET/JET/Application/Support/ProjectLockErrorMessage.cs
+src/JET/JET/Application/Support/ProjectWorkFileWriter.cs
 src/JET/JET/Application/Support/ReportArtifactExecutionPort.cs
 src/JET/JET/Application/Support/ReportExportSupport.cs
 src/JET/JET/Application/Support/ReportWorkbookMetadataFactory.cs
@@ -405,6 +409,7 @@ src/JET/JET/Domain/Primitives/ProjectNameRules.cs
 src/JET/JET/Domain/Primitives/TabularHeaderNormalizer.cs
 src/JET/JET/Domain/Primitives/TbChangeMode.cs
 src/JET/JET/Domain/ProjectDocument.cs
+src/JET/JET/Domain/ProjectFileNames.cs
 src/JET/JET/Domain/Rules/AuditDependencyPolicy.cs
 src/JET/JET/Domain/Rules/DataPreviewDatasetLabels.cs
 src/JET/JET/Domain/Rules/FilterConditionLabels.cs
@@ -422,7 +427,6 @@ src/JET/JET/Domain/Rules/MappingSuggestionEngine.cs
 src/JET/JET/Domain/Rules/MappingValidator.cs
 src/JET/JET/Domain/Rules/PrescreenRules.cs
 src/JET/JET/Domain/Rules/QuarterEndWindows.cs
-src/JET/JET/Domain/Rules/ReportArtifactRetentionPolicy.cs
 src/JET/JET/Domain/Rules/TbRowProjector.cs
 src/JET/JET/Domain/Rules/TypedFieldConditions.cs
 src/JET/JET/Domain/SupportDiagnosticNdjson.cs
@@ -789,7 +793,6 @@ src/JET/tests/JET.Tests/Application/ProgramMilestoneProgressTests.cs
 src/JET/tests/JET.Tests/Application/ProjectAuditLoggingJourneyTests.cs
 src/JET/tests/JET.Tests/Application/ProjectCreateHandlerCompensationTests.cs
 src/JET/tests/JET.Tests/Application/ProjectDeleteArtifactLeaseTests.cs
-src/JET/tests/JET.Tests/Application/ProjectDeleteCorruptJournalTests.cs
 src/JET/tests/JET.Tests/Application/ProjectFolderPortabilityTests.cs
 src/JET/tests/JET.Tests/Application/ProjectHandlersTests.cs
 src/JET/tests/JET.Tests/Application/ProjectLeaseLockTests.cs
@@ -801,9 +804,9 @@ src/JET/tests/JET.Tests/Application/ProjectStorageDirectCutoverTests.cs
 src/JET/tests/JET.Tests/Application/ProjectStoragePathResolverTests.cs
 src/JET/tests/JET.Tests/Application/ProviderParityJourneyTests.cs
 src/JET/tests/JET.Tests/Application/QueryDataPreviewHandlerTests.cs
-src/JET/tests/JET.Tests/Application/ReportArtifactCleanupHandlerTests.cs
 src/JET/tests/JET.Tests/Application/ReportArtifactExportTests.cs
 src/JET/tests/JET.Tests/Application/ReportArtifactOpenXmlParityTests.cs
+src/JET/tests/JET.Tests/Application/ReportArtifactTrustJourneyTests.cs
 src/JET/tests/JET.Tests/Application/ReportExportSupportTests.cs
 src/JET/tests/JET.Tests/Application/ReportWorkbookPresentationTests.cs
 src/JET/tests/JET.Tests/Application/ResultInvalidationTests.cs
@@ -874,7 +877,6 @@ src/JET/tests/JET.Tests/Architecture/ProjectAuditLogAppendOnlySourceTests.cs
 src/JET/tests/JET.Tests/Architecture/ProjectDeletionFrontendTests.cs
 src/JET/tests/JET.Tests/Architecture/ProjectListLocalFirstFrontendTests.cs
 src/JET/tests/JET.Tests/Architecture/ProjectStorageRootFrontendTests.cs
-src/JET/tests/JET.Tests/Architecture/ReportArtifactCleanupFrontendTests.cs
 src/JET/tests/JET.Tests/Architecture/ReportExportOwnershipTests.cs
 src/JET/tests/JET.Tests/Architecture/ResponsiveLayoutFrontendTests.cs
 src/JET/tests/JET.Tests/Architecture/SchemaIsolationGuardTests.cs
@@ -950,7 +952,6 @@ src/JET/tests/JET.Tests/Domain/ProjectNameRulesTests.cs
 src/JET/tests/JET.Tests/Domain/ProjectSamplePolicyTests.cs
 src/JET/tests/JET.Tests/Domain/QuarterEndWindowsTests.cs
 src/JET/tests/JET.Tests/Domain/ReportArtifactKindValuesTests.cs
-src/JET/tests/JET.Tests/Domain/ReportArtifactRetentionPolicyTests.cs
 src/JET/tests/JET.Tests/Domain/SuspiciousKeywordDefaultsTests.cs
 src/JET/tests/JET.Tests/Domain/TabularHeaderNormalizerTests.cs
 src/JET/tests/JET.Tests/Domain/TbChangeModeTests.cs
@@ -1094,7 +1095,6 @@ src/JET/tests/JET.Tests/Infrastructure/ProjectAuditAppendOnlyTests.cs
 src/JET/tests/JET.Tests/Infrastructure/ProjectAuditLogProviderTests.cs
 src/JET/tests/JET.Tests/Infrastructure/ProjectAuditSchemaMigrationTests.cs
 src/JET/tests/JET.Tests/Infrastructure/ProjectProviderResolverTests.cs
-src/JET/tests/JET.Tests/Infrastructure/ProjectReportArtifactConcurrencyTests.cs
 src/JET/tests/JET.Tests/Infrastructure/ProjectReportArtifactStoreTests.cs
 src/JET/tests/JET.Tests/Infrastructure/ProjectionCancellationTests.cs
 src/JET/tests/JET.Tests/Infrastructure/ProviderDiagnosticLabelTests.cs

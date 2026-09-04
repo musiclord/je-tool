@@ -22,6 +22,7 @@ internal static class LegacyAuditParityJourneyContract
         "validate.run",
         "query.infSamplePage",
         "export.validationArtifacts",
+        "export.accountMappingTemplate",
         "prescreen.run",
         "query.prescreenPage",
         "query.prescreenPage",

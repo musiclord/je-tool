@@ -49,15 +49,6 @@ public sealed class ProjectAuditLoggingJourneyTests
         await host.DispatchAsync("export.validationArtifacts", JsonSerializer.Serialize(new { runId }));
         await host.DispatchAsync("export.validationArtifacts", JsonSerializer.Serialize(new { runId }));
 
-        await host.DispatchAsync("validate.run");
-        var cleanupPreview = await host.DispatchAsync("report.cleanupPreview");
-        var candidateCount = cleanupPreview.GetProperty("candidateCount").GetInt32();
-        Assert.Equal(3, candidateCount);
-        await host.DispatchAsync("report.cleanupConfirm", JsonSerializer.Serialize(new
-        {
-            catalogRevision = cleanupPreview.GetProperty("catalogRevision").GetString()
-        }));
-
         var rows = await DemoProjectPipeline.QueryStringListAsync(
             host,
             context.ProjectId,
@@ -65,14 +56,14 @@ public sealed class ProjectAuditLoggingJourneyTests
             "subject_count || '|' || replaced_count FROM audit_event_log " +
             "ORDER BY occurred_utc, event_id;");
 
-        Assert.True(rows.Count == 7, $"Audit rows: {string.Join(" || ", rows)}");
+        // 清理功能已於 2026-09-02 移除；報告發布仍各留一筆，第二次是覆蓋同名檔的汰換。
+        Assert.True(rows.Count == 6, $"Audit rows: {string.Join(" || ", rows)}");
         Assert.Contains($"{ProjectAuditOperations.DataReimport}|dataset|gl|14000|1", rows);
         Assert.Contains($"{ProjectAuditOperations.DataReimport}|dataset|tb|150|1", rows);
         Assert.Contains($"{ProjectAuditOperations.MappingRecommit}|mapping|gl|14000|1", rows);
         Assert.Contains($"{ProjectAuditOperations.MappingRecommit}|mapping|tb|150|1", rows);
-        Assert.Contains($"{ProjectAuditOperations.ReportPublish}|reportCatalog|accountMapping+infReport+validationReport|3|0", rows);
-        Assert.Contains($"{ProjectAuditOperations.ReportPublish}|reportCatalog|accountMapping+infReport+validationReport|3|3", rows);
-        Assert.Contains($"{ProjectAuditOperations.ReportCleanup}|reportCatalog|formalReports|3|0", rows);
+        Assert.Contains($"{ProjectAuditOperations.ReportPublish}|reportCatalog|infReport+validationReport|2|0", rows);
+        Assert.Contains($"{ProjectAuditOperations.ReportPublish}|reportCatalog|infReport+validationReport|2|2", rows);
     }
 
     private static Task<long> AuditCountAsync(HandlerTestHost host, string projectId) =>

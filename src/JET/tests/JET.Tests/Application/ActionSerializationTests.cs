@@ -327,8 +327,6 @@ public sealed class ActionSerializationTests
     [InlineData("export.criteriaSelectionReport", true)]
     [InlineData("export.workpaperStream", true)]
     [InlineData("project.create", true)]
-    [InlineData("report.cleanupPreview", true)]
-    [InlineData("report.cleanupConfirm", true)]
     [InlineData("query.dataPreview", false)]
     [InlineData("filter.preview", false)]
     [InlineData("system.ping", false)]

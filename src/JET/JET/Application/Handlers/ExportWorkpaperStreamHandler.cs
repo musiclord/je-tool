@@ -95,7 +95,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             .Select(scenario => scenario.Position)
             .Order()
             .ToArray();
-        var refreshedCatalog = await ReportArtifactCleanupSupport.RefreshCatalogAsync(
+        var refreshedArtifacts = await ReportExportSupport.RefreshArtifactsAsync(
             projectId,
             validationRun,
             latestPrescreen,
@@ -107,7 +107,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
         await ReportExportSupport.RequireCurrentCriteriaSelectionReportAsync(
             artifactStore,
             projectId,
-            refreshedCatalog,
+            refreshedArtifacts,
             cancellationToken);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)

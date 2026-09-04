@@ -131,6 +131,14 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
                 File.Move(temporaryPath, destinationPath);
             }
         }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // 寫不進 project.json 是環境問題（唯讀、被其他程式開著、磁碟滿），給使用者出路而不是裸例外。
+            throw new JetActionException(
+                JetErrorCodes.FileReadError,
+                $"專案『{document.ProjectId}』的 project.json 無法寫入（{exception.GetType().Name}）；"
+                + "確認檔案沒有被設成唯讀、也沒有被其他程式開著後再試一次。");
+        }
         finally
         {
             if (File.Exists(temporaryPath))

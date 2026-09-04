@@ -326,13 +326,29 @@ try {
             'JET_PRIVATE_CASE_ROOT,JET_PRIVATE_CASE_MANIFEST,JET_PRIVATE_CASE_PROVIDER') `
         -Message 'PrivateCase must use only the reviewed explicit input boundary.'
     Assert-Contract -Condition ((@($registry.guiSettings.scenarios.name) -join ',') -ceq `
-            'startup-smoke,synthetic-sqlite-create,mapping-required-sync,conflicted-journal-recovery') `
+            'startup-smoke,synthetic-sqlite-create,mapping-required-sync,edited-report-still-loads') `
         -Message 'The GUI lane must contain only the four reviewed scenarios.'
     Assert-Contract -Condition ([string]$registry.excelSettings.scenario -ceq 'synthetic-report-roundtrip') `
         -Message 'The Excel lane must retain its one reviewed synthetic scenario.'
     Assert-Contract -Condition ((@($registry.excelSettings.reportKinds) -join ',') -ceq `
             'accountMapping,criteriaSelectionReport,infReport,prescreenReport,validationReport,workingPaper') `
         -Message 'The Excel lane must remain limited to the six synthetic product outputs.'
+    foreach ($requiredPattern in @('*ReportArtifactTrustJourneyTests*', '*ProjectReportArtifactStoreTests*')) {
+        Assert-Contract -Condition (@($registry.testSettings.packageMethodPatterns) -ccontains $requiredPattern) `
+            -Message "Package must include the report storage regression family $requiredPattern."
+    }
+    $workbookJourneyMethod = 'AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate'
+    Assert-Contract -Condition ([string]$registry.excelSettings.fixtureMethodPattern -ceq `
+        "*SixReportWorkflowJourneyTests.$workbookJourneyMethod*") `
+        -Message 'Excel must select the current five-report and editable-template journey.'
+    $workbookJourneySource = Get-Content -LiteralPath (Join-Path $repositoryRoot `
+        'src/JET/tests/JET.Tests/Application/SixReportWorkflowJourneyTests.cs') -Raw -Encoding utf8
+    Assert-Contract -Condition ($workbookJourneySource.Contains("Task $workbookJourneyMethod()", [StringComparison]::Ordinal)) `
+        -Message 'The Excel fixture filter must resolve to the current test method.'
+    $publicSkipPolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot `
+        'tools/harness/public-skip-policy.json') -Raw -Encoding utf8 | ConvertFrom-Json
+    Assert-Contract -Condition (@($publicSkipPolicy.capabilityGroups).Count -eq 0) `
+        -Message 'Retired filesystem-link tests must not retain a public skip allowance.'
 
     $protectedWorkspacePatterns = @($registry.testSettings.protectedWorkspaceMethodPatterns)
     Assert-Contract -Condition (@(
@@ -550,6 +566,11 @@ try {
     $guiHarnessText = $harnessSourceText.Substring(
         $guiHarnessStart,
         $excelHarnessStart - $guiHarnessStart)
+    foreach ($requiredAssertion in @('modifiedOutsideVisible', 'workpaperExportEnabled', 'cleanupPanelAbsent')) {
+        Assert-Contract -Condition ($guiHarnessText.Contains(
+            ('[bool]$manifest.assertions.' + $requiredAssertion), [StringComparison]::Ordinal)) `
+            -Message "GUI verification must require the current report workflow assertion $requiredAssertion."
+    }
     Assert-Contract -Condition ($guiHarnessText.Contains(
             '[bool]$manifest.process.killAttempted -or',
             [StringComparison]::Ordinal)) `
@@ -1062,6 +1083,83 @@ try {
         Assert-Contract -Condition ($text.Contains('[sensitive]', [StringComparison]::Ordinal)) `
             -Message 'Sanitized test evidence must retain a stable marker.'
     }
+
+    # 失敗收據要能直接看出哪個測試為何失敗；訊息一行、遮蔽儲存庫根目錄，私人案件只留名稱。
+    $firstFailureRoot = Join-Path $suiteRoot 'first-failure-evidence'
+    [void][IO.Directory]::CreateDirectory($firstFailureRoot)
+    $syntheticTrx = @"
+<?xml version="1.0" encoding="utf-8"?>
+<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Results>
+    <UnitTestResult testId="t-1" testName="Fails" outcome="Failed">
+      <Output><ErrorInfo><Message>Assert.Equal() Failure
+Expected: 1
+Actual: 2 at $repositoryRoot\src\Synthetic.cs</Message></ErrorInfo></Output>
+    </UnitTestResult>
+    <UnitTestResult testId="t-2" testName="Passes" outcome="Passed" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest id="t-1" name="Fails"><TestMethod className="Synthetic.Suite" name="Fails" /></UnitTest>
+    <UnitTest id="t-2" name="Passes"><TestMethod className="Synthetic.Suite" name="Passes" /></UnitTest>
+  </TestDefinitions>
+</TestRun>
+"@
+    [IO.File]::WriteAllText((Join-Path $firstFailureRoot 'result.trx'), $syntheticTrx, $utf8)
+    $firstFailure = & $harnessModule {
+        param($repositoryRoot, $runDirectory)
+        Read-JetTrxResult `
+            -RepositoryRoot $repositoryRoot `
+            -RunDirectory $runDirectory `
+            -TrxPath (Join-Path $runDirectory 'result.trx') `
+            -SummaryPath (Join-Path $runDirectory 'test-summary.json')
+    } $repositoryRoot $firstFailureRoot
+    $scenarioNames.Add('FirstFailureEvidence')
+    Assert-Contract -Condition ($firstFailure.Receipt.counters.failed -eq 1) `
+        -Message 'The synthetic TRX must report exactly one failed test.'
+    Assert-Contract -Condition ([string]$firstFailure.FirstFailure.fqn -ceq 'Synthetic.Suite.Fails') `
+        -Message 'The first failure must name the failed test by class and method.'
+    Assert-Contract -Condition ([string]$firstFailure.FirstFailure.message -ceq
+            'Assert.Equal() Failure Expected: 1 Actual: 2 at [repository]\src\Synthetic.cs') `
+        -Message 'The first failure message must be one line with the repository root masked.'
+    Assert-Contract -Condition ([string]$firstFailure.Receipt.firstFailure.fqn -ceq 'Synthetic.Suite.Fails') `
+        -Message 'The test receipt must carry the first failure.'
+    $withheldFailure = & $harnessModule {
+        param($repositoryRoot, $runDirectory)
+        Read-JetTrxResult `
+            -RepositoryRoot $repositoryRoot `
+            -RunDirectory $runDirectory `
+            -TrxPath (Join-Path $runDirectory 'result.trx') `
+            -SummaryPath (Join-Path $runDirectory 'test-summary.json') `
+            -WithholdFailureMessages
+    } $repositoryRoot $firstFailureRoot
+    Assert-Contract -Condition ($null -eq $withheldFailure.FirstFailure.message -and
+            $withheldFailure.FirstFailure.messageWithheld -eq $true -and
+            [string]$withheldFailure.FirstFailure.fqn -ceq 'Synthetic.Suite.Fails') `
+        -Message 'Private-case failure messages must be withheld while the test name stays.'
+
+    # 斷言變動只警示不判定：相對 HEAD 移除的 Assert、移除的 [Fact]/[Theory] 與新增的 Skip 都要數出來。
+    $driftRepo = Join-Path $suiteRoot 'assertion-drift-repo'
+    [void][IO.Directory]::CreateDirectory((Join-Path $driftRepo 'src/JET/tests'))
+    $driftFile = Join-Path $driftRepo 'src/JET/tests/Synthetic.cs'
+    [IO.File]::WriteAllText(
+        $driftFile,
+        "[Fact]`npublic void A()`n{`n    Assert.Equal(1, 1);`n    Assert.True(true);`n}`n",
+        $utf8)
+    & git -C $driftRepo init -q 2>$null
+    & git -C $driftRepo add -- src/JET/tests/Synthetic.cs 2>$null
+    & git -C $driftRepo -c user.name=jet -c user.email=jet@example.invalid commit -q -m init 2>$null
+    [IO.File]::WriteAllText(
+        $driftFile,
+        "[Fact(Skip = `"synthetic`")]`npublic void A()`n{`n    Assert.True(true);`n}`n",
+        $utf8)
+    $drift = & $harnessModule { param($root) Get-JetTestAssertionDrift -RepositoryRoot $root } $driftRepo
+    Remove-Item -LiteralPath (Join-Path $driftRepo '.git') -Recurse -Force -ErrorAction SilentlyContinue
+    $scenarioNames.Add('AssertionDrift')
+    Assert-Contract -Condition ($drift.measured -eq $true -and $drift.assertionsRemoved -eq 1 -and
+            $drift.skipsAdded -eq 1 -and $drift.needsExplanation -eq $true) `
+        -Message 'Assertion drift must count removed assertions and added skips against HEAD.'
+    Assert-Contract -Condition (@($drift.files) -ccontains 'src/JET/tests/Synthetic.cs') `
+        -Message 'Assertion drift must name the changed test file.'
 
     $unsupportedEvidenceRoot = Join-Path $suiteRoot 'unsupported-sensitive-evidence'
     [void][IO.Directory]::CreateDirectory($unsupportedEvidenceRoot)

@@ -365,6 +365,11 @@ internal static partial class LegacyAuditParityJourney
                 "export.validationArtifacts",
                 JsonSerializer.Serialize(new { runId = validationRunId }));
             CollectArtifactArray(host, projectId, validationArtifacts, artifacts);
+            // 科目配對範本自 2026-09-02 起是工作檔，不在驗證批次裡；比對仍需要這份工作簿。
+            var accountMappingTemplate = await DispatchAsync(
+                "export.accountMappingTemplate",
+                JsonSerializer.Serialize(new { runId = validationRunId }));
+            CollectWorkFile(host, projectId, accountMappingTemplate, LegacyReportKind.AccountMapping, artifacts);
 
             RequireValidationEligible(validation.Value);
 
@@ -877,6 +882,37 @@ internal static partial class LegacyAuditParityJourney
         foreach (var artifact in array.EnumerateArray())
         {
             artifacts.Add(ReadArtifact(host, projectId, artifact));
+        }
+    }
+
+    private static void CollectWorkFile(
+        HandlerTestHost host,
+        string projectId,
+        JsonElement response,
+        LegacyReportKind kind,
+        List<LegacyAuditParityJourneyArtifact> artifacts)
+    {
+        var filePath = RequiredString(response, "filePath", "export.response.filePath");
+        var projectDirectory = Path.GetFullPath(Path.Combine(host.ProjectsRoot, projectId));
+        var fullPath = Path.GetFullPath(filePath);
+        var prefix = projectDirectory.EndsWith(Path.DirectorySeparatorChar)
+            ? projectDirectory
+            : projectDirectory + Path.DirectorySeparatorChar;
+        if (!fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath))
+        {
+            throw Incomplete("export.response.workFile");
+        }
+
+        // 比對順序沿用 LegacyReportKind 的列舉順序：範本排在 Validation Report 之後、INF Report 之前。
+        var insertAt = artifacts.FindIndex(artifact => artifact.Kind > kind);
+        var workFile = new LegacyAuditParityJourneyArtifact(kind, Path.GetFileName(fullPath), fullPath);
+        if (insertAt < 0)
+        {
+            artifacts.Add(workFile);
+        }
+        else
+        {
+            artifacts.Insert(insertAt, workFile);
         }
     }
 

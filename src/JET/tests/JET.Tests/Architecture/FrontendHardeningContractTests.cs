@@ -366,9 +366,6 @@ public sealed class FrontendHardeningContractTests
         foreach (var requiredDisplayPhrase in new[]
         {
             "標準化",
-            "報告識別碼",
-            "報告類型",
-            "報告紀錄",
             "資料儲存方式",
             "應用程式連線",
         })

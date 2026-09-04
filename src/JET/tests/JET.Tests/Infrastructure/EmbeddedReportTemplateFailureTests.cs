@@ -202,7 +202,8 @@ public sealed class EmbeddedReportTemplateFailureTests
             await File.ReadAllBytesAsync(manifestPath, CancellationToken.None));
         var current = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
         Assert.Equal(original.ArtifactId, current.ArtifactId);
-        Assert.Equal(original.Sha256, current.Sha256);
+        Assert.Equal(original.Bytes, current.Bytes);
+        Assert.Equal(ReportArtifactFileState.AsPublished, current.FileState);
     }
 
     private static Task<ExportStats> FillValidationTemplateAsync(

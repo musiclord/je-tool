@@ -7,13 +7,14 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 六份正式報告的 legacy 順序旅程：驗證三檔 → 填回 AccountMapping → 預篩選 →
-/// Criteria → WorkingPaper。全程使用自含合成資料，不讀外部範本或真實帳務資料。
+/// 五份報告與科目配對工作檔的完整旅程：驗證、填回範本原檔、重新匯出驗證報告，再完成篩選與底稿。
+/// 類別名稱與 JET_SIX_REPORT_EVIDENCE_DIR 為既有篩選及證據介面保留；六份工作簿只有五份進報告清單。
+/// 全程使用自含合成資料，不讀外部範本或真實帳務資料。
 /// </summary>
 public sealed class SixReportWorkflowJourneyTests
 {
     [Fact]
-    public async Task AccountMappingHandoff_PreservesValidationRun_AndPublishesSixCurrentArtifacts()
+    public async Task AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate()
     {
         using var host = new HandlerTestHost();
         var projectId = await ReportArtifactExportFixture.SetupProjectAsync(host);
@@ -24,33 +25,28 @@ public sealed class SixReportWorkflowJourneyTests
             "export.validationArtifacts",
             JsonSerializer.Serialize(new { runId = validationRunId }));
 
-        var mappingArtifact = validationBatch.GetProperty("artifacts").EnumerateArray()
-            .Single(artifact => artifact.GetProperty("kind").GetString() == "accountMapping");
+        Assert.Equal(2, validationBatch.GetProperty("artifacts").GetArrayLength());
         var projectDirectory = Path.Combine(host.ProjectsRoot, projectId);
-        var mappingPath = Path.Combine(projectDirectory, mappingArtifact.GetProperty("fileName").GetString()!);
-        var filledPath = Path.Combine(projectDirectory, $"filled-account-mapping-{Guid.NewGuid():N}.xlsx");
-        File.Copy(mappingPath, filledPath);
-        try
+        // 科目配對範本是工作檔，由第四步卡片單獨產生，不在驗證報告批次裡。
+        var template = await host.DispatchAsync(
+            "export.accountMappingTemplate",
+            JsonSerializer.Serialize(new { runId = validationRunId }));
+        var mappingPath = template.GetProperty("filePath").GetString()!;
+        using (var workbook = new XLWorkbook(mappingPath))
         {
-            using (var workbook = new XLWorkbook(filledPath))
+            var sheet = workbook.Worksheet("AccountMapping");
+            var lastRow = sheet.LastRowUsed()!.RowNumber();
+            for (var row = 4; row <= lastRow; row++)
             {
-                var sheet = workbook.Worksheet("AccountMapping");
-                var lastRow = sheet.LastRowUsed()!.RowNumber();
-                for (var row = 4; row <= lastRow; row++)
-                {
-                    sheet.Cell(row, 3).Value = AccountMappingCategories.All[0];
-                }
-                workbook.Save();
+                sheet.Cell(row, 3).Value = AccountMappingCategories.All[0];
             }
-
-            await host.DispatchAsync(
-                "import.accountMapping.fromFile",
-                JsonSerializer.Serialize(new { filePath = filledPath }));
+            workbook.Save();
         }
-        finally
-        {
-            File.Delete(filledPath);
-        }
+        var filledTemplate = await File.ReadAllBytesAsync(mappingPath);
+        await host.DispatchAsync(
+            "import.accountMapping.fromFile",
+            JsonSerializer.Serialize(new { filePath = mappingPath }));
+        await host.DispatchAsync("project.releaseLock");
 
         var afterMapping = await host.DispatchAsync(
             "project.load",
@@ -60,6 +56,14 @@ public sealed class SixReportWorkflowJourneyTests
             afterMapping.GetProperty("latestRuns").GetProperty("validate")
                 .GetProperty("resultRef").GetProperty("runId").GetString());
         Assert.Equal(JsonValueKind.Null, afterMapping.GetProperty("latestRuns").GetProperty("prescreen").ValueKind);
+
+        var regenerated = await host.DispatchAsync(
+            "export.validationArtifacts", JsonSerializer.Serialize(new { runId = validationRunId }));
+        Assert.Equal(new[] { "infReport", "validationReport" }, regenerated.GetProperty("artifacts").EnumerateArray()
+            .Select(artifact => artifact.GetProperty("kind").GetString()).Order(StringComparer.Ordinal));
+        Assert.Equal(filledTemplate, await File.ReadAllBytesAsync(mappingPath));
+        Assert.DoesNotContain(afterMapping.GetProperty("reportArtifacts").EnumerateArray(),
+            artifact => artifact.GetProperty("kind").GetString() == "accountMapping");
 
         var prescreen = await host.DispatchAsync("prescreen.run");
         var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString()!;
@@ -76,7 +80,7 @@ public sealed class SixReportWorkflowJourneyTests
                     new
                     {
                         name = "完整旅程情境",
-                        rationale = "以合成摘要條件驗證六報表順序",
+                        rationale = "以合成摘要條件驗證報告與工作檔流程",
                         groups = new[]
                         {
                             new
@@ -113,12 +117,13 @@ public sealed class SixReportWorkflowJourneyTests
         Assert.Equal(
             new[]
             {
-                "accountMapping", "criteriaSelectionReport", "infReport",
+                "criteriaSelectionReport", "infReport",
                 "prescreenReport", "validationReport", "workingPaper"
             },
             artifacts.Select(artifact => artifact.GetProperty("kind").GetString())
                 .Order(StringComparer.Ordinal)
                 .ToArray());
+        Assert.True(File.Exists(mappingPath), "科目配對範本工作檔應留在案件資料夾。");
         Assert.All(artifacts, artifact => Assert.False(artifact.GetProperty("stale").GetBoolean()));
         Assert.All(artifacts, artifact =>
         {
@@ -179,7 +184,7 @@ public sealed class SixReportWorkflowJourneyTests
         Assert.Equal(tbRowsBefore, await DemoProjectPipeline.QueryScalarAsync(
             host, projectId, "SELECT COUNT(*) FROM target_tb_balance;"));
 
-        ExportEvidenceIfRequested(projectId, artifacts, projectDirectory);
+        ExportEvidenceIfRequested(projectId, artifacts, projectDirectory, mappingPath);
     }
 
     private static string ArtifactPath(JsonElement[] artifacts, string projectDirectory, string kind)
@@ -261,7 +266,8 @@ public sealed class SixReportWorkflowJourneyTests
     private static void ExportEvidenceIfRequested(
         string projectId,
         JsonElement[] artifacts,
-        string projectDirectory)
+        string projectDirectory,
+        string accountMappingTemplatePath)
     {
         var receiptDirectory = Environment.GetEnvironmentVariable("JET_SIX_REPORT_EVIDENCE_DIR");
         if (string.IsNullOrWhiteSpace(receiptDirectory))
@@ -283,13 +289,23 @@ public sealed class SixReportWorkflowJourneyTests
         }
 
         Directory.CreateDirectory(workbookDirectory);
-        var evidence = artifacts
-            .OrderBy(artifact => artifact.GetProperty("kind").GetString(), StringComparer.Ordinal)
-            .Select(artifact =>
+        // Excel 路線仍要開六份工作簿：五份報告加上科目配對範本工作檔，範本以 accountMapping 為種類名。
+        var sources = artifacts
+            .Select(artifact => (
+                Kind: artifact.GetProperty("kind").GetString()!,
+                FileName: artifact.GetProperty("fileName").GetString()!,
+                SourcePath: Path.Combine(projectDirectory, artifact.GetProperty("fileName").GetString()!)))
+            .Append((
+                Kind: "accountMapping",
+                FileName: Path.GetFileName(accountMappingTemplatePath),
+                SourcePath: accountMappingTemplatePath))
+            .OrderBy(source => source.Kind, StringComparer.Ordinal);
+        var evidence = sources
+            .Select(source =>
             {
-                var kind = artifact.GetProperty("kind").GetString()!;
-                var fileName = artifact.GetProperty("fileName").GetString()!;
-                var sourcePath = Path.Combine(projectDirectory, fileName);
+                var kind = source.Kind;
+                var fileName = source.FileName;
+                var sourcePath = source.SourcePath;
                 var evidenceFileName = $"{kind}.xlsx";
                 var evidencePath = Path.Combine(workbookDirectory, evidenceFileName);
                 File.Copy(sourcePath, evidencePath);

@@ -6,7 +6,10 @@
     ".agents/skills/jet-converge/agents/openai.yaml",
     ".agents/skills/jet-converge/references/session-synthesis.md",
     ".agents/skills/jet-converge/references/upstream-provenance.md",
+    ".agents/skills/jet-readable-docs/SKILL.md",
+    ".agents/skills/jet-readable-docs/agents/openai.yaml",
     ".claude/skills/jet-converge/SKILL.md",
+    ".claude/skills/jet-readable-docs/SKILL.md",
     ".github/copilot-instructions.md",
     "AGENTS.md",
     "README.md",
@@ -133,6 +136,28 @@
       "text": "加密交涉"
     }
   ],
+  "stylePatterns": [
+    {
+      "id": "fullwidth-plus-joiner",
+      "pattern": "＋",
+      "hint": "不用「＋」把項目串成句子；改寫成「和」「與」或用「、」列出。"
+    },
+    {
+      "id": "arrow-as-sentence",
+      "pattern": "→",
+      "hint": "不用箭頭代替句子；用「然後」「再」寫出順序，或改成編號步驟。"
+    },
+    {
+      "id": "nested-fullwidth-parentheses",
+      "pattern": "（[^（）]*（",
+      "hint": "括號裡又有括號；拆成兩句，一句只講一件事。"
+    },
+    {
+      "id": "traffic-light-jargon",
+      "pattern": "紅燈|綠燈",
+      "hint": "「紅燈」「綠燈」是驗證框架的工作用語；面向人的文字寫「通過」或「失敗」。"
+    }
+  ],
   "requiredMarkers": [
     {
       "id": "shared-agent-authority",
@@ -253,6 +278,36 @@
       "id": "agents-fact-fidelity",
       "file": "AGENTS.md",
       "text": "事實保真"
+    },
+    {
+      "id": "agents-human-facing-text",
+      "file": "AGENTS.md",
+      "text": "寫給人的文字"
+    },
+    {
+      "id": "agents-commit-message-chinese",
+      "file": "AGENTS.md",
+      "text": "Commit 訊息用繁體中文"
+    },
+    {
+      "id": "jet-readable-docs-canonical-skill",
+      "file": "AGENTS.md",
+      "text": ".agents/skills/jet-readable-docs/SKILL.md"
+    },
+    {
+      "id": "jet-readable-docs-implicit-allowed",
+      "file": ".agents/skills/jet-readable-docs/agents/openai.yaml",
+      "text": "allow_implicit_invocation: true"
+    },
+    {
+      "id": "claude-jet-readable-docs-thin-wrapper",
+      "file": ".claude/skills/jet-readable-docs/SKILL.md",
+      "text": ".agents/skills/jet-readable-docs/SKILL.md"
+    },
+    {
+      "id": "jet-readable-docs-links-examples",
+      "file": ".agents/skills/jet-readable-docs/SKILL.md",
+      "text": "references/rewrite-examples.md"
     }
   ],
   "manualReview": [

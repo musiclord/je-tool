@@ -122,8 +122,10 @@ public sealed class DevLogExportHandler(IDiagnosticLogStore diagnosticLog) : IAp
 /// <summary>
 /// dev.log.exportFile：把完整診斷日誌單鍵寫成 .txt 檔（內容仍為 NDJSON、每行一筆），免手動複製。
 /// 內容以檔案 sink 全量為準（本次啟動以來的完整 append；ring buffer 有界、會擠掉舊紀錄）；sink 檔
-/// 不存在或不可讀時退回 ring buffer 快照並於回應標記 source。輸出只寫指定的既有案件目錄，
-/// 不接受任意路徑，也沒有其他 fallback 目的地。僅 Debug 組建註冊。
+/// 不存在或不可讀時退回 ring buffer 快照並於回應標記 source。篩選以案件為主；payload 另帶 correlationId
+/// 時，同一次操作的行也一併輸出，因為 picker 上載入或刪除失敗時案件尚未開啟，那次 action 的紀錄
+/// 沒有 projectId。輸出只寫指定的既有案件目錄，不接受任意路徑，也沒有其他 fallback 目的地。
+/// 僅 Debug 組建註冊。
 /// </summary>
 public sealed class DevLogExportFileHandler(
     IDiagnosticLogStore diagnosticLog,
@@ -136,6 +138,7 @@ public sealed class DevLogExportFileHandler(
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var requestedProjectId = PayloadReader.GetRequiredString(payload, "projectId");
+        var correlationId = PayloadReader.GetOptionalString(payload, "correlationId");
         var document = await projectStore.FindAsync(requestedProjectId, cancellationToken).ConfigureAwait(false)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
@@ -159,6 +162,7 @@ public sealed class DevLogExportFileHandler(
                 ReadSinkLinesAsync(
                     sinkFilePath,
                     document.ProjectId,
+                    correlationId,
                     () => lineCount++,
                     cancellationToken),
                 cancellationToken).ConfigureAwait(false);
@@ -168,10 +172,11 @@ public sealed class DevLogExportFileHandler(
         {
             source = "ringBuffer";
             var lines = diagnosticLog.Snapshot()
-                .Where(entry => string.Equals(
+                .Where(entry => MatchesSelection(
                     entry.ProjectId,
+                    entry.CorrelationId,
                     document.ProjectId,
-                    StringComparison.OrdinalIgnoreCase))
+                    correlationId))
                 .Select(DiagnosticNdjson.SerializeLine)
                 .ToArray();
             lineCount = lines.Length;
@@ -189,6 +194,7 @@ public sealed class DevLogExportFileHandler(
     private static async IAsyncEnumerable<string> ReadSinkLinesAsync(
         string path,
         string projectId,
+        string? correlationId,
         Action accepted,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -203,7 +209,7 @@ public sealed class DevLogExportFileHandler(
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(line) || !MatchesProject(line, projectId))
+            if (string.IsNullOrWhiteSpace(line) || !MatchesSelection(line, projectId, correlationId))
             {
                 continue;
             }
@@ -213,13 +219,33 @@ public sealed class DevLogExportFileHandler(
         }
     }
 
-    private static bool MatchesProject(string line, string projectId)
+    /// <summary>
+    /// 屬於該案件的行一定收；另外收同一 correlation 的行。picker 上載入或刪除失敗時案件尚未開啟，
+    /// 那次 action 的紀錄只有 correlationId、沒有 projectId，不這樣做最需要診斷的那次失敗反而不在檔案裡。
+    /// </summary>
+    private static bool MatchesSelection(string line, string projectId, string? correlationId)
     {
         using var json = JsonDocument.Parse(line);
-        return json.RootElement.TryGetProperty("projectId", out var property)
-            && property.ValueKind == JsonValueKind.String
-            && string.Equals(property.GetString(), projectId, StringComparison.OrdinalIgnoreCase);
+        var root = json.RootElement;
+        var lineProjectId = root.TryGetProperty("projectId", out var projectProperty)
+            && projectProperty.ValueKind == JsonValueKind.String
+            ? projectProperty.GetString()
+            : null;
+        var lineCorrelationId = root.TryGetProperty("correlationId", out var correlationProperty)
+            && correlationProperty.ValueKind == JsonValueKind.String
+            ? correlationProperty.GetString()
+            : null;
+        return MatchesSelection(lineProjectId, lineCorrelationId, projectId, correlationId);
     }
+
+    private static bool MatchesSelection(
+        string? entryProjectId,
+        string? entryCorrelationId,
+        string projectId,
+        string? correlationId)
+        => string.Equals(entryProjectId, projectId, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(correlationId)
+                && string.Equals(entryCorrelationId, correlationId, StringComparison.Ordinal));
 
     private static async IAsyncEnumerable<string> ToAsyncLines(
         IEnumerable<string> lines,

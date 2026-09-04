@@ -99,6 +99,9 @@ try {
     $styleWarnings = @($policy.styleWarnings)
     $requiredMarkers = @($policy.requiredMarkers)
     $manualReview = @($policy.manualReview)
+    # 樣式規則分兩種：styleWarnings 比對固定片語；stylePatterns 用正規表示式抓「符號代句」這類寫法。
+    # 兩種都只產生 warning。stylePatterns 不看程式碼區塊與行內程式碼，那裡的符號是程式，不是句子。
+    $stylePatterns = if ($policy.ContainsKey('stylePatterns')) { @($policy.stylePatterns) } else { @() }
     if ($files.Count -eq 0 -or @($files | Sort-Object -Unique).Count -ne $files.Count) {
         throw [InvalidDataException]::new('The documentation file list must be non-empty and unique.')
     }
@@ -108,7 +111,8 @@ try {
             'The documentation check needs factual failures, style warnings, required markers, and human review items.')
     }
 
-    $ruleIds = @($forbiddenClaims + $styleWarnings + $requiredMarkers | ForEach-Object { [string]$_.id })
+    $ruleIds = @($forbiddenClaims + $styleWarnings + $stylePatterns + $requiredMarkers |
+        ForEach-Object { [string]$_.id })
     if (@($ruleIds | Sort-Object -Unique).Count -ne $ruleIds.Count) {
         throw [InvalidDataException]::new('Documentation rule identifiers must be unique.')
     }
@@ -126,6 +130,27 @@ try {
             throw [InvalidDataException]::new(
                 'Required markers need an identifier, a declared file, and expected text.')
         }
+    }
+
+    $compiledPatterns = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($rule in $stylePatterns) {
+        $id = if ($rule.ContainsKey('id')) { [string]$rule.id } else { '' }
+        $patternText = if ($rule.ContainsKey('pattern')) { [string]$rule.pattern } else { '' }
+        $hint = if ($rule.ContainsKey('hint')) { [string]$rule.hint } else { '' }
+        if ([string]::IsNullOrWhiteSpace($id) -or [string]::IsNullOrWhiteSpace($patternText) -or
+            [string]::IsNullOrWhiteSpace($hint)) {
+            throw [InvalidDataException]::new('Documentation pattern rules need an identifier, a pattern, and a hint.')
+        }
+        try {
+            $regex = [Text.RegularExpressions.Regex]::new(
+                $patternText,
+                [Text.RegularExpressions.RegexOptions]::CultureInvariant,
+                [TimeSpan]::FromSeconds(1))
+        }
+        catch {
+            throw [InvalidDataException]::new("Documentation pattern rule '$id' is not a valid regular expression.")
+        }
+        $compiledPatterns.Add([pscustomobject]@{ Id = $id; Regex = $regex; Hint = $hint })
     }
 
     $errors = New-Object 'System.Collections.Generic.List[object]'
@@ -154,7 +179,10 @@ try {
         $text = [IO.File]::ReadAllText($fullPath, $utf8)
         $fileText[$relativePath] = $text
         $lines = $text -split "\r?\n"
+        $inFence = $false
         for ($lineIndex = 0; $lineIndex -lt $lines.Count; $lineIndex++) {
+            $isFenceLine = [regex]::IsMatch($lines[$lineIndex], '^\s*(```|~~~)')
+            if ($isFenceLine) { $inFence = -not $inFence }
             foreach ($rule in $forbiddenClaims) {
                 if ($lines[$lineIndex].Contains([string]$rule.text, [StringComparison]::Ordinal)) {
                     $errors.Add([ordered]@{
@@ -173,6 +201,20 @@ try {
                         line = $lineIndex + 1
                         ruleId = [string]$rule.id
                     })
+                }
+            }
+            if ($compiledPatterns.Count -gt 0 -and -not $isFenceLine -and -not $inFence) {
+                $prose = [regex]::Replace($lines[$lineIndex], '`[^`]*`', '')
+                foreach ($pattern in $compiledPatterns) {
+                    if ($pattern.Regex.IsMatch($prose)) {
+                        $warnings.Add([ordered]@{
+                            code = 'style_pattern'
+                            file = $relativePath
+                            line = $lineIndex + 1
+                            ruleId = $pattern.Id
+                            hint = $pattern.Hint
+                        })
+                    }
                 }
             }
         }

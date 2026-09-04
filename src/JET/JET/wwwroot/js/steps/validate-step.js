@@ -822,18 +822,19 @@
     if (!v || !v.resultRef || !v.resultRef.runId) { return ''; }
     var artifacts = Ui.currentReportArtifacts(
       state,
-      ['validationReport', 'accountMapping', 'infReport'],
+      ['validationReport', 'infReport'],
       { validationRunId: v.resultRef.runId });
-    var complete = artifacts.length === 3;
+    var complete = artifacts.length === 2;
     return (
       '<div class="report-output">' +
         '<div class="report-output__head">' +
           '<div>' +
             '<h4 class="report-output__title">驗證階段報告</h4>' +
-            '<p class="report-output__hint">ValidationReport、AccountMapping 與 INF Report 只會發布到目前專案。</p>' +
+            '<p class="report-output__hint">ValidationReport 與 INF Report 只會發布到目前專案；' +
+              '科目配對範本是下方卡片的工作檔，不在這份清單裡。</p>' +
           '</div>' +
           '<button type="button" class="btn btn--ghost" data-action="export-validation-artifacts">' +
-            (complete ? '重新產生三份報告' : '產生三份驗證報告') + '</button>' +
+            (complete ? '重新產生兩份報告' : '產生兩份驗證報告') + '</button>' +
         '</div>' +
         Ui.reportArtifactListHtml(artifacts, '驗證已完成，報告尚未產生。') +
       '</div>'
@@ -888,8 +889,8 @@
     // C 欄下拉留空供審計員填,填完原檔上傳走同一匯入鈕。純呼叫膠水,母體/格式全在後端決定。
     var templateBtn = validateHasRun
       ? '<button type="button" class="btn btn--ghost" data-action="download-account-mapping-template"' +
-          ' title="重新產生目前驗證版本的 AccountMapping 報告，填完 C 欄後即可上傳">' +
-          '重新產生科目配對報告</button>'
+          ' title="以目前驗證版本產生科目配對範本工作檔，用 Excel 填完 C 欄存檔後以同一個檔上傳">' +
+          '產生科目配對範本</button>'
       : '';
 
     return (
@@ -1155,18 +1156,17 @@
       });
     }
 
-    // AccountMapping 單檔重試仍綁定最近的 validate run；後端發布到專案 artifact store。
+    // 範本綁定最近的 validate run；後端直接寫進案件資料夾，是工作檔，不進報告清單。
     var templateBtn = container.querySelector('[data-action="download-account-mapping-template"]');
     if (templateBtn) {
       templateBtn.addEventListener('click', function () {
-        Ui.run('產生科目配對報告', function () {
+        Ui.run('產生科目配對範本', function () {
           var validation = Store.getState().lastRuns.validate;
           var runId = validation && validation.resultRef ? validation.resultRef.runId : null;
           return global.JetApi.exportAccountMappingTemplate({ runId: runId }).then(function (data) {
-            Store.upsertReportArtifacts([data.artifact]);
             Store.addMessage(
-              '已產出科目配對報告（' + data.rowCount +
-              ' 個科目）。填完 C 欄分類後，以「重新匯入科目配對檔」上傳。', 'info');
+              '已產生科目配對範本（' + data.rowCount + ' 個科目）：' + data.filePath +
+              '。用 Excel 填完 C 欄分類存檔後，以「重新匯入科目配對檔」選同一個檔上傳。', 'info');
             return data;
           });
         }, { logCompletion: true });

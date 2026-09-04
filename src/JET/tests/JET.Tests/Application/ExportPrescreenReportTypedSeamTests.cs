@@ -412,7 +412,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 request.SourceRef,
                 generatedUtc,
                 output.Length,
-                new string('0', 64),
+                LastWriteUtc: null,
                 Stale: false);
         }
 
@@ -423,11 +423,6 @@ public sealed class ExportPrescreenReportTypedSeamTests
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<ReportArtifact>> ListAsync(
-            string projectId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ReportArtifactCatalog> ReadCatalogAsync(
             string projectId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -447,14 +442,6 @@ public sealed class ExportPrescreenReportTypedSeamTests
         public Task<int> MarkStaleAsync(
             string projectId,
             Func<ReportArtifact, bool> predicate,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ReportArtifactCleanupResult> CleanupAsync(
-            string projectId,
-            string expectedCatalogRevision,
-            IReadOnlyList<ReportArtifactCleanupCandidate> candidates,
-            string requestedBy,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

@@ -41,6 +41,8 @@
       "*ReportArtifactExportTests*",
       "*ReportArtifactOpenXmlParityTests*",
       "*SixReportWorkflowJourneyTests*",
+      "*ReportArtifactTrustJourneyTests*",
+      "*ProjectReportArtifactStoreTests*",
       "*EmbeddedReportTemplateFailureTests*"
     ],
     "excludedProfiles": [
@@ -138,10 +140,10 @@
         "screenshotBudget": 0
       },
       {
-        "name": "conflicted-journal-recovery",
+        "name": "edited-report-still-loads",
         "timeoutSeconds": 180,
         "actionBudget": 8,
-        "expectedActionCount": 5,
+        "expectedActionCount": 4,
         "screenshotBudget": 0
       }
     ]
@@ -150,7 +152,7 @@
     "driverProject": "tools/harness/excel-driver/ExcelDriver.csproj",
     "driverAssembly": "tools/harness/excel-driver/bin/Release/net10.0-windows/Jet.ExcelDriver.dll",
     "configuration": "Release",
-    "fixtureMethodPattern": "*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationRun_AndPublishesSixCurrentArtifacts*",
+    "fixtureMethodPattern": "*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate*",
     "fixtureEnvironmentVariable": "JET_SIX_REPORT_EVIDENCE_DIR",
     "scenario": "synthetic-report-roundtrip",
     "timeoutSeconds": 180,
