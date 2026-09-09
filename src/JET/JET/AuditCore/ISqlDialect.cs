@@ -26,6 +26,12 @@ public interface ISqlDialect
     string IntegerQuotient(string dividendExpression, string divisorExpression);
 
     /// <summary>
+    /// ISO 日期字串（yyyy-MM-dd，三個 provider 的日期欄都是這種字串）的「幾日」整數（1 到 31）。
+    /// 用第 9 到 10 字元轉整數，不依賴各引擎的日期函式；空值由呼叫端另外判斷。
+    /// </summary>
+    string DayOfMonth(string dateExpr);
+
+    /// <summary>
     /// INF v2 的 canonical PRF 排序鍵。實作必須精確渲染 AuditCore 的 signed-BIGINT-safe
     /// 整數語意，不得改用 provider hash／浮點函式。
     /// </summary>

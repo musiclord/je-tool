@@ -291,7 +291,8 @@ public sealed class ExportValidationArtifactsHandler(
         return new
         {
             ok = true,
-            artifacts = result.Artifacts.Select(ReportExportSupport.ArtifactWire).ToArray()
+            artifacts = result.Artifacts.Select(ReportExportSupport.ArtifactWire).ToArray(),
+            reportArtifacts = await ReportExportSupport.ReadArtifactCatalogAfterPublicationAsync(artifactStore, projectId)
         };
     }
 
@@ -492,7 +493,11 @@ public sealed class ExportPrescreenReportHandler(
         var result = JetAuditProgram.Finalize(plan, facts);
         var artifact = result.Artifacts.Single();
 
-        return new { ok = true, artifact = ReportExportSupport.ArtifactWire(artifact) };
+        return new
+        {
+            ok = true, artifact = ReportExportSupport.ArtifactWire(artifact),
+            reportArtifacts = await ReportExportSupport.ReadArtifactCatalogAfterPublicationAsync(artifactStore, projectId)
+        };
     }
 }
 
@@ -642,6 +647,10 @@ public sealed class ExportCriteriaSelectionReportHandler(
         var result = JetAuditProgram.Finalize(plan, facts);
         var artifact = result.Artifacts.Single();
 
-        return new { ok = true, artifact = ReportExportSupport.ArtifactWire(artifact) };
+        return new
+        {
+            ok = true, artifact = ReportExportSupport.ArtifactWire(artifact),
+            reportArtifacts = await ReportExportSupport.ReadArtifactCatalogAfterPublicationAsync(artifactStore, projectId)
+        };
     }
 }

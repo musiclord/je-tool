@@ -165,9 +165,9 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
                 """
                 INSERT INTO target_account_mapping
                     (batch_id, source_row_number, account_code, account_name,
-                     standardized_category, category_id)
+                     standardized_category, category_id, classification_explicit)
                 VALUES (@batchId, @sourceRowNumber, @accountCode, @accountName,
-                        @category, @categoryId);
+                        @category, @categoryId, @explicit);
                 """;
             insertTarget.AddWithValue("@batchId", batchId);
             var sourceRowParam = insertTarget.AddParameter("@sourceRowNumber", DbType.Int64);
@@ -175,6 +175,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             var nameParam = insertTarget.AddParameter("@accountName", DbType.String);
             var categoryParam = insertTarget.AddParameter("@category", DbType.String);
             var categoryIdParam = insertTarget.AddParameter("@categoryId", DbType.String);
+            var explicitParam = insertTarget.AddParameter("@explicit", DbType.Int32);
 
             foreach (var mapping in projected)
             {
@@ -183,6 +184,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
                 nameParam.Value = (object?)mapping.AccountName ?? DBNull.Value;
                 categoryParam.Value = mapping.LegacyCategory;
                 categoryIdParam.Value = mapping.CategoryId;
+                explicitParam.Value = mapping.HasExplicitCategory ? 1 : 0;
                 await insertTarget.ExecuteNonQueryAsync(cancellationToken);
             }
         }
@@ -228,7 +230,8 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
                            JOIN config_account_taxonomy t
                              ON t.category_id = m.category_id
                              OR (m.category_id IS NULL AND t.is_builtin = 1 AND t.label = m.standardized_category)
-                           WHERE t.semantic_role IN (@receivables, @cash, @receiptInAdvance))
+                           WHERE t.semantic_role IN (@receivables, @cash, @receiptInAdvance)),
+                   (SELECT COUNT(*) FROM target_account_mapping m WHERE m.classification_explicit = 0)
             FROM import_batch b
             WHERE b.dataset_kind = @kind
             ORDER BY b.imported_utc DESC, b.batch_id DESC
@@ -255,6 +258,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             // 以 Convert.ToBoolean(值) 統一（int 0/1 與 bool 皆正確），SQL 文本不動、SQLite 行為不變。
             Convert.ToBoolean(reader.GetValue(4)),
             Convert.ToBoolean(reader.GetValue(5)),
-            Convert.ToBoolean(reader.GetValue(6)));
+            Convert.ToBoolean(reader.GetValue(6)),
+            Convert.ToInt32(reader.GetValue(7)));
     }
 }

@@ -339,6 +339,9 @@ public static class AppCompositionRoot
             var filterScenarioStore = new ProviderRoutingFilterScenarioStore(
                 providerResolver, new LocalFilterScenarioStore(sqliteDatabase), new SqlServerFilterScenarioStore(sqlServerDatabase),
                 new LocalFilterScenarioStore(duckDbDatabase));
+            var filterVoucherRepository = new ProviderRoutingFilterVoucherRepository(providerResolver,
+                new LocalFilterVoucherRepository(sqliteDatabase), new SqlServerFilterVoucherRepository(sqlServerDatabase),
+                new LocalFilterVoucherRepository(duckDbDatabase));
             var filterRunMaterializer = new ProviderRoutingFilterRunMaterializer(
                 providerResolver,
                 new LocalFilterRunMaterializer(sqliteDatabase, loggerFactory.CreateLogger<LocalFilterRunMaterializer>()),
@@ -371,6 +374,9 @@ public static class AppCompositionRoot
             var completenessDiffPageRepository = new ProviderRoutingCompletenessDiffPageRepository(
                 providerResolver, new LocalCompletenessDiffPageRepository(sqliteDatabase), new SqlServerCompletenessDiffPageRepository(sqlServerDatabase),
                 new LocalCompletenessDiffPageRepository(duckDbDatabase));
+            var accountMappingBlankPageRepository = new ProviderRoutingAccountMappingBlankPageRepository(
+                providerResolver, new LocalAccountMappingBlankPageRepository(sqliteDatabase), new SqlServerAccountMappingBlankPageRepository(sqlServerDatabase),
+                new LocalAccountMappingBlankPageRepository(duckDbDatabase));
             // 完整性「全科目」(含 diff=0)分頁:匯出底稿 step1 的資料源(diff repo 只回差異科目,不足以列全科目)。
             // E1 Task 3 新增;消費者(匯出 writer / handler)隨後續 task 落地。
             var completenessAccountPageRepository = new ProviderRoutingCompletenessAccountPageRepository(
@@ -545,6 +551,8 @@ public static class AppCompositionRoot
             }
 #endif
 
+            var filterVoucherQueryService = new FilterVoucherQueryService(filterVoucherRepository, filterScenarioStore,
+                mappingStore, accountMappingStore, authorizedPreparerStore, accountTaxonomyStore, projectStore, session, resultPageRdeValuesPort);
             List<IApplicationActionHandler> handlers =
             [
                 // 正式契約 handlers
@@ -617,12 +625,15 @@ public static class AppCompositionRoot
             projectSaveProgressHandler,
             queryDataPreviewHandler,
             new QueryCompletenessDiffPageHandler(completenessDiffPageRepository, projectStore, session),
+            new QueryAccountMappingBlankPageHandler(accountMappingBlankPageRepository, session),
             new QueryDocBalancePageHandler(docBalancePageRepository, projectStore, session),
             new QueryNullRecordsPageHandler(nullRecordsPageRepository, projectStore, session),
             new QuerySourceQualityPageHandler(sourceQualityPageRepository, session),
             new QueryFilterHitsPageHandler(
                 filterHitsPageRepository, filterScenarioStore, filterRunMaterializeService,
                 mappingStore, resultPageRdeValuesPort, projectStore, session),
+            new QueryFilterVoucherPageHandler(filterVoucherQueryService),
+            new QueryFilterVoucherRowsPageHandler(filterVoucherQueryService),
             new QueryPrescreenPageHandler(prescreenPageRepository, projectStore, session),
             new QueryInfSamplePageHandler(
                 infSamplePageRepository, ruleRunStore, mappingStore,

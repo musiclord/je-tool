@@ -100,11 +100,14 @@ public sealed class LocalTagMatrixRowPageRepository(ILocalProjectDatabase databa
             {
                 Pooling = false
             };
-            return new SqliteConnection(builder.ConnectionString);
+            // Keep the factory's SQL functions when disabling pooling for this session.
+            sqlite.ConnectionString = builder.ConnectionString;
+            return sqlite;
         }
-        finally
+        catch
         {
             sqlite.Dispose();
+            throw;
         }
     }
 }

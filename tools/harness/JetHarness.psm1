@@ -137,7 +137,7 @@ function Read-JetRegistry {
             throw [InvalidDataException]::new("Lane registry is missing '$required'.")
         }
     }
-    if ([string]$registry.runnerContractVersion -cne '8.0') {
+    if ([string]$registry.runnerContractVersion -cne '8.1') {
         throw [InvalidDataException]::new('Unsupported runner contract version.')
     }
 
@@ -146,7 +146,7 @@ function Read-JetRegistry {
             Where-Object { [bool]$registry.lanes[$_].enabled } |
             Sort-Object
     )
-    if (($enabledLaneNames -join ',') -cne 'Excel,Focused,Foundation,Gui,Package,PrivateCase,Provider,Public,ReleaseCandidate') {
+    if (($enabledLaneNames -join ',') -cne 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Provider,Public,ReleaseCandidate') {
         throw [InvalidDataException]::new(
             'The enabled lane set does not match the currently implemented Harness boundary.')
     }
@@ -176,6 +176,13 @@ function Read-JetRegistry {
         -not [bool]$registry.commands.ReleaseCandidate.requiresExclusiveLock -or
         [bool]$registry.commands.ReleaseCandidate.privateDataAccess) {
         throw [InvalidDataException]::new('The ReleaseCandidate command boundary is invalid.')
+    }
+    if (-not $registry.commands.ContainsKey('Mutation') -or
+        -not [bool]$registry.commands.Mutation.enabled -or
+        [string]$registry.commands.Mutation.lane -cne 'Mutation' -or
+        -not [bool]$registry.commands.Mutation.requiresExclusiveLock -or
+        [bool]$registry.commands.Mutation.privateDataAccess) {
+        throw [InvalidDataException]::new('The Mutation command boundary is invalid.')
     }
 
     $testSettings = $registry.testSettings
@@ -420,11 +427,15 @@ function Read-JetRegistry {
     $expectedGuiScenarios = @(
         [ordered]@{ name = 'startup-smoke'; timeoutSeconds = 120; actionBudget = 4; expectedActionCount = 1; screenshotBudget = 0 },
         [ordered]@{ name = 'synthetic-sqlite-create'; timeoutSeconds = 150; actionBudget = 16; expectedActionCount = 15; screenshotBudget = 0 },
-        [ordered]@{ name = 'mapping-required-sync'; timeoutSeconds = 180; actionBudget = 12; expectedActionCount = 10; screenshotBudget = 0 },
-        [ordered]@{ name = 'edited-report-still-loads'; timeoutSeconds = 180; actionBudget = 8; expectedActionCount = 4; screenshotBudget = 0 }
+        [ordered]@{ name = 'mapping-required-sync'; timeoutSeconds = 180; actionBudget = 70; expectedActionCount = 64; screenshotBudget = 0 },
+        [ordered]@{ name = 'edited-report-still-loads'; timeoutSeconds = 180; actionBudget = 12; expectedActionCount = 9; screenshotBudget = 0 },
+        [ordered]@{ name = 'approval-mapping-modes'; timeoutSeconds = 240; actionBudget = 40; expectedActionCount = 32; screenshotBudget = 1 },
+        [ordered]@{ name = 'validation-auto-outputs'; timeoutSeconds = 240; actionBudget = 8; expectedActionCount = 5; screenshotBudget = 1 },
+        [ordered]@{ name = 'filter-auditor-journey'; timeoutSeconds = 240; actionBudget = 96; expectedActionCount = 96; screenshotBudget = 2 },
+        [ordered]@{ name = 'filter-kct-editing'; timeoutSeconds = 240; actionBudget = 70; expectedActionCount = 70; screenshotBudget = 1 }
     )
     if ($guiScenarios.Count -ne $expectedGuiScenarios.Count) {
-        throw [InvalidDataException]::new('GUI scenarios must contain only the four reviewed scenarios.')
+        throw [InvalidDataException]::new('GUI scenarios must contain only the eight reviewed scenarios.')
     }
     for ($index = 0; $index -lt $expectedGuiScenarios.Count; $index++) {
         $scenario = $guiScenarios[$index]
@@ -438,7 +449,7 @@ function Read-JetRegistry {
             [int]$scenario.timeoutSeconds -ne [int]$expectedScenario.timeoutSeconds -or
             [int]$scenario.actionBudget -ne [int]$expectedScenario.actionBudget -or
             [int]$scenario.expectedActionCount -ne [int]$expectedScenario.expectedActionCount -or
-            [int]$scenario.screenshotBudget -ne 0) {
+            [int]$scenario.screenshotBudget -ne [int]$expectedScenario.screenshotBudget) {
             throw [InvalidDataException]::new('GUI scenario name or budget escaped the reviewed boundary.')
         }
     }
@@ -1298,6 +1309,7 @@ function Invoke-JetChildStep {
         [hashtable] $EnvironmentVariablesToSet = @{},
         [string[]] $SensitiveValuesToRedact = @(),
         [int] $StandardStreamCodePage = 65001,
+        [switch] $OwnProcessTree,
         [switch] $TreatNuGetSourceFailureAsBlocked
     )
 
@@ -1341,7 +1353,9 @@ function Invoke-JetChildStep {
         $environmentRemovalNames,
         $environmentOverrides,
         $redactionValues,
-        $StandardStreamCodePage)
+        $StandardStreamCodePage,
+        [bool]$OwnProcessTree,
+        [Threading.CancellationToken]::None)
     $completedUtc = [DateTime]::UtcNow
 
     $status = if ($result.TimedOut -or $result.Cancelled) {
@@ -1355,6 +1369,10 @@ function Invoke-JetChildStep {
     }
 
     $classificationReason = $null
+    if ($OwnProcessTree -and (-not $result.OwnedProcessTree -or $result.CleanupSucceeded -ne $true -or $result.BelowNormalApplied -ne $true)) {
+        $status = 'failed'
+        $classificationReason = 'owned_process_tree_incomplete'
+    }
     if ($status -ceq 'failed' -and $TreatNuGetSourceFailureAsBlocked -and
         (Test-JetNuGetSourceUnavailable -Paths @($stdoutPath, $stderrPath))) {
         $status = 'blocked'
@@ -1381,6 +1399,9 @@ function Invoke-JetChildStep {
             killAttempted = $result.KillAttempted
             killSucceeded = $result.KillSucceeded
             killError = $result.KillError
+            ownedProcessTree = $result.OwnedProcessTree
+            cleanupSucceeded = $result.CleanupSucceeded
+            belowNormalApplied = $result.BelowNormalApplied
         }
         stdout = [ordered]@{
             path = Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $stdoutPath
@@ -2431,8 +2452,24 @@ function Invoke-JetGuiScenarioStep {
             [int]$manifest.budget.actionCount -lt 0 -or
             [int]$manifest.budget.actionCount -gt [int]$Scenario.actionBudget -or
             [int]$manifest.budget.screenshotLimit -ne [int]$Scenario.screenshotBudget -or
-            [int]$manifest.budget.screenshotCount -ne 0) {
+            [int]$manifest.budget.screenshotCount -lt 0 -or
+            [int]$manifest.budget.screenshotCount -gt [int]$Scenario.screenshotBudget -or
+            @($manifest.screenshots).Count -ne [int]$manifest.budget.screenshotCount) {
             throw [InvalidDataException]::new('GUI scenario manifest is invalid.')
+        }
+        for ($imageIndex = 0; $imageIndex -lt @($manifest.screenshots).Count; $imageIndex++) {
+            $screenshot = $manifest.screenshots[$imageIndex]
+            $expectedFile = [IO.Path]::GetFileNameWithoutExtension($manifestPath) + '-view-' + ($imageIndex + 1) + '.png'
+            if ([string]$screenshot.fileName -cne $expectedFile -or [int]$screenshot.bytes -le 8 -or [int]$screenshot.bytes -gt 2MB) {
+                throw [InvalidDataException]::new('GUI screenshot metadata escaped the reviewed boundary.')
+            }
+            $imagePath = Join-Path (Split-Path $manifestPath -Parent) $expectedFile
+            Assert-JetNoExistingReparsePoint -RepositoryRoot $RepositoryRoot -Candidate $imagePath
+            if ((Get-Item -LiteralPath $imagePath).Length -ne [int]$screenshot.bytes) { throw 'GUI screenshot is incomplete.' }
+            $signature = [byte[]]::new(8)
+            $imageStream = [IO.File]::OpenRead($imagePath)
+            try { $imageStream.ReadExactly($signature, 0, 8) } finally { $imageStream.Dispose() }
+            if ([Convert]::ToHexString($signature) -cne '89504E470D0A1A0A') { throw 'GUI screenshot is not PNG.' }
         }
 
         $errorCodes = @($manifest.errors | ForEach-Object { [string]$_.code })
@@ -2482,10 +2519,37 @@ function Invoke-JetGuiScenarioStep {
                     [bool]$manifest.assertions.modifiedOutsideVisible -and
                     [bool]$manifest.assertions.workpaperExportEnabled -and
                     [bool]$manifest.assertions.cleanupPanelAbsent -and
+                    [bool]$manifest.assertions.workpaperHistoryVisible -and
+                    [bool]$manifest.assertions.historyDoesNotCompleteCurrentRun -and
+                    [bool]$manifest.assertions.oldVersionRevealAvailable -and
+                    [bool]$manifest.assertions.missingVersionRevealDisabled -and
+                    [bool]$manifest.assertions.workpaperHistoryRetainedAfterExport -and
+                    [bool]$manifest.assertions.newestWorkpaperFirst -and
+                    [bool]$manifest.assertions.workpaperHistoryPaginationVerified -and
                     [bool]$manifest.assertions.supportExportAvailable -and
                     [bool]$manifest.assertions.supportLogWritten -and
                     [bool]$manifest.assertions.supportLogSafe -and
                     [bool]$manifest.assertions.legacyJournalDiscarded
+            }
+            'approval-mapping-modes' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 1 -and
+                    [bool]$manifest.assertions.classicApprovalModesCoherent -and
+                    [bool]$manifest.assertions.gridApprovalModesCoherent -and
+                    [bool]$manifest.assertions.mappingOptionsDirtyStateVisible -and
+                    [bool]$manifest.assertions.committedMappingOptionsRestored -and
+                    [bool]$manifest.assertions.requiredFieldJumpFocused
+            }
+            'validation-auto-outputs' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 1 -and
+                    [bool]$manifest.assertions.automaticValidationReportsCreated -and
+                    [bool]$manifest.assertions.automaticMappingTemplateCreated -and
+                    [bool]$manifest.assertions.filledTemplatePreservedAfterValidation
+            }
+            { $_ -in @('filter-auditor-journey','filter-kct-editing') } {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq [int]$Scenario.screenshotBudget -and [bool]$manifest.assertions.filterWorkflowVerified
             }
             default { $false }
         }
@@ -3473,11 +3537,13 @@ function Invoke-JetHarness {
         [Parameter(Mandatory = $true)] [string] $Configuration,
         [switch] $NoRestore,
         [Parameter(Mandatory = $true)] [AllowEmptyString()] [string] $Filter,
+        [string] $MutationScope = '',
         [Parameter(Mandatory = $true)] [string] $WaitSeconds,
         [Parameter(Mandatory = $true)] [string] $TimeoutSeconds,
         [Parameter(Mandatory = $true)] [string] $EvidenceRoot,
         [Parameter(Mandatory = $true)] [string] $ContractScenario,
-        [Parameter(Mandatory = $true)] [string] $ProbeSeconds
+        [Parameter(Mandatory = $true)] [string] $ProbeSeconds,
+        [string] $GuiScenario = ''
     )
 
     try {
@@ -3551,6 +3617,28 @@ function Invoke-JetHarness {
         }
         elseif (-not [string]::IsNullOrWhiteSpace($Filter)) {
             throw [ArgumentException]::new('Filter is accepted only by Focused.')
+        }
+        # GuiScenario 只供診斷單跑一個情境；收據標記 partial，不算 Gui 通過。
+        if ($Command -ceq 'Gui') {
+            if (-not [string]::IsNullOrWhiteSpace($GuiScenario) -and
+                @($registry.guiSettings.scenarios | ForEach-Object { [string]$_.name }) -cnotcontains $GuiScenario) {
+                throw [ArgumentException]::new("Unknown GuiScenario: $GuiScenario")
+            }
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace($GuiScenario)) {
+            throw [ArgumentException]::new('GuiScenario is accepted only by Gui.')
+        }
+        if ($Command -ceq 'Mutation') {
+            if ([string]::IsNullOrWhiteSpace($MutationScope)) { $MutationScope = 'GlProjectionGuard' }
+            if ($MutationScope -cnotin @('GlProjectionGuard', 'MoneyScaling')) {
+                throw [ArgumentException]::new('MutationScope must be GlProjectionGuard or MoneyScaling.')
+            }
+            if ($Configuration -cne 'Release' -or $parsedTimeoutSeconds -gt 1800) {
+                throw [ArgumentException]::new('Mutation requires Configuration Release and at most 1800 seconds.')
+            }
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace($MutationScope)) {
+            throw [ArgumentException]::new('MutationScope is accepted only by Mutation.')
         }
         if ($NoRestore -and $Command -notin @('Build', 'Focused', 'Public', 'Provider', 'Package', 'PrivateCase')) {
             throw [ArgumentException]::new(
@@ -3646,6 +3734,7 @@ function Invoke-JetHarness {
     $privateCaseProvider = $null
     $releaseCandidateWorkspace = $null
     $releaseCandidateWorkspaceCleanup = $null
+    $mutationEvidence = $null
 
     try {
         if ([bool]$registry.commands[$Command].requiresExclusiveLock) {
@@ -3700,6 +3789,21 @@ function Invoke-JetHarness {
                         -SensitiveValuesToRedact $probeSensitiveValues `
                         -TreatNuGetSourceFailureAsBlocked:($ContractScenario -ceq 'NuGetUnavailable')
                     $steps.Add($step)
+                    if ($step.status -ceq 'passed' -and $ContractScenario -cin @('MutationBoundary', 'OwnedProcessTree', 'FrontendPreview')) {
+                        $testScript = switch ($ContractScenario) {
+                            'MutationBoundary' { 'mutation-contract.tests.ps1' }
+                            'OwnedProcessTree' { 'process-tree-contract.tests.ps1' }
+                            'FrontendPreview' { 'frontend-preview-contract.tests.ps1' }
+                        }
+                        $steps.Add((Invoke-JetChildStep `
+                            -RepositoryRoot $repositoryFull -RunDirectory $context.RunDirectory `
+                            -Name 'contract-specialized' -FileName $pwshPath `
+                            -Arguments @('-NoProfile', '-File', (Join-Path $repositoryFull "tools/tests/$testScript"), '-RepositoryRoot', $repositoryFull) `
+                            -DisplayCommand @('pwsh', '-NoProfile', '-File', "tools/tests/$testScript") `
+                            -MaximumCapturedBytes ([int]$registry.limits.maximumCapturedBytesPerStream) `
+                            -TimeoutSeconds $parsedTimeoutSeconds -OwnProcessTree `
+                            -EnvironmentVariablesToRemove @($registry.testSettings.environmentVariablesToRemove)))
+                    }
                 }
                 'Restore' {
                     $dotnet = Get-Command dotnet -CommandType Application -ErrorAction Stop |
@@ -3735,6 +3839,18 @@ function Invoke-JetHarness {
                             -TimeoutSeconds $parsedTimeoutSeconds)) {
                         $steps.Add($buildStep)
                     }
+                }
+                'Mutation' {
+                    Import-Module (Join-Path $PSScriptRoot 'mutation/JetMutation.psm1') -Force
+                    $mutation = Invoke-JetMutationPipeline `
+                        -RepositoryRoot $repositoryFull -RunDirectory $context.RunDirectory `
+                        -Registry $registry -Scope $MutationScope -TimeoutSeconds $parsedTimeoutSeconds `
+                        -RunChildStep {
+                            param([hashtable] $parameters)
+                            Invoke-JetChildStep @parameters -OwnProcessTree
+                        }
+                    foreach ($mutationStep in $mutation.steps) { $steps.Add($mutationStep) }
+                    $mutationEvidence = $mutation.evidence
                 }
                 'Focused' {
                     foreach ($buildStep in @(Invoke-JetBuildPipeline `
@@ -4017,7 +4133,10 @@ function Invoke-JetHarness {
                             -TimeoutSeconds $parsedTimeoutSeconds)) {
                         $steps.Add($buildStep)
                     }
-                    foreach ($guiScenario in @($registry.guiSettings.scenarios)) {
+                    $selectedGuiScenarios = @($registry.guiSettings.scenarios | Where-Object {
+                        [string]::IsNullOrWhiteSpace($GuiScenario) -or [string]$_.name -ceq $GuiScenario })
+                    # 迴圈變數不能叫 $guiScenario：PowerShell 變數不分大小寫，會撞到 [string] 參數 $GuiScenario 而被轉成字串。
+                    foreach ($guiScenarioEntry in $selectedGuiScenarios) {
                         if ($steps.Count -gt 0 -and $steps[$steps.Count - 1].status -cne 'passed') {
                             break
                         }
@@ -4025,8 +4144,8 @@ function Invoke-JetHarness {
                             -RepositoryRoot $repositoryFull `
                             -RunDirectory $context.RunDirectory `
                             -Registry $registry `
-                            -Scenario $guiScenario `
-                            -TimeoutSeconds ([int]$guiScenario.timeoutSeconds + 30)
+                            -Scenario $guiScenarioEntry `
+                            -TimeoutSeconds ([int]$guiScenarioEntry.timeoutSeconds + 30)
                         $steps.Add($gui)
                     }
                 }
@@ -4096,9 +4215,18 @@ function Invoke-JetHarness {
     catch {
         $status = 'infrastructure_error'
         $exitCode = $script:ExitInfrastructure
+        # 訊息只留給診斷：去掉本機絕對路徑，附上模組內的行號，讓接手的人不用重跑就知道炸在哪裡。
+        $safeMessage = [string]$_.Exception.Message
+        foreach ($localRoot in @($repositoryFull, [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile))) {
+            if (-not [string]::IsNullOrWhiteSpace($localRoot)) {
+                $safeMessage = $safeMessage.Replace($localRoot, '<local>', [StringComparison]::OrdinalIgnoreCase)
+            }
+        }
         $errorEvidence = [ordered]@{
             code = 'runner_exception'
             type = $_.Exception.GetType().Name
+            message = $safeMessage
+            line = [int]$_.InvocationInfo.ScriptLineNumber
         }
     }
     finally {
@@ -4210,7 +4338,10 @@ function Invoke-JetHarness {
         lane = [string]$registry.commands[$Command].lane
         configuration = $Configuration
         filter = if ($Command -ceq 'Focused') { $Filter } else { $null }
+        mutation = $mutationEvidence
         contractScenario = if ($Command -ceq 'Contract') { $ContractScenario } else { $null }
+        guiScenario = if ($Command -ceq 'Gui' -and -not [string]::IsNullOrWhiteSpace($GuiScenario)) { $GuiScenario } else { $null }
+        partial = ($Command -ceq 'Gui' -and -not [string]::IsNullOrWhiteSpace($GuiScenario))
         startedUtc = $context.StartedUtc.ToString('O')
         completedUtc = $completedUtc.ToString('O')
         durationSeconds = [Math]::Round(($completedUtc - $context.StartedUtc).TotalSeconds, 3)

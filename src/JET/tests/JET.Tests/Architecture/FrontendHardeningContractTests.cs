@@ -380,7 +380,7 @@ public sealed class FrontendHardeningContractTests
     }
 
     [Fact]
-    public void FilterScenarioActions_StylePreviewAsSecondaryAndSaveAsPrimary()
+    public void FilterScenarioActions_PrioritizeSavingWhileKeepingPreviewAvailable()
     {
         var filter = ReadFrontend("js", "steps", "filter-step.js");
 
@@ -388,6 +388,9 @@ public sealed class FrontendHardeningContractTests
             "class=\"btn btn--ghost\" data-action=\"preview-scenario\"",
             filter,
             StringComparison.Ordinal);
+        // 09-09 使用者明示保存為主要目的；只交換按鈕主次，保存確認與既有 action 保留。
+        // 原版面斷言的本次失敗保留於 20260909-023625785-0bca1c1417d5439bafab4393b4fa8952。
+        Assert.Contains("class=\"btn\" data-action=\"open-save\"", filter, StringComparison.Ordinal);
         Assert.Contains(
             "class=\"btn\" data-action=\"save-scenario\"",
             filter,

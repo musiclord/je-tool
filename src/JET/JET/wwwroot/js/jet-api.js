@@ -110,6 +110,8 @@
     err.field = message.error && typeof message.error.field === 'string'
       ? message.error.field
       : null;
+    // invalid_scenario 這類可歸屬到條件列的錯誤帶 details（group、rule、message）；其他錯誤為 null。
+    err.details = message.error && Array.isArray(message.error.details) ? message.error.details : null;
     callbacks.reject(err);
   }
 
@@ -179,6 +181,9 @@
     'query.nullRecordsPage',
     'query.sourceQualityPage',
     'query.filterHitsPage',
+    'query.filterVoucherPage',
+    'query.filterVoucherRowsPage',
+    'query.accountMappingBlankPage',
     'query.prescreenPage',
     'query.infSamplePage',
     'query.tagMatrixScenarios',

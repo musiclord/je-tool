@@ -19,42 +19,37 @@ public sealed class LocalDocBalancePageRepository(ILocalProjectDatabase database
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        var hasCursor = PageCursor.TryDecode(request.Cursor, out var cursorKey);
-        var keyset = hasCursor ? " AND document_number > @cursor" : string.Empty;
-        if (hasCursor)
+        var paging = KeysetPaging.Plan(database.Dialect, request, ResultPageSorting.DocBalance);
+        foreach (var parameter in paging.Parameters)
         {
-            command.AddWithValue("@cursor", cursorKey);
+            command.AddWithValue(parameter.Key, parameter.Value);
         }
 
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
 
-        // 母體核心走 ValidationProcedures.UnbalancedCore(有效分錄 + 游標 keyset),與計數端同口徑。
+        // 母體核心走 ValidationProcedures.UnbalancedCore(有效分錄),與計數端同口徑；彙總後包成子查詢，
+        // 排序、搜尋與游標述詞才能用彙總欄（debit_s、credit_s、diff_s）。
         command.CommandText =
+            "SELECT document_number, debit_s, credit_s, diff_s" + paging.SelectSuffix + " FROM (" +
             "SELECT document_number, " +
-            "COALESCE(SUM(debit_amount_scaled), 0), " +
-            "COALESCE(SUM(credit_amount_scaled), 0), " +
-            "COALESCE(SUM(amount_scaled), 0) " +
-            ValidationProcedures.UnbalancedCore(string.Empty, keyset) +
-            " ORDER BY document_number " + database.Dialect.LimitClause("@pageSize") + ";";
+            "COALESCE(SUM(debit_amount_scaled), 0) AS debit_s, " +
+            "COALESCE(SUM(credit_amount_scaled), 0) AS credit_s, " +
+            "COALESCE(SUM(amount_scaled), 0) AS diff_s " +
+            ValidationProcedures.UnbalancedCore(string.Empty) +
+            ") u WHERE 1 = 1" + paging.Predicate + " " +
+            paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
-        var rows = new List<UnbalancedDocument>();
+        var buffer = new KeysetPageBuffer<UnbalancedDocument>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            rows.Add(new UnbalancedDocument(
-                reader.IsDBNull(0) ? null : reader.GetString(0),
-                reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3)));
+            buffer.Add(
+                new UnbalancedDocument(
+                    reader.IsDBNull(0) ? null : reader.GetString(0),
+                    reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3)),
+                paging.HasSort ? reader.GetValue(4) : null);
         }
 
-        var hasMore = rows.Count > request.ClampedPageSize;
-        if (hasMore)
-        {
-            rows.RemoveAt(rows.Count - 1);
-        }
-
-        var next = hasMore
-            ? PageCursor.Encode(rows[^1].DocumentNumber ?? string.Empty)
-            : null;
-        return new PageResult<UnbalancedDocument>(rows, next);
+        return buffer.ToPage(request, paging, static row => row.DocumentNumber ?? string.Empty);
     }
 }

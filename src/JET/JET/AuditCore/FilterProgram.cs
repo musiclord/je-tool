@@ -88,12 +88,11 @@ public static partial class JetAuditProgram
             ArgumentNullException.ThrowIfNull(document);
             var errors = FilterScenarioValidator.Validate(
                 document.Spec,
-                request.ValidationContext);
+                request.ValidationContext,
+                forSave: request.ActionName == FilterCommitAction);
             if (errors.Count > 0)
             {
-                throw new JetActionException(
-                    JetErrorCodes.InvalidScenario,
-                    string.Join("；", errors));
+                throw FilterScenarioErrorDetails.InvalidScenario(errors);
             }
         }
 

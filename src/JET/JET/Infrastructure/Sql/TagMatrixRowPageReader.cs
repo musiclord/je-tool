@@ -37,7 +37,7 @@ internal static class TagMatrixRowPageReader
         string populationPredicate,
         string hitPopulationPredicate) =>
         "SELECT g.document_number, g.line_item, g.post_date, g.approval_date, g.created_by, g.approved_by, " +
-        "       g.account_code, g.account_name, g.amount_scaled, g.document_description, g.entry_id " +
+        "       g.account_code, g.account_name, g.amount_scaled, g.document_description, g.entry_id{suffix} " +
         $"FROM {schemaPrefix}target_gl_entry g " +
         $"WHERE {populationPredicate} AND g.document_number IN ( " +
         $"    SELECT DISTINCT g2.document_number FROM {schemaPrefix}result_filter_run r " +
@@ -46,8 +46,7 @@ internal static class TagMatrixRowPageReader
         scenarioPredicate +
         ") ";
 
-    private const string PageSqlTail =
-        "ORDER BY g.entry_id ";
+    private const string PageSqlTail = "";
 
     public static async Task<(PageResult<RowTagRow> Page, IReadOnlyList<long> EntryIds, IReadOnlyDictionary<long, IReadOnlyList<int>> PositionsByEntry)> ReadAsync(
         DbConnection connection, ISqlDialect dialect, GlPopulationContext context, PageRequest request,
@@ -63,28 +62,24 @@ internal static class TagMatrixRowPageReader
                 new Dictionary<long, IReadOnlyList<int>>());
         }
 
-        var hasCursor = PageCursor.TryDecode(request.Cursor, out var cursorKey);
-        long? cursorEntryId = hasCursor ? long.Parse(cursorKey) : null;
+        var paging = KeysetPaging.Plan(dialect, request, ResultPageSorting.TagMatrixRow);
 
         // 查詢 1:本頁命中傳票之所有行(含非命中行)。
-        var rows = new List<RowTagRow>();
-        var entryIds = new List<long>();
-        long? lastEntryId = null;
+        var buffer = new KeysetPageBuffer<(RowTagRow Row, long EntryId)>();
         await using (var command = connection.CreateCommand())
         {
             GlPopulationScopeSql.Plan(dialect, context, "g").BindParametersTo(command);
-            var keyset = cursorEntryId is not null ? "AND g.entry_id > @cursor " : string.Empty;
             command.CommandText =
                 PageSqlHead(
                     schemaPrefix,
                     scenarioScope.Predicate(),
                     GlPopulationScopeSql.Predicate(context, "g"),
-                    GlPopulationScopeSql.Predicate(context, "g2")) + keyset + PageSqlTail +
-                dialect.LimitClause("@pageSize") + ";";
+                    GlPopulationScopeSql.Predicate(context, "g2")).Replace("{suffix}", paging.SelectSuffix) +
+                PageSqlTail + paging.Predicate + " " + paging.OrderBy + " " + dialect.LimitClause("@pageSize") + ";";
             scenarioScope.AddParameters(command);
-            if (cursorEntryId is not null)
+            foreach (var parameter in paging.Parameters)
             {
-                command.Parameters.Add(Param(command, "@cursor", cursorEntryId.Value));
+                command.Parameters.Add(Param(command, parameter.Key, parameter.Value));
             }
 
             command.Parameters.Add(Param(command, "@pageSize", request.ClampedPageSize + 1));
@@ -92,7 +87,7 @@ internal static class TagMatrixRowPageReader
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                rows.Add(new RowTagRow(
+                var row = new RowTagRow(
                     reader.IsDBNull(0) ? null : reader.GetString(0),
                     reader.IsDBNull(1) ? null : reader.GetString(1),
                     reader.IsDBNull(2) ? null : reader.GetString(2),
@@ -102,27 +97,18 @@ internal static class TagMatrixRowPageReader
                     reader.IsDBNull(6) ? null : reader.GetString(6),
                     reader.IsDBNull(7) ? null : reader.GetString(7),
                     reader.GetInt64(8),
-                    reader.IsDBNull(9) ? null : reader.GetString(9)));
-                var entryId = reader.GetInt64(10);
-                entryIds.Add(entryId);
-                lastEntryId = entryId; // 末欄(rows 已升冪,末列即本頁末鍵)
+                    reader.IsDBNull(9) ? null : reader.GetString(9));
+                buffer.Add((row, reader.GetInt64(10)), paging.HasSort ? reader.GetValue(11) : null);
             }
         }
 
-        var hasMore = rows.Count > request.ClampedPageSize;
-        if (hasMore)
-        {
-            rows.RemoveAt(rows.Count - 1);
-            entryIds.RemoveAt(entryIds.Count - 1);
-        }
+        var page = buffer.ToPage(request, paging, static item => item.EntryId);
+        var rows = page.Rows.Select(static item => item.Row).ToArray();
+        var entryIds = page.Rows.Select(static item => item.EntryId).ToArray();
+        var next = page.NextCursor;
 
-        lastEntryId = entryIds.Count == 0 ? null : entryIds[^1];
-        var next = hasMore && lastEntryId is not null
-            ? PageCursor.Encode(lastEntryId.Value.ToString())
-            : null;
-
-        // 空頁:無行 → 無位置。不跑查詢 2(@hi 無意義)。
-        if (lastEntryId is null)
+        // 空頁:無行 → 無位置。不跑查詢 2。
+        if (entryIds.Length == 0)
         {
             return (
                 new PageResult<RowTagRow>(rows, next),
@@ -130,27 +116,25 @@ internal static class TagMatrixRowPageReader
                 new Dictionary<long, IReadOnlyList<int>>());
         }
 
-        // 查詢 2:本頁各行命中位置(鍵範圍 (@lo, @hi],與查詢 1 同範圍)。
+        // 查詢 2:本頁各行命中位置。排序後本頁不再是連續鍵範圍，改把本頁的 entry_id 全部當參數帶進 IN 清單
+        // （一頁最多 500 列，低於各引擎的參數上限）。
         var positions = new Dictionary<long, List<int>>();
         await using (var command = connection.CreateCommand())
         {
             GlPopulationScopeSql.Plan(dialect, context, "g").BindParametersTo(command);
-            var lowBound = cursorEntryId is not null ? "AND r.entry_id > @lo " : string.Empty;
+            var entryParameters = entryIds.Select((_, index) => $"@e{index}").ToArray();
             command.CommandText =
                 $"SELECT r.entry_id, r.scenario_position FROM {schemaPrefix}result_filter_run r " +
                 $"JOIN {schemaPrefix}target_gl_entry g ON g.entry_id = r.entry_id " +
-                $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} AND r.entry_id <= @hi " +
+                $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} " +
                 scenarioScope.Predicate("r.scenario_position") +
-                lowBound +
+                $"AND r.entry_id IN ({string.Join(", ", entryParameters)}) " +
                 "ORDER BY r.entry_id, r.scenario_position;";
-            if (cursorEntryId is not null)
-            {
-                command.Parameters.Add(Param(command, "@lo", cursorEntryId.Value));
-            }
-
             scenarioScope.AddParameters(command);
-
-            command.Parameters.Add(Param(command, "@hi", lastEntryId.Value));
+            for (var index = 0; index < entryIds.Length; index++)
+            {
+                command.Parameters.Add(Param(command, entryParameters[index], entryIds[index]));
+            }
 
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))

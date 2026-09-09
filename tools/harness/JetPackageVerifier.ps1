@@ -467,6 +467,9 @@ try {
         $extension = [IO.Path]::GetExtension($relative).ToLowerInvariant()
         $fileName = [IO.Path]::GetFileName($relative).ToLowerInvariant()
         $lowerRelative = $relative.ToLowerInvariant()
+        if ($lowerRelative -match '(^|/)(frontend-preview|preview)(/|$)' -or $fileName -ceq 'fixtures.json') {
+            Add-ValidationError -Code 'frontend_preview_forbidden' -Path $relative
+        }
         if (@('.dll', '.pdb', '.xml') -ccontains $extension) {
             Add-ValidationError -Code 'loose_binary_or_symbols_forbidden' -Path $relative
         }

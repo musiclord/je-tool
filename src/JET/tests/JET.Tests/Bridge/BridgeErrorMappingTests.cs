@@ -67,6 +67,28 @@ public sealed class BridgeErrorMappingTests
     }
 
     [Fact]
+    public void JetActionException_WithDetails_SerializesPositionedErrors()
+    {
+        var dto = JetWebMessageBridge.ToErrorDto(FilterScenarioErrorDetails.InvalidScenario(
+            ["條件群組 1 規則 2：比較方式不適用此欄位，請重新選擇。", "條件群組 2：sameVoucher 群組內只允許 AND，不接受 OR。", "情境名稱必填。"]));
+
+        Assert.Equal(JetErrorCodes.InvalidScenario, dto.Code);
+        Assert.NotNull(dto.Details);
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(
+            dto,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        var details = json.RootElement.GetProperty("details").EnumerateArray().ToArray();
+        Assert.Equal(3, details.Length);
+        Assert.Equal(1, details[0].GetProperty("group").GetInt32());
+        Assert.Equal(2, details[0].GetProperty("rule").GetInt32());
+        Assert.Equal("比較方式不適用此欄位，請重新選擇。", details[0].GetProperty("message").GetString());
+        Assert.Equal(2, details[1].GetProperty("group").GetInt32());
+        Assert.Equal(JsonValueKind.Null, details[1].GetProperty("rule").ValueKind);
+        Assert.Equal(JsonValueKind.Null, details[2].GetProperty("group").ValueKind);
+        Assert.Equal("情境名稱必填。", details[2].GetProperty("message").GetString());
+    }
+
+    [Fact]
     public void ArbitraryException_FallsBackToBridgeError()
     {
         var dto = JetWebMessageBridge.ToErrorDto(new InvalidOperationException("boom"));

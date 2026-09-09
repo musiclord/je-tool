@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Application;
@@ -22,14 +23,7 @@ public sealed class QueryInfSamplePageHandler(
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var projectId = session.RequireProjectId();
-        var cursor = PayloadReader.GetOptionalString(payload, "cursor");
-        if (PageCursor.IsMalformed(cursor))
-        {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload, "cursor 格式不符(無法解碼)。");
-        }
-
-        var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
+        var request = PageRequestReader.Read(payload, ResultPageSorting.InfSample);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
@@ -60,7 +54,7 @@ public sealed class QueryInfSamplePageHandler(
         var page = await Task.Run(
             () => repository.GetPageAsync(
                 projectId, latestRun.RunId, document.MoneyScale,
-                new PageRequest(cursor, pageSize), cancellationToken),
+                request, cancellationToken),
             cancellationToken);
 
         var scale = document.MoneyScale;
@@ -94,6 +88,7 @@ public sealed class QueryInfSamplePageHandler(
             key = column.Key,
             label = column.Label,
             valueType = column.ValueType,
-            isCustom = column.IsCustom
+            isCustom = column.IsCustom,
+            sortable = ResultPageSorting.InfSample.Find(column.Key) is not null
         }).ToArray();
 }

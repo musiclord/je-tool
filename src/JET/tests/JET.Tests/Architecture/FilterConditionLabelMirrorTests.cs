@@ -60,6 +60,33 @@ public sealed class FilterConditionLabelMirrorTests
     }
 
     [Fact]
+    public void AccountSideModeOptions_MirrorDomainLabels_Bidirectional()
+    {
+        var frontend = ExtractValueLabelMap("ACCOUNT_SIDE_MODE_OPTIONS");
+        Assert.Equal(FilterConditionLabels.AccountSideModes, frontend);
+    }
+
+    [Fact]
+    public void AccountCombinationOptions_ReuseTheDomainPairLabels()
+    {
+        // 借貸科目組合卡的每個模式標籤必須與對應 wire 型別在 Domain 的標籤逐字相同（舊格式 exact 除外，它只給舊情境讀回）。
+        var source = ReadUiCore();
+        var arrayMatch = Regex.Match(source, @"ACCOUNT_COMBINATION_OPTIONS\s*=\s*\[(?<body>.*?)\];", RegexOptions.Singleline);
+        Assert.True(arrayMatch.Success, "ui-core.js 找不到 ACCOUNT_COMBINATION_OPTIONS");
+        var items = Regex.Matches(arrayMatch.Groups["body"].Value,
+            @"\{\s*type:\s*'(?<type>[^']+)'\s*,\s*mode:\s*'(?<mode>[^']+)'\s*,\s*label:\s*'(?<label>[^']+)'");
+        Assert.Equal(6, items.Count);
+        foreach (Match item in items)
+        {
+            var labels = item.Groups["type"].Value == "accountPair"
+                ? FilterConditionLabels.AccountPairModes
+                : FilterConditionLabels.SpecialPairModes;
+            var expected = labels[item.Groups["mode"].Value];
+            Assert.StartsWith(expected, item.Groups["label"].Value, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void GlFieldLabels_MirrorDomainSubset()
     {
         // GL_FIELDS 是 mapping 步驟也用的超集；只要求 Domain 條件欄子集的每一鍵在 GL_FIELDS 內且 label 相符。

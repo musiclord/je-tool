@@ -46,11 +46,9 @@
     return Store.getState().mapping.gl.options;
   }
 
-  // 目前模式下不得由來源欄指派的 JET 欄位：核准日設為「與總帳日期相同」時，
-  // 傳票核准日與衍生模式互斥（manifest：sameAsPostDate 與 docDate 配對互斥）。
+  // 指派來源欄是明確操作；store 會同步核准日模式，不必先到另一處解除模式限制。
   function excludedFieldKeys(kind) {
-    if (kind !== 'gl') { return []; }
-    return glOptions().approvalDateMode === 'sameAsPostDate' ? ['docDate'] : [];
+    return [];
   }
 
   function profileKey(kind, column) {
@@ -281,6 +279,9 @@
     if (options.approvalDateMode === 'sameAsPostDate' && draft.docDate) {
       problems.push('核准日選「與總帳日期相同」時，不可同時指派「傳票核准日」來源欄');
     }
+    if (options.approvalDateMode === 'unmapped' && draft.docDate) {
+      problems.push('核准日選「不提供」時，不可同時指派「傳票核准日」來源欄');
+    }
 
     if (draft.postingStatus) {
       var policy = options.postingStatusPolicy;
@@ -322,10 +323,9 @@
     var draft = mappingState.draft;
     return (
       '<section class="map-options" data-bind="gl-options">' +
-        '<h4 class="map-options__title">標準化政策</h4>' +
-        '<p class="map-options__hint">這些設定決定哪些分錄進入測試母體，以及要保留哪些額外欄位。' +
-          '所有判定都由系統執行，畫面只收集設定。</p>' +
-        approvalModeHtml(options, draft) +
+        '<h4 class="map-options__title">日期與資料處理</h4>' +
+        '<p class="map-options__hint">確認日期如何取得、哪些過帳狀態要納入，以及要保留哪些額外欄位。</p>' +
+        approvalModeHtml(options, draft, importInfo) +
         postingStatusPolicyHtml(options, draft) +
         manualAutoPolicyHtml(options, draft) +
         rdeFieldsHtml(options, draft, importInfo) +
@@ -333,7 +333,7 @@
     );
   }
 
-  function approvalModeHtml(options, draft) {
+  function approvalModeHtml(options, draft, importInfo) {
     var radios = Ui.GL_APPROVAL_DATE_MODES.map(function (m) {
       return '<label class="mode-option">' +
         '<input type="radio" name="gl-approval-mode" value="' + m.value + '"' +
@@ -346,7 +346,7 @@
     var note = options.approvalDateMode === 'mapped'
       ? (draft.docDate
           ? '目前以來源欄「' + Ui.esc(draft.docDate) + '」作為核准日。'
-          : '請在上方把「傳票核准日」指派到一個來源欄。')
+          : '請在下方選擇核准日來源欄。')
       : (options.approvalDateMode === 'sameAsPostDate'
           ? '每列的核准日直接沿用標準化後的總帳日期；此設定下不可再指派「傳票核准日」來源欄。'
           : '這份總帳沒有核准日；需要核准日的測試會標示為無法執行。');
@@ -354,6 +354,12 @@
     return '<fieldset class="map-options__group">' +
       '<legend class="map-options__legend">核准日</legend>' +
       '<div class="mode-group">' + radios + '</div>' +
+      '<label class="map-approval-source">核准日來源欄' +
+        '<select class="form__select" data-approval-source data-focus-key="gl-approval-source" aria-describedby="gl-approval-help">' +
+          '<option value="">不使用來源欄</option>' + (importInfo.columns || []).map(function (column) {
+            return '<option value="' + Ui.esc(column) + '"' + (draft.docDate === column ? ' selected' : '') + '>' +
+              Ui.esc(column) + '</option>';
+          }).join('') + '</select></label>' +
       '<p class="map-options__note" id="gl-approval-help">' + note + '</p>' +
       '</fieldset>';
   }
@@ -580,6 +586,7 @@
     var committed = mappingState.committed;
     if (!committed || !committed.mapping) { return false; }
     if (committed.mode && committed.mode !== mode) { return false; }
+    if (committed.options && JSON.stringify(mappingState.options) !== JSON.stringify(committed.options)) { return false; }
 
     var draftKeys = Object.keys(mappingState.draft).filter(function (k) { return mappingState.draft[k]; });
     var committedKeys = Object.keys(committed.mapping).filter(function (k) { return committed.mapping[k]; });
@@ -807,13 +814,13 @@
         : '<span class="map-rail__pending">待指派</span>';
       return '<li class="map-rail__item' + (done ? ' is-done' : '') + '">' +
         '<span class="map-rail__mark" aria-hidden="true">' + (done ? '✓' : '') + '</span>' +
-        '<span class="map-rail__label">' + Ui.esc(f.label) + '</span>' +
+        '<button type="button" class="map-rail__label map-rail__jump" title="在簡易清單中定位來源欄位" data-focus-mapping-field="' + Ui.esc(f.key) + '">' + Ui.esc(f.label) + '</button>' +
         tail + '</li>';
     }).join('');
 
-    var title = eligibility.canCommit
-      ? '必填欄位已全部指派'
-      : '尚缺 ' + eligibility.missing.length + ' 個必填欄位';
+    var title = eligibility.missing.length > 0
+      ? '尚缺 ' + eligibility.missing.length + ' 個必填欄位'
+      : (eligibility.canCommit ? '必填欄位已全部指派' : '欄位已指派，請確認下方設定');
     return '<aside class="map-rail' + (eligibility.canCommit ? ' is-complete' : '') + '">' +
       '<h4 class="map-rail__title">' + title + '</h4>' +
       '<ul class="map-rail__list">' + items + '</ul></aside>';
@@ -827,12 +834,12 @@
   }
 
   function gridEditSection(kind, title, fields, modes, importInfo, mappingState, mode, committed, matches) {
-    var banner = '';
+    var banner = '<p class="rule-card__sub">下方為配對草稿，按「確認配對」後才會保存並供後續步驟使用；結束 JET 不會保存尚未確認的修改。</p>';
     if (mappingState.invalidatedByImport) {
       banner = '<p class="mapping-section__warn">來源資料已變更，原配對已失效；請確認下方對應後重新提交。</p>';
     } else if (committed && !matches) {
       banner = '<p class="mapping-section__warn">下方修改尚未生效，目前仍以已提交版本執行；' +
-        '按「重新確認配對」套用，或「還原為已提交版本」放棄修改。</p>';
+        '按「重新確認配對」套用，或「還原為已提交版本」放棄修改。結束 JET 不會保存此草稿。</p>';
     }
 
     var modeRadios = modes.map(function (m) {
@@ -886,7 +893,7 @@
   }
 
   function classicEditSection(kind, title, fields, modes, importInfo, mappingState, mode, committed, matches) {
-    var banner = '';
+    var banner = '<p class="mapping-section__warn">下方是配對草稿，確認配對成功後才用於驗證。未保存草稿不會留到下次開啟。</p>';
     if (mappingState.invalidatedByImport) {
       banner = '<p class="mapping-section__warn">來源資料已變更，原配對已失效；請確認下方對應後重新提交。</p>';
     } else if (committed && !matches) {
@@ -905,7 +912,7 @@
     var excluded = excludedFieldKeys(kind);
 
     var rows = fields.filter(function (field) {
-      return excluded.indexOf(field.key) < 0;
+      return excluded.indexOf(field.key) < 0 && !(kind === 'gl' && field.key === 'docDate');
     }).map(function (field) {
       var required = Ui.isRequired(field, mode);
       var current = mappingState.draft[field.key] || '';
@@ -1040,14 +1047,17 @@
     section.querySelectorAll('[data-option-bind="approvalDateMode"]').forEach(function (radio) {
       radio.addEventListener('change', function () {
         if (!radio.checked) { return; }
-        // 衍生模式與「傳票核准日」來源欄互斥：切換到 sameAsPostDate 時同步移除既有指派，
-        // 讓畫面與送出的 payload 不會出現互相矛盾的組合。
-        if (radio.value === 'sameAsPostDate') {
-          Store.setMappingDraft('gl', 'docDate', '');
-        }
+        // 模式與來源欄在同一次 store 更新內改變，避免重繪到互相矛盾的中間狀態。
         Store.patchGlMappingOptions({ approvalDateMode: radio.value });
       });
     });
+
+    var approvalSource = section.querySelector('[data-approval-source]');
+    if (approvalSource) {
+      approvalSource.addEventListener('change', function () {
+        Store.setMappingDraft('gl', 'docDate', approvalSource.value);
+      });
+    }
 
     section.querySelectorAll('[data-action="load-posting-profile"]').forEach(function (button) {
       button.addEventListener('click', function () {
@@ -1201,6 +1211,27 @@
       bindGlOptions(section);
     }
 
+    section.querySelectorAll('[data-focus-mapping-field]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var key = button.getAttribute('data-focus-mapping-field');
+        var project = Store.getState().project;
+        var stepIndex = Store.getState().currentStepIndex;
+        if (Store.getState().mappingUiMode !== 'classic') { Store.setMappingUiMode('classic'); }
+        global.setTimeout(function () {
+          var state = Store.getState();
+          if (state.project !== project || state.currentStepIndex !== stepIndex || state.view !== 'workflow') { return; }
+          // 切換編輯畫面會替換整個步驟 body；必須從目前頁面取新節點，不對已卸下的容器定位。
+          var content = Ui.$('content');
+          var current = content && content.querySelector('.stepflow-item--current [data-bind="mapping-' + kind + '"]');
+          if (!current) { return; }
+          var target = Array.prototype.find.call(current.querySelectorAll('[data-mapping-key]'), function (control) {
+            return control.getAttribute('data-mapping-key') === key;
+          });
+          if (target) { target.focus(); target.scrollIntoView({ block: 'center', inline: 'nearest' }); }
+        }, 0);
+      });
+    });
+
     // 摘要卡動作：重新配對（展開編輯）、預覽標準化資料。
     var remapBtn = section.querySelector('[data-action="remap-' + kind + '"]');
     if (remapBtn) {
@@ -1249,8 +1280,7 @@
         var committed = Store.getState().mapping[kind].committed;
         if (!committed || !committed.mapping) { return; }
         editing[kind] = false;
-        Store.replaceMappingDraft(kind, Object.assign({}, committed.mapping));
-        Store.setMappingMode(kind, committed.mode);
+        Store.restoreCommittedMapping(kind);
       });
     }
 

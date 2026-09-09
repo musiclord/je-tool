@@ -1,6 +1,6 @@
 # JET 開發現況
 
-更新日期：2026-09-04
+更新日期：2026-09-09
 
 ## 目前狀態
 
@@ -8,47 +8,115 @@
 本目錄內；`je-testing` 與 `new-je-tool` 不再是執行或驗證依賴，來源 Git 歷史也不會匯入。Branch、HEAD 與
 遠端同步狀態屬於會變動的執行狀態，接手時應直接查 Git，不能只依這份文件判斷。
 
-驗證框架 Phase 1 至 Phase 7 已完成。公開產品測試、provider、Release 封裝、四個隔離 GUI 情境、六份合成
+驗證框架 Phase 1 至 Phase 7 已完成。公開產品測試、provider、Release 封裝、六個隔離 GUI 情境、六份合成
 報表的原生 Excel 檢查，以及先前明示授權的 SQLite／SQL Server 私人案件都曾分別通過。這些結果只能描述
 當次執行；候選內容變動後，仍要依變更範圍重跑正式命令。
 
 ## 目前大型計畫
 
-[`specs/2026-09-01-frontend-sync-devlog-mutation-plan.md`](specs/2026-09-01-frontend-sync-devlog-mutation-plan.md)：
-本輪把 Claude 已做的前端與 DEV 日誌修改，和使用者回報的報告 journal 衝突一起收斂。欄位配對改成
-衍生畫面寫入必定 bump，並由框架層還原焦點與捲動；Release 新增可從 picker 使用的去識別支援日誌，
-Debug 原始日誌則只匯出目前案件；損壞 journal 仍拒絕載入，但確認刪案不再先做 recovery。四個 GUI
-情境已實跑通過，包含必填欄位往返，以及損壞案件從顯示錯誤、輸出支援日誌到確認刪除的整段流程。
-Stryker.NET 4.16.0 能以 MTP 分析 .NET 10，但會繞過 JET harness 的 PrivateCase 篩選，且上游 MTP preview
-有測試選取失效與固定逾時缺陷，因此不安裝、不列入正式 gate。本輪 `Contract`、`Documentation`、`Public`
-（3,402／3,402 executed passed）與四個 `Gui` 情境均通過。2026-09-02 依使用者裁定先修正提交前複審記錄
-的 `dev.log.exportFile` fallback 缺陷（first-red 測試加上 `ProjectLogFileWriter` 例外分層），相關 `Focused`
-重跑通過後，依同一授權以單一 commit 提交並推送整輪成果；使用者確認第一階段沒問題。同日公司測試環境
-撞到 `artifact_recovery_conflict`，追出科目配對範本與報告產物儲存的假設互相矛盾，使用者裁定在同一份
-計畫進行第二階段：儲存只留暫存改名、範本改為工作檔、Working Paper 改成版本檔、移除清理功能。
-第二階段同日實作完成：`Focused`、`Public`（3,328／3,328 executed passed、0 skip）、`Contract`、框架自身
-測試、`Package`、四個 `Gui` 情境（含新的 `edited-report-still-loads`）、`Excel` 與 `Documentation` 全部
-通過；`Provider`、`PrivateCase` 與公司環境實機驗收未執行。狀態：第二階段待使用者驗收，成果未提交。
+2026-09-09 使用者授權整理既有變更後 commit 與 push，接著轉到公司測試環境驗收。
+本機功能與前端的人工驗收維持通過，公司設備三項驗收仍待完成。空值明細的排序、搜尋與呈現改善
+已列入交付後待辦，本次不實作；交付進度見下列唯一現行計畫的「公司測試環境交付」。
 
-2026-09-04 接手後依使用者要求更新測試循環：封裝納入報告儲存回歸測試，Excel 輸入改由範本原檔往返
-並重新匯出驗證報告的旅程產生，GUI 明確檢查外部修改提醒、匯出按鈕與清理面板移除。新鎖檔測試發現
-報告與範本改名發布時會漏出原始存取例外，已補上關閉檔案及檢查權限後重試的提示。Release 公開測試
-3,335 項、封裝測試 91 項、四個 GUI 情境與六份工作簿的原生 Excel 檢查全部通過，框架自身測試為
-399 個斷言、28 個情境。第一次 NuGet 連線受阻與修正過程記在同一份計畫。完整 `ReleaseCandidate` 因
-工作樹未提交而停在 `candidate_source_dirty`。使用者隨後已授權將本輪成果提交並推送，供測試環境人工
-驗收；本次交付須在提交後重跑完整候選驗證。計畫保持待使用者驗收，Working Paper 歷史版本顯示方式仍
-待確認。交付後等使用者回報驗收結果並指示後續項目，不自行展開其他開發。
+2026-09-09 已把跨 Agent 前端設計流程合併至開發指南，仍沿用下列唯一計畫。AGENTS 與 CLAUDE 均指向同一入口。
+Codex 與 Claude Desktop Code 共用正式前端和合成預覽；Claude 的啟動設定及預覽連接埠契約已檢查，
+本機服務可載入。Claude Desktop UI 與 Claude Design 的實際交接尚待首次選用時確認，沒有雲端上傳或 MCP 設定。
+一般設計先做相應檢查，使用者確認版本並要求整合後再完整驗證。啟動提示與平台限制見
+[`開發指南`](development-guide.md#前端設計模式) 和 [`Agent 相容方式`](agent-compatibility.md#前端設計與瀏覽器相容性)。
 
-同日提交前複審另發現 Working Paper 的稽核紀錄仍把舊版本算成已取代。新斷言先證明第二次匯出的
-`replaced_count` 錯為 1，修正為排除 Working Paper 後，對應 `Focused` 與 298 項架構檢查通過；
-一般報告覆蓋的計數保留，完整公開測試會在提交後的候選驗證重跑。
+2026-09-09 使用者確認前端改動驗收通過，並要求更新正式 JET、完整重驗與合併待驗收項目。
+本輪沿用 [`篩選條件收斂與接續修正計畫`](specs/2026-09-07-filter-convergence-plan.md) 的整合驗證章節。
+正式前端就是原有 `wwwroot`，本輪已重建 Debug 與 Release，16 個變更檔在兩種輸出共 32 次比對一致。
+Build、Contract、Public 3,453 項、Package 103 項與發行內容檢查、Gui 八個情境、Excel 六份工作簿皆通過，
+Documentation 也通過；收據集中於計畫的整合驗證結果表，保留全部未提交工作樹。
+原九項人工功能驗收與本日前端驗收不再列為必須重做。剩餘人工驗收集中為公司設備的三項操作：
+一般權限下啟動與完整流程、Office 原檔編輯與占用重試、完整案件冷複製後重新開啟。
+空值表方案待裁定，SQL Server、企業多人、audit log、預篩選去留及 KCT 後續工作仍維持既有延後邊界。
+乾淨來源的 ReleaseCandidate 等 Git 交付另獲授權後執行，不由人工驗收通過推定提交或推送。
 
-前一項計畫
-[`specs/2026-08-30-repository-consolidation-plan.md`](specs/2026-08-30-repository-consolidation-plan.md)
-已完成：歷史文件依時間軸重組、過時事實修正、Claude Code 攔截層與 hook、`AGENTS.md`／`README.md`
-改寫都已實作並驗證，使用者已於 2026-08-30 驗證並授權提交，改動已進 Git（2026-08-31 session 開始時
-工作樹乾淨）。該計畫檔記載的收尾動作「提交後執行完整 `ReleaseCandidate`」在本文件沒有執行紀錄，
-重啟大型驗證前先確認或補跑。
+### 前輪開發紀錄（目前狀態以上方整合驗證為準）
+
+2026-09-09 已依使用者授權，在下列唯一現行計畫接續第五步設計預覽試用。
+預覽工具和合成測試位於 harness 與 tests，操作說明見開發指南。
+已收到第一輪七則瀏覽器註解，已修正案件摘要字體、操作人員顯示、提示分組、摘要文字、退出用詞與按鈕主次。
+第二輪再縮短頂列按鈕文字，統一工作區與流程字體，精簡結果說明並移除第五步頁尾的重複提醒。
+第三輪將組設定集中在組標頭下，並統一選取條件與作用中組的藍色和小圓角。
+第四輪依使用者回饋取消組設定與新增目標的高亮，保留正在編輯條件的藍色，並將累積要求與前輪失誤記入計畫。
+第五輪在每組內增加連到條件選單的入口，明示加入目標與新增組的層級，保留第四輪的高亮設計。
+第六輪依實際操作回饋，將跳至左側的入口改成在組內展開共用選單，並刪除「與上方條件組同一層」。
+第七輪依使用者否決，撤除組內選單與跳轉入口，恢復固定左側總覽，並同步右側選取組與左側加入目標。
+第五、六輪的組內入口做法已被取代。第八輪移除右側組別單選鈕及目標標籤，
+只保留左側的多組加入選單，並補上預篩選條件名稱。第七輪的雙重組別控制也已被取代。
+本輪依使用者要求研究 IBM Carbon、NN/g 與 MindBridge 官方資料，再依一般操作流程修正第五步。
+可用 KCT 優先呈現，新增組位於條件組合標頭，保存表單不重複顯示入口；條件名稱、焦點和預覽回饋更明確。
+傳票的完整命中理由可就地展開，資料預覽占用空間時會調整編輯區排列。
+審計規則和 action 契約不變。原生建案逾時與測試視窗的 DPI 定位問題已修正；最終前端 193 項、架構 316 項、
+完整八個 GUI 情境、Contract 與 Documentation 均通過。正式結果與第一次失敗的證據在現行計畫最前面的研究與整體修正紀錄。
+Annotation 已確認能傳回元件位置與留言，Adjust 尚未完成實際試用；新版介面的實際上手感受仍由使用者試用確認。
+
+[`specs/2026-09-07-filter-convergence-plan.md`](specs/2026-09-07-filter-convergence-plan.md)：
+「篩選條件收斂與接續修正計畫」。2026-09-05 到 06 另一個 agent 依自寫的需求把步驟五篩選做成三態判定
+（分類留白算未分類、列待判定）與情境層排除區域，並擴到變異測試路線與十個 GUI 情境；2026-09-06 使用者
+裁定不退回工作樹，改由主線接續修正。2026-09-07 使用者裁定：移除待判定回到兩值語意（分類留白視為 Others，
+同 legacy）、移除排除區域改用條件的否定模式、傳票清單只留命中、篩選 GUI 情境合成兩個；並補上 09-04 裁定
+過但沒做的每月幾日、期末最後 N 天、常用情境範本、借貸卡片合併白話、錯誤對應條件列、版本推進、第六步白話
+提示與明細表排序搜尋。工作樹保留另一個 agent 的全部未提交修改，沒有暫存、提交或推送。
+
+2026-09-07 工作包 A 到 I 已完成，前輪 Public 3,426 項、Contract、Documentation、Package、八個 GUI
+情境與六種 Excel 輸出均通過。本日使用者依計畫第九節確認九項人工驗收全部通過，接續要求 Agent 以
+現有合成案件補充測試資料、固定答案及操作情境，核對驗證框架能否成為驗收依據之一。
+本輪另查回既有資料規模與遷移業務來源，回寫公司環境政策；空值表先研究保留 legacy 語意的方案，
+第五步文字呈現與條件運算分開核對。補充測試抓到未配對核心欄位被誤當內容空白的缺口，已修正，
+規則版本推進至 `filter-2026-09-07-v12`。
+補充驗收已通過：八項新測試、Public 3,434 項、Contract、Release 封裝 103 項、八個 GUI 情境及六種 Excel 輸出。
+文件檢查 35 份、0 錯誤、0 警告。固定資料、預期答案與收據在現行計畫文末；空值表分成兩份清單的研究已完成，尚未實作介面。
+九項人工驗收不再列為待使用者重測；SQL Server 與私人案件未在本輪授權範圍。
+同日使用者看過步驟五截圖後，KCT 條件卡可接受，但自訂篩選條件區「非常混亂、類型分散」；依使用者選定的
+「三入口一句型」重做該區前端：每組三顆家族入口、每條條件一句話、組標頭一句話，wire 與後端不動。
+三個舊版面守衛依新版面改寫並保留第一次失敗收據，八個 GUI 情境通過；細節與收據在現行計畫文末，
+09-08 使用者認為此版更難上手，要求從 KCT、自訂條件到矩陣整體重設。已查閱 MindBridge、Power BI、
+Tableau 與 Business Central 官方資料，已改成先選條件看結果，再命名保存的流程。
+使用者另提醒配色不要改過頭，因此沿用 JET 既有色彩，只調整操作順序和顯示層次。研究、原話與驗證紀錄
+都在同一份現行計畫的 09-08 節。上一輪前端 190 項、完整 Public 3,439 項與 GUI 八個情境均通過。
+同日收到第二輪回饋後，條件列改成固定欄位名稱與明確的「移除」；日期、文字和金額先選保留或排除，
+再選篩選方式，輔助設定收起。單條件不顯示 AND 或 OR，跨分錄比對另設入口；新增條件組直接可見。
+已保存情境的操作選單不再推高整列，查看全部分錄改放左側。這次只調整第五步，其他步驟的用詞仍需按實際流程檢視。
+本輪前端 191 項、篩選相關 523 項與完整 GUI 八個情境通過，測試範圍有重疊，不相加；詳細結果見現行計畫文末。
+第三輪回饋指出「其他設定」仍混雜不同用途、借貸組合擁擠及介面裁切。本輪將期末幾天改為主要日期方式，
+移除重複比較選單與總帳日期無效的空白勾選，借貸分類分區排列，並修正保存區間距及命中傳票的查看操作欄。
+完整 GUI 八個情境通過，包含新增的幾何檢查；其他驗證結果記在現行計畫文末。
+原有九項人工功能驗收保留，不改列失敗。
+同日使用者要求完整自主測試，確認篩選由資料庫正確執行且符合審計語意。已補全部 36 種值運算子的固定答案矩陣，
+並將 KCT 邊界補到 SQLite 與 DuckDB，共四項新測試、408 次資料庫查核通過。
+完整公開測試 3,444 項與 GUI 八個情境通過，但後續非 ASCII 大小寫補測發現 SQLite 漏列及否定條件多列：
+查找 café 只匹配 CAFÉ，未匹配 café；DuckDB 同組測試通過。當時補測六項中一項失敗，紀錄保留供修正對照。
+使用者隨後要求修正並避免過度複雜化。已集中在 SQLite 連線工廠設定 UPPER，以 .NET 一致大寫轉換修正；
+底稿專用連線保留相同設定。篩選版本推進為 `filter-2026-09-08-v13`，預篩選為 `prescreen-2026-09-08-v7`，
+舊結果會過期。Public 3,450 項、GUI 八個情境通過；最後連線調整後的 Unicode 九項與底稿專用 session 補驗也通過。
+這項缺陷已修正，先前失敗證據保留；重現與修正紀錄見現行計畫文末。
+
+最新一輪依截圖修正日期與金額區間的成對換行、借貸別標題間距及摘要輸入框對齊，沿用原有配色。
+自訂情境保存時會依條件帶入短名稱與動機草稿，未手改的文字隨條件更新，手動文字保留。
+新建欄位條件的畫面與報告說明移除「含兩端」等旁註，保留實際分組、空白與金額基準。
+最後版本已通過篩選相關 533 項、架構 315 項與完整 GUI 八個情境，測試範圍重疊，不相加。
+新增測試另抓到報告金額標籤顯示為 `amount`，已補成「金額」並保留原預期答案重驗通過。
+研究、失敗證據與最後收據記在現行計畫文末；新版面與文字建議待使用者確認，原九項人工功能驗收維持通過。
+本次不改資料庫判斷，也不新增服務或套件。
+接續回饋指出新加入的條件不容易找到，已補上位置與焦點回饋。使用者再要求常駐選取狀態，
+因此改為「選取中」與邊線，新增、滑鼠點選或鍵盤移入時移轉標示，不再定時消失；本輪驗證見現行計畫文末。
+最新一輪檢查一般畫面提示，已移除借貸範本中的程式沿革用語，並整理日期、尾數、驗證及配對錯誤提示。
+新套用範本的動機同步更新，既有動機不覆蓋；條件與錯誤判斷不變。範圍及驗證在現行計畫文末。
+右側資料預覽另統一為 Noto Sans TC，移除標題中的「常駐」，並統一 GL 原始資料、測試母體與未納入母體的名稱。
+資料集標題不再使用 JE，實際資料與查詢規則不變；驗證結果見現行計畫文末。
+使用者另指出流程總覽的數字字體尚未一致，已統一母體數字、日期、階段編號與圖表刻度，數字格式不變。
+2026-09-09 依使用者回饋，條件內控制項移除焦點紅框，選取外框只保留在整條條件；鍵盤定位改用底線。
+本輪完整 GUI 在建立合成案件時逾時，篩選單跑也在首次操作前逾時，尚未驗證到焦點修改；紀錄見現行計畫文末。
+
+前一份計畫 [`specs/2026-09-06-filter-workflow-correction-plan.md`](specs/2026-09-06-filter-workflow-correction-plan.md)
+已標為由本計畫接續，它的驗證紀錄（Public 3,408 項等）只證明當時的範圍。再前一份
+[`specs/2026-09-01-frontend-sync-devlog-mutation-plan.md`](specs/2026-09-01-frontend-sync-devlog-mutation-plan.md)
+已完成：使用者 2026-09-05 確認測試環境驗收通過；審計員回報的兩點（編輯過底稿的專案不能重新載入或刪除、
+欄位配對必填檢查偶發失效）對應其第二與第一階段已修正的內容，已於本日以目前版本重測通過。
 
 ## 目前產品與方向
 
@@ -68,8 +136,8 @@ Stryker.NET 4.16.0 能以 MTP 分析 .NET 10，但會繞過 JET harness 的 Priv
   快照與各子命令清理均完成。
 - `artifacts/` 是 ignored 的本機執行證據，不是換機或 fresh clone 後的專案記憶。現行計畫只保存命令、
   結果、適用範圍與第一次失敗摘要，不累積每一次本機路徑。
-- 本輪 `Documentation` 已檢查 21 份文件與轉接檔，結果為 0 error、0 warning；一般 `Contract` 已通過。
-  驗證框架自己的 372 項 assertions、25 個情境全部通過，包含 Provider 缺少連線時維持 `blocked`、
+- 較早的驗證紀錄為 `Documentation` 檢查 21 份文件與轉接檔，結果為 0 error、0 warning；一般 `Contract`
+  通過。當時驗證框架自己的 372 項 assertions、25 個情境全部通過，包含 Provider 缺少連線時維持 `blocked`、
   Documentation 分級、Agent 指向及隔離 Git repo 的 source-index fingerprint 測試。
 - 2026-08-30 依目前產品順序修正驗證邊界：`ReleaseCandidate` 不再要求 live SQL Server，固定執行 Contract、
   Documentation、Public、Package、Gui 與 Excel；完整 `Provider` 保留為日後明示執行的 SQL Server 相容性
@@ -79,22 +147,32 @@ Stryker.NET 4.16.0 能以 MTP 分析 .NET 10，但會繞過 JET harness 的 Priv
 
 ## 已知但延後的事項
 
+2026-09-09 使用者補充目前安排：SQL Server 實機驗證與企業多人開發近期擱置，audit log 查詢、匯出與保留政策
+等 SQL Server 開始開發時再處理。預篩選報告與條件維持現況，目前不啟動縮編或退役討論。
+KCT 保存情境重驗與新條件預計近期接續，後續進度整理須持續列出；尚未開始實作，也不推測缺少的正式來源。
+Adjust、Claude Desktop UI 與 Claude Design 交接屬 Agent 開發框架，不列為 JET 產品待辦或人工驗收。
+空值表方案仍在說明階段，尚未獲准實作。使用者原話見現行計畫的「2026-09-09 進度整理後的安排」。
+
 這些事項不阻擋目前遷移，也不能因當下沒有處理就從後續進度整理中消失。每次大型工作結束，或使用者詢問
 尚未完成的事情時，應逐項回報目前狀態、延後原因與重啟條件；已解決的項目才從表中移除。
 
 | 事項 | 背景與目前邊界 | 何時重啟 |
 |:---|:---|:---|
+| 空值明細排序、搜尋與呈現 | 第四步把缺傳票號碼與缺科目編號放在同一張明細表，兩類分頁分開取得，混合表尚未接上排序與搜尋。已研究在同一檢查卡內分成兩份明細，保留各類計數、有效母體與報告規則。使用者於 2026-09-09 指示列入待辦，本次交付不實作。 | 本次 commit 與 push 後，使用者回來接續時確認呈現方案；先補兩者皆缺、跨頁、排序與搜尋的固定答案，再實作與驗證。 |
 | SQL Server live `Provider` 驗證 | 2026-09-02 使用者確認 SQL Server 開發暫緩，日常開發與測試集中在 SQLite 和 DuckDB。既有 SQL Server 相容性保留；一般 `ReleaseCandidate` 不要求 `JET_SQLSERVER_CONNECTION`，也不能代表 live SQL Server 已通過。本機服務平時關閉，使用後依 [`tools/README.md`](../tools/README.md#日常資料庫測試與服務收尾) 完成收尾。公司端權限、網路、身分及維運方式仍未定。 | 使用者當次明示要驗證本機 SQL Server，且已準備專用 `JET_Test`、最低必要權限及只存在於當次程序的連線資訊時，完整執行 `Provider`；若沙盒阻擋，保留 first-red 後在獲准的本機 Windows 邊界原樣 fresh rerun。成功、失敗或中止後都要關閉本機服務，不把 live 驗證列入日常例行工作。 |
 | SQL Server 企業多人環境 | 四個已確認的多人安全缺口（真實身分驗證、serverOnly 刪除、noAccess metadata 隱藏、SQL Server 2022 版本硬閘）與多人共用案件、使用鎖、容量資訊的驗收範圍，完整記錄在 [`sqlserver-enterprise-deferred.md`](sqlserver-enterprise-deferred.md)。只記錄、不推測實作。 | 公司能提供 SQL Server 2022、至少兩個真實帳號、DBA 支援與已核定的授權政策時，依該文件另立短期驗收計畫。 |
 | 預篩選的後續收斂 | 預篩選規則目錄已於 2026-08-20 凍結，逐筆命中改為輔助訊號，Pre-screening Report 改為純可選輸出（匯出面默認勾選）。該報告的長期去留（縮編或退役）與預篩選條件的最終棄用清單，當時裁定留待另場收斂。 | 使用者要求收斂 Pre-screening Report 去留或條件棄用清單時另立計畫；在此之前不新增逐筆預篩選規則。 |
 | audit log 查詢介面、匯出與保留政策 | 本機案件的最小 audit log 已落地（schema v9 資料庫層 append-only；DuckDB 因引擎沒有 trigger 維持程式紀律）。查詢介面、匯出、保留政策與企業部署稽核當時裁定另案，屬企業線範圍。SQLite／DuckDB 的刪案留痕已於 2026-08-20 裁決不做。 | 隨 SQL Server 企業線一併重啟，或使用者明示要先做本機查詢介面時另立計畫。 |
 | KCT 保存情境的重驗契約 | KCT 已保存的條件情境，在之後的 GL 重投影失去必要欄位時，惰性重建（materialize）的 mapping-aware 重驗仍待另立契約與生命週期測試。 | 使用者回報保存情境在重新配對後行為不明，或 KCT 新條件開發啟動時一併處理。 |
-| 公司正式部署環境 | 正式環境不能假設有系統管理員權限或 AI 網路服務；最低 Windows／Office 版本、安裝方式、允許的本機資料庫與檔案傳遞仍未知。個人電腦的通過結果不能代替公司驗收。 | 公司能提供實際政策、帳號、設備或代表性測試環境時，另立部署與操作驗收計畫。 |
+| 公司正式部署環境 | 2026-09-07 已確認 Windows 11 23H2，預計 2027 年更新為 25H2；Office 365 含可用的 Access、一般使用者權限、禁止額外安裝，本機資料庫隨 JET 內嵌。Teams、OneDrive 與組織網路磁碟機是檔案傳遞通道，網路及 Cisco 資安通道由公司管理。政策已知，實際部署驗證另計。 | 使用公司代表設備或環境，依已確認政策驗收啟動、作業與案件冷複製；不再重問環境條件。 |
 | KCT 後續條件 | 目前先讓 GA 完成原 IDEA JET 的本機替代；既有 KCT A–J 條件行為保留（前端 `FILTER_KCT_CHECKLIST`、後端 `FilterCompilation` 與 `GlRulePredicates`），A–J 與現行執行的對應已於 2026-08-18 回流當時的指南（現存於 [`history/superseded/jet-guide-2026-08.md`](history/superseded/jet-guide-2026-08.md) §3–§4）。前代已查過當時指定的 `ideascript.bas`、`JE_Tool.ism` 與 draw.io 流程圖，查無 KCT 正式名稱、A–J 原始清單、KCT 全稱或條件 B 的 BS／IS／PPE 分類表；這些來源的正規化文字版本現存為 `legacy/idea-script.bas` 與 `legacy/idea-tool.bas`，不必再回頭搜尋。 | 使用者或 KCT 小組提供正式來源與條件清單後，再建立新的功能計畫；不先推測實作。 |
-| IDEA 替代的完整人工驗收 | 已知主線包含匯入、欄位配對、完整性、Account Mapping、條件篩選與底稿，但原 IDEA 的完整功能、條件、底稿及人工判讀清單尚未逐項確認。 | 使用者、GA 或保存資料能提供完整清單時，逐項補入 `idea-replacement-scope.md` 並安排公司條件下的操作驗收。 |
-| 斷言強度量測（變異測試） | 現行 harness 能證明測試有執行且未被偷偷略過，但 mutation testing 回答的是另一個問題：斷言能否抓到刻意注入的行為變化。2026-09-01 以 Stryker.NET 4.16.0、`--test-runner mtp`、單一 Domain 檔實跑；它能分析 .NET 10、找到 3,668 項測試並啟動 MTP，先前「完全不支援 MTP」的結論不成立。不過它繞過 `tools/verify.ps1` 的安全環境與 profile 排除，初始 run 實際碰到兩個未授權 PrivateCase 測試；MTP runner 仍標為 preview，上游 issue #3754 也確認每個 mutant 的測試選取會被忽略，issue #3692 則記錄固定三分鐘 RPC 上限。工具、報告與 `.config` 設定已全數清除。 | 不把 Stryker 或其他 mutation 套件放進日常／正式 gate，也不另造只為工具服務的測試專案。日常以 first-red、獨立 oracle、FsCheck、provider parity、GUI 與 Excel 邊界測試補強；這些方法不冒充 mutation score。只有上游 MTP runner 能遵守測試篩選與 mutant test selection，並解除固定逾時後，才以同一個單檔煙霧重新評估。 |
 
-這些資料不足不會阻止已確認的技術修正，但在補齊前不能宣稱 IDEA 替代範圍、SQL Server live 相容性或
+變異測試已於 2026-09-05 經使用者確認重啟，並在前輪完成，不列為本次篩選修正工作。
+固定版本、測試篩選、程序收尾與兩個範圍的量測已完成。2026-09-01 的 Stryker.NET 4.16.0 試跑與
+無效量測結論仍保留在
+[`前輪計畫`](specs/2026-09-01-frontend-sync-devlog-mutation-plan.md) 歷史中，不能和有明確來源及範圍的結果混用。
+
+這些分別延後或尚待驗證的事項不會阻止已確認的技術修正，不能籠統宣稱 SQL Server live 相容性或
 公司部署驗收已全部完成。
 
 ## 已知技術債
@@ -106,6 +184,9 @@ Stryker.NET 4.16.0 能以 MTP 分析 .NET 10，但會繞過 JET harness 的 Priv
   裁決。
 - CSV 欄名與資料讀取會重做一次格式偵測；只有實測成為瓶頸時才優化。
 - 大型本機案件使用較多磁碟空間與 WAL；不能以把母體載入記憶體換速度。
+- 變異工具目前的批次編譯回復，會讓 MoneyScaling 的五個有效且有行為差異的變異未被完整測試執行。
+  本輪以獨立編譯與固定案例補證，原 Stryker 分類仍保留 CompileError，不重算分數。上游改善這個行為時，
+  先重跑來源與測試選取資格檢查，再重跑同一範圍；細節與 ID 對應見上述前輪計畫。
 - 前代的 `JET_PBC_DIR` 大檔煙霧測試家族（114 MB PBC fixture）沒有遷入 `je-tool`，相關的
   skip 登錄機制也隨舊驗證框架退役。若日後需要大檔煙霧驗證，依現行框架另立路線，不復刻舊機制。
 
@@ -115,14 +196,6 @@ Stryker.NET 4.16.0 能以 MTP 分析 .NET 10，但會繞過 JET harness 的 Priv
 [`specs/2026-09-01-frontend-sync-devlog-mutation-plan.md`](specs/2026-09-01-frontend-sync-devlog-mutation-plan.md)
 的「缺陷修正（2026-09-02）」：
 
-- 支援日誌鏈路的重複實作：`SupportDiagnosticRingBuffer` 與 `RingBufferLoggerProvider.cs` 的
-  `DiagnosticRingBuffer` 環形緩衝邏輯逐欄相同（僅 entry 型別不同）；`DevLogHandlers.cs` 內兩個
-  handler 各持一份相同的 `ToAsyncLines`；`SupportDiagnosticNdjson` 與 `DiagnosticNdjson` 各自維護
-  幾乎相同的 serializer 選項。收斂方向：泛型 ring buffer、`ToAsyncLines` 併入 `ProjectLogFileWriter`、
-  共用 NDJSON 選項來源。
-- `tools/harness/gui-driver/GuiScenarios.cs`：`visible()` JS helper 已有 8 份逐字複本、probe 輪詢骨架
-  5 份。2026-09-02 `conflicted-journal-recovery` 已整個換成 `edited-report-still-loads`，不再有錯誤碼斷言。
-  收斂方向：抽共用 probe helper 常數。
 - `SupportRingBufferLogger` 以寫死的 `"support.log.export"` 字串排除自身事件，action 政策滲入
   logging 層；日後若有其他要排除的 action，應集中到 action 分類表管理。
 - 本機單人案件上的多人機制（2026-09-02 使用者裁定先不動）：科目分類儲存的 revision 衝突
@@ -132,41 +205,36 @@ Stryker.NET 4.16.0 能以 MTP 分析 .NET 10，但會繞過 JET harness 的 Priv
   仍需要這些機制，所以不能整個拿掉。重啟條件：出現兩個 JET 同時開同一本機案件的實際需求，或使用者在
   單人操作時實際撞到其中一個錯誤；重啟後第一個可驗證動作是把本機 provider 的這三種錯誤改成提醒並以
   旅程測試證明流程不中斷。
-- `ProjectLogFileWriter.WriteAsync` 的 `OperationCanceledException` 與 `JetActionException` 兩個 catch
-  與末端 catch-all 行為相同，屬冗餘分支。
 - 效能觀察（未量測，僅在實測成為瓶頸時處理）：Release 每次 action dispatch 為 support provider 配置
   一次 Dictionary 與 scope 走訪；`dev.log.exportFile` 對 sink 全檔逐行 `JsonDocument.Parse` 只為讀
   `projectId`；`setMappingDraft` 每次選擇即整面板重建（正確性優先的既定裁定，見 `state.js` 通知慣例）。
+
+2026-09-05 已共用日誌環形緩衝、逐行輸出及 NDJSON 選項來源，移除相同的例外處理分支，保留原本的
+文字轉義與資料篩選差異。診斷器已依每個情境必有計數的實作改用明確索引，以合成的空結果和零命中
+確認行為；這些公開測試通過，沒有執行私人案件。GUI 的可見性與輪詢也已共用，六個正式情境通過。
 
 2026-09-04 第二階段（報告產物儲存拆解，實作與驗證都在 2026-09-02）收尾時另記下列項目。它們是這次裁定的代價或還沒回頭清的殘留，
 不阻擋驗收；下一個 session 依使用者指示逐項處理：
 
 - Working Paper 版本檔會一直累積。清理功能已依裁定拿掉，使用者自行刪檔，第六步清單會把刪掉的標成
-  「檔案不存在，重新匯出即可」。`report-artifacts.json` 有 4,096 筆上限，超過時匯出會失敗並提示刪掉不再
-  需要的舊版；長年反覆匯出的案件才可能碰到。重啟條件：使用者回報資料夾雜亂或實際撞到上限。
+  「檔案不存在，重新匯出即可」。`report-artifacts.json` 有 4,096 筆上限，2026-09-05 已修正為寫檔前檢查，
+  避免失敗時留下未登錄的新底稿。同日使用者裁定清單滿額時只移除已確認刪檔的底稿紀錄，已實作並以
+  滿額、檔案被放回、取消與失敗保留案例驗證；未滿額時仍保留刪檔歷史。更大的長期容量需求另行量測。
 - 只為讀舊資料保留的名稱：`ReportArtifactKind.AccountMapping` 讓舊 manifest 的範本條目能被略過而不是
   讓整份清單失效；`ProjectAuditOperations.ReportCleanup` 讓舊的 audit 列仍能被辨認；測試裡的
   `LegacyReportKind.AccountMapping` 現在代表範本工作簿而不是報告。收斂方向：確認沒有舊版建立的案件
   還在使用後，一起移除並更新 `ReportArtifactKindValuesTests`。
-- `ProjectWorkFileWriter` 與 `ProjectReportArtifactStore` 各有一套「寫暫存檔、完整後改名、Excel 佔用時
-  的提示、檔名必須在案件資料夾內」。兩套目前行為一致，日後修其中一邊要記得另一邊；可抽成共用 helper。
+- `ProjectWorkFileWriter` 與 `ProjectReportArtifactStore` 都會先寫暫存檔，再完整改名並處理 Excel 佔用。
+  兩者現在還分別負責「範本存在就保留」與「報告清單隨發布保存」，不能當成完全相同的流程合併。
+  共用底層檔案操作留待維護這兩處時再評估，先以各自的取消與發布測試保護行為。
 - 報告檔的 reparse point 鏈檢查已隨 store 重寫移除，這是「相信使用者」的已接受風險（見計畫檔第二階段
   「範圍外」）；GUI 驅動程式的 `OwnedGuiRun.RejectReparsePoint` 是測試治具自己的檢查，仍保留。
-- 第六步畫面每種報告只顯示最新一份：`ui-core.js` 的 `findCurrentReportArtifact` 依 `generatedUtc` 取符合
-  目前驗證與情境版本的最新產物，所以 Working Paper 的舊版本只存在於案件資料夾與 `project.load` 的
-  `reportArtifacts`，畫面上看不到。計畫第二階段的使用者流程寫的是「列出所有版本檔、最新在上」，這一點
-  尚未實作，2026-09-04 收尾時才發現。收斂方向：由使用者裁定要顯示全部版本還是維持只顯示最新；若要
-  全部顯示，改 `export-step.js` 對 `workingPaper` 的取法並補前端守衛測試。
 
 ## Git 交付與來源儲存庫退役
 
-- 第一次根提交候選已完成正式驗證。使用者已確認完整內容、`main` 與 `origin`，並明示授權建立唯一的根提交
-  及一次 `main -> origin/main` 推送。Commit、push 與遠端讀回是否實際完成，必須以當時的 Git、遠端及正式
-  驗證結果為準，不能從這份長期文件推定。
-- 推送後應從遠端建立全新工作目錄，核對內容並重新執行正式驗證，證明新儲存庫不依賴來源工作目錄。
-- 遠端讀回與驗證通過後，再由使用者決定是否封存 `je-testing` 與 `new-je-tool` 的遠端儲存庫。舊本機目錄
-  若要刪除，必須另外盤點 ignored／untracked 內容並取得授權。
-
+- 最新變更仍依現行計畫驗證；是否暫存、提交或推送需使用者另外明示，人工驗收通過不是 Git 授權。
+- 2026-09-07 使用者確認 `.vscode/settings.json` 不同步至 repo，保留本機，不列入候選清單。
+- 同日使用者表示來源儲存庫的封存與舊本機目錄處理由自己負責；不再列為 Agent 待辦，不自行盤點或刪除。
 ## 不屬於目前阻擋事項
 
 - `JET_Test` 舊資料清理、變異測試、壓力測試與涵蓋率是獨立工作，不阻擋本次治理補強。
@@ -177,5 +245,5 @@ Stryker.NET 4.16.0 能以 MTP 分析 .NET 10，但會繞過 JET harness 的 Priv
   現況重建、只能明示呼叫的 `jet-converge`；它不是把舊專案的 skills、output style、plugin 設定或逐次驗證
   紀錄整批搬回來。正式版本位於 `.agents/skills/jet-converge/`，Claude 只保留薄包裝，責任與界線見
   [`agent-compatibility.md`](agent-compatibility.md)。
-- `.agents/` 現在也保存跨工具共用的收斂與專案記憶 harness；`.config/` 仍維持空目錄，原本用來安裝的
-  變異測試工具已退出（見下表）。
+- `.agents/` 現在也保存跨工具共用的收斂與專案記憶 harness；`.config/` 仍維持空目錄。舊變異工具的安裝
+  已移除，本輪固定來源工具改放在被忽略的 `artifacts/harness/mutation/`，不恢復全域安裝。

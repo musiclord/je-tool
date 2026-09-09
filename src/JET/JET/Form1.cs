@@ -58,6 +58,14 @@ namespace JET
             ConfigureWindowChrome();
             WindowState = FormWindowState.Maximized;
             InitializeWebViewHost();
+            if (profile.FixtureIds.Contains(AgentGuiTestFixtures.MinimumWindow125Id))
+            {
+                WindowState = FormWindowState.Normal;
+                Size = MinimumSize;
+                // 測試尺寸以 96 DPI 邏輯像素定義；Shown 後用視窗所在螢幕的 DPI 換算。
+                Shown += (_, _) => Size = LogicalToDeviceUnits(new Size(1024, 640));
+                _webView!.ZoomFactor = 1.25;
+            }
             ConfigureAgentGuiDeadline(profile.DeadlineUtc);
         }
 #endif

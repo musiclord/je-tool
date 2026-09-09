@@ -564,7 +564,11 @@ public sealed partial class WorkpaperWriter(
             string Name,
             string Rationale,
             long VoucherHitCount,
-            long RowHitCount);
+            long RowHitCount,
+            string? ConditionLogic = null)
+        {
+            public string Description => ConditionLogic is null ? Name : Name + "\n篩選條件：" + ConditionLogic;
+        }
 
         /// <summary>step3 列來源:position 升冪的情境摘要(name/rationale/voucherHitCount)。</summary>
         public IReadOnlyList<ScenarioRow> Scenarios { get; }
@@ -623,7 +627,8 @@ public sealed partial class WorkpaperWriter(
                         scenario.Name,
                         scenario.Rationale,
                         scenario.VoucherHitCount,
-                        scenario.RowHitCount)
+                        scenario.RowHitCount,
+                        scenario.ConditionLogic)
                     : throw new InvalidOperationException(
                         $"WorkpaperPlan 缺少情境 position {position}。"))
                 .ToArray();

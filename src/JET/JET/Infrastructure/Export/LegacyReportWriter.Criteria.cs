@@ -225,6 +225,8 @@ public sealed partial class LegacyReportWriter
 
                 var scenarios = context.Scenarios
                     .ToDictionary(item => item.Position);
+                var sheetData = part.Worksheet.GetFirstChild<SheetData>()!;
+                var nextConditionRow = Math.Max(16u, sheetData.Elements<Row>().Max(row => row.RowIndex?.Value ?? 0) + 2);
                 for (var position = 1; position <= 10; position++)
                 {
                     var row = position + 4;
@@ -245,9 +247,26 @@ public sealed partial class LegacyReportWriter
                     cells.SetInlineString(
                         $"A{row}",
                         $"Criteria Selection {position}");
-                    cells.SetInlineString(
-                        $"B{row}",
-                        conditionLogic ?? scenario.Name);
+                    var conditionParts = FilterConditionExcelText.Parts(conditionLogic ?? scenario.Name);
+                    cells.SetInlineString($"B{row}", conditionParts.Count == 1 ? conditionParts[0]
+                        : $"完整條件見本頁第 {nextConditionRow} 列起，分段接續列出。");
+                    if (conditionParts.Count > 1)
+                    {
+                        var style = part.Worksheet.Descendants<Cell>().Single(cell => cell.CellReference?.Value == $"B{row}").StyleIndex;
+                        foreach (var conditionPart in conditionParts)
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            sheetData.Append(new Row(
+                                new Cell { CellReference = $"A{nextConditionRow}", DataType = CellValues.InlineString,
+                                    StyleIndex = style?.Value, InlineString = new InlineString(new Text($"Criteria Selection {position}（續）")) },
+                                new Cell { CellReference = $"B{nextConditionRow}", DataType = CellValues.InlineString,
+                                    StyleIndex = style?.Value, InlineString = new InlineString(new Text(conditionPart) { Space = SpaceProcessingModeValues.Preserve }) })
+                                { RowIndex = nextConditionRow });
+                            nextConditionRow++;
+                        }
+                        var dimension = part.Worksheet.GetFirstChild<SheetDimension>();
+                        if (dimension is not null) dimension.Reference = $"A1:D{nextConditionRow - 1}";
+                    }
                     cells.SetNumber(
                         $"C{row}",
                         count.VoucherHitCount);

@@ -8,6 +8,32 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class SqliteRepositoryTests
 {
+    [Fact]
+    public async Task UnicodeUppercase_IsConsistentOnReopenedAndReadOnlyConnections()
+    {
+        using var root = new TempProjectRoot();
+        var db = new SqliteProjectDatabase(new JetProjectFolder(root.Path));
+        const string projectId = "unicode-connection";
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            await using var connection = attempt == 3 ? db.CreateReadOnlyConnection(projectId) : db.CreateConnection(projectId);
+            if (attempt == 2)
+                connection.ConnectionString = new SqliteConnectionStringBuilder(connection.ConnectionString) { Pooling = false }.ConnectionString;
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT UPPER('café'), UPPER('élise'), UPPER('中文'), UPPER('abc'), UPPER(''), UPPER(NULL)";
+            await using var reader = await command.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal("CAFÉ", reader.GetString(0));
+            Assert.Equal("ÉLISE", reader.GetString(1));
+            Assert.Equal("中文", reader.GetString(2));
+            Assert.Equal("ABC", reader.GetString(3));
+            Assert.Equal("", reader.GetString(4));
+            Assert.True(reader.IsDBNull(5));
+        }
+    }
+
     private static async IAsyncEnumerable<StagingRow> ToAsync(IEnumerable<StagingRow> rows)
     {
         foreach (var row in rows)

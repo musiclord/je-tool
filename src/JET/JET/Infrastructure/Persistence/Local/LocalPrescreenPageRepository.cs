@@ -30,22 +30,21 @@ public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
             includePopulationParameters: false);
         plan.BindParametersTo(command);
         GlPopulationScopeSql.Plan(database.Dialect, context, "g").BindParametersTo(command);
-        var hasCursor = PageCursor.TryDecode(request.Cursor, out var cursorKey);
-        var keyset = hasCursor ? "AND g.entry_id > @cursor" : string.Empty;
-        if (hasCursor)
+        var paging = KeysetPaging.Plan(database.Dialect, request, ResultPageSorting.Prescreen);
+        foreach (var parameter in paging.Parameters)
         {
-            command.AddWithValue("@cursor", long.Parse(cursorKey));
+            command.AddWithValue(parameter.Key, parameter.Value);
         }
 
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
         command.CommandText =
             "SELECT g.entry_id, g.document_number, g.line_item, g.post_date, g.account_code, g.account_name, " +
-            "       g.amount_scaled, g.dr_cr, g.document_description " +
+            "       g.amount_scaled, g.dr_cr, g.document_description" + paging.SelectSuffix + " " +
             "FROM target_gl_entry g " +
-            $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({plan.Sql}) {keyset} " +
-            "ORDER BY g.entry_id " + database.Dialect.LimitClause("@pageSize") + ";";
+            $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({plan.Sql})" + paging.Predicate + " " +
+            paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
-        return await ReadPageAsync(command, request, cancellationToken);
+        return await ReadPageAsync(command, request, paging, cancellationToken);
     }
 
     public async Task<PrescreenHitCounts> GetCountsAsync(
@@ -97,35 +96,27 @@ public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
     internal static async Task<PageResult<PrescreenHitRow>> ReadPageAsync(
         System.Data.Common.DbCommand command,
         PageRequest request,
+        KeysetPagePlan paging,
         CancellationToken cancellationToken)
     {
-        var rows = new List<PrescreenHitRow>();
-        long lastEntryId = 0;
+        var buffer = new KeysetPageBuffer<PrescreenHitRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            lastEntryId = reader.GetInt64(0);
-            rows.Add(new PrescreenHitRow(
-                lastEntryId,
-                reader.IsDBNull(1) ? null : reader.GetString(1),
-                reader.IsDBNull(2) ? null : reader.GetString(2),
-                reader.IsDBNull(3) ? null : reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.IsDBNull(5) ? null : reader.GetString(5),
-                reader.GetInt64(6),
-                reader.GetString(7),
-                reader.IsDBNull(8) ? null : reader.GetString(8)));
+            buffer.Add(
+                new PrescreenHitRow(
+                    reader.GetInt64(0),
+                    reader.IsDBNull(1) ? null : reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.IsDBNull(4) ? null : reader.GetString(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5),
+                    reader.GetInt64(6),
+                    reader.GetString(7),
+                    reader.IsDBNull(8) ? null : reader.GetString(8)),
+                paging.HasSort ? reader.GetValue(9) : null);
         }
 
-        var hasMore = rows.Count > request.ClampedPageSize;
-        if (hasMore)
-        {
-            rows.RemoveAt(rows.Count - 1);
-        }
-
-        var next = hasMore
-            ? PageCursor.Encode(rows[^1].EntryId.ToString())
-            : null;
-        return new PageResult<PrescreenHitRow>(rows, next);
+        return buffer.ToPage(request, paging, static row => row.EntryId);
     }
 }

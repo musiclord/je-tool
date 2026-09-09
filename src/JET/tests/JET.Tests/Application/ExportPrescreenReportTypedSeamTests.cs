@@ -88,7 +88,8 @@ public sealed class ExportPrescreenReportTypedSeamTests
         var session = new ProjectSession();
         session.Enter(projectId);
         var writer = new RecordingPrescreenWriter();
-        var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc);
+        using var cancellation = new CancellationTokenSource();
+        var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc, cancellation.Cancel);
         var handler = new ExportPrescreenReportHandler(
             writer,
             new FixedRunStore(
@@ -104,7 +105,9 @@ public sealed class ExportPrescreenReportTypedSeamTests
             new NullEventPublisher());
         using var payload = JsonDocument.Parse($$"""{"runId":"{{runId}}"}""");
 
-        await handler.HandleAsync(payload.RootElement, CancellationToken.None);
+        var response = await handler.HandleAsync(payload.RootElement, cancellation.Token);
+        Assert.True(cancellation.IsCancellationRequested);
+        AssertPublishedCatalog(response, artifactStore);
 
         Assert.Equal(1, writer.TypedCalls);
         Assert.Equal(0, writer.PlannedCalls);
@@ -177,6 +180,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
         session.Enter(projectId);
         var writer = new RecordingPrescreenWriter();
         var factsPort = new RecordingPlanningFactsPort();
+        var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc);
         var handler = new ExportPrescreenReportHandler(
             writer,
             new FixedRunStore(
@@ -187,16 +191,17 @@ public sealed class ExportPrescreenReportTypedSeamTests
                     summaryJson),
                 EligibleValidationRun(generatedUtc)),
             new FixedProjectStore(Project(projectId)),
-            new ExecutingArtifactStore(projectId, generatedUtc),
+            artifactStore,
             session,
             new NullEventPublisher(),
             factsPort);
         using var payload = JsonDocument.Parse(
             $$"""{"runId":"{{runId}}"}""");
 
-        await handler.HandleAsync(
+        var response = await handler.HandleAsync(
             payload.RootElement,
             CancellationToken.None);
+        AssertPublishedCatalog(response, artifactStore);
 
         Assert.Equal(1, factsPort.Calls);
         Assert.Equal(1, writer.PlannedCalls);
@@ -390,11 +395,24 @@ public sealed class ExportPrescreenReportTypedSeamTests
             throw new NotSupportedException();
     }
 
+    private static void AssertPublishedCatalog(object? response, ExecutingArtifactStore store)
+    {
+        Assert.Equal(new[] { "content-written", "published", "catalog-read" }, store.CatalogOrder);
+        var data = JsonSerializer.SerializeToElement(response, JetJsonStorage.Options);
+        var published = Assert.Single(data.GetProperty("reportArtifacts").EnumerateArray());
+        Assert.Equal("artifact", published.GetProperty("artifactId").GetString());
+        Assert.Equal("prescreenReport", published.GetProperty("kind").GetString());
+        Assert.Equal(data.GetProperty("artifact").GetRawText(), published.GetRawText());
+    }
+
     private sealed class ExecutingArtifactStore(
         string expectedProjectId,
-        DateTimeOffset generatedUtc) : IReportArtifactStore
+        DateTimeOffset generatedUtc,
+        Action? afterPublication = null) : IReportArtifactStore
     {
         internal IReadOnlyList<ReportArtifactWriteRequest> Requests { get; private set; } = [];
+        internal List<string> CatalogOrder { get; } = [];
+        private IReadOnlyList<ReportArtifact> _published = [];
 
         public async Task<ReportArtifact> WriteAsync(
             string projectId,
@@ -405,7 +423,8 @@ public sealed class ExportPrescreenReportTypedSeamTests
             Requests = [request];
             await using var output = new MemoryStream();
             await request.WriteContentAsync(output, cancellationToken);
-            return new ReportArtifact(
+            CatalogOrder.Add("content-written");
+            var artifact = new ReportArtifact(
                 "artifact",
                 request.Kind,
                 $"{ReportArtifactKindValues.ToValue(request.Kind)}.xlsx",
@@ -414,6 +433,10 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 output.Length,
                 LastWriteUtc: null,
                 Stale: false);
+            _published = [artifact];
+            CatalogOrder.Add("published");
+            afterPublication?.Invoke();
+            return artifact;
         }
 
         public Task<IReadOnlyList<ReportArtifact>> WriteBatchAsync(
@@ -424,8 +447,15 @@ public sealed class ExportPrescreenReportTypedSeamTests
 
         public Task<IReadOnlyList<ReportArtifact>> ListAsync(
             string projectId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            Assert.Equal(expectedProjectId, projectId);
+            Assert.Equal(CancellationToken.None, cancellationToken);
+            Assert.Equal(new[] { "content-written", "published" }, CatalogOrder);
+            Assert.Single(_published);
+            CatalogOrder.Add("catalog-read");
+            return Task.FromResult<IReadOnlyList<ReportArtifact>>(_published.ToArray());
+        }
 
         public Task<string> ResolvePathAsync(
             string projectId,

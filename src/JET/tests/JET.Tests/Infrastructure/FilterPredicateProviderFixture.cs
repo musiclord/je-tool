@@ -29,6 +29,7 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
     public string ProjectId { get; }
 
     public IFilterRunRepository Repository { get; }
+    public IFilterVoucherRepository? Vouchers { get; private init; }
 
     public static async Task<FilterPredicateProviderFixture> CreateLocalAsync(
         string provider,
@@ -59,7 +60,7 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
             return new FilterPredicateProviderFixture(
                 projectId,
                 new LocalFilterRunRepository(database),
-                root: root);
+                root: root) { Vouchers = new LocalFilterVoucherRepository(database) };
         }
         catch
         {

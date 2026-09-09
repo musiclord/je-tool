@@ -282,7 +282,7 @@
   }
 
   // 右上角身分徽章（原「主機連線」狀態徽章）。狀態序：
-  // 尚未結論＝「偵測中」；bridge 就緒但無 whoAmI＝「已連線」；有身分＝「{短名}・U{編號}」（無編號只顯示短名）；
+  // 尚未結論＝「偵測中」；bridge 就緒但無 whoAmI＝「已連線」；有身分時顯示「操作人員：{短名}」。
   // 探測已結論但未就緒＝「主機連線失敗」（沿用既有故障訊號）。title 帶完整 principal 與編號來源說明。
   function renderIdentityBadge(state) {
     var badge = Ui.$('user-identity');
@@ -293,9 +293,7 @@
     var title;
 
     if (user) {
-      text = (user.userNumber != null)
-        ? user.shortName + '・U' + user.userNumber
-        : user.shortName;
+      text = '操作人員：' + user.shortName;
       title = identityTitle(user);
     } else if (state.bridgeReady) {
       text = '已連線';
@@ -819,12 +817,7 @@
 
     if (id === 'create') {
       if (!state.project) { return '輸入案件基本資料'; }
-      var parts = [];
-      var period = auditPeriodText(state);
-      if (period) { parts.push(period); }
-      parts.push(providerText(state.project.databaseProvider));
-      if (state.project.operatorId) { parts.push('操作 ' + state.project.operatorId); }
-      return parts.join(' · ');
+      return '案件基本資料已建立';
     }
 
     if (id === 'import') {
@@ -892,9 +885,8 @@
             '<span class="stepflow-item__num stepflow-item__num--current">' + num + '</span>' +
             '<h3 class="stepflow-item__title" data-bind="current-step-title" data-step-index="' + index +
               '" tabindex="-1">' + label + '</h3>' +
-            '<span class="stepflow-item__flag">進行中</span>' +
-            '<span class="stepflow-item__head-spacer"></span>' +
-            entryConditionHtml(state, index) +
+            '<span class="stepflow-item__status"><span class="stepflow-item__flag">進行中</span>' +
+              entryConditionHtml(state, index) + '</span>' +
           '</div>' +
           '<div class="stepflow-item__body"></div>' +
         '</div>'

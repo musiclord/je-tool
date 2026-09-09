@@ -92,6 +92,7 @@ public sealed record AccountMappingRow(
     string CategoryId,
     string LegacyCategory)
 {
+    public bool HasExplicitCategory { get; init; } = true;
     public AccountMappingRow(
         int sourceRowNumber,
         string accountCode,
@@ -174,7 +175,10 @@ public static class AccountMappingRowProjector
             name,
             category.Label,
             category.CategoryId,
-            AccountTaxonomyCatalog.LegacyLabelForSemanticRole(category.SemanticRole));
+            AccountTaxonomyCatalog.LegacyLabelForSemanticRole(category.SemanticRole))
+        {
+            HasExplicitCategory = !string.IsNullOrWhiteSpace(rawCategory)
+        };
         return true;
     }
 }
@@ -190,7 +194,11 @@ public sealed record AccountMappingState(
     DateTimeOffset ImportedUtc,
     bool HasAnyCategory,
     bool HasRevenue,
-    bool HasCounterpart);
+    bool HasCounterpart,
+    int BlankCategoryCount = 0);
+
+/// <summary>配對檔分類欄留白的科目（投影時已落到 Others）；供第四步列出讓審計員決定要不要補填。</summary>
+public sealed record AccountMappingBlankAccount(string AccountCode, string? AccountName);
 
 /// <summary>匯入結果（manifest import.accountMapping.fromFile response 形狀的來源）。</summary>
 public sealed record AccountMappingImportResult(

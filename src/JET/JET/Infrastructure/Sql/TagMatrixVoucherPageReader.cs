@@ -27,8 +27,8 @@ internal static class TagMatrixVoucherPageReader
         string scenarioPredicate,
         string populationPredicate,
         string hitPopulationPredicate) =>
-        "SELECT g.document_number, MIN(g.post_date), MIN(g.created_by), " +
-        "       COALESCE(SUM(g.debit_amount_scaled), 0) " +
+        "SELECT g.document_number AS document_number, MIN(g.post_date) AS first_post_date, MIN(g.created_by) AS first_created_by, " +
+        "       COALESCE(SUM(g.debit_amount_scaled), 0) AS voucher_total " +
         $"FROM {schemaPrefix}target_gl_entry g " +
         $"WHERE {populationPredicate} AND g.document_number IS NOT NULL " +
         "  AND EXISTS (" +
@@ -40,8 +40,7 @@ internal static class TagMatrixVoucherPageReader
         "  ) ";
 
     private const string PageSqlTail =
-        "GROUP BY g.document_number " +
-        "ORDER BY g.document_number ";
+        "GROUP BY g.document_number";
 
     public static async Task<(PageResult<VoucherTagRow> Page, IReadOnlyDictionary<string, IReadOnlyList<int>> PositionsByDoc)> ReadAsync(
         DbConnection connection, ISqlDialect dialect, GlPopulationContext context, PageRequest request,
@@ -56,26 +55,26 @@ internal static class TagMatrixVoucherPageReader
                 new Dictionary<string, IReadOnlyList<int>>());
         }
 
-        var hasCursor = PageCursor.TryDecode(request.Cursor, out var cursorKey);
+        var paging = KeysetPaging.Plan(dialect, request, ResultPageSorting.TagMatrixVoucher);
 
-        // 查詢 1:本頁命中傳票 + 聚合。
-        var rows = new List<VoucherTagRow>();
-        string? lastDoc = null;
+        // 查詢 1:本頁命中傳票 + 聚合。彙總包成子查詢，排序、搜尋與游標述詞才能用彙總欄。
+        var buffer = new KeysetPageBuffer<VoucherTagRow>();
         await using (var command = connection.CreateCommand())
         {
             GlPopulationScopeSql.Plan(dialect, context, "g").BindParametersTo(command);
-            var keyset = hasCursor ? "AND g.document_number > @cursor " : string.Empty;
             command.CommandText =
+                "SELECT document_number, first_post_date, first_created_by, voucher_total" + paging.SelectSuffix + " FROM (" +
                 PageSqlHead(
                     schemaPrefix,
                     scenarioScope.Predicate(),
                     GlPopulationScopeSql.Predicate(context, "g"),
-                    GlPopulationScopeSql.Predicate(context, "hit")) + keyset + PageSqlTail +
+                    GlPopulationScopeSql.Predicate(context, "hit")) + PageSqlTail +
+                ") v WHERE 1 = 1" + paging.Predicate + " " + paging.OrderBy + " " +
                 dialect.LimitClause("@pageSize") + ";";
             scenarioScope.AddParameters(command);
-            if (hasCursor)
+            foreach (var parameter in paging.Parameters)
             {
-                command.Parameters.Add(Param(command, "@cursor", cursorKey));
+                command.Parameters.Add(Param(command, parameter.Key, parameter.Value));
             }
 
             command.Parameters.Add(Param(command, "@pageSize", request.ClampedPageSize + 1));
@@ -83,58 +82,48 @@ internal static class TagMatrixVoucherPageReader
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                var doc = reader.GetString(0);
-                rows.Add(new VoucherTagRow(
-                    doc,
-                    reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.IsDBNull(2) ? null : reader.GetString(2),
-                    reader.GetInt64(3)));
-                lastDoc = doc; // 末欄(rows 已升冪,末列即本頁末鍵)
+                buffer.Add(
+                    new VoucherTagRow(
+                        reader.GetString(0),
+                        reader.IsDBNull(1) ? null : reader.GetString(1),
+                        reader.IsDBNull(2) ? null : reader.GetString(2),
+                        reader.GetInt64(3)),
+                    paging.HasSort ? reader.GetValue(4) : null);
             }
         }
 
-        var hasMore = rows.Count > request.ClampedPageSize;
-        if (hasMore)
-        {
-            rows.RemoveAt(rows.Count - 1);
-        }
+        var page = buffer.ToPage(request, paging, static row => row.DocumentNumber ?? string.Empty);
+        var rows = page.Rows;
+        var next = page.NextCursor;
 
-        lastDoc = rows.Count == 0 ? null : rows[^1].DocumentNumber;
-        var next = hasMore && lastDoc is not null
-            ? PageCursor.Encode(lastDoc)
-            : null;
-
-        // 空頁:無傳票 → 無位置。不跑查詢 2(@hi 無意義)。
-        if (lastDoc is null)
+        // 空頁:無傳票 → 無位置。不跑查詢 2。
+        if (rows.Count == 0)
         {
             return (
                 new PageResult<VoucherTagRow>(rows, next),
                 new Dictionary<string, IReadOnlyList<int>>());
         }
 
-        // 查詢 2:本頁傳票命中位置(鍵範圍 (@lo, @hi],與查詢 1 同範圍)。
+        // 查詢 2:本頁傳票命中位置。排序後本頁不再是連續鍵範圍，改把本頁的傳票號碼全部當參數帶進 IN 清單
+        // （一頁最多 500 張，低於各引擎的參數上限）。
         var positions = new Dictionary<string, List<int>>();
         await using (var command = connection.CreateCommand())
         {
             GlPopulationScopeSql.Plan(dialect, context, "g").BindParametersTo(command);
-            var lowBound = hasCursor ? "AND g.document_number > @lo " : string.Empty;
+            var docParameters = rows.Select((row, index) => $"@d{index}").ToArray();
             command.CommandText =
                 "SELECT DISTINCT g.document_number, r.scenario_position " +
                 $"FROM {schemaPrefix}result_filter_run r " +
                 $"JOIN {schemaPrefix}target_gl_entry g ON g.entry_id = r.entry_id " +
                 $"WHERE g.document_number IS NOT NULL AND {GlPopulationScopeSql.Predicate(context, "g")} " +
                 scenarioScope.Predicate() +
-                lowBound +
-                "AND g.document_number <= @hi " +
+                $"AND g.document_number IN ({string.Join(", ", docParameters)}) " +
                 "ORDER BY g.document_number, r.scenario_position;";
-            if (hasCursor)
-            {
-                command.Parameters.Add(Param(command, "@lo", cursorKey));
-            }
-
             scenarioScope.AddParameters(command);
-
-            command.Parameters.Add(Param(command, "@hi", lastDoc));
+            for (var index = 0; index < rows.Count; index++)
+            {
+                command.Parameters.Add(Param(command, docParameters[index], rows[index].DocumentNumber ?? string.Empty));
+            }
 
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))

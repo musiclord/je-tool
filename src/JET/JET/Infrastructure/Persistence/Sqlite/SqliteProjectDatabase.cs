@@ -24,7 +24,10 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             value TEXT NOT NULL
         );
         INSERT INTO schema_info (key, value) VALUES ('schema_version', '6')
-            ON CONFLICT(key) DO NOTHING;
+        ON CONFLICT(key) DO NOTHING;
+
+        INSERT INTO schema_info (key, value) VALUES ('filter_data_revision', '0')
+        ON CONFLICT(key) DO NOTHING;
 
         CREATE TABLE IF NOT EXISTS import_batch (
             batch_id         TEXT PRIMARY KEY,
@@ -273,7 +276,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             Cache = SqliteCacheMode.Shared
         };
 
-        return new SqliteConnection(builder.ToString());
+        return CreateConfiguredConnection(builder.ToString());
     }
 
     /// <summary>
@@ -291,7 +294,16 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             Pooling = false
         };
 
-        return new SqliteConnection(builder.ToString());
+        return CreateConfiguredConnection(builder.ToString());
+    }
+
+    private static SqliteConnection CreateConfiguredConnection(string connectionString)
+    {
+        var connection = new SqliteConnection(connectionString);
+        // SQLite's built-in UPPER is ASCII-only. Match the existing invariant-uppercase
+        // operands for filters and prescreen rules, including pooled and read-only connections.
+        connection.CreateFunction<string?, string?>("upper", static value => value?.ToUpperInvariant(), isDeterministic: true);
+        return connection;
     }
 
     /// <summary>
@@ -687,7 +699,10 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         if (version == "8")
         {
             await MigrateV8ToV9Async(connection, cancellationToken);
+            version = "9";
         }
+        if (version == "9")
+            await AccountClassificationMigration.UpgradeLocalAsync(connection, SqliteDialect.Instance, cancellationToken);
     }
 
     private static async Task MigrateV8ToV9Async(

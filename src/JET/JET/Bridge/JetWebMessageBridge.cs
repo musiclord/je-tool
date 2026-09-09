@@ -74,7 +74,8 @@ public sealed class JetWebMessageBridge(CoreWebView2 webView, ActionDispatcher d
             JetActionException actionException => new JetErrorDto(
                 actionException.Code,
                 actionException.Message,
-                actionException.Field),
+                actionException.Field,
+                actionException.Details),
             OperationCanceledException => new JetErrorDto(JetErrorCodes.OperationCancelled, "作業已取消。"),
             _ => new JetErrorDto(JetErrorCodes.BridgeError, exception.Message)
         };
@@ -115,4 +116,5 @@ internal sealed record JetResponseEnvelope(
 public sealed record JetErrorDto(
     string Code,
     string Message,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Field = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Field = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<JetErrorDetail>? Details = null);

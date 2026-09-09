@@ -38,7 +38,9 @@ public enum FilterRuleType
     /// 的 RDE 欄位（text／date／money）依 closed operator menu 參與進階條件。fieldId 只作
     /// registry lookup 與參數綁定，永不成為 SQL identifier。
     /// </summary>
-    TypedField
+    TypedField,
+    FieldValue,
+    AccountSide
 }
 
 /// <summary>
@@ -193,6 +195,11 @@ public sealed record FilterRuleSpec(
 
     /// <summary>typed money 條件必填的 `amountBasis` 原始 wire 字串（僅 money 允許）。</summary>
     public string? AmountBasis { get; init; }
+
+    // New rules carry explicit blank handling; null on old rules preserves their original behavior.
+    public bool? IncludeBlank { get; init; }
+    public string? CategoryMode { get; init; }
+    public IReadOnlyList<string> CategoryIds { get; init; } = [];
 }
 
 /// <summary>
@@ -328,6 +335,9 @@ public sealed record FilterValidationContext(
 
     public bool HasDescription { get; init; }
 
+    /// <summary>正式查詢由已提交配對提供；null 只供沒有配對資料的獨立述詞驗證。</summary>
+    public IReadOnlyList<string>? AvailableGlFields { get; init; }
+
     /// <summary>
     /// 目前專案 taxonomy 的全部分類身分，供科目配對多選驗證。預設只含五個內建 ID——
     /// 它們由 <see cref="AccountTaxonomyInvariant"/> 保證不可刪除，因此沒有帶 taxonomy 的
@@ -350,16 +360,17 @@ public sealed record FilterValidationContext(
 /// 條件 AST 的領域驗證：回傳所有錯誤訊息（空集合 = 合法）。
 /// 識別字安全的第一道防線：Field / PrescreenKey 必須在白名單內。
 /// </summary>
-public static class FilterScenarioValidator
+public static partial class FilterScenarioValidator
 {
-    public static IReadOnlyList<string> Validate(FilterScenarioSpec scenario, FilterValidationContext context)
+    public static IReadOnlyList<string> Validate(FilterScenarioSpec scenario, FilterValidationContext context,
+        bool forSave = true)
     {
         var errors = new List<string>();
 
         // KCT 來源是固定方法論清單（非查核員自擬），不向使用者索取名稱/動機；
         // 留痕的非空替補在落地時由 FilterScenarioSources.ResolvePersistable 補上。
         var isKct = FilterScenarioSources.IsKct(scenario.Source);
-        var requiresAuthoredMetadata = !isKct;
+        var requiresAuthoredMetadata = forSave && !isKct;
 
         if (requiresAuthoredMetadata && string.IsNullOrWhiteSpace(scenario.Name))
         {
@@ -441,6 +452,18 @@ public static class FilterScenarioValidator
 
         switch (rule.Type)
         {
+            case FilterRuleType.FieldValue:
+                ValidateFieldValue(rule, label, context, errors);
+                break;
+            case FilterRuleType.AccountSide:
+                if (rule.DrCr is not ("debit" or "credit"))
+                    errors.Add($"{label}：請選擇借方或貸方。");
+                if (rule.CategoryMode is not ("is" or "isNot" or "absent"))
+                    errors.Add($"{label}：請選擇科目分類的判斷方式。");
+                if (!context.HasAnyAccountCategory)
+                    errors.Add($"{label}：借貸科目分類條件需要先在「資料驗證與測試」匯入科目配對。");
+                ValidateCategorySelection(rule.CategoryIds, "指定", label, context, errors);
+                break;
             case FilterRuleType.Prescreen:
                 ValidatePrescreen(rule, label, context, isKct, errors);
                 break;

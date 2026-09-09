@@ -35,25 +35,24 @@ public sealed class SqlServerPrescreenPageRepository(SqlServerProjectDatabase da
             SqlServerDialect.Instance,
             context,
             "g").BindParametersTo(command);
-        var hasCursor = PageCursor.TryDecode(request.Cursor, out var cursorKey);
-        var keyset = hasCursor ? "AND g.entry_id > @cursor" : string.Empty;
-        if (hasCursor)
+        var paging = KeysetPaging.Plan(SqlServerDialect.Instance, request, ResultPageSorting.Prescreen);
+        foreach (var parameter in paging.Parameters)
         {
-            command.Parameters.AddWithValue("@cursor", long.Parse(cursorKey));
+            command.Parameters.AddWithValue(parameter.Key, parameter.Value);
         }
 
         command.Parameters.AddWithValue("@pageSize", request.ClampedPageSize + 1);
         await using (var expand = database.CreateCommand(connection, projectId,
             "SELECT g.entry_id, g.document_number, g.line_item, g.post_date, g.account_code, g.account_name, " +
-            "       g.amount_scaled, g.dr_cr, g.document_description " +
+            "       g.amount_scaled, g.dr_cr, g.document_description" + paging.SelectSuffix + " " +
             "FROM {s}.target_gl_entry g " +
-            $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({plan.Sql}) {keyset} " +
-            "ORDER BY g.entry_id " + SqlServerDialect.Instance.LimitClause("@pageSize") + ";"))
+            $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({plan.Sql})" + paging.Predicate + " " +
+            paging.OrderBy + " " + SqlServerDialect.Instance.LimitClause("@pageSize") + ";"))
         {
             command.CommandText = expand.CommandText;
         }
 
-        return await LocalPrescreenPageRepository.ReadPageAsync(command, request, cancellationToken);
+        return await LocalPrescreenPageRepository.ReadPageAsync(command, request, paging, cancellationToken);
     }
 
     public async Task<PrescreenHitCounts> GetCountsAsync(

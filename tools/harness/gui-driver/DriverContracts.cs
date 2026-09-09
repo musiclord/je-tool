@@ -6,7 +6,8 @@ namespace Jet.GuiDriver;
 internal sealed record GuiScenarioDefinition(
     string Name,
     int ActionLimit,
-    IReadOnlyList<string> Fixtures);
+    IReadOnlyList<string> Fixtures,
+    int ScreenshotLimit = 0);
 
 internal static class GuiScenarioCatalog
 {
@@ -14,6 +15,10 @@ internal static class GuiScenarioCatalog
     internal const string SyntheticSqliteCreate = "synthetic-sqlite-create";
     internal const string MappingRequiredSync = "mapping-required-sync";
     internal const string EditedReportStillLoads = "edited-report-still-loads";
+    internal const string ApprovalMappingModes = "approval-mapping-modes";
+    internal const string ValidationAutoOutputs = "validation-auto-outputs";
+    internal const string FilterAuditorJourney = "filter-auditor-journey";
+    internal const string FilterKctEditing = "filter-kct-editing";
 
     internal static bool TryResolve(string name, out GuiScenarioDefinition definition)
     {
@@ -23,12 +28,19 @@ internal static class GuiScenarioCatalog
             SyntheticSqliteCreate => new GuiScenarioDefinition(SyntheticSqliteCreate, 16, []),
             MappingRequiredSync => new GuiScenarioDefinition(
                 MappingRequiredSync,
-                12,
+                70,
                 ["seed-mapping-ready-project"]),
             EditedReportStillLoads => new GuiScenarioDefinition(
                 EditedReportStillLoads,
-                8,
+                12,
                 ["seed-edited-report-project", "release-visible-surface"]),
+            ApprovalMappingModes => new GuiScenarioDefinition(
+                ApprovalMappingModes, 40, ["seed-mapping-ready-project"], ScreenshotLimit: 1),
+            ValidationAutoOutputs => new GuiScenarioDefinition(
+                ValidationAutoOutputs, 8,
+                ["seed-mapping-ready-project", "fill-template-after-auto-export"], ScreenshotLimit: 1),
+            FilterAuditorJourney => new(FilterAuditorJourney, 96, ["seed-export-ready-project", "minimum-window-125"], 2),
+            FilterKctEditing => new(FilterKctEditing, 70, ["seed-export-ready-project", "minimum-window-125", "legacy-kct-scenario"], 1),
             _ => null!
         };
         return definition is not null;
@@ -143,10 +155,26 @@ internal sealed class GuiAssertions
     internal bool ModifiedOutsideVisible { get; set; }
     internal bool WorkpaperExportEnabled { get; set; }
     internal bool CleanupPanelAbsent { get; set; }
+    internal bool WorkpaperHistoryVisible { get; set; }
+    internal bool HistoryDoesNotCompleteCurrentRun { get; set; }
+    internal bool OldVersionRevealAvailable { get; set; }
+    internal bool MissingVersionRevealDisabled { get; set; }
+    internal bool WorkpaperHistoryRetainedAfterExport { get; set; }
+    internal bool NewestWorkpaperFirst { get; set; }
     internal bool SupportExportAvailable { get; set; }
     internal bool SupportLogWritten { get; set; }
     internal bool SupportLogSafe { get; set; }
     internal bool LegacyJournalDiscarded { get; set; }
+    internal bool ClassicApprovalModesCoherent { get; set; }
+    internal bool GridApprovalModesCoherent { get; set; }
+    internal bool CommittedMappingOptionsRestored { get; set; }
+    internal bool MappingOptionsDirtyStateVisible { get; set; }
+    internal bool RequiredFieldJumpFocused { get; set; }
+    internal bool AutomaticValidationReportsCreated { get; set; }
+    internal bool AutomaticMappingTemplateCreated { get; set; }
+    internal bool FilledTemplatePreservedAfterValidation { get; set; }
+    internal bool WorkpaperHistoryPaginationVerified { get; set; }
+    internal bool FilterWorkflowVerified { get; set; }
 }
 
 internal sealed class GuiProcessEvidence
@@ -182,6 +210,16 @@ internal sealed class GuiRunOutcome
     internal GuiAssertions Assertions { get; } = new();
     internal GuiProcessEvidence Process { get; } = new();
     internal GuiCleanupEvidence Cleanup { get; } = new();
+    internal List<byte[]> Screenshots { get; } = [];
+    internal List<object> Stages { get; } = [];
+    internal object? LastMappingProbe { get; set; }
+    internal object? LastFilterProbe { get; set; }
+
+    internal void RecordStage(string name)
+    {
+        if (Stages.Count >= 16) { throw new GuiInfrastructureException("stage_diagnostic_budget_exceeded"); }
+        Stages.Add(new { name, actionCount = ActionCount });
+    }
 
     internal void RecordAction()
     {
@@ -205,6 +243,18 @@ internal static class ManifestWriter
 
     internal static void Write(string manifestPath, GuiRunOutcome outcome)
     {
+        if (outcome.Screenshots.Count > outcome.Scenario.ScreenshotLimit)
+        {
+            throw new GuiInfrastructureException("screenshot_budget_exceeded");
+        }
+        var screenshots = outcome.Screenshots.Select((bytes, index) =>
+        {
+            var fileName = Path.GetFileNameWithoutExtension(manifestPath) + "-view-" + (index + 1) + ".png";
+            var path = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(manifestPath))!, fileName);
+            using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            stream.Write(bytes);
+            return new { fileName, bytes = bytes.Length };
+        }).ToArray();
         var error = outcome.ErrorCode is null
             ? Array.Empty<object>()
             : [new { code = outcome.ErrorCode, type = outcome.ErrorType }];
@@ -227,9 +277,11 @@ internal static class ManifestWriter
             {
                 actionLimit = outcome.Scenario.ActionLimit,
                 actionCount = outcome.ActionCount,
-                screenshotLimit = 0,
-                screenshotCount = 0
+                screenshotLimit = outcome.Scenario.ScreenshotLimit,
+                screenshotCount = screenshots.Length
             },
+            screenshots,
+            diagnostics = new { stages = outcome.Stages, lastMappingProbe = outcome.LastMappingProbe, lastFilterProbe = outcome.LastFilterProbe },
             assertions = new
             {
                 documentLoaded = outcome.Assertions.DocumentLoaded,
@@ -258,10 +310,26 @@ internal static class ManifestWriter
                 modifiedOutsideVisible = outcome.Assertions.ModifiedOutsideVisible,
                 workpaperExportEnabled = outcome.Assertions.WorkpaperExportEnabled,
                 cleanupPanelAbsent = outcome.Assertions.CleanupPanelAbsent,
+                workpaperHistoryVisible = outcome.Assertions.WorkpaperHistoryVisible,
+                historyDoesNotCompleteCurrentRun = outcome.Assertions.HistoryDoesNotCompleteCurrentRun,
+                oldVersionRevealAvailable = outcome.Assertions.OldVersionRevealAvailable,
+                missingVersionRevealDisabled = outcome.Assertions.MissingVersionRevealDisabled,
+                workpaperHistoryRetainedAfterExport = outcome.Assertions.WorkpaperHistoryRetainedAfterExport,
+                newestWorkpaperFirst = outcome.Assertions.NewestWorkpaperFirst,
                 supportExportAvailable = outcome.Assertions.SupportExportAvailable,
                 supportLogWritten = outcome.Assertions.SupportLogWritten,
                 supportLogSafe = outcome.Assertions.SupportLogSafe,
-                legacyJournalDiscarded = outcome.Assertions.LegacyJournalDiscarded
+                legacyJournalDiscarded = outcome.Assertions.LegacyJournalDiscarded,
+                classicApprovalModesCoherent = outcome.Assertions.ClassicApprovalModesCoherent,
+                gridApprovalModesCoherent = outcome.Assertions.GridApprovalModesCoherent,
+                committedMappingOptionsRestored = outcome.Assertions.CommittedMappingOptionsRestored,
+                mappingOptionsDirtyStateVisible = outcome.Assertions.MappingOptionsDirtyStateVisible,
+                requiredFieldJumpFocused = outcome.Assertions.RequiredFieldJumpFocused,
+                automaticValidationReportsCreated = outcome.Assertions.AutomaticValidationReportsCreated,
+                automaticMappingTemplateCreated = outcome.Assertions.AutomaticMappingTemplateCreated,
+                filledTemplatePreservedAfterValidation = outcome.Assertions.FilledTemplatePreservedAfterValidation,
+                filterWorkflowVerified = outcome.Assertions.FilterWorkflowVerified,
+                workpaperHistoryPaginationVerified = outcome.Assertions.WorkpaperHistoryPaginationVerified
             },
             process = new
             {

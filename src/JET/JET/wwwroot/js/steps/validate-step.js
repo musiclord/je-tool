@@ -35,7 +35,7 @@
     return {
       tone: any ? 'hit' : 'ok',
       text: '過帳 ' + Number(rule.postingCount).toLocaleString() + '・核准 ' + approval,
-      tip: rule.approvalCount == null ? '未配對「傳票核准日」欄位，核准面無法計算。' : undefined
+      tip: rule.approvalCount == null ? '未配對「傳票核准日」欄位，無法檢查核准日期。' : undefined
     };
   }
 
@@ -67,35 +67,24 @@
     function (row) { return row.drCr === 'DEBIT' ? '借' : '貸'; }
   ];
 
-  function bindPrescreenLoadMore(block, key, cursor) {
-    var button = block.querySelector('[data-prescreen-load-more]');
-    if (!button || cursor == null) { return; }
-
-    button.addEventListener('click', function () {
-      button.disabled = true;
-      button.textContent = '載入中…';
-      Ui.run('載入更多命中分錄', function () {
-        return global.JetApi.queryPrescreenPage({ ruleKey: key, cursor: cursor, pageSize: 200 })
-          .then(function (data) {
-            var tbody = block.querySelector('.preview-table tbody');
-            Ui.appendRowsToTbody(tbody, data.rows || [], PRESCREEN_PAGE_COLUMNS);
-            var summary = block.querySelector('.rule-detail__preview-summary');
-            if (summary && tbody) {
-              summary.textContent = '已載入 ' + tbody.rows.length.toLocaleString() + ' 筆命中分錄';
-            }
-            cursor = data.nextCursor;
-            if (cursor == null) {
-              button.remove();
-            } else {
-              button.disabled = false;
-              button.textContent = '載入更多';
-            }
-          }).catch(function (error) {
-            button.disabled = false;
-            button.textContent = '載入更多';
-            throw error;
-          });
-      });
+  // 預篩選命中表：首屏 50 筆之後由同一張表接「載入更多」、表頭排序與依傳票號碼查看；
+  // 首擊或換排序時先清掉首屏列，再從資料庫端的第一頁接續。
+  function bindPrescreenTable(block, key) {
+    var tbody = block.querySelector('.preview-table tbody');
+    var summary = block.querySelector('.rule-detail__preview-summary');
+    if (!tbody) { return; }
+    Ui.bindPagedTable(block, {
+      fetchPage: function (cursor, sort, search) {
+        return global.JetApi.queryPrescreenPage({ ruleKey: key, cursor: cursor, pageSize: 200, sort: sort, search: search || null });
+      },
+      appendRows: function (rows) {
+        Ui.appendRowsToTbody(tbody, rows, PRESCREEN_PAGE_COLUMNS);
+        if (summary) { summary.textContent = '已載入 ' + tbody.rows.length.toLocaleString() + ' 筆命中分錄'; }
+      },
+      clearRows: function () { tbody.innerHTML = ''; },
+      loadMore: block.querySelector('[data-prescreen-load-more]'),
+      table: block.querySelector('.preview-table'),
+      search: block.querySelector('[data-page-search]')
     });
   }
 
@@ -103,10 +92,10 @@
     var rows = (data && data.rows) || [];
     return (
       '<p class="rule-detail__preview-summary">已載入 ' + rows.length.toLocaleString() + ' 筆命中分錄</p>' +
-      '<div class="preview-table__wrap">' + Ui.previewTableHtml(rows) + '</div>' +
-      (data && data.nextCursor != null
-        ? '<button type="button" class="btn btn--ghost btn--tiny rule-detail__load-more" data-prescreen-load-more>載入更多</button>'
-        : '')
+      Ui.pageSearchHtml('依傳票號碼查看') +
+      '<div class="preview-table__wrap">' + Ui.previewTableHtml(rows, 'query.prescreenPage') + '</div>' +
+      '<button type="button" class="btn btn--ghost btn--tiny rule-detail__load-more" data-prescreen-load-more' +
+        (data && data.nextCursor != null ? '' : ' hidden') + '>載入更多</button>'
     );
   }
 
@@ -119,9 +108,16 @@
              '<p class="rule-detail__remedy">' + Ui.esc(detail.remedy) + '</p>';
     }
     if (detail.kind === 'table') {
-      var thead = '<tr>' + detail.columns.map(function (c) {
-        return '<th>' + Ui.esc(c) + '</th>';
-      }).join('') + '</tr>';
+      // 只有一顆「載入更多」的表才提供排序與搜尋（空值表兩顆鈕共用一個 tbody，混排兩個類別不能排序）。
+      var lmIdsForHead = detail.loadMore == null ? [] :
+        (Array.isArray(detail.loadMore) ? detail.loadMore : [detail.loadMore]);
+      var sortable = !!detail.sortAction && lmIdsForHead.length === 1;
+      var thead = '<tr>' + (sortable
+        ? Ui.sortableHeadCellsHtml(detail.sortAction, detail.columns.map(function (c, index) {
+            return { label: c, key: (detail.sortKeys || [])[index] || null };
+          }))
+        : detail.columns.map(function (c) { return '<th>' + Ui.esc(c) + '</th>'; }).join('')) + '</tr>';
+      var searchHtml = sortable && detail.searchLabel ? Ui.pageSearchHtml(detail.searchLabel) : '';
       var tbody = detail.rows.map(function (row) {
         return '<tr>' + row.map(function (cell) {
           return '<td>' + Ui.esc(String(cell == null ? '' : cell)) + '</td>';
@@ -135,7 +131,7 @@
         (Array.isArray(detail.loadMore) ? detail.loadMore : [detail.loadMore]);
       var targetAttr = lmIds.length ? ' data-load-target="' + Ui.esc(lmIds[0]) + '"' : '';
       var buttons = lmIds.map(function (id) { return loadMoreButtonHtml(id); }).join('');
-      return prefix +
+      return prefix + searchHtml +
         '<div class="preview-table__wrap">' +
           '<table class="preview-table"><thead>' + thead + '</thead>' +
           '<tbody' + targetAttr + '>' + tbody + '</tbody></table>' +
@@ -176,8 +172,8 @@
   // 純呼叫膠水:不算差異、不判命中、不組 SQL;顯示形狀(金額換算、借貸文字)由後端 row 決定,前端僅格式化呈現。
   var LOAD_MORE_SPECS = {
     completeness: {
-      fetchPage: function (cursor) {
-        return global.JetApi.queryCompletenessDiffPage({ cursor: cursor, pageSize: 200 });
+      fetchPage: function (cursor, sort, search) {
+        return global.JetApi.queryCompletenessDiffPage({ cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
       },
       columns: [
         function (r) { return r.accountCode || ''; },
@@ -188,8 +184,8 @@
       ]
     },
     docBalance: {
-      fetchPage: function (cursor) {
-        return global.JetApi.queryDocBalancePage({ cursor: cursor, pageSize: 200 });
+      fetchPage: function (cursor, sort, search) {
+        return global.JetApi.queryDocBalancePage({ cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
       },
       columns: [
         function (r) { return r.documentNumber || ''; },
@@ -204,8 +200,8 @@
   // id 形如 null-<category>,動態註冊進 LOAD_MORE_SPECS（columns 與既有空值 table 欄序對齊）。
   function nullLoadMoreSpec(category, categoryLabel) {
     return {
-      fetchPage: function (cursor) {
-        return global.JetApi.queryNullRecordsPage({ category: category, cursor: cursor, pageSize: 200 });
+      fetchPage: function (cursor, sort, search) {
+        return global.JetApi.queryNullRecordsPage({ category: category, cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
       },
       columns: [
         function (r) { return r.documentNumber || ''; },
@@ -227,8 +223,8 @@
   // 來源品質全量明細（query.sourceQualityPage）：不套查核期間述詞，因此仍看得到
   // 被期間界定排除的空白過帳日；欄序與下方 detail 的固定欄一致。
   LOAD_MORE_SPECS.sourceQuality = {
-    fetchPage: function (cursor) {
-      return global.JetApi.querySourceQualityPage({ cursor: cursor, pageSize: 200 });
+    fetchPage: function (cursor, sort, search) {
+      return global.JetApi.querySourceQualityPage({ cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
     },
     columns: [
       function (r) { return sourceQualityCategoryLabel(r.category); },
@@ -249,8 +245,8 @@
   var DYNAMIC_PAGE_SPECS = {
     inf: {
       label: '抽樣樣本明細',
-      fetchPage: function (cursor) {
-        return global.JetApi.queryInfSamplePage({ cursor: cursor, pageSize: 200 });
+      fetchPage: function (cursor, sort, search) {
+        return global.JetApi.queryInfSamplePage({ cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
       }
     }
   };
@@ -294,6 +290,8 @@
         return {
           kind: 'table',
           columns: ['傳票號', '科目', '日期', '摘要', '異常類別'],
+          sortAction: 'query.nullRecordsPage', sortKeys: ['documentNumber', 'accountCode', 'postDate', 'description', null],
+          searchLabel: '依傳票號碼查看',
           rows: rows,
           loadMore: (categories || []).map(function (c) { return 'null-' + c; })
         };
@@ -338,6 +336,8 @@
           return {
             kind: 'table',
             columns: ['科目代碼', '科目名稱', 'TB 金額', 'GL 金額', '差額'],
+            sortAction: 'query.completenessDiffPage', sortKeys: ['accountCode', 'accountName', 'tbAmount', 'glAmount', 'diff'],
+            searchLabel: '依科目編號查看',
             rows: rows,
             prefix: eligibility.isEligible ? null : eligibility.reason,
             loadMore: 'completeness'
@@ -377,6 +377,8 @@
           return {
             kind: 'table',
             columns: ['傳票號', '借方', '貸方', '差額'],
+            sortAction: 'query.docBalancePage', sortKeys: ['documentNumber', 'debit', 'credit', 'diff'],
+            searchLabel: '依傳票號碼查看',
             rows: rows,
             loadMore: 'docBalance'
           };
@@ -429,6 +431,8 @@
         return {
           kind: 'table',
           columns: ['類別', '來源檔', '來源列號', '傳票號', '科目', '摘要'],
+          sortAction: 'query.sourceQualityPage', sortKeys: [null, null, 'sourceRowNumber', 'documentNumber', 'accountCode', 'description'],
+          searchLabel: '依傳票號碼查看',
           rows: rows,
           prefix: '這些分錄保留在匯入原貌中，但沒有進入查核期間的測試母體。',
           loadMore: 'sourceQuality'
@@ -836,9 +840,20 @@
           '<button type="button" class="btn btn--ghost" data-action="export-validation-artifacts">' +
             (complete ? '重新產生兩份報告' : '產生兩份驗證報告') + '</button>' +
         '</div>' +
+        validationOutputStatusHtml('reports') +
         Ui.reportArtifactListHtml(artifacts, '驗證已完成，報告尚未產生。') +
       '</div>'
     );
+  }
+
+  function validationOutputStatusHtml(kind) {
+    var state = Store.getState();
+    var output = state.validationOutput[kind];
+    var validation = state.lastRuns.validate;
+    if (!output || !validation || output.runId !== validation.resultRef.runId) { return ''; }
+    var statusClass = output.status === 'failed' ? 'form-notice' : 'validation-output-status';
+    return '<p class="' + statusClass + '" data-validation-output="' + kind + '" role="status">' +
+      Ui.esc(output.message) + '</p>';
   }
 
   function validationCardHtml(v, ready, state) {
@@ -866,6 +881,16 @@
   // 由 backend eligibility fail closed，且沒有人工 override。
   // 狀態恆顯示:不論門檻,只要已匯入(含 resume)就顯示「已匯入 N 科目」+「預覽科目配對」;
   // 被門檻擋住的只有匯入/重新匯入鈕本身。前端只做 UX gate,後端預篩選仍是 unexpectedAccountPair 的權威 gating。
+  // 分類留白的科目在投影時已視為 Others（同 legacy），篩選不受影響；這裡只讓審計員看到哪些科目沒填，
+  // 想改分類就到範本 C 欄填好再重新匯入。清單走 query.accountMappingBlankPage 的有界分頁。
+  function blankCategoryNoticeHtml(info) {
+    if (!info || !(info.blankCategoryCount > 0)) { return ''; }
+    return '<p class="import-card__status" data-bind="blank-category-notice">分類留白 ' + Number(info.blankCategoryCount).toLocaleString() +
+        ' 筆，視為 Others。要改分類時，在範本 C 欄填好再重新匯入。 ' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-action="list-blank-categories" aria-expanded="false">列出科目</button></p>' +
+      '<div data-bind="blank-category-list" hidden></div>';
+  }
+
   function accountMappingCardHtml(info, validateHasRun) {
     var status = info
       ? '<p class="import-card__status import-card__status--ok">已匯入 ' + info.rowCount + ' 個科目' +
@@ -888,17 +913,23 @@
     // 下載空白範本鈕與匯入鈕同一 gating(驗證已執行後才出現):範本 A/B 已填(GL∪TB 母體)、
     // C 欄下拉留空供審計員填,填完原檔上傳走同一匯入鈕。純呼叫膠水,母體/格式全在後端決定。
     var templateBtn = validateHasRun
-      ? '<button type="button" class="btn btn--ghost" data-action="download-account-mapping-template"' +
-          ' title="以目前驗證版本產生科目配對範本工作檔，用 Excel 填完 C 欄存檔後以同一個檔上傳">' +
-          '產生科目配對範本</button>'
+      ? '<button type="button" class="btn btn--ghost" data-action="ensure-account-mapping-template">取得範本（保留現有檔案）</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="download-account-mapping-template"' +
+          ' title="產生本次資料的科目配對範本；用 Excel 填寫 C 欄、存檔後上傳同一份檔案">' +
+          '重新產生空白範本（覆寫現有檔案）</button>'
       : '';
 
     return (
-      '<section class="rule-card" data-bind="account-mapping-card">' +
-        '<h3 class="rule-card__title">科目配對（科目 → 標準化分類）</h3>' +
+      '<section class="rule-card" data-bind="account-mapping-card" tabindex="-1">' +
+        '<h3 class="rule-card__title">科目配對與分類準備</h3>' +
         '<p class="rule-card__sub">完整性測試確認總帳母體完整後，再以科目配對標準化分類；' +
           '配對為「未預期出現之特定借貸組合」預篩選與科目配對分析的前提。</p>' +
         status +
+        '<p class="rule-card__sub">驗證後會自動建立尚不存在的範本。請到案件資料夾用 Excel 填好 C 欄分類並存檔，' +
+          '再按「選擇科目配對檔」匯入；已填好的範本會保留。</p>' +
+        blankCategoryNoticeHtml(info) +
+        '<p class="rule-card__sub">此準備狀態與資料驗證、報表產生各自獨立。</p>' +
+        validationOutputStatusHtml('template') +
         '<div class="import-card__actions">' +
           importControls +
           templateBtn +
@@ -944,7 +975,7 @@
     (state.filter.savedScenarios || []).forEach(function (scenario) {
       (scenario.groups || []).forEach(function (group) {
         (group.rules || []).forEach(function (rule) {
-          ['debitCategoryIds', 'creditCategoryIds'].forEach(function (key) {
+          ['debitCategoryIds', 'creditCategoryIds', 'categoryIds'].forEach(function (key) {
             if (Array.isArray(rule[key])) {
               rule[key].forEach(function (id) { used[id] = true; });
             }
@@ -1127,11 +1158,70 @@
   function exportValidationArtifacts(runData) {
     var runId = runData && runData.resultRef ? runData.resultRef.runId : null;
     if (!runId) { return Promise.reject(new Error('找不到可匯出的驗證結果。')); }
-    return global.JetApi.exportValidationArtifacts({ runId: runId }).then(function (data) {
+    return performValidationOutput('reports', runId, function () {
+      return global.JetApi.exportValidationArtifacts({ runId: runId });
+    }, function (data) {
       var artifacts = data.artifacts || [];
-      Store.upsertReportArtifacts(artifacts);
+      Store.applyReportExport(data);
       Store.addMessage('已在專案目錄產生驗證階段的 ' + artifacts.length + ' 份報告。', 'info');
+      return '兩份驗證報告已產生，可從下方清單查看。';
+    });
+  }
+
+  function requireValidationOutputActive(projectId, runId) {
+    var state = Store.getState();
+    var validation = state.lastRuns.validate;
+    if (state.cancellationRequested || !state.project || state.project.projectId !== projectId
+        || !validation || validation.resultRef.runId !== runId) {
+      var error = new Error('後續檔案產生已取消，已完成的驗證與檔案會保留。');
+      error.code = 'operation_cancelled';
+      throw error;
+    }
+  }
+
+  function performValidationOutput(kind, runId, action, onSuccess) {
+    var projectId = Store.getState().project.projectId;
+    requireValidationOutputActive(projectId, runId);
+    Store.setValidationOutput(kind, { runId: runId, status: 'pending',
+      message: kind === 'template' ? '正在準備科目配對範本…' : '正在產生兩份驗證報告…' });
+    return action().then(function (data) {
+      // 已完成的 action 結果照實顯示；取消只影響下一個尚未開始的 action。
+      if (!Store.getState().project || Store.getState().project.projectId !== projectId) { return data; }
+      Store.setValidationOutput(kind, { runId: runId, status: 'ready', message: onSuccess(data) });
       return data;
+    }).catch(function (error) {
+      if (Store.getState().project && Store.getState().project.projectId === projectId) {
+        Store.setValidationOutput(kind, { runId: runId, status: 'failed',
+          message: (kind === 'template' ? '範本尚未產生：' : '報告尚未產生：') + error.message + ' 可使用此區按鈕重試。' });
+      }
+      throw error;
+    });
+  }
+
+  function exportAccountMappingTemplate(runData, onlyIfMissing) {
+    var runId = runData && runData.resultRef ? runData.resultRef.runId : null;
+    if (!runId) { return Promise.reject(new Error('找不到可使用的驗證結果。')); }
+    return performValidationOutput('template', runId, function () {
+      return global.JetApi.exportAccountMappingTemplate({ runId: runId, onlyIfMissing: onlyIfMissing });
+    }, function (data) {
+      return data.disposition === 'kept'
+        ? '已保留案件資料夾的 ' + data.fileName + '，不改動其中已填寫的分類。'
+        : '已建立 ' + data.fileName + '（' + data.rowCount + ' 個科目）。用 Excel 填好 C 欄並存檔後，再匯入同一份檔案。';
+    });
+  }
+
+  function exportValidationOutputs(runData) {
+    var failures = [];
+    function preserveFailure(error) {
+      if (error && error.code === 'operation_cancelled') { throw error; }
+      failures.push(error);
+    }
+    return exportValidationArtifacts(runData).catch(preserveFailure).then(function () {
+      return exportAccountMappingTemplate(runData, true).catch(preserveFailure);
+    }).then(function () {
+      if (failures.length) {
+        throw new Error('資料驗證已完成，部分檔案尚未產生。已完成的檔案會保留，請在對應區塊重試。');
+      }
     });
   }
 
@@ -1139,7 +1229,7 @@
     var runId = runData && runData.resultRef ? runData.resultRef.runId : null;
     if (!runId) { return Promise.reject(new Error('找不到可匯出的預篩選結果。')); }
     return global.JetApi.exportPrescreenReport({ runId: runId }).then(function (data) {
-      Store.upsertReportArtifacts([data.artifact]);
+      Store.applyReportExport(data);
       Store.addMessage('已在專案目錄產生預篩選報告。', 'info');
       return data;
     });
@@ -1149,6 +1239,30 @@
   // 預覽鈕與門檻無關(已匯入即可預覽);匯入鈕只在驗證已執行時才存在(render 已 gate),
   // 此處用存在性檢查綁定,故門檻邏輯不洩漏到 bind。
   function bindAccountMappingCard(container) {
+    var blankBtn = container.querySelector('[data-action="list-blank-categories"]');
+    var blankList = container.querySelector('[data-bind="blank-category-list"]');
+    if (blankBtn && blankList) {
+      blankBtn.addEventListener('click', function () {
+        if (!blankList.hidden) { blankList.hidden = true; blankBtn.setAttribute('aria-expanded', 'false'); return; }
+        blankList.hidden = false; blankBtn.setAttribute('aria-expanded', 'true');
+        if (blankList.dataset.loaded) { return; }
+        blankList.dataset.loaded = '1';
+        blankList.innerHTML = '<ul class="kv-list" data-bind="blank-category-rows"></ul>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-action="blank-category-more">載入更多</button>';
+        var rowsEl = blankList.querySelector('[data-bind="blank-category-rows"]');
+        var moreBtn = blankList.querySelector('[data-action="blank-category-more"]');
+        function appendRows(rows) {
+          rowsEl.insertAdjacentHTML('beforeend', rows.map(function (row) {
+            return '<li>' + Ui.esc(row.accountCode) + (row.accountName ? '　' + Ui.esc(row.accountName) : '') + '</li>';
+          }).join(''));
+        }
+        Ui.bindLoadMore(moreBtn, function (cursor) {
+          return global.JetApi.queryAccountMappingBlankPage({ cursor: cursor, pageSize: 200 });
+        }, appendRows);
+        moreBtn.click();
+      });
+    }
+
     var previewBtn = container.querySelector('[data-action="preview-account-mapping"]');
     if (previewBtn && Ui.openDataPreview) {
       previewBtn.addEventListener('click', function () {
@@ -1160,16 +1274,18 @@
     var templateBtn = container.querySelector('[data-action="download-account-mapping-template"]');
     if (templateBtn) {
       templateBtn.addEventListener('click', function () {
-        Ui.run('產生科目配對範本', function () {
-          var validation = Store.getState().lastRuns.validate;
-          var runId = validation && validation.resultRef ? validation.resultRef.runId : null;
-          return global.JetApi.exportAccountMappingTemplate({ runId: runId }).then(function (data) {
-            Store.addMessage(
-              '已產生科目配對範本（' + data.rowCount + ' 個科目）：' + data.filePath +
-              '。用 Excel 填完 C 欄分類存檔後，以「重新匯入科目配對檔」選同一個檔上傳。', 'info');
-            return data;
-          });
+        Ui.run('重新產生空白科目配對範本', function () {
+          return exportAccountMappingTemplate(Store.getState().lastRuns.validate, false);
         }, { logCompletion: true });
+      });
+    }
+
+    var ensureTemplateBtn = container.querySelector('[data-action="ensure-account-mapping-template"]');
+    if (ensureTemplateBtn) {
+      ensureTemplateBtn.addEventListener('click', function () {
+        Ui.run('取得科目配對範本', function () {
+          return exportAccountMappingTemplate(Store.getState().lastRuns.validate, true);
+        });
       });
     }
 
@@ -1191,7 +1307,11 @@
               batchId: data.batchId,
               rowCount: data.rowCount,
               fileName: data.fileName,
-              importedUtc: data.importedUtc
+              importedUtc: data.importedUtc,
+              hasAnyCategory: data.hasAnyCategory,
+              hasRevenue: data.hasRevenue,
+              hasCounterpart: data.hasCounterpart,
+              blankCategoryCount: data.blankCategoryCount
             });
             Store.addMessage('科目配對匯入完成：' + data.rowCount + ' 個科目。', 'info');
             return data;
@@ -1271,28 +1391,25 @@
     var columns = (data && data.columns) || [];
     var cells = Ui.dynamicColumnCells(columns);
     body.innerHTML =
+      Ui.pageSearchHtml('依傳票號碼查看') +
       '<div class="preview-table__wrap">' +
         '<table class="preview-table"><thead>' + Ui.dynamicColumnHeadHtml(columns) + '</thead>' +
         '<tbody data-dynamic-body></tbody></table>' +
       '</div>' +
-      (data && data.nextCursor != null
-        ? '<button type="button" class="btn btn--ghost btn--tiny rule-detail__load-more"' +
-          ' data-dynamic-load-more>載入更多</button>'
-        : '');
+      '<button type="button" class="btn btn--ghost btn--tiny rule-detail__load-more"' +
+        ' data-dynamic-load-more' + (data && data.nextCursor != null ? '' : ' hidden') + '>載入更多</button>';
 
     var tbody = body.querySelector('[data-dynamic-body]');
     Ui.appendRowsToTbody(tbody, (data && data.rows) || [], cells);
 
-    var moreBtn = body.querySelector('[data-dynamic-load-more]');
-    if (!moreBtn) { return; }
-    // bindLoadMore 自 null 起管理 cursor：首擊先清掉這裡的首屏列，再自 keyset 第一頁接續，
-    // 避免兩套游標並存造成重複列。
-    Ui.bindLoadMore(moreBtn, function (cursor) {
-      return spec.fetchPage(cursor);
-    }, function (rows) {
-      Ui.appendRowsToTbody(tbody, rows, cells);
-    }, function () {
-      tbody.innerHTML = '';
+    // 首擊或換排序、搜尋時先清掉這裡的首屏列，再自資料庫端的第一頁接續，避免兩套順序混排。
+    Ui.bindPagedTable(body, {
+      fetchPage: function (cursor, sort, search) { return spec.fetchPage(cursor, sort, search); },
+      appendRows: function (rows) { Ui.appendRowsToTbody(tbody, rows, cells); },
+      clearRows: function () { tbody.innerHTML = ''; },
+      loadMore: body.querySelector('[data-dynamic-load-more]'),
+      table: body.querySelector('.preview-table'),
+      search: body.querySelector('[data-page-search]')
     });
   }
 
@@ -1337,6 +1454,18 @@
       var detail = btn.closest('.rule-detail');
       var tbody = detail ? detail.querySelector('[data-load-target]') : null;
       if (!tbody) { return; }
+      // 單鈕的表走可排序、可搜尋的分頁表；空值表兩鈕共用 tbody，維持原本只接續的載入更多。
+      if (detail.querySelectorAll('[data-load-more]').length === 1) {
+        Ui.bindPagedTable(detail, {
+          fetchPage: spec.fetchPage,
+          appendRows: function (rows) { Ui.appendRowsToTbody(tbody, rows, spec.columns); },
+          clearRows: function () { tbody.innerHTML = ''; },
+          loadMore: btn,
+          table: tbody.closest('table'),
+          search: detail.querySelector('[data-page-search]')
+        });
+        return;
+      }
       Ui.bindLoadMore(btn, spec.fetchPage, function (rows) {
         Ui.appendRowsToTbody(tbody, rows, spec.columns);
       }, function () {
@@ -1407,7 +1536,7 @@
           if (prescreenPreviewCache[cacheKey]) {
             var cached = prescreenPreviewCache[cacheKey];
             block.querySelector('.rule-detail__preview-body').innerHTML = cached.html;
-            bindPrescreenLoadMore(block, key, cached.nextCursor);
+            bindPrescreenTable(block, key);
             return;
           }
 
@@ -1420,7 +1549,7 @@
               var html = prescreenPageHtml(data);
               prescreenPreviewCache[cacheKey] = { html: html, nextCursor: data.nextCursor };
               bodyEl.innerHTML = html;
-              bindPrescreenLoadMore(block, key, data.nextCursor);
+              bindPrescreenTable(block, key);
             }).catch(function (error) {
               bodyEl.textContent = '載入失敗；收合後可重試。';
               throw error;
@@ -1446,7 +1575,7 @@
             ' 筆（同一分錄可能重複計入）、來源品質 ' +
             Number(data.sourceQuality ? data.sourceQuality.findingCount : 0) +
             ' 筆（獨立計數，不與上一項相加）。', 'info');
-          return exportValidationArtifacts(data);
+          return exportValidationOutputs(data);
         });
       }, { logCompletion: true });
     });

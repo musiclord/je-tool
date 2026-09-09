@@ -171,7 +171,8 @@ public sealed class ProjectLoadHandler(
                         importedUtc = accountMappingState.ImportedUtc,
                         hasAnyCategory = accountMappingState.HasAnyCategory,
                         hasRevenue = accountMappingState.HasRevenue,
-                        hasCounterpart = accountMappingState.HasCounterpart
+                        hasCounterpart = accountMappingState.HasCounterpart,
+                        blankCategoryCount = accountMappingState.BlankCategoryCount
                     },
                     // 授權清單未入 import_batch（name 集合）→ resume 只需 rowCount，無 fileName/importedUtc。
                     authorizedPreparer = authorizedPreparerState is null ? null : (object)new

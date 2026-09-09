@@ -15,23 +15,25 @@ internal static class FilterScenarioSummaryRenderer
         var root = document.RootElement;
         var groups = root.TryGetProperty("groups", out var groupsElement)
             ? groupsElement.Clone()
-            : default;
+            : JsonSerializer.SerializeToElement(Array.Empty<object>());
         var source = root.TryGetProperty("source", out var sourceElement)
             && sourceElement.ValueKind == JsonValueKind.String
             && FilterScenarioSources.IsKct(sourceElement.GetString())
                 ? FilterScenarioSources.Kct
                 : null;
 
-        return new
+        var summary = new Dictionary<string, object?>
         {
-            source,
-            name = scenario.Name,
-            rationale = scenario.Rationale,
-            groups,
+            ["source"] = source,
+            ["name"] = scenario.Name,
+            ["rationale"] = scenario.Rationale,
+            ["groups"] = groups,
             // 回放路徑刻意正規化為目前唯一母體；舊 scope 由 current-revision guard
             // 判為 stale，不把退役值重新送回前端成為可執行狀態。
-            populationScope = GlPopulationScopeValues.AuditPeriod,
-            savedUtc = scenario.SavedUtc
+            ["populationScope"] = GlPopulationScopeValues.AuditPeriod,
+            ["savedUtc"] = scenario.SavedUtc
         };
+        if (root.TryGetProperty("editorOrigins", out var origins)) summary["editorOrigins"] = origins.Clone();
+        return summary;
     }
 }

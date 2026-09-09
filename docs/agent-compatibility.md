@@ -1,6 +1,6 @@
 # JET 的 AI Agent 相容方式
 
-更新日期：2026-09-01
+更新日期：2026-09-09
 
 JET 不為每一個 AI 工具維護一套獨立規則。完整共用規則只放在根目錄 `AGENTS.md`；其他檔案只負責讓
 各工具找到同一份規則，或保留平台無法可靠追蹤連結時必須先看到的安全摘要。
@@ -19,6 +19,33 @@ GitHub 不同 Copilot 介面支援的指示檔不完全相同，因此 `.github/
 Visual Studio、JetBrains 與 GitHub.com 的 Chat 不會，只讀 `.github/copilot-instructions.md`。所以轉接檔
 的安全摘要是那三個介面唯一會看到的規則，不能刪減，也不能建立和 `AGENTS.md` 相反的規則。VS Code 同時
 載入多種指示檔時內容不保證固定順序，結論相同。
+
+## 前端設計與瀏覽器相容性
+
+各工具共用 [`development-guide.md` 的前端設計模式](development-guide.md#前端設計模式)，不建立第二套審計邏輯。
+下表於 2026-09-09 查核；官方具備某項能力，不代表本機帳號、版本或組織政策已允許它。
+
+| 工具 | 適合的入口 | 在 JET 的用法與界線 |
+|:---|:---|:---|
+| Codex 桌面版 | 內建瀏覽器及畫面註解 | 已在本次 JET 調整中使用；開啟本機合成預覽，Agent 寫回正式前端。Adjust 仍以版本實際支援為準，未列為必要能力。 |
+| Claude Desktop 的 Code | 本機 session 的 Preview | 官方支援開發伺服器、DOM 與畫面操作；專案提供 `.claude/launch.json` 啟動同一預覽。本機 Claude UI 尚未實測，不宣稱註解方式和 Codex 完全相同。 |
+| Claude Design | Desktop 側欄或網頁設計畫布 | 官方支援設計迭代與交回 coding agent；JET 採用最小合成設計包，不把畫布當成直接操作本機 WebView2 的環境。尚未實際上傳或交接驗收。 |
+| Claude Desktop 一般聊天、雲端 coding session | 視目前可用工具而定 | 不假設能讀取這台 Windows 的 repo、localhost 或根目錄指示檔；缺少本機工具時改用 Code 本機 session，或明確提供必要交接內容。 |
+
+Claude Code 的官方預覽設定預設使用 `localhost`，JET 預覽目前只接受 `127.0.0.1` 的指定主機標頭。
+因此設定明寫同一個 `port`、`url` 與 `env.PORT`，停用自動換埠，避免啟動的服務與畫面網址不一致。
+連接埠衝突由 Agent 辨識後調整這三個值；不放寬服務的對外存取限制。未指定 PORT 的原有啟動方式不變。
+
+Claude Design 官方提供 `/design-sync`、Design MCP 和交回 Claude Code 的方式，也可交給其他 coding agent。
+本輪只研究相容方法，沒有配置帳號、MCP、雲端專案或上傳檔案。下載內容須由本機 Agent 核對原有元件與契約後採用，
+不保證輸出的 HTML 可直接覆蓋 JET。原始碼、現行規格與唯一計畫才是跨工具的共同上下文；畫面註解不會自動跨平台同步。
+
+官方來源：
+
+- [OpenAI Browser](https://learn.chatgpt.com/docs/browser)：內建瀏覽器及其操作方式；JET 的註解協作另有本次使用者驗收。
+- [Claude Code Desktop](https://code.claude.com/docs/en/desktop#configure-preview-servers)：Code 本機預覽、啟動設定、URL 與連接埠規則。
+- [Claude Design 入門](https://support.claude.com/en/articles/14604416-get-started-with-claude-design)：設計畫布、匯入與 Design MCP。
+- [Claude Design 原型與 UX](https://academy.claude.com/tutorials/using-claude-design-for-prototypes-and-ux)：設計交接內容與 coding agent 接續。
 
 ## Repo-scoped skills
 

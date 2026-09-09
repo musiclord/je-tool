@@ -5,6 +5,14 @@ namespace JET.Application;
 
 internal static class ReportExportSupport
 {
+    public static async Task<object[]> ReadArtifactCatalogAfterPublicationAsync(
+        IReportArtifactStore store, string projectId)
+    {
+        // 正式檔與索引已保存；回應必須包含容量整理後的清單，最後一刻的取消不隱藏已完成成果。
+        var artifacts = await store.ListAsync(projectId, CancellationToken.None);
+        return artifacts.Select(ArtifactWire).ToArray();
+    }
+
     public static void RequireRequestedValidationRun(
         RuleRunRecord current,
         string requestedRunId)
@@ -29,9 +37,10 @@ internal static class ReportExportSupport
             || !string.Equals(current.RunId, requestedRunId, StringComparison.Ordinal)
             || !RuleLogicVersions.IsCurrent(current))
         {
+            var button = string.Equals(runKind, RuleRunKinds.Prescreen, StringComparison.Ordinal) ? "重新執行預篩選" : "重新執行驗證";
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "指定的規則執行結果已失效，請回到對應步驟重新執行後再產出報告。");
+                $"這份報告依據的結果已不是目前資料的結果。請回到「資料驗證與測試」按「{button}」，再回來產生報告。");
         }
 
         return current;
@@ -55,14 +64,14 @@ internal static class ReportExportSupport
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "已存篩選情境來自舊版或不一致的規則，請回到進階條件篩選重新保存後再產出報告。");
+                "已保存的情境來自較早的版本。請回到「進階條件篩選」按「以查核期間重新保存」，再按「重新產生條件篩選報告」。");
         }
 
         if (!string.Equals(current.Revision, requestedRevision, StringComparison.Ordinal))
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "指定的篩選版本已失效，請以目前已保存的情境重新完成報告。");
+                "畫面上的情境版本和已保存的不一致。請重新載入這個案件，再用目前已保存的情境產生一次。");
         }
 
         return current;
@@ -169,7 +178,7 @@ internal static class ReportExportSupport
 
     private static JetActionException MissingCurrentCriteriaSelectionReport() => new(
         JetErrorCodes.StaleResult,
-        "目前的驗證與篩選版本尚無有效的 CriteriaSelectionReport，請回到進階條件篩選重新產生報告。");
+        "還沒有目前資料的條件篩選報告。請回到「進階條件篩選」按「重新產生條件篩選報告」，系統會用目前資料重新計算，然後回來匯出。");
 
     public static ReportDocumentContext ProjectContext(ProjectDocument document) => new(
         document.ProjectId,

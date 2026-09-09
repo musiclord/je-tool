@@ -6,6 +6,50 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class PrivateCaseScenarioDiagnosticsTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CaptureAsync_NoScenarioHits_PreservesZeroCountsForEveryPosition(bool hasUnmatchedRow)
+    {
+        using var scenarios = JsonDocument.Parse(
+            """
+            [
+              {"groups":[{"rules":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]},
+              {"groups":[{"rules":[{"type":"textSet","field":"description","mode":"contains","values":["synthetic-match"]}]}]}
+            ]
+            """);
+        var queryCount = 0;
+
+        Task<JsonElement> Dispatch(string action, string payload)
+        {
+            Assert.Equal("query.tagMatrixRowPage", action);
+            queryCount++;
+            return Task.FromResult(Element(hasUnmatchedRow
+                ? """{"rows":[{"documentNumber":"synthetic-unmatched","description":"ordinary","matchedPositions":[]}],"nextCursor":null}"""
+                : """{"rows":[],"nextCursor":null}"""));
+        }
+
+        var result = await PrivateCaseScenarioDiagnostics.CaptureAsync(scenarios.RootElement, [], Dispatch);
+
+        Assert.Equal(1, queryCount);
+        Assert.Equal(2, result.Counts.Count);
+        Assert.Equal([1, 2], result.Counts.Select(count => count.Position));
+        Assert.All(result.Counts, count =>
+        {
+            Assert.Equal(0L, count.ExpandedVoucherRowCount);
+            Assert.Equal(0L, count.ExpandedVoucherCount);
+            Assert.Null(count.SameRowRuleMatchRowCount);
+            Assert.Null(count.WeekendIncludingMakeupRowCount);
+            Assert.Empty(result.SelectedVoucherNumbersByPosition[count.Position]);
+        });
+        Assert.Equal(0L, result.Counts[0].ExpandedRowsWhoseDirectHitHasNullOrEmptyDescription);
+        Assert.Equal(0L, result.Counts[0].VouchersWhoseDirectHitHasNullOrEmptyDescription);
+        Assert.Null(result.Counts[0].ExpandedRowsWithLegacyTextMatch);
+        Assert.Equal(0L, result.Counts[1].ExpandedRowsWithLegacyTextMatch);
+        Assert.Equal(0L, result.Counts[1].VouchersWithLegacyTextMatch);
+        Assert.Null(result.Counts[1].ExpandedRowsWhoseDirectHitHasNullOrEmptyDescription);
+    }
+
     [Fact]
     public async Task CaptureAsync_UsesProductQueriesButRetainsOnlyAggregateCounts()
     {

@@ -134,18 +134,21 @@ public sealed class FilterFrontendParityTests
         return result;
     }
 
+    // 2026-09-07 自訂篩選條件改版：張數條件列的可見片語從 ruleControlsHtml 的固定標籤移到「樣態」
+    // 對象下拉的選項文字（PATTERN_PARAM_TYPES），輸入框後面只剩單位「張」。守衛的意圖不變：
+    // 使用者在列上看到的片語要逐字等於後端讀回句去掉數字的部分。
+    // 第一次失敗的證據：收據 20260907-135727110（ruleControlsHtml 找不到兩個片語，Expected 2 Actual 0）。
     private static Dictionary<string, string> ExtractFrontendFrequencyControlPhrases()
     {
         var source = ReadFrontend("js", "steps", "filter-step.js");
-        var start = source.IndexOf("function ruleControlsHtml", StringComparison.Ordinal);
-        var end = source.IndexOf("function ruleSummaryLabel", start, StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start, "找不到 filter-step.js 的 ruleControlsHtml 邊界。");
+        var start = source.IndexOf("var PATTERN_PARAM_TYPES = [", StringComparison.Ordinal);
+        var end = source.IndexOf("];", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "找不到 filter-step.js 的 PATTERN_PARAM_TYPES 邊界。");
 
         var body = source[start..end];
         var matches = Regex.Matches(
             body,
-            @"case '(?<type>custom(?:Preparer|Account)EntryCount)':\s*"
-            + @"return '<span class=""rule-row__field-label"">(?<phrase>[^<]*)</span>' \+",
+            @"\{ value: '(?<type>custom(?:Preparer|Account)EntryCount)', label: '(?<phrase>[^']*)' \}",
             RegexOptions.Singleline);
         var result = matches
             .Cast<Match>()

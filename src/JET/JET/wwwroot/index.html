@@ -10,6 +10,8 @@
   <script defer src="./js/jet-api.js"></script>
   <script defer src="./js/state.js"></script>
   <script defer src="./js/ui-core.js"></script>
+  <script defer src="./js/filter-values.js"></script>
+  <script defer src="./js/filter-vouchers.js"></script>
   <script defer src="./js/steps/create-step.js"></script>
   <script defer src="./js/steps/import-step.js"></script>
   <script defer src="./js/steps/mapping-step.js"></script>
@@ -32,7 +34,7 @@
         <h1 class="app-header__title">分錄測試自動化工具</h1>
       </div>
       <div class="app-header__status">
-        <span class="badge" data-bind="user-identity" title="使用者身分與編號（啟動後由應用程式確認）">偵測中</span>
+        <span class="badge" data-bind="user-identity" title="目前登入的使用者與編號">偵測中</span>
         <!-- 流程總覽（4b）開啟鈕：僅 workflow 視圖顯示（比照 back-picker 的 hidden 切換）。
              6 點點陣圖示（第 5 點訊號紅），純 CSS/HTML，不引入圖檔或 icon 字型。 -->
         <button type="button" class="overview-btn" data-action="overview-open"
@@ -41,14 +43,14 @@
             <span class="overview-btn__dot"></span><span class="overview-btn__dot"></span><span class="overview-btn__dot"></span>
             <span class="overview-btn__dot"></span><span class="overview-btn__dot overview-btn__dot--signal"></span><span class="overview-btn__dot"></span>
           </span>
-          <span class="overview-btn__text">流程總覽</span>
+          <span class="overview-btn__text">總覽</span>
         </button>
         <button type="button" class="btn btn--ghost" data-action="open-project-folder"
-          title="在檔案總管開啟目前專案的資料夾" hidden>開啟專案資料夾</button>
+          title="在檔案總管開啟目前專案的資料夾" hidden>資料夾</button>
         <button type="button" class="btn btn--ghost" data-action="app-back-picker" data-bind="back-picker"
-          title="保存目前進度並回到專案選擇畫面，可切換其他專案" hidden>回專案選擇</button>
+          title="保存目前進度並回到專案選擇畫面，可切換其他專案" hidden>切換案件</button>
         <button type="button" class="btn btn--ghost" data-action="app-exit"
-          title="保存目前進度到專案資料庫，下次開啟時回到相同位置">儲存並結束</button>
+          title="下次開啟保留已確認的配對與已保存情境；未保存草稿不會保留">退出</button>
       </div>
     </header>
 
@@ -127,9 +129,9 @@
           <!-- 左邊界拖曳把手：欄多時可拖寬以便檢閱，回流程時拖窄或用收合鈕。
                寬度存於 --data-preview-width（inline），不進 state、不進後端 payload（純 UI）。 -->
           <div class="data-preview__resize" role="separator" aria-orientation="vertical"
-            aria-label="拖曳調整資料預覽寬度（雙擊還原）" title="拖曳調整寬度・雙擊還原"></div>
+            aria-label="拖曳調整資料預覽寬度（雙擊還原）" title="拖曳調整寬度，雙擊還原"></div>
           <div class="data-preview__head">
-            <span class="data-preview__eyebrow">資料預覽 · 常駐</span>
+            <span class="data-preview__eyebrow">資料預覽</span>
             <button type="button" class="data-preview__collapse"
               title="收合資料預覽" aria-label="收合資料預覽">▾ 收合</button>
           </div>

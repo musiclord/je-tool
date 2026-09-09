@@ -85,7 +85,8 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 - 接手先讀 `docs/development-status.md` 的「目前大型計畫」與「已知但延後的事項」，再依
   `docs/development-workflow.md` 核對實際 branch、HEAD 與工作樹；不能只依長期文件判斷 Git 狀態。
 - 需要跨多個步驟或 session 的工作，一次只保留一份現行大型計畫（`docs/specs/`）。進度、裁定與下一動作
-  要寫進計畫檔，不能只存在聊天、Agent memory 或被忽略的執行紀錄裡。
+  要寫進計畫檔，不能只存在聊天、Agent memory 或被忽略的執行紀錄裡。計畫裡的需求與裁定逐字保留使用者
+  原話並附日期；改寫要先獲授權，複審對照原話（見 `docs/development-workflow.md`）。
 - 大型工作結束或使用者詢問未完成事項時，逐項回報「已知但延後的事項」的背景、邊界與重啟條件。
 - 使用者明確呼叫 `$jet-converge` 時，完整讀取 `.agents/skills/jet-converge/SKILL.md`；一般狀態查詢或範圍
   已明確的小修正，不自動展開完整收斂訪談。
@@ -114,6 +115,7 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 |:---|:---|
 | 改驗證、預篩選、篩選或抽樣規則 | `docs/jet-guide.md` §4–§6；精確規則與 KCT A–J 對應在 `docs/history/superseded/jet-guide-2026-08.md`；衝突裁決走 `docs/business-logic-provenance.md` |
 | 改 action、payload 或前端 | `docs/action-contract-manifest.md` 與 `docs/jet-frontend-description.md` |
+| 開啟前端設計模式、畫面註解或 Claude Design 交接 | `docs/development-guide.md` 的「前端設計模式」；平台差異見 `docs/agent-compatibility.md` |
 | 改報表輸出或範本 | `docs/jet-guide.md` §7 與 `docs/data-and-legacy.md` |
 | 碰資料庫實作或 SQL Server | `docs/jet-guide.md` §8；企業多人範圍與已知安全缺口在 `docs/sqlserver-enterprise-deferred.md` |
 | 與 IDEA／VBA 舊行為比對 | `docs/jet-guide.md` §17 與 `legacy/jet-legacy-notes.md`；差異只分五類，不自創例外 |

@@ -28,6 +28,7 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         var session = new ProjectSession();
         session.Enter(projectId);
         var validationWriter = new RecordingPlannedValidationWriter();
+        var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc);
         var planningFacts = new RecordingPlanningFactsPort(unbalancedDetailRowCount: 9_999L);
         var fieldDefinitions = new RecordingFieldDefinitionFactsPort(
             tb:
@@ -49,14 +50,15 @@ public sealed class ExportValidationArtifactsTypedSeamTests
                 generatedUtc,
                 summaryJson)),
             new FixedProjectStore(document),
-            new ExecutingArtifactStore(projectId, generatedUtc),
+            artifactStore,
             session,
             new NullEventPublisher(),
             planningFacts,
             fieldDefinitions);
         using var payload = JsonDocument.Parse($$"""{"runId":"{{runId}}"}""");
 
-        await handler.HandleAsync(payload.RootElement, CancellationToken.None);
+        var response = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
+        AssertPublishedCatalog(response, artifactStore);
 
         Assert.Equal(1, validationWriter.PlannedCalls);
         Assert.Equal(0, validationWriter.TypedCalls);
@@ -149,7 +151,8 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         var session = new ProjectSession();
         session.Enter(projectId);
         var validationWriter = new RecordingValidationWriter();
-        var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc);
+        using var cancellation = new CancellationTokenSource();
+        var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc, cancellation.Cancel);
         var handler = new ExportValidationArtifactsHandler(
             validationWriter,
             new NoOpInfWriter(),
@@ -164,7 +167,9 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             new NullEventPublisher());
         using var payload = JsonDocument.Parse($$"""{"runId":"{{runId}}"}""");
 
-        await handler.HandleAsync(payload.RootElement, CancellationToken.None);
+        var response = await handler.HandleAsync(payload.RootElement, cancellation.Token);
+        Assert.True(cancellation.IsCancellationRequested);
+        AssertPublishedCatalog(response, artifactStore);
 
         Assert.Equal(1, validationWriter.TypedCalls);
         Assert.Equal(0, validationWriter.PublicCalls);
@@ -223,6 +228,7 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         var session = new ProjectSession();
         session.Enter(projectId);
         var validationWriter = new RecordingPublicValidationWriter();
+        var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc);
         var planningFacts = new RecordingPlanningFactsPort(unbalancedDetailRowCount: 1L);
         var fieldDefinitions = new RecordingFieldDefinitionFactsPort([], []);
         var handler = new ExportValidationArtifactsHandler(
@@ -234,14 +240,15 @@ public sealed class ExportValidationArtifactsTypedSeamTests
                 generatedUtc,
                 summaryJson)),
             new FixedProjectStore(document),
-            new ExecutingArtifactStore(projectId, generatedUtc),
+            artifactStore,
             session,
             new NullEventPublisher(),
             planningFacts,
             fieldDefinitions);
         using var payload = JsonDocument.Parse($$"""{"runId":"{{runId}}"}""");
 
-        await handler.HandleAsync(payload.RootElement, CancellationToken.None);
+        var response = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
+        AssertPublishedCatalog(response, artifactStore);
 
         Assert.Equal(1, validationWriter.Calls);
         Assert.Equal(summaryJson, validationWriter.Context?.SummaryJson);
@@ -525,11 +532,26 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             throw new NotSupportedException();
     }
 
+    private static void AssertPublishedCatalog(object? response, ExecutingArtifactStore store)
+    {
+        Assert.Equal(new[] { "content-written", "published", "catalog-read" }, store.CatalogOrder);
+        var data = JsonSerializer.SerializeToElement(response, JetJsonStorage.Options);
+        var catalog = data.GetProperty("reportArtifacts");
+        Assert.Equal(new[] { "artifact-0", "artifact-1" }, catalog.EnumerateArray()
+            .Select(artifact => artifact.GetProperty("artifactId").GetString()));
+        Assert.Equal(new[] { "infReport", "validationReport" }, catalog.EnumerateArray()
+            .Select(artifact => artifact.GetProperty("kind").GetString()).Order(StringComparer.Ordinal));
+        Assert.Equal(data.GetProperty("artifacts").GetRawText(), catalog.GetRawText());
+    }
+
     private sealed class ExecutingArtifactStore(
         string expectedProjectId,
-        DateTimeOffset generatedUtc) : IReportArtifactStore, IReportArtifactPublishingStore
+        DateTimeOffset generatedUtc,
+        Action? afterPublication = null) : IReportArtifactStore, IReportArtifactPublishingStore
     {
         internal IReadOnlyList<ReportArtifactWriteRequest> Requests { get; private set; } = [];
+        internal List<string> CatalogOrder { get; } = [];
+        private IReadOnlyList<ReportArtifact> _published = [];
 
         internal int WriteCalls { get; private set; }
 
@@ -562,6 +584,8 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         {
             var artifact = await WriteAsync(projectId, request, cancellationToken);
             publishingArtifact(request.Kind);
+            CatalogOrder.Add("published");
+            afterPublication?.Invoke();
             return artifact;
         }
 
@@ -576,7 +600,8 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             {
                 publishingArtifact(request.Kind);
             }
-
+            CatalogOrder.Add("published");
+            afterPublication?.Invoke();
             return artifacts;
         }
 
@@ -604,13 +629,22 @@ public sealed class ExportValidationArtifactsTypedSeamTests
                     Stale: false));
             }
 
-            return artifacts;
+            _published = artifacts.ToArray();
+            CatalogOrder.Add("content-written");
+            return _published;
         }
 
         public Task<IReadOnlyList<ReportArtifact>> ListAsync(
             string projectId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            Assert.Equal(expectedProjectId, projectId);
+            Assert.Equal(CancellationToken.None, cancellationToken);
+            Assert.Equal(new[] { "content-written", "published" }, CatalogOrder);
+            Assert.Equal(2, _published.Count);
+            CatalogOrder.Add("catalog-read");
+            return Task.FromResult<IReadOnlyList<ReportArtifact>>(_published.ToArray());
+        }
 
         public Task<string> ResolvePathAsync(
             string projectId,

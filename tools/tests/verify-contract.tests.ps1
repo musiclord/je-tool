@@ -204,11 +204,9 @@ function Start-LockHolder {
             '-File', $runnerPath,
             '-Command', 'Contract',
             '-ContractScenario', 'HoldLock',
-            # The contender starts in a fresh PowerShell process. On a cold or busy
-            # desktop, module loading can take longer than five seconds after the
-            # holder has published its PID, so keep the ownership window explicit
-            # but comfortably beyond process startup.
-            '-ProbeSeconds', '20',
+            # This separate smoke verifies the public HoldLock command lifecycle.
+            # The contention test holds the production lock in its parent until the contender completes.
+            '-ProbeSeconds', '1',
             '-TimeoutSeconds', '35',
             '-EvidenceRoot', $runsRelativeRoot)) {
         [void]$startInfo.ArgumentList.Add($argument)
@@ -292,7 +290,7 @@ try {
     $registry = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools/harness/lanes.json') -Raw -Encoding utf8 |
         ConvertFrom-Json -AsHashtable -Depth 20
     $enabledLanes = @($registry.lanes.Keys | Where-Object { [bool]$registry.lanes[$_].enabled })
-    Assert-Contract -Condition ((@($enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Package,PrivateCase,Provider,Public,ReleaseCandidate') `
+    Assert-Contract -Condition ((@($enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Provider,Public,ReleaseCandidate') `
         -Message 'The enabled lanes must match the currently implemented Harness boundary.'
     Assert-Contract -Condition ([bool]$registry.lanes.PrivateCase.enabled -and
         [bool]$registry.commands.PrivateCase.enabled -and
@@ -315,8 +313,8 @@ try {
         -not [bool]$registry.releaseCandidateSettings.privateCaseIncluded -and
         -not [bool]$registry.releaseCandidateSettings.liveProviderIncluded) `
         -Message 'ReleaseCandidate must use the first-root inventory and short owned workspace without PrivateCase or live Provider.'
-    Assert-Contract -Condition ([string]$registry.runnerContractVersion -ceq '8.0') `
-        -Message 'The current ReleaseCandidate composition requires runner contract 8.0.'
+    Assert-Contract -Condition ([string]$registry.runnerContractVersion -ceq '8.1') `
+        -Message 'The current ReleaseCandidate composition and optional Mutation require runner contract 8.1.'
     Assert-Contract -Condition ([int]$registry.testSettings.privateCaseMinimumExpectedTests -eq 2) `
         -Message 'PrivateCase must run both the manifest and full acceptance tests.'
     Assert-Contract -Condition ((@(
@@ -326,8 +324,8 @@ try {
             'JET_PRIVATE_CASE_ROOT,JET_PRIVATE_CASE_MANIFEST,JET_PRIVATE_CASE_PROVIDER') `
         -Message 'PrivateCase must use only the reviewed explicit input boundary.'
     Assert-Contract -Condition ((@($registry.guiSettings.scenarios.name) -join ',') -ceq `
-            'startup-smoke,synthetic-sqlite-create,mapping-required-sync,edited-report-still-loads') `
-        -Message 'The GUI lane must contain only the four reviewed scenarios.'
+            'startup-smoke,synthetic-sqlite-create,mapping-required-sync,edited-report-still-loads,approval-mapping-modes,validation-auto-outputs,filter-auditor-journey,filter-kct-editing') `
+        -Message 'The GUI lane must contain only the eight reviewed scenarios.'
     Assert-Contract -Condition ([string]$registry.excelSettings.scenario -ceq 'synthetic-report-roundtrip') `
         -Message 'The Excel lane must retain its one reviewed synthetic scenario.'
     Assert-Contract -Condition ((@($registry.excelSettings.reportKinds) -join ',') -ceq `
@@ -566,7 +564,9 @@ try {
     $guiHarnessText = $harnessSourceText.Substring(
         $guiHarnessStart,
         $excelHarnessStart - $guiHarnessStart)
-    foreach ($requiredAssertion in @('modifiedOutsideVisible', 'workpaperExportEnabled', 'cleanupPanelAbsent')) {
+    foreach ($requiredAssertion in @('modifiedOutsideVisible', 'workpaperExportEnabled', 'cleanupPanelAbsent',
+            'workpaperHistoryVisible', 'historyDoesNotCompleteCurrentRun', 'oldVersionRevealAvailable',
+            'missingVersionRevealDisabled', 'workpaperHistoryRetainedAfterExport', 'newestWorkpaperFirst')) {
         Assert-Contract -Condition ($guiHarnessText.Contains(
             ('[bool]$manifest.assertions.' + $requiredAssertion), [StringComparison]::Ordinal)) `
             -Message "GUI verification must require the current report workflow assertion $requiredAssertion."
@@ -640,8 +640,8 @@ try {
     $scenarioNames.Add('Help')
     Assert-Contract -Condition ($help.NativeExitCode -eq 0) -Message 'Help native exit code must be 0.'
     Assert-Contract -Condition ($help.Envelope.status -ceq 'passed') -Message 'Help must pass.'
-    Assert-Contract -Condition ((@($help.Envelope.enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Package,PrivateCase,Provider,Public,ReleaseCandidate') `
-        -Message 'Help must expose all nine enabled lanes through Phase 7.'
+    Assert-Contract -Condition ((@($help.Envelope.enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Provider,Public,ReleaseCandidate') `
+        -Message 'Help must expose the nine existing lanes and optional Mutation.'
     Assert-Contract -Condition ([string]::IsNullOrEmpty($help.Stderr)) -Message 'Help must keep stderr empty.'
     Assert-Contract -Condition (@($help.Envelope.commands) -ccontains 'Documentation') `
         -Message 'Help must expose the Documentation command.'
@@ -653,6 +653,31 @@ try {
         -Message 'Help must expose the PrivateCase command.'
     Assert-Contract -Condition (@($help.Envelope.commands) -ccontains 'ReleaseCandidate') `
         -Message 'Help must expose the ReleaseCandidate command.'
+    Assert-Contract -Condition (@($help.Envelope.commands) -ccontains 'Mutation' -and
+        [bool]$registry.commands.Mutation.requiresExclusiveLock -and
+        -not [bool]$registry.commands.Mutation.privateDataAccess) `
+        -Message 'Mutation must be explicit, exclusive and public-data only.'
+
+    foreach ($mutationArguments in @(
+        @('-Command', 'Mutation', '-Configuration', 'Release', '-MutationScope', '*'),
+        @('-Command', 'Mutation', '-Configuration', 'Debug'),
+        @('-Command', 'Mutation', '-Configuration', 'Release', '-TimeoutSeconds', '1801'),
+        @('-Command', 'Build', '-MutationScope', 'GlProjectionGuard'))) {
+        $invalidMutation = Invoke-Runner -Label ('mutation-usage-' + [Guid]::NewGuid().ToString('N')) -Arguments $mutationArguments
+        Assert-Contract -Condition ($invalidMutation.NativeExitCode -eq 3 -and $invalidMutation.Envelope.status -ceq 'usage_error') `
+            -Message 'Mutation must reject scope, configuration and timeout errors before tool execution.'
+    }
+    $scenarioNames.Add('MutationUsageBoundary')
+    foreach ($specialized in @('MutationBoundary', 'OwnedProcessTree')) {
+        $run = Invoke-Runner -Label $specialized -Arguments @('-Command', 'Contract', '-ContractScenario', $specialized, '-TimeoutSeconds', '120')
+        $scenarioNames.Add($specialized)
+        Assert-Contract -Condition ($run.NativeExitCode -eq 0 -and $run.Envelope.status -ceq 'passed') `
+            -Message "$specialized must pass its actual specialized contract tests."
+        $specializedReceipt = Get-Receipt $run
+        $specializedStep = @($specializedReceipt.steps | Where-Object name -CEQ 'contract-specialized')[0]
+        Assert-Contract -Condition ($specializedStep.process.ownedProcessTree -and $specializedStep.process.cleanupSucceeded -and $specializedStep.process.belowNormalApplied) `
+            -Message "$specialized must record owned process cleanup and below-normal priority."
+    }
 
     $excelWrongConfiguration = Invoke-Runner -Label 'excel-wrong-configuration' -Arguments @(
         '-Command', 'Excel',
@@ -850,6 +875,19 @@ try {
         -Message 'Gui must reject Debug before creating a run.'
     Assert-Contract -Condition ($guiDebug.Envelope.status -ceq 'usage_error') `
         -Message 'Gui Debug must be a usage error.'
+
+    # GuiScenario 只供 Gui 診斷單跑；其他命令帶它、或名稱不在清單裡，都在建立 run 之前擋下。
+    $guiScenarioOnBuild = Invoke-Runner -Label 'usage-gui-scenario-only-for-gui' -Arguments @(
+        '-Command', 'Build',
+        '-GuiScenario', 'startup-smoke')
+    Assert-Contract -Condition ($guiScenarioOnBuild.NativeExitCode -eq 3 -and $guiScenarioOnBuild.Envelope.status -ceq 'usage_error') `
+        -Message 'GuiScenario must be rejected by every command except Gui.'
+    $guiUnknownScenario = Invoke-Runner -Label 'usage-gui-scenario-unknown' -Arguments @(
+        '-Command', 'Gui',
+        '-Configuration', 'AgentGuiTest',
+        '-GuiScenario', 'not-a-scenario')
+    Assert-Contract -Condition ($guiUnknownScenario.NativeExitCode -eq 3 -and $guiUnknownScenario.Envelope.status -ceq 'usage_error') `
+        -Message 'Gui with an unknown GuiScenario must be a usage error.'
 
     $guiShortTimeout = Invoke-Runner -Label 'usage-gui-timeout-required' -Arguments @(
         '-Command', 'Gui',
@@ -1321,25 +1359,20 @@ Actual: 2 at $repositoryRoot\src\Synthetic.cs</Message></ErrorInfo></Output>
     Assert-Contract -Condition (@(Get-ChildItem -LiteralPath $receiptFailureRun -Filter 'receipt.json.tmp-*' -Force).Count -eq 0) `
         -Message 'Atomic receipt failure must remove its temporary file.'
 
-    $holder = Start-LockHolder -Label 'lock-holder'
+    # A timed holder can finish before a cold contender even starts. Keep the production
+    # lock open in this process for the entire synchronous contender invocation instead.
+    $contentionRunId = "$suiteId-contention-holder"
+    $contentionLock = $null
+    $contentionCleanup = $null
     try {
-        $holderReady = $false
-        $holderDeadline = [DateTime]::UtcNow.AddSeconds(10)
-        while ([DateTime]::UtcNow -lt $holderDeadline) {
-            if (Test-Path -LiteralPath $holderPath -PathType Leaf) {
-                try {
-                    $holderState = Get-Content -LiteralPath $holderPath -Raw -Encoding utf8 | ConvertFrom-Json
-                    if ($holderState.processId -eq $holder.Id) {
-                        $holderReady = $true
-                        break
-                    }
-                }
-                catch {
-                }
-            }
-            Start-Sleep -Milliseconds 100
-        }
-        Assert-Contract -Condition $holderReady -Message 'Lock holder did not publish matching ownership.'
+        $contentionLock = & $harnessModule {
+            param($root, $runId)
+            Enter-JetExclusiveLock -RepositoryRoot $root -RunId $runId -Command 'Contract' -WaitSeconds 0
+        } $repositoryRoot $contentionRunId
+        Assert-Contract -Condition $contentionLock.Acquired -Message 'Contention holder must acquire the production lock.'
+        $contentionState = Get-Content -LiteralPath $holderPath -Raw -Encoding utf8 | ConvertFrom-Json
+        Assert-Contract -Condition ($contentionState.processId -eq $PID -and $contentionState.runId -ceq $contentionRunId) `
+            -Message 'Contention holder must publish its exact process and run identity.'
 
         $contender = Invoke-Runner -Label 'lock-contender' -Arguments @(
             '-Command', 'Contract',
@@ -1353,9 +1386,29 @@ Actual: 2 at $repositoryRoot\src\Synthetic.cs</Message></ErrorInfo></Output>
         Assert-CommonReceipt -Receipt $contenderReceipt -ExpectedStatus 'blocked'
         Assert-Contract -Condition ($contenderReceipt.error.code -ceq 'exclusive_lock_busy') `
             -Message 'Lock contender must report exclusive_lock_busy.'
-        Assert-Contract -Condition ($contenderReceipt.lock.holder.processId -eq $holder.Id) `
+        Assert-Contract -Condition ($contenderReceipt.lock.holder.processId -eq $PID) `
             -Message 'Lock contender must report the exact holder PID.'
+        Assert-Contract -Condition ($contenderReceipt.lock.holder.runId -ceq $contentionRunId) `
+            -Message 'Lock contender must report the exact holder run id.'
+    }
+    finally {
+        if ($null -ne $contentionLock -and $contentionLock.Acquired) {
+            $contentionCleanup = & $harnessModule {
+                param($lock, $runId)
+                Exit-JetExclusiveLock -Lock $lock -RunId $runId
+            } $contentionLock $contentionRunId
+        }
+    }
+    Assert-Contract -Condition ($contentionCleanup.status -ceq 'passed' -and $contentionCleanup.released `
+            -and $contentionCleanup.holderRemoved) -Message 'Contention holder must release the production lock and marker.'
+    Assert-Contract -Condition (-not (Test-Path -LiteralPath $holderPath)) `
+        -Message 'Contention holder marker must be absent after release.'
 
+    $holder = Start-LockHolder -Label 'lock-holder'
+    try {
+        # Ownership identity was checked while the parent held the lock above.
+        # A completed runner's receipt is durable evidence; polling its short-lived marker is not.
+        $scenarioNames.Add('HoldLockLifecycle');
         Assert-Contract -Condition $holder.WaitForExit(30000) -Message 'Lock holder did not exit within its bound.'
         $holderStdout = $holder.StandardOutput.ReadToEnd()
         $holderStderr = $holder.StandardError.ReadToEnd()
@@ -1363,6 +1416,11 @@ Actual: 2 at $repositoryRoot\src\Synthetic.cs</Message></ErrorInfo></Output>
         Assert-Contract -Condition ([string]::IsNullOrEmpty($holderStderr)) -Message 'Lock holder runner stderr must be empty.'
         $holderEnvelope = $holderStdout.Trim() | ConvertFrom-Json -Depth 20
         Assert-Contract -Condition ($holderEnvelope.status -ceq 'passed') -Message 'Lock holder must pass.'
+        $holderReceipt = Get-Receipt -Run ([pscustomobject]@{ Label = 'lock-holder'; Envelope = $holderEnvelope })
+        Assert-CommonReceipt -Receipt $holderReceipt -ExpectedStatus 'passed'
+        Assert-Contract -Condition ($holderReceipt.lock.acquired -and $holderReceipt.lock.cleanup.released `
+                -and $holderReceipt.lock.cleanup.holderRemoved) `
+            -Message 'HoldLock receipt must prove acquisition, release, and owner marker removal.'
     }
     finally {
         if (-not $holder.HasExited) {

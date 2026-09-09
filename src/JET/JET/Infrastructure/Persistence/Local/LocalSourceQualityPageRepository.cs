@@ -22,29 +22,24 @@ public sealed class LocalSourceQualityPageRepository(ILocalProjectDatabase datab
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
 
-        var hasCursor = PageCursor.TryDecode(request.Cursor, out var cursorKey);
-        var keyset = hasCursor ? "AND g.entry_id > @cursor" : string.Empty;
-        if (hasCursor)
+        var paging = KeysetPaging.Plan(database.Dialect, request, ResultPageSorting.SourceQuality);
+        foreach (var parameter in paging.Parameters)
         {
-            if (!long.TryParse(cursorKey, NumberStyles.None, CultureInfo.InvariantCulture, out var cursor))
-            {
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "cursor 不是有效的來源品質排序鍵。");
-            }
-            command.AddWithValue("@cursor", cursor);
+            command.AddWithValue(parameter.Key, parameter.Value);
         }
 
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
         command.CommandText =
             "SELECT s.source_row_number, bs.source_file_name, bs.sheet_name, "
-            + "g.document_number, g.account_code, g.post_date, g.document_description, g.entry_id "
+            + "g.document_number, g.account_code, g.post_date, g.document_description, g.entry_id" + paging.SelectSuffix + " "
             + "FROM target_gl_entry g "
             + "JOIN staging_gl_raw_row s ON s.batch_id = g.batch_id "
             + "AND s.row_number = g.source_row_number "
             + "JOIN import_batch_source bs ON bs.batch_id = s.batch_id AND bs.source_no = s.source_no "
-            + "WHERE " + ValidationProcedures.NullPostDateSourceQualityPredicateWith("g") + " " + keyset + " "
-            + "ORDER BY g.entry_id " + database.Dialect.LimitClause("@pageSize") + ";";
+            + "WHERE " + ValidationProcedures.NullPostDateSourceQualityPredicateWith("g") + paging.Predicate + " "
+            + paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
-        var rows = new List<SourceQualityFindingRow>();
+        var buffer = new KeysetPageBuffer<SourceQualityFindingRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
@@ -52,25 +47,19 @@ public sealed class LocalSourceQualityPageRepository(ILocalProjectDatabase datab
             var sourceLabel = reader.IsDBNull(2)
                 ? fileName
                 : $"{fileName} [{reader.GetString(2)}]";
-            rows.Add(new SourceQualityFindingRow(
-                "nullPostDate",
-                reader.GetInt32(0),
-                sourceLabel,
-                reader.IsDBNull(3) ? null : reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.IsDBNull(5) ? null : reader.GetString(5),
-                reader.IsDBNull(6) ? null : reader.GetString(6),
-                reader.GetInt64(7)));
+            buffer.Add(
+                new SourceQualityFindingRow(
+                    "nullPostDate",
+                    reader.GetInt32(0),
+                    sourceLabel,
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.IsDBNull(4) ? null : reader.GetString(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5),
+                    reader.IsDBNull(6) ? null : reader.GetString(6),
+                    reader.GetInt64(7)),
+                paging.HasSort ? reader.GetValue(8) : null);
         }
 
-        var hasMore = rows.Count > request.ClampedPageSize;
-        if (hasMore)
-        {
-            rows.RemoveAt(rows.Count - 1);
-        }
-        var nextCursor = hasMore
-            ? PageCursor.Encode(rows[^1].EntryId.ToString(CultureInfo.InvariantCulture))
-            : null;
-        return new PageResult<SourceQualityFindingRow>(rows, nextCursor);
+        return buffer.ToPage(request, paging, static row => row.EntryId);
     }
 }

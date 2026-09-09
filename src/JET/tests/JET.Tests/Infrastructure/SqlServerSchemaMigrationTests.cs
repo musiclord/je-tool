@@ -129,7 +129,7 @@ public sealed class SqlServerSchemaMigrationTests
 
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
 
-            Assert.Equal("9", await VersionAsync(baseConn, q));
+            Assert.Equal("10", await VersionAsync(baseConn, q));
             Assert.Equal(1, await TablePresentAsync(baseConn, q, "audit_event_log"));
             Assert.Equal(1, await ScalarLongAsync(
                 baseConn,
@@ -160,7 +160,7 @@ public sealed class SqlServerSchemaMigrationTests
 
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
 
-            Assert.Equal("9", await VersionAsync(baseConn, q));
+            Assert.Equal("10", await VersionAsync(baseConn, q));
             foreach (var column in new[] { "posting_status", "is_effective", "exclusion_reason" })
             {
                 Assert.Equal(1, await ColumnPresentAsync(baseConn, q, "target_gl_entry", column));
@@ -232,7 +232,7 @@ public sealed class SqlServerSchemaMigrationTests
 
             var reopened = new SqlServerProjectDatabase(options);
             await reopened.EnsureCreatedAsync(projectId, CancellationToken.None);
-            Assert.Equal("9", await VersionAsync(baseConn, q));
+            Assert.Equal("10", await VersionAsync(baseConn, q));
             Assert.Equal(1, await ScalarLongAsync(baseConn,
                 $"SELECT COUNT(*) FROM {q}target_gl_entry WHERE document_number='DOC-V6';"));
             Assert.Equal(1, await ScalarLongAsync(baseConn,

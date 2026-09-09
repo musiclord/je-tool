@@ -11,9 +11,8 @@
 .DS_Store
 Thumbs.db
 
-# Keep shared VS Code settings, ignore other local state.
+# Keep shared VS Code tasks; settings stay local (2026-09-07).
 .vscode/*
-!.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json

@@ -22,9 +22,9 @@ public sealed class FilterKctMetadataFrontendTests
         Assert.Contains("(group.rules || []).some", marker, StringComparison.Ordinal);
         Assert.Contains("rule[KCT_LETTER_KEY]", marker, StringComparison.Ordinal);
 
-        Assert.Matches(
-            @"hasKctMarker\(scenario\)\s*\|\|\s*scenario\.source\s*===\s*'kct'",
-            source);
+        Assert.Contains("hasKctMarker(scenario)", source, StringComparison.Ordinal);
+        Assert.Contains("scenario.__legacyKctSource", source, StringComparison.Ordinal);
+        Assert.Contains("scenario.source === 'kct' && !scenario.__restoredOrigins", source, StringComparison.Ordinal);
         Assert.Contains("? 'kct' : null", source, StringComparison.Ordinal);
 
         Assert.Contains("scenarioSource(s)", projection, StringComparison.Ordinal);
@@ -46,13 +46,13 @@ public sealed class FilterKctMetadataFrontendTests
         var gate = ExtractFunction(filter, "scenarioGate");
         var softGate = ExtractFunction(filter, "softRefreshGate");
 
-        Assert.Contains("return !hasKctMarker(draft)", requirement, StringComparison.Ordinal);
+        Assert.Contains("return !(hasKctMarker(draft) || draft.__legacyKctSource)", requirement, StringComparison.Ordinal);
 
         Assert.Contains("requiresScenarioMetadata(draft)", builder, StringComparison.Ordinal);
         Assert.Contains("form__req", builder, StringComparison.Ordinal);
         Assert.Contains("選填", builder, StringComparison.Ordinal);
 
-        Assert.Contains("requiresScenarioMetadata(draft)", gate, StringComparison.Ordinal);
+        Assert.Contains("includeSavedScenarios && requiresScenarioMetadata(draft)", gate, StringComparison.Ordinal);
         Assert.Matches(@"metadataRequired\s*&&\s*nameEmpty", gate);
         Assert.Matches(@"metadataRequired\s*&&\s*rationaleEmpty", gate);
 
@@ -85,7 +85,9 @@ public sealed class FilterKctMetadataFrontendTests
             "current.savedScenarios.map(toWireScenario)",
             filter,
             StringComparison.Ordinal);
-        Assert.Contains(".concat([toWireDraft(current.draft)])", filter, StringComparison.Ordinal);
+        Assert.Contains("var authored = toWireDraft(current.draft)", filter, StringComparison.Ordinal);
+        Assert.Contains("scenarios[editingIndex] = authored", filter, StringComparison.Ordinal);
+        Assert.Contains("scenarios.push(authored)", filter, StringComparison.Ordinal);
         Assert.Matches(
             new Regex(
                 @"removeState\.filter\.savedScenarios\s*\.filter\(.*?\)\s*\.map\(toWireScenario\)",

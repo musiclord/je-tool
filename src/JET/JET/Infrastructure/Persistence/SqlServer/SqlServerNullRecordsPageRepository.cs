@@ -26,43 +26,33 @@ public sealed class SqlServerNullRecordsPageRepository(SqlServerProjectDatabase 
         await connection.OpenAsync(cancellationToken);
 
         var predicate = NullRecordsCategoryPredicate.ScopedSqlServer(category);
-        var hasCursor = PageCursor.TryDecode(request.Cursor, out var cursorKey);
-        var keyset = hasCursor ? "AND entry_id > @cursor" : string.Empty;
+        var paging = KeysetPaging.Plan(Dialect, request, ResultPageSorting.NullRecords);
 
         await using var command = database.CreateCommand(connection, projectId,
-            "SELECT document_number, account_code, post_date, document_description, entry_id " +
+            "SELECT document_number, account_code, post_date, document_description, entry_id" + paging.SelectSuffix + " " +
             "FROM {s}.target_gl_entry " +
-            "WHERE " + predicate + " " + keyset + " " +
-            "ORDER BY entry_id " + Dialect.LimitClause("@pageSize") + ";");
+            "WHERE " + predicate + paging.Predicate + " " +
+            paging.OrderBy + " " + Dialect.LimitClause("@pageSize") + ";");
         if (category == NullRecordCategory.OutOfRangeDate)
         {
             command.Parameters.AddWithValue("@periodStart", periodStart);
             command.Parameters.AddWithValue("@periodEnd", periodEnd);
         }
 
-        if (hasCursor)
+        foreach (var parameter in paging.Parameters)
         {
-            command.Parameters.AddWithValue("@cursor", long.Parse(cursorKey));
+            command.Parameters.AddWithValue(parameter.Key, parameter.Value);
         }
 
         command.Parameters.AddWithValue("@pageSize", request.ClampedPageSize + 1);
 
-        var rows = new List<NullRecordRow>();
+        var buffer = new KeysetPageBuffer<NullRecordRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            rows.Add(NullRecordRowMapper.MapRow(reader, category));
+            buffer.Add(NullRecordRowMapper.MapRow(reader, category), paging.HasSort ? reader.GetValue(5) : null);
         }
 
-        var hasMore = rows.Count > request.ClampedPageSize;
-        if (hasMore)
-        {
-            rows.RemoveAt(rows.Count - 1);
-        }
-
-        var next = hasMore
-            ? PageCursor.Encode(rows[^1].EntryId.ToString())
-            : null;
-        return new PageResult<NullRecordRow>(rows, next);
+        return buffer.ToPage(request, paging, static row => row.EntryId);
     }
 }

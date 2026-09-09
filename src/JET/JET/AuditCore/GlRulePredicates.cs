@@ -9,7 +9,7 @@ namespace JET.AuditCore;
 /// prescreen.run 的計數與 filter 條件組合共用同一份片段。
 /// 識別字一律出自 GlFieldWhitelist 或本檔常數；使用者值只進參數。
 /// </summary>
-internal sealed class GlRulePredicates(
+internal sealed partial class GlRulePredicates(
     ISqlDialect dialect,
     Func<FilterRuleContext, string, string> populationScopePredicate)
 {

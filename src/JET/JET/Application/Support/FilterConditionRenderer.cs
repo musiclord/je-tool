@@ -24,7 +24,7 @@ namespace JET.Application;
 /// </summary>
 public static class FilterConditionRenderer
 {
-    private const string ScenarioAndOp = " AND ";
+    private const string ScenarioAndOp = " 且 ";
 
     public static string Render(JsonElement scenario) => Render(scenario, null);
 
@@ -46,9 +46,13 @@ public static class FilterConditionRenderer
         // 分區：非營業日預設群組 vs 可編輯群組（保序，預設恆在可編輯之後）。
         var editable = new List<JsonElement>();
         var presets = new List<JsonElement>();
-        foreach (var g in groups)
+        for (var index = 0; index < groups.Count; index++)
         {
-            if (IsNonBusinessDayPreset(g)) { presets.Add(g); } else { editable.Add(g); }
+            var g = groups[index];
+            // A compact holiday description may move to the end only across AND edges.
+            if (IsNonBusinessDayPreset(g) && groups.Skip(index + 1).All(next => EffectiveRuleJoin(next) == "AND"))
+                presets.Add(g);
+            else editable.Add(g);
         }
 
         // read-back 的 `ne`：只看「有規則」的可編輯組（wire 已濾空組，此處再守一次亦無害）。
@@ -68,8 +72,14 @@ public static class FilterConditionRenderer
                 return rendered.AtomCount > 1 && !rendered.IsExactLeftFold
                     ? "（" + rendered.Text + "）"
                     : rendered.Text; // mixed 已逐邊累積精確括號；uniform 多原子組維持既有單層括號
-            });
-            expr = string.Join(" " + sop + " ", parts);
+            }).ToArray();
+            if (HasMixedEffectiveRuleJoins(ne))
+            {
+                expr = parts[0];
+                for (var index = 1; index < parts.Length; index++)
+                    expr = "（" + expr + " " + JoinLabel(EffectiveRuleJoin(ne[index])) + " " + parts[index] + "）";
+            }
+            else expr = string.Join(" " + JoinLabel(sop) + " ", parts);
         }
 
         // 非營業日：情境層級、AND 到整個情境。附在最後；可編輯式接 AND 前的括號消歧——
@@ -89,9 +99,9 @@ public static class FilterConditionRenderer
 
     // ---- 群組層 ----
 
-    /// <summary>組合器：任一規則 join=OR → 整組 OR，否則 AND（同前端 groupCombinator，大小寫敏感對齊 read-back）。</summary>
+    /// <summary>只讀第一條之後的有效結合，大小寫規則與後端相同。</summary>
     private static string GroupCombinator(JsonElement group) =>
-        ArrayItems(group, "rules").Any(r => Str(r, "join") == "OR") ? "OR" : "AND";
+        ArrayItems(group, "rules").Skip(1).Any(r => EffectiveRuleJoin(r) == "OR") ? "OR" : "AND";
 
     /// <summary>
     /// 既有主前端會把組內 join 收斂為單一運算子，所以 uniform 組仍沿用原來的
@@ -124,7 +134,7 @@ public static class FilterConditionRenderer
             expression = "（"
                 + expression
                 + " "
-                + EffectiveRuleJoin(rules[index])
+                + JoinLabel(EffectiveRuleJoin(rules[index]))
                 + " "
                 + atoms[index]
                 + "）";
@@ -183,10 +193,12 @@ public static class FilterConditionRenderer
 
     /// <summary>有效組間運算子：第二個可編輯組的 join（第一組 join 不參與左折疊語意），無則預設 OR。</summary>
     private static string ScenarioJoin(IReadOnlyList<JsonElement> editable) =>
-        editable.Count >= 2 && Str(editable[1], "join") == "AND" ? "AND" : "OR";
+        editable.Count >= 2 ? EffectiveRuleJoin(editable[1]) : "OR";
 
     private static string JoinAtoms(IReadOnlyList<string> atoms, string op) =>
-        string.Join(" " + op + " ", atoms);
+        string.Join(" " + JoinLabel(op) + " ", atoms);
+
+    private static string JoinLabel(string op) => op == "OR" ? "或" : "且";
 
     private readonly record struct GroupRendering(
         string Text,
@@ -197,7 +209,7 @@ public static class FilterConditionRenderer
     /// 非營業日預設偵測 = KCT 預設在 wire 上的唯一簽章（2026-07-08 對抗驗收後收緊）：
     /// (1) group join=="AND"——addKctToDraft 固定給 'AND' 且 toWireDraft 收斂組間運算子時不動預設組；
     ///     手動建的同形組會被收斂成情境層運算子（單組情境預設 'OR'、OR 情境 'OR'），據此可分。
-    /// (2) 組合器 OR（任一規則 join=='OR'，同前端 groupCombinator）——預設組兩規則 join 皆 'OR'；
+    /// (2) 組合器 OR（第一條以外任一規則的有效 join 為 OR，第一條的 join 不算，同編譯器的左折疊與前端 groupCombinator）——預設組兩規則 join 皆 'OR'；
     ///     手動 AND 同形組（週末 AND 假日，語意相反）絕不可誤標，一律按普通組渲染。
     /// (3) 規則全 prescreen 且 prescreenKey 集合恰為 {weekendPosting, holidayPosting}。
     /// 殘餘邊界（已文件化）：AND 組間多組情境內「手動 OR 同形組」與預設 wire 全同，無從再分——
@@ -211,7 +223,7 @@ public static class FilterConditionRenderer
         }
 
         var rules = ArrayItems(group, "rules");
-        if (rules.Count == 0)
+        if (rules.Count != 2)
         {
             return false;
         }
@@ -250,10 +262,10 @@ public static class FilterConditionRenderer
             "drCrOnly" => Str(r, "drCr") == "credit" ? "僅貸方" : "僅借方",
             "manualAuto" => Str(r, "isManual") == "false" ? "自動分錄" : "人工分錄",
             "accountPair" => AccountPairAtom(r, categoryLabels),
-            "specialAccountCategoryPair" => "特殊科目配對：借 "
-                + CategorySelection(r, "debitCategoryIds", "debitCategory", categoryLabels) + "／貸 "
-                + CategorySelection(r, "creditCategoryIds", "creditCategory", categoryLabels)
-                + "（" + FilterConditionLabels.SpecialPairModeLabel(Str(r, "pairMode")) + "）",
+            "specialAccountCategoryPair" => FilterConditionLabels.AccountCombinationPrefix
+                + FilterConditionLabels.SpecialPairModeLabel(Str(r, "pairMode")) + "（借方 "
+                + CategorySelection(r, "debitCategoryIds", "debitCategory", categoryLabels) + "・貸方 "
+                + CategorySelection(r, "creditCategoryIds", "creditCategory", categoryLabels) + "）",
             "customKeywords" => "自訂關鍵字「" + Str(r, "keywords") + "」",
             "customTrailingZeros" => "尾數連續 " + Str(r, "digits") + " 個 0",
             "customPreparerEntryCount" => "所選母體內編製人員張數 ≤ " + Str(r, "maxEntries"),
@@ -264,8 +276,47 @@ public static class FilterConditionRenderer
             "trailingDigits" => TrailingDigitsAtom(Str(r, "keywords")),
             "preparerEqualsApprover" => "編製＝核准同一人",
             "typed" => TypedFieldAtom(r, rdeFieldLabels),
+            "fieldValue" => FieldValueAtom(r, rdeFieldLabels),
+            "accountSide" => AccountSideAtom(r, categoryLabels),
             _ => type,
         };
+    }
+
+    private static string AccountSideAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels)
+    {
+        var side = Str(rule, "drCr") == "credit" ? "貸方" : "借方";
+        var categories = CategorySelection(rule, "categoryIds", "category", labels);
+        return Str(rule, "categoryMode") switch
+        {
+            "is" => side + "科目屬於「" + categories + "」",
+            "isNot" => side + "科目不屬於「" + categories + "」",
+            "absent" => "整張傳票的" + side + "都不屬於「" + categories + "」",
+            _ => side + "尚未選擇分類條件"
+        };
+    }
+
+    private static string FieldValueAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels)
+    {
+        var fieldId = Str(rule, "fieldId");
+        var field = fieldId.Length == 0 ? FilterConditionLabels.GlFieldLabel(Str(rule, "field"))
+            : labels?.GetValueOrDefault(fieldId) ?? fieldId;
+        // Normalized filter amount has no text/date mapping label in GlFields.
+        if (fieldId.Length == 0 && Str(rule, "field") == "amount") field = "金額";
+        var op = Str(rule, "operator");
+        var opLabel = FieldValueConditions.Labels.GetValueOrDefault(op, op);
+        var listValues = StringArrayItems(rule, "values");
+        var operand = op is "isBlank" or "isNotBlank" ? "" : op is "between" or "notBetween"
+            ? "「" + Str(rule, "from") + "」至「" + Str(rule, "to") + "」"
+            : op is "in" or "notIn" or FieldValueConditions.DayOfMonthIn or FieldValueConditions.DayOfMonthNotIn
+                ? "「" + string.Join("、", listValues) + "」"
+            : FieldValueConditions.IsContains(op) && listValues.Count > 0 ? "「" + string.Join("、", listValues) + "」"
+            : "「" + Str(rule, "value") + "」";
+        if (op is not "isBlank" and not "isNotBlank")
+            field += Str(rule, "amountBasis") switch { "absolute" => "絕對值", "signed" => "含正負號", _ => "" };
+        // 空白預設不列入（2026-09-04 裁定），與 GlRulePredicates.FieldValue 的預設一致。
+        var includeBlank = rule.TryGetProperty("includeBlank", out var blank) && blank.ValueKind == JsonValueKind.True;
+        var blankText = op is "isBlank" or "isNotBlank" ? "" : includeBlank ? "；空白也符合" : "；空白不列入";
+        return field + " " + opLabel + operand + blankText;
     }
 
     /// <summary>
@@ -355,7 +406,7 @@ public static class FilterConditionRenderer
             AccountPairModes.CreditAnchor => "貸方 " + credit,
             _ => "借方 " + debit + "・貸方 " + credit
         };
-        return "科目配對分析：" + FilterConditionLabels.AccountPairModeLabel(mode) + "（" + detail + "）";
+        return FilterConditionLabels.AccountCombinationPrefix + FilterConditionLabels.AccountPairModeLabel(mode) + "（" + detail + "）";
     }
 
     /// <summary>

@@ -699,6 +699,8 @@ public static partial class JetAuditProgram
         public string IntegerQuotient(string dividendExpression, string divisorExpression) =>
             $"{{dialect integer-quotient ({dividendExpression}) / ({divisorExpression})}}";
 
+        public string DayOfMonth(string dateExpr) => throw Unsupported();
+
         public string InfSampleOrderingKey(string sourceRowNumberExpression, string seedExpression) =>
             InfSamplingPrf.SqlOrderingKey(this, sourceRowNumberExpression, seedExpression);
 

@@ -89,10 +89,11 @@
   // 進階篩選的條件型別。label 逐鍵鏡像 Domain FilterConditionLabels.RuleTypes；
   // quickLabel、group、accountMappingRequirement 與 requiresRdeFields 是前端呈現／可用性 metadata。
   // accountMappingRequirement 逐條鏡像 target 內容資格，不以來源檔存在代替（權威驗證仍在後端）。
-  // group：依「審計員想問什麼」分組（FILTER_RULE_GROUPS）；UI 用它把快速加入鈕與型別下拉
-  // 分塊呈現（NN/g chunking）。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
-  // quickLabel：快速加入鈕的字（省略時用 label）；label 用於型別下拉。
+  // group 只剩 'kct' 有意義（風險樣態下拉的「KCT 專屬」分組）；其餘分組與 quickLabel 是舊挑選區的遺留 metadata，
+  // 2026-09-07 改版後畫面改用三個家族（filter-step 的 RULE_FAMILIES）。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
   var FILTER_RULE_TYPES = [
+    { value: 'fieldValue', label: '欄位值比較', quickLabel: '指定值與排除', group: 'field' },
+    { value: 'accountSide', label: '借貸科目分類', group: 'nature' },
     { value: 'prescreen', label: '預篩選', quickLabel: '選擇風險訊號', group: 'risk' },
     { value: 'text', label: '文字條件', group: 'field' },
     { value: 'textSet', label: '文字值清單', group: 'field' },
@@ -102,8 +103,10 @@
     { value: 'drCrOnly', label: '借貸限定', group: 'nature' },
     { value: 'manualAuto', label: '人工/自動', group: 'nature' },
     { value: 'customTrailingZeros', label: '自訂尾數位數', group: 'pattern' },
-    { value: 'accountPair', label: '科目配對分析', group: 'pattern', accountMappingRequirement: 'any' },
-    { value: 'specialAccountCategoryPair', label: '考量特殊科目類別配對', group: 'pattern', accountMappingRequirement: 'any' },
+    // 借貸科目組合：畫面上只有一張卡（specialAccountCategoryPair 為預設 wire 型別），五種白話模式跨兩個
+    // wire 型別（ACCOUNT_COMBINATION_OPTIONS）；accountPair 只在型別下拉與舊情境讀回出現，不進快速加入。
+    { value: 'accountPair', label: '借貸科目組合（看對方科目）', group: 'pattern', accountMappingRequirement: 'any', pickerHidden: true },
+    { value: 'specialAccountCategoryPair', label: '借貸科目組合', group: 'pattern', accountMappingRequirement: 'any' },
     { value: 'customPreparerEntryCount', label: '自訂編製人員張數', group: 'pattern' },
     { value: 'customAccountEntryCount', label: '自訂科目張數', group: 'pattern' },
     // 攸關資料元素條件：只在欄位配對已提交至少一個額外欄位時才可用（requiresRdeFields）。
@@ -119,16 +122,6 @@
 
   // 條件型別的分組（依審計意圖，非資料格式）。顯示順序即此陣列順序；
   // 每組約 3–4 項，讓使用者只看自己要的那一塊（NN/g chunking / progressive disclosure）。
-  // kct 仍保留在此：它是 rule-row 型別下拉的 optgroup（讓 KCT 面板帶入的條件仍可在 query-builder
-  // 內檢視/改型別）；但「快速加入」面板不再渲染 kct 分組（KCT 改由獨立的 FILTER_KCT_CHECKLIST
-  // 面板進入，單一入口），詳見 filter-step.customPickerHtml。
-  var FILTER_RULE_GROUPS = [
-    { key: 'risk', label: '風險預篩選訊號' },
-    { key: 'field', label: '依欄位內容' },
-    { key: 'nature', label: '依分錄性質' },
-    { key: 'pattern', label: '進階樣態分析' },
-    { key: 'kct', label: 'KCT條件' }
-  ];
 
   // KCT 小組「重用既有型別」的預設條件（清單 E/F/G/I）：點按鈕即帶入既有型別的預填規則，
   // 不另立 wire 型別（避免重複既有述詞，單一事實在後端述詞）。overrides 套在 newFilterRule 之上；
@@ -165,7 +158,7 @@
   // 不在此引入任何新 wire 型別／述詞；A/C/D/H/J 與 E/F/G/I 全部重用既有 type/preset。
   var FILTER_KCT_CHECKLIST = [
     { letter: 'A', kind: 'type', ref: 'revenueDebitNearQuarterEnd', label: '在該季度前 X 天借記收入的會計分錄' },
-    { letter: 'B', kind: 'type', ref: null, disabled: true, note: 'Phase 2 · 待 BS/IS',
+    { letter: 'B', kind: 'type', ref: null, disabled: true, note: '尚未支援此條件',
       label: '借記固定資產(PPE，不含在建)且貸記費用之分錄' },
     { letter: 'C', kind: 'type', ref: 'revenueWithoutNormalCounterpart', label: '貸方為收入但借方非一般對方科目之分錄' },
     { letter: 'D', kind: 'type', ref: 'manualRevenueEntry', label: '收入之人工分錄' },
@@ -227,18 +220,69 @@
 
   // 科目配對分析三模式（guide §6.1）。
   var ACCOUNT_PAIR_MODE_OPTIONS = [
-    { value: 'exact', label: '精確配對（借＋貸同傳票）' },
-    { value: 'debitAnchor', label: '借方錨定（看對方科目）' },
-    { value: 'creditAnchor', label: '貸方錨定（看對方科目）' }
+    { value: 'exact', label: '借方是 A 且貸方是 B' },
+    { value: 'debitAnchor', label: '借方是 A，看它的對方科目' },
+    { value: 'creditAnchor', label: '貸方是 B，看它的對方科目' }
+  ];
+
+  // 借貸科目組合卡的模式選單（前端呈現；wire 仍是 accountPair 與 specialAccountCategoryPair 兩型別）。
+  // accountPair exact 與 specialAccountCategoryPair drAndCr 述詞相同，新情境只用後者；exact 只給舊情境讀回。
+  var ACCOUNT_COMBINATION_OPTIONS = [
+    { type: 'specialAccountCategoryPair', mode: 'drAndCr', label: '借方是 A 且貸方是 B', hint: '同一張傳票同時有 A 借方與 B 貸方；輸出 A 借列與 B 貸列。' },
+    { type: 'specialAccountCategoryPair', mode: 'drNotCr', label: '借方是 A 且整張傳票沒有 B 貸方', hint: '輸出 A 借列。A、B 都選 Cash 就是「借現金、貸非現金」。' },
+    { type: 'specialAccountCategoryPair', mode: 'notDrCr', label: '貸方是 B 且整張傳票沒有 A 借方', hint: '輸出 B 貸列。A、B 都選 Cash 就是「貸現金、借非現金」。' },
+    { type: 'accountPair', mode: 'debitAnchor', label: '借方是 A，看它的對方科目', hint: '輸出 A 借列與同傳票所有貸方列。' },
+    { type: 'accountPair', mode: 'creditAnchor', label: '貸方是 B，看它的對方科目', hint: '輸出 B 貸列與同傳票所有借方列。' },
+    { type: 'accountPair', mode: 'exact', label: '借方是 A 且貸方是 B（舊格式）', hint: '同一張傳票同時有 A 借方與 B 貸方；結果列出符合的借方與貸方分錄。', legacy: true }
+  ];
+
+  // 常用情境範本（2026-09-04 裁定）：一鍵把草稿填成常見的審計問題，審計員再改數值或直接預覽。
+  // 純前端資料；規則形狀與快速加入相同，套用時走 filter-step 的 materializeRule，不打 KCT 標記。
+  // requires: 'accountMapping' 表示需要科目配對；'periodEnd' 表示套用時用查核截止日填日期。
+  var FILTER_SCENARIO_TEMPLATES = [
+    { key: 'cashDebitNonCashCredit', label: '借現金、貸非現金', requires: 'accountMapping',
+      rationale: '借方為現金，而整張傳票沒有貸方現金的分錄。',
+      groups: [{ join: 'AND', matchScope: 'row', rules: [
+        { type: 'specialAccountCategoryPair', pairMode: 'drNotCr', debitCategoryIds: ['builtin.cash'], creditCategoryIds: ['builtin.cash'] }] }] },
+    { key: 'cashCreditNonCashDebit', label: '貸現金、借非現金', requires: 'accountMapping',
+      rationale: '貸方為現金，而整張傳票沒有借方現金的分錄。',
+      groups: [{ join: 'AND', matchScope: 'row', rules: [
+        { type: 'specialAccountCategoryPair', pairMode: 'notDrCr', debitCategoryIds: ['builtin.cash'], creditCategoryIds: ['builtin.cash'] }] }] },
+    { key: 'nonBusinessDayExcludingDates', label: '非營業日且排除指定日期', kct: 'I',
+      rationale: '非營業日過帳的分錄，另排除個案已知的例外日期。',
+      groups: [{ join: 'AND', matchScope: 'row', rules: [
+        { type: 'fieldValue', field: 'postDate', operator: 'notIn', values: [], includeBlank: false, __valueType: 'date' }] }] },
+    { key: 'periodEndManual', label: '期末最後 7 天的人工分錄', requires: 'periodEnd',
+      rationale: '期末最後幾天入帳的人工分錄，容易用來調整期末數字。',
+      groups: [{ join: 'AND', matchScope: 'row', rules: [
+        { type: 'fieldValue', field: 'postDate', operator: 'between', from: '', to: '', values: [], includeBlank: false, __valueType: 'date', __periodEndDays: 7 },
+        { type: 'manualAuto', isManual: 'true' }] }] },
+    { key: 'blankDescriptionOrApprover', label: '空白摘要或空白核准人員',
+      rationale: '缺少說明或缺少核准人員的分錄。',
+      groups: [{ join: 'AND', matchScope: 'row', rules: [
+        { type: 'fieldValue', field: 'description', operator: 'isBlank', values: [], includeBlank: false, __valueType: 'text' },
+        { type: 'fieldValue', join: 'OR', field: 'approveBy', operator: 'isBlank', values: [], includeBlank: false, __valueType: 'text' }] }] },
+    { key: 'preparerLargeAmount', label: '特定人員的大額分錄',
+      rationale: '指定建立人員且金額超過門檻的分錄；人員與門檻請自行填入。',
+      groups: [{ join: 'AND', matchScope: 'row', rules: [
+        { type: 'fieldValue', field: 'createBy', operator: 'in', values: [], includeBlank: false, __valueType: 'text' },
+        { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '', values: [], includeBlank: false, amountBasis: 'absolute', __valueType: 'money' }] }] }
   ];
 
   // 特殊科目類別配對三模式（manifest specialAccountCategoryPair；A=借方類別、B=貸方類別）。
   // 三模式皆需 A 與 B 皆填（否定模式同樣需要 B/A 才能判定「不存在」），與 accountPair 的
   // 錨定模式不同——故各 case 一律呈現借/貸兩個 categorySelect。標籤明確標示 Dr/Cr 與否定語意。
   var SPECIAL_PAIR_MODE_OPTIONS = [
-    { value: 'drAndCr', label: 'Dr A、Cr B（借A貸B）' },
-    { value: 'drNotCr', label: 'Dr A、Cr 非 B（借A、貸方無B）' },
-    { value: 'notDrCr', label: 'Dr 非 A、Cr B（貸B、借方無A）' }
+    { value: 'drAndCr', label: '借方是 A 且貸方是 B' },
+    { value: 'drNotCr', label: '借方是 A 且整張傳票沒有 B 貸方' },
+    { value: 'notDrCr', label: '貸方是 B 且整張傳票沒有 A 借方' }
+  ];
+
+  // 借貸科目分類（accountSide）三模式（兩值語意，2026-09-07 裁定）。標籤鏡像 Domain FilterConditionLabels。
+  var ACCOUNT_SIDE_MODE_OPTIONS = [
+    { value: 'is', label: '科目屬於指定分類' },
+    { value: 'isNot', label: '科目不屬於指定分類' },
+    { value: 'absent', label: '整張傳票的這一側都不屬於指定分類' }
   ];
 
   // 科目配對單側多選分類的讀回分隔字元。正本是 Domain FilterConditionLabels.CategoryListSeparator，
@@ -649,10 +693,120 @@
 
   // columns 精確來自後端（{ key, label, valueType, isCustom }）：前端不推導欄序、不補欄、不改名。
   function dynamicColumnHeadHtml(columns) {
-    return '<tr>' + (columns || []).map(function (col) {
-      return '<th' + (col.isCustom ? ' class="preview-table__custom"' : '') + '>' +
-        esc(col.label) + '</th>';
-    }).join('') + '</tr>';
+    // 後端在欄位定義標 sortable 的固定欄可點排序；額外欄位只顯示。
+    return '<tr>' + sortableHeadCellsHtml(null, (columns || []).map(function (col) {
+      return { key: col.sortable ? col.key : null, label: col.label, className: col.isCustom ? 'preview-table__custom' : '' };
+    })) + '</tr>';
+  }
+
+  // 明細表表頭：有 key 的欄變成可點排序的按鈕（aria-sort 標示目前方向）。呼叫端把 action 名稱與鍵名寫死在同一個
+  // 呼叫裡，Architecture 守衛核對鍵名都在後端該查詢的白名單內；action 只供守衛對照，不參與渲染。
+  function sortableHeadCellsHtml(action, columns) {
+    return (columns || []).map(function (col) {
+      var cls = col.className ? ' class="' + esc(col.className) + '"' : '';
+      if (!col.key) { return '<th' + cls + '>' + esc(col.label) + '</th>'; }
+      return '<th' + cls + ' data-sort-key="' + esc(col.key) + '" aria-sort="none">' +
+        '<button type="button" class="th-sort" data-sort-key="' + esc(col.key) + '" title="點一下排序，再點一下反向">' +
+        esc(col.label) + '<span class="th-sort__mark" aria-hidden="true"></span></button></th>';
+    }).join('');
+  }
+
+  // 「依傳票號碼查看」或「依科目編號查看」：送出後從第一頁重載，只在資料庫端比對，不在畫面過濾。
+  function pageSearchHtml(label) {
+    return '<form class="page-search" data-page-search>' +
+      '<label class="page-search__label"><span>' + esc(label) + '</span>' +
+        '<input type="search" class="page-search__input" data-page-search-input maxlength="200" placeholder="輸入一部分即可"></label>' +
+      '<button type="submit" class="btn btn--ghost btn--tiny">查看</button>' +
+      '<button type="button" class="btn btn--ghost btn--tiny" data-page-search-clear hidden>清除</button>' +
+    '</form>';
+  }
+
+  // 可排序、可搜尋的分頁表。狀態只有游標、排序與搜尋文字；換排序或搜尋就清掉列從第一頁重載，
+  // 「載入更多」接續同一個排序與搜尋。首擊（或第一次重載）先清掉呼叫端放的首屏預覽列，避免兩套順序混排。
+  // opts: fetchPage(cursor, sort, search) → Promise({ rows, nextCursor })、appendRows(rows)、clearRows()、
+  //       loadMore（按鈕，可為 null）、table（含 th[data-sort-key] 的表）、search（pageSearchHtml 的表單，可為 null）、
+  //       autoLoad（掛上就載入第一頁）。
+  function bindPagedTable(root, opts) {
+    var state = { cursor: null, sort: null, search: '', started: false, busy: false };
+    var loadMore = opts.loadMore || null;
+    var table = opts.table || null;
+    var form = opts.search || null;
+
+    // 表頭可能在首擊後才由系統端欄位定義重建，所以排序標記每次載入後重新套，點擊用事件委派。
+    function applySortMarks() {
+      if (!table) { return; }
+      table.querySelectorAll('th[data-sort-key]').forEach(function (th) {
+        var key = th.getAttribute('data-sort-key');
+        th.setAttribute('aria-sort', state.sort && state.sort.key === key
+          ? (state.sort.direction === 'asc' ? 'ascending' : 'descending') : 'none');
+      });
+    }
+
+    var input = form ? form.querySelector('[data-page-search-input]') : null;
+    var clear = form ? form.querySelector('[data-page-search-clear]') : null;
+    function applySearchBox() {
+      if (input) { input.value = state.search || ''; }
+      if (clear) { clear.hidden = !state.search; }
+    }
+
+    // 重載失敗時把排序與搜尋退回上一次成功的狀態：表格裡還是舊列，表頭與輸入框不能宣稱新的排序或搜尋。
+    function fetch(reset, label, previous) {
+      if (state.busy) { return Promise.resolve(); }
+      state.busy = true;
+      var prev = loadMore ? loadMore.textContent : '';
+      if (loadMore) { loadMore.disabled = true; loadMore.textContent = '載入中…'; }
+      // Only explicitly read-only tables may refresh while another operation owns the busy overlay.
+      var execute = opts.background ? runBackground : run;
+      return execute(label, function () {
+        return opts.fetchPage(reset ? null : state.cursor, state.sort, state.search).then(function (data) {
+          if (reset || !state.started) { opts.clearRows(); state.started = true; }
+          opts.appendRows((data && data.rows) || []);
+          applySortMarks();
+          state.cursor = data ? data.nextCursor : null;
+          if (loadMore) { loadMore.hidden = state.cursor == null; loadMore.disabled = false; loadMore.textContent = prev; }
+        }).catch(function (error) {
+          if (previous) { state.sort = previous.sort; state.search = previous.search; applySortMarks(); applySearchBox(); }
+          if (loadMore) { loadMore.disabled = false; loadMore.textContent = prev; }
+          throw error;
+        }).finally(function () { state.busy = false; });
+      });
+    }
+    function snapshot() { return { sort: state.sort, search: state.search }; }
+
+    if (loadMore) { loadMore.addEventListener('click', function () { fetch(false, '載入更多'); }); }
+    if (table) {
+      table.addEventListener('click', function (event) {
+        var button = event.target && event.target.closest ? event.target.closest('.th-sort') : null;
+        if (!button || !table.contains(button) || state.busy) { return; }
+        var previous = snapshot();
+        var key = button.getAttribute('data-sort-key');
+        var direction = state.sort && state.sort.key === key && state.sort.direction === 'asc' ? 'desc' : 'asc';
+        state.sort = { key: key, direction: direction };
+        applySortMarks();
+        fetch(true, '重新排序明細', previous);
+      });
+    }
+    if (form) {
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        if (state.busy) { return; }
+        var previous = snapshot();
+        state.search = (input && input.value ? input.value : '').trim();
+        applySearchBox();
+        fetch(true, '依號碼查看明細', previous);
+      });
+      if (clear) {
+        clear.addEventListener('click', function () {
+          if (state.busy) { return; }
+          var previous = snapshot();
+          state.search = '';
+          applySearchBox();
+          fetch(true, '依號碼查看明細', previous);
+        });
+      }
+    }
+    if (opts.autoLoad) { fetch(true, '載入明細'); }
+    return { reload: function () { return fetch(true, '載入明細'); } };
   }
 
   // 單格顯示：custom 欄一律讀 row.customValues[key]（key set 精確等於 custom columns，
@@ -1204,7 +1358,8 @@
     if (!isLast) {
       var nextLabel = steps[index + 1].label;
       var gate = stepGate(state, index + 1);
-      statusHtml = gate.ok
+      // 第五步的未完成原因已集中在步驟標題下方，頁尾不重複列出；下一步限制維持原判定。
+      statusHtml = gate.ok || steps[index].id === 'filter'
         ? ''
         : '<p class="step-footer__hint">前往「' + nextLabel + '」前需要：' +
             esc(gate.missing.join('、')) + '。</p>';
@@ -1277,7 +1432,19 @@
     }).filter(Boolean);
   }
 
-  function reportArtifactListHtml(artifacts, emptyText) {
+  function reportArtifactHistory(state, kind) {
+    // 索引由舊到新追加；產生時間相同時，較晚追加的版本仍排在上面。
+    return (state.reportArtifacts || []).map(function (artifact, index) {
+      return { artifact: artifact, index: index };
+    }).filter(function (item) { return item.artifact && item.artifact.kind === kind; })
+      .sort(function (left, right) {
+        var leftTime = new Date(left.artifact.generatedUtc).getTime() || 0;
+        var rightTime = new Date(right.artifact.generatedUtc).getTime() || 0;
+        return rightTime - leftTime || right.index - left.index;
+      }).map(function (item) { return item.artifact; });
+  }
+
+  function reportArtifactListHtml(artifacts, emptyText, options) {
     var list = artifacts || [];
     if (list.length === 0) {
       return '<p class="report-artifacts__empty">' + esc(emptyText || '尚未產生報告。') + '</p>';
@@ -1295,13 +1462,19 @@
         ? '已在 JET 之外修改'
         : (artifact.fileState === 'missing' ? '檔案不存在，重新匯出即可' : '');
       return (
-        '<div class="report-artifact">' +
+        '<div class="report-artifact" data-artifact-id="' + esc(artifact.artifactId) + '">' +
           '<span class="report-artifact__copy">' +
             '<span class="report-artifact__name">' + esc(artifact.fileName || '未命名報告') + '</span>' +
             '<span class="report-artifact__meta">' + esc(generatedText) + ' · ' + esc(bytesText) +
               (fileStateText ? ' · <span class="report-artifact__state">' + esc(fileStateText) + '</span>' : '') +
+              (options && options.history && artifact.stale
+                ? ' · <span class="report-artifact__validity">先前資料或條件的版本</span>' : '') +
             '</span>' +
           '</span>' +
+          (options && options.reveal
+            ? '<button type="button" class="btn btn--ghost btn--tiny" data-open-artifact="' +
+              esc(artifact.artifactId) + '"' + (artifact.fileState === 'missing' ? ' disabled' : '') +
+              '>在資料夾中顯示</button>' : '') +
         '</div>'
       );
     }).join('') + '</div>';
@@ -1312,7 +1485,14 @@
   // 把 previewRows 陣列轉成 <table class="preview-table"> 的完整標記。
   // 欄位順序：傳票號碼、項次、總帳日期、科目（代碼＋名稱）、摘要、金額、借貸。
   // 供 filter-step 與 validate-step 共用；呼叫端自行包 <div class="preview-table__wrap">。
-  function previewTableHtml(previewRows) {
+  // sortAction 有值時表頭可點排序（鍵名對齊該查詢的 wire row），供預篩選命中表；預覽列表不排序時省略。
+  function previewTableHtml(previewRows, sortAction) {
+    var head = sortAction === 'query.prescreenPage'
+      ? sortableHeadCellsHtml('query.prescreenPage', [
+          { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳日期' },
+          { key: 'accountCode', label: '科目' }, { key: 'documentDescription', label: '摘要' }, { key: 'amount', label: '金額' },
+          { key: 'drCr', label: '借貸' }])
+      : '<th>傳票號碼</th><th>項次</th><th>總帳日期</th><th>科目</th><th>摘要</th><th>金額</th><th>借貸</th>';
     var rows = (previewRows || []).map(function (r) {
       return (
         '<tr>' +
@@ -1329,8 +1509,7 @@
 
     return (
       '<table class="preview-table">' +
-        '<thead><tr><th>傳票號碼</th><th>項次</th><th>總帳日期</th><th>科目</th><th>摘要</th>' +
-          '<th>金額</th><th>借貸</th></tr></thead>' +
+        '<thead><tr>' + head + '</tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>'
     );
@@ -1339,6 +1518,8 @@
   // 建立一條篩選規則的預設值物件（純資料，無 Store/Ui 依賴）。
   // 供 filter-step 的「快速加入」與型別切換，以及 validate-step 的預篩選預覽 scenario builder 共用。
   function newFilterRule(type) {
+    if (type === 'fieldValue') { return { type: type, join: 'AND', field: 'postDate', operator: 'in', values: [], includeBlank: false }; }
+    if (type === 'accountSide') { return { type: type, join: 'AND', drCr: 'debit', categoryMode: 'is', categoryIds: ['builtin.cash'] }; }
     return {
       join: 'AND',
       type: type,
@@ -1459,7 +1640,6 @@
     GL_MODES: GL_MODES,
     TB_MODES: TB_MODES,
     FILTER_RULE_TYPES: FILTER_RULE_TYPES,
-    FILTER_RULE_GROUPS: FILTER_RULE_GROUPS,
     FILTER_KCT_PRESETS: FILTER_KCT_PRESETS,
     FILTER_KCT_ATOM_LABELS: FILTER_KCT_ATOM_LABELS,
     FILTER_KCT_CHECKLIST: FILTER_KCT_CHECKLIST,
@@ -1468,6 +1648,9 @@
     prescreenPositioningCopy: prescreenPositioningCopy,
     ACCOUNT_PAIR_MODE_OPTIONS: ACCOUNT_PAIR_MODE_OPTIONS,
     SPECIAL_PAIR_MODE_OPTIONS: SPECIAL_PAIR_MODE_OPTIONS,
+    ACCOUNT_SIDE_MODE_OPTIONS: ACCOUNT_SIDE_MODE_OPTIONS,
+    ACCOUNT_COMBINATION_OPTIONS: ACCOUNT_COMBINATION_OPTIONS,
+    FILTER_SCENARIO_TEMPLATES: FILTER_SCENARIO_TEMPLATES,
     FILTER_CATEGORY_LIST_SEPARATOR: FILTER_CATEGORY_LIST_SEPARATOR,
     TEXT_MODE_OPTIONS: TEXT_MODE_OPTIONS,
     FILTER_MATCH_SCOPE_OPTIONS: FILTER_MATCH_SCOPE_OPTIONS,
@@ -1499,6 +1682,9 @@
     rdeFieldLabel: rdeFieldLabel,
     dynamicColumnCells: dynamicColumnCells,
     dynamicColumnHeadHtml: dynamicColumnHeadHtml,
+    sortableHeadCellsHtml: sortableHeadCellsHtml,
+    pageSearchHtml: pageSearchHtml,
+    bindPagedTable: bindPagedTable,
     staleNoticeHtml: staleNoticeHtml,
     mappingReviewBannerHtml: mappingReviewBannerHtml,
     // DOM / 執行輔助
@@ -1542,6 +1728,7 @@
     reportArtifactMatches: reportArtifactMatches,
     findCurrentReportArtifact: findCurrentReportArtifact,
     currentReportArtifacts: currentReportArtifacts,
+    reportArtifactHistory: reportArtifactHistory,
     reportArtifactListHtml: reportArtifactListHtml,
     bindLoadMore: bindLoadMore,
     appendRowsToTbody: appendRowsToTbody

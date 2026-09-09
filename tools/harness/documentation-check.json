@@ -34,7 +34,8 @@
     "docs/specs/2026-08-28-harness-rebuild-plan.md",
     "docs/specs/2026-08-29-agent-governance-and-context-plan.md",
     "docs/specs/2026-08-30-repository-consolidation-plan.md",
-    "docs/history/README.md"
+    "docs/history/README.md",
+    "docs/specs/2026-09-06-filter-workflow-correction-plan.md"
   ],
   "forbiddenClaims": [
     {

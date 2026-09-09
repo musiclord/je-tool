@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/stryker-mutator/stryker-net",
+  "revision": "30005a2f52c53ac2b0de49a90145f326ea43d675",
+  "archiveUrl": "https://codeload.github.com/stryker-mutator/stryker-net/zip/30005a2f52c53ac2b0de49a90145f326ea43d675",
+  "archiveSha256": "8facbc054f07656db6cd105c97b2f81a820c3b415ade7eddf0c19a189e0dcc51",
+  "archiveMaximumBytes": 33554432,
+  "expandedMaximumBytes": 134217728,
+  "patchVersion": 3,
+  "patchReasons": [
+    "Pass the fixed MTP class and excluded profiles at server startup; validate discovered and executed UIDs.",
+    "Select the complete authorized source file before orchestration. Keep unselected trees unchanged in the product compilation; upstream issues #3573 and #962 describe the late filter. Do not alter generic mutators or result classification.",
+    "Align Microsoft.CodeAnalysis.VisualBasic with Common 5.9.0 and update System.Security.Cryptography.Xml and Pkcs to 9.0.18 for GHSA-23rf-6693-g89p. Preserve NuGetAudit and formal locked restore; the nine-lock overlay comes from a real tool-only restore."
+  ],
+  "dependencyOverrides": {
+    "Microsoft.CodeAnalysis.VisualBasic": "5.9.0",
+    "System.Security.Cryptography.Xml": "9.0.18",
+    "System.Security.Cryptography.Pkcs": "9.0.18"
+  },
+  "dependencyOverlaySha256": "0781e818de244bf95323a791af91be03e9c69d1e1046420b1af57ce8deadd533",
+  "targetFramework": "net10.0",
+  "cliProject": "src/Stryker.CLI/Stryker.CLI/Stryker.CLI.csproj"
+}

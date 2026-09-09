@@ -42,4 +42,31 @@ public sealed class DiagnosticNdjsonTests
         Assert.False(doc.RootElement.TryGetProperty("transactionId", out _)); // null 省略
         Assert.True(doc.RootElement.TryGetProperty("correlationId", out _));  // 非 null 保留
     }
+
+    [Fact]
+    public void SerializeLine_DeveloperAndSupport_PreserveTheirExistingEscapingAndPrivacy()
+    {
+        const string message = "中文 <tag>&\nnext";
+        var developer = SampleEntry() with { Message = message };
+        var support = new SupportDiagnosticLogEntry(
+            developer.Timestamp, developer.Level, developer.Category, developer.EventName,
+            message, developer.CorrelationId, "internal-project", developer.Fields, null);
+
+        var developerLine = DiagnosticNdjson.SerializeLine(developer);
+        var supportLine = SupportDiagnosticNdjson.SerializeLine(support);
+        var metadataLine = SupportDiagnosticNdjson.SerializeObject(new { Message = message, Empty = (string?)null });
+
+        Assert.Contains(@"\u4E2D\u6587 \u003Ctag\u003E\u0026\nnext", developerLine, StringComparison.Ordinal);
+        Assert.DoesNotContain("中文", developerLine, StringComparison.Ordinal);
+        foreach (var line in new[] { supportLine, metadataLine })
+        {
+            Assert.Contains("中文 <tag>&\\nnext", line, StringComparison.Ordinal);
+            Assert.DoesNotContain('\n', line);
+            using var json = JsonDocument.Parse(line);
+            Assert.Equal(message, json.RootElement.GetProperty("message").GetString());
+            Assert.False(json.RootElement.TryGetProperty("empty", out _));
+            Assert.False(json.RootElement.TryGetProperty("exception", out _));
+        }
+        Assert.DoesNotContain("internal-project", supportLine, StringComparison.Ordinal);
+    }
 }

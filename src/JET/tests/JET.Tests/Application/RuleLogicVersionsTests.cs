@@ -8,11 +8,22 @@ namespace JET.Tests.Application;
 public sealed class RuleLogicVersionsTests
 {
     [Fact]
+    public void BeforeUnicodeCaseFix_SavedFilterAndPrescreenResultsAreStale()
+    {
+        var saved = new SavedFilterScenario(1, "舊文字條件", "合成測試", """
+            {"populationScope":"auditPeriod","logicVersion":"filter-2026-09-07-v12","groups":[]}
+            """, DateTimeOffset.UnixEpoch);
+        Assert.False(RuleLogicVersions.IsCurrent(saved));
+        var summary = """{"resultRef":{"logicVersion":"prescreen-2026-08-14-v6"}}""";
+        Assert.False(RuleLogicVersions.IsCurrent(new RuleRunRecord("old", RuleRunKinds.Prescreen, DateTimeOffset.UnixEpoch, summary)));
+    }
+
+    [Fact]
     public void ValidationAndFormalReportIntegration_AdvancesAllAffectedVersions()
     {
         Assert.Equal("validation-2026-08-14-v4", RuleLogicVersions.Validation);
-        Assert.Equal("prescreen-2026-08-14-v6", RuleLogicVersions.Prescreen);
-        Assert.Equal("filter-2026-08-14-v10", RuleLogicVersions.Filter);
+        Assert.Equal("prescreen-2026-09-08-v7", RuleLogicVersions.Prescreen);
+        Assert.Equal("filter-2026-09-08-v13", RuleLogicVersions.Filter);
     }
 
     [Fact]

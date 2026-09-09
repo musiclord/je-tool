@@ -173,4 +173,33 @@ public sealed class KctFilterPredicateTests : IDisposable
     }
 
     public void Dispose() => _root.Dispose();
+
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task AutonomousAudit_KctBoundariesExecuteOnBothLocalDatabases(string provider)
+    {
+        await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);
+        (FilterRuleSpec Rule, string[] Documents)[] cases =
+        [
+            (Rule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 1), []),
+            (Rule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 2), ["K01"]),
+            (Rule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 3), ["K01"]),
+            (Rule(FilterRuleType.RevenueWithoutNormalCounterpart), ["K04"]),
+            (Rule(FilterRuleType.ManualRevenueEntry), ["K02"]),
+            (Rule(FilterRuleType.TrailingDigits, keywords: ["999999"]), ["K06"]),
+            (Rule(FilterRuleType.TrailingDigits, keywords: ["000000"]), ["K07"]),
+            (Rule(FilterRuleType.TrailingDigits, keywords: ["999999","000000"]), ["K06","K07"]),
+            (Rule(FilterRuleType.TrailingDigits, keywords: ["000039"]), []),
+            (Rule(FilterRuleType.TrailingDigits, keywords: ["0"]), ["K01","K02","K03","K04","K05","K07","K08"]),
+            (Rule(FilterRuleType.TrailingDigits, keywords: ["9"]), ["K06","K09"]),
+            (Rule(FilterRuleType.PreparerEqualsApprover), ["K01","K04"])
+        ];
+        foreach (var c in cases)
+        {
+            var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, SingleRule(c.Rule), Context, CancellationToken.None);
+            Assert.Equal(c.Documents, result.PreviewRows.Select(r=>r.DocumentNumber).Distinct().Order());
+            Assert.Equal(c.Documents.Length, result.VoucherCount);
+        }
+    }
 }

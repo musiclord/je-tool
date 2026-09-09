@@ -67,7 +67,7 @@ public sealed class SupportLogExportHandler(
             projectLocator,
             document.ProjectId,
             "JET-support",
-            ToAsyncLines(lines),
+            ProjectLogFileWriter.ToAsyncLines(lines),
             cancellationToken).ConfigureAwait(false);
 
         return new
@@ -76,18 +76,6 @@ public sealed class SupportLogExportHandler(
             lineCount = lines.Length,
             scope = string.IsNullOrWhiteSpace(correlationId) ? "project" : "correlation",
         };
-    }
-
-    private static async IAsyncEnumerable<string> ToAsyncLines(
-        IEnumerable<string> lines,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        foreach (var line in lines)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return line;
-            await Task.Yield();
-        }
     }
 
     private static string BuildConfiguration()
@@ -184,7 +172,7 @@ public sealed class DevLogExportFileHandler(
                 projectLocator,
                 document.ProjectId,
                 "JET-dev-log",
-                ToAsyncLines(lines, cancellationToken),
+                ProjectLogFileWriter.ToAsyncLines(lines, cancellationToken),
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -246,8 +234,11 @@ public sealed class DevLogExportFileHandler(
         => string.Equals(entryProjectId, projectId, StringComparison.OrdinalIgnoreCase)
             || (!string.IsNullOrWhiteSpace(correlationId)
                 && string.Equals(entryCorrelationId, correlationId, StringComparison.Ordinal));
+}
 
-    private static async IAsyncEnumerable<string> ToAsyncLines(
+internal static class ProjectLogFileWriter
+{
+    public static async IAsyncEnumerable<string> ToAsyncLines(
         IEnumerable<string> lines,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -258,10 +249,7 @@ public sealed class DevLogExportFileHandler(
             await Task.Yield();
         }
     }
-}
 
-internal static class ProjectLogFileWriter
-{
     public static async Task<string> WriteAsync(
         IProjectExportLocator projectLocator,
         string projectId,
@@ -336,16 +324,6 @@ internal static class ProjectLogFileWriter
 
             File.Move(temporaryPath, destinationPath);
             return destinationPath;
-        }
-        catch (OperationCanceledException)
-        {
-            DeleteTemporaryBestEffort(temporaryPath);
-            throw;
-        }
-        catch (JetActionException)
-        {
-            DeleteTemporaryBestEffort(temporaryPath);
-            throw;
         }
         catch (Exception exception) when (
             !sourceFaulted

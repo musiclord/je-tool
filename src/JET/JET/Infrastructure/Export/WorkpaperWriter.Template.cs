@@ -488,8 +488,8 @@ public sealed partial class WorkpaperWriter
                 [(1U, 1U), (2U, 1U), (51U, 12U)],
                 WorkpaperSourceProtection),
             WorkpaperSheetCatalog.Step3 => RowsAndCells(
-                row => row is >= 19 and <= 28,
-                (row, column) => row is >= 19 and <= 28 && column is >= 2 and <= 5,
+                row => row >= 19,
+                (row, column) => row >= 19 && column is >= 2 and <= 5,
                 [(1U, 1U), (2U, 1U), (7U, 2U), (9U, 2U)],
                 sourcePostElements: null),
             WorkpaperSheetCatalog.Step4 => RowsAndCells(

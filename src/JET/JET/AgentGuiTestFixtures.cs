@@ -43,6 +43,9 @@ internal sealed class AgentGuiTestFixtures
         "seed-edited-report-project";
     internal const string SeedMappingReadyProjectId =
         "seed-mapping-ready-project";
+    internal const string FillTemplateAfterAutoExportId = "fill-template-after-auto-export";
+    internal const string MinimumWindow125Id = "minimum-window-125";
+    internal const string LegacyKctScenarioId = "legacy-kct-scenario";
     internal const int MaximumFixtureCount = 3;
     internal const string TraceFileName = "agent-gui-fixtures.ndjson";
 
@@ -133,7 +136,10 @@ internal sealed class AgentGuiTestFixtures
             or SeedStaleArtifactProjectId
             or SeedSixStageCompleteProjectId
             or SeedEditedReportProjectId
-            or SeedMappingReadyProjectId;
+            or SeedMappingReadyProjectId
+            or FillTemplateAfterAutoExportId
+            or MinimumWindow125Id
+            or LegacyKctScenarioId;
 
     /// <summary>
     /// 建立 GUI 驗證所需的封閉、確定性專案。fixture 不接收 action、路徑或資料參數；
@@ -257,6 +263,12 @@ internal sealed class AgentGuiTestFixtures
             await CommitMappingsAsync(dispatcher, activeDemo, cancellationToken).ConfigureAwait(false);
             var validation = await DispatchAsync(
                 dispatcher, "validate.run", new { }, cancellationToken).ConfigureAwait(false);
+            if (IsEnabled(LegacyKctScenarioId))
+                await DispatchAsync(dispatcher, "filter.commit", new
+                {
+                    scenarios = new[] { new { source = "kct", name = "LEGACY-KCT", rationale = "Synthetic legacy source",
+                        groups = new[] { new { rules = new[] { new { type = "prescreen", prescreenKey = "blankDescription" } } } } } }
+                }, cancellationToken).ConfigureAwait(false);
             if (seed.CompleteLifecycle)
             {
                 await SeedCompletedReportChainAsync(
@@ -500,10 +512,33 @@ internal sealed class AgentGuiTestFixtures
         var projectDirectory = folder.GetProjectDirectory(projectId);
         var workingPaper = Directory.GetFiles(projectDirectory, "*_WorkingPaper_*.xlsx").Single();
         await File.AppendAllTextAsync(workingPaper, "edited outside JET", cancellationToken).ConfigureAwait(false);
+        var store = new ProjectReportArtifactStore(folder);
+        var original = (await store.ListAsync(projectId, cancellationToken).ConfigureAwait(false))
+            .Single(artifact => artifact.Kind == ReportArtifactKind.WorkingPaper);
+        var missing = await store.WriteAsync(projectId, new ReportArtifactWriteRequest(
+            ReportArtifactKind.WorkingPaper, original.SourceRef,
+            (stream, ct) => stream.WriteAsync(new byte[] { 1 }, ct).AsTask()), cancellationToken).ConfigureAwait(false);
+        File.Delete(Path.Combine(projectDirectory, missing.RelativeFileName));
+        // Only metadata and one-byte temporary stand-ins are needed for pagination; no extra workbook generation.
+        for (var index = 0; index < 50; index++)
+        {
+            var historicalStore = new ProjectReportArtifactStore(folder,
+                new HistoryFixtureTimeProvider(original.GeneratedUtc.AddDays(-1).AddMinutes(index)));
+            var historical = await historicalStore.WriteAsync(projectId, new ReportArtifactWriteRequest(
+                ReportArtifactKind.WorkingPaper, original.SourceRef,
+                (stream, ct) => stream.WriteAsync(new byte[] { 1 }, ct).AsTask()), cancellationToken).ConfigureAwait(false);
+            File.Delete(Path.Combine(projectDirectory, historical.RelativeFileName));
+        }
+        await store.MarkStaleAsync(projectId, ReportArtifactKind.WorkingPaper, cancellationToken).ConfigureAwait(false);
         await File.WriteAllTextAsync(
             Path.Combine(projectDirectory, ProjectReportArtifactStore.JournalFileName),
             """{ "formatVersion": 1, "operation": "writeBatch" }""",
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private sealed class HistoryFixtureTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     private sealed record ProjectSeedDefinition(
@@ -613,6 +648,11 @@ internal sealed class AgentGuiTestFixtures
     internal IApplicationActionHandler DecorateExportAction(
         IApplicationActionHandler handler)
     {
+        if (IsEnabled(FillTemplateAfterAutoExportId)
+            && handler.Action.Equals(AccountMappingExportAction, StringComparison.Ordinal))
+        {
+            handler = new AutomaticTemplateFixtureHandler(handler, this);
+        }
         if (!IsEnabled(DelayExportProgressOnceId)
             || !handler.Action.Equals(AccountMappingExportAction, StringComparison.Ordinal))
         {
@@ -620,6 +660,56 @@ internal sealed class AgentGuiTestFixtures
         }
 
         return new ExportActionFixtureHandler(handler, this);
+    }
+
+
+    private sealed class AutomaticTemplateFixtureHandler(
+        IApplicationActionHandler inner, AgentGuiTestFixtures fixtures) : IApplicationActionHandler
+    {
+        private byte[]? _filledTemplate;
+        public string Action => AccountMappingExportAction;
+
+        public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+        {
+            if (!payload.TryGetProperty("onlyIfMissing", out var onlyIfMissing)
+                || onlyIfMissing.ValueKind != JsonValueKind.True)
+            {
+                throw new InvalidOperationException("Automatic template GUI fixture requires the UI's preserve-existing request.");
+            }
+            var response = await inner.HandleAsync(payload, cancellationToken).ConfigureAwait(false);
+            var data = JsonSerializer.SerializeToElement(response);
+            var path = data.GetProperty("filePath").GetString()!;
+            var expectedDirectory = Path.Combine(fixtures._projectsRootPath, "agent-gui-mapping-ready");
+            if (!string.Equals(Path.GetDirectoryName(Path.GetFullPath(path)), expectedDirectory,
+                    StringComparison.OrdinalIgnoreCase) || new FileInfo(path).Length > 1_048_576)
+            {
+                throw new InvalidOperationException("Automatic template GUI fixture received an unexpected file.");
+            }
+            if (_filledTemplate is null)
+            {
+                if (data.GetProperty("disposition").GetString() != "created")
+                {
+                    throw new InvalidOperationException("Automatic template GUI fixture did not create the first template.");
+                }
+                using (var workbook = new XLWorkbook(path))
+                {
+                    workbook.Worksheet("AccountMapping").Cell(4, 3).Value = AccountMappingCategories.All[0];
+                    workbook.Save();
+                }
+                _filledTemplate = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+                fixtures._trace.Write(FillTemplateAfterAutoExportId, "template.filled");
+            }
+            else
+            {
+                var actual = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+                if (data.GetProperty("disposition").GetString() != "kept" || !_filledTemplate.AsSpan().SequenceEqual(actual))
+                {
+                    throw new InvalidOperationException("Automatic template GUI fixture replaced the filled workbook.");
+                }
+                fixtures._trace.Write(FillTemplateAfterAutoExportId, "template.preserved");
+            }
+            return response;
+        }
     }
 
     private bool IsEnabled(string fixtureId) => _fixtureIds.Contains(fixtureId);

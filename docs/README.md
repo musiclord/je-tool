@@ -1,6 +1,6 @@
 # JET 文件導覽
 
-更新日期：2026-09-01
+更新日期：2026-09-05
 
 這裡把現況、操作、技術參考與歷史分開。一般閱讀先看現行文件；只有需要追查設計來源時才進入
 [`history/`](history/README.md) 或 [`../legacy/`](../legacy/README.md)。
@@ -20,7 +20,7 @@
 | Copilot、Claude、Codex 與 VS Code 如何共用規則，以及 Claude Code 的攔截層與 hook | [`agent-compatibility.md`](agent-compatibility.md) |
 | 新驗證框架的責任、資料與判定界線 | [`harness.md`](harness.md) |
 | 驗證框架的重建階段與完成紀錄 | [`specs/2026-08-28-harness-rebuild-plan.md`](specs/2026-08-28-harness-rebuild-plan.md) |
-| 目前的大型計畫：儲存庫收斂與 Agent 工具層 | [`specs/2026-08-30-repository-consolidation-plan.md`](specs/2026-08-30-repository-consolidation-plan.md) |
+| 目前的大型計畫與驗收狀態 | [`development-status.md`](development-status.md) 的「目前大型計畫」 |
 | 畫面結構與六個操作步驟 | [`jet-frontend-description.md`](jet-frontend-description.md) |
 | 前端與 C# 之間的 action 通道 | [`action-contract-manifest.md`](action-contract-manifest.md) |
 | `data/`、程式隨附範本與 `legacy/` 的分工 | [`data-and-legacy.md`](data-and-legacy.md) |

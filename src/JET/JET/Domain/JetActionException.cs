@@ -16,7 +16,16 @@ public sealed class JetActionException(
     /// 只有錯誤能由後端明確歸屬到 payload 欄位時才提供；前端不得由 code 或訊息推測。
     /// </summary>
     public string? Field { get; } = field;
+
+    /// <summary>
+    /// 逐條錯誤與其在情境裡的位置（第幾組、第幾條）；只有 <c>invalid_scenario</c> 這類能歸屬到條件列的錯誤才提供。
+    /// 前端用它把該列標紅並就地說原因，沒有時維持整段訊息。
+    /// </summary>
+    public IReadOnlyList<JetErrorDetail>? Details { get; init; }
 }
+
+/// <summary>一條可歸屬位置的錯誤；Group 與 Rule 從 1 起算，無法歸屬時為 null。</summary>
+public sealed record JetErrorDetail(int? Group, int? Rule, string Message);
 
 /// <summary>可跨 bridge 使用的結構化錯誤欄位名稱。</summary>
 public static class JetErrorFields

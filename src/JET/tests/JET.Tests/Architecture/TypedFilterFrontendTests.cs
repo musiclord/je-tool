@@ -97,7 +97,7 @@ public sealed class TypedFilterFrontendTests
         Assert.Contains("if (carrier === 'range') { wire.from = clean.from; wire.to = clean.to; }", projection, StringComparison.Ordinal);
         Assert.Contains("if (carrier === 'set') { wire.values = (clean.values || []).slice(); }", projection, StringComparison.Ordinal);
         Assert.Contains(
-            "carrier !== 'none' && rdeFieldValueType(clean.fieldId) === 'money'",
+            "if (rdeFieldValueType(clean.fieldId) === 'money')",
             projection,
             StringComparison.Ordinal);
 

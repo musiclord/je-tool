@@ -37,6 +37,10 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             SELECT 'schema_version', '6'
             WHERE NOT EXISTS (SELECT 1 FROM schema_info WHERE key = 'schema_version');
 
+        INSERT INTO schema_info (key, value)
+            SELECT 'filter_data_revision', '0'
+            WHERE NOT EXISTS (SELECT 1 FROM schema_info WHERE key = 'filter_data_revision');
+
         CREATE TABLE IF NOT EXISTS import_batch (
             batch_id         TEXT PRIMARY KEY,
             dataset_kind     TEXT NOT NULL CHECK (dataset_kind IN ('gl','tb','account_mapping')),
@@ -430,7 +434,10 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
         if (parsedVersion == 8)
         {
             await MigrateV8ToV9Async(connection, cancellationToken);
+            parsedVersion = 9;
         }
+        if (parsedVersion == 9)
+            await AccountClassificationMigration.UpgradeLocalAsync(connection, DuckDbDialect.Instance, cancellationToken);
     }
 
     /// <summary>

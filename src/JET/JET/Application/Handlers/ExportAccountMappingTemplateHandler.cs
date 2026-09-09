@@ -27,6 +27,15 @@ public sealed class ExportAccountMappingTemplateHandler(
     {
         var runId = PayloadReader.GetOptionalString(payload, "runId")
             ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'runId'。");
+        var onlyIfMissing = false;
+        if (payload.TryGetProperty("onlyIfMissing", out var mode))
+        {
+            if (mode.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            {
+                throw new JetActionException(JetErrorCodes.InvalidPayload, "onlyIfMissing 必須是布林值。");
+            }
+            onlyIfMissing = mode.GetBoolean();
+        }
         var projectId = session.RequireProjectId();
         var progressSession = new ExportProgressSession(_eventPublisher, cancellationToken);
         var progress = progressSession.Start(ReportArtifactKind.AccountMapping);
@@ -56,22 +65,23 @@ public sealed class ExportAccountMappingTemplateHandler(
                 cancellationToken);
         }
 
-        var rows = await repository.FetchTemplateRowsAsync(
-            projectId, document.PeriodStart, document.PeriodEnd, cancellationToken);
-        if (rows.Count == 0)
-        {
-            throw new JetActionException(
-                JetErrorCodes.NoTargetData,
-                "尚無可產生科目配對範本的 GL／TB 科目母體；先匯入 GL 與 TB 並執行資料驗證。");
-        }
-
+        int? rowCount = null;
         var fileName = ProjectFileNames.AccountMappingTemplate(projectId);
-        var filePath = await ProjectWorkFileWriter.WriteAsync(
+        var result = await ProjectWorkFileWriter.WriteAsync(
             projectLocator,
             projectId,
             fileName,
             async (stream, ct) =>
             {
+                var rows = await repository.FetchTemplateRowsAsync(
+                    projectId, document.PeriodStart, document.PeriodEnd, ct);
+                if (rows.Count == 0)
+                {
+                    throw new JetActionException(
+                        JetErrorCodes.NoTargetData,
+                        "尚無可產生科目配對範本的 GL／TB 科目母體；先匯入 GL 與 TB 並執行資料驗證。");
+                }
+                rowCount = rows.Count;
                 if (formalWriter is not null)
                 {
                     await formalWriter.WriteFormalAsync(
@@ -102,15 +112,17 @@ public sealed class ExportAccountMappingTemplateHandler(
 
                 progress.FinalizingWorkbook();
             },
-            cancellationToken);
-        progress.PublishingArtifact();
+            cancellationToken,
+            progress.PublishingArtifact,
+            onlyIfMissing);
 
         return new
         {
             ok = true,
-            filePath,
+            filePath = result.FilePath,
             fileName,
-            rowCount = rows.Count,
+            rowCount = result.Created ? rowCount : null,
+            disposition = result.Created ? "created" : "kept",
             validationRunId = run.RunId
         };
     }

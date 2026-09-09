@@ -80,6 +80,7 @@
     // artifact 只保留 wire metadata，不存絕對路徑或報告內容。
     filterResultRef: null,
     reportArtifacts: [],
+    validationOutput: { reports: null, template: null },
     // 進階條件篩選：populationScope 是尚未提交的母體選擇；已提交母體只讀
     // filterResultRef.populationScope，兩者不得混成同一個狀態。AST 草稿恆為物件。
     filter: {
@@ -107,6 +108,15 @@
       manualAutoPolicy: { manualValues: ['1'], automaticValues: ['0'] },
       rdeFields: []
     };
+  }
+
+  function syncApprovalSource() {
+    var gl = state.mapping.gl;
+    if (gl.draft.docDate) {
+      gl.options.approvalDateMode = 'mapped';
+    } else if (gl.options.approvalDateMode === 'mapped') {
+      gl.options.approvalDateMode = 'unmapped';
+    }
   }
 
   var listeners = [];
@@ -294,6 +304,7 @@
       state.lastRuns = { validate: null, prescreen: null };
       state.filterResultRef = null;
       state.reportArtifacts = [];
+      state.validationOutput = { reports: null, template: null };
       state.filter = {
         populationScope: 'auditPeriod',
         draft: { name: '', rationale: '', groups: [] },
@@ -378,19 +389,35 @@
       bump();
     },
 
-    // 後端以 kind 為固定檔名與單一 catalog 身分；同種類重匯必須整類取代，
-    // 避免 host 已覆寫檔案但畫面仍保留舊版本。
+    setValidationOutput: function (kind, result) {
+      state.validationOutput[kind] = result;
+      bump();
+    },
+
+    applyReportExport: function (data) {
+      if (Array.isArray(data.reportArtifacts)) {
+        Store.setReportArtifacts(data.reportArtifacts);
+      } else {
+        Store.upsertReportArtifacts(data.artifacts || (data.artifact ? [data.artifact] : []));
+      }
+    },
+
+    // 一般報告同名覆蓋；Working Paper 每次新增版本，只更新同一 artifactId。
     upsertReportArtifacts: function (artifacts) {
       var incoming = (artifacts || []).filter(Boolean);
       if (incoming.length === 0) { return; }
 
       var incomingKinds = {};
+      var incomingIds = {};
       incoming.forEach(function (artifact) {
-        incomingKinds[artifact.kind] = true;
+        if (artifact.kind !== 'workingPaper') { incomingKinds[artifact.kind] = true; }
+        incomingIds[artifact.artifactId] = true;
       });
 
       var next = state.reportArtifacts
-        .filter(function (artifact) { return !incomingKinds[artifact.kind]; })
+        .filter(function (artifact) {
+          return !incomingKinds[artifact.kind] && !incomingIds[artifact.artifactId];
+        })
         .concat(incoming);
 
       state.reportArtifacts = next;
@@ -399,6 +426,7 @@
 
     setFilterDraft: function (draft) {
       state.filter.draft = draft || { name: '', rationale: '', groups: [] };
+      state.filter.previewExpired = !!state.filter.preview || !!state.filter.previewExpired;
       state.filter.preview = null; // 草稿結構變動使預覽失效
       filterDraftRev++;
       bump();
@@ -412,6 +440,7 @@
         return;
       }
       Object.assign(draft.groups[groupIndex].rules[ruleIndex], patch);
+      state.filter.previewExpired = !!state.filter.preview || !!state.filter.previewExpired;
       state.filter.preview = null;
       filterDraftRev++;
       notify();
@@ -429,6 +458,7 @@
 
     setFilterPreview: function (preview) {
       state.filter.preview = preview;
+      state.filter.previewExpired = false;
       bump();
     },
 
@@ -441,6 +471,10 @@
     // 只 patch 使用者編輯中的欄位；送出形狀與合法性由 mapping-step 組裝、後端裁定。
     patchGlMappingOptions: function (patch) {
       Object.assign(state.mapping.gl.options, patch);
+      if (Object.prototype.hasOwnProperty.call(patch, 'approvalDateMode')
+          && patch.approvalDateMode !== 'mapped') {
+        delete state.mapping.gl.draft.docDate;
+      }
       bump();
     },
 
@@ -489,6 +523,7 @@
       } else {
         delete state.mapping[kind].draft[key];
       }
+      if (kind === 'gl' && key === 'docDate') { syncApprovalSource(); }
       // 草稿餵給必填鐵軌、「確認配對」可用性與 GL 政策區的分支顯示，依通知慣例必須 bump；
       // 重繪後的焦點與捲動由 renderContent 統一還原，不在此犧牲衍生畫面的即時性。
       bump();
@@ -499,15 +534,34 @@
     assignColumnToField: function (kind, column, fieldKey, literalKeys) {
       var skip = literalKeys || [];
       var draft = state.mapping[kind].draft;
+      var previousApprovalColumn = draft.docDate;
       Object.keys(draft).forEach(function (k) {
         if (skip.indexOf(k) < 0 && draft[k] === column) { delete draft[k]; }
       });
       if (fieldKey) { draft[fieldKey] = column; }
+      if (kind === 'gl' && previousApprovalColumn !== draft.docDate) { syncApprovalSource(); }
       bump(); // 指派會牽動其他標頭的選取狀態，需重建面板
     },
 
     replaceMappingDraft: function (kind, draft) {
-      state.mapping[kind].draft = draft || {};
+      state.mapping[kind].draft = Object.assign({}, draft || {});
+      if (kind === 'gl') { syncApprovalSource(); }
+      bump();
+    },
+
+    restoreCommittedMapping: function (kind) {
+      var mapping = state.mapping[kind];
+      var committed = mapping.committed;
+      if (!committed || !committed.mapping) { return; }
+      mapping.draft = Object.assign({}, committed.mapping);
+      if (kind === 'gl') {
+        mapping.amountMode = committed.mode;
+        mapping.options = committed.options
+          ? JSON.parse(JSON.stringify(committed.options)) : freshGlOptions();
+        if (!committed.options) { syncApprovalSource(); }
+      } else {
+        mapping.changeMode = committed.mode;
+      }
       bump();
     },
 
@@ -548,7 +602,8 @@
     // 失效旗標只由 setImportResult 立起；任何明確的提交狀態設定（含 resume 的 null）都解除。
     // formatVersion 隨 committed 一起設定：resume 取後端回報值，成功 commit 一律是目前 writer 版本 2。
     setMappingCommitted: function (kind, result) {
-      state.mapping[kind].committed = result;
+      // 載入案件時，草稿與提交結果可能來自同一份 JSON；保存獨立快照，編輯不能改掉還原依據。
+      state.mapping[kind].committed = result ? JSON.parse(JSON.stringify(result)) : null;
       state.mapping[kind].formatVersion = result ? (result.formatVersion || null) : null;
       state.mapping[kind].invalidatedByImport = false;
       refreshMappingReviewRequired();

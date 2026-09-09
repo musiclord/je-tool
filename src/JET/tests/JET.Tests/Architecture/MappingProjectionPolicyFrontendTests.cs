@@ -40,11 +40,16 @@ public sealed class MappingProjectionPolicyFrontendTests
     public void ApprovalDateModes_AreMutuallyExclusiveWithTheApprovalSourceColumn()
     {
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
+        var state = ReadFrontend("js", "state.js");
 
-        // 衍生模式時不得再指派來源欄：欄位從可指派清單移除，既有指派同步清掉。
+        // 2026-09-05：指定來源欄即切換模式，互斥由一次 store 更新維持。
         Assert.Contains("function excludedFieldKeys(kind)", mapping, StringComparison.Ordinal);
-        Assert.Contains("'sameAsPostDate' ? ['docDate'] : []", mapping, StringComparison.Ordinal);
-        Assert.Contains("Store.setMappingDraft('gl', 'docDate', '')", mapping, StringComparison.Ordinal);
+        Assert.Contains("data-approval-source", mapping, StringComparison.Ordinal);
+        Assert.Contains("Store.setMappingDraft('gl', 'docDate', approvalSource.value)", mapping, StringComparison.Ordinal);
+        Assert.Contains("patch.approvalDateMode !== 'mapped'", state, StringComparison.Ordinal);
+        Assert.Contains("delete state.mapping.gl.draft.docDate;", state, StringComparison.Ordinal);
+        Assert.Contains("gl.options.approvalDateMode = 'mapped';", state, StringComparison.Ordinal);
+        Assert.Contains("gl.options.approvalDateMode = 'unmapped';", state, StringComparison.Ordinal);
 
         // mapped 模式必須有來源欄，否則不得提交。
         Assert.Contains("options.approvalDateMode === 'mapped' && !draft.docDate", mapping, StringComparison.Ordinal);
@@ -52,6 +57,9 @@ public sealed class MappingProjectionPolicyFrontendTests
             "options.approvalDateMode === 'sameAsPostDate' && draft.docDate",
             mapping,
             StringComparison.Ordinal);
+        Assert.Contains("options.approvalDateMode === 'unmapped' && draft.docDate", mapping, StringComparison.Ordinal);
+        Assert.Contains("Store.restoreCommittedMapping(kind)", mapping, StringComparison.Ordinal);
+        Assert.Contains("JSON.parse(JSON.stringify(committed.options))", state, StringComparison.Ordinal);
     }
 
     [Fact]

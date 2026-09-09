@@ -1,12 +1,38 @@
 using System.Text.Json;
 using JET.Application;
 using JET.Domain;
+using JET.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Application;
 
 public sealed class HostOpenFolderHandlerTests
 {
+    [Fact]
+    public async Task OldWorkpaper_CanBeRevealedAfterBecomingStale_AndMissingFileDoesNotOpenShell()
+    {
+        var shell = new RecordingHostShell();
+        using var host = new HandlerTestHost(shell);
+        var created = await CreateProjectAsync(host);
+        var projectId = created.GetProperty("projectId").GetString()!;
+        var store = new ProjectReportArtifactStore(new JetProjectFolder(host.ProjectsRoot));
+        var first = await store.WriteAsync(projectId, new ReportArtifactWriteRequest(
+            ReportArtifactKind.WorkingPaper, new ReportArtifactSourceRefs(ValidationRunId: "old-run"),
+            (stream, ct) => stream.WriteAsync(new byte[] { 1 }, ct).AsTask()), CancellationToken.None);
+        await store.MarkStaleAsync(projectId, ReportArtifactKind.WorkingPaper, CancellationToken.None);
+        await store.WriteAsync(projectId, new ReportArtifactWriteRequest(
+            ReportArtifactKind.WorkingPaper, new ReportArtifactSourceRefs(ValidationRunId: "new-run"),
+            (stream, ct) => stream.WriteAsync(new byte[] { 2 }, ct).AsTask()), CancellationToken.None);
+
+        var payload = JsonSerializer.Serialize(new { artifactId = first.ArtifactId });
+        await host.DispatchAsync("host.openFolder", payload);
+        var oldPath = Path.Combine(host.ProjectsRoot, projectId, first.RelativeFileName);
+        Assert.Equal(oldPath, Assert.Single(shell.RevealedPaths));
+        File.Delete(oldPath);
+        var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("host.openFolder", payload));
+        Assert.Equal(JetErrorCodes.ArtifactNotFound, error.Code);
+        Assert.Single(shell.RevealedPaths);
+    }
     [Fact]
     public async Task ProjectFolderTarget_ResolvesCurrentProjectDirectoryOnServer()
     {

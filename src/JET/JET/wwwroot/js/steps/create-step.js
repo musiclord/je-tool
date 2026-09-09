@@ -117,7 +117,8 @@
           formRow('operatorId', '操作人員編號', 'text', true) +
           formRow('periodStart', '查核起始日', 'date', true) +
           formRow('periodEnd', '查核截止日', 'date', true) +
-          formRow('lastPeriodStart', '期末財報準備起始日', 'date', false) +
+          formRow('lastPeriodStart', '期末財報準備日', 'date', false) +
+          '<p class="rule-card__sub">查核期間決定本次分析的總帳範圍；期末財報準備日供「期末後核准」條件使用，不會延長查核期間。</p>' +
           formSelect('databaseProvider', '資料儲存方式（建立後不可變更）', [
             { value: 'sqlite', text: 'SQLite（本機檔案）', selected: true },
             { value: 'duckdb', text: 'DuckDB（本地・分析型）' },

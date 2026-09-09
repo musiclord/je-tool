@@ -214,6 +214,11 @@ body::before {
   background: currentColor;
 }
 
+.badge[data-bind="user-identity"] {
+  font-family: var(--font-sans);
+  letter-spacing: normal;
+}
+
 /* ---- 案件狀態摘要 ----------------------------------------------------- */
 .case-summary {
   display: flex;
@@ -232,25 +237,26 @@ body::before {
 }
 
 .case-summary__label {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--color-muted);
 }
 
 .case-summary__value {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 15px;
   font-weight: 600;
   line-height: 1.3;
   color: var(--color-text);
 }
 
-/* Identifier-like values read as metadata. */
+/* 案件識別值沿用相同字體，數字寬度由 tabular-nums 保持整齊。 */
 .case-summary__value--mono {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: normal;
 }
 
 /* ---- 主體版面：左目錄＋中文件流＋右欄常駐資料預覽 ----------------------
@@ -396,15 +402,16 @@ body::before {
 }
 
 .workpaper__eyebrow {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: normal;
   color: var(--color-faint);
 }
 
 .workpaper__title {
   margin: 7px 0 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 23px;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -440,7 +447,7 @@ body::before {
 }
 
 .stepflow-item__caret {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   color: var(--color-locked-num);
 }
@@ -448,7 +455,8 @@ body::before {
 .stepflow-item__caret--current { color: var(--color-signal); }
 
 .stepflow-item__num {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   font-weight: 500;
   color: var(--color-placeholder);
@@ -461,7 +469,7 @@ body::before {
 .stepflow-item__mark {
   width: 14px;
   text-align: center;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 600;
 }
@@ -546,7 +554,7 @@ body::before {
 .stepflow-item__title {
   margin: 0;
   min-width: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 19px;
   font-weight: 600;
   line-height: 1.2;
@@ -554,22 +562,32 @@ body::before {
   overflow-wrap: anywhere;
 }
 
-/* 「進行中」紅標（mono 大寫）。 */
+/* 步驟狀態與其他流程文字使用同一字體。 */
 .stepflow-item__flag {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: normal;
   color: var(--color-signal);
 }
 
-.stepflow-item__head-spacer { flex: 1; }
+.stepflow-item__status {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  flex-basis: 100%;
+  padding-left: 26px;
+}
+.stepflow-item__status .stepflow-item__flag {
+  font-family: var(--font-sans);
+  letter-spacing: normal;
+}
 
 .stepflow-item__cond {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
-  color: var(--color-placeholder);
+  color: var(--color-muted);
   white-space: normal;
 }
 
@@ -582,7 +600,7 @@ body::before {
   max-width: 100%;
 }
 
-/* 步驟名已在文件流標題列（serif 19px）呈現，隱藏渲染器內重複的 panel 標題，
+/* 步驟名已在文件流標題列（Noto Sans TC 19px）呈現，隱藏渲染器內重複的 panel 標題，
    避免同名雙標題；其餘既有 panel 內容（hint／卡片／頁尾）照常顯示。 */
 .stepflow-item__body .panel__title {
   display: none;
@@ -686,7 +704,8 @@ body::before {
 }
 
 /* 匯出面的補跑提示是資訊，不是錯誤：用資訊色，不共用 .form-notice 的紅底。 */
-.prescreen-export__notice {
+.prescreen-export__notice,
+.validation-output-status {
   margin: 12px 0 0;
   padding: 9px 12px;
   font-size: 13px;
@@ -703,6 +722,7 @@ body::before {
 
 .report-artifact {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -2444,7 +2464,7 @@ kbd {
 }
 
 /* ---- 自訂卡（加入行為，無已選兩態）：grid = [mark | label]；精簡為矮、單行、欄較密（#2） ---- */
-.picker-card--custom {
+.picker-card--custom, .picker-card--template {
   grid-template-columns: 18px 1fr;
   align-items: center;
   min-height: 0;
@@ -2452,13 +2472,13 @@ kbd {
   gap: 2px 8px;
 }
 
-.picker-card--custom .picker-card__mark {
+.picker-card--custom .picker-card__mark, .picker-card--template .picker-card__mark {
   width: 18px;
   height: 18px;
   font-size: 12px;
 }
 
-.picker-card--custom .picker-card__label {
+.picker-card--custom .picker-card__label, .picker-card--template .picker-card__label {
   -webkit-line-clamp: 1;
   font-size: 12px;
 }
@@ -2592,115 +2612,85 @@ kbd {
   border-radius: var(--radius-sm);
 }
 
-/* 組合器段控（segmented control）：兩格 AND/OR、mono、目前值高亮。取代整句 radio——可見度高、最不歧義。 */
-.combo-seg {
-  display: inline-flex;
-  align-items: stretch;
-  vertical-align: middle;
-  background: var(--color-surface-sunken);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-.combo-seg__opt {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 12px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-
-.combo-seg__opt + .combo-seg__opt {
-  border-left: 1px solid var(--color-border);
-}
-
-/* radio 本體隱藏、整格 label 可點；目前值整格高亮（白底＋深字＋加重）。 */
-.combo-seg__opt input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: 0;
-  opacity: 0;
-}
-
-.combo-seg__opt.is-on {
-  background: var(--color-surface-raised);
-  color: var(--color-ink);
+/* 組標頭裡的小下拉（全部／任一、同一分錄／同一傳票、組與組之間）：跟旁邊的字排成一句話。 */
+.inline-select {
+  margin: 0 4px;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 13px;
   font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
 }
 
-.combo-seg__opt.is-disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* 組間（父／情境層）段控：藍色、較大，與組內中性段控明顯分層（色彩語意對應下方藍色 read-back）。 */
-.combo-seg--scenario {
-  background: var(--pale-blue);
+.inline-select--scenario {
+  color: var(--pale-blue-ink);
   border-color: var(--pale-blue-ink);
 }
 
-.combo-seg--scenario .combo-seg__opt {
-  padding: 5px 16px;
-  font-size: 13px;
-  color: var(--pale-blue-ink);
-}
-
-.combo-seg--scenario .combo-seg__opt + .combo-seg__opt {
-  border-left-color: var(--pale-blue-ink);
-}
-
-.combo-seg--scenario .combo-seg__opt.is-on {
-  background: var(--color-surface-raised);
-  color: var(--pale-blue-ink);
-}
-
-/* 單組時的組合器列：白話 lead「條件之間」＋段控，下方 hairline 與條件清單分隔。 */
-.combo-row {
-  display: flex;
+.scenario-set__sentence {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.combo-row__lead {
   font-size: 13px;
   font-weight: 600;
   color: var(--color-ink);
+  white-space: nowrap;
 }
 
-/* 群組比對範圍沿用既有段控，不另造卡片；fieldset 只保留語意與一條層級分隔線。 */
+/* 比對範圍：組標頭上「條件在 [同一分錄/同一傳票]」，只有同一傳票時多一行說明。 */
 .match-scope {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
   min-width: 0;
-  margin: 0 0 8px;
-  padding: 0 0 8px;
+  margin: 0;
+  padding: 0;
   border: 0;
-  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
 }
 
 .match-scope__legend {
-  margin-bottom: 6px;
+  float: left;
   padding: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--color-ink);
 }
 
+/* 說明是組標頭的最後一個成員，獨占一行，不把「移除這組」擠到下一行。 */
 .match-scope__help {
-  margin: 6px 0 0;
+  order: 99;
+  flex: 1 1 100%;
+  margin: 0;
   font-size: 12px;
   line-height: 1.5;
   color: var(--color-muted);
 }
 
-/* well 內第一個條件列不畫頂線：有組合器時由 combo-row／組標頭的底線分隔、無組合器時不留孤線。 */
+/* 每一組底下的「＋」列：三個家族各一顆，直接加到這一組。 */
+.scenario-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.scenario-add__lead {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.scenario-add__note {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+/* well 內第一個條件列不畫頂線：組標頭的底線已經分隔，不留孤線。 */
 .scenario-flat__list > :first-child {
   border-top: none;
 }
@@ -2711,12 +2701,15 @@ kbd {
   border: 1px solid var(--color-border);
 }
 
+/* 組標頭：單組也顯示（一句話「符合以下 全部 條件 · 條件在 同一分錄」），與條件清單之間一條 hairline。 */
 .scenario-set__head {
   display: flex;
-  flex-wrap: wrap; /* 標頭成員皆 nowrap（徽章/提示/段控）；窄幅時整項換行，不溢出、不截字 */
+  flex-wrap: wrap; /* 標頭成員皆 nowrap；窄幅時整項換行，不溢出、不截字 */
   align-items: center;
-  gap: 10px;
+  gap: 8px 14px;
   margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .scenario-set__title {
@@ -2764,30 +2757,6 @@ kbd {
   background: var(--pale-blue-ink);
   border-radius: 999px;
   white-space: nowrap;
-}
-
-/* 非作用中組的「點此設為作用中」提示：小灰字（整塊 well 可點切換）。 */
-.scenario-set__hint {
-  font-size: 11px;
-  color: var(--color-muted);
-  white-space: nowrap;
-}
-
-/* 鎖定（非作用中）組：條件清單與組合器輕度淡化且不可互動。pointer-events:none 必須同時套到「容器與其所有
-   後代」——否則 input/select/button 後代預設 auto 仍會接走點擊。全部 none ⇒ 點任一處都落到 well（最近的
-   auto 祖先）→ 設為作用中。〔移除這組〕在組標頭、不在此選擇器內，故仍可點；「仍參與篩選・點此設為作用中」同理。
-   透明度刻意只降到 0.75：半透明過重是「停用」慣例，會被誤讀成「這組不參與篩選」——後端事實是所有非空組
-   都進 SQL，鎖定只代表「不是新增條件的落點」（參與語意另由組標頭提示與 well 的 title 明說）。 */
-.scenario-set--locked .scenario-flat__list,
-.scenario-set--locked .combo-seg {
-  opacity: 0.75;
-}
-
-.scenario-set--locked .scenario-flat__list,
-.scenario-set--locked .scenario-flat__list *,
-.scenario-set--locked .combo-seg,
-.scenario-set--locked .combo-seg * {
-  pointer-events: none;
 }
 
 /* 全域提示（≥2 組）：說明作用中模型，淡灰一行、不另上色以免與 read-back 的藍底搶眼。 */
@@ -2852,29 +2821,6 @@ kbd {
   font-weight: 700;
 }
 
-/* 教學空狀態：指向上方 palette（NN/g 空狀態三職責：狀態＋學習線索＋入口）。 */
-.scenario-empty {
-  margin-bottom: 12px;
-  padding: 18px 16px;
-  text-align: center;
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-sm);
-}
-
-.scenario-empty__title {
-  margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-ink);
-}
-
-.scenario-empty__hint {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--color-muted);
-}
-
 /* 4 拍流程輕提示（挑訊號 → 設定數值 → 組合 → 命名保存）。 */
 .scenario-builder__flow {
   margin: 0 0 14px;
@@ -2937,13 +2883,59 @@ kbd {
   border-radius: var(--radius-sm);
 }
 
+/* 一條條件＝一句話：左邊家族小標、中間對象、比較方式、值，右邊一顆「×」。每列同一種形狀。 */
 .rule-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px 10px;
   padding: 8px 0;
   border-top: 1px solid var(--color-border);
+}
+
+.rule-row__family {
+  align-self: center;
+  min-width: 2.5em;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-align: center;
+  color: var(--color-muted);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.rule-row--legacy .rule-row__family {
+  color: var(--pale-red-ink);
+  background: var(--pale-red);
+}
+
+.rule-row__op {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.rule-row__remove {
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.rule-row__remove:hover,
+.rule-row__remove:focus-visible {
+  color: var(--pale-red-ink);
+  border-color: var(--color-border-strong);
 }
 
 .rule-row__controls {
@@ -2953,6 +2945,29 @@ kbd {
   gap: 8px;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.rule-row__controls > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--color-muted);
+}
+
+/* 後端指出這一條規則有問題：整列淺紅底加左側紅線，原因就寫在列下方，不用回頭對整段訊息。 */
+.rule-row--invalid {
+  background: var(--pale-red);
+  border-left: 3px solid #9f2f2d;
+  padding-left: 8px;
+  border-radius: var(--radius-sm);
+}
+
+.rule-row__error {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--pale-red-ink);
 }
 
 .rule-row__controls input,
@@ -2996,22 +3011,19 @@ kbd {
 }
 
 .rule-field__hint {
-  position: absolute;
-  top: 100%;
-  left: 0;
+  display: block;
+  position: static;
+  flex-basis: 100%;
   max-width: 100%;
   margin-top: 3px;
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--color-muted);
   white-space: normal;
   overflow-wrap: anywhere;
 }
 
-/* 只給「有常駐 hint」的條件列預留列底空間，讓絕對定位的 hint 乾淨落在 input 下方、不壓到下一列。 */
-.rule-row:has(.rule-field__hint) {
-  padding-bottom: 24px;
-}
+/* 說明跟隨控制項正常換行，不預留絕對定位空間。 */
 
 .rule-row__sep {
   font-size: 12px;
@@ -3089,6 +3101,67 @@ kbd {
 .preview-table td {
   padding: 5px 10px;
   border-bottom: 1px solid var(--color-border);
+}
+
+/* 可排序表頭：整格是按鈕，箭頭只在目前排序欄出現。 */
+.th-sort {
+  all: unset;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.th-sort:focus-visible {
+  outline: 2px solid var(--color-accent, #2b5fa8);
+  outline-offset: 2px;
+}
+
+.th-sort:hover {
+  color: var(--color-text);
+}
+
+.th-sort__mark::after {
+  content: "↕";
+  opacity: 0.35;
+  font-size: 10px;
+}
+
+th[aria-sort="ascending"] .th-sort__mark::after {
+  content: "▲";
+  opacity: 1;
+}
+
+th[aria-sort="descending"] .th-sort__mark::after {
+  content: "▼";
+  opacity: 1;
+}
+
+/* 依傳票號碼或科目編號查看：一行輸入加兩顆小按鈕，放在表格上方。 */
+.page-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.page-search__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.page-search__input {
+  min-width: 180px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
 }
 
 .preview-table__amount {
@@ -3857,6 +3930,9 @@ body.is-busy {
    右欄專用外觀以 .data-preview__body .data-preview__table 加權覆寫，不動基底、不改名。 */
 
 .data-preview {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.6;
   /* 寬度可由左邊界把手拖曳調整；--data-preview-width 由 data-preview.js inline 設定，
      未拖曳時回退預設 436px。max-width 與 data-preview.js 的 300px 下限／
      為左欄與中央文件流保留 420px 的上限算法一致；收合態另由 34px 覆寫。 */
@@ -3919,18 +3995,18 @@ body.is-resizing-preview {
 }
 
 .data-preview__eyebrow {
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
   color: var(--color-placeholder);
 }
 
 .data-preview__collapse {
   padding: 0;
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   color: var(--color-placeholder);
   background: none;
   border: none;
@@ -3945,10 +4021,10 @@ body.is-resizing-preview {
   justify-content: center;
   padding: 15px 0;
   writing-mode: vertical-rl;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
   color: var(--color-placeholder);
   cursor: pointer;
 }
@@ -3967,7 +4043,7 @@ body.is-resizing-preview {
 .data-preview__tab {
   padding: 6px 12px;
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 400;
   color: var(--color-faint);
   cursor: pointer;
@@ -3995,16 +4071,17 @@ body.is-resizing-preview {
 
 /* 「其他資料」選單：外觀與頁籤一致，持久 DOM 保住焦點與鍵盤狀態。 */
 .data-preview__more {
-  position: relative;
+  position: static;
   display: inline-flex;
 }
 
 .data-preview__menu {
   position: absolute;
   top: 100%;
-  right: 0;
+  left: 20px;
+  right: 20px;
   z-index: 20;
-  min-width: 210px;
+  min-width: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
 }
@@ -4015,7 +4092,7 @@ body.is-resizing-preview {
   padding: 7px 12px;
   text-align: left;
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--color-text);
   background: none;
   border: none;
@@ -4084,8 +4161,8 @@ body.is-resizing-preview {
 
 .data-preview__stats {
   padding: 9px 20px 0;
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   color: var(--color-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -4101,16 +4178,16 @@ body.is-resizing-preview {
 
 .data-preview__count {
   min-width: 0;
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   color: var(--color-faint);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
 .data-preview__scroll-hint {
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   color: #b0aca0; /* design-notes §11：右側提示灰，未進 §7 token */
   white-space: normal;
   overflow-wrap: anywhere;
@@ -4161,23 +4238,23 @@ body.is-resizing-preview {
 }
 
 /* 右欄常駐預覽表格：在基底 .data-preview__table 上加權覆寫成 README §6 表格規格
-   （mono 10px、9px sticky 表頭、hairline、無斑馬紋無 hover、數字欄右對齊、空值淡灰）。
+   （統一中文字體與 12px 表格、sticky 表頭、數字欄右對齊、空值淡灰）。
    僅作用於 .data-preview__body 內；import-step 內嵌表格（.pending-preview__grid）不受影響。 */
 .data-preview__body .data-preview__table {
   width: auto;
   min-width: 100%;
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
 }
 
 .data-preview__body .data-preview__table th {
   padding: 6px 9px 8px;
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: normal;
   color: var(--color-faint);
   background: var(--color-surface-sunken);
   border-bottom: 1px solid var(--color-border-rule);
@@ -4296,7 +4373,7 @@ body.is-resizing-preview {
 }
 
 .overview__eyebrow {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.14em;
@@ -4317,7 +4394,7 @@ body.is-resizing-preview {
   padding: 2px 0 0;
   border: none;
   background: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 15px;
   font-weight: 400;
   color: #6f6d64;
@@ -4350,7 +4427,7 @@ body.is-resizing-preview {
 }
 
 .overview__progress-count {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 500;
   color: #6f6d64;
@@ -4372,7 +4449,7 @@ body.is-resizing-preview {
 }
 
 .overview__progress-stat {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 400;
   color: #8f8c82;
@@ -4425,14 +4502,14 @@ body.is-resizing-preview {
 }
 
 .overview-stage__num {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   font-weight: 500;
   color: var(--color-faint);
 }
 
 .overview-stage__status {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
@@ -4449,7 +4526,7 @@ body.is-resizing-preview {
 
 .overview-stage__location {
   margin-top: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 600;
   color: var(--pale-blue-ink);
@@ -4494,7 +4571,7 @@ body.is-resizing-preview {
 }
 
 .overview-step-detail__eyebrow {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 500;
   letter-spacing: 0.14em;
@@ -4520,7 +4597,7 @@ body.is-resizing-preview {
 
 .overview-step-fact__label {
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   line-height: 1.55;
   color: var(--color-faint);
@@ -4538,7 +4615,7 @@ body.is-resizing-preview {
 .overview-step-fact__note {
   display: block;
   margin-top: 2px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   color: var(--color-faint);
 }
@@ -4554,7 +4631,7 @@ body.is-resizing-preview {
 }
 
 .overview-step-detail__attention-label {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 600;
   color: #76571d;
@@ -4568,7 +4645,7 @@ body.is-resizing-preview {
 }
 
 .overview__col-eyebrow {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.16em;
@@ -4591,7 +4668,7 @@ body.is-resizing-preview {
 .overview-kv__label {
   width: 78px;
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -4610,7 +4687,7 @@ body.is-resizing-preview {
 }
 
 .overview-kv__value--mono {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12.5px;
 }
 
@@ -4622,7 +4699,7 @@ body.is-resizing-preview {
 }
 
 .overview__col-all {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   color: #a5a297;
   cursor: pointer;
@@ -4643,7 +4720,7 @@ body.is-resizing-preview {
 
 .overview-msg__time {
   margin-bottom: 2px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   color: #a5a297;
 }
@@ -4673,7 +4750,7 @@ body.is-resizing-preview {
 .overview__baseline {
   display: block;
   margin-top: 7px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--color-muted);
@@ -4717,7 +4794,7 @@ body.is-resizing-preview {
 }
 
 .overview-pop__kpi-label {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -4727,7 +4804,7 @@ body.is-resizing-preview {
 
 /* 長數字與長中文期間都不得撐破欄位：允許換行、保留 tabular 對齊。 */
 .overview-pop__kpi-value {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 19px;
   font-weight: 600;
   line-height: 1.25;
@@ -4798,7 +4875,7 @@ body.is-resizing-preview {
 }
 
 .overview-analyses__scope {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   color: var(--color-faint);
 }
@@ -4814,7 +4891,7 @@ body.is-resizing-preview {
 .overview-pop__skeleton {
   padding: 4px 11px;
   background: var(--color-skeleton);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   letter-spacing: 0.06em;
   color: var(--color-placeholder);
@@ -4864,7 +4941,7 @@ body.is-resizing-preview {
   content: '＋';
   width: 14px;
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 400;
   color: var(--color-signal);
 }
@@ -4883,7 +4960,7 @@ body.is-resizing-preview {
 
 .overview__analysis-hint {
   margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 400;
   color: var(--color-placeholder);
@@ -5080,7 +5157,7 @@ body.is-resizing-preview {
 .overview-bi__na-title {
   display: block;
   padding: 9px 0 6px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   color: var(--color-faint);
 }
@@ -5621,13 +5698,28 @@ body.is-resizing-preview {
   color: var(--color-faint);
 }
 
+/* 分類用可點的小標籤：勾選框留著（可報讀、可鍵盤），整顆標籤是點擊範圍；勾起的標籤變藍。 */
 .category-option {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  padding: 2px 10px 2px 6px;
   font-size: 12.5px;
   color: var(--color-text);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
   cursor: pointer;
+}
+
+.category-option:has(input:checked) {
+  color: var(--pale-blue-ink);
+  background: var(--pale-blue);
+  border-color: var(--pale-blue-ink);
+}
+
+.category-option input {
+  margin: 0;
 }
 
 /* 動態結果欄（後端 column metadata 附加的額外欄位）。 */
@@ -5640,4 +5732,230 @@ body.is-resizing-preview {
   font-size: 12.5px;
   line-height: 1.7;
   color: var(--color-muted);
+}
+/* 配對操作：日期方式與來源欄在同一區，缺漏名稱可直接定位。 */
+.map-approval-source { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-top: .75rem; }
+.map-approval-source select { width: min(100%, 24rem); }
+.map-rail__jump { border: 0; padding: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: underline; text-underline-offset: .2em; cursor: pointer; }
+.map-rail__jump:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+
+/* 欄位條件列：主句一行「[欄位] [基準] [比較方式] 值」，輔助列（日曆、期末最後 N 天、空白、格式提示）
+   放在主句下方一行小字。窄幅時主句成員逐個換行，不撐出橫向捲軸。 */
+.rule-row__controls > .value-editor { flex: 1 1 100%; min-width: 0; }
+.value-editor { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
+.value-editor__main, .value-editor__aux { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+.value-editor__aux { font-size: 12px; color: var(--color-muted); }
+.value-editor select, .value-editor input:not([type="checkbox"]), .value-editor textarea {
+ min-width: 0; max-width: 100%; font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-ink); }
+.value-editor input[type="text"], .value-editor input[type="date"] { flex: 0 1 12em; }
+.value-editor .value-editor__days { flex: 0 1 8em; }
+.value-editor .value-editor__list { flex: 1 1 16em; min-height: 2.4em; resize: vertical; }
+.value-editor .value-blank { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.value-editor .rule-field__hint { flex-basis: 100%; margin-top: 0; }
+.value-period-end { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.value-period-end label { display: inline-flex; align-items: center; gap: 4px; }
+.value-period-end input { width: 4.5em; }
+.selected-dates { display: flex; flex-wrap: wrap; gap: .4rem; max-height: 12rem; overflow: auto; }
+.selected-dates:empty { display: none; }
+.selected-dates .scenario-pill { cursor: pointer; color: var(--color-ink); }
+.date-multiselect { width: min(26rem, 90vw); padding: 1.4rem; border: 1px solid var(--color-border-strong); color: var(--color-ink); background: var(--color-surface); font: inherit; }
+.date-multiselect::backdrop { background: rgb(28 29 32 / 35%); }
+.date-multiselect__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .8rem; }
+.date-multiselect__week, .date-multiselect__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .25rem; text-align: center; }
+.date-multiselect__grid [role="row"] { display: contents; }
+.date-multiselect button { min-height: 2.6rem; border: 1px solid var(--color-border-control); color: inherit; background: var(--color-surface); font: inherit; cursor: pointer; }
+.date-multiselect__head button { min-width: 2.6rem; }
+.date-multiselect button.is-selected { background: var(--color-ink); color: var(--color-surface); }
+.date-multiselect button:focus-visible, .value-editor :focus-visible, .filter-voucher-host button:focus-visible { outline: 2px solid var(--color-signal); outline-offset: 2px; }
+.date-multiselect [data-calendar-error] { color: var(--color-signal); }
+.filter-hit-row { background: #e9f1e8; }
+.voucher-details { margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--color-border-strong); }
+/* 第五步：條件選單、本次篩選與已保存結果各有固定位置。 */
+.filter-workspace { --filter-accent: var(--color-ink); --filter-border: var(--color-border); color: var(--color-ink); container: filter-workspace / inline-size; }
+.filter-workspace [hidden] { display: none !important; }
+.filter-workspace .panel__hint { margin-bottom: 16px; }
+.filter-workspace .rule-card, .filter-workspace .condition-picker { background: var(--color-surface); border: 1px solid var(--filter-border); box-shadow: none; }
+.filter-workspace .rule-card { padding: 20px; margin: 0 0 18px; }
+.filter-workspace .rule-card__title { margin: 0; }
+.filter-workspace .rule-card__sub { margin-top: 10px; }
+.filter-work-tabs, .filter-source-tabs, .filter-matrix-tabs { display: flex; gap: 4px; }
+.filter-work-tabs { margin: 12px 0 22px; border-bottom: 1px solid var(--filter-border); }
+.filter-work-tabs button, .filter-source-tabs button, .filter-matrix-tabs button { border: 0; background: transparent; color: var(--color-muted); padding: 12px 16px; cursor: pointer; font: inherit; }
+.filter-work-tabs button[aria-pressed="true"] { color: var(--filter-accent); box-shadow: inset 0 -2px var(--color-signal); font-weight: 700; }
+.filter-source-tabs, .filter-matrix-tabs { padding: 4px; background: var(--color-surface-sunken); border-radius: 5px; }
+.filter-source-tabs button { flex: 1; font-size: 13px; padding: 9px 5px; }
+.filter-source-tabs button[aria-pressed="true"], .filter-matrix-tabs button[aria-pressed="true"] { color: var(--filter-accent); background: var(--color-surface); border-radius: 3px; box-shadow: none; }
+.filter-workspace button:focus-visible, .filter-workspace summary:focus-visible { outline: 2px solid var(--filter-accent); outline-offset: 3px; }
+.filter-workbench { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 24px; align-items: start; }
+.filter-current, .filter-entry { min-width: 0; }
+.filter-workspace .filter-entry .condition-picker { border: 0; background: transparent; padding: 16px 0; margin: 0; }
+.filter-workspace .condition-picker__head { display: block; }
+.filter-workspace .condition-picker__count { display: block; margin: 6px 0; padding: 0; font-size: 12px; background: transparent; color: var(--color-muted); }
+.filter-workspace .condition-picker__intro { margin: 10px 0 14px; line-height: 1.7; }
+.filter-workspace .condition-picker__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.filter-workspace .picker-card { min-height: 44px; height: auto; text-align: left; padding: 10px; border: 1px solid var(--filter-border); background: var(--color-surface); grid-template-columns: 24px minmax(0, 1fr); }
+.filter-workspace .picker-card__label { display: block; -webkit-line-clamp: unset; overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.5; }
+.filter-workspace .picker-card--selected { background: var(--pale-blue); border-color: var(--pale-blue-ink); }
+.filter-workspace .picker-card--preset { background: var(--pale-yellow); border-color: var(--pale-yellow-ink); }
+.filter-workspace .picker-card--disabled { background: var(--color-surface-sunken); color: var(--color-faint); }
+.filter-workspace .picker-card--template { display: block; }
+.filter-workspace .filter-custom-add { display: grid; gap: 10px; }
+.filter-workspace .filter-custom-add select { max-width: 100%; min-width: 0; }
+.filter-workspace summary { cursor: pointer; color: var(--color-muted); padding: 10px 0; }
+.filter-examples { border-top: 1px solid var(--filter-border); margin-top: 8px; }
+.filter-examples p { font-size: 12px; color: var(--color-muted); }
+.filter-builder-heading { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 16px; }
+.filter-builder-heading > span { font-size: 12px; color: var(--color-muted); white-space: nowrap; }
+.filter-workspace .scenario-flat, .filter-workspace .scenario-set { background: transparent; margin: 0 0 14px; }
+.filter-workspace .scenario-set { padding: 12px; border: 1px solid var(--filter-border); border-radius: 8px; background: var(--color-surface); }
+/* 新增目標由標頭文字指出；整組不再與正在編輯的條件競爭高亮。 */
+.filter-workspace .scenario-set--active { border-color: var(--filter-border); background: var(--color-surface); }
+.filter-workspace .scenario-set--active::before { display: none; }
+.filter-workspace .scenario-flat__list { border: 0; padding: 0; }
+.filter-workspace .rule-row { background: var(--color-surface); border: 1px solid var(--color-border-row); border-radius: 6px; padding: 12px; margin: 8px 0; }
+.filter-workspace .rule-row--invalid { border-color: var(--color-signal); background: var(--pale-red); }
+.filter-workspace .rule-row__body, .filter-workspace .value-editor { min-width: 0; }
+.filter-workspace .scenario-readback { background: transparent; border-left: 2px solid var(--color-border-rule); padding: 8px 12px; font-size: 13px; }
+.filter-workspace .filter-relations { margin-bottom: 8px; }
+.filter-workspace .filter-relations summary { font-size: 12px; }
+.filter-workspace .filter-more { margin-top: 12px; border-top: 1px solid var(--color-border-row); font-size: 12px; }
+.filter-workspace .filter-primary-actions { position: relative; z-index: 4; margin: 16px -8px -8px; padding: 12px 8px; border-top: 1px solid var(--filter-border); background: var(--color-surface); }
+.filter-workspace .btn:not(.btn--ghost):not(.btn--danger) { background: var(--filter-accent); border-color: var(--filter-accent); color: var(--color-surface); }
+.filter-workspace .btn--ghost { background: var(--color-surface); border-color: var(--color-border-control); color: var(--color-text); }
+.filter-save-panel { margin-top: 16px; padding: 18px; background: var(--color-surface-sunken); border: 1px solid var(--color-border-strong); }
+.filter-save-panel h4 { margin: 0; }
+.filter-save-panel p { font-size: 13px; line-height: 1.6; }
+.filter-workspace .saved-scenario { border: 1px solid var(--filter-border); background: var(--color-surface); margin-top: 12px; }
+.filter-saved-actions { position: relative; }
+.filter-saved-actions summary { padding: 8px 12px; }
+.filter-saved-actions > div { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 0; }
+.filter-workspace .filter-matrix-tabs { margin: 12px 0 18px; width: fit-content; }
+.filter-matrix-name { display: block; white-space: normal; font-weight: 400; min-width: 90px; max-width: 180px; }
+.filter-workspace .empty-state { padding: 28px 16px; background: var(--color-surface); color: var(--color-muted); line-height: 1.8; }
+.filter-workspace .filter-voucher-host > .empty-state { padding: 8px 0; margin: 0; border: 0; text-align: left; }
+.filter-workspace .filter-match-reason > summary { padding: 2px 0; color: var(--color-text); white-space: nowrap; }
+.filter-workspace .filter-match-reason > p { width: 240px; margin: 8px 0 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.7; }
+@media (max-width: 900px) {
+  .filter-workbench { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .filter-workspace .condition-picker__grid--kct { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filter-workspace .filter-custom-add { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .filter-custom-add label, .filter-custom-add p { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .filter-workspace .rule-card { padding: 14px; }
+  .filter-workspace .condition-picker__grid--kct { grid-template-columns: minmax(0, 1fr); }
+  .filter-work-tabs button { padding: 10px 8px; }
+}
+
+.filter-entry-heading { margin-bottom: 16px; }
+.filter-entry-title { margin: 0; font-family: var(--font-sans); font-size: 14px; font-weight: 600; }
+.filter-target { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; color: var(--color-text); font-size: 13px; white-space: nowrap; }
+.filter-target select { flex: 1; min-width: 0; }
+.filter-group-empty { margin: 20px 0 12px; color: var(--color-muted); font-size: 13px; }
+.filter-entry-scroll { min-height: 0; }
+@media (min-width: 901px) and (min-height: 600px) {
+  .filter-workspace .filter-primary-actions { position: sticky; bottom: 0; }
+  .filter-workspace .rule-row { scroll-margin-bottom: 80px; }
+  .filter-workspace .filter-entry { position: sticky; top: 12px; display: flex; flex-direction: column; max-height: calc(100dvh - 180px); }
+  .filter-entry > .filter-entry-heading, .filter-entry > .filter-target, .filter-entry > .filter-source-tabs { flex-shrink: 0; }
+  .filter-entry-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+}
+@media (min-width: 901px) and (max-width: 1100px) {
+  .filter-workbench { grid-template-columns: 208px minmax(0, 1fr); gap: 16px; }
+  .filter-workspace .rule-card { padding: 14px; }
+  .filter-source-tabs button { padding: 9px 2px; font-size: 12px; }
+}
+.filter-group-tools { display: flex; align-items: center; }
+.filter-unavailable { margin-top: 14px; border-top: 1px solid var(--filter-border); }
+.filter-unavailable > summary { font-size: 13px; }
+.filter-draft-note { color: var(--color-muted); font-size: 12px; margin: 0 0 12px; }
+.filter-workspace .population-scope { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px; padding: 10px 0; margin-bottom: 8px; }
+.filter-workspace .population-scope__head { margin: 0; }
+.filter-workspace .population-scope__title { font-size: 13px; margin: 0; }
+.filter-workspace .population-scope__definition { font-size: 12px; margin: 0; }
+.filter-workspace .population-scope__status { flex-basis: 100%; }
+.filter-workspace .filter-entry .condition-picker__head,
+.filter-workspace .filter-entry .condition-picker--custom > .condition-picker__title { display: none; }
+
+/* 第二輪易用性調整：一條條件是一個可直接編輯及移除的單位。 */
+.filter-workspace .rule-row { display: block; padding: 12px 14px; }
+.filter-rule-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.filter-rule-heading > strong { font-weight: 600; font-size: 14px; }
+.filter-workspace .rule-row__remove { margin-left: auto; width: auto; min-width: 44px; height: 30px; padding: 4px 8px; flex: none; font-size: 12px; color: var(--color-text); border: 1px solid var(--color-border-control); background: var(--color-surface); }
+.filter-workspace .rule-row__remove:hover { color: var(--color-signal); border-color: var(--color-signal); }
+.filter-workspace .rule-row__controls { display: block; min-width: 0; }
+.filter-workspace .value-editor__main { align-items: center; gap: 8px; }
+.filter-workspace .value-editor__options { width: 100%; margin-top: 8px; }
+.filter-workspace .value-editor__options summary, .filter-rule-notes summary { padding: 3px 0; font-size: 12px; }
+.filter-workspace .value-editor__aux { display: grid; gap: 10px; padding: 10px 0 2px; }
+.filter-workspace .value-editor__aux > label { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.filter-workspace .value-editor__aux .value-editor__list { flex-basis: 100%; }
+.filter-workspace .value-period-end { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.filter-workspace .value-period-end label { display: inline-flex; gap: 6px; align-items: center; }
+.filter-workspace .value-period-end input { width: 64px; }
+.filter-workspace .filter-relations { margin: 8px 0 0; }
+.filter-workspace .filter-relations .match-scope { display: inline-flex; }
+.filter-workspace .filter-combinator { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; }
+.filter-group-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-group-heading > button:last-child { margin-left: auto; }
+.filter-readback { margin-top: 8px; font-size: 12px; }
+.filter-data-reference { width: 100%; margin: 6px 0 12px; }
+.filter-workspace .saved-scenario { overflow: visible; }
+.filter-workspace .filter-saved-actions[open] > div { position: absolute; z-index: 25; right: 0; top: 100%; display: grid; min-width: 130px; padding: 6px; background: var(--color-surface); border: 1px solid var(--color-border-strong); }
+.filter-workspace .filter-saved-actions[open] > div .btn { width: 100%; text-align: left; }
+
+/* 條件依閱讀順序排列；操作欄在窄表內仍可直接點選。 */
+.filter-workspace .filter-account-pair { display: grid; gap: 18px; }
+.filter-workspace .filter-pair-mode { display: grid; gap: 8px; font-size: 14px; }
+.filter-workspace .filter-pair-mode select { width: 100%; max-width: 100%; }
+.filter-workspace .filter-account-pair .category-select { min-width: 0; margin: 0; padding: 10px 0 0; border: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.filter-workspace .filter-account-pair .category-select__legend { font-size: 14px; color: var(--color-text); }
+.filter-workspace .filter-account-pair .category-option { margin: 0; padding: 7px 10px; font-size: 13px; }
+.filter-workspace .filter-pair-result { margin: 0; font-size: 13px; line-height: 1.6; }
+.filter-workspace .rule-row__controls input:not([type=checkbox]),
+.filter-workspace .rule-row__controls select { max-width: 100%; box-sizing: border-box; }
+.filter-workspace .value-period-range { flex-basis: 100%; margin: 4px 0; }
+.filter-workspace [data-period-end-days] { width: 70px; }
+.filter-workspace .filter-save-panel { display: grid; gap: 12px; }
+.filter-workspace .filter-save-panel p { margin: 0; }
+.filter-workspace .filter-save-panel textarea { box-sizing: border-box; max-width: 100%; resize: vertical; }
+.filter-workspace .filter-voucher-host > .preview-table__wrap { position: relative; isolation: isolate; }
+.filter-workspace .filter-voucher-host > .preview-table__wrap > table > thead > tr > th:last-child,
+.filter-workspace .filter-voucher-host > .preview-table__wrap > table > tbody > tr > td:last-child { position: sticky; right: 0; background: var(--color-surface); border-left: 1px solid var(--color-border); z-index: 2; min-width: 78px; }
+.filter-workspace .filter-voucher-host > .preview-table__wrap > table > thead > tr > th:last-child { z-index: 3; background: var(--color-surface-sunken); }
+
+/* 共用條件列：標題在上、控制項垂直置中；區間成對換行。 */
+.filter-workspace .rule-row--selected:not(.rule-row--invalid) { border-color: var(--pale-blue-ink); background: #edf5fb; box-shadow: inset 3px 0 var(--pale-blue-ink); }
+.filter-workspace .rule-row :is(input, select, textarea, button, summary):focus { outline: none; }
+.filter-workspace .rule-row :is(input, select, textarea, button, summary):focus-visible { box-shadow: inset 0 -2px var(--pale-blue-ink); }
+.filter-workspace .filter-rule-selected { flex: none; font-family: var(--font-sans); font-size: 12px; color: #fff; background: var(--pale-blue-ink); padding: 3px 7px; border-radius: 4px; }
+.filter-workspace .scenario-set__badge { flex: none; font-family: var(--font-sans); font-size: 12px; font-weight: 400; color: var(--color-muted); background: transparent; padding: 3px 0; border-radius: 0; }
+/* 組設定以位置和分隔線表示歸屬，底色不表示選取。 */
+.filter-workspace .filter-group-settings { margin-bottom: 12px; padding: 10px 0; border: 0; border-bottom: 1px solid var(--filter-border); border-radius: 0; background: transparent; }
+.filter-workspace .filter-group-settings .filter-combinator { margin-bottom: 0; }
+.filter-workspace .filter-group-settings .filter-relations { margin-top: 8px; border-top: 0; }
+.filter-workspace .filter-group-settings .filter-relations > summary { color: var(--color-muted); padding: 8px 0 0; }
+.filter-workspace .filter-group-settings .filter-relations[open] > summary { margin-bottom: 10px; }
+.filter-workspace .rule-row__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.filter-workspace .rule-row__controls > label { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.filter-workspace .rule-row__controls > .rule-field__hint,
+.filter-workspace .filter-rule-notes,
+.filter-workspace .filter-account-pair { flex-basis: 100%; }
+.filter-workspace .value-editor { container-type: inline-size; }
+.filter-workspace .value-editor__range { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; flex: 1 1 320px; min-width: min(100%, 300px); }
+.filter-workspace .value-editor__range input { width: 100%; box-sizing: border-box; }
+.filter-workspace .value-editor__list { box-sizing: border-box; line-height: 22px; min-height: 36px; max-height: 160px; margin: 0; resize: vertical; }
+.filter-workspace .scenario-pills { display: block; }
+.filter-workspace .scenario-pills .scenario-readback { margin: 0; color: var(--color-text); }
+@container (max-width: 320px) {
+  .filter-workspace .value-editor__range { grid-template-columns: minmax(0, 1fr); }
+  .filter-workspace .value-editor__range .rule-row__sep { text-align: center; }
+}
+/* 資料預覽展開時，以工作區剩餘寬度切版，不把條件編輯器擠成窄條。 */
+@container filter-workspace (max-width: 660px) {
+  .filter-workbench { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .filter-workspace .filter-entry { position: static; max-height: none; }
+  .filter-entry-scroll { overflow: visible; }
+  .filter-workspace .filter-primary-actions { position: relative; }
+  .filter-workspace .condition-picker__grid--kct { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

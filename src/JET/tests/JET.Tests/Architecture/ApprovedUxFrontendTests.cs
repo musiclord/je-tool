@@ -122,6 +122,26 @@ public sealed class ApprovedUxFrontendTests
     }
 
     [Fact]
+    public void StaleFilterGuidance_TellsTheAuditorWhichStepAndWhichButton()
+    {
+        // 2026-09-04 裁定：第六步失效提示改成「發生什麼事、去哪一步按哪個鈕」；步驟五同族訊息用同一套話。
+        var export = ReadFrontend("js", "steps", "export-step.js");
+        var filter = ReadFrontend("js", "steps", "filter-step.js");
+
+        Assert.Contains("上游資料已變更，先前的條件篩選報告已不能用。請回到「進階條件篩選」按「重新產生條件篩選報告」，系統會用目前資料重新計算，然後回來這裡匯出。", export, StringComparison.Ordinal);
+        Assert.Contains("還沒有目前資料的條件篩選報告。請回到「進階條件篩選」按「完成條件篩選並產生報告」，然後回來這裡匯出。", export, StringComparison.Ordinal);
+        Assert.Contains("請按「以查核期間重新保存」", filter, StringComparison.Ordinal);
+        Assert.Contains("按「重新產生條件篩選報告」會用目前資料重新計算", filter, StringComparison.Ordinal);
+        // 步驟五按鈕在曾經產生過報告或上游資料變更後都叫「重新產生」，第六步提示指的按鈕名稱才對得上。
+        Assert.Contains("state.staleState.filter) ||\n      Ui.reportArtifactHistory(state, 'criteriaSelectionReport').length > 0", filter, StringComparison.Ordinal);
+        foreach (var jargon in new[] { "版本參照", "測試母體區", "有界預覽", "尚無 CriteriaSelectionReport", "凍結為 CriteriaSelectionReport", "匯出時會依目前資料重新計算" })
+        {
+            Assert.DoesNotContain(jargon, export, StringComparison.Ordinal);
+            Assert.DoesNotContain(jargon, filter, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void ReleaseStructuralSurfaces_AreSquareAndFlatWhileSemanticPillsAndOverviewShadowRemain()
     {
         var css = ReadFrontend("css", "app.css");

@@ -33,11 +33,13 @@ public static class FilterConditionLabels
             ["drCrOnly"] = "借貸限定",
             ["manualAuto"] = "人工/自動",
             ["customTrailingZeros"] = "自訂尾數位數",
-            ["accountPair"] = "科目配對分析",
-            ["specialAccountCategoryPair"] = "考量特殊科目類別配對",
+            ["accountPair"] = "借貸科目組合（看對方科目）",
+            ["specialAccountCategoryPair"] = "借貸科目組合",
             ["customPreparerEntryCount"] = "自訂編製人員張數",
             ["customAccountEntryCount"] = "自訂科目張數",
             ["typed"] = "攸關資料元素條件",
+            ["fieldValue"] = "欄位值比較",
+            ["accountSide"] = "借貸科目分類",
             ["revenueDebitNearQuarterEnd"] = "季末前借記收入",
             ["revenueWithoutNormalCounterpart"] = "收入無一般對方科目",
             ["manualRevenueEntry"] = "收入之人工分錄",
@@ -78,9 +80,18 @@ public static class FilterConditionLabels
     public static readonly IReadOnlyDictionary<string, string> AccountPairModes =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [JET.Domain.AccountPairModes.Exact] = "精確配對（借＋貸同傳票）",
-            [JET.Domain.AccountPairModes.DebitAnchor] = "借方錨定（看對方科目）",
-            [JET.Domain.AccountPairModes.CreditAnchor] = "貸方錨定（看對方科目）",
+            [JET.Domain.AccountPairModes.Exact] = "借方是 A 且貸方是 B",
+            [JET.Domain.AccountPairModes.DebitAnchor] = "借方是 A，看它的對方科目",
+            [JET.Domain.AccountPairModes.CreditAnchor] = "貸方是 B，看它的對方科目",
+        };
+
+    /// <summary>借貸科目分類（accountSide）模式 → 中文（前端 <c>ACCOUNT_SIDE_MODE_OPTIONS</c> 鏡像）。</summary>
+    public static readonly IReadOnlyDictionary<string, string> AccountSideModes =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["is"] = "科目屬於指定分類",
+            ["isNot"] = "科目不屬於指定分類",
+            ["absent"] = "整張傳票的這一側都不屬於指定分類",
         };
 
     /// <summary>
@@ -93,10 +104,13 @@ public static class FilterConditionLabels
     public static readonly IReadOnlyDictionary<string, string> SpecialPairModes =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [SpecialAccountCategoryPairModes.DrAndCr] = "Dr A、Cr B（借A貸B）",
-            [SpecialAccountCategoryPairModes.DrNotCr] = "Dr A、Cr 非 B（借A、貸方無B）",
-            [SpecialAccountCategoryPairModes.NotDrCr] = "Dr 非 A、Cr B（貸B、借方無A）",
+            [SpecialAccountCategoryPairModes.DrAndCr] = "借方是 A 且貸方是 B",
+            [SpecialAccountCategoryPairModes.DrNotCr] = "借方是 A 且整張傳票沒有 B 貸方",
+            [SpecialAccountCategoryPairModes.NotDrCr] = "貸方是 B 且整張傳票沒有 A 借方",
         };
+
+    /// <summary>借貸科目組合讀回的前綴（兩個 wire 型別共用，畫面上是同一張卡）。</summary>
+    public const string AccountCombinationPrefix = "借貸科目組合：";
 
     /// <summary>
     /// 可作條件的 GL 邏輯欄（文字/日期欄）→ 中文（前端 <c>GL_FIELDS</c> 的 label 子集鏡像）。
@@ -118,7 +132,7 @@ public static class FilterConditionLabels
     public const string NonBusinessDayAtom = "非營業日（週末或假日）";
 
     /// <summary>sameVoucher 第一條規則的輸出列標籤（前端 read-back 鏡像）。</summary>
-    public const string SameVoucherOutputAnchor = "輸出錨點（第 1 條）";
+    public const string SameVoucherOutputAnchor = "主要條件（決定命中分錄）";
 
     /// <summary>sameVoucher 後續規則的跨列佐證說明（前端 help／read-back 鏡像）。</summary>
     public const string SameVoucherEvidenceExplanation = "後續條件可由同一傳票的其他分錄列符合";

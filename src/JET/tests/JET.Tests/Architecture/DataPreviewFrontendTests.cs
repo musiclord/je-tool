@@ -18,7 +18,7 @@ public sealed class DataPreviewFrontendTests
         Assert.True(tabs.Success, "找不到 data-preview.js 的 MAIN_TABS。");
         var body = tabs.Groups["body"].Value;
         Assert.Contains("{ value: 'glStaging', label: 'GL 原始資料' }", body, StringComparison.Ordinal);
-        Assert.Contains("{ value: 'glEntries', label: 'GL 有效母體' }", body, StringComparison.Ordinal);
+        Assert.Contains("{ value: 'glEntries', label: 'GL 測試母體' }", body, StringComparison.Ordinal);
         Assert.Contains("{ value: 'tbStaging', label: 'TB 原始資料' }", body, StringComparison.Ordinal);
         Assert.Contains("{ value: 'tbBalances', label: 'TB 標準化資料' }", body, StringComparison.Ordinal);
         Assert.Contains("{ value: 'accountMappings', label: '科目配對' }", body, StringComparison.Ordinal);

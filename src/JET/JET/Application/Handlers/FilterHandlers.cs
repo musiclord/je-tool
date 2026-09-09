@@ -377,6 +377,11 @@ internal static class FilterValidationContextFactory
             HasDescription = JetFieldCatalog.HasMappedGlSemanticField(
                 glMapping.Mapping,
                 JetFieldCatalog.GlDescription),
+            AvailableGlFields = JetFieldCatalog.GlFields
+                .Where(field => JetFieldCatalog.HasMappedGlSemanticField(glMapping.Mapping, field.SemanticIdentity)
+                    || field.SemanticIdentity == JetFieldCatalog.GlDocDate
+                    && glMapping.GlOptions?.ApprovalDateMode == ApprovalDateModeNames.SameAsPostDate)
+                .Select(static field => field.SemanticIdentity).ToArray(),
             TaxonomyCategoryIds = taxonomy is null
                 ? AccountTaxonomyCatalog.BuiltInSnapshot.Categories
                     .Select(static category => category.CategoryId)

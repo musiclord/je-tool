@@ -23,6 +23,8 @@ internal static class MappingReviewPrerequisite
         "query.nullRecordsPage",
         "query.sourceQualityPage",
         "query.filterHitsPage",
+        "query.filterVoucherPage",
+        "query.filterVoucherRowsPage",
         "query.prescreenPage",
         "query.infSamplePage",
         "query.tagMatrixScenarios",

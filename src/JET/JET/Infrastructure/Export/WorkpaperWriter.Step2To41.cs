@@ -263,7 +263,7 @@ public sealed partial class WorkpaperWriter
                 (IReadOnlyList<string?>)new string?[]
                 {
                     $"C{scenario.Position}",
-                    scenario.Name,
+                    scenario.Description,
                     scenario.Rationale,
                     scenario.VoucherHitCount.ToString("#,##0", CultureInfo.InvariantCulture)
                 }));
@@ -299,15 +299,19 @@ public sealed partial class WorkpaperWriter
         foreach (var scenario in tagColumns.Scenarios)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            sheet.WriteRow(rowIndex,
-            [
-                sheet.TextCell(rowIndex, 2, $"C{scenario.Position}"),
-                sheet.TextCell(rowIndex, 3, scenario.Name),
-                sheet.TextCell(rowIndex, 4, scenario.Rationale),
-                sheet.NumberCell(rowIndex, 5, scenario.VoucherHitCount)
-            ]);
-            rowIndex++;
-            dataRows++;
+            var parts = FilterConditionExcelText.Parts(scenario.Description);
+            for (var index = 0; index < parts.Count; index++)
+            {
+                sheet.WriteRow(rowIndex,
+                [
+                    sheet.TextCell(rowIndex, 2, $"C{scenario.Position}" + (index == 0 ? "" : "（續）")),
+                    sheet.TextCell(rowIndex, 3, parts[index]),
+                    sheet.TextCell(rowIndex, 4, index == 0 ? scenario.Rationale : ""),
+                    index == 0 ? sheet.NumberCell(rowIndex, 5, scenario.VoucherHitCount) : sheet.BlankCell(rowIndex, 5)
+                ]);
+                rowIndex++;
+                dataRows++;
+            }
         }
 
         AddStat(stats, sheet.CloseAndSummarizeWith(dataRows, cancellationToken), progress);

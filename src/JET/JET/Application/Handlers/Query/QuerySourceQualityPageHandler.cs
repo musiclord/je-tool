@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Application;
@@ -16,24 +17,16 @@ public sealed class QuerySourceQualityPageHandler(
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var projectId = session.RequireProjectId();
-        string? cursor = null;
         if (payload.TryGetProperty("cursor", out var cursorElement)
-            && cursorElement.ValueKind != JsonValueKind.Null)
+            && cursorElement.ValueKind is not (JsonValueKind.Null or JsonValueKind.String))
         {
-            if (cursorElement.ValueKind != JsonValueKind.String)
-            {
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "cursor 必須是 opaque 字串或 null。");
-            }
-            cursor = cursorElement.GetString();
+            throw new JetActionException(JetErrorCodes.InvalidPayload, "cursor 必須是 opaque 字串或 null。");
         }
-        if (PageCursor.IsMalformed(cursor))
-        {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "cursor 格式不符(無法解碼)。");
-        }
-        var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
+
+        var request = PageRequestReader.Read(payload, ResultPageSorting.SourceQuality);
         var page = await repository.GetPageAsync(
             projectId,
-            new PageRequest(cursor, pageSize),
+            request,
             cancellationToken);
 
         return new

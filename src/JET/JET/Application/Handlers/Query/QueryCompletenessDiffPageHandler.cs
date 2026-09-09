@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Application;
@@ -18,14 +19,7 @@ public sealed class QueryCompletenessDiffPageHandler(
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var projectId = session.RequireProjectId();
-        var cursor = PayloadReader.GetOptionalString(payload, "cursor");
-        if (PageCursor.IsMalformed(cursor))
-        {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload, "cursor 格式不符(無法解碼)。");
-        }
-
-        var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
+        var request = PageRequestReader.Read(payload, ResultPageSorting.CompletenessDiff);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
@@ -35,7 +29,7 @@ public sealed class QueryCompletenessDiffPageHandler(
         var page = await Task.Run(
             () => repository.GetPageAsync(
                 projectId, document.MoneyScale, document.PeriodStart, document.PeriodEnd,
-                new PageRequest(cursor, pageSize), cancellationToken),
+                request, cancellationToken),
             cancellationToken);
 
         var scale = document.MoneyScale;

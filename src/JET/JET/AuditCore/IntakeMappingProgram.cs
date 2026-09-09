@@ -278,7 +278,10 @@ internal sealed class AccountMappingProjection
             name,
             category.Label,
             category.CategoryId,
-            AccountTaxonomyCatalog.LegacyLabelForSemanticRole(category.SemanticRole));
+            AccountTaxonomyCatalog.LegacyLabelForSemanticRole(category.SemanticRole))
+        {
+            HasExplicitCategory = !string.IsNullOrWhiteSpace(rawCategory)
+        };
     }
 
     internal IReadOnlyList<AccountMappingRow> Complete(

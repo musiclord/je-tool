@@ -45,15 +45,21 @@ public sealed class FilterAccountMappingEligibilityFrontendTests
         Assert.Contains("科目配對需至少一個一般對方分類", filter, StringComparison.Ordinal);
         Assert.Contains("accountMappingRequirementNote(item.ref)", filter, StringComparison.Ordinal);
 
-        var start = filter.IndexOf("function customPickerHtml()", StringComparison.Ordinal);
+        // 2026-09-07 自訂篩選條件改版：十三張挑選卡改成每組一列三個家族入口（addRuleBarHtml），
+        // 「科目分類」入口在案件沒有科目配對時停用並把同一句原因顯示在旁邊。守衛的意圖不變：
+        // 自訂條件的停用原因與 KCT 卡用同一個 accountMappingRequirementNote，且停用對輔助工具可見。
+        // 第一次失敗的證據：收據 20260907-135727110（customPickerHtml 已不含挑選卡）。
+        // 09-08 科目入口改成原生選項，保留停用與可閱讀的原因；第一次失敗為 20260908-024320083。
+        var start = filter.IndexOf("function addRuleBarHtml()", StringComparison.Ordinal);
         var end = filter.IndexOf("\n  function ", start + 1, StringComparison.Ordinal);
         Assert.True(start >= 0 && end > start);
-        var customPicker = filter[start..end];
+        var addBar = filter[start..end];
 
-        Assert.Contains("accountMappingRequirementNote(t.value)", customPicker, StringComparison.Ordinal);
-        Assert.Contains("picker-card--disabled", customPicker, StringComparison.Ordinal);
-        Assert.Contains("disabled aria-disabled=\"true\"", customPicker, StringComparison.Ordinal);
-        Assert.Contains("picker-card__note", customPicker, StringComparison.Ordinal);
+        Assert.Contains("accountMappingRequirementNote('accountSide')", addBar, StringComparison.Ordinal);
+        Assert.Contains("option('type:accountSide', '借方或貸方分類', accountNote)", addBar, StringComparison.Ordinal);
+        Assert.Contains("(note ? ' disabled' : '')", addBar, StringComparison.Ordinal);
+        Assert.Contains("Ui.esc(label + (note ? '（' + note + '）' : ''))", addBar, StringComparison.Ordinal);
+        Assert.Contains("scenario-add__note", addBar, StringComparison.Ordinal);
     }
 
     private static string ReadFrontend(params string[] segments)

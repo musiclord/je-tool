@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -9,11 +10,17 @@ namespace JET.Domain;
 /// </summary>
 public static class DiagnosticNdjson
 {
-    private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
+    private static readonly JsonSerializerOptions Options = DiagnosticNdjsonOptions.Create(encoder: null);
 
     /// <summary>單筆序列化為一行 JSON(不含換行;NDJSON 由呼叫端以 \n 串接)。</summary>
     public static string SerializeLine(DiagnosticLogEntry entry) => JsonSerializer.Serialize(entry, Options);
+}
+
+internal static class DiagnosticNdjsonOptions
+{
+    internal static JsonSerializerOptions Create(JavaScriptEncoder? encoder) => new(JsonSerializerDefaults.Web)
+    {
+        Encoder = encoder,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
 }

@@ -45,7 +45,39 @@ public static class FilterScenarioPayloadParser
             }
         }
 
+        // 2026-09-07 裁定：情境層排除區域已移除；排除由條件本身的否定模式承擔。舊 wire 帶 `exclusions`
+        // 時 fail-loud，讓審計員把它改成一般條件，而不是靜默忽略讓命中變多。
+        if (scenario.TryGetProperty("exclusions", out var exclusionElements)
+            && exclusionElements.ValueKind == JsonValueKind.Array && exclusionElements.GetArrayLength() > 0)
+            throw Invalid("這個情境使用了已移除的「排除區域」；請改用日期、文字或金額條件的「不屬於」「不在區間」等模式後重新保存。");
+        ValidateEditorOrigins(scenario, groups);
         return new FilterScenarioSpec(name.Trim(), rationale.Trim(), groups, source);
+    }
+
+    // Editing provenance is structurally checked, but never used by the rule compiler.
+    private static void ValidateEditorOrigins(JsonElement scenario, IReadOnlyList<FilterGroupSpec> groups)
+    {
+        if (!scenario.TryGetProperty("editorOrigins", out var origins)) return;
+        if (origins.ValueKind != JsonValueKind.Object || !origins.TryGetProperty("version", out var version)
+            || !version.TryGetInt32(out var number) || number != 1
+            || !origins.TryGetProperty("groups", out var items) || items.ValueKind != JsonValueKind.Array
+            || items.GetArrayLength() != groups.Count) throw Invalid("條件編輯來源不完整，請重新開啟情境後再保存。");
+        if (origins.TryGetProperty("legacyKctSource", out var legacy)
+            && legacy.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            throw Invalid("舊情境來源資訊無效，請重新開啟情境。");
+        for (var i = 0; i < groups.Count; i++)
+        {
+            var item = items[i];
+            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("letters", out var letters)
+                || letters.ValueKind != JsonValueKind.Array || letters.GetArrayLength() != groups[i].Rules.Count)
+                throw Invalid("條件編輯來源與條件位置不一致，請重新開啟情境。");
+            foreach (var letter in letters.EnumerateArray())
+                if (letter.ValueKind != JsonValueKind.Null && (letter.ValueKind != JsonValueKind.String
+                    || letter.GetString() is not { Length: 1 } value || value[0] < 'A' || value[0] > 'J'))
+                    throw Invalid("KCT 卡片來源無效，請重新開啟情境。");
+            if (item.TryGetProperty("presetGroup", out var preset) && preset.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                throw Invalid("KCT 群組來源無效，請重新開啟情境。");
+        }
     }
 
     private static FilterGroupSpec ParseGroup(JsonElement group, int moneyScale)
@@ -94,6 +126,8 @@ public static class FilterScenarioPayloadParser
             "trailingDigits" => FilterRuleType.TrailingDigits,
             "preparerEqualsApprover" => FilterRuleType.PreparerEqualsApprover,
             "typed" => FilterRuleType.TypedField,
+            "fieldValue" => FilterRuleType.FieldValue,
+            "accountSide" => FilterRuleType.AccountSide,
             _ => throw Invalid($"不支援的條件型別「{typeName}」。")
         };
 
@@ -143,14 +177,14 @@ public static class FilterScenarioPayloadParser
         string? typedTo = null;
         string? amountBasis = null;
         IReadOnlyList<string>? typedValues = null;
-        if (type == FilterRuleType.TypedField)
+        if (type is FilterRuleType.TypedField or FilterRuleType.FieldValue)
         {
             // typed（2026-08-14 凍結）的 operand carrier 必須是非 null 字串；null、非字串或
             // 非字串陣列在形狀層就 fail loud。原始拼法（含空白）原樣保留，closed token 的
             // 正準性與 carrier 適用性由 Domain validator 依欄位型別裁定。
             fieldId = ReadTypedString(rule, "fieldId");
             typedOperator = ReadTypedString(rule, "operator");
-            if (typedOperator is not null && !TypedFieldOperatorSets.All.Contains(typedOperator))
+            if (type == FilterRuleType.TypedField && typedOperator is not null && !TypedFieldOperatorSets.All.Contains(typedOperator))
             {
                 throw Invalid($"不支援的 typed operator「{typedOperator}」。");
             }
@@ -159,7 +193,7 @@ public static class FilterScenarioPayloadParser
             typedFrom = ReadTypedString(rule, "from");
             typedTo = ReadTypedString(rule, "to");
             amountBasis = ReadTypedString(rule, "amountBasis");
-            typedValues = ParseTypedValues(rule);
+            typedValues = ParseTypedValues(rule, type == FilterRuleType.FieldValue);
         }
 
         return new FilterRuleSpec(
@@ -194,7 +228,20 @@ public static class FilterScenarioPayloadParser
             TypedFrom = typedFrom,
             TypedTo = typedTo,
             TypedValues = typedValues,
-            AmountBasis = amountBasis
+            AmountBasis = amountBasis,
+            IncludeBlank = ReadOptionalBoolean(rule, "includeBlank"),
+            CategoryMode = ReadClosedToken(rule, "categoryMode"),
+            CategoryIds = AccountPairCategorySelection.Canonicalize(ParseCategoryIds(rule, "categoryIds") ?? [])
+        };
+    }
+
+    private static bool? ReadOptionalBoolean(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out var value)) return null;
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true, JsonValueKind.False => false,
+            _ => throw Invalid($"{property} 必須是布林值。")
         };
     }
 
@@ -220,7 +267,7 @@ public static class FilterScenarioPayloadParser
     }
 
     /// <summary>typed `in`／`notIn` 的 values：null＝沒帶陣列；1–100 個字串（形狀層先擋上限）。</summary>
-    private static IReadOnlyList<string>? ParseTypedValues(JsonElement rule)
+    private static IReadOnlyList<string>? ParseTypedValues(JsonElement rule, bool newValueRule = false)
     {
         if (rule.ValueKind != JsonValueKind.Object || !rule.TryGetProperty("values", out var values))
         {
@@ -240,7 +287,7 @@ public static class FilterScenarioPayloadParser
                 throw Invalid("typed 條件的 values 每個元素都必須是字串。");
             }
 
-            if (result.Count >= FilterScenarioLimits.MaxTypedInValuesPerRule)
+            if (result.Count >= (newValueRule ? FilterScenarioLimits.MaxCompiledParameters : FilterScenarioLimits.MaxTypedInValuesPerRule))
             {
                 throw Invalid(
                     $"typed 條件的 values 最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。");

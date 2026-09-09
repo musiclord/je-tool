@@ -827,11 +827,13 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             columns.EnumerateArray().Select(column => column.GetProperty("key").GetString()!).ToArray());
         JsonShape.Element(columns, column =>
         {
-            JsonShape.HasExactKeys(column, "key", "label", "valueType", "isCustom");
+            // 2026-09-07 工作包 G：固定欄多帶 sortable（第一次失敗：收據 20260907-082210786）。
+            JsonShape.HasExactKeys(column, "key", "label", "valueType", "isCustom", "sortable");
             JsonShape.Str(column, "key");
             JsonShape.Str(column, "label");
             JsonShape.Str(column, "valueType");
             Assert.False(column.GetProperty("isCustom").GetBoolean());
+            Assert.True(column.GetProperty("sortable").GetBoolean());
         });
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
             JsonShape.HasExactKeys(
@@ -908,11 +910,13 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             columns.EnumerateArray().Select(column => column.GetProperty("key").GetString()!).ToArray());
         JsonShape.Element(columns, column =>
         {
-            JsonShape.HasExactKeys(column, "key", "label", "valueType", "isCustom");
+            // 2026-09-07 工作包 G：固定欄多帶 sortable（第一次失敗：收據 20260907-082210786）。
+            JsonShape.HasExactKeys(column, "key", "label", "valueType", "isCustom", "sortable");
             JsonShape.Str(column, "key");
             JsonShape.Str(column, "label");
             JsonShape.Str(column, "valueType");
             Assert.False(column.GetProperty("isCustom").GetBoolean());
+            Assert.True(column.GetProperty("sortable").GetBoolean());
         });
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
             JsonShape.HasExactKeys(
@@ -951,7 +955,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
                 scenarioPositions = new[] { 1 }
             }));
 
-            JsonShape.HasExactKeys(data, "ok", "artifact", "sheetStats");
+            JsonShape.HasExactKeys(data, "ok", "artifact", "sheetStats", "reportArtifacts");
             Assert.Equal(JsonValueKind.True, data.GetProperty("ok").ValueKind);
             var artifact = JsonShape.Obj(data, "artifact");
             JsonShape.HasExactKeys(artifact,
@@ -961,6 +965,14 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             JsonShape.Str(artifact, "kind");
             JsonShape.Str(artifact, "fileName");
             JsonShape.Number(artifact, "bytes");
+            var catalog = JsonShape.Arr(data, "reportArtifacts");
+            Assert.Equal(new[] { "criteriaSelectionReport", "workingPaper" }, catalog.EnumerateArray()
+                .Select(item => item.GetProperty("kind").GetString()).Order(StringComparer.Ordinal));
+            JsonShape.Element(catalog, item => JsonShape.HasExactKeys(item,
+                "artifactId", "kind", "fileName", "generatedUtc", "bytes", "fileState", "sourceRef", "stale"));
+            var published = Assert.Single(catalog.EnumerateArray(), item =>
+                item.GetProperty("artifactId").GetString() == artifact.GetProperty("artifactId").GetString());
+            Assert.Equal(artifact.GetRawText(), published.GetRawText());
             var sheetStats = JsonShape.Arr(data, "sheetStats");
             Assert.True(sheetStats.GetArrayLength() >= 1, "至少應有封面等工作表的統計");
             JsonShape.Element(sheetStats, e =>
@@ -999,16 +1011,35 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
                 runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()
             }));
 
-        JsonShape.HasExactKeys(data, "ok", "filePath", "fileName", "rowCount", "validationRunId");
+        JsonShape.HasExactKeys(data, "ok", "filePath", "fileName", "rowCount", "validationRunId", "disposition");
         Assert.Equal(JsonValueKind.True, data.GetProperty("ok").ValueKind);
         JsonShape.Str(data, "filePath");
         JsonShape.Str(data, "fileName");
         JsonShape.Number(data, "rowCount");
         JsonShape.Str(data, "validationRunId");
+        Assert.Equal("created", data.GetProperty("disposition").GetString());
+        Assert.Equal(validation.GetProperty("resultRef").GetProperty("runId").GetString(),
+            data.GetProperty("validationRunId").GetString());
         Assert.True(Path.IsPathFullyQualified(data.GetProperty("filePath").GetString()!));
         Assert.Equal(
             Path.GetFileName(data.GetProperty("filePath").GetString()!),
             data.GetProperty("fileName").GetString());
+        var original = await File.ReadAllBytesAsync(data.GetProperty("filePath").GetString()!);
+        var kept = await host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new
+        {
+            runId = data.GetProperty("validationRunId").GetString(),
+            onlyIfMissing = true
+        }));
+        JsonShape.HasExactKeys(kept, "ok", "filePath", "fileName", "rowCount", "validationRunId", "disposition");
+        Assert.Equal(JsonValueKind.True, kept.GetProperty("ok").ValueKind);
+        Assert.Equal("kept", kept.GetProperty("disposition").GetString());
+        Assert.Equal(JsonValueKind.Null, kept.GetProperty("rowCount").ValueKind);
+        foreach (var field in new[] { "filePath", "fileName", "validationRunId" })
+        {
+            JsonShape.Str(kept, field);
+            Assert.Equal(data.GetProperty(field).GetString(), kept.GetProperty(field).GetString());
+        }
+        Assert.Equal(original, await File.ReadAllBytesAsync(kept.GetProperty("filePath").GetString()!));
     }
 
     [Fact]

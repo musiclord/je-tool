@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Application;
@@ -31,14 +32,8 @@ public sealed class QueryTagMatrixRowPageHandler(
     {
         var projectId = session.RequireProjectId();
 
-        var cursor = PayloadReader.GetOptionalString(payload, "cursor");
-        if (PageCursor.IsMalformed(cursor))
-        {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload, "cursor 格式不符(無法解碼)。");
-        }
-
-        var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
+        var request = PageRequestReader.Read(payload, ResultPageSorting.TagMatrixRow);
+        var cursor = request.Cursor;
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
@@ -54,8 +49,6 @@ public sealed class QueryTagMatrixRowPageHandler(
             revision.PopulationScope,
             document.PeriodStart,
             document.PeriodEnd);
-
-        var request = new PageRequest(cursor, pageSize);
 
         var (page, entryIds, positions) = await Task.Run(
             () => repository.GetPageAsync(projectId, populationContext, request, null, cancellationToken),

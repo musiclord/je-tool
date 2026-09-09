@@ -11,10 +11,10 @@ namespace JET.Infrastructure;
 /// </summary>
 public sealed class RingBufferLoggerProvider : ILoggerProvider, ISupportExternalScope, IDiagnosticLogStore
 {
-    private readonly DiagnosticRingBuffer _buffer;
+    private readonly BoundedRingBuffer<DiagnosticLogEntry> _buffer;
     private IExternalScopeProvider _scopeProvider = new LoggerExternalScopeProvider();
 
-    public RingBufferLoggerProvider(int capacity) => _buffer = new DiagnosticRingBuffer(capacity);
+    public RingBufferLoggerProvider(int capacity) => _buffer = new BoundedRingBuffer<DiagnosticLogEntry>(capacity);
 
     internal IExternalScopeProvider ScopeProvider => _scopeProvider;
 
@@ -31,7 +31,7 @@ public sealed class RingBufferLoggerProvider : ILoggerProvider, ISupportExternal
 }
 
 /// <summary>把 M.E.Logging 的 state＋active scopes＋exception 轉成 <see cref="DiagnosticLogEntry"/> 寫入 ring buffer。</summary>
-internal sealed class RingBufferLogger(string category, DiagnosticRingBuffer buffer, RingBufferLoggerProvider owner)
+internal sealed class RingBufferLogger(string category, BoundedRingBuffer<DiagnosticLogEntry> buffer, RingBufferLoggerProvider owner)
     : ILogger
 {
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => owner.ScopeProvider.Push(state);
@@ -49,45 +49,5 @@ internal sealed class RingBufferLogger(string category, DiagnosticRingBuffer buf
         var entry = DiagnosticLogEntryFactory.Create(
             owner.ScopeProvider, category, logLevel, eventId, state, exception, formatter);
         buffer.Add(entry);
-    }
-}
-
-/// <summary>bounded、thread-safe、滿則覆寫最舊的環形緩衝;Snapshot 回舊→新複本。</summary>
-internal sealed class DiagnosticRingBuffer(int capacity)
-{
-    private readonly DiagnosticLogEntry[] _items = new DiagnosticLogEntry[Math.Max(1, capacity)];
-    private readonly Lock _gate = new();
-    private int _start;
-    private int _count;
-
-    public void Add(DiagnosticLogEntry entry)
-    {
-        lock (_gate)
-        {
-            if (_count < _items.Length)
-            {
-                _items[(_start + _count) % _items.Length] = entry;
-                _count++;
-            }
-            else
-            {
-                _items[_start] = entry; // 覆寫最舊
-                _start = (_start + 1) % _items.Length;
-            }
-        }
-    }
-
-    public IReadOnlyList<DiagnosticLogEntry> Snapshot()
-    {
-        lock (_gate)
-        {
-            var result = new DiagnosticLogEntry[_count];
-            for (var i = 0; i < _count; i++)
-            {
-                result[i] = _items[(_start + i) % _items.Length];
-            }
-
-            return result;
-        }
     }
 }

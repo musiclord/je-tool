@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "runnerContractVersion": "8.0",
+  "runnerContractVersion": "8.1",
   "limits": {
     "defaultTimeoutSeconds": 1800,
     "maximumTimeoutSeconds": 3600,
@@ -135,16 +135,44 @@
       {
         "name": "mapping-required-sync",
         "timeoutSeconds": 180,
-        "actionBudget": 12,
-        "expectedActionCount": 10,
+        "actionBudget": 70,
+        "expectedActionCount": 64,
         "screenshotBudget": 0
       },
       {
         "name": "edited-report-still-loads",
         "timeoutSeconds": 180,
-        "actionBudget": 8,
-        "expectedActionCount": 4,
+        "actionBudget": 12,
+        "expectedActionCount": 9,
         "screenshotBudget": 0
+      },
+      {
+        "name": "approval-mapping-modes",
+        "timeoutSeconds": 240,
+        "actionBudget": 40,
+        "expectedActionCount": 32,
+        "screenshotBudget": 1
+      },
+      {
+        "name": "validation-auto-outputs",
+        "timeoutSeconds": 240,
+        "actionBudget": 8,
+        "expectedActionCount": 5,
+        "screenshotBudget": 1
+      },
+      {
+        "name": "filter-auditor-journey",
+        "timeoutSeconds": 240,
+        "actionBudget": 96,
+        "expectedActionCount": 96,
+        "screenshotBudget": 2
+      },
+      {
+        "name": "filter-kct-editing",
+        "timeoutSeconds": 240,
+        "actionBudget": 70,
+        "expectedActionCount": 70,
+        "screenshotBudget": 1
       }
     ]
   },
@@ -228,7 +256,10 @@
     "ReceiptFailure",
     "SensitiveOutput",
     "ReadOnlyCleanup",
-    "CleanupFailure"
+    "CleanupFailure",
+    "MutationBoundary",
+    "OwnedProcessTree",
+    "FrontendPreview"
   ],
   "commands": {
     "Contract": {
@@ -297,6 +328,12 @@
       "requiresExclusiveLock": true,
       "privateDataAccess": true
     },
+    "Mutation": {
+      "lane": "Mutation",
+      "enabled": true,
+      "requiresExclusiveLock": true,
+      "privateDataAccess": false
+    },
     "ReleaseCandidate": {
       "lane": "ReleaseCandidate",
       "enabled": true,
@@ -344,6 +381,11 @@
       "stage": 6,
       "enabled": true,
       "privateDataAccess": true
+    },
+    "Mutation": {
+      "stage": 8,
+      "enabled": true,
+      "privateDataAccess": false
     },
     "ReleaseCandidate": {
       "stage": 7,

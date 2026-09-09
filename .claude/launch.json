@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "JET synthetic frontend",
+      "program": "tools/harness/frontend-preview/server.cjs",
+      "port": 4243,
+      "url": "http://127.0.0.1:4243",
+      "env": { "PORT": "4243" },
+      "autoPort": false
+    }
+  ]
+}

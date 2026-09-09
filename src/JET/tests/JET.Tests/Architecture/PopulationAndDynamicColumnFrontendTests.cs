@@ -86,7 +86,8 @@ public sealed class PopulationAndDynamicColumnFrontendTests
     {
         var validate = ReadFrontend("js", "steps", "validate-step.js");
 
-        Assert.Contains("querySourceQualityPage({ cursor: cursor, pageSize: 200 })", validate, StringComparison.Ordinal);
+        // 2026-09-07 工作包 G：來源品質明細表加上排序與搜尋，呼叫多帶 sort 與 search（第一次失敗：收據 20260907-080325828）。
+        Assert.Contains("querySourceQualityPage({ cursor: cursor, pageSize: 200, sort: sort || null, search: search || null })", validate, StringComparison.Ordinal);
         Assert.Contains("sourceQualityCategoryLabel", validate, StringComparison.Ordinal);
         Assert.Contains("r.sourceRowNumber", validate, StringComparison.Ordinal);
         Assert.Contains("r.sourceLabel", validate, StringComparison.Ordinal);

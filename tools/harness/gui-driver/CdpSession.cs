@@ -67,6 +67,36 @@ internal sealed class CdpSession : IAsyncDisposable
         await DispatchMouseAsync("mouseReleased", x, y, "left", 0, 1, cancellationToken).ConfigureAwait(false);
     }
 
+    internal Task ScrollAsync(double x, double y, double deltaX, double deltaY, CancellationToken cancellationToken)
+    {
+        if (!double.IsFinite(x) || !double.IsFinite(y) || x <= 0 || y <= 0
+            || !double.IsFinite(deltaX) || !double.IsFinite(deltaY)
+            || Math.Abs(deltaX) > 4000 || Math.Abs(deltaY) > 4000)
+        {
+            throw new GuiInfrastructureException("scroll_parameters_invalid");
+        }
+        return SendAndDiscardAsync("Input.dispatchMouseEvent",
+            new { type = "mouseWheel", x, y, deltaX, deltaY }, cancellationToken);
+    }
+
+    internal async Task<byte[]> CaptureScreenshotAsync(CancellationToken cancellationToken)
+    {
+        var result = await SendAsync("Page.captureScreenshot",
+            new { format = "png", captureBeyondViewport = false }, cancellationToken,
+            maximumResponseBytes: 3 * 1024 * 1024).ConfigureAwait(false);
+        if (!result.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.String
+            || data.GetString() is not { Length: > 0 and <= 2_800_000 } encoded)
+        {
+            throw new GuiInfrastructureException("screenshot_response_invalid");
+        }
+        var bytes = Convert.FromBase64String(encoded);
+        if (bytes.Length > 2 * 1024 * 1024)
+        {
+            throw new GuiInfrastructureException("screenshot_too_large");
+        }
+        return bytes;
+    }
+
     internal async Task TypeTextAsync(string text, CancellationToken cancellationToken)
     {
         if (text.Length is < 1 or > 128 || text.Any(character => !IsClosedInputCharacter(character)))
@@ -110,6 +140,12 @@ internal sealed class CdpSession : IAsyncDisposable
         {
             "ArrowDown" => (Code: "ArrowDown", VirtualKey: 0x28),
             "ArrowUp" => (Code: "ArrowUp", VirtualKey: 0x26),
+            "ArrowLeft" => (Code: "ArrowLeft", VirtualKey: 0x25),
+            "ArrowRight" => (Code: "ArrowRight", VirtualKey: 0x27),
+            "PageUp" => (Code: "PageUp", VirtualKey: 0x21),
+            "PageDown" => (Code: "PageDown", VirtualKey: 0x22),
+            "Space" => (Code: "Space", VirtualKey: 0x20),
+            "Escape" => (Code: "Escape", VirtualKey: 0x1B),
             "Home" => (Code: "Home", VirtualKey: 0x24),
             "End" => (Code: "End", VirtualKey: 0x23),
             "Enter" => (Code: "Enter", VirtualKey: 0x0D),
@@ -117,7 +153,7 @@ internal sealed class CdpSession : IAsyncDisposable
             _ => throw new GuiInfrastructureException("keyboard_key_invalid")
         };
         return DispatchNavigationKeyAsync(
-            key,
+            key == "Space" ? " " : key,
             keyDefinition.Code,
             keyDefinition.VirtualKey,
             cancellationToken);
@@ -134,6 +170,7 @@ internal sealed class CdpSession : IAsyncDisposable
             >= 'A' and <= 'Z' => "Key" + character,
             >= '0' and <= '9' => "Digit" + character,
             '-' => "Minus",
+            ',' => "Comma",
             _ => throw new GuiInfrastructureException("keyboard_character_invalid")
         };
         var virtualKey = character switch
@@ -142,6 +179,7 @@ internal sealed class CdpSession : IAsyncDisposable
             >= 'A' and <= 'Z' => character,
             >= '0' and <= '9' => character,
             '-' => (char)0xBD,
+            ',' => (char)0xBC,
             _ => throw new GuiInfrastructureException("keyboard_character_invalid")
         };
 
@@ -215,11 +253,13 @@ internal sealed class CdpSession : IAsyncDisposable
             cancellationToken).ConfigureAwait(false);
     }
 
+    // 逗號只用來輸入「每月幾日」這類逗號分隔的清單（例如 28,31）；仍然不接受引號、括號與其他標點。
     private static bool IsClosedInputCharacter(char character) =>
         character is >= 'a' and <= 'z'
             or >= 'A' and <= 'Z'
             or >= '0' and <= '9'
-            or '-';
+            or '-'
+            or ',';
 
     private Task DispatchMouseAsync(
         string type,
@@ -249,7 +289,8 @@ internal sealed class CdpSession : IAsyncDisposable
         _ = await SendAsync(method, parameters, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<JsonElement> SendAsync(string method, object parameters, CancellationToken cancellationToken)
+    private async Task<JsonElement> SendAsync(string method, object parameters, CancellationToken cancellationToken,
+        int maximumResponseBytes = MaximumMessageBytes)
     {
         var id = Interlocked.Increment(ref _nextId);
         var payload = JsonSerializer.SerializeToUtf8Bytes(new { id, method, @params = parameters });
@@ -273,7 +314,7 @@ internal sealed class CdpSession : IAsyncDisposable
                 }
 
                 if (received.MessageType != WebSocketMessageType.Text
-                    || message.Length + received.Count > MaximumMessageBytes)
+                    || message.Length + received.Count > maximumResponseBytes)
                 {
                     throw new GuiInfrastructureException("cdp_response_invalid");
                 }

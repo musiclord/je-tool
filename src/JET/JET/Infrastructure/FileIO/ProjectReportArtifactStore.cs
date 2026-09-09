@@ -209,6 +209,12 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
 
         var before = await ReadManifestAsync(paths, cancellationToken).ConfigureAwait(false);
         var generatedUtc = _timeProvider.GetUtcNow().ToUniversalTime();
+        var replacedKinds = requests
+            .Where(request => request.Kind != ReportArtifactKind.WorkingPaper)
+            .Select(request => request.Kind)
+            .ToHashSet();
+        var originalRetained = before.Where(artifact => !replacedKinds.Contains(artifact.Kind)).ToArray();
+        var retained = RetainWithinCapacity(paths, originalRetained, requests.Count);
         var operationId = Guid.NewGuid().ToString("N");
         var staged = new List<StagedArtifact>(requests.Count);
         // 暫存檔一建立就登記，寫到一半被取消或失敗也要在 finally 清掉，不留 .tmp 給使用者看。
@@ -254,12 +260,22 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            // 產生工作簿可能耗時；被使用者放回的舊檔在任何正式改名前重新納回清單。
+            retained = RetainWithinCapacity(paths, originalRetained, requests.Count);
             var published = new List<ReportArtifact>(staged.Count);
             foreach (var item in staged)
             {
                 try
                 {
-                    File.Move(item.StagePath, item.FinalPath, overwrite: true);
+                    File.Move(item.StagePath, item.FinalPath,
+                        overwrite: item.Artifact.Kind != ReportArtifactKind.WorkingPaper);
+                }
+                catch (IOException) when (item.Artifact.Kind == ReportArtifactKind.WorkingPaper
+                    && File.Exists(item.FinalPath))
+                {
+                    throw new JetActionException(
+                        JetErrorCodes.FileReadError,
+                        "同名 Working Paper 已存在，原檔已保留。請重新匯出，JET 會使用新的版本檔名。");
                 }
                 catch (IOException exception) when ((exception.HResult & 0xFFFF) is 32 or 33)
                 {
@@ -279,26 +295,15 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             }
 
             // Working Paper 是正式輸出，每次都是新檔、舊版留在清單裡；其餘報告覆蓋同名檔，清單只留最新一筆。
-            var replacedKinds = published
-                .Where(artifact => artifact.Kind != ReportArtifactKind.WorkingPaper)
-                .Select(artifact => artifact.Kind)
-                .ToHashSet();
             var publishedNames = published
                 .Select(artifact => artifact.RelativeFileName)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var after = before
-                .Where(artifact => !replacedKinds.Contains(artifact.Kind)
-                    && !publishedNames.Contains(artifact.RelativeFileName))
+            var after = retained
+                .Where(artifact => !publishedNames.Contains(artifact.RelativeFileName))
                 .Concat(published)
                 .ToArray();
-            if (after.Length > MaxManifestEntries)
-            {
-                throw new JetActionException(
-                    JetErrorCodes.FileReadError,
-                    $"報告清單已超過 {MaxManifestEntries} 筆；刪掉案件資料夾裡不再需要的舊版 Working Paper 後再匯出。");
-            }
-
-            await PublishManifestAsync(paths, after, cancellationToken).ConfigureAwait(false);
+            // 正式檔已改名，必須完成索引；取消仍可在發布前生效，不能在此留下舊索引。
+            await PublishManifestAsync(paths, after, CancellationToken.None).ConfigureAwait(false);
             return Array.AsReadOnly(published.ToArray());
         }
         finally
@@ -307,6 +312,34 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             {
                 DeleteFileBestEffort(stagePath);
             }
+        }
+    }
+
+    private static ReportArtifact[] RetainWithinCapacity(ProjectPaths paths, ReportArtifact[] original, int newCount)
+    {
+        if (original.Length + newCount <= MaxManifestEntries) { return original; }
+        var retained = original.Where(artifact => artifact.Kind != ReportArtifactKind.WorkingPaper
+            || !IsConfirmedMissing(ResolveContainedPath(paths.ProjectDirectory, artifact.RelativeFileName))).ToArray();
+        if (retained.Length + newCount > MaxManifestEntries)
+        {
+            throw new JetActionException(JetErrorCodes.FileReadError,
+                $"報告清單已達 {MaxManifestEntries} 筆，本次尚未產生新報告。請先在案件資料夾自行刪除不需要的舊底稿，再重新匯出；無法確認檔案狀態的紀錄會保留。");
+        }
+        return retained;
+    }
+
+    private static bool IsConfirmedMissing(string path)
+    {
+        try
+        {
+            _ = File.GetAttributes(path);
+            return false;
+        }
+        catch (FileNotFoundException) { return true; }
+        catch (DirectoryNotFoundException) { return true; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 

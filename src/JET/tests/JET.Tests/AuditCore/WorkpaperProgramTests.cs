@@ -119,7 +119,7 @@ public sealed class WorkpaperProgramTests
                 Assert.Equal(1, scenario.Position);
                 Assert.Equal("情境 1", scenario.Name);
                 Assert.Equal("理由 1", scenario.Rationale);
-                Assert.Null(typeof(WorkpaperScenarioPlan).GetProperty("ConditionLogic"));
+                Assert.Null(scenario.ConditionLogic);
                 Assert.Equal(2, scenario.VoucherHitCount);
                 Assert.Equal(1, scenario.RowHitCount);
             },

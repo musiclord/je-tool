@@ -13,11 +13,11 @@ public sealed class SupportRingBufferLoggerProvider :
     ISupportExternalScope,
     ISupportDiagnosticLogStore
 {
-    private readonly SupportDiagnosticRingBuffer _buffer;
+    private readonly BoundedRingBuffer<SupportDiagnosticLogEntry> _buffer;
     private IExternalScopeProvider _scopeProvider = new LoggerExternalScopeProvider();
 
     public SupportRingBufferLoggerProvider(int capacity) =>
-        _buffer = new SupportDiagnosticRingBuffer(capacity);
+        _buffer = new BoundedRingBuffer<SupportDiagnosticLogEntry>(capacity);
 
     internal IExternalScopeProvider ScopeProvider => _scopeProvider;
 
@@ -219,44 +219,4 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
 
     private static string? Limit(string? value, int length) =>
         value is null || value.Length <= length ? value : value[..length];
-}
-
-internal sealed class SupportDiagnosticRingBuffer(int capacity)
-{
-    private readonly SupportDiagnosticLogEntry[] _items =
-        new SupportDiagnosticLogEntry[Math.Max(1, capacity)];
-    private readonly Lock _gate = new();
-    private int _start;
-    private int _count;
-
-    public void Add(SupportDiagnosticLogEntry entry)
-    {
-        lock (_gate)
-        {
-            if (_count < _items.Length)
-            {
-                _items[(_start + _count) % _items.Length] = entry;
-                _count++;
-            }
-            else
-            {
-                _items[_start] = entry;
-                _start = (_start + 1) % _items.Length;
-            }
-        }
-    }
-
-    public IReadOnlyList<SupportDiagnosticLogEntry> Snapshot()
-    {
-        lock (_gate)
-        {
-            var result = new SupportDiagnosticLogEntry[_count];
-            for (var index = 0; index < _count; index++)
-            {
-                result[index] = _items[(_start + index) % _items.Length];
-            }
-
-            return result;
-        }
-    }
 }

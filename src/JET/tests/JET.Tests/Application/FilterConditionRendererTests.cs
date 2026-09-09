@@ -18,6 +18,27 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class FilterConditionRendererTests
 {
+    [Fact]
+    public void ValueConditions_ReadNaturallyWithoutParenthesizedAnnotations()
+    {
+        using var document = JsonDocument.Parse("""
+            {"groups":[{"rules":[
+              {"type":"fieldValue","field":"postDate","operator":"dayOfMonthIn","values":["28","31"]},
+              {"join":"AND","type":"fieldValue","field":"amount","operator":"between","from":"10","to":"20","amountBasis":"absolute"},
+              {"join":"AND","type":"drCrOnly","drCr":"debit"},
+              {"join":"AND","type":"fieldValue","field":"description","operator":"contains","values":["合成"]}
+            ]}]}
+            """);
+        var text = FilterConditionRenderer.Render(document.RootElement);
+        Assert.Contains("每月幾日屬於「28、31」", text, StringComparison.Ordinal);
+        Assert.Contains("金額絕對值 介於「10」至「20」", text, StringComparison.Ordinal);
+        Assert.Contains("且 僅借方 且", text, StringComparison.Ordinal);
+        Assert.Contains("空白不列入", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("含兩端", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("(且)", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("（金額", text, StringComparison.Ordinal);
+    }
+
     private static string Render(object scenario)
     {
         var json = JsonSerializer.Serialize(scenario);
@@ -55,7 +76,7 @@ public sealed class FilterConditionRendererTests
             } } }
         });
 
-        Assert.Equal("預篩選：摘要特定描述 OR 預篩選：假日過帳", result);
+        Assert.Equal("預篩選：摘要特定描述 或 預篩選：假日過帳", result);
     }
 
     [Fact]
@@ -73,13 +94,13 @@ public sealed class FilterConditionRendererTests
         });
 
         Assert.Equal(
-            "（（（預篩選：摘要特定描述 OR 預篩選：假日過帳） AND 僅借方） OR 人工分錄）",
+            "（（（預篩選：摘要特定描述 或 預篩選：假日過帳） 且 僅借方） 或 人工分錄）",
             result);
     }
 
     [Theory]
-    [InlineData("AND", "預篩選：摘要特定描述 AND 預篩選：假日過帳 AND 僅借方")]
-    [InlineData("OR", "預篩選：摘要特定描述 OR 預篩選：假日過帳 OR 僅借方")]
+    [InlineData("AND", "預篩選：摘要特定描述 且 預篩選：假日過帳 且 僅借方")]
+    [InlineData("OR", "預篩選：摘要特定描述 或 預篩選：假日過帳 或 僅借方")]
     public void SingleGroup_UniformRuleJoins_PreservesExistingFlatOutput(
         string join,
         string expected)
@@ -98,7 +119,7 @@ public sealed class FilterConditionRendererTests
     }
 
     [Fact]
-    public void SingleGroup_AllLowercaseOrJoins_PreservesExistingCaseSensitiveAndOutput()
+    public void SingleGroup_AllLowercaseOrJoins_UsesActualOrMeaning()
     {
         var result = Render(new
         {
@@ -111,7 +132,7 @@ public sealed class FilterConditionRendererTests
         });
 
         Assert.Equal(
-            "預篩選：摘要特定描述 AND 預篩選：假日過帳 AND 僅借方",
+            "預篩選：摘要特定描述 或 預篩選：假日過帳 或 僅借方",
             result);
     }
 
@@ -129,7 +150,7 @@ public sealed class FilterConditionRendererTests
         });
 
         Assert.Equal(
-            "（（預篩選：摘要特定描述 OR 預篩選：假日過帳） AND 僅借方）",
+            "（（預篩選：摘要特定描述 或 預篩選：假日過帳） 且 僅借方）",
             result);
     }
 
@@ -147,7 +168,7 @@ public sealed class FilterConditionRendererTests
         });
 
         Assert.Equal(
-            "預篩選：摘要特定描述 OR 預篩選：假日過帳 OR 僅借方",
+            "預篩選：摘要特定描述 且 預篩選：假日過帳 且 僅借方",
             result);
     }
 
@@ -164,7 +185,7 @@ public sealed class FilterConditionRendererTests
             } } }
         });
 
-        Assert.Equal("傳票摘要 包含「調整」 AND 金額（絕對值） ≥ 1000、≤ 5000", result);
+        Assert.Equal("傳票摘要 包含「調整」 且 金額（絕對值） ≥ 1000、≤ 5000", result);
     }
 
     [Fact]
@@ -203,7 +224,7 @@ public sealed class FilterConditionRendererTests
             }
         });
 
-        Assert.Equal("傳票摘要 包含「調整」 OR 僅借方", result);
+        Assert.Equal("傳票摘要 包含「調整」 或 僅借方", result);
     }
 
     [Fact]
@@ -226,7 +247,7 @@ public sealed class FilterConditionRendererTests
             }
         });
 
-        Assert.Equal("（傳票摘要 包含「調整」 AND 金額（絕對值） ≥ 1000000） AND 僅借方", result);
+        Assert.Equal("（傳票摘要 包含「調整」 且 金額（絕對值） ≥ 1000000） 且 僅借方", result);
     }
 
     // ---- 非營業日(I)：偵測、排最後、括號消歧、空組過濾 ----
@@ -271,14 +292,14 @@ public sealed class FilterConditionRendererTests
             }
         });
 
-        Assert.Equal("僅借方 AND 非營業日（週末或假日）", result);
+        Assert.Equal("僅借方 且 非營業日（週末或假日）", result);
     }
 
     [Fact]
     public void MultiRuleSingleGroup_PlusPreset_WrapsInDisambiguatingParens()
     {
-        // 單組含 ≥2 規則接 I：補括號消歧——「a OR b AND 非營業日」慣例讀作 a OR (b AND I)，
-        // 實際語意 (a OR b) AND I，故整式包括號（2026-07-06 驗收行為）。
+        // 單組含 ≥2 規則接 I：補括號消歧——「a 或 b 且 非營業日」慣例讀作 a 或 (b 且 I)，
+        // 實際語意 (a 或 b) 且 I，故整式包括號（2026-07-06 驗收行為）。
         var result = Render(new
         {
             groups = new object[]
@@ -296,7 +317,7 @@ public sealed class FilterConditionRendererTests
             }
         });
 
-        Assert.Equal("（傳票摘要 包含「調整」 OR 僅借方） AND 非營業日（週末或假日）", result);
+        Assert.Equal("（傳票摘要 包含「調整」 或 僅借方） 且 非營業日（週末或假日）", result);
     }
 
     [Fact]
@@ -307,9 +328,9 @@ public sealed class FilterConditionRendererTests
     }
 
     [Theory]
-    [InlineData("exact", "科目配對分析：精確配對（借＋貸同傳票）（借方 Receivables・貸方 Revenue）")]
-    [InlineData("debitAnchor", "科目配對分析：借方錨定（看對方科目）（借方 Receivables）")]
-    [InlineData("creditAnchor", "科目配對分析：貸方錨定（看對方科目）（貸方 Revenue）")]
+    [InlineData("exact", "借貸科目組合：借方是 A 且貸方是 B（借方 Receivables・貸方 Revenue）")]
+    [InlineData("debitAnchor", "借貸科目組合：借方是 A，看它的對方科目（借方 Receivables）")]
+    [InlineData("creditAnchor", "借貸科目組合：貸方是 B，看它的對方科目（貸方 Revenue）")]
     public void AccountPair_RenderingOnlyNamesCategoriesThatParticipate(
         string pairMode,
         string expected)
@@ -339,13 +360,13 @@ public sealed class FilterConditionRendererTests
     // KCT 預設在 wire 上的唯一簽章重建保存當下的 read-back：group join=="AND"（addKctToDraft 固定、
     // toWireDraft 不動預設組）且組合器 OR（兩規則 join 皆 'OR'）且鍵集恰為 {weekendPosting, holidayPosting}。
     // 手動建的同形組在 wire 上可分：單組情境經 toWireDraft 收斂為 join=="OR"（scenarioJoin 預設）、
-    // OR 情境收斂為 "OR"——皆按普通組渲染（同構於保存當下 read-back 對可編輯組的渲染）。
+    // 或 情境收斂為 "OR"——皆按普通組渲染（同構於保存當下 read-back 對可編輯組的渲染）。
 
     [Fact]
     public void ManualAndCombinator_SameShapeGroup_RendersAsNormalGroup()
     {
-        // 使用者從自訂面板手動加兩條 prescreen（週末+假日）、組合器 AND：語意是「週末 AND 假日」，
-        // 絕不可誤標為「非營業日（週末或假日）」（語意相反）。保存當下 read-back 顯示的就是 AND 式。
+        // 使用者從自訂面板手動加兩條 prescreen（週末+假日）、組合器 AND：語意是「週末 且 假日」，
+        // 絕不可誤標為「非營業日（週末或假日）」（語意相反）。保存當下 read-back 顯示的就是 且 式。
         var result = Render(new
         {
             groups = new[] { new { join = "OR", rules = new object[]
@@ -355,15 +376,15 @@ public sealed class FilterConditionRendererTests
             } } }
         });
 
-        Assert.Equal("預篩選：週末過帳 AND 預篩選：假日過帳", result);
+        Assert.Equal("預篩選：週末過帳 且 預篩選：假日過帳", result);
     }
 
     [Fact]
     public void ManualOrCombinator_SingleSameShapeGroup_RendersAsNormalGroup()
     {
-        // 手動 OR 同形組（單組情境）：wire 上 group join 經 toWireDraft 收斂為 "OR"（scenarioJoin 預設），
+        // 手動 或 同形組（單組情境）：wire 上 group join 經 toWireDraft 收斂為 "OR"（scenarioJoin 預設），
         // 與 KCT 預設的固定 "AND" 可分。保存當下 read-back 把它當一般可編輯組渲染
-        // （「預篩選：週末過帳 OR 預篩選：假日過帳」，無預設區塊）——渲染器同構照渲。
+        // （「預篩選：週末過帳 或 預篩選：假日過帳」，無預設區塊）——渲染器同構照渲。
         var result = Render(new
         {
             groups = new[] { new { join = "OR", rules = new object[]
@@ -373,7 +394,7 @@ public sealed class FilterConditionRendererTests
             } } }
         });
 
-        Assert.Equal("預篩選：週末過帳 OR 預篩選：假日過帳", result);
+        Assert.Equal("預篩選：週末過帳 或 預篩選：假日過帳", result);
     }
 
     // ---- 原子全型別覆蓋（決策表補齊：其餘 13 種 atom 型別 + 變體）----
@@ -384,9 +405,9 @@ public sealed class FilterConditionRendererTests
     [InlineData("""{"join":"AND","type":"manualAuto","isManual":"true"}""", "人工分錄")]
     [InlineData("""{"join":"AND","type":"manualAuto","isManual":"false"}""", "自動分錄")]
     [InlineData("""{"join":"AND","type":"accountPair","pairMode":"exact","debitCategory":"Receivables","creditCategory":"Revenue"}""",
-        "科目配對分析：精確配對（借＋貸同傳票）（借方 Receivables・貸方 Revenue）")]
+        "借貸科目組合：借方是 A 且貸方是 B（借方 Receivables・貸方 Revenue）")]
     [InlineData("""{"join":"AND","type":"specialAccountCategoryPair","pairMode":"drNotCr","debitCategory":"Receivables","creditCategory":"Revenue"}""",
-        "特殊科目配對：借 Receivables／貸 Revenue（Dr A、Cr 非 B（借A、貸方無B））")]
+        "借貸科目組合：借方是 A 且整張傳票沒有 B 貸方（借方 Receivables・貸方 Revenue）")]
     [InlineData("""{"join":"AND","type":"customKeywords","keywords":"迴轉,調整"}""", "自訂關鍵字「迴轉,調整」")]
     [InlineData("""{"join":"AND","type":"customTrailingZeros","digits":"6"}""", "尾數連續 6 個 0")]
     [InlineData("""{"join":"AND","type":"customPreparerEntryCount","maxEntries":"11"}""", "所選母體內編製人員張數 ≤ 11")]
@@ -413,16 +434,16 @@ public sealed class FilterConditionRendererTests
     [Theory]
     [InlineData(
         """{"join":"AND","type":"accountPair","pairMode":"exact","debitCategoryIds":["builtin.receivables","builtin.cash"],"creditCategoryIds":["builtin.revenue"]}""",
-        "科目配對分析：精確配對（借＋貸同傳票）（借方 Receivables、Cash・貸方 Revenue）")]
+        "借貸科目組合：借方是 A 且貸方是 B（借方 Receivables、Cash・貸方 Revenue）")]
     [InlineData(
         """{"join":"AND","type":"accountPair","pairMode":"debitAnchor","debitCategoryIds":["builtin.cash"],"creditCategoryIds":["builtin.revenue"]}""",
-        "科目配對分析：借方錨定（看對方科目）（借方 Cash）")]
+        "借貸科目組合：借方是 A，看它的對方科目（借方 Cash）")]
     [InlineData(
         """{"join":"AND","type":"specialAccountCategoryPair","pairMode":"drNotCr","debitCategoryIds":["builtin.receivables","builtin.cash"],"creditCategoryIds":["builtin.revenue"]}""",
-        "特殊科目配對：借 Receivables、Cash／貸 Revenue（Dr A、Cr 非 B（借A、貸方無B））")]
+        "借貸科目組合：借方是 A 且整張傳票沒有 B 貸方（借方 Receivables、Cash・貸方 Revenue）")]
     [InlineData(
         """{"join":"AND","type":"accountPair","pairMode":"exact","debitCategory":"Cash","creditCategory":"Others","debitCategoryIds":["builtin.receivables"],"creditCategoryIds":["builtin.revenue"]}""",
-        "科目配對分析：精確配對（借＋貸同傳票）（借方 Receivables・貸方 Revenue）")]
+        "借貸科目組合：借方是 A 且貸方是 B（借方 Receivables・貸方 Revenue）")]
     public void PairAtom_CategoryIdArrays_RenderTaxonomyLabelsInSelectionOrder(
         string ruleJson,
         string expectedAtom)
@@ -449,7 +470,7 @@ public sealed class FilterConditionRendererTests
         using var document = JsonDocument.Parse(json);
 
         Assert.Equal(
-            "科目配對分析：借方錨定（看對方科目）（借方 現金及約當現金、零用金）",
+            "借貸科目組合：借方是 A，看它的對方科目（借方 現金及約當現金、零用金）",
             FilterConditionRenderer.Render(document.RootElement, labels));
     }
 
@@ -515,7 +536,7 @@ public sealed class FilterConditionRendererTests
         using var document = JsonDocument.Parse(json);
 
         Assert.Equal(
-            "審核日 介於「2025-01-01」～「2025-06-30」 AND 稅額 大於「100.50」（金額絕對值） AND 備註 不屬於任何值（排除）「A、B」",
+            "審核日 介於「2025-01-01」～「2025-06-30」 且 稅額 大於「100.50」（金額絕對值） 且 備註 不屬於任何值（排除）「A、B」",
             FilterConditionRenderer.Render(document.RootElement, null, rdeLabels));
     }
 }

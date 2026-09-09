@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using JET.Domain;
 using JET.Infrastructure;
 using JET.Tests.Application;
@@ -15,6 +16,187 @@ namespace JET.Tests.Infrastructure;
 public sealed class ProjectReportArtifactStoreTests
 {
     private const string ProjectId = "store-unit-project";
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4_096)]
+    public async Task WriteAsync_FullManifest_HistoryRestoredDuringWriting_IsRetained(int restoredCount)
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+        var original = await WriteSyntheticHistoryAsync(directory, 4_096);
+        var request = Request(ReportArtifactKind.WorkingPaper, (output, token) =>
+        {
+            for (var index = 0; index < restoredCount; index++)
+            {
+                File.WriteAllBytes(Path.Combine(directory, $"history-{index}.xlsx"), []);
+            }
+            return output.WriteAsync(new byte[] { 17 }, token).AsTask();
+        });
+        if (restoredCount == 4_096)
+        {
+            var error = await Assert.ThrowsAsync<JetActionException>(() => store.WriteAsync(ProjectId, request, CancellationToken.None));
+            Assert.Equal(JetErrorCodes.FileReadError, error.Code);
+            Assert.Equal(original, await File.ReadAllBytesAsync(Path.Combine(directory, ProjectReportArtifactStore.ManifestFileName)));
+            Assert.Equal(4_096, Directory.GetFiles(directory, "*.xlsx").Length);
+        }
+        else
+        {
+            await store.WriteAsync(ProjectId, request, CancellationToken.None);
+            var listed = await store.ListAsync(ProjectId, CancellationToken.None);
+            Assert.Equal(2, listed.Count);
+            Assert.Contains(listed, item => item.RelativeFileName == "history-0.xlsx");
+        }
+        Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task WriteAsync_FullManifest_PrunesOnlyMissingHistoryAndPublishesNewVersion()
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+        await WriteSyntheticHistoryAsync(directory, 4_096);
+        await File.WriteAllBytesAsync(Path.Combine(directory, "history-0.xlsx"), [5, 6]);
+        // 一個同名目錄不能因為 File.Exists 回傳 false 就被當成已刪檔。
+        Directory.CreateDirectory(Path.Combine(directory, "history-1.xlsx"));
+
+        var written = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.WorkingPaper, Bytes(7)), CancellationToken.None);
+
+        var listed = await store.ListAsync(ProjectId, CancellationToken.None);
+        Assert.Equal(3, listed.Count);
+        Assert.Contains(listed, item => item.RelativeFileName == "history-0.xlsx");
+        Assert.Contains(listed, item => item.RelativeFileName == "history-1.xlsx");
+        Assert.Contains(listed, item => item.ArtifactId == written.ArtifactId);
+        Assert.Equal(new byte[] { 5, 6 }, await File.ReadAllBytesAsync(Path.Combine(directory, "history-0.xlsx")));
+        Assert.Equal(new byte[] { 7 }, await File.ReadAllBytesAsync(Path.Combine(directory, written.RelativeFileName)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WriteAsync_FullManifest_ContentFailureDoesNotPruneHistory(bool cancel)
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+        var original = await WriteSyntheticHistoryAsync(directory, 4_096);
+        using var cancellation = new CancellationTokenSource();
+        var called = false;
+        var request = Request(ReportArtifactKind.WorkingPaper, (_, token) =>
+        {
+            called = true;
+            if (cancel) { cancellation.Cancel(); token.ThrowIfCancellationRequested(); }
+            throw new InvalidOperationException("synthetic writer failure");
+        });
+        if (cancel)
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.WriteAsync(ProjectId, request, cancellation.Token));
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.WriteAsync(ProjectId, request, cancellation.Token));
+        }
+        Assert.True(called);
+        Assert.Equal(original, await File.ReadAllBytesAsync(Path.Combine(directory, ProjectReportArtifactStore.ManifestFileName)));
+        Assert.Empty(Directory.GetFiles(directory, "*.xlsx"));
+        Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task WriteAsync_BelowCapacity_KeepsMissingHistory()
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+        await WriteSyntheticHistoryAsync(directory, 2);
+        await store.WriteAsync(ProjectId, Request(ReportArtifactKind.WorkingPaper, Bytes(7)), CancellationToken.None);
+        var listed = await store.ListAsync(ProjectId, CancellationToken.None);
+        Assert.Equal(3, listed.Count);
+        Assert.Equal(2, listed.Count(item => item.FileState == ReportArtifactFileState.Missing));
+    }
+
+    private static async Task<byte[]> WriteSyntheticHistoryAsync(string directory, int count)
+    {
+        var entries = Enumerable.Range(0, count).Select(index => new
+        {
+            artifactId = index.ToString("x32"), kind = "workingPaper",
+            relativeFileName = $"history-{index}.xlsx", generatedUtc = "2026-09-01T00:00:00Z", bytes = 0,
+            sourceRef = new { validationRunId = "old-run" }, stale = true
+        }).ToArray();
+        var original = JsonSerializer.SerializeToUtf8Bytes(entries);
+        await File.WriteAllBytesAsync(Path.Combine(directory, ProjectReportArtifactStore.ManifestFileName), original);
+        return original;
+    }
+
+    [Fact]
+    public async Task WriteAsync_FullManifest_RejectsBeforeWritingAndLeavesOriginalManifest()
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+        // 只有零位元組檔案與合成 metadata，不生成數千份工作簿。
+        var entries = Enumerable.Range(0, 4_096).Select(index => new
+        {
+            artifactId = index.ToString("x32"), kind = "workingPaper",
+            relativeFileName = $"history-{index}.xlsx", generatedUtc = "2026-09-01T00:00:00Z", bytes = 0,
+            sourceRef = new { validationRunId = "old-run" }, stale = true
+        }).ToArray();
+        foreach (var entry in entries) { File.WriteAllBytes(Path.Combine(directory, entry.relativeFileName), []); }
+        var manifestPath = Path.Combine(directory, ProjectReportArtifactStore.ManifestFileName);
+        var original = JsonSerializer.SerializeToUtf8Bytes(entries);
+        await File.WriteAllBytesAsync(manifestPath, original);
+        var writerCalled = false;
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() => store.WriteAsync(ProjectId,
+            Request(ReportArtifactKind.WorkingPaper, (_, _) => { writerCalled = true; return Task.CompletedTask; }),
+            CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.FileReadError, error.Code);
+        Assert.False(writerCalled);
+        Assert.Equal(4_096, Directory.GetFiles(directory, "*.xlsx").Length);
+        Assert.Equal(original, await File.ReadAllBytesAsync(manifestPath));
+        Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task WriteAsync_WorkingPaperNameAppearsBeforePublication_DoesNotOverwriteIt()
+    {
+        using var root = new TempProjectRoot();
+        var time = new FixedTimeProvider(new DateTimeOffset(2026, 9, 5, 1, 2, 3, TimeSpan.Zero));
+        var (store, directory) = Create(root, time);
+        var fileName = $"{ProjectFileNames.SafePrefix(ProjectId)}_WorkingPaper_{time.Now.ToLocalTime():yyyyMMdd-HHmmss}.xlsx";
+        var path = Path.Combine(directory, fileName);
+        var publisher = (IReportArtifactPublishingStore)store;
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() => publisher.WriteWithPublishingAsync(
+            ProjectId,
+            Request(ReportArtifactKind.WorkingPaper, Bytes(1, 2)),
+            _ => File.WriteAllBytes(path, [7, 8, 9]),
+            CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.FileReadError, error.Code);
+        Assert.Contains("重新匯出", error.Message, StringComparison.Ordinal);
+        Assert.Equal(new byte[] { 7, 8, 9 }, await File.ReadAllBytesAsync(path));
+        Assert.Empty(await store.ListAsync(ProjectId, CancellationToken.None));
+        Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+        var retried = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.WorkingPaper, Bytes(4)), CancellationToken.None);
+        Assert.NotEqual(fileName, retried.RelativeFileName);
+        Assert.Equal(new byte[] { 7, 8, 9 }, await File.ReadAllBytesAsync(path));
+    }
+
+    [Fact]
+    public async Task WriteAsync_OldWorkingPaperIsLocked_NewVersionStillPublishes()
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+        var first = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.WorkingPaper, Bytes(1)), CancellationToken.None);
+        var path = Path.Combine(directory, first.RelativeFileName);
+        using (var locked = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var second = await store.WriteAsync(ProjectId, Request(ReportArtifactKind.WorkingPaper, Bytes(2)), CancellationToken.None);
+            Assert.NotEqual(first.RelativeFileName, second.RelativeFileName);
+            Assert.Equal(new byte[] { 2 }, await File.ReadAllBytesAsync(Path.Combine(directory, second.RelativeFileName)));
+        }
+        Assert.Equal(new byte[] { 1 }, await File.ReadAllBytesAsync(path));
+        Assert.Equal(2, (await store.ListAsync(ProjectId, CancellationToken.None)).Count);
+    }
 
     [Fact]
     public async Task WriteAsync_ContentWriterThrows_LeavesNoTemporaryFileAndNoManifest()

@@ -449,7 +449,7 @@
       sourceListHtml(info.sources || []) +
       '<div class="import-card__actions">' +
         '<button type="button" class="btn btn--ghost" data-action="wizard-append-' + kind + '">加入來源</button>' +
-        '<button type="button" class="btn btn--ghost" data-action="wizard-replace-' + kind + '">重新匯入</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="wizard-replace-' + kind + '">取代這份資料集</button>' +
       '</div>'
     );
   }
@@ -500,11 +500,11 @@
     }
     if (wizard.mode === 'append') {
       return '<p class="wizard-pane__hint">加入來源：新檔的資料會附加到現有 ' +
-        Number(info.rowCount).toLocaleString() + ' 列（欄位名稱需與現有一致）。加入後欄位配對要重做，先前的測試與篩選結果也會清除。</p>';
+        Number(info.rowCount).toLocaleString() + ' 列（欄位名稱需與現有一致）。成功加入後，這份資料集需要重新確認欄位配對，受影響的測試結果需要重算。已保存的篩選情境設定與既有底稿檔案會保留。</p>';
     }
     if (info) {
-      return '<p class="wizard-pane__hint wizard-pane__hint--danger">你正在重新匯入這個資料集。開始後，現有的 ' +
-        Number(info.rowCount).toLocaleString() + ' 列會被新來源取代，欄位配對要重做，先前的測試與篩選結果也會清除。</p>';
+      return '<p class="wizard-pane__hint wizard-pane__hint--danger">你正在取代這個資料集。現有的 ' +
+        Number(info.rowCount).toLocaleString() + ' 列會在匯入成功後被新來源取代。這份資料集需要重新確認欄位配對，受影響的測試結果需要重算。已保存的篩選情境設定與既有底稿檔案會保留。</p>';
     }
     return '<p class="wizard-pane__hint">建立資料集 — 選擇一個或多個來源檔（可多檔／多工作表合併）。</p>';
   }

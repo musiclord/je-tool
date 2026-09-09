@@ -144,7 +144,8 @@ internal static class PrivateCaseScenarioDiagnostics
             var counts = Enumerable.Range(1, scenarioArray.Length)
                 .Select(position =>
                 {
-                    var expandedCount = expanded.Counts.GetValueOrDefault(position);
+                    // 前面的讀取已為每個情境建立計數，沒有命中的情境也包含零值。
+                    var expandedCount = expanded.Counts[position];
                     var hasBlankRule = ContainsPrescreenKey(
                         scenarioArray[position - 1],
                         PrescreenRuleKeys.BlankDescription);

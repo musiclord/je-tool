@@ -8,7 +8,14 @@ namespace JET.AuditCore;
 /// </summary>
 internal sealed record FilterSqlFragmentPlan(
     string Sql,
-    IReadOnlyList<FilterSqlParameter> Parameters);
+    IReadOnlyList<FilterSqlParameter> Parameters)
+{
+    /// <summary>每條規則自己的述詞，供傳票明細標示「本列符合哪些條件」；只在 includeEvidence 時產生。</summary>
+    internal IReadOnlyList<FilterRuleEvidenceSql> EvidencePredicates { get; init; } = [];
+}
+
+internal sealed record FilterRuleEvidenceSql(FilterConditionPosition Position, bool Primary,
+    bool Voucher, string Predicate);
 
 /// <summary>One named value in an ordered filter SQL parameter plan.</summary>
 internal sealed record FilterSqlParameter(string Name, object Value);
@@ -23,6 +30,14 @@ internal sealed class FilterSqlParameterPlanBuilder(
     int? maxParameterCount = null)
 {
     private readonly List<FilterSqlParameter> _parameters = [];
+    private readonly Dictionary<(string Kind, object Key), string> _fragments = [];
+
+    internal string GetOrAddFragment(string kind, object key, Func<string> create)
+    {
+        var identity = (kind, key);
+        if (!_fragments.TryGetValue(identity, out var sql)) _fragments[identity] = sql = create();
+        return sql;
+    }
 
     public IReadOnlyList<FilterSqlParameter> Parameters => _parameters;
 

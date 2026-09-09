@@ -3,12 +3,11 @@ using System.Text.Json;
 
 namespace Jet.GuiDriver;
 
-internal static class GuiScenarios
+internal static partial class GuiScenarios
 {
     private const int MaximumProjectDocumentBytes = 1_048_576;
 
-    private const string CreateFormProbeScript = """
-        (function () {
+    private const string ProbeHelpers = """
           function visible(element) {
             if (!element || element.hidden) { return false; }
             var style = window.getComputedStyle(element);
@@ -16,6 +15,19 @@ internal static class GuiScenarios
             return style.display !== 'none' && style.visibility !== 'hidden'
               && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
           }
+          function point(element) {
+            var rect = element ? element.getBoundingClientRect() : null;
+            return { x: rect ? rect.left + rect.width / 2 : 0, y: rect ? rect.top + rect.height / 2 : 0 };
+          }
+        """;
+
+    private static string Probe(string script) =>
+        script.Replace("/* shared GUI helpers */", ProbeHelpers, StringComparison.Ordinal);
+
+
+    private static readonly string CreateFormProbeScript = Probe("""
+        (function () {
+          /* shared GUI helpers */
           function field(name) {
             var element = document.querySelector('[data-bind="create-form"] [name="' + name + '"]');
             var rect = element ? element.getBoundingClientRect() : null;
@@ -43,17 +55,11 @@ internal static class GuiScenarios
             submitY: submitRect ? submitRect.top + (submitRect.height / 2) : 0
           };
         })()
-        """;
+        """);
 
-    private const string CreatedProjectProbeScript = """
+    private static readonly string CreatedProjectProbeScript = Probe("""
         (function () {
-          function visible(element) {
-            if (!element || element.hidden) { return false; }
-            var style = window.getComputedStyle(element);
-            var rect = element.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden'
-              && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
-          }
+          /* shared GUI helpers */
           var form = document.querySelector('[data-bind="create-form"]');
           var caseStep = document.querySelector('[data-bind="case-step"]');
           var caseId = document.querySelector('[data-bind="case-id"]');
@@ -72,17 +78,11 @@ internal static class GuiScenarios
             exitY: exitRect ? exitRect.top + (exitRect.height / 2) : 0
           };
         })()
-        """;
+        """);
 
-    private const string MappingPickerProbeScript = """
+    private static readonly string MappingPickerProbeScript = Probe("""
         (function () {
-          function visible(element) {
-            if (!element || element.hidden) { return false; }
-            var style = window.getComputedStyle(element);
-            var rect = element.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden'
-              && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
-          }
+          /* shared GUI helpers */
           var open = document.querySelector(
             '[data-action="picker-open"][data-project-id="agent-gui-mapping-ready"]');
           var rect = open ? open.getBoundingClientRect() : null;
@@ -92,25 +92,13 @@ internal static class GuiScenarios
             y: rect ? rect.top + (rect.height / 2) : 0
           };
         })()
-        """;
+        """);
 
-    private const string MappingStepProbeScript = """
+    private static readonly string MappingStepProbeScript = Probe("""
         (function () {
-          function visible(element) {
-            if (!element || element.hidden) { return false; }
-            var style = window.getComputedStyle(element);
-            var rect = element.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden'
-              && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
-          }
-          function point(element) {
-            var rect = element ? element.getBoundingClientRect() : null;
-            return {
-              x: rect ? rect.left + (rect.width / 2) : 0,
-              y: rect ? rect.top + (rect.height / 2) : 0
-            };
-          }
+          /* shared GUI helpers */
           var section = document.querySelector('[data-bind="mapping-gl"]');
+          var state = window.JetStore.getState();
           var suggest = section ? section.querySelector('[data-action="suggest-gl"]') : null;
           var remap = section ? section.querySelector('[data-action="remap-gl"]') : null;
           var commit = section ? section.querySelector('[data-action="commit-gl"]') : null;
@@ -125,12 +113,17 @@ internal static class GuiScenarios
           var exitPoint = point(exit);
           return {
             visible: visible(section),
+            uiMode: state.mappingUiMode,
+            draftFieldCount: Object.keys(state.mapping.gl.draft || {}).length,
+            committedFieldCount: Object.keys(state.mapping.gl.committed ? state.mapping.gl.committed.mapping : {}).length,
             suggestVisible: visible(suggest),
             suggestX: suggestPoint.x,
             suggestY: suggestPoint.y,
             remapVisible: visible(remap),
             remapX: remapPoint.x,
             remapY: remapPoint.y,
+            remapInViewport: remapPoint.x > 0 && remapPoint.y > 0 && remapPoint.x < innerWidth && remapPoint.y < innerHeight,
+            remapHit: !!remap && document.elementFromPoint(remapPoint.x, remapPoint.y) === remap,
             railTitle: rail ? rail.textContent.trim() : '',
             missingCount: section ? section.querySelectorAll('.map-rail__item:not(.is-done)').length : -1,
             commitDisabled: !commit || commit.disabled,
@@ -145,17 +138,11 @@ internal static class GuiScenarios
             exitY: exitPoint.y
           };
         })()
-        """;
+        """);
 
-    private const string MappingNavigationProbeScript = """
+    private static readonly string MappingNavigationProbeScript = Probe("""
         (function () {
-          function visible(element) {
-            if (!element || element.hidden) { return false; }
-            var style = window.getComputedStyle(element);
-            var rect = element.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden'
-              && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
-          }
+          /* shared GUI helpers */
           var nav = document.querySelector('[data-bind="step-nav"] .toc-item[data-step-index="2"]');
           var workflow = document.querySelector('[data-bind="app-body"]');
           var feedback = document.querySelector('.picker-feedback');
@@ -170,17 +157,11 @@ internal static class GuiScenarios
             feedbackText: feedback ? feedback.textContent.trim() : ''
           };
         })()
-        """;
+        """);
 
-    private const string EditedReportPickerProbeScript = """
+    private static readonly string EditedReportPickerProbeScript = Probe("""
         (function () {
-          function visible(element) {
-            if (!element || element.hidden) { return false; }
-            var style = window.getComputedStyle(element);
-            var rect = element.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden'
-              && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
-          }
+          /* shared GUI helpers */
           var open = document.querySelector(
             '[data-action="picker-open"][data-project-id="agent-gui-edited-report"]');
           var rect = open ? open.getBoundingClientRect() : null;
@@ -190,27 +171,23 @@ internal static class GuiScenarios
             y: rect ? rect.top + (rect.height / 2) : 0
           };
         })()
-        """;
+        """);
 
     // 第六步清單、訊息面板與離開按鈕一次量完；報告檔狀態只比對固定的中文標示，不讀檔名。
-    private const string EditedReportStepProbeScript = """
+    private static readonly string EditedReportStepProbeScript = Probe("""
         (function () {
-          function visible(element) {
-            if (!element || element.hidden) { return false; }
-            var style = window.getComputedStyle(element);
-            var rect = element.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden'
-              && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
-          }
-          function point(element) {
-            var rect = element ? element.getBoundingClientRect() : null;
-            return { x: rect ? rect.left + rect.width / 2 : 0, y: rect ? rect.top + rect.height / 2 : 0 };
-          }
+          /* shared GUI helpers */
           function texts(selector) {
             return Array.prototype.slice.call(document.querySelectorAll(selector))
               .map(function (element) { return element.textContent.trim(); });
           }
           var states = texts('.report-artifact__state');
+          var historyRows = Array.prototype.slice.call(document.querySelectorAll('.report-artifact'));
+          var stateArtifacts = window.JetStore.getState().reportArtifacts || [];
+          var firstId = historyRows.length ? historyRows[0].getAttribute('data-artifact-id') : null;
+          var firstArtifact = stateArtifacts.find(function (artifact) { return artifact.artifactId === firstId; });
+          var workpaperButton = document.querySelector('[data-action="export-workpaper"]');
+          var workpaperPoint = point(workpaperButton);
           var messages = texts('.messages__list .messages__text');
           var feedback = document.querySelector('.picker-feedback');
           var rail = document.querySelector('.messages__rail[data-action="messages-toggle"]');
@@ -221,6 +198,21 @@ internal static class GuiScenarios
           var exitPoint = point(exit);
           return {
             artifactCount: document.querySelectorAll('.report-artifact').length,
+            totalWorkpaperCount: stateArtifacts.filter(function (artifact) { return artifact.kind === 'workingPaper'; }).length,
+            totalHistoricalCount: stateArtifacts.filter(function (artifact) { return artifact.kind === 'workingPaper' && artifact.stale; }).length,
+            previousPageEnabled: !!document.querySelector('[data-history-page="-1"]:not(:disabled)'),
+            nextPageEnabled: !!document.querySelector('[data-history-page="1"]:not(:disabled)'),
+            historicalCount: document.querySelectorAll('.report-artifact__validity').length,
+            completionVisible: !!document.querySelector('.completion'),
+            oldVersionRevealAvailable: historyRows.some(function (row) {
+              return row.querySelector('.report-artifact__validity') && row.querySelector('[data-open-artifact]:not(:disabled)');
+            }),
+            missingVersionRevealDisabled: historyRows.some(function (row) {
+              return row.textContent.indexOf('檔案不存在') >= 0 && row.querySelector('[data-open-artifact]:disabled');
+            }),
+            newestCurrentFirst: !!firstArtifact && !firstArtifact.stale && firstArtifact.fileState === 'asPublished',
+            workpaperX: workpaperPoint.x,
+            workpaperY: workpaperPoint.y,
             modifiedOutsideVisible: states.some(function (text) { return text.indexOf('已在 JET 之外修改') >= 0; }),
             workpaperExportEnabled: !!document.querySelector('[data-action="export-workpaper"]:not(:disabled)'),
             cleanupPanelAbsent: !document.querySelector('[data-action^="report-cleanup"]')
@@ -238,7 +230,7 @@ internal static class GuiScenarios
             exitY: exitPoint.y
           };
         })()
-        """;
+        """);
 
     internal static Task ExecuteAsync(
         GuiScenarioDefinition scenario,
@@ -259,8 +251,247 @@ internal static class GuiScenarios
                 cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.EditedReportStillLoads => ExecuteEditedReportStillLoadsAsync(
                 cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.ApprovalMappingModes => ExecuteApprovalMappingModesAsync(
+                cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.ValidationAutoOutputs => ExecuteValidationAutoOutputsAsync(
+                cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.FilterKctEditing or GuiScenarioCatalog.FilterAuditorJourney =>
+                ExecuteFilterWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
             _ => throw new GuiInfrastructureException("scenario_not_implemented")
         };
+    }
+
+    private const string GlSection = "[data-bind=\"mapping-gl\"] ";
+    private static readonly string MappingPolicyProbeScript = Probe("""
+        (function () {
+          /* shared GUI helpers */
+          var state = window.JetStore.getState();
+          var mapping = state.mapping.gl;
+          var section = document.querySelector('[data-bind="mapping-gl"]');
+          return {
+            mode: mapping.options.approvalDateMode,
+            source: mapping.draft.docDate || '',
+            amountMode: mapping.amountMode,
+            draftSnapshot: JSON.stringify(mapping.draft),
+            optionsSnapshot: JSON.stringify(mapping.options),
+            committedDraftSnapshot: mapping.committed ? JSON.stringify(mapping.committed.mapping) : '',
+            committedOptionsSnapshot: mapping.committed ? JSON.stringify(mapping.committed.options) : '',
+            committedAmountMode: mapping.committed ? mapping.committed.mode : '',
+            uiMode: state.mappingUiMode,
+            focusedMappingKey: document.activeElement ? document.activeElement.getAttribute('data-mapping-key') || '' : '',
+            missingCount: section ? section.querySelectorAll('.map-rail__item:not(.is-done)').length : -1,
+            optionsRestored: !!mapping.committed && JSON.stringify(mapping.options) === JSON.stringify(mapping.committed.options),
+            draftRestored: !!mapping.committed && JSON.stringify(mapping.draft) === JSON.stringify(mapping.committed.mapping),
+            amountRestored: !!mapping.committed && mapping.amountMode === mapping.committed.mode,
+            dirtyWarningVisible: !!section && Array.prototype.some.call(section.querySelectorAll('.mapping-section__warn'), function (notice) {
+              return visible(notice) && notice.textContent.indexOf('修改尚未生效') >= 0;
+            }),
+            remapVisible: visible(section ? section.querySelector('[data-action="remap-gl"]') : null)
+          };
+        })()
+        """);
+
+    private static readonly string ValidationOutputProbeScript = Probe("""
+        (function () {
+          /* shared GUI helpers */
+          var state = window.JetStore.getState();
+          var output = state.validationOutput || {};
+          var run = state.lastRuns.validate;
+          var id = run && run.resultRef ? run.resultRef.runId : '';
+          var reports = (state.reportArtifacts || []).filter(function (artifact) {
+            return !artifact.stale && (artifact.kind === 'validationReport' || artifact.kind === 'infReport')
+              && artifact.sourceRef.validationRunId === id;
+          });
+          var template = document.querySelector('[data-validation-output="template"]');
+          return {
+            runId: id,
+            reportsReady: !!output.reports && output.reports.runId === id && output.reports.status === 'ready' && reports.length === 2,
+            templateReady: !!output.template && output.template.runId === id && output.template.status === 'ready',
+            templateKept: !!template && template.textContent.indexOf('已保留') >= 0,
+            validateEnabled: !!document.querySelector('[data-action="run-validate"]:not(:disabled)')
+          };
+        })()
+        """);
+
+    private static async Task OpenMappingFixtureAsync(CdpSession cdp, OwnedGuiRun ownedRun,
+        Process process, GuiRunOutcome outcome, CancellationToken cancellationToken)
+    {
+        await WaitForFixtureEventAsync(ownedRun, process, "seed-mapping-ready-project", "seed.completed", cancellationToken)
+            .ConfigureAwait(false);
+        await ClickControlAsync(cdp, process,
+            "[data-action=\"picker-open\"][data-project-id=\"agent-gui-mapping-ready\"]", outcome, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static Task<JsonElement> WaitForMappingPolicyAsync(CdpSession cdp, Process process,
+        Func<JsonElement, bool> accepted, CancellationToken cancellationToken, GuiRunOutcome? outcome = null,
+        MappingFixtureSnapshot? original = null) =>
+        WaitForProbeAsync(cdp, process, MappingPolicyProbeScript, value => value, accepted,
+            "application_exited_during_mapping_policy", cancellationToken,
+            probe =>
+            {
+                if (outcome is null) { return; }
+                outcome.LastMappingProbe = new
+                {
+                    uiMode = ReadString(probe, "uiMode"),
+                    approvalMode = ReadString(probe, "mode"),
+                    sourceAssigned = !string.IsNullOrEmpty(ReadString(probe, "source")),
+                    focusedMappingKey = ReadString(probe, "focusedMappingKey"),
+                    missingCount = ReadInt32(probe, "missingCount"),
+                    dirtyWarningVisible = ReadBoolean(probe, "dirtyWarningVisible"),
+                    optionsRestored = ReadBoolean(probe, "optionsRestored"),
+                    draftRestored = ReadBoolean(probe, "draftRestored"),
+                    amountRestored = ReadBoolean(probe, "amountRestored"),
+                    matchesInitialDraft = original is null ? (bool?)null : original.MatchesDraft(probe),
+                    matchesInitialOptions = original is null ? (bool?)null : original.MatchesOptions(probe),
+                    matchesInitialAmount = original is null ? (bool?)null : original.MatchesAmount(probe),
+                    committedSnapshotPreserved = original is null ? (bool?)null : original.MatchesCommitted(probe)
+                };
+            });
+
+    // The oracle lives in the driver as immutable strings captured before the first edit.
+    // It cannot change when the WebView accidentally aliases draft and committed objects.
+    private sealed record MappingFixtureSnapshot(string Draft, string Options, string AmountMode)
+    {
+        internal static MappingFixtureSnapshot Capture(JsonElement probe)
+        {
+            var original = new MappingFixtureSnapshot(ReadString(probe, "draftSnapshot"),
+                ReadString(probe, "optionsSnapshot"), ReadString(probe, "amountMode"));
+            using var mapping = JsonDocument.Parse(original.Draft);
+            using var options = JsonDocument.Parse(original.Options);
+            if (mapping.RootElement.GetProperty("docNum").GetString() != "傳票號碼"
+                || mapping.RootElement.GetProperty("docDate").GetString() != "核准日期"
+                || options.RootElement.GetProperty("approvalDateMode").GetString() != "mapped"
+                || original.AmountMode != "flag" || !original.MatchesCommitted(probe))
+            {
+                throw new GuiCheckException("mapping_fixture_snapshot_invalid");
+            }
+            return original;
+        }
+
+        internal bool MatchesDraft(JsonElement probe) => ReadString(probe, "draftSnapshot") == Draft;
+        internal bool MatchesOptions(JsonElement probe) => ReadString(probe, "optionsSnapshot") == Options;
+        internal bool MatchesAmount(JsonElement probe) => ReadString(probe, "amountMode") == AmountMode;
+        internal bool MatchesCommitted(JsonElement probe) =>
+            ReadString(probe, "committedDraftSnapshot") == Draft
+            && ReadString(probe, "committedOptionsSnapshot") == Options
+            && ReadString(probe, "committedAmountMode") == AmountMode;
+    }
+
+    private static Task<JsonElement> ExpectApprovalAsync(CdpSession cdp, Process process,
+        string mode, string source, CancellationToken cancellationToken) =>
+        WaitForMappingPolicyAsync(cdp, process,
+            probe => ReadString(probe, "mode") == mode && ReadString(probe, "source") == source,
+            cancellationToken);
+
+    private static async Task ExecuteApprovalMappingModesAsync(CdpSession cdp, OwnedGuiRun ownedRun,
+        Process process, GuiRunOutcome outcome, CancellationToken cancellationToken)
+    {
+        outcome.RecordStage("open-mapping");
+        await OpenMappingFixtureAsync(cdp, ownedRun, process, outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, "[data-bind=\"step-nav\"] [data-step-index=\"2\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"remap-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
+        var baseline = await WaitForMappingPolicyAsync(cdp, process,
+            probe => ReadString(probe, "uiMode") == "classic" && ReadInt32(probe, "missingCount") == 0
+                && ReadBoolean(probe, "optionsRestored") && ReadBoolean(probe, "draftRestored"),
+            cancellationToken, outcome).ConfigureAwait(false);
+        var original = MappingFixtureSnapshot.Capture(baseline);
+        outcome.RecordStage("options-only-dirty-warning");
+        await ClickControlAsync(cdp, process, GlSection + "[data-remove-code]", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process,
+            probe => ReadBoolean(probe, "draftRestored") && ReadBoolean(probe, "amountRestored")
+                && !ReadBoolean(probe, "optionsRestored") && ReadBoolean(probe, "dirtyWarningVisible")
+                && original.MatchesDraft(probe) && original.MatchesAmount(probe)
+                && !original.MatchesOptions(probe) && original.MatchesCommitted(probe),
+            cancellationToken, outcome, original).ConfigureAwait(false);
+        outcome.Assertions.MappingOptionsDirtyStateVisible = true;
+        outcome.RecordStage("classic-approval-modes");
+        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"unmapped\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "核准日期", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "mapped", "核准日期", cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"sameAsPostDate\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "sameAsPostDate", "", cancellationToken).ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process, probe => ReadBoolean(probe, "dirtyWarningVisible"),
+            cancellationToken, outcome).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "核准日期", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "mapped", "核准日期", cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
+        outcome.Assertions.ClassicApprovalModesCoherent = true;
+
+        outcome.RecordStage("grid-approval-modes");
+        await ClickControlAsync(cdp, process, GlSection + "[data-ui-mode=\"grid\"]", outcome, cancellationToken).ConfigureAwait(false);
+        var gridSource = GlSection + "[data-map-col=\"核准日期\"]";
+        await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "mapped", "核准日期", cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"unmapped\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "mapped", "核准日期", cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"sameAsPostDate\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "sameAsPostDate", "", cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "mapped", "核准日期", cancellationToken).ConfigureAwait(false);
+        outcome.Assertions.GridApprovalModesCoherent = true;
+
+        outcome.RecordStage("required-field-jump");
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-map-col=\"傳票號碼\"]", "", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process,
+            probe => ReadInt32(probe, "missingCount") == 1 && !original.MatchesDraft(probe)
+                && original.MatchesCommitted(probe), cancellationToken, outcome, original).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-focus-mapping-field=\"docNum\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process,
+            probe => ReadString(probe, "uiMode") == "classic" && ReadString(probe, "focusedMappingKey") == "docNum",
+            cancellationToken, outcome, original).ConfigureAwait(false);
+        outcome.Assertions.RequiredFieldJumpFocused = true;
+
+        outcome.RecordStage("restore-mapping-options");
+        await ClickControlAsync(cdp, process, GlSection + "[name=\"mode-gl\"][value=\"signed\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-rde-column]", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"postingStatus\"]", "傳票項次", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"includeBlank\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"restore-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process,
+            probe => ReadBoolean(probe, "optionsRestored") && ReadBoolean(probe, "draftRestored")
+                && ReadBoolean(probe, "amountRestored") && ReadBoolean(probe, "remapVisible")
+                && original.MatchesDraft(probe) && original.MatchesOptions(probe)
+                && original.MatchesAmount(probe) && original.MatchesCommitted(probe),
+            cancellationToken, outcome, original).ConfigureAwait(false);
+        outcome.Assertions.CommittedMappingOptionsRestored = true;
+        outcome.RecordStage("capture-restored-mapping");
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"remap-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await FindControlPointAsync(cdp, process, GlSection + "[data-approval-source]", cancellationToken).ConfigureAwait(false);
+        await CaptureScreenshotAsync(cdp, outcome, cancellationToken).ConfigureAwait(false);
+        outcome.RecordStage("exit");
+        await ClickControlAsync(cdp, process, "[data-action=\"app-exit\"]", outcome, cancellationToken).ConfigureAwait(false);
+        outcome.Assertions.ExitRequested = true;
+    }
+
+    private static async Task ExecuteValidationAutoOutputsAsync(CdpSession cdp, OwnedGuiRun ownedRun,
+        Process process, GuiRunOutcome outcome, CancellationToken cancellationToken)
+    {
+        await OpenMappingFixtureAsync(cdp, ownedRun, process, outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, "[data-bind=\"step-nav\"] [data-step-index=\"3\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, "[data-action=\"run-validate\"]", outcome, cancellationToken).ConfigureAwait(false);
+        var first = await WaitForProbeAsync(cdp, process, ValidationOutputProbeScript, value => value,
+            probe => ReadBoolean(probe, "reportsReady") && ReadBoolean(probe, "templateReady") && ReadBoolean(probe, "validateEnabled"),
+            "application_exited_during_automatic_outputs", cancellationToken).ConfigureAwait(false);
+        await WaitForFixtureEventAsync(ownedRun, process, "fill-template-after-auto-export", "template.filled", cancellationToken).ConfigureAwait(false);
+        outcome.Assertions.AutomaticValidationReportsCreated = true;
+        outcome.Assertions.AutomaticMappingTemplateCreated = true;
+        var firstRun = ReadString(first, "runId");
+        await ClickControlAsync(cdp, process, "[data-action=\"run-validate\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForProbeAsync(cdp, process, ValidationOutputProbeScript, value => value,
+            probe => ReadString(probe, "runId") != firstRun && ReadBoolean(probe, "reportsReady")
+                && ReadBoolean(probe, "templateReady") && ReadBoolean(probe, "templateKept") && ReadBoolean(probe, "validateEnabled"),
+            "application_exited_during_repeated_validation", cancellationToken).ConfigureAwait(false);
+        await WaitForFixtureEventAsync(ownedRun, process, "fill-template-after-auto-export", "template.preserved", cancellationToken).ConfigureAwait(false);
+        outcome.Assertions.FilledTemplatePreservedAfterValidation = true;
+        await FindControlPointAsync(cdp, process, "[data-action=\"download-account-mapping-template\"]", cancellationToken).ConfigureAwait(false);
+        await CaptureScreenshotAsync(cdp, outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, "[data-action=\"app-exit\"]", outcome, cancellationToken).ConfigureAwait(false);
+        outcome.Assertions.ExitRequested = true;
     }
 
     private static async Task ExecuteStartupSmokeAsync(
@@ -332,7 +563,7 @@ internal static class GuiScenarios
             throw new GuiCheckException("create_form_values_invalid");
         }
 
-        await ClickAsync(cdp, form.SubmitX, form.SubmitY, outcome, cancellationToken)
+        await ClickControlAsync(cdp, process, "[data-bind=\"create-form\"] [type=\"submit\"]", outcome, cancellationToken)
             .ConfigureAwait(false);
         var created = await WaitForCreatedProjectAsync(cdp, process, projectCode, cancellationToken)
             .ConfigureAwait(false);
@@ -362,57 +593,46 @@ internal static class GuiScenarios
         GuiRunOutcome outcome,
         CancellationToken cancellationToken)
     {
+        outcome.RecordStage("mapping-fixture-open");
         await WaitForFixtureEventAsync(
             ownedRun,
             process,
             "seed-mapping-ready-project",
             "seed.completed",
             cancellationToken).ConfigureAwait(false);
-        var picker = await WaitForPointAsync(
+        _ = await WaitForPointAsync(
             cdp,
             process,
             MappingPickerProbeScript,
             "visible",
             "application_exited_before_mapping_fixture",
             cancellationToken).ConfigureAwait(false);
-        await ClickAsync(
-            cdp,
-            ReadDouble(picker, "x"),
-            ReadDouble(picker, "y"),
-            outcome,
-            cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process,
+            "[data-action=\"picker-open\"][data-project-id=\"agent-gui-mapping-ready\"]", outcome, cancellationToken).ConfigureAwait(false);
 
-        var navigation = await WaitForMappingNavigationAsync(
+        outcome.RecordStage("mapping-navigation");
+        _ = await WaitForMappingNavigationAsync(
             cdp,
             process,
             cancellationToken).ConfigureAwait(false);
-        await ClickAsync(
-            cdp,
-            ReadDouble(navigation, "navX"),
-            ReadDouble(navigation, "navY"),
-            outcome,
-            cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, "[data-bind=\"step-nav\"] [data-step-index=\"2\"]", outcome, cancellationToken).ConfigureAwait(false);
 
-        var initial = await WaitForMappingStepAsync(
+        _ = await WaitForMappingStepAsync(
             cdp,
             process,
             probe => ReadBoolean(probe, "visible")
                 && ReadBoolean(probe, "remapVisible"),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken, outcome).ConfigureAwait(false);
         outcome.Assertions.MappingProjectLoaded = true;
 
-        await ClickAsync(
-            cdp,
-            ReadDouble(initial, "remapX"),
-            ReadDouble(initial, "remapY"),
-            outcome,
-            cancellationToken).ConfigureAwait(false);
+        outcome.RecordStage("mapping-remap");
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"remap-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
         var suggested = await WaitForMappingStepAsync(
             cdp,
             process,
             probe => ReadInt32(probe, "missingCount") == 0
                 && !string.IsNullOrWhiteSpace(ReadString(probe, "selectValue")),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken, outcome).ConfigureAwait(false);
         outcome.Assertions.MappingBaselineReady = true;
         var baselineCommitDisabled = ReadBoolean(suggested, "commitDisabled");
         var focusKey = ReadString(suggested, "selectFocusKey");
@@ -421,55 +641,48 @@ internal static class GuiScenarios
             throw new GuiCheckException("mapping_focus_key_missing");
         }
 
-        await ClickAsync(
-            cdp,
-            ReadDouble(suggested, "selectX"),
-            ReadDouble(suggested, "selectY"),
-            outcome,
-            cancellationToken).ConfigureAwait(false);
-        await PressKeyAsync(cdp, "Home", outcome, cancellationToken).ConfigureAwait(false);
-        await PressKeyAsync(cdp, "Enter", outcome, cancellationToken).ConfigureAwait(false);
-        var incomplete = await WaitForMappingStepAsync(
-            cdp,
-            process,
-            probe => string.IsNullOrEmpty(ReadString(probe, "selectValue"))
-                && ReadBoolean(probe, "commitDisabled")
-                && ReadInt32(probe, "missingCount") == 1,
-            cancellationToken).ConfigureAwait(false);
-        outcome.Assertions.RequiredRailBecameIncomplete = true;
-
-        await ClickAsync(
-            cdp,
-            ReadDouble(incomplete, "selectX"),
-            ReadDouble(incomplete, "selectY"),
-            outcome,
-            cancellationToken).ConfigureAwait(false);
-        await PressKeyAsync(cdp, "ArrowDown", outcome, cancellationToken).ConfigureAwait(false);
-        await PressKeyAsync(cdp, "Enter", outcome, cancellationToken).ConfigureAwait(false);
-        var recovered = await WaitForMappingStepAsync(
-            cdp,
-            process,
-            probe => !string.IsNullOrWhiteSpace(ReadString(probe, "selectValue"))
-                && ReadInt32(probe, "missingCount") == 0
-                && ReadBoolean(probe, "commitDisabled") == baselineCommitDisabled,
-            cancellationToken).ConfigureAwait(false);
-        outcome.Assertions.RequiredRailRecovered = true;
-        outcome.Assertions.MappingFocusPreserved =
-            ReadBoolean(incomplete, "selectFocused")
-            && ReadBoolean(recovered, "selectFocused")
-            && ReadString(incomplete, "selectFocusKey") == focusKey
-            && ReadString(recovered, "selectFocusKey") == focusKey;
-        if (!outcome.Assertions.MappingFocusPreserved)
+        const string requiredSelect = GlSection + ".mapping-table__row.is-required select[data-mapping-key]";
+        // 人工驗收第 1 項：十次清空和補回，每次核對缺漏、按鈕與焦點。
+        outcome.RecordStage("mapping-ten-roundtrips");
+        for (var cycle = 0; cycle < 10; cycle++)
         {
-            throw new GuiCheckException("mapping_focus_not_preserved");
+            await ClickControlAsync(cdp, process, requiredSelect, outcome, cancellationToken).ConfigureAwait(false);
+            await PressKeyAsync(cdp, "Home", outcome, cancellationToken).ConfigureAwait(false);
+            await PressKeyAsync(cdp, "Enter", outcome, cancellationToken).ConfigureAwait(false);
+            var incomplete = await WaitForMappingStepAsync(
+                cdp,
+                process,
+                probe => string.IsNullOrEmpty(ReadString(probe, "selectValue"))
+                    && ReadBoolean(probe, "commitDisabled")
+                    && ReadInt32(probe, "missingCount") == 1,
+                cancellationToken, outcome).ConfigureAwait(false);
+            outcome.Assertions.RequiredRailBecameIncomplete = true;
+
+            await ClickControlAsync(cdp, process, requiredSelect, outcome, cancellationToken).ConfigureAwait(false);
+            await PressKeyAsync(cdp, "ArrowDown", outcome, cancellationToken).ConfigureAwait(false);
+            await PressKeyAsync(cdp, "Enter", outcome, cancellationToken).ConfigureAwait(false);
+            var recovered = await WaitForMappingStepAsync(
+                cdp,
+                process,
+                probe => !string.IsNullOrWhiteSpace(ReadString(probe, "selectValue"))
+                    && ReadInt32(probe, "missingCount") == 0
+                    && ReadBoolean(probe, "commitDisabled") == baselineCommitDisabled,
+                cancellationToken, outcome).ConfigureAwait(false);
+            outcome.Assertions.RequiredRailRecovered = true;
+            outcome.Assertions.MappingFocusPreserved =
+                ReadBoolean(incomplete, "selectFocused")
+                && ReadBoolean(recovered, "selectFocused")
+                && ReadString(incomplete, "selectFocusKey") == focusKey
+                && ReadString(recovered, "selectFocusKey") == focusKey;
+            if (!outcome.Assertions.MappingFocusPreserved)
+            {
+                throw new GuiCheckException("mapping_focus_not_preserved");
+            }
+
         }
 
-        await ClickAsync(
-            cdp,
-            ReadDouble(recovered, "exitX"),
-            ReadDouble(recovered, "exitY"),
-            outcome,
-            cancellationToken).ConfigureAwait(false);
+        outcome.RecordStage("mapping-exit");
+        await ClickControlAsync(cdp, process, "[data-action=\"app-exit\"]", outcome, cancellationToken).ConfigureAwait(false);
         outcome.Assertions.ExitRequested = true;
     }
 
@@ -522,6 +735,50 @@ internal static class GuiScenarios
         {
             throw new GuiCheckException("edited_report_workflow_contract_failed");
         }
+
+        outcome.Assertions.WorkpaperHistoryVisible = ReadInt32(exportStep, "artifactCount") == 50
+            && ReadInt32(exportStep, "historicalCount") == 50
+            && ReadInt32(exportStep, "totalWorkpaperCount") == 52;
+        outcome.Assertions.HistoryDoesNotCompleteCurrentRun = !ReadBoolean(exportStep, "completionVisible");
+        outcome.Assertions.OldVersionRevealAvailable = ReadBoolean(exportStep, "oldVersionRevealAvailable");
+        outcome.Assertions.MissingVersionRevealDisabled = ReadBoolean(exportStep, "missingVersionRevealDisabled");
+        if (!outcome.Assertions.WorkpaperHistoryVisible || !outcome.Assertions.HistoryDoesNotCompleteCurrentRun
+            || !outcome.Assertions.OldVersionRevealAvailable || !outcome.Assertions.MissingVersionRevealDisabled)
+        {
+            throw new GuiCheckException("workpaper_history_before_export_failed");
+        }
+        await ClickControlAsync(cdp, process, "[data-history-page=\"1\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForEditedReportStepAsync(cdp, process,
+            probe => ReadInt32(probe, "artifactCount") == 2 && ReadInt32(probe, "historicalCount") == 2
+                && ReadBoolean(probe, "previousPageEnabled") && !ReadBoolean(probe, "nextPageEnabled"),
+            cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, "[data-history-page=\"-1\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForEditedReportStepAsync(cdp, process,
+            probe => ReadInt32(probe, "artifactCount") == 50 && !ReadBoolean(probe, "previousPageEnabled"),
+            cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, "[data-action=\"export-workpaper\"]", outcome, cancellationToken).ConfigureAwait(false);
+        exportStep = await WaitForEditedReportStepAsync(cdp, process,
+            probe => ReadInt32(probe, "artifactCount") == 50 && ReadInt32(probe, "totalWorkpaperCount") == 53
+                && ReadBoolean(probe, "completionVisible"),
+            cancellationToken).ConfigureAwait(false);
+        outcome.Assertions.WorkpaperHistoryRetainedAfterExport = ReadInt32(exportStep, "historicalCount") == 49
+            && ReadInt32(exportStep, "totalHistoricalCount") == 52
+            && ReadBoolean(exportStep, "oldVersionRevealAvailable") && ReadBoolean(exportStep, "missingVersionRevealDisabled");
+        outcome.Assertions.NewestWorkpaperFirst = ReadBoolean(exportStep, "newestCurrentFirst");
+        if (!outcome.Assertions.WorkpaperHistoryRetainedAfterExport || !outcome.Assertions.NewestWorkpaperFirst)
+        {
+            throw new GuiCheckException("workpaper_history_after_export_failed");
+        }
+        await ClickControlAsync(cdp, process, "[data-history-page=\"1\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForEditedReportStepAsync(cdp, process,
+            probe => ReadInt32(probe, "artifactCount") == 3 && ReadInt32(probe, "historicalCount") == 3
+                && ReadBoolean(probe, "previousPageEnabled") && !ReadBoolean(probe, "nextPageEnabled"),
+            cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, "[data-history-page=\"-1\"]", outcome, cancellationToken).ConfigureAwait(false);
+        exportStep = await WaitForEditedReportStepAsync(cdp, process,
+            probe => ReadInt32(probe, "artifactCount") == 50 && ReadBoolean(probe, "newestCurrentFirst"),
+            cancellationToken).ConfigureAwait(false);
+        outcome.Assertions.WorkpaperHistoryPaginationVerified = true;
 
         if (!ReadBoolean(exportStep, "exportVisible"))
         {
@@ -623,6 +880,111 @@ internal static class GuiScenarios
         await cdp.ClickAsync(x, y, cancellationToken).ConfigureAwait(false);
     }
 
+    // Selectors are fixed by the scenario code. Evaluation only reads geometry; all navigation is real mouse input.
+    private static async Task<JsonElement> FindControlPointAsync(CdpSession cdp, Process process,
+        string selector, CancellationToken cancellationToken)
+    {
+        var script = Probe("""
+            (function () {
+              /* shared GUI helpers */
+              var element = document.querySelector(SELECTOR);
+              if (!visible(element)) { return { exists: false }; }
+              var rect = element.getBoundingClientRect();
+              var x = rect.left + rect.width / 2;
+              var y = rect.top + rect.height / 2;
+              var hit = x > 0 && y > 0 && x < innerWidth && y < innerHeight ? document.elementFromPoint(x, y) : null;
+              if (hit && (hit === element || element.contains(hit))) {
+                return { exists: true, ready: !element.disabled, x: x, y: y };
+              }
+              for (var parent = element.parentElement; parent; parent = parent.parentElement) {
+                var box = parent.getBoundingClientRect();
+                var style = getComputedStyle(parent);
+                var horizontal = /auto|scroll/.test(style.overflowX) && parent.scrollWidth > parent.clientWidth
+                  && (x < box.left + 8 || x > box.right - 8);
+                var vertical = /auto|scroll/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight
+                  && (y < box.top + 8 || y > box.bottom - 8);
+                if ((horizontal || vertical) && box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < innerHeight) {
+                  var anchorX = Math.max(20, Math.min(innerWidth - 20, (Math.max(0, box.left) + Math.min(innerWidth, box.right)) / 2));
+                  var anchorY = Math.max(20, Math.min(innerHeight - 20, (Math.max(0, box.top) + Math.min(innerHeight, box.bottom)) / 2));
+                  return { exists: true, ready: false, x: anchorX, y: anchorY,
+                    deltaX: horizontal ? Math.max(-4000, Math.min(4000, x - anchorX)) : 0,
+                    deltaY: vertical ? Math.max(-4000, Math.min(4000, y - anchorY)) : 0 };
+                }
+              }
+              return { exists: true, ready: false };
+            })()
+            """.Replace("SELECTOR", JsonSerializer.Serialize(selector), StringComparison.Ordinal));
+        var scrollCount = 0;
+        var previousX = double.NaN;
+        var previousY = double.NaN;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfExited(process, "application_exited_before_control");
+            var probe = await cdp.EvaluateAsync(script, cancellationToken).ConfigureAwait(false);
+            if (ReadBoolean(probe, "ready") && HasPoint(probe, "x", "y"))
+            {
+                var x = ReadDouble(probe, "x");
+                var y = ReadDouble(probe, "y");
+                if (Math.Abs(x - previousX) < 0.5 && Math.Abs(y - previousY) < 0.5) { return probe; }
+                previousX = x;
+                previousY = y;
+            }
+            else
+            {
+                previousX = double.NaN;
+                previousY = double.NaN;
+            }
+            if (HasPoint(probe, "x", "y") && double.IsFinite(ReadDouble(probe, "deltaX"))
+                && double.IsFinite(ReadDouble(probe, "deltaY"))
+                && (ReadDouble(probe, "deltaX") != 0 || ReadDouble(probe, "deltaY") != 0))
+            {
+                if (++scrollCount > 12) { throw new GuiCheckException("control_scroll_limit_exceeded"); }
+                await cdp.ScrollAsync(ReadDouble(probe, "x"), ReadDouble(probe, "y"),
+                    ReadDouble(probe, "deltaX"), ReadDouble(probe, "deltaY"), cancellationToken).ConfigureAwait(false);
+            }
+            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task ClickControlAsync(CdpSession cdp, Process process, string selector,
+        GuiRunOutcome outcome, CancellationToken cancellationToken)
+    {
+        var probe = await FindControlPointAsync(cdp, process, selector, cancellationToken).ConfigureAwait(false);
+        await ClickAsync(cdp, ReadDouble(probe, "x"), ReadDouble(probe, "y"), outcome, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task ChooseOptionAsync(CdpSession cdp, Process process, string selector,
+        string value, GuiRunOutcome outcome, CancellationToken cancellationToken)
+    {
+        await ClickControlAsync(cdp, process, selector, outcome, cancellationToken).ConfigureAwait(false);
+        var optionIndex = await cdp.EvaluateAsync("(function () { var select = document.querySelector(" +
+            JsonSerializer.Serialize(selector) + "); return select ? Array.prototype.findIndex.call(select.options, function (option) { return option.value === " +
+            JsonSerializer.Serialize(value) + "; }) : -1; })()", cancellationToken).ConfigureAwait(false);
+        if (!optionIndex.TryGetInt32(out var index) || index is < 0 or > 40)
+        {
+            throw new GuiCheckException("closed_select_option_missing");
+        }
+        // One bounded keyboard selection gesture, like the existing TypeDate multi-key gesture.
+        outcome.RecordAction();
+        await cdp.PressKeyAsync("Home", cancellationToken).ConfigureAwait(false);
+        for (var step = 0; step < index; step++)
+        {
+            await cdp.PressKeyAsync("ArrowDown", cancellationToken).ConfigureAwait(false);
+        }
+        await cdp.PressKeyAsync("Enter", cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task CaptureScreenshotAsync(CdpSession cdp, GuiRunOutcome outcome,
+        CancellationToken cancellationToken)
+    {
+        if (outcome.Screenshots.Count >= outcome.Scenario.ScreenshotLimit)
+        {
+            throw new GuiInfrastructureException("screenshot_budget_exceeded");
+        }
+        outcome.Screenshots.Add(await cdp.CaptureScreenshotAsync(cancellationToken).ConfigureAwait(false));
+    }
+
     private static async Task PressKeyAsync(
         CdpSession cdp,
         string key,
@@ -633,31 +995,32 @@ internal static class GuiScenarios
         await cdp.PressKeyAsync(key, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<JsonElement> WaitForPointAsync(
-        CdpSession cdp,
-        Process process,
-        string script,
-        string visibleProperty,
-        string processExitCode,
-        CancellationToken cancellationToken)
+    private static bool HasPoint(JsonElement probe, string x, string y) =>
+        double.IsFinite(ReadDouble(probe, x)) && double.IsFinite(ReadDouble(probe, y))
+        && ReadDouble(probe, x) > 0 && ReadDouble(probe, y) > 0;
+
+    private static async Task<T> WaitForProbeAsync<T>(
+        CdpSession cdp, Process process, string script, Func<JsonElement, T> read,
+        Func<T, bool> accepted, string processExitCode, CancellationToken cancellationToken,
+        Action<T>? observed = null)
     {
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfExited(process, processExitCode);
-            var probe = await cdp.EvaluateAsync(script, cancellationToken).ConfigureAwait(false);
-            if (ReadBoolean(probe, visibleProperty)
-                && double.IsFinite(ReadDouble(probe, "x"))
-                && double.IsFinite(ReadDouble(probe, "y"))
-                && ReadDouble(probe, "x") > 0
-                && ReadDouble(probe, "y") > 0)
-            {
-                return probe;
-            }
-
+            var probe = read(await cdp.EvaluateAsync(script, cancellationToken).ConfigureAwait(false));
+            observed?.Invoke(probe);
+            if (accepted(probe)) { return probe; }
             await Task.Delay(100, cancellationToken).ConfigureAwait(false);
         }
     }
+
+    private static Task<JsonElement> WaitForPointAsync(
+        CdpSession cdp, Process process, string script, string visibleProperty,
+        string processExitCode, CancellationToken cancellationToken) =>
+        WaitForProbeAsync(cdp, process, script, value => value,
+            probe => ReadBoolean(probe, visibleProperty) && HasPoint(probe, "x", "y"),
+            processExitCode, cancellationToken);
 
     private static async Task WaitForFixtureEventAsync(
         OwnedGuiRun ownedRun,
@@ -721,81 +1084,46 @@ internal static class GuiScenarios
         }
     }
 
-    private static async Task<JsonElement> WaitForMappingStepAsync(
-        CdpSession cdp,
-        Process process,
-        Func<JsonElement, bool> accepted,
-        CancellationToken cancellationToken)
-    {
-        while (true)
+    private static Task<JsonElement> WaitForMappingStepAsync(
+        CdpSession cdp, Process process, Func<JsonElement, bool> accepted,
+        CancellationToken cancellationToken, GuiRunOutcome? outcome = null) =>
+        WaitForProbeAsync(cdp, process, MappingStepProbeScript, value => value,
+            probe => accepted(probe) && ReadBoolean(probe, "exitVisible") && HasPoint(probe, "exitX", "exitY"),
+            "application_exited_during_mapping_sync", cancellationToken, probe =>
+            {
+                if (outcome is null) { return; }
+                outcome.LastMappingProbe = new
+                {
+                    uiMode = ReadString(probe, "uiMode"),
+                    sectionVisible = ReadBoolean(probe, "visible"),
+                    remapVisible = ReadBoolean(probe, "remapVisible"),
+                    remapInViewport = ReadBoolean(probe, "remapInViewport"),
+                    remapHit = ReadBoolean(probe, "remapHit"),
+                    selectVisible = ReadBoolean(probe, "selectVisible"),
+                    sourceAssigned = !string.IsNullOrWhiteSpace(ReadString(probe, "selectValue")),
+                    selectFocused = ReadBoolean(probe, "selectFocused"),
+                    commitDisabled = ReadBoolean(probe, "commitDisabled"),
+                    missingCount = ReadInt32(probe, "missingCount"),
+                    draftFieldCount = ReadInt32(probe, "draftFieldCount"),
+                    committedFieldCount = ReadInt32(probe, "committedFieldCount")
+                };
+            });
+
+    private static Task<JsonElement> WaitForMappingNavigationAsync(
+        CdpSession cdp, Process process, CancellationToken cancellationToken) =>
+        WaitForProbeAsync(cdp, process, MappingNavigationProbeScript, value => value, probe =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfExited(process, "application_exited_during_mapping_sync");
-            var probe = await cdp.EvaluateAsync(MappingStepProbeScript, cancellationToken)
-                .ConfigureAwait(false);
-            if (accepted(probe)
-                && ReadBoolean(probe, "exitVisible")
-                && double.IsFinite(ReadDouble(probe, "exitX"))
-                && double.IsFinite(ReadDouble(probe, "exitY")))
-            {
-                return probe;
-            }
+            if (ReadBoolean(probe, "feedbackVisible")) { throw new GuiCheckException("mapping_project_load_failed"); }
+            return ReadBoolean(probe, "workflowVisible") && ReadBoolean(probe, "navVisible")
+                && !ReadBoolean(probe, "navDisabled") && HasPoint(probe, "navX", "navY");
+        }, "application_exited_before_mapping_navigation", cancellationToken);
 
-            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private static async Task<JsonElement> WaitForMappingNavigationAsync(
-        CdpSession cdp,
-        Process process,
-        CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfExited(process, "application_exited_before_mapping_navigation");
-            var probe = await cdp.EvaluateAsync(MappingNavigationProbeScript, cancellationToken)
-                .ConfigureAwait(false);
-            if (ReadBoolean(probe, "feedbackVisible"))
-            {
-                throw new GuiCheckException("mapping_project_load_failed");
-            }
-            if (ReadBoolean(probe, "workflowVisible")
-                && ReadBoolean(probe, "navVisible")
-                && !ReadBoolean(probe, "navDisabled")
-                && ReadDouble(probe, "navX") > 0
-                && ReadDouble(probe, "navY") > 0)
-            {
-                return probe;
-            }
-
-            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private static async Task<JsonElement> WaitForEditedReportStepAsync(
-        CdpSession cdp,
-        Process process,
-        Func<JsonElement, bool> accepted,
-        CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfExited(process, "application_exited_during_edited_report_load");
-            var probe = await cdp.EvaluateAsync(EditedReportStepProbeScript, cancellationToken)
-                .ConfigureAwait(false);
-            if (accepted(probe)
-                && ReadBoolean(probe, "exitVisible")
-                && ReadDouble(probe, "exitX") > 0
-                && ReadDouble(probe, "exitY") > 0)
-            {
-                return probe;
-            }
-
-            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    private static Task<JsonElement> WaitForEditedReportStepAsync(
+        CdpSession cdp, Process process, Func<JsonElement, bool> accepted,
+        CancellationToken cancellationToken) =>
+        WaitForProbeAsync(cdp, process, EditedReportStepProbeScript, value => value,
+            probe => accepted(probe) && ReadBoolean(probe, "exitVisible") && HasPoint(probe, "exitX", "exitY"),
+            "application_exited_during_edited_report_load", cancellationToken);
 
     private static void ValidateSupportLog(
         OwnedGuiRun ownedRun,
@@ -868,87 +1196,27 @@ internal static class GuiScenarios
         }
     }
 
-    private static async Task<CreateFormProbe> WaitForCreateFormAsync(
-        CdpSession cdp,
-        Process process,
-        CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfExited(process, "application_exited_before_create_form");
-            var probe = ReadCreateFormProbe(
-                await cdp.EvaluateAsync(CreateFormProbeScript, cancellationToken).ConfigureAwait(false));
-            if (probe.IsReady)
-            {
-                return probe;
-            }
+    private static Task<CreateFormProbe> WaitForCreateFormAsync(
+        CdpSession cdp, Process process, CancellationToken cancellationToken) =>
+        WaitForProbeAsync(cdp, process, CreateFormProbeScript, ReadCreateFormProbe, probe => probe.IsReady,
+            "application_exited_before_create_form", cancellationToken);
 
-            await Task.Delay(150, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    private static Task<CreateFormProbe> WaitForFieldValueAsync(
+        CdpSession cdp, Process process, CreateField field, string expected, CancellationToken cancellationToken) =>
+        WaitForProbeAsync(cdp, process, CreateFormProbeScript, ReadCreateFormProbe,
+            probe => probe.IsReady && probe.Get(field).Value == expected,
+            "application_exited_during_create_form", cancellationToken);
 
-    private static async Task<CreateFormProbe> WaitForFieldValueAsync(
-        CdpSession cdp,
-        Process process,
-        CreateField field,
-        string expected,
-        CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfExited(process, "application_exited_during_create_form");
-            var probe = ReadCreateFormProbe(
-                await cdp.EvaluateAsync(CreateFormProbeScript, cancellationToken).ConfigureAwait(false));
-            if (probe.IsReady && probe.Get(field).Value == expected)
-            {
-                return probe;
-            }
-
-            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private static async Task<CreatedProjectProbe> WaitForCreatedProjectAsync(
-        CdpSession cdp,
-        Process process,
-        string projectCode,
-        CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfExited(process, "application_exited_before_project_created");
-            var value = await cdp.EvaluateAsync(CreatedProjectProbeScript, cancellationToken)
-                .ConfigureAwait(false);
-            var probe = new CreatedProjectProbe(
-                ReadBoolean(value, "formAbsent"),
-                ReadBoolean(value, "caseStepVisible"),
-                ReadString(value, "caseStepText"),
-                ReadBoolean(value, "caseIdVisible"),
-                ReadString(value, "caseIdText"),
-                ReadBoolean(value, "importStepVisible"),
-                ReadBoolean(value, "exitButtonVisible"),
-                ReadDouble(value, "exitX"),
-                ReadDouble(value, "exitY"));
-            if (probe.FormAbsent
-                && probe.CaseStepVisible
-                && probe.CaseIdVisible
-                && probe.CaseIdText == projectCode
-                && probe.ImportStepVisible
-                && probe.ExitButtonVisible
-                && double.IsFinite(probe.ExitX)
-                && double.IsFinite(probe.ExitY)
-                && probe.ExitX > 0
-                && probe.ExitY > 0)
-            {
-                return probe;
-            }
-
-            await Task.Delay(150, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    private static Task<CreatedProjectProbe> WaitForCreatedProjectAsync(
+        CdpSession cdp, Process process, string projectCode, CancellationToken cancellationToken) =>
+        WaitForProbeAsync(cdp, process, CreatedProjectProbeScript, value => new CreatedProjectProbe(
+            ReadBoolean(value, "formAbsent"), ReadBoolean(value, "caseStepVisible"), ReadString(value, "caseStepText"),
+            ReadBoolean(value, "caseIdVisible"), ReadString(value, "caseIdText"), ReadBoolean(value, "importStepVisible"),
+            ReadBoolean(value, "exitButtonVisible"), ReadDouble(value, "exitX"), ReadDouble(value, "exitY")),
+            probe => probe.FormAbsent && probe.CaseStepVisible && probe.CaseIdVisible && probe.CaseIdText == projectCode
+                && probe.ImportStepVisible && probe.ExitButtonVisible && double.IsFinite(probe.ExitX)
+                && double.IsFinite(probe.ExitY) && probe.ExitX > 0 && probe.ExitY > 0,
+            "application_exited_before_project_created", cancellationToken);
 
     private static void ValidateSyntheticProjectFiles(
         OwnedGuiRun ownedRun,

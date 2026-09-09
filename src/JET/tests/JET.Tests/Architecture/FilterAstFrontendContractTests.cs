@@ -15,12 +15,24 @@ public sealed class FilterAstFrontendContractTests
 {
     private const string RowScopeLabel = "同一分錄列";
     private const string SameVoucherScopeLabel = "同一傳票";
-    private const string OutputAnchorLabel = "輸出錨點（第 1 條）";
+    private const string OutputAnchorLabel = "主要條件（決定命中分錄）";
     private const string SameVoucherExplanation = "後續條件可由同一傳票的其他分錄列符合";
     private const string ContainsAnyLabel = "包含任一值";
     private const string ExactAnyLabel = "完全符合任一值";
     private const string PreserveSpacesLabel = "保留 ASCII 空白";
     private const string RemoveSpacesLabel = "移除 ASCII 空白";
+
+    [Fact]
+    public void FilterCompleteness_ValueLabelsMirrorTheBackend()
+    {
+        var editor = ReadFrontend("js", "filter-values.js");
+        var labels = Regex.Match(editor, @"var labels = \{(?<body>[\s\S]*?)\};").Groups["body"].Value;
+        var found = Regex.Matches(labels, @"(?<key>\w+): '(?<label>[^']+)'" )
+            .ToDictionary(match => match.Groups["key"].Value, match => match.Groups["label"].Value);
+        Assert.Equal(FieldValueConditions.Labels.Count, found.Count);
+        foreach (var expected in FieldValueConditions.Labels)
+            Assert.Equal(expected.Value, found[expected.Key]);
+    }
 
     [Fact]
     public void GroupMatchScope_OffersClosedOptionsAndAccessibleSameVoucherGuidance()
@@ -51,9 +63,15 @@ public sealed class FilterAstFrontendContractTests
                 @"matchScope\s*===\s*'sameVoucher'[\s\S]{0,1400}\.join\s*=\s*'AND'",
                 RegexOptions.CultureInvariant),
             filter);
-        var combinator = ExtractFunction(filter, "comboSegment", "matchScopeHtml");
-        Assert.Contains("disabled aria-disabled=\"true\"", combinator, StringComparison.Ordinal);
-        Assert.Matches(@"sameVoucher\s*\?\s*'OR'\s*:\s*null", filter);
+        // 2026-09-07 自訂篩選條件改版：組內「全部／任一」從 comboSegment 段控改成組標頭句子裡的下拉
+        // （setWellHtml），同一傳票時整個下拉停用並帶 aria-disabled，不再是「只停用 OR 那一格」。
+        // 守衛的意圖不變：sameVoucher 時使用者不能選到 OR，且停用狀態對輔助工具可見。
+        // 第一次失敗的證據：收據 20260907-135727110（ExtractFunction 找不到 comboSegment）。
+        var combinator = ExtractFunction(filter, "setWellHtml", "interSetConnectorHtml");
+        Assert.Contains("data-set-combinator", combinator, StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(@"sameVoucher\s*\?\s*' disabled aria-disabled=""true""", RegexOptions.CultureInvariant),
+            combinator);
     }
 
     [Fact]
@@ -125,7 +143,9 @@ public sealed class FilterAstFrontendContractTests
         Assert.Contains("scenario: toWireScenario(scenario)", filter, StringComparison.Ordinal);
         Assert.Contains("state.filter.savedScenarios.map(toWireScenario)", filter, StringComparison.Ordinal);
         Assert.Contains("current.savedScenarios.map(toWireScenario)", filter, StringComparison.Ordinal);
-        Assert.Contains(".concat([toWireDraft(current.draft)])", filter, StringComparison.Ordinal);
+        Assert.Contains("var authored = toWireDraft(current.draft)", filter, StringComparison.Ordinal);
+        Assert.Contains("scenarios[editingIndex] = authored", filter, StringComparison.Ordinal);
+        Assert.Contains("scenarios.push(authored)", filter, StringComparison.Ordinal);
     }
 
     [Fact]

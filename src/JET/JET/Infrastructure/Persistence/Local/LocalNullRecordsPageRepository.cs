@@ -31,37 +31,27 @@ public sealed class LocalNullRecordsPageRepository(ILocalProjectDatabase databas
             command.AddWithValue("@periodEnd", periodEnd);
         }
 
-        var hasCursor = PageCursor.TryDecode(request.Cursor, out var cursorKey);
-        var keyset = hasCursor ? "AND entry_id > @cursor" : string.Empty;
-        if (hasCursor)
+        var paging = KeysetPaging.Plan(database.Dialect, request, ResultPageSorting.NullRecords);
+        foreach (var parameter in paging.Parameters)
         {
-            command.AddWithValue("@cursor", long.Parse(cursorKey));
+            command.AddWithValue(parameter.Key, parameter.Value);
         }
 
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
 
         command.CommandText =
-            "SELECT document_number, account_code, post_date, document_description, entry_id " +
+            "SELECT document_number, account_code, post_date, document_description, entry_id" + paging.SelectSuffix + " " +
             "FROM target_gl_entry " +
-            "WHERE " + predicate + " " + keyset + " " +
-            "ORDER BY entry_id " + database.Dialect.LimitClause("@pageSize") + ";";
+            "WHERE " + predicate + paging.Predicate + " " +
+            paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
-        var rows = new List<NullRecordRow>();
+        var buffer = new KeysetPageBuffer<NullRecordRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            rows.Add(NullRecordRowMapper.MapRow(reader, category));
+            buffer.Add(NullRecordRowMapper.MapRow(reader, category), paging.HasSort ? reader.GetValue(5) : null);
         }
 
-        var hasMore = rows.Count > request.ClampedPageSize;
-        if (hasMore)
-        {
-            rows.RemoveAt(rows.Count - 1);
-        }
-
-        var next = hasMore
-            ? PageCursor.Encode(rows[^1].EntryId.ToString())
-            : null;
-        return new PageResult<NullRecordRow>(rows, next);
+        return buffer.ToPage(request, paging, static row => row.EntryId);
     }
 }

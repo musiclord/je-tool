@@ -270,7 +270,7 @@ public sealed class AdvancedFilterAstContractTests
 
         var rendered = FilterConditionRenderer.Render(document.RootElement);
 
-        Assert.Contains("輸出錨點（第 1 條）", rendered, StringComparison.Ordinal);
+        Assert.Contains("主要條件（決定命中分錄）", rendered, StringComparison.Ordinal);
         Assert.Contains("後續條件可由同一傳票的其他分錄列符合", rendered, StringComparison.Ordinal);
         Assert.Contains("包含任一值", rendered, StringComparison.Ordinal);
         Assert.Contains("完全符合任一值", rendered, StringComparison.Ordinal);
@@ -286,7 +286,7 @@ public sealed class AdvancedFilterAstContractTests
     {
         // v10 是現行權威；v9 與更早保存的情境一律 stale——可回放供修正，
         // 但不得沿用舊 resultRef 或直接惰性補算。
-        Assert.Equal("filter-2026-08-14-v10", RuleLogicVersions.Filter);
+        Assert.Equal("filter-2026-09-08-v13", RuleLogicVersions.Filter);
         var saved = new SavedFilterScenario(
             1,
             "synthetic",

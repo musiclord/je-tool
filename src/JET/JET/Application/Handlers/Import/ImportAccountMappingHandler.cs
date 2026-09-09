@@ -95,7 +95,8 @@ public sealed class ImportAccountMappingHandler : IApplicationActionHandler
             importedUtc = result.Import.ImportedUtc,
             hasAnyCategory = result.State.HasAnyCategory,
             hasRevenue = result.State.HasRevenue,
-            hasCounterpart = result.State.HasCounterpart
+            hasCounterpart = result.State.HasCounterpart,
+            blankCategoryCount = result.State.BlankCategoryCount
         };
     }
 }

@@ -50,7 +50,7 @@ public sealed class AccountTaxonomyFrontendTests
         Assert.Contains("if (row.rowId === rowId && !row.isBuiltIn)", validate, StringComparison.Ordinal);
 
         // 引用偵測讀的是已存情境的分類身分陣列，不是顯示名稱。
-        Assert.Contains("['debitCategoryIds', 'creditCategoryIds']", validate, StringComparison.Ordinal);
+        Assert.Contains("['debitCategoryIds', 'creditCategoryIds', 'categoryIds']", validate, StringComparison.Ordinal);
     }
 
     [Fact]

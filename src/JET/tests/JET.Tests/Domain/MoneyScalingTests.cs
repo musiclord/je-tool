@@ -105,4 +105,44 @@ public sealed class MoneyScalingTests
         Assert.False(MoneyScaling.TryToScaled(decimal.MaxValue, 10_000, out _));
         Assert.False(MoneyScaling.TryToScaled(9_300_000_000_000_000m, 10_000, out _));
     }
+
+    [Fact]
+    public void TryToScaled_AcceptsBothInt64LimitsIncludingRoundingBackToTheLimit()
+    {
+        // 固定的十進位邊界與答案，不由 MoneyScaling 反算預期值。
+        (decimal Amount, int Scale, long Expected)[] cases =
+        [
+            (9_223_372_036_854_775_807m, 1, long.MaxValue),
+            (-9_223_372_036_854_775_808m, 1, long.MinValue),
+            (922_337_203_685_477.5807m, 10_000, long.MaxValue),
+            (-922_337_203_685_477.5808m, 10_000, long.MinValue),
+            (922_337_203_685_477.58074m, 10_000, long.MaxValue),
+            (-922_337_203_685_477.58084m, 10_000, long.MinValue),
+        ];
+
+        foreach (var item in cases)
+        {
+            Assert.True(MoneyScaling.TryToScaled(item.Amount, item.Scale, out var scaled));
+            Assert.Equal(item.Expected, scaled);
+        }
+    }
+
+    [Fact]
+    public void TryToScaled_RejectsValuesAndRoundingImmediatelyBeyondBothInt64Limits()
+    {
+        (decimal Amount, int Scale)[] cases =
+        [
+            (9_223_372_036_854_775_808m, 1),
+            (-9_223_372_036_854_775_809m, 1),
+            (922_337_203_685_477.5808m, 10_000),
+            (-922_337_203_685_477.5809m, 10_000),
+            (922_337_203_685_477.58075m, 10_000),
+            (-922_337_203_685_477.58085m, 10_000),
+        ];
+
+        foreach (var item in cases)
+        {
+            Assert.False(MoneyScaling.TryToScaled(item.Amount, item.Scale, out _));
+        }
+    }
 }

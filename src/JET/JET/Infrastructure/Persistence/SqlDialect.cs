@@ -39,6 +39,8 @@ public sealed class SqliteDialect : IProviderSqlDialect
     public string IntegerQuotient(string dividendExpression, string divisorExpression) =>
         $"CAST(({dividendExpression}) / ({divisorExpression}) AS INTEGER)";
 
+    public string DayOfMonth(string dateExpr) => $"CAST(substr(({dateExpr}), 9, 2) AS INTEGER)";
+
     public string InfSampleOrderingKey(string sourceRowNumberExpression, string seedExpression) =>
         InfSamplingPrf.SqlOrderingKey(this, sourceRowNumberExpression, seedExpression);
 
@@ -83,6 +85,8 @@ public sealed class DuckDbDialect : IProviderSqlDialect
 
     public string IntegerQuotient(string dividendExpression, string divisorExpression) =>
         $"(({dividendExpression}) // ({divisorExpression}))";
+
+    public string DayOfMonth(string dateExpr) => $"CAST(substr(({dateExpr}), 9, 2) AS INTEGER)";
 
     public string InfSampleOrderingKey(string sourceRowNumberExpression, string seedExpression) =>
         InfSamplingPrf.SqlOrderingKey(this, sourceRowNumberExpression, seedExpression);
@@ -129,6 +133,8 @@ public sealed class SqlServerDialect : IProviderSqlDialect
 
     public string IntegerQuotient(string dividendExpression, string divisorExpression) =>
         $"(({dividendExpression}) / ({divisorExpression}))";
+
+    public string DayOfMonth(string dateExpr) => $"CAST(SUBSTRING(({dateExpr}), 9, 2) AS int)";
 
     public string InfSampleOrderingKey(string sourceRowNumberExpression, string seedExpression) =>
         InfSamplingPrf.SqlOrderingKey(this, sourceRowNumberExpression, seedExpression);

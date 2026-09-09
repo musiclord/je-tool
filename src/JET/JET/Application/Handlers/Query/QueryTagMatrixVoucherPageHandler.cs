@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Application;
@@ -26,14 +27,8 @@ public sealed class QueryTagMatrixVoucherPageHandler(
     {
         var projectId = session.RequireProjectId();
 
-        var cursor = PayloadReader.GetOptionalString(payload, "cursor");
-        if (PageCursor.IsMalformed(cursor))
-        {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload, "cursor 格式不符(無法解碼)。");
-        }
-
-        var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
+        var request = PageRequestReader.Read(payload, ResultPageSorting.TagMatrixVoucher);
+        var cursor = request.Cursor;
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
@@ -49,8 +44,6 @@ public sealed class QueryTagMatrixVoucherPageHandler(
             revision.PopulationScope,
             document.PeriodStart,
             document.PeriodEnd);
-
-        var request = new PageRequest(cursor, pageSize);
 
         var (page, positions) = await Task.Run(
             () => repository.GetPageAsync(projectId, populationContext, request, null, cancellationToken),

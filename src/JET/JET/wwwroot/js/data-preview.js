@@ -23,16 +23,16 @@
   var Ui = global.JetUi;
 
   // wire key → 顯示標籤。直接頁籤逐字鏡射 Domain DataPreviewDatasetLabels；
-  // DATASETS 的長說明仍沿用 JetSchemaCatalog 正準名與使用脈絡。
+  // DATASETS 的選單與載入狀態使用相同的業務名稱。
   var DATASETS = [
-    { value: 'glStaging', label: 'JE_PBC（GL 匯入原貌）' },
-    { value: 'tbStaging', label: 'TB_PBC（TB 匯入原貌）' },
-    { value: 'glEntries', label: 'JE（標準化分錄·測試母體）' },
-    { value: 'glExcludedEntries', label: 'JE（未進入測試母體的分錄）' },
-    { value: 'tbBalances', label: 'TB（標準化試算表餘額）' },
-    { value: 'accountMappings', label: 'ACCOUNT_MAPPING（科目對照）' },
+    { value: 'glStaging', label: 'GL 原始資料' },
+    { value: 'tbStaging', label: 'TB 原始資料' },
+    { value: 'glEntries', label: 'GL 測試母體' },
+    { value: 'glExcludedEntries', label: 'GL 未納入測試母體' },
+    { value: 'tbBalances', label: 'TB 標準化資料' },
+    { value: 'accountMappings', label: '科目配對' },
     { value: 'authorizedPreparers', label: '授權編製人員清單' },
-    { value: 'dateDimension', label: '事務所行事曆（假日／補班日）' },
+    { value: 'dateDimension', label: '行事曆（假日與補班日）' },
     { value: 'schemaOverview', label: '資料表摘要' }
   ];
 
@@ -40,13 +40,13 @@
   // 同樣保持直接可見，避免步驟按鈕換位後只亮「其他資料」而看不出目前資料集。
   var MAIN_TABS = [
     { value: 'glStaging', label: 'GL 原始資料' },
-    { value: 'glEntries', label: 'GL 有效母體' },
+    { value: 'glEntries', label: 'GL 測試母體' },
     { value: 'tbStaging', label: 'TB 原始資料' },
     { value: 'tbBalances', label: 'TB 標準化資料' },
     { value: 'accountMappings', label: '科目配對' }
   ];
 
-  // 主頁籤以外的既有資料集（一個都不少）：收進「其他資料」選單，沿用正準長標籤。
+  // 主頁籤以外的既有資料集（一個都不少）：收進「其他資料」選單，使用相同的業務名稱。
   var MORE = DATASETS.filter(function (d) {
     return !MAIN_TABS.some(function (t) { return t.value === d.value; });
   });

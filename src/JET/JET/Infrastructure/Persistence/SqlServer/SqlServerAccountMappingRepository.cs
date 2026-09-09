@@ -156,9 +156,9 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
             """
             INSERT INTO {s}.target_account_mapping
                 (batch_id, source_row_number, account_code, account_name,
-                 standardized_category, category_id)
+                 standardized_category, category_id, classification_explicit)
             VALUES (@batchId, @sourceRowNumber, @accountCode, @accountName,
-                    @category, @categoryId);
+                    @category, @categoryId, @explicit);
             """))
         {
             insertTarget.Transaction = transaction;
@@ -168,6 +168,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
             var nameParam = insertTarget.Parameters.Add("@accountName", SqlDbType.NVarChar, 400);
             var categoryParam = insertTarget.Parameters.Add("@category", SqlDbType.NVarChar, 40);
             var categoryIdParam = insertTarget.Parameters.Add("@categoryId", SqlDbType.NVarChar, 64);
+            var explicitParam = insertTarget.Parameters.Add("@explicit", SqlDbType.Int);
 
             foreach (var mapping in projected)
             {
@@ -176,6 +177,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
                 nameParam.Value = (object?)mapping.AccountName ?? DBNull.Value;
                 categoryParam.Value = mapping.LegacyCategory;
                 categoryIdParam.Value = mapping.CategoryId;
+                explicitParam.Value = mapping.HasExplicitCategory ? 1 : 0;
                 await insertTarget.ExecuteNonQueryAsync(cancellationToken);
             }
         }
@@ -221,7 +223,8 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
                                        ON t.category_id = m.category_id
                                        OR (m.category_id IS NULL AND t.is_builtin = 1 AND t.label = m.standardized_category)
                                      WHERE t.semantic_role IN (@receivables, @cash, @receiptInAdvance))
-                        THEN 1 ELSE 0 END
+                        THEN 1 ELSE 0 END,
+                   (SELECT COUNT(*) FROM {s}.target_account_mapping m WHERE m.classification_explicit = 0)
             FROM {s}.import_batch b
             WHERE b.dataset_kind = @kind
             ORDER BY b.imported_utc DESC, b.batch_id DESC;
@@ -245,6 +248,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
             DateTimeOffset.Parse(reader.GetString(3)),
             reader.GetInt32(4) == 1,
             reader.GetInt32(5) == 1,
-            reader.GetInt32(6) == 1);
+            reader.GetInt32(6) == 1,
+            reader.GetInt32(7));
     }
 }

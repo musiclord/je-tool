@@ -62,6 +62,16 @@ public interface ICompletenessAccountPageRepository
 /// 完整性全科目差異(diff≠0)的 keyset 分頁回取。排序鍵 account_code ASC(唯一、有索引);
 /// 游標述詞為展開布林式(跨 provider,不用元組比較);limit 由方言出。
 /// </summary>
+/// <summary>
+/// 科目配對檔分類欄留白的科目 keyset 分頁（排序鍵 account_code ASC）。留白已依 legacy 投影為 Others，
+/// 這裡只是讓審計員看到哪些科目沒填，不影響篩選結果。
+/// </summary>
+public interface IAccountMappingBlankPageRepository
+{
+    Task<PageResult<AccountMappingBlankAccount>> GetPageAsync(
+        string projectId, PageRequest request, CancellationToken cancellationToken);
+}
+
 public interface ICompletenessDiffPageRepository
 {
     /// <summary>periodStart/periodEnd 界定完整性 GL 彙總的本期母體（§2；與 CTE 8 消費端一致）。</summary>

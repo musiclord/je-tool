@@ -28,7 +28,7 @@ public sealed class FilterProgramTests
 
         var exception = Assert.Throws<JetActionException>(() =>
             JetAuditProgram.Plan(Request(
-                "filter.preview",
+                "filter.commit",
                 [new CanonicalFilterDocument(1, "{}", invalid)])));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);

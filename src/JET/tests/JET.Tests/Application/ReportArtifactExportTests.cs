@@ -1051,7 +1051,7 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             }));
 
         const string expected =
-            "（（所選母體內編製人員張數 ≤ 11 OR 所選母體內科目張數 ≤ 11） AND 僅借方）";
+            "（（所選母體內編製人員張數 ≤ 11 或 所選母體內科目張數 ≤ 11） 且 僅借方）";
         var criteriaPath = Path.Combine(
             host.ProjectsRoot,
             projectId,

@@ -8,12 +8,16 @@ namespace JET.Application;
 /// </summary>
 internal static class ProjectWorkFileWriter
 {
-    public static async Task<string> WriteAsync(
+    internal sealed record WriteResult(string FilePath, bool Created);
+
+    public static async Task<WriteResult> WriteAsync(
         IProjectExportLocator projectLocator,
         string projectId,
         string fileName,
         Func<Stream, CancellationToken, Task> writeAsync,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action? publishing = null,
+        bool onlyIfMissing = false)
     {
         ArgumentNullException.ThrowIfNull(projectLocator);
         ArgumentNullException.ThrowIfNull(writeAsync);
@@ -37,6 +41,12 @@ internal static class ProjectWorkFileWriter
             throw new JetActionException(JetErrorCodes.InvalidPayload, "工作檔名稱無效。");
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+        if (onlyIfMissing && File.Exists(finalPath))
+        {
+            return new WriteResult(finalPath, Created: false);
+        }
+
         var temporaryPath = Path.Combine(
             directory,
             $".{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid():N}.tmp");
@@ -55,9 +65,16 @@ internal static class ProjectWorkFileWriter
                 stream.Flush(flushToDisk: true);
             }
 
+            publishing?.Invoke();
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                File.Move(temporaryPath, finalPath, overwrite: true);
+                File.Move(temporaryPath, finalPath, overwrite: !onlyIfMissing);
+            }
+            catch (IOException) when (onlyIfMissing && File.Exists(finalPath))
+            {
+                // 另一個程序在內容產生後才放入工作檔，也必須保留，不先刪再改名。
+                return new WriteResult(finalPath, Created: false);
             }
             catch (UnauthorizedAccessException)
             {
@@ -65,7 +82,7 @@ internal static class ProjectWorkFileWriter
                     JetErrorCodes.FileReadError,
                     $"{fileName} 無法寫入。請先關閉 Excel 或其他開啟檔案的程式，並確認檔案不是唯讀且有寫入權限，再產生一次。");
             }
-            return finalPath;
+            return new WriteResult(finalPath, Created: true);
         }
         catch (IOException exception) when ((exception.HResult & 0xFFFF) is 32 or 33)
         {

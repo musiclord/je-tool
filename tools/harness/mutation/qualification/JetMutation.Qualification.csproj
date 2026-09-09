@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs;Stubs.cs" />
+    <Compile Include="$(StrykerSourceRoot)/src/Stryker.TestRunner.MicrosoftTestPlatform/AssemblyTestServer.cs" Link="Upstream/AssemblyTestServer.cs" />
+    <Compile Include="$(StrykerSourceRoot)/src/Stryker.TestRunner.MicrosoftTestPlatform/JetMtpBoundary.cs" Link="Upstream/JetMtpBoundary.cs" />
+    <Compile Include="$(StrykerSourceRoot)/src/Stryker.TestRunner.MicrosoftTestPlatform/ITestServerConnectionFactory.cs" Link="Upstream/ITestServerConnectionFactory.cs" />
+    <Compile Include="$(StrykerSourceRoot)/src/Stryker.TestRunner.MicrosoftTestPlatform/TestNodeStates.cs" Link="Upstream/TestNodeStates.cs" />
+    <Compile Include="$(StrykerSourceRoot)/src/Stryker.TestRunner.MicrosoftTestPlatform/Models/TestNode.cs" Link="Upstream/TestNode.cs" />
+    <Compile Include="$(StrykerSourceRoot)/src/Stryker.TestRunner.MicrosoftTestPlatform/Models/TestNodeUpdate.cs" Link="Upstream/TestNodeUpdate.cs" />
+    <Compile Include="$(StrykerSourceRoot)/src/Stryker.TestRunner.MicrosoftTestPlatform/Models/IProcessHandle.cs" Link="Upstream/IProcessHandle.cs" />
+  </ItemGroup>
+</Project>

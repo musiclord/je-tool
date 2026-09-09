@@ -20,11 +20,10 @@ public sealed class LocalInfSamplePageRepository(ILocalProjectDatabase database)
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        var hasCursor = PageCursor.TryDecode(request.Cursor, out var cursorKey);
-        var keyset = hasCursor ? "AND g.entry_id > @cursor" : string.Empty;
-        if (hasCursor)
+        var paging = KeysetPaging.Plan(database.Dialect, request, ResultPageSorting.InfSample);
+        foreach (var parameter in paging.Parameters)
         {
-            command.AddWithValue("@cursor", long.Parse(cursorKey));
+            command.AddWithValue(parameter.Key, parameter.Value);
         }
 
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
@@ -33,42 +32,33 @@ public sealed class LocalInfSamplePageRepository(ILocalProjectDatabase database)
         command.CommandText =
             "SELECT g.document_number, g.account_code, g.account_name, " +
             "       g.debit_amount_scaled, g.credit_amount_scaled, " +
-            "       g.post_date, g.approval_date, g.created_by, g.approved_by, g.document_description, g.entry_id " +
+            "       g.post_date, g.approval_date, g.created_by, g.approved_by, g.document_description, g.entry_id" + paging.SelectSuffix + " " +
             "FROM result_inf_sampling_test_sample s " +
             "JOIN target_gl_entry g ON g.entry_id = s.entry_id " +
             "WHERE " + InfSamplePageSql.RunFilter +
-            $" AND {GlEffectivePopulation.SqlPredicate("g")} " + keyset + " " +
-            "ORDER BY g.entry_id " + database.Dialect.LimitClause("@pageSize") + ";";
+            $" AND {GlEffectivePopulation.SqlPredicate("g")}" + paging.Predicate + " " +
+            paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
-        var rows = new List<InfSampleRow>();
-        long lastEntryId = 0;
+        var buffer = new KeysetPageBuffer<InfSampleRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            lastEntryId = reader.GetInt64(10);
-            rows.Add(new InfSampleRow(
-                reader.IsDBNull(0) ? null : reader.GetString(0),
-                reader.IsDBNull(1) ? null : reader.GetString(1),
-                reader.IsDBNull(2) ? null : reader.GetString(2),
-                reader.GetInt64(3),
-                reader.GetInt64(4),
-                reader.IsDBNull(5) ? null : reader.GetString(5),
-                reader.IsDBNull(6) ? null : reader.GetString(6),
-                reader.IsDBNull(7) ? null : reader.GetString(7),
-                reader.IsDBNull(8) ? null : reader.GetString(8),
-                reader.IsDBNull(9) ? null : reader.GetString(9),
-                lastEntryId));
+            buffer.Add(
+                new InfSampleRow(
+                    reader.IsDBNull(0) ? null : reader.GetString(0),
+                    reader.IsDBNull(1) ? null : reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.GetInt64(3),
+                    reader.GetInt64(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5),
+                    reader.IsDBNull(6) ? null : reader.GetString(6),
+                    reader.IsDBNull(7) ? null : reader.GetString(7),
+                    reader.IsDBNull(8) ? null : reader.GetString(8),
+                    reader.IsDBNull(9) ? null : reader.GetString(9),
+                    reader.GetInt64(10)),
+                paging.HasSort ? reader.GetValue(11) : null);
         }
 
-        var hasMore = rows.Count > request.ClampedPageSize;
-        if (hasMore)
-        {
-            rows.RemoveAt(rows.Count - 1);
-        }
-
-        var next = hasMore
-            ? PageCursor.Encode(rows[^1].EntryId.ToString())
-            : null;
-        return new PageResult<InfSampleRow>(rows, next);
+        return buffer.ToPage(request, paging, static row => row.EntryId);
     }
 }

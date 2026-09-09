@@ -121,17 +121,34 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             .Where(item => selected.Contains(item.Position))
             .ToArray();
         var scenarioSelections = new List<WorkpaperScenarioSelection>(selectedPositions.Count);
+        IReadOnlyDictionary<string, string>? conditionCategoryLabels = null;
+        IReadOnlyDictionary<string, string>? conditionFieldLabels = null;
         foreach (var scenario in selectedScenarios)
         {
             using var definition = JsonDocument.Parse(scenario.DefinitionJson);
             var scenarioSpec = FilterScenarioPayloadParser.Parse(
                 definition.RootElement,
                 document.MoneyScale);
+            string? conditionLogic = null;
+            if (scenarioSpec.Groups.SelectMany(group => group.Rules)
+                .Any(rule => rule.Type is FilterRuleType.FieldValue or FilterRuleType.AccountSide))
+            {
+                if (conditionCategoryLabels is null)
+                {
+                    var taxonomy = accountTaxonomyStore is null ? AccountTaxonomyCatalog.BuiltInSnapshot
+                        : await accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
+                    conditionCategoryLabels = taxonomy.Categories.ToDictionary(category => category.CategoryId, category => category.Label);
+                    var mapping = mappingStore is null ? null : await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
+                    conditionFieldLabels = (mapping?.GlOptions?.RdeFields ?? []).ToDictionary(field => field.FieldId, field => field.Label);
+                }
+                conditionLogic = FilterConditionRenderer.Render(definition.RootElement, conditionCategoryLabels, conditionFieldLabels);
+            }
             scenarioSelections.Add(new WorkpaperScenarioSelection(
                 scenario.Position,
                 scenario.Name,
                 scenario.Rationale,
-                JetAuditProgram.ResolveWorkpaperTagScope(scenarioSpec)));
+                JetAuditProgram.ResolveWorkpaperTagScope(scenarioSpec),
+                conditionLogic));
         }
 
         var context = new WorkpaperContext(
@@ -204,6 +221,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
         {
             ok = true,
             artifact = ReportExportSupport.ArtifactWire(artifact),
+            reportArtifacts = await ReportExportSupport.ReadArtifactCatalogAfterPublicationAsync(artifactStore, projectId),
             sheetStats = (exportStats?.SheetStats ?? Array.Empty<SheetStat>())
                 .Select(item => (object)new { sheetName = item.SheetName, rowsWritten = item.RowsWritten })
                 .ToArray()

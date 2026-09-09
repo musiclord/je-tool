@@ -34,7 +34,8 @@ internal sealed record WorkpaperScenarioSelection(
     int Position,
     string Name,
     string Rationale,
-    WorkpaperScenarioTagScope TagScope = WorkpaperScenarioTagScope.DirectHitRows);
+    WorkpaperScenarioTagScope TagScope = WorkpaperScenarioTagScope.DirectHitRows,
+    string? ConditionLogic = null);
 
 /// <summary>
 /// Infrastructure planning port 回傳的 bounded first-row presence facts 與情境計數。
@@ -56,7 +57,8 @@ internal sealed record WorkpaperScenarioPlan(
     string Rationale,
     long VoucherHitCount,
     long RowHitCount,
-    WorkpaperScenarioTagScope TagScope);
+    WorkpaperScenarioTagScope TagScope,
+    string? ConditionLogic = null);
 
 /// <summary>
 /// 單張正準工作表的 audit planning decision。名稱與順序仍取 Domain catalog；
@@ -349,7 +351,8 @@ public static partial class JetAuditProgram
                     scenario.Rationale,
                     counts.VoucherHitCount,
                     counts.RowHitCount,
-                    scenario.TagScope);
+                    scenario.TagScope,
+                    scenario.ConditionLogic);
             })
             .ToArray();
         var selected = scenarios.Select(scenario => scenario.Position).ToArray();

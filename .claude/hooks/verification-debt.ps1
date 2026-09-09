@@ -104,6 +104,9 @@ try {
                 $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding utf8 | ConvertFrom-Json
             } catch { continue }
             if ([string]$receipt.status -cne 'passed') { continue }
+            # 只跑單一 GUI 情境的診斷收據標記 partial，不算該命令通過。
+            $partialProperty = $receipt.PSObject.Properties['partial']
+            if ($null -ne $partialProperty -and [bool]$partialProperty.Value) { continue }
             $command = [string]$receipt.command
             if ([string]::IsNullOrWhiteSpace($command) -or $lastPassed.ContainsKey($command)) { continue }
             try {

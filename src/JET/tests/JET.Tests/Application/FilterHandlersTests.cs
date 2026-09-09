@@ -37,7 +37,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     /* ---- 驗證與安全 ------------------------------------------------------ */
 
     [Fact]
-    public async Task FilterPreview_MissingName_ThrowsInvalidScenario()
+    public async Task FilterPreview_MissingName_PreviewsButCannotSave()
     {
         var payload = PreviewPayload(new
         {
@@ -49,10 +49,12 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             }
         });
 
-        var ex = await Assert.ThrowsAsync<JetActionException>(
-            () => fixture.Host.DispatchAsync("filter.preview", payload));
-
-        Assert.Equal("invalid_scenario", ex.Code);
+        var preview = await fixture.Host.DispatchAsync("filter.preview", payload);
+        Assert.True(preview.GetProperty("scenario").GetProperty("count").GetInt64() > 0);
+        using var definition = JsonDocument.Parse(payload);
+        var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync("filter.commit",
+            JsonSerializer.Serialize(new { scenarios = new[] { definition.RootElement.GetProperty("scenario") } })));
+        Assert.Equal("invalid_scenario", error.Code);
     }
 
     [Fact]
@@ -66,6 +68,32 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             () => fixture.Host.DispatchAsync("filter.preview", payload));
 
         Assert.Equal("invalid_scenario", ex.Code);
+    }
+
+    [Fact]
+    public async Task FilterPreview_InvalidRule_ReportsGroupAndRulePosition()
+    {
+        // 第二組第一條沒填分類，錯誤細節要指到那一條（從 1 起算），前端才能把該列標紅。
+        var payload = PreviewPayload(new
+        {
+            name = "測試情境",
+            rationale = "動機",
+            groups = new object[]
+            {
+                new { join = "AND", rules = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } },
+                new { join = "AND", rules = new object[] { new { join = "AND", type = "accountSide", drCr = "credit", categoryMode = "is", categoryIds = Array.Empty<string>() } } }
+            }
+        });
+
+        var ex = await Assert.ThrowsAsync<JetActionException>(
+            () => fixture.Host.DispatchAsync("filter.preview", payload));
+
+        Assert.Equal("invalid_scenario", ex.Code);
+        Assert.NotNull(ex.Details);
+        var positioned = Assert.Single(ex.Details!, detail => detail.Group == 2 && detail.Rule == 1);
+        Assert.False(string.IsNullOrWhiteSpace(positioned.Message));
+        Assert.DoesNotContain("條件群組", positioned.Message, StringComparison.Ordinal);
+        Assert.Contains(positioned.Message, ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1579,7 +1607,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_NonKctSourceWithEmptyNameAndRationale_ThrowsInvalidScenario()
+    public async Task FilterPreview_NonKctSourceWithEmptyNameAndRationale_PreviewsButCannotSave()
     {
         // 回歸：未標 source（查核員自擬）且名稱/動機皆空時，必填檢查仍須擋下。
         var payload = PreviewPayload(new
@@ -1592,10 +1620,12 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             }
         });
 
-        var ex = await Assert.ThrowsAsync<JetActionException>(
-            () => fixture.Host.DispatchAsync("filter.preview", payload));
-
-        Assert.Equal("invalid_scenario", ex.Code);
+        var preview = await fixture.Host.DispatchAsync("filter.preview", payload);
+        Assert.True(preview.GetProperty("scenario").GetProperty("count").GetInt64() > 0);
+        using var definition = JsonDocument.Parse(payload);
+        var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync("filter.commit",
+            JsonSerializer.Serialize(new { scenarios = new[] { definition.RootElement.GetProperty("scenario") } })));
+        Assert.Equal("invalid_scenario", error.Code);
     }
 
     [Fact]

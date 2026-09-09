@@ -8,7 +8,7 @@ namespace JET.AuditCore;
 /// 與 manifest 文件化語意一致。SELECT 骨架（COUNT/LIMIT 等）仍由各 provider
 /// repository 自寫——本類只負責 WHERE。
 /// </summary>
-internal sealed class GlFilterWhereBuilder(
+internal sealed partial class GlFilterWhereBuilder(
     ISqlDialect dialect,
     GlRulePredicates predicates)
 {
@@ -17,7 +17,8 @@ internal sealed class GlFilterWhereBuilder(
         FilterRuleContext context,
         long zeroModulus,
         string schemaPrefix = "",
-        bool includePopulationParameters = true)
+        bool includePopulationParameters = true,
+        bool includeEvidence = false)
     {
         var parameters = new FilterSqlParameterPlanBuilder(
             dialect,
@@ -35,7 +36,27 @@ internal sealed class GlFilterWhereBuilder(
                 : $"({combined} {Op(group.Join)} {groupSql})";
         }
 
-        return parameters.Build(combined ?? "1 = 0");
+        combined ??= "1 = 0";
+
+        // 傳票明細的「本列符合哪些條件」：每條規則各自的述詞，兩值、不推算補分類後的可能性。
+        // sameVoucher 群組的第一條是決定命中列的主要條件，其餘是同傳票佐證；absent 模式是傳票層條件。
+        var evidence = new List<FilterRuleEvidenceSql>();
+        if (includeEvidence)
+        {
+            for (var gi = 0; gi < scenario.Groups.Count; gi++)
+            {
+                var group = scenario.Groups[gi];
+                for (var ri = 0; ri < group.Rules.Count; ri++)
+                {
+                    var rule = group.Rules[ri];
+                    var sql = BuildRule(parameters, rule, context, zeroModulus, schemaPrefix);
+                    var voucher = rule.Type == FilterRuleType.AccountSide && rule.CategoryMode == "absent";
+                    evidence.Add(new(new(gi + 1, ri + 1), group.MatchScope != FilterGroupMatchScope.SameVoucher || ri == 0,
+                        voucher, $"({sql})"));
+                }
+            }
+        }
+        return parameters.Build(combined) with { EvidencePredicates = evidence };
     }
 
     private string BuildGroup(
@@ -103,10 +124,22 @@ internal sealed class GlFilterWhereBuilder(
         FilterRuleSpec rule,
         FilterRuleContext context,
         long zeroModulus,
+        string schemaPrefix) => parameters.GetOrAddFragment("rule", rule,
+            () => BuildRuleCore(parameters, rule, context, zeroModulus, schemaPrefix));
+
+    private string BuildRuleCore(
+        FilterSqlParameterPlanBuilder parameters,
+        FilterRuleSpec rule,
+        FilterRuleContext context,
+        long zeroModulus,
         string schemaPrefix)
     {
         switch (rule.Type)
         {
+            case FilterRuleType.FieldValue:
+                return predicates.FieldValue(parameters, rule, context, schemaPrefix);
+            case FilterRuleType.AccountSide:
+                return predicates.AccountSide(parameters, rule, context, schemaPrefix);
             case FilterRuleType.Prescreen:
                 return BuildPrescreenRule(parameters, rule.PrescreenKey!, context, zeroModulus, schemaPrefix);
 

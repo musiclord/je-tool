@@ -1,4 +1,5 @@
 using JET.Domain;
+using JET.AuditCore;
 using Microsoft.Data.SqlClient;
 
 namespace JET.Infrastructure;
@@ -7,10 +8,10 @@ public sealed partial class SqlServerProjectDatabase
 {
     // 目前 schema 版本。Fresh schema 由 SchemaSql 直接寫現行版；既有 schema 的版本則只在
     // MigrateExistingSchemaToCurrentAsync 完成 shape、data rewrite 與結果失效後最後寫回。
-    internal const string SchemaVersion = "9";
+    internal const string SchemaVersion = "10";
 
     internal const string BumpSchemaVersionSql =
-        "UPDATE {s}.schema_info SET [value] = '9' WHERE [key] = 'schema_version';";
+        "UPDATE {s}.schema_info SET [value] = '10' WHERE [key] = 'schema_version';";
 
     // SQL Server compiles a batch before executing its ALTER TABLE statements, so the v6 backfill must run
     // as a separate command after SchemaSql has added category_id. It remains inside the migration transaction.
@@ -136,6 +137,10 @@ public sealed partial class SqlServerProjectDatabase
                 MigrationFaultHookForTests?.Invoke("after-v7-result-reset");
             }
 
+            if (parsedExisting < 10)
+                await AccountClassificationMigration.BackfillAsync(connection, tx, SqlServerDialect.Instance,
+                    SqlServerProjectSchema.QualifierFor(projectId), cancellationToken);
+
             await using (var bump = CreateCommand(connection, projectId, BumpSchemaVersionSql))
             {
                 bump.Transaction = tx;
@@ -196,7 +201,9 @@ public sealed partial class SqlServerProjectDatabase
         IF OBJECT_ID(N'{s}.schema_info','U') IS NULL
             CREATE TABLE {s}.schema_info ([key] NVARCHAR(450) COLLATE Latin1_General_BIN2 PRIMARY KEY, [value] NVARCHAR(MAX) NOT NULL);
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'schema_version')
-            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '9');
+            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '10');
+        IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'filter_data_revision')
+            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('filter_data_revision', '0');
 
         IF OBJECT_ID(N'{s}.import_batch','U') IS NULL
             CREATE TABLE {s}.import_batch (
@@ -463,6 +470,8 @@ public sealed partial class SqlServerProjectDatabase
             );
         IF COL_LENGTH('{s}.target_account_mapping','category_id') IS NULL
             ALTER TABLE {s}.target_account_mapping ADD category_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL;
+        IF COL_LENGTH('{s}.target_account_mapping','classification_explicit') IS NULL
+            ALTER TABLE {s}.target_account_mapping ADD classification_explicit INT NULL;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_account_mapping_code' AND object_id = OBJECT_ID(N'{s}.target_account_mapping'))
             CREATE UNIQUE INDEX ix_target_account_mapping_code ON {s}.target_account_mapping (account_code);
 

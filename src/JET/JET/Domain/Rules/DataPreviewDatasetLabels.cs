@@ -8,7 +8,7 @@ internal static class DataPreviewDatasetLabels
     internal static readonly IReadOnlyList<DataPreviewDatasetLabel> MainTabs =
     [
         new("glStaging", "GL 原始資料"),
-        new("glEntries", "GL 有效母體"),
+        new("glEntries", "GL 測試母體"),
         new("tbStaging", "TB 原始資料"),
         new("tbBalances", "TB 標準化資料"),
         new("accountMappings", "科目配對")

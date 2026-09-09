@@ -40,6 +40,7 @@ public sealed class ExportWorkpaperTypedSeamTests
             new ActionExecutionGate());
         var factsPort = new RecordingPlanningFactsPort(order);
         var writer = new RecordingPlanWriter(order);
+        using var cancellation = new CancellationTokenSource();
         var artifactStore = new ExecutingArtifactStore(
             projectId,
             CurrentCriteria(
@@ -48,7 +49,8 @@ public sealed class ExportWorkpaperTypedSeamTests
                 revision,
                 savedUtc),
             StaleWorkingPaper(savedUtc),
-            order);
+            order,
+            cancellation);
         var session = new ProjectSession();
         session.Enter(projectId);
         var handler = new ExportWorkpaperStreamHandler(
@@ -73,7 +75,8 @@ public sealed class ExportWorkpaperTypedSeamTests
             }
             """);
 
-        await handler.HandleAsync(payload.RootElement, CancellationToken.None);
+        var response = await handler.HandleAsync(payload.RootElement, cancellation.Token);
+        Assert.True(cancellation.IsCancellationRequested);
 
         Assert.Equal(1, writer.TypedCalls);
         Assert.Equal(0, writer.PublicCalls);
@@ -87,7 +90,20 @@ public sealed class ExportWorkpaperTypedSeamTests
         Assert.Equal(1, artifactStore.MarkStaleCalls);
         Assert.False(artifactStore.CriteriaWasMarkedStale);
         Assert.True(artifactStore.OldWorkingPaperWasMarkedStale);
-        Assert.Equal(1, artifactStore.ListCalls);
+        Assert.Equal(2, artifactStore.ListCalls);
+        Assert.Equal(new[] { "source-catalog", "published", "response-catalog" }, artifactStore.CatalogOrder);
+        Assert.Equal(2, artifactStore.CatalogArtifactIds.Count);
+        Assert.Equal(new[] { "criteria-current", "working-paper-old" }, artifactStore.CatalogArtifactIds[0]);
+        Assert.Equal(new[] { "criteria-current", "working-paper-old", "working-paper-current" }, artifactStore.CatalogArtifactIds[1]);
+        var data = JsonSerializer.SerializeToElement(response, JetJsonStorage.Options);
+        var catalog = data.GetProperty("reportArtifacts");
+        Assert.Equal(new[] { "criteria-current", "working-paper-old", "working-paper-current" }, catalog.EnumerateArray()
+            .Select(artifact => artifact.GetProperty("artifactId").GetString()));
+        var old = Assert.Single(catalog.EnumerateArray(), artifact => artifact.GetProperty("artifactId").GetString() == "working-paper-old");
+        Assert.True(old.GetProperty("stale").GetBoolean());
+        var published = Assert.Single(catalog.EnumerateArray(), artifact => artifact.GetProperty("artifactId").GetString() == "working-paper-current");
+        Assert.False(published.GetProperty("stale").GetBoolean());
+        Assert.Equal(data.GetProperty("artifact").GetRawText(), published.GetRawText());
 
         Assert.Equal(projectId, writer.Context?.ProjectId);
         Assert.Equal(validationRunId, writer.Context?.ValidationRunId);
@@ -107,7 +123,7 @@ public sealed class ExportWorkpaperTypedSeamTests
         Assert.Equal("未預期借貸組合", selected.Name);
         Assert.Equal("驗證舊 IDEA 工作底稿標記範圍", selected.Rationale);
         Assert.Equal(WorkpaperScenarioTagScope.HitVoucherRows, selected.TagScope);
-        Assert.Null(typeof(WorkpaperScenarioPlan).GetProperty("ConditionLogic"));
+        Assert.Null(selected.ConditionLogic);
         Assert.Equal(7, selected.VoucherHitCount);
         Assert.Equal(3, selected.RowHitCount);
         var fieldInfo = Assert.IsType<FieldInfoProjection>(plan.FieldInfo);
@@ -399,13 +415,17 @@ public sealed class ExportWorkpaperTypedSeamTests
         string expectedProjectId,
         ReportArtifact criteria,
         ReportArtifact oldWorkingPaper,
-        List<string> order) : IReportArtifactStore
+        List<string> order,
+        CancellationTokenSource operationCancellation) : IReportArtifactStore
     {
         private ReportArtifact[] artifacts = [criteria, oldWorkingPaper];
 
         public int MarkStaleCalls { get; private set; }
 
         public int ListCalls { get; private set; }
+        public List<string> CatalogOrder { get; } = [];
+        public List<string[]> CatalogArtifactIds { get; } = [];
+        private bool _published;
 
         public bool CriteriaWasMarkedStale { get; private set; }
 
@@ -419,10 +439,12 @@ public sealed class ExportWorkpaperTypedSeamTests
             CancellationToken cancellationToken)
         {
             Assert.Equal(expectedProjectId, projectId);
+            Assert.Equal(operationCancellation.Token, cancellationToken);
+            Assert.Equal(new[] { "source-catalog" }, CatalogOrder);
             WorkingPaperRequest = request;
             await using var output = new MemoryStream();
             await request.WriteContentAsync(output, cancellationToken);
-            return new ReportArtifact(
+            var artifact = new ReportArtifact(
                 "working-paper-current",
                 request.Kind,
                 "working-paper-current.xlsx",
@@ -431,6 +453,11 @@ public sealed class ExportWorkpaperTypedSeamTests
                 output.Length,
                 LastWriteUtc: null,
                 Stale: false);
+            artifacts = [.. artifacts, artifact];
+            _published = true;
+            CatalogOrder.Add("published");
+            operationCancellation.Cancel();
+            return artifact;
         }
 
         public Task<IReadOnlyList<ReportArtifact>> WriteBatchAsync(
@@ -443,8 +470,27 @@ public sealed class ExportWorkpaperTypedSeamTests
             string projectId,
             CancellationToken cancellationToken)
         {
+            Assert.Equal(expectedProjectId, projectId);
             ListCalls++;
-            return Task.FromResult<IReadOnlyList<ReportArtifact>>(artifacts);
+            if (!_published)
+            {
+                Assert.Equal(1, ListCalls);
+                Assert.Equal(operationCancellation.Token, cancellationToken);
+                Assert.False(cancellationToken.IsCancellationRequested);
+                Assert.Equal(new[] { "stale-refresh" }, order);
+                CatalogOrder.Add("source-catalog");
+            }
+            else
+            {
+                Assert.Equal(2, ListCalls);
+                Assert.True(operationCancellation.IsCancellationRequested);
+                Assert.Equal(CancellationToken.None, cancellationToken);
+                Assert.Equal(new[] { "stale-refresh", "materialize", "facts", "typed-writer" }, order);
+                Assert.Equal(new[] { "source-catalog", "published" }, CatalogOrder);
+                CatalogOrder.Add("response-catalog");
+            }
+            CatalogArtifactIds.Add(artifacts.Select(artifact => artifact.ArtifactId).ToArray());
+            return Task.FromResult<IReadOnlyList<ReportArtifact>>(artifacts.ToArray());
         }
 
         public Task<string> ResolvePathAsync(

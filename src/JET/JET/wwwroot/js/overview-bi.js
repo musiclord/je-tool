@@ -13,7 +13,6 @@
 
   var Ui = global.JetUi;
   var CHART_FONT = '"Noto Sans TC", "Microsoft JhengHei", sans-serif';
-  var MONO_FONT = '"Cascadia Code", ui-monospace, monospace';
   var BAR_FILL = '#b08968';
   var BAR_HOVER = '#7a6033';
   var BAR_MANUAL_FILL = '#d8c3a5';
@@ -179,7 +178,7 @@
         splitLine: { show: true, lineStyle: { color: GRID_STROKE } },
         axisLabel: {
           color: LABEL_FILL,
-          fontFamily: MONO_FONT,
+          fontFamily: CHART_FONT,
           fontSize: 9.5,
           formatter: function (value) { return fmtRulePct(value); }
         }
@@ -261,7 +260,7 @@
           interval: 0,
           rotate: 45,
           color: LABEL_FILL,
-          fontFamily: MONO_FONT,
+          fontFamily: CHART_FONT,
           fontSize: 9.5
         }
       },
@@ -276,7 +275,7 @@
           splitLine: { show: true, lineStyle: { color: GRID_STROKE } },
           axisLabel: {
             color: LABEL_FILL,
-            fontFamily: MONO_FONT,
+            fontFamily: CHART_FONT,
             fontSize: 9.5,
             formatter: fmtAxisCount
           }
@@ -292,7 +291,7 @@
           splitLine: { show: false },
           axisLabel: {
             color: LABEL_FILL,
-            fontFamily: MONO_FONT,
+            fontFamily: CHART_FONT,
             fontSize: 9.5,
             formatter: function (value) { return value + '%'; }
           }
@@ -396,7 +395,7 @@
           splitLine: { show: true, lineStyle: { color: GRID_STROKE } },
           axisLabel: {
             color: LABEL_FILL,
-            fontFamily: MONO_FONT,
+            fontFamily: CHART_FONT,
             fontSize: 9.5,
             formatter: fmtAxisCount
           }
@@ -412,7 +411,7 @@
           splitLine: { show: false },
           axisLabel: {
             color: LABEL_FILL,
-            fontFamily: MONO_FONT,
+            fontFamily: CHART_FONT,
             fontSize: 9.5,
             formatter: function (value) { return value + '%'; }
           }
@@ -492,7 +491,7 @@
         axisLine: { show: true, lineStyle: { color: AXIS_STROKE } },
         axisTick: { show: false },
         splitLine: { show: true, lineStyle: { color: GRID_STROKE } },
-        axisLabel: { color: LABEL_FILL, fontFamily: MONO_FONT, fontSize: 9.5 }
+        axisLabel: { color: LABEL_FILL, fontFamily: CHART_FONT, fontSize: 9.5 }
       },
       yAxis: {
         type: 'category',

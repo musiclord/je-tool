@@ -75,7 +75,8 @@ internal static class ResultPageColumnRegistry
         }
 
         foreach (var rule in spec.Groups.SelectMany(static group => group.Rules)
-                     .Where(static rule => rule.Type == FilterRuleType.TypedField))
+                     .Where(static rule => rule.Type == FilterRuleType.TypedField
+                         || rule.Type == FilterRuleType.FieldValue && rule.FieldId is not null))
         {
             if (rule.FieldId is null || !byFieldId.TryGetValue(rule.FieldId, out var field))
             {
@@ -83,7 +84,7 @@ internal static class ResultPageColumnRegistry
             }
 
             if (rule.TypedOperator is null
-                || !TypedFieldOperatorSets.ForValueType(field.ValueType)
+                || !(rule.Type == FilterRuleType.FieldValue ? FieldValueConditions.Operators(field.ValueType) : TypedFieldOperatorSets.ForValueType(field.ValueType))
                     .Contains(rule.TypedOperator, StringComparer.Ordinal))
             {
                 throw Stale("篩選情境的自訂欄位型別或運算子已變更，請重新保存情境。");
@@ -109,7 +110,7 @@ internal static class ResultPageColumnRegistry
                 || field.Label.Length > GlRdeStorageLimits.LabelUtf16CodeUnits
                 || !RdeFieldValueTypeNames.IsCanonical(field.ValueType))
             {
-                throw Stale("目前 committed RDE metadata 不完整，請重新提交 GL 欄位配對。");
+                throw Stale("額外欄位的配對設定不完整，請回第三步重新確認 GL 欄位配對。");
             }
         }
 
@@ -203,5 +204,5 @@ internal static class ResultPageCustomValueRenderer
 
     private static JetActionException Stale() => new(
         JetErrorCodes.StaleResult,
-        "自訂欄位值與目前 committed RDE metadata 不一致，請重新提交 GL 欄位配對。");
+        "額外欄位資料與目前配對設定不一致，請回第三步重新確認 GL 欄位配對。");
 }

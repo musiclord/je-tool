@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Application;
@@ -31,14 +32,8 @@ public sealed class QueryFilterHitsPageHandler(
         var scenarioPosition = PayloadReader.GetOptionalInt(payload, "scenarioPosition")
             ?? throw new JetActionException(
                 JetErrorCodes.InvalidPayload, "scenarioPosition 為必填(整數)。");
-        var cursor = PayloadReader.GetOptionalString(payload, "cursor");
-        if (PageCursor.IsMalformed(cursor))
-        {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload, "cursor 格式不符(無法解碼)。");
-        }
-
-        var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
+        var request = PageRequestReader.Read(payload, ResultPageSorting.GlEntryRows);
+        var cursor = request.Cursor;
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
@@ -55,8 +50,6 @@ public sealed class QueryFilterHitsPageHandler(
         var scenario = RequireScenario(scenarios, scenarioPosition);
         var mapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
         var columnPlan = ResultPageColumnRegistry.ForFilter(scenario, mapping, document.MoneyScale);
-
-        var request = new PageRequest(cursor, pageSize);
 
         var page = await Task.Run(
             () => repository.GetPageAsync(projectId, scenarioPosition, document.MoneyScale, request, cancellationToken),
@@ -98,7 +91,8 @@ public sealed class QueryFilterHitsPageHandler(
                 key = column.Key,
                 label = column.Label,
                 valueType = column.ValueType,
-                isCustom = column.IsCustom
+                isCustom = column.IsCustom,
+                sortable = ResultPageSorting.GlEntryRows.Find(column.Key) is not null
             }).ToArray(),
             rows = page.Rows.Select(r => (object)new
             {

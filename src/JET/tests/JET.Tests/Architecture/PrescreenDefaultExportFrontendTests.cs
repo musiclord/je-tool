@@ -39,8 +39,8 @@ public sealed class PrescreenDefaultExportFrontendTests
         var bind = ExtractFunction(source, "bind");
 
         var sequence = SequenceBranch(bind);
-        var reportIndex = sequence.IndexOf("exportPrescreenReportForRun(sourceRunId)", StringComparison.Ordinal);
-        var workpaperIndex = sequence.IndexOf("exportWorkpaper(payload)", StringComparison.Ordinal);
+        var reportIndex = sequence.IndexOf("exportPrescreenReportForRun(sourceRunId, project, payload)", StringComparison.Ordinal);
+        var workpaperIndex = sequence.IndexOf("exportWorkpaper(payload, project)", StringComparison.Ordinal);
         Assert.True(reportIndex >= 0, "匯出序列必須呼叫 Pre-screening Report 匯出。 ");
         Assert.True(workpaperIndex > reportIndex, "Pre-screening Report 必須排在 Working Paper 之前。 ");
 
@@ -71,9 +71,9 @@ public sealed class PrescreenDefaultExportFrontendTests
 
         // 一鍵確認後的序列：prescreen.run 先於報告與底稿。
         var sequence = SequenceBranch(ExtractFunction(source, "bind"));
-        Assert.Contains("plan.needsRun ? runPrescreenForExport() : plan.currentRunId", sequence, StringComparison.Ordinal);
-        var runIndex = sequence.IndexOf("runPrescreenForExport()", StringComparison.Ordinal);
-        var reportIndex = sequence.IndexOf("exportPrescreenReportForRun(sourceRunId)", StringComparison.Ordinal);
+        Assert.Contains("plan.needsRun ? runPrescreenForExport(project, payload) : plan.currentRunId", sequence, StringComparison.Ordinal);
+        var runIndex = sequence.IndexOf("runPrescreenForExport(project, payload)", StringComparison.Ordinal);
+        var reportIndex = sequence.IndexOf("exportPrescreenReportForRun(sourceRunId, project, payload)", StringComparison.Ordinal);
         Assert.True(runIndex >= 0 && reportIndex > runIndex, "補跑必須排在報告匯出之前。 ");
 
         var run = ExtractFunction(source, "runPrescreenForExport");
@@ -85,6 +85,36 @@ public sealed class PrescreenDefaultExportFrontendTests
             "included: includePrescreenReport && (!!currentRunId || eligibility.isEligible)",
             plan,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExportSequence_ChecksCancellationAndOriginalContext_BeforeStartingEachAction()
+    {
+        var source = ReadFrontend("js", "steps", "export-step.js");
+        var guard = ExtractFunction(source, "requireExportActive");
+        Assert.Contains("!completed && state.cancellationRequested", guard, StringComparison.Ordinal);
+        Assert.Contains("state.project !== project", guard, StringComparison.Ordinal);
+        Assert.Contains("runId(state.lastRuns.validate) !== payload.validationRunId", guard, StringComparison.Ordinal);
+        Assert.Contains("filterRevision(state) !== payload.scenarioRevision", guard, StringComparison.Ordinal);
+        Assert.Contains("error.code = 'operation_cancelled'", guard, StringComparison.Ordinal);
+
+        var sequence = SequenceBranch(ExtractFunction(source, "bind"));
+        foreach (var call in new[] { "runPrescreenForExport(project, payload)",
+                     "exportPrescreenReportForRun(sourceRunId, project, payload)", "exportWorkpaper(payload, project)" })
+        {
+            var callIndex = sequence.IndexOf(call, StringComparison.Ordinal);
+            Assert.True(callIndex >= 0);
+            var precedingGuard = sequence.LastIndexOf("requireExportActive(project, payload);", callIndex, StringComparison.Ordinal);
+            var precedingContinuation = sequence.LastIndexOf(".then(", callIndex, StringComparison.Ordinal);
+            Assert.True(precedingGuard >= 0 && precedingGuard > precedingContinuation,
+                "每個後續 action 啟動前都必須重新檢查取消與案件版本。");
+        }
+
+        foreach (var name in new[] { "runPrescreenForExport", "exportPrescreenReportForRun", "exportWorkpaper" })
+        {
+            var action = ExtractFunction(source, name);
+            Assert.Contains("requireExportActive(project, payload, true);", action, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>取 bind 內「含 Pre-screening Report」那一段序列（純 Working Paper 分支在它之前）。</summary>

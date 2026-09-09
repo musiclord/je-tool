@@ -61,6 +61,9 @@ internal static class RuleRunResultReset
         if (impact.InvalidateFilterHits)
         {
             statements.Add($"DELETE FROM {schemaPrefix}result_filter_run;");
+            var keyColumn = schemaPrefix.Length == 0 ? "key" : "[key]";
+            statements.Add($"UPDATE {schemaPrefix}schema_info SET value = CAST(CAST(value AS BIGINT) + 1 AS VARCHAR(40)) "
+                + $"WHERE {keyColumn} = 'filter_data_revision';");
         }
 
         if (statements.Count == 0)

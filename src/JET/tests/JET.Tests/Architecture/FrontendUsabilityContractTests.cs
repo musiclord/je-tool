@@ -51,16 +51,18 @@ public sealed class FrontendUsabilityContractTests
     }
 
     [Fact]
-    public void Runtime_HasOneManualProjectFolderEntryAndNoArtifactRevealControls()
+    public void Runtime_HasOneProjectFolderEntryAndWorkpaperHistoryRevealControls()
     {
         var root = FrontendRoot();
         var index = File.ReadAllText(Path.Combine(root, "index.html"));
         var javascript = string.Join('\n', Directory.EnumerateFiles(Path.Combine(root, "js"), "*.js", SearchOption.AllDirectories).Select(File.ReadAllText));
 
         Assert.Single(Regex.Matches(index, "data-action=\"open-project-folder\"", RegexOptions.CultureInvariant).Cast<Match>());
-        Assert.Single(Regex.Matches(javascript, @"JetApi\.hostOpenFolder\(", RegexOptions.CultureInvariant).Cast<Match>());
+        Assert.Equal(2, Regex.Matches(javascript, @"JetApi\.hostOpenFolder\(", RegexOptions.CultureInvariant).Count);
         Assert.Contains("hostOpenFolder({ target: 'projectFolder' })", javascript, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-open-artifact", javascript, StringComparison.Ordinal);
+        Assert.Contains("data-open-artifact", javascript, StringComparison.Ordinal);
+        Assert.Contains("hostOpenFolder({ artifactId: artifactId })", javascript, StringComparison.Ordinal);
+        Assert.DoesNotContain("hostOpenFolder({ path:", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("artifactId: artifact.artifactId", javascript, StringComparison.Ordinal);
     }
 

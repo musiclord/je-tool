@@ -12,8 +12,8 @@ namespace JET.Application;
 internal static class RuleLogicVersions
 {
     public const string Validation = "validation-2026-08-14-v4";
-    public const string Prescreen = "prescreen-2026-08-14-v6";
-    public const string Filter = "filter-2026-08-14-v10";
+    public const string Prescreen = "prescreen-2026-09-08-v7";
+    public const string Filter = "filter-2026-09-08-v13";
 
     public static string? ExpectedFor(string runKind) => runKind switch
     {

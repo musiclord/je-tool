@@ -1,0 +1,389 @@
+{
+  "schemaVersion": 1,
+  "revision": "30005a2f52c53ac2b0de49a90145f326ea43d675",
+  "source": "NuGet restore --force-evaluate with NuGetAudit=true; original logs retained in the local dependency-refresh run; only CRLF normalized to the pinned source LF format",
+  "packages": {
+    "Microsoft.CodeAnalysis.VisualBasic": "5.9.0",
+    "System.Security.Cryptography.Xml": "9.0.18",
+    "System.Security.Cryptography.Pkcs": "9.0.18"
+  },
+  "files": [
+    {
+      "path": "src/Stryker.Abstractions/packages.lock.json",
+      "beforeSha256": "e82fb7448e34df5656b03d2088dee6f0dcca06439fb758b448eeb0e8bddd8653",
+      "afterSha256": "5b5c069c1bbede3631d3e5670c936cf1db89c19deecb6ee056412758a36082ef",
+      "restoredSha256": "7ff697c346950e1c9a244d6994c977e1327ef78d2f020d8580942787b09414d8",
+      "edits": [
+        {
+          "offset": 2069,
+          "before": "",
+          "after": "      \"Microsoft.CodeAnalysis.VisualBasic\": {\n        \"type\": \"Direct\",\n        \"requested\": \"[5.9.0, )\",\n        \"resolved\": \"5.9.0\",\n        \"contentHash\": \"Z+MbJE5QLzgU1gt7q7HSQQ2LN6n3gewv/Evfp/Ya8VXd5pGeyFVEQpXbDsM6tuJJZ5eOQ/6q2wBV3rqMzpKG7g==\",\n        \"dependencies\": {\n          \"Microsoft.CodeAnalysis.Analyzers\": \"5.9.0-1.26328.17\",\n          \"Microsoft.CodeAnalysis.Common\": \"[5.9.0]\"\n        }\n      },\n"
+        },
+        {
+          "offset": 2551,
+          "before": "",
+          "after": "      },\n      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"Direct\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"NKMKhUdLGNZryY9GXXTF5dXyP6S37EYXhiA2JYvwshJbd4DRq07IOS9it8Opi9atadvv5rlNkD76Mio+5Oo2aQ==\"\n      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"Direct\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"UoE37brJoIJPMds6wqDaweVrORmdM3XDPGLRU01Mg6Koh3SjgogSfz4+zDsriaEluHMRCx/Qc7yeEw7F9QMcJA==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.18\"\n        }\n"
+        },
+        {
+          "offset": 8627,
+          "before": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"8tluJF8w9si+2yoHeL8rgVJS6lKvWomTDC8px65Z8MCzzdME5eaPtEQf4OfVGrAxB5fW93ncucy1+221O9EQaw==\"\n      },\n",
+          "after": ""
+        },
+        {
+          "offset": 9081,
+          "before": "      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"GQZn5wFd+pyOfwWaCbqxG7trQ5ox01oR8kYgWflgtux4HiUNihGEgG2TktRWyH+9bw7NoEju1D41H/upwQeFQw==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.0\"\n        }\n",
+          "after": ""
+        },
+        {
+          "offset": 9914,
+          "before": "      },\n      \"Microsoft.CodeAnalysis.VisualBasic\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[5.9.0, )\",\n        \"resolved\": \"4.0.0\",\n        \"contentHash\": \"FK+OGUMUh9O6/GCwyIy4c/sOrarF36/yEY07BbXVYMql1qCqHGWfyWXyCQKQ6m/KqReCqW6aO4cK7kK/AYBpyA==\",\n        \"dependencies\": {\n          \"Microsoft.CodeAnalysis.Common\": \"[4.0.0]\"\n        }\n",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "path": "src/Stryker.Utilities/packages.lock.json",
+      "beforeSha256": "c62fdd5096f3dbeb91309406338752433fa7f7819420c81da37799056d3df598",
+      "afterSha256": "501d772cb700794869cdb0411fced0854b3b73b137ed04569dcbb5897ef10dd2",
+      "restoredSha256": "090d06a175564c024a38e7238c1c75226b9715bac7eade7008d958b57395bde2",
+      "edits": [
+        {
+          "offset": 8406,
+          "before": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"8tluJF8w9si+2yoHeL8rgVJS6lKvWomTDC8px65Z8MCzzdME5eaPtEQf4OfVGrAxB5fW93ncucy1+221O9EQaw==\"\n      },\n",
+          "after": ""
+        },
+        {
+          "offset": 8860,
+          "before": "      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"GQZn5wFd+pyOfwWaCbqxG7trQ5ox01oR8kYgWflgtux4HiUNihGEgG2TktRWyH+9bw7NoEju1D41H/upwQeFQw==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.0\"\n        }\n",
+          "after": ""
+        },
+        {
+          "offset": 9697,
+          "before": "",
+          "after": "          \"Microsoft.CodeAnalysis.VisualBasic\": \"[5.9.0, )\",\n"
+        },
+        {
+          "offset": 9793,
+          "before": "",
+          "after": "          \"System.Security.Cryptography.Pkcs\": \"[9.0.18, )\",\n          \"System.Security.Cryptography.Xml\": \"[9.0.18, )\",\n"
+        },
+        {
+          "offset": 10522,
+          "before": "        \"resolved\": \"4.0.0\",\n        \"contentHash\": \"FK+OGUMUh9O6/GCwyIy4c/sOrarF36/yEY07BbXVYMql1qCqHGWfyWXyCQKQ6m/KqReCqW6aO4cK7kK/AYBpyA==\",\n",
+          "after": "        \"resolved\": \"5.9.0\",\n        \"contentHash\": \"Z+MbJE5QLzgU1gt7q7HSQQ2LN6n3gewv/Evfp/Ya8VXd5pGeyFVEQpXbDsM6tuJJZ5eOQ/6q2wBV3rqMzpKG7g==\",\n"
+        },
+        {
+          "offset": 10692,
+          "before": "          \"Microsoft.CodeAnalysis.Common\": \"[4.0.0]\"\n",
+          "after": "          \"Microsoft.CodeAnalysis.Analyzers\": \"5.9.0-1.26328.17\",\n          \"Microsoft.CodeAnalysis.Common\": \"[5.9.0]\"\n"
+        },
+        {
+          "offset": 12751,
+          "before": "",
+          "after": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"NKMKhUdLGNZryY9GXXTF5dXyP6S37EYXhiA2JYvwshJbd4DRq07IOS9it8Opi9atadvv5rlNkD76Mio+5Oo2aQ==\"\n      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"UoE37brJoIJPMds6wqDaweVrORmdM3XDPGLRU01Mg6Koh3SjgogSfz4+zDsriaEluHMRCx/Qc7yeEw7F9QMcJA==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.18\"\n        }\n      },\n"
+        }
+      ]
+    },
+    {
+      "path": "src/Stryker.Configuration/packages.lock.json",
+      "beforeSha256": "685467de333926279a631cf28992b2d2888dcf6f838740def65119d5c7f030c8",
+      "afterSha256": "b346de8482225a1ce5d130bedb84d9df0557fecc89da998033eb37f28e91fcf9",
+      "restoredSha256": "b131b8772341ae975876d877c4d1a6e6aa2ed76ef65a0bede12280280d2d8b2c",
+      "edits": [
+        {
+          "offset": 7233,
+          "before": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"8tluJF8w9si+2yoHeL8rgVJS6lKvWomTDC8px65Z8MCzzdME5eaPtEQf4OfVGrAxB5fW93ncucy1+221O9EQaw==\"\n      },\n",
+          "after": ""
+        },
+        {
+          "offset": 7687,
+          "before": "      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"GQZn5wFd+pyOfwWaCbqxG7trQ5ox01oR8kYgWflgtux4HiUNihGEgG2TktRWyH+9bw7NoEju1D41H/upwQeFQw==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.0\"\n        }\n",
+          "after": ""
+        },
+        {
+          "offset": 8524,
+          "before": "",
+          "after": "          \"Microsoft.CodeAnalysis.VisualBasic\": \"[5.9.0, )\",\n"
+        },
+        {
+          "offset": 8620,
+          "before": "",
+          "after": "          \"System.Security.Cryptography.Pkcs\": \"[9.0.18, )\",\n          \"System.Security.Cryptography.Xml\": \"[9.0.18, )\",\n"
+        },
+        {
+          "offset": 10343,
+          "before": "        \"resolved\": \"4.0.0\",\n        \"contentHash\": \"FK+OGUMUh9O6/GCwyIy4c/sOrarF36/yEY07BbXVYMql1qCqHGWfyWXyCQKQ6m/KqReCqW6aO4cK7kK/AYBpyA==\",\n",
+          "after": "        \"resolved\": \"5.9.0\",\n        \"contentHash\": \"Z+MbJE5QLzgU1gt7q7HSQQ2LN6n3gewv/Evfp/Ya8VXd5pGeyFVEQpXbDsM6tuJJZ5eOQ/6q2wBV3rqMzpKG7g==\",\n"
+        },
+        {
+          "offset": 10513,
+          "before": "          \"Microsoft.CodeAnalysis.Common\": \"[4.0.0]\"\n",
+          "after": "          \"Microsoft.CodeAnalysis.Analyzers\": \"5.9.0-1.26328.17\",\n          \"Microsoft.CodeAnalysis.Common\": \"[5.9.0]\"\n"
+        },
+        {
+          "offset": 13236,
+          "before": "",
+          "after": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"NKMKhUdLGNZryY9GXXTF5dXyP6S37EYXhiA2JYvwshJbd4DRq07IOS9it8Opi9atadvv5rlNkD76Mio+5Oo2aQ==\"\n      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"UoE37brJoIJPMds6wqDaweVrORmdM3XDPGLRU01Mg6Koh3SjgogSfz4+zDsriaEluHMRCx/Qc7yeEw7F9QMcJA==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.18\"\n        }\n      },\n"
+        }
+      ]
+    },
+    {
+      "path": "src/Stryker.Solutions/packages.lock.json",
+      "beforeSha256": "ed642cc0f1f3013e2cd8c298dfaa334a6cf2030c64e4353274487f3bbaacc55e",
+      "afterSha256": "a752c7b3deb6ddacfe9771c494277a5ecf3f1feb65d069d04c5dd90976b76ff6",
+      "restoredSha256": "b634ee61cd007a8ff39b3a6f03b84de4bebe356f46092db1b7b2f137c66c73c0",
+      "edits": [
+        {
+          "offset": 6271,
+          "before": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"8tluJF8w9si+2yoHeL8rgVJS6lKvWomTDC8px65Z8MCzzdME5eaPtEQf4OfVGrAxB5fW93ncucy1+221O9EQaw==\"\n      },\n",
+          "after": ""
+        },
+        {
+          "offset": 6725,
+          "before": "      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"GQZn5wFd+pyOfwWaCbqxG7trQ5ox01oR8kYgWflgtux4HiUNihGEgG2TktRWyH+9bw7NoEju1D41H/upwQeFQw==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.0\"\n        }\n",
+          "after": ""
+        },
+        {
+          "offset": 7562,
+          "before": "",
+          "after": "          \"Microsoft.CodeAnalysis.VisualBasic\": \"[5.9.0, )\",\n"
+        },
+        {
+          "offset": 7658,
+          "before": "",
+          "after": "          \"System.Security.Cryptography.Pkcs\": \"[9.0.18, )\",\n          \"System.Security.Cryptography.Xml\": \"[9.0.18, )\",\n"
+        },
+        {
+          "offset": 10413,
+          "before": "        \"resolved\": \"4.0.0\",\n        \"contentHash\": \"FK+OGUMUh9O6/GCwyIy4c/sOrarF36/yEY07BbXVYMql1qCqHGWfyWXyCQKQ6m/KqReCqW6aO4cK7kK/AYBpyA==\",\n",
+          "after": "        \"resolved\": \"5.9.0\",\n        \"contentHash\": \"Z+MbJE5QLzgU1gt7q7HSQQ2LN6n3gewv/Evfp/Ya8VXd5pGeyFVEQpXbDsM6tuJJZ5eOQ/6q2wBV3rqMzpKG7g==\",\n"
+        },
+        {
+          "offset": 10583,
+          "before": "          \"Microsoft.CodeAnalysis.Common\": \"[4.0.0]\"\n",
+          "after": "          \"Microsoft.CodeAnalysis.Analyzers\": \"5.9.0-1.26328.17\",\n          \"Microsoft.CodeAnalysis.Common\": \"[5.9.0]\"\n"
+        },
+        {
+          "offset": 13269,
+          "before": "",
+          "after": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"NKMKhUdLGNZryY9GXXTF5dXyP6S37EYXhiA2JYvwshJbd4DRq07IOS9it8Opi9atadvv5rlNkD76Mio+5Oo2aQ==\"\n      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"UoE37brJoIJPMds6wqDaweVrORmdM3XDPGLRU01Mg6Koh3SjgogSfz4+zDsriaEluHMRCx/Qc7yeEw7F9QMcJA==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.18\"\n        }\n      },\n"
+        }
+      ]
+    },
+    {
+      "path": "src/Stryker.TestRunner/packages.lock.json",
+      "beforeSha256": "e3b8ffb493409d4ed88bff7cf749a1ae72157852c72d2956aea234fc9a10f56a",
+      "afterSha256": "e330ab69719240e7e1cf166702a42886c9c8e73205e09653cc98679607ee2691",
+      "restoredSha256": "39e792ceaaf98100e5f5feda6e918f279ceaa1909a0defcf333d74999d5586bc",
+      "edits": [
+        {
+          "offset": 6261,
+          "before": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"8tluJF8w9si+2yoHeL8rgVJS6lKvWomTDC8px65Z8MCzzdME5eaPtEQf4OfVGrAxB5fW93ncucy1+221O9EQaw==\"\n      },\n",
+          "after": ""
+        },
+        {
+          "offset": 6715,
+          "before": "      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"GQZn5wFd+pyOfwWaCbqxG7trQ5ox01oR8kYgWflgtux4HiUNihGEgG2TktRWyH+9bw7NoEju1D41H/upwQeFQw==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.0\"\n        }\n",
+          "after": ""
+        },
+        {
+          "offset": 7552,
+          "before": "",
+          "after": "          \"Microsoft.CodeAnalysis.VisualBasic\": \"[5.9.0, )\",\n"
+        },
+        {
+          "offset": 7648,
+          "before": "",
+          "after": "          \"System.Security.Cryptography.Pkcs\": \"[9.0.18, )\",\n          \"System.Security.Cryptography.Xml\": \"[9.0.18, )\",\n"
+        },
+        {
+          "offset": 9940,
+          "before": "        \"resolved\": \"4.0.0\",\n        \"contentHash\": \"FK+OGUMUh9O6/GCwyIy4c/sOrarF36/yEY07BbXVYMql1qCqHGWfyWXyCQKQ6m/KqReCqW6aO4cK7kK/AYBpyA==\",\n",
+          "after": "        \"resolved\": \"5.9.0\",\n        \"contentHash\": \"Z+MbJE5QLzgU1gt7q7HSQQ2LN6n3gewv/Evfp/Ya8VXd5pGeyFVEQpXbDsM6tuJJZ5eOQ/6q2wBV3rqMzpKG7g==\",\n"
+        },
+        {
+          "offset": 10110,
+          "before": "          \"Microsoft.CodeAnalysis.Common\": \"[4.0.0]\"\n",
+          "after": "          \"Microsoft.CodeAnalysis.Analyzers\": \"5.9.0-1.26328.17\",\n          \"Microsoft.CodeAnalysis.Common\": \"[5.9.0]\"\n"
+        },
+        {
+          "offset": 12176,
+          "before": "",
+          "after": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"NKMKhUdLGNZryY9GXXTF5dXyP6S37EYXhiA2JYvwshJbd4DRq07IOS9it8Opi9atadvv5rlNkD76Mio+5Oo2aQ==\"\n      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"UoE37brJoIJPMds6wqDaweVrORmdM3XDPGLRU01Mg6Koh3SjgogSfz4+zDsriaEluHMRCx/Qc7yeEw7F9QMcJA==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.18\"\n        }\n      },\n"
+        }
+      ]
+    },
+    {
+      "path": "src/Stryker.TestRunner.MicrosoftTestPlatform/packages.lock.json",
+      "beforeSha256": "dfe37a02a57935a433fcbcee92f9d67929aa23120a1f82b709f76d542a5e9783",
+      "afterSha256": "a8ced8ba48c9dcfeca282275d986012f0c68cd35cc6f9bc183593f2127943221",
+      "restoredSha256": "1a2686493ba22bc6fc0d57ea8eebabeb7b3018d857d5ed0fc3f68cbc71c08550",
+      "edits": [
+        {
+          "offset": 9327,
+          "before": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"8tluJF8w9si+2yoHeL8rgVJS6lKvWomTDC8px65Z8MCzzdME5eaPtEQf4OfVGrAxB5fW93ncucy1+221O9EQaw==\"\n      },\n",
+          "after": ""
+        },
+        {
+          "offset": 9781,
+          "before": "      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"GQZn5wFd+pyOfwWaCbqxG7trQ5ox01oR8kYgWflgtux4HiUNihGEgG2TktRWyH+9bw7NoEju1D41H/upwQeFQw==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.0\"\n        }\n",
+          "after": ""
+        },
+        {
+          "offset": 10618,
+          "before": "",
+          "after": "          \"Microsoft.CodeAnalysis.VisualBasic\": \"[5.9.0, )\",\n"
+        },
+        {
+          "offset": 10714,
+          "before": "",
+          "after": "          \"System.Security.Cryptography.Pkcs\": \"[9.0.18, )\",\n          \"System.Security.Cryptography.Xml\": \"[9.0.18, )\",\n"
+        },
+        {
+          "offset": 13680,
+          "before": "        \"resolved\": \"4.0.0\",\n        \"contentHash\": \"FK+OGUMUh9O6/GCwyIy4c/sOrarF36/yEY07BbXVYMql1qCqHGWfyWXyCQKQ6m/KqReCqW6aO4cK7kK/AYBpyA==\",\n",
+          "after": "        \"resolved\": \"5.9.0\",\n        \"contentHash\": \"Z+MbJE5QLzgU1gt7q7HSQQ2LN6n3gewv/Evfp/Ya8VXd5pGeyFVEQpXbDsM6tuJJZ5eOQ/6q2wBV3rqMzpKG7g==\",\n"
+        },
+        {
+          "offset": 13850,
+          "before": "          \"Microsoft.CodeAnalysis.Common\": \"[4.0.0]\"\n",
+          "after": "          \"Microsoft.CodeAnalysis.Analyzers\": \"5.9.0-1.26328.17\",\n          \"Microsoft.CodeAnalysis.Common\": \"[5.9.0]\"\n"
+        },
+        {
+          "offset": 16815,
+          "before": "",
+          "after": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"NKMKhUdLGNZryY9GXXTF5dXyP6S37EYXhiA2JYvwshJbd4DRq07IOS9it8Opi9atadvv5rlNkD76Mio+5Oo2aQ==\"\n      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"UoE37brJoIJPMds6wqDaweVrORmdM3XDPGLRU01Mg6Koh3SjgogSfz4+zDsriaEluHMRCx/Qc7yeEw7F9QMcJA==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.18\"\n        }\n      },\n"
+        }
+      ]
+    },
+    {
+      "path": "src/Stryker.TestRunner.VsTest/packages.lock.json",
+      "beforeSha256": "fd23b770e12b52d9ad768b66f8c617d239fb836c67228ecbaa93465c858f7cb5",
+      "afterSha256": "d7a460ae23742f18170bc0e9589895f3adc4a77c8a54cb899c65a71fda21dc0e",
+      "restoredSha256": "3f55039cbc23bcea6ff43e0b5f0133210e5f0326bcaf9ce569ad145def20fb62",
+      "edits": [
+        {
+          "offset": 7880,
+          "before": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"8tluJF8w9si+2yoHeL8rgVJS6lKvWomTDC8px65Z8MCzzdME5eaPtEQf4OfVGrAxB5fW93ncucy1+221O9EQaw==\"\n      },\n",
+          "after": ""
+        },
+        {
+          "offset": 8334,
+          "before": "      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"GQZn5wFd+pyOfwWaCbqxG7trQ5ox01oR8kYgWflgtux4HiUNihGEgG2TktRWyH+9bw7NoEju1D41H/upwQeFQw==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.0\"\n        }\n",
+          "after": ""
+        },
+        {
+          "offset": 9171,
+          "before": "",
+          "after": "          \"Microsoft.CodeAnalysis.VisualBasic\": \"[5.9.0, )\",\n"
+        },
+        {
+          "offset": 9267,
+          "before": "",
+          "after": "          \"System.Security.Cryptography.Pkcs\": \"[9.0.18, )\",\n          \"System.Security.Cryptography.Xml\": \"[9.0.18, )\",\n"
+        },
+        {
+          "offset": 12458,
+          "before": "        \"resolved\": \"4.0.0\",\n        \"contentHash\": \"FK+OGUMUh9O6/GCwyIy4c/sOrarF36/yEY07BbXVYMql1qCqHGWfyWXyCQKQ6m/KqReCqW6aO4cK7kK/AYBpyA==\",\n",
+          "after": "        \"resolved\": \"5.9.0\",\n        \"contentHash\": \"Z+MbJE5QLzgU1gt7q7HSQQ2LN6n3gewv/Evfp/Ya8VXd5pGeyFVEQpXbDsM6tuJJZ5eOQ/6q2wBV3rqMzpKG7g==\",\n"
+        },
+        {
+          "offset": 12628,
+          "before": "          \"Microsoft.CodeAnalysis.Common\": \"[4.0.0]\"\n",
+          "after": "          \"Microsoft.CodeAnalysis.Analyzers\": \"5.9.0-1.26328.17\",\n          \"Microsoft.CodeAnalysis.Common\": \"[5.9.0]\"\n"
+        },
+        {
+          "offset": 14919,
+          "before": "",
+          "after": "      },\n      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"NKMKhUdLGNZryY9GXXTF5dXyP6S37EYXhiA2JYvwshJbd4DRq07IOS9it8Opi9atadvv5rlNkD76Mio+5Oo2aQ==\"\n      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"UoE37brJoIJPMds6wqDaweVrORmdM3XDPGLRU01Mg6Koh3SjgogSfz4+zDsriaEluHMRCx/Qc7yeEw7F9QMcJA==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.18\"\n        }\n"
+        }
+      ]
+    },
+    {
+      "path": "src/Stryker.Core/Stryker.Core/packages.lock.json",
+      "beforeSha256": "ed1fe4ad7e7b0b2d08dd08973aaac9dd3338715b945e12a552c8696ccc8a6bcc",
+      "afterSha256": "22d4374f8a3dc8964798fb33b5f25b275f8743fba552c73fdff0b4a0b57ea00e",
+      "restoredSha256": "307ef1a5971c9c08735c554d4f62226fbeb51f0f4f0d0c945dce87519028f0a0",
+      "edits": [
+        {
+          "offset": 24141,
+          "before": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"8tluJF8w9si+2yoHeL8rgVJS6lKvWomTDC8px65Z8MCzzdME5eaPtEQf4OfVGrAxB5fW93ncucy1+221O9EQaw==\"\n      },\n",
+          "after": ""
+        },
+        {
+          "offset": 24595,
+          "before": "      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"GQZn5wFd+pyOfwWaCbqxG7trQ5ox01oR8kYgWflgtux4HiUNihGEgG2TktRWyH+9bw7NoEju1D41H/upwQeFQw==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.0\"\n        }\n",
+          "after": ""
+        },
+        {
+          "offset": 25432,
+          "before": "",
+          "after": "          \"Microsoft.CodeAnalysis.VisualBasic\": \"[5.9.0, )\",\n"
+        },
+        {
+          "offset": 25528,
+          "before": "",
+          "after": "          \"System.Security.Cryptography.Pkcs\": \"[9.0.18, )\",\n          \"System.Security.Cryptography.Xml\": \"[9.0.18, )\",\n"
+        },
+        {
+          "offset": 28641,
+          "before": "        \"resolved\": \"4.0.0\",\n        \"contentHash\": \"FK+OGUMUh9O6/GCwyIy4c/sOrarF36/yEY07BbXVYMql1qCqHGWfyWXyCQKQ6m/KqReCqW6aO4cK7kK/AYBpyA==\",\n",
+          "after": "        \"resolved\": \"5.9.0\",\n        \"contentHash\": \"Z+MbJE5QLzgU1gt7q7HSQQ2LN6n3gewv/Evfp/Ya8VXd5pGeyFVEQpXbDsM6tuJJZ5eOQ/6q2wBV3rqMzpKG7g==\",\n"
+        },
+        {
+          "offset": 28811,
+          "before": "          \"Microsoft.CodeAnalysis.Common\": \"[4.0.0]\"\n",
+          "after": "          \"Microsoft.CodeAnalysis.Analyzers\": \"5.9.0-1.26328.17\",\n          \"Microsoft.CodeAnalysis.Common\": \"[5.9.0]\"\n"
+        },
+        {
+          "offset": 30642,
+          "before": "",
+          "after": "      },\n      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"NKMKhUdLGNZryY9GXXTF5dXyP6S37EYXhiA2JYvwshJbd4DRq07IOS9it8Opi9atadvv5rlNkD76Mio+5Oo2aQ==\"\n      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"UoE37brJoIJPMds6wqDaweVrORmdM3XDPGLRU01Mg6Koh3SjgogSfz4+zDsriaEluHMRCx/Qc7yeEw7F9QMcJA==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.18\"\n        }\n"
+        }
+      ]
+    },
+    {
+      "path": "src/Stryker.CLI/Stryker.CLI/packages.lock.json",
+      "beforeSha256": "9239a7fb116b0915385e8d35c777e06af75e8bf9e52faf8b59ad83956d54c530",
+      "afterSha256": "00fe89db15467cae82d508404278ffb4f3b4f2f0210bc3baa95ff9ec7c7ed857",
+      "restoredSha256": "3208fefe4ff6258eaa0d29fc26971040d65d9fe4561a44cf690a3799632488d7",
+      "edits": [
+        {
+          "offset": 17597,
+          "before": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"8tluJF8w9si+2yoHeL8rgVJS6lKvWomTDC8px65Z8MCzzdME5eaPtEQf4OfVGrAxB5fW93ncucy1+221O9EQaw==\"\n      },\n",
+          "after": ""
+        },
+        {
+          "offset": 18051,
+          "before": "      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"Transitive\",\n        \"resolved\": \"9.0.0\",\n        \"contentHash\": \"GQZn5wFd+pyOfwWaCbqxG7trQ5ox01oR8kYgWflgtux4HiUNihGEgG2TktRWyH+9bw7NoEju1D41H/upwQeFQw==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.0\"\n        }\n",
+          "after": ""
+        },
+        {
+          "offset": 20618,
+          "before": "",
+          "after": "          \"Microsoft.CodeAnalysis.VisualBasic\": \"[5.9.0, )\",\n"
+        },
+        {
+          "offset": 20714,
+          "before": "",
+          "after": "          \"System.Security.Cryptography.Pkcs\": \"[9.0.18, )\",\n          \"System.Security.Cryptography.Xml\": \"[9.0.18, )\",\n"
+        },
+        {
+          "offset": 26955,
+          "before": "        \"resolved\": \"4.0.0\",\n        \"contentHash\": \"FK+OGUMUh9O6/GCwyIy4c/sOrarF36/yEY07BbXVYMql1qCqHGWfyWXyCQKQ6m/KqReCqW6aO4cK7kK/AYBpyA==\",\n",
+          "after": "        \"resolved\": \"5.9.0\",\n        \"contentHash\": \"Z+MbJE5QLzgU1gt7q7HSQQ2LN6n3gewv/Evfp/Ya8VXd5pGeyFVEQpXbDsM6tuJJZ5eOQ/6q2wBV3rqMzpKG7g==\",\n"
+        },
+        {
+          "offset": 27125,
+          "before": "          \"Microsoft.CodeAnalysis.Common\": \"[4.0.0]\"\n",
+          "after": "          \"Microsoft.CodeAnalysis.Analyzers\": \"5.9.0-1.26328.17\",\n          \"Microsoft.CodeAnalysis.Common\": \"[5.9.0]\"\n"
+        },
+        {
+          "offset": 33829,
+          "before": "",
+          "after": "      \"System.Security.Cryptography.Pkcs\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"NKMKhUdLGNZryY9GXXTF5dXyP6S37EYXhiA2JYvwshJbd4DRq07IOS9it8Opi9atadvv5rlNkD76Mio+5Oo2aQ==\"\n      },\n      \"System.Security.Cryptography.Xml\": {\n        \"type\": \"CentralTransitive\",\n        \"requested\": \"[9.0.18, )\",\n        \"resolved\": \"9.0.18\",\n        \"contentHash\": \"UoE37brJoIJPMds6wqDaweVrORmdM3XDPGLRU01Mg6Koh3SjgogSfz4+zDsriaEluHMRCx/Qc7yeEw7F9QMcJA==\",\n        \"dependencies\": {\n          \"System.Security.Cryptography.Pkcs\": \"9.0.18\"\n        }\n      },\n"
+        }
+      ]
+    }
+  ]
+}

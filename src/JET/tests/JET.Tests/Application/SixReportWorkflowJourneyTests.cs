@@ -17,7 +17,14 @@ public sealed class SixReportWorkflowJourneyTests
     public async Task AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate()
     {
         using var host = new HandlerTestHost();
-        var projectId = await ReportArtifactExportFixture.SetupProjectAsync(host);
+        var projectId = await InlineWorkbookProject.SetupAsync(host,
+            builder => builder.WithColumns("傳票號碼", "傳票日期", "核准日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
+                .AddRow("JV-001","2025-03-05","2026-01-02","1101","現金","調整分錄","2000000.00",1)
+                .AddRow("JV-001","2025-03-05","2026-01-02","4101","收入",null,"2000000.00",0)
+                .AddRow("JV-002","2025-06-06","2026-01-02","1101","現金","調整分錄","100.00",1)
+                .AddRow("JV-002","2025-06-06","2026-01-02","5101","待分類科目",null,"100.00",0),
+            lastPeriodStart: "2025-12-31", configureTb: tb => tb.AddRow("1101","現金",2_000_100)
+                .AddRow("4101","收入",-2_000_000).AddRow("5101","待分類科目",-100));
 
         var validation = await host.DispatchAsync("validate.run");
         var validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
@@ -38,7 +45,8 @@ public sealed class SixReportWorkflowJourneyTests
             var lastRow = sheet.LastRowUsed()!.RowNumber();
             for (var row = 4; row <= lastRow; row++)
             {
-                sheet.Cell(row, 3).Value = AccountMappingCategories.All[0];
+                sheet.Cell(row, 3).Value = sheet.Cell(row,1).GetString() switch
+                { "1101" => "Cash", "4101" => "Revenue", _ => "" };
             }
             workbook.Save();
         }
@@ -71,30 +79,24 @@ public sealed class SixReportWorkflowJourneyTests
             "export.prescreenReport",
             JsonSerializer.Serialize(new { runId = prescreenRunId }));
 
-        var committed = await host.DispatchAsync(
-            "filter.commit",
-            JsonSerializer.Serialize(new
-            {
-                scenarios = new[]
-                {
-                    new
-                    {
-                        name = "完整旅程情境",
-                        rationale = "以合成摘要條件驗證報告與工作檔流程",
-                        groups = new[]
-                        {
-                            new
-                            {
-                                join = "AND",
-                                rules = new[]
-                                {
-                                    new { join = "AND", type = "customKeywords", keywords = "調整" }
-                                }
-                            }
-                        }
-                    }
-                }
-            }));
+        var scenarios = JsonDocument.Parse("""
+          [{"name":"完整旅程情境","rationale":"以合成摘要條件驗證報告與工作檔流程","groups":[{"rules":[{"type":"customKeywords","keywords":"調整"}]}]},
+           {"name":"分類與指定日期","rationale":"分類留白的貸方科目視為 Others，兩張都命中","groups":[
+             {"matchScope":"sameVoucher","rules":[
+               {"type":"accountSide","drCr":"debit","categoryMode":"is","categoryIds":["builtin.cash"]},
+               {"type":"accountSide","drCr":"credit","categoryMode":"isNot","categoryIds":["builtin.cash"]}]},
+             {"join":"AND","rules":[
+               {"type":"fieldValue","field":"postDate","operator":"in","values":["2025-03-05","2025-06-06"]},
+               {"type":"fieldValue","field":"amount","operator":"between","from":"100","to":"2000000","amountBasis":"absolute"},
+               {"type":"fieldValue","field":"description","operator":"notContains","value":"NO_MATCH%_"}]}]}]
+          """).RootElement;
+        var selectionPreview = await host.DispatchAsync("filter.preview",JsonSerializer.Serialize(new { scenario = scenarios[1] }));
+        Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(host, projectId,
+            "SELECT classification_explicit FROM target_account_mapping WHERE account_code='5101';"));
+        // 兩值語意：5101 分類留白視為 Others，原本「等待補分類」的那張傳票直接命中。
+        Assert.Equal(2,selectionPreview.GetProperty("scenario").GetProperty("count").GetInt64());
+        Assert.Equal(2,selectionPreview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());
+        var committed = await host.DispatchAsync("filter.commit",JsonSerializer.Serialize(new { scenarios }));
         var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()!;
 
         await host.DispatchAsync(
@@ -107,7 +109,7 @@ public sealed class SixReportWorkflowJourneyTests
                 validationRunId,
                 prescreenRunId,
                 scenarioRevision = revision,
-                scenarioPositions = new[] { 1 }
+                scenarioPositions = new[] { 1, 2 }
             }));
 
         var completed = await host.DispatchAsync(
@@ -136,8 +138,23 @@ public sealed class SixReportWorkflowJourneyTests
 
         var validationPath = ArtifactPath(artifacts, projectDirectory, "validationReport");
         var workingPaperPath = ArtifactPath(artifacts, projectDirectory, "workingPaper");
+        foreach (var kind in new[] { "criteriaSelectionReport", "workingPaper" })
+        {
+            using var selectionWorkbook = new XLWorkbook(ArtifactPath(artifacts, projectDirectory, kind));
+            var texts = selectionWorkbook.Worksheets.Where(sheet => sheet.Visibility == XLWorksheetVisibility.Visible)
+                .SelectMany(sheet => sheet.CellsUsed()).Select(cell => cell.GetFormattedString()).ToArray();
+            Assert.DoesNotContain(texts, text => text.Contains("待判定", StringComparison.Ordinal));
+            Assert.Contains(texts, text => text.Contains("2025-03-05", StringComparison.Ordinal) && text.Contains("2025-06-06", StringComparison.Ordinal));
+        }
         AssertHiddenMappingMetadata(validationPath);
         AssertHiddenMappingMetadata(workingPaperPath);
+        using (var workpaper = new XLWorkbook(workingPaperPath))
+        {
+            var selected = workpaper.Worksheet(WorkpaperSheetCatalog.Step3).RowsUsed()
+                .Single(row => row.Cell(2).GetString() == "C2");
+            // 兩值語意：分類留白的貸方視為 Others，C2 命中兩張傳票（與上方預覽的 voucherCount 一致）。
+            Assert.Equal(2, selected.Cell(5).GetValue<long>());
+        }
 
         var glRowsBefore = await DemoProjectPipeline.QueryScalarAsync(
             host, projectId, "SELECT COUNT(*) FROM target_gl_entry;");

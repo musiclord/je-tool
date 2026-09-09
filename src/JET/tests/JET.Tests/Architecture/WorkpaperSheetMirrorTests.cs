@@ -19,7 +19,7 @@ public sealed class WorkpaperSheetMirrorTests
         Assert.Contains("scenarioPositions:", source, StringComparison.Ordinal);
         Assert.Contains("data-scenario-position", source, StringComparison.Ordinal);
         Assert.Contains("sheet.sheetName", source, StringComparison.Ordinal);
-        Assert.Contains("step4 的 C1–C10 情境欄；工作表固定", source, StringComparison.Ordinal);
+        Assert.Contains("底稿會標示符合所選情境的分錄，並保留同傳票參考分錄", source, StringComparison.Ordinal);
 
         Assert.DoesNotContain("WORKPAPER_SHEETS", source, StringComparison.Ordinal);
         Assert.DoesNotContain("step1-3-1", source, StringComparison.Ordinal);
@@ -30,7 +30,7 @@ public sealed class WorkpaperSheetMirrorTests
     }
 
     [Fact]
-    public void ReportWorkflow_ResumesArtifactStateAndOnlyHeaderCanOpenProjectFolder()
+    public void ReportWorkflow_ResumesArtifactStateAndRevealsHistoryByServerResolvedId()
     {
         var core = ReadFrontend("ui-core.js");
         var state = ReadFrontend("state.js");
@@ -44,9 +44,11 @@ public sealed class WorkpaperSheetMirrorTests
         Assert.Contains("filterResultRef: null", state, StringComparison.Ordinal);
         Assert.Contains("reportArtifacts: []", state, StringComparison.Ordinal);
         Assert.Contains("hostOpenFolder({ target: 'projectFolder' })", app, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-open-artifact", core, StringComparison.Ordinal);
+        Assert.Contains("data-open-artifact", core, StringComparison.Ordinal);
         Assert.DoesNotContain("hostOpenFolder", core, StringComparison.Ordinal);
-        Assert.DoesNotContain("hostOpenFolder", export, StringComparison.Ordinal);
+        Assert.Contains("hostOpenFolder({ artifactId: artifactId })", export, StringComparison.Ordinal);
+        Assert.DoesNotContain("target: 'projectFolder'", export, StringComparison.Ordinal);
+        Assert.DoesNotContain("{ path:", export, StringComparison.Ordinal);
         Assert.DoesNotContain("hostOpenFolder", validate, StringComparison.Ordinal);
         Assert.DoesNotContain("hostOpenFolder", filter, StringComparison.Ordinal);
     }
@@ -71,13 +73,24 @@ public sealed class WorkpaperSheetMirrorTests
     }
 
     [Fact]
-    public void ReportArtifactUpsert_ReplacesEveryExistingArtifactOfIncomingKinds()
+    public void ReportArtifactUpsert_PreservesWorkpaperHistoryAndReplacesOrdinaryReports()
     {
         var state = ReadFrontend("state.js");
 
-        Assert.Contains("return !incomingKinds[artifact.kind];", state, StringComparison.Ordinal);
+        Assert.Contains("if (artifact.kind !== 'workingPaper') { incomingKinds[artifact.kind] = true; }", state, StringComparison.Ordinal);
+        Assert.Contains("return !incomingKinds[artifact.kind] && !incomingIds[artifact.artifactId];", state, StringComparison.Ordinal);
         Assert.DoesNotContain("hasSameReportValiditySource", state, StringComparison.Ordinal);
         Assert.DoesNotContain("if (sameValiditySource) { return artifact; }", state, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WorkpaperHistory_DoesNotReplaceCurrentCompletionEvidence()
+    {
+        var export = ReadFrontend("steps", "export-step.js");
+        Assert.Contains("Ui.reportArtifactHistory(state, 'workingPaper')", export, StringComparison.Ordinal);
+        Assert.Contains("completionSummaryHtml(criteriaArtifact, currentWorkpapers)", export, StringComparison.Ordinal);
+        Assert.DoesNotContain("completionSummaryHtml(criteriaArtifact, workpapers) +", export, StringComparison.Ordinal);
+        Assert.Contains("HISTORY_PAGE_SIZE = 50", export, StringComparison.Ordinal);
     }
 
     [Fact]

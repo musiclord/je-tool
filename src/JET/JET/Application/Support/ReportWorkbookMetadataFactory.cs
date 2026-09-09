@@ -35,7 +35,7 @@ internal static class ReportWorkbookMetadataFactory
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "正式報表的 TB mapping 不是目前 metadata v2，請重新確認欄位配對。");
+                "TB 欄位配對需要更新，請回第三步重新確認欄位配對後再匯出報表。");
         }
 
         var taxonomy = await taxonomyStore.ReadAsync(projectId, cancellationToken).ConfigureAwait(false);

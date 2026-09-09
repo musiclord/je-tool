@@ -21,42 +21,34 @@ public sealed class SqlServerCompletenessDiffPageRepository(SqlServerProjectData
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        var hasCursor = PageCursor.TryDecode(request.Cursor, out var cursorKey);
-        var keyset = hasCursor ? "AND account_code > @cursor" : string.Empty;
+        var paging = KeysetPaging.Plan(Dialect, request, ResultPageSorting.CompletenessDiff);
 
         // ValidationProcedures.CompletenessDiffCteFor 把共用 CTE 內的 target_gl_entry/target_tb_balance 前綴專案 schema。
         await using var command = database.CreateCommand(connection, projectId,
             ValidationProcedures.CompletenessDiffCteFor(SqlServerProjectSchema.QualifierFor(projectId)) +
-            "\nSELECT account_code, account_name, tb_s, gl_s, tb_s - gl_s, not_in_tb " +
-            "FROM diff WHERE tb_s <> gl_s " + keyset +
-            " ORDER BY account_code " + Dialect.LimitClause("@pageSize") + ";");
-        if (hasCursor)
+            "\nSELECT account_code, account_name, tb_s, gl_s, tb_s - gl_s, not_in_tb" + paging.SelectSuffix + " " +
+            "FROM diff WHERE tb_s <> gl_s" + paging.Predicate + " " +
+            paging.OrderBy + " " + Dialect.LimitClause("@pageSize") + ";");
+        foreach (var parameter in paging.Parameters)
         {
-            command.Parameters.AddWithValue("@cursor", cursorKey);
+            command.Parameters.AddWithValue(parameter.Key, parameter.Value);
         }
 
         command.Parameters.AddWithValue("@pageSize", request.ClampedPageSize + 1);
 
-        var rows = new List<CompletenessDiffAccount>();
+        var buffer = new KeysetPageBuffer<CompletenessDiffAccount>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            rows.Add(new CompletenessDiffAccount(
-                reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
-                reader.IsDBNull(1) ? null : reader.GetString(1),
-                reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4),
-                reader.GetInt32(5) != 0));
+            buffer.Add(
+                new CompletenessDiffAccount(
+                    reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                    reader.IsDBNull(1) ? null : reader.GetString(1),
+                    reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4),
+                    reader.GetInt32(5) != 0),
+                paging.HasSort ? reader.GetValue(6) : null);
         }
 
-        var hasMore = rows.Count > request.ClampedPageSize;
-        if (hasMore)
-        {
-            rows.RemoveAt(rows.Count - 1);
-        }
-
-        var next = hasMore
-            ? PageCursor.Encode(rows[^1].AccountCode)
-            : null;
-        return new PageResult<CompletenessDiffAccount>(rows, next);
+        return buffer.ToPage(request, paging, static row => row.AccountCode);
     }
 }

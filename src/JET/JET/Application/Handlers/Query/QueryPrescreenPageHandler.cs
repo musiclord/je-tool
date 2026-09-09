@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Application;
@@ -20,13 +21,7 @@ public sealed class QueryPrescreenPageHandler(
             throw new JetActionException(JetErrorCodes.InvalidPayload, $"ruleKey '{ruleKey}' 不是可分頁的預篩選規則。");
         }
 
-        var cursor = PayloadReader.GetOptionalString(payload, "cursor");
-        if (PageCursor.IsMalformed(cursor))
-        {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "cursor 格式不符(無法解碼)。");
-        }
-
-        var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
+        var request = PageRequestReader.Read(payload, ResultPageSorting.Prescreen);
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
 
@@ -46,7 +41,7 @@ public sealed class QueryPrescreenPageHandler(
                 document.NonWorkingDays);
             page = await Task.Run(
                 () => repository.GetPageAsync(
-                    projectId, ruleKey, context, new PageRequest(cursor, pageSize), cancellationToken),
+                    projectId, ruleKey, context, request, cancellationToken),
                 cancellationToken);
         }
 

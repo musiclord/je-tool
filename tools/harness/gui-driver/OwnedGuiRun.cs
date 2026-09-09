@@ -59,11 +59,16 @@ internal sealed partial class OwnedGuiRun : IDisposable
     internal static OwnedGuiRun Create(
         TimeSpan timeout,
         int actionBudget,
-        IReadOnlyList<string> fixtures)
+        IReadOnlyList<string> fixtures,
+        int screenshotBudget = 0)
     {
-        if (actionBudget is < 1 or > 40)
+        if (actionBudget is < 1 or > 96)
         {
             throw new GuiInfrastructureException("action_budget_invalid");
+        }
+        if (screenshotBudget is < 0 or > 2)
+        {
+            throw new GuiInfrastructureException("screenshot_budget_invalid");
         }
 
         var runId = Guid.NewGuid().ToString("N");
@@ -86,7 +91,7 @@ internal sealed partial class OwnedGuiRun : IDisposable
                 runId,
                 deadlineUtc = DateTimeOffset.UtcNow.Add(timeout).ToString("O"),
                 actionBudget,
-                screenshotBudget = 0,
+                screenshotBudget,
                 childCount = 1,
                 fixtures
             };

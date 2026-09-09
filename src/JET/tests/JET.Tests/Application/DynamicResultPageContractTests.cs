@@ -205,11 +205,13 @@ public sealed class DynamicResultPageContractTests
         Assert.Equal(expected.Length, columns.Length);
         for (var index = 0; index < expected.Length; index++)
         {
-            JsonShape.HasExactKeys(columns[index], "key", "label", "valueType", "isCustom");
+            // 2026-09-07 工作包 G：欄位定義多帶 sortable，固定欄可排序、額外欄位不能（第一次失敗：收據 20260907-082210786）。
+            JsonShape.HasExactKeys(columns[index], "key", "label", "valueType", "isCustom", "sortable");
             Assert.Equal(expected[index].Key, columns[index].GetProperty("key").GetString());
             Assert.Equal(expected[index].Label, columns[index].GetProperty("label").GetString());
             Assert.Equal(expected[index].ValueType, columns[index].GetProperty("valueType").GetString());
             Assert.Equal(expected[index].IsCustom, columns[index].GetProperty("isCustom").GetBoolean());
+            Assert.Equal(!expected[index].IsCustom, columns[index].GetProperty("sortable").GetBoolean());
         }
     }
 

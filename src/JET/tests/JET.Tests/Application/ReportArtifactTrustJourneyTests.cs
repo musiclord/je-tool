@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ClosedXML.Excel;
+using JET.Application;
 using JET.Domain;
 using Xunit;
 
@@ -11,6 +12,118 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class ReportArtifactTrustJourneyTests
 {
+    [Fact]
+    public async Task AccountMappingTemplate_OnlyIfMissing_PreservesFilledFileAndReportsDisposition()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await ReportArtifactExportFixture.SetupProjectAsync(host);
+        var validation = await host.DispatchAsync("validate.run");
+        var runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var payload = JsonSerializer.Serialize(new { runId, onlyIfMissing = true });
+        var created = await host.DispatchAsync("export.accountMappingTemplate", payload);
+        var path = created.GetProperty("filePath").GetString()!;
+        Assert.Equal("created", created.GetProperty("disposition").GetString());
+        using (var workbook = new XLWorkbook(path))
+        {
+            workbook.Worksheet("AccountMapping").Cell(4, 3).Value = AccountMappingCategories.All[0];
+            workbook.Save();
+        }
+        var filled = await File.ReadAllBytesAsync(path);
+        // 不需要讀取已填工作簿，即使 Excel 佔用也可回報保留。
+        using (var locked = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            var kept = await host.DispatchAsync("export.accountMappingTemplate", payload);
+            Assert.Equal("kept", kept.GetProperty("disposition").GetString());
+            Assert.Equal(path, kept.GetProperty("filePath").GetString());
+            Assert.Equal(JsonValueKind.Null, kept.GetProperty("rowCount").ValueKind);
+        }
+        Assert.Equal(filled, await File.ReadAllBytesAsync(path));
+        var replaced = await host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { runId }));
+        Assert.Equal("created", replaced.GetProperty("disposition").GetString());
+        using var blank = new XLWorkbook(path);
+        Assert.True(blank.Worksheet("AccountMapping").Cell(4, 3).IsEmpty());
+        Assert.Empty(Directory.GetFiles(Path.Combine(host.ProjectsRoot, projectId), "*.tmp"));
+    }
+
+    [Fact]
+    public async Task AccountMappingTemplate_OnlyIfMissing_FileAppearsDuringPublication_IsKept()
+    {
+        var publisher = new TemplateAppearsAtPublication();
+        using var host = new HandlerTestHost(eventPublisher: publisher);
+        var projectId = await ReportArtifactExportFixture.SetupProjectAsync(host);
+        var validation = await host.DispatchAsync("validate.run");
+        var runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        publisher.Path = Path.Combine(host.ProjectsRoot, projectId, ProjectFileNames.AccountMappingTemplate(projectId));
+        var result = await host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { runId, onlyIfMissing = true }));
+        Assert.True(publisher.Observed);
+        Assert.Equal("kept", result.GetProperty("disposition").GetString());
+        Assert.Equal(new byte[] { 17, 29, 41 }, await File.ReadAllBytesAsync(publisher.Path));
+        Assert.Empty(Directory.GetFiles(Path.Combine(host.ProjectsRoot, projectId), "*.tmp"));
+    }
+
+    private sealed class TemplateAppearsAtPublication : IJetEventPublisher
+    {
+        public string? Path { get; set; }
+        public bool Observed { get; private set; }
+        public void Publish(string eventName, object payload)
+        {
+            if (Path is null || eventName != "export.progress") { return; }
+            var update = JsonSerializer.SerializeToElement(payload);
+            if (update.GetProperty("artifactKind").GetString() == "accountMapping"
+                && update.GetProperty("phase").GetString() == "publishingArtifact")
+            {
+                File.WriteAllBytes(Path, [17, 29, 41]);
+                Observed = true;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AccountMappingTemplate_CancelledBeforePublication_KeepsFilledOriginal()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var publisher = new CancelOnTemplatePublication(cancellation);
+        using var host = new HandlerTestHost(eventPublisher: publisher);
+        var projectId = await ReportArtifactExportFixture.SetupProjectAsync(host);
+        var validation = await host.DispatchAsync("validate.run");
+        var runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var payload = JsonSerializer.Serialize(new { runId });
+        var exported = await host.DispatchAsync("export.accountMappingTemplate", payload);
+        var path = exported.GetProperty("filePath").GetString()!;
+        using (var workbook = new XLWorkbook(path))
+        {
+            workbook.Worksheet("AccountMapping").Cell(4, 3).Value = AccountMappingCategories.All[0];
+            workbook.Save();
+        }
+        var filledOriginal = await File.ReadAllBytesAsync(path);
+        publisher.Armed = true;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => host.DispatchAsync(
+            "export.accountMappingTemplate", payload, cancellation.Token));
+
+        Assert.True(publisher.Observed);
+        Assert.Equal(filledOriginal, await File.ReadAllBytesAsync(path));
+        Assert.Empty(Directory.GetFiles(Path.Combine(host.ProjectsRoot, projectId), "*.tmp"));
+    }
+
+    private sealed class CancelOnTemplatePublication(CancellationTokenSource cancellation) : IJetEventPublisher
+    {
+        public bool Armed { get; set; }
+        public bool Observed { get; private set; }
+
+        public void Publish(string eventName, object payload)
+        {
+            if (!Armed || eventName != "export.progress") { return; }
+            var update = JsonSerializer.SerializeToElement(payload);
+            if (update.GetProperty("artifactKind").GetString() == "accountMapping"
+                && update.GetProperty("phase").GetString() == "publishingArtifact")
+            {
+                Observed = true;
+                cancellation.Cancel();
+            }
+        }
+    }
+
     [Fact]
     public async Task AccountMappingTemplate_EditedInPlaceAndReexported_ProjectStillLoads()
     {
