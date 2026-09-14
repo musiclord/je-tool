@@ -44,9 +44,16 @@
     return (
       '<div class="kv-list__row">' +
         '<dt class="kv-list__key">' + Ui.esc(label) + '</dt>' +
-        '<dd class="kv-list__value">' + Ui.esc(value) + '</dd>' +
+        '<dd class="kv-list__value">' + Ui.esc(value || '—') + '</dd>' +
       '</div>'
     );
+  }
+
+  function operatorNoticeHtml(state) {
+    var user = state.currentUser;
+    var name = user && user.shortName ? user.shortName : '目前 Windows 帳號';
+    return '<p class="form-notice create-form__operator">操作人員：<strong>' + Ui.esc(name) +
+      '</strong>。建立案件時由系統取得，不能自行更改。</p>';
   }
 
   function clearCreateError(form) {
@@ -112,9 +119,9 @@
         '<p class="panel__hint">輸入案件基本資料並建立查核案件；案件資料會保存在本機，可隨時關閉後續作。</p>' +
         '<form class="form" data-bind="create-form">' +
           formRow('caseName', '案件名稱', 'text', true) +
-          formRow('projectCode', '案件編號', 'text', true) +
-          formRow('entityName', '客戶名稱', 'text', true) +
-          formRow('operatorId', '操作人員編號', 'text', true) +
+          formRow('projectCode', '案件編號（選填）', 'text', false) +
+          formRow('entityName', '客戶名稱（選填）', 'text', false) +
+          operatorNoticeHtml(state) +
           formRow('periodStart', '查核起始日', 'date', true) +
           formRow('periodEnd', '查核截止日', 'date', true) +
           formRow('lastPeriodStart', '期末財報準備日', 'date', false) +
@@ -143,7 +150,6 @@
         caseName: form.caseName.value.trim(),
         projectCode: form.projectCode.value.trim(),
         entityName: form.entityName.value.trim(),
-        operatorId: form.operatorId.value.trim(),
         periodStart: form.periodStart.value,
         periodEnd: form.periodEnd.value,
         lastPeriodStart: form.lastPeriodStart.value || null,

@@ -385,14 +385,22 @@
 
   // 單列專案卡片（線上／本地兩區共用；provider 小徽章保留，sqlServer 條目再依 syncStatus 加同步徽章、依 lock 加鎖徽章）。
   function projectRowHtml(p, unreachable) {
+    var displayName = p.projectId;
+    var entityName = p.entityName
+      ? '<span class="project-row__entity">' + Ui.esc(p.entityName) + '</span>'
+      : '';
+    var projectCode = p.projectCode
+      ? '<span class="project-row__code">' + Ui.esc(p.projectCode) + '</span>'
+      : '';
     return (
       '<div class="project-row" data-project-id="' + Ui.esc(p.projectId) + '">' +
         '<button type="button" class="project-row__open" data-action="picker-open" data-project-id="' +
-          Ui.esc(p.projectId) + '" aria-label="開啟專案 ' + Ui.esc(p.entityName) + '">' +
+          Ui.esc(p.projectId) + '" aria-label="開啟專案 ' + Ui.esc(displayName) + '">' +
           '<span class="project-row__main">' +
-            '<span class="project-row__title">' + Ui.esc(p.entityName) + '</span>' +
+            '<span class="project-row__title">' + Ui.esc(displayName) + '</span>' +
             '<span class="project-row__meta">' +
-              '<span class="project-row__code">' + Ui.esc(p.projectCode) + '</span>' +
+              entityName +
+              projectCode +
               '<span class="project-provider ' + providerClass(p.databaseProvider) + '">' +
                 Ui.esc(providerText(p.databaseProvider)) + '</span>' +
               syncBadgeHtml(p, unreachable) +
@@ -402,7 +410,7 @@
           '</span>' +
         '</button>' +
         '<button type="button" class="project-row__delete" data-action="picker-delete" ' +
-          'data-project-id="' + Ui.esc(p.projectId) + '" data-project-name="' + Ui.esc(p.entityName) + '" ' +
+          'data-project-id="' + Ui.esc(p.projectId) + '" data-project-name="' + Ui.esc(displayName) + '" ' +
           'data-project-provider="' + Ui.esc(p.databaseProvider) + '" ' +
           'title="刪除專案" aria-label="刪除專案">' + ICON_TRASH + '</button>' +
       '</div>'
@@ -797,11 +805,13 @@
     return (p.periodStart || '—') + ' ～ ' + (p.periodEnd || '—');
   }
 
-  // workpaper 抬頭：mono eyebrow（案號・期間）＋ serif 案件標題。資料取自既有 state。
+  // workpaper 抬頭：mono eyebrow（案件名稱與期間）加上 serif 案件標題。資料取自既有 state。
   function workpaperHeaderHtml(state) {
     var period = auditPeriodText(state);
     var eyebrow = 'WORKPAPER · ' + (state.caseId || '尚未建立') + (period ? ' · ' + period : '');
-    var title = state.caseClient ? state.caseClient + ' — 分錄測試' : '尚未選擇案件';
+    var title = state.project
+      ? state.project.projectId + ' — 分錄測試'
+      : '尚未選擇案件';
     return (
       '<div class="workpaper">' +
         '<span class="workpaper__eyebrow">' + Ui.esc(eyebrow) + '</span>' +
@@ -1001,9 +1011,13 @@
     var container = Ui.$('content');
     if (!container) { return; }
 
-    // (view, step, contentVersion, 展開/收合) 四元組：資料更新或收合切換才重建，
+    // (view, step, contentVersion, 身分, 展開/收合) 五元組：資料更新或收合切換才重建，
     // 純訊息或 busy 變動不會（保住展開步驟渲染器已綁定的事件與輸入焦點）。
-    var key = state.view + '|' + current.id + '|' + state.contentVersion + '|' +
+    // 身分（whoAmI）只 notify 不 bump contentVersion，而建立案件步驟的操作人員提示讀它，
+    // 因此和 renderPicker 一樣把身分併入重繪鍵，身分晚於首次繪製抵達時仍會更新提示。
+    var user = state.currentUser;
+    var identityKey = user ? (user.shortName + '/' + user.userNumber) : '';
+    var key = state.view + '|' + current.id + '|' + state.contentVersion + '|' + identityKey + '|' +
       (state.stepFlowCollapsed ? 'c' : 'e');
     if (key === lastContentKey) { return; }
     lastContentKey = key;
@@ -1216,11 +1230,13 @@
     );
   }
 
-  // 抬頭只保留審計員當下辨識案件所需的案號與期間；執行識別移入「技術資訊」。
+  // 抬頭只保留審計員當下辨識案件所需的案件名稱與期間；執行識別移入「技術資訊」。
   // 1) 抬頭：mono eyebrow ＋ serif 案件標題 ＋ 基準行 ＋ ✕；底部 2px 實線（CSS）。
   function overviewHeadHtml(state) {
     var eyebrow = '流程總覽 · 案件狀態';
-    var title = state.caseClient ? state.caseClient + ' — 分錄測試' : '尚未選擇案件';
+    var title = state.project
+      ? state.project.projectId + ' — 分錄測試'
+      : '尚未選擇案件';
     var caseId = state.caseId || '尚未建立';
     var period = auditPeriodText(state) || '尚未設定';
     return (
@@ -1816,8 +1832,10 @@
     }
   }
 
+  // 案件名稱（projectId）是唯一必要識別；案件編號已是選填，留空時複製出的紀錄仍要能辨識案件。
   function operationLogIdentity(project) {
     return {
+      projectId: project && project.projectId != null ? project.projectId : '',
       projectCode: project && project.projectCode != null ? project.projectCode : '',
       databaseProvider: project && project.databaseProvider != null ? project.databaseProvider : ''
     };
@@ -1844,9 +1862,10 @@
     }
 
     var identity = operationLogIdentity(project);
-    var lines = ['project_code\tdatabase_provider\toccurred_utc\tlevel\ttext'];
+    var lines = ['project_id\tproject_code\tdatabase_provider\toccurred_utc\tlevel\ttext'];
     (entries || []).slice(0, 100).reverse().forEach(function (entry) {
       lines.push([
+        cell(identity.projectId),
         cell(identity.projectCode),
         cell(identity.databaseProvider),
         cell(entry.occurredUtc),

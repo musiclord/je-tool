@@ -2,6 +2,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 專案 metadata，持久化為 projects/{projectId}/project.json。
+/// ProjectCode 和 EntityName 為選填顯示資訊；沒有提供時保存空字串，ProjectId 仍是必要的案件名稱與識別。
 /// 日期一律以 "yyyy-MM-dd" 字串保存，避免序列化時區歧義。
 /// DatabaseProvider 標示會計資料所在引擎（"sqlite"／"duckdb" 本地檔；"sqlServer" 單庫）；
 /// 舊版 project.json 缺此欄位時由 store 讀取時正規化為 sqlite。

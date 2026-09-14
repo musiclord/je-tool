@@ -426,10 +426,10 @@ function Read-JetRegistry {
     $guiScenarios = @($guiSettings.scenarios)
     $expectedGuiScenarios = @(
         [ordered]@{ name = 'startup-smoke'; timeoutSeconds = 120; actionBudget = 4; expectedActionCount = 1; screenshotBudget = 0 },
-        [ordered]@{ name = 'synthetic-sqlite-create'; timeoutSeconds = 150; actionBudget = 16; expectedActionCount = 15; screenshotBudget = 0 },
+        [ordered]@{ name = 'synthetic-sqlite-create'; timeoutSeconds = 150; actionBudget = 12; expectedActionCount = 9; screenshotBudget = 1 },
         [ordered]@{ name = 'mapping-required-sync'; timeoutSeconds = 180; actionBudget = 70; expectedActionCount = 64; screenshotBudget = 0 },
         [ordered]@{ name = 'edited-report-still-loads'; timeoutSeconds = 180; actionBudget = 12; expectedActionCount = 9; screenshotBudget = 0 },
-        [ordered]@{ name = 'approval-mapping-modes'; timeoutSeconds = 240; actionBudget = 40; expectedActionCount = 32; screenshotBudget = 1 },
+        [ordered]@{ name = 'approval-mapping-modes'; timeoutSeconds = 240; actionBudget = 47; expectedActionCount = 47; screenshotBudget = 1 },
         [ordered]@{ name = 'validation-auto-outputs'; timeoutSeconds = 240; actionBudget = 8; expectedActionCount = 5; screenshotBudget = 1 },
         [ordered]@{ name = 'filter-auditor-journey'; timeoutSeconds = 240; actionBudget = 96; expectedActionCount = 96; screenshotBudget = 2 },
         [ordered]@{ name = 'filter-kct-editing'; timeoutSeconds = 240; actionBudget = 70; expectedActionCount = 70; screenshotBudget = 1 }
@@ -2495,15 +2495,18 @@ function Invoke-JetGuiScenarioStep {
             }
             'synthetic-sqlite-create' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 1 -and
                     [bool]$manifest.assertions.createFormVisible -and
                     [bool]$manifest.assertions.requiredFieldsEntered -and
                     [bool]$manifest.assertions.sqliteSelected -and
                     [bool]$manifest.assertions.projectCreated -and
                     [bool]$manifest.assertions.importStepVisible -and
-                    [bool]$manifest.assertions.projectCodeVisible -and
+                    [bool]$manifest.assertions.caseNameVisible -and
                     [bool]$manifest.assertions.projectJsonExists -and
                     [bool]$manifest.assertions.sqliteDatabaseExists -and
-                    [bool]$manifest.assertions.storedProjectMatches
+                    [bool]$manifest.assertions.storedProjectMatches -and
+                    [bool]$manifest.assertions.storedOptionalMetadataBlank -and
+                    [bool]$manifest.assertions.storedOperatorMatches
             }
             'mapping-required-sync' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
@@ -2538,6 +2541,9 @@ function Invoke-JetGuiScenarioStep {
                     [bool]$manifest.assertions.gridApprovalModesCoherent -and
                     [bool]$manifest.assertions.mappingOptionsDirtyStateVisible -and
                     [bool]$manifest.assertions.committedMappingOptionsRestored -and
+                    [bool]$manifest.assertions.manualAutoPolicyResetAfterDetach -and
+                    [bool]$manifest.assertions.postingStatusPolicyResetAfterSourceChange -and
+                    [bool]$manifest.assertions.rdeSelectAllAndClearVerified -and
                     [bool]$manifest.assertions.requiredFieldJumpFocused
             }
             'validation-auto-outputs' {
@@ -3789,11 +3795,12 @@ function Invoke-JetHarness {
                         -SensitiveValuesToRedact $probeSensitiveValues `
                         -TreatNuGetSourceFailureAsBlocked:($ContractScenario -ceq 'NuGetUnavailable')
                     $steps.Add($step)
-                    if ($step.status -ceq 'passed' -and $ContractScenario -cin @('MutationBoundary', 'OwnedProcessTree', 'FrontendPreview')) {
+                    if ($step.status -ceq 'passed' -and $ContractScenario -cin @('MutationBoundary', 'OwnedProcessTree', 'FrontendPreview', 'FrontendMapping')) {
                         $testScript = switch ($ContractScenario) {
                             'MutationBoundary' { 'mutation-contract.tests.ps1' }
                             'OwnedProcessTree' { 'process-tree-contract.tests.ps1' }
                             'FrontendPreview' { 'frontend-preview-contract.tests.ps1' }
+                            'FrontendMapping' { 'frontend-mapping-contract.tests.ps1' }
                         }
                         $steps.Add((Invoke-JetChildStep `
                             -RepositoryRoot $repositoryFull -RunDirectory $context.RunDirectory `

@@ -97,7 +97,7 @@ public sealed class IntakeMappingProgramTests
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
         Assert.Equal(
-            "1 列轉換失敗（已全部 rollback；以下為有界樣本）。JE.csv row 7 amount: 'bad' 不是有效金額",
+            "1 列無法轉換，系統沒有保存這次配對結果。以下列出部分原因：JE.csv 第 7 列，欄位「amount」，值「bad」：不是有效金額",
             error.Message);
     }
 

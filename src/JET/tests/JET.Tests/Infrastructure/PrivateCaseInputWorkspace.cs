@@ -57,7 +57,7 @@ internal sealed class PrivateCaseInputWorkspace : IDisposable
 {
     private const string DirectoryPrefix = "private-case-inputs-";
     private static readonly HashSet<string> AllowedExtensions =
-        new([".csv", ".txt", ".xlsx"], StringComparer.Ordinal);
+        new([".csv", ".txt", ".xlsx", ".xlsm"], StringComparer.Ordinal);
 
     private readonly string _ownedRoot;
     private readonly string _workspacePath;

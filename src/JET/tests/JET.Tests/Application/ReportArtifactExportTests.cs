@@ -1779,7 +1779,9 @@ public sealed class ReportArtifactExportFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        Host = new HandlerTestHost();
+        // 操作人員由目前 principal 決定，不再由 project.create payload 假造；
+        // 固定測試 principal，讓報表署名仍是可重現的 synthetic 值。
+        Host = new HandlerTestHost(principalName: "tester");
         ProjectId = await SetupProjectAsync(Host);
 
         var validation = await Host.DispatchAsync("validate.run");

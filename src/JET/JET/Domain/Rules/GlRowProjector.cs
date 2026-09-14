@@ -94,7 +94,7 @@ public static class GlRowProjector
                 row.SourceRowNumber,
                 MappedColumnOrKey(spec, GlMappingKeys.Amount),
                 amount.ToString(CultureInfo.InvariantCulture),
-                "scaled amount exceeds 64-bit range");
+                ProjectionErrorReasons.AmountOutOfRange);
             return false;
         }
 
@@ -235,7 +235,7 @@ public static class GlRowProjector
             row.SourceRowNumber,
             MappedColumnOrKey(spec, key),
             raw,
-            "is not a valid amount");
+            ProjectionErrorReasons.AmountInvalid);
         return false;
     }
 
@@ -259,7 +259,7 @@ public static class GlRowProjector
             row.SourceRowNumber,
             MappedColumnOrKey(spec, key),
             raw ?? string.Empty,
-            "is not a recognizable date");
+            ProjectionErrorReasons.DateInvalid);
         return false;
     }
 
@@ -334,8 +334,8 @@ public static class GlRowProjector
             sourceColumn,
             raw ?? string.Empty,
             normalized.Length == 0
-                ? "is blank but manual/automatic mapping is enabled"
-                : "is not in the configured manual/automatic codes");
+                ? "是空白，但已啟用人工或自動分錄判定。請補齊來源資料，或回到欄位配對取消這個欄位"
+                : "未歸類為人工或自動。請回到欄位配對將這個值歸類，或取消這個欄位");
         return false;
     }
 
@@ -380,7 +380,7 @@ public static class GlRowProjector
                             row.SourceRowNumber,
                             field.SourceColumn,
                             raw,
-                            $"exceeds the RDE text limit of {GlRdeStorageLimits.TextValueUtf16CodeUnits} UTF-16 code units");
+                            ProjectionErrorReasons.RdeTextTooLong(GlRdeStorageLimits.TextValueUtf16CodeUnits));
                         return false;
                     }
 
@@ -399,7 +399,7 @@ public static class GlRowProjector
                             row.SourceRowNumber,
                             field.SourceColumn,
                             raw,
-                            "is not a recognizable RDE date");
+                            ProjectionErrorReasons.RdeDateInvalid);
                         return false;
                     }
 
@@ -419,7 +419,7 @@ public static class GlRowProjector
                             row.SourceRowNumber,
                             field.SourceColumn,
                             raw,
-                            "is not a valid RDE money value at the project MoneyScale");
+                            ProjectionErrorReasons.RdeMoneyInvalid);
                         return false;
                     }
 
@@ -470,6 +470,6 @@ public static class GlRowProjector
             MappedColumnOrKey(spec, amountKey),
             GetMappedValue(row, spec, amountKey)
                 ?? amountScaled.ToString(CultureInfo.InvariantCulture),
-            "projection control total exceeds 64-bit range");
+            ProjectionErrorReasons.ControlTotalOutOfRange);
     }
 }

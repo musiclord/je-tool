@@ -1,7 +1,7 @@
 # 改寫範例
 
 每一筆記錄原文、改寫、原因與來源。原文只收本專案實際出現過的句子，包括 agent 在對話中寫出的收尾摘要；
-不編造。事實不確定的例子不收。目前 8 筆；之後每次有代表性的人工改寫，就加一筆。
+不編造。事實不確定的例子不收。目前 9 筆；之後每次有代表性的人工改寫，就加一筆。
 
 本檔故意保留不良句子當對照，所以不列入 `Documentation` 命令的樣式檢查，否則每次都會出現同一批
 warning。它是否存在由 `SKILL.md` 的必要指向與 `docs/first-root-commit-candidate.txt` 保證。
@@ -24,6 +24,7 @@ warning。它是否存在由 `SKILL.md` 的必要指向與 `docs/first-root-comm
 | 6 | 依同一授權，整輪成果以明確路徑 stage、單一 commit 提交並推送一次 `main -> origin/main`。 | 依同一授權，把這一輪的全部改動用明確路徑加入索引，做成一個 commit，推送一次到 `origin/main`。 | 一句塞了三個 Git 動作與兩個英文動詞；拆開後每個動作都看得懂。 | 2026-09-02 session 計畫檔 |
 | 7 | `CLAUDE.md` 10 行＋`AGENTS.md` 107 行＝117 行 | `CLAUDE.md` 10 行加 `AGENTS.md` 107 行，共 117 行。 | 表格裡用算式代替句子。 | `docs/agent-compatibility.md` 2026-09-01 版 |
 | 8 | 前一輪被審查抓到兩次綠燈卻空斷言。 | 前一輪被審查抓到兩次測試通過、但斷言是空的。 | 「綠燈」是工作用語，讀者不一定知道指測試通過。 | `docs/specs/2026-08-30-repository-consolidation-plan.md` 2026-09-01 版 |
+| 9 | 完整性測試 Part B 無法執行：請先完成 TB 欄位配對並重新執行資料驗證。 | 完整性測試無法執行 GL 與 TB 的逐科目比對：請先完成 TB 欄位配對並重新執行資料驗證。 | Part B 是程式內部分段名稱，使用者無法由名稱知道系統少了哪一項檢查。改寫後直接說明比對對象與下一步。 | `src/JET/JET/AuditCore/CompletenessEligibility.cs` 2026-09-09 修改前文字 |
 
 ## 已列為 warning 的自創名詞
 

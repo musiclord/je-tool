@@ -208,7 +208,7 @@ public sealed class GlEffectivePopulationProjectionProviderTests
         var error = Assert.Single(result.Errors);
         Assert.Equal(3, error.SourceRowNumber);
         Assert.Equal("amount", error.Field);
-        Assert.Equal("projection control total exceeds 64-bit range", error.Reason);
+        Assert.Equal("金額加總後超過系統可保存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
         Assert.Null(result.EffectivePopulation);
 
         await using (connection)

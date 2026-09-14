@@ -200,7 +200,7 @@ public sealed class FilterConditionRendererTests
             } } }
         });
 
-        Assert.Equal("總帳日期 2024-01-01～…", result);
+        Assert.Equal("過帳日期 2024-01-01～…", result);
     }
 
     // ---- 多組（ne≥2）：組間運算子 + 內層括號 ----

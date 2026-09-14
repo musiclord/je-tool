@@ -2,7 +2,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 來源標頭正規化：trim、空白標頭 → COL_{columnNumber}、重複標頭加 _2/_3 字尾。
-/// xlsx 與 csv reader 共用同一套規則（guide §3.1.1），確保 mapping 階段欄名一字不差；
+/// Open XML 活頁簿與 CSV reader 共用同一套規則（guide §3.1.1），確保 mapping 階段欄名一字不差；
 /// staging row_json 的 key 也使用同一組名稱。
 /// </summary>
 public static class TabularHeaderNormalizer

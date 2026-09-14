@@ -15,7 +15,7 @@
   var GL_FIELDS = [
     { key: 'docNum', label: '傳票號碼', req: 'always' },
     { key: 'lineID', label: '傳票文件項次', req: 'optional' },
-    { key: 'postDate', label: '總帳日期', req: 'always' },
+    { key: 'postDate', label: '過帳日期', req: 'always' },
     { key: 'docDate', label: '傳票核准日', req: 'optional' },
     { key: 'voucherDate', label: '傳票日期', req: 'optional' },
     { key: 'accNum', label: '會計科目編號', req: 'always' },
@@ -48,12 +48,12 @@
   ];
 
   // GL 核准日三態（manifest mapping.commit.gl 的 approvalDateMode closed values）。
-  // mapped 必須且只可配「傳票核准日」來源欄；sameAsPostDate 直接沿用標準化後的總帳日期，
+  // mapped 必須且只可配「傳票核准日」來源欄；sameAsPostDate 直接沿用標準化後的過帳日期，
   // 兩者互斥由前端就近引導，後端 mapping.commit.gl 仍是權威。
   var GL_APPROVAL_DATE_MODES = [
     { value: 'unmapped', label: '沒有核准日' },
     { value: 'mapped', label: '由來源欄提供' },
-    { value: 'sameAsPostDate', label: '與總帳日期相同' }
+    { value: 'sameAsPostDate', label: '與過帳日期相同' }
   ];
 
   // 攸關資料元素（RDE）欄位型別（manifest rdeFields.valueType closed values）。
@@ -1215,7 +1215,7 @@
         return global.JetApi.logRecent({}).then(function (log) {
           Store.seedMessages(log.messages || []);
         }).catch(function () {}).then(function () {
-          Store.addMessage('已載入專案「' + data.project.entityName + '」。', 'info');
+          Store.addMessage('已載入專案「' + data.project.projectId + '」。', 'info');
         });
       });
     }, {
@@ -1483,16 +1483,16 @@
   /* ---- 共用 helper：預覽表格與篩選規則預設值 --------------------------------- */
 
   // 把 previewRows 陣列轉成 <table class="preview-table"> 的完整標記。
-  // 欄位順序：傳票號碼、項次、總帳日期、科目（代碼＋名稱）、摘要、金額、借貸。
+  // 欄位順序：傳票號碼、項次、過帳日期、科目（代碼＋名稱）、摘要、金額、借貸。
   // 供 filter-step 與 validate-step 共用；呼叫端自行包 <div class="preview-table__wrap">。
   // sortAction 有值時表頭可點排序（鍵名對齊該查詢的 wire row），供預篩選命中表；預覽列表不排序時省略。
   function previewTableHtml(previewRows, sortAction) {
     var head = sortAction === 'query.prescreenPage'
       ? sortableHeadCellsHtml('query.prescreenPage', [
-          { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳日期' },
+          { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '過帳日期' },
           { key: 'accountCode', label: '科目' }, { key: 'documentDescription', label: '摘要' }, { key: 'amount', label: '金額' },
           { key: 'drCr', label: '借貸' }])
-      : '<th>傳票號碼</th><th>項次</th><th>總帳日期</th><th>科目</th><th>摘要</th><th>金額</th><th>借貸</th>';
+      : '<th>傳票號碼</th><th>項次</th><th>過帳日期</th><th>科目</th><th>摘要</th><th>金額</th><th>借貸</th>';
     var rows = (previewRows || []).map(function (r) {
       return (
         '<tr>' +

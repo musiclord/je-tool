@@ -27,19 +27,23 @@
     tb: Ui.createLatestResponseGuard()
   };
 
-  // 來源欄值分布快取（mapping.valueProfile）：以「批次 + 來源欄」為鍵。
+  // 來源欄值分布快取（mapping.valueProfile）：限目前案件的 GL 匯入，以來源欄為鍵。
   // 形狀：{ loading:true } | { error:true } | { blankCount, distinctCount, values, truncated }
   // 這是後端 set-based 聚合的有界結果；前端不掃描來源列、不自行統計。
-  var valueProfileCache = {};
-  var valueProfileGuard = Ui.createLatestResponseGuard();
+  var valueProfileCache = Object.create(null);
+  var valueProfileProject = null;
+  var valueProfileImport = null;
+  var mappingCommitErrors = { gl: null, tb: null };
 
   Ui.registerWorkflowReset(function () {
     sourceResponseGuards.gl.invalidate();
     sourceResponseGuards.tb.invalidate();
-    valueProfileGuard.invalidate();
     editing = { gl: false, tb: false };
     sourceCache = { gl: null, tb: null };
-    valueProfileCache = {};
+    valueProfileCache = Object.create(null);
+    valueProfileProject = null;
+    valueProfileImport = null;
+    mappingCommitErrors = { gl: null, tb: null };
   });
 
   function glOptions() {
@@ -51,24 +55,35 @@
     return [];
   }
 
-  function profileKey(kind, column) {
-    var importInfo = Store.getState().importState[kind];
-    return (importInfo ? importInfo.batchId : 'none') + '|' + column;
+  function valueProfiles(kind) {
+    var state = Store.getState();
+    var importInfo = state.importState[kind];
+    // 值摘要只供 GL 使用。換案件或重新匯入時整份丟棄，舊回應不能復活舊快取。
+    if (valueProfileProject !== state.project || valueProfileImport !== importInfo) {
+      valueProfileCache = Object.create(null);
+      valueProfileProject = state.project;
+      valueProfileImport = importInfo;
+    }
+    return valueProfileCache;
   }
 
   // 惰性取得來源欄值分布。只發 mapping.valueProfile，載入完成後 touch() 重繪；
   // 值、次數、空白數與是否截斷全部由後端決定，前端不補算 distinct。
   function ensureValueProfile(kind, column) {
     if (!column) { return; }
-    var key = profileKey(kind, column);
-    if (valueProfileCache[key]) { return; }
+    var cache = valueProfiles(kind);
+    if (cache[column] && !cache[column].error) { return; }
     var requestState = Store.getState();
-    var projectId = requestState.project ? requestState.project.projectId : null;
-    var accept = valueProfileGuard.issue(function () {
+    var project = requestState.project;
+    var importInfo = requestState.importState[kind];
+    var entry = { loading: true };
+    // 不同欄位可同時完成；同一欄的重試才取代前一次請求。
+    function accept() {
       var latest = Store.getState();
-      return !!latest.project && latest.project.projectId === projectId;
-    });
-    valueProfileCache[key] = { loading: true };
+      return !!project && latest.project === project && latest.importState[kind] === importInfo
+        && valueProfileCache === cache && cache[column] === entry;
+    }
+    cache[column] = entry;
     Store.touch();
     global.JetApi.mappingValueProfile({
       dataset: 'gl',
@@ -76,7 +91,7 @@
       limit: Ui.VALUE_PROFILE_LIMIT
     }).then(function (data) {
       if (!accept()) { return; }
-      valueProfileCache[key] = {
+      cache[column] = {
         blankCount: data.blankCount,
         distinctCount: data.distinctCount,
         values: data.values || [],
@@ -85,7 +100,7 @@
       Store.touch();
     }).catch(function () {
       if (!accept()) { return; }
-      valueProfileCache[key] = { error: true };
+      cache[column] = { error: true };
       Store.touch();
     });
   }
@@ -203,11 +218,14 @@
       return;
     }
 
+    discardStaleMappingCommitErrors(state);
     var canRestore = !!state.importState.gl && !!state.importState.tb;
     container.innerHTML =
       '<div class="panel panel--wide panel--mapping">' +
         '<h2 class="panel__title">欄位配對</h2>' +
-        '<p class="panel__hint">將來源欄位對應到 JET 邏輯欄位。可先自動建議再人工確認；標 * 者為目前模式的必填欄位。</p>' +
+        '<p class="panel__hint panel__hint--wide">將來源欄位對應到 JET 邏輯欄位。可先自動建議再人工確認；' +
+          '標 * 者為目前模式的必填欄位。過帳日期用來界定查核期間；傳票日期是選填，僅供回溯過帳判斷。' +
+          '畫面的「過帳日期」在 Working Paper 的欄名仍是「總帳日期_JE」。</p>' +
         Ui.mappingReviewBannerHtml(state) +
         '<div class="panel__actions">' +
           '<button type="button" class="btn btn--ghost" data-action="restore-mapping-draft"' +
@@ -242,6 +260,7 @@
           return global.JetApi.mappingRestoreDraft({ filePath: file.filePath }).then(function (data) {
             editing.gl = true;
             editing.tb = true;
+            mappingCommitErrors = { gl: null, tb: null };
             Store.restoreMappingDrafts(data);
             Store.addMessage('已載入 GL／TB 配對草稿；請檢查後分別確認配對。', 'info');
           });
@@ -277,7 +296,7 @@
       problems.push('核准日選「由來源欄提供」時，必須指派「傳票核准日」來源欄');
     }
     if (options.approvalDateMode === 'sameAsPostDate' && draft.docDate) {
-      problems.push('核准日選「與總帳日期相同」時，不可同時指派「傳票核准日」來源欄');
+      problems.push('核准日選「與過帳日期相同」時，不可同時指派「傳票核准日」來源欄');
     }
     if (options.approvalDateMode === 'unmapped' && draft.docDate) {
       problems.push('核准日選「不提供」時，不可同時指派「傳票核准日」來源欄');
@@ -328,7 +347,7 @@
         approvalModeHtml(options, draft, importInfo) +
         postingStatusPolicyHtml(options, draft) +
         manualAutoPolicyHtml(options, draft) +
-        rdeFieldsHtml(options, draft, importInfo) +
+        rdeFieldsHtml(options) +
       '</section>'
     );
   }
@@ -348,7 +367,7 @@
           ? '目前以來源欄「' + Ui.esc(draft.docDate) + '」作為核准日。'
           : '請在下方選擇核准日來源欄。')
       : (options.approvalDateMode === 'sameAsPostDate'
-          ? '每列的核准日直接沿用標準化後的總帳日期；此設定下不可再指派「傳票核准日」來源欄。'
+          ? '每列的核准日直接沿用標準化後的過帳日期；此設定下不可再指派「傳票核准日」來源欄。'
           : '這份總帳沒有核准日；需要核准日的測試會標示為無法執行。');
 
     return '<fieldset class="map-options__group">' +
@@ -375,7 +394,7 @@
 
     var policy = options.postingStatusPolicy || { acceptedValues: [], includeBlank: false };
     var accepted = policy.acceptedValues || [];
-    var profile = valueProfileCache[profileKey('gl', draft.postingStatus)];
+    var profile = valueProfiles('gl')[draft.postingStatus];
     var body;
     if (!profile) {
       body = '<button type="button" class="btn btn--ghost btn--tiny" data-action="load-posting-profile">' +
@@ -458,7 +477,7 @@
         '</fieldset>';
     }
 
-    var profile = valueProfileCache[profileKey('gl', draft.manual)];
+    var profile = valueProfiles('gl')[draft.manual];
     var body;
     if (!profile) {
       body = '<button type="button" class="btn btn--ghost btn--tiny" data-action="load-manual-profile">' +
@@ -495,9 +514,9 @@
       body =
         '<p class="map-options__note">來源欄「' + Ui.esc(draft.manual) + '」共 ' +
           Number(profile.distinctCount).toLocaleString() + ' 種值、空白 ' +
-          Number(profile.blankCount).toLocaleString() + ' 列。' +
+          Number(profile.blankCount).toLocaleString() + ' 列。下方只列非空白值；空白不會因為沒有顯示就自動歸類。' +
           '已指派這個欄位時，空白或未歸類的值會讓整批標準化失敗。' +
-          (profile.truncated ? '值太多，只列出最常出現的幾種。' : '') +
+          (profile.truncated ? '值太多，只列出最常出現的幾種；未顯示的值仍需用下方欄位加入並歸類。' : '') +
         '</p>' +
         '<ul class="value-assign-list">' + rows + '</ul>';
     }
@@ -528,18 +547,35 @@
       '</fieldset>';
   }
 
-  // 只列出「沒有被核心欄位配對佔用」的來源欄；勾選後才需要顯示名稱與型別。
+  // 只列出「沒有被核心欄位配對佔用」的來源欄（規則在 Store.availableGlRdeColumns）；勾選後才需要顯示名稱與型別。
   // 型別解析、空白判定與失敗時的整批 rollback 都在系統端，畫面不猜型別。
-  function rdeFieldsHtml(options, draft, importInfo) {
-    var used = {};
-    Object.keys(draft).forEach(function (key) {
-      if (key !== 'dcDebitCode' && draft[key]) { used[draft[key]] = true; }
+  function toggleAllRdeFields(selectAll) {
+    var state = Store.getState();
+    var current = state.mapping.gl.options.rdeFields || [];
+    var columns = Store.availableGlRdeColumns();
+    var byColumn = Object.create(null);
+    current.forEach(function (field) { byColumn[field.sourceColumn] = field; });
+    mappingCommitErrors.gl = null;
+    Store.patchGlMappingOptions({
+      rdeFields: selectAll
+        ? columns.map(function (column) {
+            return byColumn[column] || { sourceColumn: column, label: column, valueType: 'text' };
+          })
+        : []
     });
+  }
+
+  function rdeFieldsHtml(options) {
     var selected = options.rdeFields || [];
-    var columns = (importInfo.columns || []).filter(function (column) { return !used[column]; });
+    var columns = Store.availableGlRdeColumns();
+    var selectedByColumn = Object.create(null);
+    selected.forEach(function (field) { selectedByColumn[field.sourceColumn] = field; });
+    var allSelected = columns.length > 0 && columns.every(function (column) {
+      return !!selectedByColumn[column];
+    });
 
     var rows = columns.map(function (column, index) {
-      var hit = selected.filter(function (f) { return f.sourceColumn === column; })[0];
+      var hit = selectedByColumn[column];
       var controls = hit
         ? '<span class="rde-field__controls">' +
             '<label class="visually-hidden" for="rde-label-' + index + '">' +
@@ -571,10 +607,15 @@
 
     return '<fieldset class="map-options__group">' +
       '<legend class="map-options__legend">攸關資料元素欄位</legend>' +
-      '<p class="map-options__note">勾選要一併保留的額外來源欄，它們可用於進階條件、抽樣測試與正式底稿。' +
+      '<p class="map-options__note map-options__note--wide">勾選要一併保留的額外來源欄，它們可用於進階條件、抽樣測試與正式底稿。' +
         '沒有勾選的來源欄不會被保留。</p>' +
       (rows
-        ? '<ul class="rde-field-list">' + rows + '</ul>'
+        ? '<div class="map-options__inline">' +
+            '<button type="button" class="btn btn--ghost btn--tiny" data-action="select-all-rde"' +
+              (allSelected ? ' disabled' : '') + '>全選</button>' +
+            '<button type="button" class="btn btn--ghost btn--tiny" data-action="clear-all-rde"' +
+              (selected.length === 0 ? ' disabled' : '') + '>全部取消</button>' +
+          '</div><ul class="rde-field-list">' + rows + '</ul>'
         : '<p class="map-options__note">目前所有來源欄都已對應到 JET 欄位，沒有可額外保留的欄位。</p>') +
       '</fieldset>';
   }
@@ -673,8 +714,10 @@
       facts.push('未套用過帳狀態排除');
     }
 
-    var manual = options.manualAutoPolicy || { manualValues: [], automaticValues: [] };
-    facts.push('人工 ' + manual.manualValues.join('、') + '／自動 ' + manual.automaticValues.join('、'));
+    if (committed.mapping && committed.mapping.manual) {
+      var manual = options.manualAutoPolicy || { manualValues: [], automaticValues: [] };
+      facts.push('人工 ' + manual.manualValues.join('、') + '／自動 ' + manual.automaticValues.join('、'));
+    }
 
     var rde = options.rdeFields || [];
     facts.push(rde.length
@@ -833,6 +876,31 @@
       eligibility.problems.map(Ui.esc).join('、') + '</p>';
   }
 
+  // 提交錯誤綁定當次案件與匯入來源；換案件或重新匯入後作廢。只在 render 開頭呼叫一次，
+  // 畫面函式本身只讀不寫。
+  function discardStaleMappingCommitErrors(state) {
+    ['gl', 'tb'].forEach(function (kind) {
+      var error = mappingCommitErrors[kind];
+      if (error && (error.project !== state.project || error.importInfo !== state.importState[kind])) {
+        mappingCommitErrors[kind] = null;
+      }
+    });
+  }
+
+  function mappingCommitErrorHtml(kind) {
+    var error = mappingCommitErrors[kind];
+    if (!error) { return ''; }
+    return '<div class="form-notice mapping-section__error" data-bind="mapping-commit-error-' + kind +
+      '" role="alert"><strong>' + (kind === 'gl' ? 'GL' : 'TB') +
+      ' 配對未完成：</strong>' + Ui.esc(error.message) + '</div>';
+  }
+
+  function clearMappingCommitError(kind, section) {
+    mappingCommitErrors[kind] = null;
+    var notice = section.querySelector('[data-bind="mapping-commit-error-' + kind + '"]');
+    if (notice) { notice.remove(); }
+  }
+
   function gridEditSection(kind, title, fields, modes, importInfo, mappingState, mode, committed, matches) {
     var banner = '<p class="rule-card__sub">下方為配對草稿，按「確認配對」後才會保存並供後續步驟使用；結束 JET 不會保存尚未確認的修改。</p>';
     if (mappingState.invalidatedByImport) {
@@ -888,6 +956,7 @@
         '</div>' +
         (kind === 'gl' ? glOptionsHtml(importInfo, mappingState) : '') +
         optionProblemsHtml(eligibility) +
+        mappingCommitErrorHtml(kind) +
         '<div class="panel__actions">' + actions + '</div>' +
       '</section>';
   }
@@ -965,6 +1034,7 @@
         '</div>' +
         (kind === 'gl' ? glOptionsHtml(importInfo, mappingState) : '') +
         optionProblemsHtml(eligibility) +
+        mappingCommitErrorHtml(kind) +
         '<div class="panel__actions">' + actions + '</div>' +
       '</section>';
   }
@@ -1171,6 +1241,16 @@
       });
     });
 
+    var selectAllRde = section.querySelector('[data-action="select-all-rde"]');
+    if (selectAllRde) {
+      selectAllRde.addEventListener('click', function () { toggleAllRdeFields(true); });
+    }
+
+    var clearAllRde = section.querySelector('[data-action="clear-all-rde"]');
+    if (clearAllRde) {
+      clearAllRde.addEventListener('click', function () { toggleAllRdeFields(false); });
+    }
+
     section.querySelectorAll('[data-rde-label]').forEach(function (input) {
       input.addEventListener('input', function () {
         var column = input.getAttribute('data-rde-label');
@@ -1206,6 +1286,21 @@
   function bindMappingSection(container, kind, fields) {
     var section = container.querySelector('[data-bind="mapping-' + kind + '"]');
     if (!section) { return; }
+
+    // 任一配對或政策欄位改變後，上一個提交錯誤已不再完全對應目前草稿；先移除目前節點，
+    // 需要重繪的操作再由同一次 state bump 建立最新畫面。
+    section.addEventListener('change', function () {
+      clearMappingCommitError(kind, section);
+    }, true);
+    section.addEventListener('input', function () {
+      clearMappingCommitError(kind, section);
+    }, true);
+    section.addEventListener('click', function (event) {
+      if (event.target.closest('[data-remove-code], [data-action="add-code"], ' +
+          '[data-action="select-all-rde"], [data-action="clear-all-rde"]')) {
+        clearMappingCommitError(kind, section);
+      }
+    }, true);
 
     if (kind === 'gl' && section.querySelector('[data-bind="gl-options"]')) {
       bindGlOptions(section);
@@ -1277,6 +1372,7 @@
     var restoreBtn = section.querySelector('[data-action="restore-' + kind + '"]');
     if (restoreBtn) {
       restoreBtn.addEventListener('click', function () {
+        mappingCommitErrors[kind] = null;
         var committed = Store.getState().mapping[kind].committed;
         if (!committed || !committed.mapping) { return; }
         editing[kind] = false;
@@ -1302,6 +1398,7 @@
     var suggestBtn = section.querySelector('[data-action="suggest-' + kind + '"]');
     if (suggestBtn) {
       suggestBtn.addEventListener('click', function () {
+        mappingCommitErrors[kind] = null;
         var importInfo = Store.getState().importState[kind];
         if (!importInfo) { return; }
 
@@ -1327,7 +1424,10 @@
 
     if (commitBtn) {
       commitBtn.addEventListener('click', function () {
+        mappingCommitErrors[kind] = null;
         var current = Store.getState().mapping[kind];
+        var project = Store.getState().project;
+        var importInfo = Store.getState().importState[kind];
         var mapping = {};
         Object.keys(current.draft).forEach(function (key) {
           if (current.draft[key]) { mapping[key] = current.draft[key]; }
@@ -1343,6 +1443,7 @@
             : global.JetApi.mappingCommitTb({ mapping: mapping, changeMode: mode });
 
           return promise.then(function (data) {
+            mappingCommitErrors[kind] = null;
             editing[kind] = false;
             if (kind === 'gl') {
               // 後端回傳全部 canonical options 與 stable ID：草稿一律以 response 取代，
@@ -1366,6 +1467,15 @@
               Store.addMessage(label + '提醒：' + w, 'warn');
             });
           });
+        }, {
+          onError: function (_, error) {
+            mappingCommitErrors[kind] = {
+              project: project,
+              importInfo: importInfo,
+              message: error && error.message ? error.message : '系統沒有提供失敗原因，請輸出支援日誌。'
+            };
+            Store.touch();
+          }
         });
       });
     }

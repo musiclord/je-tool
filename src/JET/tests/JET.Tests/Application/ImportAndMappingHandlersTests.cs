@@ -119,7 +119,7 @@ public sealed class ImportAndMappingHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        // .xls（舊格式）不在支援清單（.xlsx/.csv/.txt，manifest unsupported_file_type）
+        // .xls（舊二進位格式）不在支援清單（.xlsx/.xlsm/.csv/.txt，manifest unsupported_file_type）
         var xlsPath = Path.Combine(Path.GetTempPath(), $"jet-{Guid.NewGuid():N}.xls");
         await File.WriteAllTextAsync(xlsPath, "not a real xls");
         try
@@ -542,7 +542,7 @@ public sealed class ImportAndMappingHandlersTests
                 () => host.DispatchAsync("mapping.commit.gl", GlCommitPayload));
 
             Assert.Equal(JetErrorCodes.ProjectionFailed, ex.Code);
-            Assert.Contains("row 2", ex.Message);
+            Assert.Contains("第 2 列", ex.Message);
             Assert.Contains("借方金額", ex.Message);
             Assert.Contains("not-a-number", ex.Message);
         }

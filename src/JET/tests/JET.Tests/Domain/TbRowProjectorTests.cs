@@ -170,7 +170,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal(9, error!.SourceRowNumber);
         Assert.Equal("credit", error.Field);
         Assert.Equal("oops", error.RawValue);
-        Assert.Equal("is not a valid amount", error.Reason);
+        Assert.Equal("不是有效金額。請確認來源資料的金額格式，或回到欄位配對改選正確的金額欄", error.Reason);
     }
 
 
@@ -385,7 +385,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal(8, error!.SourceRowNumber);
         Assert.Equal("ccr", error.Field);
         Assert.Equal("oops", error.RawValue);
-        Assert.Equal("is not a valid amount", error.Reason);
+        Assert.Equal("不是有效金額。請確認來源資料的金額格式，或回到欄位配對改選正確的金額欄", error.Reason);
     }
 
     [Fact]
@@ -412,7 +412,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal(11, error!.SourceRowNumber);
         Assert.Equal("change", error.Field);
         Assert.Equal("79228162514264337593543950335", error.RawValue);
-        Assert.Equal("scaled amount exceeds 64-bit range", error.Reason);
+        Assert.Equal("金額換算後超過系統可保存的範圍。請確認這個金額是否正確，或調整案件的金額小數位數", error.Reason);
     }
 
 }

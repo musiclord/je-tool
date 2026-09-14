@@ -138,7 +138,7 @@ public sealed record ImportBatchResult(
 
 /// <summary>
 /// 單一表格來源的讀取請求（manifest import.*.fromFile 的可選欄位）。
-/// SheetName 僅 .xlsx 有效；EncodingName / Delimiter 僅 .csv/.txt 有效，
+/// SheetName 僅 .xlsx 或 .xlsm 有效；EncodingName 和 Delimiter 僅 .csv 或 .txt 有效，
 /// null 表示交由 reader 偵測（guide §3.1.1）。欄位適用性驗證在 handler，reader 只消費。
 /// </summary>
 public sealed record TabularSourceRequest(
@@ -160,7 +160,7 @@ public sealed record WorksheetInspection(
 
 /// <summary>
 /// 匯入前的唯讀檔案檢視（manifest import.inspectFile）。
-/// .xlsx：Worksheets 有值、其餘 null；.csv/.txt：Columns/Encoding 有值、
+/// .xlsx 或 .xlsm：Worksheets 有值、其餘 null；.csv 或 .txt：Columns 和 Encoding 有值、
 /// Delimiter 為偵測結果（單欄檔 null）、Worksheets null。
 /// </summary>
 public sealed record TabularFileInspection(

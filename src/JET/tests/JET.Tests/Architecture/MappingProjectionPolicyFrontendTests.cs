@@ -118,8 +118,21 @@ public sealed class MappingProjectionPolicyFrontendTests
         Assert.Equal(new[] { "text", "date", "money" }, types.Keys.ToArray());
 
         // 只有勾選的來源欄會成為 RDE；核心配對已佔用的欄不列入候選。
+        // 「哪些來源欄已被核心配對佔用」只在 state.js 定義一次，畫面只呼叫，不另寫一份。
         Assert.Contains("data-rde-column=", mapping, StringComparison.Ordinal);
-        Assert.Contains("columns = (importInfo.columns || []).filter", mapping, StringComparison.Ordinal);
+        Assert.DoesNotContain("function rdeAvailableColumns", mapping, StringComparison.Ordinal);
+        Assert.DoesNotContain("key !== 'dcDebitCode'", mapping, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Matches(mapping, Regex.Escape("Store.availableGlRdeColumns()")).Count);
+
+        var state = ReadFrontend("js", "state.js");
+        var used = ExtractFunction(state, "usedGlSourceColumns", "removeCoreMappedRdeFields");
+        Assert.Contains("Object.create(null)", used, StringComparison.Ordinal);
+        Assert.Contains("key !== 'dcDebitCode' && value", used, StringComparison.Ordinal);
+
+        // 核心配對變動時，state 會清掉已被核心欄位佔用的 RDE，不能只靠畫面把衝突項目藏起來。
+        var cleanup = ExtractFunction(state, "removeCoreMappedRdeFields", "syncApprovalSource");
+        Assert.Contains("usedGlSourceColumns()", cleanup, StringComparison.Ordinal);
+        Assert.Contains("!used[field.sourceColumn]", cleanup, StringComparison.Ordinal);
 
         // 新欄一律省略 fieldId；既有欄沿用後端 stable ID。
         Assert.Contains(

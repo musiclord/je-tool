@@ -47,15 +47,27 @@ internal sealed class RawXlsxBuilder
         return this;
     }
 
-    public string Save()
+    public string Save(string extension = ".xlsx", bool macroEnabled = false)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"jet-rawxlsx-{Guid.NewGuid():N}.xlsx");
+        var isXlsxExtension = string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase);
+        var isMacroExtension = string.Equals(extension, ".xlsm", StringComparison.OrdinalIgnoreCase);
+        if ((!isXlsxExtension && !isMacroExtension) || macroEnabled != isMacroExtension)
+        {
+            throw new ArgumentException(
+                "Raw workbook extension and macro-enabled content type must describe the same Open XML format.",
+                nameof(extension));
+        }
+
+        var path = Path.Combine(Path.GetTempPath(), $"jet-rawxlsx-{Guid.NewGuid():N}{extension}");
 
         using var stream = File.Create(path);
         using var zip = new ZipArchive(stream, ZipArchiveMode.Create);
 
+        var workbookContentType = macroEnabled
+            ? "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml";
         var contentTypes = new StringBuilder(
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>""");
+            $"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="{workbookContentType}"/>""");
         var workbookSheets = new StringBuilder();
         var workbookRels = new StringBuilder();
 

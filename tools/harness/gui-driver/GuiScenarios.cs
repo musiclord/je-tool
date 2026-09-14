@@ -46,7 +46,6 @@ internal static partial class GuiScenarios
             caseName: field('caseName'),
             projectCode: field('projectCode'),
             entityName: field('entityName'),
-            operatorId: field('operatorId'),
             periodStart: field('periodStart'),
             periodEnd: field('periodEnd'),
             databaseProvider: field('databaseProvider'),
@@ -271,6 +270,12 @@ internal static partial class GuiScenarios
           return {
             mode: mapping.options.approvalDateMode,
             source: mapping.draft.docDate || '',
+            manualSource: mapping.draft.manual || '',
+            manualPolicy: JSON.stringify(mapping.options.manualAutoPolicy || {}),
+            postingPolicyCleared: mapping.options.postingStatusPolicy === null,
+            postingIncludesBlank: !!mapping.options.postingStatusPolicy && mapping.options.postingStatusPolicy.includeBlank,
+            rdeCount: mapping.options.rdeFields.length,
+            rdeAvailableCount: section ? section.querySelectorAll('[data-rde-column]').length : 0,
             amountMode: mapping.amountMode,
             draftSnapshot: JSON.stringify(mapping.draft),
             optionsSnapshot: JSON.stringify(mapping.options),
@@ -286,6 +291,7 @@ internal static partial class GuiScenarios
             dirtyWarningVisible: !!section && Array.prototype.some.call(section.querySelectorAll('.mapping-section__warn'), function (notice) {
               return visible(notice) && notice.textContent.indexOf('修改尚未生效') >= 0;
             }),
+            manualDetachedNoteVisible: !!section && section.textContent.indexOf('尚未指派「人工/自動分錄」來源欄') >= 0,
             remapVisible: visible(section ? section.querySelector('[data-action="remap-gl"]') : null)
           };
         })()
@@ -405,6 +411,37 @@ internal static partial class GuiScenarios
                 && !original.MatchesOptions(probe) && original.MatchesCommitted(probe),
             cancellationToken, outcome, original).ConfigureAwait(false);
         outcome.Assertions.MappingOptionsDirtyStateVisible = true;
+        outcome.RecordStage("manual-source-lifecycle");
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"manual\"]", string.Empty, outcome, cancellationToken)
+            .ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process,
+            probe => string.IsNullOrEmpty(ReadString(probe, "manualSource"))
+                && ReadString(probe, "manualPolicy") == "{\"manualValues\":[\"1\"],\"automaticValues\":[\"0\"]}"
+                && ReadBoolean(probe, "manualDetachedNoteVisible")
+                && original.MatchesCommitted(probe),
+            cancellationToken, outcome, original).ConfigureAwait(false);
+        outcome.Assertions.ManualAutoPolicyResetAfterDetach = true;
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"restore-gl\"]", outcome, cancellationToken)
+            .ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process,
+            probe => ReadBoolean(probe, "optionsRestored") && ReadBoolean(probe, "draftRestored")
+                && original.MatchesCommitted(probe), cancellationToken, outcome, original).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"remap-gl\"]", outcome, cancellationToken)
+            .ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process,
+            probe => !ReadBoolean(probe, "remapVisible") && ReadBoolean(probe, "optionsRestored")
+                && ReadBoolean(probe, "draftRestored") && original.MatchesCommitted(probe),
+            cancellationToken, outcome, original).ConfigureAwait(false);
+        outcome.RecordStage("posting-source-and-rde-lifecycle");
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"postingStatus\"]", "傳票項次", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"includeBlank\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process, probe => ReadBoolean(probe, "postingIncludesBlank"), cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"postingStatus\"]", "核准日期", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process, probe => ReadBoolean(probe, "postingPolicyCleared") && original.MatchesCommitted(probe), cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"postingStatus\"]", string.Empty, outcome, cancellationToken).ConfigureAwait(false);
+        outcome.Assertions.PostingStatusPolicyResetAfterSourceChange = true;
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"restore-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"remap-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
         outcome.RecordStage("classic-approval-modes");
         await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"unmapped\"]", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
@@ -448,6 +485,14 @@ internal static partial class GuiScenarios
 
         outcome.RecordStage("restore-mapping-options");
         await ClickControlAsync(cdp, process, GlSection + "[name=\"mode-gl\"][value=\"signed\"]", outcome, cancellationToken).ConfigureAwait(false);
+        // The fixture initially maps every source column. Signed mode releases the debit flag column,
+        // so select-all is tested only after a real user action makes an RDE candidate available.
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"select-all-rde\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process,
+            probe => ReadInt32(probe, "rdeCount") > 0 && ReadInt32(probe, "rdeCount") == ReadInt32(probe, "rdeAvailableCount"), cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"clear-all-rde\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await WaitForMappingPolicyAsync(cdp, process, probe => ReadInt32(probe, "rdeCount") == 0 && original.MatchesCommitted(probe), cancellationToken).ConfigureAwait(false);
+        outcome.Assertions.RdeSelectAllAndClearVerified = true;
         await ClickControlAsync(cdp, process, GlSection + "[data-rde-column]", outcome, cancellationToken).ConfigureAwait(false);
         await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"postingStatus\"]", "傳票項次", outcome, cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"includeBlank\"]", outcome, cancellationToken).ConfigureAwait(false);
@@ -515,9 +560,6 @@ internal static partial class GuiScenarios
     {
         var suffix = ownedRun.RunId[..12];
         var caseName = "AgentGui-" + suffix;
-        var projectCode = "GUI-" + suffix;
-        const string entityName = "AgentGuiEntity";
-        const string operatorId = "agent-gui";
         const string periodStart = "2025-01-01";
         const string periodEnd = "2025-12-31";
 
@@ -534,15 +576,6 @@ internal static partial class GuiScenarios
         form = await FillTextFieldAsync(
             cdp, process, form, CreateField.CaseName, caseName, outcome, cancellationToken)
             .ConfigureAwait(false);
-        form = await FillTextFieldAsync(
-            cdp, process, form, CreateField.ProjectCode, projectCode, outcome, cancellationToken)
-            .ConfigureAwait(false);
-        form = await FillTextFieldAsync(
-            cdp, process, form, CreateField.EntityName, entityName, outcome, cancellationToken)
-            .ConfigureAwait(false);
-        form = await FillTextFieldAsync(
-            cdp, process, form, CreateField.OperatorId, operatorId, outcome, cancellationToken)
-            .ConfigureAwait(false);
         form = await FillDateFieldAsync(
             cdp, process, form, CreateField.PeriodStart, periodStart, outcome, cancellationToken)
             .ConfigureAwait(false);
@@ -552,9 +585,8 @@ internal static partial class GuiScenarios
 
         outcome.Assertions.RequiredFieldsEntered =
             form.CaseName.Value == caseName
-            && form.ProjectCode.Value == projectCode
-            && form.EntityName.Value == entityName
-            && form.OperatorId.Value == operatorId
+            && form.ProjectCode.Value.Length == 0
+            && form.EntityName.Value.Length == 0
             && form.PeriodStart.Value == periodStart
             && form.PeriodEnd.Value == periodEnd;
         outcome.Assertions.SqliteSelected = form.DatabaseProvider.Value == "sqlite";
@@ -565,21 +597,22 @@ internal static partial class GuiScenarios
 
         await ClickControlAsync(cdp, process, "[data-bind=\"create-form\"] [type=\"submit\"]", outcome, cancellationToken)
             .ConfigureAwait(false);
-        var created = await WaitForCreatedProjectAsync(cdp, process, projectCode, cancellationToken)
+        var created = await WaitForCreatedProjectAsync(cdp, process, caseName, cancellationToken)
             .ConfigureAwait(false);
         outcome.Assertions.ProjectCreated = created.FormAbsent;
         outcome.Assertions.ImportStepVisible = created.ImportStepVisible
             && created.CaseStepText == "匯入資料";
-        outcome.Assertions.ProjectCodeVisible = created.CaseIdVisible
-            && created.CaseIdText == projectCode;
+        outcome.Assertions.CaseNameVisible = created.CaseIdVisible
+            && created.CaseIdText == caseName;
         if (!outcome.Assertions.ProjectCreated
             || !outcome.Assertions.ImportStepVisible
-            || !outcome.Assertions.ProjectCodeVisible)
+            || !outcome.Assertions.CaseNameVisible)
         {
             throw new GuiCheckException("created_project_ui_invalid");
         }
 
-        ValidateSyntheticProjectFiles(ownedRun, caseName, projectCode, outcome.Assertions);
+        ValidateSyntheticProjectFiles(ownedRun, caseName, outcome.Assertions);
+        await CaptureScreenshotAsync(cdp, outcome, cancellationToken).ConfigureAwait(false);
 
         await ClickAsync(cdp, created.ExitX, created.ExitY, outcome, cancellationToken)
             .ConfigureAwait(false);
@@ -1208,12 +1241,12 @@ internal static partial class GuiScenarios
             "application_exited_during_create_form", cancellationToken);
 
     private static Task<CreatedProjectProbe> WaitForCreatedProjectAsync(
-        CdpSession cdp, Process process, string projectCode, CancellationToken cancellationToken) =>
+        CdpSession cdp, Process process, string caseName, CancellationToken cancellationToken) =>
         WaitForProbeAsync(cdp, process, CreatedProjectProbeScript, value => new CreatedProjectProbe(
             ReadBoolean(value, "formAbsent"), ReadBoolean(value, "caseStepVisible"), ReadString(value, "caseStepText"),
             ReadBoolean(value, "caseIdVisible"), ReadString(value, "caseIdText"), ReadBoolean(value, "importStepVisible"),
             ReadBoolean(value, "exitButtonVisible"), ReadDouble(value, "exitX"), ReadDouble(value, "exitY")),
-            probe => probe.FormAbsent && probe.CaseStepVisible && probe.CaseIdVisible && probe.CaseIdText == projectCode
+            probe => probe.FormAbsent && probe.CaseStepVisible && probe.CaseIdVisible && probe.CaseIdText == caseName
                 && probe.ImportStepVisible && probe.ExitButtonVisible && double.IsFinite(probe.ExitX)
                 && double.IsFinite(probe.ExitY) && probe.ExitX > 0 && probe.ExitY > 0,
             "application_exited_before_project_created", cancellationToken);
@@ -1221,7 +1254,6 @@ internal static partial class GuiScenarios
     private static void ValidateSyntheticProjectFiles(
         OwnedGuiRun ownedRun,
         string caseName,
-        string projectCode,
         GuiAssertions assertions)
     {
         var projectsRoot = Path.GetFullPath(ownedRun.ProjectsRootPath);
@@ -1256,9 +1288,15 @@ internal static partial class GuiScenarios
         var root = document.RootElement;
         assertions.StoredProjectMatches =
             ReadRequiredDocumentString(root, "projectId") == caseName
-            && ReadRequiredDocumentString(root, "projectCode") == projectCode
             && ReadRequiredDocumentString(root, "databaseProvider") == "sqlite";
-        if (!assertions.StoredProjectMatches)
+        assertions.StoredOptionalMetadataBlank =
+            ReadDocumentStringAllowingEmpty(root, "projectCode").Length == 0
+            && ReadDocumentStringAllowingEmpty(root, "entityName").Length == 0;
+        assertions.StoredOperatorMatches =
+            ReadRequiredDocumentString(root, "operatorId") == "agent-gui";
+        if (!assertions.StoredProjectMatches
+            || !assertions.StoredOptionalMetadataBlank
+            || !assertions.StoredOperatorMatches)
         {
             throw new GuiCheckException("synthetic_project_metadata_invalid");
         }
@@ -1271,7 +1309,6 @@ internal static partial class GuiScenarios
             ReadField(value, "caseName"),
             ReadField(value, "projectCode"),
             ReadField(value, "entityName"),
-            ReadField(value, "operatorId"),
             ReadField(value, "periodStart"),
             ReadField(value, "periodEnd"),
             ReadField(value, "databaseProvider"),
@@ -1334,6 +1371,17 @@ internal static partial class GuiScenarios
         return property.GetString()!;
     }
 
+    private static string ReadDocumentStringAllowingEmpty(JsonElement value, string name)
+    {
+        if (!value.TryGetProperty(name, out var property)
+            || property.ValueKind != JsonValueKind.String)
+        {
+            throw new GuiCheckException("synthetic_project_metadata_missing");
+        }
+
+        return property.GetString() ?? string.Empty;
+    }
+
     private static void EnsureEmptyVisibleField(FieldProbe field)
     {
         if (!field.IsReady || field.Value.Length != 0)
@@ -1355,7 +1403,6 @@ internal static partial class GuiScenarios
         CaseName,
         ProjectCode,
         EntityName,
-        OperatorId,
         PeriodStart,
         PeriodEnd
     }
@@ -1374,7 +1421,6 @@ internal static partial class GuiScenarios
         FieldProbe CaseName,
         FieldProbe ProjectCode,
         FieldProbe EntityName,
-        FieldProbe OperatorId,
         FieldProbe PeriodStart,
         FieldProbe PeriodEnd,
         FieldProbe DatabaseProvider,
@@ -1386,7 +1432,6 @@ internal static partial class GuiScenarios
             && CaseName.IsReady
             && ProjectCode.IsReady
             && EntityName.IsReady
-            && OperatorId.IsReady
             && PeriodStart.IsReady
             && PeriodEnd.IsReady
             && DatabaseProvider.IsReady
@@ -1401,7 +1446,6 @@ internal static partial class GuiScenarios
             CreateField.CaseName => CaseName,
             CreateField.ProjectCode => ProjectCode,
             CreateField.EntityName => EntityName,
-            CreateField.OperatorId => OperatorId,
             CreateField.PeriodStart => PeriodStart,
             CreateField.PeriodEnd => PeriodEnd,
             _ => throw new ArgumentOutOfRangeException(nameof(field), field, null)

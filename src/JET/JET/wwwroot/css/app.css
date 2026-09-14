@@ -647,6 +647,10 @@ body::before {
   color: var(--color-muted);
 }
 
+.panel__hint--wide {
+  max-width: 84ch;
+}
+
 .panel__slot {
   padding: 40px;
   text-align: center;
@@ -5446,6 +5450,10 @@ body.is-resizing-preview {
   font-size: 12.5px;
   line-height: 1.7;
   color: var(--color-muted);
+}
+
+.map-options__note--wide {
+  max-width: none;
 }
 
 .map-options__group {

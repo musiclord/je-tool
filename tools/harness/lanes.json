@@ -128,9 +128,9 @@
       {
         "name": "synthetic-sqlite-create",
         "timeoutSeconds": 150,
-        "actionBudget": 16,
-        "expectedActionCount": 15,
-        "screenshotBudget": 0
+        "actionBudget": 12,
+        "expectedActionCount": 9,
+        "screenshotBudget": 1
       },
       {
         "name": "mapping-required-sync",
@@ -149,8 +149,8 @@
       {
         "name": "approval-mapping-modes",
         "timeoutSeconds": 240,
-        "actionBudget": 40,
-        "expectedActionCount": 32,
+        "actionBudget": 47,
+        "expectedActionCount": 47,
         "screenshotBudget": 1
       },
       {
@@ -259,7 +259,8 @@
     "CleanupFailure",
     "MutationBoundary",
     "OwnedProcessTree",
-    "FrontendPreview"
+    "FrontendPreview",
+    "FrontendMapping"
   ],
   "commands": {
     "Contract": {

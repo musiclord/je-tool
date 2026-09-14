@@ -87,6 +87,7 @@ docs/specs/2026-08-30-repository-consolidation-plan.md
 docs/specs/2026-09-01-frontend-sync-devlog-mutation-plan.md
 docs/specs/2026-09-06-filter-workflow-correction-plan.md
 docs/specs/2026-09-07-filter-convergence-plan.md
+docs/specs/2026-09-09-user-feedback-steps-1-to-4-plan.md
 docs/sqlserver-enterprise-deferred.md
 global.json
 legacy/JET-legacy/Application/Commands/CommitMapping/CommitMappingCommandHandler.cs
@@ -438,6 +439,7 @@ src/JET/JET/Domain/Rules/MappingSpecs.cs
 src/JET/JET/Domain/Rules/MappingSuggestionEngine.cs
 src/JET/JET/Domain/Rules/MappingValidator.cs
 src/JET/JET/Domain/Rules/PrescreenRules.cs
+src/JET/JET/Domain/Rules/ProjectionErrorReasons.cs
 src/JET/JET/Domain/Rules/QuarterEndWindows.cs
 src/JET/JET/Domain/Rules/TbRowProjector.cs
 src/JET/JET/Domain/Rules/TypedFieldConditions.cs
@@ -854,6 +856,8 @@ src/JET/tests/JET.Tests/Application/TagMatrixScenariosTests.cs
 src/JET/tests/JET.Tests/Application/TagMatrixVoucherPageTests.cs
 src/JET/tests/JET.Tests/Application/TbOpenCloseMappingTests.cs
 src/JET/tests/JET.Tests/Application/TypedFieldFilterContractTests.cs
+src/JET/tests/JET.Tests/Application/UserFeedbackProjectCreationTests.cs
+src/JET/tests/JET.Tests/Application/UserFeedbackXlsmImportTests.cs
 src/JET/tests/JET.Tests/Application/ValidateRunFailureBoundaryTests.cs
 src/JET/tests/JET.Tests/Application/ValidateRunHandlerTests.cs
 src/JET/tests/JET.Tests/Application/ValidationAmountDistributionTests.cs
@@ -923,6 +927,7 @@ src/JET/tests/JET.Tests/Architecture/SupportedActionsParityTests.cs
 src/JET/tests/JET.Tests/Architecture/TestEvidencePolicyTests.cs
 src/JET/tests/JET.Tests/Architecture/TypedFilterFrontendTests.cs
 src/JET/tests/JET.Tests/Architecture/UiRunRefreshPipelineTests.cs
+src/JET/tests/JET.Tests/Architecture/UserFeedbackStepsOneToFourFrontendTests.cs
 src/JET/tests/JET.Tests/Architecture/ValidationDirectTemplateArchitectureTests.cs
 src/JET/tests/JET.Tests/Architecture/ValidationOwnershipTests.cs
 src/JET/tests/JET.Tests/Architecture/ValidationSummaryWordingFrontendTests.cs
@@ -950,6 +955,7 @@ src/JET/tests/JET.Tests/AuditCore/ProgramGraphTests.cs
 src/JET/tests/JET.Tests/AuditCore/ReportExportProgramTests.cs
 src/JET/tests/JET.Tests/AuditCore/RuleCatalogTests.cs
 src/JET/tests/JET.Tests/AuditCore/TypedFieldCompilationTests.cs
+src/JET/tests/JET.Tests/AuditCore/UserFeedbackCompletenessWordingTests.cs
 src/JET/tests/JET.Tests/AuditCore/ValidationProgramTests.cs
 src/JET/tests/JET.Tests/AuditCore/ValidationReportProgramTests.cs
 src/JET/tests/JET.Tests/AuditCore/WorkpaperProgramTests.cs
@@ -995,6 +1001,7 @@ src/JET/tests/JET.Tests/Domain/TbChangeModeTests.cs
 src/JET/tests/JET.Tests/Domain/TbRowProjectorTests.cs
 src/JET/tests/JET.Tests/Domain/TrailingZeroThresholdTests.cs
 src/JET/tests/JET.Tests/Domain/TypedFieldRuleValidationTests.cs
+src/JET/tests/JET.Tests/Domain/UserFeedbackManualAutoProjectionTests.cs
 src/JET/tests/JET.Tests/Domain/ValidationReportContextCompatibilityTests.cs
 src/JET/tests/JET.Tests/Domain/WorkpaperSheetCatalogTests.cs
 src/JET/tests/JET.Tests/Infrastructure/AccountMappingEligibilityStateTests.cs
@@ -1271,6 +1278,8 @@ tools/harness/mutation/stryker-dependency-overlay.json
 tools/harness/mutation/stryker-pin.json
 tools/harness/provider-skip-policy.json
 tools/harness/public-skip-policy.json
+tools/tests/frontend-mapping-contract.tests.ps1
+tools/tests/frontend-mapping.test.cjs
 tools/tests/frontend-preview-contract.tests.ps1
 tools/tests/frontend-preview.test.cjs
 tools/tests/mutation-contract.tests.ps1

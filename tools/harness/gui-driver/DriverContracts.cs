@@ -25,7 +25,7 @@ internal static class GuiScenarioCatalog
         definition = name switch
         {
             StartupSmoke => new GuiScenarioDefinition(StartupSmoke, 4, []),
-            SyntheticSqliteCreate => new GuiScenarioDefinition(SyntheticSqliteCreate, 16, []),
+            SyntheticSqliteCreate => new GuiScenarioDefinition(SyntheticSqliteCreate, 12, [], ScreenshotLimit: 1),
             MappingRequiredSync => new GuiScenarioDefinition(
                 MappingRequiredSync,
                 70,
@@ -35,7 +35,7 @@ internal static class GuiScenarioCatalog
                 12,
                 ["seed-edited-report-project", "release-visible-surface"]),
             ApprovalMappingModes => new GuiScenarioDefinition(
-                ApprovalMappingModes, 40, ["seed-mapping-ready-project"], ScreenshotLimit: 1),
+                ApprovalMappingModes, 47, ["seed-mapping-ready-project"], ScreenshotLimit: 1),
             ValidationAutoOutputs => new GuiScenarioDefinition(
                 ValidationAutoOutputs, 8,
                 ["seed-mapping-ready-project", "fill-template-after-auto-export"], ScreenshotLimit: 1),
@@ -142,10 +142,14 @@ internal sealed class GuiAssertions
     internal bool SqliteSelected { get; set; }
     internal bool ProjectCreated { get; set; }
     internal bool ImportStepVisible { get; set; }
+    internal bool CaseNameVisible { get; set; }
+    // 保留舊收據欄位，新的 GUI 判定改用 caseNameVisible。
     internal bool ProjectCodeVisible { get; set; }
     internal bool ProjectJsonExists { get; set; }
     internal bool SqliteDatabaseExists { get; set; }
     internal bool StoredProjectMatches { get; set; }
+    internal bool StoredOptionalMetadataBlank { get; set; }
+    internal bool StoredOperatorMatches { get; set; }
     internal bool MappingProjectLoaded { get; set; }
     internal bool MappingBaselineReady { get; set; }
     internal bool RequiredRailBecameIncomplete { get; set; }
@@ -169,6 +173,9 @@ internal sealed class GuiAssertions
     internal bool GridApprovalModesCoherent { get; set; }
     internal bool CommittedMappingOptionsRestored { get; set; }
     internal bool MappingOptionsDirtyStateVisible { get; set; }
+    internal bool ManualAutoPolicyResetAfterDetach { get; set; }
+    internal bool PostingStatusPolicyResetAfterSourceChange { get; set; }
+    internal bool RdeSelectAllAndClearVerified { get; set; }
     internal bool RequiredFieldJumpFocused { get; set; }
     internal bool AutomaticValidationReportsCreated { get; set; }
     internal bool AutomaticMappingTemplateCreated { get; set; }
@@ -297,10 +304,13 @@ internal static class ManifestWriter
                 sqliteSelected = outcome.Assertions.SqliteSelected,
                 projectCreated = outcome.Assertions.ProjectCreated,
                 importStepVisible = outcome.Assertions.ImportStepVisible,
+                caseNameVisible = outcome.Assertions.CaseNameVisible,
                 projectCodeVisible = outcome.Assertions.ProjectCodeVisible,
                 projectJsonExists = outcome.Assertions.ProjectJsonExists,
                 sqliteDatabaseExists = outcome.Assertions.SqliteDatabaseExists,
                 storedProjectMatches = outcome.Assertions.StoredProjectMatches,
+                storedOptionalMetadataBlank = outcome.Assertions.StoredOptionalMetadataBlank,
+                storedOperatorMatches = outcome.Assertions.StoredOperatorMatches,
                 mappingProjectLoaded = outcome.Assertions.MappingProjectLoaded,
                 mappingBaselineReady = outcome.Assertions.MappingBaselineReady,
                 requiredRailBecameIncomplete = outcome.Assertions.RequiredRailBecameIncomplete,
@@ -324,6 +334,9 @@ internal static class ManifestWriter
                 gridApprovalModesCoherent = outcome.Assertions.GridApprovalModesCoherent,
                 committedMappingOptionsRestored = outcome.Assertions.CommittedMappingOptionsRestored,
                 mappingOptionsDirtyStateVisible = outcome.Assertions.MappingOptionsDirtyStateVisible,
+                manualAutoPolicyResetAfterDetach = outcome.Assertions.ManualAutoPolicyResetAfterDetach,
+                postingStatusPolicyResetAfterSourceChange = outcome.Assertions.PostingStatusPolicyResetAfterSourceChange,
+                rdeSelectAllAndClearVerified = outcome.Assertions.RdeSelectAllAndClearVerified,
                 requiredFieldJumpFocused = outcome.Assertions.RequiredFieldJumpFocused,
                 automaticValidationReportsCreated = outcome.Assertions.AutomaticValidationReportsCreated,
                 automaticMappingTemplateCreated = outcome.Assertions.AutomaticMappingTemplateCreated,

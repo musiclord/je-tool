@@ -655,7 +655,7 @@ public static partial class JetAuditProgram
             {
                 throw new JetActionException(
                     JetErrorCodes.UnsupportedFileType,
-                    $"不支援檔案 '{source.FilePath}' 的類型 '{ExtensionOf(source.FilePath)}'，支援 .xlsx、.csv、.txt。");
+                    $"不支援檔案 '{source.FilePath}' 的類型 '{ExtensionOf(source.FilePath)}'，支援 .xlsx、.xlsm、.csv、.txt。");
             }
         }
 
@@ -1214,11 +1214,11 @@ public static partial class JetAuditProgram
             projection.Errors
                 .Take(10)
                 .Select(error => error.SourceLabel is null
-                    ? $"row {error.SourceRowNumber} {error.Field}: '{error.RawValue}' {error.Reason}"
-                    : $"{error.SourceLabel} row {error.SourceRowNumber} {error.Field}: '{error.RawValue}' {error.Reason}"));
+                    ? $"第 {error.SourceRowNumber} 列，欄位「{error.Field}」，值「{error.RawValue}」：{error.Reason}"
+                    : $"{error.SourceLabel} 第 {error.SourceRowNumber} 列，欄位「{error.Field}」，值「{error.RawValue}」：{error.Reason}"));
         throw new JetActionException(
             JetErrorCodes.ProjectionFailed,
-            $"{projection.TotalErrorCount} 列轉換失敗（已全部 rollback；以下為有界樣本）。{details}");
+            $"{projection.TotalErrorCount} 列無法轉換，系統沒有保存這次配對結果。以下列出部分原因：{details}");
     }
 
     private static CalendarPlan CalendarPlanFor(

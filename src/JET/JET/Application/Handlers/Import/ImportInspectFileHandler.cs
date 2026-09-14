@@ -27,7 +27,7 @@ public sealed class ImportInspectFileHandler(ITabularFileReader reader) : IAppli
         {
             throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                $"不支援的檔案類型 '{Path.GetExtension(filePath)}'，支援 .xlsx、.csv、.txt。");
+                $"不支援的檔案類型 '{Path.GetExtension(filePath)}'，支援 .xlsx、.xlsm、.csv、.txt。");
         }
 
         // 檔案讀取移出 UI thread（與匯入同模式）

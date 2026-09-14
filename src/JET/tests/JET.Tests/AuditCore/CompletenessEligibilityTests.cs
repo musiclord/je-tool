@@ -55,7 +55,7 @@ public sealed class CompletenessEligibilityTests
                 partAAmountMatch: amountMatch));
 
         Assert.False(decision.IsEligible);
-        Assert.Contains("Part A", decision.Reason, StringComparison.Ordinal);
+        Assert.Contains("匯入前後", decision.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class CompletenessEligibilityTests
             Facts(partBApplicable: false));
 
         Assert.False(decision.IsEligible);
-        Assert.Contains("Part B", decision.Reason, StringComparison.Ordinal);
+        Assert.Contains("TB 欄位配對", decision.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

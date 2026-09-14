@@ -91,7 +91,7 @@
                            快取是安全的。
        matrixOpen / matrixData —— 高風險條件矩陣展開狀態與情境摘要（tagMatrixScenarios）快取。
      重置時機（三個訊號、範圍遞減）：
-       1. 專案切換（projectCode 變）→ 全重置。
+       1. 專案切換（projectId 變）→ 全重置。
        2. 已存清單被替換（savedScenarios 參照變＝commit 成功、移除情境、resume、resetWorkflow）
           → 重置詳情與矩陣——index 對位與命中都可能已變。
        3. 已保存 resultRef 換版（revision／scope 變）→ 只作廢資料快取，保留展開狀態。
@@ -1000,7 +1000,7 @@
             '<h3 class="population-scope__title" id="population-scope-heading">測試母體：查核期間</h3>' +
           '</div>' +
         '</div>' +
-        '<p class="population-scope__definition">只納入總帳日期落在案件期間內的分錄；期外與無日期列排除。</p>' +
+        '<p class="population-scope__definition">只納入過帳日期落在案件期間內的分錄；期外與無日期列排除。</p>' +
         '<div class="' + statusClass + '"' + (needsResave ? '' : ' hidden') + '>' +
           '<span>' + Ui.esc(statusText) + '</span>' +
           (needsResave
@@ -1426,7 +1426,7 @@
           '<span class="rule-row__sep">張</span>';
 
       case 'revenueDebitNearQuarterEnd':
-        return '<span class="rule-row__field-label" title="總帳日期落在曆年季末前指定天數內的收入借方分錄">季末前</span>' +
+        return '<span class="rule-row__field-label" title="過帳日期落在曆年季末前指定天數內的收入借方分錄">季末前</span>' +
           '<input type="number" data-rule-bind="windowDays" min="1" max="92" step="1" placeholder="天數" value="' +
             Ui.esc(rule.windowDays) + '">' +
           '<span class="rule-row__sep">天・借記收入</span>';
@@ -2964,7 +2964,7 @@
       '<div class="preview-table__wrap">' +
         '<table class="preview-table">' +
           '<thead><tr>' + Ui.sortableHeadCellsHtml('query.tagMatrixVoucherPage', [
-            { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '總帳日期' },
+            { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '過帳日期' },
             { key: 'createdBy', label: '編製人員' }, { key: 'voucherTotal', label: '傳票總額' }]) +
             tagColumnHeadHtml(columns) + '</tr></thead>' +
           '<tbody></tbody>' +
@@ -3006,7 +3006,7 @@
       '<div class="preview-table__wrap">' +
         '<table class="preview-table">' +
           '<thead><tr>' + Ui.sortableHeadCellsHtml('query.tagMatrixRowPage', [
-            { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳日期' },
+            { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '過帳日期' },
             { key: 'accountCode', label: '科目' }, { key: 'amount', label: '金額' }, { key: 'description', label: '摘要' }]) +
             tagColumnHeadHtml(columns) + '</tr></thead>' +
           '<tbody></tbody>' +

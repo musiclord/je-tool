@@ -80,9 +80,14 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
                 HasUserSuppliedCaseName: !string.IsNullOrWhiteSpace(caseNameRaw)),
             cancellationToken);
 
-        var projectCode = PayloadReader.GetRequiredString(payload, "projectCode");
-        var entityName = PayloadReader.GetRequiredString(payload, "entityName");
-        var operatorId = PayloadReader.GetRequiredString(payload, "operatorId");
+        // 案件編號與客戶名稱是選填 metadata。保留欄位讓舊案件、清單與報告可繼續讀取，
+        // 但不能為了空白顯示資訊阻擋建案。
+        var projectCode = PayloadReader.GetOptionalString(payload, "projectCode")?.Trim() ?? string.Empty;
+        var entityName = PayloadReader.GetOptionalString(payload, "entityName")?.Trim() ?? string.Empty;
+
+        // 操作人員只能來自 composition root 注入的目前 Windows 身分。舊版 payload 即使仍帶
+        // operatorId 也不採用，避免前端欄位或其他 caller 冒名寫入案件 metadata。
+        var operatorId = principal.ShortName;
         var periodStart = PayloadReader.GetRequiredDate(payload, "periodStart");
         var periodEnd = PayloadReader.GetRequiredDate(payload, "periodEnd");
         var lastPeriodStart = PayloadReader.GetOptionalDate(payload, "lastPeriodStart");

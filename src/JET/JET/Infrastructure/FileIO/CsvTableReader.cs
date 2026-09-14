@@ -135,7 +135,7 @@ public sealed class CsvTableReader : ITabularFileReader
 
     /// <summary>
     /// 讀取第一邏輯列作為標頭並正規化。Sep 內建 header 模式要求欄名唯一（重複欄名直接拋例外），
-    /// 因此以 HasHeader=false 自行消費標頭列，與 xlsx 共用 TabularHeaderNormalizer（guide §3.1.1）。
+    /// 因此以 HasHeader=false 自行消費標頭列，與 Open XML 活頁簿共用 TabularHeaderNormalizer（guide §3.1.1）。
     /// </summary>
     private static IReadOnlyList<string> ReadNormalizedHeader(SepReader reader, string filePath)
     {

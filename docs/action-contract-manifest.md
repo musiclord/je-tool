@@ -1,6 +1,6 @@
 # JET action 介面契約
 
-更新日期：2026-09-05
+更新日期：2026-09-09
 
 這份文件是前端、WebView2 Bridge 與 C# 處理器之間的 action 登錄表。它適合用來搜尋 action 名稱，
 不需要逐段閱讀。
@@ -99,6 +99,11 @@
 - `project.releaseLock`
 - `project.loadDemo`（開發／GUI 測試專用）
 
+正式前端建立案件時，`caseName`、`periodStart` 與 `periodEnd` 必填，`projectCode`、`entityName`、
+`lastPeriodStart` 選填。`databaseProvider` 建立後不能更改。操作人員不由表單提供；
+`ProjectCreateHandler` 直接使用目前 `CurrentPrincipal.ShortName`。舊版呼叫者即使仍送 `operatorId`，後端也不採用。
+案件編號或客戶名稱留空時，`project.json` 仍保留空字串欄位，讓既有案件、清單與報告使用同一份資料形狀。
+
 `project.load` 不會因為報告檔而拒絕載入。報告檔在 JET 之外被改寫、改名或刪除時，回應的 `reportArtifacts`
 每筆多一個 `fileState`（`asPublished`、`modifiedOutside`、`missing`）讓前端標示，重新匯出即可。舊版留下的
 輸出紀錄檔 `.report-artifacts.mutation-v1.json` 會在載入時直接刪除，並記一筆 `artifact.journal.discarded`
@@ -127,6 +132,10 @@
 - `import.makeupDay.fromFile`
 - `calendar.setNonWorkingDays`
 
+GL 與 TB 的主資料匯入支援 `.xlsx`、`.xlsm`、`.csv` 與 `.txt`。`.xlsm` 和 `.xlsx` 共用唯讀的 Open XML
+串流讀取器；JET 不啟動 Excel，也不執行活頁簿內的巨集。`.xls`、`.xlsb`、`.mdb` 與 `.accdb` 目前不支援。
+一個 GL 或 TB 資料集可以追加多個欄位相同的檔案或工作表；這只會合併列，不會把兩份 TB 自動解讀成期初與期末。
+
 ### 欄位配對與科目分類
 
 - `accountTaxonomy.save`
@@ -136,9 +145,25 @@
 - `mapping.commit.gl`
 - `mapping.commit.tb`
 
+GL 的 `postDate` 在畫面顯示為「過帳日期」，用來界定案件期間；`voucherDate` 顯示為「傳票日期」，是
+回溯過帳判斷使用的選填日期。action 欄位名稱、資料庫欄位與既有報告正準名不變。
+
+`mapping.valueProfile` 只回有界的值分布：預設及畫面請求為 50 個最常見非空白值，action 可指定 1 到 100 個，另回 `blankCount`、`distinctCount` 與
+`truncated`。人工或自動分錄欄一旦配對，現行契約仍要求每個非空白值明確列入 `manualValues` 或
+`automaticValues`，空白及未歸類值會使投影失敗。前端要在 GL 配對區直接顯示後端原因；取消或更換來源欄時，
+清除上一欄的代碼政策。RDE 全選只建立草稿；來源欄、型別、名稱、後端產生並沿用的欄位識別碼，以及核心欄位
+不可重用等規則，仍由後端驗證。
+
+過帳狀態的接受值同樣只適用於當時指派的來源欄；取消或更換欄位時清除政策，再由使用者選擇接受值。
+值摘要可分別讀取，失敗後可以重試；快取與配對錯誤都隨案件或匯入來源變更失效，不能沿用舊資料的回應。
+
 ### 資料驗證
 
 - `validate.run`
+
+`completenessTest.partA` 等 action 回應欄位為既有資料形狀，不是使用者可見名稱。畫面和錯誤分別說明「匯入前後的
+控制總數核對」及「GL 與 TB 逐科目比對」，不顯示 Part A 或 Part B。`sourceQuality` 目前只有
+`nullPostDate`，表示過帳日空白且不能界定案件期間的來源列；日期在期間外不是這個集合。
 
 ### 預篩選
 

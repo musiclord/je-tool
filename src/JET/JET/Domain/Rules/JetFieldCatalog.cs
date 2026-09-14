@@ -98,7 +98,7 @@ internal static class JetFieldCatalog
         Field(
             DatasetKind.Gl, GlPostDate, JetFieldValueKind.Date, 2, storageNullable: true, "post_date",
             "總帳日期_JE", canonicalOrder: 2, isGenericFilterField: true,
-            Slot(GlPostDate, "總帳日期", 2, always: true, fieldInfo: true)),
+            Slot(GlPostDate, "過帳日期", 2, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlDocDate, JetFieldValueKind.Date, 3, storageNullable: true, "approval_date",
             canonicalName: null, canonicalOrder: null, isGenericFilterField: true,

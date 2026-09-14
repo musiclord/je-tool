@@ -101,13 +101,52 @@
 
   // GL 投影政策草稿的初值：與後端 mapping.commit.gl 的預設一致（核准日未配、無過帳狀態政策、
   // 人工 1／自動 0、未選任何攸關資料元素欄位）。
+  function freshManualAutoPolicy() {
+    return { manualValues: ['1'], automaticValues: ['0'] };
+  }
+
   function freshGlOptions() {
     return {
       approvalDateMode: 'unmapped',
       postingStatusPolicy: null,
-      manualAutoPolicy: { manualValues: ['1'], automaticValues: ['0'] },
+      manualAutoPolicy: freshManualAutoPolicy(),
       rdeFields: []
     };
+  }
+
+  // 人工／自動代碼是某一個來源欄的解讀方式，不得在取消配對或換欄後沿用到另一個欄位。
+  function resetManualAutoPolicyIfSourceChanged(previousSource) {
+    var currentSource = state.mapping.gl.draft.manual || null;
+    if ((previousSource || null) !== currentSource) {
+      state.mapping.gl.options.manualAutoPolicy = freshManualAutoPolicy();
+    }
+  }
+
+  function resetPostingStatusPolicyIfSourceChanged(previousSource) {
+    if ((previousSource || null) !== (state.mapping.gl.draft.postingStatus || null)) {
+      state.mapping.gl.options.postingStatusPolicy = null;
+    }
+  }
+
+  // 核心配對已佔用的 GL 來源欄。這是「哪些欄還能當攸關資料元素」的唯一規則來源，
+  // 畫面的候選清單與全選都只呼叫它，不另寫一份。dcDebitCode 保存的是借方旗標值，不是欄名，不算佔用。
+  function usedGlSourceColumns() {
+    var used = Object.create(null);
+    var draft = state.mapping.gl.draft;
+    Object.keys(draft).forEach(function (key) {
+      var value = draft[key];
+      if (key !== 'dcDebitCode' && value) { used[value] = true; }
+    });
+    return used;
+  }
+
+  // 核心欄位與攸關資料元素不能共用同一來源欄。配對改變時立即清掉已被核心欄位使用的 RDE，
+  // 避免畫面把它藏起來後仍送出一份後端必定拒絕的草稿。
+  function removeCoreMappedRdeFields() {
+    var used = usedGlSourceColumns();
+    state.mapping.gl.options.rdeFields = (state.mapping.gl.options.rdeFields || []).filter(function (field) {
+      return !used[field.sourceColumn];
+    });
   }
 
   function syncApprovalSource() {
@@ -279,7 +318,8 @@
 
     setProject: function (project) {
       state.project = project;
-      state.caseId = project ? project.projectCode : null;
+      // 案件名稱是唯一必要識別；案件編號已是選填，不能再拿空白案件編號當頂部主識別。
+      state.caseId = project ? project.projectId : null;
       state.caseClient = project ? project.entityName : null;
       bump();
     },
@@ -467,6 +507,13 @@
       bump();
     },
 
+    // 可作為攸關資料元素的 GL 來源欄：匯入欄位扣掉核心配對已佔用者。順序沿用匯入欄序。
+    availableGlRdeColumns: function () {
+      var importInfo = state.importState.gl;
+      var used = usedGlSourceColumns();
+      return ((importInfo && importInfo.columns) || []).filter(function (column) { return !used[column]; });
+    },
+
     // GL 投影政策草稿（核准日三態、過帳狀態政策、人工／自動代碼、攸關資料元素欄位）。
     // 只 patch 使用者編輯中的欄位；送出形狀與合法性由 mapping-step 組裝、後端裁定。
     patchGlMappingOptions: function (patch) {
@@ -518,12 +565,19 @@
     },
 
     setMappingDraft: function (kind, key, column) {
+      var previousManualSource = kind === 'gl' ? state.mapping.gl.draft.manual : null;
+      var previousPostingSource = kind === 'gl' ? state.mapping.gl.draft.postingStatus : null;
       if (column) {
         state.mapping[kind].draft[key] = column;
       } else {
         delete state.mapping[kind].draft[key];
       }
-      if (kind === 'gl' && key === 'docDate') { syncApprovalSource(); }
+      if (kind === 'gl') {
+        if (key === 'docDate') { syncApprovalSource(); }
+        resetManualAutoPolicyIfSourceChanged(previousManualSource);
+        resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
+        removeCoreMappedRdeFields();
+      }
       // 草稿餵給必填鐵軌、「確認配對」可用性與 GL 政策區的分支顯示，依通知慣例必須 bump；
       // 重繪後的焦點與捲動由 renderContent 統一還原，不在此犧牲衍生畫面的即時性。
       bump();
@@ -535,17 +589,31 @@
       var skip = literalKeys || [];
       var draft = state.mapping[kind].draft;
       var previousApprovalColumn = draft.docDate;
+      var previousManualSource = kind === 'gl' ? draft.manual : null;
+      var previousPostingSource = kind === 'gl' ? draft.postingStatus : null;
       Object.keys(draft).forEach(function (k) {
         if (skip.indexOf(k) < 0 && draft[k] === column) { delete draft[k]; }
       });
       if (fieldKey) { draft[fieldKey] = column; }
-      if (kind === 'gl' && previousApprovalColumn !== draft.docDate) { syncApprovalSource(); }
+      if (kind === 'gl') {
+        if (previousApprovalColumn !== draft.docDate) { syncApprovalSource(); }
+        resetManualAutoPolicyIfSourceChanged(previousManualSource);
+        resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
+        removeCoreMappedRdeFields();
+      }
       bump(); // 指派會牽動其他標頭的選取狀態，需重建面板
     },
 
     replaceMappingDraft: function (kind, draft) {
+      var previousManualSource = kind === 'gl' ? state.mapping.gl.draft.manual : null;
+      var previousPostingSource = kind === 'gl' ? state.mapping.gl.draft.postingStatus : null;
       state.mapping[kind].draft = Object.assign({}, draft || {});
-      if (kind === 'gl') { syncApprovalSource(); }
+      if (kind === 'gl') {
+        syncApprovalSource();
+        resetManualAutoPolicyIfSourceChanged(previousManualSource);
+        resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
+        removeCoreMappedRdeFields();
+      }
       bump();
     },
 

@@ -95,18 +95,15 @@ public sealed class ProjectHandlersTests
     }
 
     [Fact]
-    public async Task Create_MissingEntityName_ThrowsInvalidPayload()
+    public async Task Create_MissingOptionalEntityName_Succeeds()
     {
         using var host = new HandlerTestHost();
 
-        var ex = await Assert.ThrowsAsync<JetActionException>(
-            () => host.DispatchAsync(
-                "project.create",
-                """{ "projectCode": "X", "operatorId": "op", "periodStart": "2024-01-01", "periodEnd": "2024-12-31" }"""));
+        var created = await host.DispatchAsync(
+            "project.create",
+            """{ "projectCode": "X", "periodStart": "2024-01-01", "periodEnd": "2024-12-31" }""");
 
-        Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        Assert.Contains("entityName", ex.Message);
-        Assert.Null(ex.Field);
+        Assert.True(created.GetProperty("ok").GetBoolean());
     }
 
     [Fact]
@@ -317,9 +314,7 @@ public sealed class ProjectHandlersTests
                 {
                   "caseName": "{{caseName}}",
                   "projectCode": "P",
-                  "operatorId": "op",
                   "periodStart": "2024-01-01",
-                  "periodEnd": "2024-12-31",
                   "databaseProvider": "sqlServer"
                 }
                 """;
@@ -329,7 +324,7 @@ public sealed class ProjectHandlersTests
 
             Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
             Assert.Contains("本機沒有對應的案件登記", exception.Message);
-            Assert.DoesNotContain("entityName", exception.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("periodEnd", exception.Message, StringComparison.Ordinal);
             Assert.False(Directory.Exists(Path.Combine(host.ProjectsRoot, caseName)));
         }
         finally

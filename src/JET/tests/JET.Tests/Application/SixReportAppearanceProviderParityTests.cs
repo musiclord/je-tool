@@ -21,6 +21,7 @@ namespace JET.Tests.Application;
 public sealed class SixReportAppearanceProviderParityTests
 {
     private const long PinnedSampleSeed = 8_082_025;
+    private const string PinnedPrincipal = "report-appearance-parity";
 
     // 五份正式報告在 reportArtifacts；科目配對範本是工作檔，另以 filePath 取得後一起比對外觀。
     private static readonly string[] ExpectedKinds =
@@ -35,10 +36,10 @@ public sealed class SixReportAppearanceProviderParityTests
     [Fact]
     public async Task SixReports_SqliteAndDuckDb_HaveIdenticalValueBlindAppearanceSnapshots()
     {
-        using var sqliteHost = new HandlerTestHost();
+        using var sqliteHost = new HandlerTestHost(principalName: PinnedPrincipal);
         var sqlite = await ExportSixReportsAsync(sqliteHost, "sqlite");
 
-        using var duckDbHost = new HandlerTestHost();
+        using var duckDbHost = new HandlerTestHost(principalName: PinnedPrincipal);
         var duckDb = await ExportSixReportsAsync(duckDbHost, "duckdb");
 
         AssertEquivalent(sqlite, duckDb);
@@ -51,13 +52,15 @@ public sealed class SixReportAppearanceProviderParityTests
             ?? throw new InvalidOperationException(
                 "SqlServerFact 已判定可用，但執行期無法取得 SQL Server 連線。");
 
-        using var sqliteHost = new HandlerTestHost();
+        using var sqliteHost = new HandlerTestHost(principalName: PinnedPrincipal);
         var sqlite = await ExportSixReportsAsync(sqliteHost, "sqlite");
 
         HandlerTestHost? sqlServerHost = null;
         try
         {
-            sqlServerHost = new HandlerTestHost(sqlServerConnectionString: connectionString);
+            sqlServerHost = new HandlerTestHost(
+                sqlServerConnectionString: connectionString,
+                principalName: PinnedPrincipal);
             var sqlServer = await ExportSixReportsAsync(sqlServerHost, "sqlServer");
 
             AssertEquivalent(sqlite, sqlServer);

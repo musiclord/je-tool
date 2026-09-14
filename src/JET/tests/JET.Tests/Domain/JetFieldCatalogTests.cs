@@ -59,7 +59,7 @@ public sealed class JetFieldCatalogTests
                 "docNum", JetFieldValueKind.Text, "document_number", true, "傳票號碼_JE", true),
             Slot("lineID", "傳票文件項次", 1, false, [], false, true,
                 "lineID", JetFieldValueKind.Text, "line_item", true, "傳票文件項次_JE_S", true),
-            Slot("postDate", "總帳日期", 2, true, [], false, true,
+            Slot("postDate", "過帳日期", 2, true, [], false, true,
                 "postDate", JetFieldValueKind.Date, "post_date", true, "總帳日期_JE", true),
             Slot("docDate", "傳票核准日", 3, false, [], false, true,
                 "docDate", JetFieldValueKind.Date, "approval_date", true, null, true),

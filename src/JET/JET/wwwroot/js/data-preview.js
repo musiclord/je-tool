@@ -55,7 +55,7 @@
   var COLUMN_LABELS = {
     documentNumber: '傳票號碼',
     lineItem: '項次',
-    postDate: '總帳日期',
+    postDate: '過帳日期',
     accountCode: '科目編號',
     accountName: '科目名稱',
     documentDescription: '摘要',
@@ -631,7 +631,7 @@
       var parts = ['金額（絕對值）' + Ui.money(data.stats.amountAbsMin) +
         ' ～ ' + Ui.money(data.stats.amountAbsMax)];
       if (data.stats.postDateMin) {
-        parts.push('總帳日期 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
+        parts.push('過帳日期 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
       }
       parts.push('傳票 ' + Number(data.stats.voucherCount).toLocaleString() + ' 張');
       statsHtml = '<div class="data-preview__stats">' + Ui.esc(parts.join(' ｜ ')) + '</div>';

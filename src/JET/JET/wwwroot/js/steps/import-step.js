@@ -64,8 +64,9 @@
     container.innerHTML =
       '<div class="panel">' +
         '<h2 class="panel__title">匯入資料</h2>' +
-        '<p class="panel__hint">支援 .xlsx／.csv／.txt；一個資料集可由多個檔案或多個工作表合併組成' +
-          '（如 Q1–Q4 季別工作表、逐月 CSV）。檔案由系統直接匯入專案資料庫，畫面不會先載入完整資料。</p>' +
+        '<p class="panel__hint panel__hint--wide">支援 .xlsx、.xlsm、.csv 與 .txt。一個資料集可合併多個檔案或工作表，' +
+          '例如 Q1 到 Q4 的季別工作表或逐月 CSV。右側預覽只顯示少量資料，完整資料直接匯入案件資料庫，' +
+          '不會整批載入畫面。</p>' +
         '<div class="import-tasklist">' +
           datasetTask('gl', 'GL（總帳明細）', imp.gl) +
           datasetTask('tb', 'TB（試算表）', imp.tb) +
@@ -746,12 +747,12 @@
     }
   }
 
-  // 選檔 → 逐檔 inspect → 附加到工作區待匯入清單（xlsx 每個非空工作表一個來源）。
+  // 選檔 → 逐檔 inspect → 附加到工作區待匯入清單（Open XML 活頁簿的每個非空工作表各是一個來源）。
   function pickSources(kind, label) {
     Ui.run('選擇來源檔', function () {
       return global.JetApi.hostSelectFiles({
         title: '選擇 ' + label + ' 來源檔（可多選）',
-        extensions: ['.xlsx', '.csv', '.txt']
+        extensions: ['.xlsx', '.xlsm', '.csv', '.txt']
       }).then(function (data) {
         var files = data.files || [];
         if (files.length === 0) { return; }

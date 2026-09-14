@@ -13,6 +13,12 @@
     return { tone: 'na', text: '無法執行', tip: rule.naReason };
   }
 
+  // 完整性測試的第一個檢查：匯入前後的筆數與借貸總額。後端 partA 缺漏時所有值為 null，不算不符。
+  function controlTotalsMismatch(validation) {
+    var partA = validation.completenessTest.partA;
+    return !!partA && (partA.rowCountMatch === false || partA.amountMatch === false);
+  }
+
   // 命中型規則（row-tag）：命中是「值得留意」而非「錯誤」。
   // rule 為 null/undefined 表示這次 run 不含此規則（resume 舊版結果缺新增鍵）→ 視為「未執行」，
   // 不可讓缺鍵的舊結果在 render 階段丟例外而拖垮整個步驟。
@@ -302,7 +308,7 @@
   var VALIDATION_ITEMS = [
     {
       title: '完整性測試',
-      desc: '逐科目比對 GL 加總與 TB 期間變動額；金額不符代表總帳母體可能缺漏。',
+      desc: '先核對匯入前後的筆數與借貸總額是否一致，再逐科目計算 GL 發生額與 TB 期間變動額是否相等；金額不符代表總帳母體可能缺漏。',
       status: function (v) {
         if (!v) { return null; }
         var eligibility = Ui.completenessEligibility(v);
@@ -311,11 +317,10 @@
           if (v.completenessTest.naReason) {
             return { tone: 'na', text: '無法執行', tip: eligibility.reason };
           }
-          return {
-            tone: 'alert',
-            text: n > 0 ? n.toLocaleString() + ' 個科目不符' : '未通過',
-            tip: eligibility.reason
-          };
+          var text = '未通過';
+          if (n > 0) { text = n.toLocaleString() + ' 個科目不符'; }
+          else if (controlTotalsMismatch(v)) { text = '匯入前後總數不一致'; }
+          return { tone: 'alert', text: text, tip: eligibility.reason };
         }
         return { tone: 'ok', text: '通過' };
       },
@@ -355,7 +360,7 @@
     },
     {
       title: '借貸不平測試',
-      desc: '逐張傳票檢查借方與貸方合計是否為零；不平衡多為資料品質問題。',
+      desc: '逐張傳票檢查借方與貸方金額是否相等；借貸不平代表傳票編號或金額欄位可能有誤。',
       status: function (v) {
         if (!v) { return null; }
         var n = Number(v.docBalanceTest.unbalancedDocumentCount);
@@ -387,8 +392,8 @@
       }
     },
     {
-      title: 'INF 抽樣測試',
-      desc: '以固定種子抽出可重現的樣本，供人工核對摘要、日期等非財務欄位的可靠性。',
+      title: '資料可靠性測試',
+      desc: '以固定種子抽出可重現的樣本，供人工確認摘要、日期及所選攸關資料元素（RDE）是否可靠，再判斷是否使用相關高風險篩選條件。ValidationReport 與 INF 報表中稱為「INF 抽樣測試」。',
       status: function (v) {
         if (!v) { return null; }
         if (v.infSamplingTest.naReason) { return naStatus(v.infSamplingTest); }
@@ -407,8 +412,8 @@
     {
       // 來源品質是 validate.run 的獨立區塊，不是第五條資料驗證規則：它看的是匯入原貌，
       // 不套查核期間，因此筆數不與空值紀錄的四類相加。
-      title: '來源品質',
-      desc: '匯入原貌中無法界定期間的分錄，例如過帳日空白；這類分錄不進入測試母體。',
+      title: '過帳日空白',
+      desc: '只列出匯入 GL 中過帳日空白的來源列；這些資料無法判斷查核期間，因此不會進入測試母體。日期在查核期間外不列在這裡。',
       status: function (v) {
         if (!v || !v.sourceQuality) { return null; }
         var n = Number(v.sourceQuality.findingCount);
@@ -576,7 +581,7 @@
       detail: function (p) {
         if (!p) { return null; }
         if (p.weekendActivity.naReason) {
-          return { kind: 'reason', text: p.weekendActivity.naReason, remedy: '確認總帳日期欄位配對正確' };
+          return { kind: 'reason', text: p.weekendActivity.naReason, remedy: '確認過帳日期欄位配對正確' };
         }
         var previews = [];
         if (Number(p.weekendActivity.postingCount) > 0) {
@@ -834,8 +839,8 @@
         '<div class="report-output__head">' +
           '<div>' +
             '<h4 class="report-output__title">驗證階段報告</h4>' +
-            '<p class="report-output__hint">ValidationReport 與 INF Report 只會發布到目前專案；' +
-              '科目配對範本是下方卡片的工作檔，不在這份清單裡。</p>' +
+            '<p class="report-output__hint">ValidationReport 與 INF 報表只會發布到目前專案；' +
+              'INF 報表就是資料可靠性測試的樣本。科目配對範本是下方卡片的工作檔，不在這份清單裡。</p>' +
           '</div>' +
           '<button type="button" class="btn btn--ghost" data-action="export-validation-artifacts">' +
             (complete ? '重新產生兩份報告' : '產生兩份驗證報告') + '</button>' +
@@ -1572,7 +1577,7 @@
               Number(data.nullRecordsTest.nullDocumentCount) +
               Number(data.nullRecordsTest.nullDescriptionCount) +
               Number(data.nullRecordsTest.outOfRangeDateCount)) +
-            ' 筆（同一分錄可能重複計入）、來源品質 ' +
+            ' 筆（同一分錄可能重複計入）、過帳日空白 ' +
             Number(data.sourceQuality ? data.sourceQuality.findingCount : 0) +
             ' 筆（獨立計數，不與上一項相加）。', 'info');
           return exportValidationOutputs(data);

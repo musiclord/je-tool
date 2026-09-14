@@ -14,6 +14,11 @@
 合成素材由 `Focused -Configuration Release -Filter 'FrontendPreviewFixtureTests'` 在明示環境變數下產生。
 Package 拒絕發布預覽目錄與 fixtures.json，正式 JET 不依賴預覽工具。
 
+配對前端的行為檢查使用 `tools/verify.ps1 -Command Contract -ContractScenario FrontendMapping`。
+它用 Node.js 直接執行正式前端腳本，控制合成回應的先後順序，核對重試、來源變更、政策還原、就地錯誤及
+RDE 全選。DOM 接線使用測試替身，不代表真實版面已驗收；實際滑鼠與鍵盤操作另由 Gui 檢查。
+這項檢查只在明示選用時需要 Node.js，不增加 Public 或 ReleaseCandidate 的執行依賴。
+
 - `tools/` 第一層只分成 `harness/` 與 `tests/`。新增的驗證框架子目錄一律使用小寫英文，單字之間以連字號分隔。
 - JSON 設定檔、公開入口、測試與一次性 probe 使用小寫與連字號。可重用的 PowerShell 模組與內部 verifier
   使用 `Jet` 開頭的 PascalCase；C# 專案、原始碼檔、型別、namespace 和組件名稱也依 .NET 慣例使用
@@ -147,16 +152,18 @@ stderr 與 TRX 也會在保存前遮蔽。
 收尾前仍要完整跑一次 `Gui`。
 
 - `startup-smoke` 檢查頁面、`JetApi`、`systemPing`、專案選擇畫面及離開按鈕，最後按下「結束 JET」。
-- `synthetic-sqlite-create` 從可見畫面點選新增專案，以鍵盤事件輸入六個固定的合成欄位，沿用畫面預設的
-  SQLite，建立專案並進入匯入步驟。通過前還會核對本次暫存根目錄中的 `project.json` 與 `jet.db`。
+- `synthetic-sqlite-create` 從可見畫面點選新增專案，只以鍵盤事件輸入案件名稱及兩個查核日期，案件編號與
+  客戶名稱保持空白，資料儲存方式沿用 SQLite。建立案件並進入匯入步驟後，檢查會核對畫面顯示的案件名稱、
+  本次暫存根目錄中的 `project.json` 與 `jet.db`、兩個選填欄位確實保存為空白，以及操作人員是否為隔離測試帳號，
+  並保存一張匯入步驟的畫面供版面複核。
 - `mapping-required-sync` 從已提交的合成 mapping 進入「重新配對」，清空並補回同一個必填欄位十次，每次確認右側
   缺漏狀態即時往返、提交資格回復，而且重建後仍聚焦同一個下拉。
 - `edited-report-still-loads` 先在 JET 之外改寫已發布的 Working Paper 並放回舊版輸出紀錄檔，再從 Release
   可見介面開啟案件：載入成功、第六步清單標示「已在 JET 之外修改」、匯出按鈕仍可用、清理面板已移除，
   支援日誌安全寫入案件目錄且含
   `artifact.journal.discarded`、舊紀錄檔已清掉。
-- `approval-mapping-modes` 操作兩種配對畫面的核准日方式與來源欄，確認同步、未提交提示、完整還原及
-  缺漏欄位定位。還原結果以第一次編輯前保存的獨立快照核對。
+- `approval-mapping-modes` 操作兩種配對畫面的核准日方式與來源欄，確認同步、未提交提示、人工或自動來源欄
+  取消後的政策重設、完整還原及缺漏欄位定位。還原結果以第一次編輯前保存的獨立快照核對。
 - `validation-auto-outputs` 執行驗證，確認兩份報告與科目配對範本自動產生，再填入合成分類並重新驗證，
   核對已填範本逐位元組保留。
 
@@ -252,3 +259,4 @@ pwsh -NoProfile -File tools/tests/verify-contract.tests.ps1
 第一層只有 `harness` 與 `tests`，並檢查驗證框架子目錄的命名。它也會確認 GUI 驅動程式沒有瀏覽器驅動
 套件或私人資料路徑，以及 Excel 驅動程式只能使用固定合成輸入、原生 Excel API 和精確的行程清理規則。
 這個腳本不啟動 Excel、不修改產品檔案，也不讀取私人案件資料。
+它另執行 `FrontendMapping` 的實際派送與程序清理檢查，因此執行完整框架自身測試時需要 Node.js。

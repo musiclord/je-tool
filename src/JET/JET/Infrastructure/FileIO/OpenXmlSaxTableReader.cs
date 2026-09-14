@@ -9,7 +9,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// OpenXML SAX 串流 .xlsx 讀取器（guide §3.1.5）。單一讀取器、無檔案大小分支：
+/// Open XML SAX 串流 .xlsx 和 .xlsm 讀取器（guide §3.1.5）。單一讀取器、無檔案大小分支：
 /// worksheet 不建 DOM、逐列 forward-only，百萬列活頁簿與小檔走同一條路。
 /// - 標頭列 = 第一個含非空萃取值的列；ReadColumns / Inspect 讀完標頭即返回（early-exit）。
 /// - 金額可能是文字儲存格，讀取階段不解析數值語意，只做型別正規化成字串（投影階段解析）。
@@ -22,7 +22,9 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 {
     public bool Supports(string filePath)
     {
-        return string.Equals(Path.GetExtension(filePath), ".xlsx", StringComparison.OrdinalIgnoreCase);
+        var extension = Path.GetExtension(filePath);
+        return string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(extension, ".xlsm", StringComparison.OrdinalIgnoreCase);
     }
 
     public Task<IReadOnlyList<string>> ReadColumnsAsync(TabularSourceRequest request, CancellationToken cancellationToken)

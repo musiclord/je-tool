@@ -98,14 +98,45 @@ public sealed class OpenXmlSaxTableReaderTests
     }
 
     [Fact]
-    public void Supports_OnlyXlsx()
+    public void Supports_OpenXmlWorkbookFormats()
     {
         var reader = new OpenXmlSaxTableReader();
 
         Assert.True(reader.Supports(@"C:\data\journal-source.xlsx"));
         Assert.True(reader.Supports(@"C:\data\JE.XLSX"));
+        Assert.True(reader.Supports(@"C:\data\journal-source.xlsm"));
         Assert.False(reader.Supports(@"C:\data\JE.csv"));
         Assert.False(reader.Supports(@"C:\data\JE.xls"));
+    }
+
+    [Fact]
+    public async Task ReadsMacroEnabledWorkbookAsDataWithoutRunningExcel()
+    {
+        var path = new RawXlsxBuilder()
+            .AddSheet(
+                "GL",
+                """
+                <sheetData>
+                <row r="1"><c r="A1" t="inlineStr"><is><t>傳票號碼</t></is></c></row>
+                <row r="2"><c r="A2" t="inlineStr"><is><t>JV-001</t></is></c></row>
+                </sheetData>
+                """)
+            .Save(".xlsm", macroEnabled: true);
+
+        try
+        {
+            var reader = new OpenXmlSaxTableReader();
+            var inspection = await reader.InspectAsync(path, CancellationToken.None);
+            var rows = await ReadAllRowsAsync(path, "GL");
+
+            Assert.Equal("xlsx", inspection.FileType);
+            Assert.Equal("GL", Assert.Single(inspection.Worksheets!).Name);
+            Assert.Equal("JV-001", Assert.Single(rows).Values["傳票號碼"]);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]

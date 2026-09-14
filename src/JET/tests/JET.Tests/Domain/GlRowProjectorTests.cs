@@ -225,6 +225,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(423, error.SourceRowNumber);
         Assert.Equal("借方金額", error.Field);
         Assert.Equal("12..3", error.RawValue);
+        Assert.Equal("不是有效金額。請確認來源資料的金額格式，或回到欄位配對改選正確的金額欄", error.Reason);
     }
 
     [Theory]
@@ -263,6 +264,7 @@ public sealed class GlRowProjectorTests
         Assert.False(GlRowProjector.TryProject(garbage, DualSpec(), Scale, out _, out var error));
         Assert.Equal(9, error!.SourceRowNumber);
         Assert.Equal("日期", error.Field);
+        Assert.Equal("無法解析為日期。請確認來源資料的日期格式，或回到欄位配對改選正確的日期欄", error.Reason);
 
         var missing = new StagingRow(10, new Dictionary<string, string>
         {
@@ -297,7 +299,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(88, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("922337203685477.5808", error.RawValue);
-        Assert.Equal("scaled amount exceeds 64-bit range", error.Reason);
+        Assert.Equal("金額換算後超過系統可保存的範圍。請確認這個金額是否正確，或調整案件的金額小數位數", error.Reason);
     }
 
     [Fact]
@@ -320,7 +322,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(89, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("-922337203685477.5808", error.RawValue);
-        Assert.Equal("projection control total exceeds 64-bit range", error.Reason);
+        Assert.Equal("金額加總後超過系統可保存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
     }
 
     [Fact]
@@ -343,7 +345,7 @@ public sealed class GlRowProjectorTests
         Assert.Null(projected);
         Assert.NotNull(error);
         Assert.Equal("manual", error.Field);
-        Assert.Contains("configured manual/automatic codes", error.Reason, StringComparison.Ordinal);
+        Assert.Contains("未歸類為人工或自動", error.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -433,6 +435,36 @@ public sealed class GlRowProjectorTests
     }
 
     [Theory]
+    [InlineData("date", "2025/13/40", "無法解析為日期。請確認來源資料的日期格式，或回到欄位配對把這個攸關資料元素改為文字型別")]
+    [InlineData("money", "12.abc", "不是有效金額，或小數位數超過案件設定。請確認來源資料，或回到欄位配對把這個攸關資料元素改為文字型別")]
+    public void TypedRde_InvalidValue_ReturnsChineseReasonWithNextStep(string valueType, string raw, string expectedReason)
+    {
+        var mapping = new Dictionary<string, string> { [GlMappingKeys.Amount] = "amt" };
+        var spec = new GlMappingSpec(mapping, GlAmountMode.SignedAmount)
+        {
+            Options = GlMappingOptions.NormalizeLegacy(mapping) with
+            {
+                RdeFields =
+                [
+                    new GlRdeFieldMetadata("rde.00000000000000000000000000000004", "custom", "Custom", valueType)
+                ]
+            }
+        };
+        var row = new StagingRow(12, new Dictionary<string, string>
+        {
+            ["amt"] = "1",
+            ["custom"] = raw
+        });
+
+        Assert.False(GlRowProjector.TryProject(row, spec, Scale, out var projected, out var error));
+        Assert.Null(projected);
+        Assert.Equal(12, error!.SourceRowNumber);
+        Assert.Equal("custom", error.Field);
+        Assert.Equal(raw, error.RawValue);
+        Assert.Equal(expectedReason, error.Reason);
+    }
+
+    [Theory]
     [InlineData(450, true)]
     [InlineData(451, false)]
     public void TextRde_UsesCommonUtf16LengthLimit(int length, bool expectedSuccess)
@@ -464,7 +496,7 @@ public sealed class GlRowProjectorTests
         else
         {
             Assert.Equal("custom", error!.Field);
-            Assert.Contains("450 UTF-16", error.Reason, StringComparison.Ordinal);
+            Assert.Equal("文字長度超過攸關資料元素可保存的 450 個字元（以 UTF-16 計算）。請縮短來源資料，或回到欄位配對取消保留這個欄位", error.Reason);
         }
     }
 

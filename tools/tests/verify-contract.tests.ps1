@@ -626,6 +626,11 @@ try {
         -Message 'The synthetic create scenario must use the visible project picker and create form.'
     Assert-Contract -Condition ($guiSourceText -notmatch 'JetApi\.projectCreate|"project\.create"') `
         -Message 'The GUI driver must not bypass the visible form with a direct create action.'
+    $guiContractsText = Get-Content -LiteralPath (Join-Path $guiDriverRoot 'DriverContracts.cs') -Raw -Encoding utf8
+    Assert-Contract -Condition ($guiContractsText.Contains(
+            'SyntheticSqliteCreate => new GuiScenarioDefinition(SyntheticSqliteCreate, 12, [], ScreenshotLimit: 1)',
+            [StringComparison]::Ordinal)) `
+        -Message 'The synthetic create driver budget must stay synchronized with the reviewed GUI registry.'
     Assert-Contract -Condition ($guiSourceText -notmatch 'data[/\\](test-case|temporary-test-case|legacy-parity-work)') `
         -Message 'The GUI driver cannot reference private data roots.'
     $scenarioNames.Add('GuiBoundary')
@@ -668,7 +673,7 @@ try {
             -Message 'Mutation must reject scope, configuration and timeout errors before tool execution.'
     }
     $scenarioNames.Add('MutationUsageBoundary')
-    foreach ($specialized in @('MutationBoundary', 'OwnedProcessTree')) {
+    foreach ($specialized in @('MutationBoundary', 'OwnedProcessTree', 'FrontendMapping')) {
         $run = Invoke-Runner -Label $specialized -Arguments @('-Command', 'Contract', '-ContractScenario', $specialized, '-TimeoutSeconds', '120')
         $scenarioNames.Add($specialized)
         Assert-Contract -Condition ($run.NativeExitCode -eq 0 -and $run.Envelope.status -ceq 'passed') `

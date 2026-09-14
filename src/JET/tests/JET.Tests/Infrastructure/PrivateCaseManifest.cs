@@ -471,7 +471,7 @@ internal static partial class PrivateCaseManifestLoader
                 || source.WorksheetName is null
                 || !source.FirstRowIsFieldNames
                 || !IsBoundedText(source.WorksheetName, 31)
-                || !IsAllowedExtension(source.RelativePath, ".xlsx", ".csv", ".txt"))
+                || !IsAllowedExtension(source.RelativePath, ".xlsx", ".xlsm", ".csv", ".txt"))
             {
                 throw Error(PrivateCaseManifestFailure.InvalidSource);
             }

@@ -58,6 +58,37 @@ public sealed class InspectAndSelectFilesHandlerTests
     }
 
     [Fact]
+    public async Task InspectFile_Xlsm_UsesTheSameReadOnlyWorksheetContract()
+    {
+        using var host = new HandlerTestHost();
+        var path = new RawXlsxBuilder()
+            .AddSheet(
+                "GL",
+                """
+                <sheetData>
+                <row r="1"><c r="A1" t="inlineStr"><is><t>傳票號碼</t></is></c></row>
+                <row r="2"><c r="A2" t="inlineStr"><is><t>JV-001</t></is></c></row>
+                </sheetData>
+                """)
+            .Save(".xlsm", macroEnabled: true);
+
+        try
+        {
+            var data = await host.DispatchAsync(
+                "import.inspectFile",
+                JsonSerializer.Serialize(new { filePath = path }));
+
+            Assert.Equal("xlsx", data.GetProperty("fileType").GetString());
+            Assert.Equal("GL", data.GetProperty("worksheets")[0].GetProperty("name").GetString());
+            Assert.Equal("傳票號碼", data.GetProperty("worksheets")[0].GetProperty("columns")[0].GetString());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task InspectFile_Xlsx_ReportsRowCountEstimateFromDimension()
     {
         using var host = new HandlerTestHost();

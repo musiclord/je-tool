@@ -89,23 +89,24 @@ public sealed class OperationLogFrontendTests
             RegexOptions.CultureInvariant);
         Assert.True(headerMatch.Success, "複製紀錄 formatter 必須宣告固定 TSV header。");
         Assert.Equal(
-            new[] { "project_code", "database_provider", "occurred_utc", "level", "text" },
+            new[] { "project_id", "project_code", "database_provider", "occurred_utc", "level", "text" },
             headerMatch.Groups["header"].Value.Split(new[] { "\\t" }, StringSplitOptions.None));
 
         var rowMatch = Regex.Match(
             formatter,
             @"lines\.push\(\s*\[\s*(?<cells>.*?)\s*\]\.join\('\\t'\)\s*\);",
             RegexOptions.CultureInvariant | RegexOptions.Singleline);
-        Assert.True(rowMatch.Success, "複製紀錄 formatter 必須以單一五欄陣列形成資料列。");
+        Assert.True(rowMatch.Success, "複製紀錄 formatter 必須以單一六欄陣列形成資料列。");
         var compactCells = Regex.Replace(rowMatch.Groups["cells"].Value, @"\s+", string.Empty);
         Assert.Equal(
+            "cell(identity.projectId)," +
             "cell(identity.projectCode)," +
             "cell(identity.databaseProvider)," +
             "cell(entry.occurredUtc)," +
             "cell(entry.level)," +
             "cell(entry.text)",
             compactCells);
-        Assert.Equal(5, Regex.Matches(compactCells, @"cell\(").Count);
+        Assert.Equal(6, Regex.Matches(compactCells, @"cell\(").Count);
         Assert.Single(Regex.Matches(formatter, @"lines\.push\(").Cast<Match>());
 
         Assert.Contains("operationLogIdentity(project)", formatter, StringComparison.Ordinal);
@@ -176,6 +177,11 @@ public sealed class OperationLogFrontendTests
         var copy = ExtractFunction(app, "copyRecentMessages");
         var noProjectBranch = ExtractBlockAfterToken(copy, "if (!project)");
 
+        // 案件名稱（projectId）是唯一必要識別；案件編號已是選填，留空時仍要能辨識這份紀錄屬於哪個案件。
+        Assert.Contains(
+            "project && project.projectId != null ? project.projectId : ''",
+            identity,
+            StringComparison.Ordinal);
         Assert.Contains(
             "project && project.projectCode != null ? project.projectCode : ''",
             identity,

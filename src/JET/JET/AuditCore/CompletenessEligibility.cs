@@ -32,10 +32,10 @@ internal static class CompletenessEligibility
         "目前完整性驗證結果不完整，請重新執行資料驗證。";
 
     private const string PartAMismatchReason =
-        "完整性測試 Part A 未通過：來源資料與匯入後資料的總筆數或金額不一致。";
+        "完整性測試未通過：匯入前後的總筆數或借貸總額不一致。";
 
     private const string PartBNotApplicableReason =
-        "完整性測試 Part B 無法執行：請先完成 TB 欄位配對並重新執行資料驗證。";
+        "完整性測試無法執行 GL 與 TB 的逐科目比對：請先完成 TB 欄位配對並重新執行資料驗證。";
 
     internal static CompletenessEligibilityDecision Evaluate(CompletenessEligibilityFacts facts)
     {
@@ -72,7 +72,7 @@ internal static class CompletenessEligibility
         if (facts.PartBDifferenceAccountCount is not 0)
         {
             return Ineligible(
-                $"完整性測試 Part B 未通過：GL 與 TB 仍有 {facts.PartBDifferenceAccountCount.Value} 個科目差異。");
+                $"完整性測試未通過：GL 與 TB 仍有 {facts.PartBDifferenceAccountCount.Value} 個科目金額不一致。");
         }
 
         return new CompletenessEligibilityDecision(IsEligible: true, Reason: null);

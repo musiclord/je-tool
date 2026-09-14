@@ -84,7 +84,7 @@ public static class TbRowProjector
                 row.SourceRowNumber,
                 MappedColumnOrKey(spec, TbMappingKeys.Amount),
                 change.ToString(CultureInfo.InvariantCulture),
-                "scaled amount exceeds 64-bit range");
+                ProjectionErrorReasons.AmountOutOfRange);
             return false;
         }
 
@@ -122,7 +122,7 @@ public static class TbRowProjector
             row.SourceRowNumber,
             MappedColumnOrKey(spec, key),
             raw,
-            "is not a valid amount");
+            ProjectionErrorReasons.AmountInvalid);
         return false;
     }
 

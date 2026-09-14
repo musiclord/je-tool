@@ -164,7 +164,6 @@ internal sealed class AgentGuiTestFixtures
                 caseName = seed.ProjectId,
                 projectCode = seed.ProjectCode,
                 entityName = seed.EntityName,
-                operatorId = "agent-gui",
                 periodStart = demo.PeriodStart,
                 periodEnd = demo.PeriodEnd,
                 lastPeriodStart = demo.LastPeriodStart,
