@@ -40,7 +40,10 @@ public enum FilterRuleType
     /// </summary>
     TypedField,
     FieldValue,
-    AccountSide
+    AccountSide,
+    EntityFrequency,
+    Group,
+    Voucher
 }
 
 /// <summary>
@@ -67,6 +70,7 @@ public enum TextSetNormalization
 /// </summary>
 public static class FilterScenarioLimits
 {
+    public const int MaxNestingDepth = 8;
     public const int MaxTextSetValuesPerRule = 100;
 
     /// <summary>
@@ -150,6 +154,11 @@ public sealed record FilterRuleSpec(
     int? WindowDays = null,
     string? UnknownJoin = null)
 {
+    public string? CountUnit { get; init; }
+    public string? CountOperator { get; init; }
+    public int? CountFrom { get; init; }
+    public int? CountTo { get; init; }
+
     /// <summary>textSet 的結構化值；與既有逗號分隔 Keywords 分離。</summary>
     public IReadOnlyList<string> Values { get; init; } = [];
 
@@ -200,6 +209,23 @@ public sealed record FilterRuleSpec(
     public bool? IncludeBlank { get; init; }
     public string? CategoryMode { get; init; }
     public IReadOnlyList<string> CategoryIds { get; init; } = [];
+    public string? CategorySelection { get; init; }
+    public IReadOnlyList<FilterRuleSpec> Rules { get; init; } = [];
+    public string? Quantifier { get; init; }
+    public string? Side { get; init; }
+
+    public IEnumerable<FilterRuleSpec> DescendantsAndSelf()
+    {
+        yield return this;
+        foreach (var child in Rules)
+            foreach (var descendant in child.DescendantsAndSelf()) yield return descendant;
+    }
+
+    public bool IsVoucherCondition => Type == FilterRuleType.Voucher
+        || Type == FilterRuleType.AccountSide && CategoryMode == "absent"
+        || Type == FilterRuleType.Group && Rules.Count > 0 && Rules.All(rule => rule.IsVoucherCondition);
+
+    // FieldValue also uses DrCr when present: the value and side must match the same entry.
 }
 
 /// <summary>
@@ -437,13 +463,26 @@ public static partial class FilterScenarioValidator
         return errors;
     }
 
+    private static void ValidateCategorySelectionMode(FilterRuleSpec rule, string label, List<string> errors)
+    {
+        if (rule.CategorySelection is not (null or "role" or "node" or "subtree"))
+            errors.Add($"{label}：請選審計角色、分類本身或分類及下層。");
+    }
+
     private static void ValidateRule(
         FilterRuleSpec rule,
         string label,
         FilterValidationContext context,
         bool isKct,
-        List<string> errors)
+        List<string> errors,
+        int depth = 0,
+        bool insideVoucher = false)
     {
+        if (depth > FilterScenarioLimits.MaxNestingDepth)
+        {
+            errors.Add($"{label}：條件最多可巢狀八層，請減少括號層數。");
+            return;
+        }
         // 未知 join fail-loud（含左折疊時被忽略的第一條規則），與型別專屬錯誤合併列出。
         if (rule.UnknownJoin is not null)
         {
@@ -452,10 +491,24 @@ public static partial class FilterScenarioValidator
 
         switch (rule.Type)
         {
+            case FilterRuleType.Group:
+            case FilterRuleType.Voucher:
+                if (rule.Rules.Count == 0) errors.Add($"{label}：請加入至少一條子條件。");
+                if (rule.Type == FilterRuleType.Voucher)
+                {
+                    if (insideVoucher) errors.Add($"{label}：傳票內的條件請設定在同一筆分錄，勿再次加入傳票量詞。");
+                    if (rule.Side is not ("all" or "debit" or "credit")) errors.Add($"{label}：請選整張傳票、借方或貸方。");
+                    if (rule.Quantifier is not ("any" or "all" or "none")) errors.Add($"{label}：請選至少一筆、全部符合或不存在符合。");
+                }
+                for (var i = 0; i < rule.Rules.Count; i++)
+                    ValidateRule(rule.Rules[i], $"{label} 子條件 {i + 1}", context, isKct, errors,
+                        depth + 1, insideVoucher || rule.Type == FilterRuleType.Voucher);
+                break;
             case FilterRuleType.FieldValue:
                 ValidateFieldValue(rule, label, context, errors);
                 break;
             case FilterRuleType.AccountSide:
+                ValidateCategorySelectionMode(rule, label, errors);
                 if (rule.DrCr is not ("debit" or "credit"))
                     errors.Add($"{label}：請選擇借方或貸方。");
                 if (rule.CategoryMode is not ("is" or "isNot" or "absent"))
@@ -502,9 +555,11 @@ public static partial class FilterScenarioValidator
                 }
                 break;
             case FilterRuleType.AccountPair:
+                ValidateCategorySelectionMode(rule, label, errors);
                 ValidateAccountPair(rule, label, context, errors);
                 break;
             case FilterRuleType.SpecialAccountCategoryPair:
+                ValidateCategorySelectionMode(rule, label, errors);
                 ValidateSpecialAccountCategoryPair(rule, label, context, errors);
                 break;
             case FilterRuleType.CustomKeywords:
@@ -524,14 +579,17 @@ public static partial class FilterScenarioValidator
             case FilterRuleType.CustomPreparerEntryCount:
                 if (rule.MaxEntries is not (>= 1))
                 {
-                    errors.Add($"{label}：自訂編製人員張數門檻必須是 ≥ 1 的整數。");
+                    errors.Add($"{label}：自訂編製人員分錄筆數門檻必須是 ≥ 1 的整數。");
                 }
                 break;
             case FilterRuleType.CustomAccountEntryCount:
                 if (rule.MaxEntries is not (>= 1))
                 {
-                    errors.Add($"{label}：自訂科目張數門檻必須是 ≥ 1 的整數。");
+                    errors.Add($"{label}：自訂科目分錄筆數門檻必須是 ≥ 1 的整數。");
                 }
+                break;
+            case FilterRuleType.EntityFrequency:
+                EntityFrequencyConditions.Validate(rule, context, label, errors);
                 break;
             case FilterRuleType.RevenueDebitNearQuarterEnd:
                 if (!context.HasRevenueCategory)
@@ -931,7 +989,7 @@ public static partial class FilterScenarioValidator
 
         if (rule.PrescreenKey == PrescreenRuleKeys.PostPeriodApproval && !context.HasLastPeriodStart)
         {
-            errors.Add($"{label}：期末後核准條件需要專案設定期末財報準備日（lastPeriodStart）。");
+            errors.Add($"{label}：財報準備日起核准條件需要專案設定期末財報準備日（lastPeriodStart）。");
         }
 
         if (rule.PrescreenKey == PrescreenRuleKeys.UnexpectedAccountPair && !context.HasAccountMapping)
@@ -944,6 +1002,20 @@ public static partial class FilterScenarioValidator
         if (rule.PrescreenKey == PrescreenRuleKeys.NonAuthorizedPreparer && !context.HasAuthorizedPreparers)
         {
             errors.Add($"{label}：非授權編製人員條件需先匯入授權編製人員清單。");
+        }
+
+        // 與預篩選的選用來源一致；只指出本條件缺欄，不限制其他可計算的情境。
+        // null 僅供沒有案件配對資訊的獨立述詞測試；正式 action 一律提供完整欄位清單。
+        if (context.AvailableGlFields is { } available)
+        {
+            var required = rule.PrescreenKey switch
+            {
+                PrescreenRuleKeys.BackdatedPosting => JetFieldCatalog.GlVoucherDate,
+                PrescreenRuleKeys.LowFrequencyPreparer or PrescreenRuleKeys.NonAuthorizedPreparer => JetFieldCatalog.GlCreateBy,
+                _ => null
+            };
+            if (required is not null)
+                RequireMappedField(available.Contains(required, StringComparer.Ordinal), required, label, errors);
         }
 
         if (isKct && rule.PrescreenKey == PrescreenRuleKeys.BlankDescription)
@@ -1079,7 +1151,7 @@ public static partial class FilterScenarioValidator
         {
             if (pattern.Length < TrailingZeroThreshold.MinCustomDigits
                 || pattern.Length > TrailingZeroThreshold.MaxCustomDigits
-                || !pattern.All(char.IsDigit))
+                || !pattern.All(character => character is >= '0' and <= '9'))
             {
                 errors.Add($"{label}：尾數樣態「{pattern}」須為 "
                     + $"{TrailingZeroThreshold.MinCustomDigits}–{TrailingZeroThreshold.MaxCustomDigits} 位純數字。");

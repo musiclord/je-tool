@@ -14,10 +14,17 @@ public sealed class SupportRingBufferLoggerProvider :
     ISupportDiagnosticLogStore
 {
     private readonly BoundedRingBuffer<SupportDiagnosticLogEntry> _buffer;
+    private readonly BoundedRingBuffer<SupportDiagnosticLogEntry> _failures;
+    private readonly int _capacity;
+    private long _received;
     private IExternalScopeProvider _scopeProvider = new LoggerExternalScopeProvider();
 
-    public SupportRingBufferLoggerProvider(int capacity) =>
-        _buffer = new BoundedRingBuffer<SupportDiagnosticLogEntry>(capacity);
+    public SupportRingBufferLoggerProvider(int capacity)
+    {
+        _capacity = Math.Max(1, capacity);
+        _buffer = new BoundedRingBuffer<SupportDiagnosticLogEntry>(_capacity);
+        _failures = new BoundedRingBuffer<SupportDiagnosticLogEntry>(Math.Clamp(_capacity / 4, 1, 32));
+    }
 
     internal IExternalScopeProvider ScopeProvider => _scopeProvider;
 
@@ -25,9 +32,22 @@ public sealed class SupportRingBufferLoggerProvider :
 
     public void SetScopeProvider(IExternalScopeProvider scopeProvider) => _scopeProvider = scopeProvider;
 
-    public IReadOnlyList<SupportDiagnosticLogEntry> Snapshot() => _buffer.Snapshot();
+    public long EventsOmitted => Math.Max(0, Interlocked.Read(ref _received) - Snapshot().Count);
 
-    internal void Add(SupportDiagnosticLogEntry entry) => _buffer.Add(entry);
+    public IReadOnlyList<SupportDiagnosticLogEntry> Snapshot()
+    {
+        var failures = _failures.Snapshot();
+        var recent = _buffer.Snapshot().Where(entry => !failures.Contains(entry))
+            .TakeLast(_capacity - failures.Count);
+        return failures.Concat(recent).OrderBy(entry => entry.Timestamp).ToArray();
+    }
+
+    internal void Add(SupportDiagnosticLogEntry entry)
+    {
+        Interlocked.Increment(ref _received);
+        _buffer.Add(entry);
+        if (entry.EventName == "action.error") _failures.Add(entry);
+    }
 
     public void Dispose()
     {
@@ -140,6 +160,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
             return;
         }
 
+        ImportSupportDiagnostics.AddFields(fields, exception);
         var message = SafeMessage(eventId.Name, fields);
         owner.Add(new SupportDiagnosticLogEntry(
             DateTimeOffset.UtcNow,
@@ -193,28 +214,22 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
             return null;
         }
 
-        var parts = new List<string>(capacity: 16);
-        for (var current = exception; current is not null && parts.Count < 4; current = current.InnerException)
+        var parts = new List<string>();
+        var chain = ImportSupportDiagnostics.Chain(exception).Take(9).ToArray();
+        foreach (var current in chain.Take(8))
         {
-            parts.Add(current.GetType().FullName ?? current.GetType().Name);
-        }
-
-        var frames = new StackTrace(exception, fNeedFileInfo: false).GetFrames();
-        if (frames is not null)
-        {
-            foreach (var frame in frames.Take(12))
+            parts.Add($"{current.GetType().FullName} HResult={current.HResult}");
+            var frames = new StackTrace(current, fNeedFileInfo: false).GetFrames() ?? [];
+            foreach (var frame in frames.Take(5))
             {
                 var method = frame.GetMethod();
-                if (method is null)
-                {
-                    continue;
-                }
-
-                parts.Add($"at {method.DeclaringType?.FullName ?? "unknown"}.{method.Name}");
+                if (method is not null) parts.Add($"at {method.DeclaringType?.FullName ?? "unknown"}.{method.Name}");
             }
+            if (frames.Length > 5) parts.Add("[stack truncated]");
         }
-
-        return Limit(string.Join('\n', parts), 4_096);
+        if (chain.Length > 8) parts.Add("[exception chain truncated]");
+        var result = string.Join('\n', parts);
+        return result.Length <= 4096 ? result : result[..4075] + "\n[output truncated]";
     }
 
     private static string? Limit(string? value, int length) =>

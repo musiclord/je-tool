@@ -118,6 +118,7 @@ public sealed class JetSchemaCatalogTests
     // System / StructureOnly
     [InlineData("config_field_mapping", "FIELD_MAPPING_INFO", SchemaLayer.System, SchemaAudience.StructureOnly)]
     [InlineData("config_account_taxonomy", "ACCOUNT_TAXONOMY", SchemaLayer.System, SchemaAudience.StructureOnly)]
+    [InlineData("config_account_taxonomy_path", "ACCOUNT_TAXONOMY_PATH", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("config_filter_scenario", "FILTER_CRITERIA", SchemaLayer.System, SchemaAudience.StructureOnly)]
     [InlineData("import_batch", "IMPORT_BATCH", SchemaLayer.System, SchemaAudience.StructureOnly)]
     [InlineData("import_batch_source", "IMPORT_BATCH_SOURCE", SchemaLayer.System, SchemaAudience.StructureOnly)]
@@ -153,7 +154,7 @@ public sealed class JetSchemaCatalogTests
             "staging_gl_raw_row", "staging_tb_raw_row", "target_account_mapping",
             "target_authorized_preparer", "staging_calendar_raw_day", "target_gl_entry",
             "target_tb_balance", "result_rule_run", "result_filter_run",
-            "result_inf_sampling_test_sample", "config_field_mapping", "config_account_taxonomy",
+            "result_inf_sampling_test_sample", "config_field_mapping", "config_account_taxonomy", "config_account_taxonomy_path",
             "config_filter_scenario", "config_gl_rde_field", "config_result_stale_state",
             "import_batch", "import_batch_source", "import_field_definition", "gl_control_total", "app_message_log",
             "audit_event_log",

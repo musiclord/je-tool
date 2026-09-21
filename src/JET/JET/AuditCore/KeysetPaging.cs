@@ -18,6 +18,9 @@ internal sealed record SortColumn(string Key, string Sql, SortValueKind Kind);
 /// </summary>
 internal sealed record PageSortCatalog(SortColumn StableKey, IReadOnlyList<SortColumn> Columns, string? SearchSql)
 {
+    // 固定的其他搜尋欄位；只來自程式目錄，不接受請求中的 SQL。
+    internal IReadOnlyList<string> AdditionalSearchSql { get; init; } = [];
+
     public SortColumn? Find(string key) =>
         Columns.FirstOrDefault(column => string.Equals(column.Key, key, StringComparison.Ordinal));
 
@@ -93,7 +96,9 @@ internal static class KeysetPaging
         var search = request.Search?.Trim();
         if (!string.IsNullOrEmpty(search) && catalog.SearchSql is not null)
         {
-            predicates.Add(dialect.ContainsIgnoreCase(catalog.SearchSql, SearchParameter));
+            var searchColumns = new[] { catalog.SearchSql }.Concat(catalog.AdditionalSearchSql);
+            predicates.Add(string.Join(" OR ", searchColumns.Select(column =>
+                dialect.ContainsIgnoreCase(column, SearchParameter))));
             parameters.Add(new(SearchParameter, search.ToUpperInvariant()));
         }
 

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="572" viewBox="0 0 1040 572" role="img" aria-labelledby="title desc">
+<title id="title">新增分類的輸入與焦點</title><desc id="desc">合成示意；D30 的重現及驗收目標，尚未代表目前程式已通過。</desc>
+<style>text{font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;fill:#283831}.title{font-size:29px;font-weight:700}.sub{font-size:17px;fill:#54675c}.label{font-size:21px;font-weight:700}.line{font-size:19px}</style>
+<rect width="1040" height="572" fill="#f6f8f4"/>
+<text x="36" y="48" class="title">新增分類的輸入與焦點</text>
+<text x="36" y="84" class="sub">合成示意；D30 的重現及驗收目標，尚未代表目前程式已通過。</text>
+<rect x="28" y="112" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="144" class="label">操作起點</text>
+<text x="48" y="182" class="line">在新增分類的名稱欄輸入「測試分類」。</text>
+<text x="48" y="214" class="line">同一欄依序完成英文、中文輸入法組字、移動游標及刪字。</text>
+<rect x="28" y="256" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="288" class="label">應觀察的結果</text>
+<text x="48" y="326" class="line">文字可連續輸入，游標不跳到別欄，清單不回到頂端。</text>
+<text x="48" y="358" class="line">不把每次輸入都重建表單當作已證實根因；先用行為重現。</text>
+<rect x="28" y="400" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="432" class="label">保存之後</text>
+<text x="48" y="470" class="line">保存、返回篩選、重開案件，再檢查名稱及選取目標。</text>
+<text x="48" y="502" class="line">父子分類能力是 D29、F13 的另一項需求，不混入這個焦點修正。</text>
+</svg>

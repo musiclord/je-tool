@@ -46,6 +46,7 @@ docs/development-status.md
 docs/development-workflow.md
 docs/first-root-commit-candidate.txt
 docs/harness.md
+docs/history/2026-09-18-feedback-execution-records.md
 docs/history/README.md
 docs/history/development-log.md
 docs/history/specs/2026-06-20-full-detail-pagination-design.md
@@ -88,6 +89,14 @@ docs/specs/2026-09-01-frontend-sync-devlog-mutation-plan.md
 docs/specs/2026-09-06-filter-workflow-correction-plan.md
 docs/specs/2026-09-07-filter-convergence-plan.md
 docs/specs/2026-09-09-user-feedback-steps-1-to-4-plan.md
+docs/specs/2026-09-17-user-feedback-and-workflow-review-plan.md
+docs/specs/assets/2026-09-17-user-feedback/authorized-list-synthetic.svg
+docs/specs/assets/2026-09-17-user-feedback/filter-wishlist-page-1.png
+docs/specs/assets/2026-09-17-user-feedback/filter-wishlist-page-2.png
+docs/specs/assets/2026-09-17-user-feedback/filter-wishlist-page-3.png
+docs/specs/assets/2026-09-17-user-feedback/filter-wishlist-page-4.png
+docs/specs/assets/2026-09-17-user-feedback/taxonomy-focus-synthetic.svg
+docs/specs/assets/2026-09-17-user-feedback/workflow-review-synthetic.svg
 docs/sqlserver-enterprise-deferred.md
 global.json
 legacy/JET-legacy/Application/Commands/CommitMapping/CommitMappingCommandHandler.cs
@@ -336,6 +345,7 @@ src/JET/JET/AuditCore/FilterProgram.cs
 src/JET/JET/AuditCore/FilterSqlFragmentPlan.cs
 src/JET/JET/AuditCore/FormalReportWriterPorts.cs
 src/JET/JET/AuditCore/GlEffectivePopulation.cs
+src/JET/JET/AuditCore/GlRulePredicates.Frequency.cs
 src/JET/JET/AuditCore/GlRulePredicates.Values.cs
 src/JET/JET/AuditCore/GlRulePredicates.cs
 src/JET/JET/AuditCore/ISqlDialect.cs
@@ -407,6 +417,7 @@ src/JET/JET/Domain/Contracts/ValidationContracts.cs
 src/JET/JET/Domain/Contracts/WorkpaperContracts.cs
 src/JET/JET/Domain/Contracts/WorkpaperReferenceContracts.cs
 src/JET/JET/Domain/DiagnosticNdjson.cs
+src/JET/JET/Domain/ImportFailureDiagnostics.cs
 src/JET/JET/Domain/JetActionException.cs
 src/JET/JET/Domain/JetJsonStorage.cs
 src/JET/JET/Domain/Primitives/CsvDialectDetector.cs
@@ -423,6 +434,7 @@ src/JET/JET/Domain/ProjectDocument.cs
 src/JET/JET/Domain/ProjectFileNames.cs
 src/JET/JET/Domain/Rules/AuditDependencyPolicy.cs
 src/JET/JET/Domain/Rules/DataPreviewDatasetLabels.cs
+src/JET/JET/Domain/Rules/EntityFrequencyConditions.cs
 src/JET/JET/Domain/Rules/FieldValueConditions.cs
 src/JET/JET/Domain/Rules/FilterConditionLabels.cs
 src/JET/JET/Domain/Rules/FilterScenario.cs
@@ -450,6 +462,7 @@ src/JET/JET/Form1.resx
 src/JET/JET/Infrastructure/Diagnostics/BoundedRingBuffer.cs
 src/JET/JET/Infrastructure/Diagnostics/DiagnosticDb.cs
 src/JET/JET/Infrastructure/Diagnostics/DiagnosticLogEntryFactory.cs
+src/JET/JET/Infrastructure/Diagnostics/ImportSupportDiagnostics.cs
 src/JET/JET/Infrastructure/Diagnostics/NdjsonFileLoggerProvider.cs
 src/JET/JET/Infrastructure/Diagnostics/RingBufferLoggerProvider.cs
 src/JET/JET/Infrastructure/Diagnostics/SupportRingBufferLoggerProvider.cs
@@ -486,11 +499,14 @@ src/JET/JET/Infrastructure/Export/WorkpaperWriter.Step2To41.cs
 src/JET/JET/Infrastructure/Export/WorkpaperWriter.Streaming.cs
 src/JET/JET/Infrastructure/Export/WorkpaperWriter.Template.cs
 src/JET/JET/Infrastructure/Export/WorkpaperWriter.cs
+src/JET/JET/Infrastructure/FileIO/AccessTableReader.cs
+src/JET/JET/Infrastructure/FileIO/BinaryExcelTableReader.cs
 src/JET/JET/Infrastructure/FileIO/CompositeTabularFileReader.cs
 src/JET/JET/Infrastructure/FileIO/CsvTableReader.cs
 src/JET/JET/Infrastructure/FileIO/DataPreviewSchemaOverview.cs
 src/JET/JET/Infrastructure/FileIO/EncodingDetector.cs
 src/JET/JET/Infrastructure/FileIO/ExcelDateFormatDetector.cs
+src/JET/JET/Infrastructure/FileIO/NativeTabularValue.cs
 src/JET/JET/Infrastructure/FileIO/OpenXmlMappingMetadataReader.cs
 src/JET/JET/Infrastructure/FileIO/OpenXmlSaxTableReader.cs
 src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs
@@ -677,6 +693,8 @@ src/JET/JET/Infrastructure/Persistence/SqlServer/StagingBulkCopyDataReader.cs
 src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs
 src/JET/JET/Infrastructure/Persistence/WorkpaperPlanningFactsPort.cs
 src/JET/JET/Infrastructure/Sql/AccountClassificationMigration.cs
+src/JET/JET/Infrastructure/Sql/AccountTaxonomyHierarchy.cs
+src/JET/JET/Infrastructure/Sql/AuthorizedPreparerMetadataSql.cs
 src/JET/JET/Infrastructure/Sql/FilterRunHitInsertSql.cs
 src/JET/JET/Infrastructure/Sql/FilterSqlPlanBinding.cs
 src/JET/JET/Infrastructure/Sql/FilterVoucherPageReader.cs
@@ -718,6 +736,7 @@ src/JET/JET/wwwroot/js/app.js
 src/JET/JET/wwwroot/js/data-preview.js
 src/JET/JET/wwwroot/js/dev-log-panel.js
 src/JET/JET/wwwroot/js/dev-panel.js
+src/JET/JET/wwwroot/js/filter-legacy.js
 src/JET/JET/wwwroot/js/filter-values.js
 src/JET/JET/wwwroot/js/filter-vouchers.js
 src/JET/JET/wwwroot/js/jet-api.js
@@ -742,6 +761,8 @@ src/JET/tests/JET.Tests/Application/ActionContractTests.cs
 src/JET/tests/JET.Tests/Application/ActionSerializationTests.cs
 src/JET/tests/JET.Tests/Application/AdvancedFilterAstContractTests.cs
 src/JET/tests/JET.Tests/Application/AuditProgramExplainGoldenTests.cs
+src/JET/tests/JET.Tests/Application/AuthorizedPreparerWorkflowTests.cs
+src/JET/tests/JET.Tests/Application/BinaryExcelImportWorkflowTests.cs
 src/JET/tests/JET.Tests/Application/BlankPostDateDetectionTests.cs
 src/JET/tests/JET.Tests/Application/CalendarNonWorkingDaysHandlerTests.cs
 src/JET/tests/JET.Tests/Application/CompletenessBackendGateProviderTests.cs
@@ -763,6 +784,7 @@ src/JET/tests/JET.Tests/Application/DocBalancePageTests.cs
 src/JET/tests/JET.Tests/Application/DualSourceProjectTests.cs
 src/JET/tests/JET.Tests/Application/DuckDbProviderTests.cs
 src/JET/tests/JET.Tests/Application/DynamicResultPageContractTests.cs
+src/JET/tests/JET.Tests/Application/EntityFrequencyWorkflowTests.cs
 src/JET/tests/JET.Tests/Application/ExportPrescreenReportTypedSeamTests.cs
 src/JET/tests/JET.Tests/Application/ExportProgressEventTests.cs
 src/JET/tests/JET.Tests/Application/ExportProgressSessionTests.cs
@@ -776,8 +798,10 @@ src/JET/tests/JET.Tests/Application/FilterConditionRendererTests.cs
 src/JET/tests/JET.Tests/Application/FilterDirectQueryStaleGuardTests.cs
 src/JET/tests/JET.Tests/Application/FilterHandlersTests.cs
 src/JET/tests/JET.Tests/Application/FilterHitsPageTests.cs
+src/JET/tests/JET.Tests/Application/FilterNestedVoucherWorkflowTests.cs
 src/JET/tests/JET.Tests/Application/FilterRunMaterializeServiceGateTests.cs
 src/JET/tests/JET.Tests/Application/FilterRunMaterializeTests.cs
+src/JET/tests/JET.Tests/Application/FilterSideAndMonthWorkflowTests.cs
 src/JET/tests/JET.Tests/Application/FilterWorkflowPreviewTests.cs
 src/JET/tests/JET.Tests/Application/Form1DialogCancellationTests.cs
 src/JET/tests/JET.Tests/Application/FormalReportRdeProjectionTests.cs
@@ -793,6 +817,7 @@ src/JET/tests/JET.Tests/Application/ImportAccountMappingHandlerTests.cs
 src/JET/tests/JET.Tests/Application/ImportAndMappingHandlersTests.cs
 src/JET/tests/JET.Tests/Application/ImportAuthorizedPreparerHandlerTests.cs
 src/JET/tests/JET.Tests/Application/ImportCalendarHandlersTests.cs
+src/JET/tests/JET.Tests/Application/ImportFailureWorkflowTests.cs
 src/JET/tests/JET.Tests/Application/ImportProgressEventTests.cs
 src/JET/tests/JET.Tests/Application/InfDirectTemplatePackageTests.cs
 src/JET/tests/JET.Tests/Application/InfSamplePageTests.cs
@@ -800,13 +825,17 @@ src/JET/tests/JET.Tests/Application/InlineWorkbookProject.cs
 src/JET/tests/JET.Tests/Application/InspectAndSelectFilesHandlerTests.cs
 src/JET/tests/JET.Tests/Application/JetApplicationRuntimeTests.cs
 src/JET/tests/JET.Tests/Application/KctPrerequisiteProviderTests.cs
+src/JET/tests/JET.Tests/Application/LegacyFormWorkflowTests.cs
+src/JET/tests/JET.Tests/Application/LegacyKeywordWorkflowTests.cs
 src/JET/tests/JET.Tests/Application/LocalProjectLockHandlerTests.cs
+src/JET/tests/JET.Tests/Application/ManualAutoComplementWorkflowTests.cs
 src/JET/tests/JET.Tests/Application/MappingHandlersTests.cs
 src/JET/tests/JET.Tests/Application/MappingProgressEventTests.cs
 src/JET/tests/JET.Tests/Application/MappingRestoreDraftHandlerTests.cs
 src/JET/tests/JET.Tests/Application/MappingReviewProductionGuardTests.cs
 src/JET/tests/JET.Tests/Application/MappingValueProfileHandlerTests.cs
 src/JET/tests/JET.Tests/Application/MessageLogHandlersTests.cs
+src/JET/tests/JET.Tests/Application/NativeAccessImportAcceptance.cs
 src/JET/tests/JET.Tests/Application/NormalizedOpenXmlWorkbookSnapshot.cs
 src/JET/tests/JET.Tests/Application/NullEventPublisherTests.cs
 src/JET/tests/JET.Tests/Application/NullRecordsPageTests.cs
@@ -816,6 +845,7 @@ src/JET/tests/JET.Tests/Application/PeriodBoundingDemoTests.cs
 src/JET/tests/JET.Tests/Application/PrescreenConcentrationTests.cs
 src/JET/tests/JET.Tests/Application/PrescreenCriteriaArtifactCancellationTests.cs
 src/JET/tests/JET.Tests/Application/PrescreenDirectTemplatePackageTests.cs
+src/JET/tests/JET.Tests/Application/PrescreenOptionalSourceWorkflowTests.cs
 src/JET/tests/JET.Tests/Application/PrescreenPageTests.cs
 src/JET/tests/JET.Tests/Application/PrescreenPreviewParityTests.cs
 src/JET/tests/JET.Tests/Application/PrescreenReportSourceLineageTests.cs
@@ -856,6 +886,7 @@ src/JET/tests/JET.Tests/Application/TagMatrixScenariosTests.cs
 src/JET/tests/JET.Tests/Application/TagMatrixVoucherPageTests.cs
 src/JET/tests/JET.Tests/Application/TbOpenCloseMappingTests.cs
 src/JET/tests/JET.Tests/Application/TypedFieldFilterContractTests.cs
+src/JET/tests/JET.Tests/Application/UserFeedbackNullDetailsTests.cs
 src/JET/tests/JET.Tests/Application/UserFeedbackProjectCreationTests.cs
 src/JET/tests/JET.Tests/Application/UserFeedbackXlsmImportTests.cs
 src/JET/tests/JET.Tests/Application/ValidateRunFailureBoundaryTests.cs
@@ -898,6 +929,7 @@ src/JET/tests/JET.Tests/Architecture/FrontendUsabilityContractTests.cs
 src/JET/tests/JET.Tests/Architecture/ImportBatchAtomicityFrontendTests.cs
 src/JET/tests/JET.Tests/Architecture/IntakeMappingOwnershipTests.cs
 src/JET/tests/JET.Tests/Architecture/LayerDependencyTests.cs
+src/JET/tests/JET.Tests/Architecture/LegacyFormCatalogTests.cs
 src/JET/tests/JET.Tests/Architecture/MappingFieldCatalogMirrorTests.cs
 src/JET/tests/JET.Tests/Architecture/MappingMetadataMirrorTests.cs
 src/JET/tests/JET.Tests/Architecture/MappingProjectionPolicyFrontendTests.cs
@@ -1010,6 +1042,7 @@ src/JET/tests/JET.Tests/Infrastructure/AdvancedFilterAstProviderParityTests.cs
 src/JET/tests/JET.Tests/Infrastructure/AvailabilityFactTests.cs
 src/JET/tests/JET.Tests/Infrastructure/BulkRowWriterTests.cs
 src/JET/tests/JET.Tests/Infrastructure/BulkWriterThroughputTests.cs
+src/JET/tests/JET.Tests/Infrastructure/CalendarFieldConditionsTests.cs
 src/JET/tests/JET.Tests/Infrastructure/CaseCreateFactsPortCompensationTests.cs
 src/JET/tests/JET.Tests/Infrastructure/CompletenessAccountPageTests.cs
 src/JET/tests/JET.Tests/Infrastructure/CsvTableReaderTests.cs
@@ -1023,10 +1056,13 @@ src/JET/tests/JET.Tests/Infrastructure/FieldCatalogStorageMirrorTests.cs
 src/JET/tests/JET.Tests/Infrastructure/FilterCommitMaterializerHitSetParityTests.cs
 src/JET/tests/JET.Tests/Infrastructure/FilterCommitRepositoryTransactionTests.cs
 src/JET/tests/JET.Tests/Infrastructure/FilterCompletenessTests.cs
+src/JET/tests/JET.Tests/Infrastructure/FilterNestedVoucherMigrationTests.cs
+src/JET/tests/JET.Tests/Infrastructure/FilterNestedVoucherTests.cs
 src/JET/tests/JET.Tests/Infrastructure/FilterPredicateProviderFixture.cs
 src/JET/tests/JET.Tests/Infrastructure/FilterRunLoggingTests.cs
 src/JET/tests/JET.Tests/Infrastructure/FilterRunMaterializerCancellationTests.cs
 src/JET/tests/JET.Tests/Infrastructure/FilterScenarioStoreTests.cs
+src/JET/tests/JET.Tests/Infrastructure/FilterSideAndMonthConditionsTests.cs
 src/JET/tests/JET.Tests/Infrastructure/Fixtures/legacy-appearance-registry.json
 src/JET/tests/JET.Tests/Infrastructure/Fixtures/legacy-sample-appearance/case-A-account-mapping.appearance.json
 src/JET/tests/JET.Tests/Infrastructure/Fixtures/legacy-sample-appearance/case-A-criteria-selection-report.appearance.json
@@ -1095,6 +1131,7 @@ src/JET/tests/JET.Tests/Infrastructure/LocalImportCancellationTests.cs
 src/JET/tests/JET.Tests/Infrastructure/LocalImportSourcePortabilityTests.cs
 src/JET/tests/JET.Tests/Infrastructure/MappingMetadataCodecTests.cs
 src/JET/tests/JET.Tests/Infrastructure/MappingValueProfileProviderParityTests.cs
+src/JET/tests/JET.Tests/Infrastructure/MoneyTailFieldConditionsTests.cs
 src/JET/tests/JET.Tests/Infrastructure/NdjsonFileLoggerProviderTests.cs
 src/JET/tests/JET.Tests/Infrastructure/OpenXmlSaxTableReaderTests.cs
 src/JET/tests/JET.Tests/Infrastructure/PaginationBoundaryMatrixTests.cs
@@ -1236,6 +1273,7 @@ src/JET/tests/JET.Tests/ScaffoldTests.cs
 src/JET/tests/JET.Tests/TestInfrastructure/FsCheckPlatformCanaryTests.cs
 src/JET/tests/JET.Tests/TestInfrastructure/TestProfileTraits.cs
 tools/README.md
+tools/harness/JetContext.ps1
 tools/harness/JetDocumentationCheck.ps1
 tools/harness/JetHarness.Process.cs
 tools/harness/JetHarness.psm1
@@ -1257,10 +1295,15 @@ tools/harness/frontend-preview/replay.js
 tools/harness/frontend-preview/server.cjs
 tools/harness/gui-driver/CdpSession.cs
 tools/harness/gui-driver/DriverContracts.cs
+tools/harness/gui-driver/GuiDataRecoveryScenarios.cs
 tools/harness/gui-driver/GuiDriver.csproj
+tools/harness/gui-driver/GuiFeedbackWorkflowScenario.cs
 tools/harness/gui-driver/GuiFilterWorkflowScenarios.cs
+tools/harness/gui-driver/GuiLegacyFormWorkflow.cs
+tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs
 tools/harness/gui-driver/GuiRunner.cs
 tools/harness/gui-driver/GuiScenarios.cs
+tools/harness/gui-driver/GuiSideMonthWorkflow.cs
 tools/harness/gui-driver/OwnedGuiRun.cs
 tools/harness/gui-driver/Program.cs
 tools/harness/lanes.json
@@ -1278,10 +1321,12 @@ tools/harness/mutation/stryker-dependency-overlay.json
 tools/harness/mutation/stryker-pin.json
 tools/harness/provider-skip-policy.json
 tools/harness/public-skip-policy.json
+tools/tests/context-contract.tests.ps1
 tools/tests/frontend-mapping-contract.tests.ps1
 tools/tests/frontend-mapping.test.cjs
 tools/tests/frontend-preview-contract.tests.ps1
 tools/tests/frontend-preview.test.cjs
+tools/tests/frontend-workflow.test.cjs
 tools/tests/mutation-contract.tests.ps1
 tools/tests/process-tree-contract.tests.ps1
 tools/tests/verify-contract.tests.ps1

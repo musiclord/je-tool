@@ -8,7 +8,7 @@ public sealed record FilterVoucherSummary(string DocumentNumber, string? PostDat
 
 /// <summary>
 /// 命中傳票展開後的一列分錄。命中列以外的列是同傳票的參考列；PrimaryConditions 是決定命中的條件，
-/// EvidenceConditions 是 sameVoucher 群組裡由本列提供佐證的條件，VoucherConditions 是傳票層條件（absent 模式）。
+/// EvidenceConditions 是 sameVoucher 群組裡由本列提供佐證的條件，VoucherConditions 是傳票量詞或 absent 模式的條件。
 /// </summary>
 public sealed record FilterVoucherDetail(long EntryId, string DocumentNumber, string? LineItem,
     string? PostDate, string? ApprovalDate, string? AccountCode, string? AccountName,

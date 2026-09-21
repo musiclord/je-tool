@@ -81,10 +81,14 @@ public sealed class CsvTableReader : ITabularFileReader
             }
             catch (DecoderFallbackException ex)
             {
+                ImportFailureDiagnostics.Attach(ex, new ImportFailureContext(ImportFailureStage.Rows,
+                    LastCompletedRow: rowNumber, Encoding: EncodingDetector.WireNameOf(dialect.Encoding),
+                    Delimiter: dialect.Delimiter,
+                    ReaderVersion: typeof(Sep).Assembly.GetName().Version?.ToString()));
                 throw new JetActionException(
                     JetErrorCodes.FileReadError,
                     $"檔案 '{Path.GetFileName(request.FilePath)}' 含無法以偵測編碼解讀的內容（{ex.Message}）；" +
-                    "請改以匯入參數指定編碼，或將來源另存為 UTF-8。");
+                    "請改以匯入參數指定編碼，或將來源另存為 UTF-8。", innerException: ex);
             }
 
             if (!moved)
@@ -149,7 +153,7 @@ public sealed class CsvTableReader : ITabularFileReader
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
                 $"檔案 '{Path.GetFileName(filePath)}' 含無法以偵測編碼解讀的內容（{ex.Message}）；" +
-                "請改以匯入參數指定編碼，或將來源另存為 UTF-8。");
+                "請改以匯入參數指定編碼，或將來源另存為 UTF-8。", innerException: ex);
         }
 
         var headers = moved ? ReadHeaderCells(reader.Current) : [];
@@ -214,13 +218,13 @@ public sealed class CsvTableReader : ITabularFileReader
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
                 $"檔案 '{Path.GetFileName(filePath)}' 無法以指定或偵測的編碼解讀（{ex.Message}）；" +
-                "請改以匯入參數指定編碼，或將來源另存為 UTF-8。");
+                "請改以匯入參數指定編碼，或將來源另存為 UTF-8。", innerException: ex);
         }
         catch (IOException ex)
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}");
+                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}", innerException: ex);
         }
     }
 
@@ -236,7 +240,7 @@ public sealed class CsvTableReader : ITabularFileReader
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}");
+                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}", innerException: ex);
         }
     }
 
@@ -261,13 +265,13 @@ public sealed class CsvTableReader : ITabularFileReader
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
                 $"檔案 '{Path.GetFileName(filePath)}' 無法以指定或偵測的編碼解讀（{ex.Message}）；" +
-                "請改以匯入參數指定編碼，或將來源另存為 UTF-8。");
+                "請改以匯入參數指定編碼，或將來源另存為 UTF-8。", innerException: ex);
         }
         catch (IOException ex)
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}");
+                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}", innerException: ex);
         }
     }
 }

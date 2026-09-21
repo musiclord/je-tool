@@ -200,7 +200,7 @@ public sealed class FilterConditionRendererTests
             } } }
         });
 
-        Assert.Equal("過帳日期 2024-01-01～…", result);
+        Assert.Equal("總帳日期 2024-01-01～…", result);
     }
 
     // ---- 多組（ne≥2）：組間運算子 + 內層括號 ----
@@ -410,8 +410,8 @@ public sealed class FilterConditionRendererTests
         "借貸科目組合：借方是 A 且整張傳票沒有 B 貸方（借方 Receivables・貸方 Revenue）")]
     [InlineData("""{"join":"AND","type":"customKeywords","keywords":"迴轉,調整"}""", "自訂關鍵字「迴轉,調整」")]
     [InlineData("""{"join":"AND","type":"customTrailingZeros","digits":"6"}""", "尾數連續 6 個 0")]
-    [InlineData("""{"join":"AND","type":"customPreparerEntryCount","maxEntries":"11"}""", "所選母體內編製人員張數 ≤ 11")]
-    [InlineData("""{"join":"AND","type":"customAccountEntryCount","maxEntries":"11"}""", "所選母體內科目張數 ≤ 11")]
+    [InlineData("""{"join":"AND","type":"customPreparerEntryCount","maxEntries":"11"}""", "所選母體內編製人員分錄筆數 ≤ 11")]
+    [InlineData("""{"join":"AND","type":"customAccountEntryCount","maxEntries":"11"}""", "所選母體內科目分錄筆數 ≤ 11")]
     [InlineData("""{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":"5"}""", "季末前 5 天借記收入")]
     [InlineData("""{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":""}""", "季末前 … 天借記收入")]
     [InlineData("""{"join":"AND","type":"revenueWithoutNormalCounterpart"}""", "貸收入・借方非應收/預收")]

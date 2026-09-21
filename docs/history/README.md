@@ -1,7 +1,7 @@
 # 歷史文件
 
-這個目錄保存 `je-tool` 成立之前的開發脈絡，涵蓋 2026-06-04 到 2026-08-26。內容能解釋設計為什麼長成
-現在這樣、哪些選擇被試過又放棄，但它**不描述 `je-tool` 現在的行為或驗證狀態**。
+這個目錄保存歷史開發脈絡，包含 `je-tool` 成立前的紀錄及後續從現行文件移出的執行紀錄。
+內容能解釋設計為什麼長成現在這樣、哪些選擇被試過又放棄，但它**不描述 `je-tool` 現在的行為或驗證狀態**。
 
 先前這些檔案依來源專案分成兩個目錄。目前已依時間軸重組，因為開發是連續的一條線，來源專案的名稱
 對後續開發沒有意義。原本兩個來源在 2026-06-20 交接，交接前後的 Git tree 相同；詳細關係見
@@ -11,6 +11,7 @@
 
 | 位置 | 內容 |
 |:---|:---|
+| [`2026-09-18-feedback-execution-records.md`](2026-09-18-feedback-execution-records.md) | 從回饋修正計畫與開發現況移出的歷次執行紀錄；原話與驗證保留，當時的下一步不再指導本輪 |
 | [`development-log.md`](development-log.md) | 合併後的開發紀錄，依日期排列，新的在上。共 81 個條目 |
 | [`specs/`](specs/) | 當時的設計書與驗證證據，檔名以日期開頭。7 份設計書（2026-06）、5 份證據（2026-07） |
 | [`superseded/`](superseded/) | 已被現行文件取代的舊版本，檔名以世代月份結尾 |
@@ -30,6 +31,26 @@
 
 `agent-frameworks-2026-08.md` 記錄了當時對 Claude Code 與 Codex 載入機制的逐項查證，包含各家官方文件的
 轉址與版本。那些查證有時效性，引用前要重新確認，不能直接當成目前的平台行為。
+
+## 歷史設計與證據清單
+
+以下 12 份均為歷史文件。檔內當時的待驗收文字不自動成為目前待辦；現行承接狀態見
+[全部計畫清單](../README.md#全部計畫清單)及唯一現行計畫。
+
+| 日期 | 文件 | 保存用途 |
+|:---|:---|:---|
+| 2026-06-20 | [全量明細基礎設施設計](specs/2026-06-20-full-detail-pagination-design.md) | 明細分頁設計來源。 |
+| 2026-06-20 | [編製人員升級設計](specs/2026-06-20-preparer-escalation-design.md) | 授權清單與低頻規則設計來源；本輪對照 D08、D09、D32。 |
+| 2026-06-21 | [低頻科目升級設計](specs/2026-06-21-low-frequency-account-escalation-design.md) | 低頻科目來源；本輪筆數與張數依現行程式及新裁定區分。 |
+| 2026-06-21 | [多情境逐列 tag 矩陣設計](specs/2026-06-21-tag-matrix-design.md) | 情境、傳票與分錄矩陣的設計來源。 |
+| 2026-06-21 | [測試案件資料擴充與欄位配對介面優化](specs/2026-06-21-test-case-data-and-mapping-ui-design.md) | 當時的測試資料與配對介面設計。 |
+| 2026-06-21 | [匯出底稿 writer 設計](specs/2026-06-21-workpaper-export-writer-design.md) | 串流底稿輸出的設計來源。 |
+| 2026-06-22 | [案件命名與操作修正設計](specs/2026-06-22-project-naming-and-ux-fixes-design.md) | 案件名稱、步驟切換及授權人員預覽的歷史設計。 |
+| 2026-07-27 | [step4-1 Legacy 基準](specs/2026-07-27-step4-1-legacy-baseline.md) | 當時的語意及效能基準。 |
+| 2026-07-27 | [step4-1 prepared-session 效能證據](specs/2026-07-27-step4-1-prepared-performance.md) | 集合式查詢的歷史量測。 |
+| 2026-07-28 | [Excel 與 WorkingPaper 驗收修補證據](specs/2026-07-28-acceptance-repair.md) | 當時匯出及可讀性問題與後續驗收紀錄。 |
+| 2026-07-30 | [Claude Design 前端整合](specs/2026-07-30-claude-design-frontend-integration.md) | 已棄用設計交接方式的整合紀錄。 |
+| 2026-07-30 | [預篩選月份聚合量測](specs/2026-07-30-prescreen-monthly-aggregation-benchmark.md) | 當時聚合圖形取捨的量測證據。 |
 
 ## 這些副本被改過什麼
 

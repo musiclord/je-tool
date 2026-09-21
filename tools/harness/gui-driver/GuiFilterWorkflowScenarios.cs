@@ -114,7 +114,7 @@ internal static partial class GuiScenarios
             await Check("saved.length===2 && saved[1].groups.length===2");
             await Edit(1);
             await Check("document.querySelector('[data-kct-letter=I]').getAttribute('aria-pressed')==='true' && draft.groups[1].__kctPresetGroup && draft.groups[0].rules[0].prescreenKey==='blankDescription'");
-            await FindControlPointAsync(cdp,process,".scenario-preset",ct);
+            await FindControlPointAsync(cdp,process,".scenario-preset",ct, value => outcome.LastFilterProbe = value.Clone());
             await Click("[data-action=\"overview-open\"]");
             await Check("(()=>{var cells=Array.from(document.querySelectorAll('.overview-pop__kpi-value'));return cells.length>=4 && cells.every(e=>getComputedStyle(e).fontFamily.includes('Noto Sans TC') && getComputedStyle(e).fontVariantNumeric==='tabular-nums');})()");
             await FindControlPointAsync(cdp,process,".overview-pop__grid",ct);

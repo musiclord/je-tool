@@ -24,21 +24,23 @@ public sealed class UserFeedbackStepsOneToFourFrontendTests
         Assert.Contains("var displayName = p.projectId", app, StringComparison.Ordinal);
         Assert.Contains("project-row__entity", app, StringComparison.Ordinal);
         Assert.DoesNotContain("state.caseClient || state.project.projectId", app, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Matches(app, "state\\.project\\.projectId \\+ ' — 分錄測試'").Count);
+        // 9/21 移除工作區重複抬頭；案件名稱仍顯示於頂部，總覽視窗保留自己的標題。
+        Assert.Equal(1, Regex.Matches(app, "state\\.project\\.projectId \\+ ' — 分錄測試'").Count);
+        Assert.DoesNotContain("workpaperHeaderHtml", app, StringComparison.Ordinal);
         Assert.Contains("data.project.projectId", ReadFrontend("js", "ui-core.js"), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ImportGuidance_ExplainsBoundedPreviewAndUsesTheWiderHintStyle()
+    public void ImportGuidance_UsesBriefCopyAndRetainsSupportedFileTypes()
     {
         var source = ReadFrontend("js", "steps", "import-step.js");
         var css = ReadFrontend("css", "app.css");
 
         Assert.Contains("panel__hint panel__hint--wide", source, StringComparison.Ordinal);
-        Assert.Contains("右側預覽只顯示少量資料", source, StringComparison.Ordinal);
-        Assert.Contains("完整資料直接匯入案件資料庫", source, StringComparison.Ordinal);
-        Assert.Contains(".xlsx、.xlsm、.csv", source, StringComparison.Ordinal);
-        Assert.Contains("extensions: ['.xlsx', '.xlsm', '.csv', '.txt']", source, StringComparison.Ordinal);
+        Assert.Contains("支援 Excel、CSV、文字檔及 Access，可合併欄位相同的資料。", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("完整資料直接匯入案件資料庫", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("解鎖「非授權編製人員」", source, StringComparison.Ordinal);
+        Assert.Contains("extensions: ['.xlsx', '.xlsm', '.xls', '.csv', '.txt', '.mdb', '.accdb']", source, StringComparison.Ordinal);
         Assert.Matches(
             new Regex(@"\.panel__hint--wide\s*\{[^}]*max-width:\s*84ch", RegexOptions.Singleline),
             css);
@@ -81,9 +83,9 @@ public sealed class UserFeedbackStepsOneToFourFrontendTests
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
         var summary = ExtractFunction(mapping, "committedOptionsHtml");
 
-        Assert.Contains("{ key: 'postDate', label: '過帳日期'", core, StringComparison.Ordinal);
+        Assert.Contains("{ key: 'postDate', label: '總帳日期'", core, StringComparison.Ordinal);
         Assert.Contains("{ key: 'voucherDate', label: '傳票日期'", core, StringComparison.Ordinal);
-        Assert.Contains("傳票日期是選填，僅供回溯過帳判斷", mapping, StringComparison.Ordinal);
+        Assert.Contains("{ key: 'voucherDate', label: '傳票日期', req: 'optional' }", core, StringComparison.Ordinal);
         Assert.Contains("committed.mapping.manual", summary, StringComparison.Ordinal);
     }
 
@@ -105,7 +107,7 @@ public sealed class UserFeedbackStepsOneToFourFrontendTests
             StringComparison.Ordinal);
         Assert.Contains("title: '資料可靠性測試'", source, StringComparison.Ordinal);
         Assert.Contains("所選攸關資料元素（RDE）是否可靠", source, StringComparison.Ordinal);
-        Assert.Contains("title: '過帳日空白'", source, StringComparison.Ordinal);
+        Assert.Contains("title: '總帳日期空白'", source, StringComparison.Ordinal);
         Assert.Contains("日期在查核期間外不列在這裡", source, StringComparison.Ordinal);
 
         // 報表沿用 legacy 名稱「INF 抽樣測試」，命名是否統一待使用者裁定；裁定前畫面要說明對照關係。
@@ -129,7 +131,7 @@ public sealed class UserFeedbackStepsOneToFourFrontendTests
     }
 
     [Fact]
-    public void MappingUi_KeepsCommitErrorLifecycleOutOfRenderAndNamesTheWorkingPaperColumn()
+    public void MappingUi_KeepsCommitErrorLifecycleOutOfRenderAndUsesBriefGuidance()
     {
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
         var errorHtml = ExtractFunction(mapping, "mappingCommitErrorHtml");
@@ -140,8 +142,8 @@ public sealed class UserFeedbackStepsOneToFourFrontendTests
         Assert.Contains("function discardStaleMappingCommitErrors", mapping, StringComparison.Ordinal);
         Assert.Contains("discardStaleMappingCommitErrors(state)", render, StringComparison.Ordinal);
 
-        // 畫面名稱「過帳日期」與 Working Paper 正準欄名不同，統一與否待裁定；裁定前先說明對照。
-        Assert.Contains("Working Paper 的欄名仍是「總帳日期_JE」", mapping, StringComparison.Ordinal);
+        // 9/21 配對畫面只保留操作提示；報表欄名契約仍由原有報表測試驗證。
+        Assert.Contains("選擇各欄位的資料來源，標示 * 的欄位為必填。", render, StringComparison.Ordinal);
     }
 
     private static string ExtractFunction(string source, string name, bool objectMember = false)

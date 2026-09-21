@@ -16,7 +16,10 @@ public sealed class FilterRunMaterializeService(
     IFilterScenarioStore scenarioStore,
     IMappingStateStore mappingStore,
     ActionExecutionGate executionGate,
-    ProjectSession? session = null)
+    ProjectSession? session = null,
+    IAccountMappingStore? accountMappingStore = null,
+    IAuthorizedPreparerStore? authorizedPreparerStore = null,
+    IAccountTaxonomyStore? accountTaxonomyStore = null)
 {
     /// <summary>
     /// 已由 dispatcher exclusive 閘保護的呼叫路徑（正式匯出）使用此入口；本方法不重複取閘，
@@ -41,6 +44,24 @@ public sealed class FilterRunMaterializeService(
         // typed 條件（type:"typed"）的編譯 registry：目前 committed GL mapping 的 RDE definitions。
         // mapping 缺席或無 RDE 時為空集合，typed 條件在編譯前 fail loud，不會編出錯誤 SQL。
         var glMapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
+        var accountMapping = accountMappingStore is null ? null
+            : await accountMappingStore.FindStateAsync(projectId, cancellationToken);
+        var hasAuthorizedPreparers = authorizedPreparerStore is not null
+            && await authorizedPreparerStore.CountAsync(projectId, cancellationToken) > 0;
+        var taxonomy = accountTaxonomyStore is null ? null
+            : await accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
+        var validationContext = FilterValidationContextFactory.Create(
+            document,
+            glMapping ?? new CommittedMapping(DatasetKind.Gl, new Dictionary<string, string>(),
+                string.Empty, string.Empty, DateTimeOffset.MinValue),
+            accountMapping, hasAuthorizedPreparers, revision.PopulationScope, taxonomy);
+        foreach (var scenario in materializable)
+        {
+            var errors = FilterScenarioValidator.Validate(scenario.Spec, validationContext, forSave: false);
+            if (errors.Count == 0) { continue; }
+            throw FilterScenarioErrorDetails.InvalidScenario(
+                [$"已保存的情境 {scenario.Position} 暫時無法重新計算。情境設定仍保留；請回到「欄位配對」補回所需欄位，或到「進階條件篩選」修改該情境後重新保存。", .. errors]);
+        }
 
         await materializer.MaterializeAsync(
             projectId,

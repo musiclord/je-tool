@@ -20,8 +20,11 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         Assert.Contains("class=\"visually-hidden\" for=\"rde-type-", mapping, StringComparison.Ordinal);
         Assert.Contains("class=\"visually-hidden\" for=\"manual-code-add\"", mapping, StringComparison.Ordinal);
         Assert.Contains("class=\"visually-hidden\" for=\"automatic-code-add\"", mapping, StringComparison.Ordinal);
-        Assert.Contains("class=\"visually-hidden\" for=\"taxonomy-label-", validate, StringComparison.Ordinal);
-        Assert.Contains("class=\"visually-hidden\" for=\"taxonomy-role-", validate, StringComparison.Ordinal);
+        // 9/21 分類標籤改為直接可見，for 仍對應原本控制項的 id。
+        Assert.Contains("<label for=\"taxonomy-label-", validate, StringComparison.Ordinal);
+        Assert.Contains("<label for=\"taxonomy-role-", validate, StringComparison.Ordinal);
+        Assert.Contains("id=\"taxonomy-label-", validate, StringComparison.Ordinal);
+        Assert.Contains("id=\"taxonomy-role-", validate, StringComparison.Ordinal);
 
         // 移除鈕是純符號按鈕，必須帶可讀名稱。
         Assert.Contains("aria-label=\"移除 ", mapping, StringComparison.Ordinal);

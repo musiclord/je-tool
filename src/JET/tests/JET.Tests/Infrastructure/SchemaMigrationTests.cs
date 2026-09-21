@@ -110,7 +110,7 @@ public sealed class SchemaMigrationTests
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
 
         // 第 1 版鏈式升級一路走到目前 v9。
-        Assert.Equal("10", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
+        Assert.Equal("11", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
 
         // 回填：source_row_number = 第 1 版的 row_number（逐列相等，含不連續值 2,5,9）；source_no 一律 1
         Assert.Equal(3, await env.ScalarAsync(
@@ -136,7 +136,7 @@ public sealed class SchemaMigrationTests
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
 
-        Assert.Equal("10", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
+        Assert.Equal("11", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
         Assert.Equal(2, await env.ScalarAsync("SELECT COUNT(*) FROM import_batch_source"));
         Assert.Equal(3, await env.ScalarAsync("SELECT COUNT(*) FROM staging_gl_raw_row"));
     }
@@ -282,7 +282,7 @@ public sealed class SchemaMigrationTests
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
 
         // 舊鍵摘要為衍生資料：清除不翻譯（重跑即恢復且結果相同——INF 抽樣 seed 固定）。
-        Assert.Equal("10", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
+        Assert.Equal("11", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
         Assert.Equal(0, await env.ScalarAsync("SELECT COUNT(*) FROM result_rule_run"));
         Assert.Equal(0, await env.ScalarAsync(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='result_validation_v3_sample'"));
@@ -341,7 +341,7 @@ public sealed class SchemaMigrationTests
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
 
-        Assert.Equal("10", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
+        Assert.Equal("11", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
         Assert.Equal(2, await env.ScalarAsync("SELECT COUNT(*) FROM config_filter_scenario"));
         Assert.Equal(1, await env.ScalarAsync("SELECT COUNT(*) FROM import_batch"));
     }
@@ -413,7 +413,7 @@ public sealed class SchemaMigrationTests
 
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
 
-        Assert.Equal("10", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
+        Assert.Equal("11", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
         // day_name 欄存在
         Assert.Equal(1, await env.ScalarAsync(
             "SELECT COUNT(*) FROM pragma_table_info('staging_calendar_raw_day') WHERE name='day_name'"));
@@ -430,7 +430,7 @@ public sealed class SchemaMigrationTests
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
 
-        Assert.Equal("10", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
+        Assert.Equal("11", await env.TextAsync("SELECT value FROM schema_info WHERE key='schema_version'"));
         Assert.Equal(1, await env.ScalarAsync(
             "SELECT COUNT(*) FROM pragma_table_info('staging_calendar_raw_day') WHERE name='day_name'"));
     }
@@ -532,7 +532,7 @@ public sealed class SchemaMigrationTests
     public async Task EnsureCreated_V4Database_AddsVoucherDateAndMigratesThroughV7()
     {
         await using var env = await V4MigratedEnv.CreateAsync();
-        Assert.Equal("10", await env.ReadVersionAsync());
+        Assert.Equal("11", await env.ReadVersionAsync());
         Assert.True(await env.ColumnExistsAsync("target_gl_entry", "voucher_date"));
         Assert.True(await env.ColumnExistsAsync(
             "target_gl_entry",
@@ -544,7 +544,7 @@ public sealed class SchemaMigrationTests
     {
         await using var env = await V4MigratedEnv.CreateAsync();
         await env.RunEnsureCreatedAsync(); // 第二次
-        Assert.Equal("10", await env.ReadVersionAsync());
+        Assert.Equal("11", await env.ReadVersionAsync());
         Assert.True(await env.ColumnExistsAsync("target_gl_entry", "voucher_date"));
         Assert.True(await env.ColumnExistsAsync(
             "target_gl_entry",
@@ -625,7 +625,7 @@ public sealed class SchemaMigrationTests
             """;
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
-        Assert.Equal("10", reader.GetString(0));
+        Assert.Equal("11", reader.GetString(0));
         Assert.Equal(1, reader.GetInt64(1));
         Assert.Equal(1, reader.GetInt64(2));
     }
@@ -680,7 +680,7 @@ public sealed class SchemaMigrationTests
             """;
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
-        Assert.Equal("10", reader.GetString(0));
+        Assert.Equal("11", reader.GetString(0));
         Assert.Equal(1, reader.GetInt64(1));
         Assert.Equal(1, reader.GetInt64(2));
     }

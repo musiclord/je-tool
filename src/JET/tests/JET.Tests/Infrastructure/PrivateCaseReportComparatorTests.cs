@@ -138,6 +138,16 @@ public sealed class PrivateCaseReportComparatorTests
             [decision]));
     }
 
+    [Fact]
+    public void DifferencePolicy_CompletenessReadableRows_OnlyAcceptsTheApprovedHeightAndSheet()
+    {
+        var group = new SpreadsheetAppearanceDifferenceGroup("V_Report 5", "row", "height", "12.5", "18", 1, "V_Report 5!row:1");
+        Assert.Equal(PrivateCaseReportDifferencePolicy.ReadableCompletenessRows,
+            PrivateCaseReportDifferencePolicy.ResolveAppearance("validation-report", group, [group]));
+        Assert.Null(PrivateCaseReportDifferencePolicy.ResolveAppearance("validation-report", group with { ActualValue = "24" }, [group]));
+        Assert.Null(PrivateCaseReportDifferencePolicy.ResolveAppearance("validation-report", group with { SheetName = "V_Report 4" }, [group]));
+    }
+
     [Theory]
     [InlineData("scenario-1-tag")]
     [InlineData("scenario-5-tag")]

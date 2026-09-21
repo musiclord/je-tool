@@ -160,6 +160,35 @@ public sealed class KctPrerequisiteProviderTests
                     JsonSerializer.Serialize(new { scenarioPosition = index + 1, pageSize = 50 }));
                 Assert.Equal(ReadyCases[index].ExpectedRows, RowIdentities(page.GetProperty("rows")));
             }
+
+            // 真正重新配對會清除命中、保留情境。缺少建立人員時不得把補算的零筆當作正常結果。
+            var withoutCreator = completeMapping.Mapping
+                .Where(pair => pair.Key != GlMappingKeys.CreateBy)
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            string RemapPayload(IReadOnlyDictionary<string, string> mapping) => JsonSerializer.Serialize(new
+            {
+                mapping, amountMode = "flag",
+                manualAutoPolicy = new { manualValues = new[] { "true", "1" }, automaticValues = new[] { "false", "0" } }
+            });
+            await host.DispatchAsync("mapping.commit.gl", RemapPayload(withoutCreator));
+            await host.DispatchAsync("validate.run");
+            loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
+            Assert.Equal(4, loaded.GetProperty("filterScenarios").GetArrayLength());
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+                    "query.filterHitsPage", """{"scenarioPosition":2,"pageSize":50}"""));
+                Assert.Equal(JetErrorCodes.InvalidScenario, missing.Code);
+                Assert.Contains("情境 2", missing.Message);
+                Assert.Contains("傳票建立人員", missing.Message);
+                Assert.Contains("設定仍保留", missing.Message);
+            }
+            await host.DispatchAsync("mapping.commit.gl", RemapPayload(completeMapping.Mapping));
+            await host.DispatchAsync("validate.run");
+            loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
+            Assert.Equal(4, loaded.GetProperty("filterScenarios").GetArrayLength());
+            var recovered = await host.DispatchAsync("query.filterHitsPage", """{"scenarioPosition":2,"pageSize":50}""");
+            Assert.Equal(new[] { "E-1|1" }, RowIdentities(recovered.GetProperty("rows")));
         }
         finally
         {

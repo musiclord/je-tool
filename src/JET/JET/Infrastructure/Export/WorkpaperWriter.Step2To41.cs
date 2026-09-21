@@ -2321,7 +2321,7 @@ public sealed partial class WorkpaperWriter
 
         var range = $"查核期間內（{context.PeriodStart} ~ {context.PeriodEnd}）之會計分錄";
         const string rationale =
-            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效過帳日之列不納入本版情境命中與矩陣。";
+            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳日期之列不納入本版情境命中與矩陣。";
 
         return
         [

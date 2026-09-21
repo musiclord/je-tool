@@ -541,7 +541,16 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 }
                 catch (JetActionException error)
                 {
-                    throw AddBatchSourceContext(error, input.Source, sourceNo, sources.Count);
+                    var contextual = AddBatchSourceContext(error, input.Source, sourceNo, sources.Count);
+                    if (ReferenceEquals(contextual, error)) throw;
+                    throw contextual;
+                }
+                catch (Exception error)
+                {
+                    ImportFailureDiagnostics.Attach(error, new ImportFailureContext(ImportFailureStage.DatabaseWrite,
+                        sourceNo, sources.Count, Format: Path.GetExtension(input.Source.FileName).ToLowerInvariant(),
+                        Encoding: input.Source.EncodingName, Provider: _provider));
+                    throw;
                 }
             }
 
@@ -585,10 +594,11 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                     importedSources),
                 totalAddedRowCount);
         }
-        catch
+        catch (Exception error)
         {
-            await RollbackQuietlyAsync(transaction);
-            txLog.RolledBack();
+            var rollbackError = await TryRollbackAsync(transaction);
+            ImportFailureDiagnostics.RecordRollback(error, rollbackError, _provider);
+            if (rollbackError is null) txLog.RolledBack();
             throw;
         }
     }
@@ -667,7 +677,16 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 }
                 catch (JetActionException error)
                 {
-                    throw AddBatchSourceContext(error, input.Source, index + 1, sources.Count);
+                    var contextual = AddBatchSourceContext(error, input.Source, index + 1, sources.Count);
+                    if (ReferenceEquals(contextual, error)) throw;
+                    throw contextual;
+                }
+                catch (Exception error)
+                {
+                    ImportFailureDiagnostics.Attach(error, new ImportFailureContext(ImportFailureStage.DatabaseWrite,
+                        index + 1, sources.Count, Format: Path.GetExtension(input.Source.FileName).ToLowerInvariant(),
+                        Encoding: input.Source.EncodingName, Provider: _provider));
+                    throw;
                 }
             }
 
@@ -756,7 +775,16 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 }
                 catch (JetActionException error)
                 {
-                    throw AddBatchSourceContext(error, input.Source, index + 1, sources.Count);
+                    var contextual = AddBatchSourceContext(error, input.Source, index + 1, sources.Count);
+                    if (ReferenceEquals(contextual, error)) throw;
+                    throw contextual;
+                }
+                catch (Exception error)
+                {
+                    ImportFailureDiagnostics.Attach(error, new ImportFailureContext(ImportFailureStage.DatabaseWrite,
+                        index + 1, sources.Count, Format: Path.GetExtension(input.Source.FileName).ToLowerInvariant(),
+                        Encoding: input.Source.EncodingName, Provider: _provider));
+                    throw;
                 }
             }
 
@@ -820,10 +848,11 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                     importedSources),
                 totalAddedRowCount);
         }
-        catch
+        catch (Exception error)
         {
-            await RollbackQuietlyAsync(transaction);
-            txLog.RolledBack();
+            var rollbackError = await TryRollbackAsync(transaction);
+            ImportFailureDiagnostics.RecordRollback(error, rollbackError, _provider);
+            if (rollbackError is null) txLog.RolledBack();
             throw;
         }
     }
@@ -992,7 +1021,9 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
             }
             catch (JetActionException error)
             {
-                throw AddBatchSourceContext(error, input.Source, index + 1, sources.Count);
+                var contextual = AddBatchSourceContext(error, input.Source, index + 1, sources.Count);
+                    if (ReferenceEquals(contextual, error)) throw;
+                    throw contextual;
             }
         }
     }
@@ -1014,18 +1045,20 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         var context = source.SheetName is null
             ? $"來源 {sourceNo}/{sourceCount}，檔案 '{source.FileName}'"
             : $"來源 {sourceNo}/{sourceCount}，檔案 '{source.FileName}'，工作表 '{source.SheetName}'";
-        return new JetActionException(error.Code, $"{context}：{error.Message}");
+        return new JetActionException(error.Code, $"{context}：{error.Message}", error.Field, error) { Details = error.Details };
     }
 
-    private static async Task RollbackQuietlyAsync(DbTransaction transaction)
+    internal static async Task<Exception?> TryRollbackAsync(DbTransaction transaction)
     {
         try
         {
             await transaction.RollbackAsync(CancellationToken.None);
+            return null;
         }
-        catch
+        catch (Exception error)
         {
-            // 保留觸發 rollback 的原始例外；transaction dispose 仍會做最後清理。
+            // 保留最初失敗，另附回復失敗；不可把「已呼叫」記成「已回復」。
+            return error;
         }
     }
 

@@ -19,6 +19,15 @@ internal static class GuiScenarioCatalog
     internal const string ValidationAutoOutputs = "validation-auto-outputs";
     internal const string FilterAuditorJourney = "filter-auditor-journey";
     internal const string FilterKctEditing = "filter-kct-editing";
+    internal const string FeedbackWorkflow = "feedback-workflow";
+    internal const string NullDetailsRecovery = "null-details-recovery";
+    internal const string KctRemapRecovery = "kct-remap-recovery";
+    internal const string ExtendedConditions = "extended-conditions";
+    internal const string SideMonthWorkflow = "side-month-workflow";
+    internal const string NestedVoucherWorkflow = "nested-voucher-workflow";
+    internal const string LegacyFormWorkflow = "legacy-form-workflow";
+    internal const string LegacyFormCatalog = "legacy-form-catalog";
+    internal const string AuthorizedListRecovery = "authorized-list-recovery";
 
     internal static bool TryResolve(string name, out GuiScenarioDefinition definition)
     {
@@ -41,6 +50,15 @@ internal static class GuiScenarioCatalog
                 ["seed-mapping-ready-project", "fill-template-after-auto-export"], ScreenshotLimit: 1),
             FilterAuditorJourney => new(FilterAuditorJourney, 96, ["seed-export-ready-project", "minimum-window-125"], 2),
             FilterKctEditing => new(FilterKctEditing, 70, ["seed-export-ready-project", "minimum-window-125", "legacy-kct-scenario"], 1),
+            FeedbackWorkflow => new(FeedbackWorkflow, 52, ["seed-export-ready-project"], 2),
+            NullDetailsRecovery => new(NullDetailsRecovery, 35, ["seed-export-ready-project", "data-recovery-source", "fail-null-search-once"], 1),
+            KctRemapRecovery => new(KctRemapRecovery, 43, ["seed-export-ready-project", "data-recovery-source"], 1),
+            AuthorizedListRecovery => new(AuthorizedListRecovery, 33, ["seed-export-ready-project", "authorized-list-source", "fail-authorized-import-once"], 1),
+            ExtendedConditions => new(ExtendedConditions, 96, ["seed-export-ready-project"], 2),
+            SideMonthWorkflow => new(SideMonthWorkflow, 76, ["seed-export-ready-project"], 2),
+            NestedVoucherWorkflow => new(NestedVoucherWorkflow, 80, ["seed-export-ready-project"], 2),
+            LegacyFormWorkflow => new(LegacyFormWorkflow, 55, ["seed-export-ready-project", "legacy-form-source"], 2),
+            LegacyFormCatalog => new(LegacyFormCatalog, 95, ["seed-export-ready-project", "legacy-form-source"], 1),
             _ => null!
         };
         return definition is not null;
@@ -182,6 +200,15 @@ internal sealed class GuiAssertions
     internal bool FilledTemplatePreservedAfterValidation { get; set; }
     internal bool WorkpaperHistoryPaginationVerified { get; set; }
     internal bool FilterWorkflowVerified { get; set; }
+    internal bool FeedbackWorkflowVerified { get; set; }
+    internal bool NullDetailsRecoveryVerified { get; set; }
+    internal bool KctRemapRecoveryVerified { get; set; }
+    internal bool ExtendedConditionsVerified { get; set; }
+    internal bool SideMonthWorkflowVerified { get; set; }
+    internal bool NestedVoucherWorkflowVerified { get; set; }
+    internal bool LegacyFormWorkflowVerified { get; set; }
+    internal bool LegacyFormCatalogVerified { get; set; }
+    internal bool AuthorizedListRecoveryVerified { get; set; }
 }
 
 internal sealed class GuiProcessEvidence
@@ -342,6 +369,15 @@ internal static class ManifestWriter
                 automaticMappingTemplateCreated = outcome.Assertions.AutomaticMappingTemplateCreated,
                 filledTemplatePreservedAfterValidation = outcome.Assertions.FilledTemplatePreservedAfterValidation,
                 filterWorkflowVerified = outcome.Assertions.FilterWorkflowVerified,
+                feedbackWorkflowVerified = outcome.Assertions.FeedbackWorkflowVerified,
+                nullDetailsRecoveryVerified = outcome.Assertions.NullDetailsRecoveryVerified,
+                kctRemapRecoveryVerified = outcome.Assertions.KctRemapRecoveryVerified,
+                extendedConditionsVerified = outcome.Assertions.ExtendedConditionsVerified,
+                sideMonthWorkflowVerified = outcome.Assertions.SideMonthWorkflowVerified,
+                nestedVoucherWorkflowVerified = outcome.Assertions.NestedVoucherWorkflowVerified,
+                legacyFormWorkflowVerified = outcome.Assertions.LegacyFormWorkflowVerified,
+                legacyFormCatalogVerified = outcome.Assertions.LegacyFormCatalogVerified,
+                authorizedListRecoveryVerified = outcome.Assertions.AuthorizedListRecoveryVerified,
                 workpaperHistoryPaginationVerified = outcome.Assertions.WorkpaperHistoryPaginationVerified
             },
             process = new

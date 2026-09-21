@@ -6,7 +6,7 @@ namespace JET.Application;
 
 /// <summary>
 /// import.authorizedPreparer.fromFile：授權編製人員清單匯入（manifest 細節段）。
-/// 單欄姓名 .xlsx;匯入即投影——staging 與 target 寫入由 store 在同一 transaction 完成。
+/// 明確選取與 GL 相同意義的識別欄 .xlsx；匯入即投影——staging 與 target 寫入由 store 在同一 transaction 完成。
 /// replace-only：授權清單是整份替換的設定檔（append → unsupported_mode）。
 /// </summary>
 public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationActionHandler
@@ -44,10 +44,11 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
                 filePath,
                 File.Exists(filePath),
                 extension,
-                mode));
+                mode,
+                PayloadReader.GetOptionalString(payload, "sourceColumn")));
 
-        var request = new TabularSourceRequest(filePath);
-        var source = new ImportSourceDescriptor(filePath, fileName, null, null, null);
+        var request = TabularSourcePayload.Parse(payload, filePath);
+        var source = new ImportSourceDescriptor(filePath, fileName, request.SheetName, null, null);
 
         var facts = await Task.Run(
             async () =>
@@ -70,7 +71,24 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
             batchId = result.Import.BatchId,
             rowCount = result.Import.RowCount,
             fileName = result.Import.FileName,
-            importedUtc = result.Import.ImportedUtc
+            importedUtc = result.Import.ImportedUtc,
+            sourceColumn = result.Import.SourceColumn,
+            sourceRowCount = result.Import.SourceRowCount,
+            blankRowCount = result.Import.BlankRowCount,
+            duplicateRowCount = result.Import.DuplicateRowCount
         };
+    }
+}
+
+public sealed class ClearAuthorizedPreparerHandler(IAuthorizedPreparerStore store, ProjectSession session)
+    : IApplicationActionHandler
+{
+    public string Action => "import.authorizedPreparer.clear";
+
+    public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+    {
+        var projectId = session.RequireProjectId();
+        await store.ClearAsync(projectId, cancellationToken);
+        return new { cleared = true };
     }
 }

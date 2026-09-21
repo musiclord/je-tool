@@ -115,6 +115,8 @@ internal static class JetSchemaCatalog
             "已提交的欄位對應(GL / TB 各一列;匯出底稿與 round-trip 所需)"),
         new("config_account_taxonomy", "ACCOUNT_TAXONOMY", SchemaLayer.System, SchemaAudience.StructureOnly,
             "案件範圍的科目分類 ID、標籤、順序與審計語意角色"),
+        new("config_account_taxonomy_path", "ACCOUNT_TAXONOMY_PATH", SchemaLayer.System, SchemaAudience.Hidden,
+            "本地分類本身與所有下層的關係，供階層條件查詢使用"),
         new("config_filter_scenario", "FILTER_CRITERIA", SchemaLayer.System, SchemaAudience.StructureOnly,
             "使用者著作的進階篩選情境(條件樹)"),
         new("import_batch", "IMPORT_BATCH", SchemaLayer.System, SchemaAudience.StructureOnly,

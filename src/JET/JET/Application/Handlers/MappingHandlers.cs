@@ -5,21 +5,6 @@ using JET.Domain;
 
 namespace JET.Application;
 
-public sealed class MappingAutoSuggestHandler : IApplicationActionHandler
-{
-    public string Action => "mapping.autoSuggest";
-
-    public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
-    {
-        var fields = PayloadReader.GetFieldDefinitions(payload, "fields");
-        var columns = PayloadReader.GetStringList(payload, "columns");
-
-        var suggested = MappingSuggestionEngine.Suggest(fields, columns);
-
-        return Task.FromResult<object?>(new { suggested });
-    }
-}
-
 /// <summary>
 /// 從 JET 報告讀回 GL/TB mapping 草稿。唯讀：不保存 mapping、不投影 target、不推進流程。
 /// 相容性以目前兩個 import batch 的 columns 和 commit 共用 MappingValidator 權威驗證。
@@ -525,7 +510,13 @@ internal static class MappingV2CommitPayloadPrerequisite
 
             manualPolicy = new GlManualAutoPolicy(
                 ReadStringArray(manualValues, "manualAutoPolicy.manualValues"),
-                ReadStringArray(automaticValues, "manualAutoPolicy.automaticValues"));
+                ReadStringArray(automaticValues, "manualAutoPolicy.automaticValues"))
+            {
+                UnlistedValueKind = manualElement.TryGetProperty("unlistedValueKind", out var unlisted)
+                    ? RequireString(manualElement, "unlistedValueKind", "manualAutoPolicy.unlistedValueKind") : null,
+                BlankValueKind = manualElement.TryGetProperty("blankValueKind", out var blank)
+                    ? RequireString(manualElement, "blankValueKind", "manualAutoPolicy.blankValueKind") : null
+            };
         }
 
         IReadOnlyList<GlRdeFieldMetadata> rdeFields = [];

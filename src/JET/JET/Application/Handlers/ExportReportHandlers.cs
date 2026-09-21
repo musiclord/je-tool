@@ -251,7 +251,7 @@ public sealed class ExportValidationArtifactsHandler(
                     }
 
                     progress.FinalizingWorkbook();
-                }),
+                }, document.PeriodStart, document.PeriodEnd),
             new(
                 plan.ArtifactKinds[1],
                 plan.SourceRef,
@@ -278,7 +278,7 @@ public sealed class ExportValidationArtifactsHandler(
                             progress.WriterProgress);
                     }
                     progress.FinalizingWorkbook();
-                })
+                }, document.PeriodStart, document.PeriodEnd)
         };
 
         var facts = await JetAuditProgram.ExecuteAsync(
@@ -484,7 +484,7 @@ public sealed class ExportPrescreenReportHandler(
                     }
 
                     artifactProgress.FinalizingWorkbook();
-                });
+                }, document.PeriodStart, document.PeriodEnd);
         var facts = await JetAuditProgram.ExecuteAsync(
             plan,
             new ReportArtifactExecutionPort(artifactStore, [request],
@@ -638,7 +638,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
                     }
 
                     artifactProgress.FinalizingWorkbook();
-                });
+                }, document.PeriodStart, document.PeriodEnd);
         var facts = await JetAuditProgram.ExecuteAsync(
             plan,
             new ReportArtifactExecutionPort(artifactStore, [request],

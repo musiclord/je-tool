@@ -103,6 +103,8 @@
       customPickerOpen: true,
       workspacePane: 'filter',
       conditionSource: 'kct',
+      legacyLetter: 'A',
+      legacyField: '',
       customSubject: '',
       saveOpen: false,
       disclosures: {},
@@ -485,7 +487,7 @@
       }) };
     }
     wire.groups.forEach(function (group) {
-      group.rules = group.rules.map(function (rule) { return rule.type === 'fieldValue' ? Ui.FilterValues.wire(rule, Store.getState()) : rule; });
+      group.rules = group.rules.map(nestedWireRule);
     });
     if (source) { wire.source = source; }
     return wire;
@@ -509,6 +511,14 @@
       wire.amountBasis = clean.amountBasis;
     }
     return wire;
+  }
+
+  function nestedWireRule(rule) {
+    var clean = {};
+    Object.keys(rule).forEach(function (key) { if (key.indexOf('__') !== 0) { clean[key] = rule[key]; } });
+    if (clean.rules) { clean.rules = clean.rules.map(nestedWireRule); }
+    if (clean.type === 'fieldValue') { return Ui.FilterValues.wire(clean, Store.getState()); }
+    return clean.type === 'typed' ? typedWireRule(clean) : clean;
   }
 
   // 群組組合器：群組內規則 join 的一致值——任一規則為 OR 即「任一(OR)」，否則「全部(AND)」。空群組
@@ -685,22 +695,53 @@
   function customPickerHtml() {
     return '<section class="condition-picker condition-picker--custom">' +
       '<h3 class="condition-picker__title">自訂篩選條件</h3>' +
-      addRuleBarHtml() + '</section>';
+      addRuleBarHtml() + '<div data-legacy-host>' + legacyPickerHtml() + '</div></section>';
+  }
+
+  function legacyPickerHtml() {
+    var catalog = global.JetLegacyFilters.catalogue;
+    var item = catalog.conditions.find(function (entry) { return entry.letter === viewState.legacyLetter; });
+    var allFields = Ui.FilterValues.fields(Store.getState());
+    var selectable = allFields.filter(function (field) {
+      return item.letter === 'R' ? field.type === 'date' : field.type === 'text';
+    });
+    var showField = item.letter === 'O' || item.letter === 'R';
+    var extras = allFields.filter(function (field) { return field.extra && field.type === 'text'; });
+    function options(fields, selected) { return fields.map(function (field) {
+      return '<option value="' + Ui.esc(field.id) + '"' + (field.id === selected ? ' selected' : '') + '>' + Ui.esc(field.label) + '</option>';
+    }).join(''); }
+    return '<details class="filter-examples"' + disclosureAttributes('legacy-form') + '><summary>舊表 A–U 條件與填寫範例</summary>' +
+      '<p>沿用 2024 JE 篩選表的代號。加入後直接調整右側條件；這份 A–U 與 KCT A–J 分開。</p>' +
+      '<label class="form__row">舊表條件<select class="form__input" data-legacy-letter>' + catalog.conditions.map(function (entry) {
+        return '<option value="' + entry.letter + '"' + (entry === item ? ' selected' : '') + '>' + Ui.esc(entry.letter + '：' + entry.label) + '</option>';
+      }).join('') + '</select></label><p data-legacy-help>' + Ui.esc(item.help) + '</p>' +
+      (showField ? '<label class="form__row">使用欄位<select class="form__input" data-legacy-field>' + options(selectable, viewState.legacyField || item.rules[0].field) + '</select></label>' : '') +
+      (item.letter === 'P' ? '<label class="form__row">指定對象<select class="form__input" data-legacy-account><option value="codes">科目代號</option><option value="categories">科目分類</option></select></label>' : '') +
+      (item.letter === 'U' ? '<label class="form__row">人員條件<select class="form__input" data-legacy-person><option value="frequency">建立人員的傳票張數</option><option value="createBy">指定建立人員</option><option value="approveBy">指定核准人員</option></select></label>' : '') +
+      '<button type="button" class="btn btn--ghost" data-action="add-legacy-rule">加入 ' + item.letter + ' 條件</button>' +
+      '<p>以下是原工作簿的五個填寫範例。套用會替換本次草稿，範例值和理由都可修改；原有已保存情境保留。</p>' +
+      '<label class="form__row">範例 2 的部門欄位<select class="form__input" data-legacy-example-field><option value="">請選已配對的額外文字欄位</option>' + options(extras, '') + '</select></label>' +
+      '<div class="condition-picker__grid">' + catalog.examples.map(function (example) {
+        return '<button type="button" class="picker-card" data-legacy-example="' + example.key + '"><span class="picker-card__label">' + Ui.esc(example.label) + '</span><span class="picker-card__note">' + Ui.esc(example.combination) + '</span></button>';
+      }).join('') + '</div><p data-legacy-notice role="status"></p></details>';
   }
 
   // 條件列的三個家族：畫面只用家族分類，wire 型別維持原樣（後端不動）。
   var RULE_FAMILIES = {
     field: { label: '欄位', types: ['fieldValue', 'drCrOnly', 'manualAuto'] },
     account: { label: '科目', types: ['accountSide', 'specialAccountCategoryPair', 'accountPair'] },
-    pattern: { label: '樣態', types: ['prescreen', 'customTrailingZeros', 'customPreparerEntryCount', 'customAccountEntryCount',
+    compound: { label: '條件組合', types: ['group', 'voucher'] },
+    pattern: { label: '樣態', types: ['prescreen', 'customKeywords', 'customTrailingZeros', 'customPreparerEntryCount', 'customAccountEntryCount', 'entityFrequency',
       'trailingDigits', 'revenueDebitNearQuarterEnd', 'revenueWithoutNormalCounterpart', 'manualRevenueEntry', 'preparerEqualsApprover'] },
-    legacy: { label: '舊式', types: ['text', 'textSet', 'dateRange', 'numRange', 'customKeywords', 'typed'] }
+    legacy: { label: '舊式', types: ['text', 'textSet', 'dateRange', 'numRange', 'typed'] }
   };
   var PSEUDO_FIELDS = [{ id: '__drCr', label: '借貸別' }, { id: '__isManual', label: '人工／自動' }];
   var PATTERN_PARAM_TYPES = [
     { value: 'customTrailingZeros', label: '金額尾數連續 0 的位數' },
-    { value: 'customPreparerEntryCount', label: '所選母體內編製人員張數 ≤' },
-    { value: 'customAccountEntryCount', label: '所選母體內科目張數 ≤' }
+    { value: 'customPreparerEntryCount', label: '所選母體內編製人員分錄筆數 ≤' },
+    { value: 'customAccountEntryCount', label: '所選母體內科目分錄筆數 ≤' },
+    { value: 'entityFrequency', label: '科目與人員統計' },
+    { value: 'customKeywords', label: '摘要關鍵字（可自行編輯）' }
   ];
 
   function ruleFamily(rule) {
@@ -709,15 +750,17 @@
 
   // 新條件共用一個對象選單，加入 activeEditableGroup；不改既有規則型別。
   function addRuleBarHtml() {
-    var fields = Ui.FilterValues.fields(Store.getState());
     function option(value, label, note) {
       return '<option value="' + Ui.esc(value) + '"' + (value === viewState.customSubject ? ' selected' : '') +
         (note ? ' disabled' : '') + '>' + Ui.esc(label + (note ? '（' + note + '）' : '')) + '</option>';
     }
-    var choices = '<optgroup label="欄位">' + fields.map(function (field) {
-      return option('field:' + field.id, field.label, '');
-    }).join('') + option('type:drCrOnly', '借貸別', '') + option('type:manualAuto', '人工或自動分錄', '') + '</optgroup>';
+    var choices = Ui.FilterValues.groupedFields(Store.getState()).map(function (group) {
+      return '<optgroup label="' + group.label + '">' + group.fields.map(function (field) {
+        return option('field:' + field.id, field.label, '');
+      }).join('') + '</optgroup>';
+    }).join('') + '<optgroup label="分錄性質">' + option('type:drCrOnly', '借貸別', '') + option('type:manualAuto', '人工或自動分錄', '') + '</optgroup>';
     var accountNote = accountMappingRequirementNote('accountSide');
+    choices += '<optgroup label="條件組合">' + option('type:group', '同一分錄的條件括號', '') + option('type:voucher', '整張傳票或指定側的量詞', '') + '</optgroup>';
     choices += '<optgroup label="科目分類">' + option('type:accountSide', '借方或貸方分類', accountNote) +
       option('type:specialAccountCategoryPair', '借貸分類組合', accountNote) + '</optgroup>';
     choices += '<optgroup label="分錄特徵">' + option('type:prescreen', '預篩選訊號', '') +
@@ -734,6 +777,7 @@
     var field = Ui.FilterValues.fields(Store.getState()).find(function (item) { return item.id === value.slice(6); });
     if (!field) { return null; }
     var rule = Ui.FilterValues.create(field.type);
+    if (['createBy', 'approveBy', 'accNum'].indexOf(field.id) >= 0) { rule.operator = 'in'; }
     delete rule.field; delete rule.fieldId;
     rule[field.extra ? 'fieldId' : 'field'] = field.id;
     if (field.extra && field.type === 'money') { rule.amountBasis = 'signed'; }
@@ -1000,7 +1044,7 @@
             '<h3 class="population-scope__title" id="population-scope-heading">測試母體：查核期間</h3>' +
           '</div>' +
         '</div>' +
-        '<p class="population-scope__definition">只納入過帳日期落在案件期間內的分錄；期外與無日期列排除。</p>' +
+        '<p class="population-scope__definition">只納入總帳日期落在案件期間內的分錄；期外與無日期列排除。</p>' +
         '<div class="' + statusClass + '"' + (needsResave ? '' : ' hidden') + '>' +
           '<span>' + Ui.esc(statusText) + '</span>' +
           (needsResave
@@ -1066,7 +1110,8 @@
   }
 
   function scenarioBuilderHtml(draft) {
-    var totalRules = draft.groups.reduce(function (n, g) { return n + g.rules.length; }, 0);
+    function ruleCount(rule) { return 1 + (rule.rules || []).reduce(function (n, child) { return n + ruleCount(child); }, 0); }
+    var totalRules = draft.groups.reduce(function (n, g) { return n + g.rules.reduce(function (sum, rule) { return sum + ruleCount(rule); }, 0); }, 0);
     var editing = typeof draft.__editingIndex === 'number';
     var metadataMark = requiresScenarioMetadata(draft) ? '<em class="form__req">*</em>' : '<span class="form__optional">（KCT 條件可選填）</span>';
     return '<section class="rule-card scenario-builder" data-builder-title tabindex="-1" aria-label="篩選條件">' +
@@ -1147,7 +1192,8 @@
 
   // 一條條件＝一句話：家族小標、對象、比較方式、值、移除。列上沒有型別下拉；要換家族就移除再加。
   // 條件列不再有逐條 AND/OR——群組內的結合由組標頭的「符合以下全部／任一條件」統一決定。
-  function ruleRowHtml(rule, group, gi, ri) {
+  function ruleRowHtml(rule, group, gi, ri, insideVoucher) {
+    if (rule.type === 'group' || rule.type === 'voucher') { return compoundRuleHtml(rule, gi, ri, insideVoucher, group); }
     var family = ruleFamily(rule);
     var sameVoucher = groupMatchScope(group) === 'sameVoucher';
     var scopeLabel = sameVoucher
@@ -1176,10 +1222,37 @@
         '<div class="rule-row__controls">' +
           scopeLabel +
           (sameVoucher ? '<button type="button" class="btn btn--ghost btn--tiny" data-action="make-primary"' + (ri === 0 ? ' disabled' : '') + '>' + (ri === 0 ? '主要條件' : '設為主要條件') + '</button>' : '') +
-          ruleSubjectHtml(rule, family) + ruleControlsHtml(rule, gi, ri) + legacyRulePolicyHtml(rule) +
+          ruleSubjectHtml(rule, family) + ((rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') ? categorySelectionHtml(rule) : '') + ruleControlsHtml(rule, gi, ri) + legacyRulePolicyHtml(rule) +
         '</div>' +
       '</div>'
     );
+  }
+
+  function compoundRuleHtml(rule, gi, path, insideVoucher, outerGroup) {
+    function select(key, options, current) {
+      return '<select data-compound-key="' + key + '" aria-label="' + (key === 'side' ? '判斷範圍' : '符合方式') + '">' + options.map(function (o) {
+        return '<option value="' + o[0] + '"' + (current === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join('') + '</select>';
+    }
+    var config = rule.type === 'voucher' ? select('side', [['all','整張傳票'],['debit','借方'],['credit','貸方']], rule.side) +
+      select('quantifier', [['any','至少一筆符合'],['all','全部符合'],['none','不存在符合']], rule.quantifier) +
+      '<p>以下條件由同一筆分錄判斷。全部符合須至少有一筆；沒有該側分錄時，只有不存在符合成立。</p>' :
+      '<p>括號內的欄位條件綁定同一筆分錄。可再加入括號，組合「且」與「或」。</p>';
+    var children = (rule.rules || []).map(function (child, i) {
+      var join = i ? '<select data-child-join="' + i + '" aria-label="子條件連接方式"><option value="AND"' + (child.join !== 'OR' ? ' selected' : '') + '>且</option><option value="OR"' + (child.join === 'OR' ? ' selected' : '') + '>或</option></select>' : '';
+      return join + ruleRowHtml(child, { matchScope: 'row' }, gi, path + '.' + i, insideVoucher || rule.type === 'voucher');
+    }).join('');
+    var choices = Ui.FilterValues.groupedFields(Store.getState()).map(function (group) {
+      return '<optgroup label="' + Ui.esc(group.label) + '">' + group.fields.map(function (f) { return '<option value="field:' + Ui.esc(f.id) + '">' + Ui.esc(f.label) + '</option>'; }).join('') + '</optgroup>';
+    }).join('');
+    choices += '<option value="type:accountSide">借方或貸方分類</option><option value="type:manualAuto">人工或自動</option><option value="type:group">條件括號</option>';
+    if (rule.type === 'group' && !insideVoucher) { choices += '<option value="type:voucher">傳票量詞</option>'; }
+    if (groupMatchScope(outerGroup) === 'sameVoucher') {
+      config = '<p>' + (Number(path) === 0 ? '主要條件，決定命中分錄' : '同傳票佐證，括號內欄位必須由同一筆分錄滿足') + '</p>' + config;
+    }
+    return '<div class="rule-row rule-row--compound" data-gi="' + gi + '" data-ri="' + path + '"><div class="filter-rule-heading"><strong>' +
+      (rule.type === 'voucher' ? '傳票條件' : '條件括號') + '</strong><button type="button" class="rule-row__remove" data-compound-remove>移除</button></div>' + config + children +
+      '<label>加入子條件<select data-child-kind>' + choices + '</select></label><button type="button" class="btn btn--ghost btn--tiny" data-child-add>加入</button></div>';
   }
 
   // 每個家族的「對象」下拉：欄位（含借貸別、人工／自動）、科目看哪一側、風險樣態是哪一種。
@@ -1206,11 +1279,34 @@
       // 左邊的家族小標已經寫「樣態」，下拉不再重複一次標題。
       return '<select data-pattern-subject aria-label="樣態">' +
         '<optgroup label="風險訊號">' + availablePrescreenKeys().map(function (o) { return option('prescreen:' + o.value, o.label); }).join('') + '</optgroup>' +
-        '<optgroup label="數量與尾數">' + PATTERN_PARAM_TYPES.map(function (t) { return option(t.value, t.label); }).join('') + '</optgroup>' +
+        '<optgroup label="自訂條件">' + PATTERN_PARAM_TYPES.map(function (t) { return option(t.value, t.label); }).join('') + '</optgroup>' +
         (kct.length ? '<optgroup label="KCT 專屬">' + kct.map(function (t) { return option(t.value, t.label); }).join('') + '</optgroup>' : '') +
       '</select>';
     }
     return '';
+  }
+
+  function bindCompoundRule(row, siblings, index, gi) {
+    var rule = siblings[index];
+    function own(selector) { return Array.from(row.querySelectorAll(selector)).filter(function (el) { return el.closest('.rule-row') === row; }); }
+    function changed() { Store.setFilterDraft(Store.getState().filter.draft); }
+    own('[data-compound-key]').forEach(function (select) { select.addEventListener('change', function () { rule[select.getAttribute('data-compound-key')] = select.value; changed(); }); });
+    own('[data-child-join]').forEach(function (select) { select.addEventListener('change', function () { rule.rules[Number(select.getAttribute('data-child-join'))].join = select.value; changed(); }); });
+    own('[data-compound-remove]')[0].addEventListener('click', function () { siblings.splice(index, 1); changed(); });
+    own('[data-child-add]')[0].addEventListener('click', function () {
+      var value = own('[data-child-kind]')[0].value;
+      var fresh;
+      if (value.indexOf('type:') === 0) { fresh = Ui.newFilterRule(value.slice(5)); }
+      else {
+        var f = Ui.FilterValues.fields(Store.getState()).find(function (field) { return field.id === value.slice(6); });
+        if (!f) { return; }
+        fresh = Ui.FilterValues.create(f.type);
+        delete fresh.field; delete fresh.fieldId;
+        fresh[f.extra ? 'fieldId' : 'field'] = f.id;
+        if (f.extra && f.type === 'money') { fresh.amountBasis = 'signed'; }
+      }
+      fresh.join = 'AND'; rule.rules.push(fresh); changed();
+    });
   }
 
   function legacyRulePolicyHtml(rule) {
@@ -1239,6 +1335,12 @@
     }).join(Ui.FILTER_CATEGORY_LIST_SEPARATOR);
   }
 
+  function categorySelectionHtml(rule) {
+    return '<label>選取依據<select data-rule-bind="categorySelection">' + [['role','相同審計角色'],['node','僅分類本身'],['subtree','分類及所有下層']].map(function (item) {
+      return '<option value="' + item[0] + '"' + ((rule.categorySelection || 'role') === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
+    }).join('') + '</select></label>';
+  }
+
   function ruleControlsHtml(rule, gi, ri) {
     function fieldSelect(keys) {
       return '<select data-rule-bind="field">' + keys.map(function (key) {
@@ -1252,13 +1354,13 @@
     function categoryMultiSelect(idsKey, legacyKey, legend) {
       var state = Store.getState();
       var selected = ruleCategoryIds(rule, idsKey, legacyKey);
-      var boxes = Ui.taxonomyCategories(state).map(function (category, index) {
+      var boxes = Ui.taxonomyTree(state).map(function (category, index) {
         var id = 'cat-' + gi + '-' + ri + '-' + idsKey + '-' + index;
         return '<label class="category-option" for="' + id + '">' +
           '<input type="checkbox" id="' + id + '" data-category-bind="' + idsKey + '"' +
             ' value="' + Ui.esc(category.categoryId) + '"' +
             (selected.indexOf(category.categoryId) >= 0 ? ' checked' : '') + '>' +
-          '<span>' + Ui.esc(category.label) + '</span>' +
+          '<span>' + Ui.esc('　'.repeat(category.depth) + (category.depth ? '└ ' : '') + category.label) + '</span>' +
         '</label>';
       }).join('');
       return '<fieldset class="category-select">' +
@@ -1271,7 +1373,7 @@
       case 'fieldValue':
         return Ui.FilterValues.render(rule, Store.getState(), 'value-' + gi + '-' + ri, PSEUDO_FIELDS);
       case 'accountSide':
-        return '<select data-rule-bind="categoryMode" aria-label="科目條件">' + Ui.ACCOUNT_SIDE_MODE_OPTIONS.map(function (item) {
+        return categorySelectionHtml(rule) + '<select data-rule-bind="categoryMode" aria-label="科目條件">' + Ui.ACCOUNT_SIDE_MODE_OPTIONS.map(function (item) {
             return '<option value="' + item.value + '"' + (rule.categoryMode === item.value ? ' selected' : '') + '>' + item.label + '</option>';
           }).join('') + '</select>' +
           categoryMultiSelect('categoryIds', 'category', '指定分類') +
@@ -1421,21 +1523,37 @@
 
       case 'customPreparerEntryCount':
       case 'customAccountEntryCount':
-        return '<input type="number" data-rule-bind="maxEntries" min="1" step="1" aria-label="張數上限" value="' +
+        return '<input type="number" data-rule-bind="maxEntries" min="1" step="1" aria-label="分錄筆數上限" value="' +
             Ui.esc(rule.maxEntries) + '">' +
-          '<span class="rule-row__sep">張</span>';
+          '<span class="rule-row__sep">筆</span>';
+
+      case 'entityFrequency': {
+        function countSelect(key, label, items) {
+          return '<label>' + label + '<select data-rule-bind="' + key + '">' + items.map(function (item) {
+            return '<option value="' + item[0] + '"' + (rule[key] === item[0] ? ' selected' : '') + '>' + Ui.esc(item[1]) + '</option>';
+          }).join('') + '</select></label>';
+        }
+        return countSelect('field', '統計對象', ['accNum', 'createBy', 'approveBy'].map(function (key) { return [key, Ui.glFieldLabel(key)]; })) +
+          countSelect('countUnit', '計算單位', [['entries', '分錄筆數'], ['vouchers', '去重傳票張數']]) +
+          countSelect('countOperator', '比較方式', [['equals', '等於'], ['lessThan', '小於'], ['greaterThan', '大於'], ['between', '介於'],
+            ['lessThanOrEqual', '小於或等於'], ['greaterThanOrEqual', '大於或等於']]) +
+          '<input type="number" data-rule-bind="countFrom" min="0" step="1" aria-label="統計次數或區間下限" value="' + Ui.esc(rule.countFrom) + '">' +
+          (rule.countOperator === 'between' ? '<span>至</span><input type="number" data-rule-bind="countTo" min="0" step="1" aria-label="統計區間上限" value="' + Ui.esc(rule.countTo) + '"><span>含兩個端點</span>' : '') +
+          '<p class="rule-explanation">在本情境選定的母體內，依匯入後的科目或人員識別值分組；空白識別值不命中。' +
+          (rule.countUnit === 'vouchers' ? '同案件相同傳票號碼算一張，空白號碼不計張；符合該科目或人員的分錄仍會列出。' : '同張傳票有多列時，每列各計一筆。') + '</p>';
+      }
 
       case 'revenueDebitNearQuarterEnd':
-        return '<span class="rule-row__field-label" title="過帳日期落在曆年季末前指定天數內的收入借方分錄">季末前</span>' +
+        return '<span class="rule-row__field-label" title="總帳日期落在曆年季末前指定天數內的收入借方分錄">季末前</span>' +
           '<input type="number" data-rule-bind="windowDays" min="1" max="92" step="1" placeholder="天數" value="' +
             Ui.esc(rule.windowDays) + '">' +
-          '<span class="rule-row__sep">天・借記收入</span>';
+          '<span class="rule-row__sep">天內借記收入</span>';
 
       case 'revenueWithoutNormalCounterpart':
-        return '<span class="rule-row__field-label" title="貸方為收入，但同一張傳票沒有應收或預收的借方分錄">貸收入・借方非應收/預收</span>';
+        return '<span class="rule-row__field-label" title="貸方為收入，但同一張傳票沒有應收或預收的借方分錄">貸方為收入，借方非應收或預收</span>';
 
       case 'manualRevenueEntry':
-        return '<span class="rule-row__field-label" title="科目為收入且為人工分錄">收入・人工分錄</span>';
+        return '<span class="rule-row__field-label" title="科目為收入且為人工分錄">收入的人工分錄</span>';
 
       case 'trailingDigits':
         // 範例提示改常駐 helper text（NN/g、GOV.UK：hover-only/title 對鍵盤/觸控/報讀器不友善；
@@ -1454,14 +1572,38 @@
     }
   }
 
+  function isExplicitVoucherCondition(rule) {
+    return rule.type === 'voucher' || rule.type === 'group' && (rule.rules || []).length > 0 && rule.rules.every(isExplicitVoucherCondition);
+  }
+  function containsExplicitVoucherCondition(rule) {
+    return rule.type === 'voucher' || (rule.rules || []).some(containsExplicitVoucherCondition);
+  }
   function ruleSummaryLabel(rule, index, compact) {
     var prefix = index === 0 ? '' : (effectiveRuleJoin(rule) === 'OR' ? '或 ' : '且 ');
+    if ((rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') && rule.categorySelection) {
+      prefix += { role: '相同審計角色：', node: '僅分類本身：', subtree: '包含下層分類：' }[rule.categorySelection] || '';
+    }
     switch (rule.type) {
+      case 'group':
+      case 'voucher': {
+        var expr = '';
+        (rule.rules || []).forEach(function (child) {
+          var atom = ruleSummaryLabel(child, 0, compact);
+          expr = expr ? '（' + expr + (effectiveRuleJoin(child) === 'OR' ? ' 或 ' : ' 且 ') + atom + '）' : atom;
+        });
+        var head = rule.type === 'voucher' ? ({ all: '整張傳票', debit: '借方', credit: '貸方' }[rule.side] || '') +
+          ({ any: '至少一筆符合', all: '全部符合（至少有一筆）', none: '不存在符合' }[rule.quantifier] || '') + '：' : '';
+        if (rule.type === 'voucher') { return prefix + head + (rule.rules.length === 1 ? expr : '同一分錄（' + expr + '）'); }
+        var scope = rule.rules.length > 0 && rule.rules.every(isExplicitVoucherCondition) ? '同張傳票'
+          : rule.rules.some(containsExplicitVoucherCondition) ? '條件組合' : '同一分錄';
+        return prefix + scope + '（' + expr + '）';
+      }
       case 'fieldValue':
         return prefix + Ui.FilterValues.summary(rule, Store.getState(), compact);
       case 'accountSide': {
         var side = rule.drCr === 'credit' ? '貸方' : '借方';
         var categories = categoryIdsLabel(Store.getState(), rule.categoryIds);
+        categories += { node: '（僅分類本身）', subtree: '（包含下層分類）', role: '（相同審計角色）' }[rule.categorySelection] || '';
         if (rule.categoryMode === 'is') { return prefix + side + '科目屬於「' + categories + '」'; }
         if (rule.categoryMode === 'isNot') { return prefix + side + '科目不屬於「' + categories + '」'; }
         if (rule.categoryMode === 'absent') { return prefix + '整張傳票的' + side + '都不屬於「' + categories + '」'; }
@@ -1505,7 +1647,7 @@
           ? '借方 ' + pairDebit
           : (rule.pairMode === 'creditAnchor'
             ? '貸方 ' + pairCredit
-            : '借方 ' + pairDebit + '・貸方 ' + pairCredit);
+            : '借方 ' + pairDebit + '，貸方 ' + pairCredit);
         return prefix + '借貸科目組合：' + (pairMode ? pairMode.label : rule.pairMode) + '（' + pairDetail + '）';
       }
       case 'specialAccountCategoryPair': {
@@ -1513,7 +1655,7 @@
         var specialState = Store.getState();
         return prefix + '借貸科目組合：' + (specialMode ? specialMode.label : rule.pairMode) + '（借方 ' +
           categoryIdsLabel(specialState, ruleCategoryIds(rule, 'debitCategoryIds', 'debitCategory')) +
-          '・貸方 ' +
+          '，貸方 ' +
           categoryIdsLabel(specialState, ruleCategoryIds(rule, 'creditCategoryIds', 'creditCategory')) + '）';
       }
       case 'typed': {
@@ -1545,13 +1687,18 @@
       case 'customTrailingZeros':
         return prefix + '尾數連續 ' + rule.digits + ' 個 0';
       case 'customPreparerEntryCount':
-        return prefix + '所選母體內編製人員張數 ≤ ' + rule.maxEntries;
+        return prefix + '所選母體內編製人員分錄筆數 ≤ ' + rule.maxEntries;
       case 'customAccountEntryCount':
-        return prefix + '所選母體內科目張數 ≤ ' + rule.maxEntries;
+        return prefix + '所選母體內科目分錄筆數 ≤ ' + rule.maxEntries;
+      case 'entityFrequency':
+        return prefix + '所選母體內「' + Ui.glFieldLabel(rule.field) + '」' +
+          (rule.countUnit === 'vouchers' ? '去重傳票張數' : '分錄筆數') + ' ' +
+          ({ equals: '等於', lessThan: '小於', greaterThan: '大於', between: '介於', lessThanOrEqual: '小於或等於', greaterThanOrEqual: '大於或等於' }[rule.countOperator] || '') +
+          ' ' + rule.countFrom + (rule.countOperator === 'between' ? '～' + rule.countTo + '（含端點）' : '');
       case 'revenueDebitNearQuarterEnd':
         return prefix + '季末前 ' + (rule.windowDays || '…') + ' 天借記收入';
       case 'revenueWithoutNormalCounterpart':
-        return prefix + '貸收入・借方非應收/預收';
+        return prefix + '貸方為收入，借方非應收或預收';
       case 'manualRevenueEntry':
         return prefix + '收入之人工分錄';
       case 'trailingDigits': {
@@ -2129,14 +2276,68 @@
       }).catch(function (error) {
         // 舊案件／舊 revision 的失敗不可污染目前案件訊息；當前失敗則留可重試提示並交給共用訊息區。
         if (!acceptResponse()) { return; }
-        previewEl.textContent = '載入失敗；請收合後再展開以重試。';
+        previewEl.innerHTML = '<p role="status">載入失敗：' + Ui.esc(error && error.message ? error.message : '請稍後重試。') + '</p>' +
+          '<p>已保存的情境設定仍保留。' + (error && error.code === 'invalid_scenario'
+            ? '請依原因確認欄位配對或編輯情境。修改來源欄位後，請重新驗證，再回來重試。'
+            : '可以直接重試讀取結果。') + '</p>' +
+          '<button type="button" class="btn btn--ghost" data-scenario-retry>重試讀取結果</button>' +
+          (error && error.code === 'invalid_scenario' ?
+            '<button type="button" class="btn btn--ghost" data-scenario-return-mapping>返回欄位配對</button>' : '');
+        previewEl.querySelector('[data-scenario-retry]').addEventListener('click', function () {
+          ensureScenarioPreview(container, index);
+        });
+        var mappingButton = previewEl.querySelector('[data-scenario-return-mapping]');
+        if (mappingButton) { mappingButton.addEventListener('click', function () { Ui.gotoStep(2); }); }
         throw error;
       });
     });
   }
 
   // 會改變同一列可見控制項組合的規則鍵：改動後必須重繪，否則畫面會停在舊的輸入形狀。
-  var STRUCTURAL_RULE_KEYS = ['fieldId', 'operator', 'pairMode', 'categoryMode'];
+  var STRUCTURAL_RULE_KEYS = ['fieldId', 'operator', 'pairMode', 'categoryMode', 'countUnit', 'countOperator'];
+
+  function bindLegacyPicker(container) {
+    container.querySelector('[data-filter-disclosure=legacy-form]').addEventListener('toggle', function (event) { viewState.disclosures['legacy-form'] = event.target.open; });
+    container.querySelector('[data-legacy-letter]').addEventListener('change', function (event) {
+      viewState.legacyLetter = event.target.value; viewState.legacyField = '';
+      viewState.disclosures['legacy-form'] = true;
+      container.querySelector('[data-legacy-host]').innerHTML = legacyPickerHtml();
+      bindLegacyPicker(container);
+      container.querySelector('[data-legacy-letter]').focus({ preventScroll: true });
+    });
+    var legacyField = container.querySelector('[data-legacy-field]');
+    if (legacyField) { legacyField.addEventListener('change', function () { viewState.legacyField = legacyField.value; }); }
+    container.querySelector('[data-action="add-legacy-rule"]').addEventListener('click', function () {
+      var item = global.JetLegacyFilters.catalogue.conditions.find(function (entry) { return entry.letter === viewState.legacyLetter; });
+      var state = Store.getState(), draft = state.filter.draft;
+      var field = legacyField && Ui.FilterValues.fields(state).find(function (entry) { return entry.id === legacyField.value; });
+      var rules = global.JetLegacyFilters.rules(item, field);
+      var account = container.querySelector('[data-legacy-account]');
+      if (account && account.value === 'categories') { rules = global.JetLegacyFilters.rules({ rules: item.categoryRules }); }
+      var person = container.querySelector('[data-legacy-person]');
+      if (person && person.value !== 'frequency') { rules = [{ type: 'fieldValue', field: person.value, operator: 'in', values: [], includeBlank: false }]; }
+      var group = activeEditableGroup(draft);
+      if (!group) { group = { join: 'AND', matchScope: 'row', rules: [] }; draft.groups.push(group); setActiveGroup(draft, group); }
+      rules.forEach(function (rule) { rule.join = groupCombinator(group); group.rules.push(rule); });
+      viewState.disclosures['legacy-form'] = true;
+      Store.setFilterDraft(draft); revealAddedRule(rules[rules.length - 1]);
+    });
+    container.querySelectorAll('[data-legacy-example]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var example = global.JetLegacyFilters.catalogue.examples.find(function (entry) { return entry.key === button.dataset.legacyExample; });
+        var rules = global.JetLegacyFilters.rules(example);
+        if (example.key === 'example2') {
+          var chosen = container.querySelector('[data-legacy-example-field]').value;
+          if (!chosen) { container.querySelector('[data-legacy-notice]').textContent = '範例 2 需要部門等額外文字欄位。請先選取；沒有選項時，回欄位配對加入來源。'; return; }
+          rules[1].fieldId = chosen;
+        }
+        var draft = { name: example.combination + ' ' + example.label, rationale: example.rationale,
+          groups: [{ join: 'AND', matchScope: 'row', rules: rules }], __nameDirty: true, __rationaleDirty: true };
+        viewState.saveOpen = false; viewState.disclosures['legacy-form'] = true;
+        Store.setFilterDraft(draft); revealAddedRule(rules[0]);
+      });
+    });
+  }
 
   function bind(container) {
     syncSuggestedMetadata(container);
@@ -2163,6 +2364,7 @@
       details.addEventListener('toggle', function () { viewState.disclosures[details.dataset.filterDisclosure] = details.open; });
     });
     var customSubject = container.querySelector('[data-custom-subject]');
+    bindLegacyPicker(container);
     customSubject.addEventListener('change', function () {
       viewState.customSubject = customSubject.value;
       container.querySelector('[data-action="add-rule"]').disabled = !customSubject.value || !!accountMappingRequirementNote(customSubject.value.slice(5));
@@ -2483,16 +2685,27 @@
 
     container.querySelectorAll('.rule-row').forEach(function (row) {
       var gi = Number(row.getAttribute('data-gi'));
-      var ri = Number(row.getAttribute('data-ri'));
+      var path = row.getAttribute('data-ri').split('.').map(Number);
+      var ri = path.pop();
+      var currentRules = Store.getState().filter.draft.groups[gi].rules;
+      path.forEach(function (index) { currentRules = currentRules[index].rules; });
+      function patchCurrent(patch) {
+        Object.assign(currentRules[ri], patch);
+        Store.patchFilterRule(gi, path.length ? path[0] : ri, {});
+      }
+      if (currentRules[ri].type === 'group' || currentRules[ri].type === 'voucher') {
+        bindCompoundRule(row, currentRules, ri, gi);
+        return;
+      }
       // 沿用 app.js 的明確焦點鍵；重繪篩選方式或訊號選單時留在原控制項。
       ['data-pattern-subject', 'data-account-subject', 'data-value-kind', 'data-value-polarity', 'data-rule-bind', 'data-value-key'].forEach(function (attribute) {
         row.querySelectorAll('[' + attribute + ']').forEach(function (control) {
           if (!control.hasAttribute('data-focus-key')) {
-            control.setAttribute('data-focus-key', 'filter-' + gi + '-' + ri + '-' + attribute + '-' + control.getAttribute(attribute));
+            control.setAttribute('data-focus-key', 'filter-' + gi + '-' + row.getAttribute('data-ri') + '-' + attribute + '-' + control.getAttribute(attribute));
           }
         });
       });
-      var currentRule = Store.getState().filter.draft.groups[gi].rules[ri];
+      var currentRule = currentRules[ri];
       function selectCurrentRule() {
         if (!row.isConnected || selectedRule === currentRule) { return; }
         var draft = Store.getState().filter.draft;
@@ -2512,10 +2725,11 @@
       // 換掉這一列的規則（家族內換對象時用）：保留 join；原本是 KCT 卡帶入的列就解除身分並重算命名。
       function replaceRule(build) {
         var draft = Store.getState().filter.draft;
-        var old = draft.groups[gi].rules[ri];
+        var old = currentRules[ri];
         var fresh = build(old);
         fresh.join = old.join;
-        draft.groups[gi].rules[ri] = fresh;
+        if (old.categorySelection && ['accountSide','accountPair','specialAccountCategoryPair'].indexOf(fresh.type) >= 0) { fresh.categorySelection = old.categorySelection; }
+        currentRules[ri] = fresh;
         if (selectedRule === old) { selectedRule = fresh; }
         if (old[KCT_LETTER_KEY]) { applyKctNaming(draft); }
         Store.setFilterDraft(draft);
@@ -2538,7 +2752,7 @@
       Ui.FilterValues.bind(row.querySelector('.value-editor'), currentRule, Store.getState(), function (structural, pseudoId) {
         if (structural === 'pseudo') { switchFieldSubject(pseudoId); }
         else if (structural) { Store.setFilterDraft(Store.getState().filter.draft); }
-        else { Store.patchFilterRule(gi, ri, {}); softRefreshReadback(container); softExpirePreviewPane(container); softRefreshGate(container); }
+        else { patchCurrent({}); softRefreshReadback(container); softExpirePreviewPane(container); softRefreshGate(container); }
       });
       var fieldSubject = row.querySelector('[data-field-subject]');
       if (fieldSubject) { fieldSubject.addEventListener('change', function () { switchFieldSubject(fieldSubject.value); }); }
@@ -2548,7 +2762,7 @@
       if (accountSubject) {
         accountSubject.addEventListener('change', function () {
           var value = accountSubject.value;
-          var old = Store.getState().filter.draft.groups[gi].rules[ri];
+          var old = currentRules[ri];
           if (value === 'pair') {
             if (old.type !== 'accountSide') { return; }
             replaceRule(function () {
@@ -2559,7 +2773,7 @@
             });
             return;
           }
-          if (old.type === 'accountSide') { Store.patchFilterRule(gi, ri, { drCr: value }); Store.touch(); return; }
+          if (old.type === 'accountSide') { patchCurrent({ drCr: value }); Store.touch(); return; }
           replaceRule(function () {
             var fresh = Ui.newFilterRule('accountSide');
             fresh.drCr = value;
@@ -2575,10 +2789,10 @@
       if (patternSubject) {
         patternSubject.addEventListener('change', function () {
           var value = patternSubject.value;
-          var old = Store.getState().filter.draft.groups[gi].rules[ri];
+          var old = currentRules[ri];
           if (value.indexOf('prescreen:') === 0) {
             var key = value.slice('prescreen:'.length);
-            if (old.type === 'prescreen') { Store.patchFilterRule(gi, ri, { prescreenKey: key }); Store.touch(); return; }
+            if (old.type === 'prescreen') { patchCurrent({ prescreenKey: key }); Store.touch(); return; }
             replaceRule(function () { var fresh = Ui.newFilterRule('prescreen'); fresh.prescreenKey = key; return fresh; });
             return;
           }
@@ -2594,9 +2808,9 @@
 
       row.querySelector('[data-action="remove-rule"]').addEventListener('click', function () {
         var draft = Store.getState().filter.draft;
-        var removed = draft.groups[gi].rules[ri];
+        var removed = currentRules[ri];
         var wasKct = !!(removed && removed[KCT_LETTER_KEY]);
-        draft.groups[gi].rules.splice(ri, 1);
+        currentRules.splice(ri, 1);
         if (wasKct) { applyKctNaming(draft); } // 移除 KCT 條件才重算命名（與卡片 toggle 一致；純自訂不動手改名）
         Store.setFilterDraft(draft);
       });
@@ -2612,7 +2826,7 @@
           });
           var patch = {};
           patch[key] = selected;
-          Store.patchFilterRule(gi, ri, patch);
+          patchCurrent(patch);
           softRefreshReadback(container);
           softExpirePreviewPane(container);
           softRefreshGate(container);
@@ -2624,17 +2838,17 @@
       if (pairSelection) {
         pairSelection.addEventListener('change', function () {
           var parts = pairSelection.value.split('|'), draft = Store.getState().filter.draft;
-          var old = draft.groups[gi].rules[ri];
+          var old = currentRules[ri];
           if (parts[0] !== old.type) {
             var fresh = Ui.newFilterRule(parts[0]);
-            fresh.join = old.join; fresh.pairMode = parts[1];
+            fresh.join = old.join; fresh.pairMode = parts[1]; fresh.categorySelection = old.categorySelection;
             fresh.debitCategoryIds = (old.debitCategoryIds || []).slice(); fresh.creditCategoryIds = (old.creditCategoryIds || []).slice();
             if (old[KCT_LETTER_KEY]) { fresh[KCT_LETTER_KEY] = old[KCT_LETTER_KEY]; }
-            draft.groups[gi].rules[ri] = fresh;
+            currentRules[ri] = fresh;
         if (selectedRule === old) { selectedRule = fresh; }
             Store.setFilterDraft(draft);
           } else {
-            Store.patchFilterRule(gi, ri, { pairMode: parts[1] });
+            patchCurrent({ pairMode: parts[1] });
             Store.touch();
           }
         });
@@ -2647,7 +2861,7 @@
         control.addEventListener('input', function () {
           var patch = {};
           patch[key] = key === 'values' ? control.value.split(/\r?\n/) : control.value;
-          Store.patchFilterRule(gi, ri, patch);
+          patchCurrent(patch);
           // 結構性選擇（額外欄位、比較方式、配對模式）會改變這一列該顯示哪些輸入框，
           // 因此重繪面板；一般值編輯仍只 patch，以保住輸入焦點。
           if (STRUCTURAL_RULE_KEYS.indexOf(key) >= 0) {
@@ -2964,7 +3178,7 @@
       '<div class="preview-table__wrap">' +
         '<table class="preview-table">' +
           '<thead><tr>' + Ui.sortableHeadCellsHtml('query.tagMatrixVoucherPage', [
-            { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '過帳日期' },
+            { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '總帳日期' },
             { key: 'createdBy', label: '編製人員' }, { key: 'voucherTotal', label: '傳票總額' }]) +
             tagColumnHeadHtml(columns) + '</tr></thead>' +
           '<tbody></tbody>' +
@@ -3006,7 +3220,7 @@
       '<div class="preview-table__wrap">' +
         '<table class="preview-table">' +
           '<thead><tr>' + Ui.sortableHeadCellsHtml('query.tagMatrixRowPage', [
-            { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '過帳日期' },
+            { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳日期' },
             { key: 'accountCode', label: '科目' }, { key: 'amount', label: '金額' }, { key: 'description', label: '摘要' }]) +
             tagColumnHeadHtml(columns) + '</tr></thead>' +
           '<tbody></tbody>' +

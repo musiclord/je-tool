@@ -282,11 +282,14 @@ public sealed class AdvancedFilterAstContractTests
     [InlineData("filter-2026-08-14-v7")]
     [InlineData("filter-2026-08-14-v8")]
     [InlineData("filter-2026-08-14-v9")]
-    public void FilterLogicVersion_IsV10AndV9OrEarlierDefinitionsAreStale(string savedVersion)
+    [InlineData("filter-2026-09-08-v13")]
+    [InlineData("filter-2026-09-17-v14")]
+    [InlineData("filter-2026-09-18-v15")]
+    public void FilterLogicVersion_IsV16AndV15OrEarlierDefinitionsAreStale(string savedVersion)
     {
-        // v10 是現行權威；v9 與更早保存的情境一律 stale——可回放供修正，
+        // v16 是現行權威；v15 與更早保存的情境一律 stale——可回放供修正，
         // 但不得沿用舊 resultRef 或直接惰性補算。
-        Assert.Equal("filter-2026-09-08-v13", RuleLogicVersions.Filter);
+        Assert.Equal("filter-2026-09-18-v16", RuleLogicVersions.Filter);
         var saved = new SavedFilterScenario(
             1,
             "synthetic",

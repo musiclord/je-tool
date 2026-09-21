@@ -17,7 +17,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT category_id, label, ordinal, semantic_role, is_builtin, revision
+            SELECT category_id, label, ordinal, semantic_role, is_builtin, revision, parent_category_id
             FROM config_account_taxonomy
             ORDER BY ordinal, category_id;
             """;
@@ -32,7 +32,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
                 reader.GetString(1),
                 reader.GetInt32(2),
                 reader.GetString(3),
-                Convert.ToInt32(reader.GetValue(4), System.Globalization.CultureInfo.InvariantCulture) != 0));
+                Convert.ToInt32(reader.GetValue(4), System.Globalization.CultureInfo.InvariantCulture) != 0, reader.IsDBNull(6) ? null : reader.GetString(6)));
             revision = Math.Max(revision, reader.GetInt32(5));
         }
 
@@ -78,14 +78,15 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
             insert.CommandText =
                 """
                 INSERT INTO config_account_taxonomy
-                    (category_id, label, ordinal, semantic_role, is_builtin, revision)
-                VALUES (@categoryId, @label, @ordinal, @semanticRole, @isBuiltIn, @revision);
+                    (category_id, label, ordinal, semantic_role, is_builtin, revision, parent_category_id)
+                VALUES (@categoryId, @label, @ordinal, @semanticRole, @isBuiltIn, @revision, @parent);
                 """;
             var categoryId = insert.AddParameter("@categoryId", DbType.String);
             var label = insert.AddParameter("@label", DbType.String);
             var ordinal = insert.AddParameter("@ordinal", DbType.Int32);
             var semanticRole = insert.AddParameter("@semanticRole", DbType.String);
             var isBuiltIn = insert.AddParameter("@isBuiltIn", DbType.Int32);
+            var parent = insert.AddParameter("@parent", DbType.String);
             var revision = insert.AddParameter("@revision", DbType.Int32);
 
             foreach (var category in replacement)
@@ -96,10 +97,12 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
                 semanticRole.Value = category.SemanticRole;
                 isBuiltIn.Value = category.IsBuiltIn ? 1 : 0;
                 revision.Value = nextRevision;
+                parent.Value = (object?)category.ParentCategoryId ?? DBNull.Value;
                 await insert.ExecuteNonQueryAsync(cancellationToken);
             }
         }
 
+        await AccountTaxonomyHierarchy.SavePathsAsync(connection, transaction, replacement, "", cancellationToken);
         await RuleRunResultReset.ClearWithinAsync(
             connection,
             transaction,
@@ -118,7 +121,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
         command.Transaction = transaction;
         command.CommandText =
             """
-            SELECT category_id, label, ordinal, semantic_role, is_builtin, revision
+            SELECT category_id, label, ordinal, semantic_role, is_builtin, revision, parent_category_id
             FROM config_account_taxonomy
             ORDER BY ordinal, category_id;
             """;
@@ -132,7 +135,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
                 reader.GetString(1),
                 reader.GetInt32(2),
                 reader.GetString(3),
-                Convert.ToBoolean(reader.GetValue(4))));
+                Convert.ToBoolean(reader.GetValue(4)), reader.IsDBNull(6) ? null : reader.GetString(6)));
             revision = Math.Max(revision, reader.GetInt32(5));
         }
         return new AccountTaxonomySnapshot(revision, categories);

@@ -294,7 +294,7 @@ public sealed class PrescreenProgramTests
             HasRevenue: hasRevenue,
             HasCounterpart: hasCounterpart,
             HasAuthorizedPreparers: hasAuthorizedPreparers,
-            NonWorkingDays: [0, 6]);
+            NonWorkingDays: [0, 6], HasVoucherDate: true);
 
     private static PrescreenFacts Facts(bool nonZero = false)
     {

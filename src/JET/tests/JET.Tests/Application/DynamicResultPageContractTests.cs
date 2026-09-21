@@ -15,7 +15,7 @@ public sealed class DynamicResultPageContractTests
     [
         ("documentNumber", "傳票號碼", "text"),
         ("lineItem", "傳票文件項次", "text"),
-        ("postDate", "過帳日期", "date"),
+        ("postDate", "總帳日期", "date"),
         ("accountCode", "會計科目編號", "text"),
         ("accountName", "會計科目名稱", "text"),
         ("amount", "傳票金額", "money"),
@@ -30,7 +30,7 @@ public sealed class DynamicResultPageContractTests
         ("accountName", "會計科目名稱", "text"),
         ("debit", "借方金額", "money"),
         ("credit", "貸方金額", "money"),
-        ("postDate", "過帳日期", "date"),
+        ("postDate", "總帳日期", "date"),
         ("approvalDate", "核准日期", "date"),
         ("createdBy", "編製人員", "text"),
         ("approvedBy", "核准人員", "text"),

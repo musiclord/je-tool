@@ -28,9 +28,9 @@ public sealed class TypedFieldFilterContractTests
     }
 
     [Fact]
-    public void FilterLogicVersion_CurrentContractIsV10()
+    public void FilterLogicVersion_CurrentContractIsV16()
     {
-        Assert.Equal("filter-2026-09-08-v13", RuleLogicVersions.Filter);
+        Assert.Equal("filter-2026-09-18-v16", RuleLogicVersions.Filter);
     }
 
     [Fact]

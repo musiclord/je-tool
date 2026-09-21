@@ -82,8 +82,11 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 
 ## 跨 session 續接
 
-- 接手先讀 `docs/development-status.md` 的「目前大型計畫」與「已知但延後的事項」，再依
-  `docs/development-workflow.md` 核對實際 branch、HEAD 與工作樹；不能只依長期文件判斷 Git 狀態。
+- 可先執行 `pwsh -NoProfile -File tools/verify.ps1 -Command Context`，取得現行計畫、工作樹與近期驗證，
+  再依本次問題深入來源。它是唯讀導覽，不是開工門檻；資料缺失時利用其餘證據繼續判斷。
+- Harness 提供環境、觀察與驗證回饋，Agent 負責設計判斷。一般實作選擇、可回復實驗和驗證順序可自主調整；
+  計畫的「下一步」表示工作順序；本輪交付範圍依使用者任務另行說清楚，不能把完成一個步驟當成整輪完成。
+  分工、停止與續接方式見 `docs/development-workflow.md`。
 - 需要跨多個步驟或 session 的工作，一次只保留一份現行大型計畫（`docs/specs/`）。進度、裁定與下一動作
   要寫進計畫檔，不能只存在聊天、Agent memory 或被忽略的執行紀錄裡。計畫裡的需求與裁定逐字保留使用者
   原話並附日期；改寫要先獲授權，複審對照原話（見 `docs/development-workflow.md`）。

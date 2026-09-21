@@ -1,6 +1,6 @@
 # JET 的 AI Agent 相容方式
 
-更新日期：2026-09-09
+更新日期：2026-09-18
 
 JET 不為每一個 AI 工具維護一套獨立規則。完整共用規則只放在根目錄 `AGENTS.md`；其他檔案只負責讓
 各工具找到同一份規則，或保留平台無法可靠追蹤連結時必須先看到的安全摘要。
@@ -14,11 +14,9 @@ JET 不為每一個 AI 工具維護一套獨立規則。完整共用規則只放
 | GitHub Copilot | `.github/copilot-instructions.md` | 指向 `AGENTS.md`，並保留 Git、機敏資料與驗證入口的短摘要 |
 | VS Code AI Agent | `.github/copilot-instructions.md` 與 `AGENTS.md` | 使用 workspace 指示檔；不需要複製舊專案的 VS Code 實驗性設定 |
 
-GitHub 不同 Copilot 介面支援的指示檔不完全相同，因此 `.github/copilot-instructions.md` 仍有必要。
-2026-08-30 依官方支援矩陣重新查證：VS Code、Copilot coding agent 與 Copilot CLI 會原生讀 `AGENTS.md`；
-Visual Studio、JetBrains 與 GitHub.com 的 Chat 不會，只讀 `.github/copilot-instructions.md`。所以轉接檔
-的安全摘要是那三個介面唯一會看到的規則，不能刪減，也不能建立和 `AGENTS.md` 相反的規則。VS Code 同時
-載入多種指示檔時內容不保證固定順序，結論相同。
+2026-09-18 重新核對[官方支援矩陣](https://docs.github.com/en/copilot/reference/custom-instructions-support)：
+Copilot 各介面支援的指示檔不同，不能把 VS Code 的支援推論到 Visual Studio 或一般網頁 Chat。
+因此保留 `.github/copilot-instructions.md` 的共用入口與安全摘要；實際是否載入仍依工具的診斷畫面確認。
 
 ## 前端設計與瀏覽器相容性
 
@@ -69,24 +67,13 @@ Codex 會自動偵測 skill 檔案變更；若目前 session 的 skill 清單尚
 
 ## 載入預算
 
-兩個主要 host 對指示檔都有量的限制，超出時不會報錯，只會靜默截斷或降低遵循度。2026-09-02 量測：
+[Codex 官方文件](https://learn.chatgpt.com/docs/agent-configuration/agents-md)說明各層專案指示預設合計
+上限為 32 KiB；這不是單看本儲存庫檔案就能判定的剩餘額度。
+[Claude Code 官方文件](https://code.claude.com/docs/en/memory)建議精簡指示，將局部程序按需載入；
+建議篇幅不等於超過便截斷的硬性限制，`@AGENTS.md` 匯入也不會省去其上下文用量。
 
-| Host | 限制 | 目前用量 |
-|:---|:---|:---|
-| Codex | 各層 `AGENTS.md` 合併總量預設 32 KiB | `AGENTS.md` 9,052 bytes，約 28% |
-| Claude Code | 官方建議單檔 200 行以內；`@AGENTS.md` import 不會降低 context 用量 | `CLAUDE.md` 10 行加 `AGENTS.md` 126 行，共 136 行 |
-
-2026-08-30 依 harness engineering 的共識把 `AGENTS.md` 從 131 行的規則全文改寫為 83 行的地圖：只保留
-不可協商的邊界、常用命令與指向各文件的導航表；被移出的細則都在 `docs/` 有唯一的家（寫作規範在
-`docs/README.md`，資料與 legacy 規則在 `docs/data-and-legacy.md`，驗證細節在 `docs/harness.md` 與
-`tools/README.md`）。2026-09-01 為 `$jet-converge` 補上 explicit-only 路由與專案記憶導航後為 107 行；
-完整流程仍留在 `.agents/`，沒有搬進入口。2026-09-02 依使用者要求補上三條邊界（寫給人的文字、測試
-斷言不得放寬、commit 訊息用中文且要短）與 `jet-readable-docs` 的導航後為 123 行；同日再依使用者裁定
-加上「預設審計員可信」一條，為 126 行。改寫步驟與範例留在 skill，不進入口。之後在 `AGENTS.md` 新增
-內容前，先確認它是邊界或導航，不是可以放進 `docs/` 的細節。
-
-在 `AGENTS.md` 新增規則前先重新量測。中文 UTF-8 每字 3 bytes，行數少不代表 bytes 少。接近上限時優先
-刪掉可由 codebase 或架構測試推得的內容，不要複製到轉接檔分攤。
+`AGENTS.md` 保留不可協商的邊界、命令與導航，不累加每次失敗的故事。增加內容前先核對現有文件能否承接，
+需要量測時直接讀目前檔案大小，不用歷史數字推論載入正常。各工具的全域設定也可能影響最後載入結果。
 
 ## Claude Code 的強制層
 
@@ -131,7 +118,7 @@ push 前必須由使用者另行確認」。
 自動化就不會漏。它輸出的收據只描述當次執行，候選內容變動後不能沿用，也不是專案記憶——`artifacts/`
 由 Git 忽略，fresh clone 後不存在。
 
-`verification-debt.ps1` 比較檔案修改時間與收據完成時間，判斷粗但不會漏報改動。2026-09-02 起它有欠帳時
+`verification-debt.ps1` 比較檔案修改時間與收據完成時間，只能提供粗略提醒，不能證明內容或需求已覆蓋。2026-09-02 起它有欠帳時
 會用 exit code 2 擋住第一次結束，把清單交回給 Claude；同一個 session 裡，同一個命令在同一個檔案時間戳
 下只擋一次，狀態記在 `artifacts/harness/hooks/`，之後只提醒。這是 Claude Code 官方建議的用法：Stop hook
 可以當確定性的關卡，輸入的 `stop_hook_active` 用來避免循環，Claude Code 自己也會在連續擋 8 次後放行。
@@ -175,6 +162,32 @@ plan mode 或子 Agent 不會取代 JET 的鎖、收據、清理與私人資料�
 在 VS Code 的 Chat 檢視開啟 Diagnostics，確認 `AGENTS.md` 與 `.github/copilot-instructions.md` 已列入目前
 workspace。若使用 Claude Code，再用其 memory 檢視確認根目錄 `CLAUDE.md` 已載入 `AGENTS.md`。這是工具端
 的實際載入證據；只看到檔案存在還不夠。
+
+## 換模型或上下文壓縮後如何續接
+
+相容性取決於模型、承載工具與執行環境。不同模型共用同一份 JET 規則，沒有依模型名稱另建工作流程。
+沒有 skill、自動 memory 或 Claude hooks 的工具，仍可讀 `AGENTS.md`，執行 `Context`，再讀目前計畫的
+摘要及本次問題相關來源。只有檔案閱讀能力時可做查核；編輯、PowerShell、.NET、Windows 桌面與原生 Excel
+是否可用，決定它實際能完成哪些修改與驗證，未執行的部分須明說。
+
+接續摘要保留本輪成果與完成條件、產品順序、已做與未做、重要裁定及否決理由，來源連回原話或驗證。
+新的使用者要求優先；摘要過期就更新原位置。按需讀取規格與程式，不把整份歷史、完整工具輸出或所有 skill
+塞進開場，也不因上下文壓縮而把未完成任務改成下一個 session 的工作。具體分工見
+[`development-workflow.md`](development-workflow.md#工作順序本輪邊界與職責)。
+
+2026-09-18 查核下列公開經驗，並對照 JET 已有問題採用；論壇和 issue 是使用者經驗，不是模型能力評測，
+也不代表本機正遇到相同版本缺陷：
+
+| 來源與觀察 | JET 的採用方式 |
+|:---|:---|
+| [OpenAI 的 GPT-6 Astra 指引](https://developers.openai.com/api/docs/guides/latest-model#instruction-following)提醒，模糊或衝突的 skill 指示可能造成提早停工。 | 清楚區分工作順序與本輪完成條件，移除已授權工作仍要重複確認的表述。 |
+| [Anthropic 的長期 harness 經驗](https://www.anthropic.com/engineering/harness-design-long-running-apps)主張逐一檢驗並簡化輔助設計，而不是整套增加或拆除。 | 保留現有正式驗證，只修正可重現的 Context 資訊缺口；不新增排程、狀態資料庫或開工檢查。 |
+| [Codex 社群的過度設計討論](https://www.reddit.com/r/codex/comments/1ve9nxe/why_does_codex_constantly_overengineer_code_and/)反映，增加規則與抽象層仍可能反覆失控。 | 以實際缺陷、較小修改及可觀察結果判斷改善，文件按原用途更新，不為每次錯誤另建一層流程。 |
+| [Claude Code 社群的壓縮經驗](https://www.reddit.com/r/ClaudeCode/comments/1wgtm88/claude_codes_compaction_keeps_what_you_built_and/)指出否決理由容易遺失，回覆也提醒舊否決可能仍有效。 | 在現行計畫保留仍有效的否決及理由；已結束的執行紀錄移入歷史。不照搬另建 `DECISIONS.md` 的建議。 |
+| [Codex issue 31659](https://github.com/openai/codex/issues/31659)回報壓縮後追逐舊提示而偏離目標。 | 壓縮後核對最新任務、摘要與來源，不能只靠聊天摘要的舊編號續做。 |
+
+上述調整改善可讀取的共同上下文，不證明任何型號永不遺忘。尚未逐一實測使用者列出的模型；
+框架檢查只驗證資料與命令行為。真正的接手驗證仍需新 session 正確讀出裁定、完成一項修改並留下有效驗證。
 
 ## 目前依據
 

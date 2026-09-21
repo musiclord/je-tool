@@ -47,7 +47,9 @@ public sealed class SupportLogExportHandler(
             message = "JET support log snapshot",
             fields = new
             {
-                schemaVersion = 1,
+                schemaVersion = 2,
+                processEventsOmitted = supportLog.EventsOmitted,
+                retainedFailureLimit = 32,
                 appVersion = typeof(SupportLogExportHandler).Assembly.GetName().Version?.ToString() ?? "unknown",
                 informationalVersion = typeof(SupportLogExportHandler).Assembly
                     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown",

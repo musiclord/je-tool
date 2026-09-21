@@ -88,7 +88,7 @@ public sealed class PrescreenProceduresTests
     public void Plan_WithoutApprovalDate_PreservesBothExistingReasons()
     {
         Assert.Equal("請先完成 GL「傳票核准日」欄位配對。", PrescreenProcedures.MissingApprovalDateMappingReason);
-        Assert.Equal("尚未完成 GL「傳票核准日」欄位配對，因此僅檢查過帳日。", PrescreenProcedures.MissingApprovalDateForActivityReason);
+        Assert.Equal("尚未完成 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。", PrescreenProcedures.MissingApprovalDateForActivityReason);
 
         var plan = Plan(Snapshot(hasApprovalDate: false, lastPeriodStart: null));
 

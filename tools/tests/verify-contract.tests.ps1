@@ -313,8 +313,9 @@ try {
         -not [bool]$registry.releaseCandidateSettings.privateCaseIncluded -and
         -not [bool]$registry.releaseCandidateSettings.liveProviderIncluded) `
         -Message 'ReleaseCandidate must use the first-root inventory and short owned workspace without PrivateCase or live Provider.'
-    Assert-Contract -Condition ([string]$registry.runnerContractVersion -ceq '8.1') `
-        -Message 'The current ReleaseCandidate composition and optional Mutation require runner contract 8.1.'
+    # Contract 8.2 adds Context; keep the exact version assertion and the existing candidate checks above.
+    Assert-Contract -Condition ([string]$registry.runnerContractVersion -ceq '8.2') `
+        -Message 'The read-only Context entry and existing validation commands require runner contract 8.2.'
     Assert-Contract -Condition ([int]$registry.testSettings.privateCaseMinimumExpectedTests -eq 2) `
         -Message 'PrivateCase must run both the manifest and full acceptance tests.'
     Assert-Contract -Condition ((@(
@@ -324,8 +325,8 @@ try {
             'JET_PRIVATE_CASE_ROOT,JET_PRIVATE_CASE_MANIFEST,JET_PRIVATE_CASE_PROVIDER') `
         -Message 'PrivateCase must use only the reviewed explicit input boundary.'
     Assert-Contract -Condition ((@($registry.guiSettings.scenarios.name) -join ',') -ceq `
-            'startup-smoke,synthetic-sqlite-create,mapping-required-sync,edited-report-still-loads,approval-mapping-modes,validation-auto-outputs,filter-auditor-journey,filter-kct-editing') `
-        -Message 'The GUI lane must contain only the eight reviewed scenarios.'
+            'startup-smoke,synthetic-sqlite-create,mapping-required-sync,edited-report-still-loads,approval-mapping-modes,validation-auto-outputs,filter-auditor-journey,filter-kct-editing,feedback-workflow,null-details-recovery,kct-remap-recovery,authorized-list-recovery,extended-conditions,side-month-workflow,nested-voucher-workflow,legacy-form-workflow,legacy-form-catalog') `
+        -Message 'The GUI lane must contain the seventeen reviewed scenarios, including both legacy A–U checks.'
     Assert-Contract -Condition ([string]$registry.excelSettings.scenario -ceq 'synthetic-report-roundtrip') `
         -Message 'The Excel lane must retain its one reviewed synthetic scenario.'
     Assert-Contract -Condition ((@($registry.excelSettings.reportKinds) -join ',') -ceq `
@@ -595,6 +596,12 @@ try {
         'OwnedGuiRun.cs',
         'GuiRunner.cs',
         'GuiScenarios.cs',
+        'GuiFilterWorkflowScenarios.cs',
+        'GuiFeedbackWorkflowScenario.cs',
+        'GuiDataRecoveryScenarios.cs',
+        'GuiSideMonthWorkflow.cs',
+        'GuiNestedVoucherWorkflow.cs',
+        'GuiLegacyFormWorkflow.cs',
         'Program.cs'
     )
     foreach ($guiDriverFile in $guiDriverFiles) {
@@ -673,7 +680,13 @@ try {
             -Message 'Mutation must reject scope, configuration and timeout errors before tool execution.'
     }
     $scenarioNames.Add('MutationUsageBoundary')
-    foreach ($specialized in @('MutationBoundary', 'OwnedProcessTree', 'FrontendMapping')) {
+    # The new read-only entry is tested alongside the existing runner contracts, without weakening them.
+    $orientation = Invoke-Runner -Label 'context' -Arguments @('-Command', 'Context')
+    Assert-Contract -Condition ($orientation.NativeExitCode -eq 0 -and $orientation.Envelope.status -ceq 'observed' -and
+        $orientation.Envelope.readOnly -and -not [bool]$registry.commands.Context.requiresExclusiveLock) `
+        -Message 'Context must provide read-only observations without becoming a test gate.'
+    Assert-Contract -Condition (@($help.Envelope.commands) -ccontains 'Context') -Message 'Help must expose Context.'
+    foreach ($specialized in @('MutationBoundary', 'OwnedProcessTree', 'FrontendMapping', 'Context')) {
         $run = Invoke-Runner -Label $specialized -Arguments @('-Command', 'Contract', '-ContractScenario', $specialized, '-TimeoutSeconds', '120')
         $scenarioNames.Add($specialized)
         Assert-Contract -Condition ($run.NativeExitCode -eq 0 -and $run.Envelope.status -ceq 'passed') `
@@ -810,6 +823,14 @@ try {
     Assert-Contract -Condition ($normalReceipt.lock.acquired -eq $true) -Message 'Normal Contract must acquire the lock.'
     Assert-Contract -Condition ($normalReceipt.lock.cleanup.released -eq $true) -Message 'Normal Contract must release the lock.'
     Assert-Contract -Condition ($null -eq $normalReceipt.firstRed) -Message 'Normal Contract cannot have firstRed.'
+    Assert-Contract -Condition (
+        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiFilterWorkflowScenarios.cs' -and
+        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiFeedbackWorkflowScenario.cs' -and
+        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiDataRecoveryScenarios.cs' -and
+        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiSideMonthWorkflow.cs' -and
+        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs' -and
+        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiLegacyFormWorkflow.cs') `
+        -Message 'Runner identity must include every extracted GUI workflow source file.'
     $normalStdoutPath = Join-Path $repositoryRoot ([string]$normalReceipt.steps[0].stdout.path)
     $normalStdout = Get-Content -LiteralPath $normalStdoutPath -Raw -Encoding utf8
     Assert-Contract -Condition ($normalReceipt.steps[0].stdout.sourceCodePage -eq 65001) `

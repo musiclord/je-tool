@@ -35,7 +35,9 @@
     "docs/specs/2026-08-29-agent-governance-and-context-plan.md",
     "docs/specs/2026-08-30-repository-consolidation-plan.md",
     "docs/history/README.md",
-    "docs/specs/2026-09-06-filter-workflow-correction-plan.md"
+    "docs/specs/2026-09-06-filter-workflow-correction-plan.md",
+    "docs/specs/2026-09-09-user-feedback-steps-1-to-4-plan.md",
+    "docs/specs/2026-09-17-user-feedback-and-workflow-review-plan.md"
   ],
   "forbiddenClaims": [
     {
@@ -160,6 +162,16 @@
     }
   ],
   "requiredMarkers": [
+    {
+      "id": "audit-decision-continuity",
+      "file": "docs/harness.md",
+      "text": "業務裁定如何落實到操作與驗證"
+    },
+    {
+      "id": "audit-difference-regression",
+      "file": "docs/development-workflow.md",
+      "text": "CompletenessBackendGateProviderTests"
+    },
     {
       "id": "shared-agent-authority",
       "file": "AGENTS.md",

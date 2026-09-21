@@ -225,7 +225,7 @@ public static partial class JetAuditProgram
     /// 案件 metadata 前先呼叫，以維持既有 no_target_data 錯誤優先序；實際裁定
     /// 仍只有 AuditCore 這一份。
     /// </summary>
-    internal static void RequireGlMapping(bool hasGlMapping)
+    internal static void RequireGlMapping([System.Diagnostics.CodeAnalysis.DoesNotReturnIf(false)] bool hasGlMapping)
     {
         if (!hasGlMapping)
         {
@@ -380,13 +380,13 @@ public static partial class JetAuditProgram
                 Artifacts("result_rule_run", "result_inf_sampling_test_sample"),
                 ValidationProcedures.InfSampleInsert(string.Empty, CanonicalTemplateDialect.Instance)),
             ValidationDefinition(
-                "null_records_test", "辨識關鍵欄位空白、核准日離期與空白過帳日。",
+                "null_records_test", "辨識關鍵欄位空白與核准日離期；空白總帳日期另列來源品質。",
                 Artifacts("target_gl_entry"), NoArtifacts,
                 Artifacts("result_rule_run"),
                 // category 述詞由同模組 FilterCompilation 組裝；程序總表不複製 SQL 全文。
                 null),
             PrescreenDefinition(
-                "post_period_approval", "辨識在期末財報準備日後才核准的分錄。",
+                "post_period_approval", "辨識核准日在期末財報準備日當日或之後的分錄。",
                 Artifacts("config_field_mapping")),
             PrescreenDefinition(
                 "suspicious_keywords", "辨識摘要含預設關鍵字的分錄。", NoArtifacts),
@@ -415,14 +415,14 @@ public static partial class JetAuditProgram
             PrescreenDefinition(
                 "blank_description", "辨識摘要為空白的分錄。", NoArtifacts),
             PrescreenDefinition(
-                "backdated_posting", "辨識過帳日早於傳票日的分錄。", NoArtifacts),
+                "backdated_posting", "辨識總帳日期早於傳票日期的分錄。", NoArtifacts),
             PrescreenDefinition(
                 "non_authorized_preparer", "辨識建立人不在授權編製人員清單的分錄。",
                 Artifacts("target_authorized_preparer")),
             PrescreenDefinition(
-                "low_frequency_preparer", "辨識由低頻建立人編製的分錄。", NoArtifacts),
+                "low_frequency_preparer", "辨識目前測試母體內建立人員分錄筆數為 11 筆以下的分錄；空白人員不命中。", NoArtifacts),
             PrescreenDefinition(
-                "low_frequency_account", "辨識使用頻率低於固定門檻的科目分錄。", NoArtifacts)
+                "low_frequency_account", "辨識目前測試母體內科目分錄筆數為 11 筆以下的分錄；空白科目不命中。", NoArtifacts)
         };
 
         return Array.AsReadOnly(definitions.ToArray());
@@ -700,6 +700,7 @@ public static partial class JetAuditProgram
             $"{{dialect integer-quotient ({dividendExpression}) / ({divisorExpression})}}";
 
         public string DayOfMonth(string dateExpr) => throw Unsupported();
+        public string DaysInMonth(string dateExpr) => throw Unsupported();
 
         public string InfSampleOrderingKey(string sourceRowNumberExpression, string seedExpression) =>
             InfSamplingPrf.SqlOrderingKey(this, sourceRowNumberExpression, seedExpression);

@@ -178,7 +178,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             stream?.Dispose();
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}");
+                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}", innerException: ex);
         }
     }
 
@@ -324,7 +324,14 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
                 var columnNumber = ParseColumnNumber(cell.CellReference?.Value) ?? lastColumnNumber + 1;
                 lastColumnNumber = columnNumber;
 
-                var extracted = ExtractCellValue(cell, context);
+                ExtractedCellValue extracted;
+                try { extracted = ExtractCellValue(cell, context); }
+                catch (Exception error) when (error is FormatException or OverflowException or ArgumentException)
+                {
+                    ImportFailureDiagnostics.Attach(error, new ImportFailureContext(ImportFailureStage.CellConversion,
+                        Row: rowNumber, Column: columnNumber, CellType: cell.DataType?.InnerText ?? "n"));
+                    throw;
+                }
                 if (extracted.Value.Length > 0)
                 {
                     cells.Add(new ContentCell(

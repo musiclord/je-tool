@@ -254,6 +254,14 @@ internal static partial class GuiScenarios
                 cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.ValidationAutoOutputs => ExecuteValidationAutoOutputsAsync(
                 cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.FeedbackWorkflow => ExecuteFeedbackWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.ExtendedConditions => ExecuteExtendedConditionsAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.SideMonthWorkflow => ExecuteSideMonthWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.NestedVoucherWorkflow => ExecuteNestedVoucherWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.LegacyFormWorkflow or GuiScenarioCatalog.LegacyFormCatalog => ExecuteLegacyFormWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.AuthorizedListRecovery => ExecuteAuthorizedListRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.KctRemapRecovery => ExecuteKctRemapRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.NullDetailsRecovery => ExecuteNullDetailsRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.FilterKctEditing or GuiScenarioCatalog.FilterAuditorJourney =>
                 ExecuteFilterWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
             _ => throw new GuiInfrastructureException("scenario_not_implemented")
@@ -915,19 +923,19 @@ internal static partial class GuiScenarios
 
     // Selectors are fixed by the scenario code. Evaluation only reads geometry; all navigation is real mouse input.
     private static async Task<JsonElement> FindControlPointAsync(CdpSession cdp, Process process,
-        string selector, CancellationToken cancellationToken)
+        string selector, CancellationToken cancellationToken, Action<JsonElement>? observed = null)
     {
         var script = Probe("""
             (function () {
               /* shared GUI helpers */
               var element = document.querySelector(SELECTOR);
-              if (!visible(element)) { return { exists: false }; }
+              if (!visible(element)) { return { exists: false, selector: SELECTOR }; }
               var rect = element.getBoundingClientRect();
               var x = rect.left + rect.width / 2;
               var y = rect.top + rect.height / 2;
               var hit = x > 0 && y > 0 && x < innerWidth && y < innerHeight ? document.elementFromPoint(x, y) : null;
               if (hit && (hit === element || element.contains(hit))) {
-                return { exists: true, ready: !element.disabled, x: x, y: y };
+                return { exists: true, ready: !element.disabled, disabled:element.disabled, selector:SELECTOR, x: x, y: y };
               }
               for (var parent = element.parentElement; parent; parent = parent.parentElement) {
                 var box = parent.getBoundingClientRect();
@@ -937,14 +945,37 @@ internal static partial class GuiScenarios
                 var vertical = /auto|scroll/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight
                   && (y < box.top + 8 || y > box.bottom - 8);
                 if ((horizontal || vertical) && box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < innerHeight) {
-                  var anchorX = Math.max(20, Math.min(innerWidth - 20, (Math.max(0, box.left) + Math.min(innerWidth, box.right)) / 2));
-                  var anchorY = Math.max(20, Math.min(innerHeight - 20, (Math.max(0, box.top) + Math.min(innerHeight, box.bottom)) / 2));
+                  // 內層捲軸即使在 viewport 內，仍可能完全被外層 content 裁掉。
+                  // 滾輪必須落在所有祖先裁切後實際可見的範圍；不可見時先捲外層。
+                  var left = Math.max(0, box.left), right = Math.min(innerWidth, box.right);
+                  var top = Math.max(0, box.top), bottom = Math.min(innerHeight, box.bottom);
+                  for (var clip = parent.parentElement; clip; clip = clip.parentElement) {
+                    var clipBox = clip.getBoundingClientRect(), clipStyle = getComputedStyle(clip);
+                    if (/auto|scroll|hidden|clip/.test(clipStyle.overflowX)) {
+                      left = Math.max(left, clipBox.left); right = Math.min(right, clipBox.right);
+                    }
+                    if (/auto|scroll|hidden|clip/.test(clipStyle.overflowY)) {
+                      top = Math.max(top, clipBox.top); bottom = Math.min(bottom, clipBox.bottom);
+                    }
+                  }
+                  if (right - left < 2 || bottom - top < 2) { continue; }
+                  // 優先使用原有中央落點；數字框會攔截滾輪時才選可見邊緣。
+                  // 邊緣也可能落在外層，因此需確認命中的元素確實屬於此捲動容器。
+                  var anchorY = (top + bottom) / 2;
+                  var anchorX = [(left + right) / 2, left + 4, right - 20].find(function (candidate) {
+                    var target = document.elementFromPoint(candidate, anchorY);
+                    return target && (target === parent || parent.contains(target)) && !target.closest('input[type=number]');
+                  });
+                  if (anchorX === undefined) { continue; }
                   return { exists: true, ready: false, x: anchorX, y: anchorY,
+                    selector:SELECTOR, disabled:element.disabled, target:[rect.x,rect.y,rect.width,rect.height], parent:parent.className,
+                    box:[box.x,box.y,box.width,box.height], scroll:[parent.scrollLeft,parent.scrollTop,parent.scrollWidth,parent.scrollHeight,parent.clientWidth,parent.clientHeight],
+                    hit:hit?.className,
                     deltaX: horizontal ? Math.max(-4000, Math.min(4000, x - anchorX)) : 0,
                     deltaY: vertical ? Math.max(-4000, Math.min(4000, y - anchorY)) : 0 };
                 }
               }
-              return { exists: true, ready: false };
+              return { exists: true, ready: false, selector:SELECTOR, disabled:element.disabled, target:[rect.x,rect.y,rect.width,rect.height], hit:hit?.className };
             })()
             """.Replace("SELECTOR", JsonSerializer.Serialize(selector), StringComparison.Ordinal));
         var scrollCount = 0;
@@ -955,6 +986,7 @@ internal static partial class GuiScenarios
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfExited(process, "application_exited_before_control");
             var probe = await cdp.EvaluateAsync(script, cancellationToken).ConfigureAwait(false);
+            observed?.Invoke(probe);
             if (ReadBoolean(probe, "ready") && HasPoint(probe, "x", "y"))
             {
                 var x = ReadDouble(probe, "x");
@@ -983,7 +1015,8 @@ internal static partial class GuiScenarios
     private static async Task ClickControlAsync(CdpSession cdp, Process process, string selector,
         GuiRunOutcome outcome, CancellationToken cancellationToken)
     {
-        var probe = await FindControlPointAsync(cdp, process, selector, cancellationToken).ConfigureAwait(false);
+        var probe = await FindControlPointAsync(cdp, process, selector, cancellationToken,
+            probe => outcome.LastFilterProbe = probe.Clone()).ConfigureAwait(false);
         await ClickAsync(cdp, ReadDouble(probe, "x"), ReadDouble(probe, "y"), outcome, cancellationToken).ConfigureAwait(false);
     }
 

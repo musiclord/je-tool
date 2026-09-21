@@ -41,6 +41,11 @@ public sealed class SqliteDialect : IProviderSqlDialect
 
     public string DayOfMonth(string dateExpr) => $"CAST(substr(({dateExpr}), 9, 2) AS INTEGER)";
 
+    public string DaysInMonth(string dateExpr) =>
+        // December is always 31 days; avoid stepping beyond SQLite's year 9999 limit.
+        $"(CASE WHEN substr(({dateExpr}), 6, 2) = '12' THEN 31 "
+        + $"ELSE CAST(strftime('%d', date({dateExpr}, 'start of month', '+1 month', '-1 day')) AS INTEGER) END)";
+
     public string InfSampleOrderingKey(string sourceRowNumberExpression, string seedExpression) =>
         InfSamplingPrf.SqlOrderingKey(this, sourceRowNumberExpression, seedExpression);
 
@@ -87,6 +92,8 @@ public sealed class DuckDbDialect : IProviderSqlDialect
         $"(({dividendExpression}) // ({divisorExpression}))";
 
     public string DayOfMonth(string dateExpr) => $"CAST(substr(({dateExpr}), 9, 2) AS INTEGER)";
+
+    public string DaysInMonth(string dateExpr) => $"day(last_day(CAST({dateExpr} AS DATE)))";
 
     public string InfSampleOrderingKey(string sourceRowNumberExpression, string seedExpression) =>
         InfSamplingPrf.SqlOrderingKey(this, sourceRowNumberExpression, seedExpression);
@@ -135,6 +142,8 @@ public sealed class SqlServerDialect : IProviderSqlDialect
         $"(({dividendExpression}) / ({divisorExpression}))";
 
     public string DayOfMonth(string dateExpr) => $"CAST(SUBSTRING(({dateExpr}), 9, 2) AS int)";
+
+    public string DaysInMonth(string dateExpr) => $"DAY(EOMONTH(CONVERT(date, {dateExpr}, 23)))";
 
     public string InfSampleOrderingKey(string sourceRowNumberExpression, string seedExpression) =>
         InfSamplingPrf.SqlOrderingKey(this, sourceRowNumberExpression, seedExpression);

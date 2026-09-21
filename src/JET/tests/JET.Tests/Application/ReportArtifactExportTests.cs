@@ -1051,7 +1051,7 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             }));
 
         const string expected =
-            "（（所選母體內編製人員張數 ≤ 11 或 所選母體內科目張數 ≤ 11） 且 僅借方）";
+            "（（所選母體內編製人員分錄筆數 ≤ 11 或 所選母體內科目分錄筆數 ≤ 11） 且 僅借方）";
         var criteriaPath = Path.Combine(
             host.ProjectsRoot,
             projectId,
@@ -1419,7 +1419,7 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
         string runId)
     {
         Assert.Equal(
-            new[] { "artifactId", "bytes", "fileName", "fileState", "generatedUtc", "kind", "sourceRef", "stale" },
+            new[] { "artifactId", "bytes", "fileName", "fileState", "fullPath", "generatedUtc", "kind", "sourceRef", "stale" },
             artifact.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal).ToArray());
 
         var fileName = artifact.GetProperty("fileName").GetString()!;
@@ -1434,7 +1434,7 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
         var expectedRoot = Path.GetFullPath(Path.Combine(host.ProjectsRoot, projectId)) + Path.DirectorySeparatorChar;
         Assert.StartsWith(expectedRoot, fullPath, StringComparison.OrdinalIgnoreCase);
         Assert.True(File.Exists(fullPath));
-        Assert.DoesNotContain(host.ProjectsRoot, artifact.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(fullPath, artifact.GetProperty("fullPath").GetString());
     }
 
     private static void AssertTemplatePackageFidelity(

@@ -17,7 +17,8 @@ internal static class PrescreenProcedures
     public const string IncompleteAccountMappingReason =
         "科目配對需包含收入，以及至少一項應收款項、現金或預收款項分類。";
     public const string MissingCreatedByMappingReason = "請先完成 GL「傳票建立人員」欄位配對。";
-    public const string MissingApprovalDateForActivityReason = "尚未完成 GL「傳票核准日」欄位配對，因此僅檢查過帳日。";
+    public const string MissingVoucherDateMappingReason = "請先完成 GL「傳票日期」欄位配對，才能比較是否回溯過帳。";
+    public const string MissingApprovalDateForActivityReason = "尚未完成 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。";
     public const string MissingHolidayCalendarReason = "請先上傳事務所假日檔。";
     public const string MissingAuthorizedPreparersReason = "需先匯入授權編製人員清單。";
 
@@ -53,6 +54,9 @@ internal static class PrescreenProcedures
             "holiday_approval" when !snapshot.HasHolidays => MissingHolidayCalendarReason,
             "holiday_approval" when !snapshot.HasApprovalDate => MissingApprovalDateForActivityReason,
             "non_authorized_preparer" when !snapshot.HasAuthorizedPreparers => MissingAuthorizedPreparersReason,
+            "non_authorized_preparer" when !snapshot.HasCreatedBy => MissingCreatedByMappingReason,
+            "backdated_posting" when !snapshot.HasVoucherDate => MissingVoucherDateMappingReason,
+            "low_frequency_preparer" when !snapshot.HasCreatedBy => MissingCreatedByMappingReason,
             _ => null
         };
 

@@ -17,7 +17,7 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
         await connection.OpenAsync(cancellationToken);
         await using var command = database.CreateCommand(connection, projectId,
             """
-            SELECT category_id, label, ordinal, semantic_role, is_builtin, revision
+            SELECT category_id, label, ordinal, semantic_role, is_builtin, revision, parent_category_id
             FROM {s}.config_account_taxonomy
             ORDER BY ordinal, category_id;
             """);
@@ -32,7 +32,7 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
                 reader.GetString(1),
                 reader.GetInt32(2),
                 reader.GetString(3),
-                reader.GetBoolean(4)));
+                reader.GetBoolean(4), reader.IsDBNull(6) ? null : reader.GetString(6)));
             revision = Math.Max(revision, reader.GetInt32(5));
         }
 
@@ -88,8 +88,8 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
                          projectId,
                          """
                          INSERT INTO {s}.config_account_taxonomy
-                             (category_id, label, ordinal, semantic_role, is_builtin, revision)
-                         VALUES (@categoryId, @label, @ordinal, @semanticRole, @isBuiltIn, @revision);
+                             (category_id, label, ordinal, semantic_role, is_builtin, revision, parent_category_id)
+                         VALUES (@categoryId, @label, @ordinal, @semanticRole, @isBuiltIn, @revision, @parent);
                          """))
         {
             insert.Transaction = transaction;
@@ -98,6 +98,7 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
             var ordinal = insert.Parameters.Add("@ordinal", SqlDbType.Int);
             var semanticRole = insert.Parameters.Add("@semanticRole", SqlDbType.NVarChar, 64);
             var isBuiltIn = insert.Parameters.Add("@isBuiltIn", SqlDbType.Bit);
+            var parent = insert.Parameters.Add("@parent", SqlDbType.NVarChar, 64);
             var revision = insert.Parameters.Add("@revision", SqlDbType.Int);
             foreach (var category in replacement)
             {
@@ -107,10 +108,12 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
                 semanticRole.Value = category.SemanticRole;
                 isBuiltIn.Value = category.IsBuiltIn;
                 revision.Value = nextRevision;
+                parent.Value = (object?)category.ParentCategoryId ?? DBNull.Value;
                 await insert.ExecuteNonQueryAsync(cancellationToken);
             }
         }
 
+        await AccountTaxonomyHierarchy.SavePathsAsync(connection, transaction, replacement, SqlServerProjectSchema.QualifierFor(projectId), cancellationToken);
         await RuleRunResultReset.ClearWithinAsync(
             connection,
             transaction,
@@ -131,7 +134,7 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
             connection,
             projectId,
             """
-            SELECT category_id, label, ordinal, semantic_role, is_builtin, revision
+            SELECT category_id, label, ordinal, semantic_role, is_builtin, revision, parent_category_id
             FROM {s}.config_account_taxonomy WITH (UPDLOCK, HOLDLOCK)
             ORDER BY ordinal, category_id;
             """);
@@ -146,7 +149,7 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
                 reader.GetString(1),
                 reader.GetInt32(2),
                 reader.GetString(3),
-                reader.GetBoolean(4)));
+                reader.GetBoolean(4), reader.IsDBNull(6) ? null : reader.GetString(6)));
             revision = Math.Max(revision, reader.GetInt32(5));
         }
         return new AccountTaxonomySnapshot(revision, categories);

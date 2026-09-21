@@ -63,8 +63,8 @@ public sealed class PrescreenPositioningFrontendTests
 
         Assert.Contains("PRESCREEN_AGGREGATE_ITEMS", source, StringComparison.Ordinal);
         Assert.Contains("PRESCREEN_SIGNAL_ITEMS", source, StringComparison.Ordinal);
-        Assert.Contains("常用母體彙總", card, StringComparison.Ordinal);
-        Assert.Contains("逐筆輔助訊號", card, StringComparison.Ordinal);
+        Assert.Contains("id=\"prescreen-primary-title\">預篩選</h3>", card, StringComparison.Ordinal);
+        Assert.Contains("<span>分錄檢查</span>", card, StringComparison.Ordinal);
         Assert.Contains("<details class=\"prescreen-signals\"", card, StringComparison.Ordinal);
         Assert.Contains("Pre-screening Report", source, StringComparison.Ordinal);
         Assert.Contains("data-action=\"export-prescreen-report\"", source, StringComparison.Ordinal);

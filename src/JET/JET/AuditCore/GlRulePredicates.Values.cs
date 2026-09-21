@@ -31,6 +31,7 @@ internal sealed partial class GlRulePredicates
         if (op == "isBlank") return $"({blank})";
         if (op == "isNotBlank") return $"NOT ({blank})";
 
+        var originalColumn = column;
         if (field.ValueType == "text") column = $"UPPER(TRIM({column}))";
         if (field.ValueType == "money") column = rule.AmountBasis switch
         {
@@ -46,7 +47,36 @@ internal sealed partial class GlRulePredicates
         };
         string Param(string? raw) => NextParam(parameters, Normalize(raw));
         string positive;
-        if (FieldValueConditions.IsDayOfMonth(op))
+        if (FieldValueConditions.IsTail(op))
+        {
+            positive = TrailingDigits(parameters, FieldValueConditions.TailPatterns(rule), context.MoneyScale, originalColumn);
+            if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
+        }
+        else if (FieldValueConditions.IsCalendar(op))
+        {
+            var weekend = dialect.WeekendPredicate(column, NonWorkingDays.Resolve(context.NonWorkingDays));
+            var holiday = $"EXISTS (SELECT 1 FROM {schemaPrefix}staging_calendar_raw_day d WHERE d.day_type = 'holiday' AND d.date = {column})";
+            var makeup = $"EXISTS (SELECT 1 FROM {schemaPrefix}staging_calendar_raw_day d WHERE d.day_type = 'makeup' AND d.date = {column})";
+            positive = op switch
+            {
+                "isWeekend" or "isNotWeekend" => weekend,
+                "isHoliday" or "isNotHoliday" => holiday,
+                "isMakeupDay" or "isNotMakeupDay" => makeup,
+                _ => $"(({weekend} OR {holiday}) AND NOT ({makeup}))"
+            };
+            if (op.StartsWith("isNot", StringComparison.Ordinal)) positive = $"NOT ({positive})";
+        }
+        else if (FieldValueConditions.IsMonthWindow(op))
+        {
+            if (!FieldValueConditions.TryParseMonthWindowDays(rule.TypedValue, out var days))
+                throw Invalid("每月月初或月底天數只能是 1 到 31 的整數。");
+            var distance = op is "monthStartDays" or "notMonthStartDays"
+                ? dialect.DayOfMonth(column)
+                : $"({dialect.DaysInMonth(column)} - {dialect.DayOfMonth(column)} + 1)";
+            positive = $"{distance} <= {NextParam(parameters, (long)days)}";
+            if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
+        }
+        else if (FieldValueConditions.IsDayOfMonth(op))
         {
             if (!FieldValueConditions.TryParseDaysOfMonth(rule.TypedValues, out var days))
                 throw Invalid("每月幾日只能是 1 到 31 的整數。");
@@ -65,7 +95,7 @@ internal sealed partial class GlRulePredicates
             positive = $"({column} >= {Param(rule.TypedFrom)} AND {column} <= {Param(rule.TypedTo)})";
             if (op == "notBetween") positive = $"NOT ({positive})";
         }
-        else if (op is "contains" or "notContains" or "startsWith" or "endsWith")
+        else if (op is "contains" or "notContains" or "startsWith" or "notStartsWith" or "endsWith" or "notEndsWith")
         {
             var keywords = FieldValueConditions.IsContains(op) ? FieldValueConditions.ContainsKeywords(rule) : [rule.TypedValue ?? string.Empty];
             if (keywords.Count == 0) throw Invalid("包含比對至少需要一個文字。");
@@ -76,11 +106,12 @@ internal sealed partial class GlRulePredicates
                 var escaped = value.Replace("\\", "\\\\", StringComparison.Ordinal)
                     .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal)
                     .Replace("[", "\\[", StringComparison.Ordinal);
-                var pattern = (op == "startsWith" ? "" : "%") + escaped + (op == "endsWith" ? "" : "%");
+                var pattern = (op is "startsWith" or "notStartsWith" ? "" : "%") + escaped
+                    + (op is "endsWith" or "notEndsWith" ? "" : "%");
                 return $"{column} LIKE {NextParam(parameters, pattern)} ESCAPE '\\'";
             }).ToArray();
             positive = likes.Length == 1 ? likes[0] : "(" + string.Join(" OR ", likes) + ")";
-            if (op == "notContains") positive = $"NOT ({positive})";
+            if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
         }
         else
         {
@@ -113,7 +144,7 @@ internal sealed partial class GlRulePredicates
         };
         string Selected(string alias) => $"EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m "
             + $"{TaxonomyJoin(schemaPrefix, "m", "t")} WHERE m.account_code = {alias}.account_code "
-            + $"AND {CategorySelectionRoles(parameters, "t", rule.CategoryIds, "指定", schemaPrefix)})";
+            + $"AND {CategorySelectionRoles(parameters, "t", rule.CategoryIds, "指定", schemaPrefix, rule.CategorySelection)})";
         return rule.CategoryMode switch
         {
             "is" => $"(g.amount_scaled {side} AND {Selected("g")})",
@@ -124,4 +155,5 @@ internal sealed partial class GlRulePredicates
             _ => throw Invalid("請選擇科目分類的判斷方式。")
         };
     }
+
 }

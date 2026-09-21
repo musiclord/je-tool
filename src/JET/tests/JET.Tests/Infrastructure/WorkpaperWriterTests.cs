@@ -1806,7 +1806,7 @@ public sealed partial class WorkpaperWriterTests
             workbook.Worksheet(CoverSheet).Cell("A3").GetString());
         var step3 = workbook.Worksheet(Step3Sheet);
         Assert.Contains("2025-01-01 ~ 2025-12-31", step3.Cell("B7").GetString(), StringComparison.Ordinal);
-        Assert.Contains("查核期間外與無有效過帳日", step3.Cell("B9").GetString(), StringComparison.Ordinal);
+        Assert.Contains("查核期間外與無有效總帳日期", step3.Cell("B9").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]

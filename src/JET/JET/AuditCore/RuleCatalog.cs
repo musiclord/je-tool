@@ -36,7 +36,7 @@ internal static class RuleCatalog
         new("doc_balance_test", "docBalanceTest", "借貸不平測試", "V2", RuleShape.Validation),
         new("inf_sampling_test", "infSamplingTest", "INF 抽樣測試", "V3", RuleShape.Validation),
         new("null_records_test", "nullRecordsTest", "空值紀錄測試", "V4", RuleShape.Validation),
-        new("post_period_approval", "postPeriodApproval", "期末財報準備日後核准之分錄", "R1", RuleShape.RowTag),
+        new("post_period_approval", "postPeriodApproval", "期末財報準備日起核准之分錄", "R1", RuleShape.RowTag),
         new("suspicious_keywords", "suspiciousKeywords", "分錄摘要出現特定描述", "R2", RuleShape.RowTag),
         new("unexpected_account_pair", "unexpectedAccountPair", "未預期出現之特定借貸組合", "R3", RuleShape.RowTag),
         new("trailing_zeros", "trailingZeros", "分錄金額中有連續零的尾數", "R4", RuleShape.RowTag),
@@ -47,7 +47,7 @@ internal static class RuleCatalog
         new("holiday_posting", "holidayPosting", "假日過帳", null, RuleShape.RowTag),
         new("holiday_approval", "holidayApproval", "假日核准", null, RuleShape.RowTag),
         new("blank_description", "blankDescription", "摘要空白", "R7", RuleShape.RowTag),
-        new("backdated_posting", "backdatedPosting", "回溯過帳(過帳日早於傳票日)", null, RuleShape.RowTag),
+        new("backdated_posting", "backdatedPosting", "回溯過帳（總帳日期早於傳票日期）", null, RuleShape.RowTag),
         new("non_authorized_preparer", "nonAuthorizedPreparer", "非授權編製人員", null, RuleShape.RowTag),
         new("low_frequency_preparer", "lowFrequencyPreparer", "低頻編製者", null, RuleShape.RowTag),
         new("low_frequency_account", "lowFrequencyAccount", "低頻科目", null, RuleShape.RowTag)

@@ -1,10 +1,10 @@
 /*
   Step 2：欄位配對。
-  來源欄位 → JET 邏輯欄位的對應；自動建議與提交標準化都在後端執行。
+  來源欄位 → JET 邏輯欄位的對應；審計員逐項手動選取，提交標準化在後端執行。
 
   每個資料集（GL/TB）的狀態模型（消除「已提交綠字 + 仍可按確認」的語意衝突）：
     未匯入        → 警示（請先匯入資料）
-    草稿          → 編輯表格 + 自動建議/預覽來源資料/確認配對
+    草稿          → 編輯表格 + 預覽來源資料/確認配對
     已提交        → 收合摘要卡（模式、標準化列數、提交時間、key→欄名清單）；
                     只有「重新配對」「預覽標準化資料」兩個動作，編輯表格不渲染
     草稿偏離      → 編輯表格 + 「修改尚未生效」橫幅 + 重新確認配對/還原為已提交版本
@@ -223,9 +223,7 @@
     container.innerHTML =
       '<div class="panel panel--wide panel--mapping">' +
         '<h2 class="panel__title">欄位配對</h2>' +
-        '<p class="panel__hint panel__hint--wide">將來源欄位對應到 JET 邏輯欄位。可先自動建議再人工確認；' +
-          '標 * 者為目前模式的必填欄位。過帳日期用來界定查核期間；傳票日期是選填，僅供回溯過帳判斷。' +
-          '畫面的「過帳日期」在 Working Paper 的欄名仍是「總帳日期_JE」。</p>' +
+        '<p class="panel__hint panel__hint--wide">選擇各欄位的資料來源，標示 * 的欄位為必填。</p>' +
         Ui.mappingReviewBannerHtml(state) +
         '<div class="panel__actions">' +
           '<button type="button" class="btn btn--ghost" data-action="restore-mapping-draft"' +
@@ -296,7 +294,7 @@
       problems.push('核准日選「由來源欄提供」時，必須指派「傳票核准日」來源欄');
     }
     if (options.approvalDateMode === 'sameAsPostDate' && draft.docDate) {
-      problems.push('核准日選「與過帳日期相同」時，不可同時指派「傳票核准日」來源欄');
+      problems.push('核准日選「與總帳日期相同」時，不可同時指派「傳票核准日」來源欄');
     }
     if (options.approvalDateMode === 'unmapped' && draft.docDate) {
       problems.push('核准日選「不提供」時，不可同時指派「傳票核准日」來源欄');
@@ -311,8 +309,9 @@
     }
 
     var manual = options.manualAutoPolicy || { manualValues: [], automaticValues: [] };
-    if (!manual.manualValues.length || !manual.automaticValues.length) {
-      problems.push('人工與自動代碼各需至少一個值');
+    if ((!manual.manualValues.length && manual.unlistedValueKind !== 'manual') ||
+        (!manual.automaticValues.length && manual.unlistedValueKind !== 'automatic')) {
+      problems.push('人工與自動代碼各需至少一個值；只列單側時，請選擇另一側為補集');
     } else if (manual.manualValues.some(function (value) {
       return manual.automaticValues.some(function (other) {
         return normalizedCode(value) === normalizedCode(other);
@@ -367,7 +366,7 @@
           ? '目前以來源欄「' + Ui.esc(draft.docDate) + '」作為核准日。'
           : '請在下方選擇核准日來源欄。')
       : (options.approvalDateMode === 'sameAsPostDate'
-          ? '每列的核准日直接沿用標準化後的過帳日期；此設定下不可再指派「傳票核准日」來源欄。'
+          ? '每列的核准日直接沿用標準化後的總帳日期；此設定下不可再指派「傳票核准日」來源欄。'
           : '這份總帳沒有核准日；需要核准日的測試會標示為無法執行。');
 
     return '<fieldset class="map-options__group">' +
@@ -412,6 +411,7 @@
         });
         return '<label class="value-option">' +
           '<input type="checkbox" data-posting-value="' + Ui.esc(item.value) + '"' +
+            ' data-focus-key="posting-value-' + Ui.esc(JSON.stringify([draft.postingStatus, item.value])) + '"' +
             (checked ? ' checked' : '') + ' id="posting-value-' + index + '">' +
           '<span class="value-option__text">' + Ui.esc(item.value) + '</span>' +
           '<span class="value-option__count">' + Number(item.count).toLocaleString() + ' 列</span>' +
@@ -423,7 +423,7 @@
           Number(profile.blankCount).toLocaleString() + ' 列。勾選代表「已過帳」的值。' +
           (profile.truncated ? '值太多，只列出最常出現的幾種；其餘可用下方欄位補上。' : '') +
         '</p>' +
-        '<div class="value-option-list">' + checks + '</div>' +
+        '<div class="value-option-list" data-preserve-scroll="posting-values-' + Ui.esc(draft.postingStatus) + '">' + checks + '</div>' +
         (profile.truncated
           ? '<div class="map-options__inline">' +
               '<label class="map-options__inline-label" for="posting-value-add">補充其他值</label>' +
@@ -477,6 +477,18 @@
         '</fieldset>';
     }
 
+    var mode = policy.unlistedValueKind || 'reject';
+    var blank = policy.blankValueKind || 'reject';
+    var selector = '<label class="form__label">判定方式<select class="form__select" data-manual-mode data-focus-key="manual-mode">' +
+      [['reject', '人工與自動逐值指定'], ['automatic', '只列人工，其餘非空白值視為自動'],
+        ['manual', '只列自動，其餘非空白值視為人工']].map(function (item) {
+        return '<option value="' + item[0] + '"' + (item[0] === mode ? ' selected' : '') + '>' + item[1] + '</option>';
+      }).join('') + '</select></label>' +
+      '<label class="form__label">來源空白時<select class="form__select" data-manual-blank data-focus-key="manual-blank">' +
+      [['reject', '先補齊來源資料'], ['manual', '視為人工'], ['automatic', '視為自動'],
+        ['unclassified', '不判定人工或自動，保留供其他測試使用']].map(function (item) {
+        return '<option value="' + item[0] + '"' + (item[0] === blank ? ' selected' : '') + '>' + item[1] + '</option>';
+      }).join('') + '</select></label>';
     var profile = valueProfiles('gl')[draft.manual];
     var body;
     if (!profile) {
@@ -501,31 +513,37 @@
           return '<label class="mode-option mode-option--tiny">' +
             '<input type="radio" name="manual-code-' + index + '" value="' + value + '"' +
               (assigned === value ? ' checked' : '') +
-              ' data-manual-assign="' + Ui.esc(item.value) + '">' +
+              ' data-manual-assign="' + Ui.esc(item.value) + '"' +
+              ' data-focus-key="manual-value-' + Ui.esc(JSON.stringify([draft.manual, item.value, value])) + '">' +
             '<span>' + label + '</span></label>';
         }
         return '<li class="value-assign">' +
           '<span class="value-assign__value">' + Ui.esc(item.value) + '</span>' +
           '<span class="value-assign__count">' + Number(item.count).toLocaleString() + ' 列</span>' +
-          '<span class="value-assign__modes">' + radio('manual', '人工') + radio('automatic', '自動') +
-            radio('none', '不歸類') + '</span>' +
+          '<span class="value-assign__modes">' + (mode === 'reject'
+            ? radio('manual', '人工') + radio('automatic', '自動') + radio('none', '不歸類')
+            : '<label class="mode-option mode-option--tiny"><input type="checkbox" data-manual-include="' + Ui.esc(item.value) + '"' +
+              ((mode === 'automatic' ? isManual : isAutomatic) ? ' checked' : '') +
+              ' data-focus-key="manual-include-' + index + '"><span>' + (mode === 'automatic' ? '列為人工' : '列為自動') + '</span></label>') + '</span>' +
           '</li>';
       }).join('');
       body =
         '<p class="map-options__note">來源欄「' + Ui.esc(draft.manual) + '」共 ' +
           Number(profile.distinctCount).toLocaleString() + ' 種值、空白 ' +
-          Number(profile.blankCount).toLocaleString() + ' 列。下方只列非空白值；空白不會因為沒有顯示就自動歸類。' +
-          '已指派這個欄位時，空白或未歸類的值會讓整批標準化失敗。' +
-          (profile.truncated ? '值太多，只列出最常出現的幾種；未顯示的值仍需用下方欄位加入並歸類。' : '') +
+          Number(profile.blankCount).toLocaleString() + ' 列。下方只列非空白值；空白依上方設定處理。' +
+          (mode === 'reject' ? '逐值指定時，未歸類的值會讓整批標準化失敗。' :
+            '未勾選、未列出及之後新出現的非空白值，都會依上方的補集設定歸類。') +
+          (profile.truncated ? '值太多，只列出最常出現的幾種；可用下方欄位加入其他值。' : '') +
         '</p>' +
-        '<ul class="value-assign-list">' + rows + '</ul>';
+        '<ul class="value-assign-list" data-preserve-scroll="manual-values-' + Ui.esc(draft.manual) + '">' + rows + '</ul>';
     }
 
     return '<fieldset class="map-options__group">' +
       '<legend class="map-options__legend">人工／自動分錄代碼</legend>' +
+      selector +
       body +
       '<div class="map-options__codes">' +
-        '<div class="map-options__code-group">' +
+        '<div class="map-options__code-group"' + (mode === 'manual' ? ' hidden' : '') + '>' +
           '<span class="map-options__code-label">人工</span>' +
           codeChipsHtml(policy.manualValues, 'manual') +
           '<label class="visually-hidden" for="manual-code-add">新增人工代碼</label>' +
@@ -534,7 +552,7 @@
           '<button type="button" class="btn btn--ghost btn--tiny" data-action="add-code"' +
             ' data-code-group="manual">加入</button>' +
         '</div>' +
-        '<div class="map-options__code-group">' +
+        '<div class="map-options__code-group"' + (mode === 'automatic' ? ' hidden' : '') + '>' +
           '<span class="map-options__code-label">自動</span>' +
           codeChipsHtml(policy.automaticValues, 'automatic') +
           '<label class="visually-hidden" for="automatic-code-add">新增自動代碼</label>' +
@@ -674,22 +692,22 @@
       facts.push('已標準化 ' + Number(committed.projectedRowCount).toLocaleString() + ' 列');
     }
     if (committed.committedUtc) {
-      facts.push('提交於 ' + new Date(committed.committedUtc).toLocaleString('zh-Hant', { hour12: false }));
+      facts.push('完成於 ' + new Date(committed.committedUtc).toLocaleString('zh-Hant', { hour12: false }));
     }
 
     return (
       '<section class="mapping-section" data-bind="mapping-' + kind + '">' +
         '<h3 class="mapping-section__title">' + title + '</h3>' +
         '<div class="mapping-summary">' +
-          '<p class="mapping-summary__status">已提交，依此配對執行後續測試' +
-            '<span class="mapping-summary__facts">' + facts.map(Ui.esc).join('・') + '</span></p>' +
+          '<p class="mapping-summary__status">已完成，依此配對執行後續測試' +
+            '<span class="mapping-summary__facts">' + facts.map(Ui.esc).join('，') + '</span></p>' +
           committedTableHtml(kind, fields, importInfo, committed) +
           literalNoteHtml(fields, committed) +
           committedOptionsHtml(kind, committed) +
           '<div class="panel__actions">' +
             '<button type="button" class="btn btn--ghost" data-action="remap-' + kind + '">重新配對</button>' +
             '<button type="button" class="btn btn--ghost" data-action="preview-target-' + kind +
-              '" title="開啟資料預覽，檢視標準化後資料">預覽標準化資料</button>' +
+              '" title="檢視已配對的資料">預覽</button>' +
           '</div>' +
         '</div>' +
       '</section>'
@@ -716,7 +734,10 @@
 
     if (committed.mapping && committed.mapping.manual) {
       var manual = options.manualAutoPolicy || { manualValues: [], automaticValues: [] };
-      facts.push('人工 ' + manual.manualValues.join('、') + '／自動 ' + manual.automaticValues.join('、'));
+      facts.push(manual.unlistedValueKind === 'automatic' ? '人工 ' + manual.manualValues.join('、') + '，其餘非空白值為自動' :
+        manual.unlistedValueKind === 'manual' ? '自動 ' + manual.automaticValues.join('、') + '，其餘非空白值為人工' :
+        '人工 ' + manual.manualValues.join('、') + '／自動 ' + manual.automaticValues.join('、'));
+      facts.push('空白：' + ({ manual: '視為人工', automatic: '視為自動', unclassified: '不判定人工或自動', reject: '先補齊來源資料' }[manual.blankValueKind || 'reject']));
     }
 
     var rde = options.rdeFields || [];
@@ -724,8 +745,8 @@
       ? '攸關資料元素欄位 ' + rde.length + ' 個：' + rde.map(function (f) { return f.label; }).join('、')
       : '未保留額外的攸關資料元素欄位');
 
-    return '<p class="mapping-summary__options" data-bind="gl-committed-options">' +
-      facts.map(Ui.esc).join('・') + '</p>';
+    return '<ul class="mapping-summary__options" data-bind="gl-committed-options">' +
+      facts.map(function (fact) { return '<li>' + Ui.esc(fact) + '</li>'; }).join('') + '</ul>';
   }
 
   // 唯讀二維對照表:來源欄當表頭、其下標示對應到的 JET 欄位,再附樣本資料列(沿用 sourceCache)。
@@ -792,7 +813,7 @@
       return Ui.esc(f.label) + ' = ' + Ui.esc(committed.mapping[f.key]);
     });
     return notes.length
-      ? '<p class="mapping-summary__literal">' + notes.join('・') + '</p>'
+      ? '<p class="mapping-summary__literal">' + notes.join('，') + '</p>'
       : '';
   }
 
@@ -934,7 +955,6 @@
     var eligibility = mappingCommitEligibility(fields, mode, mappingState, kind);
 
     var actions =
-      '<button type="button" class="btn btn--ghost" data-action="suggest-' + kind + '">自動建議</button>' +
       '<button type="button" class="btn" data-action="commit-' + kind + '"' +
         (eligibility.canCommit ? '' : ' disabled') + '>' +
         (committed ? '重新確認配對' : '確認配對') + '</button>' +
@@ -1010,7 +1030,6 @@
     }).join('');
 
     var actions =
-      '<button type="button" class="btn btn--ghost" data-action="suggest-' + kind + '">自動建議</button>' +
       '<button type="button" class="btn btn--ghost" data-action="preview-source-' + kind +
         '" title="開啟資料預覽，對照欄位名稱與實際內容">預覽來源資料</button>' +
       '<button type="button" class="btn" data-action="commit-' + kind + '"' +
@@ -1047,10 +1066,10 @@
       mapping: mapping,
       amountMode: mode,
       approvalDateMode: options.approvalDateMode,
-      manualAutoPolicy: {
+      manualAutoPolicy: Object.assign({}, options.manualAutoPolicy, {
         manualValues: options.manualAutoPolicy.manualValues.slice(),
         automaticValues: options.manualAutoPolicy.automaticValues.slice()
-      },
+      }),
       rdeFields: (options.rdeFields || []).map(function (field) {
         var wire = {
           sourceColumn: field.sourceColumn,
@@ -1180,16 +1199,39 @@
       });
     }
 
+    var manualMode = section.querySelector('[data-manual-mode]');
+    if (manualMode) { manualMode.addEventListener('change', function () {
+      var policy = glOptions().manualAutoPolicy;
+      Store.patchGlMappingOptions({ manualAutoPolicy: Object.assign({}, policy, {
+        unlistedValueKind: manualMode.value,
+        manualValues: manualMode.value === 'manual' ? [] : policy.manualValues.slice(),
+        automaticValues: manualMode.value === 'automatic' ? [] : policy.automaticValues.slice()
+      }) });
+    }); }
+    var manualBlank = section.querySelector('[data-manual-blank]');
+    if (manualBlank) { manualBlank.addEventListener('change', function () {
+      Store.patchGlMappingOptions({ manualAutoPolicy: Object.assign({}, glOptions().manualAutoPolicy, {
+        blankValueKind: manualBlank.value
+      }) });
+    }); }
+    section.querySelectorAll('[data-manual-include]').forEach(function (checkbox) {
+      checkbox.addEventListener('change', function () {
+        var policy = glOptions().manualAutoPolicy;
+        var key = policy.unlistedValueKind === 'automatic' ? 'manualValues' : 'automaticValues';
+        var patch = {}; patch[key] = toggleCodeValue(policy[key], checkbox.getAttribute('data-manual-include'), checkbox.checked);
+        Store.patchGlMappingOptions({ manualAutoPolicy: Object.assign({}, policy, patch) });
+      });
+    });
     section.querySelectorAll('[data-manual-assign]').forEach(function (radio) {
       radio.addEventListener('change', function () {
         if (!radio.checked) { return; }
         var value = radio.getAttribute('data-manual-assign');
         var policy = glOptions().manualAutoPolicy;
         Store.patchGlMappingOptions({
-          manualAutoPolicy: {
+          manualAutoPolicy: Object.assign({}, policy, {
             manualValues: toggleCodeValue(policy.manualValues, value, radio.value === 'manual'),
             automaticValues: toggleCodeValue(policy.automaticValues, value, radio.value === 'automatic')
-          }
+          })
         });
       });
     });
@@ -1200,12 +1242,12 @@
         var group = button.getAttribute('data-code-group');
         var policy = glOptions().manualAutoPolicy;
         Store.patchGlMappingOptions({
-          manualAutoPolicy: {
+          manualAutoPolicy: Object.assign({}, policy, {
             manualValues: group === 'manual'
               ? toggleCodeValue(policy.manualValues, value, false) : policy.manualValues.slice(),
             automaticValues: group === 'automatic'
               ? toggleCodeValue(policy.automaticValues, value, false) : policy.automaticValues.slice()
-          }
+          })
         });
       });
     });
@@ -1217,12 +1259,12 @@
         if (!input || !input.value.trim()) { return; }
         var policy = glOptions().manualAutoPolicy;
         Store.patchGlMappingOptions({
-          manualAutoPolicy: {
+          manualAutoPolicy: Object.assign({}, policy, {
             manualValues: group === 'manual'
               ? toggleCodeValue(policy.manualValues, input.value, true) : policy.manualValues.slice(),
             automaticValues: group === 'automatic'
               ? toggleCodeValue(policy.automaticValues, input.value, true) : policy.automaticValues.slice()
-          }
+          })
         });
       });
     });
@@ -1392,31 +1434,6 @@
     if (previewSourceBtn && Ui.openDataPreview) {
       previewSourceBtn.addEventListener('click', function () {
         Ui.openDataPreview(kind === 'gl' ? 'glStaging' : 'tbStaging');
-      });
-    }
-
-    var suggestBtn = section.querySelector('[data-action="suggest-' + kind + '"]');
-    if (suggestBtn) {
-      suggestBtn.addEventListener('click', function () {
-        mappingCommitErrors[kind] = null;
-        var importInfo = Store.getState().importState[kind];
-        if (!importInfo) { return; }
-
-        var fieldDefs = fields
-          .filter(function (f) { return !f.literal; })
-          .map(function (f) { return { key: f.key, label: f.label }; });
-
-        Ui.run('自動建議', function () {
-          return global.JetApi.mappingAutoSuggest({
-            fields: fieldDefs,
-            columns: importInfo.columns
-          }).then(function (data) {
-            var merged = Object.assign({}, Store.getState().mapping[kind].draft, data.suggested || {});
-            Store.replaceMappingDraft(kind, merged);
-            Store.addMessage('已套用自動建議（' +
-              Object.keys(data.suggested || {}).length + ' 個欄位）。', 'info');
-          });
-        });
       });
     }
 

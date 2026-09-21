@@ -36,6 +36,7 @@ internal static class PrivateCaseReportDifferencePolicy
     internal const string DeepCellStyleCovered = "deep-cell-style-covered";
     internal const string Step41Borderless = "step4-1-borderless";
     internal const string Step41ProtectionLayout = "step4-1-protection-layout";
+    internal const string ReadableCompletenessRows = "validation-completeness-18-point-rows";
 
     private static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> DirectPhysicalPages =
         new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal)
@@ -153,6 +154,13 @@ internal static class PrivateCaseReportDifferencePolicy
         ArgumentException.ThrowIfNullOrWhiteSpace(reportSlug);
         ArgumentNullException.ThrowIfNull(group);
         ArgumentNullException.ThrowIfNull(allGroups);
+
+        // 2026-09-17 D26：只接受 V_Report 5 已核定的 18 點，其他頁或其他高度仍須處理。
+        if (reportSlug == "validation-report" && group.SheetName == "V_Report 5"
+            && group.ActualValue == "18"
+            && ((group.ScopeKind == "row" && group.Property == "height")
+                || (group.ScopeKind == "sheetFormat" && group.Property == "defaultRowHeight")))
+            return ReadableCompletenessRows;
 
         if (group.Property.EndsWith("font.name", StringComparison.Ordinal))
         {

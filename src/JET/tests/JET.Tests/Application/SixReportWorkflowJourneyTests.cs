@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ClosedXML.Excel;
 using JET.Domain;
 using Xunit;
@@ -79,17 +80,37 @@ public sealed class SixReportWorkflowJourneyTests
             "export.prescreenReport",
             JsonSerializer.Serialize(new { runId = prescreenRunId }));
 
-        var scenarios = JsonDocument.Parse("""
+        var originalScenarios = JsonDocument.Parse("""
           [{"name":"完整旅程情境","rationale":"以合成摘要條件驗證報告與工作檔流程","groups":[{"rules":[{"type":"customKeywords","keywords":"調整"}]}]},
            {"name":"分類與指定日期","rationale":"分類留白的貸方科目視為 Others，兩張都命中","groups":[
              {"matchScope":"sameVoucher","rules":[
                {"type":"accountSide","drCr":"debit","categoryMode":"is","categoryIds":["builtin.cash"]},
-               {"type":"accountSide","drCr":"credit","categoryMode":"isNot","categoryIds":["builtin.cash"]}]},
+               {"type":"group","rules":[
+                 {"type":"accountSide","drCr":"credit","categoryMode":"isNot","categoryIds":["builtin.cash"],"categorySelection":"node"},
+                 {"type":"fieldValue","field":"description","operator":"isBlank"}]}]},
              {"join":"AND","rules":[
                {"type":"fieldValue","field":"postDate","operator":"in","values":["2025-03-05","2025-06-06"]},
                {"type":"fieldValue","field":"amount","operator":"between","from":"100","to":"2000000","amountBasis":"absolute"},
-               {"type":"fieldValue","field":"description","operator":"notContains","value":"NO_MATCH%_"}]}]}]
+               {"type":"fieldValue","field":"description","operator":"notContains","value":"NO_MATCH%_"}]},
+             {"join":"AND","rules":[{"type":"voucher","side":"debit","quantifier":"all","rules":[
+               {"type":"accountSide","drCr":"debit","categoryMode":"is","categoryIds":["builtin.cash"],"categorySelection":"subtree"}]}]}]}]
           """).RootElement;
+        // Keep both existing independent answers; add A and D from the production entry catalogue
+        // so the native Excel round-trip also exercises the formerly omitted prescreen descriptions.
+        var scenarios = JsonNode.Parse(originalScenarios.GetRawText())!.AsArray();
+        var legacy = Architecture.LegacyFormCatalogTests.ReadCatalog()["conditions"]!.AsArray();
+        foreach (var letter in new[] { "A", "D" })
+        {
+            var item = legacy.Single(item => item!["letter"]!.GetValue<string>() == letter)!;
+            var scenario = new JsonObject
+            {
+                ["name"] = "舊表 " + letter, ["rationale"] = "合成案例驗證原生 Excel 條件說明",
+                ["groups"] = new JsonArray(new JsonObject { ["rules"] = item["rules"]!.DeepClone() })
+            };
+            var preview = await host.DispatchAsync("filter.preview", new JsonObject { ["scenario"] = scenario.DeepClone() }.ToJsonString());
+            Assert.Equal(letter == "A" ? 4 : 2, preview.GetProperty("scenario").GetProperty("count").GetInt64());
+            scenarios.Add(scenario);
+        }
         var selectionPreview = await host.DispatchAsync("filter.preview",JsonSerializer.Serialize(new { scenario = scenarios[1] }));
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(host, projectId,
             "SELECT classification_explicit FROM target_account_mapping WHERE account_code='5101';"));
@@ -109,7 +130,7 @@ public sealed class SixReportWorkflowJourneyTests
                 validationRunId,
                 prescreenRunId,
                 scenarioRevision = revision,
-                scenarioPositions = new[] { 1, 2 }
+                scenarioPositions = new[] { 1, 2, 3, 4 }
             }));
 
         var completed = await host.DispatchAsync(
@@ -145,6 +166,10 @@ public sealed class SixReportWorkflowJourneyTests
                 .SelectMany(sheet => sheet.CellsUsed()).Select(cell => cell.GetFormattedString()).ToArray();
             Assert.DoesNotContain(texts, text => text.Contains("待判定", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("2025-03-05", StringComparison.Ordinal) && text.Contains("2025-06-06", StringComparison.Ordinal));
+            Assert.Contains(texts, text => text.Contains("全部符合（至少有一筆）", StringComparison.Ordinal));
+            Assert.Contains(texts, text => text.Contains("包含下層分類", StringComparison.Ordinal));
+            Assert.Contains(texts, text => text.Contains("財報準備日起核准", StringComparison.Ordinal));
+            Assert.Contains(texts, text => text.Contains("連續零尾數", StringComparison.Ordinal));
         }
         AssertHiddenMappingMetadata(validationPath);
         AssertHiddenMappingMetadata(workingPaperPath);
@@ -201,7 +226,18 @@ public sealed class SixReportWorkflowJourneyTests
         Assert.Equal(tbRowsBefore, await DemoProjectPipeline.QueryScalarAsync(
             host, projectId, "SELECT COUNT(*) FROM target_tb_balance;"));
 
-        ExportEvidenceIfRequested(projectId, artifacts, projectDirectory, mappingPath);
+        await ExportEvidenceIfRequestedAsync(projectId, artifacts, projectDirectory, mappingPath);
+        // 2026-09-17 使用者要求：路徑、查核期間與 V_Report 5 可讀性須沿完整旅程核對。
+        Assert.All(artifacts, artifact =>
+        {
+            Assert.Contains("_20250101-20251231_", artifact.GetProperty("fileName").GetString());
+            Assert.Equal(Path.Combine(projectDirectory, artifact.GetProperty("fileName").GetString()!),
+                artifact.GetProperty("fullPath").GetString());
+        });
+        using var readableValidation = new XLWorkbook(validationPath);
+        Assert.Equal(18D, readableValidation.Worksheet("V_Report 5").RowHeight);
+        Assert.All(readableValidation.Worksheet("V_Report 5").RowsUsed(), row => Assert.Equal(18D, row.Height));
+
     }
 
     private static string ArtifactPath(JsonElement[] artifacts, string projectDirectory, string kind)
@@ -280,7 +316,7 @@ public sealed class SixReportWorkflowJourneyTests
             restored.GetProperty("tb").GetProperty("changeMode").GetString());
     }
 
-    private static void ExportEvidenceIfRequested(
+    private static async Task ExportEvidenceIfRequestedAsync(
         string projectId,
         JsonElement[] artifacts,
         string projectDirectory,
@@ -298,6 +334,7 @@ public sealed class SixReportWorkflowJourneyTests
                 "JET_SIX_REPORT_EVIDENCE_DIR must be an absolute path.");
         }
 
+        await NativeAccessImportAcceptance.VerifyAsync(receiptDirectory);
         var workbookDirectory = Path.Combine(receiptDirectory, "workbooks");
         if (Directory.Exists(workbookDirectory) || File.Exists(workbookDirectory))
         {

@@ -2,7 +2,7 @@
   Step 1：匯入資料（多來源匯入精靈）。
   一個 GL/TB 資料集 = 一個批次，可由多個檔案或多個工作表組成（guide §3.1.4）：
   選檔（host.selectFiles）→ 逐檔預覽（import.inspectFile：工作表清單／偵測編碼與分隔符）→
-  確認後依序匯入（第一個來源 replace 或 append、其後一律 append）。
+  確認後將所有來源以單一 action 匯入，同一交易整批 replace 或 append。
   前端零解析：欄名集合比對、編碼偵測、合併語意全部在後端。
 */
 (function (global) {
@@ -22,6 +22,7 @@
   // 精靈區域狀態：一次只開一個資料集的精靈。
   // pending item = { filePath, fileName, fileType, sheetName, include, encoding, delimiter, columnCount }
   var wizard = { kind: null, mode: null, pending: [] };
+  var preparerDraft = null;
 
   // 重新匯入/加入來源完成的「卡片成功態」一次性旗標。{ kind, mode:'replace'|'append', at:ms } | null
   var justImported = null;
@@ -32,6 +33,7 @@
   var expanded = { gl: false, tb: false, authorizedPreparer: false, calendar: false };
 
   function resetWizard() {
+    preparerDraft = null;
     wizard = { kind: null, mode: null, pending: [] };
   }
 
@@ -64,9 +66,7 @@
     container.innerHTML =
       '<div class="panel">' +
         '<h2 class="panel__title">匯入資料</h2>' +
-        '<p class="panel__hint panel__hint--wide">支援 .xlsx、.xlsm、.csv 與 .txt。一個資料集可合併多個檔案或工作表，' +
-          '例如 Q1 到 Q4 的季別工作表或逐月 CSV。右側預覽只顯示少量資料，完整資料直接匯入案件資料庫，' +
-          '不會整批載入畫面。</p>' +
+        '<p class="panel__hint panel__hint--wide">支援 Excel、CSV、文字檔及 Access，可合併欄位相同的資料。</p>' +
         '<div class="import-tasklist">' +
           datasetTask('gl', 'GL（總帳明細）', imp.gl) +
           datasetTask('tb', 'TB（試算表）', imp.tb) +
@@ -115,10 +115,10 @@
   }
 
   // GL／TB 列。關鍵數字一律讀既有 importState 欄位（rowCount／columns.length／sources.length，與 summaryFaceHtml 同源），
-  // 前端不計算、不臆造；toLocaleString 只做千分位格式化，非計算。動作鈕固定「管理來源」。
+  // 前端不計算、不臆造；toLocaleString 只做千分位格式化，非計算。四類資料都由「匯入」展開操作。
   function datasetTask(kind, name, info) {
     var meta = info
-      ? Number(info.rowCount).toLocaleString() + ' 列 · ' + info.columns.length + ' 欄 · ' +
+      ? Number(info.rowCount).toLocaleString() + ' 列，' + info.columns.length + ' 欄，' +
           ((info.sources || []).length || 1) + ' 來源'
       : '未匯入';
 
@@ -128,17 +128,16 @@
       required: true,
       name: name,
       meta: meta,
-      action: '管理來源',
+      action: '匯入',
       actionPrimary: false
     }, datasetCard(kind, name, info));
   }
 
-  // 授權編製人員清單列（選用）。未匯入＝「解鎖『非授權編製人員』預篩」＋動作鈕「匯入」紅字（主要下一步動作）；
-  // 已匯入＝「N 人」＋動作鈕「調整」。列數讀 info.rowCount，前端不計算。
+  // 授權編製人員清單列（選用）。列數讀 info.rowCount，前端不計算。
   function authorizedPreparerTask(info) {
     var meta = info
       ? Number(info.rowCount).toLocaleString() + ' 人'
-      : '未匯入 · 解鎖「非授權編製人員」預篩';
+      : '未匯入';
 
     return taskItemHtml('authorizedPreparer', {
       open: expanded.authorizedPreparer,
@@ -146,7 +145,7 @@
       required: false,
       name: '授權編製人員清單',
       meta: meta,
-      action: info ? '調整' : '匯入',
+      action: '匯入',
       actionPrimary: !info
     }, authorizedPreparerCard(info));
   }
@@ -164,7 +163,7 @@
       ? nonWorkingSummary(calendar.nonWorkingDays)
       : '';
     if (nw) { parts.push(nw); }
-    var meta = parts.length ? parts.join(' · ') : '尚未設定日期維度';
+    var meta = parts.length ? parts.join('，') : '尚未設定日期維度';
 
     return taskItemHtml('calendar', {
       open: expanded.calendar,
@@ -172,7 +171,7 @@
       required: false,
       name: '日期維度',
       meta: meta,
-      action: '調整',
+      action: '匯入',
       actionPrimary: false
     }, calendarCard(calendar));
   }
@@ -203,71 +202,129 @@
     });
   }
 
-  // 授權編製人員清單：單欄姓名 .xlsx，匯入即整份替換、生效。
-  // 解鎖「非授權編製人員」預篩選；前端零解析，名單比對在後端。
+  // 原檔預覽與有效授權集合分開呈現；識別值整理與比對只在後端執行。
   function authorizedPreparerCard(info) {
-    // resume（project.load）只回 { rowCount }，無 fileName；匯入當下 setState 才帶 fileName。
-    // 有 fileName 才補上來源檔名後綴，缺檔名仍正確顯示「已匯入」態（前端零邏輯，只讀 state）。
     var body = info
-      ? '<p class="import-card__status import-card__status--ok">已匯入 ' + info.rowCount + ' 位編製人員' +
-          (info.fileName ? '（' + Ui.esc(info.fileName) + '）' : '') + '。</p>'
-      : '<p class="import-card__status">尚未匯入。匯入後可執行「非授權編製人員」預篩選。</p>';
+      ? '<p class="import-card__status import-card__status--ok">有效授權清單：' + info.rowCount + ' 個人員識別值' +
+          (info.sourceColumn ? '，採用「' + Ui.esc(info.sourceColumn) + '」欄' : '') + '。</p>'
+      : '<p class="import-card__status">尚未提供授權清單。沒有清單時不執行非授權編製人員比對。</p>';
+    if (info && info.sourceRowCount != null) {
+      body += '<p>原始資料 ' + info.sourceRowCount + ' 列，略過空白 ' + info.blankRowCount +
+        ' 列、重複識別值 ' + info.duplicateRowCount + ' 列。</p>';
+    }
+    var draft = preparerDraft;
+    var pending = '';
+    if (draft) {
+      pending = '<div class="pending-preview" data-bind="authorized-preparer-draft">' +
+        '<p>來源檔：' + Ui.esc(draft.fileName) + '。請選與 GL「編製人員」使用相同值的欄位；' +
+        'GL 使用員工代碼時，這裡也選代碼，不會自動將姓名轉成代碼。</p>' +
+        '<label>工作表 <select data-ap-sheet>' + draft.worksheets.map(function (sheet) {
+          return '<option value="' + Ui.esc(sheet.name) + '"' + (sheet.name === draft.sheetName ? ' selected' : '') +
+            '>' + Ui.esc(sheet.name) + '</option>';
+        }).join('') + '</select></label> ' +
+        '<label>人員識別欄位 <select data-ap-column><option value="">請選擇欄位</option>' +
+        draft.columns.map(function (column) {
+          return '<option value="' + Ui.esc(column) + '"' + (column === draft.sourceColumn ? ' selected' : '') +
+            '>' + Ui.esc(column) + '</option>';
+        }).join('') + '</select></label>' +
+        '<p>下方是原檔前 10 列。完成匯入後，授權清單只保留選定欄位去除空白及重複後的識別值。</p>' +
+        (draft.previewError ? '<p role="alert">原檔預覽失敗：' + Ui.esc(draft.previewError) + '</p>' :
+          previewTableHtml(draft)) +
+        '<div class="import-card__actions"><button type="button" class="btn" data-action="commit-authorized-preparer"' +
+        (draft.sourceColumn ? '' : ' disabled') + '>匯入選定欄位</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="retry-authorized-preparer-preview">重讀原檔預覽</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="cancel-authorized-preparer">取消</button></div></div>';
+    }
+    return '<section class="import-card" data-bind="import-card-authorized-preparer">' +
+      '<h3 class="import-card__title">授權編製人員清單</h3>' + body +
+      '<p>這是用於比對 GL 編製人員的授權名單；預篩選報告 R5 則彙總 GL 中實際出現的人員，兩者用途不同。</p>' +
+      '<div class="import-card__actions"><button type="button" class="btn btn--ghost" data-action="import-authorized-preparer">' +
+      (info ? '重新選擇授權清單檔' : '選擇授權清單檔') + '</button>' +
+      (info ? '<button type="button" class="btn btn--ghost" data-action="preview-authorized-preparer">預覽有效授權清單</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="clear-authorized-preparer">移除授權清單</button>' : '') +
+      '</div>' + pending + '</section>';
+  }
 
-    return (
-      '<section class="import-card" data-bind="import-card-authorized-preparer">' +
-        '<h3 class="import-card__title">授權編製人員清單（單欄姓名）</h3>' +
-        body +
-        '<div class="import-card__actions">' +
-          '<button type="button" class="btn' + (info ? ' btn--ghost' : '') +
-            '" data-action="import-authorized-preparer">' +
-            (info ? '重新匯入授權清單' : '選擇授權清單檔') + '</button>' +
-          (info
-            ? '<button type="button" class="btn btn--ghost" data-action="preview-authorized-preparer"' +
-                ' title="開啟資料預覽，檢視已匯入的授權編製人員清單">預覽授權清單</button>'
-            : '') +
-        '</div>' +
-      '</section>'
-    );
+  function readPreparerPreview(draft) {
+    draft.previewData = null;
+    draft.previewError = null;
+    return global.JetApi.importPreviewFile({ filePath: draft.filePath, sheetName: draft.sheetName }).then(function (data) {
+      if (preparerDraft !== draft) { return; }
+      draft.previewData = data;
+      Store.touch();
+    }, function (error) {
+      if (preparerDraft === draft) { draft.previewError = error.message; Store.touch(); }
+      throw error;
+    });
   }
 
   function bindAuthorizedPreparerCard(container) {
-    // 預覽入口：沿用全域資料預覽面板，看已匯入的授權編製人員清單前 50 筆。
-    var apPreviewBtn = container.querySelector('[data-action="preview-authorized-preparer"]');
-    if (apPreviewBtn && Ui.openDataPreview) {
-      apPreviewBtn.addEventListener('click', function () {
-        Ui.openDataPreview('authorizedPreparers');
-      });
+    function bind(action, handler) {
+      var button = container.querySelector('[data-action="' + action + '"]');
+      if (button) { button.addEventListener('click', handler); }
     }
-
-    var btn = container.querySelector('[data-action="import-authorized-preparer"]');
-    if (!btn) { return; }
-
-    btn.addEventListener('click', function () {
-      Ui.run('匯入授權編製人員清單', function () {
-        return global.JetApi.hostSelectFile({
-          title: '授權編製人員清單',
-          extensions: ['.xlsx']
-        }).then(function (file) {
-          if (!file.filePath) { return; }
-          return global.JetApi.importAuthorizedPreparerFromFile({
-            filePath: file.filePath,
-            fileName: file.fileName
-          }).then(function (data) {
-            Store.setAuthorizedPreparerState({
-              batchId: data.batchId,
-              rowCount: data.rowCount,
-              fileName: data.fileName,
-              importedUtc: data.importedUtc
-            });
-            Store.addMessage('授權編製人員清單匯入完成：' + data.rowCount + ' 位人員。', 'info');
-            return data;
-          });
+    bind('preview-authorized-preparer', function () { Ui.openDataPreview('authorizedPreparers'); });
+    bind('cancel-authorized-preparer', function () { preparerDraft = null; Store.touch(); });
+    bind('clear-authorized-preparer', function () {
+      Ui.run('移除授權清單', function () {
+        return global.JetApi.importAuthorizedPreparerClear({}).then(function (result) {
+          preparerDraft = null;
+          Store.setAuthorizedPreparerState(null);
+          Store.addMessage('已移除授權清單。原情境保留，依賴清單的結果會重新計算。', 'info');
+          return result;
         });
-      }, {
-        logCompletion: true,
-        logCompletionWhen: function (result) { return !!result; }
       });
     });
+    bind('retry-authorized-preparer-preview', function () {
+      if (preparerDraft) { Ui.run('讀取授權清單原檔預覽', function () { return readPreparerPreview(preparerDraft); }); }
+    });
+    bind('commit-authorized-preparer', function () {
+      var draft = preparerDraft;
+      if (!draft || !draft.sourceColumn) { return; }
+      Ui.run('匯入授權編製人員清單', function () {
+        return global.JetApi.importAuthorizedPreparerFromFile({ filePath: draft.filePath, fileName: draft.fileName,
+          sheetName: draft.sheetName, sourceColumn: draft.sourceColumn }).then(function (data) {
+          if (preparerDraft === draft) { preparerDraft = null; }
+          Store.setAuthorizedPreparerState(data);
+          Store.addMessage('授權清單匯入完成：' + data.rowCount + ' 個有效人員識別值。', 'info');
+          return data;
+        });
+      }, { logCompletion: true, logCompletionWhen: function (result) { return !!result; } });
+    });
+    bind('import-authorized-preparer', function () {
+      var projectId = Store.getState().project.projectId;
+      Ui.run('選擇授權編製人員清單', function () {
+        return global.JetApi.hostSelectFile({ title: '授權編製人員清單', extensions: ['.xlsx'] }).then(function (file) {
+          if (!file.filePath) { return; }
+          return global.JetApi.importInspectFile({ filePath: file.filePath }).then(function (data) {
+            if (!Store.getState().project || Store.getState().project.projectId !== projectId) { return; }
+            var sheets = (data.worksheets || []).filter(function (sheet) { return sheet.columns.length > 0; });
+            if (!sheets.length) { throw new Error('來源檔沒有可讀取的欄位，請確認工作表含有標頭。'); }
+            var draft = { filePath: file.filePath, fileName: file.fileName, worksheets: sheets,
+              sheetName: sheets[0].name, columns: sheets[0].columns, sourceColumn: '', previewData: null };
+            preparerDraft = draft;
+            Store.touch();
+            return readPreparerPreview(draft);
+          });
+        });
+      });
+    });
+    var column = container.querySelector('[data-ap-column]');
+    if (column) { column.addEventListener('change', function () {
+      preparerDraft.sourceColumn = column.value;
+      var commit = container.querySelector('[data-action="commit-authorized-preparer"]');
+      if (commit) { commit.disabled = !column.value; }
+    }); }
+    var sheet = container.querySelector('[data-ap-sheet]');
+    if (sheet) { sheet.addEventListener('change', function () {
+      var previous = preparerDraft;
+      var selected = previous.worksheets.find(function (item) { return item.name === sheet.value; });
+      var draft = Object.assign({}, previous, { sheetName: selected.name, columns: selected.columns,
+        sourceColumn: '', previewData: null, previewError: null });
+      preparerDraft = draft;
+      Store.touch();
+      Ui.run('讀取授權清單原檔預覽', function () { return readPreparerPreview(draft); });
+    }); }
   }
 
   // 日期維度：上傳事務所假日／補班 .xlsx + 設定每週非工作日（週末判定）。前端零邏輯，權威在後端。
@@ -457,7 +514,7 @@
 
   function emptyFaceHtml(kind) {
     return (
-      '<p class="import-card__status">尚未匯入。可由多個檔案或多個工作表合併成一個資料集。</p>' +
+      '<p class="import-card__status">尚未匯入。可合併欄位相同的檔案、工作表或資料表。</p>' +
       '<div class="import-card__actions">' +
         '<button type="button" class="btn" data-action="wizard-replace-' + kind + '">選擇來源檔</button>' +
       '</div>'
@@ -477,7 +534,7 @@
       return (
         '<tr>' +
           '<td class="source-list__no">' + s.sourceNo + '</td>' +
-          '<td>' + name + (detail.length ? '<span class="source-list__detail">' + detail.join('・') + '</span>' : '') + '</td>' +
+          '<td>' + name + (detail.length ? '<span class="source-list__detail">' + detail.join('，') + '</span>' : '') + '</td>' +
           '<td class="source-list__rows">' + Number(s.rowCount).toLocaleString() + '</td>' +
           '<td class="source-list__time">' + new Date(s.importedUtc).toLocaleString('zh-Hant', { hour12: false }) + '</td>' +
         '</tr>'
@@ -486,7 +543,7 @@
 
     return (
       '<table class="source-list">' +
-        '<thead><tr><th>#</th><th>來源（檔案／工作表）</th><th>列數</th><th>匯入時間</th></tr></thead>' +
+        '<thead><tr><th>#</th><th>來源（檔案、工作表或資料表）</th><th>列數</th><th>匯入時間</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>'
     );
@@ -507,7 +564,7 @@
       return '<p class="wizard-pane__hint wizard-pane__hint--danger">你正在取代這個資料集。現有的 ' +
         Number(info.rowCount).toLocaleString() + ' 列會在匯入成功後被新來源取代。這份資料集需要重新確認欄位配對，受影響的測試結果需要重算。已保存的篩選情境設定與既有底稿檔案會保留。</p>';
     }
-    return '<p class="wizard-pane__hint">建立資料集 — 選擇一個或多個來源檔（可多檔／多工作表合併）。</p>';
+    return '<p class="wizard-pane__hint">建立資料集 — 選擇一個或多個來源檔，可合併工作表或資料表。</p>';
   }
 
   function wizardWorkspaceHtml(kind, info) {
@@ -592,7 +649,7 @@
     }
 
     var estimate = item.rowCountEstimate != null
-      ? '・約 ' + Number(item.rowCountEstimate).toLocaleString() + ' 列' : '';
+      ? '，約 ' + Number(item.rowCountEstimate).toLocaleString() + ' 列' : '';
     return '<span class="pending-row__detail">' + item.columnCount + ' 欄' + estimate + '</span>';
   }
 
@@ -752,7 +809,7 @@
     Ui.run('選擇來源檔', function () {
       return global.JetApi.hostSelectFiles({
         title: '選擇 ' + label + ' 來源檔（可多選）',
-        extensions: ['.xlsx', '.xlsm', '.csv', '.txt']
+        extensions: ['.xlsx', '.xlsm', '.xls', '.csv', '.txt', '.mdb', '.accdb']
       }).then(function (data) {
         var files = data.files || [];
         if (files.length === 0) { return; }
@@ -760,13 +817,13 @@
         return files.reduce(function (chain, file) {
           return chain.then(function () {
             return global.JetApi.importInspectFile({ filePath: file.filePath }).then(function (info) {
-              if (info.fileType === 'xlsx') {
+              if (Array.isArray(info.worksheets)) {
                 (info.worksheets || []).forEach(function (ws) {
                   if (ws.columns.length === 0) { return; } // 空工作表不列入
                   wizard.pending.push({
                     filePath: file.filePath,
                     fileName: file.fileName,
-                    fileType: 'xlsx',
+                    fileType: info.fileType,
                     sheetName: ws.name,
                     include: true,
                     encoding: null,
@@ -796,7 +853,7 @@
           });
         }, Promise.resolve()).then(function () {
           if (wizard.pending.length === 0) {
-            Store.addMessage('選取的檔案沒有可匯入的內容（工作表皆為空）。', 'warn');
+            Store.addMessage('選取的檔案沒有含欄位的工作表或資料表。', 'warn');
           }
           Store.touch();
         });

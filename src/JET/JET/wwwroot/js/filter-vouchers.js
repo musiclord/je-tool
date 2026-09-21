@@ -59,7 +59,7 @@
       if (!view.detail) { return ''; }
       var extra = (view.detail.columns || []).filter(function (column) { return column.isCustom; });
       return '<div class="voucher-details"><h4 tabindex="-1">傳票 ' + Ui.esc(view.open) + ' 的分錄</h4><div class="preview-table__wrap"><table class="preview-table"><thead><tr>' +
-        ['狀態', '列號', '過帳日期', '核准日期', '科目代號', '科目名稱', '金額', '摘要'].concat(extra.map(function (column) { return column.label; })).map(function (label) { return '<th>' + Ui.esc(label) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        ['狀態', '列號', '總帳日期', '核准日期', '科目代號', '科目名稱', '金額', '摘要'].concat(extra.map(function (column) { return column.label; })).map(function (label) { return '<th>' + Ui.esc(label) + '</th>'; }).join('') + '</tr></thead><tbody>' +
         view.detail.rows.map(function (row) { return '<tr class="' + (row.isHit ? 'filter-hit-row' : '') + '"><td>' + matchStatusHtml(row) + '</td>' +
           [row.lineItem, row.postDate, row.approvalDate, row.accountCode, row.accountName, String(row.amount), row.description]
             .concat(extra.map(function (column) { return (row.customValues || {})[column.key]; }))
@@ -70,7 +70,7 @@
     }
     function headHtml() {
       var cells = Ui.sortableHeadCellsHtml('query.filterVoucherPage', [
-        { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '最早過帳日期' },
+        { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '最早總帳日期' },
         { key: 'hitRowCount', label: '命中分錄' }, { key: 'totalRowCount', label: '期間內全部分錄' },
         { key: 'voucherTotal', label: '傳票總額', className: 'preview-table__amount' }, { key: null, label: '查看內容' }]);
       return '<tr>' + cells + '</tr>';

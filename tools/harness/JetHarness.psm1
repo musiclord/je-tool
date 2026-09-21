@@ -137,7 +137,7 @@ function Read-JetRegistry {
             throw [InvalidDataException]::new("Lane registry is missing '$required'.")
         }
     }
-    if ([string]$registry.runnerContractVersion -cne '8.1') {
+    if ([string]$registry.runnerContractVersion -cne '8.2') {
         throw [InvalidDataException]::new('Unsupported runner contract version.')
     }
 
@@ -432,10 +432,19 @@ function Read-JetRegistry {
         [ordered]@{ name = 'approval-mapping-modes'; timeoutSeconds = 240; actionBudget = 47; expectedActionCount = 47; screenshotBudget = 1 },
         [ordered]@{ name = 'validation-auto-outputs'; timeoutSeconds = 240; actionBudget = 8; expectedActionCount = 5; screenshotBudget = 1 },
         [ordered]@{ name = 'filter-auditor-journey'; timeoutSeconds = 240; actionBudget = 96; expectedActionCount = 96; screenshotBudget = 2 },
-        [ordered]@{ name = 'filter-kct-editing'; timeoutSeconds = 240; actionBudget = 70; expectedActionCount = 70; screenshotBudget = 1 }
+        [ordered]@{ name = 'filter-kct-editing'; timeoutSeconds = 240; actionBudget = 70; expectedActionCount = 70; screenshotBudget = 1 },
+        [ordered]@{ name = 'feedback-workflow'; timeoutSeconds = 240; actionBudget = 52; expectedActionCount = 52; screenshotBudget = 2 },
+        [ordered]@{ name = 'null-details-recovery'; timeoutSeconds = 240; actionBudget = 35; expectedActionCount = 35; screenshotBudget = 1 },
+        [ordered]@{ name = 'kct-remap-recovery'; timeoutSeconds = 240; actionBudget = 43; expectedActionCount = 43; screenshotBudget = 1 },
+        [ordered]@{ name = 'authorized-list-recovery'; timeoutSeconds = 240; actionBudget = 33; expectedActionCount = 33; screenshotBudget = 1 },
+        [ordered]@{ name = 'extended-conditions'; timeoutSeconds = 240; actionBudget = 96; expectedActionCount = 95; screenshotBudget = 2 },
+        [ordered]@{ name = 'side-month-workflow'; timeoutSeconds = 240; actionBudget = 76; expectedActionCount = 76; screenshotBudget = 2 },
+        [ordered]@{ name = 'nested-voucher-workflow'; timeoutSeconds = 240; actionBudget = 80; expectedActionCount = 80; screenshotBudget = 2 },
+        [ordered]@{ name = 'legacy-form-workflow'; timeoutSeconds = 240; actionBudget = 55; expectedActionCount = 55; screenshotBudget = 2 },
+        [ordered]@{ name = 'legacy-form-catalog'; timeoutSeconds = 240; actionBudget = 95; expectedActionCount = 95; screenshotBudget = 1 }
     )
     if ($guiScenarios.Count -ne $expectedGuiScenarios.Count) {
-        throw [InvalidDataException]::new('GUI scenarios must contain only the eight reviewed scenarios.')
+        throw [InvalidDataException]::new('GUI scenarios must match the reviewed scenario list.')
     }
     for ($index = 0; $index -lt $expectedGuiScenarios.Count; $index++) {
         $scenario = $guiScenarios[$index]
@@ -551,6 +560,7 @@ function Get-JetRunnerIdentity {
     $relativePaths = @(
         'tools/verify.ps1',
         'tools/harness/JetHarness.psm1',
+        'tools/harness/JetContext.ps1',
         'tools/harness/JetHarness.Process.cs',
         'tools/harness/JetDocumentationCheck.ps1',
         'tools/harness/JetPackageVerifier.ps1',
@@ -560,6 +570,12 @@ function Get-JetRunnerIdentity {
         'tools/harness/gui-driver/OwnedGuiRun.cs',
         'tools/harness/gui-driver/GuiRunner.cs',
         'tools/harness/gui-driver/GuiScenarios.cs',
+        'tools/harness/gui-driver/GuiFilterWorkflowScenarios.cs',
+        'tools/harness/gui-driver/GuiFeedbackWorkflowScenario.cs',
+        'tools/harness/gui-driver/GuiDataRecoveryScenarios.cs',
+        'tools/harness/gui-driver/GuiSideMonthWorkflow.cs',
+        'tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs',
+        'tools/harness/gui-driver/GuiLegacyFormWorkflow.cs',
         'tools/harness/gui-driver/Program.cs',
         'tools/harness/excel-driver/ExcelDriver.csproj',
         'tools/harness/excel-driver/DriverContracts.cs',
@@ -2553,6 +2569,42 @@ function Invoke-JetGuiScenarioStep {
                     [bool]$manifest.assertions.automaticMappingTemplateCreated -and
                     [bool]$manifest.assertions.filledTemplatePreservedAfterValidation
             }
+            'side-month-workflow' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 2 -and [bool]$manifest.assertions.sideMonthWorkflowVerified
+            }
+            'extended-conditions' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 2 -and [bool]$manifest.assertions.extendedConditionsVerified
+            }
+            'authorized-list-recovery' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.authorizedListRecoveryVerified
+            }
+            'kct-remap-recovery' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.kctRemapRecoveryVerified
+            }
+            'null-details-recovery' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.nullDetailsRecoveryVerified
+            }
+            'nested-voucher-workflow' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 2 -and [bool]$manifest.assertions.nestedVoucherWorkflowVerified
+            }
+            'legacy-form-workflow' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 2 -and [bool]$manifest.assertions.legacyFormWorkflowVerified
+            }
+            'legacy-form-catalog' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.legacyFormCatalogVerified
+            }
+            'feedback-workflow' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 2 -and [bool]$manifest.assertions.feedbackWorkflowVerified
+            }
             { $_ -in @('filter-auditor-journey','filter-kct-editing') } {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq [int]$Scenario.screenshotBudget -and [bool]$manifest.assertions.filterWorkflowVerified
@@ -2715,10 +2767,33 @@ function Invoke-JetExcelFixtureStep {
             }
         }
 
+        $nativePath = Join-Path $sourceRoot 'native-source-import-verification.json'
+        Assert-JetNoExistingReparsePoint -RepositoryRoot $RepositoryRoot -Candidate $nativePath
+        if (-not (Test-Path -LiteralPath $nativePath -PathType Leaf) -or (Get-Item -LiteralPath $nativePath).Length -gt 16384) {
+            throw [InvalidDataException]::new('Native source import evidence is missing or too large.')
+        }
+        $native = Get-Content -LiteralPath $nativePath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable -Depth 10
+        $nativeCases = @()
+        foreach ($format in @('.mdb', '.accdb', '.xls')) {
+            foreach ($provider in @('sqlite', 'duckdb')) {
+                $case = @($native.cases | Where-Object { $_.format -ceq $format -and $_.provider -ceq $provider })
+                if ($case.Count -ne 1 -or $native.status -cne 'passed' -or [int]$case[0].importedRows -ne 2) {
+                    throw [InvalidDataException]::new('Native source import case inventory is invalid.')
+                }
+                foreach ($check in @('inspected', 'previewed', 'retried', 'validated', 'filtered', 'reopened', 'sourceUnchanged')) {
+                    if ($case[0][$check] -isnot [bool] -or -not $case[0][$check]) {
+                        throw [InvalidDataException]::new('Native source import case is incomplete.')
+                    }
+                }
+                $nativeCases += [ordered]@{ format = $format; provider = $provider; importedRows = 2; status = 'passed' }
+            }
+        }
+        if (@($native.cases).Count -ne 6) { throw [InvalidDataException]::new('Native source import has unexpected cases.') }
         $step['excelFixture'] = [ordered]@{
             source = 'same_run_synthetic_six_report_journey'
             workbookCount = $artifacts.Count
             reportKinds = $expectedKinds
+            nativeSourceImports = $nativeCases
             privateData = [ordered]@{ pathInspected = $false }
         }
     }
@@ -3554,6 +3629,11 @@ function Invoke-JetHarness {
 
     try {
         $repositoryFull = [IO.Path]::GetFullPath($RepositoryRoot)
+        if ($Command -ceq 'Context') {
+            . (Join-Path $PSScriptRoot 'JetContext.ps1')
+            Write-JetEnvelope (Get-JetContext -RepositoryRoot $repositoryFull)
+            return $script:ExitPassed
+        }
         $registry = Read-JetRegistry
     }
     catch {
@@ -3795,12 +3875,13 @@ function Invoke-JetHarness {
                         -SensitiveValuesToRedact $probeSensitiveValues `
                         -TreatNuGetSourceFailureAsBlocked:($ContractScenario -ceq 'NuGetUnavailable')
                     $steps.Add($step)
-                    if ($step.status -ceq 'passed' -and $ContractScenario -cin @('MutationBoundary', 'OwnedProcessTree', 'FrontendPreview', 'FrontendMapping')) {
+                    if ($step.status -ceq 'passed' -and $ContractScenario -cin @('MutationBoundary', 'OwnedProcessTree', 'FrontendPreview', 'FrontendMapping', 'Context')) {
                         $testScript = switch ($ContractScenario) {
                             'MutationBoundary' { 'mutation-contract.tests.ps1' }
                             'OwnedProcessTree' { 'process-tree-contract.tests.ps1' }
                             'FrontendPreview' { 'frontend-preview-contract.tests.ps1' }
                             'FrontendMapping' { 'frontend-mapping-contract.tests.ps1' }
+                            'Context' { 'context-contract.tests.ps1' }
                         }
                         $steps.Add((Invoke-JetChildStep `
                             -RepositoryRoot $repositoryFull -RunDirectory $context.RunDirectory `

@@ -15,7 +15,7 @@
   var GL_FIELDS = [
     { key: 'docNum', label: '傳票號碼', req: 'always' },
     { key: 'lineID', label: '傳票文件項次', req: 'optional' },
-    { key: 'postDate', label: '過帳日期', req: 'always' },
+    { key: 'postDate', label: '總帳日期', req: 'always' },
     { key: 'docDate', label: '傳票核准日', req: 'optional' },
     { key: 'voucherDate', label: '傳票日期', req: 'optional' },
     { key: 'accNum', label: '會計科目編號', req: 'always' },
@@ -48,12 +48,12 @@
   ];
 
   // GL 核准日三態（manifest mapping.commit.gl 的 approvalDateMode closed values）。
-  // mapped 必須且只可配「傳票核准日」來源欄；sameAsPostDate 直接沿用標準化後的過帳日期，
+  // mapped 必須且只可配「傳票核准日」來源欄；sameAsPostDate 直接沿用標準化後的總帳日期，
   // 兩者互斥由前端就近引導，後端 mapping.commit.gl 仍是權威。
   var GL_APPROVAL_DATE_MODES = [
     { value: 'unmapped', label: '沒有核准日' },
     { value: 'mapped', label: '由來源欄提供' },
-    { value: 'sameAsPostDate', label: '與過帳日期相同' }
+    { value: 'sameAsPostDate', label: '與總帳日期相同' }
   ];
 
   // 攸關資料元素（RDE）欄位型別（manifest rdeFields.valueType closed values）。
@@ -107,8 +107,11 @@
     // wire 型別（ACCOUNT_COMBINATION_OPTIONS）；accountPair 只在型別下拉與舊情境讀回出現，不進快速加入。
     { value: 'accountPair', label: '借貸科目組合（看對方科目）', group: 'pattern', accountMappingRequirement: 'any', pickerHidden: true },
     { value: 'specialAccountCategoryPair', label: '借貸科目組合', group: 'pattern', accountMappingRequirement: 'any' },
-    { value: 'customPreparerEntryCount', label: '自訂編製人員張數', group: 'pattern' },
-    { value: 'customAccountEntryCount', label: '自訂科目張數', group: 'pattern' },
+    { value: 'customPreparerEntryCount', label: '自訂編製人員分錄筆數', group: 'pattern' },
+    { value: 'customAccountEntryCount', label: '自訂科目分錄筆數', group: 'pattern' },
+    { value: 'entityFrequency', label: '科目與人員統計', group: 'pattern' },
+    { value: 'group', label: '條件括號', group: 'compound' },
+    { value: 'voucher', label: '傳票量詞', group: 'compound' },
     // 攸關資料元素條件：只在欄位配對已提交至少一個額外欄位時才可用（requiresRdeFields）。
     { value: 'typed', label: '攸關資料元素條件', quickLabel: '額外欄位條件', group: 'field',
       requiresRdeFields: true },
@@ -174,7 +177,7 @@
   // 本表的 value/label 鏡像 Domain FilterConditionLabels.PrescreenKeys（正本在 Domain），
   // 由 FilterConditionLabelMirrorTests 雙向守衛；新增鍵須同步 Domain 標籤表。
   var PRESCREEN_KEY_OPTIONS = [
-    { value: 'postPeriodApproval', label: '期末後核准' },
+    { value: 'postPeriodApproval', label: '財報準備日起核准' },
     { value: 'suspiciousKeywords', label: '摘要特定描述' },
     { value: 'unexpectedAccountPair', label: '未預期借貸組合', requiresAccountMapping: true },
     { value: 'trailingZeros', label: '連續零尾數金額' },
@@ -188,6 +191,11 @@
     { value: 'lowFrequencyPreparer', label: '低頻編製者' },
     { value: 'lowFrequencyAccount', label: '低頻科目' }
   ];
+
+  // 鏡像 Domain SuspiciousKeywordDefaults；繁簡詞逐一保留，不改寫其他識別值。
+  var SUSPICIOUS_KEYWORD_DEFAULTS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG',
+    '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外', '帳外',
+    '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外'];
 
   // AuditCore PrescreenPositioningRenderer 的逐字鏡像。新 prescreen.run 會回 positioning；
   // 舊摘要沒有此加法欄位時才使用本 fallback。文字由 mirror 守衛逐欄比對，前端不得自行改寫審計定位。
@@ -677,6 +685,20 @@
     return builtIn ? builtIn.label : categoryId;
   }
 
+  function taxonomyTree(state) {
+    var categories = taxonomyCategories(state), result = [], visited = {};
+    function add(parent, depth) {
+      categories.filter(function (c) { return (c.parentCategoryId || null) === parent; }).forEach(function (c) {
+        if (visited[c.categoryId]) { return; }
+        visited[c.categoryId] = true;
+        result.push(Object.assign({}, c, { depth: depth })); add(c.categoryId, depth + 1);
+      });
+    }
+    add(null, 0);
+    categories.forEach(function (c) { if (!visited[c.categoryId]) { result.push(Object.assign({}, c, { depth: 0 })); } });
+    return result;
+  }
+
   // 目前已提交 GL 配對的攸關資料元素欄位定義；未提交或舊版配對時為空陣列。
   function committedRdeFields(state) {
     var committed = state && state.mapping ? state.mapping.gl.committed : null;
@@ -878,7 +900,7 @@
     return run && run.resultRef ? run.resultRef.runId : null;
   }
 
-  var COMPLETENESS_RERUN_REASON = '請重新執行資料驗證，以確認完整性測試是否通過';
+  var COMPLETENESS_RERUN_REASON = '請重新執行資料驗證，以取得目前資料的結果';
 
   // 舊版欄位配對的閘門說明（與 mappingReviewBannerHtml 同一份事實，措辭就近可行動）。
   var MAPPING_REVIEW_MISSING = '重新確認 GL 與 TB 欄位配對（目前為舊版本）';
@@ -897,7 +919,7 @@
           : COMPLETENESS_RERUN_REASON
       };
     }
-    return { isEligible: true, reason: null };
+    return { isEligible: true, reason: null, warning: eligibility.warning || null };
   }
 
   function allScenarioPositions(state) {
@@ -1238,12 +1260,14 @@
     return {
       approvalDateMode: source.approvalDateMode || 'unmapped',
       postingStatusPolicy: source.postingStatusPolicy || null,
-      manualAutoPolicy: {
+      manualAutoPolicy: Object.assign({},
+        manual.unlistedValueKind ? { unlistedValueKind: manual.unlistedValueKind } : {},
+        manual.blankValueKind ? { blankValueKind: manual.blankValueKind } : {}, {
         manualValues: Array.isArray(manual.manualValues)
           ? manual.manualValues.slice() : MANUAL_AUTO_DEFAULTS.manualValues.slice(),
         automaticValues: Array.isArray(manual.automaticValues)
           ? manual.automaticValues.slice() : MANUAL_AUTO_DEFAULTS.automaticValues.slice()
-      },
+      }),
       rdeFields: Array.isArray(source.rdeFields)
         ? source.rdeFields.map(function (field) {
             return {
@@ -1465,10 +1489,11 @@
         '<div class="report-artifact" data-artifact-id="' + esc(artifact.artifactId) + '">' +
           '<span class="report-artifact__copy">' +
             '<span class="report-artifact__name">' + esc(artifact.fileName || '未命名報告') + '</span>' +
-            '<span class="report-artifact__meta">' + esc(generatedText) + ' · ' + esc(bytesText) +
-              (fileStateText ? ' · <span class="report-artifact__state">' + esc(fileStateText) + '</span>' : '') +
+            (artifact.fullPath ? '<span class="report-artifact__path" style="display:block;overflow-wrap:anywhere;user-select:text">儲存位置：' + esc(artifact.fullPath) + '</span>' : '') +
+            '<span class="report-artifact__meta">' + esc(generatedText) + '，' + esc(bytesText) +
+              (fileStateText ? '，<span class="report-artifact__state">' + esc(fileStateText) + '</span>' : '') +
               (options && options.history && artifact.stale
-                ? ' · <span class="report-artifact__validity">先前資料或條件的版本</span>' : '') +
+                ? '，<span class="report-artifact__validity">先前資料或條件的版本</span>' : '') +
             '</span>' +
           '</span>' +
           (options && options.reveal
@@ -1483,16 +1508,16 @@
   /* ---- 共用 helper：預覽表格與篩選規則預設值 --------------------------------- */
 
   // 把 previewRows 陣列轉成 <table class="preview-table"> 的完整標記。
-  // 欄位順序：傳票號碼、項次、過帳日期、科目（代碼＋名稱）、摘要、金額、借貸。
+  // 欄位順序：傳票號碼、項次、總帳日期、科目（代碼＋名稱）、摘要、金額、借貸。
   // 供 filter-step 與 validate-step 共用；呼叫端自行包 <div class="preview-table__wrap">。
   // sortAction 有值時表頭可點排序（鍵名對齊該查詢的 wire row），供預篩選命中表；預覽列表不排序時省略。
   function previewTableHtml(previewRows, sortAction) {
     var head = sortAction === 'query.prescreenPage'
       ? sortableHeadCellsHtml('query.prescreenPage', [
-          { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '過帳日期' },
+          { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳日期' },
           { key: 'accountCode', label: '科目' }, { key: 'documentDescription', label: '摘要' }, { key: 'amount', label: '金額' },
           { key: 'drCr', label: '借貸' }])
-      : '<th>傳票號碼</th><th>項次</th><th>過帳日期</th><th>科目</th><th>摘要</th><th>金額</th><th>借貸</th>';
+      : '<th>傳票號碼</th><th>項次</th><th>總帳日期</th><th>科目</th><th>摘要</th><th>金額</th><th>借貸</th>';
     var rows = (previewRows || []).map(function (r) {
       return (
         '<tr>' +
@@ -1518,6 +1543,14 @@
   // 建立一條篩選規則的預設值物件（純資料，無 Store/Ui 依賴）。
   // 供 filter-step 的「快速加入」與型別切換，以及 validate-step 的預篩選預覽 scenario builder 共用。
   function newFilterRule(type) {
+    if (type === 'group' || type === 'voucher') {
+      var compound = { type: type, join: 'AND', rules: [] };
+      if (type === 'voucher') { compound.side = 'all'; compound.quantifier = 'any'; }
+      return compound;
+    }
+    if (type === 'entityFrequency') {
+      return { type: type, field: 'accNum', countUnit: 'entries', countOperator: 'equals', countFrom: '1', countTo: '' };
+    }
     if (type === 'fieldValue') { return { type: type, join: 'AND', field: 'postDate', operator: 'in', values: [], includeBlank: false }; }
     if (type === 'accountSide') { return { type: type, join: 'AND', drCr: 'debit', categoryMode: 'is', categoryIds: ['builtin.cash'] }; }
     return {
@@ -1525,9 +1558,9 @@
       type: type,
       prescreenKey: 'suspiciousKeywords',
       field: type === 'dateRange' ? 'postDate' : (type === 'numRange' ? 'amount' : 'description'),
-      // 只有 trailingDigits（KCT 條件 H · 特定金額尾數）有預設值：H 要求選取後即帶 000000；
+      // 只有 trailingDigits（KCT 條件 H，特定金額尾數）有預設值：H 要求選取後即帶 000000；
       // 其餘型別無「預設尾數」語意，故維持空字串由使用者自填。
-      keywords: type === 'trailingDigits' ? '000000' : '',
+      keywords: type === 'trailingDigits' ? '000000' : (type === 'customKeywords' ? SUSPICIOUS_KEYWORD_DEFAULTS.join(',') : ''),
       values: [],
       mode: 'contains',
       normalization: 'preserve',
@@ -1725,6 +1758,7 @@
     // 共用 helper
     previewTableHtml: previewTableHtml,
     newFilterRule: newFilterRule,
+    taxonomyTree: taxonomyTree,
     reportArtifactMatches: reportArtifactMatches,
     findCurrentReportArtifact: findCurrentReportArtifact,
     currentReportArtifacts: currentReportArtifacts,

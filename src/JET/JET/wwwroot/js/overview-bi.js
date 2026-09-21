@@ -243,7 +243,7 @@
           });
           if (!bar || !bar.data) { return ''; }
           var meta = amountMeta(bar.data.key);
-          return tooltipContent('分錄金額級距與累積分布 · ' + meta.range, [
+          return tooltipContent('分錄金額級距與累積分布，' + meta.range, [
             '分錄 ' + fmtNum(bar.data.count) + ' 筆',
             '累積分布 ' + fmtPct(bar.data.ecdfPct)
           ]);

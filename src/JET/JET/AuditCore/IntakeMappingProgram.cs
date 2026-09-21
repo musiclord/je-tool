@@ -349,7 +349,8 @@ internal sealed record AuthorizedPreparerRequest(
     string FilePath,
     bool FileExists,
     string Extension,
-    string Mode);
+    string Mode,
+    string? SourceColumn = null);
 
 internal sealed record AuthorizedPreparerPlan(
     AuthorizedPreparerRequest Request,
@@ -358,18 +359,21 @@ internal sealed record AuthorizedPreparerPlan(
 
 internal sealed class AuthorizedPreparerProjection
 {
-    private static readonly string[] NameKeywords =
-        ["authorized_preparer", "preparer", "編製人員", "姓名", "name"];
-
     private readonly IReadOnlyList<string> columns;
+    private readonly string? requestedColumn;
     private readonly HashSet<string> names = new(StringComparer.Ordinal);
     private string? nameColumn;
     private bool isResolved;
 
-    internal AuthorizedPreparerProjection(IReadOnlyList<string> columns)
+    internal int BlankRowCount { get; private set; }
+    internal int DuplicateRowCount { get; private set; }
+    internal string SourceColumn { get { ResolveColumns(); return nameColumn!; } }
+
+    internal AuthorizedPreparerProjection(IReadOnlyList<string> columns, string? sourceColumn = null)
     {
         ArgumentNullException.ThrowIfNull(columns);
         this.columns = columns;
+        requestedColumn = sourceColumn;
     }
 
     internal void ResolveColumns()
@@ -379,14 +383,7 @@ internal sealed class AuthorizedPreparerProjection
             return;
         }
 
-        if (columns.Count < 1)
-        {
-            throw new JetActionException(
-                JetErrorCodes.ProjectionFailed,
-                "授權編製人員清單需至少一欄（姓名）。");
-        }
-
-        nameColumn = FindByKeywords(columns) ?? columns[0];
+        nameColumn = AuthorizedPreparerColumnResolver.Resolve(columns, requestedColumn);
         isResolved = true;
     }
 
@@ -396,14 +393,16 @@ internal sealed class AuthorizedPreparerProjection
         ResolveColumns();
         if (!row.Values.TryGetValue(nameColumn!, out var rawName))
         {
+            BlankRowCount++;
             return;
         }
 
         var name = rawName?.Trim();
         if (!string.IsNullOrEmpty(name))
         {
-            names.Add(name);
+            if (!names.Add(name)) DuplicateRowCount++;
         }
+        else BlankRowCount++;
     }
 
     internal IReadOnlyList<string> Complete(int rowCount, string fileName)
@@ -419,21 +418,6 @@ internal sealed class AuthorizedPreparerProjection
         return names.ToArray();
     }
 
-    private static string? FindByKeywords(IReadOnlyList<string> columns)
-    {
-        foreach (var keyword in NameKeywords)
-        {
-            foreach (var column in columns)
-            {
-                if (column.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                {
-                    return column;
-                }
-            }
-        }
-
-        return null;
-    }
 }
 
 internal sealed record AuthorizedPreparerFacts(AuthorizedPreparerImportResult Import);
@@ -655,7 +639,7 @@ public static partial class JetAuditProgram
             {
                 throw new JetActionException(
                     JetErrorCodes.UnsupportedFileType,
-                    $"不支援檔案 '{source.FilePath}' 的類型 '{ExtensionOf(source.FilePath)}'，支援 .xlsx、.xlsm、.csv、.txt。");
+                    $"不支援檔案 '{source.FilePath}' 的類型 '{ExtensionOf(source.FilePath)}'，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
             }
         }
 
@@ -898,8 +882,8 @@ public static partial class JetAuditProgram
     }
 
     internal static AuthorizedPreparerProjection PrepareAuthorizedPreparerProjection(
-        IReadOnlyList<string> columns) =>
-        new(columns);
+        IReadOnlyList<string> columns, string? sourceColumn = null) =>
+        new(columns, sourceColumn);
 
     internal static CalendarPlan Plan(CalendarInlineRequest request)
     {
@@ -1000,7 +984,7 @@ public static partial class JetAuditProgram
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(factsPort);
-        var projection = PrepareAuthorizedPreparerProjection(columns);
+        var projection = PrepareAuthorizedPreparerProjection(columns, plan.Request.SourceColumn);
         return factsPort.ExecuteAsync(
             plan,
             source,

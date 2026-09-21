@@ -72,7 +72,10 @@ public sealed class AccountTaxonomySaveHandler(
                 RequiredString(element, "label"),
                 RequiredInt(element, "ordinal"),
                 RequiredString(element, "semanticRole"),
-                isBuiltIn));
+                isBuiltIn,
+                element.TryGetProperty("parentCategoryId", out _)
+                    ? OptionalString(element, "parentCategoryId")
+                    : existing.GetValueOrDefault(categoryId)?.ParentCategoryId));
         }
 
         AccountTaxonomyInvariant.ValidateReplacement(replacement);
@@ -90,7 +93,8 @@ public sealed class AccountTaxonomySaveHandler(
                 label = item.Label,
                 ordinal = item.Ordinal,
                 semanticRole = item.SemanticRole,
-                isBuiltIn = item.IsBuiltIn
+                isBuiltIn = item.IsBuiltIn,
+                parentCategoryId = item.ParentCategoryId
             }).ToArray()
         };
     }

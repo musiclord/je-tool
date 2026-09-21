@@ -245,6 +245,8 @@ public sealed class FilterCommitCancellationTests
 
     private sealed class EmptyAuthorizedPreparerStore : IAuthorizedPreparerStore
     {
+        public Task ClearAsync(string projectId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<AuthorizedPreparerImportResult> ImportAsync(
             string projectId,
             ImportSourceDescriptor source,

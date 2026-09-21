@@ -283,15 +283,9 @@ internal sealed class ReportSheetWriter : IDisposable
 
     private void WriteSheetView(ReportSheetOptions? options)
     {
-        if (options is null
-            || (options.ShowGridLines is null
-                && options.ZoomScale is null
-                && options.ZoomScaleNormal is null
-                && options.FreezeRows == 0
-                && options.FreezeColumns == 0))
-        {
-            return;
-        }
+        // Excel 在高 DPI 環境開啟沒有 sheetViews 的新工作表時可能把列高折半。
+        // 保留標準視圖參照，未指定的偏好仍不寫入。
+        options ??= new ReportSheetOptions();
 
         if (options.FreezeRows >= ExcelWorksheetConstraints.MaxRows
             || options.FreezeColumns >= ExcelWorksheetConstraints.MaxColumns)

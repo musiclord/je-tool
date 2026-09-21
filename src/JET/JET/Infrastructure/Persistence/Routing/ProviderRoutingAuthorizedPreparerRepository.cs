@@ -10,6 +10,12 @@ public sealed class ProviderRoutingAuthorizedPreparerRepository(
     IAuthorizedPreparerStore sqlServer,
     IAuthorizedPreparerStore duckDb) : IAuthorizedPreparerStore, IAuthorizedPreparerImportPersistence
 {
+    public async Task ClearAsync(string projectId, CancellationToken cancellationToken)
+    {
+        var provider = await resolver.ResolveAsync(projectId, cancellationToken);
+        await ProviderSelection.Pick(provider, sqlite, sqlServer, duckDb).ClearAsync(projectId, cancellationToken);
+    }
+
     public async Task<AuthorizedPreparerImportResult> ImportAsync(
         string projectId, ImportSourceDescriptor source, IReadOnlyList<string> columns,
         IAsyncEnumerable<StagingRow> rows, CancellationToken cancellationToken)

@@ -99,6 +99,7 @@ internal sealed class LateBoundExcelAutomation : IExcelAutomationSession
                 policy.AddToMru,
                 policy.Local,
                 XlNormalLoad);
+            ValidateCompletenessRowHeight();
         }
         catch (Exception exception) when (exception is COMException
             or InvalidCastException
@@ -113,6 +114,55 @@ internal sealed class LateBoundExcelAutomation : IExcelAutomationSession
                 application.AutomationSecurity = previousAutomationSecurity;
             }
         }
+    }
+
+    // 本路線只開固定合成工作簿。直接檢查 Excel 讀入的值，XML 正確不能代替原生版面。
+    private void ValidateCompletenessRowHeight()
+    {
+        dynamic workbook = RequireWorkbook();
+        object? worksheets = null;
+        try
+        {
+            worksheets = workbook.Worksheets;
+            dynamic collection = worksheets;
+            for (var index = 1; index <= Convert.ToInt32(collection.Count, CultureInfo.InvariantCulture); index++)
+            {
+                object? worksheet = null;
+                object? usedRange = null;
+                object? rows = null;
+                try
+                {
+                    worksheet = collection.Item[index];
+                    dynamic sheet = worksheet;
+                    if (!string.Equals(Convert.ToString(sheet.Name, CultureInfo.InvariantCulture), "V_Report 5", StringComparison.Ordinal)) continue;
+                    usedRange = sheet.UsedRange;
+                    dynamic range = usedRange;
+                    rows = range.Rows;
+                    dynamic rowCollection = rows;
+                    var count = Convert.ToInt32(rowCollection.Count, CultureInfo.InvariantCulture);
+                    foreach (var position in new[] { 1, Math.Max(1, count / 2), count }.Distinct())
+                    {
+                        object? row = null;
+                        try
+                        {
+                            row = rowCollection.Item[position];
+                            dynamic item = row;
+                            var height = Convert.ToDouble(item.RowHeight, CultureInfo.InvariantCulture);
+                            if (Math.Abs(height - 18D) > 0.1D)
+                                throw new InvalidDataException("V_Report 5 native row height differs from the approved 18 points.");
+                        }
+                        finally { ReleaseCom(ref row); }
+                    }
+                }
+                finally
+                {
+                    ReleaseCom(ref rows);
+                    ReleaseCom(ref usedRange);
+                    ReleaseCom(ref worksheet);
+                }
+            }
+        }
+        finally { ReleaseCom(ref worksheets); }
     }
 
     public bool IsWorkbookReadOnly

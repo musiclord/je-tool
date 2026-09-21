@@ -102,11 +102,15 @@ public static class FilterScenarioPayloadParser
         };
     }
 
-    private static FilterRuleSpec ParseRule(JsonElement rule, int moneyScale)
+    private static FilterRuleSpec ParseRule(JsonElement rule, int moneyScale, int depth = 0)
     {
+        if (rule.ValueKind != JsonValueKind.Object) throw Invalid("條件必須是物件。");
+        if (depth > FilterScenarioLimits.MaxNestingDepth) throw Invalid("條件最多可巢狀八層，請減少括號層數。");
         var typeName = ReadClosedToken(rule, "type") ?? string.Empty;
         var type = typeName switch
         {
+            "group" => FilterRuleType.Group,
+            "voucher" => FilterRuleType.Voucher,
             "prescreen" => FilterRuleType.Prescreen,
             "text" => FilterRuleType.Text,
             "textSet" => FilterRuleType.TextSet,
@@ -120,6 +124,7 @@ public static class FilterScenarioPayloadParser
             "customTrailingZeros" => FilterRuleType.CustomTrailingZeros,
             "customPreparerEntryCount" => FilterRuleType.CustomPreparerEntryCount,
             "customAccountEntryCount" => FilterRuleType.CustomAccountEntryCount,
+            "entityFrequency" => FilterRuleType.EntityFrequency,
             "revenueDebitNearQuarterEnd" => FilterRuleType.RevenueDebitNearQuarterEnd,
             "revenueWithoutNormalCounterpart" => FilterRuleType.RevenueWithoutNormalCounterpart,
             "manualRevenueEntry" => FilterRuleType.ManualRevenueEntry,
@@ -207,7 +212,7 @@ public static class FilterScenarioPayloadParser
             toDate,
             fromScaled,
             toScaled,
-            ReadString(rule, "drCr"),
+            type == FilterRuleType.FieldValue ? ReadTypedString(rule, "drCr") : ReadString(rule, "drCr"),
             ParseManual(rule),
             PairMode: ReadString(rule, "pairMode"),
             DebitCategory: debitCategoryIds is null ? ReadString(rule, "debitCategory") : null,
@@ -217,6 +222,10 @@ public static class FilterScenarioPayloadParser
             WindowDays: ParseInt(rule, "windowDays"),
             UnknownJoin: unknownJoin)
         {
+            Rules = ParseChildren(rule, type, moneyScale, depth),
+            Quantifier = ReadConditionChoice(rule, "quantifier", "符合方式"),
+            Side = ReadConditionChoice(rule, "side", "傳票判斷範圍"),
+            CategorySelection = ReadConditionChoice(rule, "categorySelection", "分類選取方式"),
             Values = values,
             Normalization = normalization,
             UnknownNormalization = unknownNormalization,
@@ -231,8 +240,27 @@ public static class FilterScenarioPayloadParser
             AmountBasis = amountBasis,
             IncludeBlank = ReadOptionalBoolean(rule, "includeBlank"),
             CategoryMode = ReadClosedToken(rule, "categoryMode"),
+            CountUnit = ReadClosedToken(rule, "countUnit"),
+            CountOperator = ReadClosedToken(rule, "countOperator"),
+            CountFrom = ParseInt(rule, "countFrom"),
+            CountTo = ParseInt(rule, "countTo"),
             CategoryIds = AccountPairCategorySelection.Canonicalize(ParseCategoryIds(rule, "categoryIds") ?? [])
         };
+    }
+
+    private static IReadOnlyList<FilterRuleSpec> ParseChildren(JsonElement rule, FilterRuleType type, int scale, int depth)
+    {
+        if (!rule.TryGetProperty("rules", out var children)) return [];
+        if (type is not (FilterRuleType.Group or FilterRuleType.Voucher) || children.ValueKind != JsonValueKind.Array)
+            throw Invalid("子條件只能放在條件括號或傳票條件內，請重新選擇條件。");
+        return children.EnumerateArray().Select(child => ParseRule(child, scale, depth + 1)).ToArray();
+    }
+
+    private static string? ReadConditionChoice(JsonElement rule, string name, string label)
+    {
+        if (!rule.TryGetProperty(name, out var value)) return null;
+        if (value.ValueKind != JsonValueKind.String) throw Invalid($"{label}無效，請重新選擇。");
+        return value.GetString();
     }
 
     private static bool? ReadOptionalBoolean(JsonElement element, string property)

@@ -1,6 +1,9 @@
 # 建立案件到資料驗證的使用者回饋修正計畫
 
-更新日期：2026-09-12
+更新日期：2026-09-14
+
+> 本計畫於 2026-09-17 由[使用者回饋與操作流程一致性修正計畫](2026-09-17-user-feedback-and-workflow-review-plan.md)接續，已不再是現行計畫。
+> 以下保留當時的原話、修正、驗證及 PBC 盤查證據；未完成事項已由新計畫承接，不代表已結案。
 
 ## 這次要解決的問題
 
@@ -12,6 +15,10 @@
 
 開始時的實際狀態為 `main`、HEAD `aef76db438fe83d78224c858c39ba811b18f18e7`，工作樹乾淨，
 `git status --short --branch` 顯示 `main...origin/main`，沒有顯示本機與遠端分歧。
+
+2026-09-14 新增第二步的 PBC 匯入失敗待辦，詳見文末「PBC 匯入失敗盤查」。本次完成程式與日誌的對照，
+尚未確認原檔的實際觸發原因，也未修正產品。下次接續先補匯入錯誤的合成重現與診斷證據，再依證據修正；
+原有待裁定事項與公司設備驗收繼續保留。
 
 ## 使用者原話
 
@@ -488,3 +495,139 @@ Public 與 Gui 收據開始時間，所以那兩份收據涵蓋的就是目前�
 使用者已知這輪沒有跑 Package、ReleaseCandidate 與原生 Excel，也知道第三遍修正尚待人工驗收，仍決定先推送到測試環境
 驗收，所以這次不像 09-09 那樣在推送前由乾淨提交執行 ReleaseCandidate。推送前先 fetch 核對 `origin/main` 仍為
 `aef76db`，沒有遠端新增提交。本段補記後再執行一次文件檢查。
+
+## PBC 匯入失敗盤查（2026-09-14）
+
+使用者原話：
+
+> 這個問題出現在我想要匯入一個案件的PBC時所產生錯誤，因此我直接將 log 貼給你請你幫我盤查該問題的具體原因和解決方法，研究完的結果和解決方法請併入未完成的開發計畫項目中，我將在下次開發時盤查:
+
+狀態：程式與日誌對照已完成；原檔的實際觸發原因待確認，產品修正與驗收尚未開始。本次只使用使用者貼出的
+去識別支援日誌與公開程式、測試、文件，沒有讀取私人案件或 PBC 原檔。此處只保留技術判讀，不複製原始日誌。
+盤查時分支為 `main`，HEAD 為 `589dd5251e2a573fe4a910ee17eaf28702ae4557`，工作樹原先乾淨；
+它與日誌的 `informationalVersion` 提交編號一致。這能對照來源版本，不能單憑提交編號保證現場執行檔沒有其他差異。
+
+### 已確認的失敗範圍
+
+1. 日誌中的 `project.load`、兩次 `query.dataPreview`、`host.selectFiles` 與 `import.inspectFile` 成功。
+   兩次資料預覽發生在選擇 PBC 之前，不能當成這份 PBC 已讀取成功的證據。
+2. 失敗的是 `import.gl.fromFile`，也就是 GL 匯入；記錄耗時為 5,090 ms，錯誤碼為 `file_read_error`。
+   呼叫堆疊包含 `LocalImportRepository.ReplaceBatchAsync`，表示採用取代批次的本機匯入路徑。
+   SQLite 與 DuckDB 都使用這個類別，日誌不足以分辨是哪一種；不能推定是 SQL Server 問題。
+3. `ImportFromFileHandler.HandleAsync` 會先讀完所有來源的標頭，才將資料列串流交給 repository。
+   因此這次錯誤已越過標頭預讀，應優先盤查串流開始時重新開檔，以及後續讀列、解析與轉換。
+   `file_read_error` 不是 `LocalImportRepository` 對所有資料庫例外的統一改名，不能僅因堆疊停在該類別就判定資料庫損壞。
+4. `OpenXmlSaxTableReader.InspectAsync` 讀到每張資料工作表的第一個內容列就取得標頭；CSV 檢視也只做取樣與標頭讀取。
+   檢視成功不保證後段 XML、資料列或編碼都可解析，也不保證下一次開檔時來源仍可存取。
+5. 本次沒有 `import.milestone` 完成事件。該事件在整個來源寫入完成後才發出，不能據此認定完全沒有讀到資料列。
+   失敗後的 `log.append` 與 `project.heartbeat` 成功也不代表匯入成功或交易已確認回復。
+
+來源：[`ImportFromFileHandler.cs`](../../src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs) 的
+`HandleAsync`、`WithSourceContext`；
+[`LocalImportRepository.cs`](../../src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs) 的批次版
+`ReplaceBatchAsync`、`WriteBatchSourceAsync`；
+[`AppCompositionRoot.cs`](../../src/JET/JET/AppCompositionRoot.cs) 的匯入 repository 組裝；
+[`OpenXmlSaxTableReader.cs`](../../src/JET/JET/Infrastructure/FileIO/OpenXmlSaxTableReader.cs) 與
+[`CsvTableReader.cs`](../../src/JET/JET/Infrastructure/FileIO/CsvTableReader.cs) 的檢視及讀列方法。
+
+### 已確認的診斷缺口
+
+| 缺口 | 目前程式的行為 | 下次修正方向 |
+|:---|:---|:---|
+| 原始例外遺失 | `JetActionException` 只有訊息建構式。讀取器及 `FileReadErrorWithSourceContext` 把原始例外的訊息放入新錯誤，沒有保留 `InnerException`，因此無法辨識最初的例外類型與堆疊。 | 為例外加入相容的原始例外保存方式，讓讀取器及來源資訊包裝一路保留原因。既有 `Code`、`Field`、`Details` 不因包裝遺失。 |
+| 重新拋出時重設堆疊 | 批次版 `ReplaceBatchAsync` 使用 `throw AddBatchSourceContext(...)`。即使 helper 回傳同一例外，堆疊仍從這裡重起；若建立新例外，又沒有保存原始例外。追加路徑及 handler 的來源資訊包裝也須一起核對。 | 不需要補來源資訊時直接用 `throw;`；需要包裝時保存原始例外。不要只更換畫面文字。 |
+| 讀檔錯誤的分類過寬 | `WithSourceContext` 包住含進度通知的整個列舉器，會將非取消、非 `JetActionException` 的例外統一轉成 `file_read_error`。因此讀取器內部缺陷或進度通知例外也可能被當成讀檔失敗。 | 分開識別來源讀取與進度通知的失敗，保留未預期例外的技術原因；不能僅憑此錯誤碼要求使用者修檔。 |
+| 支援日誌無法區分失敗原因 | `SupportRingBufferLoggerProvider.SafeException` 刻意不保存原始訊息，只取最多四層例外類型與外層十二個堆疊位置；上游丟掉原因後，只剩泛稱 `JetActionException`。 | 維持去識別，增加固定分類的失敗階段、讀取器或格式、資料庫類型、來源序號及安全的例外原因。位置用列欄序號，不記檔名、工作表名稱、欄名或資料值；各欄位須明確納入允許清單。 |
+
+來源：[`JetActionException.cs`](../../src/JET/JET/Domain/JetActionException.cs)、上述匯入程式，以及
+[`SupportRingBufferLoggerProvider.cs`](../../src/JET/JET/Infrastructure/Diagnostics/SupportRingBufferLoggerProvider.cs)
+的 `AllowedFields`、`SafeException`。
+Microsoft 的 [CA2200 說明](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2200)
+確認，明確指定例外重新拋出會遺失原拋出點到目前位置的堆疊；
+[`InnerException` 文件](https://learn.microsoft.com/dotnet/api/system.exception.innerexception?view=net-10.0)
+說明原始原因需由建構式保留。這些是已確認的診斷缺陷，不等於已找到本次 PBC 失敗的唯一原因。
+
+### 尚待確認的原因與處理方式
+
+日誌沒有副檔名、來源數量、原始錯誤訊息或失敗位置，不能把以下候選原因寫成案件結論，也不能先要求重建案件。
+除了以下來源檔案原因，仍須用例外鏈排除 JET 自己的讀取或進度通知缺陷。
+
+| 候選原因 | 如何分辨 | 證實後的處理方式 |
+|:---|:---|:---|
+| 來源重新開啟或讀取失敗 | 檢查本機錯誤訊息是否指出占用、權限或 I/O；確認檢視與正式匯入間來源是否被修改或失去存取。Open XML 開檔使用 `FileShare.Read`。 | 保留原檔，關閉正在編輯該檔的程式後重試；若來源在同步或網路位置，先以組織允許的完整本機副本分辨問題。這是條件式排查，不是已證實的修復。 |
+| Open XML 後段結構或儲存格轉換失敗 | 僅在確認為 `.xlsx` 或 `.xlsm` 後盤查；取得解析例外及安全的位置資訊。`ExtractCellValue` 的時間樣式分支直接呼叫 `TimeSpan.FromDays`，超界值是可設計合成重現的候選。 | 先用合成檔定位解析或轉換缺陷再修讀取器。若證實原檔套件有問題，由使用者在本機以 Excel 開啟副本並依修復結果重試，保留原檔及資料核對；不能默默跳過失敗列。 |
+| CSV 或 TXT 後段解碼或解析失敗 | 僅在確認為文字格式後盤查；檢查偵測編碼、分隔符，以及取樣範圍外的解碼或解析錯誤。 | 依實際編碼與分隔符重試；必要時另存 UTF-8 副本並核對內容。若是解析器問題，先補合成案例再修正，不能用清空或刪列掩蓋。 |
+
+候選的程式依據是上述兩個讀取器及 handler 的 `WithSourceContext`。時間轉換的例外條件另見
+Microsoft 的 [`TimeSpan.FromDays(Double)` 文件](https://learn.microsoft.com/dotnet/api/system.timespan.fromdays?view=net-10.0)。
+本次未製作合成檔重現，不能將此候選說成已確認的 PBC 內容問題。
+
+目前可先取得的證據是第二步顯示的完整錯誤文字，以及同一個 Debug 程序的「DEV — 診斷日誌匯出」。
+`JetWebMessageBridge.ToErrorDto` 會把例外訊息交回畫面，因此通常比本次支援日誌多一段原因。
+DEV 日誌可能含案件資料，只在本機檢查；不要將整份檔案貼到聊天或放進文件。只摘錄經去識別的技術原因，
+也不保證 DEV 日誌能還原已被程式丟棄的原始例外。操作與界線見
+[`畫面說明`](../jet-frontend-description.md#診斷日誌) 及
+[`action 契約`](../action-contract-manifest.md)。
+
+### 下次開發順序與完成條件
+
+#### 補充需求：沒有原始資料也能依支援日誌定位原因（2026-09-14）
+
+使用者原話：
+
+> 我還要新增，對於你未能發現具體觸發問題的原因，意味著你應該繼續改良 log 輸出機制，確保在問題發生時你可以收集到足夠的證據和資訊來排除錯誤，儘管在你沒有原始資料的情況下仍然可以根據 log 輸出來了解到發生問題的原因。這個改動請併入待解決的項目
+
+此項列為共用支援日誌輸出機制的必要改良，尚未實作。以本次匯入問題先建立驗收案例，但修正要落在共用機制，
+讓其他 action 也能沿用。完成標準是維護者拿到匯出的去識別日誌及對應版本程式碼，即使沒有原始資料，
+也能判斷具體失敗原因、失敗位置及可採取的處理方式。不能只增加日誌筆數，或以請使用者提供原始 PBC、完整 DEV
+日誌作為此項需求的完成方式。
+
+下次實作須具備下列能力；這些是新增需求，不代表目前日誌已包含這些資訊：
+
+- 用同一個 `correlationId` 串起操作、來源讀取、資料庫寫入及交易回復，保留最早的失敗和最後成功階段。
+  記錄應分清讀取失敗、資料解析、型別轉換、進度通知、資料庫寫入、取消及交易回復失敗，不能全部歸成 `file_read_error`。
+- 保留原始例外鏈、原始程式位置及適用的系統或函式庫錯誤碼；以固定分類描述觸發條件。
+  必要環境包括程式與讀取元件版本、資料庫類型、檔案格式和實際採用的解析選項。
+  匯入位置包括來源序號、處理階段及能取得的列欄序號；無法取得時要明示，不能填入猜測的位置。
+- 資料相關問題須記錄足以分辨原因的安全特徵，例如儲存格型別、是否空白、是否超出轉換範圍及觸犯哪個解析條件。
+  仍不輸出原始值、檔名、工作表名稱、欄名、私人路徑、SQL 參數或其他案件內容；不能直接放行原始例外訊息取代分類。
+- 錯誤匯出必須保留必要的前後事件，避免關鍵證據被後續心跳覆寫。以有界的階段摘要及失敗上下文保存，
+  不逐筆記錄完整母體。若輸出被截斷、事件遺失或某項證據無法取得，日誌要明示；不能讓缺資料看起來像沒有發生錯誤。
+- 新增只看匯出日誌的診斷驗收：以合成案例分別觸發檔案占用、後段解析、解碼、儲存格轉換、進度通知及資料庫寫入失敗，
+  並涵蓋取消與交易回復失敗。診斷時不提供來源檔、資料內容或預先設定的失敗原因，只提供支援日誌與版本程式碼；
+  判讀結果須能與測試預先保存的原因核對，指出失敗階段、具體觸發條件及對應處理方式，同時通過去識別與容量限制檢查。
+  若仍只能回答泛稱錯誤或列出無法區分的候選原因，須補足對應取證能力，此項保持未完成。
+
+本次舊日誌已遺失的資訊無法事後補回；上述驗收針對改良後新發生的錯誤。原 PBC 的觸發原因仍維持待確認，
+共用日誌改良則可先以合成資料開發與驗收，不必等待取得原始案件。
+
+#### 執行順序
+
+1. 重新核對來源版本；先用合成資料建立「標頭與檢視成功、後續讀列失敗」的案例，保存 first-red，也就是第一次失敗的證據。
+   至少涵蓋原始讀取例外經 handler、批次匯入及 dispatcher 後的支援日誌，以及單來源、後續來源、取代與追加。
+2. 先修例外保留與安全診斷；以相同合成案例確認能指出失敗階段與底層原因，且不洩漏合成的機敏標記。
+   分清來源讀取、資料解析、儲存格轉換及資料庫寫入錯誤，不把所有例外一律說成檔案損壞，也不能把取消改成讀檔錯誤。
+   同步完成上方補充需求的只看支援日誌診斷驗收；僅保留例外或新增欄位，尚不足以結束日誌改良待辦。
+3. 依新證據選擇對應修正。原始 PBC 若仍無法定位，保留「原因待確認」，不先調整資料、放寬解析或更換資料庫。
+   需要讀取真實案件時，另取得當次明確授權並依 `PrivateCase` 邊界執行；目前沒有這項授權。
+4. 在 SQLite 與 DuckDB 驗證失敗後舊批次、來源清單、欄位配對及下游結果均保留，再驗證修正來源後整批重試成功。
+   `RollbackQuietlyAsync` 會吞掉 rollback 例外，故必須核對實際保存狀態，不能只以呼叫過 rollback 當成通過。
+   前端要保留待匯入清單、恢復操作按鈕並顯示可採取的下一步，不以心跳或 `log.append` 成功判斷匯入完成。
+5. 透過 `tools/verify.ps1 -Command Focused` 執行相關讀取、匯入與日誌測試，再依產品改動範圍執行 Build、Public、Gui
+   及 Documentation。原始案件仍須另行驗收；合成案例通過不能代替本次 PBC 已匯入成功。
+
+既有測試可從 `ImportBatchAtomicityProviderTests`、`ImportAndMappingHandlersTests`、`ImportProgressEventTests`、
+`OpenXmlSaxTableReaderTests` 及 `SupportRingBufferLoggerProviderTests` 接續。
+已讀到的原子性測試有檢查失敗後保存狀態與重試，但沒有核對例外鏈及原始堆疊；日誌測試只直接送入例外檢查去識別。
+`CorruptedFile_ThrowsFileReadError` 用的是開檔即失敗的假 ZIP，不能取代本次所需的後段讀取失敗案例。
+前端重試行為的來源是 [`import-step.js`](../../src/JET/JET/wwwroot/js/steps/import-step.js) 的 `confirmWizard`。
+
+本輪只修改本計畫與 `development-status.md`。未執行 Build、產品測試、GUI、原生 Excel、SQL Server 或真實資料驗收。
+本機三個 SQL Server 服務均為手動且停止，沒有 `sqlservr.exe`。未暫存、提交或推送。
+已執行 `pwsh -NoProfile -File tools/verify.ps1 -Command Documentation`，檢查 35 份文件，0 錯誤、0 警告；
+收據為 `20260914-092315864-1e1f735b4b6b4c6682059e084efabfc7`，`privateData.pathInspected=false`。
+本次新增段落已完整重讀，`git diff --check` 通過；補記結果後再執行一次文件檢查。
+
+同日將使用者補充的「沒有原始資料也能依支援日誌定位原因」逐字記入需求，並補上共用日誌能力與診斷驗收條件。
+Documentation 再次檢查 35 份文件，0 錯誤、0 警告，收據為 `20260914-093131308-16bc82f5607d48a787d19f12ddbc378b`。
+本次仍只修改兩份文件，新增段落已完整重讀；補記後再執行文件檢查，產品實作與驗收均未開始。

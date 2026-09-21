@@ -17,14 +17,14 @@ public static class TabularSourcePayload
     {
         var extension = Path.GetExtension(filePath).ToLowerInvariant();
         var isTextFile = extension is ".csv" or ".txt";
-        var isOpenXmlWorkbook = extension is ".xlsx" or ".xlsm";
+        var isTableFile = extension is ".xlsx" or ".xlsm" or ".xls" or ".mdb" or ".accdb";
 
         var sheetName = PayloadReader.GetOptionalString(payload, "sheetName");
-        if (sheetName is not null && !isOpenXmlWorkbook)
+        if (sheetName is not null && !isTableFile)
         {
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
-                $"欄位 'sheetName' 僅適用於 .xlsx 或 .xlsm 檔案，'{extension}' 不支援。");
+                $"欄位 'sheetName' 僅適用於 Excel 工作表或 Access 資料表，'{extension}' 不支援。");
         }
 
         var encodingName = PayloadReader.GetOptionalString(payload, "encoding")?.ToLowerInvariant();

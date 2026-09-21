@@ -8,10 +8,10 @@ public sealed partial class SqlServerProjectDatabase
 {
     // 目前 schema 版本。Fresh schema 由 SchemaSql 直接寫現行版；既有 schema 的版本則只在
     // MigrateExistingSchemaToCurrentAsync 完成 shape、data rewrite 與結果失效後最後寫回。
-    internal const string SchemaVersion = "10";
+    internal const string SchemaVersion = "11";
 
     internal const string BumpSchemaVersionSql =
-        "UPDATE {s}.schema_info SET [value] = '10' WHERE [key] = 'schema_version';";
+        "UPDATE {s}.schema_info SET [value] = '11' WHERE [key] = 'schema_version';";
 
     // SQL Server compiles a batch before executing its ALTER TABLE statements, so the v6 backfill must run
     // as a separate command after SchemaSql has added category_id. It remains inside the migration transaction.
@@ -201,7 +201,7 @@ public sealed partial class SqlServerProjectDatabase
         IF OBJECT_ID(N'{s}.schema_info','U') IS NULL
             CREATE TABLE {s}.schema_info ([key] NVARCHAR(450) COLLATE Latin1_General_BIN2 PRIMARY KEY, [value] NVARCHAR(MAX) NOT NULL);
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'schema_version')
-            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '10');
+            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '11');
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'filter_data_revision')
             INSERT INTO {s}.schema_info ([key], [value]) VALUES ('filter_data_revision', '0');
 
@@ -447,16 +447,26 @@ public sealed partial class SqlServerProjectDatabase
                 revision      INT NOT NULL
             );
         IF NOT EXISTS (SELECT 1 FROM {s}.config_account_taxonomy WHERE category_id = 'builtin.revenue')
-            INSERT INTO {s}.config_account_taxonomy VALUES ('builtin.revenue', 'Revenue', 0, 'revenue', 1, 1);
+            INSERT INTO {s}.config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.revenue', 'Revenue', 0, 'revenue', 1, 1);
         IF NOT EXISTS (SELECT 1 FROM {s}.config_account_taxonomy WHERE category_id = 'builtin.receivables')
-            INSERT INTO {s}.config_account_taxonomy VALUES ('builtin.receivables', 'Receivables', 1, 'receivables', 1, 1);
+            INSERT INTO {s}.config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.receivables', 'Receivables', 1, 'receivables', 1, 1);
         IF NOT EXISTS (SELECT 1 FROM {s}.config_account_taxonomy WHERE category_id = 'builtin.cash')
-            INSERT INTO {s}.config_account_taxonomy VALUES ('builtin.cash', 'Cash', 2, 'cash', 1, 1);
+            INSERT INTO {s}.config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.cash', 'Cash', 2, 'cash', 1, 1);
         IF NOT EXISTS (SELECT 1 FROM {s}.config_account_taxonomy WHERE category_id = 'builtin.receipt_in_advance')
-            INSERT INTO {s}.config_account_taxonomy VALUES ('builtin.receipt_in_advance', 'Receipt in advance', 3, 'receipt_in_advance', 1, 1);
+            INSERT INTO {s}.config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.receipt_in_advance', 'Receipt in advance', 3, 'receipt_in_advance', 1, 1);
         IF NOT EXISTS (SELECT 1 FROM {s}.config_account_taxonomy WHERE category_id = 'builtin.others')
-            INSERT INTO {s}.config_account_taxonomy VALUES ('builtin.others', 'Others', 4, 'others', 1, 1);
+            INSERT INTO {s}.config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.others', 'Others', 4, 'others', 1, 1);
 
+        IF COL_LENGTH('{s}.config_account_taxonomy','parent_category_id') IS NULL
+            ALTER TABLE {s}.config_account_taxonomy ADD parent_category_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL;
+        IF OBJECT_ID(N'{s}.config_account_taxonomy_path','U') IS NULL
+        BEGIN
+            CREATE TABLE {s}.config_account_taxonomy_path (
+                ancestor_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
+                descendant_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
+                PRIMARY KEY (ancestor_id, descendant_id));
+            INSERT INTO {s}.config_account_taxonomy_path SELECT category_id, category_id FROM {s}.config_account_taxonomy;
+        END
         IF OBJECT_ID(N'{s}.target_account_mapping','U') IS NULL
             CREATE TABLE {s}.target_account_mapping (
                 mapping_id            BIGINT IDENTITY(1,1) PRIMARY KEY,

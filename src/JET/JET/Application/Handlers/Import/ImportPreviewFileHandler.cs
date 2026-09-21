@@ -29,7 +29,7 @@ public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IAppli
         {
             throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                $"不支援的檔案類型 '{Path.GetExtension(filePath)}'，支援 .xlsx、.xlsm、.csv、.txt。");
+                $"不支援的檔案類型 '{Path.GetExtension(filePath)}'，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
         }
 
         var request = TabularSourcePayload.Parse(payload, filePath);

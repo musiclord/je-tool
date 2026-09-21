@@ -364,7 +364,10 @@ public static class AppCompositionRoot
                 filterScenarioStore,
                 mappingStore,
                 actionExecutionGate,
-                session);
+                session,
+                accountMappingStore,
+                authorizedPreparerStore,
+                accountTaxonomyStore);
             var devInspector = new ProviderRoutingDevDatabaseInspector(
                 providerResolver, new LocalDevDatabaseInspector(sqliteDatabase), new SqlServerDevDatabaseInspector(sqlServerDatabase),
                 new LocalDevDatabaseInspector(duckDbDatabase));
@@ -496,7 +499,8 @@ public static class AppCompositionRoot
                 resultPageRdeValuesPort,
                 sourceQualityPageRepository);
 
-            var fileReader = new CompositeTabularFileReader(new OpenXmlSaxTableReader(), new CsvTableReader());
+            var fileReader = new CompositeTabularFileReader(new OpenXmlSaxTableReader(), new CsvTableReader(),
+                new BinaryExcelTableReader(), new AccessTableReader());
             var mappingMetadataReader = new OpenXmlMappingMetadataReader();
             var mappingRestoreAuthorizations = new MappingRestoreDraftAuthorizationStore();
 #if DEBUG || JET_AGENT_GUI_TEST
@@ -594,6 +598,7 @@ public static class AppCompositionRoot
                 fileReader, intakeFactsPort, projectStore, session, events, importRepository, projectAuditLog),
             new ImportAccountMappingHandler(fileReader, referenceDataFactsPort, accountTaxonomyStore, session),
             new ImportAuthorizedPreparerFromFileHandler(fileReader, referenceDataFactsPort, session),
+            new ClearAuthorizedPreparerHandler(authorizedPreparerStore, session),
             new ImportInspectFileHandler(fileReader),
             new ImportPreviewFileHandler(fileReader),
             new ImportHolidayHandler(projectStore, projectRegistry, referenceDataFactsPort, session),
@@ -601,7 +606,6 @@ public static class AppCompositionRoot
             new ImportHolidayFromFileHandler(fileReader, projectStore, projectRegistry, referenceDataFactsPort, session),
             new ImportMakeupDayFromFileHandler(fileReader, projectStore, projectRegistry, referenceDataFactsPort, session),
             calendarSetNonWorkingDaysHandler,
-            new MappingAutoSuggestHandler(),
             new MappingRestoreDraftHandler(
                 mappingMetadataReader, importRepository, mappingRestoreAuthorizations, session),
             new MappingValueProfileHandler(importRepository, mappingValueProfileRepository, session),
@@ -678,6 +682,8 @@ public static class AppCompositionRoot
                 {
                     handlers[index] =
                         agentGuiTestFixtures.DecorateExportAction(handlers[index]);
+                    handlers[index] = agentGuiTestFixtures.DecorateNullSearch(handlers[index]);
+                    handlers[index] = agentGuiTestFixtures.DecorateAuthorizedList(handlers[index]);
                 }
             }
 #endif

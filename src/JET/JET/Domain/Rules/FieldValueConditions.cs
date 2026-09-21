@@ -13,9 +13,17 @@ public static class FieldValueConditions
     public static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>
     {
         ["equals"] = "等於", ["notEquals"] = "不等於", ["contains"] = "包含任一文字", ["notContains"] = "不包含任何文字",
-        ["startsWith"] = "開頭符合", ["endsWith"] = "結尾符合", ["in"] = "符合清單任一值", ["notIn"] = "不在清單中",
+        ["startsWith"] = "開頭符合", ["endsWith"] = "結尾符合",
+        ["notStartsWith"] = "開頭不符合", ["notEndsWith"] = "結尾不符合", ["in"] = "符合清單任一值", ["notIn"] = "不在清單中",
         ["on"] = "指定日期", ["before"] = "早於", ["onOrBefore"] = "當日或以前", ["after"] = "晚於", ["onOrAfter"] = "當日或以後",
         [DayOfMonthIn] = "每月幾日屬於", [DayOfMonthNotIn] = "每月幾日不屬於",
+        ["monthStartDays"] = "每月月初天數", ["notMonthStartDays"] = "排除每月月初天數",
+        ["monthEndDays"] = "每月月底天數", ["notMonthEndDays"] = "排除每月月底天數",
+        ["isWeekend"] = "週末", ["isNotWeekend"] = "週末以外",
+        ["isHoliday"] = "假日清單中的日期", ["isNotHoliday"] = "假日清單以外的日期",
+        ["isMakeupDay"] = "補班日", ["isNotMakeupDay"] = "補班日以外",
+        ["isNonBusinessDay"] = "非營業日（排除補班日）", ["isNotNonBusinessDay"] = "非營業日以外（含補班日）",
+        ["endsWithDigits"] = "整數尾數符合", ["notEndsWithDigits"] = "整數尾數不符合",
         ["greaterThan"] = "大於", ["greaterThanOrEqual"] = "大於或等於", ["lessThan"] = "小於", ["lessThanOrEqual"] = "小於或等於",
         ["between"] = "介於", ["notBetween"] = "不介於", ["isBlank"] = "空白", ["isNotBlank"] = "非空白"
     };
@@ -23,7 +31,7 @@ public static class FieldValueConditions
     internal static IReadOnlyList<string>? CanonicalValues(FilterRuleSpec rule, GlRdeFieldMetadata field, int scale)
     {
         if (rule.TypedValues is null) return null;
-        if (IsDayOfMonth(rule.TypedOperator))
+        if (IsDayOfMonth(rule.TypedOperator) || IsTail(rule.TypedOperator))
             return rule.TypedValues.Select(value => value.Trim()).Distinct(StringComparer.Ordinal).ToArray();
         return rule.TypedValues.Select(value => field.ValueType switch
         {
@@ -37,16 +45,32 @@ public static class FieldValueConditions
 
     public static IReadOnlyList<string> Operators(string? type) => type switch
     {
-        "text" => ["equals", "notEquals", "contains", "notContains", "startsWith", "endsWith", "in", "notIn", "isBlank", "isNotBlank"],
+        "text" => ["equals", "notEquals", "contains", "notContains", "startsWith", "notStartsWith", "endsWith", "notEndsWith", "in", "notIn", "isBlank", "isNotBlank"],
         "date" => ["on", "notEquals", "before", "onOrBefore", "after", "onOrAfter", "between", "notBetween", "in", "notIn",
-            DayOfMonthIn, DayOfMonthNotIn, "isBlank", "isNotBlank"],
-        "money" => ["equals", "notEquals", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual", "between", "notBetween", "in", "notIn", "isBlank", "isNotBlank"],
+            DayOfMonthIn, DayOfMonthNotIn, "monthStartDays", "notMonthStartDays", "monthEndDays", "notMonthEndDays",
+            "isWeekend", "isNotWeekend", "isHoliday", "isNotHoliday",
+            "isMakeupDay", "isNotMakeupDay", "isNonBusinessDay", "isNotNonBusinessDay", "isBlank", "isNotBlank"],
+        "money" => ["equals", "notEquals", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual", "between", "notBetween", "in", "notIn", "endsWithDigits", "notEndsWithDigits", "isBlank", "isNotBlank"],
         _ => []
     };
 
-    public static bool IsNegative(string? op) => op is "notEquals" or "notContains" or "notIn" or "notBetween" or DayOfMonthNotIn;
+    public static bool IsNegative(string? op) => op is "notEquals" or "notContains" or "notStartsWith" or "notEndsWith" or "notIn" or "notBetween" or DayOfMonthNotIn
+        or "isNotWeekend" or "isNotHoliday" or "isNotMakeupDay" or "isNotNonBusinessDay" or "notEndsWithDigits"
+        or "notMonthStartDays" or "notMonthEndDays";
+
+    public static bool IsMonthWindow(string? op) => op is "monthStartDays" or "notMonthStartDays" or "monthEndDays" or "notMonthEndDays";
+
+    public static bool TryParseMonthWindowDays(string? raw, out int days) =>
+        int.TryParse(raw?.Trim(), System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out days) && days is >= 1 and <= 31;
 
     public static bool IsDayOfMonth(string? op) => op is DayOfMonthIn or DayOfMonthNotIn;
+
+    public static bool IsCalendar(string? op) => op is "isWeekend" or "isNotWeekend" or "isHoliday" or "isNotHoliday"
+        or "isMakeupDay" or "isNotMakeupDay" or "isNonBusinessDay" or "isNotNonBusinessDay";
+    public static bool IsTail(string? op) => op is "endsWithDigits" or "notEndsWithDigits";
+    public static IReadOnlyList<string> TailPatterns(FilterRuleSpec rule) => rule.TypedValues is { Count: > 0 }
+        ? rule.TypedValues : (rule.TypedValue ?? "").Split([',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
     /// <summary>文字的包含比對接受多個關鍵字；舊 wire 只帶單一 value 時視為一個關鍵字。</summary>
     public static bool IsContains(string? op) => op is "contains" or "notContains";
@@ -88,6 +112,8 @@ public static partial class FilterScenarioValidator
     private static void ValidateFieldValue(FilterRuleSpec rule, string label,
         FilterValidationContext context, List<string> errors)
     {
+        if (rule.DrCr is not null and not "debit" and not "credit")
+            errors.Add($"{label}：分錄方向只能選借方或貸方；不限制時請移除方向設定。");
         var field = FieldValueConditions.Resolve(rule, context.RdeFields);
         if (field is null)
         {
@@ -112,6 +138,23 @@ public static partial class FilterScenarioValidator
             errors.Add($"{label}：請選擇比較含正負號或絕對值金額。");
         if (field.ValueType != "money" && rule.AmountBasis is not null)
             errors.Add($"{label}：只有金額欄位能設定含正負號或絕對值。");
+        if (FieldValueConditions.IsMonthWindow(rule.TypedOperator))
+        {
+            if (!FieldValueConditions.TryParseMonthWindowDays(rule.TypedValue, out _))
+                errors.Add($"{label}：每月月初或月底天數只能是 1 到 31 的整數。");
+            if (rule.TypedValues is not null || rule.TypedFrom is not null || rule.TypedTo is not null)
+                errors.Add($"{label}：每月月初或月底只需填天數，請移除日期清單或區間。");
+            return;
+        }
+        if (FieldValueConditions.IsCalendar(rule.TypedOperator)) return;
+        if (FieldValueConditions.IsTail(rule.TypedOperator))
+        {
+            var patterns = FieldValueConditions.TailPatterns(rule);
+            if (patterns.Count > FilterScenarioLimits.MaxTypedInValuesPerRule)
+                errors.Add($"{label}：尾數清單最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。");
+            ValidateTrailingDigits(rule with { Keywords = patterns }, label, errors);
+            return;
+        }
         if (FieldValueConditions.IsDayOfMonth(rule.TypedOperator))
         {
             if (!FieldValueConditions.TryParseDaysOfMonth(rule.TypedValues, out _))

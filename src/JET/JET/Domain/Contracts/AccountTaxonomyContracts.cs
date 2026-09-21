@@ -45,7 +45,8 @@ public sealed record AccountTaxonomyCategory(
     string Label,
     int Ordinal,
     string SemanticRole,
-    bool IsBuiltIn);
+    bool IsBuiltIn,
+    string? ParentCategoryId = null);
 
 public sealed record AccountTaxonomySnapshot(
     int Revision,
@@ -113,6 +114,20 @@ public static class AccountTaxonomyInvariant
             if (!ids.Contains(builtIn.CategoryId))
             {
                 Invalid($"內建科目分類 '{builtIn.CategoryId}' 不可刪除。");
+            }
+        }
+
+        var byId = categories.ToDictionary(item => item.CategoryId, StringComparer.Ordinal);
+        foreach (var category in categories)
+        {
+            var visited = new HashSet<string>(StringComparer.Ordinal) { category.CategoryId };
+            var parent = category.ParentCategoryId;
+            while (parent is not null)
+            {
+                if (!byId.TryGetValue(parent, out var ancestor))
+                    Invalid("上層分類不存在，請先保存上層分類或重新選擇。");
+                if (!visited.Add(parent)) Invalid("分類不能以自己或自己的下層作為上層，請重新選擇。");
+                parent = ancestor!.ParentCategoryId;
             }
         }
     }

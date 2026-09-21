@@ -22,8 +22,11 @@ public sealed class PrescreenRunLoggingTests
     // 三 provider 的第 3 條規則查詢各差這一個運算子，其餘命令、參數與順序均未動。
     // 2026-08-29：週末規則沿用舊 IDEA 口徑，星期六、日即成立，不再排除補班日。
     // 三個指紋都取自各 provider 的實際完整命令序列，不從其他方言推測。
-    private const string SqliteSnapshotDigest = "84842E7E528EE11F91CE893DDEEB1B5AA0B3D578A04ED20E570781029715E8C8";
-    private const string DuckDbSnapshotDigest = "72E75BF1D14DFB763AAFB36D047049CD60CDBD07B705C4EECE07FDAA376E5DD1";
+    // 2026-09-17：SQLite、DuckDB 第 2 條查詢補回 IDEA R2 的九個簡體詞。
+    // 逆向移除這九個固定參數及包含式後，17 條命令仍完全符合原指紋；其餘斷言保留。
+    // SQL Server 實機依使用者裁定暫緩，該指紋待該路線重啟後核對，不能宣稱本輪已驗證。
+    private const string SqliteSnapshotDigest = "5270A9F95E191D6A9BA0F89E3678828F5D544E726CBA5C4B2B1CF1A12FE6DE36";
+    private const string DuckDbSnapshotDigest = "C5814EC4D5E24EDDE8AA687567B6236B7470CABA014DDB44C4522EB31061B8D3";
     private const string SqlServerSnapshotDigest = "F2274C9B66E03AAB184715287E158F5081F8F2011F7E1FDE210A1E234937434C";
 
     private const string PeriodStart = "2025-09-30"; // 可辨識的期末日，後期核准述詞綁定後應現身於 parameters

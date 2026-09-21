@@ -1100,7 +1100,7 @@ public sealed partial class LegacyReportWriter
                     sheet.NumberCell(row, 3, ParseAutoFitAmount(values[2]), columnStyles[2]),
                     sheet.NumberCell(row, 4, ParseAutoFitAmount(values[3]), columnStyles[3]),
                     sheet.NumberCell(row, 5, ParseAutoFitAmount(values[4]), columnStyles[4])
-                ]);
+                ], height: 18D);
                 row++;
                 ReportIntermediateRows(stats, sheetName, (long)row - 2, progress);
             }
@@ -1148,7 +1148,7 @@ public sealed partial class LegacyReportWriter
                 RawSheetAutoFitMode.LegacyFirstTwenty),
             new ReportSheetOptions(
                 PageMargins: StandardMargins,
-                DefaultRowHeight: 12.5D),
+                DefaultRowHeight: 18D),
             legacyStyles.Map);
         uint[] headerStyles =
         [
@@ -1160,7 +1160,7 @@ public sealed partial class LegacyReportWriter
         ];
         sheet.WriteFixedRow(1, headers.Select((header, index) =>
                 sheet.TextCell(1, checked((uint)index + 1U), header, headerStyles[index]))
-            .ToArray());
+            .ToArray(), height: 18D);
         return sheet;
     }
 

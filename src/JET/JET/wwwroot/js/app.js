@@ -364,7 +364,7 @@
     if (p.syncStatus === 'serverOnly') {
       label = '僅伺服器';
     } else if (p.syncStatus === 'localOnly') {
-      label = unreachable ? '本機快取' : '本機快取・伺服器上找不到';
+      label = unreachable ? '本機快取' : '本機快取（伺服器上找不到）';
     } else if (p.syncStatus === 'noAccess') {
       label = '無存取權';
     } else {
@@ -451,7 +451,7 @@
     if (!container) { return; }
 
     // 身分註記（whoAmI）走 setCurrentUser、只 notify 不 bump contentVersion，故把它併入 memo key，
-    // 讓 whoAmI 晚於首次 picker 繪製抵達時仍能重繪、把註記從 online.principal 升級為「短名・U編號」。
+    // 讓 whoAmI 晚於首次 picker 繪製抵達時仍能重繪、把註記從 online.principal 升級為「短名，U編號」。
     var user = state.currentUser;
     var identityKey = user ? (user.shortName + '/' + user.userNumber) : '';
     var feedbackContext = state.pickerFeedbackContext || {};
@@ -479,9 +479,9 @@
     });
 
     // 線上區標題右註記：僅在可連線且身分已知時顯示；失聯改用警示條、reachable 未知則不顯示。
-    // 有 whoAmI 且含編號時用「短名・U編號」，否則沿用 project.list 的 online.principal。
+    // 有 whoAmI 且含編號時用「短名，U編號」，否則沿用 project.list 的 online.principal。
     var identityLabel = (user && user.userNumber != null)
-      ? Ui.esc(user.shortName) + '・U' + user.userNumber
+      ? Ui.esc(user.shortName) + '（U' + user.userNumber + '）'
       : (online.principal ? Ui.esc(online.principal) : '');
     var principalNote = (reachabilityKnown && !unreachable && identityLabel)
       ? '<span class="picker-section__note">以 ' + identityLabel + ' 身分檢視</span>'
@@ -805,21 +805,6 @@
     return (p.periodStart || '—') + ' ～ ' + (p.periodEnd || '—');
   }
 
-  // workpaper 抬頭：mono eyebrow（案件名稱與期間）加上 serif 案件標題。資料取自既有 state。
-  function workpaperHeaderHtml(state) {
-    var period = auditPeriodText(state);
-    var eyebrow = 'WORKPAPER · ' + (state.caseId || '尚未建立') + (period ? ' · ' + period : '');
-    var title = state.project
-      ? state.project.projectId + ' — 分錄測試'
-      : '尚未選擇案件';
-    return (
-      '<div class="workpaper">' +
-        '<span class="workpaper__eyebrow">' + Ui.esc(eyebrow) + '</span>' +
-        '<h2 class="workpaper__title">' + Ui.esc(title) + '</h2>' +
-      '</div>'
-    );
-  }
-
   // 每步收合行的一句摘要：純從既有 state 欄位讀，不在前端計算業務數值。
   function stepSummary(state, index, status) {
     var id = Store.STEPS[index].id;
@@ -834,11 +819,11 @@
       var seg = [];
       if (imp.gl) { seg.push('GL ' + fmtNum(imp.gl.rowCount) + ' 列'); }
       if (imp.tb) { seg.push('TB ' + fmtNum(imp.tb.rowCount) + ' 列'); }
-      return seg.length ? seg.join('、') : '匯入 GL 與 TB 資料';
+      return seg.length ? seg.join(' / ') : '匯入 GL 與 TB 資料';
     }
 
     if (id === 'mapping') {
-      if (status === 'done') { return 'GL、TB 欄位配對已提交'; }
+      if (status === 'done') { return 'GL、TB 欄位配對已完成'; }
       var cols = [];
       if (imp.gl && imp.gl.columns) { cols.push('GL ' + imp.gl.columns.length + ' 欄'); }
       if (imp.tb && imp.tb.columns) { cols.push('TB ' + imp.tb.columns.length + ' 欄'); }
@@ -871,7 +856,6 @@
 
   function stepSectionHtml(state, step, index) {
     var pres = Ui.stepPresentation(state, index);
-    var num = pad2(index + 1);
     var label = Ui.esc(step.label);
 
     if (pres.status === 'current') {
@@ -881,7 +865,6 @@
           '<div class="stepflow-item stepflow-item--current stepflow-item--collapsed" ' +
             'data-step-index="' + index + '" data-step-toggle role="button" tabindex="0">' +
             '<span class="stepflow-item__caret">▸</span>' +
-            '<span class="stepflow-item__num stepflow-item__num--current">' + num + '</span>' +
             '<span class="stepflow-item__name">' + label + '</span>' +
             '<span class="stepflow-item__flag">進行中</span>' +
             '<span class="stepflow-item__summary">' + Ui.esc(stepSummary(state, index, 'current')) + '</span>' +
@@ -892,7 +875,6 @@
         '<div class="stepflow-item stepflow-item--current">' +
           '<div class="stepflow-item__head" data-step-index="' + index + '" data-step-toggle role="button" tabindex="0">' +
             '<span class="stepflow-item__caret stepflow-item__caret--current">▾</span>' +
-            '<span class="stepflow-item__num stepflow-item__num--current">' + num + '</span>' +
             '<h3 class="stepflow-item__title" data-bind="current-step-title" data-step-index="' + index +
               '" tabindex="-1">' + label + '</h3>' +
             '<span class="stepflow-item__status"><span class="stepflow-item__flag">進行中</span>' +
@@ -907,7 +889,6 @@
       return (
         '<div class="stepflow-item stepflow-item--done" data-step-index="' + index + '" data-step-nav role="button" tabindex="0">' +
           '<span class="stepflow-item__caret">▸</span>' +
-          '<span class="stepflow-item__num">' + num + '</span>' +
           '<span class="stepflow-item__mark stepflow-item__mark--done">✓</span>' +
           '<span class="stepflow-item__name stepflow-item__name--done">' + label + '</span>' +
           '<span class="stepflow-item__summary">' + Ui.esc(stepSummary(state, index, 'done')) + '</span>' +
@@ -919,7 +900,6 @@
       return (
         '<div class="stepflow-item stepflow-item--available" data-step-index="' + index + '" data-step-nav role="button" tabindex="0">' +
           '<span class="stepflow-item__caret">▸</span>' +
-          '<span class="stepflow-item__num stepflow-item__num--available">' + num + '</span>' +
           '<span class="stepflow-item__mark stepflow-item__mark--available">◦</span>' +
           '<span class="stepflow-item__name stepflow-item__name--available">' + label + '</span>' +
           '<span class="stepflow-item__summary">' + Ui.esc(stepSummary(state, index, 'available')) + '</span>' +
@@ -931,7 +911,6 @@
     return (
       '<div class="stepflow-item stepflow-item--locked">' +
         '<span class="stepflow-item__spacer-caret"></span>' +
-        '<span class="stepflow-item__num stepflow-item__num--locked">' + num + '</span>' +
         '<span class="stepflow-item__spacer-mark"></span>' +
         '<span class="stepflow-item__name stepflow-item__name--locked">' + label + '</span>' +
         '<span class="stepflow-item__reason">' + Ui.esc(pres.lockedReason) + '</span>' +
@@ -1029,8 +1008,10 @@
       '[data-bind="current-step-title"][data-step-index="' + state.currentStepIndex + '"]');
     var focusSelector = captureContentFocusSelector(container);
     var scrollPositions = captureContentScrollPositions(container);
+    var contentScrollTop = container.scrollTop;
+    var contentScrollLeft = container.scrollLeft;
 
-    var html = workpaperHeaderHtml(state) + '<div class="stepflow">';
+    var html = '<div class="stepflow">';
     Store.STEPS.forEach(function (step, index) {
       html += stepSectionHtml(state, step, index);
     });
@@ -1061,6 +1042,11 @@
       if (focusSelector && !preserveStepHeadingFocus) {
         focusElement(container.querySelector(focusSelector));
       }
+      // innerHTML 暫時縮短內容時，瀏覽器可能先夾縮外層 scrollTop；focus 也可能捲動祖先。
+      // 等正式步驟與焦點都恢復後，再還原內外捲軸。
+      restoreContentScrollPositions(container, scrollPositions);
+      container.scrollTop = contentScrollTop;
+      container.scrollLeft = contentScrollLeft;
     }
 
     bindStepFlow(container);
@@ -1233,7 +1219,7 @@
   // 抬頭只保留審計員當下辨識案件所需的案件名稱與期間；執行識別移入「技術資訊」。
   // 1) 抬頭：mono eyebrow ＋ serif 案件標題 ＋ 基準行 ＋ ✕；底部 2px 實線（CSS）。
   function overviewHeadHtml(state) {
-    var eyebrow = '流程總覽 · 案件狀態';
+    var eyebrow = '流程總覽，案件狀態';
     var title = state.project
       ? state.project.projectId + ' — 分錄測試'
       : '尚未選擇案件';
@@ -1246,7 +1232,7 @@
           '<h3 class="overview__title" id="overview-title">' + Ui.esc(title) + '</h3>' +
           '<span class="overview__baseline">' +
             '<span data-overview-fact-key="project.case-id">' + Ui.esc(caseId) + '</span>' +
-            '<span aria-hidden="true"> · </span>' +
+            '<span aria-hidden="true">，</span>' +
             '<span data-overview-fact-key="project.audit-period">查核期間 ' + Ui.esc(period) + '</span>' +
           '</span>' +
         '</div>' +
@@ -1427,8 +1413,8 @@
     var locked = statuses.filter(function (status) { return status === 'locked'; }).length;
     var pct = Math.round(done / Store.STEPS.length * 100);
     var summary = done + ' 個完成';
-    if (available) { summary += ' · ' + available + ' 個可處理'; }
-    if (locked) { summary += ' · ' + locked + ' 個等待前置'; }
+    if (available) { summary += '，' + available + ' 個可處理'; }
+    if (locked) { summary += '，' + locked + ' 個等待前置'; }
     return (
       '<div class="overview__progress" data-overview-fact-key="workflow.aggregate">' +
         '<span class="overview__progress-left">' +
@@ -1513,7 +1499,7 @@
   function overviewImportFact(key, label, item, unit) {
     if (!item) { return overviewFactHtml(key, label, '尚未匯入', ''); }
     var value = '已匯入';
-    if (item.rowCount != null) { value += ' · ' + fmtNum(item.rowCount) + ' ' + unit; }
+    if (item.rowCount != null) { value += '，' + fmtNum(item.rowCount) + ' ' + unit; }
     return overviewFactHtml(key, label, value, item.importedUtc ? overviewWhen(item.importedUtc) : '');
   }
 
@@ -1555,11 +1541,11 @@
       return overviewFactHtml('validation.current-result', '資料驗證',
         validation ? '目前版本已有結果' : '目前版本需重新執行',
         validation && validation.resultRef ? overviewWhen(validation.resultRef.generatedUtc) : '') +
-        overviewFactHtml('validation.completeness', '母體完整性', validation
+        overviewFactHtml('validation.completeness', '資料驗證與後續操作', validation
           ? (eligibility.isEligible ? '可執行預篩選或進階條件篩選' : eligibility.reason)
-          : '尚無可用判定', '') +
+          : '尚無可用結果', eligibility.warning || '') +
         overviewFactHtml('prescreen.current-result', '逐筆輔助訊號',
-          prescreen ? '目前版本已有結果' : '選用 · 尚未執行',
+          prescreen ? '目前版本已有結果' : '選用，尚未執行',
           prescreen && prescreen.resultRef ? overviewWhen(prescreen.resultRef.generatedUtc) : '');
     }
     if (index === 4) {

@@ -702,7 +702,12 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             version = "9";
         }
         if (version == "9")
+        {
             await AccountClassificationMigration.UpgradeLocalAsync(connection, SqliteDialect.Instance, cancellationToken);
+            version = "10";
+        }
+        if (version == "10")
+            await AccountTaxonomyHierarchy.UpgradeLocalAsync(connection, cancellationToken);
     }
 
     private static async Task MigrateV8ToV9Async(

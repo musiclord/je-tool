@@ -120,7 +120,7 @@
         '<label class="scenario-export-option">' +
           '<input type="checkbox" data-scenario-position="' + position + '"' + checked + '>' +
           '<span class="scenario-export-option__copy">' +
-            '<span class="scenario-export-option__name">C' + position + ' · ' + Ui.esc(scenario.name) + '</span>' +
+            '<span class="scenario-export-option__name">C' + position + '，' + Ui.esc(scenario.name) + '</span>' +
             '<span class="scenario-export-option__meta">' + Ui.esc(scenario.rationale || '已存篩選情境') + '</span>' +
           '</span>' +
         '</label>'

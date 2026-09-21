@@ -110,7 +110,7 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
         PrepareProjectDirectory(paths);
         var artifacts = await ReadManifestAsync(paths, cancellationToken).ConfigureAwait(false);
         return Array.AsReadOnly(artifacts
-            .Select(artifact => artifact with { FileState = InspectFileState(paths, artifact) })
+            .Select(artifact => artifact with { FileState = InspectFileState(paths, artifact), FullPath = ResolveContainedPath(paths.ProjectDirectory, artifact.RelativeFileName) })
             .ToArray());
     }
 
@@ -228,7 +228,7 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var artifactId = Guid.NewGuid().ToString("N");
-                var fileName = BuildFileName(projectId, request.Kind, generatedUtc, paths.ProjectDirectory, reservedNames);
+                var fileName = BuildFileName(projectId, request, generatedUtc, paths.ProjectDirectory, reservedNames);
                 reservedNames.Add(fileName);
                 var finalPath = ResolveContainedPath(paths.ProjectDirectory, fileName);
                 var stagePath = ResolveContainedPath(
@@ -291,7 +291,7 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
                         "報告檔無法寫入。請先關閉 Excel 或其他開啟檔案的程式，並確認檔案不是唯讀且有寫入權限，再重新匯出。");
                 }
                 var lastWriteUtc = new DateTimeOffset(File.GetLastWriteTimeUtc(item.FinalPath), TimeSpan.Zero);
-                published.Add(item.Artifact with { LastWriteUtc = lastWriteUtc });
+                published.Add(item.Artifact with { LastWriteUtc = lastWriteUtc, FullPath = item.FinalPath });
             }
 
             // Working Paper 是正式輸出，每次都是新檔、舊版留在清單裡；其餘報告覆蓋同名檔，清單只留最新一筆。
@@ -679,12 +679,24 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
 
     private static string BuildFileName(
         string projectId,
-        ReportArtifactKind kind,
+        ReportArtifactWriteRequest request,
         DateTimeOffset generatedUtc,
         string projectDirectory,
         ISet<string> reservedNames)
     {
         var prefix = ProjectFileNames.SafePrefix(projectId);
+        var kind = request.Kind;
+        if (request.PeriodStart is not null || request.PeriodEnd is not null)
+        {
+            if (!DateOnly.TryParseExact(request.PeriodStart, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var start)
+                || !DateOnly.TryParseExact(request.PeriodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var end) || start > end)
+            {
+                throw new JetActionException(JetErrorCodes.InvalidPayload, "報告的查核起訖日無效，請確認案件設定。");
+            }
+            prefix += $"_{start:yyyyMMdd}-{end:yyyyMMdd}";
+        }
         var suffix = GetReportFileSuffix(kind);
         if (kind != ReportArtifactKind.WorkingPaper)
         {

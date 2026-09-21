@@ -50,6 +50,8 @@
          引擎差異收進 DuckDb 引擎類與參數轉接器。原生庫僅 win-x64。 -->
     <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.3" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.1" />
+    <PackageReference Include="ExcelDataReader" Version="3.8.0" />
+    <PackageReference Include="System.Data.OleDb" Version="10.0.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.6" />
     <!-- 安全覆蓋:MDS 10.0.x 仍傳遞鎖定有漏洞的 SQLitePCLRaw 2.1.11(CVE-2025-6965 / GHSA-2m69-gcr7-jv3q）。
          顯式釘到 3.0.3(內建 SQLite 3.50.4.2;3.0.1 起原生套件改名為 SourceGear.sqlite3,有漏洞的 lib.e_sqlite3 因此離開相依圖)。 -->

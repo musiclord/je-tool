@@ -24,8 +24,8 @@ public sealed class FilterFrontendParityTests
             .ToArray();
         var expected = new[]
         {
-            "customAccountEntryCount|所選母體內科目張數 ≤ N",
-            "customPreparerEntryCount|所選母體內編製人員張數 ≤ N"
+            "customAccountEntryCount|所選母體內科目分錄筆數 ≤ N",
+            "customPreparerEntryCount|所選母體內編製人員分錄筆數 ≤ N"
         };
 
         Assert.Equal(expected, actual);

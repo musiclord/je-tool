@@ -23,7 +23,8 @@ internal sealed record PrescreenRequest(
     bool HasRevenue,
     bool HasCounterpart,
     bool HasAuthorizedPreparers,
-    IReadOnlyList<int>? NonWorkingDays);
+    IReadOnlyList<int>? NonWorkingDays,
+    bool HasVoucherDate);
 
 /// <summary>
 /// Prescreen typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
@@ -47,6 +48,8 @@ internal sealed record PrescreenPlan(
     internal bool RunHolidayApproval => IsApplicable("holiday_approval");
 
     internal bool RunNonAuthorizedPreparer => IsApplicable("non_authorized_preparer");
+    internal bool RunBackdatedPosting => IsApplicable("backdated_posting");
+    internal bool RunLowFrequencyPreparer => IsApplicable("low_frequency_preparer");
 
     internal bool IsApplicable(string slug) =>
         ReviewPlan.Procedures.Single(verdict =>
@@ -185,7 +188,8 @@ public static partial class JetAuditProgram
                 HasRevenue: request.HasRevenue,
                 HasCounterpart: request.HasCounterpart,
                 HasAuthorizedPreparers: request.HasAuthorizedPreparers,
-                NonWorkingDays: request.NonWorkingDays),
+                NonWorkingDays: request.NonWorkingDays,
+                HasVoucherDate: request.HasVoucherDate),
             new AuditUserParameters(
                 RunId: request.RunId,
                 GeneratedUtc: request.GeneratedUtc,
@@ -246,11 +250,11 @@ public static partial class JetAuditProgram
                 ? facts.HolidayApprovalCount
                 : null,
             BlankDescriptionCount: facts.BlankDescriptionCount,
-            BackdatedPostingCount: facts.BackdatedPostingCount,
+            BackdatedPostingCount: plan.RunBackdatedPosting ? facts.BackdatedPostingCount : 0,
             NonAuthorizedPreparerCount: plan.RunNonAuthorizedPreparer
                 ? facts.NonAuthorizedPreparerCount
                 : 0,
-            LowFrequencyPreparerCount: facts.LowFrequencyPreparerCount,
+            LowFrequencyPreparerCount: plan.RunLowFrequencyPreparer ? facts.LowFrequencyPreparerCount : 0,
             LowFrequencyAccountCount: facts.LowFrequencyAccountCount);
         var manifest = Finalize(plan.ReviewPlan, new AuditOutcome(Prescreen: data));
 

@@ -6,23 +6,63 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 完整性後端硬閘的 provider integration matrix。四個 action 都走真 dispatcher、
-/// 真 validation persistence 與各 provider 的資料庫；前置不足時必須在任何
+/// 驗證結果可用性的 provider integration matrix。四個 action 都走真 dispatcher、
+/// 真 validation persistence 與各 provider 的資料庫；缺少目前結果時必須在任何
 /// action-specific run／revision 檢查之前 fail closed。
 /// </summary>
 public sealed class CompletenessBackendGateProviderTests
 {
     private const string ExpectedErrorCode = "completeness_prerequisite_failed";
     private const string NoValidation = "noValidation";
-    private const string CompletenessDifference = "completenessDifference";
     private const string ReimportedGl = "reimportedGl";
+
+    // 2026-09-17 使用者裁定：完整性差異是審計發現，不是禁止篩選的條件。
+    // 固定一個科目差額 10，沿保存、匯出、重開及重跑核對，不把差異清零來換取成功。
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task CompletenessDifference_ContinuesThroughReportsReopenAndRerun(string databaseProvider)
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await SetupProjectAsync(host, databaseProvider, hasCompletenessDifference: true);
+        var validation = await host.DispatchAsync("validate.run");
+        Assert.Equal(1, validation.GetProperty("completenessTest").GetProperty("diffAccountCount").GetInt64());
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var committed = await host.DispatchAsync("filter.commit", FilterCommitPayload());
+        var references = new RunReferences(
+            validation.GetProperty("resultRef").GetProperty("runId").GetString()!,
+            prescreen.GetProperty("resultRef").GetProperty("runId").GetString()!,
+            committed.GetProperty("resultRef").GetProperty("revision").GetString()!);
+        foreach (var invocation in new[]
+        {
+            new ActionInvocation("export.prescreenReport", JsonSerializer.Serialize(new { runId = references.PrescreenRunId })),
+            new ActionInvocation("export.criteriaSelectionReport", CriteriaPayload(references)),
+            new ActionInvocation("export.workpaperStream", WorkpaperPayload(references))
+        })
+        {
+            var result = await host.DispatchAsync(invocation.Action, invocation.Payload);
+            Assert.True(result.GetProperty("ok").GetBoolean());
+        }
+        var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
+        var restored = loaded.GetProperty("latestRuns").GetProperty("validate").GetProperty("completenessTest");
+        Assert.Equal(1, restored.GetProperty("diffAccountCount").GetInt64());
+        Assert.True(restored.GetProperty("eligibility").GetProperty("isEligible").GetBoolean());
+        Assert.Contains("1", restored.GetProperty("eligibility").GetProperty("warning").GetString());
+        Assert.True((await host.DispatchAsync("export.workpaperStream", WorkpaperPayload(references)))
+            .GetProperty("ok").GetBoolean());
+        var rerun = await host.DispatchAsync("validate.run");
+        Assert.Equal(1, rerun.GetProperty("completenessTest").GetProperty("diffAccountCount").GetInt64());
+        var stale = await Assert.ThrowsAsync<JetActionException>(() =>
+            host.DispatchAsync("export.workpaperStream", WorkpaperPayload(references)));
+        Assert.Equal(JetErrorCodes.StaleResult, stale.Code);
+        await host.DispatchAsync("prescreen.run");
+        await host.DispatchAsync("filter.commit", FilterCommitPayload());
+    }
 
     [Theory]
     [InlineData("sqlite", NoValidation)]
-    [InlineData("sqlite", CompletenessDifference)]
     [InlineData("sqlite", ReimportedGl)]
     [InlineData("duckdb", NoValidation)]
-    [InlineData("duckdb", CompletenessDifference)]
     [InlineData("duckdb", ReimportedGl)]
     public Task IneligibleCompletenessState_RejectsAllFourDownstreamActions_LocalProviders(
         string databaseProvider,
@@ -38,7 +78,6 @@ public sealed class CompletenessBackendGateProviderTests
 
     [SqlServerTheory]
     [InlineData(NoValidation)]
-    [InlineData(CompletenessDifference)]
     [InlineData(ReimportedGl)]
     public async Task IneligibleCompletenessState_RejectsAllFourDownstreamActions_SqlServer(
         string state)
@@ -90,7 +129,6 @@ public sealed class CompletenessBackendGateProviderTests
             var references = state switch
             {
                 NoValidation => await ArrangeNoValidationAsync(host, databaseProvider),
-                CompletenessDifference => await ArrangeCompletenessDifferenceAsync(host, databaseProvider),
                 ReimportedGl => await ArrangeReimportedGlAsync(host, databaseProvider),
                 _ => throw new ArgumentOutOfRangeException(nameof(state), state, "未知的完整性閘門測試狀態。")
             };
@@ -220,27 +258,6 @@ public sealed class CompletenessBackendGateProviderTests
     {
         await SetupProjectAsync(host, databaseProvider, hasCompletenessDifference: false);
         return new RunReferences("missing-validation", "missing-prescreen", "missing-revision");
-    }
-
-    private static async Task<RunReferences> ArrangeCompletenessDifferenceAsync(
-        HandlerTestHost host,
-        string databaseProvider)
-    {
-        await SetupProjectAsync(host, databaseProvider, hasCompletenessDifference: true);
-        var validation = await host.DispatchAsync("validate.run");
-        var completeness = validation.GetProperty("completenessTest");
-        var partA = completeness.GetProperty("partA");
-
-        Assert.True(partA.GetProperty("rowCountMatch").GetBoolean());
-        Assert.True(partA.GetProperty("amountMatch").GetBoolean());
-        Assert.True(
-            completeness.GetProperty("diffAccountCount").GetInt64() > 0,
-            "測試前置必須形成 part(b) 科目差異，不能以空差異假性驗證硬閘。");
-
-        return new RunReferences(
-            validation.GetProperty("resultRef").GetProperty("runId").GetString()!,
-            "missing-prescreen",
-            "missing-revision");
     }
 
     private static async Task<RunReferences> ArrangeReimportedGlAsync(
@@ -418,8 +435,8 @@ public sealed class CompletenessBackendGateProviderTests
             {
                 new
                 {
-                    name = "完整性硬閘測試情境",
-                    rationale = "驗證完整性不適格時不得保存篩選",
+                    name = "完整性差異後續操作",
+                    rationale = "確認差異保留且可繼續篩選；缺少目前結果才要求重驗",
                     groups = new[]
                     {
                         new

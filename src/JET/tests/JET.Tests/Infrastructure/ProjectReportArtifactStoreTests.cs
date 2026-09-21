@@ -17,6 +17,36 @@ public sealed class ProjectReportArtifactStoreTests
 {
     private const string ProjectId = "store-unit-project";
 
+    [Fact]
+    public async Task PeriodNames_RetryVersionsAndMovedProject_RecomputeLocalPathWithoutPersistingIt()
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root, new FixedTimeProvider(DateTimeOffset.Parse("2026-09-17T00:00:00Z")));
+        var request = Request(ReportArtifactKind.WorkingPaper, Bytes(1)) with
+        { PeriodStart = "2025-01-01", PeriodEnd = "2025-12-31" };
+        var first = await store.WriteAsync(ProjectId, request, default);
+        var again = await store.WriteAsync(ProjectId, request, default);
+        var afterPeriod = await store.WriteAsync(ProjectId, request with
+        { PeriodStart = "2026-01-01", PeriodEnd = "2026-03-31" }, default);
+        Assert.Contains("_20250101-20251231_WorkingPaper_", first.RelativeFileName);
+        Assert.Contains("_20260101-20260331_WorkingPaper_", afterPeriod.RelativeFileName);
+        Assert.NotEqual(first.RelativeFileName, again.RelativeFileName);
+        Assert.Equal(new byte[] { 1 }, await File.ReadAllBytesAsync(first.FullPath!));
+        var manifest = await File.ReadAllTextAsync(Path.Combine(directory, ProjectReportArtifactStore.ManifestFileName));
+        Assert.DoesNotContain("fullPath", manifest, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(root.Path, manifest);
+
+        using var movedRoot = new TempProjectRoot();
+        var (movedStore, movedDirectory) = Create(movedRoot);
+        foreach (var path in Directory.GetFiles(directory)) File.Copy(path, Path.Combine(movedDirectory, Path.GetFileName(path)));
+        var moved = await movedStore.ListAsync(ProjectId, default);
+        Assert.Equal(3, moved.Count);
+        Assert.All(moved, artifact => Assert.Equal(Path.Combine(movedDirectory, artifact.RelativeFileName), artifact.FullPath));
+        var next = await movedStore.WriteAsync(ProjectId, request, default);
+        Assert.True(File.Exists(next.FullPath));
+        Assert.True(File.Exists(Path.Combine(movedDirectory, first.RelativeFileName)));
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(4_096)]

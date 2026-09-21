@@ -118,7 +118,7 @@ public static class EncodingDetector
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}");
+                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}", innerException: ex);
         }
     }
 

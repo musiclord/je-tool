@@ -9,6 +9,46 @@ namespace JET.Tests.Infrastructure;
 public sealed class SupportRingBufferLoggerProviderTests
 {
     [Fact]
+    public void FailureSurvivesHeartbeats_AndSnapshotReportsOmittedEvents()
+    {
+        using var provider = new SupportRingBufferLoggerProvider(8);
+        var logger = provider.CreateLogger("JET.Support");
+        DispatcherDiagnostics.ActionError(logger, "import.gl.fromFile", 1, "file_read_error", new IOException("PRIVATE_PATH"));
+        for (var i = 0; i < 100; i++) DispatcherDiagnostics.ActionEnd(logger, "system.ping", "ok", 1);
+        var entries = provider.Snapshot();
+        Assert.Equal(8, entries.Count);
+        Assert.Single(entries, entry => entry.EventName == "action.error");
+        Assert.Equal(93, provider.EventsOmitted);
+        Assert.DoesNotContain("PRIVATE_PATH", string.Join('\n', entries.Select(SupportDiagnosticNdjson.SerializeLine)));
+    }
+
+    [Fact]
+    public async Task RollbackFailure_PreservesFirstErrorAndRecordsSeparateFailureWithoutValues()
+    {
+        var original = new System.Text.DecoderFallbackException("PRIVATE_VALUE");
+        ImportFailureDiagnostics.Attach(original, new ImportFailureContext(ImportFailureStage.Rows, 2, 2, 40));
+        using var transaction = new FailingRollback();
+        var rollback = await LocalImportRepository.TryRollbackAsync(transaction);
+        Assert.IsType<IOException>(rollback);
+        ImportFailureDiagnostics.RecordRollback(original, rollback, "sqlite");
+        using var provider = new SupportRingBufferLoggerProvider(8);
+        DispatcherDiagnostics.ActionError(provider.CreateLogger("JET.Support"), "import.gl.fromFile", 1, "file_read_error", original);
+        var entry = Assert.Single(provider.Snapshot());
+        Assert.Equal("decode_invalid_bytes", entry.Fields["failure_cause"]);
+        Assert.Equal("failed", entry.Fields["rollback_state"]);
+        Assert.Equal("System.IO.IOException", entry.Fields["rollback_exception_type"]);
+        Assert.DoesNotContain("PRIVATE_", SupportDiagnosticNdjson.SerializeLine(entry));
+    }
+
+    private sealed class FailingRollback : System.Data.Common.DbTransaction
+    {
+        public override System.Data.IsolationLevel IsolationLevel => System.Data.IsolationLevel.Serializable;
+        protected override System.Data.Common.DbConnection? DbConnection => null;
+        public override void Commit() => throw new NotSupportedException();
+        public override void Rollback() => throw new IOException("PRIVATE_ROLLBACK");
+        public override Task RollbackAsync(CancellationToken cancellationToken = default) => Task.FromException(new IOException("PRIVATE_ROLLBACK"));
+    }
+    [Fact]
     public void ErrorEvent_IsAllowlistedBoundedAndSanitizedBeforeSerialization()
     {
         using var provider = new SupportRingBufferLoggerProvider(capacity: 8);

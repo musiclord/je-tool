@@ -92,7 +92,7 @@ public sealed class ProviderRoutingPrescreenFactsPortTests
             HasRevenue: true,
             HasCounterpart: true,
             HasAuthorizedPreparers: true,
-            NonWorkingDays: [0, 6]));
+            NonWorkingDays: [0, 6], HasVoucherDate: true));
 
     private static PrescreenFacts EmptyFacts() => new(
         PostPeriodApprovalCount: 0,

@@ -50,7 +50,7 @@ internal sealed partial class GlFilterWhereBuilder(
                 {
                     var rule = group.Rules[ri];
                     var sql = BuildRule(parameters, rule, context, zeroModulus, schemaPrefix);
-                    var voucher = rule.Type == FilterRuleType.AccountSide && rule.CategoryMode == "absent";
+                    var voucher = rule.IsVoucherCondition;
                     evidence.Add(new(new(gi + 1, ri + 1), group.MatchScope != FilterGroupMatchScope.SameVoucher || ri == 0,
                         voucher, $"({sql})"));
                 }
@@ -136,8 +136,26 @@ internal sealed partial class GlFilterWhereBuilder(
     {
         switch (rule.Type)
         {
+            case FilterRuleType.Group:
+                return BuildChildren(parameters, rule.Rules, context, zeroModulus, schemaPrefix);
+            case FilterRuleType.Voucher:
+                var body = BuildChildren(parameters, rule.Rules, context, zeroModulus, schemaPrefix);
+                var side = rule.Side switch { "debit" => "g.amount_scaled >= 0", "credit" => "g.amount_scaled < 0", "all" => "1 = 1", _ => throw new InvalidOperationException("傳票判斷範圍無效。") };
+                var population = $"{GlPopulationScopeSql.Predicate(context, "g")} AND {side}";
+                string Set(string predicate) => $"SELECT g.document_number FROM {schemaPrefix}target_gl_entry g WHERE g.document_number IS NOT NULL AND {population} AND ({predicate})";
+                // CASE is portable to SQL Server, whose predicates are not scalar booleans.
+                var matches = $"CASE WHEN {body} THEN 1 ELSE 0 END = 1";
+                return rule.Quantifier switch
+                {
+                    "any" => $"(g.document_number IN ({Set(matches)}))",
+                    "none" => $"(g.document_number NOT IN ({Set(matches)}))",
+                    "all" => $"(g.document_number IN ({Set("1 = 1")}) AND g.document_number NOT IN ({Set($"CASE WHEN {body} THEN 1 ELSE 0 END = 0")}))",
+                    _ => throw new InvalidOperationException("傳票量詞無效。")
+                };
             case FilterRuleType.FieldValue:
-                return predicates.FieldValue(parameters, rule, context, schemaPrefix);
+                var fieldValue = predicates.FieldValue(parameters, rule, context, schemaPrefix);
+                return rule.DrCr is null ? fieldValue
+                    : $"({predicates.DrCrOnly(parameters, rule.DrCr)} AND ({fieldValue}))";
             case FilterRuleType.AccountSide:
                 return predicates.AccountSide(parameters, rule, context, schemaPrefix);
             case FilterRuleType.Prescreen:
@@ -175,7 +193,7 @@ internal sealed partial class GlFilterWhereBuilder(
                     rule.EffectiveDebitCategoryIds,
                     rule.EffectiveCreditCategoryIds,
                     context,
-                    schemaPrefix);
+                    schemaPrefix, rule.CategorySelection);
 
             case FilterRuleType.SpecialAccountCategoryPair:
                 // 考量特殊科目類別配對：顯式雙類別集合 + 否定（drAndCr/drNotCr/notDrCr，否定走述詞內 NOT EXISTS）。
@@ -185,7 +203,7 @@ internal sealed partial class GlFilterWhereBuilder(
                     rule.EffectiveDebitCategoryIds,
                     rule.EffectiveCreditCategoryIds,
                     context,
-                    schemaPrefix);
+                    schemaPrefix, rule.CategorySelection);
 
             case FilterRuleType.CustomKeywords:
                 return predicates.CustomKeywords(parameters, rule.Keywords);
@@ -201,6 +219,9 @@ internal sealed partial class GlFilterWhereBuilder(
                 // 自訂低頻編製者門檻：maxEntries 取代固定預設 11，述詞同 lowFrequencyPreparer。
                 return predicates.LowFrequencyPreparer(
                     parameters, rule.MaxEntries!.Value, context, schemaPrefix);
+
+            case FilterRuleType.EntityFrequency:
+                return predicates.EntityFrequency(parameters, rule, context, schemaPrefix);
 
             case FilterRuleType.CustomAccountEntryCount:
                 // 自訂低頻科目門檻（C9 自訂軌）：maxEntries 取代固定預設 11，述詞同 lowFrequencyAccount。
@@ -238,6 +259,18 @@ internal sealed partial class GlFilterWhereBuilder(
             default:
                 throw new InvalidOperationException($"未處理的規則型別 {rule.Type}。");
         }
+    }
+
+    private string BuildChildren(FilterSqlParameterPlanBuilder parameters, IReadOnlyList<FilterRuleSpec> rules,
+        FilterRuleContext context, long zeroModulus, string schemaPrefix)
+    {
+        string? combined = null;
+        foreach (var child in rules)
+        {
+            var sql = BuildRule(parameters, child, context, zeroModulus, schemaPrefix);
+            combined = combined is null ? sql : $"({combined} {Op(child.Join)} {sql})";
+        }
+        return $"({combined ?? "1 = 0"})";
     }
 
     private string BuildPrescreenRule(

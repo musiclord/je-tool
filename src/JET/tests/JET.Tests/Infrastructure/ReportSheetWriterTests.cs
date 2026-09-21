@@ -10,6 +10,27 @@ namespace JET.Tests.Infrastructure;
 public sealed class ReportSheetWriterTests
 {
     [Fact]
+    public void DefaultSheet_HasWorkbookViewReference_ForNativeExcelDpiCompatibility()
+    {
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook))
+        {
+            var book = document.AddWorkbookPart();
+            book.Workbook = new Workbook();
+            var part = book.AddNewPart<WorksheetPart>();
+            using var writer = new ReportSheetWriter("Default", part);
+            writer.WriteFixedRow(1, [new Cell { CellReference = "A1" }], 18);
+            writer.CloseAndSummarize(default);
+        }
+        stream.Position = 0;
+        using var read = SpreadsheetDocument.Open(stream, false);
+        var sheet = read.WorkbookPart!.WorksheetParts.Single().Worksheet;
+        var view = Assert.Single(sheet.Descendants<SheetView>());
+        Assert.Equal(0U, view.WorkbookViewId?.Value);
+        Assert.Null(view.ZoomScale);
+        Assert.Null(view.ShowGridLines);
+    }
+    [Fact]
     public void LegacyContinuationNames_KeepFirstNameAndUseNumberedSuffixWithinExcelLimit()
     {
         Assert.Equal("V_Report 5", LegacyReportWriter.SeriesName("V_Report 5", 1));

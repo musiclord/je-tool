@@ -129,20 +129,14 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             var scenarioSpec = FilterScenarioPayloadParser.Parse(
                 definition.RootElement,
                 document.MoneyScale);
-            string? conditionLogic = null;
-            if (scenarioSpec.Groups.SelectMany(group => group.Rules)
-                .Any(rule => rule.Type is FilterRuleType.FieldValue or FilterRuleType.AccountSide))
+            if (conditionCategoryLabels is null)
             {
-                if (conditionCategoryLabels is null)
-                {
-                    var taxonomy = accountTaxonomyStore is null ? AccountTaxonomyCatalog.BuiltInSnapshot
-                        : await accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
-                    conditionCategoryLabels = taxonomy.Categories.ToDictionary(category => category.CategoryId, category => category.Label);
-                    var mapping = mappingStore is null ? null : await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
-                    conditionFieldLabels = (mapping?.GlOptions?.RdeFields ?? []).ToDictionary(field => field.FieldId, field => field.Label);
-                }
-                conditionLogic = FilterConditionRenderer.Render(definition.RootElement, conditionCategoryLabels, conditionFieldLabels);
+                var taxonomy = await accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
+                conditionCategoryLabels = taxonomy.Categories.ToDictionary(category => category.CategoryId, category => category.Label);
+                var mapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
+                conditionFieldLabels = (mapping?.GlOptions?.RdeFields ?? []).ToDictionary(field => field.FieldId, field => field.Label);
             }
+            var conditionLogic = FilterConditionRenderer.Render(definition.RootElement, conditionCategoryLabels, conditionFieldLabels);
             scenarioSelections.Add(new WorkpaperScenarioSelection(
                 scenario.Position,
                 scenario.Name,
@@ -208,7 +202,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
                         ct,
                         artifactProgress.WriterProgress);
                     artifactProgress.FinalizingWorkbook();
-                });
+                }, document.PeriodStart, document.PeriodEnd);
         var artifact = artifactStore is IReportArtifactPublishingStore publishingStore
             ? await publishingStore.WriteWithPublishingAsync(
                 projectId,

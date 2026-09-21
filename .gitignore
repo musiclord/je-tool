@@ -72,6 +72,8 @@ appsettings.Development.json
 StrykerOutput/
 
 # ===== Private case data =====
+# Local source for rule research; source notes and synthetic expectations are versioned instead.
+/data/XXX_2024_JE篩選條件_1210.xlsm
 # Reviewed reference workbooks may live directly under data/. Generic JE, GL,
 # and TB source names remain blocked because they were previously used for
 # real-case fixtures. Add a reviewed synthetic fixture under a descriptive name.

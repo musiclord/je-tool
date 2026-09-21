@@ -50,7 +50,27 @@ public sealed record GlPostingStatusPolicy(
 
 public sealed record GlManualAutoPolicy(
     IReadOnlyList<string> ManualValues,
-    IReadOnlyList<string> AutomaticValues);
+    IReadOnlyList<string> AutomaticValues)
+{
+    // 缺少設定的舊案件維持逐值判定；補集與空白必須由審計員分別指定。
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? UnlistedValueKind { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? BlankValueKind { get; init; }
+}
+
+public static class ManualAutoValueKindNames
+{
+    public const string Reject = "reject";
+    public const string Manual = "manual";
+    public const string Automatic = "automatic";
+    public const string Unclassified = "unclassified";
+    public static bool IsUnlisted(string? value) => value is null or Reject or Manual or Automatic;
+    public static bool IsBlank(string? value) => IsUnlisted(value) || value == Unclassified;
+    public static bool HasRequiredCodes(GlManualAutoPolicy policy) =>
+        (policy.ManualValues.Count > 0 || policy.UnlistedValueKind == Manual)
+        && (policy.AutomaticValues.Count > 0 || policy.UnlistedValueKind == Automatic);
+}
 
 public sealed record GlRdeFieldMetadata(
     string FieldId,
@@ -120,10 +140,14 @@ public static class GlMappingOptionsRules
 
         var manualValues = NormalizeCodes(options.ManualAutoPolicy.ManualValues, "manualValues");
         var automaticValues = NormalizeCodes(options.ManualAutoPolicy.AutomaticValues, "automaticValues");
-        if (manualValues.Count == 0 || automaticValues.Count == 0)
+        var normalizedManualPolicy = options.ManualAutoPolicy with { ManualValues = manualValues, AutomaticValues = automaticValues };
+        if (!ManualAutoValueKindNames.IsUnlisted(normalizedManualPolicy.UnlistedValueKind)
+            || !ManualAutoValueKindNames.IsBlank(normalizedManualPolicy.BlankValueKind))
+            throw new ArgumentException("人工與自動分錄的補集或空白處理設定不正確。", nameof(options));
+        if (!ManualAutoValueKindNames.HasRequiredCodes(normalizedManualPolicy))
         {
             throw new ArgumentException(
-                "manualAutoPolicy.manualValues 與 automaticValues 都至少需要一個非空白代碼。",
+                "人工與自動代碼各需至少一個非空白值；使用單側清單時，另一側須明確指定為補集。",
                 nameof(options));
         }
 
@@ -199,7 +223,7 @@ public static class GlMappingOptionsRules
 
         return options with
         {
-            ManualAutoPolicy = new GlManualAutoPolicy(manualValues, automaticValues),
+            ManualAutoPolicy = normalizedManualPolicy,
             RdeFields = canonicalRde
         };
     }

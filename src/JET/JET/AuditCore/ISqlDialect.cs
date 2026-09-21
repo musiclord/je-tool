@@ -31,6 +31,9 @@ public interface ISqlDialect
     /// </summary>
     string DayOfMonth(string dateExpr);
 
+    /// <summary>ISO 日期所在月份的天數（含閏年）；不受案件期末日限制。</summary>
+    string DaysInMonth(string dateExpr);
+
     /// <summary>
     /// INF v2 的 canonical PRF 排序鍵。實作必須精確渲染 AuditCore 的 signed-BIGINT-safe
     /// 整數語意，不得改用 provider hash／浮點函式。

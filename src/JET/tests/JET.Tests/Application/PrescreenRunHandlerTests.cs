@@ -252,7 +252,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var weekendActivity = data.GetProperty("weekendActivity");
         Assert.Equal("na", weekendActivity.GetProperty("status").GetString());
         Assert.Equal(
-            "尚未完成 GL「傳票核准日」欄位配對，因此僅檢查過帳日。",
+            "尚未完成 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。",
             weekendActivity.GetProperty("naReason").GetString());
         Assert.Equal(0, weekendActivity.GetProperty("postingCount").GetInt64());
         Assert.Equal(JsonValueKind.Null, weekendActivity.GetProperty("approvalCount").ValueKind);

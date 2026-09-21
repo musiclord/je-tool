@@ -193,6 +193,7 @@ internal static class ReportExportSupport
         artifactId = artifact.ArtifactId,
         kind = ReportArtifactKindValues.ToValue(artifact.Kind),
         fileName = artifact.RelativeFileName,
+        fullPath = artifact.FullPath,
         generatedUtc = artifact.GeneratedUtc,
         bytes = artifact.Bytes,
         fileState = ReportArtifactFileStateValues.ToValue(artifact.FileState),

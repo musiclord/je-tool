@@ -21,7 +21,7 @@ internal static class ResultPageColumnRegistry
     [
         new("documentNumber", "傳票號碼", RdeFieldValueTypeNames.Text, false),
         new("lineItem", "傳票文件項次", RdeFieldValueTypeNames.Text, false),
-        new("postDate", "過帳日期", RdeFieldValueTypeNames.Date, false),
+        new("postDate", "總帳日期", RdeFieldValueTypeNames.Date, false),
         new("accountCode", "會計科目編號", RdeFieldValueTypeNames.Text, false),
         new("accountName", "會計科目名稱", RdeFieldValueTypeNames.Text, false),
         new("amount", "傳票金額", RdeFieldValueTypeNames.Money, false),
@@ -36,7 +36,7 @@ internal static class ResultPageColumnRegistry
         new("accountName", "會計科目名稱", RdeFieldValueTypeNames.Text, false),
         new("debit", "借方金額", RdeFieldValueTypeNames.Money, false),
         new("credit", "貸方金額", RdeFieldValueTypeNames.Money, false),
-        new("postDate", "過帳日期", RdeFieldValueTypeNames.Date, false),
+        new("postDate", "總帳日期", RdeFieldValueTypeNames.Date, false),
         new("approvalDate", "核准日期", RdeFieldValueTypeNames.Date, false),
         new("createdBy", "編製人員", RdeFieldValueTypeNames.Text, false),
         new("approvedBy", "核准人員", RdeFieldValueTypeNames.Text, false),
@@ -74,7 +74,7 @@ internal static class ResultPageColumnRegistry
             throw Stale("已保存的篩選情境定義已不相容，請重新保存情境。");
         }
 
-        foreach (var rule in spec.Groups.SelectMany(static group => group.Rules)
+        foreach (var rule in spec.Groups.SelectMany(static group => group.Rules).SelectMany(rule => rule.DescendantsAndSelf())
                      .Where(static rule => rule.Type == FilterRuleType.TypedField
                          || rule.Type == FilterRuleType.FieldValue && rule.FieldId is not null))
         {

@@ -119,8 +119,8 @@ public sealed class ImportAndMappingHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        // .xls（舊二進位格式）不在支援清單（.xlsx/.xlsm/.csv/.txt，manifest unsupported_file_type）
-        var xlsPath = Path.Combine(Path.GetTempPath(), $"jet-{Guid.NewGuid():N}.xls");
+        // D05 已支援 .xls；使用者明確排除 .xlsb，仍須拒絕並保留多檔錯誤定位。
+        var xlsPath = Path.Combine(Path.GetTempPath(), $"jet-{Guid.NewGuid():N}.xlsb");
         await File.WriteAllTextAsync(xlsPath, "not a real xls");
         try
         {
@@ -272,7 +272,7 @@ public sealed class ImportAndMappingHandlersTests
         await host.DispatchAsync("project.create", CreatePayload);
 
         var firstPath = TestCsvBuilder.WriteFile("a,b\n1,2\n", TestCsvBuilder.Utf8NoBom);
-        var unsupportedPath = Path.Combine(Path.GetTempPath(), $"later-{Guid.NewGuid():N}.xls");
+        var unsupportedPath = Path.Combine(Path.GetTempPath(), $"later-{Guid.NewGuid():N}.xlsb");
         await File.WriteAllTextAsync(unsupportedPath, "unsupported later source");
         try
         {
@@ -290,7 +290,7 @@ public sealed class ImportAndMappingHandlersTests
 
             Assert.Equal(JetErrorCodes.UnsupportedFileType, exception.Code);
             Assert.Contains(Path.GetFileName(unsupportedPath), exception.Message, StringComparison.Ordinal);
-            Assert.Contains(".xls", exception.Message, StringComparison.Ordinal);
+            Assert.Contains(".xlsb", exception.Message, StringComparison.Ordinal);
         }
         finally
         {
@@ -431,27 +431,9 @@ public sealed class ImportAndMappingHandlersTests
                 JsonSerializer.Serialize(new { filePath = tbPath }));
             Assert.Equal(2, tbImport.GetProperty("rowCount").GetInt32());
 
-            // autoSuggest 對 GL 欄位
-            var suggest = await host.DispatchAsync(
-                "mapping.autoSuggest",
-                """
-                {
-                  "fields": [
-                    { "key": "docNum", "label": "傳票號碼" },
-                    { "key": "postDate", "label": "總帳日期" },
-                    { "key": "accNum", "label": "會計科目編號" },
-                    { "key": "accName", "label": "會計科目名稱" },
-                    { "key": "description", "label": "傳票摘要" },
-                    { "key": "debitAmount", "label": "借方金額" },
-                    { "key": "creditAmount", "label": "貸方金額" }
-                  ],
-                  "columns": ["日期", "傳票號碼", "會計項目", "項目名稱", "摘要", "借方金額", "貸方金額"]
-                }
-                """);
-            var suggested = suggest.GetProperty("suggested");
-            Assert.Equal("傳票號碼", suggested.GetProperty("docNum").GetString());
-            Assert.Equal("日期", suggested.GetProperty("postDate").GetString());
-            Assert.Equal("借方金額", suggested.GetProperty("debitAmount").GetString());
+            // 2026-09-17 使用者要求移除自動建議，必須以明確手動配對繼續。
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => host.DispatchAsync(
+                "mapping.autoSuggest", "{}"));
 
             // 缺 description → missing_required_mapping
             var missing = await Assert.ThrowsAsync<JetActionException>(

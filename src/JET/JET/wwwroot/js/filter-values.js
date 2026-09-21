@@ -4,24 +4,33 @@
   var Ui = global.JetUi;
   // 標籤鏡像 Domain FieldValueConditions.Labels（FilterAstFrontendContractTests 逐鍵守衛）。
   var labels = { equals: '等於', notEquals: '不等於', contains: '包含任一文字', notContains: '不包含任何文字',
-    startsWith: '開頭符合', endsWith: '結尾符合', in: '符合清單任一值', notIn: '不在清單中',
+    startsWith: '開頭符合', notStartsWith: '開頭不符合', endsWith: '結尾符合', notEndsWith: '結尾不符合', in: '符合清單任一值', notIn: '不在清單中',
     on: '指定日期', before: '早於', onOrBefore: '當日或以前', after: '晚於', onOrAfter: '當日或以後',
     dayOfMonthIn: '每月幾日屬於', dayOfMonthNotIn: '每月幾日不屬於',
+    monthStartDays: '每月月初天數', notMonthStartDays: '排除每月月初天數', monthEndDays: '每月月底天數', notMonthEndDays: '排除每月月底天數',
+    isWeekend: '週末', isNotWeekend: '週末以外', isHoliday: '假日清單中的日期', isNotHoliday: '假日清單以外的日期',
+    isMakeupDay: '補班日', isNotMakeupDay: '補班日以外', isNonBusinessDay: '非營業日（排除補班日）', isNotNonBusinessDay: '非營業日以外（含補班日）',
+    endsWithDigits: '整數尾數符合', notEndsWithDigits: '整數尾數不符合',
     greaterThan: '大於', greaterThanOrEqual: '大於或等於', lessThan: '小於', lessThanOrEqual: '小於或等於',
     between: '介於', notBetween: '不介於', isBlank: '空白', isNotBlank: '非空白' };
   var operators = {
-    text: ['contains', 'notContains', 'equals', 'notEquals', 'startsWith', 'endsWith', 'in', 'notIn', 'isBlank', 'isNotBlank'],
-    date: ['in', 'notIn', 'dayOfMonthIn', 'dayOfMonthNotIn', 'on', 'notEquals', 'before', 'onOrBefore', 'after', 'onOrAfter', 'between', 'notBetween', 'isBlank', 'isNotBlank'],
-    money: ['equals', 'notEquals', 'greaterThan', 'greaterThanOrEqual', 'lessThan', 'lessThanOrEqual', 'between', 'notBetween', 'in', 'notIn', 'isBlank', 'isNotBlank']
+    text: ['contains', 'notContains', 'equals', 'notEquals', 'startsWith', 'notStartsWith', 'endsWith', 'notEndsWith', 'in', 'notIn', 'isBlank', 'isNotBlank'],
+    date: ['in', 'notIn', 'dayOfMonthIn', 'dayOfMonthNotIn', 'on', 'notEquals', 'before', 'onOrBefore', 'after', 'onOrAfter', 'between', 'notBetween',
+      'monthStartDays', 'notMonthStartDays', 'monthEndDays', 'notMonthEndDays',
+      'isWeekend', 'isNotWeekend', 'isHoliday', 'isNotHoliday', 'isMakeupDay', 'isNotMakeupDay', 'isNonBusinessDay', 'isNotNonBusinessDay', 'isBlank', 'isNotBlank'],
+    money: ['equals', 'notEquals', 'greaterThan', 'greaterThanOrEqual', 'lessThan', 'lessThanOrEqual', 'between', 'notBetween', 'in', 'notIn', 'endsWithDigits', 'notEndsWithDigits', 'isBlank', 'isNotBlank']
   };
   function isDayOfMonth(op) { return op === 'dayOfMonthIn' || op === 'dayOfMonthNotIn'; }
+  function isMonthWindow(op) { return /^(notM|m)onth(Start|End)Days$/.test(op); }
   function carrier(op, type) {
-    if (/^(isBlank|isNotBlank)$/.test(op)) { return 'none'; }
+    if (/^(isBlank|isNotBlank)$/.test(op) || isCalendar(op)) { return 'none'; }
     if (/^(notBetween|between)$/.test(op)) { return 'range'; }
     if (/^(notIn|in)$/.test(op) || isDayOfMonth(op)) { return 'set'; }
     if (type === 'text' && /^(contains|notContains)$/.test(op)) { return 'set'; }
     return 'value';
   }
+  function isCalendar(op) { return /^is(Not)?(Weekend|Holiday|MakeupDay|NonBusinessDay)$/.test(op); }
+  function isTail(op) { return op === 'endsWithDigits' || op === 'notEndsWithDigits'; }
   function fields(state) {
     return Ui.FILTER_DATE_FIELDS.map(function (key) { return { id: key, label: Ui.glFieldLabel(key), type: 'date' }; })
       .concat(Ui.FILTER_TEXT_FIELDS.map(function (key) { return { id: key, label: Ui.glFieldLabel(key), type: 'text' }; }))
@@ -51,9 +60,10 @@
   function wire(rule, state) {
     var selected = field(rule, state);
     var result = { type: 'fieldValue', join: rule.join || 'AND', operator: rule.operator, includeBlank: blankMatches(rule) };
+    if (rule.drCr) { result.drCr = rule.drCr; }
     if (rule.fieldId) { result.fieldId = rule.fieldId; } else { result.field = rule.field; }
     var mode = carrier(rule.operator, fieldType(rule, state));
-    function operand(value) { return selected && selected.type === 'date' && !isDayOfMonth(rule.operator) ? normalizeDate(value || '') : String(value || ''); }
+    function operand(value) { return selected && selected.type === 'date' && !isDayOfMonth(rule.operator) && !isMonthWindow(rule.operator) ? normalizeDate(value || '') : String(value || ''); }
     if (mode === 'value') { result.value = operand(rule.value); }
     if (mode === 'range') { result.from = operand(rule.from); result.to = operand(rule.to); }
     if (mode === 'set') { result.values = values(rule, state); }
@@ -65,24 +75,32 @@
     var value = wire(rule, state);
     var mode = carrier(rule.operator, fieldType(rule, state));
     var fieldLabel = selected ? selected.label : rule.fieldId || rule.field || '尚未選擇欄位';
-    if (selected && selected.type === 'money' && mode !== 'none') { fieldLabel += value.amountBasis === 'absolute' ? '絕對值' : '含正負號'; }
-    var text = fieldLabel + ' ' + (labels[rule.operator] || '尚未選擇比較方式');
+    if (selected && selected.type === 'money' && mode !== 'none' && !isTail(rule.operator)) { fieldLabel += value.amountBasis === 'absolute' ? '絕對值' : '含正負號'; }
+    var side = rule.drCr === 'debit' ? '借方分錄：' : rule.drCr === 'credit' ? '貸方分錄：' : '';
+    var text = side + fieldLabel + ' ' + (labels[rule.operator] || '尚未選擇比較方式');
     if (mode === 'value') { text += '「' + value.value + '」'; }
+    if (isMonthWindow(rule.operator)) { text += ' 天'; }
     if (mode === 'range') { text += '「' + value.from + '」至「' + value.to + '」'; }
     if (mode === 'set') { text += '「' + value.values.join('、') + '」'; }
-    if (mode !== 'none' && (!compact || blankMatches(rule))) { text += blankMatches(rule) ? '；空白也符合' : '；空白不列入'; }
+    if ((mode !== 'none' || isCalendar(rule.operator)) && (!compact || blankMatches(rule))) { text += blankMatches(rule) ? '；空白也符合' : '；空白不列入'; }
     return text;
   }
   // 欄位下拉：同型別欄位、其他型別欄位與「分錄性質」（借貸別、人工／自動）都列出來，審計員在同一個下拉
   // 換欄位就換條件；換到其他型別由本模組重設運算子，換到分錄性質交回呼叫端換成對應的規則型別。
-  function fieldOptionsHtml(state, selectedId, pseudoFields) {
+  function groupedFields(state) {
     var all = fields(state);
-    var groups = [
-      { label: '日期', type: 'date' }, { label: '文字', type: 'text' }, { label: '金額', type: 'money' }
-    ].map(function (group) {
-      var items = all.filter(function (item) { return item.type === group.type; });
-      if (!items.length) { return ''; }
-      return '<optgroup label="' + group.label + '">' + items.map(function (item) {
+    function group(label, predicate) { return { label: label, fields: all.filter(predicate) }; }
+    var special = ['createBy', 'approveBy', 'accNum', 'accName'];
+    return [group('日期', function (item) { return item.type === 'date'; }),
+      group('金額', function (item) { return item.type === 'money'; }),
+      group('人員', function (item) { return ['createBy', 'approveBy'].indexOf(item.id) >= 0; }),
+      group('會計科目', function (item) { return ['accNum', 'accName'].indexOf(item.id) >= 0; }),
+      group('其他文字', function (item) { return item.type === 'text' && special.indexOf(item.id) < 0; })]
+      .filter(function (item) { return item.fields.length > 0; });
+  }
+  function fieldOptionsHtml(state, selectedId, pseudoFields) {
+    var groups = groupedFields(state).map(function (group) {
+      return '<optgroup label="' + group.label + '">' + group.fields.map(function (item) {
         return '<option value="' + Ui.esc(item.id) + '"' + (item.id === selectedId ? ' selected' : '') + '>' + Ui.esc(item.label) + (item.extra ? '（額外欄位）' : '') + '</option>';
       }).join('') + '</optgroup>';
     }).join('');
@@ -104,6 +122,12 @@
       { key: 'dates', label: '指定日期', yes: 'in', no: 'notIn', aliases: ['on', 'notEquals'] },
       { key: 'range', label: '日期區間', yes: 'between', no: 'notBetween' },
       { key: 'monthDays', label: '每月幾日', yes: 'dayOfMonthIn', no: 'dayOfMonthNotIn' },
+      { key: 'monthStart', label: '每月月初幾天', yes: 'monthStartDays', no: 'notMonthStartDays' },
+      { key: 'monthEnd', label: '每月月底幾天', yes: 'monthEndDays', no: 'notMonthEndDays' },
+      { key: 'weekend', label: '週末（依案件設定）', yes: 'isWeekend', no: 'isNotWeekend' },
+      { key: 'holiday', label: '假日清單', yes: 'isHoliday', no: 'isNotHoliday' },
+      { key: 'makeup', label: '補班日清單', yes: 'isMakeupDay', no: 'isNotMakeupDay' },
+      { key: 'nonBusiness', label: '非營業日（排除補班日）', yes: 'isNonBusinessDay', no: 'isNotNonBusinessDay' },
       { key: 'before', label: '早於日期', yes: 'before', aliases: ['onOrBefore'] },
       { key: 'after', label: '晚於日期', yes: 'after', aliases: ['onOrAfter'] },
       { key: 'blank', label: '空白日期', yes: 'isBlank', no: 'isNotBlank' }
@@ -111,13 +135,14 @@
     text: [
       { key: 'contains', label: '包含關鍵字', yes: 'contains', no: 'notContains' },
       { key: 'exact', label: '完整內容相同', yes: 'in', no: 'notIn', aliases: ['equals', 'notEquals'] },
-      { key: 'starts', label: '開頭符合', yes: 'startsWith' },
-      { key: 'ends', label: '結尾符合', yes: 'endsWith' },
+      { key: 'starts', label: '開頭符合', yes: 'startsWith', no: 'notStartsWith' },
+      { key: 'ends', label: '結尾符合', yes: 'endsWith', no: 'notEndsWith' },
       { key: 'blank', label: '空白內容', yes: 'isBlank', no: 'isNotBlank' }
     ],
     money: [
       { key: 'exact', label: '指定金額', yes: 'in', no: 'notIn', aliases: ['equals', 'notEquals'] },
       { key: 'range', label: '金額區間', yes: 'between', no: 'notBetween' },
+      { key: 'tails', label: '整數部分的特定尾數', yes: 'endsWithDigits', no: 'notEndsWithDigits' },
       { key: 'above', label: '高於金額', yes: 'greaterThan', aliases: ['greaterThanOrEqual'] },
       { key: 'below', label: '低於金額', yes: 'lessThan', aliases: ['lessThanOrEqual'] },
       { key: 'blank', label: '空白金額', yes: 'isBlank', no: 'isNotBlank' }
@@ -136,7 +161,10 @@
   function render(rule, state, focusKey, pseudoFields) {
     var selected = field(rule, state), type = fieldType(rule, state), mode = carrier(rule.operator, type);
     var choice = selectedMode(rule, state), view = editorView(rule);
-    var main = '';
+    var direction = '<label>分錄方向<select data-value-key="drCr" aria-label="此條件的分錄方向"><option value=""' + (!rule.drCr ? ' selected' : '') + '>不限借貸</option>' +
+      '<option value="debit"' + (rule.drCr === 'debit' ? ' selected' : '') + '>借方</option><option value="credit"' + (rule.drCr === 'credit' ? ' selected' : '') + '>貸方</option></select></label>';
+    var showDirection = (!rule.fieldId && ['accNum', 'accName'].indexOf(rule.field) >= 0) || !!rule.drCr;
+    var main = showDirection ? direction : '';
     if (choice) {
       main += choice.no ? '<select data-value-polarity aria-label="保留或排除"><option value="keep"' + (!excluded(rule, choice) ? ' selected' : '') +
         '>保留</option><option value="exclude"' + (excluded(rule, choice) ? ' selected' : '') + '>排除</option></select>' : '<span>保留</span>';
@@ -146,9 +174,15 @@
       (type === 'date' && state.project && state.project.periodEnd ? '<option value="periodEnd"' + (view.periodEnd ? ' selected' : '') + '>查核期末最後幾天</option>' : '') + '</select>';
     function input(key, label) { return '<input type="' + (type === 'date' ? 'date' : 'text') + '" data-value-key="' + key + '" aria-label="' + label + '" placeholder="' + label + '" value="' + Ui.esc(rule[key] || '') + '">'; }
     var extra = [];
-    var canIncludeBlank = mode !== 'none' && !(rule.field === 'postDate' && !rule.fieldId);
+    var canIncludeBlank = (mode !== 'none' || isCalendar(rule.operator)) && !(rule.field === 'postDate' && !rule.fieldId);
+    if (isCalendar(rule.operator)) {
+      main += '<p class="rule-explanation">週末依案件的每週非工作日設定；假日與補班日依本案匯入的清單。非營業日為週末或假日，再排除補班日。清單空白時，不會自行推算國定假日。</p>';
+    }
+    if (isTail(rule.operator)) { main += '<p class="rule-explanation">忽略正負號及小數，以逗號分隔多組尾數。例如 -1,001.45 符合 001，1 元不符合 001。</p>'; }
     if (!selected) { main += '<p class="form-notice">此欄位目前未配對，請回第三步確認，或移除後重新加入。</p>'; }
-    if (mode === 'value') { main += input('value', type === 'money' ? '金額' : '條件值'); }
+    if (isMonthWindow(rule.operator)) {
+      main += '<input type="number" data-value-key="value" min="1" max="31" aria-label="每月天數（1 到 31）" value="' + Ui.esc(rule.value || '') + '"><span>天（含當天）</span>';
+    } else if (mode === 'value') { main += input('value', isTail(rule.operator) ? '尾數（以逗號分隔）' : type === 'money' ? '金額' : '條件值'); }
     if (view.periodEnd) {
       main += '<input type="number" data-period-end-days min="1" max="366" value="' + view.days + '" aria-label="期末最後幾天"><span>天</span>' +
         '<p class="value-period-range">' + Ui.esc(rule.from || '') + ' 至 ' + Ui.esc(rule.to || '') + '（含起迄日）</p>';
@@ -161,8 +195,11 @@
 
     } else if (mode === 'set') {
       var current = values(rule, state);
-      var listHint = type === 'date' ? '每行一個日期' : type === 'text' && /^(contains|notContains)$/.test(rule.operator) ? '每行一個關鍵字' : '每行一個值';
+      var isPerson = ['createBy', 'approveBy'].indexOf(rule.field) >= 0 && !rule.fieldId;
+      var listHint = type === 'date' ? '每行一個日期' : type === 'text' && /^(contains|notContains)$/.test(rule.operator) ? '每行一個關鍵字' :
+        isPerson ? '每行一個人員識別值' : rule.field === 'accNum' ? '每行一個科目編號' : '每行一個值';
       var list = '<textarea rows="1" class="value-editor__list" data-value-key="values" aria-label="' + listHint + '" placeholder="' + listHint + '">' + Ui.esc((rule.values || []).join('\n')) + '</textarea>';
+      if (isPerson) { list += '<p class="form-notice">填入 GL 實際提供的姓名或員工代碼；每行一個，重複項目會合併。可在上方選保留或排除。</p>'; }
       if (type === 'date') {
         main += '<button type="button" class="btn btn--ghost btn--tiny" data-calendar-open data-focus-key="' + focusKey + '">選日期</button>' +
           '<div class="selected-dates" data-selected-dates aria-label="已選日期"></div>';
@@ -171,7 +208,7 @@
       extra.push('<p class="rule-field__hint">最多 100 個不同值，空行不列入。' + (type === 'date' ? '日期可用 2025-08-01、2025/08/01 或 20250801。' : '保留文字前置零；金額千分位逗號不拆開。') + '</p>');
       if (current.length) { extra.push('<button type="button" class="btn btn--ghost btn--tiny" data-values-clear>清空所有值</button>'); }
     }
-    if (type === 'money') {
+    if (type === 'money' && !isTail(rule.operator)) {
       var basis = rule.amountBasis || (selected && selected.extra ? 'signed' : 'absolute');
       extra.push('<label>金額比較基準<select data-value-key="amountBasis" aria-label="金額比較基準"><option value="absolute"' + (basis !== 'signed' ? ' selected' : '') + '>絕對值（不分借貸）</option><option value="signed"' + (basis === 'signed' ? ' selected' : '') + '>含正負號</option></select></label>');
     }
@@ -181,7 +218,7 @@
     }
     var activeNotes = [];
     if (canIncludeBlank && blankMatches(rule)) { activeNotes.push('含空白'); }
-    if (type === 'money' && rule.amountBasis === 'signed') { activeNotes.push('含正負號'); }
+    if (type === 'money' && rule.amountBasis === 'signed' && !isTail(rule.operator)) { activeNotes.push('含正負號'); }
     return '<div class="value-editor" data-focus-prefix="' + focusKey + '"><div class="value-editor__main">' + main + '</div>' +
       (extra.length ? '<details class="value-editor__options" data-value-options' + (view.optionsOpen ? ' open' : '') + '><summary>' + (type === 'money' ? '金額與空白值處理' : type === 'date' && mode === 'set' && !isDayOfMonth(rule.operator) ? (canIncludeBlank ? '貼上日期與空白值處理' : '貼上日期清單') : '空白值處理') +
         (activeNotes.length ? '（' + activeNotes.join('、') + '）' : '') + '</summary><div class="value-editor__aux">' + extra.join('') + '</div></details>' : '') + '</div>';
@@ -215,6 +252,7 @@
       var next = commonModes[fieldType(rule, state)].find(function (item) { return item.key === kind.value; });
       if (!next) { return; }
       changeOperator(rule, state, excluded(rule, current) && next.no ? next.no : next.yes);
+      if (isMonthWindow(rule.operator) && !/^\d{1,2}$/.test(rule.value || '')) { rule.value = '2'; }
       changed(true);
     });
     var polarity = root.querySelector('[data-value-polarity]');
@@ -236,7 +274,7 @@
     }); }
     root.querySelectorAll('[data-value-key]').forEach(function (control) {
       control.addEventListener(control.tagName === 'SELECT' || control.type === 'checkbox' ? 'change' : 'input', function () {
-        var key = control.getAttribute('data-value-key'), structural = key === 'field' || key === 'operator' || key === 'includeBlank' || key === 'amountBasis';
+        var key = control.getAttribute('data-value-key'), structural = key === 'field' || key === 'operator' || key === 'includeBlank' || key === 'amountBasis' || key === 'drCr';
         if (key === 'field') {
           var selected = fields(state).find(function (item) { return item.id === control.value; });
           // 分錄性質（借貸別、人工／自動）不是 fieldValue 的欄位：交回呼叫端換成對應的規則型別。
@@ -337,6 +375,10 @@
     if (!selected) { return '重新選擇欄位，或回到第三步確認配對'; }
     var value = wire(rule, state), mode = carrier(rule.operator, selected.type);
     if (operators[selected.type].indexOf(rule.operator) < 0) { return selected.label + '需選擇比較方式'; }
+    if (rule.drCr && ['debit', 'credit'].indexOf(rule.drCr) < 0) { return '請重新選擇分錄方向'; }
+    if (isMonthWindow(rule.operator)) {
+      return /^\d{1,2}$/.test(value.value.trim()) && Number(value.value) >= 1 && Number(value.value) <= 31 ? '' : '每月月初或月底天數只能是 1 到 31 的整數';
+    }
     if (isDayOfMonth(rule.operator)) {
       var days = value.values;
       if (!days.length) { return selected.label + '請填入每月幾日（1 到 31）'; }
@@ -358,5 +400,5 @@
     return { type: 'fieldValue', join: 'AND', field: type === 'date' ? 'postDate' : type === 'money' ? 'amount' : 'description',
       operator: type === 'date' ? 'in' : type === 'text' ? 'contains' : 'equals', values: [], value: '', includeBlank: false, amountBasis: 'absolute', __valueType: type };
   }
-  Ui.FilterValues = { create: create, render: render, bind: bind, wire: wire, summary: summary, field: field, fields: fields, fieldOptionsHtml: fieldOptionsHtml, values: values, normalizeDate: normalizeDate, problem: problem, isDayOfMonth: isDayOfMonth };
+  Ui.FilterValues = { create: create, render: render, bind: bind, wire: wire, summary: summary, field: field, fields: fields, groupedFields: groupedFields, fieldOptionsHtml: fieldOptionsHtml, values: values, normalizeDate: normalizeDate, problem: problem, isDayOfMonth: isDayOfMonth };
 })(window);

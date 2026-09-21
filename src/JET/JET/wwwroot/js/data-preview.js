@@ -55,7 +55,7 @@
   var COLUMN_LABELS = {
     documentNumber: '傳票號碼',
     lineItem: '項次',
-    postDate: '過帳日期',
+    postDate: '總帳日期',
     accountCode: '科目編號',
     accountName: '科目名稱',
     documentDescription: '摘要',
@@ -65,7 +65,7 @@
     exclusionReason: '未納入原因',
     changeAmount: '變動金額',
     standardizedCategory: '標準化分類',
-    preparerName: '姓名',
+    preparerName: '人員識別值',
     // dateDimension
     date: '日期',
     dayType: '類別',
@@ -617,7 +617,7 @@
     var shown = (data.rows && data.rows.length) || 0;
     var total = Number(data.totalCount || 0).toLocaleString();
     var cols = (data.columns && data.columns.length) || 0;
-    var count = '前 ' + shown + ' 列 · 共 ' + total + ' 列 · 全 ' + cols + ' 欄';
+    var count = '前 ' + shown + ' 列，共 ' + total + ' 列，全 ' + cols + ' 欄';
 
     // stats 的形狀依資料集而異，由後端決定：標準化分錄回金額／日期／傳票概況，
     // 未進入測試母體的分錄回兩類排除計數。畫面只複述既有欄位，不跨資料集猜欄位。
@@ -631,7 +631,7 @@
       var parts = ['金額（絕對值）' + Ui.money(data.stats.amountAbsMin) +
         ' ～ ' + Ui.money(data.stats.amountAbsMax)];
       if (data.stats.postDateMin) {
-        parts.push('過帳日期 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
+        parts.push('總帳日期 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
       }
       parts.push('傳票 ' + Number(data.stats.voucherCount).toLocaleString() + ' 張');
       statsHtml = '<div class="data-preview__stats">' + Ui.esc(parts.join(' ｜ ')) + '</div>';

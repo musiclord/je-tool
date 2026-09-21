@@ -46,6 +46,11 @@ internal sealed class AgentGuiTestFixtures
     internal const string FillTemplateAfterAutoExportId = "fill-template-after-auto-export";
     internal const string MinimumWindow125Id = "minimum-window-125";
     internal const string LegacyKctScenarioId = "legacy-kct-scenario";
+    internal const string DataRecoverySourceId = "data-recovery-source";
+    internal const string LegacyFormSourceId = "legacy-form-source";
+    internal const string FailNullSearchOnceId = "fail-null-search-once";
+    internal const string AuthorizedListSourceId = "authorized-list-source";
+    internal const string FailAuthorizedImportOnceId = "fail-authorized-import-once";
     internal const int MaximumFixtureCount = 3;
     internal const string TraceFileName = "agent-gui-fixtures.ndjson";
 
@@ -81,6 +86,7 @@ internal sealed class AgentGuiTestFixtures
 
     private readonly HashSet<string> _fixtureIds;
     private readonly FixtureTrace _trace;
+    private string? _authorizedListSource;
     private readonly string _projectsRootPath;
     private readonly SemaphoreSlim _projectListGate = new(1, 1);
     private readonly SemaphoreSlim _projectListLocalGate = new(1, 1);
@@ -139,7 +145,12 @@ internal sealed class AgentGuiTestFixtures
             or SeedMappingReadyProjectId
             or FillTemplateAfterAutoExportId
             or MinimumWindow125Id
-            or LegacyKctScenarioId;
+            or LegacyKctScenarioId
+            or DataRecoverySourceId
+            or LegacyFormSourceId
+            or FailNullSearchOnceId
+            or AuthorizedListSourceId
+            or FailAuthorizedImportOnceId;
 
     /// <summary>
     /// 建立 GUI 驗證所需的封閉、確定性專案。fixture 不接收 action、路徑或資料參數；
@@ -197,6 +208,27 @@ internal sealed class AgentGuiTestFixtures
                 tbFile = await DispatchAsync(
                     dispatcher, "demo.exportTbFile", new { }, cancellationToken).ConfigureAwait(false);
             }
+            if (IsEnabled(DataRecoverySourceId))
+            {
+                PrepareRecoverySource(glFile, activeDemo);
+                var mapping = new Dictionary<string, string>(activeDemo.GlMapping, StringComparer.Ordinal)
+                {
+                    [GlMappingKeys.ApproveBy] = "GUI核准人員"
+                };
+                activeDemo = activeDemo with { GlMapping = mapping };
+            }
+            if (IsEnabled(LegacyFormSourceId))
+            {
+                var path = glFile.GetProperty("filePath").GetString()!;
+                using var book = new XLWorkbook(path);
+                var sheet = book.Worksheet(1);
+                var column = sheet.LastColumnUsed()!.ColumnNumber() + 1;
+                var lastRow = sheet.LastRowUsed()!.RowNumber();
+                sheet.Cell(1, column).Value = "GUI部門";
+                for (var row = 2; row <= lastRow; row++)
+                    sheet.Cell(row, column).Value = row % 2 == 0 ? "總經理室" : "合成營運組";
+                book.Save();
+            }
             await DispatchAsync(dispatcher, "import.gl.fromFile", new
             {
                 filePath = glFile.GetProperty("filePath").GetString(),
@@ -249,6 +281,20 @@ internal sealed class AgentGuiTestFixtures
                 filePath = preparerFile.GetProperty("filePath").GetString(),
                 fileName = preparerFile.GetProperty("fileName").GetString(),
             }, cancellationToken).ConfigureAwait(false);
+
+            if (IsEnabled(AuthorizedListSourceId))
+            {
+                _authorizedListSource = Path.Combine(DemoWorkbookRootPath, "authorized-list-multi-column.xlsx");
+                using var workbook = new XLWorkbook();
+                var sheet = workbook.AddWorksheet("人員清單");
+                sheet.Cell(1, 1).Value = "姓名";
+                sheet.Cell(1, 2).Value = "員工代碼";
+                for (var row = 2; row <= 5; row++) sheet.Cell(row, 1).Value = "合成人員";
+                sheet.Cell(2, 2).Value = " E01 ";
+                sheet.Cell(3, 2).Value = "E02";
+                sheet.Cell(4, 2).Value = "E01";
+                workbook.SaveAs(_authorizedListSource);
+            }
 
             await DispatchAsync(dispatcher, "import.holiday", new
             {
@@ -416,6 +462,35 @@ internal sealed class AgentGuiTestFixtures
         workbook.Save();
     }
 
+    private void PrepareRecoverySource(JsonElement source, DemoProjectData demo)
+    {
+        var path = Path.GetFullPath(source.GetProperty("filePath").GetString()!);
+        if (!path.StartsWith(Path.GetFullPath(DemoWorkbookRootPath) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Recovery fixture requires its own generated workbook.");
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheets.First();
+        int Column(string key) => sheet.Row(1).CellsUsed().Single(cell => cell.GetString() == demo.GlMapping[key]).Address.ColumnNumber;
+        var document = Column(GlMappingKeys.DocNum);
+        var account = Column(GlMappingKeys.AccNum);
+        var description = Column(GlMappingKeys.Description);
+        var creator = Column(GlMappingKeys.CreateBy);
+        var lastRow = sheet.LastRowUsed()!.RowNumber();
+        var approval = sheet.LastColumnUsed()!.ColumnNumber() + 1;
+        sheet.Cell(1, approval).Value = "GUI核准人員";
+        for (var row = 2; row <= lastRow; row++) sheet.Cell(row, approval).Value = "GUI-OTHER";
+        sheet.Cell(2, approval).Value = sheet.Cell(2, creator).GetString();
+        for (var index = 0; index < 411; index++)
+        {
+            var row = lastRow + index + 1;
+            sheet.Row(2).CopyTo(sheet.Row(row));
+            sheet.Cell(row, approval).Value = "GUI-OTHER";
+            sheet.Cell(row, document).Value = index < 205 || index == 410 ? "" : $"GUI-DOC-{index:D3}";
+            if (index >= 205) sheet.Cell(row, account).Value = "";
+            sheet.Cell(row, description).Value = index == 410 ? "GUI-NULL-BOTH" : $"GUI-NULL-{index:D3}";
+        }
+        workbook.Save();
+    }
+
     private static async Task SeedCompletedReportChainAsync(
         ActionDispatcher dispatcher,
         JsonElement validation,
@@ -482,7 +557,7 @@ internal sealed class AgentGuiTestFixtures
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task CommitMappingsAsync(
+    private async Task CommitMappingsAsync(
         ActionDispatcher dispatcher,
         DemoProjectData demo,
         CancellationToken cancellationToken)
@@ -491,6 +566,9 @@ internal sealed class AgentGuiTestFixtures
         {
             mapping = demo.GlMapping,
             amountMode = demo.GlAmountMode,
+            rdeFields = IsEnabled(LegacyFormSourceId)
+                ? new[] { new { sourceColumn = "GUI部門", label = "GUI部門", valueType = "text" } }
+                : [],
         }, cancellationToken).ConfigureAwait(false);
         await DispatchAsync(dispatcher, "mapping.commit.tb", new
         {
@@ -587,6 +665,56 @@ internal sealed class AgentGuiTestFixtures
         }
 
         return new ProjectListFixtureHandler(handler, this);
+    }
+
+    internal IApplicationActionHandler DecorateNullSearch(IApplicationActionHandler handler) =>
+        IsEnabled(FailNullSearchOnceId) && handler.Action == "query.nullRecordsPage"
+            ? new FailNullSearchHandler(handler, this) : handler;
+
+    private sealed class FailNullSearchHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures)
+        : IApplicationActionHandler
+    {
+        private int remaining = 1;
+        public string Action => inner.Action;
+        public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+        {
+            if (payload.TryGetProperty("search", out var search) && search.GetString() == "GUI-NULL-BOTH"
+                && Interlocked.Exchange(ref remaining, 0) == 1)
+            {
+                fixtures._trace.Write(FailNullSearchOnceId, "failure.injected");
+                throw new JetActionException(JetErrorCodes.DatabaseBusy, "合成搜尋失敗，請重試。");
+            }
+            return inner.HandleAsync(payload, cancellationToken);
+        }
+    }
+
+    internal IApplicationActionHandler DecorateAuthorizedList(IApplicationActionHandler handler) =>
+        (IsEnabled(AuthorizedListSourceId) && handler.Action == "host.selectFile")
+        || (IsEnabled(FailAuthorizedImportOnceId) && handler.Action == "import.authorizedPreparer.fromFile")
+            ? new AuthorizedListFixtureHandler(handler, this) : handler;
+
+    private sealed class AuthorizedListFixtureHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures)
+        : IApplicationActionHandler
+    {
+        private int remaining = 1;
+        public string Action => inner.Action;
+        public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+        {
+            if (Action == "host.selectFile" && payload.TryGetProperty("title", out var title)
+                && title.GetString() == "授權編製人員清單")
+            {
+                var path = fixtures._authorizedListSource ?? throw new InvalidOperationException("Synthetic source not prepared.");
+                fixtures._trace.Write(AuthorizedListSourceId, "source.selected");
+                return Task.FromResult<object?>(new { filePath = path, fileName = Path.GetFileName(path) });
+            }
+            if (Action == "import.authorizedPreparer.fromFile" && payload.TryGetProperty("sourceColumn", out var column)
+                && column.GetString() == "員工代碼" && Interlocked.Exchange(ref remaining, 0) == 1)
+            {
+                fixtures._trace.Write(FailAuthorizedImportOnceId, "failure.injected");
+                throw new JetActionException(JetErrorCodes.FileReadError, "合成人員清單讀取失敗，請重試。");
+            }
+            return inner.HandleAsync(payload, cancellationToken);
+        }
     }
 
     internal IApplicationActionHandler DecorateProjectListLocal(

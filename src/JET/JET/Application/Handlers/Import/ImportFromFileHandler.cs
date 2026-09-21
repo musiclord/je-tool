@@ -80,6 +80,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             }
             catch (JetActionException error)
             {
+                ImportFailureDiagnostics.Attach(error, Context(ImportFailureStage.Options, sourceRequests.Count + 1, sourceCount, sourcePayload.FilePath));
                 throw AddSourceContext(error, sourcePayload, index + 1, sourceCount);
             }
         }
@@ -104,10 +105,12 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                     }
                     catch (JetActionException error)
                     {
+                        ImportFailureDiagnostics.Attach(error, Context(ImportFailureStage.Header, index + 1, sourceCount, item.Payload.FilePath, item.Request));
                         throw AddSourceContext(error, item.Payload, index + 1, sourceCount);
                     }
                     catch (Exception error)
                     {
+                        ImportFailureDiagnostics.Attach(error, Context(ImportFailureStage.Header, index + 1, sourceCount, item.Payload.FilePath, item.Request));
                         throw FileReadErrorWithSourceContext(error, item.Payload, index + 1, sourceCount);
                     }
                 }
@@ -143,6 +146,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                         item.Payload,
                         sourceNo,
                         sourceCount,
+                        item.Request,
                         cancellationToken);
                     inputs.Add(new ImportSourceInput(descriptor, columnsBySource[index], rows));
                 }
@@ -201,7 +205,15 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
 
             if (count % interval == 0)
             {
-                report(count);
+                try { report(count); }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception error)
+                {
+                    ImportFailureDiagnostics.Attach(error, new ImportFailureContext(ImportFailureStage.Progress,
+                        LastCompletedRow: row.SourceRowNumber));
+                    throw new JetActionException(JetErrorCodes.ImportProgressFailed,
+                        "匯入進度通知失敗，資料尚未完成匯入。請重試；若仍失敗，匯出支援日誌。", innerException: error);
+                }
             }
         }
     }
@@ -211,9 +223,11 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         ImportFileSourcePayload source,
         int sourceNo,
         int sourceCount,
+        TabularSourceRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var enumerator = rows.GetAsyncEnumerator(cancellationToken);
+        long? lastCompletedRow = null;
         while (true)
         {
             StagingRow current;
@@ -223,16 +237,13 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                 hasNext = await enumerator.MoveNextAsync();
                 current = hasNext ? enumerator.Current : null!;
             }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (JetActionException error)
-            {
-                throw AddSourceContext(error, source, sourceNo, sourceCount);
-            }
             catch (Exception error)
             {
+                ImportFailureDiagnostics.Attach(error, Context(ImportFailureStage.Rows, sourceNo, sourceCount,
+                    source.FilePath, request) with { LastCompletedRow = lastCompletedRow });
+                if (error is OperationCanceledException) throw;
+                if (error is JetActionException actionError)
+                    throw AddSourceContext(actionError, source, sourceNo, sourceCount);
                 throw FileReadErrorWithSourceContext(error, source, sourceNo, sourceCount);
             }
 
@@ -241,6 +252,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                 yield break;
             }
 
+            lastCompletedRow = current.SourceRowNumber;
             yield return current;
         }
     }
@@ -251,24 +263,32 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         int sourceNo,
         int sourceCount)
     {
-        if (HasSourceContext(error.Message, source))
-        {
-            return error;
-        }
-
-        return new JetActionException(
-            error.Code,
-            $"{SourceContext(source, sourceNo, sourceCount)}：{error.Message}");
+        return new JetActionException(error.Code,
+            HasSourceContext(error.Message, source) ? error.Message : $"{SourceContext(source, sourceNo, sourceCount)}：{error.Message}",
+            error.Field, error) { Details = error.Details };
     }
 
     private static JetActionException FileReadErrorWithSourceContext(
         Exception error,
         ImportFileSourcePayload source,
         int sourceNo,
-        int sourceCount) =>
-        new(
+        int sourceCount)
+    {
+        var context = ImportFailureDiagnostics.Find(error);
+        var guidance = context is { Stage: ImportFailureStage.CellConversion, Row: { } row, Column: { } column }
+            ? $"第 {row} 列、第 {column} 欄的儲存格無法轉換，請檢查型別或數值範圍後重試。"
+            : error is System.Xml.XmlException
+                ? "工作表內容無法解析，請用 Excel 修復或另存來源檔後重試。"
+                : "讀取失敗，請確認檔案可讀及編碼設定後重試。";
+        return new(
             JetErrorCodes.FileReadError,
-            $"{SourceContext(source, sourceNo, sourceCount)}：{error.Message}");
+            $"{SourceContext(source, sourceNo, sourceCount)}：{guidance}匯入尚未完成；仍失敗時可匯出支援日誌。", innerException: error);
+    }
+
+    private static ImportFailureContext Context(ImportFailureStage stage, int sourceNo, int sourceCount,
+        string path, TabularSourceRequest? request = null) => new(stage, sourceNo, sourceCount,
+            Format: Path.GetExtension(path).ToLowerInvariant(), Encoding: request?.EncodingName,
+            Delimiter: request?.Delimiter, ReaderVersion: typeof(ImportFromFileHandler).Assembly.GetName().Version?.ToString());
 
     private static bool HasSourceContext(string message, ImportFileSourcePayload source) =>
         message.Contains(source.FileName, StringComparison.Ordinal)

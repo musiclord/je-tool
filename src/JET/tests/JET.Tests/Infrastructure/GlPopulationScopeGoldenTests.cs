@@ -156,7 +156,7 @@ public abstract class GlPopulationScopeGoldenTests
             HasRevenue: true,
             HasCounterpart: true,
             HasAuthorizedPreparers: false,
-            NonWorkingDays: [0, 6]));
+            NonWorkingDays: [0, 6], HasVoucherDate: true));
 
         var result = await PrescreenFactsPort.ExecuteAsync(plan, CancellationToken.None);
 

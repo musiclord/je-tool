@@ -64,19 +64,31 @@ public sealed class CompletenessEligibilitySupportTests
         Assert.Equal(JetErrorCodes.CompletenessPrerequisiteFailed, exception.Code);
     }
 
-    [Theory]
-    [InlineData(-1)]
-    [InlineData(4)]
-    public void Require_WithNonPassingPartBDifferenceCount_FailsClosed(long differenceCount)
+    [Fact]
+    public void Require_WithInvalidPartBDifferenceCount_FailsClosed()
     {
         var run = Run(CurrentValidationSummaryTestData.Create(
-            completenessDifferenceCount: differenceCount,
+            completenessDifferenceCount: -1,
             completenessStatus: "V"));
 
         var exception = Assert.Throws<JetActionException>(() =>
             CompletenessEligibilitySupport.Require(run));
 
         Assert.Equal(JetErrorCodes.CompletenessPrerequisiteFailed, exception.Code);
+    }
+
+    [Fact]
+    public void Require_WithDifferences_PreservesFindingsAndReplacesOldBlockingEligibility()
+    {
+        var run = Run(CurrentValidationSummaryTestData.Create(
+            completenessDifferenceCount: 4, completenessStatus: "V",
+            storedEligibility: false, storedEligibilityReason: "previous blocking decision"));
+        Assert.Same(run, CompletenessEligibilitySupport.Require(run));
+        var completeness = CompletenessEligibilitySupport.ToWireSummary(run).GetProperty("completenessTest");
+        Assert.Equal(4, completeness.GetProperty("diffAccountCount").GetInt64());
+        Assert.Equal("V", completeness.GetProperty("status").GetString());
+        Assert.True(completeness.GetProperty("eligibility").GetProperty("isEligible").GetBoolean());
+        Assert.Contains("4", completeness.GetProperty("eligibility").GetProperty("warning").GetString());
     }
 
     [Fact]
@@ -88,6 +100,19 @@ public sealed class CompletenessEligibilitySupportTests
         var exception = Assert.Throws<JetActionException>(() =>
             CompletenessEligibilitySupport.Require(run));
 
+        Assert.Equal(JetErrorCodes.CompletenessPrerequisiteFailed, exception.Code);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("{\"isEligible\":true,\"reason\":null,\"warning\":42}")]
+    public void Require_WithMalformedEligibility_ReportsUnavailableResult(string eligibilityJson)
+    {
+        var summary = CurrentSummaryNode();
+        summary["completenessTest"]!["eligibility"] = JsonNode.Parse(eligibilityJson);
+        var exception = Assert.Throws<JetActionException>(() =>
+            CompletenessEligibilitySupport.Require(Run(summary.ToJsonString(JetJsonStorage.Options))));
         Assert.Equal(JetErrorCodes.CompletenessPrerequisiteFailed, exception.Code);
     }
 
@@ -112,6 +137,21 @@ public sealed class CompletenessEligibilitySupportTests
             RuleRunKinds.Validate,
             new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero),
             summaryJson);
+
+    [Fact]
+    public void Require_CompletedValidationWithoutHistoricImportTotals_AllowsContinuationWithWarning()
+    {
+        // validate.run 明確允許舊案件缺少控制總數，並輸出這個完整的 null 形狀；不是壞掉的摘要。
+        var summary = CurrentSummaryNode();
+        summary["completenessTest"]!["partA"] = JsonNode.Parse(
+            """{"eligibleSource":null,"effectiveTarget":null,"rowCountMatch":null,"amountMatch":null}""");
+        var run = Run(summary.ToJsonString(JetJsonStorage.Options));
+        Assert.Same(run, CompletenessEligibilitySupport.Require(run));
+        var eligibility = CompletenessEligibilitySupport.ToWireSummary(run)
+            .GetProperty("completenessTest").GetProperty("eligibility");
+        Assert.True(eligibility.GetProperty("isEligible").GetBoolean());
+        Assert.Contains("控制總數", eligibility.GetProperty("warning").GetString());
+    }
 
     private static JsonObject CurrentSummaryNode() =>
         JsonNode.Parse(CurrentValidationSummaryTestData.Create())!.AsObject();

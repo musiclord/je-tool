@@ -174,10 +174,11 @@ public sealed class ProjectLoadHandler(
                         hasCounterpart = accountMappingState.HasCounterpart,
                         blankCategoryCount = accountMappingState.BlankCategoryCount
                     },
-                    // 授權清單未入 import_batch（name 集合）→ resume 只需 rowCount，無 fileName/importedUtc。
+                    // 授權集合與識別欄位一起恢復，不保存來源檔的私人路徑。
                     authorizedPreparer = authorizedPreparerState is null ? null : (object)new
                     {
-                        rowCount = authorizedPreparerState.RowCount
+                        rowCount = authorizedPreparerState.RowCount,
+                        sourceColumn = authorizedPreparerState.SourceColumn
                     },
                     calendar = new
                     {

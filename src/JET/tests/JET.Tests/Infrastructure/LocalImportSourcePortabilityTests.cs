@@ -61,7 +61,7 @@ public sealed class LocalImportSourcePortabilityTests
         var references = await ReadSourceReferencesAsync(database, projectId);
         Assert.Equal(2, references.Count);
         Assert.All(references, AssertPortableReference);
-        Assert.Equal("10", await ReadSchemaVersionAsync(database, projectId));
+        Assert.Equal("11", await ReadSchemaVersionAsync(database, projectId));
     }
 
     private static ILocalProjectDatabase CreateDatabase(string provider, JetProjectFolder folder)

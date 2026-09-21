@@ -572,6 +572,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 [GlMappingKeys.DocDate] = "approval_date",
+                [GlMappingKeys.VoucherDate] = "voucher_date",
                 [GlMappingKeys.CreateBy] = "created_by"
             },
             GlAmountModeNames.Signed,

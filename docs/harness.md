@@ -1,6 +1,6 @@
 # JET 驗證框架
 
-更新日期：2026-09-05
+更新日期：2026-09-18
 
 狀態：Phase 1 至 Phase 7 已完成
 
@@ -17,6 +17,28 @@
 3. **驗證循環**：在所需軟體、資料和授權都齊備時，再檢查 GUI、原生 Excel、私人 JE／TB 案件及正確底稿。
 
 驗證框架只是用來檢查產品，不是產品本身的一部分。沒有這套框架時，`src/JET/` 仍應能正常建置、發布及執行。
+
+## 協助判斷的開發環境
+
+2026-09-18 使用者要求以更新的 harness 協助開發，不用不斷累加限制來代替判斷。現有合成資料、GUI、
+Excel 驅動和失敗紀錄繼續作為可觀察、可重現的回饋；新增 `Context` 補足跨 session 的上下文取得。
+它從開發現況找到現行計畫，呈現計畫中的接續摘要、目前程式與文件變更、近期收據及可用驗證命令。
+每項都有來源；收據只證明當次執行，工具不因 HEAD 相同就聲稱目前未提交內容已通過。
+
+Context 不做業務裁決，不自動執行建置或測試，也不形成新的開發門檻。缺少計畫、Git 或收據時回報未取得的
+部分，保留其餘資訊。計畫不必先改成特定格式才能工作；簡短摘要使用標記時優先讀取，否則回傳第一節。
+Agent 依目標選擇驗證、判讀結果並調整方案。資料與授權邊界維持原責任，普通實作選擇則由 Agent 負責。
+計畫中的工作順序與本輪交付邊界依 [`development-workflow.md`](development-workflow.md#工作順序本輪邊界與職責)
+區分。取得上下文、修改、驗證及依結果繼續是同一開發循環；通過一項檢查不代表整輪完成。
+
+此改進參考 [OpenAI 的 harness engineering](https://openai.com/index/harness-engineering/) 對可讀環境、
+精簡導航和回饋循環的經驗，以及 [Anthropic 的長期開發 harness](https://www.anthropic.com/engineering/harness-design-long-running-apps)
+對進度續接與依結果調整方法的討論。引用是設計參考，沒有另裝 Agent 平台或新增外部執行期依賴。
+
+審計員的判斷不能被測試框架擅自改成操作限制。2026-09-17 完整性案例的修正，除了拒絕缺少或過期結果，
+也以非零差異驗證篩選、匯出與重開可以完成，而且差異仍保留。規則依據及跨流程核對方式見
+[`development-workflow.md`](development-workflow.md) 的「業務裁定如何落實到操作與驗證」。
+新增限制不能只引用既有程式或測試；須有使用者裁定或可追溯的業務來源。
 
 ## 基本原則
 
@@ -99,7 +121,14 @@ SQLite／DuckDB 本機工作為優先、SQL Server 中心化方向暫緩的決�
 可編輯範本、Working Paper 版本保留及一般報告覆蓋的操作契約。封裝清單直接由同一次
 執行的現行來源與產物產生，不採用舊 P5 基準，暫存封裝在收尾時自動移除。
 
-`Gui` 固定使用 `AgentGuiTest`，透過 WebView2 的本機偵錯連線依序執行八個隔離情境。
+`Gui` 固定使用 `AgentGuiTest`，透過 WebView2 的本機偵錯連線依序執行十七個隔離情境。
+`legacy-form-catalog` 用 95 次操作逐一加入及移除 A–U，另核對 P 的分類入口；`legacy-form-workflow` 用 55 次操作驗證五個工作簿範例，
+包含缺少部門欄位選取後重試、預覽、保存、修改後取消、返回、匯出及重開。
+兩者各自隔離，保留每個情境最多 96 次操作的既有限制。合成資料在正式 action 內準備，不執行來源工作簿巨集。
+`feedback-workflow` 等合成案件經正式 action 準備完成後，執行 52 次操作，核對配對清單底部連選時的
+捲動與焦點、分類名稱連續輸入與游標刪字、CDP 中文組字、取消、保存、返回與重開案件，再重新執行
+預篩選並展開週末過帳及核准兩側明細。再改配 TB 金額欄，驗證有完整性差異時仍可執行預篩選、
+產生條件篩選報告、匯出底稿及重開。保留兩張合成畫面；不操作 Windows 輸入法候選視窗。
 篩選步驟有兩個情境：`filter-auditor-journey` 從範本「借現金、貸非現金」開始，另開一組加一條
 「每月幾日不屬於 28、31」，切換作用中組，預覽後對命中傳票清單排序，保存後核對讀回文字與情境數；
 同一情境另操作多選日曆、期末七天與未填分類的錯誤列。`filter-kct-editing` 檢查 KCT 新舊來源的重開編輯。
@@ -161,6 +190,14 @@ Phase 5 不讀取私人案件，也不代表 JE／TB 正式匯入與底稿比對
 未完成時都不算通過。命令與來源版本見 [`../tools/README.md`](../tools/README.md#需要時執行變異測試)。
 它不加入日常或發行必跑項。第一次失敗的證據、獨立預期值、FsCheck、資料庫等價及 GUI 和 Excel 邊界
 測試仍各自保留，不用其中一項的結果代替其他證據。
+
+2026-09-17 的列高修正補上原生 Excel 的版面檢查：讀入 V_Report 5 後，表頭、中段與最後資料列
+都須為 18 點。缺少工作表視圖時，XML 值正確仍可能在高 DPI 的 Excel 被縮小，所以 XML 檢查不能
+代替這項原生檢查。詳見現行使用者回饋計畫的 D26 修正。
+匯入診斷以正式 action 和支援日誌匯出核對失敗類別；取消、交易回復、重開與重試必須分別查核。
+
+原生 computer use 目視操作與固定 GUI 驅動分開執行，避免同時切換前景、鍵盤焦點或關閉視窗。
+遇到逾時保留原紀錄，先單獨重現，不直接放寬時間、動作或診斷容量限制。
 
 ## 資料與判定依據
 
@@ -280,3 +317,9 @@ Excel 往返全部通過。Public 為 3,390 total／3,383 passed／7 個登錄 s
 - [Excel `Application.CalculateFullRebuild`](https://learn.microsoft.com/office/vba/api/excel.application.calculatefullrebuild)
 - [Excel `Workbook.SaveCopyAs`](https://learn.microsoft.com/office/vba/api/excel.workbook.savecopyas)
 - [Excel `Workbook.LinkSources`](https://learn.microsoft.com/office/vba/api/excel.workbook.linksources)
+
+## 2026-09-17 回饋流程補充
+
+Gui 已加入空值明細、KCT 重配回復、授權清單及新增篩選條件四個情境，共十三個。
+每個情境的固定操作數、截圖及驗證範圍見 [工具說明](../tools/README.md#2026-09-17-回饋流程補充)。
+Excel 另加入 .xls、.mdb、.accdb 各兩個資料庫的合成來源往返；此項與六份報表檢查分別保存結果。

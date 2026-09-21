@@ -17,7 +17,7 @@ public sealed class BlankPostDateFrontendTests
         Assert.Contains("v.sourceQuality", source, StringComparison.Ordinal);
         Assert.Contains("querySourceQualityPage", source, StringComparison.Ordinal);
         Assert.Contains("LOAD_MORE_SPECS.sourceQuality", source, StringComparison.Ordinal);
-        Assert.Contains("'空白過帳日'", source, StringComparison.Ordinal);
+        Assert.Contains("'空白總帳日期'", source, StringComparison.Ordinal);
         Assert.Contains("loadMore: 'sourceQuality'", source, StringComparison.Ordinal);
     }
 
@@ -31,7 +31,7 @@ public sealed class BlankPostDateFrontendTests
         Assert.DoesNotContain("nullPostDateCount", source, StringComparison.Ordinal);
         Assert.DoesNotContain("nullLoadMoreSpec('nullPostDate'", source, StringComparison.Ordinal);
         Assert.DoesNotContain("['nullPostDate']", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("postDate: '空白過帳日'", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("postDate: '空白總帳日期'", source, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -29,7 +29,7 @@ function previewHtml() {
     .replace('</head>', '<script defer src="/preview/bootstrap.js"></script></head>')
     .replace('<body>', '<body><aside style="padding:8px 16px;background:#fff7dd;color:#292720;font:13px sans-serif" aria-label="設計預覽工具">' +
       '<strong id="preview-status">正在載入合成設計情境…</strong> ' +
-      '<label>固定情境 <select id="preview-scene"><option value="matches">日期與金額・有結果</option><option value="empty">日期與金額・無結果</option></select></label> ' +
+      '<label>固定情境 <select id="preview-scene"><option value="matches">日期與金額（有結果）</option><option value="empty">日期與金額（無結果）</option></select></label> ' +
       '<button id="preview-reload">重新載入</button> <button id="preview-requests">查看最近 action</button>' +
       '<pre id="preview-request-output" hidden style="max-height:180px;overflow:auto;white-space:pre-wrap"></pre></aside>');
 }

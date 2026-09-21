@@ -45,7 +45,7 @@ public sealed class CompletenessEligibilityTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(false, false)]
-    public void Evaluate_WhenPartADoesNotMatch_FailsClosed(
+    public void Evaluate_WhenPartADoesNotMatch_AllowsContinuationWithWarning(
         bool rowCountMatch,
         bool amountMatch)
     {
@@ -54,28 +54,31 @@ public sealed class CompletenessEligibilityTests
                 partARowCountMatch: rowCountMatch,
                 partAAmountMatch: amountMatch));
 
-        Assert.False(decision.IsEligible);
-        Assert.Contains("匯入前後", decision.Reason, StringComparison.Ordinal);
+        Assert.True(decision.IsEligible);
+        Assert.Null(decision.Reason);
+        Assert.Contains("匯入前後", decision.Warning, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Evaluate_WhenPartBIsNotApplicable_FailsClosed()
+    public void Evaluate_WhenPartBIsNotApplicable_AllowsContinuationWithWarning()
     {
         var decision = JetAuditProgram.EvaluateCompletenessEligibility(
             Facts(partBApplicable: false));
 
-        Assert.False(decision.IsEligible);
-        Assert.Contains("TB 欄位配對", decision.Reason, StringComparison.Ordinal);
+        Assert.True(decision.IsEligible);
+        Assert.Null(decision.Reason);
+        Assert.Contains("TB 欄位配對", decision.Warning, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Evaluate_WhenPartBHasDifferences_FailsClosed()
+    public void Evaluate_WhenPartBHasDifferences_AllowsContinuationWithWarning()
     {
         var decision = JetAuditProgram.EvaluateCompletenessEligibility(
             Facts(partBDifferenceAccountCount: 3));
 
-        Assert.False(decision.IsEligible);
-        Assert.Contains("3", decision.Reason, StringComparison.Ordinal);
+        Assert.True(decision.IsEligible);
+        Assert.Null(decision.Reason);
+        Assert.Contains("3", decision.Warning, StringComparison.Ordinal);
     }
 
     [Fact]

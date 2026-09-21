@@ -174,7 +174,7 @@ public sealed class InspectAndSelectFilesHandlerTests
     {
         using var host = new HandlerTestHost();
 
-        var xlsPath = Path.Combine(Path.GetTempPath(), $"jet-{Guid.NewGuid():N}.xls");
+        var xlsPath = Path.Combine(Path.GetTempPath(), $"jet-{Guid.NewGuid():N}.xlsb");
         await File.WriteAllTextAsync(xlsPath, "legacy format");
         try
         {

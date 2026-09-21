@@ -96,7 +96,7 @@ public sealed record ReportArtifactSourceRefs(
 
 /// <summary>
 /// 專案內一份報告的索引紀錄。<see cref="RelativeFileName"/> 永遠只是專案資料夾直下的檔名；
-/// 絕對路徑只可透過 <see cref="IReportArtifactStore.ResolvePathAsync"/> 在本機需要時解析。
+/// 絕對路徑由儲存服務依目前案件目錄解析，僅供本機畫面使用；需要實體檔案時使用 <see cref="IReportArtifactStore.ResolvePathAsync"/>。
 /// <see cref="Bytes"/> 與 <see cref="LastWriteUtc"/> 是 JET 寫完當下記下的值，只用來判斷
 /// <see cref="FileState"/>，不用來核對或拒絕。
 /// </summary>
@@ -109,7 +109,12 @@ public sealed record ReportArtifact(
     long Bytes,
     DateTimeOffset? LastWriteUtc,
     bool Stale,
-    ReportArtifactFileState FileState = ReportArtifactFileState.AsPublished);
+    ReportArtifactFileState FileState = ReportArtifactFileState.AsPublished)
+{
+    // 只供本機畫面使用；搬移案件後由 store 重算，絕不寫入 manifest。
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? FullPath { get; init; }
+}
 
 /// <summary>把報告內容寫入 store 提供的暫存串流；writer 不得關閉該串流。</summary>
 public delegate Task ReportArtifactContentWriter(Stream output, CancellationToken cancellationToken);
@@ -120,4 +125,6 @@ public delegate Task ReportArtifactContentWriter(Stream output, CancellationToke
 public sealed record ReportArtifactWriteRequest(
     ReportArtifactKind Kind,
     ReportArtifactSourceRefs SourceRef,
-    ReportArtifactContentWriter WriteContentAsync);
+    ReportArtifactContentWriter WriteContentAsync,
+    string? PeriodStart = null,
+    string? PeriodEnd = null);

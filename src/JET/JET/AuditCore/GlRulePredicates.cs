@@ -94,9 +94,9 @@ internal sealed partial class GlRulePredicates(
         IReadOnlyList<string> debitCategoryIds,
         IReadOnlyList<string> creditCategoryIds,
         FilterRuleContext context,
-        string schemaPrefix = "")
+        string schemaPrefix = "", string? categorySelection = null)
     {
-        var side = CategorySides(command, debitCategoryIds, creditCategoryIds, context, schemaPrefix);
+        var side = CategorySides(command, debitCategoryIds, creditCategoryIds, context, schemaPrefix, categorySelection);
 
         return pairMode switch
         {
@@ -128,9 +128,9 @@ internal sealed partial class GlRulePredicates(
         IReadOnlyList<string> debitCategoryIds,
         IReadOnlyList<string> creditCategoryIds,
         FilterRuleContext context,
-        string schemaPrefix = "")
+        string schemaPrefix = "", string? categorySelection = null)
     {
-        var side = CategorySides(command, debitCategoryIds, creditCategoryIds, context, schemaPrefix);
+        var side = CategorySides(command, debitCategoryIds, creditCategoryIds, context, schemaPrefix, categorySelection);
 
         return pairMode switch
         {
@@ -158,14 +158,14 @@ internal sealed partial class GlRulePredicates(
         IReadOnlyList<string> debitCategoryIds,
         IReadOnlyList<string> creditCategoryIds,
         FilterRuleContext context,
-        string schemaPrefix = "")
+        string schemaPrefix = "", string? categorySelection = null)
     {
         string RowIsDebitSide() =>
             $"""
             (EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
                      {TaxonomyJoin(schemaPrefix, "m", "tm")}
                      WHERE m.account_code = g.account_code
-                       AND {CategorySelectionRoles(command, "tm", debitCategoryIds, "借方", schemaPrefix)})
+                       AND {CategorySelectionRoles(command, "tm", debitCategoryIds, "借方", schemaPrefix, categorySelection)})
              AND g.amount_scaled >= 0)
             """;
 
@@ -174,7 +174,7 @@ internal sealed partial class GlRulePredicates(
             (EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
                      {TaxonomyJoin(schemaPrefix, "m", "tm")}
                      WHERE m.account_code = g.account_code
-                       AND {CategorySelectionRoles(command, "tm", creditCategoryIds, "貸方", schemaPrefix)})
+                       AND {CategorySelectionRoles(command, "tm", creditCategoryIds, "貸方", schemaPrefix, categorySelection)})
              AND g.amount_scaled < 0)
             """;
 
@@ -185,7 +185,7 @@ internal sealed partial class GlRulePredicates(
                     {TaxonomyJoin(schemaPrefix, "md", "td")}
                     WHERE d.document_number = g.document_number
                       AND {populationScopePredicate(context, "d")}
-                      AND {CategorySelectionRoles(command, "td", debitCategoryIds, "借方", schemaPrefix)}
+                      AND {CategorySelectionRoles(command, "td", debitCategoryIds, "借方", schemaPrefix, categorySelection)}
                       AND d.amount_scaled >= 0)
             """;
 
@@ -196,7 +196,7 @@ internal sealed partial class GlRulePredicates(
                     {TaxonomyJoin(schemaPrefix, "mc", "tc")}
                     WHERE c.document_number = g.document_number
                       AND {populationScopePredicate(context, "c")}
-                      AND {CategorySelectionRoles(command, "tc", creditCategoryIds, "貸方", schemaPrefix)}
+                      AND {CategorySelectionRoles(command, "tc", creditCategoryIds, "貸方", schemaPrefix, categorySelection)}
                       AND c.amount_scaled < 0)
             """;
 
@@ -205,10 +205,8 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 查核員選取的分類身分 → 該側的 semantic role 集合判定。使用者挑的是畫面上的分類，
-    /// 但商業比較一律看 semantic role（同 guide §2.3 與所有內建規則）：因此相同 role 的
-    /// 自訂分類會與內建分類得到同一個商業結果，改顯示 label 不改命中。身分只用來 lookup、
-    /// 一律綁定為參數，永遠不會成為 SQL identifier。
+    /// 依明示選取方式比對分類本身、下層或審計角色。省略方式的舊條件仍比對 semantic role，
+    /// 因此相同 role 的自訂分類保留相同結果。分類身分一律綁定參數，改顯示 label 不改命中。
     /// 空集合一律 fail loud：否定模式的 NOT EXISTS 遇到空集合會反轉成全命中，
     /// 屬於必須擋在編譯前的 fail-open 缺口（validator 是第一道，本層是最後一道）。
     /// </summary>
@@ -217,7 +215,7 @@ internal sealed partial class GlRulePredicates(
         string taxonomyAlias,
         IReadOnlyList<string> categoryIds,
         string sideLabel,
-        string schemaPrefix)
+        string schemaPrefix, string? categorySelection = null)
     {
         if (categoryIds.Count == 0)
         {
@@ -225,6 +223,9 @@ internal sealed partial class GlRulePredicates(
         }
 
         var parameters = string.Join(", ", categoryIds.Select(categoryId => NextParam(command, categoryId)));
+        if (categorySelection == "node") return $"{taxonomyAlias}.category_id IN ({parameters})";
+        if (categorySelection == "subtree") return $"{taxonomyAlias}.category_id IN (SELECT descendant_id FROM {schemaPrefix}config_account_taxonomy_path WHERE ancestor_id IN ({parameters}))";
+        if (categorySelection is not (null or "role")) throw new InvalidOperationException("分類選取方式無效。");
         return $"{taxonomyAlias}.semantic_role IN ("
             + $"SELECT ts.semantic_role FROM {schemaPrefix}config_account_taxonomy ts "
             + $"WHERE ts.category_id IN ({parameters}))";
@@ -675,7 +676,8 @@ internal sealed partial class GlRulePredicates(
     public string TrailingDigits(
         FilterSqlParameterPlanBuilder command,
         IReadOnlyList<string> patterns,
-        int moneyScale)
+        int moneyScale,
+        string amountColumn = "g.amount_scaled")
     {
         var scale = NextParam(command, (long)moneyScale);
 
@@ -692,9 +694,9 @@ internal sealed partial class GlRulePredicates(
                 }
 
                 var modulus = NextParam(command, tenK);
-                var tail = NextParam(command, long.Parse(trimmed));
+                var tail = NextParam(command, long.Parse(trimmed, System.Globalization.CultureInfo.InvariantCulture));
                 // 整數化金額：捨去小數的主單位整數(= @int(ABS(amount)));DuckDB 的 / 會回浮點，必須走方言縫。
-                var intAmount = dialect.IntegerQuotient("ABS(g.amount_scaled)", scale);
+                var intAmount = dialect.IntegerQuotient($"ABS({amountColumn})", scale);
                 var tailMatch = $"{intAmount} % {modulus} = {tail}";
 
                 if (digitCount == 1)

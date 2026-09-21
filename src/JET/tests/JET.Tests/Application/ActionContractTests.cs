@@ -121,11 +121,12 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             new[] { JsonValueKind.True, JsonValueKind.False, JsonValueKind.Null });
 
         var eligibility = JsonShape.Obj(completeness, "eligibility");
-        JsonShape.HasExactKeys(eligibility, "isEligible", "reason");
+        JsonShape.HasExactKeys(eligibility, "isEligible", "reason", "warning");
         Assert.Contains(
             eligibility.GetProperty("isEligible").ValueKind,
             new[] { JsonValueKind.True, JsonValueKind.False });
         JsonShape.Str(eligibility, "reason", nullable: true);
+        JsonShape.Str(eligibility, "warning", nullable: true);
 
         var docBalance = JsonShape.Obj(data, "docBalanceTest");
         JsonShape.HasExactKeys(docBalance, "status", "unbalancedDocumentCount", "unbalancedDocuments");
@@ -212,7 +213,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             "backdatedPosting", "nonAuthorizedPreparer", "lowFrequencyPreparer", "lowFrequencyAccount",
             "rulePeriod", "concentration", "positioning", "resultRef");
 
-        foreach (var key in new[] { "postPeriodApproval", "unexpectedAccountPair", "nonAuthorizedPreparer" })
+        foreach (var key in new[] { "postPeriodApproval", "unexpectedAccountPair", "nonAuthorizedPreparer", "backdatedPosting", "lowFrequencyPreparer" })
         {
             var rule = JsonShape.Obj(data, key);
             JsonShape.HasExactKeys(rule, "status", "naReason", "count");
@@ -221,7 +222,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             JsonShape.Number(rule, "count");
         }
 
-        foreach (var key in new[] { "suspiciousKeywords", "blankDescription", "backdatedPosting", "lowFrequencyPreparer", "lowFrequencyAccount" })
+        foreach (var key in new[] { "suspiciousKeywords", "blankDescription", "lowFrequencyAccount" })
         {
             var rule = JsonShape.Obj(data, key);
             JsonShape.HasExactKeys(rule, "status", "count");
@@ -562,7 +563,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(1, taxonomy.GetProperty("revision").GetInt32());
         JsonShape.Element(JsonShape.Arr(taxonomy, "categories"), category =>
             JsonShape.HasExactKeys(
-                category, "categoryId", "label", "ordinal", "semanticRole", "isBuiltIn"));
+                category, "categoryId", "label", "ordinal", "semanticRole", "isBuiltIn", "parentCategoryId"));
         Assert.Equal(JsonValueKind.False, data.GetProperty("mappingReviewRequired").ValueKind);
         var staleState = JsonShape.Obj(data, "staleState");
         JsonShape.HasExactKeys(staleState, "validation", "prescreen", "filter");
@@ -598,7 +599,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         {
             JsonShape.HasExactKeys(
                 artifact,
-                "artifactId", "kind", "fileName", "generatedUtc", "bytes", "fileState", "sourceRef", "stale");
+                "artifactId", "kind", "fileName", "fullPath", "generatedUtc", "bytes", "fileState", "sourceRef", "stale");
             JsonShape.Str(artifact, "fileState");
             var sourceRef = JsonShape.Obj(artifact, "sourceRef");
             JsonShape.HasExactKeys(
@@ -959,7 +960,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             Assert.Equal(JsonValueKind.True, data.GetProperty("ok").ValueKind);
             var artifact = JsonShape.Obj(data, "artifact");
             JsonShape.HasExactKeys(artifact,
-                "artifactId", "kind", "fileName", "generatedUtc", "bytes", "fileState", "sourceRef", "stale");
+                "artifactId", "kind", "fileName", "fullPath", "generatedUtc", "bytes", "fileState", "sourceRef", "stale");
             JsonShape.Str(artifact, "fileState");
             JsonShape.Str(artifact, "artifactId");
             JsonShape.Str(artifact, "kind");
@@ -969,7 +970,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             Assert.Equal(new[] { "criteriaSelectionReport", "workingPaper" }, catalog.EnumerateArray()
                 .Select(item => item.GetProperty("kind").GetString()).Order(StringComparer.Ordinal));
             JsonShape.Element(catalog, item => JsonShape.HasExactKeys(item,
-                "artifactId", "kind", "fileName", "generatedUtc", "bytes", "fileState", "sourceRef", "stale"));
+                "artifactId", "kind", "fileName", "fullPath", "generatedUtc", "bytes", "fileState", "sourceRef", "stale"));
             var published = Assert.Single(catalog.EnumerateArray(), item =>
                 item.GetProperty("artifactId").GetString() == artifact.GetProperty("artifactId").GetString());
             Assert.Equal(artifact.GetRawText(), published.GetRawText());

@@ -308,19 +308,19 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
 
     private const string SeedV7RowsSql =
         """
-        INSERT INTO config_account_taxonomy
+        INSERT INTO config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision)
             SELECT 'builtin.revenue', 'Revenue', 0, 'revenue', 1, 1
             WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy WHERE category_id = 'builtin.revenue');
-        INSERT INTO config_account_taxonomy
+        INSERT INTO config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision)
             SELECT 'builtin.receivables', 'Receivables', 1, 'receivables', 1, 1
             WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy WHERE category_id = 'builtin.receivables');
-        INSERT INTO config_account_taxonomy
+        INSERT INTO config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision)
             SELECT 'builtin.cash', 'Cash', 2, 'cash', 1, 1
             WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy WHERE category_id = 'builtin.cash');
-        INSERT INTO config_account_taxonomy
+        INSERT INTO config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision)
             SELECT 'builtin.receipt_in_advance', 'Receipt in advance', 3, 'receipt_in_advance', 1, 1
             WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy WHERE category_id = 'builtin.receipt_in_advance');
-        INSERT INTO config_account_taxonomy
+        INSERT INTO config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision)
             SELECT 'builtin.others', 'Others', 4, 'others', 1, 1
             WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy WHERE category_id = 'builtin.others');
         INSERT INTO config_result_stale_state
@@ -437,7 +437,12 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             parsedVersion = 9;
         }
         if (parsedVersion == 9)
+        {
             await AccountClassificationMigration.UpgradeLocalAsync(connection, DuckDbDialect.Instance, cancellationToken);
+            parsedVersion = 10;
+        }
+        if (parsedVersion == 10)
+            await AccountTaxonomyHierarchy.UpgradeLocalAsync(connection, cancellationToken);
     }
 
     /// <summary>

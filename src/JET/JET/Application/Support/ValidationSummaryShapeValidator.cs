@@ -154,7 +154,16 @@ internal static class ValidationSummaryShapeValidator
         }
 
         var eligibility = Property(value, "eligibility");
-        RequireExactObject(eligibility, "isEligible", "reason");
+        // warning 是 2026-09-17 新增的衍生提示；舊案件的兩欄格式仍可讀取，載入時依原始結果重算。
+        if (eligibility.ValueKind == JsonValueKind.Object && eligibility.TryGetProperty("warning", out _))
+        {
+            RequireExactObject(eligibility, "isEligible", "reason", "warning");
+            RequireNullableString(eligibility, "warning");
+        }
+        else
+        {
+            RequireExactObject(eligibility, "isEligible", "reason");
+        }
         RequireBoolean(Property(eligibility, "isEligible"), "eligibility.isEligible");
         RequireNullableString(eligibility, "reason");
     }

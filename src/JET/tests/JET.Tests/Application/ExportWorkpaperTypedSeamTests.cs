@@ -37,7 +37,8 @@ public sealed class ExportWorkpaperTypedSeamTests
             projectStore,
             scenarios,
             new NullMappingStore(),
-            new ActionExecutionGate());
+            new ActionExecutionGate(),
+            accountMappingStore: new ReadyAccountMappingStore());
         var factsPort = new RecordingPlanningFactsPort(order);
         var writer = new RecordingPlanWriter(order);
         using var cancellation = new CancellationTokenSource();
@@ -123,7 +124,8 @@ public sealed class ExportWorkpaperTypedSeamTests
         Assert.Equal("未預期借貸組合", selected.Name);
         Assert.Equal("驗證舊 IDEA 工作底稿標記範圍", selected.Rationale);
         Assert.Equal(WorkpaperScenarioTagScope.HitVoucherRows, selected.TagScope);
-        Assert.Null(selected.ConditionLogic);
+        // Every saved rule now carries its full explanation into Working Paper, including prescreen rules.
+        Assert.Equal("預篩選：未預期借貸組合", selected.ConditionLogic);
         Assert.Equal(7, selected.VoucherHitCount);
         Assert.Equal(3, selected.RowHitCount);
         var fieldInfo = Assert.IsType<FieldInfoProjection>(plan.FieldInfo);
@@ -582,5 +584,17 @@ public sealed class ExportWorkpaperTypedSeamTests
             IReadOnlyList<AccountTaxonomyCategory> categories,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    // 保存情境補算現在也驗證科目配對。明示此案例具備必要分類，不跳過產品檢查或放寬原有斷言。
+    private sealed class ReadyAccountMappingStore : IAccountMappingStore
+    {
+        public Task<AccountMappingImportResult> ImportAsync(string projectId, ImportSourceDescriptor source,
+            IReadOnlyList<string> columns, IAsyncEnumerable<StagingRow> rows, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<AccountMappingState?> FindStateAsync(string projectId, CancellationToken cancellationToken)
+            => Task.FromResult<AccountMappingState?>(new("batch", 2, "synthetic.xlsx",
+                DateTimeOffset.UnixEpoch, HasAnyCategory: true, HasRevenue: true, HasCounterpart: true));
     }
 }

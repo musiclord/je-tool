@@ -250,8 +250,10 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? rdeFieldLabels)
     {
         var type = Str(r, "type");
-        return type switch
+        var text = type switch
         {
+            "group" => NestedAtom(r, categoryLabels, rdeFieldLabels),
+            "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels),
             "prescreen" => "預篩選：" + FilterConditionLabels.PrescreenLabel(Str(r, "prescreenKey")),
             "text" => FilterConditionLabels.GlFieldLabel(Str(r, "field")) + " "
                 + FilterConditionLabels.TextModeLabel(Str(r, "mode")) + "「" + Str(r, "keywords") + "」",
@@ -268,8 +270,12 @@ public static class FilterConditionRenderer
                 + CategorySelection(r, "creditCategoryIds", "creditCategory", categoryLabels) + "）",
             "customKeywords" => "自訂關鍵字「" + Str(r, "keywords") + "」",
             "customTrailingZeros" => "尾數連續 " + Str(r, "digits") + " 個 0",
-            "customPreparerEntryCount" => "所選母體內編製人員張數 ≤ " + Str(r, "maxEntries"),
-            "customAccountEntryCount" => "所選母體內科目張數 ≤ " + Str(r, "maxEntries"),
+            "customPreparerEntryCount" => "所選母體內編製人員分錄筆數 ≤ " + Str(r, "maxEntries"),
+            "customAccountEntryCount" => "所選母體內科目分錄筆數 ≤ " + Str(r, "maxEntries"),
+            "entityFrequency" => "所選母體內「" + JetFieldCatalog.GlSemanticFieldMappingLabel(Str(r, "field")) + "」" +
+                (Str(r, "countUnit") == "vouchers" ? "去重傳票張數" : "分錄筆數") + " " +
+                (EntityFrequencyConditions.Operators.TryGetValue(Str(r, "countOperator"), out var countLabel) ? countLabel : "") + " " +
+                Str(r, "countFrom") + (Str(r, "countOperator") == "between" ? "～" + Str(r, "countTo") + "（含端點）" : ""),
             "revenueDebitNearQuarterEnd" => "季末前 " + Ellipsis(Str(r, "windowDays")) + " 天借記收入",
             "revenueWithoutNormalCounterpart" => "貸收入・借方非應收/預收",
             "manualRevenueEntry" => "收入之人工分錄",
@@ -280,12 +286,19 @@ public static class FilterConditionRenderer
             "accountSide" => AccountSideAtom(r, categoryLabels),
             _ => type,
         };
+        return type is "accountPair" or "specialAccountCategoryPair"
+            ? (Str(r, "categorySelection") switch { "node" => "僅分類本身：", "subtree" => "包含下層分類：", "role" => "相同審計角色：", _ => "" }) + text
+            : text;
     }
 
     private static string AccountSideAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels)
     {
         var side = Str(rule, "drCr") == "credit" ? "貸方" : "借方";
         var categories = CategorySelection(rule, "categoryIds", "category", labels);
+        categories += Str(rule, "categorySelection") switch
+        {
+            "node" => "（僅分類本身）", "subtree" => "（包含下層分類）", "role" => "（相同審計角色）", _ => ""
+        };
         return Str(rule, "categoryMode") switch
         {
             "is" => side + "科目屬於「" + categories + "」",
@@ -294,6 +307,33 @@ public static class FilterConditionRenderer
             _ => side + "尚未選擇分類條件"
         };
     }
+
+    private static string NestedAtom(JsonElement rule, IReadOnlyDictionary<string, string>? categories,
+        IReadOnlyDictionary<string, string>? fields)
+    {
+        var children = ArrayItems(rule, "rules");
+        var text = string.Empty;
+        foreach (var child in children)
+        {
+            var atom = RuleAtom(child, categories, fields);
+            text = text.Length == 0 ? atom : "（" + text + " " + JoinLabel(EffectiveRuleJoin(child)) + " " + atom + "）";
+        }
+        if (Str(rule, "type") == "group")
+        {
+            var scope = children.Count > 0 && children.All(IsExplicitVoucherCondition) ? "同張傳票"
+                : children.Any(ContainsExplicitVoucherCondition) ? "條件組合" : "同一分錄";
+            return scope + "（" + text + "）";
+        }
+        var side = Str(rule, "side") switch { "debit" => "借方", "credit" => "貸方", _ => "整張傳票" };
+        var quantifier = Str(rule, "quantifier") switch { "all" => "全部符合（至少有一筆）", "none" => "不存在符合", _ => "至少一筆符合" };
+        return side + quantifier + "：" + (children.Count == 1 ? text : "同一分錄（" + text + "）");
+    }
+
+    private static bool IsExplicitVoucherCondition(JsonElement rule) => Str(rule, "type") == "voucher"
+        || Str(rule, "type") == "group" && ArrayItems(rule, "rules") is { Count: > 0 } children && children.All(IsExplicitVoucherCondition);
+
+    private static bool ContainsExplicitVoucherCondition(JsonElement rule) => Str(rule, "type") == "voucher"
+        || ArrayItems(rule, "rules").Any(ContainsExplicitVoucherCondition);
 
     private static string FieldValueAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels)
     {
@@ -305,18 +345,19 @@ public static class FilterConditionRenderer
         var op = Str(rule, "operator");
         var opLabel = FieldValueConditions.Labels.GetValueOrDefault(op, op);
         var listValues = StringArrayItems(rule, "values");
-        var operand = op is "isBlank" or "isNotBlank" ? "" : op is "between" or "notBetween"
+        var operand = op is "isBlank" or "isNotBlank" || FieldValueConditions.IsCalendar(op) ? "" : op is "between" or "notBetween"
             ? "「" + Str(rule, "from") + "」至「" + Str(rule, "to") + "」"
             : op is "in" or "notIn" or FieldValueConditions.DayOfMonthIn or FieldValueConditions.DayOfMonthNotIn
                 ? "「" + string.Join("、", listValues) + "」"
             : FieldValueConditions.IsContains(op) && listValues.Count > 0 ? "「" + string.Join("、", listValues) + "」"
             : "「" + Str(rule, "value") + "」";
-        if (op is not "isBlank" and not "isNotBlank")
+        if (op is not "isBlank" and not "isNotBlank" && !FieldValueConditions.IsTail(op))
             field += Str(rule, "amountBasis") switch { "absolute" => "絕對值", "signed" => "含正負號", _ => "" };
         // 空白預設不列入（2026-09-04 裁定），與 GlRulePredicates.FieldValue 的預設一致。
         var includeBlank = rule.TryGetProperty("includeBlank", out var blank) && blank.ValueKind == JsonValueKind.True;
         var blankText = op is "isBlank" or "isNotBlank" ? "" : includeBlank ? "；空白也符合" : "；空白不列入";
-        return field + " " + opLabel + operand + blankText;
+        var side = Str(rule, "drCr") switch { "debit" => "借方分錄：", "credit" => "貸方分錄：", _ => "" };
+        return side + field + " " + opLabel + operand + (FieldValueConditions.IsMonthWindow(op) ? " 天" : "") + blankText;
     }
 
     /// <summary>

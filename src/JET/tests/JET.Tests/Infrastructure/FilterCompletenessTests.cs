@@ -96,6 +96,8 @@ public sealed class FilterCompletenessTests
           ('oracle',6,'R6','1','2025-01-01',NULL,'001','beta',2000,2000,0,'DEBIT',1),
           ('oracle',7,'R7','1','2025-01-01',NULL,'001','   ',0,0,0,'DEBIT',1),
           ('oracle',8,'OUT','1','2024-12-31','2024-02-29','001','alpha',1000,1000,0,'DEBIT',0);
+          INSERT INTO staging_calendar_raw_day(day_type,date) VALUES ('holiday','2024-02-29'),
+            ('holiday','2024-03-01'),('makeup','2024-02-29'),('makeup','2024-03-31');
           """;
         var extraSeed = $"""
           INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
@@ -113,6 +115,7 @@ public sealed class FilterCompletenessTests
             ("contains", "\"values\":[\"alpha\",\"%_[\"]", [1,2,3]),
             ("notContains", "\"values\":[\"alpha\",\"%_[\"]", [6]),
             ("startsWith", "\"value\":\"alpha\"", [1,2]), ("endsWith", "\"value\":\"beta\"", [2,6]),
+            ("notStartsWith", "\"value\":\"alpha\"", [3,6]), ("notEndsWith", "\"value\":\"beta\"", [1,3]),
             ("in", "\"values\":[\"alpha\",\"BETA\",\"alpha\"]", [1,6]),
             ("notIn", "\"values\":[\"alpha\",\"beta\"]", [2,3]),
             ("isBlank", "", [4,5,7]), ("isNotBlank", "", [1,2,3,6])
@@ -128,6 +131,14 @@ public sealed class FilterCompletenessTests
             ("notIn", "\"values\":[\"2024-02-29\",\"2024-03-31\"]", [1,3,5]),
             ("dayOfMonthIn", "\"values\":[\"28\",\"31\"]", [1,4]),
             ("dayOfMonthNotIn", "\"values\":[\"28\",\"31\"]", [2,3,5]),
+            ("monthStartDays", "\"value\":\"2\"", [3]),
+            ("notMonthStartDays", "\"value\":\"2\"", [1,2,4,5]),
+            ("monthEndDays", "\"value\":\"2\"", [1,2,4,5]),
+            ("notMonthEndDays", "\"value\":\"2\"", [3]),
+            ("isWeekend", "", [4]), ("isNotWeekend", "", [1,2,3,5]),
+            ("isHoliday", "", [2,3]), ("isNotHoliday", "", [1,4,5]),
+            ("isMakeupDay", "", [2,4]), ("isNotMakeupDay", "", [1,3,5]),
+            ("isNonBusinessDay", "", [3]), ("isNotNonBusinessDay", "", [1,2,4,5]),
             ("isBlank", "", [6,7]), ("isNotBlank", "", [1,2,3,4,5])
         ];
         (string Op, string Operand, int[] Hits)[] signedCases =
@@ -139,6 +150,8 @@ public sealed class FilterCompletenessTests
             ("notBetween", "\"from\":\"-10\",\"to\":\"10\"", [1,5,6]),
             ("in", "\"values\":[\"-10\",\"10\",\"10.00\"]", [2,4]),
             ("notIn", "\"values\":[\"-10\",\"10\"]", [1,3,5,6]),
+            ("endsWithDigits", "\"value\":\"10\"", [1,2,4,5]),
+            ("notEndsWithDigits", "\"value\":\"10\"", [3,6]),
             ("isBlank", "", [7]), ("isNotBlank", "", [1,2,3,4,5,6])
         ];
         (string Op, string Operand, int[] Hits)[] absoluteCases =
@@ -149,6 +162,8 @@ public sealed class FilterCompletenessTests
             ("between", "\"from\":\"0\",\"to\":\"10\"", [2,3,4]),
             ("notBetween", "\"from\":\"0\",\"to\":\"10\"", [1,5,6]),
             ("in", "\"values\":[\"10\",\"10.00\"]", [2,4]), ("notIn", "\"values\":[\"10\"]", [1,3,5,6]),
+            ("endsWithDigits", "\"value\":\"10\"", [1,2,4,5]),
+            ("notEndsWithDigits", "\"value\":\"10\"", [3,6]),
             ("isBlank", "", [7]), ("isNotBlank", "", [1,2,3,4,5,6])
         ];
         foreach (var (type, core, extra, cases, blanks, basis) in new[]
@@ -170,7 +185,7 @@ public sealed class FilterCompletenessTests
                 if (type == "money" && !isExtra)
                 {
                     expected.Remove(7);
-                    if (c.Op is "notEquals" or "lessThan" or "lessThanOrEqual" or "between" or "notIn" or "isNotBlank") expected.Add(7);
+                    if (c.Op is "notEquals" or "lessThan" or "lessThanOrEqual" or "between" or "notIn" or "notEndsWithDigits" or "isNotBlank") expected.Add(7);
                 }
                 else if (includeBlank && c.Op is not "isBlank" and not "isNotBlank") expected.AddRange(blanks);
                 var rule = $$"""

@@ -5,8 +5,8 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 完整性硬閘的唯一 Application seam：嚴格解析目前 validation summary 的 raw part A／B
-/// facts，交由 AuditCore 裁定，並提供所有 handler 共用的 fail-closed 前置方法與 wire renderer。
+/// 解析目前 validation summary 的原始事實，交由 AuditCore 分開判定結果可用性與差異提醒。
+/// 所有後續 handler 共用此入口；已完成驗證的審計差異不阻擋篩選與匯出。
 /// </summary>
 internal static class CompletenessEligibilitySupport
 {
@@ -70,12 +70,12 @@ internal static class CompletenessEligibilitySupport
     internal static CompletenessEligibilityWire ToWire(CompletenessEligibilityDecision decision)
     {
         ArgumentNullException.ThrowIfNull(decision);
-        return new CompletenessEligibilityWire(decision.IsEligible, decision.Reason);
+        return new CompletenessEligibilityWire(decision.IsEligible, decision.Reason, decision.Warning);
     }
 
     /// <summary>
-    /// Resume 兼容：舊的 current-version summary 尚無 eligibility 時，在回應邊界補上；
-    /// 已存在的同名欄位也以 raw facts 的後端裁定覆寫，絕不信任存檔的衍生布林值。
+    /// Resume 兼容：舊摘要的 eligibility 尚無 warning 時，在回應邊界補上；
+    /// 整個衍生判定依 raw facts 重算，不能沿用存檔中的舊阻擋布林值。
     /// </summary>
     internal static JsonElement ToWireSummary(RuleRunRecord run)
     {
@@ -294,4 +294,5 @@ internal static class CompletenessEligibilitySupport
 
 internal sealed record CompletenessEligibilityWire(
     bool IsEligible,
-    string? Reason);
+    string? Reason,
+    string? Warning);

@@ -30,13 +30,13 @@ public static class PrescreenRuleKeys
     };
 }
 
-/// <summary>低頻編製者門檻：查核期間分錄筆數 ≤ 此值（方法學：期間內 &lt; 12 筆）。</summary>
+/// <summary>目前低頻編製者的固定門檻：所選母體的分錄筆數小於 12；不是 legacy R5 人員彙總。</summary>
 public static class PreparerFrequency
 {
     public const int DefaultMaxEntries = 11;
 }
 
-/// <summary>低頻科目(C9)門檻:某科目查核期間分錄筆數 ≤ 此值(方法學:期間內 &lt; 12 筆)。</summary>
+/// <summary>目前低頻科目的固定門檻：所選母體的分錄筆數小於 12；與科目使用彙總分開。</summary>
 public static class AccountFrequency
 {
     public const int DefaultMaxEntries = 11;
@@ -44,26 +44,27 @@ public static class AccountFrequency
 
 /// <summary>
 /// 分錄摘要特定描述（suspicious_keywords）的預設關鍵字
-/// （guide §5 附錄，16 個；比對 UPPER(TRIM(description)) 包含任一）。
+/// 保留 IDEA R2 的繁簡詞與新版既有「帳外」，共 25 個；比對包含任一。
 /// </summary>
 public static class SuspiciousKeywordDefaults
 {
     public static readonly IReadOnlyList<string> Defaults =
     [
         "ADJ", "REV", "RECLASS", "SUSPENSE", "ERROR", "WRONG",
-        "調整", "迴轉", "沖銷", "重分類", "避險", "重編", "錯誤", "計畫外", "預算外", "帳外"
+        "調整", "迴轉", "沖銷", "重分類", "避險", "重編", "錯誤", "計畫外", "預算外", "帳外",
+        "调整", "回转", "冲销", "重分类", "避险", "重编", "错误", "计画外", "预算外"
     ];
 }
 
 /// <summary>
 /// 連續零尾數（trailing_zeros）門檻（guide §5）。prescreen 自動規則用固定預設
-/// <see cref="DefaultZerosThreshold"/>（方法學:連續 6 個 0 = 1,000,000 倍數);
+/// <see cref="DefaultZerosThreshold"/>。這與 legacy R4 的借方平均金額算法不同，待 2026-09-17 計畫的邊界裁定；
 /// 可設定性與「受查者授權金額門檻」閘以進階篩選 customTrailingZeros(1–12) +
 /// 金額區間(NumRange)組合達成(guide §5)。先取主單位整數再取模,不用 provider 字串函式。
 /// </summary>
 public static class TrailingZeroThreshold
 {
-    /// <summary>prescreen trailingZeros 的固定預設門檻:連續 6 個尾數 0(方法學預設)。</summary>
+    /// <summary>現行固定預設門檻；不能當成 legacy 或正式方法學來源。</summary>
     public const int DefaultZerosThreshold = 6;
 
     /// <summary>customTrailingZeros 條件接受的位數上限：10^12 可安全放入 long。</summary>

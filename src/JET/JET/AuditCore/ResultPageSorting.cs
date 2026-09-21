@@ -34,7 +34,7 @@ internal static class ResultPageSorting
         ],
         "document_number");
 
-    /// <summary>query.nullRecordsPage：target_gl_entry 不帶別名。</summary>
+    /// <summary>空值明細也搜尋科目和摘要，缺傳票號碼時仍能找到資料。</summary>
     internal static readonly PageSortCatalog NullRecords = new(
         Integer("entryId", "entry_id"),
         [
@@ -43,7 +43,7 @@ internal static class ResultPageSorting
             Text("postDate", "post_date"),
             Text("description", "document_description")
         ],
-        "document_number");
+        "document_number") { AdditionalSearchSql = ["account_code", "document_description"] };
 
     /// <summary>query.sourceQualityPage：g 是 target_gl_entry，s 是 staging_gl_raw_row。</summary>
     internal static readonly PageSortCatalog SourceQuality = new(

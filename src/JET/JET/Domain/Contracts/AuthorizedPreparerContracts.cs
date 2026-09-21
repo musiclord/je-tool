@@ -6,12 +6,20 @@ namespace JET.Domain;
 /// </summary>
 public static class AuthorizedPreparerColumnResolver
 {
-    public static string Resolve(IReadOnlyList<string> columns)
+    public static string Resolve(IReadOnlyList<string> columns, string? sourceColumn = null)
     {
         if (columns.Count < 1)
         {
             throw new JetActionException(
-                JetErrorCodes.ProjectionFailed, "授權編製人員清單需至少一欄（姓名）。");
+                JetErrorCodes.ProjectionFailed, "授權編製人員清單需至少一個人員識別欄位。");
+        }
+
+        if (sourceColumn is not null)
+        {
+            if (!columns.Contains(sourceColumn, StringComparer.Ordinal))
+                throw new JetActionException(JetErrorCodes.InvalidPayload,
+                    "選取的人員識別欄位已不存在，請重新選擇來源欄位。", field: "sourceColumn");
+            return sourceColumn;
         }
 
         return FindByKeywords(columns, ["authorized_preparer", "preparer", "編製人員", "姓名", "name"])
@@ -37,14 +45,23 @@ public static class AuthorizedPreparerColumnResolver
 
 /// <summary>匯入結果（manifest import.authorizedPreparer.fromFile response 形狀的來源）。</summary>
 public sealed record AuthorizedPreparerImportResult(
-    string BatchId, int RowCount, string FileName, DateTimeOffset ImportedUtc);
+    string BatchId, int RowCount, string FileName, DateTimeOffset ImportedUtc)
+{
+    public string? SourceColumn { get; init; }
+    public int SourceRowCount { get; init; }
+    public int BlankRowCount { get; init; }
+    public int DuplicateRowCount { get; init; }
+}
 
 /// <summary>
 /// 授權清單的目前狀態（presence 查詢，供 project.load resume 顯示「已匯入(N 筆)」）。
 /// 授權清單是 name 集合、不入 import_batch，故只持有 RowCount（無 fileName/importedUtc）；
 /// 名單空時為 null（RowCount 永遠 &gt; 0）。
 /// </summary>
-public sealed record AuthorizedPreparerState(long RowCount);
+public sealed record AuthorizedPreparerState(long RowCount)
+{
+    public string? SourceColumn { get; init; }
+}
 
 /// <summary>
 /// 授權編製人員清單的匯入與計數。授權清單就是一個 name 集合（target_authorized_preparer，name PK）；
@@ -52,6 +69,9 @@ public sealed record AuthorizedPreparerState(long RowCount);
 /// </summary>
 public interface IAuthorizedPreparerStore
 {
+    /// <summary>移除授權清單與相依結果；保留 GL、TB、驗證及情境定義。</summary>
+    Task ClearAsync(string projectId, CancellationToken cancellationToken);
+
     /// <summary>
     /// replace-only 匯入：清舊 staging/target、清依賴它的規則結果、串流寫 staging 並投影 target，
     /// 全在**同一 transaction**。姓名 TRIM 正規化、空白列略過、去重（name PK）。

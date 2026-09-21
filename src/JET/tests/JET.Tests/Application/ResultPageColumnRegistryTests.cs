@@ -12,6 +12,18 @@ public sealed class ResultPageColumnRegistryTests
     private const string DateField = "rde.00000000000000000000000000000003";
 
     [Fact]
+    public void NestedVoucherFieldsRemainAvailableToPagesAndReports()
+    {
+        var scenario = Scenario(new { type = "voucher", side = "credit", quantifier = "all", rules = new[] {
+            new { type = "group", rules = new[] { new { type = "fieldValue", fieldId = TextField, @operator = "equals", value = "x" } } }
+        } });
+        var plan = ResultPageColumnRegistry.ForFilter(scenario, Mapping(), 100);
+        Assert.Equal(new[] { TextField }, plan.CustomFields.Select(field => field.FieldId));
+        var metadata = new ReportWorkbookMetadata("2025-01-01", "2025-12-31", 1, Mapping(), null);
+        Assert.Equal(new[] { TextField }, FormalReportRdeFieldSelection.ForScenarios([scenario], metadata, 100).Select(field => field.FieldId));
+    }
+
+    [Fact]
     public void ForFilter_UsesTypedFieldUnionInCommittedOrdinal()
     {
         var plan = ResultPageColumnRegistry.ForFilter(

@@ -15,7 +15,7 @@
       result.scenario.voucherPage = await window.JetApi.queryFilterVoucherPage({ ...request, pageSize: 50 });
       result.scenario.voucherRequest = request;
       window.JetStore.setFilterPreview(result.scenario);
-      notice.textContent = '合成資料・設計預覽｜修改後刷新即載入正式前端；未知條件不計算。';
+      notice.textContent = '合成資料預覽（僅供畫面調整）';
       document.getElementById('preview-scene').value = fixture.id;
       document.getElementById('preview-scene').onchange = event => { location.search = '?scene=' + event.target.value; };
       document.getElementById('preview-reload').onclick = () => location.reload();

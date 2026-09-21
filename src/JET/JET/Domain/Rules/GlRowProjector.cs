@@ -329,6 +329,16 @@ public static class GlRowProjector
             return true;
         }
 
+        var remainingKind = normalized.Length == 0
+            ? spec.Options.ManualAutoPolicy.BlankValueKind
+            : spec.Options.ManualAutoPolicy.UnlistedValueKind;
+        if (remainingKind is ManualAutoValueKindNames.Manual or ManualAutoValueKindNames.Automatic)
+        {
+            isManual = remainingKind == ManualAutoValueKindNames.Manual;
+            return true;
+        }
+        if (normalized.Length == 0 && remainingKind == ManualAutoValueKindNames.Unclassified) return true;
+
         error = new RowProjectionError(
             row.SourceRowNumber,
             sourceColumn,

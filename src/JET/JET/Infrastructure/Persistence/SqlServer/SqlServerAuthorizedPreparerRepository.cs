@@ -132,9 +132,31 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
             }
         }
 
+        await AuthorizedPreparerMetadataSql.WriteAsync(connection, transaction, projection.SourceColumn, cancellationToken,
+            SqlServerProjectSchema.QualifierFor(projectId));
         await transaction.CommitAsync(cancellationToken);
 
-        return new AuthorizedPreparerImportResult(batchId, names.Count, source.FileName, importedUtc);
+        return new AuthorizedPreparerImportResult(batchId, names.Count, source.FileName, importedUtc)
+        {
+            SourceColumn = projection.SourceColumn, SourceRowCount = rowCount,
+            BlankRowCount = projection.BlankRowCount, DuplicateRowCount = projection.DuplicateRowCount
+        };
+    }
+
+    public async Task ClearAsync(string projectId, CancellationToken cancellationToken)
+    {
+        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.Transaction = (SqlTransaction)transaction;
+        var prefix = SqlServerProjectSchema.QualifierFor(projectId);
+        command.CommandText = $"DELETE FROM {prefix}staging_authorized_preparer_raw_row; DELETE FROM {prefix}target_authorized_preparer;";
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        await AuthorizedPreparerMetadataSql.WriteAsync(connection, transaction, null, cancellationToken, prefix);
+        await RuleRunResultReset.ClearWithinAsync(connection, transaction, cancellationToken, AuditMutation.AuthorizedPreparer, prefix);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<long> CountAsync(string projectId, CancellationToken cancellationToken)
@@ -153,6 +175,13 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
     public async Task<AuthorizedPreparerState?> FindStateAsync(string projectId, CancellationToken cancellationToken)
     {
         var rowCount = await CountAsync(projectId, cancellationToken);
-        return rowCount > 0 ? new AuthorizedPreparerState(rowCount) : null;
+        if (rowCount == 0) return null;
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+        return new AuthorizedPreparerState(rowCount)
+        {
+            SourceColumn = await AuthorizedPreparerMetadataSql.ReadAsync(connection, cancellationToken,
+                SqlServerProjectSchema.QualifierFor(projectId))
+        };
     }
 }

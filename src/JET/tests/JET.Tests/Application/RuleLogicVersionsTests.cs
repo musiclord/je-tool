@@ -22,8 +22,8 @@ public sealed class RuleLogicVersionsTests
     public void ValidationAndFormalReportIntegration_AdvancesAllAffectedVersions()
     {
         Assert.Equal("validation-2026-08-14-v4", RuleLogicVersions.Validation);
-        Assert.Equal("prescreen-2026-09-08-v7", RuleLogicVersions.Prescreen);
-        Assert.Equal("filter-2026-09-08-v13", RuleLogicVersions.Filter);
+        Assert.Equal("prescreen-2026-09-17-v8", RuleLogicVersions.Prescreen);
+        Assert.Equal("filter-2026-09-18-v16", RuleLogicVersions.Filter);
     }
 
     [Fact]

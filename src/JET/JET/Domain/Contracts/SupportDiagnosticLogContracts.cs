@@ -21,4 +21,6 @@ public interface ISupportDiagnosticLogStore
 {
     /// <summary>目前程序的 bounded 快照，舊到新；回傳內容已去識別。</summary>
     IReadOnlyList<SupportDiagnosticLogEntry> Snapshot();
+
+    long EventsOmitted => 0;
 }

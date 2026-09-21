@@ -8,7 +8,8 @@ namespace JET.Domain;
 public sealed class JetActionException(
     string code,
     string message,
-    string? field = null) : Exception(message)
+    string? field = null,
+    Exception? innerException = null) : Exception(message, innerException)
 {
     public string Code { get; } = code;
 
@@ -44,6 +45,7 @@ public static class JetErrorCodes
     public const string UnsupportedProvider = "unsupported_provider";
     public const string FileNotFound = "file_not_found";
     public const string UnsupportedFileType = "unsupported_file_type";
+    public const string ImportProgressFailed = "import_progress_failed";
     public const string FileReadError = "file_read_error";
     public const string SheetNotFound = "sheet_not_found";
     public const string EmptyWorkbook = "empty_workbook";

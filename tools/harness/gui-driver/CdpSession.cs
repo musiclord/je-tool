@@ -134,6 +134,16 @@ internal sealed class CdpSession : IAsyncDisposable
             .ConfigureAwait(false);
     }
 
+    // Closed synthetic IME updates. The scenario then clicks Save and checks persisted text.
+    // This exercises WebView composition events without changing the desktop input method.
+    internal async Task TypeSyntheticCompositionAsync(CancellationToken cancellationToken)
+    {
+        await SendAndDiscardAsync("Input.imeSetComposition",
+            new { text = "銀", selectionStart = 1, selectionEnd = 1 }, cancellationToken);
+        await SendAndDiscardAsync("Input.imeSetComposition",
+            new { text = "銀行", selectionStart = 2, selectionEnd = 2 }, cancellationToken);
+    }
+
     internal Task PressKeyAsync(string key, CancellationToken cancellationToken)
     {
         var keyDefinition = key switch
@@ -150,6 +160,7 @@ internal sealed class CdpSession : IAsyncDisposable
             "End" => (Code: "End", VirtualKey: 0x23),
             "Enter" => (Code: "Enter", VirtualKey: 0x0D),
             "Tab" => (Code: "Tab", VirtualKey: 0x09),
+            "Backspace" => (Code: "Backspace", VirtualKey: 0x08),
             _ => throw new GuiInfrastructureException("keyboard_key_invalid")
         };
         return DispatchNavigationKeyAsync(

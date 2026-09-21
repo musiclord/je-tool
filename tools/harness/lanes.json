@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "runnerContractVersion": "8.1",
+  "runnerContractVersion": "8.2",
   "limits": {
     "defaultTimeoutSeconds": 1800,
     "maximumTimeoutSeconds": 3600,
@@ -173,6 +173,69 @@
         "actionBudget": 70,
         "expectedActionCount": 70,
         "screenshotBudget": 1
+      },
+      {
+        "name": "feedback-workflow",
+        "timeoutSeconds": 240,
+        "actionBudget": 52,
+        "expectedActionCount": 52,
+        "screenshotBudget": 2
+      },
+      {
+        "name": "null-details-recovery",
+        "timeoutSeconds": 240,
+        "actionBudget": 35,
+        "expectedActionCount": 35,
+        "screenshotBudget": 1
+      },
+      {
+        "name": "kct-remap-recovery",
+        "timeoutSeconds": 240,
+        "actionBudget": 43,
+        "expectedActionCount": 43,
+        "screenshotBudget": 1
+      },
+      {
+        "name": "authorized-list-recovery",
+        "timeoutSeconds": 240,
+        "actionBudget": 33,
+        "expectedActionCount": 33,
+        "screenshotBudget": 1
+      },
+      {
+        "name": "extended-conditions",
+        "timeoutSeconds": 240,
+        "actionBudget": 96,
+        "expectedActionCount": 95,
+        "screenshotBudget": 2
+      },
+      {
+        "name": "side-month-workflow",
+        "timeoutSeconds": 240,
+        "actionBudget": 76,
+        "expectedActionCount": 76,
+        "screenshotBudget": 2
+      },
+      {
+        "name": "nested-voucher-workflow",
+        "timeoutSeconds": 240,
+        "actionBudget": 80,
+        "expectedActionCount": 80,
+        "screenshotBudget": 2
+      },
+      {
+        "name": "legacy-form-workflow",
+        "timeoutSeconds": 240,
+        "actionBudget": 55,
+        "expectedActionCount": 55,
+        "screenshotBudget": 2
+      },
+      {
+        "name": "legacy-form-catalog",
+        "timeoutSeconds": 240,
+        "actionBudget": 95,
+        "expectedActionCount": 95,
+        "screenshotBudget": 1
       }
     ]
   },
@@ -260,9 +323,16 @@
     "MutationBoundary",
     "OwnedProcessTree",
     "FrontendPreview",
-    "FrontendMapping"
+    "FrontendMapping",
+    "Context"
   ],
   "commands": {
+    "Context": {
+      "lane": "Foundation",
+      "enabled": true,
+      "requiresExclusiveLock": false,
+      "privateDataAccess": false
+    },
     "Contract": {
       "lane": "Foundation",
       "enabled": true,

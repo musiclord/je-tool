@@ -16,8 +16,16 @@ Package 拒絕發布預覽目錄與 fixtures.json，正式 JET 不依賴預覽�
 
 配對前端的行為檢查使用 `tools/verify.ps1 -Command Contract -ContractScenario FrontendMapping`。
 它用 Node.js 直接執行正式前端腳本，控制合成回應的先後順序，核對重試、來源變更、政策還原、就地錯誤及
-RDE 全選。DOM 接線使用測試替身，不代表真實版面已驗收；實際滑鼠與鍵盤操作另由 Gui 檢查。
+RDE 全選，也涵蓋分類草稿的輸入、取消與保存重試，以及雙側預覽、快取與晚到回應。
+完整性有差異仍可繼續、畫面保留差異，以及兩類空值明細各自呈現也有行為檢查。DOM 接線使用測試替身，
+不代表真實版面已驗收；實際滑鼠與鍵盤操作另由 Gui 檢查。
 這項檢查只在明示選用時需要 Node.js，不增加 Public 或 ReleaseCandidate 的執行依賴。
+
+`Gui` 現有十七個情境。`feedback-workflow` 先等待合成案件經正式 action 準備完成，再做 52 次
+操作，驗證配對清單捲動、分類輸入、取消、保存、返回與重開，以及重新執行預篩選後的雙側明細。
+接著實際改配 TB 金額欄，建立完整性差異，再驗證可以預篩選、產生條件報告、匯出底稿與重開保留差異。
+中文組字透過 WebView2 的 CDP 組字事件驗證，沒有變更 Windows 輸入法，也不代表已實測各家輸入法。
+該情境保存兩張合成畫面；單獨指定 `-GuiScenario feedback-workflow` 只算該情境通過，不代替完整 Gui。
 
 - `tools/` 第一層只分成 `harness/` 與 `tests/`。新增的驗證框架子目錄一律使用小寫英文，單字之間以連字號分隔。
 - JSON 設定檔、公開入口、測試與一次性 probe 使用小寫與連字號。可重用的 PowerShell 模組與內部 verifier
@@ -57,6 +65,7 @@ RDE 全選。DOM 接線使用測試替身，不代表真實版面已驗收；實
 ## 目前可用的命令
 
 ```powershell
+pwsh -NoProfile -File tools/verify.ps1 -Command Context
 pwsh -NoProfile -File tools/verify.ps1 -Command Help
 pwsh -NoProfile -File tools/verify.ps1 -Command Contract
 pwsh -NoProfile -File tools/verify.ps1 -Command Documentation
@@ -74,6 +83,18 @@ $env:JET_PRIVATE_CASE_PROVIDER = 'sqlite'
 pwsh -NoProfile -File tools/verify.ps1 -Command PrivateCase -Configuration Release
 pwsh -NoProfile -File tools/verify.ps1 -Command ReleaseCandidate -Configuration Release
 ```
+
+`Context` 是唯讀導覽，回傳 `observed`，不是測試通過。它從 `development-status.md` 的目前大型計畫連結
+讀取現行摘要，列出程式、文件、工具及 Agent 轉接檔的工作樹變更，以及近期最多八組驗證的最新可讀收據。資料目錄不在
+Git 路徑查詢範圍，亦不讀取案件內容。它不建立收據、不拿共享鎖、不改工作樹，也不自動啟動其他驗證。
+缺少來源只列提示，其他資訊照常輸出。近期收據僅查看最新二十個執行目錄，不代表完整驗證歷史。
+相同命令、組態、篩選及情境只列最近一次，避免重複文件檢查擠掉其他結果；最新失敗也保留，不退回較舊的通過。
+輸出會說明截斷及未確認的部分；相同 HEAD 的既有收據仍不保證目前未提交內容已驗證。
+
+計畫可用 `<!-- jet-context:start -->` 和 `<!-- jet-context:end -->` 標出簡短接續摘要；沒有標記則使用第一節，
+最多回傳 7,000 字元並標明是否截斷。摘要分清本輪成果與產品工作順序，仍保存於原計畫，不另建狀態檔。
+Context 不判定摘要是否完整或需求是否完成；範圍與來源仍由 Agent 核對。Context 的行為驗證使用
+`pwsh -NoProfile -File tools/verify.ps1 -Command Contract -ContractScenario Context`。
 
 `Build` 預設先執行 Restore，再以 `--no-restore` 進行建置。只有確定 NuGet 還原資產已存在時，才使用
 `-NoRestore`。
@@ -128,7 +149,18 @@ stderr 與 TRX 也會在保存前遮蔽。
 這兩組沒有從封裝選取條件中消失。清單以本次現行來源產生，不沿用舊 P5 基準。暫存封裝完成後會自動移除，只保留清單
 與有限大小的紀錄。實際 publish 會占用較多 CPU 與磁碟，執行前應先確認本機負載。
 
-`Gui` 固定使用 `AgentGuiTest` 組態。它會先建置一次，再分別用全新的暫存目錄執行八個情境：
+`Gui` 固定使用 `AgentGuiTest` 組態。它會先建置一次，再分別用全新的暫存目錄執行十七個情境：
+
+- `legacy-form-catalog` 逐一加入及移除 A–U，另驗證 P 可切換科目分類，共 95 次操作，保留一張合成畫面。
+- `legacy-form-workflow` 套用原工作簿五個組合，以 55 次操作核對缺來源選取後重試、預覽、保存、
+  取消修改、返回、兩種報表及重開，保留兩張合成畫面。只切換條件目錄不應清除已有預覽。
+  兩個情境分開執行，沒有提高原有每個情境 96 次操作上限。
+
+- `nested-voucher-workflow` 操作分類上層設定、巢狀條件、傳票量詞及分類選取方式，
+  並核對空條件失敗後重試、保存、取消編輯、返回、案件重開及兩種篩選報表匯出。保留兩張合成畫面。
+
+- `side-month-workflow` 在窄視窗操作欄位內的借貸方向及每月月初、月底天數，核對錯誤值修正、保存、
+  取消編輯、返回、重開、條件報告及底稿匯出。固定 76 次操作，保留兩張合成畫面；原有十三個情境的斷言保留。
 
 - `filter-auditor-journey` 走一遍審計員在第五步的路：點範本「借現金、貸非現金」，另開一組加一條
   「每月幾日不屬於 28、31」，切換作用中組，預覽後對命中傳票清單的表頭排序，保存後核對讀回文字與情境數。
@@ -182,7 +214,8 @@ stderr 與 TRX 也會在保存前遮蔽。
 
 `Excel` 固定使用 Release。它先執行產生五份合成報告與一份科目配對範本的現行測試，把同一輪產生的六份工作簿放進本次專屬暫存目錄，
 再由 `tools/harness/excel-driver/` 逐份使用原生 Excel 開啟。每份工作簿都要以唯讀方式開啟、停用巨集與外部連結
-更新、完整重算、另存副本、重新開啟副本，並匯出第一頁 PDF。框架會確認來源檔沒有改變、重算後公式錯誤沒有
+更新、完整重算、另存副本、重新開啟副本，並匯出第一頁 PDF。框架另核對 V_Report 5 在原生 Excel 的表頭、中段與最後資料列均為 18 點。
+框架會確認來源檔沒有改變、重算後公式錯誤沒有
 增加、副本沒有外部連結，而且 PDF 結構可讀。
 
 Excel 輸入由 `SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate`
@@ -260,3 +293,18 @@ pwsh -NoProfile -File tools/tests/verify-contract.tests.ps1
 套件或私人資料路徑，以及 Excel 驅動程式只能使用固定合成輸入、原生 Excel API 和精確的行程清理規則。
 這個腳本不啟動 Excel、不修改產品檔案，也不讀取私人案件資料。
 它另執行 `FrontendMapping` 的實際派送與程序清理檢查，因此執行完整框架自身測試時需要 Node.js。
+
+## 2026-09-17 回饋流程補充
+
+新增四個隔離 GUI 情境，全部沿正式前端及 action 操作；CDP 評估只讀取畫面與狀態。
+
+- `null-details-recovery`：35 次操作，兩類各 206 筆，跨頁、獨立排序、搜尋失敗保留、重試、零筆、返回及重開。
+- `kct-remap-recovery`：43 次操作，保存後取消配對修改、移除必要欄位、失敗重試、返回補欄、重新驗證、匯出及重開。
+- `authorized-list-recovery`：33 次操作，手動選欄、取消、匯入失敗重試、有效清單預覽、移除、重開、再匯入及下游失效。
+  檔案選擇 action 由封閉合成來源替代，不代表操作了原生檔案選擇視窗。
+- `extended-conditions`：95 次操作，上限 96 次，兩張截圖。人工與自動補集取消及保存、統計張數、日曆、金額尾數、
+  人員清單與文字否定，再保存五個情境、匯出及重開。精確條件和保存值都要相符。
+
+Excel 的合成來源檢查另由既有 Office 建立 BIFF8 .xls、.mdb、.accdb，各在 SQLite 與 DuckDB 完成預覽、
+錯表重試、匯入、配對、驗證、篩選、重開及原檔不變檢查，共六例；結果保存在收據的 `excelFixture.nativeSourceImports`。
+此檢查只使用自行產生的資料，結果限於實際執行的 Office 環境。六份報表的原生 Excel 往返檢查仍獨立保留。

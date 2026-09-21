@@ -35,8 +35,11 @@ public static class FilterConditionLabels
             ["customTrailingZeros"] = "自訂尾數位數",
             ["accountPair"] = "借貸科目組合（看對方科目）",
             ["specialAccountCategoryPair"] = "借貸科目組合",
-            ["customPreparerEntryCount"] = "自訂編製人員張數",
-            ["customAccountEntryCount"] = "自訂科目張數",
+            ["customPreparerEntryCount"] = "自訂編製人員分錄筆數",
+            ["customAccountEntryCount"] = "自訂科目分錄筆數",
+            ["entityFrequency"] = "科目與人員統計",
+            ["group"] = "條件括號",
+            ["voucher"] = "傳票量詞",
             ["typed"] = "攸關資料元素條件",
             ["fieldValue"] = "欄位值比較",
             ["accountSide"] = "借貸科目分類",
@@ -51,7 +54,7 @@ public static class FilterConditionLabels
     public static readonly IReadOnlyDictionary<string, string> PrescreenKeys =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [PrescreenRuleKeys.PostPeriodApproval] = "期末後核准",
+            [PrescreenRuleKeys.PostPeriodApproval] = "財報準備日起核准",
             [PrescreenRuleKeys.SuspiciousKeywords] = "摘要特定描述",
             [PrescreenRuleKeys.UnexpectedAccountPair] = "未預期借貸組合",
             [PrescreenRuleKeys.TrailingZeros] = "連續零尾數金額",

@@ -12,7 +12,7 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
 // rendering, event binding, cache lifetime and state transitions all execute production code.
 function fixture() {
   const pending = [];
-  const window = { setTimeout, clearTimeout, JetApi: {
+  const window = { setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {}, JetApi: {
     mappingValueProfile(payload) {
       return new Promise((resolve, reject) => pending.push({ payload, resolve, reject }));
     }
@@ -34,14 +34,17 @@ function fixture() {
 
   function render() {
     const events = new Map();
+    const controls = new Map();
     function control(selector) {
-      return { addEventListener(event, fn) { events.set(selector + ':' + event, fn); } };
+      if (!controls.has(selector)) controls.set(selector, { value: '', addEventListener(event, fn) { events.set(selector + ':' + event, fn); } });
+      return controls.get(selector);
     }
     const action = /^\[data-action="([a-z-]+)"\]$/;
     const section = {
       addEventListener() {},
       querySelector(selector) {
         if (selector === '[data-bind="gl-options"]') return {};
+        if (/^\[data-manual-(mode|blank)\]$/.test(selector) && container.innerHTML.includes(selector.slice(1, -1))) return control(selector);
         if (action.test(selector) && container.innerHTML.includes(selector.slice(1, -1))) return control(selector);
         return null;
       },
@@ -58,6 +61,14 @@ function fixture() {
     window.JetUi.renderStep('mapping', container, store.getState());
     return {
       html: container.innerHTML,
+      change(selector, value) {
+        const target = controls.get(selector);
+        assert.ok(target, 'Rendered selector must exist: ' + selector);
+        target.value = value;
+        const handler = events.get(selector + ':change');
+        assert.ok(handler, 'Rendered selector must be bound: ' + selector);
+        handler();
+      },
       click(name) {
         const fn = events.get('[data-action="' + name + '"]:click');
         assert.ok(fn, 'Rendered control must be bound: ' + name);
@@ -68,6 +79,27 @@ function fixture() {
   return { store, pending, render, window };
 }
 const profile = value => ({ blankCount: 0, distinctCount: 1, values: [{ value, count: 2 }], truncated: false });
+
+test('one-sided manual policy and explicit blank choice survive editing and loaded metadata', () => {
+  const f = fixture();
+  f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: ['M'], automaticValues: ['A'] } });
+  f.render().change('[data-manual-mode]', 'automatic');
+  assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy),
+    { manualValues: ['M'], automaticValues: [], unlistedValueKind: 'automatic' });
+  f.render().change('[data-manual-blank]', 'unclassified');
+  const saved = copy(f.store.getState().mapping.gl.options);
+  f.window.JetUi.applyLoadedProject({ project: { projectId: 'synthetic', currentStep: 1 },
+    importState: { gl: { batchId: 'batch-1', columns: ['Manual', 'Posting', 'Other', '__proto__'], rowCount: 2 } },
+    mapping: { gl: { ...saved, mapping: { manual: 'Manual' }, amountMode: 'dual', formatVersion: 2 } } });
+  assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy), saved.manualAutoPolicy);
+  f.render().click('remap-gl');
+  assert.match(f.render().html, /只列人工，其餘非空白值視為自動/);
+  f.render().change('[data-manual-mode]', 'reject');
+  assert.equal(f.store.getState().mapping.gl.options.manualAutoPolicy.blankValueKind, 'unclassified');
+  f.store.setMappingDraft('gl', 'manual', '');
+  f.store.setMappingDraft('gl', 'manual', 'Manual');
+  assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy), { manualValues: ['1'], automaticValues: ['0'] });
+});
 
 for (const order of [[0, 1], [1, 0]]) {
   test('independent value profiles finish in order ' + order.join(','), async () => {

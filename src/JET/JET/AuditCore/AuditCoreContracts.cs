@@ -20,7 +20,8 @@ public sealed record AuditCaseSnapshot(
     bool HasCounterpart = false,
     bool HasAuthorizedPreparers = false,
     IReadOnlyList<int>? NonWorkingDays = null,
-    int? SampleSeedVersion = null);
+    int? SampleSeedVersion = null,
+    bool HasVoucherDate = true);
 
 /// <summary>單次執行由 Application 提供、但不屬案件持久組態的參數。</summary>
 public sealed record AuditUserParameters(

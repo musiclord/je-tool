@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="860" viewBox="0 0 1040 860" role="img" aria-labelledby="title desc">
+<title id="title">前後操作與文字要一起核對</title><desc id="desc">由回饋整理的操作示意，非已實作的新介面；供 D03 至 D32 複審。</desc>
+<style>text{font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;fill:#283831}.title{font-size:29px;font-weight:700}.sub{font-size:17px;fill:#54675c}.label{font-size:21px;font-weight:700}.line{font-size:19px}</style>
+<rect width="1040" height="860" fill="#f6f8f4"/>
+<text x="36" y="48" class="title">前後操作與文字要一起核對</text>
+<text x="36" y="84" class="sub">由回饋整理的操作示意，非已實作的新介面；供 D03 至 D32 複審。</text>
+<rect x="28" y="112" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="144" class="label">匯入前後</text>
+<text x="48" y="182" class="line">說明完整檔案與少量預覽的差別；匯入失敗時保留可重試狀態。</text>
+<text x="48" y="214" class="line">重新匯入後，欄位配對、驗證及已存篩選不得混用舊資料。</text>
+<rect x="28" y="256" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="288" class="label">欄位配對前後</text>
+<text x="48" y="326" class="line">自動建議在開始前可見；設定類別時不跳回頂端。</text>
+<text x="48" y="358" class="line">取消欄位後，同時清除舊設定與摘要；全選範圍須可理解。</text>
+<rect x="28" y="400" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="432" class="label">驗證與前後步驟</text>
+<text x="48" y="470" class="line">同一個日期、母體數字與測試，在卡片、提示及報表使用一致語意。</text>
+<text x="48" y="502" class="line">指出哪項檢查失敗、目前能做什麼；不要用內部分段名稱代替說明。</text>
+<rect x="28" y="544" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="576" class="label">分類、篩選與保存</text>
+<text x="48" y="614" class="line">中文輸入不跳焦點；載入、零筆、失敗及成功不能共用含糊訊息。</text>
+<text x="48" y="646" class="line">修改後重新預覽，保存再開啟時，條件、名稱、理由及計數仍一致。</text>
+<rect x="28" y="688" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="720" class="label">匯出與重開案件</text>
+<text x="48" y="758" class="line">成功提示對應實際檔案與位置；不把舊檔或未匯出說成已完成。</text>
+<text x="48" y="790" class="line">重新開啟案件後，再核對來源、配對、驗證、篩選及報表狀態。</text>
+</svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="572" viewBox="0 0 1040 572" role="img" aria-labelledby="title desc">
+<title id="title">授權清單的來源、計數與清除</title><desc id="desc">合成示意，非原案件截圖；僅表達 D08、D09 的查核問題。</desc>
+<style>text{font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;fill:#283831}.title{font-size:29px;font-weight:700}.sub{font-size:17px;fill:#54675c}.label{font-size:21px;font-weight:700}.line{font-size:19px}</style>
+<rect width="1040" height="572" fill="#f6f8f4"/>
+<text x="36" y="48" class="title">授權清單的來源、計數與清除</text>
+<text x="36" y="84" class="sub">合成示意，非原案件截圖；僅表達 D08、D09 的查核問題。</text>
+<rect x="28" y="112" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="144" class="label">來源示例：4 列，3 個員工代碼，2 個顯示名稱</text>
+<text x="48" y="182" class="line">U001 / 人員甲　　U002 / 人員甲　　U003 / 人員乙　　U001 / 人員甲</text>
+<text x="48" y="214" class="line">所有代碼、名稱與數字均為本次另造。</text>
+<rect x="28" y="256" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="288" class="label">要查清楚：系統採用哪一欄，為什麼合併？</text>
+<text x="48" y="326" class="line">若按顯示名稱去重，會剩 2 個值；按員工代碼去重，會剩 3 個值。</text>
+<text x="48" y="358" class="line">這是不同計數方式的示例，不是核准系統使用其中一種方式。</text>
+<rect x="28" y="400" width="984" height="126" rx="8" fill="white" stroke="#c9d5cb"/>
+<text x="48" y="432" class="label">要連續驗收：匯入、預覽、清除、重開、重新匯入</text>
+<text x="48" y="470" class="line">來源摘要、有效清單與後續授權比對必須能對上。</text>
+<text x="48" y="502" class="line">清除後不得繼續顯示或使用舊清單；原案件原因尚未證實。</text>
+</svg>

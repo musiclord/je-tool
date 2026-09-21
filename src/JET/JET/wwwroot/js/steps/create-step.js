@@ -36,7 +36,7 @@
   // databaseProvider 顯示名（與後端 ProjectDocument 的值對應）。
   function providerLabel(value) {
     if (value === 'sqlServer') { return 'SQL Server（共用實例）'; }
-    if (value === 'duckdb') { return 'DuckDB（本地・分析型）'; }
+    if (value === 'duckdb') { return 'DuckDB（本機分析資料庫）'; }
     return 'SQLite（本機檔案）';
   }
 
@@ -125,10 +125,10 @@
           formRow('periodStart', '查核起始日', 'date', true) +
           formRow('periodEnd', '查核截止日', 'date', true) +
           formRow('lastPeriodStart', '期末財報準備日', 'date', false) +
-          '<p class="rule-card__sub">查核期間決定本次分析的總帳範圍；期末財報準備日供「期末後核准」條件使用，不會延長查核期間。</p>' +
+          '<p class="rule-card__sub">查核期間決定本次分析的總帳範圍；期末財報準備日供「財報準備日起核准」條件使用，不會延長查核期間。</p>' +
           formSelect('databaseProvider', '資料儲存方式（建立後不可變更）', [
             { value: 'sqlite', text: 'SQLite（本機檔案）', selected: true },
-            { value: 'duckdb', text: 'DuckDB（本地・分析型）' },
+            { value: 'duckdb', text: 'DuckDB（本機分析資料庫）' },
             { value: 'sqlServer', text: 'SQL Server（共用實例）' }
           ]) +
           '<div id="create-form-error" class="form-notice create-form__error" data-bind="create-error" role="alert" tabindex="-1" hidden></div>' +

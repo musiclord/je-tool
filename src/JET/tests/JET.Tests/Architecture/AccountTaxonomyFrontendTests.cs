@@ -91,7 +91,8 @@ public sealed class AccountTaxonomyFrontendTests
 
         // 舊的五類單選白名單已退場：分類身分一律來自目前專案 taxonomy。
         Assert.DoesNotContain("ACCOUNT_CATEGORY_OPTIONS", core, StringComparison.Ordinal);
-        Assert.Contains("Ui.taxonomyCategories(state)", filter, StringComparison.Ordinal);
+        Assert.Contains("Ui.taxonomyTree(state)", filter, StringComparison.Ordinal);
+        Assert.Contains("var categories = taxonomyCategories(state)", core, StringComparison.Ordinal);
         Assert.Contains("data-category-bind=\"' + idsKey + '\"", filter, StringComparison.Ordinal);
 
         // 新規則只帶陣列；legacy scalar 只在回放舊定義時讀取。

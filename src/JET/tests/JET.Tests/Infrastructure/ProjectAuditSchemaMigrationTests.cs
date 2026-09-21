@@ -43,7 +43,7 @@ public sealed class ProjectAuditSchemaMigrationTests
             "(SELECT COUNT(*) FROM result_rule_run WHERE run_id='v7-run');";
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
-        Assert.Equal("10", reader.GetString(0));
+        Assert.Equal("11", reader.GetString(0));
         Assert.Equal(0, reader.GetInt64(1));
         Assert.Equal(1, reader.GetInt64(2));
     }

@@ -57,10 +57,10 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
 
-        var approvalMode = glMapping!.GlOptions?.ApprovalDateMode
+        var approvalMode = glMapping.GlOptions?.ApprovalDateMode
                            ?? GlMappingOptions.NormalizeLegacy(glMapping.Mapping).ApprovalDateMode;
         var hasApprovalDate = approvalMode != ApprovalDateModeNames.Unmapped;
-        var hasCreatedBy = glMapping.Mapping.ContainsKey(GlMappingKeys.CreateBy);
+        var hasCreatedBy = JetFieldCatalog.HasMappedGlSemanticField(glMapping.Mapping, GlMappingKeys.CreateBy);
         var hasHolidays = await calendarStore.CountAsync(projectId, CalendarDayType.Holiday, cancellationToken) > 0;
         var lastPeriodStart = document.LastAccountingPeriodDate;
 
@@ -72,7 +72,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         var plan = JetAuditProgram.Plan(
             new PrescreenRequest(
                 projectId,
-                HasGlMapping: glMapping is not null,
+                HasGlMapping: true,
                 document.PeriodStart,
                 document.PeriodEnd,
                 document.MoneyScale,
@@ -87,7 +87,9 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 HasRevenue: accountMappingState?.HasRevenue ?? false,
                 HasCounterpart: accountMappingState?.HasCounterpart ?? false,
                 HasAuthorizedPreparers: hasAuthorizedPreparers,
-                NonWorkingDays: document.NonWorkingDays));
+                NonWorkingDays: document.NonWorkingDays,
+                HasVoucherDate: glMapping.Mapping.TryGetValue(GlMappingKeys.VoucherDate, out var voucherSource)
+                    && !string.IsNullOrWhiteSpace(voucherSource)));
         var facts = await JetAuditProgram.ExecuteAsync(plan, prescreenFactsPort, cancellationToken);
         var prescreen = JetAuditProgram.Finalize(plan, facts);
         var positioning = JetAuditProgram.RenderPrescreenPositioning();
@@ -164,17 +166,9 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 status = Verdict(runManifest, "blank_description").Status!,
                 count = result.BlankDescriptionCount
             },
-            backdatedPosting = new
-            {
-                status = Verdict(runManifest, "backdated_posting").Status!,
-                count = result.BackdatedPostingCount
-            },
+            backdatedPosting = RuleStatus(result.BackdatedPostingCount, Verdict(runManifest, "backdated_posting")),
             nonAuthorizedPreparer = RuleStatus(result.NonAuthorizedPreparerCount, nonAuthorizedPreparer),
-            lowFrequencyPreparer = new
-            {
-                status = Verdict(runManifest, "low_frequency_preparer").Status!,
-                count = result.LowFrequencyPreparerCount
-            },
+            lowFrequencyPreparer = RuleStatus(result.LowFrequencyPreparerCount, Verdict(runManifest, "low_frequency_preparer")),
             lowFrequencyAccount = new
             {
                 status = Verdict(runManifest, "low_frequency_account").Status!,

@@ -77,7 +77,7 @@ public sealed class AuditProgramExplainGoldenTests(DemoProjectFixture fixture)
                 HasRevenue: true,
                 HasCounterpart: true,
                 HasAuthorizedPreparers: true,
-                NonWorkingDays: [0, 6]));
+                NonWorkingDays: [0, 6], HasVoucherDate: true));
         IPrescreenFactsPort factsPort =
             new LocalPrescreenRunRepository(
                 new SqliteProjectDatabase(new JetProjectFolder(fixture.Host.ProjectsRoot)));
@@ -88,7 +88,7 @@ public sealed class AuditProgramExplainGoldenTests(DemoProjectFixture fixture)
 
         var expected = string.Join('\n',
             "預篩選查核期間：@periodStart=2025-01-01；@periodEnd=2025-12-31。",
-            "期末財報準備日後核准之分錄（post_period_approval）：V；計數 40；N/A 原因：無。",
+            "期末財報準備日起核准之分錄（post_period_approval）：V；計數 40；N/A 原因：無。",
             "分錄摘要出現特定描述（suspicious_keywords）：V；計數 25；N/A 原因：無。",
             "未預期出現之特定借貸組合（unexpected_account_pair）：V；計數 30；N/A 原因：無。",
             "分錄金額中有連續零的尾數（trailing_zeros）：V；計數 30；N/A 原因：無。",
@@ -99,7 +99,7 @@ public sealed class AuditProgramExplainGoldenTests(DemoProjectFixture fixture)
             "假日過帳（holiday_posting）：V；計數 28；N/A 原因：無。",
             "假日核准（holiday_approval）：V；計數 16；N/A 原因：無。",
             "摘要空白（blank_description）：V；計數 18；N/A 原因：無。",
-            "回溯過帳(過帳日早於傳票日)（backdated_posting）：V；計數 44；N/A 原因：無。",
+            "回溯過帳（總帳日期早於傳票日期）（backdated_posting）：V；計數 44；N/A 原因：無。",
             "非授權編製人員（non_authorized_preparer）：V；計數 32；N/A 原因：無。",
             "低頻編製者（low_frequency_preparer）：V；計數 10；N/A 原因：無。",
             "低頻科目（low_frequency_account）：V；計數 6；N/A 原因：無。",

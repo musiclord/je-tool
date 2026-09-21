@@ -325,7 +325,7 @@ public sealed class WorkpaperProgramTests
             "查核期間內（2025-01-01 ~ 2025-12-31）之會計分錄",
             Sheet(finalized, WorkpaperSheetCatalog.Step3).AuditCondition);
         Assert.Contains(
-            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效過帳日之列不納入本版情境命中與矩陣。",
+            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳日期之列不納入本版情境命中與矩陣。",
             Sheet(finalized, WorkpaperSheetCatalog.Step3).Methodology);
         Assert.Equal(
             "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)",

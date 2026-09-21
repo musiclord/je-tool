@@ -301,14 +301,20 @@ internal static class GlMappingOptionsJsonCodec
         var manual = JsonContractReader.RequireObject(
             owner.GetProperty("manualAutoPolicy"),
             pathPrefix + "manualAutoPolicy",
-            ["manualValues", "automaticValues"]);
+            ["manualValues", "automaticValues"], ["unlistedValueKind", "blankValueKind"]);
         var manualAutoPolicy = new GlManualAutoPolicy(
             JsonContractReader.ReadStringArray(
                 manual.GetProperty("manualValues"),
                 pathPrefix + "manualAutoPolicy.manualValues"),
             JsonContractReader.ReadStringArray(
                 manual.GetProperty("automaticValues"),
-                pathPrefix + "manualAutoPolicy.automaticValues"));
+                pathPrefix + "manualAutoPolicy.automaticValues"))
+        {
+            UnlistedValueKind = manual.TryGetProperty("unlistedValueKind", out var unlisted)
+                ? JsonContractReader.RequireString(unlisted, pathPrefix + "manualAutoPolicy.unlistedValueKind") : null,
+            BlankValueKind = manual.TryGetProperty("blankValueKind", out var blank)
+                ? JsonContractReader.RequireString(blank, pathPrefix + "manualAutoPolicy.blankValueKind") : null
+        };
 
         var rdeFields = ReadRdeFields(owner.GetProperty("rdeFields"), pathPrefix + "rdeFields");
         var options = new GlMappingOptions(
@@ -340,6 +346,8 @@ internal static class GlMappingOptionsJsonCodec
         writer.WriteStartObject();
         WriteStringArray(writer, "manualValues", options.ManualAutoPolicy.ManualValues);
         WriteStringArray(writer, "automaticValues", options.ManualAutoPolicy.AutomaticValues);
+        if (options.ManualAutoPolicy.UnlistedValueKind is { } unlisted) writer.WriteString("unlistedValueKind", unlisted);
+        if (options.ManualAutoPolicy.BlankValueKind is { } blank) writer.WriteString("blankValueKind", blank);
         writer.WriteEndObject();
 
         writer.WritePropertyName("rdeFields");
@@ -389,11 +397,12 @@ internal static class GlMappingOptionsJsonCodec
         }
         ValidateStrings(options.ManualAutoPolicy.ManualValues, "gl.manualAutoPolicy.manualValues");
         ValidateStrings(options.ManualAutoPolicy.AutomaticValues, "gl.manualAutoPolicy.automaticValues");
-        if (options.ManualAutoPolicy.ManualValues.Count == 0
-            || options.ManualAutoPolicy.AutomaticValues.Count == 0)
+        if (!ManualAutoValueKindNames.IsUnlisted(options.ManualAutoPolicy.UnlistedValueKind)
+            || !ManualAutoValueKindNames.IsBlank(options.ManualAutoPolicy.BlankValueKind)
+            || !ManualAutoValueKindNames.HasRequiredCodes(options.ManualAutoPolicy))
         {
             throw new MappingMetadataFormatException(
-                "gl.manualAutoPolicy 的 manualValues 與 automaticValues 都不得為空。");
+                "gl.manualAutoPolicy 的代碼清單、補集或空白處理設定不正確。");
         }
         var manualSet = options.ManualAutoPolicy.ManualValues.ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (manualSet.Count != options.ManualAutoPolicy.ManualValues.Count
@@ -544,7 +553,8 @@ internal static class JsonContractReader
     internal static JsonElement RequireObject(
         JsonElement element,
         string path,
-        IReadOnlyCollection<string> requiredProperties)
+        IReadOnlyCollection<string> requiredProperties,
+        IReadOnlyCollection<string>? optionalProperties = null)
     {
         if (element.ValueKind != JsonValueKind.Object)
         {
@@ -559,13 +569,13 @@ internal static class JsonContractReader
             {
                 throw new MappingMetadataFormatException($"{path} 含重複欄位。");
             }
-            if (!required.Contains(property.Name))
+            if (!required.Contains(property.Name) && !(optionalProperties?.Contains(property.Name) ?? false))
             {
                 throw new MappingMetadataFormatException($"{path} 含未知欄位。");
             }
         }
 
-        if (!seen.SetEquals(required))
+        if (!required.IsSubsetOf(seen))
         {
             throw new MappingMetadataFormatException($"{path} 缺少必要欄位。");
         }

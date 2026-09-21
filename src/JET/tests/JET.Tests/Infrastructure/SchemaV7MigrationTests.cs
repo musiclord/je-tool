@@ -122,7 +122,7 @@ public sealed class SchemaV7MigrationTests
 
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
 
-        Assert.Equal("10", await env.TextAsync(
+        Assert.Equal("11", await env.TextAsync(
             "SELECT value FROM schema_info WHERE key = 'schema_version';"));
         Assert.Equal(4, await env.V7TableCountAsync());
         Assert.Equal(
@@ -171,7 +171,7 @@ public sealed class SchemaV7MigrationTests
 
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
 
-        Assert.Equal("10", await env.TextAsync(
+        Assert.Equal("11", await env.TextAsync(
             "SELECT value FROM schema_info WHERE key='schema_version';"));
         Assert.Equal(0, await env.TableCountAsync("config_field_mapping_v7"));
         Assert.Equal(MappingMetadataFormat.CurrentVersion, await env.ScalarAsync(
@@ -203,7 +203,7 @@ public sealed class SchemaV7MigrationTests
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
 
-        Assert.Equal("10", await env.TextAsync(
+        Assert.Equal("11", await env.TextAsync(
             "SELECT value FROM schema_info WHERE key = 'schema_version';"));
         Assert.Equal(1, await env.ColumnCountAsync("target_gl_entry", "posting_status"));
         Assert.Equal(1, await env.ColumnCountAsync("target_gl_entry", "is_effective"));
@@ -245,7 +245,7 @@ public sealed class SchemaV7MigrationTests
 
         var reopened = env.CreateReopenedDatabase();
         await reopened.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
-        Assert.Equal("10", await env.TextAsync(
+        Assert.Equal("11", await env.TextAsync(
             "SELECT value FROM schema_info WHERE key = 'schema_version';"));
     }
 
@@ -311,7 +311,7 @@ public sealed class SchemaV7MigrationTests
             + "(SELECT COUNT(*) FROM target_gl_entry WHERE document_number='DOC-V6');";
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
-        Assert.Equal("10", reader.GetString(0));
+        Assert.Equal("11", reader.GetString(0));
         Assert.Equal(1, reader.GetInt64(1));
     }
 

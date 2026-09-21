@@ -101,9 +101,9 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
             var current = FilterPopulationScopeParser.RequireCurrentRevision(await scenarioStore.ListAsync(projectId, ct));
             if (current.Revision != savedRevision) throw Stale();
         }
-        // 整個情境只有「整張傳票的某側都不屬於某分類」這種傳票層條件時，命中列說明用「傳票條件成立」。
+        // 整個情境只有傳票量詞或不存在分類等傳票層條件時，列說明用「傳票條件成立」。
         var voucherConditionOnly = spec.Groups.Count > 0 && spec.Groups.All(group =>
-            group.Rules.All(rule => rule.Type == FilterRuleType.AccountSide && rule.CategoryMode == "absent"));
+            group.Rules.All(rule => rule.IsVoucherCondition));
         var categoryLabels = taxonomy.Categories.ToDictionary(item => item.CategoryId, item => item.Label);
         var fieldLabels = context.RdeFields.ToDictionary(item => item.FieldId, item => item.Label);
         string Condition(FilterConditionPosition position) => $"第 {position.Group} 組條件 {position.Rule}："

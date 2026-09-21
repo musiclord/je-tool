@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 完整性後端硬閘的 frontend mirror：前端只讀 validate.run 的 backend eligibility，
+/// 驗證結果可用性的 frontend mirror：前端只讀 validate.run 的 backend eligibility，
 /// 不得自行重算 part A／B，也不得讓缺少 additive 欄位的舊摘要放行。
 /// </summary>
 public sealed class CompletenessEligibilityFrontendTests
@@ -43,7 +43,7 @@ public sealed class CompletenessEligibilityFrontendTests
     }
 
     [Fact]
-    public void ValidationCardAndPrescreenButton_MirrorTheSharedEligibilityAndShowItsReason()
+    public void ValidationCardAndPrescreenButton_SeparateWarningsFromAvailability()
     {
         var validate = ReadFrontend("js", "steps", "validate-step.js");
         var prescreenCard = ExtractFunction(validate, "prescreenCardHtml");
@@ -60,7 +60,9 @@ public sealed class CompletenessEligibilityFrontendTests
         Assert.DoesNotContain("amountMatch", prescreenCard, StringComparison.Ordinal);
         Assert.DoesNotContain("diffAccountCount", prescreenCard, StringComparison.Ordinal);
         Assert.DoesNotContain("naReason", prescreenCard, StringComparison.Ordinal);
-        Assert.DoesNotContain("差異不擋", validate, StringComparison.Ordinal);
+        // 2026-09-17 裁定：可繼續操作仍須顯示差異，取代舊的禁止非阻擋提示斷言。
+        Assert.Contains("eligibility.warning", validate, StringComparison.Ordinal);
+        Assert.Contains("prefix: eligibility.reason || eligibility.warning", validate, StringComparison.Ordinal);
     }
 
     [Fact]
