@@ -10,7 +10,7 @@ public sealed class LocalProjectAuditLog(ILocalProjectDatabase database) : IProj
         ProjectAuditEvent auditEvent,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -37,7 +37,7 @@ public sealed class LocalProjectAuditLog(ILocalProjectDatabase database) : IProj
         string dataset,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();

@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 四項資料驗證的 set-based SQL 執行（guide §1.5.2：規則一律在 DB 引擎計算，
+/// 四項資料驗證的 set-based SQL 執行（規則一律在 DB 引擎計算，
 /// 不得載入完整 row set 用 LINQ）。完整性測試以 LEFT JOIN + UNION ALL 模擬
-/// FULL OUTER JOIN（guide §13：不依賴 SQLite 3.39+ 方言）。
+/// FULL OUTER JOIN（不依賴 SQLite 3.39+ 方言）。
 /// 診斷日誌（dev-only）：每個 SELECT/INSERT 走 <see cref="DiagnosticDb"/>、transaction 走 scope。
 /// </summary>
 public sealed class LocalValidationRunRepository(ILocalProjectDatabase database, ILogger<LocalValidationRunRepository>? logger = null)
@@ -24,18 +24,20 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
     // GL 側只取投影已落地的有效分錄)。
     private static readonly string CompletenessDiffCte = ValidationProcedures.CompletenessDiffCte;
 
-    Task<ValidationFacts> IValidationFactsPort.ExecuteAsync(
+    Task<RuleRunRecord> IValidationFactsPort.ExecuteAsync(
         ValidationPlan plan,
+        Func<ValidationFacts, RuleRunRecord> finalize,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(plan, cancellationToken);
+        ExecuteAsync(plan, finalize, cancellationToken);
 
-    internal async Task<ValidationFacts> ExecuteAsync(
+    internal async Task<RuleRunRecord> ExecuteAsync(
         ValidationPlan plan,
+        Func<ValidationFacts, RuleRunRecord> finalize,
         CancellationToken cancellationToken)
     {
         var input = plan.Request;
         var projectId = input.ProjectId;
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -78,12 +80,12 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
         var nullDetail = await ReadNullDetailAsync(connection, transaction, input, cancellationToken);
 
         var controlTotals = await ReadControlTotalsAsync(connection, transaction, cancellationToken);
+        var documentDateReuse = await ReadDocumentDateReuseAsync(connection, transaction, cancellationToken);
 
-        cancellationToken.ThrowIfCancellationRequested();
-        await transaction.CommitAsync(CancellationToken.None);
-        txLog.Committed();
+        var sourceQualityPage = await SourceQualityPageReader.ReadAsync(connection, transaction, database.Dialect,
+            string.Empty, new PageRequest(null, ResultPreviewLimits.SummaryRows), cancellationToken);
 
-        return new ValidationFacts(
+        var facts = new ValidationFacts(
             populationSummary,
             completenessCount,
             completenessDiffs,
@@ -97,7 +99,25 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
             unbalancedDetail,
             nullDetail,
             controlTotals,
-            amountBinCounts);
+            amountBinCounts,
+            documentDateReuse, sourceQualityPage.Rows);
+        var record = finalize(facts);
+        await LocalRuleRunStore.SaveWithinAsync(connection, transaction, record, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(CancellationToken.None);
+        txLog.Committed();
+        return record;
+    }
+
+    private async Task<DocumentDateReuseCounts> ReadDocumentDateReuseAsync(
+        DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = ValidationProcedures.DocumentDateReuseSummary();
+        await using var reader = await command.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        return new DocumentDateReuseCounts(reader.GetInt64(0), reader.GetInt64(1));
     }
 
     /// <summary>
@@ -228,13 +248,13 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
         command.Transaction = transaction;
         command.CommandText =
             CompletenessDiffCte +
-            """
+            $"""
 
             SELECT account_code, account_name, tb_s, gl_s, tb_s - gl_s, not_in_tb
             FROM diff
             WHERE tb_s <> gl_s
             ORDER BY ABS(tb_s - gl_s) DESC, account_code
-            LIMIT 50;
+            LIMIT {ResultPreviewLimits.SummaryRows};
             """;
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -260,8 +280,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
         // INF 抽樣 INSERT 走 ValidationProcedures.InfSampleInsert(有效母體、方言取 N 列)。
         command.CommandText = ValidationProcedures.InfSampleInsert(
             schemaPrefix: string.Empty,
-            database.Dialect,
-            input.SampleSeedVersion);
+            database.Dialect);
         command.AddWithValue("@runId", input.RunId);
         command.AddWithValue("@seed", input.SampleSeed);
         command.AddWithValue("@n", input.SampleSize);
@@ -274,12 +293,12 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        // §4 收斂:四類述詞走 NullRecordsCategoryPredicate 中心(計數/明細/分頁共用同一份;期外日期判準
+        // 四類述詞走 NullRecordsCategoryPredicate 中心(計數/明細/分頁共用同一份;期外日期判準
         // = approval_date，2026-06-23 決策)，且全部限有效母體。
         // 日期為投影時正規化的 yyyy-MM-dd ISO 字串，文字比較即時間序比較。
         var columns = string.Join(",\n                ",
             NullRecordsCategoryPredicate.All.Select(c =>
-                $"COALESCE(SUM(CASE WHEN {NullRecordsCategoryPredicate.ScopedSqlite(c)} THEN 1 ELSE 0 END), 0)"));
+                $"COALESCE(SUM(CASE WHEN {NullRecordsCategoryPredicate.Scoped(c, database.Dialect)} THEN 1 ELSE 0 END), 0)"));
         command.CommandText =
             $"""
             SELECT
@@ -319,7 +338,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
             "COALESCE(SUM(credit_amount_scaled), 0), " +
             "COALESCE(SUM(amount_scaled), 0) " +
             ValidationProcedures.UnbalancedCore() +
-            " ORDER BY ABS(SUM(amount_scaled)) DESC, document_number LIMIT 50;";
+            $" ORDER BY ABS(SUM(amount_scaled)) DESC, document_number LIMIT {ResultPreviewLimits.SummaryRows};";
         var rows = new List<UnbalancedDocument>();
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -343,9 +362,9 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
         // 四類旗標與 WHERE 皆走 NullRecordsCategoryPredicate 中心，且全部限有效母體。
         var flags = string.Join(",\n                   ",
             NullRecordsCategoryPredicate.All.Select(c =>
-                $"CASE WHEN {NullRecordsCategoryPredicate.ScopedSqlite(c)} THEN 1 ELSE 0 END"));
+                $"CASE WHEN {NullRecordsCategoryPredicate.Scoped(c, database.Dialect)} THEN 1 ELSE 0 END"));
         var anyMatch = string.Join("\n               OR ",
-            NullRecordsCategoryPredicate.All.Select(NullRecordsCategoryPredicate.ScopedSqlite));
+            NullRecordsCategoryPredicate.All.Select(c => NullRecordsCategoryPredicate.Scoped(c, database.Dialect)));
         command.CommandText =
             $"""
             SELECT document_number, account_code, post_date, document_description,
@@ -353,7 +372,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
             FROM target_gl_entry
             WHERE ({anyMatch})
             ORDER BY source_row_number, entry_id
-            LIMIT 50;
+            LIMIT {ResultPreviewLimits.SummaryRows};
             """;
         BindPeriod(command, input);
 

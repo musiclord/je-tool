@@ -23,7 +23,6 @@ internal sealed record FilterRequest(
 /// <summary>AuditCore-owned filter plan shared by preview and materialization.</summary>
 internal sealed record FilterPlan(
     FilterRequest Request,
-    ProgramNode Node,
     IReadOnlyList<FilterCommitItem> CommitItems);
 
 /// <summary>Raw execution facts returned by the Infrastructure filter port.</summary>
@@ -38,7 +37,7 @@ internal sealed record FilterResult(
     int MaterializedScenarioCount);
 
 /// <summary>
-/// Typed filter execution port. Infrastructure performs provider routing, command binding,
+/// Typed filter execution port. Infrastructure performs provider-specific command binding,
 /// set-based execution and materialization without owning scenario validity decisions.
 /// </summary>
 internal interface IFilterFactsPort
@@ -52,7 +51,7 @@ public static partial class JetAuditProgram
 {
     private const string FilterPreviewAction = "filter.preview";
     private const string FilterCommitAction = "filter.commit";
-    private const int MaxFilterScenarios = 10;
+    private const int MaxFilterScenarios = FilterScenarioLimits.MaxSavedScenarios;
 
     /// <summary>
     /// Plans one preview document or a bounded commit set. Domain validation remains the
@@ -74,7 +73,7 @@ public static partial class JetAuditProgram
             case FilterCommitAction when request.Documents.Count > MaxFilterScenarios:
                 throw new JetActionException(
                     JetErrorCodes.ScenarioLimitReached,
-                    $"最多保存 {MaxFilterScenarios} 個篩選情境。");
+                    $"最多儲存 {MaxFilterScenarios} 個篩選情境。");
             case FilterPreviewAction:
             case FilterCommitAction:
                 break;
@@ -105,10 +104,7 @@ public static partial class JetAuditProgram
             if (definitions is null)
             {
                 commitItems = [];
-                return new FilterPlan(
-                    request,
-                    ProgramGraph.Current.RequireNode(request.ActionName),
-                    commitItems);
+                return new FilterPlan(request, commitItems);
             }
 
             if (savedDefinitions.Count != request.Documents.Count)
@@ -143,21 +139,7 @@ public static partial class JetAuditProgram
             commitItems = [];
         }
 
-        return new FilterPlan(
-            request,
-            ProgramGraph.Current.RequireNode(request.ActionName),
-            commitItems);
-    }
-
-    /// <summary>Executes the typed plan through the provider-neutral facts port.</summary>
-    internal static Task<FilterFacts> ExecuteAsync(
-        FilterPlan plan,
-        IFilterFactsPort factsPort,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        return factsPort.ExecuteAsync(plan, cancellationToken);
+        return new FilterPlan(request, commitItems);
     }
 
     /// <summary>Finalizes raw facts without changing preview or hit-set semantics.</summary>
@@ -186,15 +168,4 @@ public static partial class JetAuditProgram
             facts.MaterializedScenarioCount);
     }
 
-    /// <summary>Internal review text for the finalized filter lifecycle.</summary>
-    internal static string Explain(FilterResult result)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-
-        var scope = GlPopulationScopeValues.DisplayName(
-            result.Plan.Request.RuleContext.PopulationScope);
-        return $"{result.Plan.Request.ActionName}：母體={scope}；"
-            + $"情境數={result.Plan.Request.Documents.Count}；"
-            + $"已物化情境數={result.MaterializedScenarioCount}。";
-    }
 }

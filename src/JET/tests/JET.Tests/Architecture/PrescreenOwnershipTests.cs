@@ -14,6 +14,18 @@ public sealed class PrescreenOwnershipTests
         Assert.Null(ProductionAssembly.GetType("JET.Infrastructure.PrescreenAuditRuntime"));
     }
 
+    /// <remarks>
+    /// 2026-10-02 資料庫分流簡化：分流層刪除後，handler 直接拿到該種資料庫組裡的實作。原本要求存在的
+    /// ProviderRoutingPrescreenFactsPort（須為 internal）與 ProviderRoutingPrescreenRunRepository（須為 public）
+    /// 已刪除，從下面兩個清單移出，改在這裡確認它們不再存在。第一次失敗收據：20261002-120525875-ce1f07f5d912434b86ce8a6eef43759e。
+    /// </remarks>
+    [Theory]
+    [InlineData("JET.Infrastructure.ProviderRoutingPrescreenFactsPort")]
+    public void ProviderRoutingPrescreenTypes_AreRemovedWithRoutingLayer(string name)
+    {
+        Assert.Null(ProductionAssembly.GetType(name));
+    }
+
     [Fact]
     public void TypedPrescreenSurface_IsInternal()
     {
@@ -28,8 +40,7 @@ public sealed class PrescreenOwnershipTests
             "JET.Domain.ITypedPrescreenReportWriter",
             "JET.Domain.PrescreenReportProjection",
             "JET.Domain.PrescreenReportRuleProjection",
-            "JET.Infrastructure.PrescreenExecutionInput",
-            "JET.Infrastructure.ProviderRoutingPrescreenFactsPort"
+            "JET.Infrastructure.PrescreenExecutionInput"
         };
 
         foreach (var name in expected)
@@ -43,7 +54,6 @@ public sealed class PrescreenOwnershipTests
     [Theory]
     [InlineData("JET.Application.PrescreenRunHandler")]
     [InlineData("JET.Infrastructure.LocalPrescreenRunRepository")]
-    [InlineData("JET.Infrastructure.ProviderRoutingPrescreenRunRepository")]
     [InlineData("JET.Infrastructure.SqlServerPrescreenRunRepository")]
     public void ExistingProductionTypes_RemainPublicDuringTypedCutover(string name)
     {

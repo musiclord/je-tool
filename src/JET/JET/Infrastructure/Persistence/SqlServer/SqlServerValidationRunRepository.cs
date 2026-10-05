@@ -23,13 +23,15 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
     // 完整性 CTE 單一事實來源:見 ValidationProcedures.CompletenessDiffCte(completenessDiffPage repo 共用同一份)。
     // SQL Server 路徑以 CompletenessDiffCteFor 前綴專案 schema(內含 target_gl_entry/target_tb_balance)。
 
-    Task<ValidationFacts> IValidationFactsPort.ExecuteAsync(
+    Task<RuleRunRecord> IValidationFactsPort.ExecuteAsync(
         ValidationPlan plan,
+        Func<ValidationFacts, RuleRunRecord> finalize,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(plan, cancellationToken);
+        ExecuteAsync(plan, finalize, cancellationToken);
 
-    internal async Task<ValidationFacts> ExecuteAsync(
+    internal async Task<RuleRunRecord> ExecuteAsync(
         ValidationPlan plan,
+        Func<ValidationFacts, RuleRunRecord> finalize,
         CancellationToken cancellationToken)
     {
         var input = plan.Request;
@@ -80,12 +82,11 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         var nullDetail = await ReadNullDetailAsync(connection, projectId, transaction, input, cancellationToken);
 
         var controlTotals = await ReadControlTotalsAsync(connection, projectId, transaction, cancellationToken);
+        var documentDateReuse = await ReadDocumentDateReuseAsync(connection, projectId, transaction, cancellationToken);
 
-        cancellationToken.ThrowIfCancellationRequested();
-        await transaction.CommitAsync(CancellationToken.None);
-        txLog.Committed();
-
-        return new ValidationFacts(
+        var sourceQualityPage = await SourceQualityPageReader.ReadAsync(connection, transaction, SqlServerDialect.Instance,
+            SqlServerProjectSchema.QualifierFor(projectId), new PageRequest(null, ResultPreviewLimits.SummaryRows), cancellationToken);
+        var facts = new ValidationFacts(
             populationSummary,
             completenessCount,
             completenessDiffs,
@@ -99,7 +100,25 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
             unbalancedDetail,
             nullDetail,
             controlTotals,
-            amountBinCounts);
+            amountBinCounts,
+            documentDateReuse, sourceQualityPage.Rows);
+        var record = finalize(facts);
+        await SqlServerRuleRunStore.SaveWithinAsync(database, connection, transaction, projectId, record, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(CancellationToken.None);
+        txLog.Committed();
+        return record;
+    }
+
+    private async Task<DocumentDateReuseCounts> ReadDocumentDateReuseAsync(
+        SqlConnection connection, string projectId, SqlTransaction transaction, CancellationToken cancellationToken)
+    {
+        await using var command = database.CreateCommand(connection, projectId,
+            ValidationProcedures.DocumentDateReuseSummary("{s}.", "COUNT_BIG"));
+        command.Transaction = transaction;
+        await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        return new DocumentDateReuseCounts(reader.GetInt64(0), reader.GetInt64(1));
     }
 
     /// <summary>
@@ -231,9 +250,9 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
 
         await using var command = database.CreateCommand(connection, projectId,
             completenessDiffCte +
-            """
+            $"""
 
-            SELECT TOP (50) account_code, account_name, tb_s, gl_s, tb_s - gl_s, not_in_tb
+            SELECT TOP ({ResultPreviewLimits.SummaryRows}) account_code, account_name, tb_s, gl_s, tb_s - gl_s, not_in_tb
             FROM diff
             WHERE tb_s <> gl_s
             ORDER BY ABS(tb_s - gl_s) DESC, account_code;
@@ -260,13 +279,12 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
     {
         // INF 抽樣 INSERT 走 ValidationProcedures.InfSampleInsert(有效母體;方言取 N 列走
         // SqlServerDialect 的 OFFSET/FETCH，結果集與原 TOP(@n) 等價)。source_row_number 與 @seed 皆 BIGINT；
-        // v1 保留線性模式，v2 的 Feistel 中間值與輸出也都在 signed BIGINT 內，三 provider 精確等價。
+        // Feistel 排序鍵的中間值與輸出都在 signed BIGINT 內，三 provider 精確等價。
         // {s} 由 CreateCommand 展開專案 schema。
         await using var command = database.CreateCommand(connection, projectId,
             ValidationProcedures.InfSampleInsert(
                 schemaPrefix: "{s}.",
-                SqlServerDialect.Instance,
-                input.SampleSeedVersion));
+                SqlServerDialect.Instance));
         command.Transaction = transaction;
         command.Parameters.AddWithValue("@runId", input.RunId);
         command.Parameters.AddWithValue("@seed", input.SampleSeed);
@@ -278,12 +296,12 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         SqlConnection connection, string projectId, SqlTransaction transaction,
         ValidationRequest input, CancellationToken cancellationToken)
     {
-        // §4 收斂:四類述詞走 NullRecordsCategoryPredicate 中心(SqlServer 空白判定 LTRIM(RTRIM);期外日期
+        // 四類述詞走 NullRecordsCategoryPredicate 中心(SqlServer 空白判定 LTRIM(RTRIM);期外日期
         // = approval_date)，且全部限有效母體。SUM(CASE→int) 在 SQL Server 回 INT,CAST AS BIGINT 對齊 long。
         // 日期為投影時正規化的 yyyy-MM-dd ISO 字串,文字比較即時間序比較。
         var columns = string.Join(",\n                ",
             NullRecordsCategoryPredicate.All.Select(c =>
-                $"COALESCE(SUM(CAST(CASE WHEN {NullRecordsCategoryPredicate.ScopedSqlServer(c)} THEN 1 ELSE 0 END AS BIGINT)), 0)"));
+                $"COALESCE(SUM(CAST(CASE WHEN {NullRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)} THEN 1 ELSE 0 END AS BIGINT)), 0)"));
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
             SELECT
@@ -319,7 +337,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
     {
         // 母體核心走 ValidationProcedures.UnbalancedCore(有效分錄限定;{s} 由 CreateCommand 展開)。
         await using var command = database.CreateCommand(connection, projectId,
-            "SELECT TOP (50) document_number, " +
+            $"SELECT TOP ({ResultPreviewLimits.SummaryRows}) document_number, " +
             "COALESCE(SUM(debit_amount_scaled), 0), " +
             "COALESCE(SUM(credit_amount_scaled), 0), " +
             "COALESCE(SUM(amount_scaled), 0) " +
@@ -347,12 +365,12 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         // 四類旗標與 WHERE 皆走 NullRecordsCategoryPredicate 中心，且全部限有效母體。
         var flags = string.Join(",\n                   ",
             NullRecordsCategoryPredicate.All.Select(c =>
-                $"CASE WHEN {NullRecordsCategoryPredicate.ScopedSqlServer(c)} THEN 1 ELSE 0 END"));
+                $"CASE WHEN {NullRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)} THEN 1 ELSE 0 END"));
         var anyMatch = string.Join("\n               OR ",
-            NullRecordsCategoryPredicate.All.Select(NullRecordsCategoryPredicate.ScopedSqlServer));
+            NullRecordsCategoryPredicate.All.Select(c => NullRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)));
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
-            SELECT TOP (50) document_number, account_code, post_date, document_description,
+            SELECT TOP ({{ResultPreviewLimits.SummaryRows}}) document_number, account_code, post_date, document_description,
                    {{flags}}
             FROM {s}.target_gl_entry
             WHERE ({{anyMatch}})

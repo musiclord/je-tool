@@ -29,7 +29,7 @@ public interface INullRecordsPageRepository
 }
 
 /// <summary>
-/// 空值紀錄分頁的 category 白名單(對應 manifest 四值)。字串→列舉的解析與驗證由 handler 負責;
+/// 空值紀錄分頁的 category 白名單(前端可送的四個值)。字串→列舉的解析與驗證由 handler 負責;
 /// repo 只接受合法列舉,故 SQL 述詞選擇是封閉集合(無任意字串注入面)。
 /// </summary>
 public enum NullRecordCategory
@@ -47,13 +47,13 @@ public enum NullRecordCategory
 /// 消費端以 bounded page 串流逐科目輸出；母體大小完全由目前專案查詢結果決定，不預設案件識別或固定筆數。
 ///
 /// 為什麼是獨立介面而非在 diff repo 加參數:呼叫語意是「全科目 vs 僅差異」兩種不同視圖,
-/// 各有固定消費者(step1 全科目、step1-3 僅差異);用布林旗標切會讓 SQL 多一條 god-switch,
-/// 拆兩個窄介面讓各 repo 的 WHERE 固定、可讀,符合 data-structure first 與 deep module。
+/// 各有固定消費者(step1 全科目、step1-3 僅差異);用布林旗標切會讓同一段 SQL 多一條分支,
+/// 拆兩個窄介面讓各 repo 的 WHERE 固定、可讀。
 /// 回傳型別共用 <see cref="CompletenessDiffAccount"/>(欄位相同:科目編號/名稱/TB/GL/差異/not-in-tb)。
 /// </summary>
 public interface ICompletenessAccountPageRepository
 {
-    /// <summary>periodStart/periodEnd 界定完整性 GL 彙總的本期母體（§2；與 CTE 8 消費端一致）。</summary>
+    /// <summary>periodStart/periodEnd 界定完整性 GL 彙總的本期母體（與 CTE 8 消費端一致）。</summary>
     Task<PageResult<CompletenessDiffAccount>> GetPageAsync(
         string projectId, int moneyScale, string periodStart, string periodEnd, PageRequest request, CancellationToken cancellationToken);
 }
@@ -74,7 +74,7 @@ public interface IAccountMappingBlankPageRepository
 
 public interface ICompletenessDiffPageRepository
 {
-    /// <summary>periodStart/periodEnd 界定完整性 GL 彙總的本期母體（§2；與 CTE 8 消費端一致）。</summary>
+    /// <summary>periodStart/periodEnd 界定完整性 GL 彙總的本期母體（與 CTE 8 消費端一致）。</summary>
     Task<PageResult<CompletenessDiffAccount>> GetPageAsync(
         string projectId, int moneyScale, string periodStart, string periodEnd, PageRequest request, CancellationToken cancellationToken);
 }
@@ -86,9 +86,16 @@ public interface ICompletenessDiffPageRepository
 /// </summary>
 public interface IDocBalancePageRepository
 {
-    /// <summary>periodStart/periodEnd 界定借貸不平母體的本期口徑（§2；與 validate.run 計數端同口徑）。</summary>
+    /// <summary>periodStart/periodEnd 界定借貸不平母體的本期口徑（與 validate.run 計數端同口徑）。</summary>
     Task<PageResult<UnbalancedDocument>> GetPageAsync(
         string projectId, int moneyScale, string periodStart, string periodEnd, PageRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 同一批不平傳票，依傳票號碼與總帳入帳日彙總後依序串流，供底稿 Step 1-1 明細表逐列寫出。
+    /// 判定哪些傳票不平仍只看傳票號碼，與 <see cref="GetPageAsync"/> 同口徑。
+    /// </summary>
+    IAsyncEnumerable<UnbalancedVoucherDateRow> StreamVoucherDateRowsAsync(
+        string projectId, CancellationToken cancellationToken);
 }
 
 /// <summary>

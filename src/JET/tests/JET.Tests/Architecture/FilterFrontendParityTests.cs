@@ -22,10 +22,11 @@ public sealed class FilterFrontendParityTests
                 $"{pair.Key}|{pair.Value}N")
             .OrderBy(static value => value, StringComparer.Ordinal)
             .ToArray();
+        // 2026-10-03 用語統一 T1：「所選母體」改為「分錄測試範圍」，前後端一起改（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         var expected = new[]
         {
-            "customAccountEntryCount|所選母體內科目分錄筆數 ≤ N",
-            "customPreparerEntryCount|所選母體內編製人員分錄筆數 ≤ N"
+            "customAccountEntryCount|分錄測試範圍內科目分錄筆數 ≤ N",
+            "customPreparerEntryCount|分錄測試範圍內編製人員分錄筆數 ≤ N"
         };
 
         Assert.Equal(expected, actual);

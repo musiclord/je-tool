@@ -3,6 +3,8 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 第 9 批中低 9：TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -68,6 +70,8 @@ public sealed class LegacyFieldDefinitionProjectionTests
             GlDualSpec(),
             moneyScale: 10_000,
             DateParseOptions.Default,
+            periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
             CancellationToken.None);
 
         Assert.Empty(result.Errors);
@@ -176,7 +180,7 @@ public sealed class LegacyFieldDefinitionProjectionTests
             batch.BatchId,
             TbNonDirectSpec(changeMode),
             moneyScale: 10_000,
-            CancellationToken.None);
+            committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
 
         Assert.Empty(result.Errors);
         var definitions = await fixture.Facts.ReadAsync(
@@ -239,6 +243,8 @@ public sealed class LegacyFieldDefinitionProjectionTests
             GlDualSpec(),
             moneyScale: 10_000,
             DateParseOptions.Default,
+            periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
             CancellationToken.None);
         Assert.Empty(first.Errors);
         var before = await fixture.Facts.ReadAsync(
@@ -265,6 +271,8 @@ public sealed class LegacyFieldDefinitionProjectionTests
             invalidSignedSpec,
             moneyScale: 10_000,
             DateParseOptions.Default,
+            periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
             CancellationToken.None);
 
         Assert.NotEmpty(failed.Errors);
@@ -299,6 +307,8 @@ public sealed class LegacyFieldDefinitionProjectionTests
             spec,
             moneyScale: 10_000,
             DateParseOptions.Default,
+            periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
             CancellationToken.None);
 
         Assert.Empty(result.Errors);
@@ -346,7 +356,7 @@ public sealed class LegacyFieldDefinitionProjectionTests
             batch.BatchId,
             spec,
             moneyScale: 10_000,
-            CancellationToken.None);
+            committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
 
         Assert.Empty(result.Errors);
         var definitions = await fixture.Facts.ReadAsync(
@@ -397,6 +407,10 @@ public sealed class LegacyFieldDefinitionProjectionTests
                 mapping[GlMappingKeys.Amount] = "金額";
                 mapping[GlMappingKeys.DcField] = "借貸別";
                 mapping[GlMappingKeys.DcDebitCode] = mode == GlAmountMode.AmountWithFlag ? "1" : "D";
+                // 2026-10-04 R9：來源只有 D；flag 刻意設定借方 1、貸方 D，保留原來投影的符號。
+                // 此案例只驗 metadata，不把舊來源改成 1，也不放寬任何欄位描述斷言。
+                // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+                mapping[GlMappingKeys.DcCreditCode] = mode == GlAmountMode.AmountWithFlag ? "D" : "C";
                 break;
             case GlAmountMode.DualAmount:
                 mapping[GlMappingKeys.DebitAmount] = "借方";
@@ -550,9 +564,9 @@ public sealed class LegacyFieldDefinitionProjectionTests
             return (await new LocalImportRepository(Database).ReplaceBatchAsync(
                 ProjectId,
                 DatasetKind.Gl,
-                Source("gl.xlsx"),
+                [new ImportSourceInput(Source("gl.xlsx"),
                 cells.Select(static cell => cell.FieldName).ToArray(),
-                ToAsync([ObservedRow(2, cells)]),
+                ToAsync([ObservedRow(2, cells)]))],
                 CancellationToken.None)).Batch;
         }
 
@@ -577,9 +591,9 @@ public sealed class LegacyFieldDefinitionProjectionTests
             return (await new LocalImportRepository(Database).ReplaceBatchAsync(
                 ProjectId,
                 DatasetKind.Tb,
-                Source("tb.xlsx"),
+                [new ImportSourceInput(Source("tb.xlsx"),
                 cells.Select(static cell => cell.FieldName).ToArray(),
-                ToAsync([ObservedRow(2, cells)]),
+                ToAsync([ObservedRow(2, cells)]))],
                 CancellationToken.None)).Batch;
         }
 

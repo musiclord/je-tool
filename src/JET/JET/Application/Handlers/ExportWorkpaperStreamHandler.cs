@@ -10,46 +10,18 @@ namespace JET.Application;
 /// </summary>
 public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
 {
-    private readonly IWorkpaperPlanWriter planWriter;
-    private readonly IWorkpaperPlanningFactsPort planningFactsPort;
-    private readonly IFilterScenarioStore scenarioStore;
-    private readonly FilterRunMaterializeService materializeService;
-    private readonly IRuleRunStore runStore;
-    private readonly IResultStaleStateStore resultStaleStateStore;
     private readonly IProjectStore projectStore;
-    private readonly IReportArtifactStore artifactStore;
     private readonly ProjectSession session;
     private readonly IJetEventPublisher eventPublisher;
-    private readonly IMappingStateStore mappingStore;
-    private readonly IAccountTaxonomyStore accountTaxonomyStore;
 
     internal ExportWorkpaperStreamHandler(
-        IWorkpaperPlanWriter planWriter,
-        IWorkpaperPlanningFactsPort planningFactsPort,
-        IFilterScenarioStore scenarioStore,
-        FilterRunMaterializeService materializeService,
-        IRuleRunStore runStore,
-        IResultStaleStateStore resultStaleStateStore,
         IProjectStore projectStore,
-        IReportArtifactStore artifactStore,
         ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IMappingStateStore mappingStore,
-        IAccountTaxonomyStore accountTaxonomyStore)
+        IJetEventPublisher eventPublisher)
     {
-        this.planWriter = planWriter;
-        this.planningFactsPort = planningFactsPort;
-        this.scenarioStore = scenarioStore;
-        this.materializeService = materializeService;
-        this.runStore = runStore;
-        this.resultStaleStateStore = resultStaleStateStore;
         this.projectStore = projectStore;
-        this.artifactStore = artifactStore;
         this.session = session;
         this.eventPublisher = eventPublisher;
-        this.mappingStore = mappingStore ?? throw new ArgumentNullException(nameof(mappingStore));
-        this.accountTaxonomyStore = accountTaxonomyStore
-            ?? throw new ArgumentNullException(nameof(accountTaxonomyStore));
     }
 
     public string Action => "export.workpaperStream";
@@ -72,7 +44,16 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少 'validationRunId'。");
         var scenarioRevision = PayloadReader.GetOptionalString(payload, "scenarioRevision")
             ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少 'scenarioRevision'。");
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
+        var planWriter = repositories.WorkpaperPlanWriter;
+        var planningFactsPort = repositories.WorkpaperPlanningFacts;
+        var scenarioStore = repositories.FilterScenarios;
+        var materializeService = repositories.FilterRunMaterializeService;
+        var runStore = repositories.RuleRuns;
+        var resultStaleStateStore = repositories.ResultStaleStates;
+        var artifactStore = repositories.ReportArtifactStore;
+        var mappingStore = repositories.MappingStates;
+        var accountTaxonomyStore = repositories.AccountTaxonomy;
         var validationRun = await CompletenessEligibilitySupport.RequireCurrentAsync(
             runStore,
             projectId,
@@ -87,6 +68,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             cancellationToken);
         latestPrescreen = RuleLogicVersions.IsCurrent(latestPrescreen) ? latestPrescreen : null;
         var staleState = await resultStaleStateStore.ReadAsync(projectId, cancellationToken);
+        var filterDataRevision = await resultStaleStateStore.ReadFilterDataRevisionAsync(projectId, cancellationToken);
         var scenarios = await scenarioStore.ListAsync(projectId, cancellationToken);
         var filterRevision = ReportExportSupport.RequireRevisionState(scenarios, scenarioRevision);
         scenarioRevision = filterRevision.Revision;
@@ -95,7 +77,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             .Select(scenario => scenario.Position)
             .Order()
             .ToArray();
-        var refreshedArtifacts = await ReportExportSupport.RefreshArtifactsAsync(
+        await ReportExportSupport.RefreshArtifactsAsync(
             projectId,
             validationRun,
             latestPrescreen,
@@ -103,18 +85,14 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             scenarioRevision,
             allScenarioPositions,
             artifactStore,
-            cancellationToken);
-        await ReportExportSupport.RequireCurrentCriteriaSelectionReportAsync(
-            artifactStore,
-            projectId,
-            refreshedArtifacts,
-            cancellationToken);
-
+            cancellationToken,
+            filterDataRevision);
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
 
-        // materializer 的 replace-all 形狀要求全部已存情境；writer 再依 selectedPositions 投影欄位。
-        await materializeService.MaterializeAllAsync(projectId, document, scenarios, cancellationToken);
+        // 本次只重算使用者選定的情境；未選情境仍保存，且不因此取得「全案已更新」狀態。
+        await materializeService.MaterializeSelectedAsync(projectId, document, scenarios, selectedPositions, cancellationToken);
+        var filterResultsCurrent = !(await resultStaleStateStore.ReadAsync(projectId, cancellationToken)).Filter;
 
         var selected = selectedPositions.ToHashSet();
         var selectedScenarios = scenarios
@@ -123,6 +101,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
         var scenarioSelections = new List<WorkpaperScenarioSelection>(selectedPositions.Count);
         IReadOnlyDictionary<string, string>? conditionCategoryLabels = null;
         IReadOnlyDictionary<string, string>? conditionFieldLabels = null;
+        IReadOnlyList<AccountTaxonomyCategory>? conditionCategories = null;
         foreach (var scenario in selectedScenarios)
         {
             using var definition = JsonDocument.Parse(scenario.DefinitionJson);
@@ -132,11 +111,12 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             if (conditionCategoryLabels is null)
             {
                 var taxonomy = await accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
+                conditionCategories = taxonomy.Categories;
                 conditionCategoryLabels = taxonomy.Categories.ToDictionary(category => category.CategoryId, category => category.Label);
                 var mapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
                 conditionFieldLabels = (mapping?.GlOptions?.RdeFields ?? []).ToDictionary(field => field.FieldId, field => field.Label);
             }
-            var conditionLogic = FilterConditionRenderer.Render(definition.RootElement, conditionCategoryLabels, conditionFieldLabels);
+            var conditionLogic = FilterConditionRenderer.Render(definition.RootElement, conditionCategoryLabels, conditionFieldLabels, conditionCategories, document.LastAccountingPeriodDate);
             scenarioSelections.Add(new WorkpaperScenarioSelection(
                 scenario.Position,
                 scenario.Name,
@@ -147,7 +127,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
 
         var context = new WorkpaperContext(
             ProjectId: projectId,
-            CompanyName: document.EntityName,
+            CompanyName: ReportExportSupport.CompanyName(document),
             PeriodStart: document.PeriodStart,
             PeriodEnd: document.PeriodEnd,
             LastPeriodStart: document.LastAccountingPeriodDate,
@@ -180,9 +160,8 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             PopulationScope: filterRevision.PopulationScope,
             WorkbookMetadata: workbookMetadata,
             CustomFields: customFields));
-        var facts = await JetAuditProgram.ExecuteAsync(
+        var facts = await planningFactsPort.ExecuteAsync(
             plan,
-            planningFactsPort,
             cancellationToken);
         var finalizedPlan = JetAuditProgram.Finalize(plan, facts);
 
@@ -192,7 +171,8 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
                 new ReportArtifactSourceRefs(
                     ValidationRunId: validationRun.RunId,
                     ScenarioRevision: scenarioRevision,
-                    ScenarioPositions: selectedPositions),
+                    ScenarioPositions: selectedPositions,
+                    FilterDataRevision: filterDataRevision),
                 async (stream, ct) =>
                 {
                     exportStats = await planWriter.WriteAsync(
@@ -211,11 +191,15 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
                 cancellationToken)
             : await artifactStore.WriteAsync(projectId, request, cancellationToken);
 
+        var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore);
         return new
         {
             ok = true,
+            filterResultsCurrent,
             artifact = ReportExportSupport.ArtifactWire(artifact),
-            reportArtifacts = await ReportExportSupport.ReadArtifactCatalogAfterPublicationAsync(artifactStore, projectId),
+            reportArtifacts = catalog.Artifacts,
+            reportArtifactWarning = catalog.Warning,
             sheetStats = (exportStats?.SheetStats ?? Array.Empty<SheetStat>())
                 .Select(item => (object)new { sheetName = item.SheetName, rowsWritten = item.RowsWritten })
                 .ToArray()

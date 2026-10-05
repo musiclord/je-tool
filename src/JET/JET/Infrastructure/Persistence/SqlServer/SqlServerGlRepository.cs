@@ -10,9 +10,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// GL staging → target 投影的 SQL Server 實作(guide §13;對應 <see cref="LocalGlRepository"/>)。
+/// GL staging → target 投影的 SQL Server 實作(對應 <see cref="LocalGlRepository"/>)。
 /// 重用 Domain 純函式 <see cref="GlRowProjector"/>/<see cref="MoneyScaling"/>(零 DB 耦合),
-/// 差異僅在:批次插入用 <see cref="SqlBulkCopy"/>(§13 指定)、以串流投影 reader 餵入。
+/// 差異僅在:批次插入用 <see cref="SqlBulkCopy"/>、以串流投影 reader 餵入。
 ///
 /// 連線拆兩條:staging 為已提交的不可變上游,於獨立 read 連線串流;DELETE target /
 /// 結果失效 / bulk insert 在 write 連線的單一交易內完成(避免同連線同時開 reader 又寫入的
@@ -133,10 +133,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
         {
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
-            return new ProjectionResult(0, projectionReader.Errors)
-            {
-                TotalErrorCount = projectionReader.TotalErrorCount
-            };
+            return projectionReader.FailedResult();
         }
 
         if (projectionReader.EffectiveRowCount == 0)
@@ -184,7 +181,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             await number.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
         }
 
-        // part(a) 控制總數落地（同一交易、commit 之前;MERGE 單列 upsert,語意對齊 SQLite ON CONFLICT）。
+        // 完整性測試的匯入控制總數落地（同一交易、commit 之前;MERGE 單列 upsert,語意對齊 SQLite ON CONFLICT）。
         await using (var ct = database.CreateCommand(writeConnection, projectId,
             """
                 MERGE {s}.gl_control_total AS target
@@ -239,12 +236,12 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
         {
             var emptyTextColumns = new HashSet<string>();
             await using (var probe = database.CreateCommand(writeConnection, projectId,
-                """
+                $$"""
                     SELECT
-                      SUM(CAST(CASE WHEN document_number IS NOT NULL AND LTRIM(RTRIM(document_number)) <> '' THEN 1 ELSE 0 END AS BIGINT)),
-                      SUM(CAST(CASE WHEN account_code IS NOT NULL AND LTRIM(RTRIM(account_code)) <> '' THEN 1 ELSE 0 END AS BIGINT)),
-                      SUM(CAST(CASE WHEN account_name IS NOT NULL AND LTRIM(RTRIM(account_name)) <> '' THEN 1 ELSE 0 END AS BIGINT)),
-                      SUM(CAST(CASE WHEN document_description IS NOT NULL AND LTRIM(RTRIM(document_description)) <> '' THEN 1 ELSE 0 END AS BIGINT))
+                      SUM(CAST(CASE WHEN document_number IS NOT NULL AND {{SqlServerDialect.Instance.Trim("document_number")}} <> '' THEN 1 ELSE 0 END AS BIGINT)),
+                      SUM(CAST(CASE WHEN account_code IS NOT NULL AND {{SqlServerDialect.Instance.Trim("account_code")}} <> '' THEN 1 ELSE 0 END AS BIGINT)),
+                      SUM(CAST(CASE WHEN account_name IS NOT NULL AND {{SqlServerDialect.Instance.Trim("account_name")}} <> '' THEN 1 ELSE 0 END AS BIGINT)),
+                      SUM(CAST(CASE WHEN document_description IS NOT NULL AND {{SqlServerDialect.Instance.Trim("document_description")}} <> '' THEN 1 ELSE 0 END AS BIGINT))
                     FROM {s}.target_gl_entry;
                     """))
             {
@@ -256,7 +253,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
                 if (reader.GetInt64(2) == 0) { emptyTextColumns.Add("account_name"); }
                 if (reader.GetInt64(3) == 0) { emptyTextColumns.Add("document_description"); }
             }
-            warnings = GlMappedColumnAudit.Build(spec, emptyTextColumns);
+            warnings = [.. GlMappedColumnAudit.Build(spec, emptyTextColumns), .. projectionReader.ManualAutoCodes.Warnings()];
         }
 
         await ReplaceRdeProjectionAsync(

@@ -118,7 +118,7 @@ public sealed class FilterNestedVoucherWorkflowTests
         {
             using var book = new XLWorkbook(file);
             var text = string.Join("\n", book.Worksheets.Where(s => s.Visibility == XLWorksheetVisibility.Visible).SelectMany(s => s.CellsUsed()).Select(c => c.GetString()));
-            Assert.Contains("全部符合（至少有一筆）", text); Assert.Contains("包含下層分類", text); Assert.Contains("相同審計角色", text); Assert.Contains(" 或 ", text);
+            Assert.Contains("全部符合（至少有一筆）", text); Assert.Contains("包含下層分類", text); Assert.Contains("相同分類用途", text); Assert.Contains(" 或 ", text);
         }
         // Changing hierarchy invalidates materialized answers; after retry the saved AST uses the new tree.
         categories[6]!["parentCategoryId"] = peer;

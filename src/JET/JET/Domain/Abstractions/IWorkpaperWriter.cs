@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 匯出底稿(WorkingPaper).xlsx 寫出器的窄介面(deep module 的對外面):一次呼叫把整份底稿
+/// 匯出底稿(WorkingPaper).xlsx 寫出器的窄介面(細節全藏在實作裡):一次呼叫把整份底稿
 /// 串流寫進 <paramref name="output"/>,回 <see cref="ExportStats"/>(位元組數 + 各表列數)。
 ///
 /// 為什麼介面在 Domain、實作在 Infrastructure:Application 的 export handler 注入此介面編排匯出,

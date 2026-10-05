@@ -70,4 +70,4 @@ SQL Server 與管理政策再設計及驗收：
 
 這些項目需要新的公司環境決策，不能依舊設計草稿直接實作或宣稱已驗收。重啟時依當時程式碼另寫短期
 驗收計畫，完成後把結果回寫 [`development-status.md`](development-status.md)。live SQL Server 的
-相容性驗證入口是 `tools/verify.ps1` 的 `Provider` 命令，條件見 [`harness.md`](harness.md)。
+相容性驗證入口是 `tools/verify.ps1` 的 `Provider` 命令，條件見 [`../tools/README.md`](../tools/README.md)。

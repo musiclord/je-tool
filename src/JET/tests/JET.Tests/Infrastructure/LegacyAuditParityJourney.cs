@@ -304,9 +304,23 @@ internal static partial class LegacyAuditParityJourney
                 ReferenceFilePayload(input.AccountMappingFile!));
             if (input.AuthorizedPreparerFile is not null)
             {
+                // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；只讓既有單欄清單明確指定唯一欄位。
+                // 只讀表頭，不在收據或例外中輸出私人欄名，保留原 action journey 的驗證目的。
+                currentAction = "import.authorizedPreparer.fromFile";
+                var authorizedColumns = await new OpenXmlSaxTableReader().ReadColumnsAsync(
+                    new TabularSourceRequest(input.AuthorizedPreparerFile.FilePath), cancellationToken);
+                if (authorizedColumns.Count != 1)
+                {
+                    throw Incomplete("authorizedPreparerFile.sourceColumn");
+                }
                 await DispatchAsync(
                     "import.authorizedPreparer.fromFile",
-                    ReferenceFilePayload(input.AuthorizedPreparerFile));
+                    JsonSerializer.Serialize(new
+                    {
+                        filePath = input.AuthorizedPreparerFile.FilePath,
+                        fileName = input.AuthorizedPreparerFile.FileName,
+                        sourceColumn = authorizedColumns.Single(),
+                    }));
             }
             await DispatchAsync(
                 "import.holiday.fromFile",

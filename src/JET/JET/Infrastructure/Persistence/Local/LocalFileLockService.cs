@@ -180,7 +180,8 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
             {
                 throw new JetActionException(
                     JetErrorCodes.FileReadError,
-                    $"無法取得本地案件的跨程序鎖：{exception.GetType().Name}。");
+                    "無法鎖定這個案件，系統沒有開始作業。請確認 JET 資料夾的權限，或重新啟動 JET。",
+                    innerException: exception);
             }
         }
     }
@@ -196,7 +197,7 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
             {
                 throw new JetActionException(
                     JetErrorCodes.FileReadError,
-                    "本地案件鎖路徑超出受控的專案根目錄。");
+                    "案件資料夾不在 JET 的案件位置內，無法鎖定這個案件。請確認 JET 資料夾的權限，或重新啟動 JET。");
             }
 
             return projectDirectory;
@@ -208,7 +209,9 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
         catch (Exception exception) when (
             exception is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            throw new JetActionException(JetErrorCodes.FileReadError, "本地案件鎖路徑格式無效。");
+            throw new JetActionException(
+                JetErrorCodes.FileReadError,
+                "案件資料夾的路徑格式無效，無法鎖定這個案件。請確認 JET 資料夾的權限，或重新啟動 JET。");
         }
     }
 
@@ -262,7 +265,9 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
                 or UnauthorizedAccessException
                 or System.Security.SecurityException)
         {
-            throw new JetActionException(JetErrorCodes.FileReadError, "無法驗證本地案件鎖路徑安全性。");
+            throw new JetActionException(
+                JetErrorCodes.FileReadError,
+                "無法確認案件鎖定檔的位置是否安全，系統沒有開始作業。請確認 JET 資料夾的權限，或重新啟動 JET。");
         }
     }
 
@@ -293,7 +298,7 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
                     {
                         throw new JetActionException(
                             JetErrorCodes.ProjectNotFound,
-                            "找不到指定的本地案件資料夾。");
+                            "找不到指定的案件資料夾。案件資料夾可能已被移動或刪除，請確認案件資料夾仍在 JET 的案件位置。");
                     }
 
                     throw new IOException("本地案件鎖路徑祖先不存在。");
@@ -315,7 +320,9 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
                 or UnauthorizedAccessException
                 or System.Security.SecurityException)
         {
-            throw new JetActionException(JetErrorCodes.FileReadError, "無法驗證本地案件鎖路徑安全性。");
+            throw new JetActionException(
+                JetErrorCodes.FileReadError,
+                "無法確認案件鎖定檔的位置是否安全，系統沒有開始作業。請確認 JET 資料夾的權限，或重新啟動 JET。");
         }
     }
 

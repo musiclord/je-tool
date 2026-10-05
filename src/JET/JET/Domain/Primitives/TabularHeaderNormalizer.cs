@@ -2,7 +2,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 來源標頭正規化：trim、空白標頭 → COL_{columnNumber}、重複標頭加 _2/_3 字尾。
-/// Open XML 活頁簿與 CSV reader 共用同一套規則（guide §3.1.1），確保 mapping 階段欄名一字不差；
+/// Open XML 活頁簿與 CSV reader 共用同一套規則，確保 mapping 階段欄名一字不差；
 /// staging row_json 的 key 也使用同一組名稱。
 /// </summary>
 public static class TabularHeaderNormalizer
@@ -72,7 +72,7 @@ public static class TabularHeaderNormalizer
     }
 
     /// <summary>
-    /// 批次有效欄位收斂（guide §3.1.5）：具名標頭一律保留（具名空欄是 schema 聲明）；
+    /// 批次有效欄位收斂：具名標頭一律保留（具名空欄是 schema 聲明）；
     /// COL_{n} 佔位欄僅在串流中觀察到資料（observedKeys 含該名）才保留。
     /// 標頭之外的觀察 key（reader lazy 合成的範圍外佔位欄）附加在後：
     /// 佔位欄依欄號升冪，其餘依 ordinal 排序。provider 中立，各倉儲實作共用。

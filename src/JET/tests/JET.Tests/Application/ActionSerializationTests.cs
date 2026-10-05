@@ -166,18 +166,24 @@ public sealed class ActionSerializationTests
     {
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var exclusive = new BlockingHandler("validate.run", release);
-        var session = new ProjectSession();
-        session.Enter("project-1");
         var locks = new RecordingLockService();
         var messages = new RecordingMessageLogStore();
+        // heartbeat 與 log.append 從作用中案件的資料庫組取鎖服務與訊息紀錄，替身放進資料庫組。
+        var session = new ProjectSession();
+        session.Enter(
+            "project-1",
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                LockService = locks,
+                MessageLog = messages,
+            });
         var dispatcher = new ActionDispatcher(
             [
                 exclusive,
                 new ProjectHeartbeatHandler(
-                    locks,
                     new CurrentPrincipal("CONTOSO\\auditor"),
                     session),
-                new LogAppendHandler(messages, session)
+                new LogAppendHandler(session)
             ],
             NullLogger<ActionDispatcher>.Instance,
             session);
@@ -221,7 +227,12 @@ public sealed class ActionSerializationTests
             await ownerLocks.AcquireAsync(projectId, ownerPrincipal, CancellationToken.None));
 
         var session = new ProjectSession();
-        session.Enter(projectId);
+        session.Enter(
+            projectId,
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                LockService = ownerLocks,
+            });
         var gate = new ActionExecutionGate();
         var registry = new RequestCancellationRegistry();
         var blocking = new CancellationBlockingHandler("validate.run");
@@ -229,7 +240,6 @@ public sealed class ActionSerializationTests
             [
                 blocking,
                 new ProjectReleaseLockHandler(
-                    ownerLocks,
                     new CurrentPrincipal(ownerPrincipal),
                     session,
                     gate),
@@ -327,6 +337,7 @@ public sealed class ActionSerializationTests
     [InlineData("export.criteriaSelectionReport", true)]
     [InlineData("export.workpaperStream", true)]
     [InlineData("project.create", true)]
+    [InlineData("project.update", true)]
     [InlineData("query.dataPreview", false)]
     [InlineData("filter.preview", false)]
     [InlineData("system.ping", false)]
@@ -335,7 +346,6 @@ public sealed class ActionSerializationTests
     [InlineData("project.heartbeat", false)]
     [InlineData("project.releaseLock", false)]
     [InlineData("host.selectFiles", false)]
-    [InlineData("dev.log.export", false)]
     [InlineData("dev.log.exportFile", false)]
     [InlineData("support.log.export", false)]
     public void Policy_ClassifiesKnownActions(string action, bool exclusive)

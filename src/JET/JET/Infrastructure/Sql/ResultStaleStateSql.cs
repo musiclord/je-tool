@@ -29,10 +29,7 @@ internal static class ResultStaleStateSql
                       EXISTS (
                           SELECT 1
                           FROM {schemaPrefix}result_rule_run
-                          WHERE run_kind = 'validate')
-                      OR EXISTS (
-                          SELECT 1
-                          FROM {schemaPrefix}result_inf_sampling_test_sample));
+                      WHERE run_kind = 'validate'));
                 """);
         }
 

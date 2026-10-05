@@ -59,14 +59,15 @@ public sealed class KctFilterPredicateTests : IDisposable
 
         UPDATE target_gl_entry SET is_effective = 1;
 
+        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
         INSERT INTO target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category)
+            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
         VALUES
-            ('am1', 1, '4101', '銷貨收入', 'Revenue'),
-            ('am1', 2, '1131', '應收帳款', 'Receivables'),
-            ('am1', 3, '2251', '預收貨款', 'Receipt in advance'),
-            ('am1', 4, '1101', '現金',     'Cash'),
-            ('am1', 5, '5101', '其他費用', 'Others');
+            ('am1', 1, '4101', '銷貨收入', 'Revenue', 'builtin.revenue'),
+            ('am1', 2, '1131', '應收帳款', 'Receivables', 'builtin.receivables'),
+            ('am1', 3, '2251', '預收貨款', 'Receipt in advance', 'builtin.receipt_in_advance'),
+            ('am1', 4, '1101', '現金',     'Cash', 'builtin.cash'),
+            ('am1', 5, '5101', '其他費用', 'Others', 'builtin.others');
         """;
 
     private const int MoneyScale = 100;

@@ -14,7 +14,7 @@ public sealed class LocalDocBalancePageRepository(ILocalProjectDatabase database
     public async Task<PageResult<UnbalancedDocument>> GetPageAsync(
         string projectId, int moneyScale, string periodStart, string periodEnd, PageRequest request, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
@@ -51,5 +51,35 @@ public sealed class LocalDocBalancePageRepository(ILocalProjectDatabase database
         }
 
         return buffer.ToPage(request, paging, static row => row.DocumentNumber ?? string.Empty);
+    }
+
+    public async IAsyncEnumerable<UnbalancedVoucherDateRow> StreamVoucherDateRowsAsync(
+        string projectId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await database.EnsureReadyAsync(projectId, cancellationToken);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = ValidationProcedures.UnbalancedVoucherDateSummary(string.Empty) + ";";
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            yield return new UnbalancedVoucherDateRow(
+                reader.IsDBNull(0) ? null : reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                ReadInt64(reader, 2),
+                ReadInt64(reader, 3));
+        }
+    }
+
+    /// <summary>DuckDB 的 SUM 可能回 BigInteger；SQLite 則是 Int64。</summary>
+    private static long ReadInt64(System.Data.Common.DbDataReader reader, int ordinal)
+    {
+        var value = reader.GetValue(ordinal);
+        return value is System.Numerics.BigInteger bigInteger
+            ? checked((long)bigInteger)
+            : Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture);
     }
 }

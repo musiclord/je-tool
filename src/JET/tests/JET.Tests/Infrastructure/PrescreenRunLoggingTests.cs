@@ -24,9 +24,19 @@ public sealed class PrescreenRunLoggingTests
     // 三個指紋都取自各 provider 的實際完整命令序列，不從其他方言推測。
     // 2026-09-17：SQLite、DuckDB 第 2 條查詢補回 IDEA R2 的九個簡體詞。
     // 逆向移除這九個固定參數及包含式後，17 條命令仍完全符合原指紋；其餘斷言保留。
-    // SQL Server 實機依使用者裁定暫緩，該指紋待該路線重啟後核對，不能宣稱本輪已驗證。
-    private const string SqliteSnapshotDigest = "5270A9F95E191D6A9BA0F89E3678828F5D544E726CBA5C4B2B1CF1A12FE6DE36";
-    private const string DuckDbSnapshotDigest = "C5814EC4D5E24EDDE8AA687567B6236B7470CABA014DDB44C4522EB31061B8D3";
+    // SQL Server 實機依使用者裁定暫緩，該指紋待該路線重啟後核對，2026-09-17 的修改沒有在 SQL Server 上驗證。
+    // 2026-10-02：分類表連接刪掉「category_id 為 NULL 時改比分類名稱」的退路，SQLite、DuckDB 各有
+    // 兩條命令少了這段 OR 條件。把它補回實際命令序列後，兩個指紋都還原成舊值，其餘命令未動。
+    // SQL Server 用同一段連接語句，舊指紋應已過期；2026-10-02 沒有執行 SQL Server 路線，維持原值待核對。
+    // 2026-10-04 第二遍回饋審閱第 2 批（C3）：空白摘要、非授權編製人員、低頻編製者、編製者彙總的 SQL 改走方言的 Trim 並對人員不分大小寫，
+    // SQLite 與 DuckDB 的 digest 依新 SQL 更新（第一次失敗：Public 收據 20261004-050120179-d7f0450b8a4940a39d1e58357427160f）。
+    // SQL Server 的 digest 沿用舊值，這一輪沒有實機執行 Provider，下次執行時預期先失敗一次再依實際 SQL 更新。
+    // 2026-10-04 第 7 批 R2：第 3 條查詢排除空白傳票號碼；第 8 批 L62：新增第 18 條低頻科目數查詢。
+    // 首次失敗：Public 20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+    // 由該收據 TRX 的完整命令逆向移除上述 guard 與第 18 條後，兩個 digest 均精確回到原值；其餘命令與參數未變。
+    // SQL Server 未執行，保留舊 digest，不從本地 SQL 推算它的結果。
+    private const string SqliteSnapshotDigest = "CBA27CFF23206BC75F43D16B8C261567B56B57D7A5F35BB63ED33C684C13EB05";
+    private const string DuckDbSnapshotDigest = "A89E11E7871AE96C7087FCF4B809ECBCE6FB949532EEF0E4719D3F8025F54F76";
     private const string SqlServerSnapshotDigest = "F2274C9B66E03AAB184715287E158F5081F8F2011F7E1FDE210A1E234937434C";
 
     private const string PeriodStart = "2025-09-30"; // 可辨識的期末日，後期核准述詞綁定後應現身於 parameters
@@ -91,8 +101,9 @@ public sealed class PrescreenRunLoggingTests
             Assert.DoesNotContain("g.post_date >= @periodStart", text, StringComparison.Ordinal);
             Assert.DoesNotContain("g.post_date <= @periodEnd", text, StringComparison.Ordinal);
         });
-        // 編製者彙總（GROUP BY created_by）
-        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains("GROUP BY created_by"));
+        // 編製者彙總：人員依去空白、不分大小寫的識別值分組（2026-10-04 第二遍回饋審閱第 2 批，C3）；
+        // 原本斷言 GROUP BY created_by（第一次失敗：Public 收據 20261004-050120179-d7f0450b8a4940a39d1e58357427160f）。
+        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains("GROUP BY UPPER(TRIM(COALESCE(created_by, '')"));
         // 後期核准述詞綁定期末日 → parameters 含可辨識值
         Assert.Contains(sql, e => e.Fields["parameters"]!.ToString()!.Contains(PeriodStart));
         // 事件數為小常數（無逐列執行）——遠低於任何母體規模

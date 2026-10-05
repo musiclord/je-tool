@@ -6,15 +6,11 @@ namespace JET.Application;
 
 /// <summary>
 /// query.infSamplePage：INF 抽樣(result_inf_sampling_test_sample,目前有效 validate.run)的
-/// 行層明細 keyset 分頁(manifest 查詢段)。排序鍵 entry_id ASC、cursor opaque、
+/// 行層明細 keyset 分頁。排序鍵 entry_id ASC、cursor opaque、
 /// pageSize 預設 200/上限 500(夾擠在 Domain)。借/貸由 scaled 整數換算顯示值
 /// ((decimal)scaled / moneyScale,沿用 DataPreview)。
 /// </summary>
 public sealed class QueryInfSamplePageHandler(
-    IInfSamplePageRepository repository,
-    IRuleRunStore ruleRunStore,
-    IMappingStateStore mappingStore,
-    IResultPageRdeValuesPort rdeValuesPort,
     IProjectStore projectStore,
     ProjectSession session) : IApplicationActionHandler
 {
@@ -22,17 +18,17 @@ public sealed class QueryInfSamplePageHandler(
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         var request = PageRequestReader.Read(payload, ResultPageSorting.InfSample);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
                 $"找不到專案 '{projectId}'。");
-        var mapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
+        var mapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
         var columnPlan = ResultPageColumnRegistry.ForInf(mapping);
 
-        var latestRun = await ruleRunStore.FindLatestAsync(
+        var latestRun = await repositories.RuleRuns.FindLatestAsync(
             projectId, RuleRunKinds.Validate, cancellationToken);
         if (latestRun is null)
         {
@@ -52,14 +48,14 @@ public sealed class QueryInfSamplePageHandler(
         }
 
         var page = await Task.Run(
-            () => repository.GetPageAsync(
+            () => repositories.InfSamplePages.GetPageAsync(
                 projectId, latestRun.RunId, document.MoneyScale,
                 request, cancellationToken),
             cancellationToken);
 
         var scale = document.MoneyScale;
         var entryIds = page.Rows.Select(static row => row.EntryId).ToArray();
-        var rdeValues = await rdeValuesPort.ReadAsync(projectId, entryIds, cancellationToken);
+        var rdeValues = await repositories.ResultPageRdeValues.ReadAsync(projectId, entryIds, cancellationToken);
         var customValues = ResultPageCustomValueRenderer.Render(entryIds, rdeValues, columnPlan, scale);
         return new
         {

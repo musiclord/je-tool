@@ -75,12 +75,27 @@ public sealed class AccountTaxonomyFrontendTests
         var validate = ReadFrontend("js", "steps", "validate-step.js");
         var state = ReadFrontend("js", "state.js");
 
-        // taxonomy mutation 只使預篩選與篩選命中失效，資料驗證不受影響（與後端同一份依賴範圍）。
+        // 第二遍第9批：失效範圍改由後端唯一政策回傳，不能要求前端保留第二份矩陣。
+        // 首次失敗：20261004-100752118-a195c091201e444d858ec7d7bee3d291。
+        // 原本「taxonomy不使驗證失效」仍鎖在權威政策，前端只消費本次回應。
+        var impact = AuditDependencyPolicy.For(AuditMutation.AccountTaxonomy);
+        Assert.False(impact.InvalidateValidation);
+        Assert.True(impact.InvalidatePrescreen);
+        Assert.True(impact.InvalidateFilterHits);
+        Assert.False(impact.InvalidateFilterScenarioDefinitions);
         Assert.Contains("Store.setTaxonomyAfterSave(data)", validate, StringComparison.Ordinal);
+        Assert.Matches(@"Store\.setTaxonomyAfterSave\(data\);\s*Store\.applyMutationEffects\(data\);", validate);
         var setter = ExtractBlock(state, "setTaxonomyAfterSave");
-        Assert.Contains("invalidateDerivedResults({ prescreen: true, filter: true })", setter, StringComparison.Ordinal);
+        Assert.Contains("state.taxonomy = snapshot || null", setter, StringComparison.Ordinal);
+        Assert.DoesNotContain("invalidateDerivedResults", setter, StringComparison.Ordinal);
         Assert.DoesNotContain("validation: true", setter, StringComparison.Ordinal);
-        Assert.Contains("保存分類會使既有的風險預篩選與篩選命中失效", validate, StringComparison.Ordinal);
+        var effects = ExtractBlock(state, "applyMutationEffects");
+        Assert.Contains("var invalidated = result.invalidatedResults || {}", effects, StringComparison.Ordinal);
+        Assert.Contains("invalidateDerivedResults(invalidated)", effects, StringComparison.Ordinal);
+        Assert.Contains("validation: !!result.staleState.validation", effects, StringComparison.Ordinal);
+        Assert.Contains("prescreen: !!result.staleState.prescreen", effects, StringComparison.Ordinal);
+        Assert.Contains("filter: !!result.staleState.filter", effects, StringComparison.Ordinal);
+        Assert.Contains("風險預篩選與篩選命中需要重新執行", validate, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -91,15 +106,27 @@ public sealed class AccountTaxonomyFrontendTests
 
         // 舊的五類單選白名單已退場：分類身分一律來自目前專案 taxonomy。
         Assert.DoesNotContain("ACCOUNT_CATEGORY_OPTIONS", core, StringComparison.Ordinal);
-        Assert.Contains("Ui.taxonomyTree(state)", filter, StringComparison.Ordinal);
+        // 第二遍第 5 批把分類樹呈現抽到 ui-core.js。首次失敗收據：
+        // 20261004-075340533-87179f5019724ec89d7c19b4243fdb09；改查共同函式與呼叫端，不放寬 stable ID 契約。
+        Assert.Contains("Ui.taxonomyPickerHtml(state, selected, idsKey, legend, view)", filter, StringComparison.Ordinal);
+        Assert.Contains("Ui.bindTaxonomyPicker(picker, Store.getState()", filter, StringComparison.Ordinal);
         Assert.Contains("var categories = taxonomyCategories(state)", core, StringComparison.Ordinal);
-        Assert.Contains("data-category-bind=\"' + idsKey + '\"", filter, StringComparison.Ordinal);
+        var pickerStart = core.IndexOf("function taxonomyPickerHtml(", StringComparison.Ordinal);
+        var pickerEnd = core.IndexOf("function bindTaxonomyPicker(", StringComparison.Ordinal);
+        Assert.True(pickerStart >= 0 && pickerEnd > pickerStart, "找不到共同分類樹的呈現函式。");
+        var picker = core[pickerStart..pickerEnd];
+        Assert.Contains("var tree = taxonomyTree(state)", picker, StringComparison.Ordinal);
+        Assert.Contains("data-category-bind=\"' + esc(key) + '\"", picker, StringComparison.Ordinal);
+        Assert.Contains("value=\"' + esc(category.categoryId) + '\"", picker, StringComparison.Ordinal);
+        Assert.Contains("indexOf(category.categoryId) >= 0 ? ' checked'", picker, StringComparison.Ordinal);
+        Assert.Contains("esc(category.label)", picker, StringComparison.Ordinal);
 
-        // 新規則只帶陣列；legacy scalar 只在回放舊定義時讀取。
+        // 新規則只帶陣列。2026-10-02 起刪除回放舊單選定義的退路，原本鎖住退路的兩行斷言
+        // 改成確認讀取只認陣列、舊名稱換算函式已移除。
         Assert.Contains("debitCategoryIds: ['builtin.receivables']", core, StringComparison.Ordinal);
         Assert.Contains("creditCategoryIds: ['builtin.revenue']", core, StringComparison.Ordinal);
-        Assert.Contains("function ruleCategoryIds(rule, idsKey, legacyKey)", filter, StringComparison.Ordinal);
-        Assert.Contains("Ui.builtInCategoryIdForLegacyLabel(rule[legacyKey])", filter, StringComparison.Ordinal);
+        Assert.Contains("function ruleCategoryIds(rule, idsKey)", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("builtInCategoryIdForLegacyLabel", core + filter, StringComparison.Ordinal);
 
         // 多選去重：同一側的勾選集合不得重複同一身分。
         Assert.Contains("if (item.checked && selected.indexOf(item.value) < 0)", filter, StringComparison.Ordinal);

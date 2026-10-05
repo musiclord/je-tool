@@ -13,7 +13,7 @@ namespace JET.Domain;
 /// 特殊科目配對模式、可篩選 GL 邏輯欄、非營業日原子，以及 sameVoucher／textSet 的固定結構片語。
 /// <see cref="PrescreenKeys"/> 的鍵集合與
 /// <see cref="PrescreenRuleKeys.FilterableKeys"/> 恆等（<c>FilterConditionLabelMirrorTests</c>
-/// 雙向守衛），任何 row-tag 鍵新增都必須同時給中文標籤，否則守衛紅燈。
+/// 雙向守衛），任何 row-tag 鍵新增都必須同時給中文標籤，否則這個測試會失敗。
 /// </summary>
 public static class FilterConditionLabels
 {
@@ -32,14 +32,14 @@ public static class FilterConditionLabels
             ["customKeywords"] = "自訂關鍵字",
             ["drCrOnly"] = "借貸限定",
             ["manualAuto"] = "人工/自動",
-            ["customTrailingZeros"] = "自訂尾數位數",
+            ["customTrailingZeros"] = "金額尾數連續 0 的位數",
             ["accountPair"] = "借貸科目組合（看對方科目）",
             ["specialAccountCategoryPair"] = "借貸科目組合",
             ["customPreparerEntryCount"] = "自訂編製人員分錄筆數",
             ["customAccountEntryCount"] = "自訂科目分錄筆數",
             ["entityFrequency"] = "科目與人員統計",
             ["group"] = "條件括號",
-            ["voucher"] = "傳票量詞",
+            ["voucher"] = "傳票分錄條件",
             ["typed"] = "攸關資料元素條件",
             ["fieldValue"] = "欄位值比較",
             ["accountSide"] = "借貸科目分類",
@@ -57,16 +57,16 @@ public static class FilterConditionLabels
             [PrescreenRuleKeys.PostPeriodApproval] = "財報準備日起核准",
             [PrescreenRuleKeys.SuspiciousKeywords] = "摘要特定描述",
             [PrescreenRuleKeys.UnexpectedAccountPair] = "未預期借貸組合",
-            [PrescreenRuleKeys.TrailingZeros] = "連續零尾數金額",
+            [PrescreenRuleKeys.TrailingZeros] = $"金額尾數連續 {TrailingZeroThreshold.DefaultZerosThreshold} 個 0",
             [PrescreenRuleKeys.WeekendPosting] = "週末過帳",
             [PrescreenRuleKeys.WeekendApproval] = "週末核准",
             [PrescreenRuleKeys.HolidayPosting] = "假日過帳",
             [PrescreenRuleKeys.HolidayApproval] = "假日核准",
-            [PrescreenRuleKeys.BlankDescription] = "摘要空白",
+            [PrescreenRuleKeys.BlankDescription] = "空白摘要",
             [PrescreenRuleKeys.BackdatedPosting] = "回溯過帳",
             [PrescreenRuleKeys.NonAuthorizedPreparer] = "非授權編製人員",
-            [PrescreenRuleKeys.LowFrequencyPreparer] = "低頻編製者",
-            [PrescreenRuleKeys.LowFrequencyAccount] = "低頻科目",
+            [PrescreenRuleKeys.LowFrequencyPreparer] = $"編製分錄較少的人員（{PreparerFrequency.DefaultMaxEntries} 筆以下）",
+            [PrescreenRuleKeys.LowFrequencyAccount] = $"使用較少的科目（{AccountFrequency.DefaultMaxEntries} 筆以下）",
         };
 
     /// <summary>文字比對模式 → 中文（前端 <c>TEXT_MODE_OPTIONS</c> 鏡像）。</summary>
@@ -131,11 +131,11 @@ public static class FilterConditionLabels
                 static field => field.MappingSlots.Single(static slot => slot.IncludeInFieldInfo).Label,
                 StringComparer.Ordinal);
 
-    /// <summary>非營業日預設群組（週末 OR 假日）的原子白話（前端 <c>FILTER_KCT_ATOM_LABELS.kctNonBusinessDay</c> 鏡像）。</summary>
-    public const string NonBusinessDayAtom = "非營業日（週末或假日）";
+    /// <summary>排除補班日的非營業日條件括號讀回（前端 <c>FILTER_KCT_ATOM_LABELS.kctNonBusinessDay</c> 鏡像）。</summary>
+    public const string NonBusinessDayAtom = "非營業日（排除補班日）";
 
     /// <summary>sameVoucher 第一條規則的輸出列標籤（前端 read-back 鏡像）。</summary>
-    public const string SameVoucherOutputAnchor = "主要條件（決定命中分錄）";
+    public const string SameVoucherOutputAnchor = "主要條件（決定符合條件的分錄）";
 
     /// <summary>sameVoucher 後續規則的跨列佐證說明（前端 help／read-back 鏡像）。</summary>
     public const string SameVoucherEvidenceExplanation = "後續條件可由同一傳票的其他分錄列符合";

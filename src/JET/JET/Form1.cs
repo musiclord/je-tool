@@ -18,6 +18,27 @@ namespace JET
         private IDisposable? _shutdownExecutionLease;
         private bool _hostExitRequested;
         private bool _frontendExitDispatchPending;
+        private bool _webViewUnusable;
+        private bool _webViewUnresponsiveNoticeShown;
+        internal const string WebViewInitializationFailureMessage =
+            "JET 畫面無法啟動。請關閉後重新開啟 JET；若仍無法開啟，請修復或安裝 Microsoft Edge WebView2 Runtime，再試一次。";
+        internal const string WebViewProcessFailureMessage =
+            "JET 顯示畫面的程序已中止。將取消進行中的作業並關閉視窗，請重新開啟 JET，再確認最近一次操作的結果；未儲存的畫面輸入可能已遺失。";
+
+        internal static bool BrowserAcceleratorsEnabled
+        {
+            get
+            {
+#if DEBUG || JET_AGENT_GUI_TEST
+                return true;
+#else
+                return false;
+#endif
+            }
+        }
+
+        internal static bool RequiresWebViewRestart(CoreWebView2ProcessFailedKind kind) =>
+            kind is CoreWebView2ProcessFailedKind.BrowserProcessExited or CoreWebView2ProcessFailedKind.RenderProcessExited;
 #if JET_AGENT_GUI_TEST
         private System.Windows.Forms.Timer? _agentGuiDeadlineTimer;
 #endif
@@ -71,12 +92,12 @@ namespace JET
 #endif
 
         /// <summary>
-        /// 視窗外觀屬於 host chrome（guide §12），designer 檔不可手改，
+        /// 視窗外觀屬於 host chrome，designer 檔不可手改，
         /// 故在此覆寫預設的 800×450：前端三欄佈局至少需要約 1000px 寬。
         /// </summary>
         private void ConfigureWindowChrome()
         {
-            Text = "分錄測試自動化工具";
+            Text = "JE Tool";
 
             var workArea = Screen.PrimaryScreen?.WorkingArea
                 ?? new Rectangle(0, 0, 1280, 800);
@@ -90,7 +111,7 @@ namespace JET
 
         /// <summary>
         /// host.selectFile 的原生能力：開啟 OpenFileDialog。
-        /// 純 host capability，不含業務邏輯（guide §12 Host）。
+        /// 純 host capability，不含業務邏輯（分層見 docs/jet-guide.md 第 9 節「系統分層」）。
         /// </summary>
         public Task<string?> PickOpenFileAsync(
             string title,
@@ -161,47 +182,6 @@ namespace JET
                 ConfigureInitialDirectory(dialog, initialDirectory);
 
                 return dialog.ShowDialog(this) == DialogResult.OK ? dialog.FileNames : [];
-            }, cancellationToken);
-        }
-
-        /// <summary>
-        /// host.selectSavePath 的保留通用能力：開啟 SaveFileDialog 取得存檔路徑；
-        /// 六份正式 JE Testing 報告禁止使用，正式產物由後端寫入目前案件目錄。
-        /// 預填檔名 {base}_{yyyymmddHHmmss}_WorkingPaper.xlsx——**時間戳在此 host 端以 DateTime 產生**
-        /// （非 Domain：把「現在時間」這個環境輸入留在 host，業務層只收最終路徑）。取消回 null。
-        /// 純 host capability，不含業務邏輯（guide §12 Host；鏡射 PickOpenFileAsync）。
-        /// </summary>
-        public Task<string?> PickSavePathAsync(string baseFileName, CancellationToken cancellationToken)
-            => PickSavePathAsync(baseFileName, initialDirectory: null, cancellationToken);
-
-        Task<string?> IProjectAwareHostShell.PickSavePathAsync(
-            string baseFileName,
-            string? initialDirectory,
-            CancellationToken cancellationToken)
-            => PickSavePathAsync(baseFileName, initialDirectory, cancellationToken);
-
-        private Task<string?> PickSavePathAsync(
-            string baseFileName,
-            string? initialDirectory,
-            CancellationToken cancellationToken)
-        {
-            var suggestedName = $"{baseFileName}_{DateTime.Now:yyyyMMddHHmmss}_WorkingPaper.xlsx";
-
-            return ShowDialogDeferredAsync<string?>(() =>
-            {
-                using var dialog = new SaveFileDialog
-                {
-                    Title = "匯出底稿",
-                    Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx",
-                    DefaultExt = "xlsx",
-                    AddExtension = true,
-                    OverwritePrompt = true,
-                    FileName = suggestedName
-                };
-
-                ConfigureInitialDirectory(dialog, initialDirectory);
-
-                return dialog.ShowDialog(this) == DialogResult.OK ? dialog.FileName : null;
             }, cancellationToken);
         }
 
@@ -338,12 +318,12 @@ namespace JET
             {
                 await InitializeWebViewAsync();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 MessageBox.Show(
                     this,
-                    ex.Message,
-                    "JET WebView2 initialization failed",
+                    WebViewInitializationFailureMessage,
+                    "JET 畫面無法啟動",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
@@ -353,7 +333,7 @@ namespace JET
         {
             // 原生標題列 X 也必須走前端的 save → releaseLock → host.exitApp 離場鏈。
             // busy 時 exitApp 會留在原畫面，使用既有訊息 rail 引導先取消再重試。
-            if (!_hostExitRequested && e.CloseReason == CloseReason.UserClosing && _runtime is not null)
+            if (!_hostExitRequested && !_webViewUnusable && e.CloseReason == CloseReason.UserClosing && _runtime is not null)
             {
                 e.Cancel = true;
                 RequestFrontendExitAsync();
@@ -368,7 +348,14 @@ namespace JET
                 {
                     e.Cancel = true;
                     _hostExitRequested = false;
-                    NotifyBusyNativeExitAsync();
+                    if (_webViewUnusable)
+                    {
+                        MessageBox.Show(this, "JET 正在停止進行中的作業，完成後會關閉視窗。請稍候再重新開啟 JET。", "JET 正在停止作業");
+                    }
+                    else
+                    {
+                        NotifyBusyNativeExitAsync();
+                    }
                     base.OnFormClosing(e);
                     return;
                 }
@@ -486,6 +473,7 @@ namespace JET
 
             var settings = _webView.CoreWebView2.Settings;
             settings.AreHostObjectsAllowed = false;
+            settings.AreBrowserAcceleratorKeysEnabled = BrowserAcceleratorsEnabled;
 #if DEBUG || JET_AGENT_GUI_TEST
             settings.AreDevToolsEnabled = true;
             settings.AreDefaultContextMenusEnabled = true;
@@ -502,6 +490,7 @@ namespace JET
             {
                 args.Handled = true;
             };
+            _webView.CoreWebView2.ProcessFailed += OnWebViewProcessFailed;
 
             _bridge = new JetWebMessageBridge(_webView.CoreWebView2, _dispatcher);
             _bridge.Attach();
@@ -514,6 +503,36 @@ namespace JET
             }
 
             _webView.CoreWebView2.Navigate($"https://{AppHostName}/index.html");
+        }
+
+        private void OnWebViewProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs args)
+        {
+            if (IsDisposed || Disposing || !IsHandleCreated || _webViewUnusable) return;
+            if (RequiresWebViewRestart(args.ProcessFailedKind))
+            {
+                _webViewUnusable = true;
+                var requestsStopped = _dispatcher.CancellationRegistry.CancelAll();
+                // Leave the WebView callback before showing a native dialog; do not reload into an orphan session.
+                BeginInvoke(new Action(async () =>
+                {
+                    if (IsDisposed || Disposing) return;
+                    MessageBox.Show(this, WebViewProcessFailureMessage, "JET 畫面已中止", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    try { await requestsStopped; }
+                    catch (Exception) { /* CancelAll also waits for all request scopes; callback faults must not prevent closing. */ }
+                    _hostExitRequested = true;
+                    if (!IsDisposed && !Disposing) Close();
+                }));
+            }
+            else if (args.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessUnresponsive
+                     && !_webViewUnresponsiveNoticeShown)
+            {
+                // This notification can repeat while the renderer is busy. Do not discard recoverable drafts or show a dialog every few seconds.
+                _webViewUnresponsiveNoticeShown = true;
+                BeginInvoke(new Action(() => MessageBox.Show(this,
+                    "JET 畫面暫時沒有回應。請先稍候；若持續無法操作，請關閉後重新開啟 JET，並確認最近一次操作的結果。",
+                    "JET 畫面暫時沒有回應", MessageBoxButtons.OK, MessageBoxIcon.Warning)));
+            }
+            // GPU and subframe failures can recover automatically; they do not end the application's session.
         }
 
         private static string GetDefaultWebViewUserDataFolder() =>

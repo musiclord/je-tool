@@ -1,10 +1,10 @@
 /*
   流程總覽的母體事實區塊（BI）渲染器（JetOverviewBi namespace）。
   目前持有：預篩選規則全期命中分布、分錄金額級距與累積分布、
-  集中度分析（編製人員分錄分布／低頻使用科目）。
+  集中度分析（編製人員分錄分布／較少使用之科目）。
 
   硬性邊界：本檔只鏡射後端 validate.run 的 amountDistribution，以及 prescreen.run
-  的 rulePeriod／concentration 區塊並格式化。ECDF、命中率、累積占比、「其他」彙總
+  的 rulePeriod／concentration 區塊並格式化。ECDF、符合比例、累積占比、「其他」彙總
   與前五佔比全部由後端算好；此處不得再做任何審計數字的加總、排序或百分比換算。
   ECharts 5.5.0 只負責以本地 SVG renderer 呈現 option，不接外網、不持有業務狀態。
 */
@@ -80,7 +80,7 @@
     return (pct == null) ? '—' : Number(pct).toFixed(1) + '%';
   }
 
-  // S2b 的大母體命中率可能遠低於 0.1%；專用自適應精度避免非零率被顯示成 0.0%。
+  // S2b 的大母體符合比例可能遠低於 0.1%；專用自適應精度避免非零率被顯示成 0.0%。
   // 真正 0 固定顯示 0.0%，極小非零值在小數表示不足時才退回科學記號。
   function fmtRulePct(pct) {
     if (pct == null) { return '—'; }
@@ -146,7 +146,7 @@
       textStyle: { fontFamily: CHART_FONT, color: VALUE_FILL },
       aria: {
         enabled: true,
-        description: '適用的預篩選規則全查核期間命中率分布；零命中保留為零值。'
+        description: '適用的預篩選規則全查核期間符合比例分布；沒有符合分錄的項目仍顯示為零。'
       },
       tooltip: {
         trigger: 'axis',
@@ -158,10 +158,10 @@
           var label = prescreenLabel(item.key);
           return tooltipContent(label, [
             '全查核期間',
-            '命中分錄 ' + fmtNum(item.hitLines) + ' 筆',
-            '去重傳票 ' + fmtNum(item.hitVouchers) + ' 張',
-            '母體 ' + fmtNum(rulePeriod.population) + ' 筆',
-            '命中率 ' + fmtRulePct(item.ratePct)
+            '符合條件的分錄 ' + fmtNum(item.hitLines) + ' 筆',
+            '傳票 ' + fmtNum(item.hitVouchers) + ' 張（同號只算一張）',
+            '納入測試 ' + fmtNum(rulePeriod.population) + ' 筆',
+            '符合比例 ' + fmtRulePct(item.ratePct)
           ]);
         }
       },
@@ -169,7 +169,7 @@
       xAxis: {
         type: 'value',
         min: 0,
-        name: '命中率',
+        name: '符合比例',
         nameLocation: 'middle',
         nameGap: 28,
         nameTextStyle: { fontFamily: CHART_FONT, fontSize: 10, color: LABEL_FILL },
@@ -200,7 +200,7 @@
         }
       },
       series: [{
-        name: '命中率',
+        name: '符合比例',
         type: 'bar',
         barWidth: 12,
         data: data,
@@ -325,7 +325,7 @@
   function preparerChartOption(preparers) {
     var rows = preparers.top.map(function (row) {
       return {
-        label: row.createdBy === '' ? '（未填編製人員）' : row.createdBy,
+        label: row.createdBy == null || !String(row.createdBy).trim() ? '（空白）' : row.createdBy,
         entryCount: row.entryCount,
         manualCount: row.manualCount,
         cumulativePct: row.cumulativePct,
@@ -527,7 +527,7 @@
   function tabsHtml(activeTab) {
     return [
       { key: 'preparers', label: '編製人員分錄分布' },
-      { key: 'accounts', label: '低頻使用科目' }
+      { key: 'accounts', label: '較少使用之科目' }
     ].map(function (tab) {
       var active = tab.key === activeTab;
       return '<button type="button" class="overview-bi__tab' +
@@ -548,9 +548,9 @@
     return (
       '<details class="overview__bi overview__analysis" data-overview-analysis="concentration">' +
         '<summary class="overview__analysis-summary">' +
-          '<span>常用母體彙總</span><span class="overview__analysis-hint">展開</span>' +
+          '<span>預篩選</span><span class="overview__analysis-hint">展開</span>' +
         '</summary>' +
-        '<div class="overview__analysis-content" aria-label="常用母體彙總">' +
+        '<div class="overview__analysis-content" aria-label="預篩選">' +
           content +
         '</div>' +
       '</details>'
@@ -570,10 +570,10 @@
     return (
       '<details class="overview__bi overview__bi--rule-period overview__analysis" data-overview-analysis="rule-period">' +
         '<summary class="overview__analysis-summary">' +
-          '<span>逐筆輔助訊號分布</span>' +
+          '<span>預篩選結果分布</span>' +
           '<span class="overview__analysis-hint">展開</span>' +
         '</summary>' +
-        '<div class="overview__analysis-content" aria-label="逐筆輔助訊號分布">' +
+        '<div class="overview__analysis-content" aria-label="預篩選結果分布">' +
           inner +
         '</div>' +
       '</details>'
@@ -597,16 +597,16 @@
   function rulePeriodPanelHtml(rulePeriod) {
     var applicable = rulePeriod.rules.filter(function (rule) { return rule.naReason == null; });
     var zeroPopulationNote = rulePeriod.population === 0
-      ? '查核期間母體為 0，命中率以「—」表示，不代表 0%。'
+      ? '納入測試的分錄為 0，符合比例以「—」表示，不代表 0%。'
       : '';
-    var note = '命中率＝命中分錄數 ÷ 查核期間母體 ' + fmtNum(rulePeriod.population) +
-      ' 筆。長條依各規則命中率呈現，僅供比較規則間分布。' +
+    var note = '符合比例＝符合條件的分錄數 ÷ 納入測試的分錄 ' + fmtNum(rulePeriod.population) +
+      ' 筆。長條依各規則符合比例呈現，僅供比較規則間分布。' +
       zeroPopulationNote + '此為分布描述，非風險評估。';
 
     return (
       (applicable.length > 0
         ? '<div class="overview-bi__body">' +
-            chartContainerHtml('rule-period', 'rule-period', '適用的預篩選規則全期命中率分布') +
+            chartContainerHtml('rule-period', 'rule-period', '適用的預篩選規則全期符合比例分布') +
           '</div>'
         : messageHtml('na', '沒有可繪製的適用規則', '不適用規則與原因列於下方。')) +
       rulePeriodNaHtml(rulePeriod) +
@@ -616,14 +616,14 @@
 
   /**
    * 預篩選規則全期命中分布。舊 summary 沒有 rulePeriod 時必須誠實降級，
-   * 不可由既有 count 在前端自行補算分母、去重傳票或命中率。
+   * 不可由既有 count 在前端自行補算分母、去重傳票或符合比例。
    */
   function rulePeriodHtml(prescreen) {
     if (!prescreen) {
       return rulePeriodSectionHtml(messageHtml(
         'empty',
         '尚未執行預篩選（選用）',
-        '在「資料驗證與測試」步驟執行預篩選後，這裡會顯示逐筆輔助訊號的全期命中分布。'));
+        '在「資料驗證與測試」步驟執行預篩選後，這裡會顯示預篩選的全期結果分布。'));
     }
 
     var rulePeriod = prescreen.rulePeriod;
@@ -631,7 +631,7 @@
       return rulePeriodSectionHtml(messageHtml(
         'stale',
         '需重新執行預篩選以產生此統計',
-        '目前回放的是舊版本執行結果，尚未包含逐筆輔助訊號分布。重新執行預篩選即可產生。'));
+        '這次預篩選結果沒有預篩選結果分布，重新執行預篩選即可查看。'));
     }
 
     return rulePeriodSectionHtml(rulePeriodPanelHtml(rulePeriod));
@@ -662,7 +662,7 @@
       '</p>' +
       '<p class="overview-bi__note">' +
         'X 軸為絕對金額的 1–2–5 對數級距；零元另計、不納入對數軸。' +
-        '累積分布由系統計算，並以查核期間全部非零元分錄為分母；沒有累積比例的級距不連線。' +
+        '累積分布由系統計算，並以納入測試的非零金額分錄為分母；沒有累積比例的級距不連線。' +
         '完整區間請查看圖形提示。未設重要性門檻線。此為分布描述，非風險評估。' +
       '</p>'
     );
@@ -680,7 +680,7 @@
       return amountDistributionSectionHtml(messageHtml(
         'stale',
         '需重新執行資料驗證以產生此統計',
-        '目前回放的是舊版本執行結果，尚未包含金額級距與累積分布。重新執行資料驗證即可產生。'));
+        '目前顯示的是先前執行結果，尚未包含金額級距與累積分布。重新執行資料驗證即可產生。'));
     }
 
     return amountDistributionSectionHtml(
@@ -735,7 +735,7 @@
       return sectionHtml(messageHtml(
         'empty',
         '尚未執行預篩選（選用）',
-        '在「資料驗證與測試」步驟執行預篩選後，這裡會顯示編製人員分錄分布與低頻使用科目。'), '');
+        '在「資料驗證與測試」步驟執行預篩選後，這裡會顯示編製人員分錄分布與較少使用之科目。'), '');
     }
 
     var concentration = prescreen.concentration;
@@ -743,7 +743,7 @@
       return sectionHtml(messageHtml(
         'stale',
         '需重新執行預篩選以產生此統計',
-        '目前回放的是舊版本執行結果，尚未包含常用母體彙總。重新執行預篩選即可產生。'), '');
+        '目前顯示的是先前執行結果，尚未包含預篩選。重新執行預篩選即可產生。'), '');
     }
 
     if (concentration.status !== 'V') {
@@ -751,7 +751,7 @@
         'na',
         '不適用',
         concentration.naReason ||
-          '查核期間沒有可彙總的分錄，因此無法產生常用母體彙總。「不適用」與結果為 0 語意不同。'), '');
+          '查核期間沒有可彙總的分錄，因此無法產生預篩選。「不適用」與結果為 0 語意不同。'), '');
     }
 
     var tab = activeTab === 'accounts' ? 'accounts' : 'preparers';

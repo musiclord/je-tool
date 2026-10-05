@@ -3,6 +3,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -45,9 +46,9 @@ public sealed class GlEffectivePopulationProjectionProviderTests
         var batch = (await new SqlServerImportRepository(project.Database).ReplaceBatchAsync(
             project.ProjectId,
             DatasetKind.Gl,
-            Source(),
+            [new ImportSourceInput(Source(),
             Columns(),
-            Rows(),
+            Rows())],
             CancellationToken.None)).Batch;
 
         var repository = new SqlServerGlRepository(project.Database);
@@ -99,9 +100,9 @@ public sealed class GlEffectivePopulationProjectionProviderTests
         var batch = (await new SqlServerImportRepository(project.Database).ReplaceBatchAsync(
             project.ProjectId,
             DatasetKind.Gl,
-            Source(),
+            [new ImportSourceInput(Source(),
             Columns(),
-            OverflowRows(),
+            OverflowRows())],
             CancellationToken.None)).Batch;
 
         var result = await new SqlServerGlRepository(project.Database).ProjectStagingToTargetAsync(
@@ -136,9 +137,9 @@ public sealed class GlEffectivePopulationProjectionProviderTests
         var batch = (await new LocalImportRepository(database).ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            Source(),
+            [new ImportSourceInput(Source(),
             Columns(),
-            Rows(),
+            Rows())],
             CancellationToken.None)).Batch;
 
         var repository = new LocalGlRepository(database);
@@ -174,9 +175,9 @@ public sealed class GlEffectivePopulationProjectionProviderTests
         var batch = (await new LocalImportRepository(database).ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            Source(),
+            [new ImportSourceInput(Source(),
             Columns(),
-            OverflowRows(),
+            OverflowRows())],
             CancellationToken.None)).Batch;
 
         var result = await new LocalGlRepository(database).ProjectStagingToTargetAsync(

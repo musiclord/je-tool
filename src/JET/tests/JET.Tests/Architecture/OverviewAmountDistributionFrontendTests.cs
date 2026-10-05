@@ -111,7 +111,7 @@ public sealed class OverviewAmountDistributionFrontendTests
 
         Assert.Contains("需重新執行資料驗證以產生此統計", renderer, StringComparison.Ordinal);
         Assert.Contains(
-            "舊版本執行結果，尚未包含金額級距與累積分布",
+            "先前執行結果，尚未包含金額級距與累積分布",
             renderer,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -123,7 +123,7 @@ public sealed class OverviewAmountDistributionFrontendTests
 
         var panel = ExtractTopLevelFunction(source, "amountDistributionPanelHtml");
         Assert.Contains("零元另計", panel, StringComparison.Ordinal);
-        Assert.Contains("非零元分錄為分母", panel, StringComparison.Ordinal);
+        Assert.Contains("非零金額分錄為分母", panel, StringComparison.Ordinal);
     }
 
     [Fact]

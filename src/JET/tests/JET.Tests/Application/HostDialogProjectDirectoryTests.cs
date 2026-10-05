@@ -10,7 +10,6 @@ public sealed class HostDialogProjectDirectoryTests
     [Theory]
     [InlineData("host.selectFile")]
     [InlineData("host.selectFiles")]
-    [InlineData("host.selectSavePath")]
     public async Task ActiveProject_IsResolvedAgainForEveryDialogInvocation(string action)
     {
         var session = new ProjectSession();
@@ -19,10 +18,10 @@ public sealed class HostDialogProjectDirectoryTests
         var context = new HostDialogProjectContext(session, locator);
         var handler = CreateDialogHandler(action, shell, context);
 
-        session.Enter("project-A");
+        session.Enter("project-A", AnyRepositories());
         await handler.HandleAsync(EmptyPayload(), CancellationToken.None);
 
-        session.Enter("project-B");
+        session.Enter("project-B", AnyRepositories());
         await handler.HandleAsync(EmptyPayload(), CancellationToken.None);
 
         Assert.Equal(
@@ -37,7 +36,6 @@ public sealed class HostDialogProjectDirectoryTests
     [Theory]
     [InlineData("host.selectFile")]
     [InlineData("host.selectFiles")]
-    [InlineData("host.selectSavePath")]
     public async Task NoActiveProject_LeavesDialogInitialDirectoryUnset(string action)
     {
         var session = new ProjectSession();
@@ -62,15 +60,14 @@ public sealed class HostDialogProjectDirectoryTests
         var shell = new RecordingProjectAwareHostShell();
         var handler = new HostOpenFolderHandler(
             hostShell: shell,
-            artifactStore: null!,
             projectLocator: locator,
             session: session);
         var payload = ParsePayload("""{ "target": "projectFolder" }""");
 
-        session.Enter("project-A");
+        session.Enter("project-A", AnyRepositories());
         await handler.HandleAsync(payload, CancellationToken.None);
 
-        session.Enter("project-B");
+        session.Enter("project-B", AnyRepositories());
         await handler.HandleAsync(payload, CancellationToken.None);
 
         Assert.Equal(
@@ -82,6 +79,11 @@ public sealed class HostDialogProjectDirectoryTests
         Assert.Equal(["project-A", "project-B"], locator.ProjectIds);
     }
 
+    // 2026-10-02 資料庫分流簡化：只設案件編號的舊 Enter(string) 已移除，改帶資料庫組進入。這些對話框與開資料夾
+    // 測試只看案件資料夾，不碰任何 repository，所以放一組全部維持 null 的資料庫組。
+    private static ProjectRepositories AnyRepositories() =>
+        TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider);
+
     private static IApplicationActionHandler CreateDialogHandler(
         string action,
         IHostShell shell,
@@ -90,7 +92,6 @@ public sealed class HostDialogProjectDirectoryTests
         {
             "host.selectFile" => new HostSelectFileHandler(shell, context),
             "host.selectFiles" => new HostSelectFilesHandler(shell, context),
-            "host.selectSavePath" => new HostSelectSavePathHandler(shell, context),
             _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown host dialog action.")
         };
 
@@ -134,11 +135,6 @@ public sealed class HostDialogProjectDirectoryTests
             CancellationToken cancellationToken)
             => throw LegacyDialogMethodWasUsed();
 
-        public Task<string?> PickSavePathAsync(
-            string baseFileName,
-            CancellationToken cancellationToken)
-            => throw LegacyDialogMethodWasUsed();
-
         Task<string?> IProjectAwareHostShell.PickOpenFileAsync(
             string title,
             IReadOnlyList<string> extensions,
@@ -157,15 +153,6 @@ public sealed class HostDialogProjectDirectoryTests
         {
             InitialDirectories.Add(initialDirectory);
             return Task.FromResult<IReadOnlyList<string>>([]);
-        }
-
-        Task<string?> IProjectAwareHostShell.PickSavePathAsync(
-            string baseFileName,
-            string? initialDirectory,
-            CancellationToken cancellationToken)
-        {
-            InitialDirectories.Add(initialDirectory);
-            return Task.FromResult<string?>(null);
         }
 
         public Task RevealInExplorerAsync(string path, CancellationToken cancellationToken)

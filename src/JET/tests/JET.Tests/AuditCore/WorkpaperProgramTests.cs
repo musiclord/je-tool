@@ -7,34 +7,16 @@ namespace JET.Tests.AuditCore;
 public sealed class WorkpaperProgramTests
 {
     [Fact]
-    public void Plan_BindsCurrentSourceReferencesToWorkpaperReviewNode()
+    public void Plan_BindsCurrentSourceReferences()
     {
         var request = Request();
 
         var plan = JetAuditProgram.Plan(request);
 
         Assert.Same(request, plan.Request);
-        Assert.Equal("export.workpaperStream", plan.Node.ActionName);
-        Assert.Equal(5, plan.Node.Milestone);
         Assert.False(plan.IsFinalized);
         Assert.Empty(plan.Sheets);
         Assert.NotNull(typeof(WorkpaperPlan).GetProperty("FieldInfo"));
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_DelegatesBoundedPlanToTypedFactsPort()
-    {
-        var plan = JetAuditProgram.Plan(Request());
-        var expected = Facts();
-        var port = new RecordingPort(expected);
-
-        var actual = await JetAuditProgram.ExecuteAsync(
-            plan,
-            port,
-            CancellationToken.None);
-
-        Assert.Same(plan, port.Plan);
-        Assert.Same(expected, actual);
     }
 
     [Fact]
@@ -62,6 +44,17 @@ public sealed class WorkpaperProgramTests
         Assert.Equal("N/A", Sheet(finalized, WorkpaperSheetCatalog.Step11).NaText);
         Assert.Equal("N/A", Sheet(finalized, WorkpaperSheetCatalog.Step12).NaText);
         Assert.Equal("N/A", Sheet(finalized, WorkpaperSheetCatalog.Step13).NaText);
+
+        // 沒有差異科目時，legacy 不改寫範本原文（idea-tool.bas:10409-10415）。
+        Assert.Equal(
+            "基於上述程序，查核團隊對於JE測試母體之完整性，已取得足夠的查核證據。",
+            Sheet(finalized, WorkpaperSheetCatalog.Step1).Conclusion);
+        Assert.Equal(
+            "#針對試算表科目金額本期異動與會計分錄(JE)進行推滾比對之清單列示如下：(已確認差異數均為0，可確認其完整性)",
+            Assert.Single(Sheet(finalized, WorkpaperSheetCatalog.Step1).Methodology));
+        Assert.Equal(
+            "基於上述程序，查核團隊已取得足夠的查核證據，確認無借貸不平之情形。",
+            Sheet(finalized, WorkpaperSheetCatalog.Step11).Conclusion);
     }
 
     [Fact]
@@ -80,7 +73,12 @@ public sealed class WorkpaperProgramTests
             "基於上述程序，查核團隊對於JE測試母體之完整性，尚需於Step1-3說明以取得足夠的查核證據。",
             Sheet(finalized, WorkpaperSheetCatalog.Step1).Conclusion);
         Assert.Equal(
-            "基於上述程序，查核團隊已取得足夠的查核證據，確認無借貸不平之情形。",
+            "#針對試算表科目金額本期異動與會計分錄(JE)進行推滾比對之清單列示如下：(有部分科目之差異數不為0，請於step1-3說明其理由，以確認JE母體的完整性)",
+            Assert.Single(Sheet(finalized, WorkpaperSheetCatalog.Step1).Methodology));
+        // 2026-10-02 使用者裁定照 legacy 依結果寫結論。原本預期「確認無借貸不平之情形」，但本案例有不平傳票；
+        // legacy 在有不平傳票時改寫這句（idea-tool.bas:10468、idea-script.bas:9089）。
+        Assert.Equal(
+            "基於上述程序，查核團隊發現有部分傳票借貸不平，但已取得足夠的查核證據，確認其理由尚屬合理。",
             Sheet(finalized, WorkpaperSheetCatalog.Step11).Conclusion);
         Assert.Equal(
             "基於上述程序，查核團隊對出現差異之科目均已取得足夠的查核證據，已確認其原因尚屬合理或進行調節使其無差異，" +
@@ -325,7 +323,7 @@ public sealed class WorkpaperProgramTests
             "查核期間內（2025-01-01 ~ 2025-12-31）之會計分錄",
             Sheet(finalized, WorkpaperSheetCatalog.Step3).AuditCondition);
         Assert.Contains(
-            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳日期之列不納入本版情境命中與矩陣。",
+            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳入帳日之列不納入本版情境命中與矩陣。",
             Sheet(finalized, WorkpaperSheetCatalog.Step3).Methodology);
         Assert.Equal(
             "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)",
@@ -334,20 +332,6 @@ public sealed class WorkpaperProgramTests
             "若查核團隊發現受查客戶在財務報表關帳後，尚有入帳之調整分錄(Post-closing entries)，" +
             "或未入帳直接對財務報表之調整(Other adjustments)，\n則可將此類調整記錄於此處，或說明無此類情形。\n",
             Sheet(finalized, WorkpaperSheetCatalog.Step5).AuditCondition);
-    }
-
-    [Fact]
-    public void Explain_RequiresFinalizedPlanAndReportsBoundedReviewSummary()
-    {
-        var initial = JetAuditProgram.Plan(Request());
-
-        Assert.Throws<InvalidOperationException>(() => JetAuditProgram.Explain(initial));
-
-        var finalized = JetAuditProgram.Finalize(initial, Facts());
-        var explanation = JetAuditProgram.Explain(finalized);
-
-        Assert.Contains("export.workpaperStream", explanation, StringComparison.Ordinal);
-        Assert.Contains("所選情境=3", explanation, StringComparison.Ordinal);
     }
 
     private static WorkpaperRequest Request(
@@ -421,17 +405,4 @@ public sealed class WorkpaperProgramTests
     private static WorkpaperSheetPlan Sheet(WorkpaperPlan plan, string sheetName) =>
         plan.Sheets.Single(sheet =>
             string.Equals(sheet.SheetName, sheetName, StringComparison.Ordinal));
-
-    private sealed class RecordingPort(WorkpaperPlanningFacts facts) : IWorkpaperPlanningFactsPort
-    {
-        public WorkpaperPlan? Plan { get; private set; }
-
-        public Task<WorkpaperPlanningFacts> ExecuteAsync(
-            WorkpaperPlan plan,
-            CancellationToken cancellationToken)
-        {
-            Plan = plan;
-            return Task.FromResult(facts);
-        }
-    }
 }

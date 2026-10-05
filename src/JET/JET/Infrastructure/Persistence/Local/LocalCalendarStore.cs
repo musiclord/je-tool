@@ -11,7 +11,7 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
         IReadOnlyList<CalendarDayEntry> days,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -47,7 +47,7 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
             }
         }
 
-        // 行事曆換版影響週末/假日預篩選,既有規則結果失效(plan Phase 1)。
+        // 行事曆換版影響週末/假日預篩選,既有規則結果失效。
         await RuleRunResultReset.ClearWithinAsync(
             connection,
             transaction,
@@ -59,7 +59,7 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
 
     public async Task<int> CountAsync(string projectId, CalendarDayType type, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -73,7 +73,7 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
 
     public async Task InvalidateDependentResultsAsync(string projectId, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);

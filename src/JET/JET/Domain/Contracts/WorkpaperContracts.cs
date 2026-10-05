@@ -90,7 +90,7 @@ public sealed record CreatorSummaryExportRow(
 /// </summary>
 public interface ICreatorSummaryExportRepository
 {
-    /// <summary>periodStart/periodEnd 界定編製人員彙總的本期母體（§2；與 prescreen.run 編製者彙總同口徑）。</summary>
+    /// <summary>periodStart/periodEnd 界定編製人員彙總的本期母體（與 prescreen.run 編製者彙總同口徑）。</summary>
     Task<IReadOnlyList<CreatorSummaryExportRow>> FetchAllAsync(
         string projectId,
         string periodStart,

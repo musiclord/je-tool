@@ -3,6 +3,7 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -56,7 +57,7 @@ public sealed class ProviderDiagnosticLabelTests
         {
             var repo = new LocalImportRepository(db, factory.CreateLogger<LocalImportRepository>());
             await repo.ReplaceBatchAsync(
-                projectId, DatasetKind.Gl, Source(), Columns, ToAsync([Row(2, "D1"), Row(3, "D2")]), CancellationToken.None);
+                projectId, DatasetKind.Gl, [new ImportSourceInput(Source(), Columns, ToAsync([Row(2, "D1"), Row(3, "D2")]))], CancellationToken.None);
         }
 
         var entries = diagnostic.Snapshot();

@@ -28,7 +28,7 @@ public sealed class IntakeMappingProgramTests
     [Theory]
     [InlineData(DatasetKind.Gl, IntakeOperation.Replace)]
     [InlineData(DatasetKind.Tb, IntakeOperation.Append)]
-    internal void IntakePlan_BindsTypedOperationNodeAndExactMutation(
+    internal void IntakePlan_BindsTypedOperationAndExactMutation(
         DatasetKind kind,
         IntakeOperation operation)
     {
@@ -45,7 +45,6 @@ public sealed class IntakeMappingProgramTests
             Mode: operation == IntakeOperation.Append ? "append" : "replace"));
 
         Assert.Equal(operation, plan.Operation);
-        Assert.Equal(action, plan.Node.ActionName);
         Assert.Equal(kind == DatasetKind.Gl, plan.Effects.InvalidatePrescreen);
         Assert.Equal(kind == DatasetKind.Gl, plan.Effects.InvalidateFilterHits);
         Assert.True(plan.Effects.InvalidateValidation);
@@ -65,7 +64,7 @@ public sealed class IntakeMappingProgramTests
                 DateParseOptions.Default)));
 
         Assert.Equal(JetErrorCodes.MissingRequiredMapping, error.Code);
-        Assert.StartsWith("mapping 缺少必填欄位：", error.Message, StringComparison.Ordinal);
+        Assert.StartsWith("欄位配對缺少必填欄位：", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -96,9 +95,17 @@ public sealed class IntakeMappingProgramTests
                 [new RowProjectionError(7, "amount", "bad", "不是有效金額", "JE.csv")])));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
+        // 2026-10-03 用語統一 W10：審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 2026-10-03 O1、O2：同一欄同一種問題只寫一次，再依值列出列號，不再每列一整句；
+        // 每組另放進 details 並帶來源欄（第一次失敗：收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89）。
         Assert.Equal(
-            "1 列無法轉換，系統沒有保存這次配對結果。以下列出部分原因：JE.csv 第 7 列，欄位「amount」，值「bad」：不是有效金額",
+            "1 列無法轉換，系統沒有儲存這次配對結果。欄位「amount」有 1 列不是有效金額：「bad」在 JE.csv 第 7 列。",
             error.Message);
+        var detail = Assert.Single(error.Details!);
+        Assert.Equal("欄位「amount」有 1 列不是有效金額：「bad」在 JE.csv 第 7 列。", detail.Message);
+        Assert.Equal("amount", detail.SourceColumn);
+        Assert.Null(detail.Group);
+        Assert.Null(detail.Rule);
     }
 
     [Fact]
@@ -266,8 +273,9 @@ public sealed class IntakeMappingProgramTests
     [Fact]
     public void AuthorizedPreparerProjection_OwnsResolutionTrimBlankSkipAndDedup()
     {
+        // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留正規化、略空白與去重的原斷言。
         var projection = JetAuditProgram.PrepareAuthorizedPreparerProjection(
-            ["unused", "AUTHORIZED_PREPARER"]);
+            ["unused", "AUTHORIZED_PREPARER"], "AUTHORIZED_PREPARER");
 
         projection.Observe(Row(2, ("AUTHORIZED_PREPARER", " 王小明 ")));
         projection.Observe(Row(3, ("AUTHORIZED_PREPARER", "王小明")));
@@ -328,9 +336,9 @@ public sealed class IntakeMappingProgramTests
         Assert.Same(document, plan.Document);
         Assert.Equal(ProjectDocument.DefaultMoneyScale, plan.Document.MoneyScale);
         Assert.Equal(ProjectDocument.DefaultRoundingMode, plan.Document.RoundingMode);
-        Assert.Equal(31, plan.Document.EffectiveSampleSeed);
+        // 舊案件的固定種子退路已刪除，持久化的 SampleSeed 就是實際使用的種子。
+        Assert.Equal(31, plan.Document.SampleSeed);
         Assert.Equal(JetAuditProgram.CurrentInfSamplingAlgorithmVersion, plan.Document.SampleSeedVersion);
-        Assert.Equal("project.create", plan.Node.ActionName);
     }
 
     private static StagingRow Row(

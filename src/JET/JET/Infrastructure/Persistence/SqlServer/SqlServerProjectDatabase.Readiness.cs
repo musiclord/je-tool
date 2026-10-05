@@ -12,11 +12,11 @@ public sealed partial class SqlServerProjectDatabase
         EnsureSingleDatabaseAndControlPlaneAsync(cancellationToken);
 
     /// <summary>
-    /// 確保單庫存在(連 master、DB_ID 守冪等)並確保 dbo 控制面表就位(<see cref="SqlServerControlPlaneSchema"/>:
-    /// registry/access/app_config/audit_log,並移除冗餘的 project_schema_map)。
+    /// 確保單庫存在(連 master、DB_ID 守冪等)並確保 dbo 管理表就位(<see cref="SqlServerControlPlaneSchema"/>:
+    /// registry/access/app_config/audit_log/project_lock,並移除冗餘的 project_schema_map)。
     /// 單庫名取自 <see cref="SqlServerConnectionOptions.SingleDatabaseName"/>(顯式設定值、非使用者輸入、
     /// 不從連線字串 InitialCatalog 猜測)。空白即視為未設定 → 明確錯誤,杜絕 <c>CREATE DATABASE []</c>。
-    /// <para>master 依賴最小化(§4):就緒(存在＋非 Express)由 process 級旗標
+    /// <para>盡量不依賴 master:就緒(存在＋非 Express)由 process 級旗標
     /// <see cref="SqlServerSingleDatabaseReadiness"/> 快取,確認後全 app 生命週期跳過 master;
     /// <see cref="SqlServerConnectionOptions.AssumeDatabaseExists"/>=true 時完全不連 master(庫由 DBA 預建)。</para>
     /// </summary>
@@ -58,7 +58,7 @@ public sealed partial class SqlServerProjectDatabase
 
             await using var create = master.CreateCommand();
             // dbName 來自設定、非使用者輸入;以括號內嵌(CREATE DATABASE 不接受參數化庫名)。
-            // 庫層預設定序釘 Latin1_General_BIN2(design §2.1 雙保險之一):消滅「結果隨部署伺服器預設
+            // 庫層預設定序釘 Latin1_General_BIN2(定序雙保險之一):消滅「結果隨部署伺服器預設
             // 定序漂移」這條軸。只影響未來新建庫;既有庫不自動改(改庫 collation 是重建級操作,環境重置
             // 由使用者裁決執行)。欄位層另有顯式 COLLATE(見 SchemaSql),兩層缺一不可。
             create.CommandText =
@@ -70,13 +70,13 @@ public sealed partial class SqlServerProjectDatabase
         await conn.OpenAsync(cancellationToken);
         await SqlServerControlPlaneSchema.EnsureAsync(conn, cancellationToken);
 
-        // 走到這裡＝單庫可連且控制面表就位 → 標記此目標 process 級就緒,後續元件跳過 master。
+        // 走到這裡＝單庫可連且 dbo 管理表就位 → 標記此目標 process 級就緒,後續元件跳過 master。
         SqlServerSingleDatabaseReadiness.MarkConfirmed(readinessKey);
     }
 
     /// <summary>
     /// 單一資料庫(<see cref="SqlServerConnectionOptions.SingleDatabaseName"/>)目前是否已存在。
-    /// master 依賴最小化(§4):<see cref="SqlServerConnectionOptions.AssumeDatabaseExists"/>=true 或
+    /// 盡量不依賴 master:<see cref="SqlServerConnectionOptions.AssumeDatabaseExists"/>=true 或
     /// process 級就緒已確認(<see cref="SqlServerSingleDatabaseReadiness"/>)時,一律當「已存在」、<b>完全不連 master</b>;
     /// 否則連 master 以 <c>DB_ID</c> 判定(<b>不</b>直接開 <c>InitialCatalog=單庫</c> 的連線——後者在「庫尚未建立」
     /// 時會以「無法開啟登入所要求的資料庫」失敗),找到即標記就緒。供 <see cref="DeleteAsync"/>/<see cref="DatabaseExistsAsync"/>

@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 科目配對表五個 legacy 顯示名稱。它們只供 v7 migration／相容投影與尚未升級的 scalar
-/// contract 使用；新規則以 project taxonomy 的 category ID／semantic role 判定。
+/// 科目配對表的五個舊版分類名稱，也是五個內建分類的顯示名稱。科目配對寫入 standardized_category 欄時仍用這些名稱，
+/// v7 升版也用它們把舊的單選分類換成分類身分；新規則以案件分類樹的分類身分或語意角色判定。
 /// </summary>
 public static class AccountMappingCategories
 {
@@ -40,7 +40,7 @@ public static class AccountMappingCategories
 }
 
 /// <summary>
-/// 科目配對檔的欄位辨識（manifest import.accountMapping.fromFile 細節）：
+/// 科目配對檔的欄位辨識（import.accountMapping.fromFile）：
 /// 正規化標頭以關鍵字命中優先；任一欄無法命中時整組退回位次 1/2/3。
 /// </summary>
 public static class AccountMappingColumnResolver
@@ -53,7 +53,7 @@ public static class AccountMappingColumnResolver
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
-                "科目配對檔需含科目代號、科目名稱、標準化分類三欄。");
+                "科目配對檔需含科目編號、科目名稱、科目分類三欄。");
         }
 
         var code = FindByKeywords(columns, ["科目代號", "科目編號", "account code", "code", "gl_number"]);
@@ -148,7 +148,7 @@ public static class AccountMappingRowProjector
         var code = rawCode?.Trim();
         if (string.IsNullOrEmpty(code))
         {
-            error = new AccountMappingRowError(row.SourceRowNumber, $"第 {row.SourceRowNumber} 列：科目代號空白。");
+            error = new AccountMappingRowError(row.SourceRowNumber, $"第 {row.SourceRowNumber} 列：科目編號空白。");
             return false;
         }
 
@@ -200,7 +200,7 @@ public sealed record AccountMappingState(
 /// <summary>配對檔分類欄留白的科目（投影時已落到 Others）；供第四步列出讓審計員決定要不要補填。</summary>
 public sealed record AccountMappingBlankAccount(string AccountCode, string? AccountName);
 
-/// <summary>匯入結果（manifest import.accountMapping.fromFile response 形狀的來源）。</summary>
+/// <summary>匯入結果（import.accountMapping.fromFile response 形狀的來源）。</summary>
 public sealed record AccountMappingImportResult(
     string BatchId,
     int RowCount,

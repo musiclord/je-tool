@@ -5,12 +5,12 @@ namespace JET.Domain;
 /// ProjectCode 和 EntityName 為選填顯示資訊；沒有提供時保存空字串，ProjectId 仍是必要的案件名稱與識別。
 /// 日期一律以 "yyyy-MM-dd" 字串保存，避免序列化時區歧義。
 /// DatabaseProvider 標示會計資料所在引擎（"sqlite"／"duckdb" 本地檔；"sqlServer" 單庫）；
-/// 舊版 project.json 缺此欄位時由 store 讀取時正規化為 sqlite。
+/// project.json 缺此欄位代表舊版 JET 建立的案件，store 讀取時明確拒絕。
 /// SampleSeed 為 INF 抽樣的 per-project 種子（建案時隨機生成一次、終身固定）；
-/// SampleSeedVersion 是 nullable 的演算法 marker，缺欄位代表 legacy v1，不能用 0 代替缺席。
-/// 連 SampleSeed 都缺欄位的更舊專案由本 Domain policy 回退 <see cref="LegacySampleSeed"/>。
-/// CalendarImported 是日期檔成功 replace 的持久 marker；nullable 是為了讓舊 project.json
-/// 可用既有日期筆數推斷，新案件則一律明寫 false，讓合法零筆匯入與從未匯入可區分。
+/// SampleSeedVersion 是 INF 抽樣演算法版本。兩者由建案寫入，缺任一欄位都代表舊版 JET 建立的案件，
+/// 讀取 project.json 時明確拒絕，不回退固定種子或舊排序法。
+/// CalendarImported 是日期檔成功 replace 的持久 marker；新案件一律明寫 false，讓合法零筆匯入與
+/// 從未匯入可區分。缺欄位時一律視為尚未匯入。
 /// </summary>
 public sealed record ProjectDocument(
     string ProjectId,
@@ -41,18 +41,10 @@ public sealed record ProjectDocument(
     /// <summary>第二本地引擎（每專案一個 jet.duckdb；與 sqlite 共用本地 repository 家族與可攜性語意）。</summary>
     public const string DuckDbDatabaseProvider = "duckdb";
 
-    /// <summary>INF v1／v2 共用的 seed 排他上界（模數 2147483647）。種子取 [1, 2147483646]；
-    /// 這也保留 v1 避開 0／模數倍數而造成線性排序退化的既有政策。</summary>
+    /// <summary>INF 抽樣 seed 的排他上界（模數 2147483647）。種子取 [1, 2147483646]。</summary>
     public const long SampleSeedExclusiveUpperBound = 2147483647;
 
-    /// <summary>sampleSeed 欄位問世前之舊專案固定回退值；internal 以避免擴張 public API。</summary>
-    internal const long LegacySampleSeed = 48271;
-
-    /// <summary>持久 seed 優先；舊 project.json 缺欄位時使用 Domain 相容政策。</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
-    internal long EffectiveSampleSeed => SampleSeed ?? LegacySampleSeed;
-
-    /// <summary>日期解析選項（guide §3.1.3）。RocDateEnabled 缺欄位時 JSON 反序列化採預設 true，舊 project.json 免遷移。</summary>
+    /// <summary>日期解析選項。RocDateEnabled 缺欄位時 JSON 反序列化採預設 true，舊 project.json 免遷移。</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public DateParseOptions DateParseOptions => new(RocDateEnabled);
 
@@ -94,6 +86,13 @@ public sealed record ProjectDocument(
         };
 }
 
+/// <summary>案件清單的本機讀取結果。讀不到文件時只保留識別碼與可供使用者復原的錯誤。</summary>
+public sealed record ProjectStoreEntry(
+    string ProjectId,
+    ProjectDocument? Document,
+    string? ReadErrorCode = null,
+    string? ReadErrorMessage = null);
+
 public interface IProjectStore
 {
     /// <summary>
@@ -103,6 +102,8 @@ public interface IProjectStore
     Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken);
 
     Task<ProjectDocument?> FindAsync(string projectId, CancellationToken cancellationToken);
 

@@ -14,6 +14,7 @@ public sealed class AuditDependencyPolicyTests
         [AuditMutation.Calendar, false, true, true],
         [AuditMutation.AccountMapping, false, true, true],
         [AuditMutation.AuthorizedPreparer, false, true, true],
+        [AuditMutation.PreparationDate, false, true, true],
         [AuditMutation.SchemaV7Migration, true, true, true],
         [AuditMutation.AccountTaxonomy, false, true, true]
     ];

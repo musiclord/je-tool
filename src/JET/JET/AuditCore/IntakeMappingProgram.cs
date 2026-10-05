@@ -62,7 +62,6 @@ internal sealed record IntakeRequest(
 internal sealed record IntakePlan(
     IntakeRequest Request,
     IntakeOperation Operation,
-    ProgramNode Node,
     AuditMutationEffects Effects);
 
 internal sealed record IntakeFacts(ImportBatchResult Data);
@@ -128,7 +127,6 @@ internal sealed record GlMappingPlan(
     GlMappingRequest Request,
     GlMappingSpec Spec,
     GlEffectivePopulationPlan EffectivePopulation,
-    ProgramNode Node,
     AuditMutationEffects Effects);
 
 internal sealed record GlMappingResult(
@@ -142,12 +140,12 @@ internal sealed record TbMappingRequest(
     IReadOnlyDictionary<string, string> Mapping,
     TbChangeMode ChangeMode,
     IReadOnlyList<string> SourceColumns,
-    int MoneyScale);
+    int MoneyScale,
+    DateTimeOffset CommittedUtc);
 
 internal sealed record TbMappingPlan(
     TbMappingRequest Request,
     TbMappingSpec Spec,
-    ProgramNode Node,
     AuditMutationEffects Effects);
 
 internal sealed record TbMappingResult(
@@ -177,7 +175,6 @@ internal sealed record AccountMappingRequest(
 
 internal sealed record AccountMappingPlan(
     AccountMappingRequest Request,
-    ProgramNode Node,
     AuditMutationEffects Effects);
 
 internal enum AccountMappingFailureStyle
@@ -220,7 +217,7 @@ internal sealed class AccountMappingProjection
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
-                "科目配對檔需含科目代號、科目名稱、標準化分類三欄。");
+                "科目配對檔需含科目編號、科目名稱、科目分類三欄。");
         }
 
         var code = FindByKeywords(columns, CodeKeywords);
@@ -252,7 +249,7 @@ internal sealed class AccountMappingProjection
         var code = rawCode?.Trim();
         if (string.IsNullOrEmpty(code))
         {
-            AddError($"第 {row.SourceRowNumber} 列：科目代號空白。");
+            AddError($"第 {row.SourceRowNumber} 列：科目編號空白。");
             return;
         }
 
@@ -354,14 +351,14 @@ internal sealed record AuthorizedPreparerRequest(
 
 internal sealed record AuthorizedPreparerPlan(
     AuthorizedPreparerRequest Request,
-    ProgramNode Node,
     AuditMutationEffects Effects);
 
 internal sealed class AuthorizedPreparerProjection
 {
     private readonly IReadOnlyList<string> columns;
     private readonly string? requestedColumn;
-    private readonly HashSet<string> names = new(StringComparer.Ordinal);
+    // 人員識別值去頭尾空白後不分大小寫去重（2026-10-04 裁定 C3，和 GL 建立人員的比對同一規則）；保留第一次看到的寫法。
+    private readonly HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
     private string? nameColumn;
     private bool isResolved;
 
@@ -415,6 +412,9 @@ internal sealed class AuthorizedPreparerProjection
                 $"檔案 '{fileName}' 沒有任何資料列。");
         }
 
+        if (names.Count == 0)
+            throw new JetActionException(JetErrorCodes.InvalidPayload,
+                "選取的人員識別欄沒有任何有效識別值。請改選其他識別欄，或換檔後重新匯入。", field: "sourceColumn");
         return names.ToArray();
     }
 
@@ -445,7 +445,6 @@ internal sealed record CalendarPlan(
     string ProjectId,
     CalendarDayType DayType,
     IReadOnlyList<string>? Dates,
-    ProgramNode Node,
     AuditMutationEffects Effects);
 
 internal sealed record CalendarFacts(int Count);
@@ -465,7 +464,6 @@ internal sealed record NonWorkingDaysPlan(
     string ProjectId,
     IReadOnlyList<int> NormalizedDays,
     bool ShouldExecute,
-    ProgramNode Node,
     AuditMutationEffects Effects);
 
 internal sealed record NonWorkingDaysResult(
@@ -539,8 +537,7 @@ internal sealed record CaseCreatePreflightRequest(
 internal sealed record CaseCreatePlan(
     ProjectDocument Document,
     bool HasUserSuppliedCaseName,
-    string Principal,
-    ProgramNode Node);
+    string Principal);
 
 internal sealed record CaseCreateFacts(
     ProjectDocument Document,
@@ -632,14 +629,14 @@ public static partial class JetAuditProgram
             {
                 throw new JetActionException(
                     JetErrorCodes.FileNotFound,
-                    $"找不到檔案 '{source.FilePath}'。");
+                    $"找不到檔案 '{Path.GetFileName(source.FilePath)}'。");
             }
 
             if (!source.ReaderSupports)
             {
                 throw new JetActionException(
                     JetErrorCodes.UnsupportedFileType,
-                    $"不支援檔案 '{source.FilePath}' 的類型 '{ExtensionOf(source.FilePath)}'，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
+                    $"不支援檔案 '{Path.GetFileName(source.FilePath)}' 的類型 '{ExtensionOf(source.FilePath)}'，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
             }
         }
 
@@ -658,45 +655,14 @@ public static partial class JetAuditProgram
         return new IntakePlan(
             request,
             operation,
-            ProgramGraph.Current.RequireNode(request.ActionName),
             AuditMutationEffects.For(mutation));
     }
-
-    internal static Task<IntakeFacts> ExecuteAsync(
-        IntakePlan plan,
-        IIntakeFactsPort factsPort,
-        IReadOnlyList<ImportSourceInput> sources,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        return factsPort.ExecuteAsync(plan, sources, cancellationToken);
-    }
-
-    internal static Task<IntakeFacts> ExecuteAsync(
-        IntakePlan plan,
-        IIntakeFactsPort factsPort,
-        ImportSourceDescriptor source,
-        IReadOnlyList<string> columns,
-        IAsyncEnumerable<StagingRow> rows,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(
-            plan,
-            factsPort,
-            [new ImportSourceInput(source, columns, rows)],
-            cancellationToken);
 
     internal static IntakeResult Finalize(IntakePlan plan, IntakeFacts facts)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(facts);
         return new IntakeResult(facts.Data, plan.Effects);
-    }
-
-    internal static string Explain(IntakeResult result)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-        return $"匯入批次 {result.Data.Batch.BatchId}；本次寫入 {result.Data.AddedRowCount} 列。";
     }
 
     internal static GlAmountMode ParseGlAmountMode(string amountModeName)
@@ -727,7 +693,23 @@ public static partial class JetAuditProgram
     {
         ArgumentNullException.ThrowIfNull(request);
         var baseSpec = new GlMappingSpec(request.Mapping, request.AmountMode);
-        EnsureMappingValid(MappingValidator.ValidateGl(baseSpec, request.SourceColumns));
+        var validation = MappingValidator.ValidateGl(baseSpec, request.SourceColumns);
+        if (validation.MissingRequiredKeys.Any(key => key is GlMappingKeys.DcDebitCode or GlMappingKeys.DcCreditCode))
+        {
+            throw new JetActionException(JetErrorCodes.MissingRequiredMapping,
+                "借方代碼與貸方代碼都必須填寫。請回到第三步，填齊兩個代碼後再確認配對。",
+                field: validation.MissingRequiredKeys.Contains(GlMappingKeys.DcCreditCode)
+                    ? GlMappingKeys.DcCreditCode : GlMappingKeys.DcDebitCode);
+        }
+        EnsureMappingValid(validation);
+        if (request.AmountMode is GlAmountMode.AmountWithSide or GlAmountMode.AmountWithFlag
+            && string.Equals(request.Mapping[GlMappingKeys.DcDebitCode].Trim(),
+                request.Mapping[GlMappingKeys.DcCreditCode].Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new JetActionException(JetErrorCodes.InvalidPayload,
+                "借方代碼與貸方代碼不能相同。請回到第三步，分別填寫來源資料的兩種代碼後再確認配對。",
+                field: GlMappingKeys.DcCreditCode);
+        }
         var postingStatusMapped = request.Mapping.TryGetValue(
                 GlMappingKeys.PostingStatus,
                 out var postingStatusColumn)
@@ -741,7 +723,10 @@ public static partial class JetAuditProgram
         }
         catch (ArgumentException exception)
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, exception.Message);
+            throw new JetActionException(
+                JetErrorCodes.InvalidPayload,
+                "過帳狀態的設定與欄位配對不一致，這次欄位配對沒有儲存。請回第三步欄位配對重新選擇過帳狀態欄位與納入值。",
+                innerException: exception);
         }
 
         GlMappingOptions options;
@@ -755,9 +740,25 @@ public static partial class JetAuditProgram
                     PostingStatusPolicy = postingStatusPolicy
                 });
         }
+        catch (ArgumentException exception) when (exception.Data[ManualAutoPolicyErrors.OverlapValueKey] is string)
+        {
+            var overlap = (string)exception.Data[ManualAutoPolicyErrors.OverlapValueKey]!;
+            var message = $"值「{overlap}」同時列在人工與自動。請回到欄位配對，讓這個值只屬於其中一側，再重新確認。";
+            throw new JetActionException(JetErrorCodes.InvalidPayload, message, innerException: exception)
+            {
+                Details = [new JetErrorDetail(null, null, message)
+                {
+                    SourceColumn = request.Mapping.GetValueOrDefault(GlMappingKeys.Manual),
+                    ReasonCode = ProjectionErrorCodes.ManualOverlap
+                }]
+            };
+        }
         catch (ArgumentException exception)
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, exception.Message);
+            throw new JetActionException(
+                JetErrorCodes.InvalidPayload,
+                "欄位配對的進階設定有不一致的地方，這次欄位配對沒有儲存。請回第三步欄位配對檢查核准日期、人工與自動分錄，以及攸關資料元素欄位的設定。",
+                innerException: exception);
         }
 
         var spec = baseSpec with { Options = options };
@@ -770,7 +771,6 @@ public static partial class JetAuditProgram
                 request.PeriodEnd,
                 postingStatusMapped,
                 postingStatusPolicy),
-            ProgramGraph.Current.RequireNode("mapping.commit.gl"),
             AuditMutationEffects.For(AuditMutation.GlProjection));
     }
 
@@ -782,30 +782,7 @@ public static partial class JetAuditProgram
         return new TbMappingPlan(
             request,
             spec,
-            ProgramGraph.Current.RequireNode("mapping.commit.tb"),
             AuditMutationEffects.For(AuditMutation.TbProjection));
-    }
-
-    internal static Task<ProjectionResult> ExecuteAsync(
-        GlMappingPlan plan,
-        IMappingFactsPort factsPort,
-        CancellationToken cancellationToken,
-        Action<ProjectionProgress>? progress = null)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        return factsPort.ExecuteAsync(plan, cancellationToken, progress);
-    }
-
-    internal static Task<ProjectionResult> ExecuteAsync(
-        TbMappingPlan plan,
-        IMappingFactsPort factsPort,
-        CancellationToken cancellationToken,
-        Action<ProjectionProgress>? progress = null)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        return factsPort.ExecuteAsync(plan, cancellationToken, progress);
     }
 
     internal static GlMappingResult Finalize(
@@ -826,12 +803,6 @@ public static partial class JetAuditProgram
         return new TbMappingResult(plan.Spec, projection, plan.Effects);
     }
 
-    internal static string Explain(GlMappingResult result) =>
-        ExplainMapping(result.Projection);
-
-    internal static string Explain(TbMappingResult result) =>
-        ExplainMapping(result.Projection);
-
     internal static AccountMappingPlan Plan(AccountMappingRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -848,7 +819,6 @@ public static partial class JetAuditProgram
 
         return new AccountMappingPlan(
             request,
-            ProgramGraph.Current.RequireNode("import.accountMapping.fromFile"),
             AuditMutationEffects.For(AuditMutation.AccountMapping));
     }
 
@@ -877,7 +847,6 @@ public static partial class JetAuditProgram
 
         return new AuthorizedPreparerPlan(
             request,
-            ProgramGraph.Current.RequireNode("import.authorizedPreparer.fromFile"),
             AuditMutationEffects.For(AuditMutation.AuthorizedPreparer));
     }
 
@@ -945,54 +914,12 @@ public static partial class JetAuditProgram
             request.ProjectId,
             normalized,
             ShouldExecute: !current.SequenceEqual(normalized),
-            ProgramGraph.Current.RequireNode("calendar.setNonWorkingDays"),
             AuditMutationEffects.For(AuditMutation.Calendar));
     }
 
     internal static NonWorkingDaysSelection ValidateNonWorkingDays(
         IReadOnlyList<int> requestedDays) =>
         new(NonWorkingDays.Validate(requestedDays));
-
-    internal static Task<AccountMappingFacts> ExecuteAsync(
-        AccountMappingPlan plan,
-        IReferenceDataFactsPort factsPort,
-        ImportSourceDescriptor source,
-        IReadOnlyList<string> columns,
-        AccountMappingProjection projection,
-        IAsyncEnumerable<StagingRow> rows,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        ArgumentNullException.ThrowIfNull(projection);
-        return factsPort.ExecuteAsync(
-            plan,
-            source,
-            columns,
-            projection,
-            rows,
-            cancellationToken);
-    }
-
-    internal static Task<AuthorizedPreparerFacts> ExecuteAsync(
-        AuthorizedPreparerPlan plan,
-        IReferenceDataFactsPort factsPort,
-        ImportSourceDescriptor source,
-        IReadOnlyList<string> columns,
-        IAsyncEnumerable<StagingRow> rows,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        var projection = PrepareAuthorizedPreparerProjection(columns, plan.Request.SourceColumn);
-        return factsPort.ExecuteAsync(
-            plan,
-            source,
-            columns,
-            projection,
-            rows,
-            cancellationToken);
-    }
 
     internal static async Task<IReadOnlyList<CalendarDayEntry>> ProjectCalendarFileAsync(
         CalendarPlan plan,
@@ -1081,21 +1008,6 @@ public static partial class JetAuditProgram
         return collected;
     }
 
-    internal static Task<CalendarFacts> ExecuteAsync(
-        CalendarPlan plan,
-        IReferenceDataFactsPort factsPort,
-        IReadOnlyList<CalendarDayEntry> entries,
-        CancellationToken cancellationToken) =>
-        factsPort.ExecuteAsync(plan, entries, cancellationToken);
-
-    internal static Task ExecuteAsync(
-        NonWorkingDaysPlan plan,
-        IReferenceDataFactsPort factsPort,
-        CancellationToken cancellationToken) =>
-        plan.ShouldExecute
-            ? factsPort.ExecuteAsync(plan, cancellationToken)
-            : Task.CompletedTask;
-
     internal static AccountMappingResult Finalize(
         AccountMappingPlan plan,
         AccountMappingFacts facts) =>
@@ -1114,18 +1026,6 @@ public static partial class JetAuditProgram
     internal static NonWorkingDaysResult Finalize(NonWorkingDaysPlan plan) =>
         new(plan.NormalizedDays, plan.Effects);
 
-    internal static string Explain(AccountMappingResult result) =>
-        $"科目配對已匯入 {result.Import.RowCount} 列。";
-
-    internal static string Explain(AuthorizedPreparerResult result) =>
-        $"授權編製人員已匯入 {result.Import.RowCount} 列。";
-
-    internal static string Explain(CalendarResult result) =>
-        $"行事曆已寫入 {result.Count} 日。";
-
-    internal static string Explain(NonWorkingDaysResult result) =>
-        $"非工作日設定為 {string.Join("、", result.NormalizedDays)}。";
-
     internal static CaseCreatePlan Plan(CaseCreateRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -1134,18 +1034,7 @@ public static partial class JetAuditProgram
         return new CaseCreatePlan(
             request.Document,
             request.HasUserSuppliedCaseName,
-            request.Principal,
-            ProgramGraph.Current.RequireNode("project.create"));
-    }
-
-    internal static Task<CaseCreateFacts> ExecuteAsync(
-        CaseCreatePlan plan,
-        ICaseCreateFactsPort factsPort,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        return factsPort.ExecuteAsync(plan, cancellationToken);
+            request.Principal);
     }
 
     internal static CaseCreateResult Finalize(
@@ -1165,23 +1054,20 @@ public static partial class JetAuditProgram
         return new CaseCreateResult(facts.Document);
     }
 
-    internal static string Explain(CaseCreateResult result) =>
-        $"案件 {result.Document.ProjectId} 已建立。";
-
     private static void EnsureMappingValid(MappingValidationResult validation)
     {
         if (validation.MissingRequiredKeys.Count > 0)
         {
             throw new JetActionException(
                 JetErrorCodes.MissingRequiredMapping,
-                $"mapping 缺少必填欄位：{string.Join("、", validation.MissingRequiredKeys)}。");
+                $"欄位配對缺少必填欄位：{string.Join("、", validation.MissingRequiredKeys)}。請回第三步欄位配對重新選擇。");
         }
 
         if (validation.UnknownColumns.Count > 0)
         {
             throw new JetActionException(
                 JetErrorCodes.MappingColumnNotFound,
-                $"mapping 指到不存在的欄位：{string.Join("、", validation.UnknownColumns)}。");
+                $"欄位配對選到的來源欄位已不在匯入的資料中：{string.Join("、", validation.UnknownColumns)}。請回第三步欄位配對重新選擇。");
         }
     }
 
@@ -1193,16 +1079,7 @@ public static partial class JetAuditProgram
             return;
         }
 
-        var details = string.Join(
-            "；",
-            projection.Errors
-                .Take(10)
-                .Select(error => error.SourceLabel is null
-                    ? $"第 {error.SourceRowNumber} 列，欄位「{error.Field}」，值「{error.RawValue}」：{error.Reason}"
-                    : $"{error.SourceLabel} 第 {error.SourceRowNumber} 列，欄位「{error.Field}」，值「{error.RawValue}」：{error.Reason}"));
-        throw new JetActionException(
-            JetErrorCodes.ProjectionFailed,
-            $"{projection.TotalErrorCount} 列無法轉換，系統沒有保存這次配對結果。以下列出部分原因：{details}");
+        throw ProjectionFailureText.Create(projection);
     }
 
     private static CalendarPlan CalendarPlanFor(
@@ -1228,7 +1105,6 @@ public static partial class JetAuditProgram
             projectId,
             dayType,
             dates,
-            ProgramGraph.Current.RequireNode(actionName),
             AuditMutationEffects.For(AuditMutation.Calendar));
     }
 
@@ -1248,7 +1124,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.FileNotFound,
-                $"找不到檔案 '{filePath}'。");
+                $"找不到檔案 '{Path.GetFileName(filePath)}'。");
         }
     }
 
@@ -1268,7 +1144,4 @@ public static partial class JetAuditProgram
 
         return null;
     }
-
-    private static string ExplainMapping(ProjectionResult projection) =>
-        $"欄位配對已投影 {projection.ProjectedRowCount} 列。";
 }

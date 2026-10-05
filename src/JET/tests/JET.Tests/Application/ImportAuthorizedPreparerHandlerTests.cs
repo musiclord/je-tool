@@ -41,10 +41,12 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
+            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留正規化與去重的原斷言。
             var data = await host.DispatchAsync("import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new
             {
                 filePath = path,
-                fileName = "authorized-preparers.xlsx"
+                fileName = "authorized-preparers.xlsx",
+                sourceColumn = "AUTHORIZED_PREPARER"
             }));
 
             Assert.Equal(3, data.GetProperty("rowCount").GetInt32());
@@ -89,10 +91,11 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
+            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留第二次匯入取代前次名單的原斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
-                JsonSerializer.Serialize(new { filePath = first }));
+                JsonSerializer.Serialize(new { filePath = first, sourceColumn = "姓名" }));
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
-                JsonSerializer.Serialize(new { filePath = second }));
+                JsonSerializer.Serialize(new { filePath = second, sourceColumn = "姓名" }));
 
             // replace：第二次匯入整份取代,只剩「丙」。
             Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
@@ -121,11 +124,13 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
+            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；仍只驗證不支援 append 的原錯誤。
             var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
                 "import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new
                 {
                     filePath = path,
-                    mode = "append"
+                    mode = "append",
+                    sourceColumn = "姓名"
                 })));
 
             Assert.Equal("unsupported_mode", ex.Code);
@@ -144,8 +149,9 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         var path = WriteCsv("姓名\n甲\n乙\n");
 
+        // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；仍只驗證不支援 CSV 的原錯誤。
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
-            "import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new { filePath = path })));
+            "import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new { filePath = path, sourceColumn = "姓名" })));
 
         Assert.Equal("unsupported_file_type", ex.Code);
     }
@@ -169,8 +175,9 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
+            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留重新開案的原狀態斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
-                JsonSerializer.Serialize(new { filePath = path }));
+                JsonSerializer.Serialize(new { filePath = path, sourceColumn = "姓名" }));
 
             var loaded = await host.DispatchAsync(
                 "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));

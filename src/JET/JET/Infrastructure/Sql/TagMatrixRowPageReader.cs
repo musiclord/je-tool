@@ -191,7 +191,7 @@ internal static class TagMatrixRowPageReader
             }
         }
 
-        var documentOrder = OrdinalText(dialect, "g.document_number");
+        var documentOrder = OrdinalText(dialect, "COALESCE(g.document_number, '')");
         var lineOrder = lineItemKind switch
         {
             LegacyFieldKind.Number =>
@@ -237,12 +237,14 @@ internal static class TagMatrixRowPageReader
                 $"LEFT JOIN {schemaPrefix}staging_gl_raw_row raw " +
                 "  ON raw.batch_id = g.batch_id AND raw.row_number = g.source_row_number " +
                 $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} " +
-                "AND g.document_number IN ( " +
+                "AND (g.document_number IN ( " +
                 $"    SELECT DISTINCT g2.document_number FROM {schemaPrefix}result_filter_run r " +
                 $"    JOIN {schemaPrefix}target_gl_entry g2 ON g2.entry_id = r.entry_id " +
                 $"    WHERE g2.document_number IS NOT NULL AND {GlPopulationScopeSql.Predicate(context, "g2")} " +
                 scenarioScope.Predicate() +
-                ") " +
+                ") OR (g.document_number IS NULL AND EXISTS (" +
+                $"SELECT 1 FROM {schemaPrefix}result_filter_run r WHERE r.entry_id = g.entry_id " +
+                scenarioScope.Predicate("r.scenario_position") + "))) " +
                 keyset +
                 orderBy +
                 dialect.LimitClause("@pageSize") +
@@ -323,7 +325,7 @@ internal static class TagMatrixRowPageReader
         var last = rows[^1];
         var next = hasMore
             ? PageCursor.Encode(JsonSerializer.Serialize(new WorkpaperCursor(
-                last.DocumentNumber!,
+                last.DocumentNumber ?? string.Empty,
                 last.LineItem is null,
                 rowLineOrders[^1],
                 last.EntryId)))

@@ -1,5 +1,5 @@
 /*
-  資料預覽（正式版功能；manifest query.dataPreview）。
+  資料預覽（正式版功能；query.dataPreview）。
   讓使用者隨時看到目前操作的資料長什麼樣子：
   - 欄位配對時對照「欄名 ↔ 實際內容」（來源原貌資料集）
   - 進階篩選前掌握數值/日期/摘要的大概樣貌（標準化後資料集 + 概況統計）
@@ -27,9 +27,9 @@
   var DATASETS = [
     { value: 'glStaging', label: 'GL 原始資料' },
     { value: 'tbStaging', label: 'TB 原始資料' },
-    { value: 'glEntries', label: 'GL 測試母體' },
-    { value: 'glExcludedEntries', label: 'GL 未納入測試母體' },
-    { value: 'tbBalances', label: 'TB 標準化資料' },
+    { value: 'glEntries', label: '納入測試的分錄' },
+    { value: 'glExcludedEntries', label: '未納入測試的分錄' },
+    { value: 'tbBalances', label: '已確認配對的試算表' },
     { value: 'accountMappings', label: '科目配對' },
     { value: 'authorizedPreparers', label: '授權編製人員清單' },
     { value: 'dateDimension', label: '行事曆（假日與補班日）' },
@@ -40,9 +40,9 @@
   // 同樣保持直接可見，避免步驟按鈕換位後只亮「其他資料」而看不出目前資料集。
   var MAIN_TABS = [
     { value: 'glStaging', label: 'GL 原始資料' },
-    { value: 'glEntries', label: 'GL 測試母體' },
+    { value: 'glEntries', label: '納入測試的分錄' },
     { value: 'tbStaging', label: 'TB 原始資料' },
-    { value: 'tbBalances', label: 'TB 標準化資料' },
+    { value: 'tbBalances', label: '已確認配對的試算表' },
     { value: 'accountMappings', label: '科目配對' }
   ];
 
@@ -51,11 +51,11 @@
     return !MAIN_TABS.some(function (t) { return t.value === d.value; });
   });
 
-  // 固定欄位 id → 顯示標籤（manifest query.dataPreview 細節段）
+  // 固定欄位 id → 顯示標籤（query.dataPreview）
   var COLUMN_LABELS = {
     documentNumber: '傳票號碼',
     lineItem: '項次',
-    postDate: '總帳日期',
+    postDate: '總帳入帳日',
     accountCode: '科目編號',
     accountName: '科目名稱',
     documentDescription: '摘要',
@@ -64,8 +64,8 @@
     postingStatus: '過帳狀態',
     exclusionReason: '未納入原因',
     changeAmount: '變動金額',
-    standardizedCategory: '標準化分類',
-    preparerName: '人員識別值',
+    standardizedCategory: '科目分類',
+    preparerName: '人員代號或姓名',
     // dateDimension
     date: '日期',
     dayType: '類別',
@@ -81,16 +81,16 @@
   // dateDimension 的 dayType 原值（holiday/makeup）→ 中文顯示
   var DAY_TYPE_LABELS = { holiday: '假日', makeup: '補班' };
 
-  // 未納入測試母體的原因（後端 closed wire value）→ 中文顯示；未登錄值原樣呈現。
-  var EXCLUSION_REASON_LABELS = { period: '不在查核期間', postingStatus: '過帳狀態不符' };
+  // 未納入分錄測試範圍的原因（後端 closed wire value）→ 中文顯示；未登錄值原樣呈現。
+  var EXCLUSION_REASON_LABELS = { period: '日期不符', postingStatus: '過帳狀態不符' };
 
-  // 純顯示層的 cell 改寫（不改後端語意）：dayType 原值轉中文；會計金額欄一律四位小數。
+  // 純顯示層的 cell 改寫（不改後端語意）：dayType 原值轉中文；會計金額欄一律走 Ui.money（兩位小數加千分位）。
   function displayCell(dataset, column, cell) {
     if (cell === null) { return null; }
     if (dataset === 'dateDimension' && column === 'dayType') {
       return DAY_TYPE_LABELS[cell] || cell;
     }
-    // 標準化資料集的會計金額欄（GL amount、TB changeAmount）一律四位小數，與左側篩選預覽同一 Ui.money 呈現。
+    // 標準化資料集的會計金額欄（GL amount、TB changeAmount）一律兩位小數加千分位，與左側篩選預覽同一 Ui.money 呈現。
     // 明確綁定資料集＋欄 id：原貌（glStaging）用來源欄名保真呈現、其數值欄可能是項次等非金額，故不套此格式，
     // 也不會因某來源欄剛好叫 amount 而誤中。
     if (dataset === 'glExcludedEntries' && column === 'exclusionReason') {
@@ -620,18 +620,18 @@
     var count = '前 ' + shown + ' 列，共 ' + total + ' 列，全 ' + cols + ' 欄';
 
     // stats 的形狀依資料集而異，由後端決定：標準化分錄回金額／日期／傳票概況，
-    // 未進入測試母體的分錄回兩類排除計數。畫面只複述既有欄位，不跨資料集猜欄位。
+    // 未納入本次測試的分錄回兩類排除計數。畫面只複述既有欄位，不跨資料集猜欄位。
     var statsHtml = '';
     if (data.stats && data.stats.excludedByPeriodCount != null) {
       statsHtml = '<div class="data-preview__stats">' + Ui.esc(
-        '期間排除 ' + Number(data.stats.excludedByPeriodCount).toLocaleString() +
-        ' 列 ｜ 過帳狀態排除 ' + Number(data.stats.excludedByPostingStatusCount).toLocaleString() + ' 列'
+        '日期不符 ' + Number(data.stats.excludedByPeriodCount).toLocaleString() +
+        ' 筆 ｜ 過帳狀態不符 ' + (data.stats.excludedByPostingStatusCount == null ? '—' : Number(data.stats.excludedByPostingStatusCount).toLocaleString()) + ' 筆'
       ) + '</div>';
     } else if (data.stats) {
       var parts = ['金額（絕對值）' + Ui.money(data.stats.amountAbsMin) +
         ' ～ ' + Ui.money(data.stats.amountAbsMax)];
       if (data.stats.postDateMin) {
-        parts.push('總帳日期 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
+        parts.push('總帳入帳日 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
       }
       parts.push('傳票 ' + Number(data.stats.voucherCount).toLocaleString() + ' 張');
       statsHtml = '<div class="data-preview__stats">' + Ui.esc(parts.join(' ｜ ')) + '</div>';
@@ -648,12 +648,12 @@
   function emptyHint(dataset) {
     switch (dataset) {
       case 'glExcludedEntries':
-        return '目前沒有被排除的分錄：所有標準化後的分錄都進入測試母體。';
+        return '目前沒有未納入測試的分錄：已確認配對的分錄均已納入本次測試。';
       case 'glStaging': return '尚未匯入 GL 資料；完成「匯入資料」後即可預覽來源原貌。';
       case 'tbStaging': return '尚未匯入 TB 資料；完成「匯入資料」後即可預覽來源原貌。';
-      case 'glEntries': return '尚未產生標準化分錄；完成「欄位配對」的確認後即可預覽測試母體。';
-      case 'tbBalances': return '尚未產生標準化餘額；完成「欄位配對」的確認後即可預覽。';
-      case 'accountMappings': return '尚未匯入科目配對；在「資料驗證與測試」步驟選擇科目配對檔後即可預覽。';
+      case 'glEntries': return '總帳明細尚未確認配對；確認配對後即可預覽納入測試的分錄。';
+      case 'tbBalances': return '試算表尚未確認配對；確認配對後即可預覽。';
+      case 'accountMappings': return '尚未儲存科目配對；請在「資料驗證與測試」的科目清單選擇分類並儲存。';
       case 'authorizedPreparers': return '尚未匯入授權編製人員清單；在「匯入資料」步驟匯入後即可預覽。';
       case 'dateDimension': return '尚未匯入事務所假日／補班日；在「匯入資料」步驟匯入行事曆後即可預覽。';
       default: return '目前沒有資料。';

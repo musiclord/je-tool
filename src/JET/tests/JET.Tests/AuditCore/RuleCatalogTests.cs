@@ -72,7 +72,7 @@ public sealed class RuleCatalogTests
             RuleCatalog.All, r => r.WireKey == PrescreenRuleKeys.LowFrequencyAccount);
 
         Assert.Equal("low_frequency_account", descriptor.Slug);
-        Assert.Equal("低頻科目", descriptor.DisplayName);
+        Assert.Equal("使用較少的科目（11 筆以下）", descriptor.DisplayName);
         Assert.Null(descriptor.LegacyCode);
         Assert.Equal(RuleShape.RowTag, descriptor.Shape);
         Assert.Contains(PrescreenRuleKeys.LowFrequencyAccount, PrescreenRuleKeys.FilterableKeys);

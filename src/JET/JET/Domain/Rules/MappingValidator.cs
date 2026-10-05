@@ -55,14 +55,14 @@ public static class MappingValidator
 
         foreach (var (key, value) in mapping)
         {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                continue;
-            }
-
             if (!knownKeySet.Contains(key))
             {
                 unknownColumns.Add($"{key} (unknown mapping key)");
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
                 continue;
             }
 

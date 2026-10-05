@@ -4,12 +4,12 @@ namespace JET.Domain;
 
 /// <summary>
 /// 把 <see cref="FilterScenarioValidator"/> 的逐條訊息轉成帶位置的錯誤細節。驗證器用固定前綴
-/// 「條件群組 N 規則 M：」或「條件群組 N：」標示位置（Domain 自己產生，不是使用者輸入），
+/// 「第 N 組第 M 條：」或「第 N 組：」標示位置；仍可讀舊版的「條件群組 N 規則 M」前綴，
 /// 這裡只解析該前綴；解析不到的訊息位置為 null，前端就以整段訊息呈現。
 /// </summary>
 public static partial class FilterScenarioErrorDetails
 {
-    [GeneratedRegex(@"^條件群組 (?<group>\d+)(?: 規則 (?<rule>\d+))?(?:：|\s)(?<message>.*)$", RegexOptions.Singleline)]
+    [GeneratedRegex(@"^(?:第 (?<group>\d+) 組(?:第 (?<rule>\d+) 條)?|條件群組 (?<group>\d+)(?: 規則 (?<rule>\d+))?)(?:：|\s)(?<message>.*)$", RegexOptions.Singleline)]
     private static partial Regex Positioned();
 
     public static IReadOnlyList<JetErrorDetail> Parse(IReadOnlyList<string> errors) =>

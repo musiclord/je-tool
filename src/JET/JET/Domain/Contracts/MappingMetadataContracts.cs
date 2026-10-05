@@ -1,5 +1,17 @@
 namespace JET.Domain;
 
+internal static class ManualAutoPolicyErrors
+{
+    internal const string OverlapValueKey = "JET.ManualAutoOverlapValue";
+
+    internal static ArgumentException Overlap(string value)
+    {
+        var error = new ArgumentException($"manualAutoPolicy 的 manual/automatic 代碼不得重疊：'{value}'。", "options");
+        error.Data[OverlapValueKey] = value;
+        return error;
+    }
+}
+
 /// <summary>
 /// JET 報告內嵌欄位配對 metadata 的固定位置與版本。可見欄位資訊只供人閱讀；
 /// machine round-trip 一律以這組 marker/version/payload 為準，不能反推顯示名稱。
@@ -8,7 +20,6 @@ public static class MappingMetadataFormat
 {
     public const string WorksheetName = "自動化工具-檔案欄位資訊";
     public const string Marker = "JET_MAPPING_METADATA";
-    public const int LegacyVersion = 1;
     public const int CurrentVersion = 2;
     public const string MarkerCell = "F1";
     public const string VersionCell = "G1";
@@ -155,14 +166,12 @@ public static class GlMappingOptionsRules
         var overlap = manualValues.FirstOrDefault(automaticSet.Contains);
         if (overlap is not null)
         {
-            throw new ArgumentException(
-                $"manualAutoPolicy 的 manual/automatic 代碼不得重疊：'{overlap}'。",
-                nameof(options));
+            throw ManualAutoPolicyErrors.Overlap(overlap);
         }
 
         var sourceSet = sourceColumns.ToHashSet(StringComparer.Ordinal);
         var mappedSourceSet = mapping
-            .Where(static pair => pair.Key != GlMappingKeys.DcDebitCode && !string.IsNullOrWhiteSpace(pair.Value))
+            .Where(static pair => !JetFieldCatalog.IsGlLiteralMappingKey(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
             .Select(static pair => pair.Value)
             .ToHashSet(StringComparer.Ordinal);
         var fieldIds = new HashSet<string>(StringComparer.Ordinal);

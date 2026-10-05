@@ -676,6 +676,15 @@ public sealed partial class LegacyReportWriter(
             : 0;
     }
 
+    /// <summary>欄位存在而且是整數時回傳值；舊結果沒有這個欄位或值是 null 時回 null，讓呼叫端自己決定替代來源。</summary>
+    private static long? OptionalLong(JsonElement root, string section, string property) =>
+        root.TryGetProperty(section, out var value)
+        && value.TryGetProperty(property, out var number)
+        && number.ValueKind == JsonValueKind.Number
+        && number.TryGetInt64(out var result)
+            ? result
+            : null;
+
     private static long GetLong(JsonElement element, string property)
     {
         if (!element.TryGetProperty(property, out var value))

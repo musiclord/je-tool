@@ -53,4 +53,25 @@ public sealed class SqlServerDocBalancePageRepository(SqlServerProjectDatabase d
 
         return buffer.ToPage(request, paging, static row => row.DocumentNumber ?? string.Empty);
     }
+
+    public async IAsyncEnumerable<UnbalancedVoucherDateRow> StreamVoucherDateRowsAsync(
+        string projectId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = database.CreateCommand(connection, projectId,
+            ValidationProcedures.UnbalancedVoucherDateSummary("{s}.") + ";");
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            yield return new UnbalancedVoucherDateRow(
+                reader.IsDBNull(0) ? null : reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.GetInt64(2),
+                reader.GetInt64(3));
+        }
+    }
 }

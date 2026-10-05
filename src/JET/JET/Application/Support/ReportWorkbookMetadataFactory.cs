@@ -20,23 +20,17 @@ internal static class ReportWorkbookMetadataFactory
             projectId,
             DatasetKind.Gl,
             cancellationToken).ConfigureAwait(false);
-        if (gl is null || gl.FormatVersion != MappingMetadataFormat.CurrentVersion)
+        if (gl is null)
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "正式報表需要目前已確認的 GL mapping v2，請回到欄位配對後重新產出。");
+                "正式報表需要目前已確認配對的 GL 欄位，請回第三步按「確認配對」後再匯出報表。");
         }
 
         var tb = await mappingStore.FindAsync(
             projectId,
             DatasetKind.Tb,
             cancellationToken).ConfigureAwait(false);
-        if (tb is { FormatVersion: not MappingMetadataFormat.CurrentVersion })
-        {
-            throw new JetActionException(
-                JetErrorCodes.StaleResult,
-                "TB 欄位配對需要更新，請回第三步重新確認欄位配對後再匯出報表。");
-        }
 
         var taxonomy = await taxonomyStore.ReadAsync(projectId, cancellationToken).ConfigureAwait(false);
         var metadata = new ReportWorkbookMetadata(
@@ -51,7 +45,10 @@ internal static class ReportWorkbookMetadataFactory
         }
         catch (ArgumentException exception)
         {
-            throw new JetActionException(JetErrorCodes.StaleResult, exception.Message);
+            throw new JetActionException(
+                JetErrorCodes.StaleResult,
+                "案件的查核期間、科目分類或欄位配對已和報表需要的資料不一致，無法匯出。請回第三步按「確認配對」，再到第六步匯出底稿。",
+                innerException: exception);
         }
 
         return metadata;

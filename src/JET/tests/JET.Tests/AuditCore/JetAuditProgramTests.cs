@@ -6,6 +6,9 @@ namespace JET.Tests.AuditCore;
 
 public sealed class JetAuditProgramTests
 {
+    // 驗證計畫只接受目前的 INF 抽樣演算法版本；沒有版本的快照代表舊版 JET 建立的案件，會被拒絕。
+    private const int CurrentInfSamplingVersion = JetAuditProgram.CurrentInfSamplingAlgorithmVersion;
+
     [Fact]
     public void Evaluate_WithoutTbMapping_ReturnsSingleSourceNotApplicableReason()
     {
@@ -14,16 +17,19 @@ public sealed class JetAuditProgramTests
         Assert.False(verdict.IsApplicable);
         Assert.Equal("completeness_test", verdict.Definition.Slug);
         Assert.Equal(ValidationProcedures.MissingTbMappingReason, verdict.NaReason);
-        Assert.Equal("尚未提交 TB 欄位配對，無法執行完整性測試。", verdict.NaReason);
-        Assert.Empty(verdict.Parameters);
+        // 2026-10-02 整體複審 T4：畫面不再說「提交」欄位配對，原因改用「完成」；斷言改鎖新句子。
+        // 2026-10-04 第 8 批 Q8：確認配對用語統一；仍鎖定完整原因與單一 N/A 判定。
+        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+        Assert.Equal("尚未確認 TB 欄位配對，無法執行完整性測試。", verdict.NaReason);
     }
 
     [Fact]
-    public void Plan_ValidationFamily_BindsPeriodAndSamplingParameters()
+    public void Plan_ValidationFamily_SelectsFourApplicableProcedures()
     {
         var snapshot = new AuditCaseSnapshot(
             "project-1", HasGlMapping: true, HasTbMapping: true,
-            "2025-01-01", "2025-12-31", 10_000, 48271);
+            "2025-01-01", "2025-12-31", 10_000, 48271,
+                SampleSeedVersion: CurrentInfSamplingVersion);
         var parameters = new AuditUserParameters(
             "run-1", new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero), 59);
 
@@ -31,16 +37,24 @@ public sealed class JetAuditProgramTests
 
         Assert.Equal(4, plan.Procedures.Count);
         Assert.All(plan.Procedures, verdict => Assert.True(verdict.IsApplicable));
-        Assert.All(plan.Procedures, verdict =>
-        {
-            Assert.Equal("2025-01-01", verdict.Parameters["@periodStart"]);
-            Assert.Equal("2025-12-31", verdict.Parameters["@periodEnd"]);
-        });
+    }
 
-        var inf = Assert.Single(plan.Procedures, verdict => verdict.Definition.Slug == "inf_sampling_test");
-        Assert.Equal("run-1", inf.Parameters["@runId"]);
-        Assert.Equal("48271", inf.Parameters["@seed"]);
-        Assert.Equal("59", inf.Parameters["@n"]);
+    [Theory]
+    [InlineData(null)]
+    [InlineData(1)]
+    public void Plan_ValidationWithLegacySampleSeedVersion_RejectsAsOldProject(int? version)
+    {
+        var snapshot = new AuditCaseSnapshot(
+            "project-1", HasGlMapping: true, HasTbMapping: true,
+            "2025-01-01", "2025-12-31", 10_000, 48271,
+            SampleSeedVersion: version);
+        var parameters = new AuditUserParameters(
+            "run-1", new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero), 59);
+
+        var exception = Assert.Throws<JetActionException>(() => JetAuditProgram.Plan(snapshot, parameters));
+
+        Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
+        Assert.Contains("舊版 JET 建立的案件", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -49,7 +63,8 @@ public sealed class JetAuditProgramTests
         var plan = JetAuditProgram.Plan(
             new AuditCaseSnapshot(
                 "project-1", HasGlMapping: true, HasTbMapping: true,
-                "2025-01-01", "2025-12-31", 10_000, 48271),
+                "2025-01-01", "2025-12-31", 10_000, 48271,
+                SampleSeedVersion: CurrentInfSamplingVersion),
             new AuditUserParameters(
                 "run-1", new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero), 59));
         var result = new ValidationRunResult(
@@ -87,7 +102,8 @@ public sealed class JetAuditProgramTests
         var plan = JetAuditProgram.Plan(
             new AuditCaseSnapshot(
                 "project-1", HasGlMapping: true, HasTbMapping: true,
-                "2025-01-01", "2025-12-31", 10_000, 48271),
+                "2025-01-01", "2025-12-31", 10_000, 48271,
+                SampleSeedVersion: CurrentInfSamplingVersion),
             new AuditUserParameters(
                 "run-1", new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero), 59));
         var result = ValidationResult(
@@ -112,7 +128,8 @@ public sealed class JetAuditProgramTests
         var plan = JetAuditProgram.Plan(
             new AuditCaseSnapshot(
                 "project-1", HasGlMapping: true, HasTbMapping: false,
-                "2025-01-01", "2025-12-31", 10_000, 48271),
+                "2025-01-01", "2025-12-31", 10_000, 48271,
+                SampleSeedVersion: CurrentInfSamplingVersion),
             new AuditUserParameters(
                 "run-1", new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero), 59));
 
@@ -132,7 +149,8 @@ public sealed class JetAuditProgramTests
         var generated = JetAuditProgram.Plan(
             new AuditCaseSnapshot(
                 "project-1", HasGlMapping: true, HasTbMapping: true,
-                "2025-01-01", "2025-12-31", 10_000, 48271),
+                "2025-01-01", "2025-12-31", 10_000, 48271,
+                SampleSeedVersion: CurrentInfSamplingVersion),
             new AuditUserParameters(
                 "run-1", new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero), 59));
         var procedures = generated.Procedures
@@ -152,41 +170,6 @@ public sealed class JetAuditProgramTests
         Assert.Equal("na", docBalance.Status);
         Assert.Equal(0, docBalance.Count);
         Assert.Equal("characterization", docBalance.NaReason);
-    }
-
-    [Fact]
-    public void Explain_WithoutTbMapping_UsesSingleSourceNotApplicableReason()
-    {
-        var plan = JetAuditProgram.Plan(
-            new AuditCaseSnapshot(
-                "project-1", HasGlMapping: true, HasTbMapping: false,
-                "2025-01-01", "2025-12-31", 10_000, 48271),
-            new AuditUserParameters(
-                "run-1", new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero), 59));
-        var outcome = new AuditOutcome(new ValidationRunResult(
-            new GlPopulationStats(0, 0, 0, 0, 0),
-            PopulationSummary(0, 0, 0, 0),
-            CompletenessDiffAccountCount: 0,
-            CompletenessDiffAccounts: [],
-            UnbalancedDocumentCount: 0,
-            InfSampleCount: 0,
-            NullAccountCount: 0,
-            NullDocumentCount: 0,
-            NullDescriptionCount: 0,
-            OutOfRangeDateCount: 0,
-            SourceQualityFindingCount: 0,
-            UnbalancedDocuments: [],
-            NullRecordRows: [],
-            PartA: null));
-
-        var explanation = JetAuditProgram.Explain(JetAuditProgram.Finalize(plan, outcome));
-
-        Assert.Contains(
-            "完整性測試（completeness_test）：na；計數 0；N/A 原因：" +
-            ValidationProcedures.MissingTbMappingReason,
-            explanation,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(ValidationProcedures.MissingTbMappingReason + "。", explanation, StringComparison.Ordinal);
     }
 
     private static ProcedureVerdict Verdict(AuditRunManifest manifest, string slug) =>

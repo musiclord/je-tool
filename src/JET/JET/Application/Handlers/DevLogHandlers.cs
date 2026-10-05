@@ -93,23 +93,6 @@ public sealed class SupportLogExportHandler(
 }
 
 /// <summary>
-/// dev.log.export：診斷日誌（第三層、跨專案、dev-only）ring buffer 完整匯出為 NDJSON（每行一筆完整 JSON 物件）。
-/// 供開發測試把完整系統真相（action 生命週期 / SQL+參數 / transaction / exception / milestone）交給 AI 驗證。
-/// 不需 active project（診斷日誌跨專案）。僅 Debug 組建註冊（同 dev.db.*）;Release 不註冊 → unknown action。
-/// </summary>
-public sealed class DevLogExportHandler(IDiagnosticLogStore diagnosticLog) : IApplicationActionHandler
-{
-    public string Action => "dev.log.export";
-
-    public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
-    {
-        // 序列化與診斷日誌檔案 sink 共用 DiagnosticNdjson,確保匯出與檔案兩條路徑格式一致。
-        var ndjson = string.Join('\n', diagnosticLog.Snapshot().Select(DiagnosticNdjson.SerializeLine));
-        return Task.FromResult<object?>(new { ndjson });
-    }
-}
-
-/// <summary>
 /// dev.log.exportFile：把完整診斷日誌單鍵寫成 .txt 檔（內容仍為 NDJSON、每行一筆），免手動複製。
 /// 內容以檔案 sink 全量為準（本次啟動以來的完整 append；ring buffer 有界、會擠掉舊紀錄）；sink 檔
 /// 不存在或不可讀時退回 ring buffer 快照並於回應標記 source。篩選以案件為主；payload 另帶 correlationId

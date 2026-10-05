@@ -5,7 +5,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// import.accountMapping.fromFile：科目配對檔匯入（manifest 細節段）。
+/// import.accountMapping.fromFile：科目配對檔匯入。
 /// 格式固定三欄（科目代號、科目名稱、標準化分類），匯入即投影——
 /// staging 與 target 寫入由 store 在同一 transaction 完成。
 /// replace-only：科目配對是整份替換的設定檔（append → unsupported_mode）。
@@ -13,19 +13,13 @@ namespace JET.Application;
 public sealed class ImportAccountMappingHandler : IApplicationActionHandler
 {
     private readonly ITabularFileReader reader;
-    private readonly IReferenceDataFactsPort referenceDataFactsPort;
-    private readonly IAccountTaxonomyStore accountTaxonomyStore;
     private readonly ProjectSession session;
 
     internal ImportAccountMappingHandler(
         ITabularFileReader reader,
-        IReferenceDataFactsPort referenceDataFactsPort,
-        IAccountTaxonomyStore accountTaxonomyStore,
         ProjectSession session)
     {
         this.reader = reader;
-        this.referenceDataFactsPort = referenceDataFactsPort;
-        this.accountTaxonomyStore = accountTaxonomyStore;
         this.session = session;
     }
 
@@ -33,8 +27,8 @@ public sealed class ImportAccountMappingHandler : IApplicationActionHandler
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
-        var taxonomy = await accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
+        var (projectId, repositories) = session.RequireActive();
+        var taxonomy = await repositories.AccountTaxonomy.ReadAsync(projectId, cancellationToken);
 
         var filePath = PayloadReader.GetRequiredString(payload, "filePath");
         var fileName = ImportSourceFileName.Resolve(
@@ -74,9 +68,8 @@ public sealed class ImportAccountMappingHandler : IApplicationActionHandler
                 }
 
                 var rows = reader.ReadRowsAsync(effectiveRequest, cancellationToken);
-                return await JetAuditProgram.ExecuteAsync(
+                return await repositories.ReferenceDataFacts.ExecuteAsync(
                     plan,
-                    referenceDataFactsPort,
                     source,
                     columns,
                     projection,
@@ -86,6 +79,8 @@ public sealed class ImportAccountMappingHandler : IApplicationActionHandler
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
         return new
         {
             batchId = result.Import.BatchId,
@@ -96,7 +91,11 @@ public sealed class ImportAccountMappingHandler : IApplicationActionHandler
             hasAnyCategory = result.State.HasAnyCategory,
             hasRevenue = result.State.HasRevenue,
             hasCounterpart = result.State.HasCounterpart,
-            blankCategoryCount = result.State.BlankCategoryCount
+            blankCategoryCount = result.State.BlankCategoryCount,
+            invalidatedResults = mutationState.InvalidatedResults,
+            staleState = mutationState.StaleState,
+            reportArtifacts = mutationState.ReportArtifacts,
+            reportArtifactWarning = mutationState.ReportArtifactWarning
         };
     }
 }

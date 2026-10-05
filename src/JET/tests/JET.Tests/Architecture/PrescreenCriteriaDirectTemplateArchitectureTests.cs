@@ -165,14 +165,22 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "plannedWriter.WritePlannedAsync(",
             handler,
             StringComparison.Ordinal);
+        // 2026-10-02 資料庫分流簡化：planning port 不再是 handler 欄位，改成從作用中案件資料庫組取出的區域變數，
+        // 名稱由 _prescreenReportPlanningFactsPort 改為 prescreenReportPlanningFactsPort；另外確認它確實取自資料庫組的
+        // PrescreenReportPlanningFacts。第一次失敗收據：20261002-115541944-06075ff7b914445f85dd85660ffcf49f。
         Assert.Contains(
-            "_prescreenReportPlanningFactsPort",
+            "prescreenReportPlanningFactsPort",
             lifecycle,
             StringComparison.Ordinal);
+        Assert.Matches(
+            @"IPrescreenReportPlanningFactsPort\? prescreenReportPlanningFactsPort =\s+repositories\.PrescreenReportPlanningFacts;",
+            handler);
+        // 2026-10-02 起 AuditCore 不再提供只轉手給 port 的 ExecuteAsync；中間一項改成直接呼叫 planning port，
+        // 仍要求 Plan、執行、Finalize 依序出現。
         AssertAppearsInOrder(
             lifecycle,
             "JetAuditProgram.Plan(",
-            "JetAuditProgram.ExecuteAsync(",
+            "prescreenReportPlanningFactsPort.ExecuteAsync(",
             "JetAuditProgram.Finalize(");
         Assert.Equal(
             3,

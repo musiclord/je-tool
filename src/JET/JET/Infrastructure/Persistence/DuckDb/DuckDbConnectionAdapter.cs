@@ -6,7 +6,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 包裝 DuckDB.NET 的 <see cref="DbConnection"/>，讓它發出的每個命令都經
-/// <see cref="DuckDbCommandAdapter"/>（spec §3 的引擎縫參數轉接器）。共用 <c>Local*</c> repository
+/// <see cref="DuckDbCommandAdapter"/>（參數記號轉接器）。共用 <c>Local*</c> repository
 /// 家族的 SQL 文本原為 SQLite 形（<c>@name</c> 具名參數），轉接器在執行前把記號改寫為 DuckDB 的
 /// <c>$name</c> 並把參數名剝為裸名——repo 與 SQL 文本因此零改動。其餘成員全數委派給內層連線。
 /// </summary>

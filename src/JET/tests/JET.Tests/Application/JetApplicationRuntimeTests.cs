@@ -9,6 +9,7 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+[Collection(TimingSensitiveCollection.Name)]
 public sealed class JetApplicationRuntimeTests
 {
     [Fact]

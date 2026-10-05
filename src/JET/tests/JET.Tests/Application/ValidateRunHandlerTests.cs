@@ -33,8 +33,11 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("validate.run"));
 
         Assert.Equal("no_target_data", ex.Code);
+        // 2026-10-02 整體複審 T4：畫面不再說「提交」欄位配對，改用「完成」；斷言改鎖新句子。
+        // 2026-10-04 第 8 批 Q8 再統一為「確認配對」；錯誤碼與完整訊息斷言保留。
+        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         Assert.Equal(
-            "尚未提交 GL 欄位配對（無投影資料），請先完成欄位配對步驟。",
+            "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。",
             ex.Message);
     }
 
@@ -272,12 +275,11 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     }
 
     /// <summary>
-    /// 誠實相容：sampleSeed 欄位問世前建立的舊專案（project.json 缺該欄位）→ validate.run
-    /// 回退固定種子 48271，既有抽樣再現性不變。
-    /// oracle：規格（回退值 48271）。fixture：建正常 inline 專案後移除 project.json 的 sampleSeed 欄位。
+    /// sampleSeed 欄位問世前建立的舊專案（project.json 缺該欄位）→ validate.run 明確拒絕，
+    /// 不再回退固定種子。fixture：建正常 inline 專案後移除 project.json 的 sampleSeed 欄位。
     /// </summary>
     [Fact]
-    public async Task ValidateRun_LegacyProjectWithoutSampleSeed_FallsBackTo48271()
+    public async Task ValidateRun_LegacyProjectWithoutSampleSeed_RejectsAsOldProject()
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(host, builder => builder
@@ -292,9 +294,14 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         node.Remove("sampleSeedVersion");
         await File.WriteAllTextAsync(path, node.ToJsonString());
 
-        var data = await host.DispatchAsync("validate.run");
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            host.DispatchAsync("validate.run"));
 
-        Assert.Equal(48271, data.GetProperty("infSamplingTest").GetProperty("seed").GetInt64());
+        Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
+        Assert.Equal(
+            $"專案『{projectId}』的 project.json 是舊版 JET 建立的案件（缺少 sampleSeedVersion），"
+            + "目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。",
+            exception.Message);
     }
 
     [Theory]

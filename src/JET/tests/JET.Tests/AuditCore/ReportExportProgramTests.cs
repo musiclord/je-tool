@@ -13,8 +13,7 @@ public sealed class ReportExportProgramTests
         string?,
         string?,
         int[],
-        bool,
-        string> IncludedReportActions =>
+        bool> IncludedReportActions =>
         new()
         {
             {
@@ -27,8 +26,7 @@ public sealed class ReportExportProgramTests
                 null,
                 null,
                 [],
-                true,
-                "export.validationArtifacts：產出 validationReport、infReport。"
+                true
             },
             {
                 "export.prescreenReport",
@@ -37,8 +35,7 @@ public sealed class ReportExportProgramTests
                 "prescreen-run",
                 null,
                 [],
-                false,
-                "export.prescreenReport：產出 prescreenReport。"
+                false
             },
             {
                 "export.criteriaSelectionReport",
@@ -47,8 +44,7 @@ public sealed class ReportExportProgramTests
                 null,
                 "scenario-revision",
                 [4, 2],
-                false,
-                "export.criteriaSelectionReport：產出 criteriaSelectionReport。"
+                false
             }
         };
 
@@ -61,25 +57,26 @@ public sealed class ReportExportProgramTests
         string? expectedPrescreenRunId,
         string? expectedScenarioRevision,
         int[] expectedScenarioPositions,
-        bool expectedAtomicBatch,
-        string expectedExplanation)
+        bool expectedAtomicBatch)
     {
+        // 第9批高3；Public首敗100911120：Criteria必須保存本次資料版本；其他報告仍不帶這個來源參照。
+        var expectedDataRevision = action == "export.criteriaSelectionReport" ? "41" : null;
         var request = new ReportExportRequest(
             action,
             "project-7",
             ValidationRunId: expectedValidationRunId,
             PrescreenRunId: expectedPrescreenRunId,
             ScenarioRevision: expectedScenarioRevision,
-            ScenarioPositions: [4, 2]);
+            ScenarioPositions: [4, 2], FilterDataRevision: expectedDataRevision);
 
         var plan = JetAuditProgram.Plan(request);
 
         Assert.Same(request, plan.Request);
-        Assert.Equal(action, plan.Node.ActionName);
         Assert.Equal(expectedKinds, plan.ArtifactKinds);
         Assert.Equal(expectedValidationRunId, plan.SourceRef.ValidationRunId);
         Assert.Equal(expectedPrescreenRunId, plan.SourceRef.PrescreenRunId);
         Assert.Equal(expectedScenarioRevision, plan.SourceRef.ScenarioRevision);
+        Assert.Equal(expectedDataRevision, plan.SourceRef.FilterDataRevision);
         Assert.Equal(
             expectedScenarioPositions,
             plan.SourceRef.ScenarioPositions ?? []);
@@ -87,18 +84,15 @@ public sealed class ReportExportProgramTests
 
         var port = new RecordingPort();
 
-        var facts = await JetAuditProgram.ExecuteAsync(
+        var facts = await port.ExecuteAsync(
             plan,
-            port,
             CancellationToken.None);
         var result = JetAuditProgram.Finalize(plan, facts);
-        var explanation = JetAuditProgram.Explain(result);
 
         Assert.Same(plan, port.Plan);
         Assert.Same(plan, result.Plan);
         Assert.Same(facts.Artifacts, result.Artifacts);
         Assert.Equal(expectedKinds, result.Artifacts.Select(item => item.Kind));
-        Assert.Equal(expectedExplanation, explanation);
     }
 
     private sealed class RecordingPort : IReportExportFactsPort

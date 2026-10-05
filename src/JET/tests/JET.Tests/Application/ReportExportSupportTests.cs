@@ -85,22 +85,50 @@ public sealed class ReportExportSupportTests
     public void IsSourceStale_ScenarioReportIgnoresLegacyPrescreenReference(
         ReportArtifactKind kind)
     {
+        // 第9批高3；Public首敗100911120：Criteria現在須有同一資料版本，補明示來源版本以繼續只測舊prescreen參照不影響判定。
         var artifact = Artifact(
             kind,
             new ReportArtifactSourceRefs(
                 CurrentValidation.RunId,
                 "legacy-prescreen-run",
                 "revision-1",
-                kind == ReportArtifactKind.CriteriaSelectionReport ? [1, 2] : [2]));
+                kind == ReportArtifactKind.CriteriaSelectionReport ? [1, 2] : [2], FilterDataRevision: "9"));
 
         var stale = ReportExportSupport.IsSourceStale(
             artifact,
             CurrentValidation,
             latestPrescreen: null,
             filterRevision: "revision-1",
-            currentScenarioPositions: [1, 2]);
+            currentScenarioPositions: [1, 2], currentFilterDataRevision: "9");
 
         Assert.False(stale);
+    }
+
+    [Theory]
+    [InlineData("8", "8", true, false)]
+    [InlineData("8", "9", false, true)]
+    [InlineData("8", null, false, true)]
+    [InlineData(null, "8", true, true)]
+    [InlineData(null, "8", false, false)]
+    public void IsSourceStale_SelectedWorkpaperUsesItsDataRevision_AndLegacyKeepsPriorFlagRule(
+        string? artifactRevision, string? currentRevision, bool allScenarioResultsStale, bool expected)
+    {
+        var artifact = Artifact(ReportArtifactKind.WorkingPaper, new ReportArtifactSourceRefs(
+            ValidationRunId: CurrentValidation.RunId, ScenarioRevision: "revision-1",
+            ScenarioPositions: [1], FilterDataRevision: artifactRevision));
+        Assert.Equal(expected, ReportExportSupport.IsSourceStale(artifact, CurrentValidation, null,
+            allScenarioResultsStale, "revision-1", [1, 2], currentRevision));
+    }
+
+    [Fact]
+    public void IsSourceStale_SelectedWorkpaperDataRevisionDoesNotOverrideValidationOrDefinitionChanges()
+    {
+        var source = new ReportArtifactSourceRefs(ValidationRunId: CurrentValidation.RunId,
+            ScenarioRevision: "revision-1", ScenarioPositions: [2], FilterDataRevision: "8");
+        var artifact = Artifact(ReportArtifactKind.WorkingPaper, source);
+        Assert.True(ReportExportSupport.IsSourceStale(artifact, null, null, false, "revision-1", [1, 2], "8"));
+        Assert.True(ReportExportSupport.IsSourceStale(artifact, CurrentValidation, null, false, "revision-2", [1, 2], "8"));
+        Assert.True(ReportExportSupport.IsSourceStale(artifact, CurrentValidation, null, false, "revision-1", [1], "8"));
     }
 
     private static ReportArtifact Artifact(

@@ -3,6 +3,7 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -62,8 +63,8 @@ public sealed class SqlExecutionLoggingTests
     {
         using var env = new Env();
 
-        await env.Repo.ReplaceBatchAsync(env.ProjectId, DatasetKind.Gl, Src(), new[] { "科目", "金額" },
-            Stream([Row(2, ("科目", "1001"), ("金額", "100"))]), CancellationToken.None);
+        await env.Repo.ReplaceBatchAsync(env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), new[] { "科目", "金額" },
+            Stream([Row(2, ("科目", "1001"), ("金額", "100"))]))], CancellationToken.None);
 
         var sql = env.Diagnostic.Snapshot().Where(e => e.EventName == "sql.executed").ToList();
         Assert.NotEmpty(sql);
@@ -85,8 +86,8 @@ public sealed class SqlExecutionLoggingTests
     {
         using var env = new Env();
 
-        await env.Repo.ReplaceBatchAsync(env.ProjectId, DatasetKind.Gl, Src(), new[] { "科目", "金額" },
-            Stream([Row(2, ("科目", "1001"), ("金額", "100"))]), CancellationToken.None);
+        await env.Repo.ReplaceBatchAsync(env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), new[] { "科目", "金額" },
+            Stream([Row(2, ("科目", "1001"), ("金額", "100"))]))], CancellationToken.None);
 
         var entries = env.Diagnostic.Snapshot();
         var begin = entries.Single(e => e.EventName == "tx.begin");
@@ -105,7 +106,7 @@ public sealed class SqlExecutionLoggingTests
 
         // 空來源 → rollback
         await Assert.ThrowsAsync<JetActionException>(() => env.Repo.ReplaceBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Src(), new[] { "科目", "金額" }, Stream([]), CancellationToken.None));
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), new[] { "科目", "金額" }, Stream([]))], CancellationToken.None));
 
         var entries = env.Diagnostic.Snapshot();
         var begin = entries.Single(e => e.EventName == "tx.begin");
@@ -120,8 +121,8 @@ public sealed class SqlExecutionLoggingTests
     {
         using var env = new Env();
 
-        await env.Repo.ReplaceBatchAsync(env.ProjectId, DatasetKind.Gl, Src(), new[] { "科目", "金額" },
-            Stream([Row(2, ("科目", "1001"), ("金額", "100")), Row(3, ("科目", "1002"), ("金額", "200"))]),
+        await env.Repo.ReplaceBatchAsync(env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), new[] { "科目", "金額" },
+            Stream([Row(2, ("科目", "1001"), ("金額", "100")), Row(3, ("科目", "1002"), ("金額", "200"))]))],
             CancellationToken.None);
 
         var milestones = env.Diagnostic.Snapshot().Where(e => e.EventName == "import.milestone").ToList();
@@ -134,8 +135,8 @@ public sealed class SqlExecutionLoggingTests
     }
 
     /// <summary>
-    /// TDD #2（metamorphic）：staging 逐列 INSERT 不逐筆記事件——sql.executed 事件數為固定常數 5
-    /// （cleanup / batch / source / columns / counts 五條一次性語句），與母體列數**無關**。
+    /// TDD #2（metamorphic）：staging 逐列 INSERT 不逐筆記事件——單來源的 sql.executed 固定為 6
+    /// （cleanup、batch、source、columns、counts，以及交易內讀回來源中繼資料），與母體列數無關。
     /// 故百萬列亦遠 &lt; 100 筆事件，不會灌爆 ring buffer。
     /// </summary>
     [Theory]
@@ -148,10 +149,22 @@ public sealed class SqlExecutionLoggingTests
         var rows = Enumerable.Range(2, rowCount)
             .Select(i => Row(i, ("科目", i.ToString()), ("金額", "100")))
             .ToList();
-        await env.Repo.ReplaceBatchAsync(env.ProjectId, DatasetKind.Gl, Src(), new[] { "科目", "金額" },
-            Stream(rows), CancellationToken.None);
+        await env.Repo.ReplaceBatchAsync(env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), new[] { "科目", "金額" },
+            Stream(rows))], CancellationToken.None);
 
-        var sqlCount = env.Diagnostic.Snapshot().Count(e => e.EventName == "sql.executed");
-        Assert.Equal(5, sqlCount); // 與 rowCount 無關（20 與 200 皆為 5）
+        // 第 9 批中低 14：首敗 20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
+        // 已移除的單來源入口自行組來源資訊；正式 batch 入口在 commit 前只查一次 import_batch_source。
+        var sql = env.Diagnostic.Snapshot().Where(e => e.EventName == "sql.executed").ToList();
+        Assert.Equal(6, sql.Count); // 20 與 200 列皆為 6，不因 staging 列數增加。
+        const string expectedSourceQuery = """
+            SELECT source_no, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc
+            FROM import_batch_source
+            WHERE batch_id = @batchId
+            ORDER BY source_no;
+            """;
+        var sourceQuery = Assert.Single(sql, entry => entry.Fields["sql"]?.ToString()
+            ?.StartsWith("SELECT source_no,", StringComparison.Ordinal) == true);
+        Assert.Equal(expectedSourceQuery.ReplaceLineEndings("\n"), sourceQuery.Fields["sql"]!.ToString()!.ReplaceLineEndings("\n"));
+        Assert.Equal(sourceQuery, sql[^1]);
     }
 }

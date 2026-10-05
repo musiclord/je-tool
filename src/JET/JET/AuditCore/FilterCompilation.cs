@@ -145,13 +145,15 @@ internal sealed partial class GlFilterWhereBuilder(
                 string Set(string predicate) => $"SELECT g.document_number FROM {schemaPrefix}target_gl_entry g WHERE g.document_number IS NOT NULL AND {population} AND ({predicate})";
                 // CASE is portable to SQL Server, whose predicates are not scalar booleans.
                 var matches = $"CASE WHEN {body} THEN 1 ELSE 0 END = 1";
-                return rule.Quantifier switch
+                var quantified = rule.Quantifier switch
                 {
                     "any" => $"(g.document_number IN ({Set(matches)}))",
                     "none" => $"(g.document_number NOT IN ({Set(matches)}))",
                     "all" => $"(g.document_number IN ({Set("1 = 1")}) AND g.document_number NOT IN ({Set($"CASE WHEN {body} THEN 1 ELSE 0 END = 0")}))",
-                    _ => throw new InvalidOperationException("傳票量詞無效。")
+                    _ => throw new InvalidOperationException("傳票分錄條件無效。")
                 };
+                // 空白號碼不屬於任何傳票；尤其 NOT IN 空集合不能把它反轉成命中。
+                return $"(g.document_number IS NOT NULL AND {quantified})";
             case FilterRuleType.FieldValue:
                 var fieldValue = predicates.FieldValue(parameters, rule, context, schemaPrefix);
                 return rule.DrCr is null ? fieldValue
@@ -391,24 +393,20 @@ internal static class NullRecordsCategoryPredicate
         NullRecordCategory.OutOfRangeDate
     ];
 
-    public static string Sqlite(NullRecordCategory category) => Build(category, "TRIM({0})");
+    /// <summary>空白判定去掉的字元集合由方言決定（和 .NET Trim 相同），三個 provider 答案一致。</summary>
+    public static string For(NullRecordCategory category, ISqlDialect dialect) => Build(category, dialect.Trim);
 
-    public static string SqlServer(NullRecordCategory category) => Build(category, "LTRIM(RTRIM({0}))");
+    public static string Scoped(NullRecordCategory category, ISqlDialect dialect) =>
+        Scope(category, For(category, dialect));
 
-    public static string ScopedSqlite(NullRecordCategory category) =>
-        Scope(category, Sqlite(category));
-
-    public static string ScopedSqlServer(NullRecordCategory category) =>
-        Scope(category, SqlServer(category));
-
-    private static string Build(NullRecordCategory category, string blankFormat) => category switch
+    private static string Build(NullRecordCategory category, Func<string, string> trim) => category switch
     {
         NullRecordCategory.NullAccount =>
-            $"(account_code IS NULL OR {string.Format(blankFormat, "account_code")} = '')",
+            $"(account_code IS NULL OR {trim("account_code")} = '')",
         NullRecordCategory.NullDocument =>
-            $"(document_number IS NULL OR {string.Format(blankFormat, "document_number")} = '')",
+            $"(document_number IS NULL OR {trim("document_number")} = '')",
         NullRecordCategory.NullDescription =>
-            $"(document_description IS NULL OR {string.Format(blankFormat, "document_description")} = '')",
+            $"(document_description IS NULL OR {trim("document_description")} = '')",
         NullRecordCategory.OutOfRangeDate =>
             "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))",
         _ => throw new ArgumentOutOfRangeException(nameof(category), category, "未知的 null 紀錄 category。")

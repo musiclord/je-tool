@@ -19,8 +19,17 @@
     if (action === 'system.whoAmI') return { principal: 'PREVIEW\\auditor', shortName: 'auditor（範例）', userNumber: null, numberSource: 'unavailable' };
     if (action === 'project.listLocal') return { projects: [], online: null };
     if (action === 'project.heartbeat') return {};
+    if (action === 'mapping.valueProfile') {
+      const prepared = (bundle.mappingValueProfiles || []).find(item => canonical(item.payload) === canonical(p));
+      if (!prepared) throw new Error('此來源值查詢尚未準備合成回應；預覽不會自行判定代碼是否相同。');
+      return structuredClone(prepared.response);
+    }
+    if (action === 'query.accountMappingPage' && bundle.accountMappingPage &&
+        Object.keys(p).every(key => ['cursor', 'pageSize', 'search'].includes(key)) &&
+        p.cursor == null && (p.pageSize == null || p.pageSize === 100) && !p.search)
+      return structuredClone(bundle.accountMappingPage);
     const allowed = ['filter.preview', 'query.filterVoucherPage', 'query.filterVoucherRowsPage'];
-    if (!allowed.includes(action)) throw new Error('設計預覽未提供此操作：' + action + '。正式功能請在 JET 驗證。');
+    if (!allowed.includes(action)) throw new Error('此操作需在 JET 桌面程式執行；目前頁面僅供畫面預覽。');
     const keys = ['populationScope', 'scenario'];
     if (action !== 'filter.preview') keys.push('pageSize', 'cursor', 'sort', 'search', 'queryRevision');
     if (action === 'query.filterVoucherRowsPage') keys.push('documentNumber');

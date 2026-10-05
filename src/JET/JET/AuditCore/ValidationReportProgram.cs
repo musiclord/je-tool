@@ -58,12 +58,11 @@ internal sealed record ValidationReportDetailPlan(
 internal sealed record ValidationReportPlanningFacts(long UnbalancedDetailRowCount);
 
 /// <summary>
-/// Validation workbook 的 in-memory plan。Plan 先綁定 request 與 program node；
+/// Validation workbook 的 in-memory plan。Plan 先綁定 request；
 /// Finalize 才依 provider raw detail count 產生每一明細 family 的 ordered decision。
 /// </summary>
 internal sealed record ValidationReportPlan(
     ValidationReportRequest Request,
-    ProgramNode Node,
     IReadOnlyList<ValidationReportDetailPlan> Details,
     bool EmitCompletenessExplanation,
     bool IsFinalized)
@@ -110,21 +109,9 @@ public static partial class JetAuditProgram
 
         return new ValidationReportPlan(
             request,
-            ProgramGraph.Current.RequireNode(ValidationArtifactsAction),
             NoValidationReportDetails,
             EmitCompletenessExplanation: false,
             IsFinalized: false);
-    }
-
-    /// <summary>由 typed port 取得 V6 workbook gate 所需的單一 raw count。</summary>
-    internal static Task<ValidationReportPlanningFacts> ExecuteAsync(
-        ValidationReportPlan plan,
-        IValidationReportPlanningFactsPort factsPort,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        return factsPort.ExecuteAsync(plan, cancellationToken);
     }
 
     /// <summary>
@@ -175,20 +162,6 @@ public static partial class JetAuditProgram
             EmitCompletenessExplanation = request.CompletenessDiffAccountCount > 0,
             IsFinalized = true
         };
-    }
-
-    /// <summary>供 review 確認 emit／summary-only 決策，不參與 runtime dispatch。</summary>
-    internal static string Explain(ValidationReportPlan plan)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        if (!plan.IsFinalized)
-        {
-            throw new InvalidOperationException("ValidationReportPlan 尚未 Finalize。");
-        }
-
-        var emitted = plan.Details.Count(detail => detail.Emit);
-        var summaryOnly = plan.Details.Count(detail => detail.IsSummaryOnly);
-        return $"{ValidationArtifactsAction}：明細輸出={emitted}；僅摘要={summaryOnly}。";
     }
 
     private static ValidationReportDetailPlan InclusiveDetail(

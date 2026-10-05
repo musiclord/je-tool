@@ -2,7 +2,6 @@ using System.Text.Json;
 using JET.Application;
 using JET.Domain;
 using JET.Tests.Architecture;
-using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -23,9 +22,10 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     {
         var data = await fixture.Host.DispatchAsync("validate.run");
 
+        // 第9批R10；Public首敗100911120：新增有界同號多日期摘要，保留根層及巢狀精確形狀檢查。
         JsonShape.HasExactKeys(data,
             "stats", "amountDistribution", "completenessTest", "docBalanceTest",
-            "infSamplingTest", "nullRecordsTest", "populationSummary", "sourceQuality", "resultRef");
+            "infSamplingTest", "nullRecordsTest", "populationSummary", "sourceQuality", "documentDateReuse", "resultRef");
 
         var stats = JsonShape.Obj(data, "stats");
         JsonShape.HasExactKeys(stats,
@@ -156,6 +156,11 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Number(sourceQuality, "findingCount");
         JsonShape.Arr(sourceQuality, "sampleRows");
 
+        var documentDateReuse = JsonShape.Obj(data, "documentDateReuse");
+        JsonShape.HasExactKeys(documentDateReuse, "documentNumberCount", "entryCount");
+        JsonShape.Number(documentDateReuse, "documentNumberCount");
+        JsonShape.Number(documentDateReuse, "entryCount");
+
         var resultRef = JsonShape.Obj(data, "resultRef");
         JsonShape.HasExactKeys(resultRef, "runId", "generatedUtc", "logicVersion");
         JsonShape.Str(resultRef, "runId");
@@ -237,9 +242,12 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Number(trailing, "zerosThreshold");
 
         var creatorSummary = JsonShape.Obj(data, "creatorSummary");
-        JsonShape.HasExactKeys(creatorSummary, "status", "naReason", "creators");
+        // 2026-10-05 V9 裁定：creators 最多 50 列，畫面與報告的人數改用完整人數，回應因此多一個 totalPreparerCount。
+        // 第一次失敗收據 20261005-044601454-1ab8711bd18d4134843046dbe6777340；原有三個鍵與型別檢查不變。
+        JsonShape.HasExactKeys(creatorSummary, "status", "naReason", "totalPreparerCount", "creators");
         JsonShape.Str(creatorSummary, "status");
         JsonShape.Str(creatorSummary, "naReason", nullable: true);
+        JsonShape.Number(creatorSummary, "totalPreparerCount", nullable: true);
         JsonShape.Element(JsonShape.Arr(creatorSummary, "creators"), e =>
         {
             JsonShape.HasExactKeys(e, "createdBy", "entryCount", "debitTotal", "creditTotal", "manualCount");
@@ -251,9 +259,12 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         });
 
         var rareAccounts = JsonShape.Obj(data, "rareAccounts");
-        JsonShape.HasExactKeys(rareAccounts, "status", "distinctAccountCount", "accounts");
+        // 2026-10-04 第 8 批 L62 新增完整母體的低頻科目數；全科目數與命中分錄列數維持原義。
+        // 首次失敗：Public 20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d；仍鎖定完整欄位集合。
+        JsonShape.HasExactKeys(rareAccounts, "status", "distinctAccountCount", "lowFrequencyAccountCount", "accounts");
         JsonShape.Str(rareAccounts, "status");
         JsonShape.Number(rareAccounts, "distinctAccountCount");
+        JsonShape.Number(rareAccounts, "lowFrequencyAccountCount");
         JsonShape.Element(JsonShape.Arr(rareAccounts, "accounts"), e =>
         {
             JsonShape.HasExactKeys(e, "accountCode", "accountName", "entryCount", "debitTotal", "creditTotal");
@@ -331,22 +342,23 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             "exportDefaultGuidance",
             "exportPendingRunGuidance");
         Assert.Equal(
-            "先看依分錄編製者與較少使用科目的全期彙總；這兩項是常用的母體判讀面。",
+            "查看編製人員與較少使用科目的分錄筆數及金額。",
             positioning.GetProperty("aggregateGuidance").GetString());
         Assert.Equal(
-            "逐筆命中只供初步判讀，不是高風險裁定；要形成測試範圍，請到「進階條件篩選」組合 KCT 與其他條件。",
+            "符合條件的分錄供初步查核；請在「進階條件篩選」設定本案的測試範圍。",
             positioning.GetProperty("signalGuidance").GetString());
         Assert.Equal(
-            "Pre-screening Report 預設隨匯出底稿一併產出，這裡可以先單獨產生；不產生也不影響進階條件篩選、Criteria Selection Report 或 Working Paper。",
+            "可在此產生預篩選報告，或在匯出底稿時一併產生。不產生也可繼續篩選與匯出底稿。",
             positioning.GetProperty("reportGuidance").GetString());
         Assert.Equal(
-            "彙總只描述母體分布；逐筆命中不等於錯誤，也不是高風險裁定；兩者都不代替審計判斷。",
+            // 2026-10-03 用語統一 T1：畫面不再使用「母體」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+            "預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。",
             positioning.GetProperty("overviewGuidance").GetString());
         Assert.Equal(
-            "匯出底稿時預設一併產出 Pre-screening Report；取消勾選只會少這一份，其餘報告與底稿內容都不受影響。",
+            "預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。",
             positioning.GetProperty("exportDefaultGuidance").GetString());
         Assert.Equal(
-            "目前沒有可用的預篩選結果。維持勾選並按下產生，系統會先執行一次預篩選再產出這份報告；大型案件的預篩選可能需要數分鐘到十餘分鐘。",
+            "尚無預篩選結果，匯出時會先執行預篩選。大型案件可能需要數分鐘到十餘分鐘。",
             positioning.GetProperty("exportPendingRunGuidance").GetString());
 
         var resultRef = JsonShape.Obj(data, "resultRef");
@@ -541,22 +553,28 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         var data = await host.DispatchAsync(
             "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
 
+        // 舊版配對確認旗標與每側 formatVersion 已隨舊案件相容程式移除，回應不再帶這些欄位。
+        // 2026-10-03 O3：新增 previousMapping，重新匯入後還沒重新確認時帶回上次確認的配對當草稿
+        // （第一次失敗：收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89）。
         JsonShape.HasExactKeys(data,
-            "project", "mapping", "taxonomy", "mappingReviewRequired", "staleState",
+            "project", "mapping", "previousMapping", "taxonomy", "staleState",
             "importState", "latestRuns", "filterScenarios",
-            "filterResultRef", "reportArtifacts", "heartbeatSeconds");
+            "filterResultRef", "filterScenarioCheck", "reportArtifacts", "heartbeatSeconds");
         JsonShape.Obj(data, "project");
+        // 兩側都有有效配對時不帶上次的配對。
+        var previousMapping = JsonShape.Obj(data, "previousMapping");
+        JsonShape.HasExactKeys(previousMapping, "gl", "tb");
+        Assert.Equal(JsonValueKind.Null, previousMapping.GetProperty("gl").ValueKind);
+        Assert.Equal(JsonValueKind.Null, previousMapping.GetProperty("tb").ValueKind);
         var mapping = JsonShape.Obj(data, "mapping");
         var glMapping = JsonShape.Obj(mapping, "gl");
         JsonShape.HasExactKeys(
             glMapping,
             "mapping", "amountMode", "approvalDateMode", "postingStatusPolicy",
-            "manualAutoPolicy", "rdeFields", "formatVersion", "sourceBatchId", "committedUtc");
+            "manualAutoPolicy", "rdeFields", "sourceBatchId", "committedUtc");
         var tbMapping = JsonShape.Obj(mapping, "tb");
         JsonShape.HasExactKeys(
-            tbMapping, "mapping", "changeMode", "formatVersion", "sourceBatchId", "committedUtc");
-        Assert.Equal(2, glMapping.GetProperty("formatVersion").GetInt32());
-        Assert.Equal(2, tbMapping.GetProperty("formatVersion").GetInt32());
+            tbMapping, "mapping", "changeMode", "sourceBatchId", "committedUtc");
 
         var taxonomy = JsonShape.Obj(data, "taxonomy");
         JsonShape.HasExactKeys(taxonomy, "revision", "categories");
@@ -564,7 +582,6 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Element(JsonShape.Arr(taxonomy, "categories"), category =>
             JsonShape.HasExactKeys(
                 category, "categoryId", "label", "ordinal", "semanticRole", "isBuiltIn", "parentCategoryId"));
-        Assert.Equal(JsonValueKind.False, data.GetProperty("mappingReviewRequired").ValueKind);
         var staleState = JsonShape.Obj(data, "staleState");
         JsonShape.HasExactKeys(staleState, "validation", "prescreen", "filter");
         Assert.Equal(JsonValueKind.False, staleState.GetProperty("validation").ValueKind);
@@ -603,10 +620,16 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             JsonShape.Str(artifact, "fileState");
             var sourceRef = JsonShape.Obj(artifact, "sourceRef");
             JsonShape.HasExactKeys(
-                sourceRef, "validationRunId", "prescreenRunId", "scenarioRevision", "scenarioPositions");
+                sourceRef, "validationRunId", "prescreenRunId", "scenarioRevision", "scenarioPositions", "filterDataRevision");
         });
         var filterResultRef = data.GetProperty("filterResultRef");
         Assert.Contains(filterResultRef.ValueKind, new[] { JsonValueKind.Null, JsonValueKind.Object });
+        // 2026-10-02：開案時用目前規則檢查已儲存情境的結果。這個 seed 已是目前版本，所以是 current。
+        var scenarioCheck = JsonShape.Obj(data, "filterScenarioCheck");
+        JsonShape.HasExactKeys(scenarioCheck, "status", "recalculatedCount", "problems");
+        Assert.Equal("current", scenarioCheck.GetProperty("status").GetString());
+        Assert.Equal(0, scenarioCheck.GetProperty("recalculatedCount").GetInt32());
+        Assert.Equal(0, JsonShape.Arr(scenarioCheck, "problems").GetArrayLength());
         // 租約鎖心跳間隔（控制面第六輪）：sqlServer 讀 app_config、缺鍵回預設；本地案件為程式常數（此 demo 為 sqlite）。
         JsonShape.Number(data, "heartbeatSeconds");
 
@@ -615,116 +638,6 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.HasExactKeys(latestRuns, "validate", "prescreen");
         JsonShape.Obj(latestRuns, "validate", nullable: true);
         JsonShape.Obj(latestRuns, "prescreen", nullable: true);
-    }
-
-    [Fact]
-    public async Task ProjectLoad_MappingReviewRequired_RemainsUntilEveryExistingLegacyMappingIsRecommitted()
-    {
-        using var host = new HandlerTestHost();
-        var context = await DemoProjectPipeline.SetupAsync(
-            host,
-            importCalendar: false,
-            importAccountMapping: false,
-            importAuthorizedPreparer: false,
-            runValidation: false);
-        var databasePath = Path.Combine(host.ProjectsRoot, context.ProjectId, "jet.db");
-        var directConnectionString = new SqliteConnectionStringBuilder
-        {
-            DataSource = databasePath,
-            Pooling = false
-        }.ToString();
-
-        async Task<JsonElement> LoadAsync() => await host.DispatchAsync(
-            "project.load",
-            JsonSerializer.Serialize(new { projectId = context.ProjectId }));
-
-        static int MappingVersion(JsonElement loaded, string dataset) =>
-            loaded.GetProperty("mapping").GetProperty(dataset).GetProperty("formatVersion").GetInt32();
-
-        static bool ReviewRequired(JsonElement loaded) =>
-            loaded.GetProperty("mappingReviewRequired").GetBoolean();
-
-        async Task MarkLegacyAsync(params string[] datasets)
-        {
-            await using var connection = new SqliteConnection(directConnectionString);
-            await connection.OpenAsync();
-            foreach (var dataset in datasets)
-            {
-                await using var command = connection.CreateCommand();
-                command.CommandText =
-                    "UPDATE config_field_mapping " +
-                    "SET format_version = 1, options_json = NULL " +
-                    "WHERE dataset_kind = @dataset;";
-                command.Parameters.AddWithValue("@dataset", dataset);
-                Assert.Equal(1, await command.ExecuteNonQueryAsync());
-            }
-        }
-
-        async Task DeleteMappingAsync(string dataset)
-        {
-            await using var connection = new SqliteConnection(directConnectionString);
-            await connection.OpenAsync();
-            await using var command = connection.CreateCommand();
-            command.CommandText = "DELETE FROM config_field_mapping WHERE dataset_kind = @dataset;";
-            command.Parameters.AddWithValue("@dataset", dataset);
-            Assert.Equal(1, await command.ExecuteNonQueryAsync());
-        }
-
-        async Task RecommitGlAsync() => await host.DispatchAsync(
-            "mapping.commit.gl",
-            JsonSerializer.Serialize(new
-            {
-                mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(
-                    context.Demo.GetProperty("gl").GetProperty("mapping").GetRawText()),
-                amountMode = context.Demo.GetProperty("gl").GetProperty("amountMode").GetString()
-            }));
-
-        async Task RecommitTbAsync() => await host.DispatchAsync(
-            "mapping.commit.tb",
-            JsonSerializer.Serialize(new
-            {
-                mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(
-                    context.Demo.GetProperty("tb").GetProperty("mapping").GetRawText()),
-                changeMode = context.Demo.GetProperty("tb").GetProperty("changeMode").GetString()
-            }));
-
-        var loaded = await LoadAsync();
-        Assert.False(ReviewRequired(loaded));
-
-        await DeleteMappingAsync("tb");
-        await MarkLegacyAsync("gl");
-        loaded = await LoadAsync();
-        Assert.True(ReviewRequired(loaded));
-        Assert.Equal(JsonValueKind.Null, loaded.GetProperty("mapping").GetProperty("tb").ValueKind);
-        await RecommitGlAsync();
-        Assert.False(ReviewRequired(await LoadAsync()));
-        await RecommitTbAsync();
-
-        await MarkLegacyAsync("gl");
-        loaded = await LoadAsync();
-        Assert.True(ReviewRequired(loaded));
-        Assert.Equal(1, MappingVersion(loaded, "gl"));
-        Assert.Equal(2, MappingVersion(loaded, "tb"));
-        await RecommitGlAsync();
-        Assert.False(ReviewRequired(await LoadAsync()));
-
-        await MarkLegacyAsync("tb");
-        loaded = await LoadAsync();
-        Assert.True(ReviewRequired(loaded));
-        Assert.Equal(2, MappingVersion(loaded, "gl"));
-        Assert.Equal(1, MappingVersion(loaded, "tb"));
-        await RecommitTbAsync();
-        Assert.False(ReviewRequired(await LoadAsync()));
-
-        await MarkLegacyAsync("gl", "tb");
-        Assert.True(ReviewRequired(await LoadAsync()));
-        await RecommitGlAsync();
-        loaded = await LoadAsync();
-        Assert.True(ReviewRequired(loaded));
-        Assert.Equal(2, MappingVersion(loaded, "gl"));
-        Assert.Equal(1, MappingVersion(loaded, "tb"));
-        await RecommitTbAsync();
-        Assert.False(ReviewRequired(await LoadAsync()));
     }
 
     [Fact]
@@ -956,7 +869,11 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
                 scenarioPositions = new[] { 1 }
             }));
 
-            JsonShape.HasExactKeys(data, "ok", "artifact", "sheetStats", "reportArtifacts");
+            // 2026-09-23：已記入 manifest 的加法契約，分開所選底稿成功、全案結果狀態及清單刷新提醒。
+            // 原欄位與產物來源檢查保留；此處選全部情境且清單可讀，兩個新欄位有固定答案。
+            JsonShape.HasExactKeys(data, "ok", "artifact", "sheetStats", "reportArtifacts", "filterResultsCurrent", "reportArtifactWarning");
+            Assert.True(data.GetProperty("filterResultsCurrent").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, data.GetProperty("reportArtifactWarning").ValueKind);
             Assert.Equal(JsonValueKind.True, data.GetProperty("ok").ValueKind);
             var artifact = JsonShape.Obj(data, "artifact");
             JsonShape.HasExactKeys(artifact,

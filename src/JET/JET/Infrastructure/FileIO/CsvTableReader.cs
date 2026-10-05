@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using JET.Domain;
-using nietras.SeparatedValues;
 
 namespace JET.Infrastructure;
 
@@ -9,8 +8,13 @@ namespace JET.Infrastructure;
 /// CSV / .txt（內容為 CSV）讀取器。
 /// - 編碼：EncodingDetector 確定性鏈（BOM → 嚴格 UTF-8 → Big5），request.EncodingName 可覆寫。
 /// - 分隔符：CsvDialectDetector 引號感知取樣統計，request.Delimiter 可覆寫。
-/// - 解析：Sep（RFC 4180——引號內的分隔符與換行不切欄、"" 跳脫），cell 一律字串、由投影階段解析。
-/// - SourceRowNumber 以邏輯列計（標頭 = 1）；引號內含換行時與實體行號可能偏移，屬已知限制。
+/// - 解析：<see cref="CsvRecordReader"/>，一般 CSV 讀法（欄位開頭的引號才是引號，中間的引號是一般字元；
+///   引號沒有成對時明確失敗並寫出第幾列）。cell 一律字串、由投影階段解析。
+/// - 標頭：略過開頭的空白列，第一個有內容的列是標頭（和 Excel 讀取器相同）；標頭自己讀再交給
+///   TabularHeaderNormalizer，重複欄名走 _2/_3 正規化。
+/// - 欄數：標頭範圍外有資料的欄合成 COL_n 佔位欄（和 Open XML 讀取器相同，有資料的欄絕不靜默丟棄）；
+///   少欄視為空。
+/// - SourceRowNumber 以記錄計（空白列也算一列，標頭之前的空白列也算）；引號內含換行時與實體行號可能偏移，屬已知限制。
 /// </summary>
 public sealed class CsvTableReader : ITabularFileReader
 {
@@ -27,10 +31,9 @@ public sealed class CsvTableReader : ITabularFileReader
     {
         var dialect = ResolveDialect(request);
         using var textReader = OpenTextReader(request.FilePath, dialect.Encoding);
-        using var reader = OpenSepReader(textReader, request.FilePath, dialect.Delimiter);
-
-        IReadOnlyList<string> columns = ReadNormalizedHeader(reader, request.FilePath);
-        return Task.FromResult(columns);
+        var records = new CsvRecordReader(textReader, dialect.Delimiter);
+        var header = ReadHeader(records, request.FilePath, dialect.Encoding);
+        return Task.FromResult(header.Columns);
     }
 
     public Task<TabularFileInspection> InspectAsync(string filePath, CancellationToken cancellationToken)
@@ -42,23 +45,22 @@ public sealed class CsvTableReader : ITabularFileReader
 
         if (string.IsNullOrWhiteSpace(sampleText))
         {
-            throw new JetActionException(
-                JetErrorCodes.EmptyWorkbook,
-                $"檔案 '{Path.GetFileName(filePath)}' 找不到標頭列。");
+            throw EmptyFile(filePath);
         }
 
         var detected = CsvDialectDetector.DetectDelimiter(sampleText);
 
         using var textReader = OpenTextReader(filePath, encoding);
-        using var reader = OpenSepReader(textReader, filePath, detected ?? DefaultDelimiter);
-        var columns = ReadNormalizedHeader(reader, filePath);
+        var records = new CsvRecordReader(textReader, detected ?? DefaultDelimiter);
+        var header = ReadHeader(records, filePath, encoding);
 
         return Task.FromResult(new TabularFileInspection(
             FileType: "csv",
             Worksheets: null,
-            Columns: columns,
+            Columns: header.Columns,
             Encoding: EncodingDetector.WireNameOf(encoding),
-            Delimiter: detected?.ToString()));
+            Delimiter: detected?.ToString(),
+            Notices: header.Columns.Count == 1 ? [TabularSourceNotices.SingleColumn] : null));
     }
 
     public async IAsyncEnumerable<StagingRow> ReadRowsAsync(
@@ -67,40 +69,42 @@ public sealed class CsvTableReader : ITabularFileReader
     {
         var dialect = ResolveDialect(request);
         using var textReader = OpenTextReader(request.FilePath, dialect.Encoding);
-        using var reader = OpenSepReader(textReader, request.FilePath, dialect.Delimiter);
-        var columns = ReadNormalizedHeader(reader, request.FilePath);
-
-        var rowNumber = 1; // 標頭列 = 1，資料列由 2 起算
+        var records = new CsvRecordReader(textReader, dialect.Delimiter);
+        var header = ReadHeader(records, request.FilePath, dialect.Encoding);
+        var columns = new List<string>(header.Columns);
+        var usedNames = new HashSet<string>(columns, StringComparer.Ordinal);
 
         while (true)
         {
-            bool moved;
+            List<string>? fields;
             try
             {
-                moved = reader.MoveNext();
+                fields = records.ReadRecord();
             }
             catch (DecoderFallbackException ex)
             {
                 ImportFailureDiagnostics.Attach(ex, new ImportFailureContext(ImportFailureStage.Rows,
-                    LastCompletedRow: rowNumber, Encoding: EncodingDetector.WireNameOf(dialect.Encoding),
-                    Delimiter: dialect.Delimiter,
-                    ReaderVersion: typeof(Sep).Assembly.GetName().Version?.ToString()));
-                throw new JetActionException(
-                    JetErrorCodes.FileReadError,
-                    $"檔案 '{Path.GetFileName(request.FilePath)}' 含無法以偵測編碼解讀的內容（{ex.Message}）；" +
-                    "請改以匯入參數指定編碼，或將來源另存為 UTF-8。", innerException: ex);
+                    LastCompletedRow: records.RecordNumber, Encoding: EncodingDetector.WireNameOf(dialect.Encoding),
+                    Delimiter: dialect.Delimiter, ReaderVersion: ReaderVersion));
+                throw SourceFileErrors.CannotDecode(request.FilePath, dialect.Encoding, ex);
+            }
+            catch (CsvStructureException ex)
+            {
+                ImportFailureDiagnostics.Attach(ex, new ImportFailureContext(ImportFailureStage.Rows,
+                    LastCompletedRow: records.RecordNumber - 1, Row: ex.RecordNumber,
+                    Encoding: EncodingDetector.WireNameOf(dialect.Encoding), Delimiter: dialect.Delimiter,
+                    ReaderVersion: ReaderVersion));
+                throw SourceFileErrors.UnbalancedQuote(request.FilePath, ex);
             }
 
-            if (!moved)
+            if (fields is null)
             {
                 break;
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            rowNumber++;
 
-            // SepReader.Row 是 ref struct，必須在單一陳述式內消費完，不可跨 yield 邊界。
-            var values = ReadRowValues(reader.Current, columns);
+            var values = ReadRowValues(fields, columns, usedNames);
             if (values.Count == 0)
             {
                 continue; // 全空列
@@ -114,71 +118,102 @@ public sealed class CsvTableReader : ITabularFileReader
                     DecimalPlaces: null))
                 .ToList();
 
-            yield return new StagingRow(rowNumber, values, observations);
+            yield return new StagingRow(records.RecordNumber, values, observations)
+            {
+                HasQuotedLineBreak = records.RecordSpansLines
+            };
         }
 
         await Task.CompletedTask;
     }
 
-    private static Dictionary<string, string> ReadRowValues(SepReader.Row row, IReadOnlyList<string> columns)
+    private static string? ReaderVersion => typeof(CsvTableReader).Assembly.GetName().Version?.ToString();
+
+    /// <summary>標頭之外有資料的欄 lazy 合成佔位欄（規則與 Open XML 讀取器相同）。</summary>
+    private static Dictionary<string, string> ReadRowValues(
+        List<string> fields, List<string> columns, HashSet<string> usedNames)
     {
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
-        var colCount = Math.Min(row.ColCount, columns.Count);
 
-        for (var i = 0; i < colCount; i++)
+        for (var i = 0; i < fields.Count; i++)
         {
-            var cell = row[i].ToString().Trim();
-            if (cell.Length > 0)
+            var cell = fields[i].Trim();
+            if (cell.Length == 0)
             {
-                values[columns[i]] = cell;
+                continue;
             }
+
+            while (i >= columns.Count)
+            {
+                columns.Add(SynthesizePlaceholder(columns.Count + 1, usedNames));
+            }
+
+            values[columns[i]] = cell;
         }
 
         return values;
     }
 
-    /// <summary>
-    /// 讀取第一邏輯列作為標頭並正規化。Sep 內建 header 模式要求欄名唯一（重複欄名直接拋例外），
-    /// 因此以 HasHeader=false 自行消費標頭列，與 Open XML 活頁簿共用 TabularHeaderNormalizer（guide §3.1.1）。
-    /// </summary>
-    private static IReadOnlyList<string> ReadNormalizedHeader(SepReader reader, string filePath)
+    private static string SynthesizePlaceholder(int columnNumber, HashSet<string> usedNames)
     {
-        bool moved;
+        var name = $"COL_{columnNumber}";
+        var suffix = 2;
+        while (!usedNames.Add(name))
+        {
+            name = $"COL_{columnNumber}_{suffix}";
+            suffix++;
+        }
+
+        return name;
+    }
+
+    /// <summary>
+    /// 略過開頭的空白列，讀第一個有內容的記錄作為標頭並正規化；整個檔都是空白列時以 empty_workbook 回報。
+    /// </summary>
+    private static (IReadOnlyList<string> Columns, int RowNumber) ReadHeader(
+        CsvRecordReader records, string filePath, Encoding encoding)
+    {
         try
         {
-            moved = reader.MoveNext();
+            while (true)
+            {
+                var fields = records.ReadRecord();
+                if (fields is null)
+                {
+                    throw EmptyFile(filePath);
+                }
+
+                if (CsvRecordReader.IsBlank(fields))
+                {
+                    continue;
+                }
+
+                var headers = new List<(int ColumnNumber, string? RawName)>(fields.Count);
+                for (var i = 0; i < fields.Count; i++)
+                {
+                    headers.Add((i + 1, fields[i]));
+                }
+
+                return (TabularHeaderNormalizer.Normalize(headers), records.RecordNumber);
+            }
         }
         catch (DecoderFallbackException ex)
         {
-            throw new JetActionException(
-                JetErrorCodes.FileReadError,
-                $"檔案 '{Path.GetFileName(filePath)}' 含無法以偵測編碼解讀的內容（{ex.Message}）；" +
-                "請改以匯入參數指定編碼，或將來源另存為 UTF-8。", innerException: ex);
+            ImportFailureDiagnostics.Attach(ex, new ImportFailureContext(ImportFailureStage.Header,
+                Encoding: EncodingDetector.WireNameOf(encoding), ReaderVersion: ReaderVersion));
+            throw SourceFileErrors.CannotDecode(filePath, encoding, ex);
         }
-
-        var headers = moved ? ReadHeaderCells(reader.Current) : [];
-
-        // 空檔或只有空白標頭列：0 欄或單一空欄
-        if (headers.Count == 0 || (headers.Count == 1 && string.IsNullOrWhiteSpace(headers[0].RawName)))
+        catch (CsvStructureException ex)
         {
-            throw new JetActionException(
-                JetErrorCodes.EmptyWorkbook,
-                $"檔案 '{Path.GetFileName(filePath)}' 找不到標頭列。");
+            ImportFailureDiagnostics.Attach(ex, new ImportFailureContext(ImportFailureStage.Header,
+                Row: ex.RecordNumber, Encoding: EncodingDetector.WireNameOf(encoding), ReaderVersion: ReaderVersion));
+            throw SourceFileErrors.UnbalancedQuote(filePath, ex);
         }
-
-        return TabularHeaderNormalizer.Normalize(headers);
     }
 
-    private static List<(int ColumnNumber, string? RawName)> ReadHeaderCells(SepReader.Row row)
-    {
-        var headers = new List<(int ColumnNumber, string? RawName)>(row.ColCount);
-        for (var i = 0; i < row.ColCount; i++)
-        {
-            headers.Add((i + 1, row[i].ToString()));
-        }
-
-        return headers;
-    }
+    private static JetActionException EmptyFile(string filePath) => new(
+        JetErrorCodes.EmptyWorkbook,
+        $"檔案 '{Path.GetFileName(filePath)}' 找不到標頭列。請確認第一個有內容的列是欄名。");
 
     private (Encoding Encoding, char Delimiter) ResolveDialect(TabularSourceRequest request)
     {
@@ -188,9 +223,7 @@ public sealed class CsvTableReader : ITabularFileReader
         // 空檔／全空白：在交給解析器之前就以 empty_workbook 回報，行為確定。
         if (string.IsNullOrWhiteSpace(sampleText))
         {
-            throw new JetActionException(
-                JetErrorCodes.EmptyWorkbook,
-                $"檔案 '{Path.GetFileName(request.FilePath)}' 找不到標頭列。");
+            throw EmptyFile(request.FilePath);
         }
 
         if (request.Delimiter is char overridden)
@@ -215,20 +248,18 @@ public sealed class CsvTableReader : ITabularFileReader
         }
         catch (DecoderFallbackException ex)
         {
-            throw new JetActionException(
-                JetErrorCodes.FileReadError,
-                $"檔案 '{Path.GetFileName(filePath)}' 無法以指定或偵測的編碼解讀（{ex.Message}）；" +
-                "請改以匯入參數指定編碼，或將來源另存為 UTF-8。", innerException: ex);
+            // V8：自動偵測時，檢視、預覽與匯入的呼叫端不知道選了哪個編碼；這裡記下實際用來解碼的編碼，支援日誌才不是 unknown。
+            ImportFailureDiagnostics.Attach(ex, new ImportFailureContext(ImportFailureStage.Header,
+                Encoding: EncodingDetector.WireNameOf(encoding), ReaderVersion: ReaderVersion));
+            throw SourceFileErrors.CannotDecode(filePath, encoding, ex);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new JetActionException(
-                JetErrorCodes.FileReadError,
-                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}", innerException: ex);
+            throw SourceFileErrors.CannotOpen(filePath, ex);
         }
     }
 
-    /// <summary>明確持有 TextReader 的 using 所有權，不依賴 Sep 是否代為釋放（避免檔案 handle 殘留）。</summary>
+    /// <summary>明確持有 TextReader 的 using 所有權（避免檔案 handle 殘留）。</summary>
     private static StreamReader OpenTextReader(string filePath, Encoding encoding)
     {
         try
@@ -236,42 +267,9 @@ public sealed class CsvTableReader : ITabularFileReader
             var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: true);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new JetActionException(
-                JetErrorCodes.FileReadError,
-                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}", innerException: ex);
-        }
-    }
-
-    private static SepReader OpenSepReader(TextReader textReader, string filePath, char delimiter)
-    {
-        try
-        {
-            // HasHeader=false：標頭列由 ReadNormalizedHeader 自行消費（Sep 內建 header 解析要求欄名唯一，
-            // 重複欄名會拋例外，無法走 TabularHeaderNormalizer 的 _2/_3 正規化）；
-            // Unescape：去除 RFC 4180 引號包覆與 "" 跳脫；
-            // DisableColCountCheck：容忍各列欄數不一致（缺欄視為空，超欄忽略）。
-            return Sep.Reader(o => o with
-            {
-                Sep = new Sep(delimiter),
-                HasHeader = false,
-                Unescape = true,
-                DisableColCountCheck = true
-            }).From(textReader);
-        }
-        catch (DecoderFallbackException ex)
-        {
-            throw new JetActionException(
-                JetErrorCodes.FileReadError,
-                $"檔案 '{Path.GetFileName(filePath)}' 無法以指定或偵測的編碼解讀（{ex.Message}）；" +
-                "請改以匯入參數指定編碼，或將來源另存為 UTF-8。", innerException: ex);
-        }
-        catch (IOException ex)
-        {
-            throw new JetActionException(
-                JetErrorCodes.FileReadError,
-                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}", innerException: ex);
+            throw SourceFileErrors.CannotOpen(filePath, ex);
         }
     }
 }

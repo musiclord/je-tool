@@ -8,6 +8,7 @@ using JET.Infrastructure;
 using JET.Tests.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Application;
 
 /// <summary>
@@ -1034,8 +1035,9 @@ public sealed class ProviderParityJourneyTests
         });
         try
         {
+            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留資料庫等價比對的原斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
-                JsonSerializer.Serialize(new { filePath = authorizedListPath, fileName = "ap.xlsx" }));
+                JsonSerializer.Serialize(new { filePath = authorizedListPath, fileName = "ap.xlsx", sourceColumn = "AUTHORIZED_PREPARER" }));
         }
         finally
         {
@@ -1166,7 +1168,9 @@ public sealed class ProviderParityJourneyTests
         }
 
         await new SqlServerGlRepository(sql.Database).ProjectStagingToTargetAsync(
-            sql.ProjectId, batchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            sql.ProjectId, batchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         List<(string?, long, string?)> sqlServerSequence;
         await using (var read = sql.Database.CreateConnection(sql.ProjectId))
@@ -1192,7 +1196,9 @@ public sealed class ProviderParityJourneyTests
         }
 
         await new LocalGlRepository(database).ProjectStagingToTargetAsync(
-            projectId, batchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         await using var read = database.CreateConnection(projectId);
         await read.OpenAsync();

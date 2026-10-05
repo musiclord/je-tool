@@ -35,6 +35,8 @@ internal static partial class GuiScenarios
         {
             await Click("[data-action=open-save]"); await Click("[data-action=save-scenario]");
             await Check("saved.length===" + count);
+            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && draft.__editingSavedRef===saved");
+            await Click("[data-action=new-scenario]");
         }
         async Task Preview() { await Click("[data-action=preview-scenario]"); await Check("!!preview && Number.isInteger(preview.count)"); }
         const string policy = "state.mapping.gl.committed.options.manualAutoPolicy";
@@ -85,7 +87,8 @@ internal static partial class GuiScenarios
         await Choose("[data-value-kind]", "ends"); await Choose("[data-value-polarity]", "exclude");
         await Preview(); await Check("draft.groups[0].rules[0].operator==='notEndsWith'"); await Save(5);
         outcome.RecordStage("extended_export_and_reopen");
-        await Click("[data-action=export-criteria-report]"); await Check("window.JetUi.stepGate(state,5).ok");
+        await Click("[data-filter-pane-select=saved]");
+        await Click("[data-action=export-criteria-report]"); await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
         await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
         await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2,3,4,5]})");
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
@@ -227,7 +230,7 @@ internal static partial class GuiScenarios
         await Result();
         await Check(hit + " && JSON.stringify(state.filter.savedScenarios[0])===" + definition.GetRawText());
         await Click("[data-action=export-criteria-report]");
-        await Check("window.JetUi.stepGate(state,5).ok");
+        await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
         await Click("[data-bind=step-nav] [data-step-index='5']");
         await Click("[data-action=export-workpaper]");
         await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]})");
@@ -273,7 +276,7 @@ internal static partial class GuiScenarios
         await Click(".prescreen-signals > summary");
         await Click("[data-action=toggle-detail][data-scope=pn][data-idx='1']");
         await Click(docMore);
-        await Check(Rows(doc, 200) + " && document.querySelector('" + doc + " th[data-sort-key=postDate]').textContent.includes('總帳日期')");
+        await Check(Rows(doc, 200) + " && document.querySelector('" + doc + " th[data-sort-key=postDate]').textContent.includes('總帳入帳日')");
         await Click(docMore);
         await Check(Rows(doc, 206) + " && document.querySelector('" + docMore + "').hidden");
         await Click("[data-action=toggle-detail][data-scope=pn][data-idx='2']");

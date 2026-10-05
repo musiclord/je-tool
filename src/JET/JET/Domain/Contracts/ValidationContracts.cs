@@ -43,13 +43,13 @@ public sealed record CompletenessDiffAccount(
     long DiffScaled,
     bool NotInTb);
 
-/// <summary>完整性 part(a) 單側的列數與借貸控制總數。</summary>
+/// <summary>完整性測試匯入前後控制總數核對中，單側的列數與借貸控制總數。</summary>
 public sealed record CompletenessPopulationTotals(
     long RowCount,
     long TotalDebitScaled,
     long TotalCreditScaled);
 
-/// <summary>完整性 part(a)：投影時計算的 eligible source controls 對上目前 effective target。</summary>
+/// <summary>完整性測試的匯入前後控制總數核對：投影時計算的來源控制總數對上目前有效的標準資料。</summary>
 public sealed record CompletenessPartA(
     CompletenessPopulationTotals EligibleSource,
     CompletenessPopulationTotals EffectiveTarget,
@@ -63,6 +63,16 @@ public sealed record UnbalancedDocument(
     long CreditScaled,
     long DiffScaled);
 
+/// <summary>
+/// 不平傳票依傳票號碼與總帳入帳日彙總的一列，供底稿 Step 1-1 明細表使用（legacy 依這兩欄彙總，
+/// idea-tool.bas:6686-6691）。借方與貸方合計都是非負的 scaled 值，正負號由寫出端依 legacy 顯示。
+/// </summary>
+public sealed record UnbalancedVoucherDateRow(
+    string? DocumentNumber,
+    string? PostDate,
+    long DebitScaled,
+    long CreditScaled);
+
 /// <summary>空值紀錄測試（null_records_test）的單一異常列；四個旗標標明命中的檢查（可多項）。</summary>
 public sealed record NullRecordRow(
     string? DocumentNumber,
@@ -74,6 +84,9 @@ public sealed record NullRecordRow(
     bool NullDescription,
     bool OutOfRangeDate,
     long EntryId = 0);
+
+/// <summary>有效分錄內，同一非空傳票號碼出現在多個總帳入帳日的非阻擋提醒。</summary>
+public sealed record DocumentDateReuseCounts(long DocumentNumberCount, long EntryCount);
 
 public sealed record ValidationRunResult(
     GlPopulationStats Stats,
@@ -89,4 +102,5 @@ public sealed record ValidationRunResult(
     long SourceQualityFindingCount,
     IReadOnlyList<UnbalancedDocument> UnbalancedDocuments,
     IReadOnlyList<NullRecordRow> NullRecordRows,
-    CompletenessPartA? PartA);
+    CompletenessPartA? PartA,
+    DocumentDateReuseCounts? DocumentDateReuse = null);

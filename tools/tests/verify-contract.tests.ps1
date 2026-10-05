@@ -254,7 +254,6 @@ try {
     } $indexFixtureRoot
     $fixtureRegistry = [pscustomobject]@{
         releaseCandidateSettings = [pscustomobject]@{
-            candidateManifest = 'candidate.txt'
             snapshotWorkspaceRoot = 'artifacts/harness/rc'
         }
     }
@@ -307,12 +306,10 @@ try {
                 }) -join ',') -ceq
             'contract:Contract:Release:False,documentation:Documentation:Release:False,public:Public:Release:False,package:Package:Release:True,gui:Gui:AgentGuiTest:False,excel:Excel:Release:False') `
         -Message 'ReleaseCandidate must retain its six reviewed public-candidate children.'
-    Assert-Contract -Condition ([string]$registry.releaseCandidateSettings.candidateManifest -ceq
-        'docs/first-root-commit-candidate.txt' -and
-        [string]$registry.releaseCandidateSettings.snapshotWorkspaceRoot -ceq 'artifacts/harness/rc' -and
+    Assert-Contract -Condition ([string]$registry.releaseCandidateSettings.snapshotWorkspaceRoot -ceq 'artifacts/harness/rc' -and
         -not [bool]$registry.releaseCandidateSettings.privateCaseIncluded -and
         -not [bool]$registry.releaseCandidateSettings.liveProviderIncluded) `
-        -Message 'ReleaseCandidate must use the first-root inventory and short owned workspace without PrivateCase or live Provider.'
+        -Message 'ReleaseCandidate must use the short owned workspace without PrivateCase or live Provider.'
     # Contract 8.2 adds Context; keep the exact version assertion and the existing candidate checks above.
     Assert-Contract -Condition ([string]$registry.runnerContractVersion -ceq '8.2') `
         -Message 'The read-only Context entry and existing validation commands require runner contract 8.2.'
@@ -324,9 +321,6 @@ try {
                 [string]$registry.testSettings.privateCaseProviderEnvironmentVariable) -join ',') -ceq
             'JET_PRIVATE_CASE_ROOT,JET_PRIVATE_CASE_MANIFEST,JET_PRIVATE_CASE_PROVIDER') `
         -Message 'PrivateCase must use only the reviewed explicit input boundary.'
-    Assert-Contract -Condition ((@($registry.guiSettings.scenarios.name) -join ',') -ceq `
-            'startup-smoke,synthetic-sqlite-create,mapping-required-sync,edited-report-still-loads,approval-mapping-modes,validation-auto-outputs,filter-auditor-journey,filter-kct-editing,feedback-workflow,null-details-recovery,kct-remap-recovery,authorized-list-recovery,extended-conditions,side-month-workflow,nested-voucher-workflow,legacy-form-workflow,legacy-form-catalog') `
-        -Message 'The GUI lane must contain the seventeen reviewed scenarios, including both legacy A–U checks.'
     Assert-Contract -Condition ([string]$registry.excelSettings.scenario -ceq 'synthetic-report-roundtrip') `
         -Message 'The Excel lane must retain its one reviewed synthetic scenario.'
     Assert-Contract -Condition ((@($registry.excelSettings.reportKinds) -join ',') -ceq `
@@ -464,6 +458,33 @@ try {
     Assert-Contract -Condition ($agentsText.Contains('.agents/skills/jet-converge/SKILL.md', [StringComparison]::Ordinal) -and
         $agentsText.Contains('.agents/harness/convergence-and-memory.md', [StringComparison]::Ordinal)) `
         -Message 'AGENTS.md must route explicit convergence and cross-session memory to the reviewed files.'
+
+    # VS Code reads .agents/skills directly and ignores the Codex openai.yaml policy.
+    Assert-Contract -Condition ($jetConvergeSkillText.Contains('disable-model-invocation: true', [StringComparison]::Ordinal)) `
+        -Message 'The canonical jet-converge skill must stay explicit-only for hosts that read .agents/skills directly.'
+
+    # One copy of each hook script; Claude Code and Codex register it separately.
+    foreach ($hookName in @('hook-common.ps1', 'session-context.ps1', 'managed-doc-notice.ps1', 'verification-debt.ps1')) {
+        Assert-Contract -Condition (Test-Path -LiteralPath (Join-Path $repositoryRoot ".agents/hooks/$hookName") -PathType Leaf) `
+            -Message ".agents/hooks/$hookName must exist as the shared hook implementation."
+    }
+    $claudeSettingsText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.claude/settings.json') -Raw -Encoding utf8
+    $codexHooksText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.codex/hooks.json') -Raw -Encoding utf8
+    Assert-Contract -Condition ($claudeSettingsText.Contains('/.agents/hooks/session-context.ps1', [StringComparison]::Ordinal) -and
+        $claudeSettingsText.Contains('/.agents/hooks/managed-doc-notice.ps1', [StringComparison]::Ordinal) -and
+        $claudeSettingsText.Contains('/.agents/hooks/verification-debt.ps1', [StringComparison]::Ordinal) -and
+        -not $claudeSettingsText.Contains('/.claude/hooks/', [StringComparison]::Ordinal)) `
+        -Message 'Claude Code must register the shared hook scripts instead of a private copy.'
+    Assert-Contract -Condition ($codexHooksText.Contains('.agents/hooks/session-context.ps1', [StringComparison]::Ordinal) -and
+        $codexHooksText.Contains('.agents/hooks/verification-debt.ps1', [StringComparison]::Ordinal)) `
+        -Message 'Codex must register the same shared SessionStart and Stop hook scripts.'
+    $codexRulesText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.codex/rules/jet.rules') -Raw -Encoding utf8
+    Assert-Contract -Condition ($codexRulesText.Contains('pattern = ["git", "add", ["-A", "--all", "-u", "--update", "."]]', [StringComparison]::Ordinal) -and
+        $codexRulesText.Contains('pattern = ["git", "write-tree"]', [StringComparison]::Ordinal) -and
+        $codexRulesText.Contains('pattern = ["dotnet", "test"]', [StringComparison]::Ordinal) -and
+        $codexRulesText.Contains('decision = "forbidden"', [StringComparison]::Ordinal) -and
+        $codexRulesText.Contains('decision = "prompt"', [StringComparison]::Ordinal)) `
+        -Message 'Codex rules must mirror the AGENTS.md staging, write-tree, direct test, and Git confirmation boundaries.'
     Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot '.reversa')) -and
         -not (Test-Path -LiteralPath (Join-Path $repositoryRoot '_reversa_sdd'))) `
         -Message 'External Reversa state roots must not become a second JET memory system.'
@@ -633,11 +654,27 @@ try {
         -Message 'The synthetic create scenario must use the visible project picker and create form.'
     Assert-Contract -Condition ($guiSourceText -notmatch 'JetApi\.projectCreate|"project\.create"') `
         -Message 'The GUI driver must not bypass the visible form with a direct create action.'
+    # 情境數值只寫在 lanes.json：驅動程式從命令列取得預算，名單三邊（lanes.json、驅動程式、執行器的判定）要一致。
     $guiContractsText = Get-Content -LiteralPath (Join-Path $guiDriverRoot 'DriverContracts.cs') -Raw -Encoding utf8
-    Assert-Contract -Condition ($guiContractsText.Contains(
-            'SyntheticSqliteCreate => new GuiScenarioDefinition(SyntheticSqliteCreate, 12, [], ScreenshotLimit: 1)',
-            [StringComparison]::Ordinal)) `
-        -Message 'The synthetic create driver budget must stay synchronized with the reviewed GUI registry.'
+    Assert-Contract -Condition ($guiContractsText.Contains('"--action-budget"', [StringComparison]::Ordinal) -and
+            $guiContractsText.Contains('"--screenshot-budget"', [StringComparison]::Ordinal)) `
+        -Message 'The GUI driver must take each scenario budget from the runner, which reads lanes.json.'
+    $guiCatalogStart = $guiContractsText.IndexOf('internal static class GuiScenarioCatalog', [StringComparison]::Ordinal)
+    $guiCatalogEnd = $guiContractsText.IndexOf('internal sealed record DriverOptions', [StringComparison]::Ordinal)
+    Assert-Contract -Condition ($guiCatalogStart -ge 0 -and $guiCatalogEnd -gt $guiCatalogStart) `
+        -Message 'The GUI driver must keep its scenario catalog before the option parser.'
+    $guiCatalogText = $guiContractsText.Substring($guiCatalogStart, $guiCatalogEnd - $guiCatalogStart)
+    $driverScenarioNames = @([regex]::Matches($guiCatalogText, 'internal const string \w+ = "([a-z0-9-]+)";') |
+        ForEach-Object { $_.Groups[1].Value })
+    $registryScenarioNames = @($registry.guiSettings.scenarios | ForEach-Object { [string]$_.name })
+    Assert-Contract -Condition ($registryScenarioNames.Count -gt 0 -and
+            (@($registryScenarioNames | Sort-Object) -join ',') -ceq (@($driverScenarioNames | Sort-Object) -join ',')) `
+        -Message 'Every GUI scenario in lanes.json must be implemented by the GUI driver, and the driver must not keep unlisted scenarios.'
+    $runnerText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools/harness/JetHarness.psm1') -Raw -Encoding utf8
+    foreach ($registryScenarioName in $registryScenarioNames) {
+        Assert-Contract -Condition ($runnerText.Contains("'$registryScenarioName'", [StringComparison]::Ordinal)) `
+            -Message "The runner must judge the assertions of GUI scenario $registryScenarioName."
+    }
     Assert-Contract -Condition ($guiSourceText -notmatch 'data[/\\](test-case|temporary-test-case|legacy-parity-work)') `
         -Message 'The GUI driver cannot reference private data roots.'
     $scenarioNames.Add('GuiBoundary')

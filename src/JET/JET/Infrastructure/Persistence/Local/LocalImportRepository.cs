@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 匯入批次的本地引擎實作（guide §3.1.4 多來源模型）。
+/// 匯入批次的本地引擎實作（一個批次可由多個來源組成）。
 /// row_number = 批次內單調遞增排序鍵：replace 沿用來源列號（與第 1 版語意一致，
 /// 單來源批次的 V3 抽樣不因本版而改變），append 從既有最大值續編。
 /// 診斷日誌（dev-only）:SQL 執行走 <see cref="DiagnosticDb"/> 擴充方法、transaction 走 scope。
@@ -30,374 +30,6 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
     public async Task<ImportBatchResult> ReplaceBatchAsync(
         string projectId,
         DatasetKind kind,
-        ImportSourceDescriptor source,
-        IReadOnlyList<string> columns,
-        IAsyncEnumerable<StagingRow> rows,
-        CancellationToken cancellationToken)
-    {
-        source = ImportSourceFileName.Normalize(source);
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
-        var importStopwatch = Stopwatch.StartNew();
-
-        var batchId = Guid.NewGuid().ToString("N");
-        var importedUtc = DateTimeOffset.UtcNow;
-        var kindName = kind.ToStorageName();
-        var stagingTable = StagingTableFor(kind);
-        var targetTable = TargetTableFor(kind);
-        var fieldDefinitions = LegacyFieldDefinitionAccumulator.Create(columns);
-
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
-        await database.ApplyImportSessionSettingsAsync(connection, cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        using var txLog = DiagnosticDb.BeginTransaction(_log, _provider);
-
-        // replace 語意：同一 transaction 內清除該 dataset 的全部舊狀態，
-        // 包含 target rows 與 committed mapping（重匯入使配對失效）。
-        await using (var cleanup = connection.CreateCommand())
-        {
-            cleanup.Transaction = transaction;
-            cleanup.CommandText =
-                $"""
-                DELETE FROM {stagingTable}
-                WHERE batch_id IN (SELECT batch_id FROM import_batch WHERE dataset_kind = @kind);
-                DELETE FROM import_field_definition
-                WHERE batch_id IN (SELECT batch_id FROM import_batch WHERE dataset_kind = @kind);
-                DELETE FROM import_batch_source
-                WHERE batch_id IN (SELECT batch_id FROM import_batch WHERE dataset_kind = @kind);
-                DELETE FROM import_batch WHERE dataset_kind = @kind;
-                DELETE FROM target_gl_rde_value WHERE @kind = 'gl';
-                DELETE FROM config_gl_rde_field WHERE @kind = 'gl';
-                DELETE FROM {targetTable};
-                DELETE FROM config_field_mapping WHERE dataset_kind = @kind;
-                """;
-            cleanup.AddWithValue("@kind", kindName);
-            await cleanup.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
-        }
-
-        // target 已換,既有規則結果即失效(plan Phase 1)。
-        await RuleRunResultReset.ClearWithinAsync(
-            connection,
-            transaction,
-            cancellationToken,
-            kind == DatasetKind.Gl
-                ? AuditMutation.GlImport
-                : AuditMutation.TbImport);
-
-        await using (var insertBatch = connection.CreateCommand())
-        {
-            insertBatch.Transaction = transaction;
-            insertBatch.CommandText =
-                """
-                INSERT INTO import_batch
-                    (batch_id, dataset_kind, source_file_path, source_file_name, imported_utc, row_count, columns_json)
-                VALUES (@batchId, @kind, @filePath, @fileName, @importedUtc, 0, @columnsJson);
-                """;
-            insertBatch.AddWithValue("@batchId", batchId);
-            insertBatch.AddWithValue("@kind", kindName);
-            // source_file_path 是 legacy 實體欄名；本地案件只保存可攜的檔名，
-            // 不把來源機器的絕對路徑帶進可整夾搬移的專案資料庫。
-            insertBatch.AddWithValue("@filePath", source.FileName);
-            insertBatch.AddWithValue("@fileName", source.FileName);
-            insertBatch.AddWithValue("@importedUtc", importedUtc.ToString("O"));
-            insertBatch.AddWithValue("@columnsJson", JsonSerializer.Serialize(columns, JsonOptions));
-            await insertBatch.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
-        }
-
-        await InsertSourceRecordAsync(connection, transaction, batchId, sourceNo: 1, source, importedUtc, cancellationToken);
-
-        // replace 的 row_number 直接沿用來源列號（單調且唯一；標頭為列 1，資料列由 2 起）
-        // 逐列 INSERT 不逐筆記事件（百萬列會爆 ring buffer、且與 SqlServer 的 SqlBulkCopy 路徑不等價）；
-        // 改以階段結束後一筆 staging milestone 收斂。
-        var rowCount = 0;
-        var observedKeys = new HashSet<string>(StringComparer.Ordinal);
-        var stagingStopwatch = Stopwatch.StartNew();
-        // 批量列寫入（spec §7）：SQLite 包裝參數化 INSERT（行為凍結）、DuckDB 走 Appender。值依 StagingColumns 對位。
-        await using (var writer = database.CreateBulkRowWriter(connection, transaction, stagingTable, StagingColumns))
-        {
-            // AppendAsync 完成時已消費 values；重用 buffer，避免大型匯入每列配置 5 欄 object[]。
-            var stagingValues = new object?[StagingColumns.Length];
-            stagingValues[0] = batchId;
-            stagingValues[2] = 1;
-            await foreach (var row in rows.WithCancellation(cancellationToken))
-            {
-                stagingValues[1] = row.SourceRowNumber;
-                stagingValues[3] = row.SourceRowNumber;
-                stagingValues[4] = JsonSerializer.Serialize(row.Values, JsonOptions);
-                await writer.AppendAsync(stagingValues, cancellationToken);
-                observedKeys.UnionWith(row.Values.Keys);
-                fieldDefinitions.Observe(row);
-                rowCount++;
-            }
-
-            await writer.CompleteAsync(cancellationToken);
-        }
-
-        stagingStopwatch.Stop();
-
-        if (rowCount == 0)
-        {
-            // rollback 保留前一批資料（若有）
-            await transaction.RollbackAsync(cancellationToken);
-            txLog.RolledBack();
-            throw new JetActionException(
-                JetErrorCodes.EmptyWorkbook,
-                $"檔案 '{source.FileName}' 沒有任何資料列。");
-        }
-
-        DiagnosticDbLog.ImportMilestone(_log, "staging", rowCount, stagingStopwatch.ElapsedMilliseconds,
-            rowCount * 1000.0 / Math.Max(1, stagingStopwatch.ElapsedMilliseconds));
-
-        // 欄位收斂（guide §3.1.5）：佔位欄資格要看完整串流才知道，批次欄位於同一交易內回寫
-        var effectiveColumns = TabularHeaderNormalizer.FinalizeBatchColumns(columns, observedKeys);
-        var sourceDefinitions = fieldDefinitions.Build(effectiveColumns);
-        await using (var updateColumns = connection.CreateCommand())
-        {
-            updateColumns.Transaction = transaction;
-            updateColumns.CommandText = "UPDATE import_batch SET columns_json = @columnsJson WHERE batch_id = @batchId;";
-            updateColumns.AddWithValue("@columnsJson", JsonSerializer.Serialize(effectiveColumns, JsonOptions));
-            updateColumns.AddWithValue("@batchId", batchId);
-            await updateColumns.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
-        }
-
-        await LocalFieldDefinitionPersistence.ReplaceScopeAsync(
-            connection,
-            transaction,
-            batchId,
-            LegacyFieldDefinitionScope.Source,
-            sourceDefinitions,
-            cancellationToken);
-        await LocalFieldDefinitionPersistence.DeleteScopeAsync(
-            connection,
-            transaction,
-            batchId,
-            LegacyFieldDefinitionScope.Target,
-            cancellationToken);
-
-        await UpdateRowCountsAsync(connection, transaction, batchId, sourceNo: 1, addedRowCount: rowCount, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        await transaction.CommitAsync(CancellationToken.None);
-        txLog.Committed();
-        DiagnosticDbLog.ImportMilestone(_log, "replace", rowCount, importStopwatch.ElapsedMilliseconds,
-            rowCount * 1000.0 / Math.Max(1, importStopwatch.ElapsedMilliseconds));
-
-        var sources = new[] { ToSourceInfo(sourceNo: 1, source, rowCount, importedUtc) };
-        return new ImportBatchResult(
-            new ImportBatchInfo(batchId, kind, source.FileName, importedUtc, rowCount, effectiveColumns, sources),
-            rowCount);
-    }
-
-    public async Task<ImportBatchResult> AppendToBatchAsync(
-        string projectId,
-        DatasetKind kind,
-        ImportSourceDescriptor source,
-        IReadOnlyList<string> columns,
-        IAsyncEnumerable<StagingRow> rows,
-        CancellationToken cancellationToken)
-    {
-        source = ImportSourceFileName.Normalize(source);
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
-        var importStopwatch = Stopwatch.StartNew();
-
-        var kindName = kind.ToStorageName();
-        var stagingTable = StagingTableFor(kind);
-        var targetTable = TargetTableFor(kind);
-        var importedUtc = DateTimeOffset.UtcNow;
-
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
-        await database.ApplyImportSessionSettingsAsync(connection, cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        using var txLog = DiagnosticDb.BeginTransaction(_log, _provider);
-
-        string batchId;
-        string batchFileName;
-        DateTimeOffset batchImportedUtc;
-        int existingRowCount;
-        IReadOnlyList<string> batchColumns;
-
-        await using (var findBatch = connection.CreateCommand())
-        {
-            findBatch.Transaction = transaction;
-            findBatch.CommandText =
-                """
-                SELECT batch_id, source_file_name, imported_utc, row_count, columns_json
-                FROM import_batch
-                WHERE dataset_kind = @kind
-                ORDER BY imported_utc DESC, batch_id DESC
-                LIMIT 1;
-                """;
-            findBatch.AddWithValue("@kind", kindName);
-
-            await using var reader = await findBatch.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken);
-            if (!await reader.ReadAsync(cancellationToken))
-            {
-                throw new JetActionException(
-                    JetErrorCodes.NoImportBatch,
-                    $"尚未匯入任何 {kindName.ToUpperInvariant()} 資料，無法附加來源；第一個來源請以 mode 'replace' 匯入。");
-            }
-
-            batchId = reader.GetString(0);
-            batchFileName = reader.GetString(1);
-            batchImportedUtc = DateTimeOffset.Parse(reader.GetString(2));
-            existingRowCount = reader.GetInt32(3);
-            batchColumns = JsonSerializer.Deserialize<List<string>>(reader.GetString(4), JsonOptions) ?? [];
-        }
-
-        // 兩階段驗證之一（guide §3.1.4）：串流前只比具名標頭——佔位欄是否屬有效欄位
-        // 要看完整串流才知道，但具名集合不合可以立即失敗，不浪費一次大檔讀取
-        EnsureColumnSetsMatch(
-            source.FileName,
-            batchColumns.Where(c => !TabularHeaderNormalizer.IsPlaceholder(c)).ToList(),
-            columns.Where(c => !TabularHeaderNormalizer.IsPlaceholder(c)).ToList());
-
-        var persistedDefinitions = await LocalFieldDefinitionPersistence.ReadStatesAsync(
-            connection,
-            transaction,
-            batchId,
-            LegacyFieldDefinitionScope.Source,
-            cancellationToken);
-        if (persistedDefinitions.Count == 0)
-        {
-            throw new JetActionException(
-                JetErrorCodes.InvalidProjectSchema,
-                $"{kindName.ToUpperInvariant()} 批次缺少 Legacy 欄位定義；本版不反推舊批次，請以 mode 'replace' 重新匯入。");
-        }
-
-        var fieldDefinitions = LegacyFieldDefinitionAccumulator.Restore(persistedDefinitions);
-
-        int nextSourceNo;
-        long nextRowNumber;
-
-        await using (var maxQuery = connection.CreateCommand())
-        {
-            maxQuery.Transaction = transaction;
-            maxQuery.CommandText =
-                $"""
-                SELECT
-                    (SELECT COALESCE(MAX(source_no), 0) FROM import_batch_source WHERE batch_id = @batchId),
-                    (SELECT COALESCE(MAX(row_number), 0) FROM {stagingTable} WHERE batch_id = @batchId);
-                """;
-            maxQuery.AddWithValue("@batchId", batchId);
-
-            await using var reader = await maxQuery.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken);
-            await reader.ReadAsync(cancellationToken);
-            nextSourceNo = reader.GetInt32(0) + 1;
-            nextRowNumber = reader.GetInt64(1) + 1;
-        }
-
-        await InsertSourceRecordAsync(connection, transaction, batchId, nextSourceNo, source, importedUtc, cancellationToken);
-
-        // 逐列 INSERT 不逐筆記事件（同 replace；與 SqlServer SqlBulkCopy 路徑等價）→ 階段 milestone 收斂。
-        var addedRowCount = 0;
-        var observedKeys = new HashSet<string>(StringComparer.Ordinal);
-        var stagingStopwatch = Stopwatch.StartNew();
-        // 批量列寫入（spec §7）：row_number 由既有最大值續編（append 語意），source_no = nextSourceNo。
-        await using (var writer = database.CreateBulkRowWriter(connection, transaction, stagingTable, StagingColumns))
-        {
-            var stagingValues = new object?[StagingColumns.Length];
-            stagingValues[0] = batchId;
-            stagingValues[2] = nextSourceNo;
-            await foreach (var row in rows.WithCancellation(cancellationToken))
-            {
-                stagingValues[1] = nextRowNumber++;
-                stagingValues[3] = row.SourceRowNumber;
-                stagingValues[4] = JsonSerializer.Serialize(row.Values, JsonOptions);
-                await writer.AppendAsync(stagingValues, cancellationToken);
-                observedKeys.UnionWith(row.Values.Keys);
-                fieldDefinitions.Observe(row);
-                addedRowCount++;
-            }
-
-            await writer.CompleteAsync(cancellationToken);
-        }
-
-        stagingStopwatch.Stop();
-
-        if (addedRowCount == 0)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            txLog.RolledBack();
-            throw new JetActionException(
-                JetErrorCodes.EmptyWorkbook,
-                $"檔案 '{source.FileName}' 沒有任何資料列，未附加（既有批次不受影響）。");
-        }
-
-        DiagnosticDbLog.ImportMilestone(_log, "staging", addedRowCount, stagingStopwatch.ElapsedMilliseconds,
-            addedRowCount * 1000.0 / Math.Max(1, stagingStopwatch.ElapsedMilliseconds));
-
-        // 兩階段驗證之二：串流後以收斂後的有效欄位集合終檢——佔位欄帶資料而批次沒有
-        //（或反向）必須誠實拒絕，有資料的欄位不得靜默消失。批次欄位不因附加改寫（批次為權威）
-        var effectiveColumns = TabularHeaderNormalizer.FinalizeBatchColumns(columns, observedKeys);
-        try
-        {
-            EnsureColumnSetsMatch(source.FileName, batchColumns, effectiveColumns);
-        }
-        catch (JetActionException)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            txLog.RolledBack();
-            throw;
-        }
-
-        var sourceDefinitions = fieldDefinitions.Build(batchColumns);
-        await LocalFieldDefinitionPersistence.ReplaceScopeAsync(
-            connection,
-            transaction,
-            batchId,
-            LegacyFieldDefinitionScope.Source,
-            sourceDefinitions,
-            cancellationToken);
-        await LocalFieldDefinitionPersistence.DeleteScopeAsync(
-            connection,
-            transaction,
-            batchId,
-            LegacyFieldDefinitionScope.Target,
-            cancellationToken);
-
-        await UpdateRowCountsAsync(connection, transaction, batchId, nextSourceNo, addedRowCount, cancellationToken);
-
-        // 附加使下游失效（與 replace 同語意）：母體變了，target 投影與已提交配對必須重做
-        await using (var invalidate = connection.CreateCommand())
-        {
-            invalidate.Transaction = transaction;
-            invalidate.CommandText =
-                $"""
-                DELETE FROM target_gl_rde_value WHERE @kind = 'gl';
-                DELETE FROM config_gl_rde_field WHERE @kind = 'gl';
-                DELETE FROM {targetTable};
-                DELETE FROM config_field_mapping WHERE dataset_kind = @kind;
-                """;
-            invalidate.AddWithValue("@kind", kindName);
-            await invalidate.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
-        }
-
-        // 母體變了,target 投影與已提交配對重做,既有規則結果一併失效(plan Phase 1)。
-        await RuleRunResultReset.ClearWithinAsync(
-            connection,
-            transaction,
-            cancellationToken,
-            kind == DatasetKind.Gl
-                ? AuditMutation.GlImport
-                : AuditMutation.TbImport);
-
-        var sources = await LoadSourcesAsync(connection, transaction, batchId, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        await transaction.CommitAsync(CancellationToken.None);
-        txLog.Committed();
-        DiagnosticDbLog.ImportMilestone(_log, "append", addedRowCount, importStopwatch.ElapsedMilliseconds,
-            addedRowCount * 1000.0 / Math.Max(1, importStopwatch.ElapsedMilliseconds));
-
-        return new ImportBatchResult(
-            new ImportBatchInfo(
-                batchId, kind, batchFileName, batchImportedUtc,
-                existingRowCount + addedRowCount, batchColumns, sources),
-            addedRowCount);
-    }
-
-    public async Task<ImportBatchResult> ReplaceBatchAsync(
-        string projectId,
-        DatasetKind kind,
         IReadOnlyList<ImportSourceInput> sources,
         CancellationToken cancellationToken)
     {
@@ -405,7 +37,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         sources = NormalizeSources(sources);
         EnsureNamedColumnsMatchFirstSource(sources);
 
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         var importStopwatch = Stopwatch.StartNew();
         var first = sources[0];
         var batchId = Guid.NewGuid().ToString("N");
@@ -438,7 +70,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                     DELETE FROM target_gl_rde_value WHERE @kind = 'gl';
                     DELETE FROM config_gl_rde_field WHERE @kind = 'gl';
                     DELETE FROM {targetTable};
-                    DELETE FROM config_field_mapping WHERE dataset_kind = @kind;
+                    {LocalMappingStateStore.RetireCommittedMappingSql}
                     """;
                 cleanup.AddWithValue("@kind", kindName);
                 await cleanup.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
@@ -611,7 +243,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
     {
         ValidateBatchSources(sources);
         sources = NormalizeSources(sources);
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         var importStopwatch = Stopwatch.StartNew();
         var kindName = kind.ToStorageName();
         var stagingTable = StagingTableFor(kind);
@@ -652,7 +284,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 {
                     throw new JetActionException(
                         JetErrorCodes.NoImportBatch,
-                        $"尚未匯入任何 {kindName.ToUpperInvariant()} 資料，無法附加來源；第一個來源請以 mode 'replace' 匯入。");
+                        $"尚未匯入任何 {kindName.ToUpperInvariant()} 資料，無法附加來源。第一個來源請改用取代匯入。");
                 }
 
                 batchId = reader.GetString(0);
@@ -700,7 +332,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
             {
                 throw new JetActionException(
                     JetErrorCodes.InvalidProjectSchema,
-                    $"{kindName.ToUpperInvariant()} 批次缺少 Legacy 欄位定義；本版不反推舊批次，請以 mode 'replace' 重新匯入。");
+                    $"{kindName.ToUpperInvariant()} 資料是舊版 JET 匯入的，缺少目前版本需要的欄位定義，無法附加。請改用取代匯入，重新匯入這份資料。");
             }
 
             var fieldDefinitions = LegacyFieldDefinitionAccumulator.Restore(persistedDefinitions);
@@ -810,7 +442,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                     DELETE FROM target_gl_rde_value WHERE @kind = 'gl';
                     DELETE FROM config_gl_rde_field WHERE @kind = 'gl';
                     DELETE FROM {targetTable};
-                    DELETE FROM config_field_mapping WHERE dataset_kind = @kind;
+                    {LocalMappingStateStore.RetireCommittedMappingSql}
                     """;
                 invalidate.AddWithValue("@kind", kindName);
                 await invalidate.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
@@ -862,7 +494,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         DatasetKind kind,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -933,7 +565,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
 
         throw new JetActionException(
             JetErrorCodes.ColumnMismatch,
-            $"檔案 '{sourceFileName}' 的欄位集合與既有批次不一致（{string.Join("；", parts)}）。");
+            $"檔案 '{sourceFileName}' 的欄位與已匯入的資料不一致（{string.Join("；", parts)}）。請改用取代匯入，或先在 Excel 把兩份檔案的欄位對齊。");
     }
 
     private async Task<BatchSourceWriteResult> WriteBatchSourceAsync(

@@ -15,7 +15,7 @@ public sealed class FilterAstFrontendContractTests
 {
     private const string RowScopeLabel = "同一分錄列";
     private const string SameVoucherScopeLabel = "同一傳票";
-    private const string OutputAnchorLabel = "主要條件（決定命中分錄）";
+    private const string OutputAnchorLabel = "主要條件（決定符合條件的分錄）";
     private const string SameVoucherExplanation = "後續條件可由同一傳票的其他分錄列符合";
     private const string ContainsAnyLabel = "包含任一值";
     private const string ExactAnyLabel = "完全符合任一值";

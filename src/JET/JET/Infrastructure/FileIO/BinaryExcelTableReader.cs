@@ -47,20 +47,53 @@ public sealed class BinaryExcelTableReader : ITabularFileReader
             var observations = new List<TabularCellObservation>();
             for (var column = 0; column < reader.FieldCount; column++)
             {
-                var value = reader.GetValue(column);
-                if (value is null or DBNull) continue;
-                var format = reader.GetNumberFormatString(column);
-                var cell = NativeTabularValue.Read(value, format is not null &&
-                    ExcelDateFormatDetector.ClassifyFormatCode(format) == ExcelNumberKind.Time);
-                if (cell.Text.Length == 0) continue;
+                var cell = ReadCell(reader, column);
+                if (cell is null || cell.Value.Text.Length == 0) continue;
                 var name = columns[column];
-                values[name] = cell.Text;
-                observations.Add(new(name, cell.Kind, cell.Text.Length, cell.DecimalPlaces));
+                values[name] = cell.Value.Text;
+                observations.Add(new(name, cell.Value.Kind, cell.Value.Text.Length, cell.Value.DecimalPlaces));
             }
             if (values.Count > 0) yield return new StagingRow(rowNumber, values, observations);
         }
         await Task.CompletedTask;
     }
+
+    /// <summary>
+    /// 錯誤儲存格（#N/A、#REF! 等）保留 Excel 顯示的原文，和 Open XML 讀取器相同；金額欄因此會以金額無效明確失敗，
+    /// 不再被讀成空白後變成 0。
+    /// </summary>
+    private static (string Text, LegacyFieldKind Kind, int? DecimalPlaces)? ReadCell(IExcelDataReader reader, int column)
+    {
+        var value = reader.GetValue(column);
+        if (value is null or DBNull)
+        {
+            return reader.GetCellError(column) is { } cellError
+                ? (ErrorText(cellError), LegacyFieldKind.Text, null)
+                : null;
+        }
+        var format = reader.GetNumberFormatString(column);
+        var timeOnly = format is not null && ExcelDateFormatDetector.ClassifyFormatCode(format) == ExcelNumberKind.Time;
+        if (value is DateTime date && !timeOnly && !DateNormalizer.IsSupportedExcelDate(date))
+        {
+            // ExcelDataReader 已套用 1904 位移；用正規化的 OA 數值交由投影報來源列錯。
+            // 不修改 NativeTabularValue，以免把同一限制加到 Access 原生日期。
+            return (DateNormalizer.ExcelSerialText(date.ToOADate()), LegacyFieldKind.Date, null);
+        }
+        return NativeTabularValue.Read(value, timeOnly);
+    }
+
+    private static string ErrorText(CellError error) => error switch
+    {
+        CellError.NULL => "#NULL!",
+        CellError.DIV0 => "#DIV/0!",
+        CellError.VALUE => "#VALUE!",
+        CellError.REF => "#REF!",
+        CellError.NAME => "#NAME?",
+        CellError.NUM => "#NUM!",
+        CellError.NA => "#N/A",
+        CellError.GETTING_DATA => "#GETTING_DATA",
+        _ => "#ERROR"
+    };
 
     private static IReadOnlyList<string> FindHeader(IExcelDataReader reader, int skip, CancellationToken ct, out int row)
     {
@@ -97,6 +130,11 @@ public sealed class BinaryExcelTableReader : ITabularFileReader
         {
             stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             return ExcelReaderFactory.CreateBinaryReader(stream);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            stream?.Dispose();
+            throw SourceFileErrors.CannotOpen(path, exception);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

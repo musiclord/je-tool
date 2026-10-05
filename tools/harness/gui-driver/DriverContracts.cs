@@ -29,39 +29,43 @@ internal static class GuiScenarioCatalog
     internal const string LegacyFormCatalog = "legacy-form-catalog";
     internal const string AuthorizedListRecovery = "authorized-list-recovery";
 
-    internal static bool TryResolve(string name, out GuiScenarioDefinition definition)
+    // 這裡只記每個情境需要的合成夾具。操作上限、預期次數、逾時與截圖數只寫在 tools/harness/lanes.json，
+    // 由驗證框架以命令列參數傳進來。
+    private static readonly Dictionary<string, string[]> FixturesByScenario = new(StringComparer.Ordinal)
     {
-        definition = name switch
+        [StartupSmoke] = [],
+        [SyntheticSqliteCreate] = [],
+        [MappingRequiredSync] = ["seed-mapping-ready-project"],
+        [EditedReportStillLoads] = ["seed-edited-report-project", "release-visible-surface"],
+        [ApprovalMappingModes] = ["seed-mapping-ready-project"],
+        [ValidationAutoOutputs] = ["seed-mapping-ready-project", "fill-template-after-auto-export"],
+        [FilterAuditorJourney] = ["seed-export-ready-project", "minimum-window-125"],
+        [FilterKctEditing] = ["seed-export-ready-project", "minimum-window-125", "legacy-kct-scenario"],
+        [FeedbackWorkflow] = ["seed-export-ready-project"],
+        [NullDetailsRecovery] = ["seed-export-ready-project", "data-recovery-source", "fail-null-search-once"],
+        [KctRemapRecovery] = ["seed-export-ready-project", "data-recovery-source"],
+        [AuthorizedListRecovery] = ["seed-export-ready-project", "authorized-list-source", "fail-authorized-import-once"],
+        [ExtendedConditions] = ["seed-export-ready-project"],
+        [SideMonthWorkflow] = ["seed-export-ready-project"],
+        [NestedVoucherWorkflow] = ["seed-export-ready-project"],
+        [LegacyFormWorkflow] = ["seed-export-ready-project", "legacy-form-source"],
+        [LegacyFormCatalog] = ["seed-export-ready-project", "legacy-form-source"],
+    };
+
+    internal static bool TryResolve(
+        string name,
+        int actionLimit,
+        int screenshotLimit,
+        out GuiScenarioDefinition definition)
+    {
+        if (!FixturesByScenario.TryGetValue(name, out var fixtures))
         {
-            StartupSmoke => new GuiScenarioDefinition(StartupSmoke, 4, []),
-            SyntheticSqliteCreate => new GuiScenarioDefinition(SyntheticSqliteCreate, 12, [], ScreenshotLimit: 1),
-            MappingRequiredSync => new GuiScenarioDefinition(
-                MappingRequiredSync,
-                70,
-                ["seed-mapping-ready-project"]),
-            EditedReportStillLoads => new GuiScenarioDefinition(
-                EditedReportStillLoads,
-                12,
-                ["seed-edited-report-project", "release-visible-surface"]),
-            ApprovalMappingModes => new GuiScenarioDefinition(
-                ApprovalMappingModes, 47, ["seed-mapping-ready-project"], ScreenshotLimit: 1),
-            ValidationAutoOutputs => new GuiScenarioDefinition(
-                ValidationAutoOutputs, 8,
-                ["seed-mapping-ready-project", "fill-template-after-auto-export"], ScreenshotLimit: 1),
-            FilterAuditorJourney => new(FilterAuditorJourney, 96, ["seed-export-ready-project", "minimum-window-125"], 2),
-            FilterKctEditing => new(FilterKctEditing, 70, ["seed-export-ready-project", "minimum-window-125", "legacy-kct-scenario"], 1),
-            FeedbackWorkflow => new(FeedbackWorkflow, 52, ["seed-export-ready-project"], 2),
-            NullDetailsRecovery => new(NullDetailsRecovery, 35, ["seed-export-ready-project", "data-recovery-source", "fail-null-search-once"], 1),
-            KctRemapRecovery => new(KctRemapRecovery, 43, ["seed-export-ready-project", "data-recovery-source"], 1),
-            AuthorizedListRecovery => new(AuthorizedListRecovery, 33, ["seed-export-ready-project", "authorized-list-source", "fail-authorized-import-once"], 1),
-            ExtendedConditions => new(ExtendedConditions, 96, ["seed-export-ready-project"], 2),
-            SideMonthWorkflow => new(SideMonthWorkflow, 76, ["seed-export-ready-project"], 2),
-            NestedVoucherWorkflow => new(NestedVoucherWorkflow, 80, ["seed-export-ready-project"], 2),
-            LegacyFormWorkflow => new(LegacyFormWorkflow, 55, ["seed-export-ready-project", "legacy-form-source"], 2),
-            LegacyFormCatalog => new(LegacyFormCatalog, 95, ["seed-export-ready-project", "legacy-form-source"], 1),
-            _ => null!
-        };
-        return definition is not null;
+            definition = null!;
+            return false;
+        }
+
+        definition = new GuiScenarioDefinition(name, actionLimit, fixtures, screenshotLimit);
+        return true;
     }
 }
 
@@ -73,7 +77,7 @@ internal sealed record DriverOptions(
 {
     internal static DriverOptions Parse(string[] args)
     {
-        if (args.Length != 8)
+        if (args.Length != 12)
         {
             throw new DriverUsageException("invalid_arguments");
         }
@@ -83,13 +87,21 @@ internal sealed record DriverOptions(
         {
             var name = args[index];
             if (name is not "--app" and not "--manifest" and not "--timeout-seconds" and not "--scenario"
+                    and not "--action-budget" and not "--screenshot-budget"
                 || !values.TryAdd(name, args[index + 1]))
             {
                 throw new DriverUsageException("invalid_arguments");
             }
         }
 
-        if (!GuiScenarioCatalog.TryResolve(values["--scenario"], out var scenario))
+        // 上下限由 OwnedGuiRun.Create 檢查；這裡只確認是整數。
+        if (!int.TryParse(values["--action-budget"], out var actionBudget)
+            || !int.TryParse(values["--screenshot-budget"], out var screenshotBudget))
+        {
+            throw new DriverUsageException("invalid_budget");
+        }
+
+        if (!GuiScenarioCatalog.TryResolve(values["--scenario"], actionBudget, screenshotBudget, out var scenario))
         {
             throw new DriverUsageException("invalid_scenario");
         }
@@ -173,6 +185,7 @@ internal sealed class GuiAssertions
     internal bool RequiredRailBecameIncomplete { get; set; }
     internal bool RequiredRailRecovered { get; set; }
     internal bool MappingFocusPreserved { get; set; }
+    internal bool LiteralCommitFirstClick { get; set; }
     internal bool EditedReportLoaded { get; set; }
     internal bool ModifiedOutsideVisible { get; set; }
     internal bool WorkpaperExportEnabled { get; set; }
@@ -246,12 +259,15 @@ internal sealed class GuiRunOutcome
     internal GuiCleanupEvidence Cleanup { get; } = new();
     internal List<byte[]> Screenshots { get; } = [];
     internal List<object> Stages { get; } = [];
+    internal object? LastCreateProbe { get; set; }
     internal object? LastMappingProbe { get; set; }
     internal object? LastFilterProbe { get; set; }
 
     internal void RecordStage(string name)
     {
-        if (Stages.Count >= 16) { throw new GuiInfrastructureException("stage_diagnostic_budget_exceeded"); }
+        // Four additional checkpoints cover header geometry, both drag directions and edge scrolling.
+        var stageLimit = Scenario.Name == GuiScenarioCatalog.FeedbackWorkflow ? 28 : 16;
+        if (Stages.Count >= stageLimit) { throw new GuiInfrastructureException("stage_diagnostic_budget_exceeded"); }
         Stages.Add(new { name, actionCount = ActionCount });
     }
 
@@ -315,7 +331,7 @@ internal static class ManifestWriter
                 screenshotCount = screenshots.Length
             },
             screenshots,
-            diagnostics = new { stages = outcome.Stages, lastMappingProbe = outcome.LastMappingProbe, lastFilterProbe = outcome.LastFilterProbe },
+            diagnostics = new { stages = outcome.Stages, lastCreateProbe = outcome.LastCreateProbe, lastMappingProbe = outcome.LastMappingProbe, lastFilterProbe = outcome.LastFilterProbe },
             assertions = new
             {
                 documentLoaded = outcome.Assertions.DocumentLoaded,
@@ -343,6 +359,7 @@ internal static class ManifestWriter
                 requiredRailBecameIncomplete = outcome.Assertions.RequiredRailBecameIncomplete,
                 requiredRailRecovered = outcome.Assertions.RequiredRailRecovered,
                 mappingFocusPreserved = outcome.Assertions.MappingFocusPreserved,
+                literalCommitFirstClick = outcome.Assertions.LiteralCommitFirstClick,
                 editedReportLoaded = outcome.Assertions.EditedReportLoaded,
                 modifiedOutsideVisible = outcome.Assertions.ModifiedOutsideVisible,
                 workpaperExportEnabled = outcome.Assertions.WorkpaperExportEnabled,

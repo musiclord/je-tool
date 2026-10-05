@@ -6,7 +6,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 授權編製人員清單的匯入與計數（manifest import.authorizedPreparer.fromFile）。
+/// 授權編製人員清單的匯入與計數（import.authorizedPreparer.fromFile）。
 /// 授權清單就是一個 name 集合——staging 寫入與 target 投影在**同一 transaction**完成。
 /// 鏡射 <see cref="LocalAccountMappingRepository"/> 但不寫 import_batch（不入 dataset_kind 體系，
 /// 避開 CHECK 升版）；batchId 僅供 response、不持久化。replace-only。
@@ -54,8 +54,9 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
         CancellationToken cancellationToken)
     {
         source = ImportSourceFileName.Normalize(source);
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
-        projection ??= JetAuditProgram.PrepareAuthorizedPreparerProjection(columns);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
+        projection ??= JetAuditProgram.PrepareAuthorizedPreparerProjection(
+            columns, columns.Count == 1 ? columns[0] : null);
         projection.ResolveColumns();
 
         var batchId = Guid.NewGuid().ToString("N");
@@ -137,19 +138,23 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
             }
         }
 
-        await AuthorizedPreparerMetadataSql.WriteAsync(connection, transaction, projection.SourceColumn, cancellationToken);
+        await AuthorizedPreparerMetadataSql.WriteAsync(connection, transaction, projection.SourceColumn, cancellationToken,
+            sourceRowCount: rowCount, blankRowCount: projection.BlankRowCount, duplicateRowCount: projection.DuplicateRowCount);
+        var matchedPreparerCount = await AuthorizedPreparerMetadataSql.CountMatchedAsync(
+            connection, transaction, database.Dialect, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         return new AuthorizedPreparerImportResult(batchId, names.Count, source.FileName, importedUtc)
         {
             SourceColumn = projection.SourceColumn, SourceRowCount = rowCount,
-            BlankRowCount = projection.BlankRowCount, DuplicateRowCount = projection.DuplicateRowCount
+            BlankRowCount = projection.BlankRowCount, DuplicateRowCount = projection.DuplicateRowCount,
+            MatchedPreparerCount = matchedPreparerCount
         };
     }
 
     public async Task ClearAsync(string projectId, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -164,7 +169,7 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
 
     public async Task<long> CountAsync(string projectId, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -181,9 +186,15 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
         if (rowCount == 0) return null;
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
+        var metadata = await AuthorizedPreparerMetadataSql.ReadAsync(connection, cancellationToken);
         return new AuthorizedPreparerState(rowCount)
         {
-            SourceColumn = await AuthorizedPreparerMetadataSql.ReadAsync(connection, cancellationToken)
+            SourceColumn = metadata.SourceColumn,
+            SourceRowCount = metadata.SourceRowCount,
+            BlankRowCount = metadata.BlankRowCount,
+            DuplicateRowCount = metadata.DuplicateRowCount,
+            MatchedPreparerCount = await AuthorizedPreparerMetadataSql.CountMatchedAsync(
+                connection, null, database.Dialect, cancellationToken)
         };
     }
 }

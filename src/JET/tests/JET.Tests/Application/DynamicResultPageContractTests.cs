@@ -15,7 +15,7 @@ public sealed class DynamicResultPageContractTests
     [
         ("documentNumber", "傳票號碼", "text"),
         ("lineItem", "傳票文件項次", "text"),
-        ("postDate", "總帳日期", "date"),
+        ("postDate", "總帳入帳日", "date"),
         ("accountCode", "會計科目編號", "text"),
         ("accountName", "會計科目名稱", "text"),
         ("amount", "傳票金額", "money"),
@@ -30,10 +30,12 @@ public sealed class DynamicResultPageContractTests
         ("accountName", "會計科目名稱", "text"),
         ("debit", "借方金額", "money"),
         ("credit", "貸方金額", "money"),
-        ("postDate", "總帳日期", "date"),
-        ("approvalDate", "核准日期", "date"),
-        ("createdBy", "編製人員", "text"),
-        ("approvedBy", "核准人員", "text"),
+        ("postDate", "總帳入帳日", "date"),
+        // 2026-10-04 第 8 批 L39：只更新 INF 顯示表頭，key、型別、順序與 RDE 值的逐欄斷言不變。
+        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+        ("approvalDate", "傳票核准日", "date"),
+        ("createdBy", "傳票建立人員", "text"),
+        ("approvedBy", "傳票核准人員", "text"),
         ("description", "傳票摘要", "text")
     ];
 

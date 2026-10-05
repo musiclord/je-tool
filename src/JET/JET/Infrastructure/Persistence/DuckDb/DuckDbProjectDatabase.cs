@@ -6,23 +6,23 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 每專案 jet.duckdb 的 DuckDB 連線工廠與 schema 初始化——本地引擎家族的第二實作
-/// （<see cref="ILocalProjectDatabase"/>；設計 spec §3）。與 <see cref="SqliteProjectDatabase"/> 同屬
+/// （<see cref="ILocalProjectDatabase"/>）。與 <see cref="SqliteProjectDatabase"/> 同屬
 /// 「一資料夾一專案、檔案即 scope」模型，共用同一套 <c>Local*</c> repository 與 SQL 文本；引擎差異
 /// 全部收進本類（連線工廠＋DDL）與 <see cref="DuckDbConnectionAdapter"/>（@name→$name 參數轉接）＋
 /// <see cref="DuckDbDialect"/>。發出的連線一律經轉接器包裝，故共用 repo 的 <c>@p{i}</c> SQL 無需改動。
 /// </summary>
-public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProjectDatabase
+public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProjectDatabase, IProjectDatabaseRetention
 {
     /// <summary>DuckDB 資料庫檔名（與 sqlite 的 jet.db 並列於同一 projects/{id}/ 資料夾）。</summary>
     public const string DatabaseFileName = "jet.duckdb";
 
     /// <summary>
     /// DuckDB 版 schema——新檔一次到位建第 6 版（與 <see cref="SqliteProjectDatabase"/> 的
-    /// 第 6 版形狀對齊：表／欄／索引名一字不差）。既有第 5 版檔只做 additive
-    /// line-item numeric sort key migration，不猜測或回填既有列。
+    /// 第 6 版形狀對齊：表／欄／索引名一字不差），再逐版升到現行版。第 1 到第 5 版的舊檔不再升版，
+    /// 開啟時直接回報錯誤。
     /// 引擎差異只三類：(1) SQLite <c>INTEGER PRIMARY KEY AUTOINCREMENT</c> → DuckDB
     /// <c>BIGINT PRIMARY KEY DEFAULT nextval('seq_&lt;表&gt;')</c>＋前置 <c>CREATE SEQUENCE IF NOT EXISTS</c>
-    /// （DuckDB 無 AUTOINCREMENT；spec §1）；(2) 型別採 SqlServer 家族已驗證的跨引擎映射——金額／計數／
+    /// （DuckDB 無 AUTOINCREMENT）；(2) 型別採 SqlServer 家族已驗證的跨引擎映射——金額／計數／
     /// row_number／entry_id 等以 BIGINT（DuckDB INTEGER 為 32 位，scaled 金額會溢位），小整數（source_no／
     /// is_manual／position 等）以 INTEGER；TEXT 保留（DuckDB TEXT≡VARCHAR）；(3) schema_version 冪等插入
     /// 用 ANSI <c>WHERE NOT EXISTS</c>（不依賴 SQLite 專屬 ON CONFLICT 形）。<c>IF NOT EXISTS</c> 全程冪等。
@@ -106,6 +106,17 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             mode_name       TEXT NOT NULL,
             source_batch_id TEXT NOT NULL,
             committed_utc   TEXT NOT NULL
+        );
+
+        -- 重新匯入前最後一次確認的配對，只用來在重開案件時帶回草稿（LocalMappingStateStore.RetireCommittedMappingSql）。
+        CREATE TABLE IF NOT EXISTS config_field_mapping_previous (
+            dataset_kind    TEXT PRIMARY KEY CHECK (dataset_kind IN ('gl','tb')),
+            mapping_json    TEXT NOT NULL,
+            mode_name       TEXT NOT NULL,
+            source_batch_id TEXT NOT NULL,
+            committed_utc   TEXT NOT NULL,
+            format_version  INTEGER NOT NULL,
+            options_json    TEXT NULL
         );
 
         CREATE TABLE IF NOT EXISTS staging_calendar_raw_day (
@@ -243,15 +254,6 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
         );
         CREATE INDEX IF NOT EXISTS idx_result_filter_run_entry
             ON result_filter_run (entry_id, scenario_position);
-
-        -- source_file_path 是 legacy 欄名，載入後不再使用。既有本地案件若曾保存來源機器的
-        -- 絕對路徑，開啟時冪等收斂成已持久化的顯示檔名；不升 schema、不動匯入資料列。
-        UPDATE import_batch
-        SET source_file_path = source_file_name
-        WHERE source_file_path <> source_file_name;
-        UPDATE import_batch_source
-        SET source_file_path = source_file_name
-        WHERE source_file_path <> source_file_name;
         """;
 
     private const string CreateV7TablesAndIndexesSql =
@@ -368,12 +370,125 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             Directory.CreateDirectory(directory);
         }
 
-        // 轉接器包裝：發出的每個命令在執行前把 @name→$name、參數名剝為裸名（DuckDB 綁定要求，spec §1）。
-        return new DuckDbConnectionAdapter(new DuckDBConnection($"DataSource={databasePath}"));
+        // 轉接器包裝：發出的每個命令在執行前把 @name→$name、參數名剝為裸名（DuckDB 綁定要求）。
+        return new DuckDbConnectionAdapter(new DuckDBConnection(ConnectionString(databasePath)));
     }
 
     /// <summary>
-    /// dev 檢視專用的獨立唯讀連線：<c>ACCESS_MODE=READ_ONLY</c>（spec §1 實證可與主連線並存、MVCC 快照）。
+    /// 一般讀寫連線的連線字串。DuckDB.NET 在同一程序內把 DataSource 相同的連線接到同一個資料庫實體，
+    /// 實體只在第一次開啟時套用設定，所以持有連線與 repository 連線必須使用完全相同的字串。
+    /// </summary>
+    private static string ConnectionString(string databasePath) => $"DataSource={databasePath}";
+
+    private readonly Lock retentionGate = new();
+
+    /// <summary>每個資料庫路徑目前有幾個持有者；路徑大小寫不敏感，與 Windows 檔案系統一致。</summary>
+    private readonly Dictionary<string, int> retainers = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 在一次操作期間保持 jet.duckdb 開啟：開一條連線並持有到操作結束，期間 repository 開的連線都沿用
+    /// 同一個資料庫實體，不必每次重新開啟。資料庫檔不存在時不持有，避免替缺檔的案件建出新檔；
+    /// SQLite 案件的資料夾沒有 jet.duckdb，因此自然不持有。開啟失敗回 null，讓 repository 照原本的方式報錯。
+    /// </summary>
+    public IDisposable? TryRetain(string projectId)
+    {
+        string databasePath;
+        try
+        {
+            databasePath = GetDatabasePath(projectId);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+
+        // 先登記再開啟：登記與檔案檢查和 DeleteAsync 用同一把鎖，刪除不會插進「已確認檔案存在、
+        // 尚未開啟」之間。
+        lock (retentionGate)
+        {
+            if (!File.Exists(databasePath))
+            {
+                return null;
+            }
+
+            retainers[databasePath] = retainers.GetValueOrDefault(databasePath) + 1;
+        }
+
+        DuckDBConnection? connection = null;
+        try
+        {
+            connection = new DuckDBConnection(ConnectionString(databasePath));
+            connection.Open();
+            return new DatabaseRetention(this, databasePath, connection);
+        }
+        catch (Exception)
+        {
+            try
+            {
+                connection?.Dispose();
+            }
+            catch (Exception)
+            {
+                // 開啟失敗後的清理失敗不影響結果：照樣不持有。
+            }
+
+            ReleaseRetainer(databasePath);
+            return null;
+        }
+    }
+
+    private void ReleaseRetainer(string databasePath)
+    {
+        lock (retentionGate)
+        {
+            if (!retainers.TryGetValue(databasePath, out var count))
+            {
+                return;
+            }
+
+            if (count <= 1)
+            {
+                retainers.Remove(databasePath);
+            }
+            else
+            {
+                retainers[databasePath] = count - 1;
+            }
+        }
+    }
+
+    private sealed class DatabaseRetention(
+        DuckDbProjectDatabase owner,
+        string databasePath,
+        DuckDBConnection connection) : IDisposable
+    {
+        private int disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref disposed, 1) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                // 先關連線再撤登記：刪除檢查看到沒有持有者時，這條連線一定已經關閉。
+                connection.Dispose();
+            }
+            catch (Exception)
+            {
+                // 釋放失敗不得遮蔽操作本身的結果。
+            }
+            finally
+            {
+                owner.ReleaseRetainer(databasePath);
+            }
+        }
+    }
+
+    /// <summary>
+    /// dev 檢視專用的獨立唯讀連線：<c>ACCESS_MODE=READ_ONLY</c>（實測可與主連線並存，讀到 MVCC 快照）。
     /// DB 檔不存在時開啟即失敗（不建檔）。同樣經轉接器包裝以維持 dev 檢視查詢的參數語意一致。
     /// </summary>
     public DbConnection CreateReadOnlyConnection(string projectId)
@@ -382,27 +497,47 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
 
     /// <summary>
     /// 匯入連線層調校：DuckDB 自管 MVCC 與寫入路徑，SQLite 的 WAL/synchronous/temp_store/cache_size
-    /// pragmas 不適用——no-op（spec §4）。效能修法採原生 Appender（見 <see cref="DuckDbBulkRowWriter"/>）：
+    /// pragmas 不適用——no-op。效能修法採原生 Appender（見 <see cref="DuckDbBulkRowWriter"/>）：
     /// 逐列 INSERT 的計畫成本被繞過，此為主修法。<c>SET preserve_insertion_order=false</c> 經評估未加——
     /// 它 session-scoped 只作用於匯入連線本身，而落地投影／查詢在各自的新連線（預設 preserve_insertion_order=true），
-    /// 故對本連線以外的讀取序無效；要全域套用需先審計每條讀取皆具顯式 ORDER BY，超出保守範圍（spec §7）。
+    /// 故對本連線以外的讀取序無效；要全域套用需先審計每條讀取皆具顯式 ORDER BY，超出這次修改的保守範圍。
     /// </summary>
     public Task ApplyImportSessionSettingsAsync(DbConnection connection, CancellationToken cancellationToken)
         => Task.CompletedTask;
 
-    /// <summary>DuckDB 批量列寫入＝原生 Appender（spec §7；見 <see cref="DuckDbBulkRowWriter"/>）。</summary>
+    /// <summary>DuckDB 批量列寫入＝原生 Appender（見 <see cref="DuckDbBulkRowWriter"/>）。</summary>
     public IBulkRowWriter CreateBulkRowWriter(
         DbConnection connection, DbTransaction transaction, string table, IReadOnlyList<string> columns)
         => new DuckDbBulkRowWriter(connection, transaction, table, columns);
 
     /// <summary>
-    /// 新檔一次到位建第 6 版；既有第 5 版檔在同一交易補 numeric sort key 欄並升版。
+    /// 新檔一次到位建第 6 版再逐版升級；第 1 到第 5 版的舊檔在任何寫入之前就擋下。
     /// DuckDB 支援單一命令內多語句，基底 DDL 的 <c>IF NOT EXISTS</c> 可重複執行。
     /// </summary>
-    public async Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken)
+    private readonly LocalSchemaReadiness readiness = new();
+
+    /// <summary>建立或載入案件時呼叫：一律完整檢查建表與升版。</summary>
+    public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
+        readiness.EnsureCreatedAsync(
+            GetDatabasePath(projectId),
+            ct => EnsureCreatedCoreAsync(projectId, ct),
+            cancellationToken);
+
+    /// <summary>repository 每次讀寫前呼叫：同一程序內每個資料庫檔只完整檢查一次。</summary>
+    public Task EnsureReadyAsync(string projectId, CancellationToken cancellationToken) =>
+        readiness.EnsureReadyAsync(
+            GetDatabasePath(projectId),
+            ct => EnsureCreatedCoreAsync(projectId, ct),
+            cancellationToken);
+
+    private async Task EnsureCreatedCoreAsync(string projectId, CancellationToken cancellationToken)
     {
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
+
+        // 舊版 JET 建立的資料庫（第 1 到第 5 版）與版本資訊無法辨識的資料庫，在任何寫入之前就擋下，檔案保持原狀。
+        LocalSchemaReadiness.RejectUnsupportedSchemaVersion(
+            await ReadExistingVersionAsync(connection, cancellationToken));
 
         await using var command = connection.CreateCommand();
         command.CommandText = SchemaSql;
@@ -413,12 +548,6 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             "SELECT value FROM schema_info WHERE key = 'schema_version';";
         var version = await versionCommand.ExecuteScalarAsync(cancellationToken) as string;
         var parsedVersion = int.TryParse(version, out var value) ? value : 0;
-        if (parsedVersion < 6)
-        {
-            await MigrateToV6Async(connection, cancellationToken);
-            parsedVersion = 6;
-        }
-
         if (parsedVersion == 6)
         {
             await MigrateV6ToV7Async(connection, cancellationToken);
@@ -449,7 +578,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
     /// 第 8 版 → 第 9 版：SQLite 與 SQL Server 在這一版把 <c>audit_event_log</c> 的 append-only
     /// 交由引擎強制（trigger）。DuckDB 1.5.3 沒有 trigger、也沒有 table-level 權限，因此本版對
     /// DuckDB 只推進版本號以維持三 provider 的版本鏈一致；append-only 在 DuckDB 仍是程式紀律，
-    /// 由 <c>LocalProjectAuditLog</c> 只寫 INSERT 與來源守衛把關（理由記於 guide §13）。
+    /// 由 <c>LocalProjectAuditLog</c> 只寫 INSERT 與來源守衛把關（見 docs/jet-guide.md 第 8 節「儲存與資料庫實作」）。
     /// </summary>
     private static async Task MigrateV8ToV9Async(
         DbConnection connection,
@@ -488,24 +617,24 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
         await transaction.CommitAsync(cancellationToken);
     }
 
-    private static async Task MigrateToV6Async(
+    /// <summary>尚未建表的新資料庫回傳 null；只讀取，不建立任何資料表。</summary>
+    private static async Task<string?> ReadExistingVersionAsync(
         DbConnection connection,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await EnsureColumnAsync(
-            connection,
-            transaction,
-            "target_gl_entry",
-            "line_item_numeric_sort_key",
-            "TEXT",
-            cancellationToken);
+        await using (var exists = connection.CreateCommand())
+        {
+            exists.CommandText =
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'schema_info';";
+            if (Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) == 0)
+            {
+                return null;
+            }
+        }
 
-        await using var bump = connection.CreateCommand();
-        bump.Transaction = transaction;
-        bump.CommandText = "UPDATE schema_info SET value = '6' WHERE key = 'schema_version';";
-        await bump.ExecuteNonQueryAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        await using var version = connection.CreateCommand();
+        version.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
+        return await version.ExecuteScalarAsync(cancellationToken) as string;
     }
 
     private async Task MigrateV6ToV7Async(
@@ -687,17 +816,29 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
 
     /// <summary>
     /// 刪除該專案的 jet.duckdb（含 DuckDB 交易期的 .wal 邊檔若殘留）。資料夾本身由
-    /// IProjectStore.DeleteAsync 刪除。DuckDB.NET 無 SQLite 的 ClearAllPools——連線於
-    /// <c>await using</c> 釋放後即解鎖；project.delete 由非 active 專案畫面呼叫，此刻無 app 連線。
-    /// 保險：若仍卡檔案鎖（DuckDB.NET 內部原生實例延遲釋放），以 GC 催動 finalizer 後重試一次
-    /// （對應 SQLite 家族 ClearAllPools 的釋放意圖；僅在 IOException 時觸發，非常態路徑）。
+    /// IProjectStore.DeleteAsync 刪除。DuckDB.NET 無 SQLite 的 ClearAllPools——同一路徑的最後一條連線
+    /// 關閉時資料庫實體才關閉並解鎖。
+    /// 實測資料庫實體開著時刪檔也會成功，之後同一路徑的新連線仍沿用舊實體、讀到舊資料；使用者刪掉案件後
+    /// 再建同名案件就會讀到舊案件的資料。因此該路徑仍有持有者（<see cref="TryRetain"/>）時，
+    /// 回 operation_in_progress 而且不刪任何檔案。
     /// </summary>
     public Task DeleteAsync(string projectId, CancellationToken cancellationToken)
     {
         var databasePath = GetDatabasePath(projectId);
-        foreach (var suffix in new[] { "", ".wal" })
+        lock (retentionGate)
         {
-            TryDeleteFile(databasePath + suffix);
+            if (retainers.ContainsKey(databasePath))
+            {
+                throw new JetActionException(
+                    JetErrorCodes.OperationInProgress,
+                    "案件資料庫還有作業在使用，請等作業完成後再刪除案件。");
+            }
+
+            readiness.Forget(databasePath);
+            foreach (var suffix in new[] { "", ".wal" })
+            {
+                TryDeleteFile(databasePath + suffix);
+            }
         }
 
         return Task.CompletedTask;
@@ -716,7 +857,9 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
         }
         catch (IOException)
         {
-            // 原生資料庫實例延遲釋放：催動 finalizer 釋放 handle 後重試一次。
+            // 資料庫實體開著時刪檔仍會成功（見 DeleteAsync），所以這裡擋不住「實體還開著」的情況，
+            // 那由 DeleteAsync 的持有者檢查負責。走到這裡是其他程式占用檔案；
+            // 催動 finalizer 釋放可能殘留的 handle 後重試一次，仍失敗就把例外交給呼叫端。
             GC.Collect();
             GC.WaitForPendingFinalizers();
             File.Delete(path);

@@ -17,7 +17,9 @@ public sealed class ApprovedUxFrontendTests
         var binder = ExtractFunction(filter, "bind");
         var viewSync = ExtractFunction(filter, "syncViewState");
 
-        Assert.Contains("將移除此情境，並需重新產生條件篩選報告與底稿", saved, StringComparison.Ordinal);
+        // 9/23：移除不強制重產文件；必須交代連動的編輯草稿及不變的已匯出底稿。
+        // 2026-10-03 用語統一 W10：使用者裁定以「已儲存」為準（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        Assert.Contains("移除已儲存情境；若正在編輯此情境，也會清空本次條件。已匯出的底稿不變。", saved, StringComparison.Ordinal);
         Assert.Contains("data-action=\"cancel-remove-scenario\"", saved, StringComparison.Ordinal);
         Assert.Contains("data-action=\"confirm-remove-scenario\"", saved, StringComparison.Ordinal);
         Assert.Contains("viewState.pendingRemovalIndex", binder, StringComparison.Ordinal);
@@ -109,29 +111,37 @@ public sealed class ApprovedUxFrontendTests
         Assert.Contains("role=\"alert\"", create, StringComparison.Ordinal);
         Assert.Contains("onError: function", create, StringComparison.Ordinal);
         Assert.Contains("error.message", showError, StringComparison.Ordinal);
-        Assert.Contains("error.field === 'caseName'", showError, StringComparison.Ordinal);
-        Assert.Contains("form.elements.caseName", showError, StringComparison.Ordinal);
+        // 2026-10-04 第4批C6：同一錯誤呈現也支援日期與資料修改欄位，依field白名單定位，仍不解析訊息。
+        Assert.Contains("['caseName', 'periodStart', 'periodEnd', 'lastPeriodStart', 'entityName', 'projectCode']", showError, StringComparison.Ordinal);
+        Assert.Contains("allowed.indexOf(error.field)", showError, StringComparison.Ordinal);
+        Assert.Contains("form.elements[error.field]", showError, StringComparison.Ordinal);
         Assert.Contains("aria-invalid", showError, StringComparison.Ordinal);
         Assert.Contains("global.JetFocus.defer(target)", showError, StringComparison.Ordinal);
         Assert.Contains("err.field =", ReadFrontend("js", "jet-api.js"), StringComparison.Ordinal);
         Assert.DoesNotContain("canAttributeInvalidPayloadToCaseName", create, StringComparison.Ordinal);
         Assert.DoesNotContain("error.code === 'invalid_payload'", showError, StringComparison.Ordinal);
         Assert.DoesNotContain(".includes(", showError, StringComparison.Ordinal);
-        Assert.DoesNotContain("indexOf(", showError, StringComparison.Ordinal);
+        Assert.DoesNotContain("error.message.indexOf(", showError, StringComparison.Ordinal);
+        Assert.DoesNotContain("message.indexOf(", showError, StringComparison.Ordinal);
         Assert.DoesNotContain("match(", showError, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void StaleFilterGuidance_TellsTheAuditorWhichStepAndWhichButton()
+    public void Workpaper_DoesNotSendTheAuditorBackToProduceAnUnrelatedReport()
     {
-        // 2026-09-04 裁定：第六步失效提示改成「發生什麼事、去哪一步按哪個鈕」；步驟五同族訊息用同一套話。
+        // 2026-09-23：移除無資料依賴的報告前置，不再鎖住舊的返回產檔指示。
         var export = ReadFrontend("js", "steps", "export-step.js");
         var filter = ReadFrontend("js", "steps", "filter-step.js");
 
-        Assert.Contains("上游資料已變更，先前的條件篩選報告已不能用。請回到「進階條件篩選」按「重新產生條件篩選報告」，系統會用目前資料重新計算，然後回來這裡匯出。", export, StringComparison.Ordinal);
-        Assert.Contains("還沒有目前資料的條件篩選報告。請回到「進階條件篩選」按「完成條件篩選並產生報告」，然後回來這裡匯出。", export, StringComparison.Ordinal);
-        Assert.Contains("請按「以查核期間重新保存」", filter, StringComparison.Ordinal);
-        Assert.Contains("按「重新產生條件篩選報告」會用目前資料重新計算", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("STALE_FILTER_GUIDANCE", export, StringComparison.Ordinal);
+        Assert.DoesNotContain("!!criteriaArtifact &&", export, StringComparison.Ordinal);
+        Assert.DoesNotContain("!revision || !criteria", export, StringComparison.Ordinal);
+        // 2026-10-03 用語統一 W10：使用者裁定以「已儲存」為準（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        Assert.Contains("使用目前資料及已儲存條件；草稿不會自動納入。", export, StringComparison.Ordinal);
+        // 2026-10-02 起版本問題由開案自動改版處理，第五步改列出無法套用的情境與下一步，不再請審計員按舊按鈕。
+        Assert.Contains("Ui.filterScenarioProblemsHtml(state)", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("請按「以查核期間重新保存」", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ui.staleNoticeHtml", filter, StringComparison.Ordinal);
         // 步驟五按鈕在曾經產生過報告或上游資料變更後都叫「重新產生」，第六步提示指的按鈕名稱才對得上。
         Assert.Contains("state.staleState.filter) ||\n      Ui.reportArtifactHistory(state, 'criteriaSelectionReport').length > 0", filter, StringComparison.Ordinal);
         foreach (var jargon in new[] { "版本參照", "測試母體區", "有界預覽", "尚無 CriteriaSelectionReport", "凍結為 CriteriaSelectionReport", "匯出時會依目前資料重新計算" })

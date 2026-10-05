@@ -8,6 +8,46 @@ namespace JET.Tests.Application;
 public sealed class FilterWorkflowPreviewTests
 {
     [Theory]
+    [InlineData("nameIsAutomatic")]
+    [InlineData("rationaleIsAutomatic")]
+    public void EditorOrigins_RejectsNonBooleanNamingOwnership(string key)
+    {
+        var scenario = JsonDocument.Parse("""
+          {"name":"Synthetic","rationale":"Synthetic",
+           "editorOrigins":{"version":1,"groups":[{"letters":[null]}],"KEY":"true"},
+           "groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}]}
+          """.Replace("KEY", key)).RootElement;
+        var error = Assert.Throws<JetActionException>(() => JET.Application.FilterScenarioPayloadParser.Parse(scenario, 4));
+        Assert.Equal(JetErrorCodes.InvalidScenario, error.Code);
+    }
+
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task AutomaticAndManualNames_SurviveReopenWithoutChangingHits(string provider)
+    {
+        using var host = new HandlerTestHost();
+        var setup = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
+        var scenario = JsonDocument.Parse("""
+          {"name":"G","rationale":"Synthetic","source":"kct",
+           "editorOrigins":{"version":1,"nameIsAutomatic":true,"rationaleIsAutomatic":false,
+                            "groups":[{"presetGroup":false,"letters":["G"]}]},
+           "groups":[{"rules":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]}
+          """).RootElement;
+        var saved = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { scenario } }));
+        Assert.True(JsonElement.DeepEquals(scenario.GetProperty("editorOrigins"), saved.GetProperty("scenarios")[0].GetProperty("editorOrigins")));
+        var withoutOrigins = JsonSerializer.SerializeToElement(new { name = "G", rationale = "Synthetic", source = "kct", groups = scenario.GetProperty("groups") });
+        var withPreview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
+        var withoutPreview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = withoutOrigins }));
+        // Demo 的期間內摘要空白固定為 18 筆，編輯來源不得參與審計判定。
+        Assert.Equal(18, withPreview.GetProperty("scenario").GetProperty("count").GetInt64());
+        Assert.Equal(18, withoutPreview.GetProperty("scenario").GetProperty("count").GetInt64());
+        await host.DispatchAsync("project.releaseLock");
+        var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = setup.ProjectId }));
+        Assert.True(JsonElement.DeepEquals(scenario.GetProperty("editorOrigins"), loaded.GetProperty("filterScenarios")[0].GetProperty("editorOrigins")));
+    }
+
+    [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
     public async Task EditorOrigins_SurviveSaveAndReopen(string provider)

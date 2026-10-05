@@ -7,7 +7,7 @@ namespace JET.Infrastructure;
 /// 診斷日誌的檔案 sink(dev-only;與 <see cref="RingBufferLoggerProvider"/> 並列註冊)。把每筆
 /// <see cref="DiagnosticLogEntry"/> 以 NDJSON(每行一筆)即時 append 到固定路徑,讓 agent 跑完 app 後
 /// 直接讀執行時日誌,免去從 DEV 面板手動複製。重用 <see cref="DiagnosticLogEntryFactory"/> 的轉換與
-/// <see cref="DiagnosticNdjson"/> 的序列化(與 dev.log.export 同格式)。Release 不註冊(log no-op)。
+/// <see cref="DiagnosticNdjson"/> 的序列化(與 dev.log.exportFile 的 ring buffer 退路同格式)。Release 不註冊(log no-op)。
 /// 實作 <see cref="ISupportExternalScope"/> 以取得 ActionDispatcher 開的跨層 correlation scope。
 /// 檔案 I/O 失敗自我吞納,不影響主程式。
 /// </summary>

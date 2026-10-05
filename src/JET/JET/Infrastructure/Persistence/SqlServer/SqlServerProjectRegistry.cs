@@ -7,11 +7,11 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 線上專案登記簿 <see cref="IProjectRegistry"/> 的 SQL Server 實作（<c>dbo.project_registry</c> ＋
-/// ACL 雛形 <c>dbo.project_access</c>，兩表皆在單庫 <c>JET</c>／測試 <c>JET_Test</c> 的 <c>dbo</c>）。
-/// <b>天生只屬 sqlServer</b>：不經 ProviderRouting，直接持有 <see cref="SqlServerConnectionOptions"/>
+/// 存取名單 <c>dbo.project_access</c>，兩表皆在單庫 <c>JET</c>／測試 <c>JET_Test</c> 的 <c>dbo</c>）。
+/// <b>天生只屬 sqlServer</b>：不在依資料庫種類選定的資料庫組裡，直接持有 <see cref="SqlServerConnectionOptions"/>
 /// 對單庫開連線（與 <see cref="SqlServerProjectDatabase"/> 平行，各自管理自己的 dbo 反查／登記表）。
 /// bootstrap 冪等（IF OBJECT_ID IS NULL CREATE TABLE，並以 TRY/CATCH 吞併發建表競速），於每個公開
-/// 方法開頭 ensure；鍵欄釘 <c>Latin1_General_BIN2</c>（spec §3 目標形，與既有表不 join、無跨 collation 危險）。
+/// 方法開頭 ensure；鍵欄釘 <c>Latin1_General_BIN2</c>（與既有表不 join、無跨 collation 危險）。
 /// 連線／DB 不存在的處理：讀方法與 Unregister/Touch 於「單庫尚未建立」時優雅回空/略過；Register 走
 /// fail-loud（單庫應已由 EnsureCreated 建好，開連線失敗即讓建案整體失敗）。連線失敗一律不吞——由
 /// Application 端（project.list）catch 降級。project_json 以 <see cref="JetJsonStorage"/> 存取（與
@@ -22,7 +22,7 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
     // 首次觸碰時 bootstrap 兩張 dbo 表；之後同一實例跳過（表已在、單庫必存在）——參考 SqlServerProjectDatabase 的快取旗標。
     private bool _tablesEnsured;
 
-    // 控制面共用表的寫入以死鎖有限次重試包裹（design §2.3）：多 client 同時 Register/Unregister/list
+    // dbo 共用管理表的寫入以死鎖有限次重試包裹：多 client 同時 Register/Unregister/list
     // 觸碰同兩張 dbo 表，1205 不再是理論風險；各方法自含完整交易（死鎖 rollback 後整段重跑安全）。
     public Task RegisterAsync(ProjectDocument document, string principal, CancellationToken cancellationToken) =>
         SqlServerEngineErrors.ExecuteWithDeadlockRetryAsync(
@@ -63,7 +63,7 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
             await insertAccess.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        // 同交易留痕(project.create,控制面第四輪 §4):撞 PK 回滾時 audit 一併回滾——建案失敗必不留痕。
+        // 同交易留痕(project.create):撞 PK 回滾時 audit 一併回滾——建案失敗必不留痕。
         await SqlServerAuditLog.WriteAsync(
             connection, transaction, document.ProjectId, "project.create", detailJson: null, cancellationToken);
 
@@ -255,7 +255,7 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
     }
 
     /// <summary>
-    /// 單庫是否已存在。master 依賴最小化(控制面第四輪 §4):AssumeDatabaseExists 或 process 級就緒已確認
+    /// 單庫是否已存在。盡量不依賴 master:AssumeDatabaseExists 或 process 級就緒已確認
     /// (<see cref="SqlServerSingleDatabaseReadiness"/>)時一律當「已存在」、不連 master;否則連 master、DB_ID
     /// (不直接開單庫連線,避免「庫未建」時登入失敗),找到即標記就緒。與 <see cref="SqlServerProjectDatabase"/> 共用旗標。
     /// </summary>
@@ -289,8 +289,8 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
             return;
         }
 
-        // 冪等 bootstrap:dbo 控制面四表(registry/access/app_config/audit_log)＋移除冗餘 project_schema_map,
-        // 收斂於 SqlServerControlPlaneSchema(single manager,與 database/appConfig 三方共用同一份 DDL)。
+        // 冪等 bootstrap:dbo 管理表五張(registry/access/app_config/audit_log/project_lock)＋移除冗餘 project_schema_map,
+        // 收斂於 SqlServerControlPlaneSchema(與 database、appConfig 共用同一份 DDL)。
         await SqlServerControlPlaneSchema.EnsureAsync(connection, cancellationToken);
         _tablesEnsured = true;
     }

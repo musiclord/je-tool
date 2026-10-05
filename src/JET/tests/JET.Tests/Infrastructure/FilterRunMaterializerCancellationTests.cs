@@ -1,4 +1,6 @@
 using System.Data.Common;
+using System.Text.Json;
+using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
@@ -69,6 +71,43 @@ public sealed class FilterRunMaterializerCancellationTests
         }
     }
 
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task MaterializeSelected_CancelledAfterScopedClear_PreservesSelectedAndUnselectedHits(string provider)
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        ILocalProjectDatabase database = provider == "duckdb"
+            ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        var projectId = Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
+        await ExecuteAsync(database.CreateConnection(projectId), """
+            INSERT INTO result_filter_run (scenario_position, entry_id) VALUES (1,101),(2,202);
+            UPDATE config_result_stale_state SET filter_stale=1 WHERE singleton=1;
+            """);
+        using var definition = JsonDocument.Parse("""
+            {"name":"所選情境","groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}]}
+            """);
+        var spec = FilterScenarioPayloadParser.Parse(definition.RootElement, ProjectDocument.DefaultMoneyScale);
+        using var cancellation = new CancellationTokenSource();
+        var materializer = new LocalFilterRunMaterializer(database,
+            new CancelAfterClearLogger(cancellation, "DELETE FROM result_filter_run WHERE"));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => materializer.MaterializeAsync(projectId,
+            [new MaterializableScenario(1, spec)],
+            new FilterRuleContext(ProjectDocument.DefaultMoneyScale, null, "2025-01-01", "2025-12-31",
+                PopulationScope: GlPopulationScope.AuditPeriod), cancellation.Token, replaceAll: false));
+        Assert.True(cancellation.IsCancellationRequested);
+        Assert.Equal(1, await ScalarAsync(database.CreateConnection(projectId),
+            "SELECT COUNT(*) FROM result_filter_run WHERE scenario_position=1 AND entry_id=101;"));
+        Assert.Equal(1, await ScalarAsync(database.CreateConnection(projectId),
+            "SELECT COUNT(*) FROM result_filter_run WHERE scenario_position=2 AND entry_id=202;"));
+        Assert.Equal(1, await ScalarAsync(database.CreateConnection(projectId),
+            "SELECT filter_stale FROM config_result_stale_state WHERE singleton=1;"));
+    }
+
     private static async Task<long> ScalarAsync(DbConnection connection, string sql)
     {
         await using (connection)
@@ -80,7 +119,8 @@ public sealed class FilterRunMaterializerCancellationTests
         }
     }
 
-    private sealed class CancelAfterClearLogger(CancellationTokenSource cancellation)
+    private sealed class CancelAfterClearLogger(CancellationTokenSource cancellation,
+        string clearSqlFragment = "DELETE FROM result_filter_run;")
         : ILogger<LocalFilterRunMaterializer>
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -96,7 +136,7 @@ public sealed class FilterRunMaterializerCancellationTests
         {
             if (eventId.Id == 2000
                 && formatter(state, exception).Contains(
-                    "DELETE FROM result_filter_run;",
+                    clearSqlFragment,
                     StringComparison.Ordinal))
             {
                 cancellation.Cancel();

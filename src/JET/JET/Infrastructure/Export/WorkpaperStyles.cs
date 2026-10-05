@@ -13,7 +13,7 @@ namespace JET.Infrastructure;
 /// numFmts → fonts → fills → borders → cellStyleXfs → cellXfs(strongly-typed Stylesheet 會驗證順序)。
 /// fills 還有 Excel 慣例:索引 0 必為 PatternType.None、索引 1 必為 Gray125,自訂填色從索引 2 起,
 /// 否則 Excel 會判檔損並嘗試修復。本表只放三表(封面 ×2 + step5)+ 後續資料表會用到的少量樣式,
-/// 不提前堆砌(no over-engineering);Task 3-5 需要新樣式時在此擴充並更新索引常數。
+/// 不預先加入用不到的樣式；需要新樣式時在此擴充並更新索引常數。
 /// </summary>
 internal static class WorkpaperStyles
 {

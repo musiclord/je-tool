@@ -16,7 +16,7 @@ public sealed class ProjectCreateHandlerCompensationTests
         var session = new MutatingThenThrowingSessionPublisher(failure);
         var handler = new ProjectCreateHandler(
             new EmptyProjectStore(),
-            factsPort,
+            CatalogWith(factsPort),
             new CurrentPrincipal("synthetic-principal"),
             session);
         using var payload = JsonDocument.Parse(
@@ -50,7 +50,7 @@ public sealed class ProjectCreateHandlerCompensationTests
         var session = new ProjectSession();
         var handler = new ProjectCreateHandler(
             new EmptyProjectStore(),
-            factsPort,
+            CatalogWith(factsPort),
             new CurrentPrincipal("synthetic-principal"),
             session);
         using var payload = JsonDocument.Parse(
@@ -74,6 +74,13 @@ public sealed class ProjectCreateHandlerCompensationTests
         Assert.False(factsPort.CompleteTokenCanBeCanceled);
         Assert.False(factsPort.RollbackTokenCanBeCanceled);
     }
+
+    private static ProjectRepositoryCatalog CatalogWith(ICaseCreateFactsPort factsPort) =>
+        TestProjectRepositories.CatalogWithSameObjects(
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                CaseCreateFacts = factsPort
+            });
 
     private sealed class RecordingCreateFactsPort(Exception? completeFailure = null)
         : ICaseCreateFactsPort
@@ -125,7 +132,7 @@ public sealed class ProjectCreateHandlerCompensationTests
         internal string? CurrentProjectId { get; private set; }
         internal bool LeaveCalled { get; private set; }
 
-        public void Enter(string projectId)
+        public void Enter(string projectId, ProjectRepositories repositories)
         {
             CurrentProjectId = projectId;
             throw failure;
@@ -157,6 +164,10 @@ public sealed class ProjectCreateHandlerCompensationTests
     {
         public Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken) =>
             Task.CompletedTask;
+
+        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
         public Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ProjectDocument>>([]);

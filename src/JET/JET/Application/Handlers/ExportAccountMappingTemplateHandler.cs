@@ -9,15 +9,11 @@ namespace JET.Application;
 /// 原檔，再用 import.accountMapping.fromFile 匯回。
 /// </summary>
 public sealed class ExportAccountMappingTemplateHandler(
-    IAccountMappingExportRepository repository,
     IAccountMappingTemplateWriter writer,
-    IRuleRunStore runStore,
     IProjectStore projectStore,
     IProjectExportLocator projectLocator,
     ProjectSession session,
-    IJetEventPublisher? eventPublisher = null,
-    IAccountTaxonomyStore? taxonomyStore = null,
-    IMappingStateStore? mappingStore = null) : IApplicationActionHandler
+    IJetEventPublisher? eventPublisher = null) : IApplicationActionHandler
 {
     private readonly IJetEventPublisher _eventPublisher = eventPublisher ?? new NullEventPublisher();
 
@@ -25,8 +21,8 @@ public sealed class ExportAccountMappingTemplateHandler(
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var runId = PayloadReader.GetOptionalString(payload, "runId")
-            ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'runId'。");
+        // Older callers still send runId; this working file uses mapped accounts, not validation output.
+        _ = PayloadReader.GetOptionalString(payload, "runId");
         var onlyIfMissing = false;
         if (payload.TryGetProperty("onlyIfMissing", out var mode))
         {
@@ -36,11 +32,16 @@ public sealed class ExportAccountMappingTemplateHandler(
             }
             onlyIfMissing = mode.GetBoolean();
         }
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
+        var repository = repositories.AccountMappingExport;
+        var runStore = repositories.RuleRuns;
+        // 正式組裝的資料庫組一定有這兩個 store；直接建構 handler 的測試可以不放（維持 null），沿用內建分類。
+        IAccountTaxonomyStore? taxonomyStore = repositories.AccountTaxonomy;
+        IMappingStateStore? mappingStore = repositories.MappingStates;
         var progressSession = new ExportProgressSession(_eventPublisher, cancellationToken);
         var progress = progressSession.Start(ReportArtifactKind.AccountMapping);
-        var run = await ReportExportSupport.RequireCurrentRunAsync(
-            runStore, projectId, RuleRunKinds.Validate, runId, cancellationToken);
+        var run = await runStore.FindLatestAsync(projectId, RuleRunKinds.Validate, cancellationToken);
+        if (!RuleLogicVersions.IsCurrent(run)) { run = null; }
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
 
@@ -79,7 +80,7 @@ public sealed class ExportAccountMappingTemplateHandler(
                 {
                     throw new JetActionException(
                         JetErrorCodes.NoTargetData,
-                        "尚無可產生科目配對範本的 GL／TB 科目母體；先匯入 GL 與 TB 並執行資料驗證。");
+                        "尚無可產生配對檔的科目；請先匯入資料並確認欄位配對。");
                 }
                 rowCount = rows.Count;
                 if (formalWriter is not null)
@@ -123,7 +124,7 @@ public sealed class ExportAccountMappingTemplateHandler(
             fileName,
             rowCount = result.Created ? rowCount : null,
             disposition = result.Created ? "created" : "kept",
-            validationRunId = run.RunId
+            validationRunId = run?.RunId
         };
     }
 }

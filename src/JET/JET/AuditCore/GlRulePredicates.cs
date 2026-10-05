@@ -4,7 +4,7 @@ namespace JET.AuditCore;
 
 /// <summary>
 /// GL 規則述詞的單一事實來源（方言相異片段經 <see cref="ISqlDialect"/> 取得，
-/// 其餘為 ANSI 共通；guide §13）。每個方法回傳針對別名 g 的 WHERE 片段，
+/// 其餘為 ANSI 共通）。每個方法回傳針對別名 g 的 WHERE 片段，
 /// 並把值依序累積到純參數計畫；DbCommand 建立與綁定只由 Infrastructure 負責。
 /// prescreen.run 的計數與 filter 條件組合共用同一份片段。
 /// 識別字一律出自 GlFieldWhitelist 或本檔常數；使用者值只進參數。
@@ -36,15 +36,15 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 未預期借貸組合（unexpected_account_pair，guide §5：否定面）：本列為 Revenue 貸方
-    /// （amount_scaled &lt; 0），但其所在傳票**無任何**「借方側（amount_scaled >= 0）且分類 ∈
+    /// 未預期借貸組合（unexpected_account_pair，否定面）：本列為 Revenue 貸方
+    /// （amount_scaled &lt; 0），但其所在傳票**無任何**「借方（amount_scaled > 0）且分類 ∈
     /// {Receivables, Cash, Receipt in advance}」的分錄——收入貸記卻缺正常對方科目才命中，
     /// 正常銷售（貸收入、借應收/現金/預收）不命中。tag 只落在 Revenue 貸方列（與 KCT 條件 C
-    /// 標記慣例一致；2026-07-03 裁決＋2026-07-08 spec §1 定案）。對方集合含 Cash，故較 KCT C
+    /// 標記慣例一致；2026-07-03 裁決）。對方集合含 Cash，故較 KCT C
     /// （不含 Cash）嚴，命中集 ⊆ C（現銷傳票 C 命中、本規則不命中）。
     /// 零元邊界（本規則專屬）：正常對方科目的借方 counterpart 採 `amount_scaled > 0`，
     /// 0 元分錄不算「已收到對價」，因此不足以消解「收入貸記缺正常對方科目」的疑慮。
-    /// 其他借貸組合規則（§6.1 accountPair、specialAccountCategoryPair、KCT C）維持
+    /// 其他借貸組合規則（accountPair、specialAccountCategoryPair、KCT C）維持
     /// `amount_scaled >= 0` 屬借方側的統一判定（2026-06-11 裁決），本例外只在此處。
     /// 需科目配對已匯入。ANSI 共通（EXISTS + NOT EXISTS）。
     /// </summary>
@@ -57,7 +57,8 @@ internal sealed partial class GlRulePredicates(
         var counterparts = CategoryListParams(command);
 
         return $"""
-            (EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
+            (g.document_number IS NOT NULL
+             AND EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
                      {TaxonomyJoin(schemaPrefix, "m", "tm")}
                      WHERE m.account_code = g.account_code AND tm.semantic_role = {revenue})
              AND g.amount_scaled < 0
@@ -84,7 +85,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 科目配對分析（account_pair，guide §6.1 三模式）。借貸側判定統一：
+    /// 科目配對分析（account_pair）的三種模式，見 docs/jet-guide.md 第 6 節「進階條件篩選」。借貸側判定統一：
     /// `amount_scaled >= 0` 屬借方側、`&lt; 0` 屬貸方側。錨定模式輸出
     /// 錨定分錄與同傳票的對方側分錄。ANSI 共通。
     /// </summary>
@@ -112,7 +113,7 @@ internal sealed partial class GlRulePredicates(
 
     /// <summary>
     /// 考量特殊科目類別配對（special_account_category_pair）：顯式雙類別 + 否定。
-    /// A = 借方類別、B = 貸方類別，借貸側判定與 §6.1 一致（`amount_scaled >= 0` 借方、`&lt; 0` 貸方）。
+    /// A = 借方類別、B = 貸方類別，借貸側判定與 <see cref="AccountPair"/> 一致（`amount_scaled >= 0` 借方、`&lt; 0` 貸方）。
     /// 否定模式以 NOT EXISTS（即 NOT DocHasCreditSide(B) / NOT DocHasDebitSide(A)）藏在述詞內，
     /// 不洩漏到呼叫端：
     ///   drAndCr → 傳票同時有 A 借與 B 貸；tag「A 借 或 B 貸」的列。
@@ -257,18 +258,18 @@ internal sealed partial class GlRulePredicates(
     {
         if (string.IsNullOrEmpty(rule.FieldId))
         {
-            throw Invalid("typed 條件必須指定 fieldId。");
+            throw Invalid("這個攸關資料元素欄位條件尚未選擇欄位，請選擇欄位後再儲存。");
         }
 
         var field = context.RdeFields.FirstOrDefault(candidate =>
                 string.Equals(candidate.FieldId, rule.FieldId, StringComparison.Ordinal))
-            ?? throw Invalid($"RDE 欄位「{rule.FieldId}」不存在於目前案件已提交的欄位配對。");
+            ?? throw Invalid("這個條件使用的攸關資料元素欄位已不在目前案件的欄位配對中。請在這個條件重新選擇欄位，或刪除這個條件。");
         var op = rule.TypedOperator
-            ?? throw Invalid($"RDE 欄位「{field.FieldId}」的 typed 條件必須指定 operator。");
+            ?? throw Invalid($"攸關資料元素欄位「{field.Label}」的條件尚未選擇比較方式，請選擇比較方式後再儲存。");
         if (!TypedFieldOperatorSets.ForValueType(field.ValueType).Contains(op, StringComparer.Ordinal))
         {
-            throw Invalid($"operator「{op}」與 RDE 欄位「{field.FieldId}」的型別 "
-                + $"{field.ValueType} 不相容。");
+            throw Invalid($"比較方式「{FilterConditionLabels.TypedOperatorLabel(op)}」與攸關資料元素欄位「{field.Label}」目前的型別不相容。"
+                + "請回第三步欄位配對確認該欄位的型別，或重新選擇比較方式。");
         }
 
         var fieldParam = NextParam(command, field.FieldId);
@@ -283,9 +284,9 @@ internal sealed partial class GlRulePredicates(
         var valuePredicate = field.ValueType switch
         {
             RdeFieldValueTypeNames.Text => TypedTextPredicate(command, rule, op),
-            RdeFieldValueTypeNames.Date => TypedDatePredicate(command, rule, op),
+            RdeFieldValueTypeNames.Date => TypedDatePredicate(command, rule, op, context.DateParseOptions),
             RdeFieldValueTypeNames.Money => TypedMoneyPredicate(command, rule, op, context.MoneyScale),
-            _ => throw Invalid($"RDE 欄位「{field.FieldId}」的型別 {field.ValueType} 不支援 typed 條件。")
+            _ => throw Invalid($"攸關資料元素欄位「{field.Label}」的型別無法用於篩選。請回第三步欄位配對確認該欄位的型別，或刪除這個條件。")
         };
 
         return $"EXISTS (SELECT 1 FROM {schemaPrefix}target_gl_rde_value v "
@@ -298,8 +299,8 @@ internal sealed partial class GlRulePredicates(
         FilterRuleSpec rule,
         string op)
     {
-        // 儲存的 text_value 恆非空白但可能帶前後空白（投影原樣保存）；比較兩側都 trim＋upper。
-        const string columnExpr = "TRIM(v.text_value)";
+        // 儲存的 text_value 恆非空白但可能帶前後空白（投影原樣保存）；比較兩側都 trim＋upper，去空白的字元集合和 .NET 相同。
+        var columnExpr = dialect.Trim("v.text_value");
         var upperExpr = $"UPPER({columnExpr})";
         switch (op)
         {
@@ -326,7 +327,7 @@ internal sealed partial class GlRulePredicates(
             }
 
             default:
-                throw Invalid($"不支援的 typed text operator「{op}」。");
+                throw Invalid($"文字型攸關資料元素欄位不支援比較方式「{FilterConditionLabels.TypedOperatorLabel(op)}」，請重新選擇比較方式。");
         }
     }
 
@@ -338,12 +339,13 @@ internal sealed partial class GlRulePredicates(
     private string TypedDatePredicate(
         FilterSqlParameterPlanBuilder command,
         FilterRuleSpec rule,
-        string op)
+        string op,
+        DateParseOptions dateOptions)
     {
         // date_value 由投影正規化為 yyyy-MM-dd；ISO 字串比較三 provider 等價。
         const string columnExpr = "v.date_value";
         string DateParam(string? raw) =>
-            TypedFieldOperandRules.TryNormalizeDate(raw, out var iso)
+            TypedFieldOperandRules.TryNormalizeDate(raw, dateOptions, out var iso)
                 ? NextParam(command, iso)
                 : throw Invalid($"typed 日期「{raw}」格式須為 yyyy-MM-dd。");
 
@@ -356,7 +358,7 @@ internal sealed partial class GlRulePredicates(
             "onOrAfter" => $"{columnExpr} >= {DateParam(rule.TypedValue)}",
             TypedFieldOperatorSets.Between =>
                 $"({columnExpr} >= {DateParam(rule.TypedFrom)} AND {columnExpr} <= {DateParam(rule.TypedTo)})",
-            _ => throw Invalid($"不支援的 typed date operator「{op}」。")
+            _ => throw Invalid($"日期型攸關資料元素欄位不支援比較方式「{FilterConditionLabels.TypedOperatorLabel(op)}」，請重新選擇比較方式。")
         };
     }
 
@@ -389,7 +391,7 @@ internal sealed partial class GlRulePredicates(
             "lessThanOrEqual" => $"{columnExpr} <= {MoneyParam(rule.TypedValue)}",
             TypedFieldOperatorSets.Between =>
                 $"({columnExpr} >= {MoneyParam(rule.TypedFrom)} AND {columnExpr} <= {MoneyParam(rule.TypedTo)})",
-            _ => throw Invalid($"不支援的 typed money operator「{op}」。")
+            _ => throw Invalid($"金額型攸關資料元素欄位不支援比較方式「{FilterConditionLabels.TypedOperatorLabel(op)}」，請重新選擇比較方式。")
         };
     }
 
@@ -452,10 +454,10 @@ internal sealed partial class GlRulePredicates(
             """;
     }
 
-    /// <summary>摘要空白（blank_description）。</summary>
+    /// <summary>摘要空白（blank_description）。去空白的字元集合和 .NET 相同（dialect.Trim），兩個本地資料庫結果一致。</summary>
     public string BlankDescription()
     {
-        return "(g.document_description IS NULL OR TRIM(g.document_description) = '')";
+        return $"(g.document_description IS NULL OR {dialect.Trim("g.document_description")} = '')";
     }
 
     /// <summary>回溯過帳:過帳日早於傳票日。voucher_date 為 NULL 不命中;
@@ -464,16 +466,17 @@ internal sealed partial class GlRulePredicates(
         "(g.voucher_date IS NOT NULL AND g.post_date < g.voucher_date)";
 
     /// <summary>非授權編製人員（non_authorized_preparer）：created_by 非空白且不在授權清單。
-    /// 純 ANSI(EXISTS 守門 + TRIM/NOT IN 子查詢),雙 provider 相同。
+    /// 人員識別值的比對去頭尾空白、不分大小寫，和人員清單、編製等於核准同一規則（2026-10-04 裁定 C3）。
     /// 前綴 EXISTS 自保:授權清單為空時 `x NOT IN (空集合)` 會反轉成全命中,
     /// 故名單空 → 整體述詞 FALSE(無命中,與 prescreen.run 的 na 語意對齊),
-    /// 即便 validator/handler 閘控被繞過仍安全。</summary>
+    /// 即便 validator 或 handler 的前置檢查被繞過仍安全。</summary>
     public string NonAuthorizedPreparer(string schemaPrefix = "") =>
         $"(EXISTS (SELECT 1 FROM {schemaPrefix}target_authorized_preparer) " +
-        "AND g.created_by IS NOT NULL AND TRIM(g.created_by) <> '' " +
-        $"AND TRIM(g.created_by) NOT IN (SELECT name FROM {schemaPrefix}target_authorized_preparer))";
+        $"AND g.created_by IS NOT NULL AND {dialect.Trim("g.created_by")} <> '' " +
+        $"AND UPPER({dialect.Trim("g.created_by")}) NOT IN (SELECT UPPER({dialect.Trim("name")}) FROM {schemaPrefix}target_authorized_preparer))";
 
     /// <summary>低頻編製者（low_frequency_preparer）：created_by 在所選母體內的分錄筆數 ≤ maxEntries。
+    /// 人員依去空白、不分大小寫的識別值分組，空白人員不列入（和畫面「空白人員不列入」一致，2026-10-04 裁定 C3）。
     /// 門檻參數綁定;子查詢與外層共用 scope, GROUP BY/HAVING/COUNT(*) 皆 ANSI 共通。</summary>
     public string LowFrequencyPreparer(
         FilterSqlParameterPlanBuilder command,
@@ -482,9 +485,12 @@ internal sealed partial class GlRulePredicates(
         string schemaPrefix = "")
     {
         var p = NextParam(command, maxEntries);
-        return $"g.created_by IN (SELECT f.created_by FROM {schemaPrefix}target_gl_entry f "
+        var outer = $"UPPER({dialect.Trim("g.created_by")})";
+        var inner = $"UPPER({dialect.Trim("f.created_by")})";
+        return $"{outer} IN (SELECT {inner} FROM {schemaPrefix}target_gl_entry f "
             + $"WHERE {populationScopePredicate(context, "f")} "
-            + $"GROUP BY f.created_by HAVING COUNT(*) <= {p})";
+            + $"AND f.created_by IS NOT NULL AND {dialect.Trim("f.created_by")} <> '' "
+            + $"GROUP BY {inner} HAVING COUNT(*) <= {p})";
     }
 
     /// <summary>低頻科目(low_frequency_account,C9):account_code 在所選母體內的分錄筆數 ≤ maxEntries。
@@ -616,7 +622,8 @@ internal sealed partial class GlRulePredicates(
         var receiptInAdvance = NextParam(command, AccountTaxonomyBuiltIns.ReceiptInAdvanceRole);
 
         return $"""
-            (EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
+            (g.document_number IS NOT NULL
+             AND EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
                      {TaxonomyJoin(schemaPrefix, "m", "tm")}
                      WHERE m.account_code = g.account_code AND tm.semantic_role = {revenue})
              AND g.amount_scaled < 0
@@ -647,7 +654,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// category_id 是 v7 權威 join；第二支只供已存在但尚未跑 v6→v7 backfill 的 legacy 測試／案檔讀回。
+    /// 科目配對一律以 category_id 連到分類表；兩條寫入路徑都一定寫入 category_id。
     /// 進入 taxonomy 後的所有商業比較一律看 semantic_role，不比較顯示 label。
     /// </summary>
     private static string TaxonomyJoin(
@@ -655,9 +662,7 @@ internal sealed partial class GlRulePredicates(
         string mappingAlias,
         string taxonomyAlias) =>
         $"JOIN {schemaPrefix}config_account_taxonomy {taxonomyAlias} ON "
-        + $"{taxonomyAlias}.category_id = {mappingAlias}.category_id "
-        + $"OR ({mappingAlias}.category_id IS NULL AND {taxonomyAlias}.is_builtin = 1 "
-        + $"AND {taxonomyAlias}.label = {mappingAlias}.standardized_category)";
+        + $"{taxonomyAlias}.category_id = {mappingAlias}.category_id";
 
     /// <summary>
     /// 特定金額尾數(trailing_digits):純機械式尾數比對——把金額主單位整數(捨去小數)的末 k 位,
@@ -720,9 +725,9 @@ internal sealed partial class GlRulePredicates(
     /// 純 ANSI 欄位比較,雙 provider 相同。
     /// </summary>
     public string PreparerEqualsApprover() =>
-        "(g.created_by IS NOT NULL AND TRIM(g.created_by) <> '' " +
+        $"(g.created_by IS NOT NULL AND {dialect.Trim("g.created_by")} <> '' " +
         "AND g.approved_by IS NOT NULL " +
-        "AND UPPER(TRIM(g.created_by)) = UPPER(TRIM(g.approved_by)))";
+        $"AND UPPER({dialect.Trim("g.created_by")}) = UPPER({dialect.Trim("g.approved_by")}))";
 
     private string TextContainsAny(
         FilterSqlParameterPlanBuilder command,
@@ -744,7 +749,7 @@ internal sealed partial class GlRulePredicates(
     {
         var clauses = keywords
             .Where(k => !string.IsNullOrWhiteSpace(k))
-            .Select(k => $"UPPER(TRIM(COALESCE({columnExpr}, ''))) = {NextParam(command, k.Trim().ToUpperInvariant())}");
+            .Select(k => $"UPPER({dialect.Trim($"COALESCE({columnExpr}, '')")}) = {NextParam(command, k.Trim().ToUpperInvariant())}");
 
         return $"({string.Join(" OR ", clauses)})";
     }

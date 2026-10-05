@@ -18,9 +18,11 @@ public sealed class DataPreviewFrontendTests
         Assert.True(tabs.Success, "找不到 data-preview.js 的 MAIN_TABS。");
         var body = tabs.Groups["body"].Value;
         Assert.Contains("{ value: 'glStaging', label: 'GL 原始資料' }", body, StringComparison.Ordinal);
-        Assert.Contains("{ value: 'glEntries', label: 'GL 測試母體' }", body, StringComparison.Ordinal);
+        Assert.Contains("{ value: 'glEntries', label: '納入測試的分錄' }", body, StringComparison.Ordinal);
         Assert.Contains("{ value: 'tbStaging', label: 'TB 原始資料' }", body, StringComparison.Ordinal);
-        Assert.Contains("{ value: 'tbBalances', label: 'TB 標準化資料' }", body, StringComparison.Ordinal);
+        // Q8 unifies the confirmed label; retain both the fixed label and the full Domain mirror below.
+        // First fixed-label failure: 20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d.
+        Assert.Contains("{ value: 'tbBalances', label: '已確認配對的試算表' }", body, StringComparison.Ordinal);
         Assert.Contains("{ value: 'accountMappings', label: '科目配對' }", body, StringComparison.Ordinal);
         Assert.DoesNotContain("GL (PBC)", body, StringComparison.Ordinal);
         Assert.DoesNotContain("TB (PBC)", body, StringComparison.Ordinal);

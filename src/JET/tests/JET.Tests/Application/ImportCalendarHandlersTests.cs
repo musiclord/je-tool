@@ -278,7 +278,9 @@ public sealed class ImportCalendarHandlersTests
             "import.holiday.fromFile", JsonSerializer.Serialize(new { filePath = path })));
 
         Assert.Equal(JetErrorCodes.FileNotFound, ex.Code);
-        Assert.Contains(path, ex.Message);
+        // 第9批中低12；Public首敗105344715：錯誤只顯示檔名，保留FileNotFound並新增完整路徑不得外洩的斷言。
+        Assert.Contains(Path.GetFileName(path), ex.Message);
+        Assert.DoesNotContain(path, ex.Message);
     }
 
 }

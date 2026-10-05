@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 文字檔編碼解析（guide §3.1.1 確定性鏈，不做啟發式猜測）：
+/// 文字檔編碼解析（固定順序判定，不做啟發式猜測）：
 /// BOM（UTF-8 / UTF-16 LE/BE）→ 無 BOM 時嚴格 UTF-8 驗證取樣段 → 否則 Big5（CP950）。
 /// 解碼一律採 exception fallback：不可解碼的位元組讓讀取端以 file_read_error 回報，
 /// 而非默默替換成 U+FFFD 汙染審計資料。
@@ -19,7 +19,7 @@ public static class EncodingDetector
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    /// <summary>manifest `encoding` 白名單。null = 走偵測鏈。</summary>
+    /// <summary>匯入參數 `encoding` 的白名單。null = 走偵測鏈。</summary>
     public static Encoding Resolve(string? encodingName, string filePath)
     {
         return encodingName?.ToLowerInvariant() switch
@@ -35,7 +35,7 @@ public static class EncodingDetector
     }
 
     /// <summary>
-    /// 偵測結果的 wire 名稱（manifest import.inspectFile 的 encoding 欄位）。
+    /// 偵測結果的 wire 名稱（import.inspectFile 回應的 encoding 欄位）。
     /// 對齊 `encoding` 覆寫白名單，檢視結果可直接回填為匯入參數；
     /// UTF-16 大小端在 wire 上不區分（兩者皆靠 BOM 偵測，無需覆寫）。
     /// </summary>
@@ -114,11 +114,9 @@ public static class EncodingDetector
             stream.ReadExactly(buffer);
             return buffer;
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new JetActionException(
-                JetErrorCodes.FileReadError,
-                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}", innerException: ex);
+            throw SourceFileErrors.CannotOpen(filePath, ex);
         }
     }
 

@@ -27,7 +27,7 @@ public sealed record DemoTbRow(
     decimal CreditTotal,
     decimal ClosingBalance);
 
-/// <summary>單筆 demo 科目配對(guide §2.3 三欄)。</summary>
+/// <summary>單筆 demo 科目配對（科目代號、科目名稱、標準化分類三欄）。</summary>
 public sealed record DemoAccountMappingRow(
     string AccountCode,
     string AccountName,
@@ -61,18 +61,18 @@ public sealed record DemoProjectData(
     IReadOnlyList<string> MakeupDays);
 
 /// <summary>
-/// 內部 deterministic 測試資料生成器。spec 2026-06-21:baseline + seed 兩層,
-/// baseline 不觸發任何規則、每個 seed 群組貢獻已知命中數 → 規則 oracle 精確可斷言。
+/// 內部 deterministic 測試資料生成器，分 baseline 與 seed 兩層：
+/// baseline 不觸發任何規則、每個 seed 群組貢獻已知命中數 → 測試可以精確斷言每條規則的命中數。
 /// 確定性:固定 LCG、無時間種子;Create() 記憶化(同行程同一不可變單例)。
 /// </summary>
 public static class DemoDataFactory
 {
-    // ── 規模(spec C.1)──
+    // ── 規模 ──
     public const int GlVoucherCount = 7_000;
     public const int TbAccountCount = 150;
     public const int LinesPerVoucher = 2;
 
-    // ── seed 群組張數(oracle 常數;spec C.3)──
+    // ── seed 群組張數(測試預期值依此計算)──
     public const int PostPeriodApprovalVouchers = 20;
     public const int SuspiciousKeywordVouchers = 25;
     public const int UnexpectedPairVouchers = 30;
@@ -92,7 +92,7 @@ public static class DemoDataFactory
     public const int RareAccountCount = 3;
     public const int RareAccountVouchersEach = 2;
 
-    // 期外過帳日對照組（§2 母體期間界定；2026-07-08 第二輪）：過帳日 2026-01-05（期後）的兩張傳票，
+    // 期外總帳入帳日對照組，用來驗證查核期間界定：總帳入帳日 2026-01-05（期後）的兩張傳票，
     // 刻意造成「若未界定期間會被誤納」的多重命中——借貸不平、摘要關鍵字、空白摘要、期外核准、
     // 完整性 GL≠TB。兩張互為鏡像的不平對，全域借貸淨額仍為 0；用固定值（不動任何 cursor / RNG），
     // 對其餘 seed 與 baseline 的確定性零影響。期間界定生效後四母體皆排除 → 所有規則命中數回原值。
@@ -175,7 +175,7 @@ public static class DemoDataFactory
     private static readonly DateOnly[] HolidayPostingDates =
         [new(2025, 2, 28), new(2025, 4, 4), new(2025, 5, 1), new(2025, 10, 10)]; // 平日假日
     private static readonly DateOnly HolidayApprovalDate = new(2025, 4, 4);       // 平日假日,< 期末
-    // §2 期外對照組:過帳日 2026-01-05(週一、非 2025 假日、期後)、核准日 2026-01-20(期後)。
+    // 期外對照組：總帳入帳日 2026-01-05(週一、非 2025 假日、期後)、核准日 2026-01-20(期後)。
     private static readonly DateOnly OutOfPeriodPostDate = new(2026, 1, 5);
     private static readonly DateOnly OutOfPeriodApprovalDate = new(2026, 1, 20);
     // 會計期間(對齊 DemoProjectData 的 PeriodStart/End 字串;供 TB 本期變動彙總過濾)。
@@ -205,17 +205,17 @@ public static class DemoDataFactory
             GlFileName: "JE-demo-2025.xlsx",
             GlColumns:
             [
-                "傳票日期", "傳票號碼", "傳票項次", "科目代號", "科目名稱",
-                "摘要", "金額", "借方旗標", "建立人員", "核准日期", "人工傳票", "傳票登錄日"
+                "總帳入帳日", "傳票號碼", "傳票項次", "科目代號", "科目名稱",
+                "摘要", "金額", "借方旗標", "建立人員", "傳票核准日", "人工傳票", "傳票日期"
             ],
             GlRows: glRows,
             GlMapping: new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 [GlMappingKeys.DocNum] = "傳票號碼",
                 [GlMappingKeys.LineId] = "傳票項次",
-                [GlMappingKeys.PostDate] = "傳票日期",
-                [GlMappingKeys.DocDate] = "核准日期",
-                [GlMappingKeys.VoucherDate] = "傳票登錄日",
+                [GlMappingKeys.PostDate] = "總帳入帳日",
+                [GlMappingKeys.DocDate] = "傳票核准日",
+                [GlMappingKeys.VoucherDate] = "傳票日期",
                 [GlMappingKeys.AccNum] = "科目代號",
                 [GlMappingKeys.AccName] = "科目名稱",
                 [GlMappingKeys.Description] = "摘要",
@@ -223,7 +223,8 @@ public static class DemoDataFactory
                 [GlMappingKeys.Manual] = "人工傳票",
                 [GlMappingKeys.Amount] = "金額",
                 [GlMappingKeys.DcField] = "借方旗標",
-                [GlMappingKeys.DcDebitCode] = "1"
+                [GlMappingKeys.DcDebitCode] = "1",
+                [GlMappingKeys.DcCreditCode] = "0"
             },
             GlAmountMode: GlAmountModeNames.Flag,
             TbFileName: "TB-demo-2025.xlsx",
@@ -287,7 +288,7 @@ public static class DemoDataFactory
         return accounts.ToArray();
     }
 
-    /// <summary>科目 → 標準化分類(guide §2.3 白名單 + 2251 預收、4 開頭收入)。</summary>
+    /// <summary>科目 → 標準化分類(固定分類白名單，另加 2251 預收、4 開頭收入)。</summary>
     private static IReadOnlyList<DemoAccountMappingRow> BuildAccountMappingRows(
         (string Code, string Name)[] accounts)
     {
@@ -342,7 +343,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), KeywordDescription, SafeDesc());
         }
 
-        // R3 未預期借貸組合(否定面,2026-07-08 spec §1):借 費用類 Others / 貸 銷貨收入,
+        // R3 未預期借貸組合(否定面):借 費用類 Others / 貸 銷貨收入,
         // 同傳票無任何 Receivables/Cash/ReceiptInAdvance 借方 → 收入貸記缺正常對方科目才命中,
         // 命中標記只落在 Revenue 貸方列(每張 1 列)。
         for (var i = 0; i < UnexpectedPairVouchers; i++)
@@ -409,7 +410,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), string.Empty, SafeDesc());
         }
 
-        // R9 回溯過帳:傳票登錄日 = 過帳日 + 3(兩行皆命中)
+        // R9 回溯過帳：傳票日期比總帳入帳日晚 3 天，兩行皆命中。來源欄名與日期含義一致。
         for (var i = 0; i < BackdatedVouchers; i++)
         {
             var post = NextWeekday();
@@ -444,7 +445,7 @@ public static class DemoDataFactory
             }
         }
 
-        // §2 期外過帳日對照組:兩張 post_date=2026-01-05(期後)的傳票,固定值、不動 cursor。
+        // 期外總帳入帳日對照組：兩張 post_date=2026-01-05(期後)的傳票,固定值、不動 cursor。
         // 各自借≠貸(不平),互為鏡像使全域淨額為 0;借方一列帶 suspicious 關鍵字、另一張借方摘要空白;
         // 核准日 2026-01-20(期後,同時觸發期外核准與期末後核准)。期間界定生效後全數排除。
         // 用 6101/2101/6111/2111 皆高頻共用科目(不影響低頻科目/罕用科目判定);王小明為授權高頻編製者
@@ -491,7 +492,7 @@ public static class DemoDataFactory
             amount, false, createdBy, approvalDate, isManual, voucherDate));
     }
 
-    /// <summary>加一張 2 行「借≠貸」不平傳票（§2 期外對照組用）：借方 debitAmount、貸方 creditAmount 各異。
+    /// <summary>加一張 2 行「借≠貸」不平傳票（期外對照組用）：借方 debitAmount、貸方 creditAmount 各異。
     /// 傳票淨額 = debitAmount − creditAmount ≠ 0（借貸不平測試命中）；由呼叫端造鏡像對維持全域淨額為 0。</summary>
     private static void AddUnbalancedVoucher(
         List<DemoGlRow> rows,
@@ -536,7 +537,7 @@ public static class DemoDataFactory
         (string Code, string Name)[] accounts,
         IReadOnlyList<DemoGlRow> glRows)
     {
-        // TB「本期變動」= 本期(post_date ∈ 會計期間)GL 借貸彙總（§2：完整性 GL 彙總限本期才對得上 TB 本期變動）。
+        // TB「本期變動」= 本期(post_date ∈ 會計期間)GL 借貸彙總（完整性的 GL 彙總限本期，才對得上 TB 本期變動）。
         // 期外對照組（2026 過帳）不計入 TB，與期間界定後的完整性 GL 側口徑一致（否則會造成假性差異）。
         var inPeriod = glRows
             .Where(r => r.PostDate >= PeriodStartDate && r.PostDate <= PeriodEndDate)

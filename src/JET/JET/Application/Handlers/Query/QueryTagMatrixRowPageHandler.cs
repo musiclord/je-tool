@@ -5,7 +5,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.tagMatrixRowPage:多情境 tag 矩陣的行層 keyset 分頁(manifest 查詢段、方法學 step4-1)。
+/// query.tagMatrixRowPage:多情境 tag 矩陣的行層 keyset 分頁(底稿方法學 step4-1)。
 /// 列集為**命中傳票之所有行**(任一行命中任一情境的傳票,其全部 GL 行皆列出,含該傳票內未命中
 /// 任何情境的行);每列 documentNumber/lineItem/postDate/approvalDate/createdBy/approvedBy/
 /// accountCode/accountName/amount(signed)/description ＋ matchedPositions(該行直接命中的情境
@@ -15,14 +15,11 @@ namespace JET.Application;
 /// repo 回的 RowTagRow 不含 entry_id,故另回與 rows 同序同長的 EntryIds;本 handler 以 index 對齊
 /// rows[i] ↔ EntryIds[i] → PositionsByEntry,非命中行(不在 dict)補空 []。
 ///
-/// 惰性補算(同 filterHitsPage):首頁(無 cursor)取回為空但 config_filter_scenario 有已存情境時,
-/// 先重用 filter.commit 同源的共用 materialize 服務對全部已存情境落地後再取一次。壞 cursor →
+/// 惰性補算(同 filterHitsPage):首頁只在持久化結果已失效時，用共用服務重算全部已存情境。
+/// 零筆命中與搜尋無結果不觸發重算。壞 cursor →
 /// invalid_payload(fail loud,不靜默重置為首頁)。
 /// </summary>
 public sealed class QueryTagMatrixRowPageHandler(
-    ITagMatrixRowPageRepository repository,
-    IFilterScenarioStore scenarioStore,
-    FilterRunMaterializeService materializeService,
     IProjectStore projectStore,
     ProjectSession session) : IApplicationActionHandler
 {
@@ -30,7 +27,8 @@ public sealed class QueryTagMatrixRowPageHandler(
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
+        var dataRevision = await repositories.FilterRunMaterializeService.ReadQueryDataRevisionAsync(projectId, cancellationToken);
 
         var request = PageRequestReader.Read(payload, ResultPageSorting.TagMatrixRow);
         var cursor = request.Cursor;
@@ -38,9 +36,10 @@ public sealed class QueryTagMatrixRowPageHandler(
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
-        var scenarios = await scenarioStore.ListAsync(projectId, cancellationToken);
+        var scenarios = await repositories.FilterScenarios.ListAsync(projectId, cancellationToken);
         if (scenarios.Count == 0)
         {
+            if (cursor is not null) { throw FilterResultQuerySnapshot.Stale(); }
             return new { rows = Array.Empty<object>(), nextCursor = (string?)null };
         }
 
@@ -50,18 +49,13 @@ public sealed class QueryTagMatrixRowPageHandler(
             document.PeriodStart,
             document.PeriodEnd);
 
-        var (page, entryIds, positions) = await Task.Run(
-            () => repository.GetPageAsync(projectId, populationContext, request, null, cancellationToken),
-            cancellationToken);
-
-        // 惰性補算:僅在首頁取回為空時嘗試(避免每頁多查);若有已存情境則落地後重取一次。
-        if (page.Rows.Count == 0 && cursor is null)
+        if (cursor is null)
         {
-            if (scenarios.Count > 0)
+            var refreshed = await repositories.FilterRunMaterializeService.MaterializeForConcurrentQueryAsync(
+                projectId,
+                cancellationToken);
+            if (refreshed is not null)
             {
-                var refreshed = await materializeService.MaterializeForConcurrentQueryAsync(
-                    projectId,
-                    cancellationToken);
                 document = refreshed.Document;
                 scenarios = refreshed.Scenarios;
                 revision = FilterPopulationScopeParser.RequireCurrentRevision(scenarios);
@@ -69,11 +63,16 @@ public sealed class QueryTagMatrixRowPageHandler(
                     revision.PopulationScope,
                     document.PeriodStart,
                     document.PeriodEnd);
-                (page, entryIds, positions) = await Task.Run(
-                    () => repository.GetPageAsync(projectId, populationContext, request, null, cancellationToken),
-                    cancellationToken);
             }
         }
+        var query = FilterResultQuerySnapshot.Bind(projectId, Action, null,
+            dataRevision, revision.Revision, request);
+        request = query.Request;
+        await repositories.FilterRunMaterializeService.EnsureQueryCurrentAsync(projectId, query.DataRevision, query.ScenarioRevision, cancellationToken);
+        var (page, entryIds, positions) = await Task.Run(
+            () => repositories.TagMatrixRowPages.GetPageAsync(projectId, populationContext, request, null, cancellationToken),
+            cancellationToken);
+        await repositories.FilterRunMaterializeService.EnsureQueryCurrentAsync(projectId, query.DataRevision, query.ScenarioRevision, cancellationToken);
 
         var scale = document.MoneyScale;
         var rows = new object[page.Rows.Count];
@@ -99,7 +98,7 @@ public sealed class QueryTagMatrixRowPageHandler(
         return new
         {
             rows,
-            nextCursor = page.NextCursor
+            nextCursor = query.WrapCursor(page.NextCursor)
         };
     }
 }

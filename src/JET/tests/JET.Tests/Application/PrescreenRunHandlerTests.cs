@@ -252,7 +252,9 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var weekendActivity = data.GetProperty("weekendActivity");
         Assert.Equal("na", weekendActivity.GetProperty("status").GetString());
         Assert.Equal(
-            "尚未完成 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。",
+            // 2026-10-04 第 8 批 Q8：確認配對用語統一；複合狀態與優先序斷言不變。
+            // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+            "尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳入帳日。",
             weekendActivity.GetProperty("naReason").GetString());
         Assert.Equal(0, weekendActivity.GetProperty("postingCount").GetInt64());
         Assert.Equal(JsonValueKind.Null, weekendActivity.GetProperty("approvalCount").ValueKind);
@@ -406,8 +408,9 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
 
         try
         {
+            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留非授權人員預篩選的原斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
-                JsonSerializer.Serialize(new { filePath = listPath, fileName = "ap.xlsx" }));
+                JsonSerializer.Serialize(new { filePath = listPath, fileName = "ap.xlsx", sourceColumn = "AUTHORIZED_PREPARER" }));
 
             var data = await host.DispatchAsync("prescreen.run");
 
@@ -538,19 +541,22 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var folder = new JetProjectFolder(fixture.Host.ProjectsRoot);
         var database = new SqliteProjectDatabase(folder);
         var runStore = new LocalRuleRunStore(database);
-        var session = new ProjectSession();
-        session.Enter(fixture.ProjectId);
         var factsPort = new RecordingPrescreenFactsPort(
             new LocalPrescreenRunRepository(database));
-        var handler = new PrescreenRunHandler(
-            factsPort,
-            new LocalMappingStateStore(database),
-            new LocalCalendarStore(database),
-            new LocalAccountMappingRepository(database),
-            new LocalAuthorizedPreparerRepository(database),
-            runStore,
-            new JsonFileProjectStore(folder),
-            session);
+        // handler 從作用中案件的資料庫組取 repository，把這些物件放進 SQLite 資料庫組後再進入 session。
+        var session = new ProjectSession();
+        session.Enter(
+            fixture.ProjectId,
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                PrescreenFacts = factsPort,
+                MappingStates = new LocalMappingStateStore(database),
+                Calendar = new LocalCalendarStore(database),
+                AccountMappings = new LocalAccountMappingRepository(database),
+                AuthorizedPreparers = new LocalAuthorizedPreparerRepository(database),
+                RuleRuns = runStore,
+            });
+        var handler = new PrescreenRunHandler(new JsonFileProjectStore(folder), session);
 
         await handler.HandleAsync(default, CancellationToken.None);
 

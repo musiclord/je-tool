@@ -4,20 +4,20 @@ using Microsoft.Data.SqlClient;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQL Server 的每專案 schema 連線工廠與 schema 初始化(guide §13;對應 SQLite 的
+/// SQL Server 的每專案 schema 連線工廠與 schema 初始化(對應 SQLite 的
 /// <see cref="SqliteProjectDatabase"/>)。隔離模型:共用 instance、單一資料庫,每專案一個
 /// <c>prj_xxx</c> schema(由 <see cref="SqlServerProjectSchema.For"/> 衍生),事實表建在該 schema 內、不帶 project_id 欄;
-/// schema → 專案的反查一律讀 <c>dbo.project_registry</c>(其 schema_name 欄即權威;控制面第四輪已移除冗餘的
+/// schema → 專案的反查一律讀 <c>dbo.project_registry</c>(其 schema_name 欄即權威;已移除冗餘的
 /// <c>dbo.project_schema_map</c> 反查表,見 <see cref="SqlServerControlPlaneSchema"/> 的一次性遷移)。
 /// 連線字串(base)的 InitialCatalog 即為該單一資料庫;不再依專案切換庫名。
-/// 刪除走<b>單一連線、單一顯式交易</b>(原子,控制面第四輪 §2):drop 該 schema 全表 → <c>DROP SCHEMA</c> →
+/// 刪除走<b>單一連線、單一顯式交易</b>(原子):drop 該 schema 全表 → <c>DROP SCHEMA</c> →
 /// 同交易寫 audit_log → 刪 <c>dbo.project_access</c>／<c>dbo.project_registry</c> 對應列(見 <see cref="DeleteAsync"/>)——
 /// 單庫成為 sqlServer 專案的唯一管家,刪案不再分兩連線兩交易。
 /// 目標引擎為 SQL Server 2022(開發用 Developer、生產用 Standard/Enterprise,共用本實作、差異僅在連線字串);
 /// SQL Server Express(含 LocalDB,EngineEdition=4)已淘汰——單庫模型撞其 10GB 上限,偵測到即以
 /// sql_server_express_unsupported 擋下(見 EnsureSingleDatabaseAndControlPlaneAsync)。
-/// schema 目前一路 forward-only（SQL Server 無 legacy 專案，新 schema 直接建到現行版本），但版本化遷移機制已就位
-/// （控制面第七輪）：<see cref="EnsureCreatedAsync"/> 對既有 schema 讀 <c>{s}.schema_info</c> 的 <c>schema_version</c>，
+/// schema 目前一路 forward-only（SQL Server 無 legacy 專案，新 schema 直接建到現行版本），但版本化遷移機制已就位：
+/// <see cref="EnsureCreatedAsync"/> 對既有 schema 讀 <c>{s}.schema_info</c> 的 <c>schema_version</c>，
 /// 落後現行 <see cref="SchemaVersion"/> 才於單一交易內重跑守欄冪等的 <see cref="SchemaSql"/> 補齊形狀並回填版本
 /// （見 <see cref="MigrateExistingSchemaToCurrentAsync"/>），使下一次 schema 版本 bump 時線上既有 schema 能自動升級。
 /// </summary>
@@ -91,7 +91,7 @@ public sealed partial class SqlServerProjectDatabase(SqlServerConnectionOptions 
 /// SingleDatabaseName 是 schema-per-project 模型下「所有專案共用的那一個資料庫」名稱:顯式 value、
 /// 不再從連線字串 InitialCatalog 隱性推斷(避免「連線字串沒帶 Database」時退化成 <c>CREATE DATABASE []</c>)。
 /// 預設 JET_Test:僅供測試以 1 引數建構時落在隔離測試庫(jetapp 擁有);app 一律顯式帶入正式庫 JET(由 config)。
-/// AssumeDatabaseExists(控制面第四輪 §4,master 依賴最小化):為 true 時所有存在性/就緒檢查一律當「已存在」、
+/// AssumeDatabaseExists(盡量不依賴 master):為 true 時所有存在性/就緒檢查一律當「已存在」、
 /// 完全不連 master——供 jetapp 無 master 連線權限的鎖定環境,建庫責任移交 DBA 預建。讀 appsettings 的
 /// <c>Sql:AssumeDatabaseExists</c>(預設 false)。
 /// </summary>

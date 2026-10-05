@@ -230,9 +230,8 @@ public sealed class TagMatrixRowPageTests
         var ctx = await DemoProjectPipeline.SetupAsync(host);
         await host.DispatchAsync("filter.commit", ThreeScenarioPayload());
 
-        // 清空命中表(definition_json 仍在)→ 模擬「定義在、命中不在」。
-        await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
-            "DELETE FROM result_filter_run; SELECT 0;");
+        // 透過正式上游變更使結果失效；情境定義保留。
+        await host.DispatchAsync("calendar.setNonWorkingDays", """{"days":[6]}""");
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
             "SELECT COUNT(*) FROM result_filter_run;"));
 

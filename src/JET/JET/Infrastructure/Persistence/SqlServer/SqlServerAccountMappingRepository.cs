@@ -81,7 +81,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
             await cleanup.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        // 科目配對換版,未預期借貸組合等規則結果即失效(plan Phase 1)。
+        // 科目配對換版,未預期借貸組合等規則結果即失效。
         await RuleRunResultReset.ClearWithinAsync(
             connection,
             transaction,
@@ -208,20 +208,20 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
 
         await using var command = database.CreateCommand(connection, projectId,
             """
-            SELECT TOP 1 b.batch_id, b.row_count, b.source_file_name, b.imported_utc,
+            SELECT TOP 1 b.batch_id,
+                   CASE WHEN b.source_file_name = @editorName THEN (SELECT COUNT(*) FROM {s}.target_account_mapping) ELSE b.row_count END,
+                   b.source_file_name, b.imported_utc,
                    CASE WHEN EXISTS (SELECT 1 FROM {s}.target_account_mapping) THEN 1 ELSE 0 END,
                    CASE WHEN EXISTS (SELECT 1
                                      FROM {s}.target_account_mapping m
                                      JOIN {s}.config_account_taxonomy t
                                        ON t.category_id = m.category_id
-                                       OR (m.category_id IS NULL AND t.is_builtin = 1 AND t.label = m.standardized_category)
                                      WHERE t.semantic_role = @revenue)
                         THEN 1 ELSE 0 END,
                    CASE WHEN EXISTS (SELECT 1
                                      FROM {s}.target_account_mapping m
                                      JOIN {s}.config_account_taxonomy t
                                        ON t.category_id = m.category_id
-                                       OR (m.category_id IS NULL AND t.is_builtin = 1 AND t.label = m.standardized_category)
                                      WHERE t.semantic_role IN (@receivables, @cash, @receiptInAdvance))
                         THEN 1 ELSE 0 END,
                    (SELECT COUNT(*) FROM {s}.target_account_mapping m WHERE m.classification_explicit = 0)
@@ -230,6 +230,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
             ORDER BY b.imported_utc DESC, b.batch_id DESC;
             """);
         command.Parameters.AddWithValue("@kind", DatasetKind.AccountMapping.ToStorageName());
+        command.Parameters.AddWithValue("@editorName", AccountMappingEditorRepository.EditorSourceName);
         command.Parameters.AddWithValue("@revenue", AccountTaxonomyBuiltIns.RevenueRole);
         command.Parameters.AddWithValue("@receivables", AccountTaxonomyBuiltIns.ReceivablesRole);
         command.Parameters.AddWithValue("@cash", AccountTaxonomyBuiltIns.CashRole);

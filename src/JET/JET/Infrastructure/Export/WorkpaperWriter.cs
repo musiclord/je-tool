@@ -9,13 +9,13 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 匯出底稿(WorkingPaper).xlsx 寫出器。<see cref="IWorkpaperWriter"/> 的 deep module 實作:
+/// 匯出底稿(WorkingPaper).xlsx 寫出器。<see cref="IWorkpaperWriter"/> 的實作:
 /// 對外只 <see cref="WriteAsync"/>,內部隱藏全部 OpenXML 細節與資料表 keyset 串流。
 ///
 /// 為什麼 SAX(OpenXmlPartWriter)、不用 ClosedXML:
 ///   真實母體達百萬列(實務見過 ~140 萬列)。ClosedXML(及 OpenXML DOM)要把整個 worksheet
 ///   建成記憶體物件樹才落地,會 OutOfMemory;SAX 是 forward-only、逐元素串流寫,記憶體有界。
-///   因此 ClosedXML 僅限 dev fixture(DemoWorkbookWriter),底稿寫出鐵律走 SAX。
+///   因此 ClosedXML 僅限 dev fixture(DemoWorkbookWriter),底稿寫出一律走 SAX。
 ///
 /// 為什麼 inline string、不用 sharedStrings:
 ///   sharedStrings 需要一張全域字串表(理想上要先看完所有字串才能去重),與 forward-only 串流相斥;
@@ -30,9 +30,9 @@ namespace JET.Infrastructure;
 ///   <see cref="EmitTableSheetAsync"/> 出「欄標列 + 逐列資料(列號內部累計)」;
 ///   <see cref="StreamRowsAsync"/> 把 keyset 分頁 repo 轉成不全載入的列序列。
 ///   step1-1(條件例外表)與 step1-3(完整性差異條件表)結構不同,各自處理——
-///   完整性差異科目數為零時,step1-3 不註冊工作表;條件由 emitter guard 決定,非 god-switch。
+///   完整性差異科目數為零時,step1-3 不註冊工作表;條件由各 emitter 自己的前置判斷決定,不集中成一個大分支。
 ///
-/// step2/3/4/4-1(Task 4)高風險矩陣家族:
+/// step2/3/4/4-1 高風險矩陣家族:
 ///   step2 可靠性逐頁 infSamplePage，依 legacy 範本以借貸代號＋帶號金額落欄；
 ///   production 另以 bounded raw-row port 回填原始借貸代號與來源模組。
 ///   step3/4/4-1 的 C 欄集由本次所選情境決定——step4 用全部所選 position，

@@ -6,14 +6,14 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 每專案 jet.db 的 SQLite 連線工廠與 schema 初始化——本地引擎家族的 SQLite 實作
-/// （<see cref="ILocalProjectDatabase"/>；設計 spec §3 的 SQLite 引擎類，由舊連線工廠更名而來、行為凍結）。
+/// （<see cref="ILocalProjectDatabase"/>）。
 /// 每專案一個 DB 檔，資料表不帶 project_id 欄（檔案即 scope）。
 /// </summary>
 public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProjectDatabase
 {
     /// <summary>
-    /// schema 第 3 版（規則命名更名 + 科目配對，2026-06-11；多來源批次見 guide §3.1.4）。
-    /// 新資料庫直接以此建立；第 1/2 版資料庫由 <see cref="EnsureCreatedAsync"/> 的遷移段逐版升級。
+    /// 基底 schema，建成後標記為第 6 版。新資料庫先以此建立，再由 <see cref="EnsureCreatedAsync"/>
+    /// 的遷移段逐版升到目前的第 11 版。第 1 到第 5 版的舊資料庫不再升版，開啟時直接回報錯誤。
     /// staging 的 row_number = 批次內單調遞增排序鍵（INF 抽樣基礎），
     /// source_row_number = 來源檔內實際列號（錯誤定位），source_no 對應 import_batch_source。
     /// </summary>
@@ -54,8 +54,8 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             PRIMARY KEY (batch_id, source_no)
         );
 
-        -- Legacy TableDef 等價欄位定義只由 fresh import 建立；IF NOT EXISTS 讓 DDL 冪等，
-        -- 不替舊 import_batch 回填或猜測 metadata。獨立的 v5→v6 遷移只補 numeric sort key。
+        -- 匯入檔的欄位定義（名稱、型態、長度），對應舊版 IDEA 的 TableDef，只在匯入資料時寫入。
+        -- IF NOT EXISTS 讓建表可重複執行；不替既有匯入批次回填或猜測欄位定義。
         CREATE TABLE IF NOT EXISTS import_field_definition (
             batch_id            TEXT NOT NULL,
             definition_scope    TEXT NOT NULL CHECK (definition_scope IN ('source','target')),
@@ -94,6 +94,17 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             mode_name       TEXT NOT NULL,
             source_batch_id TEXT NOT NULL,
             committed_utc   TEXT NOT NULL
+        );
+
+        -- 重新匯入前最後一次確認的配對，只用來在重開案件時帶回草稿（LocalMappingStateStore.RetireCommittedMappingSql）。
+        CREATE TABLE IF NOT EXISTS config_field_mapping_previous (
+            dataset_kind    TEXT PRIMARY KEY CHECK (dataset_kind IN ('gl','tb')),
+            mapping_json    TEXT NOT NULL,
+            mode_name       TEXT NOT NULL,
+            source_batch_id TEXT NOT NULL,
+            committed_utc   TEXT NOT NULL,
+            format_version  INTEGER NOT NULL,
+            options_json    TEXT NULL
         );
 
         CREATE TABLE IF NOT EXISTS staging_calendar_raw_day (
@@ -187,8 +198,8 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         CREATE UNIQUE INDEX IF NOT EXISTS ix_target_account_mapping_code
             ON target_account_mapping (account_code);
 
-        -- 授權編製人員清單（C 子專案）。單欄姓名集合（name PK）+ 原始列暫存。
-        -- 不入 import_batch dataset_kind 體系;加法建表(IF NOT EXISTS)不需 schema 升版,既有資料庫開啟時自動補上。
+        -- 授權編製人員清單：只有姓名一欄（name 為主鍵），另有原始列暫存表。
+        -- 不登記在 import_batch；用 IF NOT EXISTS 新增，不需升 schema 版本，既有資料庫開啟時自動補上。
         CREATE TABLE IF NOT EXISTS staging_authorized_preparer_raw_row (
             batch_id          TEXT NOT NULL,
             row_number        INTEGER NOT NULL,
@@ -206,8 +217,8 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         CREATE INDEX IF NOT EXISTS ix_target_gl_entry_approval_date
             ON target_gl_entry (approval_date);
 
-        -- 前端「狀態與訊息」的持久化（manifest log.append / log.recent）。
-        -- UX 輔助紀錄,非審計留痕;加法建表(IF NOT EXISTS)不需 schema 升版,既有資料庫開啟時自動補上。
+        -- 前端「狀態與訊息」的保存處，由 log.append 寫入、log.recent 讀取。
+        -- 只是操作輔助紀錄，不是審計留痕；用 IF NOT EXISTS 新增，不需升 schema 版本，既有資料庫開啟時自動補上。
         CREATE TABLE IF NOT EXISTS app_message_log (
             message_id   INTEGER PRIMARY KEY AUTOINCREMENT,
             occurred_utc TEXT NOT NULL,
@@ -215,9 +226,9 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             text         TEXT NOT NULL
         );
 
-        -- 完整性 part(a) 控制總數（單列;投影時 upsert replace）。
-        -- 投影 staging→target 時落地的來源列數、母體列數與借/貸總額,供 validate.run 對上 target 現值。
-        -- 加法建表(IF NOT EXISTS)不需 schema 升版,既有資料庫開啟時自動補上（同 app_message_log 先例）。
+        -- 完整性測試 part(a) 的控制總數，只有一列，每次把匯入資料寫進正式表時整列覆寫。
+        -- 記錄當時的來源列數、母體列數與借貸總額，供 validate.run 和正式表目前的數字比對。
+        -- 用 IF NOT EXISTS 新增，不需升 schema 版本，既有資料庫開啟時自動補上。
         CREATE TABLE IF NOT EXISTS gl_control_total (
             singleton        INTEGER PRIMARY KEY CHECK (singleton = 1),
             source_row_count INTEGER NOT NULL,
@@ -226,27 +237,18 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             target_credit_scaled INTEGER NOT NULL
         );
 
-        -- 進階篩選命中落地（plan 子專案 D1）：filter.commit 把每個已存情境的命中 entry_id
-        -- 落地於此，供 query.filterHitsPage keyset 分頁回取（PK 覆蓋 seek）。衍生資料：
-        -- 隨 RuleRunResultReset 失效集清除。加法建表（IF NOT EXISTS）不需 schema 升版。
+        -- 進階篩選的命中結果：filter.commit 把每個已存情境命中的 entry_id 存在這裡，
+        -- 供 query.filterHitsPage 依主鍵順序分頁讀取。這是可重算的衍生資料，
+        -- 由 RuleRunResultReset 隨其他結果一起清除。用 IF NOT EXISTS 新增，不需升 schema 版本。
         CREATE TABLE IF NOT EXISTS result_filter_run (
             scenario_position INTEGER NOT NULL,
             entry_id          INTEGER NOT NULL,
             PRIMARY KEY (scenario_position, entry_id)
         );
-        -- D2 tag 矩陣即時 pivot 的輔助索引:以 entry_id 為前導鍵,讓
-        -- 「EXISTS(result_filter_run WHERE entry_id = g.entry_id)」與「entry_id 鍵範圍取命中位置」走索引
-        -- (PK 前導鍵為 scenario_position,不利這兩種存取)。加法、IF NOT EXISTS 不升 schema 版本。
+        -- tag 矩陣查詢（query.tagMatrixVoucherPage、query.tagMatrixRowPage）的輔助索引：以 entry_id 開頭，讓「這筆分錄有沒有命中」
+        -- 與「一段 entry_id 範圍命中了哪些情境」兩種查詢都能走索引；主鍵以 scenario_position 開頭，
+        -- 不適合這兩種查詢。用 IF NOT EXISTS 新增，不需升 schema 版本。
         CREATE INDEX IF NOT EXISTS idx_result_filter_run_entry ON result_filter_run (entry_id, scenario_position);
-
-        -- source_file_path 是 legacy 欄名，載入後不再使用。既有本地案件若曾保存來源機器的
-        -- 絕對路徑，開啟時冪等收斂成已持久化的顯示檔名；不升 schema、不動匯入資料列。
-        UPDATE import_batch
-        SET source_file_path = source_file_name
-        WHERE source_file_path <> source_file_name;
-        UPDATE import_batch_source
-        SET source_file_path = source_file_name
-        WHERE source_file_path <> source_file_name;
         """;
 
     public string GetDatabasePath(string projectId) => folder.GetDatabasePath(projectId);
@@ -269,11 +271,14 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             Directory.CreateDirectory(directory);
         }
 
+        // 私有快取：案件資料庫用 WAL，讀取讀上一次提交的資料，不等別條連線還沒提交的寫入。
+        // 共用快取會改用表格鎖，長作業寫入期間其他要求讀同一張表要等到逾時（2026-10-05 V6）。
+        // 寫入仍然一次一條，由 Microsoft.Data.Sqlite 在逾時內重試。
         var builder = new SqliteConnectionStringBuilder
         {
             DataSource = databasePath,
             Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared
+            Cache = SqliteCacheMode.Private
         };
 
         return CreateConfiguredConnection(builder.ToString());
@@ -307,7 +312,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
     }
 
     /// <summary>
-    /// 匯入連線層調校（guide §3.1.5 規模調校；只作用於匯入連線）：WAL 下 synchronous=NORMAL
+    /// 匯入連線層調校（只作用於匯入連線）：WAL 下 synchronous=NORMAL
     /// 仍保證一致性；temp_store/cache_size 降低大批寫入的 I/O。由本地引擎家族的匯入 repository 於
     /// 連線開啟後、交易開始前呼叫（provider 分支留在 Infrastructure）。
     /// </summary>
@@ -318,111 +323,10 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         await pragma.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    /// <summary>SQLite 批量列寫入＝現行參數化 INSERT 的封裝（行為凍結；見 <see cref="SqliteBulkRowWriter"/>）。</summary>
+    /// <summary>SQLite 批量列寫入＝現行參數化 INSERT 的封裝（見 <see cref="SqliteBulkRowWriter"/>）。</summary>
     public IBulkRowWriter CreateBulkRowWriter(
         DbConnection connection, DbTransaction transaction, string table, IReadOnlyList<string> columns)
         => new SqliteBulkRowWriter(connection, transaction, table, columns);
-
-    /// <summary>
-    /// 第 1 版 → 第 2 版的加法遷移（單一 transaction、冪等：版本判斷 + 升版同交易）。
-    /// 第 1 版的 row_number 就是來源列號，因此 source_row_number 直接回填 row_number、
-    /// 既有批次補一筆來源序號 1 的紀錄——遷移後既有專案的 INF 抽樣排序鍵完全不變。
-    /// 不重建表、不動 target；SQL 為 SQL Server 可直譯的加法語句。
-    /// </summary>
-    private const string MigrateV1ToV2Sql =
-        """
-        ALTER TABLE staging_gl_raw_row ADD COLUMN source_no INTEGER NOT NULL DEFAULT 1;
-        ALTER TABLE staging_gl_raw_row ADD COLUMN source_row_number INTEGER NOT NULL DEFAULT 0;
-        ALTER TABLE staging_tb_raw_row ADD COLUMN source_no INTEGER NOT NULL DEFAULT 1;
-        ALTER TABLE staging_tb_raw_row ADD COLUMN source_row_number INTEGER NOT NULL DEFAULT 0;
-        UPDATE staging_gl_raw_row SET source_row_number = row_number;
-        UPDATE staging_tb_raw_row SET source_row_number = row_number;
-        INSERT INTO import_batch_source
-            (batch_id, source_no, source_file_path, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc)
-        SELECT batch_id, 1, source_file_path, source_file_name, NULL, NULL, NULL, row_count, imported_utc
-        FROM import_batch;
-        UPDATE schema_info SET value = '2' WHERE key = 'schema_version';
-        """;
-
-    /// <summary>
-    /// 第 2 版 → 第 3 版（規則命名更名 + 科目配對，2026-06-11）：
-    /// 1. 舊鍵（v1–v4 / r1–r8 / descNullCount）儲存的規則執行摘要**清除不翻譯**——
-    ///    衍生資料重跑即恢復且結果相同（INF 抽樣 seed 固定）；舊抽樣表一併卸除
-    ///    （改建為 result_inf_sampling_test_sample，由基底 schema 建立）。
-    /// 2. import_batch 的 dataset_kind CHECK 擴充 'account_mapping'：SQLite 不能
-    ///    ALTER CHECK，以重建表搬資料完成（欄序不變）。
-    /// 3. 篩選情境（使用者著作的組態）由 C# 段逐鍵翻譯保留，見
-    ///    <see cref="TranslateScenarioKeysAsync"/>。
-    /// </summary>
-    private const string MigrateV2ToV3Sql =
-        """
-        DELETE FROM result_rule_run;
-        DROP TABLE IF EXISTS result_validation_v3_sample;
-
-        CREATE TABLE import_batch_v3 (
-            batch_id         TEXT PRIMARY KEY,
-            dataset_kind     TEXT NOT NULL CHECK (dataset_kind IN ('gl','tb','account_mapping')),
-            source_file_path TEXT NOT NULL,
-            source_file_name TEXT NOT NULL,
-            imported_utc     TEXT NOT NULL,
-            row_count        INTEGER NOT NULL DEFAULT 0,
-            columns_json     TEXT NOT NULL
-        );
-        INSERT INTO import_batch_v3
-        SELECT batch_id, dataset_kind, source_file_path, source_file_name, imported_utc, row_count, columns_json
-        FROM import_batch;
-        DROP TABLE import_batch;
-        ALTER TABLE import_batch_v3 RENAME TO import_batch;
-        CREATE INDEX IF NOT EXISTS ix_import_batch_kind
-            ON import_batch (dataset_kind, imported_utc);
-
-        UPDATE schema_info SET value = '3' WHERE key = 'schema_version';
-        """;
-
-    /// <summary>
-    /// 第 3 版 → 第 4 版:假日/補班名稱欄(行事曆檔案匯入帶名稱)。加法、冪等。
-    /// 註:基底 SchemaSql 對「表尚不存在」的庫(如 v1/v2 凍結快照)已直接建出帶 day_name 的表;
-    /// SQLite 無 ADD COLUMN IF NOT EXISTS,故 ALTER 前以 pragma_table_info 守欄是否已存在,
-    /// 避免鏈式升級時 duplicate column。版本回填一律執行(冪等)。
-    /// </summary>
-    private const string AddCalendarDayNameSql =
-        "ALTER TABLE staging_calendar_raw_day ADD COLUMN day_name TEXT;";
-
-    private const string BumpToV4Sql =
-        "UPDATE schema_info SET value = '4' WHERE key = 'schema_version';";
-
-    private const string CalendarDayNameExistsSql =
-        "SELECT COUNT(*) FROM pragma_table_info('staging_calendar_raw_day') WHERE name = 'day_name';";
-
-    /// <summary>
-    /// 第 4 版 → 第 5 版:傳票日期欄(回溯過帳偵測 + 日期區間篩選)。加法、冪等。
-    /// 註:基底 SchemaSql 對「表尚不存在」的庫已直接建出帶 voucher_date 的表;
-    /// SQLite 無 ADD COLUMN IF NOT EXISTS,故 ALTER 前以 pragma_table_info 守欄是否已存在,
-    /// 避免鏈式升級時 duplicate column。版本回填一律執行(冪等)。
-    /// </summary>
-    private const string VoucherDateExistsSql =
-        "SELECT COUNT(*) FROM pragma_table_info('target_gl_entry') WHERE name = 'voucher_date';";
-
-    private const string AddVoucherDateSql =
-        "ALTER TABLE target_gl_entry ADD COLUMN voucher_date TEXT;";
-
-    private const string BumpToV5Sql =
-        "UPDATE schema_info SET value = '5' WHERE key = 'schema_version';";
-
-    /// <summary>
-    /// 第 5 版 → 第 6 版：持久化傳票文件項次的 provider-neutral numeric ordinal sort key。
-    /// 既有列不從顯示文字猜測型態或回填；numeric step4-1 讀到缺 key 時會 fail closed，
-    /// 要求重新匯入／配對／投影。
-    /// </summary>
-    private const string LineItemNumericSortKeyExistsSql =
-        "SELECT COUNT(*) FROM pragma_table_info('target_gl_entry') "
-        + "WHERE name = 'line_item_numeric_sort_key';";
-
-    private const string AddLineItemNumericSortKeySql =
-        "ALTER TABLE target_gl_entry ADD COLUMN line_item_numeric_sort_key TEXT;";
-
-    private const string BumpToV6Sql =
-        "UPDATE schema_info SET value = '6' WHERE key = 'schema_version';";
 
     private const string BumpToV7Sql =
         "UPDATE schema_info SET value = '7' WHERE key = 'schema_version';";
@@ -535,28 +439,33 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
     /// <summary>測試專用：在 v7 data rewrite 後及 result reset 後兩個交易邊界注入 fault。</summary>
     internal Action<string>? MigrationFaultHookForTests { get; set; }
 
-    /// <summary>config_filter_scenario 內 prescreenKey 的舊鍵 → 新 wire key 對照（manifest Prescreen 章節）。</summary>
-    private static readonly IReadOnlyDictionary<string, string> PrescreenKeyMigrationMap =
-        new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["r1"] = "postPeriodApproval",
-            ["r2"] = "suspiciousKeywords",
-            ["r3"] = "unexpectedAccountPair",
-            ["r4"] = "trailingZeros",
-            ["r7post"] = "weekendPosting",
-            ["r7doc"] = "weekendApproval",
-            ["r8post"] = "holidayPosting",
-            ["r8doc"] = "holidayApproval",
-            ["descNull"] = "blankDescription"
-        };
+    private readonly LocalSchemaReadiness readiness = new();
 
-    public async Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken)
+    /// <summary>建立或載入案件時呼叫：一律完整檢查建表與升版。</summary>
+    public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
+        readiness.EnsureCreatedAsync(
+            GetDatabasePath(projectId),
+            ct => EnsureCreatedCoreAsync(projectId, ct),
+            cancellationToken);
+
+    /// <summary>repository 每次讀寫前呼叫：同一程序內每個資料庫檔只完整檢查一次。</summary>
+    public Task EnsureReadyAsync(string projectId, CancellationToken cancellationToken) =>
+        readiness.EnsureReadyAsync(
+            GetDatabasePath(projectId),
+            ct => EnsureCreatedCoreAsync(projectId, ct),
+            cancellationToken);
+
+    private async Task EnsureCreatedCoreAsync(string projectId, CancellationToken cancellationToken)
     {
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
+        // 舊版 JET 建立的資料庫（第 1 到第 5 版）與版本資訊無法辨識的資料庫，在任何寫入之前就擋下，檔案保持原狀。
+        LocalSchemaReadiness.RejectUnsupportedSchemaVersion(
+            await ReadExistingVersionAsync(connection, cancellationToken));
+
         // WAL 是資料庫檔案層的持久設定（冪等）：百萬列單交易寫入避免 rollback journal
-        // 的雙倍寫放大，replace 模式的大量 DELETE 也因此變廉價（guide §3.1.5 規模調校）
+        // 的雙倍寫放大，replace 模式的大量 DELETE 也因此變廉價
         await using (var pragma = connection.CreateCommand())
         {
             pragma.CommandText = "PRAGMA journal_mode=WAL;";
@@ -570,119 +479,6 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         }
 
         var version = await ReadVersionAsync(connection, cancellationToken);
-
-        if (version == "1")
-        {
-            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-            await using var migrate = connection.CreateCommand();
-            migrate.Transaction = transaction;
-            migrate.CommandText = MigrateV1ToV2Sql;
-            await migrate.ExecuteNonQueryAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            version = "2";
-        }
-
-        if (version == "2")
-        {
-            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-            await using (var migrate = connection.CreateCommand())
-            {
-                migrate.Transaction = transaction;
-                migrate.CommandText = MigrateV2ToV3Sql;
-                await migrate.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await TranslateScenarioKeysAsync(connection, transaction, cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            version = "3";
-        }
-
-        if (version == "3")
-        {
-            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-            await using (var exists = connection.CreateCommand())
-            {
-                exists.Transaction = transaction;
-                exists.CommandText = CalendarDayNameExistsSql;
-                var hasColumn = Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) > 0;
-                if (!hasColumn)
-                {
-                    await using var addColumn = connection.CreateCommand();
-                    addColumn.Transaction = transaction;
-                    addColumn.CommandText = AddCalendarDayNameSql;
-                    await addColumn.ExecuteNonQueryAsync(cancellationToken);
-                }
-            }
-
-            await using (var bump = connection.CreateCommand())
-            {
-                bump.Transaction = transaction;
-                bump.CommandText = BumpToV4Sql;
-                await bump.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await transaction.CommitAsync(cancellationToken);
-            version = "4";
-        }
-
-        if (version == "4")
-        {
-            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-            await using (var exists = connection.CreateCommand())
-            {
-                exists.Transaction = transaction;
-                exists.CommandText = VoucherDateExistsSql;
-                var hasColumn = Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) > 0;
-                if (!hasColumn)
-                {
-                    await using var addColumn = connection.CreateCommand();
-                    addColumn.Transaction = transaction;
-                    addColumn.CommandText = AddVoucherDateSql;
-                    await addColumn.ExecuteNonQueryAsync(cancellationToken);
-                }
-            }
-
-            await using (var bump = connection.CreateCommand())
-            {
-                bump.Transaction = transaction;
-                bump.CommandText = BumpToV5Sql;
-                await bump.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await transaction.CommitAsync(cancellationToken);
-            version = "5";
-        }
-
-        if (version == "5")
-        {
-            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-            await using (var exists = connection.CreateCommand())
-            {
-                exists.Transaction = transaction;
-                exists.CommandText = LineItemNumericSortKeyExistsSql;
-                var hasColumn = Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) > 0;
-                if (!hasColumn)
-                {
-                    await using var addColumn = connection.CreateCommand();
-                    addColumn.Transaction = transaction;
-                    addColumn.CommandText = AddLineItemNumericSortKeySql;
-                    await addColumn.ExecuteNonQueryAsync(cancellationToken);
-                }
-            }
-
-            await using (var bump = connection.CreateCommand())
-            {
-                bump.Transaction = transaction;
-                bump.CommandText = BumpToV6Sql;
-                await bump.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await transaction.CommitAsync(cancellationToken);
-            version = "6";
-        }
 
         if (version == "6")
         {
@@ -928,6 +724,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         }
 
         var databasePath = folder.GetDatabasePath(projectId);
+        readiness.Forget(databasePath);
         foreach (var suffix in new[] { "", "-wal", "-shm" })
         {
             var path = databasePath + suffix;
@@ -947,66 +744,19 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         return (string?)await versionQuery.ExecuteScalarAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// v2→v3 的篩選情境翻譯：definition_json 內每條 rule 的 prescreenKey 舊鍵改新鍵。
-    /// 情境是使用者著作的組態，不可清除；列數 ≤ 5，在 C# 內以 JsonNode 改寫安全且可讀。
-    /// 未知鍵保持原樣（讓後續驗證報錯，而非遷移時靜默吞掉）。
-    /// </summary>
-    private static async Task TranslateScenarioKeysAsync(
-        DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken)
+    /// <summary>尚未建表的新資料庫回傳 null；只讀取，不建立任何資料表。</summary>
+    private static async Task<string?> ReadExistingVersionAsync(DbConnection connection, CancellationToken cancellationToken)
     {
-        var rows = new List<(long Position, string Json)>();
-        await using (var select = connection.CreateCommand())
+        await using (var exists = connection.CreateCommand())
         {
-            select.Transaction = transaction;
-            select.CommandText = "SELECT position, definition_json FROM config_filter_scenario;";
-            await using var reader = await select.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
+            exists.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_info';";
+            if (Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) == 0)
             {
-                rows.Add((reader.GetInt64(0), reader.GetString(1)));
+                return null;
             }
         }
 
-        foreach (var (position, json) in rows)
-        {
-            if (System.Text.Json.Nodes.JsonNode.Parse(json) is not System.Text.Json.Nodes.JsonObject scenario
-                || scenario["groups"] is not System.Text.Json.Nodes.JsonArray groups)
-            {
-                continue;
-            }
-
-            var changed = false;
-            foreach (var group in groups)
-            {
-                if (group?["rules"] is not System.Text.Json.Nodes.JsonArray rules)
-                {
-                    continue;
-                }
-
-                foreach (var rule in rules)
-                {
-                    var oldKey = rule?["prescreenKey"]?.GetValue<string>();
-                    if (oldKey is not null && PrescreenKeyMigrationMap.TryGetValue(oldKey, out var newKey))
-                    {
-                        rule!["prescreenKey"] = newKey;
-                        changed = true;
-                    }
-                }
-            }
-
-            if (!changed)
-            {
-                continue;
-            }
-
-            await using var update = connection.CreateCommand();
-            update.Transaction = transaction;
-            update.CommandText =
-                "UPDATE config_filter_scenario SET definition_json = @json WHERE position = @position;";
-            update.AddWithValue("@json", scenario.ToJsonString(JetJsonStorage.Options));
-            update.AddWithValue("@position", position);
-            await update.ExecuteNonQueryAsync(cancellationToken);
-        }
+        return await ReadVersionAsync(connection, cancellationToken);
     }
 }
 

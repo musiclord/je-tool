@@ -101,7 +101,9 @@ internal static class DemoProjectPipeline
             await host.DispatchAsync("import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new
             {
                 filePath = apFile.GetProperty("filePath").GetString(),
-                fileName = apFile.GetProperty("fileName").GetString()
+                fileName = apFile.GetProperty("fileName").GetString(),
+                // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留原示範流程的測試目的。
+                sourceColumn = "姓名"
             }));
         }
 

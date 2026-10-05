@@ -7,7 +7,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 測試內自含的小型 GL 工作簿 → 正式 file-based 管線（create → import → flag 模式 commit）。
 /// 欄名→mapping key 為固定慣例（與 DemoDataFactory 同名詞彙）；
-/// 「借方旗標」存在時自動補 dcDebitCode="1"。測試逐列宣告資料，無 mystery guest。
+/// 「借方旗標」存在時明示借方為 "1"、貸方為 "0"。測試逐列宣告資料，無 mystery guest。
 /// </summary>
 internal sealed class InlineGlWorkbookBuilder
 {
@@ -102,6 +102,9 @@ internal sealed class InlineGlWorkbookBuilder
         if (mapping.ContainsKey("dcField"))
         {
             mapping["dcDebitCode"] = "1";
+            // R9 requires both codes. Receipt 20261004-100405726 preserves the first failure;
+            // this synthetic fixture has always explicitly used 1/0, so no product fallback is introduced.
+            mapping["dcCreditCode"] = "0";
         }
 
         return mapping;

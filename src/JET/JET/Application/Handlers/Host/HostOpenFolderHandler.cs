@@ -6,7 +6,6 @@ namespace JET.Application;
 /// <summary>揭示目前專案內的正式報告或專案資料夾；wire 不接受任意檔案系統路徑。</summary>
 public sealed class HostOpenFolderHandler(
     IHostShell hostShell,
-    IReportArtifactStore artifactStore,
     IProjectExportLocator projectLocator,
     ProjectSession session) : IApplicationActionHandler
 {
@@ -27,7 +26,7 @@ public sealed class HostOpenFolderHandler(
             throw InvalidTarget();
         }
 
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         if (hasTarget)
         {
             var target = PayloadReader.GetRequiredString(payload, "target");
@@ -46,7 +45,7 @@ public sealed class HostOpenFolderHandler(
         string path;
         try
         {
-            path = await artifactStore.ResolvePathAsync(projectId, artifactId, cancellationToken);
+            path = await repositories.ReportArtifactStore.ResolvePathAsync(projectId, artifactId, cancellationToken);
         }
         catch (JetActionException exception) when (
             exception.Code is JetErrorCodes.FileNotFound or JetErrorCodes.FileReadError)

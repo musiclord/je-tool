@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// GL staging → target 投影（import-stage normalization，guide §1.5.3）：
+/// GL staging → target 投影（import-stage normalization）：
 /// streaming 讀 staging row_json，C# decimal 解析金額後轉 scaled integer，
 /// prepared statement 批次插入。任一列失敗整批 rollback。
 /// 診斷日誌（dev-only）：一次性 clear/select 走 <see cref="DiagnosticDb"/>、transaction 走 scope；
@@ -19,7 +19,6 @@ namespace JET.Infrastructure;
 public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<LocalGlRepository>? logger = null)
     : IGlRepository
 {
-    private const int MaxCollectedErrors = 50;
     private const int ProgressRowInterval = 20_000;
 
     // 診斷 provider 標籤由方言注入（sqlite／duckdb），不再寫死。
@@ -79,7 +78,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             ? null
             : new GlEffectivePopulationMatcher(canonicalPostingStatusPolicy);
 
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         var stopwatch = Stopwatch.StartNew();
 
         await using var connection = database.CreateConnection(projectId);
@@ -97,7 +96,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             await clear.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
         }
 
-        // 重投影改寫 target,既有規則結果失效(plan Phase 1;投影失敗 rollback 時清除一併回退)。
+        // 重投影改寫 target,既有規則結果失效(投影失敗 rollback 時清除一併回退)。
         await RuleRunResultReset.ClearWithinAsync(
             connection,
             transaction,
@@ -118,14 +117,15 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             """;
         select.AddWithValue("@batchId", batchId);
 
-        // 批量列寫入（spec §7）：SQLite 包裝參數化 INSERT（行為凍結）、DuckDB 走 Appender。
+        // 批量列寫入：SQLite 包裝參數化 INSERT、DuckDB 走 Appender。
         // SQL 文本／欄序不變（見 TargetColumns）；entry_id auto-id 由引擎補齊。
         await using var insert = database.CreateBulkRowWriter(connection, transaction, "target_gl_entry", TargetColumns);
 
-        var errors = new List<RowProjectionError>();
-        var totalErrorCount = 0;
+        var errors = new ProjectionErrorCollector();
         var insertedCount = 0;
-        // part(a) 控制總數累計:來源列數（每讀一列 staging）、母體借/貸總額（成功插入後）。
+        // V3：只列一側的人工/自動清單代碼有沒有出現在來源裡，逐列記錄，提交後給不擋的提醒。
+        var manualAutoCodes = new ManualAutoListedCodeAudit(spec);
+        // 完整性測試的匯入控制總數累計:來源列數（每讀一列 staging）、母體借/貸總額（成功插入後）。
         long sourceRowCount = 0;
         long targetDebit = 0;
         long targetCredit = 0;
@@ -169,19 +169,17 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                         cancellationToken,
                         collectRdeValues: false))
                 {
-                    totalErrorCount++;
-                    if (errors.Count < MaxCollectedErrors)
-                    {
-                        errors.Add(error! with { SourceLabel = sourceLabels?.GetValueOrDefault(sourceNo) });
-                    }
+                    errors.Observe(error! with { SourceLabel = sourceLabels?.GetValueOrDefault(sourceNo) });
 
                     continue; // 續掃描以回報多筆錯誤，最終整批 rollback
                 }
 
-                if (totalErrorCount > 0)
+                if (errors.TotalErrorCount > 0)
                 {
                     continue; // 已確定失敗，不再插入
                 }
+
+                manualAutoCodes.Observe(stagingRow);
 
                 // target 的 source_row_number 存批次排序鍵（V3 抽樣基礎；單來源批次時 == 來源列號）。
                 // 值依 TargetColumns 順序對位；null 由寫入器轉 NULL；is_manual 存 1/0/NULL。
@@ -234,17 +232,13 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 }
                 catch (OverflowException)
                 {
-                    totalErrorCount++;
-                    if (errors.Count < MaxCollectedErrors)
+                    errors.Observe(GlRowProjector.CreateControlTotalOverflowError(
+                        stagingRow,
+                        spec,
+                        projected.AmountScaled) with
                     {
-                        errors.Add(GlRowProjector.CreateControlTotalOverflowError(
-                            stagingRow,
-                            spec,
-                            projected.AmountScaled) with
-                        {
-                            SourceLabel = sourceLabels?.GetValueOrDefault(sourceNo)
-                        });
-                    }
+                        SourceLabel = sourceLabels?.GetValueOrDefault(sourceNo)
+                    });
 
                     continue;
                 }
@@ -283,11 +277,11 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             progress?.Invoke(new ProjectionProgress(sourceRowCount));
         }
 
-        if (totalErrorCount > 0)
+        if (errors.TotalErrorCount > 0)
         {
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
-            return new ProjectionResult(0, errors) { TotalErrorCount = totalErrorCount };
+            return errors.FailedResult();
         }
 
         if (effectiveRowCount == 0)
@@ -296,7 +290,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             txLog.RolledBack();
             throw new JetActionException(
                 JetErrorCodes.EmptyEffectivePopulation,
-                "GL 依案件期間與過帳狀態政策篩選後沒有有效分錄；本次投影已全部 rollback。");
+                "依案件的查核期間與過帳狀態設定篩選後，GL 沒有任何有效分錄，這次欄位配對沒有儲存。請檢查案件的查核期間，或過帳狀態的納入值。");
         }
 
         // 退化母體守門:投影無列級錯誤、母體非空,但借貸總額皆為 0(金額欄誤配到傳票總額或空欄)。
@@ -335,7 +329,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             await number.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
         }
 
-        // part(a) 控制總數落地（同一交易、commit 之前;投影失敗已於上方 rollback 回退）。
+        // 完整性測試的匯入控制總數落地（同一交易、commit 之前;投影失敗已於上方 rollback 回退）。
         await using (var ct = connection.CreateCommand())
         {
             ct.Transaction = transaction;
@@ -381,13 +375,14 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             await using (var probe = connection.CreateCommand())
             {
                 probe.Transaction = transaction;
+                var dialect = database.Dialect;
                 probe.CommandText =
-                    """
+                    $"""
                     SELECT
-                      SUM(CASE WHEN document_number IS NOT NULL AND TRIM(document_number) <> '' THEN 1 ELSE 0 END),
-                      SUM(CASE WHEN account_code IS NOT NULL AND TRIM(account_code) <> '' THEN 1 ELSE 0 END),
-                      SUM(CASE WHEN account_name IS NOT NULL AND TRIM(account_name) <> '' THEN 1 ELSE 0 END),
-                      SUM(CASE WHEN document_description IS NOT NULL AND TRIM(document_description) <> '' THEN 1 ELSE 0 END)
+                      SUM(CASE WHEN document_number IS NOT NULL AND {dialect.Trim("document_number")} <> '' THEN 1 ELSE 0 END),
+                      SUM(CASE WHEN account_code IS NOT NULL AND {dialect.Trim("account_code")} <> '' THEN 1 ELSE 0 END),
+                      SUM(CASE WHEN account_name IS NOT NULL AND {dialect.Trim("account_name")} <> '' THEN 1 ELSE 0 END),
+                      SUM(CASE WHEN document_description IS NOT NULL AND {dialect.Trim("document_description")} <> '' THEN 1 ELSE 0 END)
                     FROM target_gl_entry;
                     """;
                 await using var reader = await probe.ExecuteReaderAsync(cancellationToken);
@@ -397,7 +392,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 if (reader.GetInt64(2) == 0) { emptyTextColumns.Add("account_name"); }
                 if (reader.GetInt64(3) == 0) { emptyTextColumns.Add("document_description"); }
             }
-            warnings = GlMappedColumnAudit.Build(spec, emptyTextColumns);
+            warnings = [.. GlMappedColumnAudit.Build(spec, emptyTextColumns), .. manualAutoCodes.Warnings()];
         }
 
         await ReplaceRdeProjectionAsync(

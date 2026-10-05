@@ -5,7 +5,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 診斷日誌的 <see cref="ILoggerProvider"/>（dev-only 註冊;寫入 in-memory ring buffer,實作
-/// <see cref="IDiagnosticLogStore"/> 供 dev.log.export 匯出）。實作 <see cref="ISupportExternalScope"/>:
+/// <see cref="IDiagnosticLogStore"/> 供 dev.log.exportFile 在檔案 sink 不可讀時取用）。實作 <see cref="ISupportExternalScope"/>:
 /// LoggerFactory 注入共享 scope provider,使 ActionDispatcher 開的 correlation scope 跨層（AsyncLocal）
 /// 對所有 logger 可見,不需手動傳遞。Release 不註冊此 provider（log 變 no-op）。
 /// </summary>

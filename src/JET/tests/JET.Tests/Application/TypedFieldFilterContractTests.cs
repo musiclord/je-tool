@@ -28,9 +28,10 @@ public sealed class TypedFieldFilterContractTests
     }
 
     [Fact]
-    public void FilterLogicVersion_CurrentContractIsV16()
+    public void FilterLogicVersion_CurrentContractIsV17()
     {
-        Assert.Equal("filter-2026-09-18-v16", RuleLogicVersions.Filter);
+        // 2026-10-04 R1、R2 改變空白傳票號碼的命中結果，因此推進整份篩選定義的版本。
+        Assert.Equal("filter-2026-10-04-v17", RuleLogicVersions.Filter);
     }
 
     [Fact]
@@ -222,7 +223,8 @@ public sealed class TypedFieldFilterContractTests
             string projectId,
             IReadOnlyList<MaterializableScenario> scenarios,
             FilterRuleContext context,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool replaceAll = true)
         {
             LastContext = context;
             return Task.CompletedTask;
@@ -233,6 +235,10 @@ public sealed class TypedFieldFilterContractTests
     {
         public Task CreateAsync(ProjectDocument created, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
         public Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ProjectDocument>>([document]);

@@ -4,7 +4,7 @@
 
 這份歷史文件保存從現行計畫與開發現況移出的執行紀錄。段落中的「本輪」「下一步」「唯一下一步」及
 驗證數字均指當時狀態，不是目前任務或停止條件。原話、失敗與結果保留，僅調整搬移後的相對連結。
-目前有效的需求、裁定與工作順序請讀[現行計畫](../specs/2026-09-17-user-feedback-and-workflow-review-plan.md)。
+目前有效的需求、裁定與工作順序請讀[現行計畫](specs/2026-09-17-user-feedback-and-workflow-review-plan.md)。
 本檔不新增待辦，也不取代現行計畫。
 
 ## 指定借貸科目與每月日期條件修正（2026-09-18）
@@ -804,7 +804,7 @@ D06、D12、D27、SQL Server 實機與企業多人、audit log 查詢、預篩�
 ## 開發現況入口於整理前的摘要
 
 
-目前唯一現行計畫為[使用者回饋與操作流程一致性修正計畫](../specs/2026-09-17-user-feedback-and-workflow-review-plan.md)。
+目前唯一現行計畫為[使用者回饋與操作流程一致性修正計畫](specs/2026-09-17-user-feedback-and-workflow-review-plan.md)。
 9/18 最新一批已增加欄位條件內的借貸方向，以及每月月初、月底天數。指定科目與方向必須由同一筆分錄
 符合；總帳日和核准日可各自組合日期例外。兩個本機資料庫的固定答案與保存、重開、報表流程已有本次證據，
 完整 Public 3,547 項、十四個 GUI 情境、六份原生 Excel 合成輸出與框架自身 463 項檢查皆通過。
@@ -862,7 +862,7 @@ D25 保留手動開啟資料夾的決定不變。原話、取代關係和交接�
 以下保存各次工作的當時狀態；其中「本輪」「現行計畫」及通過數字指原紀錄，不是 9/17 的驗收結論。
 
 2026-09-09 使用者提出第一步到第四步的操作回饋，要求修正時一併複審程式架構與測試是否留下捷徑。
-當時的現行計畫為 [`建立案件到資料驗證的使用者回饋修正計畫`](../specs/2026-09-09-user-feedback-steps-1-to-4-plan.md)。
+當時的現行計畫為 [`建立案件到資料驗證的使用者回饋修正計畫`](specs/2026-09-09-user-feedback-steps-1-to-4-plan.md)。
 第一批已修正案件的選填資訊與操作人員來源、匯入說明、配對狀態殘留與就地錯誤、攸關資料元素全選、日期名稱，
 以及第四步的說明；`.xlsm` 已沿用唯讀 Open XML 串流讀取並通過對應 Focused 檢查。`.xls`、`.xlsb` 與 Access
 需要不同讀取方式，期初和期末 TB 分檔也需要先裁定按科目連接的規則。人工或自動的補集判定會把拼錯或新出現的
@@ -916,7 +916,7 @@ Codex 與 Claude Desktop Code 共用正式前端和合成預覽；Claude 的啟�
 [`開發指南`](../development-guide.md#前端設計模式) 和 [`Agent 相容方式`](../agent-compatibility.md#前端設計與瀏覽器相容性)。
 
 2026-09-09 使用者確認前端改動驗收通過，並要求更新正式 JET、完整重驗與合併待驗收項目。
-本輪沿用 [`篩選條件收斂與接續修正計畫`](../specs/2026-09-07-filter-convergence-plan.md) 的整合驗證章節。
+本輪沿用 [`篩選條件收斂與接續修正計畫`](specs/2026-09-07-filter-convergence-plan.md) 的整合驗證章節。
 正式前端就是原有 `wwwroot`，本輪已重建 Debug 與 Release，16 個變更檔在兩種輸出共 32 次比對一致。
 Build、Contract、Public 3,453 項、Package 103 項與發行內容檢查、Gui 八個情境、Excel 六份工作簿皆通過，
 Documentation 也通過；收據集中於計畫的整合驗證結果表，保留全部未提交工作樹。
@@ -945,7 +945,7 @@ Documentation 也通過；收據集中於計畫的整合驗證結果表，保留
 完整八個 GUI 情境、Contract 與 Documentation 均通過。正式結果與第一次失敗的證據在現行計畫最前面的研究與整體修正紀錄。
 Annotation 已確認能傳回元件位置與留言，Adjust 尚未完成實際試用；新版介面的實際上手感受仍由使用者試用確認。
 
-[`specs/2026-09-07-filter-convergence-plan.md`](../specs/2026-09-07-filter-convergence-plan.md)：
+[`specs/2026-09-07-filter-convergence-plan.md`](specs/2026-09-07-filter-convergence-plan.md)：
 「篩選條件收斂與接續修正計畫」。2026-09-05 到 06 另一個 agent 依自寫的需求把步驟五篩選做成三態判定
 （分類留白算未分類、列待判定）與情境層排除區域，並擴到變異測試路線與十個 GUI 情境；2026-09-06 使用者
 裁定不退回工作樹，改由主線接續修正。2026-09-07 使用者裁定：移除待判定回到兩值語意（分類留白視為 Others，
@@ -1004,8 +1004,8 @@ Tableau 與 Business Central 官方資料，已改成先選條件看結果，再
 當時完整 GUI 在建立合成案件時逾時，篩選單跑也在首次操作前逾時。後續已確認建立案件的驅動器仍等待舊操作人員欄；
 本輪修正驅動器並完成八個 GUI 情境，焦點修改與目前第一步到第四步的修正都已一起通過。
 
-前一份計畫 [`specs/2026-09-06-filter-workflow-correction-plan.md`](../specs/2026-09-06-filter-workflow-correction-plan.md)
+前一份計畫 [`specs/2026-09-06-filter-workflow-correction-plan.md`](specs/2026-09-06-filter-workflow-correction-plan.md)
 已標為由本計畫接續，它的驗證紀錄（Public 3,408 項等）只證明當時的範圍。再前一份
-[`specs/2026-09-01-frontend-sync-devlog-mutation-plan.md`](../specs/2026-09-01-frontend-sync-devlog-mutation-plan.md)
+[`specs/2026-09-01-frontend-sync-devlog-mutation-plan.md`](specs/2026-09-01-frontend-sync-devlog-mutation-plan.md)
 已完成：使用者 2026-09-05 確認測試環境驗收通過；審計員回報的兩點（編輯過底稿的專案不能重新載入或刪除、
 欄位配對必填檢查偶發失效）對應其第二與第一階段已修正的內容，已於本日以目前版本重測通過。

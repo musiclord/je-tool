@@ -1,57 +1,42 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
 /// <summary>
-/// prescreen.run：預篩選規則以 set-based SQL 執行（manifest Prescreen 章節；
-/// wire key 依 guide §4 命名登錄表）。前置條件→na 由 AuditCore Plan 裁定（guide §5）：
+/// prescreen.run：預篩選規則以 set-based SQL 執行，wire key 見 <see cref="PrescreenRuleKeys"/>。
+/// 前置條件不足時標 na，由 AuditCore 的 Plan 階段決定：
 /// 0 命中也標 na（count 仍回 0）；naReason 只在前置不足時提供。
 /// 完整 response 存 result_rule_run 供 resume。
 /// </summary>
 public sealed class PrescreenRunHandler : IApplicationActionHandler
 {
-    private readonly IPrescreenFactsPort prescreenFactsPort;
-    private readonly IMappingStateStore mappingStore;
-    private readonly ICalendarStore calendarStore;
-    private readonly IAccountMappingStore accountMappingStore;
-    private readonly IAuthorizedPreparerStore authorizedPreparerStore;
-    private readonly IRuleRunStore runStore;
     private readonly IProjectStore projectStore;
     private readonly ProjectSession session;
+    private readonly ILogger? logger;
 
     internal PrescreenRunHandler(
-        IPrescreenFactsPort prescreenFactsPort,
-        IMappingStateStore mappingStore,
-        ICalendarStore calendarStore,
-        IAccountMappingStore accountMappingStore,
-        IAuthorizedPreparerStore authorizedPreparerStore,
-        IRuleRunStore runStore,
         IProjectStore projectStore,
-        ProjectSession session)
+        ProjectSession session, ILogger? logger = null)
     {
-        this.prescreenFactsPort = prescreenFactsPort;
-        this.mappingStore = mappingStore;
-        this.calendarStore = calendarStore;
-        this.accountMappingStore = accountMappingStore;
-        this.authorizedPreparerStore = authorizedPreparerStore;
-        this.runStore = runStore;
         this.projectStore = projectStore;
         this.session = session;
+        this.logger = logger;
     }
 
     public string Action => "prescreen.run";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         await CompletenessEligibilitySupport.RequireCurrentAsync(
-            runStore,
+            repositories.RuleRuns,
             projectId,
             cancellationToken);
 
-        var glMapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
+        var glMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
         JetAuditProgram.RequireGlMapping(glMapping is not null);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
@@ -61,11 +46,11 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                            ?? GlMappingOptions.NormalizeLegacy(glMapping.Mapping).ApprovalDateMode;
         var hasApprovalDate = approvalMode != ApprovalDateModeNames.Unmapped;
         var hasCreatedBy = JetFieldCatalog.HasMappedGlSemanticField(glMapping.Mapping, GlMappingKeys.CreateBy);
-        var hasHolidays = await calendarStore.CountAsync(projectId, CalendarDayType.Holiday, cancellationToken) > 0;
+        var hasHolidays = await repositories.Calendar.CountAsync(projectId, CalendarDayType.Holiday, cancellationToken) > 0;
         var lastPeriodStart = document.LastAccountingPeriodDate;
 
-        var accountMappingState = await accountMappingStore.FindStateAsync(projectId, cancellationToken);
-        var hasAuthorizedPreparers = await authorizedPreparerStore.CountAsync(projectId, cancellationToken) > 0;
+        var accountMappingState = await repositories.AccountMappings.FindStateAsync(projectId, cancellationToken);
+        var hasAuthorizedPreparers = await repositories.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
 
         var runId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
@@ -90,7 +75,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 NonWorkingDays: document.NonWorkingDays,
                 HasVoucherDate: glMapping.Mapping.TryGetValue(GlMappingKeys.VoucherDate, out var voucherSource)
                     && !string.IsNullOrWhiteSpace(voucherSource)));
-        var facts = await JetAuditProgram.ExecuteAsync(plan, prescreenFactsPort, cancellationToken);
+        var facts = await repositories.PrescreenFacts.ExecuteAsync(plan, cancellationToken);
         var prescreen = JetAuditProgram.Finalize(plan, facts);
         var positioning = JetAuditProgram.RenderPrescreenPositioning();
         var runManifest = prescreen.Manifest;
@@ -125,6 +110,8 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
             {
                 status = creatorSummary.Status!,
                 naReason = creatorSummary.NaReason,
+                // V9：creators 最多 50 列；人數用查核期間的完整人數（空白人員算一組），不適用時為 null，不以 0 冒充。
+                totalPreparerCount = creatorSummary.NaReason is null ? facts.TotalPreparerCount : (long?)null,
                 creators = result.Creators.Select(c => new
                 {
                     createdBy = c.CreatedBy,
@@ -138,6 +125,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
             {
                 status = Verdict(runManifest, "rare_accounts").Status!,
                 distinctAccountCount = result.DistinctAccountCount,
+                lowFrequencyAccountCount = result.LowFrequencyDistinctAccountCount,
                 accounts = result.Accounts.Select(a => new
                 {
                     accountCode = a.AccountCode,
@@ -181,7 +169,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         };
 
         var summaryJson = JsonSerializer.Serialize(dto, JetJsonStorage.Options);
-        await runStore.SaveAsync(
+        await repositories.RuleRuns.SaveAsync(
             projectId,
             new RuleRunRecord(runId, RuleRunKinds.Prescreen, generatedUtc, summaryJson),
             CancellationToken.None);
@@ -189,8 +177,8 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         await MappingCommitShared.AdvanceStepAsync(
             projectStore,
             document,
-            ProgramGraph.Current.RequireNode(Action),
-            CancellationToken.None);
+            WorkflowMilestones.For(Action),
+            CancellationToken.None, logger);
 
         using var parsed = JsonDocument.Parse(summaryJson);
         return parsed.RootElement.Clone();

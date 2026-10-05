@@ -39,6 +39,9 @@
 - 欄位：`條件 | 選擇此篩選條件的原因 | 符合條件之傳票數`
 - 條件範例（都是通用範例，對應現行 §4 與 §5 的規則）：未預期借貸組合（`unexpected_account_pair`）、特定的編製或核准人員（由 `creator_summary` 衍生）、週末或假日過帳且要排除補班日（`weekend_posting` 與 `holiday_posting`）、人工分錄、摘要關鍵字（`suspicious_keywords`）。
 
+上句「週末或假日過帳且要排除補班日」是舊摘要，不是這兩個預篩選鍵的現行共同定義。
+現行排除補班日的 KCT I 使用「非營業日（排除補班日）」條件；既有週末與假日條件各自的語意不變，見現行指南第 6 節。
+
 ### Step 4 — 符合高風險條件之分錄測試
 
 - 主表欄位：`編號 | 傳票號碼 | 總帳日期 | 編製者 | 傳票總金額`
@@ -99,6 +102,9 @@
 ## 4. 日期維度篩選 SQL 樣式（已清洗）
 
 上一代用一張 `DATE_DIMENSION` 表來承載各種日期屬性，篩選則靠子查詢的 `IN` 和 `NOT IN` 組出來。這對應到現行的 DateDimension（欄位 `IsWeekend`、`IsHoliday`、`IsMakeupDay`，見 [`../docs/jet-guide.md`](../docs/jet-guide.md) §2），以及週末和假日規則（排除補班日，見 §5）；精確歷史章節是完整來源指南 §2.4。
+
+這段「週末和假日規則（排除補班日）」也是舊摘要。下面保留的是歷史 SQL 樣式，不能由它推定現行所有週末或假日規則都排除補班日。
+現行 KCT I 與既有預篩選鍵的差異，以現行指南第 6 節為準。
 
 - 總帳/核准日期在週末:`CDate([PostDate]) IN (SELECT [DateKey] FROM DATE_DIMENSION WHERE [IsWeekend] = True)`。
 - 在國定假日:`... WHERE [IsHolidays] = True`。

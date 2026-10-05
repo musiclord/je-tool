@@ -150,7 +150,8 @@ public sealed class CompletenessEligibilitySupportTests
         var eligibility = CompletenessEligibilitySupport.ToWireSummary(run)
             .GetProperty("completenessTest").GetProperty("eligibility");
         Assert.True(eligibility.GetProperty("isEligible").GetBoolean());
-        Assert.Contains("控制總數", eligibility.GetProperty("warning").GetString());
+        // 2026-10-05 V2 裁定：提醒照實說明比對的是確認配對時算出的數字，不再用「控制總數」這個術語。
+        Assert.Contains("沒有確認欄位配對時算出的數字", eligibility.GetProperty("warning").GetString());
     }
 
     private static JsonObject CurrentSummaryNode() =>

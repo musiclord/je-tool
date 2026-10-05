@@ -3,7 +3,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 依副檔名分派到對應的表格讀取器。.xlsx 和 .xlsm 使用 Open XML SAX，.csv 和 .txt 使用 CSV。
+/// 依副檔名分派讀取器：.xlsx 和 .xlsm 使用 Open XML SAX，.xls 使用 BinaryExcel，
+/// .csv 和 .txt 使用 CSV，.mdb 和 .accdb 使用主機既有的 Access ACE。
 /// 組裝於 AppCompositionRoot；handler 只認 ITabularFileReader。
 /// </summary>
 public sealed class CompositeTabularFileReader(params ITabularFileReader[] readers) : ITabularFileReader

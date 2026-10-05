@@ -62,7 +62,9 @@ public sealed class TypedFilterFrontendTests
     public void Builder_DerivesInputShapeFromTheCommittedFieldType()
     {
         var filter = ReadFrontend("js", "steps", "filter-step.js");
-        var controls = ExtractFunction(filter, "ruleControlsHtml", "ruleSummaryLabel");
+        // L58 now calls ruleSummaryLabel inside controls; delimit by the following declaration, not an earlier call.
+        // First failure: 20261004-093913331-b4376ac7ce5a4ffa8603dbedf49b0cc2.
+        var controls = ExtractFunction(filter, "ruleControlsHtml", "function ruleSummaryLabel");
         var typedCase = ExtractSwitchCase(controls, "typed");
 
         // 欄位清單只來自已提交的定義；型別決定 operator 選單與輸入框種類。
@@ -113,7 +115,9 @@ public sealed class TypedFilterFrontendTests
         Assert.Contains("function hasIncompleteTypedRule(draft)", filter, StringComparison.Ordinal);
         Assert.Contains("rule.type === 'typed' && (!rule.fieldId || !rule.operator)", filter, StringComparison.Ordinal);
         Assert.Contains("rule.values.length > Ui.TYPED_SET_MAX_VALUES", filter, StringComparison.Ordinal);
-        Assert.Contains("'額外欄位條件需選定欄位與比較方式'", filter, StringComparison.Ordinal);
+        // 2026-10-03 用語統一 T2：「額外欄位」改為「攸關資料元素欄位」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        Assert.Contains("'攸關資料元素欄位條件需選定欄位與比較方式'", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("'額外欄位條件需選定欄位與比較方式'", filter, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -124,7 +128,9 @@ public sealed class TypedFilterFrontendTests
 
         Assert.Contains("requiresRdeFields: true", core, StringComparison.Ordinal);
         Assert.Contains("(!t.requiresRdeFields || hasRdeFields)", filter, StringComparison.Ordinal);
-        Assert.Contains("'需先在欄位配對勾選額外欄位'", filter, StringComparison.Ordinal);
+        // 2026-10-03 用語統一 T2：「額外欄位」改為「攸關資料元素欄位」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        Assert.Contains("'需先在欄位配對勾選攸關資料元素欄位'", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("'需先在欄位配對勾選額外欄位'", filter, StringComparison.Ordinal);
     }
 
     [Fact]

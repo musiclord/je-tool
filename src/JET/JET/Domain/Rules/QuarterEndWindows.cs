@@ -5,7 +5,7 @@ namespace JET.Domain;
 /// 給定查核期間與天數 X，列出各曆年季底（3/31、6/30、9/30、12/31）前 X 天
 /// （含季底當日，即季底回推 X−1 天）的日期視窗；只保留與查核期間有交集的視窗。
 /// 回傳 ISO yyyy-MM-dd 邊界字串，由 Infrastructure 以參數綁定組成 OR 述詞
-/// （SQL 識別字不來自此處，符合 guide §1.5.2 參數化要求）。日期邏輯純 C#、provider 無關。
+/// （SQL 識別字不來自此處，使用者值只進參數）。日期邏輯純 C#、provider 無關。
 /// </summary>
 public static class QuarterEndWindows
 {

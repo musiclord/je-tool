@@ -11,12 +11,12 @@ namespace JET.Infrastructure;
 /// <summary>
 /// 串流投影 reader:包住 staging 的 <see cref="DbDataReader"/>,逐列 deserialize row_json →
 /// <see cref="GlRowProjector.TryProject"/>。成功列以 target_gl_entry 的 19 欄(不含 IDENTITY 的
-/// entry_id)曝給 <see cref="SqlBulkCopy"/>;失敗列記錄 <see cref="RowProjectionError"/>(上限 50、
-/// 附來源標籤)並跳過續掃。語意對齊 LocalGlRepository:一旦出現錯誤即停止產出列(最終整批 rollback)。
+/// entry_id)曝給 <see cref="SqlBulkCopy"/>；失敗列完整計數並彙總，只保存有界值與列號樣本。
+/// 語意對齊 LocalGlRepository：一旦出現錯誤即停止產出列，仍掃描其餘來源，最終整批 rollback。
 /// </summary>
 internal sealed class GlProjectionDataReader : DbDataReader
 {
-    private const int MaxCollectedErrors = 50;
+    private readonly ProjectionErrorCollector errorCollector = new();
 
     public static readonly string[] ColumnNames =
     [
@@ -115,15 +115,21 @@ internal sealed class GlProjectionDataReader : DbDataReader
         _cancellationToken = cancellationToken;
         _progress = progress;
         _progressRowInterval = progressRowInterval;
+        ManualAutoCodes = new ManualAutoListedCodeAudit(spec);
     }
 
-    public List<RowProjectionError> Errors { get; } = [];
+    public IReadOnlyList<RowProjectionError> Errors => errorCollector.Samples;
 
-    public int TotalErrorCount { get; private set; }
+    public int TotalErrorCount => errorCollector.TotalErrorCount;
+
+    internal ProjectionResult FailedResult() => errorCollector.FailedResult();
 
     public int ValidRowCount { get; private set; }
 
-    // part(a) 控制總數累計（與 SQLite 逐列累計等價;SqlBulkCopy 串流時於 Read 內累加）。
+    // V3：只列一側的人工/自動清單代碼有沒有出現在來源裡（與 SQLite、DuckDB 同一份判斷）。
+    public ManualAutoListedCodeAudit ManualAutoCodes { get; }
+
+    // 完整性測試的匯入控制總數累計（與 SQLite 逐列累計等價;SqlBulkCopy 串流時於 Read 內累加）。
     public long SourceRowCount { get; private set; }
 
     public long TotalDebitScaled { get; private set; }
@@ -169,11 +175,7 @@ internal sealed class GlProjectionDataReader : DbDataReader
                     _cancellationToken,
                     collectRdeValues: false))
             {
-                TotalErrorCount++;
-                if (Errors.Count < MaxCollectedErrors)
-                {
-                    Errors.Add(error! with { SourceLabel = _sourceLabels?.GetValueOrDefault(sourceNo) });
-                }
+                errorCollector.Observe(error! with { SourceLabel = _sourceLabels?.GetValueOrDefault(sourceNo) });
 
                 continue; // 續掃以蒐集多筆錯誤,最終整批 rollback
             }
@@ -182,6 +184,8 @@ internal sealed class GlProjectionDataReader : DbDataReader
             {
                 continue; // 已確定失敗,不再產出列(與 SQLite 一致)
             }
+
+            ManualAutoCodes.Observe(stagingRow);
 
             var postDate = projected!.PostDate is null
                 ? (DateOnly?)null
@@ -213,17 +217,13 @@ internal sealed class GlProjectionDataReader : DbDataReader
             }
             catch (OverflowException)
             {
-                TotalErrorCount++;
-                if (Errors.Count < MaxCollectedErrors)
+                errorCollector.Observe(GlRowProjector.CreateControlTotalOverflowError(
+                    stagingRow,
+                    _spec,
+                    projected.AmountScaled) with
                 {
-                    Errors.Add(GlRowProjector.CreateControlTotalOverflowError(
-                        stagingRow,
-                        _spec,
-                        projected.AmountScaled) with
-                    {
-                        SourceLabel = _sourceLabels?.GetValueOrDefault(sourceNo)
-                    });
-                }
+                    SourceLabel = _sourceLabels?.GetValueOrDefault(sourceNo)
+                });
 
                 continue;
             }

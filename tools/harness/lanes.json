@@ -135,8 +135,8 @@
       {
         "name": "mapping-required-sync",
         "timeoutSeconds": 180,
-        "actionBudget": 70,
-        "expectedActionCount": 64,
+        "actionBudget": 76,
+        "expectedActionCount": 74,
         "screenshotBudget": 0
       },
       {
@@ -149,36 +149,36 @@
       {
         "name": "approval-mapping-modes",
         "timeoutSeconds": 240,
-        "actionBudget": 47,
-        "expectedActionCount": 47,
+        "actionBudget": 49,
+        "expectedActionCount": 49,
         "screenshotBudget": 1
       },
       {
         "name": "validation-auto-outputs",
         "timeoutSeconds": 240,
         "actionBudget": 8,
-        "expectedActionCount": 5,
+        "expectedActionCount": 6,
         "screenshotBudget": 1
       },
       {
         "name": "filter-auditor-journey",
         "timeoutSeconds": 240,
-        "actionBudget": 96,
-        "expectedActionCount": 96,
+        "actionBudget": 99,
+        "expectedActionCount": 99,
         "screenshotBudget": 2
       },
       {
         "name": "filter-kct-editing",
         "timeoutSeconds": 240,
-        "actionBudget": 70,
-        "expectedActionCount": 70,
+        "actionBudget": 88,
+        "expectedActionCount": 88,
         "screenshotBudget": 1
       },
       {
         "name": "feedback-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 52,
-        "expectedActionCount": 52,
+        "actionBudget": 82,
+        "expectedActionCount": 82,
         "screenshotBudget": 2
       },
       {
@@ -205,29 +205,29 @@
       {
         "name": "extended-conditions",
         "timeoutSeconds": 240,
-        "actionBudget": 96,
-        "expectedActionCount": 95,
+        "actionBudget": 102,
+        "expectedActionCount": 101,
         "screenshotBudget": 2
       },
       {
         "name": "side-month-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 76,
-        "expectedActionCount": 76,
+        "actionBudget": 79,
+        "expectedActionCount": 79,
         "screenshotBudget": 2
       },
       {
         "name": "nested-voucher-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 80,
-        "expectedActionCount": 80,
+        "actionBudget": 83,
+        "expectedActionCount": 83,
         "screenshotBudget": 2
       },
       {
         "name": "legacy-form-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 55,
-        "expectedActionCount": 55,
+        "actionBudget": 60,
+        "expectedActionCount": 60,
         "screenshotBudget": 2
       },
       {
@@ -261,7 +261,6 @@
     "policy": "tools/harness/documentation-check.json"
   },
   "releaseCandidateSettings": {
-    "candidateManifest": "docs/first-root-commit-candidate.txt",
     "snapshotWorkspaceRoot": "artifacts/harness/rc",
     "privateCaseIncluded": false,
     "liveProviderIncluded": false,

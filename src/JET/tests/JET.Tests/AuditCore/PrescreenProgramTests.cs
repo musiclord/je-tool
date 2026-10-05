@@ -28,19 +28,6 @@ public sealed class PrescreenProgramTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_PassesTypedPlanToFactsPortWithoutLoss()
-    {
-        var plan = JetAuditProgram.Plan(Request());
-        var expectedFacts = Facts();
-        var port = new RecordingFactsPort(expectedFacts);
-
-        var actual = await JetAuditProgram.ExecuteAsync(plan, port, CancellationToken.None);
-
-        Assert.Same(plan, port.Plan);
-        Assert.Same(expectedFacts, actual);
-    }
-
-    [Fact]
     public void Finalize_MissingDependencies_DiscardsSkippedRawFactsAndPreservesPrecedence()
     {
         var plan = JetAuditProgram.Plan(Request(
@@ -258,16 +245,6 @@ public sealed class PrescreenProgramTests
         Assert.Null(result.Concentration.Preparers);
     }
 
-    [Fact]
-    public void Explain_TypedResult_ReusesExistingReviewManifestText()
-    {
-        var result = JetAuditProgram.Finalize(
-            JetAuditProgram.Plan(Request()),
-            Facts());
-
-        Assert.Equal(JetAuditProgram.Explain(result.Manifest), JetAuditProgram.Explain(result));
-    }
-
     private static PrescreenRequest Request(
         bool hasApprovalDate = true,
         bool hasCreatedBy = true,
@@ -363,18 +340,5 @@ public sealed class PrescreenProgramTests
         Assert.Equal("na", verdict.Status);
         Assert.Equal(0L, verdict.Count);
         Assert.Equal(expectedReason, verdict.NaReason);
-    }
-
-    private sealed class RecordingFactsPort(PrescreenFacts result) : IPrescreenFactsPort
-    {
-        public PrescreenPlan? Plan { get; private set; }
-
-        public Task<PrescreenFacts> ExecuteAsync(
-            PrescreenPlan plan,
-            CancellationToken cancellationToken)
-        {
-            Plan = plan;
-            return Task.FromResult(result);
-        }
     }
 }

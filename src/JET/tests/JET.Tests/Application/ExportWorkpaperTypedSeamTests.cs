@@ -14,7 +14,14 @@ namespace JET.Tests.Application;
 public sealed class ExportWorkpaperTypedSeamTests
 {
     [Fact]
-    public async Task SolePath_RunsTypedLifecycleAndWriterAfterLazyStaleRefresh()
+    public Task SolePath_RunsTypedLifecycleAndWriterAfterLazyStaleRefresh() =>
+        VerifyTypedLifecycleAsync(rejectUnusedPrepublicationCatalog: false);
+
+    [Fact]
+    public Task UnusedPrepublicationCatalogRead_CannotPreventWorkingPaperPublication() =>
+        VerifyTypedLifecycleAsync(rejectUnusedPrepublicationCatalog: true);
+
+    private static async Task VerifyTypedLifecycleAsync(bool rejectUnusedPrepublicationCatalog)
     {
         const string projectId = "typed-workpaper-export";
         const string validationRunId = "validation-current";
@@ -51,22 +58,26 @@ public sealed class ExportWorkpaperTypedSeamTests
                 savedUtc),
             StaleWorkingPaper(savedUtc),
             order,
-            cancellation);
+            cancellation,
+            rejectUnusedPrepublicationCatalog);
+        // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 repository，
+        // 原本逐一傳給建構式的替身改放進資料庫組後再進入 session。
         var session = new ProjectSession();
-        session.Enter(projectId);
-        var handler = new ExportWorkpaperStreamHandler(
-            writer,
-            factsPort,
-            scenarios,
-            materializeService,
-            runs,
-            new FixedResultStaleStateStore(Filter: false),
-            projectStore,
-            artifactStore,
-            session,
-            new NullEventPublisher(),
-            new FixedMetadataMappingStore(),
-            new BuiltInAccountTaxonomyStore());
+        session.Enter(
+            projectId,
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                WorkpaperPlanWriter = writer,
+                WorkpaperPlanningFacts = factsPort,
+                FilterScenarios = scenarios,
+                FilterRunMaterializeService = materializeService,
+                RuleRuns = runs,
+                ResultStaleStates = new FixedResultStaleStateStore(Filter: false),
+                ReportArtifactStore = artifactStore,
+                MappingStates = new FixedMetadataMappingStore(),
+                AccountTaxonomy = new BuiltInAccountTaxonomyStore(),
+            });
+        var handler = new ExportWorkpaperStreamHandler(projectStore, session, new NullEventPublisher());
         using var payload = JsonDocument.Parse(
             $$"""
             {
@@ -84,18 +95,20 @@ public sealed class ExportWorkpaperTypedSeamTests
         Assert.Equal(1, factsPort.Calls);
         Assert.False(factsPort.InitialPlan?.IsFinalized);
         Assert.True(writer.Plan?.IsFinalized);
+        // 第9批高3；Public首敗101806919-e8b6a1be3d8b4bd3b5bbe7349a92eddc：發布後須再重判全部索引。
+        // 保留writer先完成、最後才刷新，以及發布前不讀清單的完整順序與次數斷言。
         Assert.Equal(
-            new[] { "stale-refresh", "materialize", "facts", "typed-writer" },
+            new[] { "stale-refresh", "materialize", "facts", "typed-writer", "stale-refresh" },
             order);
 
-        Assert.Equal(1, artifactStore.MarkStaleCalls);
+        Assert.Equal(2, artifactStore.MarkStaleCalls);
         Assert.False(artifactStore.CriteriaWasMarkedStale);
         Assert.True(artifactStore.OldWorkingPaperWasMarkedStale);
-        Assert.Equal(2, artifactStore.ListCalls);
-        Assert.Equal(new[] { "source-catalog", "published", "response-catalog" }, artifactStore.CatalogOrder);
-        Assert.Equal(2, artifactStore.CatalogArtifactIds.Count);
-        Assert.Equal(new[] { "criteria-current", "working-paper-old" }, artifactStore.CatalogArtifactIds[0]);
-        Assert.Equal(new[] { "criteria-current", "working-paper-old", "working-paper-current" }, artifactStore.CatalogArtifactIds[1]);
+        // 不再需要 Criteria 檔作為底稿前置，發布前的清單回傳也沒有消費者。
+        // 改驗只在發布後刷新清單；過期標記、完整typed計算與已發布內容的斷言仍保留。
+        Assert.Equal(1, artifactStore.ListCalls);
+        Assert.Equal(new[] { "published", "response-catalog" }, artifactStore.CatalogOrder);
+        Assert.Equal(new[] { "criteria-current", "working-paper-old", "working-paper-current" }, Assert.Single(artifactStore.CatalogArtifactIds));
         var data = JsonSerializer.SerializeToElement(response, JetJsonStorage.Options);
         var catalog = data.GetProperty("reportArtifacts");
         Assert.Equal(new[] { "criteria-current", "working-paper-old", "working-paper-current" }, catalog.EnumerateArray()
@@ -217,7 +230,8 @@ public sealed class ExportWorkpaperTypedSeamTests
                 validationRunId,
                 prescreenRunId,
                 revision,
-                [1]),
+                // 第9批高3：這是刻意保持current的fixture，明示與FixedResultStaleStateStore相同來源版本；舊報告缺版本另有固定stale測試。
+                [1], FilterDataRevision: "synthetic-filter-data-revision"),
             generatedUtc,
             1,
             LastWriteUtc: null,
@@ -328,7 +342,8 @@ public sealed class ExportWorkpaperTypedSeamTests
             string projectId,
             IReadOnlyList<MaterializableScenario> scenarios,
             FilterRuleContext context,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool replaceAll = true)
         {
             order.Add("materialize");
             Assert.Equal("typed-workpaper-export", projectId);
@@ -377,6 +392,10 @@ public sealed class ExportWorkpaperTypedSeamTests
 
     private sealed class FixedResultStaleStateStore(bool Filter) : IResultStaleStateStore
     {
+        public Task InvalidateForPreparationDateChangeAsync(string projectId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken) =>
+            Task.FromResult("synthetic-filter-data-revision");
         public Task<AuditResultStaleState> ReadAsync(
             string projectId,
             CancellationToken cancellationToken) =>
@@ -392,6 +411,10 @@ public sealed class ExportWorkpaperTypedSeamTests
             ProjectDocument created,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
         public Task<IReadOnlyList<ProjectDocument>> ListAsync(
             CancellationToken cancellationToken) =>
@@ -418,7 +441,8 @@ public sealed class ExportWorkpaperTypedSeamTests
         ReportArtifact criteria,
         ReportArtifact oldWorkingPaper,
         List<string> order,
-        CancellationTokenSource operationCancellation) : IReportArtifactStore
+        CancellationTokenSource operationCancellation,
+        bool rejectUnusedPrepublicationCatalog) : IReportArtifactStore
     {
         private ReportArtifact[] artifacts = [criteria, oldWorkingPaper];
 
@@ -442,7 +466,7 @@ public sealed class ExportWorkpaperTypedSeamTests
         {
             Assert.Equal(expectedProjectId, projectId);
             Assert.Equal(operationCancellation.Token, cancellationToken);
-            Assert.Equal(new[] { "source-catalog" }, CatalogOrder);
+            Assert.Empty(CatalogOrder);
             WorkingPaperRequest = request;
             await using var output = new MemoryStream();
             await request.WriteContentAsync(output, cancellationToken);
@@ -476,6 +500,8 @@ public sealed class ExportWorkpaperTypedSeamTests
             ListCalls++;
             if (!_published)
             {
+                if (rejectUnusedPrepublicationCatalog)
+                    throw new IOException("synthetic optional prepublication catalog read failed");
                 Assert.Equal(1, ListCalls);
                 Assert.Equal(operationCancellation.Token, cancellationToken);
                 Assert.False(cancellationToken.IsCancellationRequested);
@@ -484,11 +510,14 @@ public sealed class ExportWorkpaperTypedSeamTests
             }
             else
             {
-                Assert.Equal(2, ListCalls);
+                Assert.Equal(1, ListCalls);
                 Assert.True(operationCancellation.IsCancellationRequested);
-                Assert.Equal(CancellationToken.None, cancellationToken);
-                Assert.Equal(new[] { "stale-refresh", "materialize", "facts", "typed-writer" }, order);
-                Assert.Equal(new[] { "source-catalog", "published" }, CatalogOrder);
+                // 發布後清單有自己的短期限；使用者的晚到取消不得傳入此刷新。
+                Assert.True(cancellationToken.CanBeCanceled);
+                Assert.False(cancellationToken.IsCancellationRequested);
+                // 第9批高3，發布後清單要在第二次來源重判之後；其餘取消與發布順序斷言保留。
+                Assert.Equal(new[] { "stale-refresh", "materialize", "facts", "typed-writer", "stale-refresh" }, order);
+                Assert.Equal(new[] { "published" }, CatalogOrder);
                 CatalogOrder.Add("response-catalog");
             }
             CatalogArtifactIds.Add(artifacts.Select(artifact => artifact.ArtifactId).ToArray());

@@ -1,7 +1,7 @@
 namespace JET.AuditCore;
 
 /// <summary>
-/// SQL 方言縫隙（guide §13）：只收錄引擎間「確實不同」的片段——
+/// SQL 方言縫隙：只收錄引擎間「確實不同」的片段——
 /// 週末判定（SQLite strftime ↔ SQL Server DATEPART）、不分大小寫包含
 /// （instr ↔ CHARINDEX）、主單位整數商、參數命名。取模、ABS、EXISTS、ISO 日期字串比較
 /// 皆共通，不進介面。新增 provider = 新增一個 ISqlDialect 實作
@@ -18,6 +18,13 @@ public interface ISqlDialect
 
     /// <summary>columnExpr 不分大小寫包含 parameterName 參數值（NULL 以空字串參與）。</summary>
     string ContainsIgnoreCase(string columnExpr, string parameterName);
+
+    /// <summary>
+    /// 去掉 expr 頭尾的空白字元，字元集合是 .NET <c>string.Trim()</c> 的集合（<see cref="JET.Domain.TextWhitespace"/>）：
+    /// 半形空白、Tab、換行、全形空白、不換行空格等。各引擎原生 TRIM 去的字元不同（SQLite 只去半形空白，DuckDB 不去 Tab），
+    /// 所以判斷空白、比較文字與分組都必須經過這裡，兩個本地資料庫與 SQL Server 才會給相同答案。
+    /// </summary>
+    string Trim(string expr);
 
     /// <summary>
     /// 非負整數 dividend 除以正整數 divisor 的向零整數商。DuckDB 的 <c>/</c> 會回浮點，

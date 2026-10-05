@@ -6,12 +6,20 @@ public sealed class LocalRuleRunStore(ILocalProjectDatabase database) : IRuleRun
 {
     public async Task SaveAsync(string projectId, RuleRunRecord record, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
+        await SaveWithinAsync(connection, transaction, record, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(CancellationToken.None);
+    }
+
+    internal static async Task SaveWithinAsync(System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction, RuleRunRecord record, CancellationToken cancellationToken)
+    {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
@@ -31,9 +39,6 @@ public sealed class LocalRuleRunStore(ILocalProjectDatabase database) : IRuleRun
             record.RunKind,
             cancellationToken,
             schemaPrefix: string.Empty);
-
-        cancellationToken.ThrowIfCancellationRequested();
-        await transaction.CommitAsync(CancellationToken.None);
     }
 
     public async Task<RuleRunRecord?> FindLatestAsync(
@@ -41,7 +46,7 @@ public sealed class LocalRuleRunStore(ILocalProjectDatabase database) : IRuleRun
         string runKind,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);

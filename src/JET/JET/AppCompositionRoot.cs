@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace JET;
 
-public static class AppCompositionRoot
+public static partial class AppCompositionRoot
 {
     /// <summary>診斷日誌 ring buffer 容量（dev-only;滿則覆寫最舊）。</summary>
     private const int DiagnosticLogCapacity = 10_000;
@@ -138,47 +138,39 @@ public static class AppCompositionRoot
         // 測試固定使用隔離資料庫；正式程式從 Sql:Database 取得資料庫名稱。兩者都沒有設定時使用 JET。
         // SQL Server provider 會以這個名稱覆寫連線字串中的 InitialCatalog；本機 provider 不受影響。
         var singleDatabaseName = singleDatabaseNameOverride ?? config["Sql:Database"] ?? "JET";
-        // master 依賴最小化（控制面第四輪 §4）：AssumeDatabaseExists=true 時所有存在性/就緒檢查跳過 master
+        // 盡量不依賴 master：AssumeDatabaseExists=true 時所有存在性/就緒檢查跳過 master
         // （庫由 DBA 預建,供 jetapp 無 master 權限的鎖定環境）。預設 false（沿用「開啟即建庫」）。
         var assumeDatabaseExists = bool.TryParse(config["Sql:AssumeDatabaseExists"], out var assume) && assume;
         var sqlServerConnectionOptions =
             new SqlServerConnectionOptions(sqlServerConnString, singleDatabaseName, assumeDatabaseExists);
         var sqlServerDatabase = new SqlServerProjectDatabase(sqlServerConnectionOptions);
-        var providerResolver = new ProjectProviderResolver(projectStore);
-        // dbo.app_config 跨專案系統設定 store（隨控制面 bootstrap 建表,控制面第四輪 §3）：控制面第六輪的消費者
-        // ——專案租約鎖的心跳（project.load 讀）／逾時（SqlServerLockService 取鎖讀）參數存此、缺鍵回程式常數。
+        // dbo.app_config 跨專案系統設定 store，與其他 dbo 管理表一起建表。
+        // 專案租約鎖的心跳（project.load 讀）與逾時（SqlServerLockService 取鎖讀）參數存此，缺鍵時回程式常數。
         var appConfigStore = new SqlServerAppConfigStore(sqlServerConnectionOptions);
 
         // 專案工作鎖：SQL Server 維持租約表＋心跳；SQLite／DuckDB 共用同一個跨程序檔案鎖實例。
         // 本地鎖 handle 由 runtime 擁有，關窗／測試 host dispose 時一定釋放。
         var localFileLockService = new LocalFileLockService(folder);
-        var lockService = new ProviderRoutingLockService(
-            providerResolver,
-            localFileLockService,
-            new SqlServerLockService(sqlServerConnectionOptions, appConfigStore),
-            localFileLockService);
+        var sqlServerLockService = new SqlServerLockService(sqlServerConnectionOptions, appConfigStore);
         // 刪案互斥只對本地 provider 取同一把檔案鎖；SQL Server 維持既有刪案交易內清租約，
         // 不把本地 hardening 擴張成線上 maintenance lease／principal／fencing 變更。
-        var deletionLockService = new ProviderRoutingProjectDeletionLockService(
-            providerResolver,
-            localFileLockService,
-            new NoOpProjectDeletionLockService(),
-            localFileLockService);
+        var sqlServerDeletionLockService = new NoOpProjectDeletionLockService();
 
-        // 線上專案登記簿(雙來源雛形 2026-07-07):天生只屬 sqlServer、不走 ProviderRouting;持有同一組單庫連線設定。
+        // 線上專案登記簿只屬 sqlServer，不在資料庫組裡；持有同一組單庫連線設定。
         // 連線未設定的環境不在組裝期爆炸(惰性)——失敗留到使用時(list 降級、create/load 明確錯誤)。
         var projectRegistry = new SqlServerProjectRegistry(sqlServerConnectionOptions);
         IProjectRegistry projectListRegistry = projectRegistry;
-        ILockService projectListLockService = lockService;
+        // project.list 的持鎖者清單只存在 SQL Server 租約表（本機檔案鎖不列清單），直接用 SQL Server 的鎖服務。
+        ILockService projectListLockService = sqlServerLockService;
 #if JET_AGENT_GUI_TEST
         if (agentGuiTestFixtures is not null)
         {
             (projectListRegistry, projectListLockService) =
-                agentGuiTestFixtures.SelectProjectListDependencies(projectRegistry, lockService);
+                agentGuiTestFixtures.SelectProjectListDependencies(projectRegistry, sqlServerLockService);
         }
 #endif
-        // 當前身分:client 自報的合格化 Windows 帳號(網域\帳號),由 QualifiedWindowsName() 以 WindowsIdentity 取得
-        // (spec §1;取代雛形的裸 Environment.UserName——共用單庫時避免不同機器的同名本機帳號被誤併)。
+        // 操作人員使用執行主機的 Windows 帳號，不接受前端 operatorId 覆寫。
+        // 保留網域或機器名稱，避免不同主機的同名本機帳號被合併；目前不另設企業認證前置。
         // 測試以 principalName 覆寫成隔離身分,避免共用 JET_Test 登記簿的跨測試可見性汙染。
         var currentPrincipal = new CurrentPrincipal(principalName ?? QualifiedWindowsName());
         // 線上單庫使用者目錄(dbo.app_user):發使用者編號、記錄「誰來過」,名單授權基座;天生只屬 sqlServer,持同一組單庫連線設定。
@@ -215,7 +207,7 @@ public static class AppCompositionRoot
             logger: loggerFactory.CreateLogger<ProjectReportArtifactStore>());
         var runtimeResources = new RuntimeOwnedResources(loggerFactory, localFileLockService);
 
-        // 啟動健康檢查（非阻斷、Task 9）：SQL Server 已設定（base 連線字串非空）時，連一次 master
+        // 啟動健康檢查（非阻斷）：SQL Server 已設定（base 連線字串非空）時，連一次 master
         // 跑 SELECT @@VERSION, DB_NAME(), SUSER_SNAME() 並把去敏結果寫進啟動日誌。連 master（而非單庫
         // JET）避免「庫尚未建立」誤判失敗。失敗只記日誌、不丟例外、不中止 dispatcher——純 SQLite
         // 使用者（未設定 SQL Server）整段略過。ProbeAsync 已把例外收斂成去敏 HealthResult，訊息永不含密碼。
@@ -244,260 +236,30 @@ public static class AppCompositionRoot
         JetApplicationRuntime? runtime = null;
         try
         {
-            var databaseInitializer = new ProviderRoutingProjectDatabaseInitializer(
-                providerResolver, sqliteDatabase, sqlServerDatabase, duckDbDatabase);
-            var databaseDeleter = new ProviderRoutingProjectDatabaseDeleter(
-                providerResolver, sqliteDatabase, sqlServerDatabase, duckDbDatabase);
-            var importRepository = new ProviderRoutingImportRepository(
-                providerResolver,
-                new LocalImportRepository(sqliteDatabase, loggerFactory.CreateLogger<LocalImportRepository>()),
-                new SqlServerImportRepository(sqlServerDatabase, loggerFactory.CreateLogger<SqlServerImportRepository>()),
-                new LocalImportRepository(duckDbDatabase, loggerFactory.CreateLogger<LocalImportRepository>()));
-            var glRepository = new ProviderRoutingGlRepository(
-                providerResolver,
-                new LocalGlRepository(sqliteDatabase, loggerFactory.CreateLogger<LocalGlRepository>()),
-                new SqlServerGlRepository(sqlServerDatabase, loggerFactory.CreateLogger<SqlServerGlRepository>()),
-                new LocalGlRepository(duckDbDatabase, loggerFactory.CreateLogger<LocalGlRepository>()));
-            var tbRepository = new ProviderRoutingTbRepository(
-                providerResolver,
-                new LocalTbRepository(sqliteDatabase, loggerFactory.CreateLogger<LocalTbRepository>()),
-                new SqlServerTbRepository(sqlServerDatabase, loggerFactory.CreateLogger<SqlServerTbRepository>()),
-                new LocalTbRepository(duckDbDatabase, loggerFactory.CreateLogger<LocalTbRepository>()));
-            var mappingStore = new ProviderRoutingMappingStateStore(
-                providerResolver, new LocalMappingStateStore(sqliteDatabase), new SqlServerMappingStateStore(sqlServerDatabase),
-                new LocalMappingStateStore(duckDbDatabase));
-            var mappingValueProfileRepository = new ProviderRoutingMappingValueProfileRepository(
-                providerResolver,
-                new LocalMappingValueProfileRepository(sqliteDatabase),
-                new SqlServerMappingValueProfileRepository(sqlServerDatabase),
-                new LocalMappingValueProfileRepository(duckDbDatabase));
-            var accountTaxonomyStore = new ProviderRoutingAccountTaxonomyStore(
-                providerResolver,
-                new LocalAccountTaxonomyStore(sqliteDatabase),
-                new SqlServerAccountTaxonomyStore(sqlServerDatabase),
-                new LocalAccountTaxonomyStore(duckDbDatabase));
-            var resultStaleStateStore = new ProviderRoutingResultStaleStateStore(
-                providerResolver,
-                new LocalResultStaleStateStore(sqliteDatabase),
-                new SqlServerResultStaleStateStore(sqlServerDatabase),
-                new LocalResultStaleStateStore(duckDbDatabase));
-            var calendarStore = new ProviderRoutingCalendarStore(
-                providerResolver, new LocalCalendarStore(sqliteDatabase), new SqlServerCalendarStore(sqlServerDatabase),
-                new LocalCalendarStore(duckDbDatabase));
-            var accountMappingStore = new ProviderRoutingAccountMappingRepository(
-                providerResolver, new LocalAccountMappingRepository(sqliteDatabase), new SqlServerAccountMappingRepository(sqlServerDatabase),
-                new LocalAccountMappingRepository(duckDbDatabase));
-            var authorizedPreparerStore = new ProviderRoutingAuthorizedPreparerRepository(
-                providerResolver, new LocalAuthorizedPreparerRepository(sqliteDatabase), new SqlServerAuthorizedPreparerRepository(sqlServerDatabase),
-                new LocalAuthorizedPreparerRepository(duckDbDatabase));
-            IIntakeFactsPort intakeFactsPort = new IntakeFactsPort(importRepository);
-            IMappingFactsPort mappingFactsPort = new MappingFactsPort(glRepository, tbRepository);
-            IReferenceDataFactsPort referenceDataFactsPort = new ReferenceDataFactsPort(
-                accountMappingStore,
-                authorizedPreparerStore,
-                calendarStore);
-            ICaseCreateFactsPort caseCreateFactsPort = new CaseCreateFactsPort(
-                projectStore,
-                databaseInitializer,
-                projectRegistry,
-                new ProviderRoutingCaseCreateBackendPort(
-                    databaseInitializer,
-                    sqliteDatabase,
-                    sqlServerDatabase,
-                    duckDbDatabase),
-                lockService);
-            var ruleRunStore = new ProviderRoutingRuleRunStore(
-                providerResolver, new LocalRuleRunStore(sqliteDatabase), new SqlServerRuleRunStore(sqlServerDatabase),
-                new LocalRuleRunStore(duckDbDatabase));
-            IValidationFactsPort validationFactsPort = new ProviderRoutingValidationFactsPort(
-                providerResolver,
-                new LocalValidationRunRepository(sqliteDatabase, loggerFactory.CreateLogger<LocalValidationRunRepository>()),
-                new SqlServerValidationRunRepository(sqlServerDatabase, loggerFactory.CreateLogger<SqlServerValidationRunRepository>()),
-                new LocalValidationRunRepository(duckDbDatabase, loggerFactory.CreateLogger<LocalValidationRunRepository>()));
-            IValidationReportPlanningFactsPort validationReportPlanningFactsPort =
-                new ProviderRoutingValidationReportPlanningFactsPort(
-                    providerResolver,
-                    new LocalValidationReportPlanningFactsPort(sqliteDatabase),
-                    new SqlServerValidationReportPlanningFactsPort(sqlServerDatabase),
-                    new LocalValidationReportPlanningFactsPort(duckDbDatabase));
-            ILegacyFieldDefinitionFactsPort fieldDefinitionFactsPort =
-                new ProviderRoutingFieldDefinitionFactsPort(
-                    providerResolver,
-                    new LocalFieldDefinitionFactsPort(sqliteDatabase),
-                    new SqlServerFieldDefinitionFactsPort(sqlServerDatabase),
-                    new LocalFieldDefinitionFactsPort(duckDbDatabase));
-            IPrescreenFactsPort prescreenFactsPort = new ProviderRoutingPrescreenFactsPort(
-                providerResolver,
-                new LocalPrescreenRunRepository(sqliteDatabase, loggerFactory.CreateLogger<LocalPrescreenRunRepository>()),
-                new SqlServerPrescreenRunRepository(sqlServerDatabase, loggerFactory.CreateLogger<SqlServerPrescreenRunRepository>()),
-                new LocalPrescreenRunRepository(duckDbDatabase, loggerFactory.CreateLogger<LocalPrescreenRunRepository>()));
-            var filterRepository = new ProviderRoutingFilterRunRepository(
-                providerResolver,
-                new LocalFilterRunRepository(sqliteDatabase, loggerFactory.CreateLogger<LocalFilterRunRepository>()),
-                new SqlServerFilterRunRepository(sqlServerDatabase, loggerFactory.CreateLogger<SqlServerFilterRunRepository>()),
-                new LocalFilterRunRepository(duckDbDatabase, loggerFactory.CreateLogger<LocalFilterRunRepository>()));
-            var filterScenarioStore = new ProviderRoutingFilterScenarioStore(
-                providerResolver, new LocalFilterScenarioStore(sqliteDatabase), new SqlServerFilterScenarioStore(sqlServerDatabase),
-                new LocalFilterScenarioStore(duckDbDatabase));
-            var filterVoucherRepository = new ProviderRoutingFilterVoucherRepository(providerResolver,
-                new LocalFilterVoucherRepository(sqliteDatabase), new SqlServerFilterVoucherRepository(sqlServerDatabase),
-                new LocalFilterVoucherRepository(duckDbDatabase));
-            var filterRunMaterializer = new ProviderRoutingFilterRunMaterializer(
-                providerResolver,
-                new LocalFilterRunMaterializer(sqliteDatabase, loggerFactory.CreateLogger<LocalFilterRunMaterializer>()),
-                new SqlServerFilterRunMaterializer(sqlServerDatabase, loggerFactory.CreateLogger<SqlServerFilterRunMaterializer>()),
-                new LocalFilterRunMaterializer(duckDbDatabase, loggerFactory.CreateLogger<LocalFilterRunMaterializer>()));
-            var filterCommitRepository = new ProviderRoutingFilterCommitRepository(
-                providerResolver,
-                new LocalFilterCommitRepository(sqliteDatabase, loggerFactory.CreateLogger<LocalFilterCommitRepository>()),
-                new SqlServerFilterCommitRepository(sqlServerDatabase, loggerFactory.CreateLogger<SqlServerFilterCommitRepository>()),
-                new LocalFilterCommitRepository(duckDbDatabase, loggerFactory.CreateLogger<LocalFilterCommitRepository>()));
-            IFilterFactsPort filterFactsPort =
-                new FilterFactsPort(filterRepository, filterCommitRepository);
             var session = new ProjectSession();
-            // dispatcher 與 concurrent query 的條件式補算共用同一個非阻塞 exclusive 閘。
+            // dispatcher 與 concurrent query 的條件式補算共用同一個非阻塞的作業互斥鎖。
             var actionExecutionGate = new ActionExecutionGate();
-            // 共用「全情境落地」編排：export 已由 dispatcher 保護，四支 query 只有空結果補算分支自行取共用閘。
-            var filterRunMaterializeService = new FilterRunMaterializeService(
-                filterRunMaterializer,
-                projectStore,
-                filterScenarioStore,
-                mappingStore,
-                actionExecutionGate,
-                session,
-                accountMappingStore,
-                authorizedPreparerStore,
-                accountTaxonomyStore);
-            var devInspector = new ProviderRoutingDevDatabaseInspector(
-                providerResolver, new LocalDevDatabaseInspector(sqliteDatabase), new SqlServerDevDatabaseInspector(sqlServerDatabase),
-                new LocalDevDatabaseInspector(duckDbDatabase));
-            var dataPreviewRepository = new ProviderRoutingDataPreviewRepository(
-                providerResolver, new LocalDataPreviewRepository(sqliteDatabase), new SqlServerDataPreviewRepository(sqlServerDatabase),
-                new LocalDataPreviewRepository(duckDbDatabase));
-            var completenessDiffPageRepository = new ProviderRoutingCompletenessDiffPageRepository(
-                providerResolver, new LocalCompletenessDiffPageRepository(sqliteDatabase), new SqlServerCompletenessDiffPageRepository(sqlServerDatabase),
-                new LocalCompletenessDiffPageRepository(duckDbDatabase));
-            var accountMappingBlankPageRepository = new ProviderRoutingAccountMappingBlankPageRepository(
-                providerResolver, new LocalAccountMappingBlankPageRepository(sqliteDatabase), new SqlServerAccountMappingBlankPageRepository(sqlServerDatabase),
-                new LocalAccountMappingBlankPageRepository(duckDbDatabase));
-            // 完整性「全科目」(含 diff=0)分頁:匯出底稿 step1 的資料源(diff repo 只回差異科目,不足以列全科目)。
-            // E1 Task 3 新增;消費者(匯出 writer / handler)隨後續 task 落地。
-            var completenessAccountPageRepository = new ProviderRoutingCompletenessAccountPageRepository(
-                providerResolver, new LocalCompletenessAccountPageRepository(sqliteDatabase), new SqlServerCompletenessAccountPageRepository(sqlServerDatabase),
-                new LocalCompletenessAccountPageRepository(duckDbDatabase));
-            var docBalancePageRepository = new ProviderRoutingDocBalancePageRepository(
-                providerResolver, new LocalDocBalancePageRepository(sqliteDatabase), new SqlServerDocBalancePageRepository(sqlServerDatabase),
-                new LocalDocBalancePageRepository(duckDbDatabase));
-            var unbalancedGlEntryPageRepository = new ProviderRoutingUnbalancedGlEntryPageRepository(
-                providerResolver,
-                new LocalUnbalancedGlEntryPageRepository(sqliteDatabase),
-                new SqlServerUnbalancedGlEntryPageRepository(sqlServerDatabase),
-                new LocalUnbalancedGlEntryPageRepository(duckDbDatabase));
-            var nullRecordsPageRepository = new ProviderRoutingNullRecordsPageRepository(
-                providerResolver, new LocalNullRecordsPageRepository(sqliteDatabase), new SqlServerNullRecordsPageRepository(sqlServerDatabase),
-                new LocalNullRecordsPageRepository(duckDbDatabase));
-            var sourceQualityPageRepository = new ProviderRoutingSourceQualityPageRepository(
-                providerResolver, new LocalSourceQualityPageRepository(sqliteDatabase), new SqlServerSourceQualityPageRepository(sqlServerDatabase),
-                new LocalSourceQualityPageRepository(duckDbDatabase));
-            var filterHitsPageRepository = new ProviderRoutingFilterHitsPageRepository(
-                providerResolver, new LocalFilterHitsPageRepository(sqliteDatabase), new SqlServerFilterHitsPageRepository(sqlServerDatabase),
-                new LocalFilterHitsPageRepository(duckDbDatabase));
-            var prescreenPageRepository = new ProviderRoutingPrescreenPageRepository(
-                providerResolver, new LocalPrescreenPageRepository(sqliteDatabase), new SqlServerPrescreenPageRepository(sqlServerDatabase),
-                new LocalPrescreenPageRepository(duckDbDatabase));
-            IPrescreenReportPlanningFactsPort prescreenReportPlanningFactsPort =
-                new PrescreenReportPlanningFactsPort(prescreenPageRepository);
-            var infSamplePageRepository = new ProviderRoutingInfSamplePageRepository(
-                providerResolver, new LocalInfSamplePageRepository(sqliteDatabase), new SqlServerInfSamplePageRepository(sqlServerDatabase),
-                new LocalInfSamplePageRepository(duckDbDatabase));
-            var resultPageRdeValuesPort = new ProviderRoutingResultPageRdeValuesPort(
-                providerResolver,
-                new LocalResultPageRdeValuesPort(sqliteDatabase),
-                new SqlServerResultPageRdeValuesPort(sqlServerDatabase),
-                new LocalResultPageRdeValuesPort(duckDbDatabase));
-            var rawGlExportRepository = new ProviderRoutingRawGlExportRepository(
-                providerResolver, new LocalRawGlExportRepository(sqliteDatabase), new SqlServerRawGlExportRepository(sqlServerDatabase),
-                new LocalRawGlExportRepository(duckDbDatabase));
-            // 匯出底稿 step1-2 的全編製人員查詢(不截斷)。E1 Task 1 先行註冊;消費者(匯出 handler)隨 Task 6 落地。
-            var creatorSummaryExportRepository = new ProviderRoutingCreatorSummaryExportRepository(
-                providerResolver, new LocalCreatorSummaryExportRepository(sqliteDatabase), new SqlServerCreatorSummaryExportRepository(sqlServerDatabase),
-                new LocalCreatorSummaryExportRepository(duckDbDatabase));
-            var accountUsageExportRepository = new ProviderRoutingAccountUsageExportRepository(
-                providerResolver, new LocalAccountUsageExportRepository(sqliteDatabase), new SqlServerAccountUsageExportRepository(sqlServerDatabase),
-                new LocalAccountUsageExportRepository(duckDbDatabase));
-            // 匯出底稿三參考表(E1 Task 5)的唯讀查詢:行事曆逐日讀回 + 科目配對全列(含 Not-in-TB 旗標)。
-            // 先行註冊;消費者(WorkpaperWriter 經匯出 handler)隨 Task 6 落地。
-            var calendarExportRepository = new ProviderRoutingCalendarExportRepository(
-                providerResolver, new LocalCalendarExportRepository(sqliteDatabase), new SqlServerCalendarExportRepository(sqlServerDatabase),
-                new LocalCalendarExportRepository(duckDbDatabase));
-            var accountMappingExportRepository = new ProviderRoutingAccountMappingExportRepository(
-                providerResolver, new LocalAccountMappingExportRepository(sqliteDatabase), new SqlServerAccountMappingExportRepository(sqlServerDatabase),
-                new LocalAccountMappingExportRepository(duckDbDatabase));
-            var tagMatrixScenariosRepository = new ProviderRoutingTagMatrixScenariosRepository(
-                providerResolver, new LocalTagMatrixScenariosRepository(sqliteDatabase), new SqlServerTagMatrixScenariosRepository(sqlServerDatabase),
-                new LocalTagMatrixScenariosRepository(duckDbDatabase));
-            var tagMatrixVoucherPageRepository = new ProviderRoutingTagMatrixVoucherPageRepository(
-                providerResolver, new LocalTagMatrixVoucherPageRepository(sqliteDatabase), new SqlServerTagMatrixVoucherPageRepository(sqlServerDatabase),
-                new LocalTagMatrixVoucherPageRepository(duckDbDatabase));
-            var tagMatrixRowPageRepository = new ProviderRoutingTagMatrixRowPageRepository(
-                providerResolver, new LocalTagMatrixRowPageRepository(sqliteDatabase), new SqlServerTagMatrixRowPageRepository(sqlServerDatabase),
-                new LocalTagMatrixRowPageRepository(duckDbDatabase));
-            var workpaperPlanningFactsPort = new WorkpaperPlanningFactsPort(
-                completenessDiffPageRepository,
-                docBalancePageRepository,
-                tagMatrixScenariosRepository,
-                fieldDefinitionFactsPort,
-                mappingStore);
-            var messageLogStore = new ProviderRoutingMessageLogStore(
-                providerResolver, new LocalMessageLogStore(sqliteDatabase), new SqlServerMessageLogStore(sqlServerDatabase),
-                new LocalMessageLogStore(duckDbDatabase));
-            var projectAuditLog = new ProviderRoutingProjectAuditLog(
-                providerResolver,
-                new LocalProjectAuditLog(sqliteDatabase),
-                new SqlServerProjectAuditLog(sqlServerDatabase),
-                new LocalProjectAuditLog(duckDbDatabase));
-            IReportArtifactStore reportArtifactStore = new AuditedReportArtifactStore(
-                baseReportArtifactStore,
-                projectAuditLog);
 
-            // 匯出底稿寫出器(E1 Task 2-5;deep module):唯讀查詢 repo(step1 家族 / step2 抽樣 /
-            // step3-4-1 tag 矩陣 / 三參考表)與科目配對 presence store 注入,對外只 WriteAsync。
-            var workpaperWriter = new WorkpaperWriter(
-                completenessAccountPageRepository,
-                completenessDiffPageRepository,
-                docBalancePageRepository,
-                creatorSummaryExportRepository,
-                infSamplePageRepository,
-                filterScenarioStore,
-                tagMatrixScenariosRepository,
-                tagMatrixVoucherPageRepository,
-                tagMatrixRowPageRepository,
-                mappingStore,
-                calendarExportRepository,
-                accountMappingExportRepository,
-                accountMappingStore,
-                rawGlExportRepository,
-                resultPageRdeValuesPort);
-
-            // 科目配對範本(空白範本供審計員填分類)寫出器:消費 accountMappingExportRepository 的 GL∪TB diff。
+            // 每種資料庫各組一次整組 repository，全程只有三組。建案與載入依案件的資料庫種類從 catalog 選組，
+            // 連同案件編號存進 session；其他動作在一開始取 session 的快照，只用快照裡那一組。刪除非作用中案件時
+            // 依該案件自己的 project.json 從 catalog 選組，不碰 session。
+            var repositoryCatalog = CreateProjectRepositoryCatalog(
+                new ProjectRepositoryAssembly(
+                    projectStore,
+                    projectRegistry,
+                    new CaseCreateBackendPort(sqliteDatabase, sqlServerDatabase, duckDbDatabase),
+                    localFileLockService,
+                    sqlServerLockService,
+                    sqlServerDeletionLockService,
+                    baseReportArtifactStore,
+                    loggerFactory,
+                    session,
+                    actionExecutionGate),
+                sqliteDatabase,
+                sqlServerDatabase,
+                duckDbDatabase);
+            // 科目配對範本(空白範本供審計員填分類)寫出器：不分資料庫，範本列由資料庫組的 AccountMappingExport 讀出。
             var accountMappingTemplateWriter = new AccountMappingTemplateWriter();
-            var legacyReportWriter = new LegacyReportWriter(
-                completenessAccountPageRepository,
-                completenessDiffPageRepository,
-                unbalancedGlEntryPageRepository,
-                nullRecordsPageRepository,
-                infSamplePageRepository,
-                prescreenPageRepository,
-                rawGlExportRepository,
-                importRepository,
-                mappingStore,
-                creatorSummaryExportRepository,
-                accountUsageExportRepository,
-                tagMatrixScenariosRepository,
-                tagMatrixRowPageRepository,
-                fieldDefinitionFactsPort,
-                resultPageRdeValuesPort,
-                sourceQualityPageRepository);
 
             var fileReader = new CompositeTabularFileReader(new OpenXmlSaxTableReader(), new CsvTableReader(),
                 new BinaryExcelTableReader(), new AccessTableReader());
@@ -532,12 +294,11 @@ public static class AppCompositionRoot
                 new CalendarSetNonWorkingDaysHandler(
                     projectStore,
                     projectRegistry,
-                    referenceDataFactsPort,
                     session);
             IApplicationActionHandler projectSaveProgressHandler =
                 new ProjectSaveProgressHandler(projectStore, session);
             IApplicationActionHandler queryDataPreviewHandler =
-                new QueryDataPreviewHandler(dataPreviewRepository, projectStore, session);
+                new QueryDataPreviewHandler(projectStore, session);
 #if JET_AGENT_GUI_TEST
             if (agentGuiTestFixtures is not null)
             {
@@ -555,8 +316,6 @@ public static class AppCompositionRoot
             }
 #endif
 
-            var filterVoucherQueryService = new FilterVoucherQueryService(filterVoucherRepository, filterScenarioStore,
-                mappingStore, accountMappingStore, authorizedPreparerStore, accountTaxonomyStore, projectStore, session, resultPageRdeValuesPort);
             List<IApplicationActionHandler> handlers =
             [
                 // 正式契約 handlers
@@ -569,19 +328,19 @@ public static class AppCompositionRoot
             projectListLocalHandler,
             projectListHandler,
             new ProjectCreateHandler(
-                projectStore, caseCreateFactsPort, currentPrincipal, session),
+                projectStore, repositoryCatalog, currentPrincipal, session),
+            new ProjectUpdateHandler(projectStore, projectRegistry, session),
             new ProjectLoadHandler(
-                projectStore, importRepository, mappingStore, accountTaxonomyStore, resultStaleStateStore,
-                calendarStore, accountMappingStore,
-                authorizedPreparerStore, ruleRunStore, filterScenarioStore, reportArtifactStore,
-                databaseInitializer, projectRegistry, lockService, appConfigStore, currentPrincipal, session),
-            new AccountTaxonomySaveHandler(accountTaxonomyStore, session),
+                projectStore, repositoryCatalog, projectRegistry, appConfigStore, currentPrincipal, session,
+                duckDbDatabase),
+            new AccountTaxonomySaveHandler(session),
+            new QueryAccountMappingPageHandler(session),
+            new AccountMappingSaveHandler(session),
             new ProjectDeleteHandler(
-                projectStore, databaseDeleter, projectRegistry,
-                currentPrincipal, reportArtifactStore, deletionLockService, session),
-            new ProjectHeartbeatHandler(lockService, currentPrincipal, session),
+                projectStore, repositoryCatalog, projectRegistry, currentPrincipal, session),
+            new ProjectDeletePreviewHandler(projectStore, repositoryCatalog, projectRegistry, currentPrincipal),
+            new ProjectHeartbeatHandler(currentPrincipal, session),
             new ProjectReleaseLockHandler(
-                lockService,
                 currentPrincipal,
                 session,
                 actionExecutionGate),
@@ -592,86 +351,54 @@ public static class AppCompositionRoot
             new DemoExportAccountMappingFileHandler(demoFileWriter),
             new DemoExportAuthorizedPreparerFileHandler(demoFileWriter),
 #endif
-            new ImportGlFromFileHandler(
-                fileReader, intakeFactsPort, projectStore, session, events, importRepository, projectAuditLog),
-            new ImportTbFromFileHandler(
-                fileReader, intakeFactsPort, projectStore, session, events, importRepository, projectAuditLog),
-            new ImportAccountMappingHandler(fileReader, referenceDataFactsPort, accountTaxonomyStore, session),
-            new ImportAuthorizedPreparerFromFileHandler(fileReader, referenceDataFactsPort, session),
-            new ClearAuthorizedPreparerHandler(authorizedPreparerStore, session),
-            new ImportInspectFileHandler(fileReader),
+            new ImportGlFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger<ImportGlFromFileHandler>()),
+            new ImportTbFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger<ImportTbFromFileHandler>()),
+            new ImportAccountMappingHandler(fileReader, session),
+            new ImportAuthorizedPreparerFromFileHandler(fileReader, session),
+            new ClearAuthorizedPreparerHandler(session),
+            new ImportInspectFileHandler(fileReader, loggerFactory.CreateLogger<ImportInspectFileHandler>()),
             new ImportPreviewFileHandler(fileReader),
-            new ImportHolidayHandler(projectStore, projectRegistry, referenceDataFactsPort, session),
-            new ImportMakeupDayHandler(projectStore, projectRegistry, referenceDataFactsPort, session),
-            new ImportHolidayFromFileHandler(fileReader, projectStore, projectRegistry, referenceDataFactsPort, session),
-            new ImportMakeupDayFromFileHandler(fileReader, projectStore, projectRegistry, referenceDataFactsPort, session),
+            new ImportHolidayHandler(projectStore, projectRegistry, session),
+            new ImportMakeupDayHandler(projectStore, projectRegistry, session),
+            new ImportHolidayFromFileHandler(fileReader, projectStore, projectRegistry, session),
+            new ImportMakeupDayFromFileHandler(fileReader, projectStore, projectRegistry, session),
             calendarSetNonWorkingDaysHandler,
-            new MappingRestoreDraftHandler(
-                mappingMetadataReader, importRepository, mappingRestoreAuthorizations, session),
-            new MappingValueProfileHandler(importRepository, mappingValueProfileRepository, session),
-            new MappingCommitGlHandler(
-                importRepository, mappingFactsPort, mappingStore, mappingRestoreAuthorizations,
-                projectStore, session, events, projectAuditLog),
-            new MappingCommitTbHandler(
-                importRepository, mappingFactsPort, mappingStore, projectStore, session, events, projectAuditLog),
-            new ValidateRunHandler(
-                validationFactsPort, sourceQualityPageRepository,
-                mappingStore, ruleRunStore, projectStore, session),
-            new PrescreenRunHandler(
-                prescreenFactsPort, mappingStore, calendarStore, accountMappingStore, authorizedPreparerStore,
-                ruleRunStore, projectStore, session),
-            new FilterPreviewHandler(
-                filterFactsPort, mappingStore, accountMappingStore, authorizedPreparerStore,
-                accountTaxonomyStore, projectStore, session),
-            new FilterCommitHandler(
-                filterFactsPort, mappingStore, accountMappingStore, authorizedPreparerStore,
-                accountTaxonomyStore, ruleRunStore, projectStore, session),
+            new MappingRestoreDraftHandler(mappingMetadataReader, mappingRestoreAuthorizations, session),
+            new MappingValueProfileHandler(session),
+            new MappingCommitGlHandler(mappingRestoreAuthorizations, projectStore, session, events, loggerFactory.CreateLogger<MappingCommitGlHandler>()),
+            new MappingCommitTbHandler(projectStore, session, events, loggerFactory.CreateLogger<MappingCommitTbHandler>()),
+            new ValidateRunHandler(projectStore, session, loggerFactory.CreateLogger<ValidateRunHandler>()),
+            new PrescreenRunHandler(projectStore, session, loggerFactory.CreateLogger<PrescreenRunHandler>()),
+            new FilterPreviewHandler(projectStore, session),
+            new FilterCommitHandler(projectStore, session, loggerFactory.CreateLogger<FilterCommitHandler>()),
             projectSaveProgressHandler,
             queryDataPreviewHandler,
-            new QueryCompletenessDiffPageHandler(completenessDiffPageRepository, projectStore, session),
-            new QueryAccountMappingBlankPageHandler(accountMappingBlankPageRepository, session),
-            new QueryDocBalancePageHandler(docBalancePageRepository, projectStore, session),
-            new QueryNullRecordsPageHandler(nullRecordsPageRepository, projectStore, session),
-            new QuerySourceQualityPageHandler(sourceQualityPageRepository, session),
-            new QueryFilterHitsPageHandler(
-                filterHitsPageRepository, filterScenarioStore, filterRunMaterializeService,
-                mappingStore, resultPageRdeValuesPort, projectStore, session),
-            new QueryFilterVoucherPageHandler(filterVoucherQueryService),
-            new QueryFilterVoucherRowsPageHandler(filterVoucherQueryService),
-            new QueryPrescreenPageHandler(prescreenPageRepository, projectStore, session),
-            new QueryInfSamplePageHandler(
-                infSamplePageRepository, ruleRunStore, mappingStore,
-                resultPageRdeValuesPort, projectStore, session),
-            new QueryTagMatrixScenariosHandler(
-                tagMatrixScenariosRepository, filterScenarioStore, filterRunMaterializeService, projectStore, session),
-            new QueryTagMatrixVoucherPageHandler(
-                tagMatrixVoucherPageRepository, filterScenarioStore, filterRunMaterializeService, projectStore, session),
-            new QueryTagMatrixRowPageHandler(
-                tagMatrixRowPageRepository, filterScenarioStore, filterRunMaterializeService, projectStore, session),
-            new ExportWorkpaperStreamHandler(
-                workpaperWriter, workpaperPlanningFactsPort, filterScenarioStore, filterRunMaterializeService, ruleRunStore,
-                resultStaleStateStore, projectStore, reportArtifactStore, session, events, mappingStore, accountTaxonomyStore),
-            new ExportValidationArtifactsHandler(
-                legacyReportWriter, legacyReportWriter, ruleRunStore, projectStore, reportArtifactStore, session, events,
-                validationReportPlanningFactsPort, fieldDefinitionFactsPort, accountTaxonomyStore, mappingStore),
-            new ExportPrescreenReportHandler(
-                legacyReportWriter, ruleRunStore, projectStore, reportArtifactStore, session, events,
-                prescreenReportPlanningFactsPort, mappingStore, accountTaxonomyStore),
-            new ExportCriteriaSelectionReportHandler(
-                legacyReportWriter, filterScenarioStore, filterRunMaterializeService,
-                ruleRunStore, projectStore, reportArtifactStore, session, events, accountTaxonomyStore,
-                mappingStore),
+            new QueryCompletenessDiffPageHandler(projectStore, session),
+            new QueryAccountMappingBlankPageHandler(session),
+            new QueryDocBalancePageHandler(projectStore, session),
+            new QueryNullRecordsPageHandler(projectStore, session),
+            new QuerySourceQualityPageHandler(session),
+            new QueryFilterHitsPageHandler(projectStore, session),
+            new QueryFilterVoucherPageHandler(session),
+            new QueryFilterVoucherRowsPageHandler(session),
+            new QueryPrescreenPageHandler(projectStore, session),
+            new QueryInfSamplePageHandler(projectStore, session),
+            new QueryTagMatrixScenariosHandler(projectStore, session),
+            new QueryTagMatrixVoucherPageHandler(projectStore, session),
+            new QueryTagMatrixRowPageHandler(projectStore, session),
+            new ExportWorkpaperStreamHandler(projectStore, session, events),
+            new ExportValidationArtifactsHandler(projectStore, session, events),
+            new ExportPrescreenReportHandler(projectStore, session, events),
+            new ExportCriteriaSelectionReportHandler(projectStore, session, events),
             // 帳戶對應範本是給審計員填寫的工作檔，直接寫進案件資料夾，不經報告 store。
             new ExportAccountMappingTemplateHandler(
-                accountMappingExportRepository, accountMappingTemplateWriter, ruleRunStore,
-                projectStore, folder, session, events, accountTaxonomyStore, mappingStore),
-            new LogAppendHandler(messageLogStore, session),
-            new LogRecentHandler(messageLogStore, session),
+                accountMappingTemplateWriter, projectStore, folder, session, events),
+            new LogAppendHandler(session),
+            new LogRecentHandler(session),
             new SupportLogExportHandler(supportDiagnostic, projectStore, folder),
             new HostSelectFileHandler(hostShell, hostDialogProjectContext),
             new HostSelectFilesHandler(hostShell, hostDialogProjectContext),
-            new HostSelectSavePathHandler(hostShell, hostDialogProjectContext),
-            new HostOpenFolderHandler(hostShell, reportArtifactStore, folder, session),
+            new HostOpenFolderHandler(hostShell, folder, session),
             new HostExitAppHandler(hostShell)
             ];
 
@@ -688,26 +415,14 @@ public static class AppCompositionRoot
             }
 #endif
 
-            // schema-v7 新邏輯的 production actions 在進入各自 handler facts／materialization／
-            // artifact staging 前先統一檢查舊 mapping。project.load／import／mapping repair 路徑
-            // 沒有被裝飾，使用者仍能 recommit 後解除 gate。
-            for (var index = 0; index < handlers.Count; index++)
-            {
-                handlers[index] = MappingReviewPrerequisite.DecorateProductionAction(
-                    handlers[index],
-                    mappingStore,
-                    session);
-            }
-
             // 開發者工具 action 只在 Debug 組建註冊；Release 呼叫 dev.db.* 得到 unknown action
             if (enableDevTools)
             {
-                handlers.Add(new DevDbOverviewHandler(devInspector, projectStore, session));
-                handlers.Add(new DevDbTableDataHandler(devInspector, session));
-                // dev.db.reconcile（控制面第四輪 §5）：單庫控制面三方對帳＋失效 provider 解析快取。
+                handlers.Add(new DevDbOverviewHandler(projectStore, session));
+                handlers.Add(new DevDbTableDataHandler(session));
+                // dev.db.reconcile：開發用的資料庫漂移檢查，比對單庫 schema、專案登錄與本機資料夾。
                 handlers.Add(new DevDbReconcileHandler(
-                    new SqlServerControlPlaneReconciler(sqlServerConnectionOptions, projectStore), providerResolver));
-                handlers.Add(new DevLogExportHandler(diagnostic!));
+                    new SqlServerControlPlaneReconciler(sqlServerConnectionOptions, projectStore)));
                 // dev.log.exportFile：單鍵把完整診斷日誌篩成目前案件後，直接寫入該案件目錄。
                 // sink 不可讀時退回同一程序的 ring buffer；不另選路徑，也不退到 %LOCALAPPDATA%。
                 handlers.Add(new DevLogExportFileHandler(
@@ -724,7 +439,9 @@ public static class AppCompositionRoot
                 exception => LocalEngineErrors.TryTranslate(exception)
                     ?? SqlServerEngineErrors.TryTranslate(exception),
                 cancellationRegistry,
-                actionExecutionGate);
+                actionExecutionGate,
+                // DuckDB 案件在一次操作期間保持資料庫開啟；SQLite 案件的資料夾沒有 jet.duckdb，自然不持有。
+                duckDbDatabase);
 #if JET_AGENT_GUI_TEST
             if (agentGuiTestFixtures is { SeedsProjectState: true })
             {
@@ -781,8 +498,8 @@ public static class AppCompositionRoot
 
     private static string QualifiedWindowsName()
     {
-        // 合格化 Windows 帳號(網域\帳號):共用單庫時避免不同機器的同名本機帳號被誤併(spec §1),
-        // 且與控制面 §4.1 的 AD 整合終態(SUSER_SNAME() 回傳形)一致,名單授權輪不必再遷移身分格式。
+        // 合格化 Windows 帳號(網域\帳號)：共用單庫時避免不同機器的同名本機帳號被誤併，
+        // 且與 SQL Server SUSER_SNAME() 回傳的形狀一致，日後改用 AD 整合時不必再遷移身分格式。
         // 受限環境取不到 token 時退回 UserDomainName\UserName——仍是合格化形狀,不退回裸名。
         try
         {

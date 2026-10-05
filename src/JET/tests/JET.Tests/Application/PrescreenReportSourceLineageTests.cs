@@ -242,7 +242,10 @@ public sealed class PrescreenReportSourceLineageTests
                 ["description"] = DescriptionColumn,
                 ["amount"] = AmountColumn,
                 ["dcField"] = DebitFlagColumn,
-                ["dcDebitCode"] = "1"
+                // 2026-10-04 R9：上方合成來源明確使用 1/0，補貸方 0，來源與報告固定預期不變。
+                // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+                ["dcDebitCode"] = "1",
+                ["dcCreditCode"] = "0"
             },
             amountMode = "flag"
         }));

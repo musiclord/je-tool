@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 using Xunit;
 
@@ -54,7 +55,10 @@ public sealed class ProjectListLocalFirstTests
             new DateTimeOffset(2025, 1, createdDay, 0, 0, 0, TimeSpan.Zero),
             CurrentStep: 1,
             ProjectDocument.CurrentSchemaVersion,
-            provider);
+            provider,
+            // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成舊版案件拒絕。
+            SampleSeed: 1_234_567,
+            SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
 
     private static async Task WriteProjectAsync(string root, ProjectDocument document)
     {

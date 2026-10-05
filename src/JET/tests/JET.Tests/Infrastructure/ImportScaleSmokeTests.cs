@@ -4,6 +4,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -60,9 +61,9 @@ public sealed class ImportScaleSmokeTests(ITestOutputHelper output)
             var result = await repository.ReplaceBatchAsync(
                 projectId,
                 DatasetKind.Gl,
-                new ImportSourceDescriptor(path, "scale.xlsx", null, null, null),
+                [new ImportSourceInput(new ImportSourceDescriptor(path, "scale.xlsx", null, null, null),
                 columns,
-                reader.ReadRowsAsync(request, CancellationToken.None),
+                reader.ReadRowsAsync(request, CancellationToken.None))],
                 CancellationToken.None);
             importWatch.Stop();
 

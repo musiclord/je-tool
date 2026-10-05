@@ -73,7 +73,12 @@ public sealed class PagedTableFrontendTests
         var bind = core[core.IndexOf("function bindPagedTable(", StringComparison.Ordinal)..];
         bind = bind[..bind.IndexOf("\n  }\n", StringComparison.Ordinal)];
 
-        Assert.Contains("opts.fetchPage(reset ? null : state.cursor, state.sort, state.search)", bind, StringComparison.Ordinal);
+        // 9/23：重試保留原請求快照，不受失敗後退回的可見狀態影響；後端排序契約不變。
+        Assert.Contains("sort: state.sort, search: state.search", bind, StringComparison.Ordinal);
+        Assert.Contains("opts.fetchPage(reset ? null : state.cursor, requested.sort, requested.search)", bind, StringComparison.Ordinal);
+        Assert.Contains("if (!current()) { return; }", bind, StringComparison.Ordinal);
+        Assert.Contains("retryRequest = requested", bind, StringComparison.Ordinal);
+        Assert.DoesNotContain("setBusy(", bind, StringComparison.Ordinal);
         Assert.Contains("aria-sort", bind, StringComparison.Ordinal);
         // 換排序或搜尋一律帶上一次成功的狀態，重載失敗就退回，表頭與輸入框不會宣稱表格沒有的排序。
         Assert.Contains("fetch(true, '重新排序明細', previous)", bind, StringComparison.Ordinal);

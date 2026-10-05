@@ -53,11 +53,6 @@ public sealed class HostExitAppHandlerTests
             return Task.FromResult<IReadOnlyList<string>>([]);
         }
 
-        public Task<string?> PickSavePathAsync(string baseFileName, CancellationToken cancellationToken)
-        {
-            return Task.FromResult<string?>(null);
-        }
-
         public Task RevealInExplorerAsync(string path, CancellationToken cancellationToken)
         {
             return Task.CompletedTask;

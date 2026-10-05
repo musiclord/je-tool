@@ -140,7 +140,7 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
             connection, projectId, input, cancellationToken,
             _ => Predicates.Backdated());
 
-        // 非授權編製人員：授權清單未匯入時閘控跳過（計 0、handler 標 na）。
+        // 非授權編製人員：授權清單未匯入時不執行（計 0、handler 標 na）。
         (long HitLines, long HitVouchers) nonAuthorizedPreparer = (0L, 0L);
         if (input.RunNonAuthorizedPreparer)
         {
@@ -149,17 +149,19 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
                 _ => Predicates.NonAuthorizedPreparer(schemaPrefix));
         }
 
-        // 低頻編製者：無閘控、永遠跑（固定預設門檻）。
+        // 低頻編製者：沒有前置條件、永遠跑（固定預設門檻）。
         var lowFrequencyPreparer = await CountWhereAsync(
             connection, projectId, input, cancellationToken,
             cmd => Predicates.LowFrequencyPreparer(
                 cmd, PreparerFrequency.DefaultMaxEntries, filterContext, schemaPrefix));
 
-        // C9 低頻科目:無閘控、永遠跑(固定預設門檻)。
+        // C9 低頻科目:沒有前置條件、永遠跑(固定預設門檻)。
         var lowFrequencyAccount = await CountWhereAsync(
             connection, projectId, input, cancellationToken,
             cmd => Predicates.LowFrequencyAccount(
                 cmd, AccountFrequency.DefaultMaxEntries, filterContext, schemaPrefix));
+        var lowFrequencyAccountCount = await CountLowFrequencyAccountsAsync(
+            connection, projectId, filterContext, schemaPrefix, cancellationToken);
 
         return new PrescreenFacts(
             postPeriod.HitLines,
@@ -195,7 +197,10 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
                 [PrescreenRuleKeys.LowFrequencyAccount] = lowFrequencyAccount.HitVouchers
             },
             totalPreparers,
-            totalEntries);
+            totalEntries)
+        {
+            LowFrequencyDistinctAccountCount = lowFrequencyAccountCount
+        };
     }
 
     private static PrescreenRunResult ToCompatibilityResult(
@@ -219,7 +224,23 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
             facts.BackdatedPostingCount,
             facts.NonAuthorizedPreparerCount,
             facts.LowFrequencyPreparerCount,
-            facts.LowFrequencyAccountCount);
+            facts.LowFrequencyAccountCount)
+        {
+            LowFrequencyDistinctAccountCount = facts.LowFrequencyDistinctAccountCount
+        };
+
+    private async Task<long> CountLowFrequencyAccountsAsync(
+        SqlConnection connection, string projectId, FilterRuleContext context, string schemaPrefix,
+        CancellationToken cancellationToken)
+    {
+        var parameters = new FilterSqlParameterPlanBuilder(SqlServerDialect.Instance);
+        var predicate = Predicates.LowFrequencyAccount(parameters, AccountFrequency.DefaultMaxEntries, context, schemaPrefix);
+        await using var command = database.CreateCommand(connection, projectId,
+            $"SELECT COUNT_BIG(DISTINCT g.account_code) FROM {{s}}.target_gl_entry g "
+            + $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({predicate});");
+        parameters.Build(predicate).BindParametersTo(command);
+        return Convert.ToInt64(await command.ExecuteScalarLoggedAsync(_log, Provider, cancellationToken));
+    }
 
     private async Task<(long HitLines, long HitVouchers)> CountWhereAsync(
         SqlConnection connection,
@@ -254,18 +275,20 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
         SqlConnection connection, string projectId, PrescreenExecutionInput input, CancellationToken cancellationToken)
     {
         // 編製者彙總與預篩選規則共用有效分錄母體。
+        // 人員依去空白、不分大小寫的識別值分組，顯示值取同組碼位最小的去空白寫法（與本地倉儲同口徑）。只經編譯，未實機驗證。
+        var person = LocalPrescreenRunRepository.PersonKey(SqlServerDialect.Instance);
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
             SELECT TOP ({{SummaryRowLimit}})
-                   COALESCE(created_by, ''),
+                   MIN({{person}} COLLATE Latin1_General_BIN2),
                    COUNT_BIG(*),
                    COALESCE(SUM(debit_amount_scaled), 0),
                    COALESCE(SUM(credit_amount_scaled), 0),
                    COALESCE(SUM(CAST(CASE WHEN is_manual = 1 THEN 1 ELSE 0 END AS BIGINT)), 0)
             FROM {s}.target_gl_entry
             WHERE {{GlEffectivePopulation.SqlPredicate()}}
-            GROUP BY created_by
-            ORDER BY COUNT_BIG(*) DESC, created_by;
+            GROUP BY UPPER({{person}} COLLATE Latin1_General_BIN2)
+            ORDER BY COUNT_BIG(*) DESC, MIN({{person}} COLLATE Latin1_General_BIN2);
             """);
         var rows = new List<CreatorSummaryRow>();
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
@@ -293,7 +316,7 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
             SELECT COUNT_BIG(*),
-                   COUNT_BIG(DISTINCT COALESCE(created_by, ''))
+                   COUNT_BIG(DISTINCT UPPER({{LocalPrescreenRunRepository.PersonKey(SqlServerDialect.Instance)}} COLLATE Latin1_General_BIN2))
             FROM {s}.target_gl_entry
             WHERE {{GlEffectivePopulation.SqlPredicate()}};
             """);

@@ -13,19 +13,36 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed partial class MessageLogWriteScopeTests
 {
+    /// <remarks>
+    /// 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 repository，建構式只剩 session，
+    /// 原本「建構式只收 IMessageLogStore 與 ProjectSession」的檢查改成讀原始碼，確認 log.append 只用到資料庫組的
+    /// MessageLog（型別即 IMessageLogStore），範圍與原本相同。第一次失敗收據：
+    /// 20261002-113607388-03aa2b09d3be48d5ae8ff7222286b8e0。
+    /// </remarks>
     [Fact]
     public void LogAppend_HandlerDependsOnlyOnMessageLogPortAndSession()
     {
         var constructor = Assert.Single(typeof(LogAppendHandler).GetConstructors());
 
         Assert.Equal(
-            [typeof(IMessageLogStore), typeof(ProjectSession)],
+            [typeof(ProjectSession)],
             constructor.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
+        Assert.Equal(
+            ["MessageLog"],
+            HandlerRepositoryUsage.PropertiesUsedBy(
+                nameof(LogAppendHandler), "Application", "Handlers", "MessageLogHandlers.cs"));
+        Assert.Equal(
+            typeof(IMessageLogStore),
+            typeof(ProjectRepositories).GetProperty("MessageLog")!.PropertyType);
         Assert.False(ActionExecutionPolicy.IsExclusive("log.append"));
     }
 
+    /// <remarks>
+    /// 2026-10-02 資料庫分流簡化：分流用的 ProviderRoutingMessageLogStore 已刪除，期望清單隨之只剩兩個受檢查的實作，
+    /// 比原本更嚴。第一次失敗收據（引用已刪除的類別而無法建置）：20261002-120244042-2aa5edaa431d4f3e89e068361d5482f5。
+    /// </remarks>
     [Fact]
-    public void MessageLogStoreImplementations_AreExactlyTheGuardedLeavesAndProviderRouter()
+    public void MessageLogStoreImplementations_AreExactlyTheGuardedLeaves()
     {
         var implementations = typeof(LogAppendHandler).Assembly
             .GetTypes()
@@ -37,7 +54,6 @@ public sealed partial class MessageLogWriteScopeTests
             new[]
             {
                 typeof(LocalMessageLogStore),
-                typeof(ProviderRoutingMessageLogStore),
                 typeof(SqlServerMessageLogStore)
             }.OrderBy(type => type.FullName, StringComparer.Ordinal),
             implementations);

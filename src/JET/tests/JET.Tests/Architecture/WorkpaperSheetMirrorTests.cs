@@ -45,11 +45,16 @@ public sealed class WorkpaperSheetMirrorTests
         Assert.Contains("reportArtifacts: []", state, StringComparison.Ordinal);
         Assert.Contains("hostOpenFolder({ target: 'projectFolder' })", app, StringComparison.Ordinal);
         Assert.Contains("data-open-artifact", core, StringComparison.Ordinal);
-        Assert.DoesNotContain("hostOpenFolder", core, StringComparison.Ordinal);
-        Assert.Contains("hostOpenFolder({ artifactId: artifactId })", export, StringComparison.Ordinal);
+        // 9/22 各步報告都可定位檔案，共用綁定仍只傳伺服器解析的產物識別碼。
+        Assert.Contains("hostOpenFolder({ artifactId: artifactId })", core, StringComparison.Ordinal);
+        Assert.Contains("Ui.bindReportArtifacts(container)", export, StringComparison.Ordinal);
+        Assert.Contains("Ui.bindReportArtifacts(container)", validate, StringComparison.Ordinal);
+        Assert.Contains("Ui.bindReportArtifacts(container)", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("{ path:", core, StringComparison.Ordinal);
         Assert.DoesNotContain("target: 'projectFolder'", export, StringComparison.Ordinal);
         Assert.DoesNotContain("{ path:", export, StringComparison.Ordinal);
-        Assert.DoesNotContain("hostOpenFolder", validate, StringComparison.Ordinal);
+        Assert.Contains("hostOpenFolder({ target: 'projectFolder' })", validate, StringComparison.Ordinal);
+        Assert.DoesNotContain("{ path:", validate, StringComparison.Ordinal);
         Assert.DoesNotContain("hostOpenFolder", filter, StringComparison.Ordinal);
     }
 
@@ -64,12 +69,33 @@ public sealed class WorkpaperSheetMirrorTests
         Assert.DoesNotContain("prescreenRunId", filter, StringComparison.Ordinal);
         Assert.Contains("revision: resultRef.revision", filter, StringComparison.Ordinal);
 
-        Assert.Contains("kind === 'gl'", state, StringComparison.Ordinal);
-        Assert.Contains("{ validation: true, prescreen: true, filter: true }", state, StringComparison.Ordinal);
-        Assert.Contains("{ validation: true }", state, StringComparison.Ordinal);
-        Assert.Contains("{ prescreen: true, filter: true }", state, StringComparison.Ordinal);
-        Assert.Contains("artifact.kind === 'prescreenReport'", state, StringComparison.Ordinal);
-        Assert.Contains("artifact.kind === 'criteriaSelectionReport' || artifact.kind === 'workingPaper'", state, StringComparison.Ordinal);
+        // 第二遍第9批把失效範圍與報告目錄都交回後端；原criteria payload約束維持不變。
+        // 首次失敗：20261004-100752118-a195c091201e444d858ec7d7bee3d291。
+        // 清除未儲存預覽與持久化stale旗標是兩件事，不得由前端用artifact種類或有無舊結果推測。
+        var invalidation = ExtractBetween(state, "function invalidateDerivedResults(options)", "var Store = {");
+        Assert.Contains("var clearValidation = !!(options && options.validation)", invalidation, StringComparison.Ordinal);
+        Assert.Contains("var clearPrescreen = !!(options && options.prescreen)", invalidation, StringComparison.Ordinal);
+        Assert.Contains("var clearFilter = !!(options && options.filter)", invalidation, StringComparison.Ordinal);
+        Assert.Contains("if (clearValidation) { state.lastRuns.validate = null; }", invalidation, StringComparison.Ordinal);
+        Assert.Contains("if (clearPrescreen) { state.lastRuns.prescreen = null; }", invalidation, StringComparison.Ordinal);
+        Assert.Contains("if (clearFilter)", invalidation, StringComparison.Ordinal);
+        Assert.Contains("state.filter.preview = null", invalidation, StringComparison.Ordinal);
+        Assert.Contains("filterDraftRev++", invalidation, StringComparison.Ordinal);
+        Assert.DoesNotContain("staleState", invalidation, StringComparison.Ordinal);
+        Assert.DoesNotContain("reportArtifacts", invalidation, StringComparison.Ordinal);
+        Assert.DoesNotContain("invalidateDerivedResults({", state, StringComparison.Ordinal);
+
+        var effects = ExtractBetween(state, "applyMutationEffects: function (result)", "resetWorkflow: function");
+        Assert.Contains("var invalidated = result.invalidatedResults || {}", effects, StringComparison.Ordinal);
+        Assert.Contains("invalidateDerivedResults(invalidated)", effects, StringComparison.Ordinal);
+        Assert.Contains("validation: !!result.staleState.validation", effects, StringComparison.Ordinal);
+        Assert.Contains("prescreen: !!result.staleState.prescreen", effects, StringComparison.Ordinal);
+        Assert.Contains("filter: !!result.staleState.filter", effects, StringComparison.Ordinal);
+        Assert.Contains("if (Array.isArray(result.reportArtifacts)) { state.reportArtifacts = result.reportArtifacts.slice(); }", effects, StringComparison.Ordinal);
+        Assert.Contains("Store.addMessage(result.reportArtifactWarning, 'warn')", effects, StringComparison.Ordinal);
+        Assert.DoesNotContain("result.reportArtifacts || []", effects, StringComparison.Ordinal);
+        Assert.DoesNotContain("artifact.kind", effects, StringComparison.Ordinal);
+        Assert.DoesNotContain("stale: true", effects, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -88,26 +114,42 @@ public sealed class WorkpaperSheetMirrorTests
     {
         var export = ReadFrontend("steps", "export-step.js");
         Assert.Contains("Ui.reportArtifactHistory(state, 'workingPaper')", export, StringComparison.Ordinal);
-        Assert.Contains("completionSummaryHtml(criteriaArtifact, currentWorkpapers)", export, StringComparison.Ordinal);
+        // 2026-10-02 修改原因（W15）：完成摘要改用和左側進度、流程總覽共用的 Ui.currentWorkpaperArtifact，
+        // 參數由陣列 currentWorkpapers 改成單一的 currentWorkpaper。原斷言的字樣因此不存在，
+        // 第一次失敗收據 20261002-143202027-0932a0e4100f4e419c7609149b4cb025。仍然只認目前版本，不拿歷史紀錄冒充。
+        Assert.Contains("var currentWorkpaper = Ui.currentWorkpaperArtifact(state);", export, StringComparison.Ordinal);
+        Assert.Contains("completionSummaryHtml(criteriaArtifact, currentWorkpaper)", export, StringComparison.Ordinal);
         Assert.DoesNotContain("completionSummaryHtml(criteriaArtifact, workpapers) +", export, StringComparison.Ordinal);
-        Assert.Contains("HISTORY_PAGE_SIZE = 50", export, StringComparison.Ordinal);
+        // 第9批改用具名共用展示常數，仍固定50份；不是改用query分頁或審計門檻。
+        // 首次失敗：20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6；Node另鎖51份實際分成50與1。
+        Assert.Contains("HISTORY_PAGE_SIZE = Ui.REPORT_HISTORY_PAGE_SIZE", export, StringComparison.Ordinal);
+        Assert.Matches(@"\bvar\s+REPORT_HISTORY_PAGE_SIZE\s*=\s*50\s*;", ReadFrontend("ui-core.js"));
     }
 
     [Fact]
-    public void StepFiveGates_CriteriaOnValidationRevisionAndAllPositions()
+    public void WorkpaperEntry_RequiresSavedDefinitionsNotAnIntermediateFile()
     {
         var core = ReadFrontend("ui-core.js");
         var export = ReadFrontend("steps", "export-step.js");
 
-        Assert.Contains("validationRunId: ruleRunId(state.lastRuns.validate)", core, StringComparison.Ordinal);
         Assert.DoesNotContain("prescreenRunId", core, StringComparison.Ordinal);
-        Assert.Contains("scenarioRevision: state.filterResultRef.revision", core, StringComparison.Ordinal);
-        Assert.Contains("scenarioPositions: allScenarioPositions(state)", core, StringComparison.Ordinal);
+        Assert.Contains("state.filter.savedScenarios.length === 0", core, StringComparison.Ordinal);
+        Assert.Contains("state.filterResultRef.populationScope !== 'auditPeriod'", core, StringComparison.Ordinal);
+        Assert.DoesNotContain("產生目前版本的條件篩選報告", core, StringComparison.Ordinal);
 
         Assert.Contains("validationRunId: validationRunId", export, StringComparison.Ordinal);
         Assert.DoesNotContain("prescreenRunId", export, StringComparison.Ordinal);
         Assert.Contains("scenarioRevision: scenarioRevision", export, StringComparison.Ordinal);
         Assert.Contains("scenarioPositions: allScenarioPositions(state)", export, StringComparison.Ordinal);
+    }
+
+    private static string ExtractBetween(string source, string startMarker, string endMarker)
+    {
+        var start = source.IndexOf(startMarker, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"找不到起點標記：{startMarker}");
+        var end = source.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
+        Assert.True(end > start, $"找不到終點標記：{endMarker}");
+        return source[start..end];
     }
 
     private static string ReadFrontend(params string[] relativeSegments)

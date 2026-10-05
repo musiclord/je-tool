@@ -14,4 +14,4 @@ VS Code AI Agent 的共用規則權威；本檔只是 Copilot 與 VS Code 的入
 
 專案目的與公司環境限制見 [`docs/project-context.md`](../docs/project-context.md)；跨 session 開發先讀
 [`docs/development-status.md`](../docs/development-status.md) 的現行計畫，再依
-[`docs/development-workflow.md`](../docs/development-workflow.md) 核對實際工作樹。
+[`.agents/harness/development-workflow.md`](../.agents/harness/development-workflow.md) 核對實際工作樹。

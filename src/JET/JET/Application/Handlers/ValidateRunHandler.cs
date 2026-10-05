@@ -1,39 +1,29 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
 /// <summary>
-/// validate.run：四項資料驗證以 set-based SQL 執行（manifest Validation 章節；
-/// wire key 依 guide §4 命名登錄表：completenessTest / docBalanceTest /
+/// validate.run：四項資料驗證以 set-based SQL 執行（wire key：completenessTest / docBalanceTest /
 /// infSamplingTest / nullRecordsTest）。完整 response 以 JetJsonStorage 存入
 /// result_rule_run；project.load 讀取 raw summary，再由共用後端 renderer 補繪衍生欄位。
-/// 規則狀態：V = 有結果；na = 前置不足（naReason 說明）或已執行 0 筆命中（guide §5）。
+/// 規則狀態：V = 有結果；na = 前置不足（naReason 說明）或已執行 0 筆命中。
 /// </summary>
 public sealed class ValidateRunHandler : IApplicationActionHandler
 {
-    private readonly IValidationFactsPort validationFactsPort;
-    private readonly ISourceQualityPageRepository sourceQualityPageRepository;
-    private readonly IMappingStateStore mappingStore;
-    private readonly IRuleRunStore runStore;
     private readonly IProjectStore projectStore;
     private readonly ProjectSession session;
+    private readonly ILogger? logger;
 
     internal ValidateRunHandler(
-        IValidationFactsPort validationFactsPort,
-        ISourceQualityPageRepository sourceQualityPageRepository,
-        IMappingStateStore mappingStore,
-        IRuleRunStore runStore,
         IProjectStore projectStore,
-        ProjectSession session)
+        ProjectSession session, ILogger? logger = null)
     {
-        this.validationFactsPort = validationFactsPort;
-        this.sourceQualityPageRepository = sourceQualityPageRepository;
-        this.mappingStore = mappingStore;
-        this.runStore = runStore;
         this.projectStore = projectStore;
         this.session = session;
+        this.logger = logger;
     }
 
     private const int DefaultSampleSize = 59;
@@ -42,15 +32,15 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
 
-        var glMapping = await mappingStore.FindAsync(
+        var glMapping = await repositories.MappingStates.FindAsync(
             projectId,
             DatasetKind.Gl,
             cancellationToken);
         JetAuditProgram.RequireGlMapping(glMapping is not null);
 
-        var tbMapping = await mappingStore.FindAsync(projectId, DatasetKind.Tb, cancellationToken);
+        var tbMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Tb, cancellationToken);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
@@ -58,11 +48,18 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
         var runId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
 
-        // per-project seed／演算法版本：無版本 marker 的既有案件永遠走 legacy；任一可解析但
+        // per-project seed／演算法版本：只接受目前版本。舊版 JET 建立的案件明確拒絕；任一可解析但
         // 不合法的配對都 fail-loud，不得靜默重生 seed 或改抽。
         var sampleSeedResolution = JetAuditProgram.ResolveInfSamplingSeed(
             document.SampleSeed,
             document.SampleSeedVersion);
+        if (sampleSeedResolution.IsLegacyProject)
+        {
+            throw new JetActionException(
+                JetErrorCodes.InvalidProjectSchema,
+                InfSamplingSeedResolution.LegacyProjectMessage($"案件『{projectId}』", sampleSeedResolution.Error));
+        }
+
         if (!sampleSeedResolution.IsValid)
         {
             throw new JetActionException(
@@ -85,14 +82,26 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 generatedUtc,
                 DefaultSampleSize,
                 sampleSeedResolution.AlgorithmVersion));
-        var facts = await JetAuditProgram.ExecuteAsync(plan, validationFactsPort, cancellationToken);
+        var record = await repositories.ValidationFacts.ExecuteAsync(
+            plan, facts => CreateRecord(plan, facts, document), cancellationToken);
+        await MappingCommitShared.AdvanceStepAsync(projectStore, document,
+            WorkflowMilestones.For(Action), CancellationToken.None, logger);
+        using var parsed = JsonDocument.Parse(record.SummaryJson);
+        return parsed.RootElement.Clone();
+    }
+
+    private static RuleRunRecord CreateRecord(ValidationPlan plan, ValidationFacts facts, ProjectDocument document)
+    {
+        var runId = plan.Request.RunId;
+        var generatedUtc = plan.Request.GeneratedUtc;
+        var sampleSeed = plan.Request.SampleSeed;
         var validation = JetAuditProgram.Finalize(plan, facts);
         var runManifest = validation.Manifest;
         var result = validation.Data;
-        var sourceQualityPage = await sourceQualityPageRepository.GetPageAsync(
-            projectId,
-            new PageRequest(Cursor: null, PageSize: 50),
-            cancellationToken);
+        var documentDateReuse = result.DocumentDateReuse
+            ?? throw new InvalidOperationException("資料驗證未回傳跨入帳日傳票號碼的計數。");
+        var sourceQualityRows = facts.SourceQualitySampleRows
+            ?? throw new InvalidOperationException("資料驗證未回傳來源品質的有界樣本。");
         var completenessVerdict = Verdict(runManifest, "completeness_test");
         var completenessEligibility = JetAuditProgram.EvaluateCompletenessEligibility(
             new CompletenessEligibilityFacts(
@@ -106,7 +115,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
 
         var scale = document.MoneyScale;
 
-        // part(a) controls 缺漏時仍保留 exact nested shape，但所有值（含 match）皆為 null。
+        // 匯入控制總數缺漏時仍保留 exact nested shape，但所有值（含 match）皆為 null。
         object partADto = result.PartA is { } pa
             ? new
             {
@@ -243,7 +252,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
             sourceQuality = new
             {
                 findingCount = result.SourceQualityFindingCount,
-                sampleRows = sourceQualityPage.Rows.Select(row => (object)new
+                sampleRows = sourceQualityRows.Select(row => (object)new
                 {
                     category = row.Category,
                     sourceRowNumber = row.SourceRowNumber,
@@ -254,26 +263,18 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                     description = row.Description
                 }).ToArray()
             },
+            documentDateReuse = new
+            {
+                documentNumberCount = documentDateReuse.DocumentNumberCount,
+                entryCount = documentDateReuse.EntryCount
+            },
             resultRef = new { runId, generatedUtc, logicVersion = RuleLogicVersions.Validation }
         };
 
-        // 儲存與 wire 同一份 raw JSON；resume 仍以 raw facts 重建衍生 eligibility。
+        // 儲存與 wire 同一份 raw JSON；resume 仍以原始結果重建衍生的「可否繼續後續步驟」判定。
         var summaryJson = JsonSerializer.Serialize(dto, JetJsonStorage.Options);
-        await runStore.SaveAsync(
-            projectId,
-            new RuleRunRecord(runId, RuleRunKinds.Validate, generatedUtc, summaryJson),
-            CancellationToken.None);
-
-        await MappingCommitShared.AdvanceStepAsync(
-            projectStore,
-            document,
-            ProgramGraph.Current.RequireNode(Action),
-            CancellationToken.None);
-
-        using var parsed = JsonDocument.Parse(summaryJson);
-        return parsed.RootElement.Clone();
+        return new RuleRunRecord(runId, RuleRunKinds.Validate, generatedUtc, summaryJson);
     }
-
     private static ProcedureVerdict Verdict(AuditRunManifest manifest, string slug) =>
         manifest.Procedures.Single(verdict =>
             string.Equals(verdict.Definition.Slug, slug, StringComparison.Ordinal));

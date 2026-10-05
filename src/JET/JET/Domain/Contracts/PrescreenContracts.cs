@@ -54,7 +54,11 @@ public sealed record PrescreenRunResult(
     long BackdatedPostingCount,
     long NonAuthorizedPreparerCount,
     long LowFrequencyPreparerCount,
-    long LowFrequencyAccountCount);
+    long LowFrequencyAccountCount)
+{
+    // 科目數與上面的命中分錄列數分開。相容呼叫端未提供時保留 null，不冒充零個科目。
+    public long? LowFrequencyDistinctAccountCount { get; init; }
+}
 
 public interface IPrescreenRunRepository
 {

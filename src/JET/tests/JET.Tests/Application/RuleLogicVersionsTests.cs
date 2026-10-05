@@ -19,11 +19,24 @@ public sealed class RuleLogicVersionsTests
     }
 
     [Fact]
-    public void ValidationAndFormalReportIntegration_AdvancesAllAffectedVersions()
+    public void BlankVoucherAndDateReuseDecisions_AdvanceAllAffectedVersions()
     {
-        Assert.Equal("validation-2026-08-14-v4", RuleLogicVersions.Validation);
-        Assert.Equal("prescreen-2026-09-17-v8", RuleLogicVersions.Prescreen);
-        Assert.Equal("filter-2026-09-18-v16", RuleLogicVersions.Filter);
+        // 2026-10-04 R1、R2 排除空白傳票號碼的整張傳票條件，舊預篩選與篩選結果必須重算。
+        // 第9批R3/R10；Public首敗100911120：空白號碼計數與同號多日期摘要使validation升v5；仍鎖定三個完整字面值。
+        Assert.Equal("validation-2026-10-04-v5", RuleLogicVersions.Validation);
+        Assert.Equal("prescreen-2026-10-04-v9", RuleLogicVersions.Prescreen);
+        Assert.Equal("filter-2026-10-04-v17", RuleLogicVersions.Filter);
+    }
+
+    [Fact]
+    public void BeforeBlankVoucherDecisions_SavedFilterAndPrescreenResultsAreStale()
+    {
+        var saved = new SavedFilterScenario(1, "舊傳票條件", "合成測試", """
+            {"populationScope":"auditPeriod","logicVersion":"filter-2026-09-18-v16","groups":[]}
+            """, DateTimeOffset.UnixEpoch);
+        Assert.False(RuleLogicVersions.IsCurrent(saved));
+        var summary = """{"resultRef":{"logicVersion":"prescreen-2026-09-17-v8"}}""";
+        Assert.False(RuleLogicVersions.IsCurrent(new RuleRunRecord("old", RuleRunKinds.Prescreen, DateTimeOffset.UnixEpoch, summary)));
     }
 
     [Fact]

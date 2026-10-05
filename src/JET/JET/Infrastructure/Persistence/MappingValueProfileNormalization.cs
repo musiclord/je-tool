@@ -1,3 +1,8 @@
+using System.Data.Common;
+using DuckDB.NET.Data;
+using JET.Domain;
+using Microsoft.Data.Sqlite;
+
 namespace JET.Infrastructure;
 
 /// <summary>
@@ -6,20 +11,29 @@ namespace JET.Infrastructure;
 /// </summary>
 internal static class MappingValueProfileNormalization
 {
-    internal static string DotNetTrimCharacters { get; } = BuildDotNetTrimCharacters();
+    internal const string FunctionName = "jet_mapping_ordinal_key";
+    private static readonly Lock RegistrationLock = new();
+    internal static string DotNetTrimCharacters => JET.Domain.TextWhitespace.Characters;
 
-    private static string BuildDotNetTrimCharacters()
+    internal static void RegisterLocalFunction(DbConnection connection)
     {
-        var characters = new List<char>();
-        for (var codePoint = (int)char.MinValue; codePoint <= char.MaxValue; codePoint++)
+        if (connection is SqliteConnection sqlite)
         {
-            var character = (char)codePoint;
-            if (char.IsWhiteSpace(character))
-            {
-                characters.Add(character);
-            }
+            sqlite.CreateFunction<string?, string?>(FunctionName, MappingCodeIdentity.Key, isDeterministic: true);
+            return;
         }
-
-        return new string(characters.ToArray());
+        if (connection is DuckDbConnectionAdapter { Inner: DuckDBConnection duck })
+        {
+            // DuckDB 的同一資料庫可能有並行的唯讀連線；每個資料庫實例只註冊一次純函式，不保存來源值。
+            lock (RegistrationLock)
+            {
+                using var exists = duck.CreateCommand();
+                exists.CommandText = $"SELECT COUNT(*) FROM duckdb_functions() WHERE function_name = '{FunctionName}';";
+                if (Convert.ToInt64(exists.ExecuteScalar()) == 0)
+                    duck.RegisterScalarFunction<string, string?>(FunctionName, MappingCodeIdentity.Key);
+            }
+            return;
+        }
+        throw new InvalidOperationException("Mapping value profile requires a supported local database connection.");
     }
 }

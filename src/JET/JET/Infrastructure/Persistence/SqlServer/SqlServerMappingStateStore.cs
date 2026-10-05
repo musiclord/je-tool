@@ -68,9 +68,52 @@ public sealed class SqlServerMappingStateStore(SqlServerProjectDatabase database
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task<CommittedMapping?> FindAsync(
+    /// <summary>
+    /// 重新匯入時，把目前已確認的配對搬到 config_field_mapping_previous 再刪除(對應
+    /// <see cref="LocalMappingStateStore.RetireCommittedMappingSql"/>)。沒有已確認的配對時不覆蓋舊的那份。
+    /// SQL Server 開發暫緩期間只經過編譯，沒有實機執行。
+    /// </summary>
+    internal const string RetireCommittedMappingSql =
+        """
+        IF EXISTS (SELECT 1 FROM {s}.config_field_mapping WHERE dataset_kind = @kind)
+        BEGIN
+            DELETE FROM {s}.config_field_mapping_previous WHERE dataset_kind = @kind;
+            INSERT INTO {s}.config_field_mapping_previous
+                (dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json)
+            SELECT dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
+            FROM {s}.config_field_mapping
+            WHERE dataset_kind = @kind;
+        END;
+        DELETE FROM {s}.config_field_mapping WHERE dataset_kind = @kind;
+        """;
+
+    public Task<CommittedMapping?> FindAsync(
         string projectId,
         DatasetKind kind,
+        CancellationToken cancellationToken) =>
+        ReadAsync(projectId, kind, "config_field_mapping", cancellationToken);
+
+    // 上次確認的配對只用來帶回草稿；讀不出來時當作沒有，不能因此擋住開案。
+    public async Task<CommittedMapping?> FindPreviousAsync(
+        string projectId,
+        DatasetKind kind,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ReadAsync(projectId, kind, "config_field_mapping_previous", cancellationToken);
+        }
+        catch (Exception exception) when (
+            exception is JetActionException or JsonException or InvalidOperationException or FormatException)
+        {
+            return null;
+        }
+    }
+
+    private async Task<CommittedMapping?> ReadAsync(
+        string projectId,
+        DatasetKind kind,
+        string table,
         CancellationToken cancellationToken)
     {
         await database.EnsureCreatedAsync(projectId, cancellationToken);
@@ -80,9 +123,9 @@ public sealed class SqlServerMappingStateStore(SqlServerProjectDatabase database
 
         // dataset_kind 為 PK,至多一列;不需分頁。
         await using var command = database.CreateCommand(connection, projectId,
-            """
+            $$"""
             SELECT mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
-            FROM {s}.config_field_mapping
+            FROM {s}.{{table}}
             WHERE dataset_kind = @kind;
             """);
         command.Parameters.AddWithValue("@kind", kind.ToStorageName());

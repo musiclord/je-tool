@@ -28,7 +28,8 @@ public static class FieldValueConditions
         ["between"] = "介於", ["notBetween"] = "不介於", ["isBlank"] = "空白", ["isNotBlank"] = "非空白"
     };
 
-    internal static IReadOnlyList<string>? CanonicalValues(FilterRuleSpec rule, GlRdeFieldMetadata field, int scale)
+    internal static IReadOnlyList<string>? CanonicalValues(FilterRuleSpec rule, GlRdeFieldMetadata field, int scale,
+        DateParseOptions? dateOptions = null)
     {
         if (rule.TypedValues is null) return null;
         if (IsDayOfMonth(rule.TypedOperator) || IsTail(rule.TypedOperator))
@@ -36,7 +37,7 @@ public static class FieldValueConditions
         return rule.TypedValues.Select(value => field.ValueType switch
         {
             "text" => value.Trim().ToUpperInvariant(),
-            "date" when TypedFieldOperandRules.TryNormalizeDate(value, out var iso) => iso,
+            "date" when TypedFieldOperandRules.TryNormalizeDate(value, dateOptions ?? DateParseOptions.Default, out var iso) => iso,
             "money" when TypedFieldOperandRules.TryNormalizeMoney(value, scale, out var scaled) =>
                 ((decimal)scaled / scale).ToString(System.Globalization.CultureInfo.InvariantCulture),
             _ => value
@@ -69,8 +70,12 @@ public static class FieldValueConditions
     public static bool IsCalendar(string? op) => op is "isWeekend" or "isNotWeekend" or "isHoliday" or "isNotHoliday"
         or "isMakeupDay" or "isNotMakeupDay" or "isNonBusinessDay" or "isNotNonBusinessDay";
     public static bool IsTail(string? op) => op is "endsWithDigits" or "notEndsWithDigits";
+    /// <summary>String-carried lists share the editor delimiters. Structured values preserve literal punctuation.</summary>
+    public static IReadOnlyList<string> SplitInputList(string? value) => (value ?? "")
+        .Split([',', '，', '、', '\t', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
     public static IReadOnlyList<string> TailPatterns(FilterRuleSpec rule) => rule.TypedValues is { Count: > 0 }
-        ? rule.TypedValues : (rule.TypedValue ?? "").Split([',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        ? rule.TypedValues : SplitInputList(rule.TypedValue);
 
     /// <summary>文字的包含比對接受多個關鍵字；舊 wire 只帶單一 value 時視為一個關鍵字。</summary>
     public static bool IsContains(string? op) => op is "contains" or "notContains";
@@ -169,7 +174,7 @@ public static partial class FilterScenarioValidator
                 errors.Add($"{label}：包含比對需要 1 到 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個非空白的文字。");
             return;
         }
-        var normalized = rule with { TypedValues = FieldValueConditions.CanonicalValues(rule, field, context.MoneyScale) };
+        var normalized = rule with { TypedValues = FieldValueConditions.CanonicalValues(rule, field, context.MoneyScale, context.DateParseOptions) };
         ValidateTypedOperands(normalized.TypedOperator == "notBetween" ? normalized with { TypedOperator = "between" } : normalized,
             field, label, context, errors);
     }

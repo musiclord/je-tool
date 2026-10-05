@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
@@ -162,8 +163,8 @@ public sealed class PrescreenConcentrationTests
     [Fact]
     public async Task ProjectLoad_OldPrescreenSummary_ReplaysWithoutFabricatingConcentration()
     {
-        // resume 舊 summary_json（本欄位落地前存下的執行結果）：後端不補 0 或空物件
-        // 冒充統計；只允許 AuditCore renderer 正規化已退役的 N/A 顯示文案。
+        // resume 舊 summary_json（本欄位落地前存下的執行結果）：後端不補 0 或空物件冒充統計。
+        // 舊英文不適用原因的替換已隨舊案件相容程式移除，保存的原因照原樣回放。
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(host, BuildConcentrationGl);
 
@@ -175,9 +176,47 @@ public sealed class PrescreenConcentrationTests
         var resumed = loaded.GetProperty("latestRuns").GetProperty("prescreen");
         Assert.Equal(7, resumed.GetProperty("suspiciousKeywords").GetProperty("count").GetInt64());
         Assert.Equal(
-            "請先完成 GL「傳票核准日」欄位配對。",
+            "GL 未配對核准日欄位（docDate）。",
             resumed.GetProperty("postPeriodApproval").GetProperty("naReason").GetString());
         Assert.False(resumed.TryGetProperty("concentration", out _));
+    }
+
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task ProjectLoad_RefreshesPrescreenGuidanceWithoutChangingStoredResults(string provider)
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(host, BuildConcentrationGl, databaseProvider: provider);
+        var folder = new JetProjectFolder(host.ProjectsRoot);
+        ILocalProjectDatabase database = provider == "duckdb"
+            ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        var store = new LocalRuleRunStore(database);
+        var runId = Guid.NewGuid().ToString("N");
+        var generatedUtc = DateTimeOffset.UtcNow;
+        var savedJson = JsonSerializer.Serialize(new
+        {
+            resultRef = new { runId, generatedUtc, logicVersion = RuleLogicVersions.Prescreen },
+            suspiciousKeywords = new { status = "V", count = 7 },
+            rulePeriod = new { population = 12, rules = new[] { new { key = "suspiciousKeywords", hitLines = 7 } } },
+            auditNote = "合成保留文字",
+            positioning = new { aggregateGuidance = "先看依分錄編製者與較少使用科目的全期彙總；這兩項是常用的母體判讀面。" }
+        });
+        await store.SaveAsync(projectId, new RuleRunRecord(runId, RuleRunKinds.Prescreen, generatedUtc, savedJson), CancellationToken.None);
+
+        var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
+        var resumed = loaded.GetProperty("latestRuns").GetProperty("prescreen");
+        var guidance = resumed.GetProperty("positioning");
+        Assert.Equal("查看編製人員與較少使用科目的分錄筆數及金額。", guidance.GetProperty("aggregateGuidance").GetString());
+        Assert.Equal("預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。", guidance.GetProperty("exportDefaultGuidance").GetString());
+        var expected = JsonNode.Parse(savedJson)!.AsObject();
+        var actual = JsonNode.Parse(resumed.GetRawText())!.AsObject();
+        expected.Remove("positioning");
+        actual.Remove("positioning");
+        Assert.Equal(expected.ToJsonString(), actual.ToJsonString());
+        var persisted = await store.FindLatestAsync(projectId, RuleRunKinds.Prescreen, CancellationToken.None);
+        Assert.NotNull(persisted);
+        Assert.Equal(savedJson, persisted!.SummaryJson);
     }
 
     private static void AssertPropertyNames(IReadOnlyList<string> expected, JsonElement element)

@@ -4,7 +4,7 @@
 不編造。事實不確定的例子不收；之後每次有代表性的人工改寫，就加一筆。
 
 本檔故意保留不良句子當對照，所以不列入 `Documentation` 命令的樣式檢查，否則每次都會出現同一批
-warning。它是否存在由 `SKILL.md` 的必要指向與 `docs/first-root-commit-candidate.txt` 保證。
+warning。它是否存在由 `SKILL.md` 的必要指向保證。
 
 ## 來源說明
 
@@ -23,8 +23,9 @@ warning。它是否存在由 `SKILL.md` 的必要指向與 `docs/first-root-comm
 | 5 | commit 後 `git ls-files --cached` 與 1,219 個路徽逐行一致。 | commit 後 `git ls-files --cached` 與候選清單的 1,219 個路徑逐行一致。 | 「徽」是「徑」的形近錯字。重讀時常用詞要逐字看。 | 2026-09-02 session 回覆 |
 | 6 | 依同一授權，整輪成果以明確路徑 stage、單一 commit 提交並推送一次 `main -> origin/main`。 | 依同一授權，把這一輪的全部改動用明確路徑加入索引，做成一個 commit，推送一次到 `origin/main`。 | 一句塞了三個 Git 動作與兩個英文動詞；拆開後每個動作都看得懂。 | 2026-09-02 session 計畫檔 |
 | 7 | `CLAUDE.md` 10 行＋`AGENTS.md` 107 行＝117 行 | `CLAUDE.md` 10 行加 `AGENTS.md` 107 行，共 117 行。 | 表格裡用算式代替句子。 | `docs/agent-compatibility.md` 2026-09-01 版 |
-| 8 | 前一輪被審查抓到兩次綠燈卻空斷言。 | 前一輪被審查抓到兩次測試通過、但斷言是空的。 | 「綠燈」是工作用語，讀者不一定知道指測試通過。 | `docs/specs/2026-08-30-repository-consolidation-plan.md` 2026-09-01 版 |
+| 8 | 前一輪被審查抓到兩次綠燈卻空斷言。 | 前一輪被審查抓到兩次測試通過、但斷言是空的。 | 「綠燈」是工作用語，讀者不一定知道指測試通過。 | `docs/history/specs/2026-08-30-repository-consolidation-plan.md` 2026-09-01 版 |
 | 9 | 完整性測試 Part B 無法執行：請先完成 TB 欄位配對並重新執行資料驗證。 | 完整性測試無法執行 GL 與 TB 的逐科目比對：請先完成 TB 欄位配對並重新執行資料驗證。 | Part B 是程式內部分段名稱，使用者無法由名稱知道系統少了哪一項檢查。改寫後直接說明比對對象與下一步。 | `src/JET/JET/AuditCore/CompletenessEligibility.cs` 2026-09-09 修改前文字 |
+| 10 | 確認配對整理時寫入的分錄沒有遺漏或重複；這項不比對來源檔本身的總數 | 確認 JET 存入的分錄筆數與借貸合計，和確認欄位配對時算出的一致。這一項不和來源檔本身的總數比對。 | 「配對整理時寫入」把三個動作壓成一個詞，分號又把兩件事接成一句。改寫說出比較的是哪兩個數字，一句只講一件事。使用者同日備註「要注意的你的語氣和用詞，開始有變得難以閱讀的跡象」。 | 現行計畫「最後獨立複審（2026-10-05）」V2 的建議文字 |
 
 ## 已列為 warning 的自創名詞
 
@@ -42,4 +43,4 @@ warning。它是否存在由 `SKILL.md` 的必要指向與 `docs/first-root-comm
 - 改寫：「產品接續順序：先處理多個欄位綁定同一筆佐證分錄，再處理本地分類節點與審計角色的差別。
   本輪交付範圍另列，不由『下一步』推定何時停止。」
 - 原因：原句把任務先後寫得像 session 分界；改寫保留產品順序，將本輪成果分開說明。
-- 來源：`docs/specs/2026-09-17-user-feedback-and-workflow-review-plan.md` 的 2026-09-18 使用者註解及原接續摘要。
+- 來源：`docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md`（原在 `docs/specs/`）的 2026-09-18 使用者註解及原接續摘要。

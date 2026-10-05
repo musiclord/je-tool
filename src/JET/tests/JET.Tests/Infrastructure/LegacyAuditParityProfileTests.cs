@@ -806,6 +806,52 @@ public sealed class LegacyAuditParityProfileTests
         Assert.Equal(AccountPairModes.Exact, rule.GetProperty("pairMode").GetString());
     }
 
+    // 2026-10-02 刪除單選分類欄位後，舊底稿的分類名稱改成內建分類身分陣列；PrivateCase 不經過這段轉換，由這兩個測試鎖住。
+    [Fact]
+    public void CriteriaLog_AccountPair_EmitsBuiltInCategoryIdArrays()
+    {
+        var log = $"#1. 設定的特定借貸組合為：借方 : {AccountMappingCategories.Cash} "
+            + $"和 貸方 : {AccountMappingCategories.Revenue}";
+
+        var result = LegacyCriteriaLogParser.TryParse(
+            log,
+            "legacy-scenario-01",
+            "synthetic rationale",
+            "scenario-01-criteria-log");
+
+        var group = Assert.Single(AssertScenario(result).GetProperty("groups").EnumerateArray());
+        var rule = Assert.Single(group.GetProperty("rules").EnumerateArray());
+        Assert.Equal(new[] { AccountTaxonomyBuiltIns.CashId }, CategoryIds(rule, "debitCategoryIds"));
+        Assert.Equal(new[] { AccountTaxonomyBuiltIns.RevenueId }, CategoryIds(rule, "creditCategoryIds"));
+        Assert.False(rule.TryGetProperty("debitCategory", out _));
+        Assert.False(rule.TryGetProperty("creditCategory", out _));
+    }
+
+    [Fact]
+    public void CriteriaLog_SpecialAccountCategoryPair_EmitsBuiltInCategoryIdArrays()
+    {
+        var log = $"#1. 新增科目配對篩選條件為 借方 - {AccountMappingCategories.Cash}、"
+            + $"貸方 - 非 {AccountMappingCategories.Revenue}";
+
+        var result = LegacyCriteriaLogParser.TryParse(
+            log,
+            "legacy-scenario-01",
+            "synthetic rationale",
+            "scenario-01-criteria-log");
+
+        var group = Assert.Single(AssertScenario(result).GetProperty("groups").EnumerateArray());
+        var rule = Assert.Single(group.GetProperty("rules").EnumerateArray());
+        Assert.Equal("specialAccountCategoryPair", rule.GetProperty("type").GetString());
+        Assert.Equal(SpecialAccountCategoryPairModes.DrNotCr, rule.GetProperty("pairMode").GetString());
+        Assert.Equal(new[] { AccountTaxonomyBuiltIns.CashId }, CategoryIds(rule, "debitCategoryIds"));
+        Assert.Equal(new[] { AccountTaxonomyBuiltIns.RevenueId }, CategoryIds(rule, "creditCategoryIds"));
+        Assert.False(rule.TryGetProperty("debitCategory", out _));
+        Assert.False(rule.TryGetProperty("creditCategory", out _));
+    }
+
+    private static string[] CategoryIds(JsonElement rule, string property) =>
+        rule.GetProperty(property).EnumerateArray().Select(static item => item.GetString() ?? string.Empty).ToArray();
+
     [Fact]
     public void CriteriaLog_RegexMetacharacter_FailsClosedWithoutEchoingToken()
     {

@@ -74,6 +74,31 @@ internal sealed record WorkpaperSheetPlan(
     string? Conclusion,
     string? NaText);
 
+/// <summary>
+/// Step 1 與 Step 1-1 依結果二選一的結論文字。照 legacy：有差異科目或不平傳票時才改寫範本原文
+/// （idea-tool.bas:10409-10411、10468、10521-10524）。範本原文就是「沒有差異」「沒有不平」的版本。
+/// </summary>
+internal static class WorkpaperResultTexts
+{
+    internal static string Step1Conclusion(bool hasCompletenessDifferences) =>
+        hasCompletenessDifferences
+            ? "基於上述程序，查核團隊對於JE測試母體之完整性，尚需於Step1-3說明以取得足夠的查核證據。"
+            : "基於上述程序，查核團隊對於JE測試母體之完整性，已取得足夠的查核證據。";
+
+    internal static string Step1ListNote(bool hasCompletenessDifferences) =>
+        "#針對試算表科目金額本期異動與會計分錄(JE)進行推滾比對之清單列示如下："
+        + (hasCompletenessDifferences
+            ? "(有部分科目之差異數不為0，請於step1-3說明其理由，以確認JE母體的完整性)"
+            : "(已確認差異數均為0，可確認其完整性)");
+
+    internal static string Step11Conclusion(bool hasUnbalancedDocuments) =>
+        hasUnbalancedDocuments
+            ? "基於上述程序，查核團隊發現有部分傳票借貸不平，但已取得足夠的查核證據，確認其理由尚屬合理。"
+            : "基於上述程序，查核團隊已取得足夠的查核證據，確認無借貸不平之情形。";
+
+    internal const string Step11ExceptionTableTitle = "出現借貸不平之個別傳票說明：";
+}
+
 /// <summary>step4-1 欄值來源；只有 RawField 會讀原始 row_json，其餘皆取 target normalized row。</summary>
 internal enum WorkpaperStep41ValueSource
 {
@@ -106,12 +131,11 @@ internal sealed record WorkpaperStep41Column(
     string? RdeFieldId = null);
 
 /// <summary>
-/// 記憶體內的 Working Paper plan。Plan 動詞先綁定 request 與 ProgramGraph；
+/// 記憶體內的 Working Paper plan。Plan 動詞先綁定 request；
 /// Finalize 才依 raw planning facts 產生 ordered sheet decisions。
 /// </summary>
 internal sealed record WorkpaperPlan(
     WorkpaperRequest Request,
-    ProgramNode Node,
     IReadOnlyList<WorkpaperSheetPlan> Sheets,
     IReadOnlyList<WorkpaperScenarioPlan> Scenarios,
     IReadOnlyList<int> AllScenarioPositions,
@@ -154,7 +178,6 @@ internal interface IFormalWorkpaperPlanWriter : IWorkpaperPlanWriter
 
 public static partial class JetAuditProgram
 {
-    private const string WorkpaperAction = "export.workpaperStream";
     private const string WorkpaperNaText = "N/A";
 
     private static readonly IReadOnlyList<string> NoWorkpaperMethodology =
@@ -183,9 +206,6 @@ public static partial class JetAuditProgram
             "人工傳票否_JE_S"
         });
 
-    private static readonly IReadOnlyList<string> Step1Methodology = Texts(
-        "#針對試算表科目金額本期異動與會計分錄(JE)進行推滾比對之清單列示如下：" +
-        "(有部分科目之差異數不為0，請於step1-3說明其理由，以確認JE母體的完整性)");
 
     private static readonly IReadOnlyList<string> IntroMethodology = Texts(
         "此JE測試的WorkPaper係透過JE Testing Tool產生之工作底稿，並依下列步驟分別記錄會計分錄測試" +
@@ -262,7 +282,6 @@ public static partial class JetAuditProgram
 
         return new WorkpaperPlan(
             request,
-            ProgramGraph.Current.RequireNode(WorkpaperAction),
             Array.AsReadOnly(Array.Empty<WorkpaperSheetPlan>()),
             Array.AsReadOnly(Array.Empty<WorkpaperScenarioPlan>()),
             NoScenarioPositions,
@@ -307,17 +326,6 @@ public static partial class JetAuditProgram
         UsesLegacyWholeVoucherRows(scenario)
             ? WorkpaperScenarioTagScope.HitVoucherRows
             : WorkpaperScenarioTagScope.DirectHitRows;
-
-    /// <summary>由 typed port 取得 sheet planning 所需的有界 raw counts。</summary>
-    internal static Task<WorkpaperPlanningFacts> ExecuteAsync(
-        WorkpaperPlan plan,
-        IWorkpaperPlanningFactsPort factsPort,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        return factsPort.ExecuteAsync(plan, cancellationToken);
-    }
 
     /// <summary>
     /// 只搬移既有 writer decision：完整性差異為零時省略 step1-3，
@@ -377,16 +385,14 @@ public static partial class JetAuditProgram
             Sheet(
                 WorkpaperSheetCatalog.Step1,
                 auditCondition: "評估母體完整性：",
-                methodology: Step1Methodology,
-                conclusion:
-                    "基於上述程序，查核團隊對於JE測試母體之完整性，尚需於Step1-3說明以取得足夠的查核證據。",
+                methodology: Texts(WorkpaperResultTexts.Step1ListNote(facts.HasCompletenessDifferences)),
+                conclusion: WorkpaperResultTexts.Step1Conclusion(facts.HasCompletenessDifferences),
                 naText: naText),
             Sheet(
                 WorkpaperSheetCatalog.Step11,
                 includeExceptionTable: facts.HasUnbalancedDocuments,
                 auditCondition: "評估個別傳票是否借貸不平：",
-                conclusion:
-                    "基於上述程序，查核團隊已取得足夠的查核證據，確認無借貸不平之情形。",
+                conclusion: WorkpaperResultTexts.Step11Conclusion(facts.HasUnbalancedDocuments),
                 naText: naText),
             Sheet(
                 WorkpaperSheetCatalog.Step12,
@@ -438,20 +444,6 @@ public static partial class JetAuditProgram
                 request.MoneyScale),
             IsFinalized = true
         };
-    }
-
-    /// <summary>供程式審查確認 finalized sheet set 與條件分支，不參與 runtime dispatch。</summary>
-    internal static string Explain(WorkpaperPlan plan)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        if (!plan.IsFinalized)
-        {
-            throw new InvalidOperationException("WorkpaperPlan 尚未 Finalize。");
-        }
-
-        var emitted = plan.Sheets.Count(sheet => sheet.Emit);
-        return $"{WorkpaperAction}：規劃 {emitted} 張正準工作表；"
-            + $"所選情境={plan.Request.Scenarios.Count}。";
     }
 
     private static WorkpaperSheetPlan Sheet(
@@ -639,7 +631,7 @@ public static partial class JetAuditProgram
             "測試範圍",
             $"查核期間內（{request.PeriodStart} ~ {request.PeriodEnd}）之會計分錄",
             "選擇該測試範圍的理由",
-            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳日期之列不納入本版情境命中與矩陣。",
+            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳入帳日之列不納入本版情境命中與矩陣。",
             "Step 3",
             "辨認高風險條件",
             "風險評估及查核程序：",

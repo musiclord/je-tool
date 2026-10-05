@@ -8,14 +8,13 @@ namespace JET.Application;
 /// 排序鍵 account_code ASC、cursor opaque、pageSize 預設 200／上限 500。只供第四步顯示，不影響篩選。
 /// </summary>
 public sealed class QueryAccountMappingBlankPageHandler(
-    IAccountMappingBlankPageRepository repository,
     ProjectSession session) : IApplicationActionHandler
 {
     public string Action => "query.accountMappingBlankPage";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         var cursor = PayloadReader.GetOptionalString(payload, "cursor");
         if (PageCursor.IsMalformed(cursor))
         {
@@ -24,7 +23,7 @@ public sealed class QueryAccountMappingBlankPageHandler(
 
         var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
         var page = await Task.Run(
-            () => repository.GetPageAsync(projectId, new PageRequest(cursor, pageSize), cancellationToken),
+            () => repositories.AccountMappingBlankPages.GetPageAsync(projectId, new PageRequest(cursor, pageSize), cancellationToken),
             cancellationToken);
         return new
         {

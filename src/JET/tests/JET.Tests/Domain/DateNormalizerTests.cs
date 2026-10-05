@@ -44,12 +44,12 @@ public sealed class DateNormalizerTests
     }
 
     [Fact]
-    public void TryNormalize_RocDisabled_SevenDigitFallsBackToOaDateSerial()
+    public void TryNormalize_RocDisabled_SevenDigitOutsideSupportedSerialYears_IsRejected()
     {
-        // 1140611 在序列值範圍（1..2958465）內：關閉民國年時回歸序列值判定。
-        // oracle 手算：1899-12-30 + 1,140,611 天 = 5022-11-19（OADate 定義）。
-        Assert.True(DateNormalizer.TryNormalize("1140611", RocOff, out var isoDate));
-        Assert.Equal("5022-11-19", isoDate);
+        // 2026-10-04 第 9 批高4：序列值限 1900–2100，關閉民國年後不能接受原先的 5022 年日期。
+        // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592；原始輸入不變。
+        Assert.False(DateNormalizer.TryNormalize("1140611", RocOff, out var isoDate));
+        Assert.Null(isoDate);
     }
 
     [Fact]
@@ -59,10 +59,10 @@ public sealed class DateNormalizerTests
         Assert.False(DateNormalizer.TryNormalize("114/6/11", RocOff, out _));
     }
 
-    // BVA：Excel 序列值邊界（guide §3.1.3：1..2958465）
+    // 2026-10-04 第 9 批高4：改驗 1900–2100 的固定邊界，未呼叫被測程式反算答案。
     [Theory]
-    [InlineData("1", "1899-12-31")]        // OADate 1
-    [InlineData("2958465", "9999-12-31")]  // OADate 上限
+    [InlineData("2", "1900-01-01")]
+    [InlineData("73415", "2100-12-31")]
     public void TryNormalize_OaDateSerialBoundaries_Accepted(string raw, string expected)
     {
         Assert.True(DateNormalizer.TryNormalize(raw, RocOn, out var isoDate));
@@ -72,6 +72,9 @@ public sealed class DateNormalizerTests
     [Theory]
     [InlineData("0")]        // BVA：序列值下鄰
     [InlineData("2958466")]  // BVA：序列值上鄰
+    [InlineData("1")]        // 原先接受的 1899-12-31 改為拒絕。
+    [InlineData("73416")]    // 2101-01-01。
+    [InlineData("2958465")]  // 原先接受的 9999-12-31 改為拒絕。
     public void TryNormalize_OaDateSerialOutOfRange_Rejected(string raw)
     {
         Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out _));
@@ -96,8 +99,8 @@ public sealed class DateNormalizerTests
         // 1141315 命中民國年 7 位數形狀但月份 13 非法：民國年判定優先，不得回退成序列值。
         Assert.False(DateNormalizer.TryNormalize("1141315", RocOn, out _));
 
-        // 民國年關閉時，1141315 是合法序列值（1899-12-30 + 1,141,315 天 = 5024-10-25 級的遠期日期）→ 接受。
-        Assert.True(DateNormalizer.TryNormalize("1141315", RocOff, out _));
+        // 同一高4裁定：民國年關閉時也不能退回 5024 年的超限序列日期。
+        Assert.False(DateNormalizer.TryNormalize("1141315", RocOff, out _));
     }
 
     // BVA：寬鬆 fallback 的年份 sanity guard（1900–2100）

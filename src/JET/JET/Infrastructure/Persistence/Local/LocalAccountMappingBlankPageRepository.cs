@@ -9,7 +9,7 @@ public sealed class LocalAccountMappingBlankPageRepository(ILocalProjectDatabase
     public async Task<PageResult<AccountMappingBlankAccount>> GetPageAsync(
         string projectId, PageRequest request, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 

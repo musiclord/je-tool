@@ -55,6 +55,7 @@ internal static class JetFieldCatalog
     internal const string GlDocNum = "docNum";
     internal const string GlLineId = "lineID";
     internal const string GlPostDate = "postDate";
+    // 歷史 action 鍵 docDate 在本案表示「傳票核准日」，不是 Document Date；儲存欄為 approval_date。
     internal const string GlDocDate = "docDate";
     internal const string GlVoucherDate = "voucherDate";
     internal const string GlAccNum = "accNum";
@@ -70,6 +71,7 @@ internal static class JetFieldCatalog
     internal const string GlCreditAmount = "creditAmount";
     internal const string GlDcField = "dcField";
     internal const string GlDcDebitCode = "dcDebitCode";
+    internal const string GlDcCreditCode = "dcCreditCode";
 
     internal const string TbAccNum = "accNum";
     internal const string TbAccName = "accName";
@@ -98,7 +100,7 @@ internal static class JetFieldCatalog
         Field(
             DatasetKind.Gl, GlPostDate, JetFieldValueKind.Date, 2, storageNullable: true, "post_date",
             "總帳日期_JE", canonicalOrder: 2, isGenericFilterField: true,
-            Slot(GlPostDate, "總帳日期", 2, always: true, fieldInfo: true)),
+            Slot(GlPostDate, "總帳入帳日", 2, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlDocDate, JetFieldValueKind.Date, 3, storageNullable: true, "approval_date",
             canonicalName: null, canonicalOrder: null, isGenericFilterField: true,
@@ -147,19 +149,21 @@ internal static class JetFieldCatalog
         Field(
             DatasetKind.Gl, GlAmount, JetFieldValueKind.Amount, 12, storageNullable: false, "amount_scaled",
             "傳票金額_JE", canonicalOrder: 7, isGenericFilterField: true,
-            Slot(GlAmount, "傳票金額（單欄）", 12,
+            Slot(GlAmount, "分錄金額（單欄）", 12,
                 modes: [GlAmountModeNames.Signed, GlAmountModeNames.Side, GlAmountModeNames.Flag],
                 fieldInfo: true),
             Slot(GlDebitAmount, "借方金額", 13, modes: [GlAmountModeNames.Dual]),
             Slot(GlCreditAmount, "貸方金額", 14, modes: [GlAmountModeNames.Dual]),
             Slot(GlDcField, "借貸別欄位", 15,
                 modes: [GlAmountModeNames.Side, GlAmountModeNames.Flag]),
-            Slot(GlDcDebitCode, "借方標識代碼", 16,
+            Slot(GlDcDebitCode, "借方代碼", 16,
+                modes: [GlAmountModeNames.Side, GlAmountModeNames.Flag], literal: true),
+            Slot(GlDcCreditCode, "貸方代碼", 17,
                 modes: [GlAmountModeNames.Side, GlAmountModeNames.Flag], literal: true)),
         Field(
             DatasetKind.Gl, GlPostingStatus, JetFieldValueKind.Text, 13, storageNullable: true,
             "posting_status", canonicalName: null, canonicalOrder: null, isGenericFilterField: false,
-            Slot(GlPostingStatus, "過帳狀態", 17))
+            Slot(GlPostingStatus, "過帳狀態", 18))
     ];
 
     internal static IReadOnlyList<JetFieldDefinition> TbFields { get; } =

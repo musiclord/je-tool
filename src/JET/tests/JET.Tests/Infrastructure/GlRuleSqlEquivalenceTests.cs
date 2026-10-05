@@ -80,13 +80,14 @@ public abstract class GlRuleSqlEquivalenceTests
         VALUES
             ('custom.0123456789abcdef0123456789abcdef', 'Custom revenue', 5, 'revenue', 0, 1);
 
+        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），原本留 NULL 的列補上內建分類。
         INSERT INTO target_account_mapping
             (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
         VALUES
-            ('am1', 1, '1101', '現金',     'Cash',        NULL),
-            ('am1', 2, '2201', '應付帳款', 'Receivables', NULL),
+            ('am1', 1, '1101', '現金',     'Cash',        'builtin.cash'),
+            ('am1', 2, '2201', '應付帳款', 'Receivables', 'builtin.receivables'),
             ('am1', 3, '4101', '銷貨收入', 'Others',      'custom.0123456789abcdef0123456789abcdef'),
-            ('am1', 4, '5101', '銷貨成本', 'Others',      NULL);
+            ('am1', 4, '5101', '銷貨成本', 'Others',      'builtin.others');
         """;
 
     protected const int MoneyScale = 100;
@@ -239,7 +240,11 @@ public abstract class GlRuleSqlEquivalenceTests
         // 借方錨定 Receivables（=2201）：只有 D03 含 Receivables 借方 → 輸出錨定列＋同傳票貸方列。
         var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.AccountPair, null, null,
             [], TextMatchMode.Contains, null, null, null, null, null, null,
-            PairMode: AccountPairModes.DebitAnchor, DebitCategory: "Receivables");
+            PairMode: AccountPairModes.DebitAnchor)
+        {
+            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
+            DebitCategoryIds = [AccountTaxonomyBuiltIns.ReceivablesId]
+        };
 
         var result = await Repository.PreviewAsync(ProjectId, SingleRule(rule), Context, CancellationToken.None);
 
@@ -254,7 +259,12 @@ public abstract class GlRuleSqlEquivalenceTests
         // D09 的 0 元 Cash 借方屬借方側（`>= 0` 裁決），改 `>` 即漏 D09。
         var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.AccountPair, null, null,
             [], TextMatchMode.Contains, null, null, null, null, null, null,
-            PairMode: AccountPairModes.Exact, DebitCategory: "Cash", CreditCategory: "Revenue");
+            PairMode: AccountPairModes.Exact)
+        {
+            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
+            DebitCategoryIds = [AccountTaxonomyBuiltIns.CashId],
+            CreditCategoryIds = [AccountTaxonomyBuiltIns.RevenueId]
+        };
 
         Assert.Equal(
             ["D01", "D02", "D04", "D05", "D06", "D09"],
@@ -267,7 +277,12 @@ public abstract class GlRuleSqlEquivalenceTests
         // Receivables 借＋Revenue 貸：D03 有 Receivables 借方但無 Revenue 貸方 → 空集合。
         var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.AccountPair, null, null,
             [], TextMatchMode.Contains, null, null, null, null, null, null,
-            PairMode: AccountPairModes.Exact, DebitCategory: "Receivables", CreditCategory: "Revenue");
+            PairMode: AccountPairModes.Exact)
+        {
+            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
+            DebitCategoryIds = [AccountTaxonomyBuiltIns.ReceivablesId],
+            CreditCategoryIds = [AccountTaxonomyBuiltIns.RevenueId]
+        };
 
         var result = await Repository.PreviewAsync(ProjectId, SingleRule(rule), Context, CancellationToken.None);
 

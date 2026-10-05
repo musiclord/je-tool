@@ -216,7 +216,9 @@ public sealed class SqlServerProjectCreateRollbackTests
             ProjectDocument.SqlServerDatabaseProvider,
             new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero),
             sampleSeed,
-            sampleSeedVersion: 1);
+            // 目前版本建案一律寫入現行 INF 抽樣版本；版本 1 已改判為舊版 JET 案件，從登記簿讀回時會被拒絕。
+            // 這個測試只在 SQL Server 路線執行，2026-10-02 修改時沒有執行該路線，所以沒有失敗紀錄。
+            sampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
 
     private static string Unique(string prefix) => $"{prefix}-{Guid.NewGuid():N}";
 

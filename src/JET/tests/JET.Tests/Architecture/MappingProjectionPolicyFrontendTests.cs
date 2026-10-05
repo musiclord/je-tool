@@ -43,7 +43,10 @@ public sealed class MappingProjectionPolicyFrontendTests
         var state = ReadFrontend("js", "state.js");
 
         // 2026-09-05：指定來源欄即切換模式，互斥由一次 store 更新維持。
-        Assert.Contains("function excludedFieldKeys(kind)", mapping, StringComparison.Ordinal);
+        // 9/23：兩種介面共用完整適用欄位；核准來源欄只在 mapped 顯示。
+        Assert.Contains("function fieldsForMode(fields, mode)", mapping, StringComparison.Ordinal);
+        Assert.DoesNotContain("field.key === 'docDate') { return false; }", mapping, StringComparison.Ordinal);
+        Assert.Contains("options.approvalDateMode === 'mapped' ? '<label class=\"map-approval-source\">", mapping, StringComparison.Ordinal);
         Assert.Contains("data-approval-source", mapping, StringComparison.Ordinal);
         Assert.Contains("Store.setMappingDraft('gl', 'docDate', approvalSource.value)", mapping, StringComparison.Ordinal);
         Assert.Contains("patch.approvalDateMode !== 'mapped'", state, StringComparison.Ordinal);
@@ -82,25 +85,29 @@ public sealed class MappingProjectionPolicyFrontendTests
     }
 
     [Fact]
-    public void ManualAutoCodes_AreValidatedForEmptinessAndOverlapBeforeCommit()
+    public void ManualAutoCodes_UseBackendComparisonWithoutASecondUnicodeOrOverlapGate()
     {
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
-        var problems = ExtractFunction(mapping, "glOptionProblems", "normalizedCode");
+        var problems = ExtractFunction(mapping, "glOptionProblems", "glOptionsHtml");
 
         Assert.Contains("人工與自動代碼各需至少一個值", problems, StringComparison.Ordinal);
-        Assert.Contains("人工與自動代碼不得重複", problems, StringComparison.Ordinal);
-        Assert.Contains("normalizedCode(value) === normalizedCode(other)", problems, StringComparison.Ordinal);
-
-        // trim + 不分大小寫，與後端同一口徑。
-        var normalize = ExtractFunction(mapping, "normalizedCode", "glOptionsHtml");
-        Assert.Contains(".trim().toUpperCase()", normalize, StringComparison.Ordinal);
+        // 2026-09-23 固定 Unicode 案例證明 JS 大寫展開與 .NET OrdinalIgnoreCase 不等價。
+        // 保留必要代碼引導，但重疊由既有後端 commit 驗證，不再用不同的比較先擋住合法政策。
+        Assert.DoesNotContain("人工與自動代碼不得重複", problems, StringComparison.Ordinal);
+        Assert.DoesNotContain(".trim().toUpperCase()", mapping, StringComparison.Ordinal);
+        var comparison = ExtractFunction(mapping, "sameCode", "mergeComparisonGroups");
+        Assert.Contains("left === right", comparison, StringComparison.Ordinal);
+        Assert.Contains("profile.comparisonGroups", comparison, StringComparison.Ordinal);
+        Assert.Contains("group.indexOf(left) >= 0 && group.indexOf(right) >= 0", comparison, StringComparison.Ordinal);
+        Assert.Contains("comparisonOnly: true, comparisonValues: values", mapping, StringComparison.Ordinal);
+        Assert.Contains("'pending'", mapping, StringComparison.Ordinal);
     }
 
     [Fact]
     public void PostingStatusPolicy_RequiresAnAcceptedValueOrBlankAndIsOnlySentWhenMapped()
     {
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
-        var problems = ExtractFunction(mapping, "glOptionProblems", "normalizedCode");
+        var problems = ExtractFunction(mapping, "glOptionProblems", "glOptionsHtml");
         var payload = ExtractFunction(mapping, "glCommitPayload", "canonicalGlOptions");
 
         Assert.Contains("accepted.length === 0 && !(policy && policy.includeBlank)", problems, StringComparison.Ordinal);
@@ -127,7 +134,11 @@ public sealed class MappingProjectionPolicyFrontendTests
         var state = ReadFrontend("js", "state.js");
         var used = ExtractFunction(state, "usedGlSourceColumns", "removeCoreMappedRdeFields");
         Assert.Contains("Object.create(null)", used, StringComparison.Ordinal);
-        Assert.Contains("key !== 'dcDebitCode' && value", used, StringComparison.Ordinal);
+        // 第二遍第9批新增貸方literal；兩碼都不能佔用同名來源欄，也不能被當成RDE來源。
+        // 首次失敗：20261004-100752118-a195c091201e444d858ec7d7bee3d291；候選來源與stable ID斷言全部保留。
+        Assert.Contains("key !== 'dcDebitCode' && key !== 'dcCreditCode' && value", used, StringComparison.Ordinal);
+        Assert.Contains("{ key: 'dcDebitCode', label: '借方代碼', req: ['side', 'flag'], literal: true }", core, StringComparison.Ordinal);
+        Assert.Contains("{ key: 'dcCreditCode', label: '貸方代碼', req: ['side', 'flag'], literal: true }", core, StringComparison.Ordinal);
 
         // 核心配對變動時，state 會清掉已被核心欄位佔用的 RDE，不能只靠畫面把衝突項目藏起來。
         var cleanup = ExtractFunction(state, "removeCoreMappedRdeFields", "syncApprovalSource");
@@ -144,24 +155,6 @@ public sealed class MappingProjectionPolicyFrontendTests
 
         // commit response 的 canonical options 覆寫草稿，下一次 recommit 才會沿用同一身分。
         Assert.Contains("Store.replaceGlMappingOptions(canonicalGlOptions(data))", mapping, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void MappingReviewRequired_MirrorsTheBackendFlagAndBlocksDownstreamSteps()
-    {
-        var core = ReadFrontend("js", "ui-core.js");
-        var mapping = ReadFrontend("js", "steps", "mapping-step.js");
-        var state = ReadFrontend("js", "state.js");
-
-        Assert.Contains("data-bind=\"mapping-review-required\"", core, StringComparison.Ordinal);
-        Assert.Contains("Store.setMappingReviewRequired(data.mappingReviewRequired)", core, StringComparison.Ordinal);
-        Assert.Contains("if (state.mappingReviewRequired) { missing.push(MAPPING_REVIEW_MISSING); }", core, StringComparison.Ordinal);
-        Assert.Contains("Ui.mappingReviewBannerHtml(state)", mapping, StringComparison.Ordinal);
-
-        // 成功 recommit 後依 formatVersion 重新推導，修復路徑不必重開案件。
-        Assert.Contains("function refreshMappingReviewRequired()", state, StringComparison.Ordinal);
-        Assert.Contains("state.mapping[kind].formatVersion === 1", state, StringComparison.Ordinal);
-        Assert.Contains("formatVersion: 2", mapping, StringComparison.Ordinal);
     }
 
     private static Dictionary<string, string> ExtractValueLabelMap(string source, string arrayName)

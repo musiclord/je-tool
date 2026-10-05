@@ -7,7 +7,7 @@ namespace JET.Tests.AuditCore;
 public sealed class FilterProgramTests
 {
     [Fact]
-    public void Plan_PreservesRawDocumentAndUsesTypedProgramNode()
+    public void Plan_PreservesRawDocument()
     {
         const string raw = """{"name":"scenario","unknown":1e2,"groups":[]}""";
         var request = Request(
@@ -18,7 +18,6 @@ public sealed class FilterProgramTests
 
         Assert.Same(request, plan.Request);
         Assert.Equal(raw, plan.Request.Documents[0].RawJson);
-        Assert.Equal("filter.preview", plan.Node.ActionName);
     }
 
     [Fact]
@@ -46,16 +45,14 @@ public sealed class FilterProgramTests
             [new FilterPreviewRow("D1", "1", "2025-01-01", "1000", "Cash", "memo", 100, "DEBIT")]);
         var port = new RecordingPort(new FilterFacts(preview, 0));
 
-        var facts = await JetAuditProgram.ExecuteAsync(
+        var facts = await port.ExecuteAsync(
             plan,
-            port,
             CancellationToken.None);
         var result = JetAuditProgram.Finalize(plan, facts);
 
         Assert.Same(plan, port.Plan);
         Assert.Same(preview, result.Preview);
         Assert.Equal(0, result.MaterializedScenarioCount);
-        Assert.Contains("filter.preview", JetAuditProgram.Explain(result), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -69,9 +66,8 @@ public sealed class FilterProgramTests
         var plan = JetAuditProgram.Plan(Request("filter.commit", documents));
         var port = new RecordingPort(new FilterFacts(null, 2));
 
-        var facts = await JetAuditProgram.ExecuteAsync(
+        var facts = await port.ExecuteAsync(
             plan,
-            port,
             CancellationToken.None);
         var result = JetAuditProgram.Finalize(plan, facts);
 

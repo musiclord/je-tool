@@ -16,7 +16,7 @@ internal sealed class LocalValidationReportPlanningFactsPort(ILocalProjectDataba
         ArgumentNullException.ThrowIfNull(plan);
 
         var request = plan.Request;
-        await database.EnsureCreatedAsync(request.ProjectId, cancellationToken);
+        await database.EnsureReadyAsync(request.ProjectId, cancellationToken);
         await using var connection = database.CreateConnection(request.ProjectId);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();

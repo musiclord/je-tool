@@ -442,7 +442,8 @@ public sealed partial class WorkpaperWriter
             sheet.TextCell(
                 12,
                 1,
-                PlannedText(sheetPlan, Step4HeaderLines.Count, Step4SelectionNote),
+                PlannedText(sheetPlan, Step4HeaderLines.Count, Step4SelectionNote) +
+                "；空白傳票號碼的命中分錄逐筆列出，不計傳票張數，金額為該筆借方金額。",
                 WorkpaperStyles.Bold)
         ]);
         return sheet;
@@ -2321,7 +2322,7 @@ public sealed partial class WorkpaperWriter
 
         var range = $"查核期間內（{context.PeriodStart} ~ {context.PeriodEnd}）之會計分錄";
         const string rationale =
-            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳日期之列不納入本版情境命中與矩陣。";
+            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳入帳日之列不納入本版情境命中與矩陣。";
 
         return
         [

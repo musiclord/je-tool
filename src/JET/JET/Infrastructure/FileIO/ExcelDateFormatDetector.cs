@@ -9,7 +9,7 @@ public enum ExcelNumberKind
 }
 
 /// <summary>
-/// Excel 數字格式的日期/時間判定（guide §3.1.5）。
+/// Excel 數字格式的日期/時間判定。
 /// 內建 id 依 ECMA-376 §18.8.30 登錄表凍結；自訂格式碼掃描日期/時間記號，
 /// 引號字面值、[..] 條件/色彩/地區區段、反斜線跳脫與 _/* 填充字元都不算記號。
 /// 純函式：reader 解析 styles.xml 後以本類別建 style index → kind 對照表。

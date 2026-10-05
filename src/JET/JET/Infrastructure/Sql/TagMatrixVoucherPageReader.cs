@@ -7,7 +7,7 @@ namespace JET.Infrastructure;
 /// <summary>
 /// tag 矩陣傳票層分頁的共用兩段查詢讀取器(provider 中立)。三 provider 的分頁差異由
 /// 呼叫端帶入 <see cref="ISqlDialect"/> 的 LimitClause；
-/// 其餘 SQL 純 ANSI,故讀取邏輯共用一處(Linus 好品味:消除兩 repo 的逐字重複)。
+/// 其餘 SQL 純 ANSI,故讀取邏輯共用一處，避免兩個 repository 逐字重複。
 ///
 /// 查詢 1(命中傳票 keyset 頁):GROUP BY document_number、以所選 result_filter_run 判定
 /// 命中傳票，再對該傳票的完整 GL 行聚合；排除 NULL document_number、聚合

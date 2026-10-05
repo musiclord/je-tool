@@ -1,0 +1,44 @@
+# JET 的 Codex 命令規則。
+#
+# 內容對應 .claude/settings.json 的 permissions，只把 AGENTS.md 已有的禁令升級為 Codex 執行前的攔截，
+# 不建立新規則。forbidden 對應 Claude 的 deny，prompt 對應 ask；同時命中時 Codex 取最嚴格的決定。
+# 只在 Codex 信任本專案時載入。說明見 .agents/harness/agent-compatibility.md。
+
+prefix_rule(
+    pattern = ["git", "add", ["-A", "--all", "-u", "--update", "."]],
+    decision = "forbidden",
+    justification = "AGENTS.md 禁止整批 stage；獲准後只加入使用者確認的明確路徑。",
+    match = ["git add -A", "git add --all", "git add -u", "git add ."],
+    not_match = ["git add docs/README.md"],
+)
+
+prefix_rule(
+    pattern = ["git", "write-tree"],
+    decision = "forbidden",
+    justification = "AGENTS.md 禁止 git write-tree，避免把私人資料寫入 Git object store。",
+    match = ["git write-tree"],
+)
+
+prefix_rule(
+    pattern = ["git", "stash", ["--all", "-a"]],
+    decision = "forbidden",
+    justification = "git stash --all 會連同被忽略的私人資料一起收進 stash。",
+    match = ["git stash --all", "git stash -a"],
+    not_match = ["git stash list"],
+)
+
+prefix_rule(
+    pattern = ["dotnet", "test"],
+    decision = "forbidden",
+    justification = "正式測試一律從 pwsh -NoProfile -File tools/verify.ps1 進入，才有共享鎖、收據與清理。",
+    match = ["dotnet test src/JET/JET.slnx"],
+    not_match = ["dotnet build src/JET/JET/JET.csproj"],
+)
+
+prefix_rule(
+    pattern = ["git", ["commit", "push", "remote", "reset", "checkout", "restore", "clean", "stash", "add"]],
+    decision = "prompt",
+    justification = "AGENTS.md：沒有使用者明確指令時，不得執行會改變 Git 狀態或遠端的操作。",
+    match = ["git commit -m x", "git push", "git stash list", "git add docs/README.md"],
+    not_match = ["git status", "git diff HEAD", "git log --oneline"],
+)

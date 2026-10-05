@@ -114,7 +114,8 @@ public sealed class PrescreenRulePeriodTests
                 validateForDownstream: true));
 
         Assert.Equal(JetErrorCodes.EmptyEffectivePopulation, exception.Code);
-        Assert.Contains("rollback", exception.Message, StringComparison.OrdinalIgnoreCase);
+        // 2026-10-03 用語統一 W10：審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        Assert.Contains("這次欄位配對沒有儲存", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -267,7 +268,7 @@ public sealed class PrescreenRulePeriodTests
 
         AssertNotApplicable(
             rules["unexpectedAccountPair"],
-            "需先匯入科目配對。");
+            "需先完成科目配對。");
         AssertNotApplicable(
             rules["nonAuthorizedPreparer"],
             "需先匯入授權編製人員清單。");

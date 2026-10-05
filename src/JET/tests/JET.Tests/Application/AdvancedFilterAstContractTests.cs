@@ -270,7 +270,7 @@ public sealed class AdvancedFilterAstContractTests
 
         var rendered = FilterConditionRenderer.Render(document.RootElement);
 
-        Assert.Contains("主要條件（決定命中分錄）", rendered, StringComparison.Ordinal);
+        Assert.Contains("主要條件（決定符合條件的分錄）", rendered, StringComparison.Ordinal);
         Assert.Contains("後續條件可由同一傳票的其他分錄列符合", rendered, StringComparison.Ordinal);
         Assert.Contains("包含任一值", rendered, StringComparison.Ordinal);
         Assert.Contains("完全符合任一值", rendered, StringComparison.Ordinal);
@@ -285,11 +285,14 @@ public sealed class AdvancedFilterAstContractTests
     [InlineData("filter-2026-09-08-v13")]
     [InlineData("filter-2026-09-17-v14")]
     [InlineData("filter-2026-09-18-v15")]
-    public void FilterLogicVersion_IsV16AndV15OrEarlierDefinitionsAreStale(string savedVersion)
+    [InlineData("filter-2026-09-18-v16")]
+    public void FilterLogicVersion_IsV17AndV16OrEarlierDefinitionsAreStale(string savedVersion)
     {
-        // v16 是現行權威；v15 與更早保存的情境一律 stale——可回放供修正，
-        // 但不得沿用舊 resultRef 或直接惰性補算。
-        Assert.Equal("filter-2026-09-18-v16", RuleLogicVersions.Filter);
+        // 2026-10-04 R1、R2 改變空白傳票號碼的命中結果，現行版本推進為 v17。
+        // v16 與更早保存的情境不是目前版本，不得沿用舊 resultRef 或直接惰性補算。
+        // 2026-10-02 起開案時若整批仍符合目前規則，會由 FilterScenarioRuleUpgrade 改成目前版本後再重算；
+        // 不符合時整批維持舊版本，查詢與匯出仍會擋下。
+        Assert.Equal("filter-2026-10-04-v17", RuleLogicVersions.Filter);
         var saved = new SavedFilterScenario(
             1,
             "synthetic",
@@ -320,14 +323,13 @@ public sealed class AdvancedFilterAstContractTests
         var rule = scenario.Groups[0].Rules[0];
         Assert.Equal(["builtin.receivables", "builtin.cash"], rule.DebitCategoryIds);
         Assert.Equal(["builtin.revenue"], rule.CreditCategoryIds);
-        // 帶陣列時 scalar 一律不參與判定，避免同一條規則出現兩份事實來源。
-        Assert.Null(rule.DebitCategory);
-        Assert.Null(rule.CreditCategory);
+        // 2026-10-02 起規則不再有單選分類欄位，原本「scalar 為 null」的兩行斷言隨欄位刪除；
+        // 單選欄位只是未知欄位，判定只看陣列。
         Assert.Equal(["builtin.cash", "builtin.receivables"], rule.EffectiveDebitCategoryIds);
     }
 
     [Fact]
-    public void Parse_PairWithoutArrays_KeepsLegacyScalarCompatibility()
+    public void Parse_PairWithoutArrays_IgnoresSingleCategoryFields()
     {
         var scenario = Parse(
             """
@@ -337,11 +339,10 @@ public sealed class AdvancedFilterAstContractTests
             ]}]}
             """);
 
+        // 只認分類身分陣列；單選欄位照未知欄位處理，不再換算成內建分類。
         var rule = scenario.Groups[0].Rules[0];
-        Assert.Empty(rule.DebitCategoryIds);
-        Assert.Equal("Revenue", rule.DebitCategory);
-        Assert.Equal(["builtin.revenue"], rule.EffectiveDebitCategoryIds);
-        Assert.Equal(["builtin.cash"], rule.EffectiveCreditCategoryIds);
+        Assert.Empty(rule.EffectiveDebitCategoryIds);
+        Assert.Empty(rule.EffectiveCreditCategoryIds);
     }
 
     [Fact]

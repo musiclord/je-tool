@@ -366,15 +366,13 @@ public sealed class WorkpaperDirectTemplateArtifactAtomicityTests
                     scenario.Rationale)
             ],
             context.PopulationScope));
-        var facts = await JetAuditProgram.ExecuteAsync(
-            initial,
-            new WorkpaperPlanningFactsPort(
+        var facts = await new WorkpaperPlanningFactsPort(
                 new LocalCompletenessDiffPageRepository(database),
                 new LocalDocBalancePageRepository(database),
                 new LocalTagMatrixScenariosRepository(database),
                 new LocalFieldDefinitionFactsPort(database),
-                new LocalMappingStateStore(database)),
-            CancellationToken.None);
+                new LocalMappingStateStore(database))
+            .ExecuteAsync(initial, CancellationToken.None);
         return JetAuditProgram.Finalize(initial, facts);
     }
 

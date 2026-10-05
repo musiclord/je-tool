@@ -13,7 +13,7 @@ public sealed class LocalCalendarExportRepository(ILocalProjectDatabase database
     public async Task<IReadOnlyList<CalendarDayEntry>> FetchDaysAsync(
         string projectId, CalendarDayType type, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 

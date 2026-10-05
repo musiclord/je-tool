@@ -74,8 +74,8 @@ internal static class CompletenessEligibilitySupport
     }
 
     /// <summary>
-    /// Resume 兼容：舊摘要的 eligibility 尚無 warning 時，在回應邊界補上；
-    /// 整個衍生判定依 raw facts 重算，不能沿用存檔中的舊阻擋布林值。
+    /// 回應邊界重寫「可否繼續後續步驟」判定：整個衍生判定依 raw facts 重算，
+    /// 不能沿用存檔中的阻擋布林值。
     /// </summary>
     internal static JsonElement ToWireSummary(RuleRunRecord run)
     {

@@ -19,7 +19,7 @@ public sealed class LocalTagMatrixRowPageRepository(ILocalProjectDatabase databa
         string projectId, GlPopulationContext context, PageRequest request,
         IReadOnlyList<int>? scenarioPositions, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
@@ -35,7 +35,7 @@ public sealed class LocalTagMatrixRowPageRepository(ILocalProjectDatabase databa
         LegacyFieldKind lineItemKind,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 

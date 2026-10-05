@@ -35,7 +35,7 @@ public sealed class LocalFilterRunRepository(ILocalProjectDatabase database, ILo
         FilterRuleContext context,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);

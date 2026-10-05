@@ -5,105 +5,28 @@ using JET.Domain;
 namespace JET.Application;
 
 public sealed class ExportValidationArtifactsHandler(
-    IValidationReportWriter validationWriter,
-    IInfReportWriter infWriter,
-    IRuleRunStore runStore,
     IProjectStore projectStore,
-    IReportArtifactStore artifactStore,
     ProjectSession session,
     IJetEventPublisher eventPublisher) : IApplicationActionHandler
 {
-    private readonly IValidationReportPlanningFactsPort? _validationReportPlanningFactsPort;
-    private readonly ILegacyFieldDefinitionFactsPort? _fieldDefinitionFactsPort;
-    private readonly IAccountTaxonomyStore? _accountTaxonomyStore;
-    private readonly IMappingStateStore? _mappingStateStore;
-
-    internal ExportValidationArtifactsHandler(
-        IValidationReportWriter validationWriter,
-        IInfReportWriter infWriter,
-        IRuleRunStore runStore,
-        IProjectStore projectStore,
-        IReportArtifactStore artifactStore,
-        ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IValidationReportPlanningFactsPort validationReportPlanningFactsPort,
-        ILegacyFieldDefinitionFactsPort fieldDefinitionFactsPort,
-        IAccountTaxonomyStore accountTaxonomyStore)
-        : this(
-            validationWriter,
-            infWriter,
-            runStore,
-            projectStore,
-            artifactStore,
-            session,
-            eventPublisher,
-            validationReportPlanningFactsPort,
-            fieldDefinitionFactsPort)
-    {
-        _accountTaxonomyStore = accountTaxonomyStore
-            ?? throw new ArgumentNullException(nameof(accountTaxonomyStore));
-    }
-
-    internal ExportValidationArtifactsHandler(
-        IValidationReportWriter validationWriter,
-        IInfReportWriter infWriter,
-        IRuleRunStore runStore,
-        IProjectStore projectStore,
-        IReportArtifactStore artifactStore,
-        ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IValidationReportPlanningFactsPort validationReportPlanningFactsPort,
-        ILegacyFieldDefinitionFactsPort fieldDefinitionFactsPort)
-        : this(
-            validationWriter,
-            infWriter,
-            runStore,
-            projectStore,
-            artifactStore,
-            session,
-            eventPublisher)
-    {
-        _validationReportPlanningFactsPort = validationReportPlanningFactsPort
-            ?? throw new ArgumentNullException(nameof(validationReportPlanningFactsPort));
-        _fieldDefinitionFactsPort = fieldDefinitionFactsPort
-            ?? throw new ArgumentNullException(nameof(fieldDefinitionFactsPort));
-    }
-
-    internal ExportValidationArtifactsHandler(
-        IValidationReportWriter validationWriter,
-        IInfReportWriter infWriter,
-        IRuleRunStore runStore,
-        IProjectStore projectStore,
-        IReportArtifactStore artifactStore,
-        ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IValidationReportPlanningFactsPort validationReportPlanningFactsPort,
-        ILegacyFieldDefinitionFactsPort fieldDefinitionFactsPort,
-        IAccountTaxonomyStore accountTaxonomyStore,
-        IMappingStateStore mappingStateStore)
-        : this(
-            validationWriter,
-            infWriter,
-            runStore,
-            projectStore,
-            artifactStore,
-            session,
-            eventPublisher,
-            validationReportPlanningFactsPort,
-            fieldDefinitionFactsPort,
-            accountTaxonomyStore)
-    {
-        _mappingStateStore = mappingStateStore
-            ?? throw new ArgumentNullException(nameof(mappingStateStore));
-    }
-
     public string Action => "export.validationArtifacts";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var runId = PayloadReader.GetOptionalString(payload, "runId")
             ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'runId'。");
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
+        var validationWriter = repositories.ValidationReportWriter;
+        var infWriter = repositories.InfReportWriter;
+        var runStore = repositories.RuleRuns;
+        var artifactStore = repositories.ReportArtifactStore;
+        // 正式組裝的資料庫組一定有下列 typed 依賴；直接建構 handler 的測試可以不放（維持 null），
+        // 這時沿用原本的退回路徑，改走 writer 的 public 介面。
+        IValidationReportPlanningFactsPort? validationReportPlanningFactsPort =
+            repositories.ValidationReportPlanningFacts;
+        ILegacyFieldDefinitionFactsPort? fieldDefinitionFactsPort = repositories.FieldDefinitionFacts;
+        IAccountTaxonomyStore? accountTaxonomyStore = repositories.AccountTaxonomy;
+        IMappingStateStore? mappingStateStore = repositories.MappingStates;
         var progressSession = new ExportProgressSession(eventPublisher, cancellationToken);
         var progressByKind = new Dictionary<ReportArtifactKind, ExportArtifactProgress>
         {
@@ -117,20 +40,20 @@ public sealed class ExportValidationArtifactsHandler(
         var requiresFormalMetadata = validationWriter is IFormalPlannedValidationReportWriter
             || infWriter is IFormalInfReportWriter;
         if (requiresFormalMetadata
-            && (_accountTaxonomyStore is null || _mappingStateStore is null))
+            && (accountTaxonomyStore is null || mappingStateStore is null))
         {
             throw new InvalidOperationException(
                 "Formal validation artifacts require mapping and taxonomy metadata stores.");
         }
         ReportWorkbookMetadata? workbookMetadata = null;
         IReadOnlyList<GlRdeFieldMetadata> allRdeFields = [];
-        if (_accountTaxonomyStore is not null && _mappingStateStore is not null)
+        if (accountTaxonomyStore is not null && mappingStateStore is not null)
         {
             workbookMetadata = await ReportWorkbookMetadataFactory.LoadAsync(
                 projectId,
                 document,
-                _mappingStateStore,
-                _accountTaxonomyStore,
+                mappingStateStore,
+                accountTaxonomyStore,
                 cancellationToken);
             allRdeFields = ReportWorkbookMetadataFactory.AllRdeFields(workbookMetadata);
         }
@@ -154,8 +77,8 @@ public sealed class ExportValidationArtifactsHandler(
         FieldInfoProjection? fieldInfoProjection = null;
 
         if (plannedValidationWriter is not null
-            && _validationReportPlanningFactsPort is not null
-            && _fieldDefinitionFactsPort is not null)
+            && validationReportPlanningFactsPort is not null
+            && fieldDefinitionFactsPort is not null)
         {
             reportProjection = ValidationReportProjectionParser.Parse(run.SummaryJson);
             var unfinalizedReportPlan = JetAuditProgram.Plan(new ValidationReportRequest(
@@ -167,19 +90,18 @@ public sealed class ExportValidationArtifactsHandler(
                 reportProjection.NullDocumentCount,
                 reportProjection.NullDescriptionCount,
                 reportProjection.OutOfRangeDateCount));
-            var planningFacts = await JetAuditProgram.ExecuteAsync(
+            var planningFacts = await validationReportPlanningFactsPort.ExecuteAsync(
                 unfinalizedReportPlan,
-                _validationReportPlanningFactsPort,
                 cancellationToken);
             validationReportPlan = JetAuditProgram.Finalize(
                 unfinalizedReportPlan,
                 planningFacts);
-            var targetTbDefinitions = await _fieldDefinitionFactsPort.ReadAsync(
+            var targetTbDefinitions = await fieldDefinitionFactsPort.ReadAsync(
                 projectId,
                 DatasetKind.Tb,
                 LegacyFieldDefinitionScope.Target,
                 cancellationToken);
-            var targetGlDefinitions = await _fieldDefinitionFactsPort.ReadAsync(
+            var targetGlDefinitions = await fieldDefinitionFactsPort.ReadAsync(
                 projectId,
                 DatasetKind.Gl,
                 LegacyFieldDefinitionScope.Target,
@@ -281,87 +203,45 @@ public sealed class ExportValidationArtifactsHandler(
                 }, document.PeriodStart, document.PeriodEnd)
         };
 
-        var facts = await JetAuditProgram.ExecuteAsync(
-            plan,
-            new ReportArtifactExecutionPort(artifactStore, requests,
-                kind => progressByKind[kind].PublishingArtifact()),
-            cancellationToken);
+        var facts = await new ReportArtifactExecutionPort(artifactStore, requests,
+                kind => progressByKind[kind].PublishingArtifact())
+            .ExecuteAsync(plan, cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
+        var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore);
         return new
         {
             ok = true,
             artifacts = result.Artifacts.Select(ReportExportSupport.ArtifactWire).ToArray(),
-            reportArtifacts = await ReportExportSupport.ReadArtifactCatalogAfterPublicationAsync(artifactStore, projectId)
+            reportArtifacts = catalog.Artifacts,
+            reportArtifactWarning = catalog.Warning
         };
     }
 
 }
 
 public sealed class ExportPrescreenReportHandler(
-    IPrescreenReportWriter writer,
-    IRuleRunStore runStore,
     IProjectStore projectStore,
-    IReportArtifactStore artifactStore,
     ProjectSession session,
     IJetEventPublisher eventPublisher) : IApplicationActionHandler
 {
-    private readonly IPrescreenReportPlanningFactsPort? _prescreenReportPlanningFactsPort;
-    private readonly IMappingStateStore? _mappingStateStore;
-    private readonly IAccountTaxonomyStore? _accountTaxonomyStore;
-
-    internal ExportPrescreenReportHandler(
-        IPrescreenReportWriter writer,
-        IRuleRunStore runStore,
-        IProjectStore projectStore,
-        IReportArtifactStore artifactStore,
-        ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IPrescreenReportPlanningFactsPort prescreenReportPlanningFactsPort)
-        : this(
-            writer,
-            runStore,
-            projectStore,
-            artifactStore,
-            session,
-            eventPublisher)
-    {
-        _prescreenReportPlanningFactsPort = prescreenReportPlanningFactsPort
-            ?? throw new ArgumentNullException(nameof(prescreenReportPlanningFactsPort));
-    }
-
-    internal ExportPrescreenReportHandler(
-        IPrescreenReportWriter writer,
-        IRuleRunStore runStore,
-        IProjectStore projectStore,
-        IReportArtifactStore artifactStore,
-        ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IPrescreenReportPlanningFactsPort prescreenReportPlanningFactsPort,
-        IMappingStateStore mappingStateStore,
-        IAccountTaxonomyStore accountTaxonomyStore)
-        : this(
-            writer,
-            runStore,
-            projectStore,
-            artifactStore,
-            session,
-            eventPublisher,
-            prescreenReportPlanningFactsPort)
-    {
-        _mappingStateStore = mappingStateStore
-            ?? throw new ArgumentNullException(nameof(mappingStateStore));
-        _accountTaxonomyStore = accountTaxonomyStore
-            ?? throw new ArgumentNullException(nameof(accountTaxonomyStore));
-    }
-
     public string Action => "export.prescreenReport";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var runId = PayloadReader.GetOptionalString(payload, "runId")
             ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'runId'。");
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
+        var writer = repositories.PrescreenReportWriter;
+        var runStore = repositories.RuleRuns;
+        var artifactStore = repositories.ReportArtifactStore;
+        // 正式組裝的資料庫組一定有下列 typed 依賴；直接建構 handler 的測試可以不放（維持 null），
+        // 這時沿用原本的退回路徑，改走 writer 的 public 介面。
+        IPrescreenReportPlanningFactsPort? prescreenReportPlanningFactsPort =
+            repositories.PrescreenReportPlanningFacts;
+        IMappingStateStore? mappingStateStore = repositories.MappingStates;
+        IAccountTaxonomyStore? accountTaxonomyStore = repositories.AccountTaxonomy;
         await CompletenessEligibilitySupport.RequireCurrentAsync(
             runStore,
             projectId,
@@ -374,19 +254,19 @@ public sealed class ExportPrescreenReportHandler(
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
         var formalWriter = writer as IFormalPlannedPrescreenReportWriter;
         if (formalWriter is not null
-            && (_mappingStateStore is null || _accountTaxonomyStore is null))
+            && (mappingStateStore is null || accountTaxonomyStore is null))
         {
             throw new InvalidOperationException(
                 "Formal prescreen report requires mapping and taxonomy metadata stores.");
         }
         ReportWorkbookMetadata? workbookMetadata = null;
-        if (_mappingStateStore is not null && _accountTaxonomyStore is not null)
+        if (mappingStateStore is not null && accountTaxonomyStore is not null)
         {
             workbookMetadata = await ReportWorkbookMetadataFactory.LoadAsync(
                 projectId,
                 document,
-                _mappingStateStore,
-                _accountTaxonomyStore,
+                mappingStateStore,
+                accountTaxonomyStore,
                 cancellationToken);
         }
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
@@ -407,7 +287,7 @@ public sealed class ExportPrescreenReportHandler(
             : PrescreenReportProjectionParser.Parse(run.SummaryJson);
         PrescreenReportPlan? prescreenReportPlan = null;
         if (plannedWriter is not null
-            && _prescreenReportPlanningFactsPort is not null)
+            && prescreenReportPlanningFactsPort is not null)
         {
             var ruleContext = new FilterRuleContext(
                 project.MoneyScale,
@@ -423,9 +303,8 @@ public sealed class ExportPrescreenReportHandler(
                     reportProjection.UnexpectedAccountPair.NaReason,
                     reportProjection.TrailingZeros.NaReason,
                     reportProjection.BlankDescription.NaReason));
-            var planningFacts = await JetAuditProgram.ExecuteAsync(
+            var planningFacts = await prescreenReportPlanningFactsPort.ExecuteAsync(
                 unfinalizedReportPlan,
-                _prescreenReportPlanningFactsPort,
                 cancellationToken);
             prescreenReportPlan = JetAuditProgram.Finalize(
                 unfinalizedReportPlan,
@@ -485,33 +364,27 @@ public sealed class ExportPrescreenReportHandler(
 
                     artifactProgress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd);
-        var facts = await JetAuditProgram.ExecuteAsync(
-            plan,
-            new ReportArtifactExecutionPort(artifactStore, [request],
-                _ => artifactProgress.PublishingArtifact()),
-            cancellationToken);
+        var facts = await new ReportArtifactExecutionPort(artifactStore, [request],
+                _ => artifactProgress.PublishingArtifact())
+            .ExecuteAsync(plan, cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
         var artifact = result.Artifacts.Single();
 
+        var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore);
         return new
         {
             ok = true, artifact = ReportExportSupport.ArtifactWire(artifact),
-            reportArtifacts = await ReportExportSupport.ReadArtifactCatalogAfterPublicationAsync(artifactStore, projectId)
+            reportArtifacts = catalog.Artifacts,
+            reportArtifactWarning = catalog.Warning
         };
     }
 }
 
 public sealed class ExportCriteriaSelectionReportHandler(
-    ICriteriaSelectionReportWriter writer,
-    IFilterScenarioStore scenarioStore,
-    FilterRunMaterializeService materializeService,
-    IRuleRunStore runStore,
     IProjectStore projectStore,
-    IReportArtifactStore artifactStore,
     ProjectSession session,
-    IJetEventPublisher eventPublisher,
-    IAccountTaxonomyStore accountTaxonomyStore,
-    IMappingStateStore mappingStore) : IApplicationActionHandler
+    IJetEventPublisher eventPublisher) : IApplicationActionHandler
 {
     public string Action => "export.criteriaSelectionReport";
 
@@ -521,7 +394,14 @@ public sealed class ExportCriteriaSelectionReportHandler(
             ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'validationRunId'。");
         var revision = PayloadReader.GetOptionalString(payload, "revision")
             ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'revision'。");
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
+        var writer = repositories.CriteriaSelectionReportWriter;
+        var scenarioStore = repositories.FilterScenarios;
+        var materializeService = repositories.FilterRunMaterializeService;
+        var runStore = repositories.RuleRuns;
+        var artifactStore = repositories.ReportArtifactStore;
+        var accountTaxonomyStore = repositories.AccountTaxonomy;
+        var mappingStore = repositories.MappingStates;
         var validationRun = await CompletenessEligibilitySupport.RequireCurrentAsync(
             runStore,
             projectId,
@@ -559,7 +439,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
         {
             using var definition = JsonDocument.Parse(scenario.DefinitionJson);
             conditionLogic[scenario.Position] =
-                FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels);
+                FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels, taxonomy.Categories, document.LastAccountingPeriodDate);
             var scenarioSpec = FilterScenarioPayloadParser.Parse(
                 definition.RootElement,
                 document.MoneyScale);
@@ -593,7 +473,8 @@ public sealed class ExportCriteriaSelectionReportHandler(
             ScenarioRevision: revision,
             ScenarioPositions: scenarios.Select(item => item.Position).ToArray(),
             WorkbookMetadata: workbookMetadata,
-            CustomFields: customFields));
+            CustomFields: customFields,
+            FilterDataRevision: await repositories.ResultStaleStates.ReadFilterDataRevisionAsync(projectId, cancellationToken)));
         var reportContext = new CriteriaSelectionReportContext(
             ReportExportSupport.ProjectContext(document),
             revision,
@@ -639,18 +520,19 @@ public sealed class ExportCriteriaSelectionReportHandler(
 
                     artifactProgress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd);
-        var facts = await JetAuditProgram.ExecuteAsync(
-            plan,
-            new ReportArtifactExecutionPort(artifactStore, [request],
-                _ => artifactProgress.PublishingArtifact()),
-            cancellationToken);
+        var facts = await new ReportArtifactExecutionPort(artifactStore, [request],
+                _ => artifactProgress.PublishingArtifact())
+            .ExecuteAsync(plan, cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
         var artifact = result.Artifacts.Single();
 
+        var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore);
         return new
         {
             ok = true, artifact = ReportExportSupport.ArtifactWire(artifact),
-            reportArtifacts = await ReportExportSupport.ReadArtifactCatalogAfterPublicationAsync(artifactStore, projectId)
+            reportArtifacts = catalog.Artifacts,
+            reportArtifactWarning = catalog.Warning
         };
     }
 }

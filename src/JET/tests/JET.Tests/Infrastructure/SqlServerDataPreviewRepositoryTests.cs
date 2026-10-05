@@ -296,10 +296,11 @@ public sealed class SqlServerDataPreviewRepositoryTests
                 ('tb-target', 2, '1101', N'現金', -3450),
                 ('tb-target', 3, '4101', N'銷貨收入', 7650);
 
-            INSERT INTO {{s}}target_account_mapping (batch_id, source_row_number, account_code, account_name, standardized_category)
+            -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
+            INSERT INTO {{s}}target_account_mapping (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
             VALUES
-                ('mapping-target', 2, '1101', N'現金', 'Cash'),
-                ('mapping-target', 3, '4101', N'銷貨收入', 'Revenue');
+                ('mapping-target', 2, '1101', N'現金', 'Cash', 'builtin.cash'),
+                ('mapping-target', 3, '4101', N'銷貨收入', 'Revenue', 'builtin.revenue');
 
             INSERT INTO {{s}}import_batch (batch_id, dataset_kind, source_file_path, source_file_name, imported_utc, row_count, columns_json)
             VALUES ('mapping-new', 'account_mapping', 'C:\mapping.xlsx', 'mapping.xlsx', '2024-01-04T00:00:00Z', 3,

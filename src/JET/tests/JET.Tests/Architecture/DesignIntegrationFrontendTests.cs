@@ -51,10 +51,14 @@ public sealed class DesignIntegrationFrontendTests
     {
         var source = ReadFrontend("js", "app.js") + ReadFrontend("js", "ui-core.js");
 
-        // 精簡解讀仍保留三個不可混淆的語意，不以長篇免責文字擠占總覽。
-        Assert.Contains("命中不等於錯誤", source, StringComparison.Ordinal);
-        Assert.Contains("不適用不等於零", source, StringComparison.Ordinal);
-        Assert.Contains("不代替審計判斷", source, StringComparison.Ordinal);
+        // 總覽的解讀文字要保留三個不可混淆的語意：符合條件不等於錯誤、不適用不等於零、判斷由審計員做。
+        // 2026-09-22 使用者要求改成白話後，前兩個語意合併在同一句，所以這裡檢查整句，不拆開檢查片段。
+        // 2026-10-03 用語統一 T1：畫面不再使用「母體」，與 AuditCore 正本一起改（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        Assert.Contains("預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("母體分布", source, StringComparison.Ordinal);
+        // 2026-10-02 整體複審 W16：「不適用不等於零」改成完整句，仍鎖住「不適用不代表沒有符合的分錄」這個語意；舊短句不得再出現。
+        Assert.Contains("列在「不適用規則」的條件因缺少所需資料或設定而沒有執行，不代表沒有符合的分錄。", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("不適用不等於零", source, StringComparison.Ordinal);
         Assert.DoesNotContain("不含綜合風險分數或審計判斷", source, StringComparison.Ordinal);
 
         // 總覽不得出現風險分級／評分或引導判斷的措辭。
@@ -74,7 +78,7 @@ public sealed class DesignIntegrationFrontendTests
         Assert.Contains("stats.totalDebit", source, StringComparison.Ordinal);
 
         // 未執行驗證時走空狀態，不得以 0 冒充「已核對為零」。
-        Assert.Contains("尚無可統計的母體資料", source, StringComparison.Ordinal);
+        Assert.Contains("尚無分錄統計", source, StringComparison.Ordinal);
     }
 
     [Fact]

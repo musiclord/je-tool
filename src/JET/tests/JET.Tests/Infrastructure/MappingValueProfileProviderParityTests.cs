@@ -2,10 +2,11 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// mapping.valueProfile 的三 provider oracle：.NET Trim 空白、exact case-sensitive identity、
+/// mapping.valueProfile 的 provider 固定答案：.NET Trim 空白、本地 OrdinalIgnoreCase 分組、
 /// count-desc／ordinal tie ordering、truncation 與參數化特殊來源欄名必須等價。
 /// </summary>
 public sealed class MappingValueProfileProviderParityTests
@@ -49,7 +50,7 @@ public sealed class MappingValueProfileProviderParityTests
     }
 
     [SqlServerFact]
-    public async Task SqlServer_ValueProfile_MatchesSqliteOracle()
+    public async Task SqlServer_ValueProfile_PreservesExistingCaseSensitiveBehavior()
     {
         await using var project = Assert.IsType<TempSqlServerProject>(
             await TempSqlServerProject.TryCreateAsync());
@@ -57,13 +58,14 @@ public sealed class MappingValueProfileProviderParityTests
         var batch = (await new SqlServerImportRepository(project.Database).ReplaceBatchAsync(
             project.ProjectId,
             DatasetKind.Gl,
-            Source(),
+            [new ImportSourceInput(Source(),
             Columns,
-            Rows(),
+            Rows())],
             CancellationToken.None)).Batch;
         var repository = new SqlServerMappingValueProfileRepository(project.Database);
 
-        await AssertOracleAsync(repository, project.ProjectId, batch.BatchId);
+        // 2026-10-04 第 6 批：SQL Server 開發暫緩，保留其尚未同步 L32 的舊大小寫敏感答案，不假稱已等價。
+        await AssertOracleAsync(repository, project.ProjectId, batch.BatchId, localIgnoreCase: false);
     }
 
     private static async Task AssertLocalProfileAsync(
@@ -75,9 +77,9 @@ public sealed class MappingValueProfileProviderParityTests
         var batch = (await new LocalImportRepository(database).ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            Source(),
+            [new ImportSourceInput(Source(),
             Columns,
-            Rows(),
+            Rows())],
             CancellationToken.None)).Batch;
         var repository = new LocalMappingValueProfileRepository(database);
 
@@ -87,33 +89,37 @@ public sealed class MappingValueProfileProviderParityTests
     private static async Task AssertOracleAsync(
         IMappingValueProfileRepository repository,
         string projectId,
-        string batchId)
+        string batchId,
+        bool localIgnoreCase = true)
     {
         var truncated = await repository.GetAsync(
             projectId,
             batchId,
             SourceColumn,
-            2,
+            localIgnoreCase ? 1 : 2,
             CancellationToken.None);
 
         Assert.Equal(SourceColumn, truncated.SourceColumn);
         Assert.Equal(6, truncated.BlankCount);
-        Assert.Equal(3, truncated.DistinctCount);
+        // 2026-10-04 第 6 批 L32：local 的 A/a 依已裁定規則合併；空白、排序、截斷及特殊欄名檢查保留。
+        Assert.Equal(localIgnoreCase ? 2 : 3, truncated.DistinctCount);
         Assert.True(truncated.Truncated);
         Assert.Equal(
-            [new MappingValueProfileValue("A", 2), new MappingValueProfileValue("B", 2)],
+            localIgnoreCase
+                ? [new MappingValueProfileValue("A", 4)]
+                : [new MappingValueProfileValue("A", 2), new MappingValueProfileValue("B", 2)],
             truncated.Values);
 
         var complete = await repository.GetAsync(
             projectId,
             batchId,
             SourceColumn,
-            3,
+            localIgnoreCase ? 2 : 3,
             CancellationToken.None);
 
         Assert.False(complete.Truncated);
         Assert.Equal(
-            [
+            localIgnoreCase ? [new MappingValueProfileValue("A", 4), new MappingValueProfileValue("B", 2)] : [
                 new MappingValueProfileValue("A", 2),
                 new MappingValueProfileValue("B", 2),
                 new MappingValueProfileValue("a", 2)

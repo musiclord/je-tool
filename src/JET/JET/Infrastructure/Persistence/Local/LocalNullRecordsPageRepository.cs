@@ -19,12 +19,12 @@ public sealed class LocalNullRecordsPageRepository(ILocalProjectDatabase databas
         PageRequest request,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        var predicate = NullRecordsCategoryPredicate.ScopedSqlite(category);
+        var predicate = NullRecordsCategoryPredicate.Scoped(category, database.Dialect);
         if (category == NullRecordCategory.OutOfRangeDate)
         {
             command.AddWithValue("@periodStart", periodStart);

@@ -50,10 +50,12 @@ public sealed class OperationLogFrontendTests
             "執行驗證並產生報告",
             "執行預篩選",
             "預覽篩選情境",
-            "保存篩選情境",
-            "完成條件篩選並產生報告",
-            "產生 WorkingPaper",
-            "產生底稿與 Pre-screening Report"
+            // 2026-10-03 用語統一 W10：使用者裁定以「已儲存」為準，操作名稱改成「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+            "儲存篩選情境",
+            // 2026-10-02 整體複審 W13：按鈕與操作名稱改成「產生條件篩選報告」，不再重複「完成」。
+            "產生條件篩選報告",
+            "產生工作底稿",
+            "產生工作底稿與預篩選報告"
         })
         {
             Assert.Contains($"Ui.run('{label}'", combined, StringComparison.Ordinal);

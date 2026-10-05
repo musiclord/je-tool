@@ -9,13 +9,13 @@
 
   var Store = global.JetStore;
 
-  /* ---- 共用契約鏡像（key/label 對齊 docs/action-contract-manifest.md） ------ */
+  /* ---- 共用契約鏡像（key/label 對齊後端 action 契約） ------ */
 
-  // GL 邏輯欄位。dcDebitCode 是借方代碼字面值（文字輸入），不是來源欄位 select。
+  // GL 借方與貸方代碼都是字面值，不是來源欄位 select。
   var GL_FIELDS = [
     { key: 'docNum', label: '傳票號碼', req: 'always' },
     { key: 'lineID', label: '傳票文件項次', req: 'optional' },
-    { key: 'postDate', label: '總帳日期', req: 'always' },
+    { key: 'postDate', label: '總帳入帳日', req: 'always' },
     { key: 'docDate', label: '傳票核准日', req: 'optional' },
     { key: 'voucherDate', label: '傳票日期', req: 'optional' },
     { key: 'accNum', label: '會計科目編號', req: 'always' },
@@ -25,11 +25,12 @@
     { key: 'createBy', label: '傳票建立人員', req: 'optional' },
     { key: 'approveBy', label: '傳票核准人員', req: 'optional' },
     { key: 'manual', label: '人工/自動分錄', req: 'optional' },
-    { key: 'amount', label: '傳票金額（單欄）', req: ['signed', 'side', 'flag'] },
+    { key: 'amount', label: '分錄金額（單欄）', req: ['signed', 'side', 'flag'] },
     { key: 'debitAmount', label: '借方金額', req: ['dual'] },
     { key: 'creditAmount', label: '貸方金額', req: ['dual'] },
     { key: 'dcField', label: '借貸別欄位', req: ['side', 'flag'] },
-    { key: 'dcDebitCode', label: '借方標識代碼', req: ['side', 'flag'], literal: true },
+    { key: 'dcDebitCode', label: '借方代碼', req: ['side', 'flag'], literal: true },
+    { key: 'dcCreditCode', label: '貸方代碼', req: ['side', 'flag'], literal: true },
     { key: 'postingStatus', label: '過帳狀態', req: 'optional' }
   ];
 
@@ -47,16 +48,16 @@
     { key: 'closingCredit', label: '期末貸方', req: ['openCloseBySide'] }
   ];
 
-  // GL 核准日三態（manifest mapping.commit.gl 的 approvalDateMode closed values）。
-  // mapped 必須且只可配「傳票核准日」來源欄；sameAsPostDate 直接沿用標準化後的總帳日期，
+  // GL 核准日三態（後端 mapping.commit.gl 接受的 approvalDateMode 固定值）。
+  // mapped 必須且只可配「傳票核准日」來源欄；sameAsPostDate 直接沿用標準化後的總帳入帳日，
   // 兩者互斥由前端就近引導，後端 mapping.commit.gl 仍是權威。
   var GL_APPROVAL_DATE_MODES = [
     { value: 'unmapped', label: '沒有核准日' },
     { value: 'mapped', label: '由來源欄提供' },
-    { value: 'sameAsPostDate', label: '與總帳日期相同' }
+    { value: 'sameAsPostDate', label: '與總帳入帳日相同' }
   ];
 
-  // 攸關資料元素（RDE）欄位型別（manifest rdeFields.valueType closed values）。
+  // 攸關資料元素（RDE）欄位型別（後端接受的 rdeFields.valueType 固定值）。
   var RDE_VALUE_TYPES = [
     { value: 'text', label: '文字' },
     { value: 'date', label: '日期' },
@@ -66,11 +67,17 @@
   // 後端 GlMappingOptionRules 的 UI 鏡像上限；後端仍是權威。
   var RDE_MAX_LABEL_LENGTH = 400;
 
-  // 人工／自動代碼的後端預設（manifest manualAutoPolicy 缺省值）。
+  // 人工／自動代碼的後端預設（manualAutoPolicy 未提供時的值）。
   var MANUAL_AUTO_DEFAULTS = { manualValues: ['1'], automaticValues: ['0'] };
 
-  // mapping.valueProfile 的有界取樣上限（manifest limit 允許 1–100）。
+  // mapping.valueProfile 的有界取樣上限（action 的 limit 允許 1 到 100）。
   var VALUE_PROFILE_LIMIT = 50;
+  // Domain各規則的既定門檻鏡像；只供預設值與文案使用，不在前端判斷命中。
+  var PRESCREEN_DEFAULTS = { preparerMaxEntries: 11, accountMaxEntries: 11, trailingZeroDigits: 6 };
+  // 三種展示用途各自命名，不改後端query.*Page預設200列，也不共用審計門檻。
+  var RESULT_PREVIEW_PAGE_SIZE = 50;
+  var REPORT_HISTORY_PAGE_SIZE = 50;
+  var DEV_TABLE_PAGE_SIZE = 50;
 
   var GL_MODES = [
     { value: 'dual', label: '借方欄＋貸方欄' },
@@ -93,8 +100,8 @@
   // 2026-09-07 改版後畫面改用三個家族（filter-step 的 RULE_FAMILIES）。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
   var FILTER_RULE_TYPES = [
     { value: 'fieldValue', label: '欄位值比較', quickLabel: '指定值與排除', group: 'field' },
-    { value: 'accountSide', label: '借貸科目分類', group: 'nature' },
-    { value: 'prescreen', label: '預篩選', quickLabel: '選擇風險訊號', group: 'risk' },
+    { value: 'accountSide', label: '借貸科目分類', group: 'nature', accountMappingRequirement: 'any' },
+    { value: 'prescreen', label: '預篩選', quickLabel: '選擇預篩選條件', group: 'risk' },
     { value: 'text', label: '文字條件', group: 'field' },
     { value: 'textSet', label: '文字值清單', group: 'field' },
     { value: 'numRange', label: '金額區間', group: 'field' },
@@ -102,7 +109,7 @@
     { value: 'customKeywords', label: '自訂關鍵字', group: 'field' },
     { value: 'drCrOnly', label: '借貸限定', group: 'nature' },
     { value: 'manualAuto', label: '人工/自動', group: 'nature' },
-    { value: 'customTrailingZeros', label: '自訂尾數位數', group: 'pattern' },
+    { value: 'customTrailingZeros', label: '金額尾數連續 0 的位數', group: 'pattern' },
     // 借貸科目組合：畫面上只有一張卡（specialAccountCategoryPair 為預設 wire 型別），五種白話模式跨兩個
     // wire 型別（ACCOUNT_COMBINATION_OPTIONS）；accountPair 只在型別下拉與舊情境讀回出現，不進快速加入。
     { value: 'accountPair', label: '借貸科目組合（看對方科目）', group: 'pattern', accountMappingRequirement: 'any', pickerHidden: true },
@@ -111,9 +118,9 @@
     { value: 'customAccountEntryCount', label: '自訂科目分錄筆數', group: 'pattern' },
     { value: 'entityFrequency', label: '科目與人員統計', group: 'pattern' },
     { value: 'group', label: '條件括號', group: 'compound' },
-    { value: 'voucher', label: '傳票量詞', group: 'compound' },
+    { value: 'voucher', label: '傳票分錄條件', group: 'compound' },
     // 攸關資料元素條件：只在欄位配對已提交至少一個額外欄位時才可用（requiresRdeFields）。
-    { value: 'typed', label: '攸關資料元素條件', quickLabel: '額外欄位條件', group: 'field',
+    { value: 'typed', label: '攸關資料元素條件', quickLabel: '攸關資料元素欄位條件', group: 'field',
       requiresRdeFields: true },
     // KCT 小組條件（清單 A/C/D/H/J；分組獨立於其他四組）。Revenue 型依內容事實逐條解鎖。
     { value: 'revenueDebitNearQuarterEnd', label: '季末前借記收入', group: 'kct', accountMappingRequirement: 'revenue' },
@@ -124,11 +131,12 @@
   ];
 
   // 條件型別的分組（依審計意圖，非資料格式）。顯示順序即此陣列順序；
-  // 每組約 3–4 項，讓使用者只看自己要的那一塊（NN/g chunking / progressive disclosure）。
+  // 每組約 3–4 項，讓使用者只看自己要的那一塊，不必一次面對全部選項。
 
   // KCT 小組「重用既有型別」的預設條件（清單 E/F/G/I）：點按鈕即帶入既有型別的預填規則，
-  // 不另立 wire 型別（避免重複既有述詞，單一事實在後端述詞）。overrides 套在 newFilterRule 之上；
-  // newGroup 為「整組帶入」（非營業日 = weekendPosting OR holidayPosting，自成一組以免 OR 結合錯位）。
+  // 不另立 wire 型別（避免重複既有述詞，單一事實在後端述詞）。overrides 套在 newFilterRule 之上，
+  // 加入時整份深拷貝。非營業日 I 是一條「條件括號」，括號內只有「總帳入帳日是非營業日」（排除補班日）；
+  // 2026-10-02 使用者裁定 I 不再自成一組，和其他單規則 KCT 一樣加入目前條件組。
   var FILTER_KCT_PRESETS = [
     { key: 'kctSpecificPreparer', label: '特定人員建立之分錄',
       overrides: { type: 'text', field: 'createBy', mode: 'exact' } },
@@ -137,23 +145,22 @@
     { key: 'kctBlankDescription', label: '空白摘要',
       overrides: { type: 'prescreen', prescreenKey: 'blankDescription' } },
     { key: 'kctNonBusinessDay', label: '非營業日分錄',
-      newGroup: [
-        { type: 'prescreen', prescreenKey: 'weekendPosting' },
-        { type: 'prescreen', prescreenKey: 'holidayPosting', join: 'OR' }
-      ] }
+      overrides: { type: 'group', rules: [
+        { type: 'fieldValue', field: 'postDate', operator: 'isNonBusinessDay', join: 'AND' }
+      ] } }
   ];
 
-  // 預設群組（newGroup）在彙總區「扁平檢視」呈現為單一原子條件時的白話標籤（以卡的 ref＝preset key 為鍵）。
-  // 目前僅非營業日(I) 為 newGroup（週末 OR 假日）；其餘預設為單規則、不走原子行。
+  // 新 KCT I 的條件括號直接使用日期「非營業日」判斷，排除補班日；舊 AST 不改寫。
+  // 正本是 Domain FilterConditionLabels.NonBusinessDayAtom，後端 FilterConditionRenderer 以同一規則辨識。
   var FILTER_KCT_ATOM_LABELS = {
-    kctNonBusinessDay: '非營業日（週末或假日）'
+    kctNonBusinessDay: '非營業日（排除補班日）'
   };
 
   // KCT 小組方法學檢核清單（A–J）：獨立顯著面板的「單一資料來源」，十顆按鈕由此一份資料驅動，
-  // 而非十段重複 HTML（Linus：讓分支消失而非加 if）。每筆只是「指向既有述詞」的標記：
+  // 而非十段重複 HTML，新增卡片只要加一筆資料。每筆只是「指向既有述詞」的標記：
   //   kind:'type'   → ref 是既有 FILTER_RULE_TYPES 的 value；點按帶入一條 newFilterRule(ref)。
-  //   kind:'preset' → ref 是既有 FILTER_KCT_PRESETS 的 key；點按沿用該預設（含 newGroup 整組帶入）。
-  //   disabled:true → Phase 2 佔位（B：待 KCT 交付 BS/IS 分類表），只渲染為停用，不實作述詞。
+  //   kind:'preset' → ref 是既有 FILTER_KCT_PRESETS 的 key；點按帶入該預設的一條規則（I 是條件括號）。
+  //   disabled:true → 暫不提供（B：等 KCT 提供 BS/IS 分類表），只渲染為停用，不實作述詞。
   // label 為 KCT 清單用語（卡片顯示文字）。每張卡是可複選 toggle：選取即把其規格落地成 rule
   // 併入草稿、並在每條 rule 打上 __kctLetter 身分標記（UI-only，剝除後才送 wire）；取消即移除帶
   // 該字母標記的 rule。送出時由 marker 推導 source:'kct'；KCT 名稱／動機可沿用自動值、手改或留白，
@@ -173,24 +180,47 @@
     { letter: 'J', kind: 'type', ref: 'preparerEqualsApprover', label: '編製人員與核准人員相同' }
   ];
 
-  // 預篩選 row-tag 鍵與中文名（guide §4 命名登錄表；代號已退役，一律用具體名稱）。
+  // 預篩選 row-tag 鍵與中文名（代號已退役，一律用具體名稱）。
   // 本表的 value/label 鏡像 Domain FilterConditionLabels.PrescreenKeys（正本在 Domain），
   // 由 FilterConditionLabelMirrorTests 雙向守衛；新增鍵須同步 Domain 標籤表。
   var PRESCREEN_KEY_OPTIONS = [
     { value: 'postPeriodApproval', label: '財報準備日起核准' },
     { value: 'suspiciousKeywords', label: '摘要特定描述' },
     { value: 'unexpectedAccountPair', label: '未預期借貸組合', requiresAccountMapping: true },
-    { value: 'trailingZeros', label: '連續零尾數金額' },
+    { value: 'trailingZeros', label: '金額尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0' },
     { value: 'weekendPosting', label: '週末過帳' },
     { value: 'weekendApproval', label: '週末核准' },
     { value: 'holidayPosting', label: '假日過帳' },
     { value: 'holidayApproval', label: '假日核准' },
-    { value: 'blankDescription', label: '摘要空白' },
+    { value: 'blankDescription', label: '空白摘要' },
     { value: 'backdatedPosting', label: '回溯過帳' },
     { value: 'nonAuthorizedPreparer', label: '非授權編製人員', requiresAuthorizedPreparers: true },
-    { value: 'lowFrequencyPreparer', label: '低頻編製者' },
-    { value: 'lowFrequencyAccount', label: '低頻科目' }
+    { value: 'lowFrequencyPreparer', label: '編製分錄較少的人員（' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下）' },
+    { value: 'lowFrequencyAccount', label: '使用較少的科目（' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下）' }
   ];
+
+  // Shared presentation copy for the fourth-step cards and fifth-step condition controls.
+  // The predicates and prerequisites remain backend-owned.
+  var PRESCREEN_DESCRIPTIONS = {
+    postPeriodApproval: '傳票核准日在案件設定的期末財報準備日當日或之後。檢查範圍為本次測試的分錄。',
+    suspiciousKeywords: '摘要包含預設的 25 個中英文關鍵字之一，包含繁體與簡體文字。在進階篩選選「摘要關鍵字（可自行編輯）」可檢視及調整整份清單。',
+    unexpectedAccountPair: '列出貸方為收入，但同張傳票沒有應收款項、現金或預收款借方的分錄。需先完成科目配對。',
+    trailingZeros: '依本次測試的分錄，找出金額整數部分尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0 的分錄；不含小數，整數部分為 0 不列入。',
+    weekendPosting: '總帳入帳日落在案件設定的週末日；補班日仍納入。',
+    weekendApproval: '傳票核准日落在案件設定的週末日；補班日仍納入。',
+    holidayPosting: '總帳入帳日落在已匯入假日清單的日期。',
+    holidayApproval: '傳票核准日落在已匯入假日清單的日期。',
+    blankDescription: '摘要欄位空白的分錄；可在下一步直接作為篩選條件。',
+    backdatedPosting: '總帳入帳日早於傳票日期的分錄。兩個日期均有值才比較；需先配對傳票日期。這是供審計員查核的日期差異，不代表已判定不當過帳。',
+    nonAuthorizedPreparer: '傳票建立人員的識別值非空白，且未列在匯入的授權清單中。請使用與 GL 相同的姓名或員工代碼欄位；這個差異本身不代表已判定越權。',
+    lowFrequencyPreparer: '依本次測試的分錄，按傳票建立人員計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下的人員分錄。同張傳票多列會計多筆；空白人員不列入。自訂條件可另設分錄筆數上限。',
+    lowFrequencyAccount: '依本次測試的分錄，按科目編號計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下的科目分錄。同張傳票多列會計多筆；空白科目不列入。自訂條件可另設分錄筆數上限。'
+  };
+  function prescreenConditionDescription(key) { return PRESCREEN_DESCRIPTIONS[key] || ''; }
+  function prescreenConditionLabel(key) {
+    var option = PRESCREEN_KEY_OPTIONS.find(function (item) { return item.value === key; });
+    return option ? option.label : key;
+  }
 
   // 鏡像 Domain SuspiciousKeywordDefaults；繁簡詞逐一保留，不改寫其他識別值。
   var SUSPICIOUS_KEYWORD_DEFAULTS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG',
@@ -200,12 +230,12 @@
   // AuditCore PrescreenPositioningRenderer 的逐字鏡像。新 prescreen.run 會回 positioning；
   // 舊摘要沒有此加法欄位時才使用本 fallback。文字由 mirror 守衛逐欄比對，前端不得自行改寫審計定位。
   var PRESCREEN_POSITIONING_COPY = {
-    aggregateGuidance: '先看依分錄編製者與較少使用科目的全期彙總；這兩項是常用的母體判讀面。',
-    signalGuidance: '逐筆命中只供初步判讀，不是高風險裁定；要形成測試範圍，請到「進階條件篩選」組合 KCT 與其他條件。',
-    reportGuidance: 'Pre-screening Report 預設隨匯出底稿一併產出，這裡可以先單獨產生；不產生也不影響進階條件篩選、Criteria Selection Report 或 Working Paper。',
-    overviewGuidance: '彙總只描述母體分布；逐筆命中不等於錯誤，也不是高風險裁定；兩者都不代替審計判斷。',
-    exportDefaultGuidance: '匯出底稿時預設一併產出 Pre-screening Report；取消勾選只會少這一份，其餘報告與底稿內容都不受影響。',
-    exportPendingRunGuidance: '目前沒有可用的預篩選結果。維持勾選並按下產生，系統會先執行一次預篩選再產出這份報告；大型案件的預篩選可能需要數分鐘到十餘分鐘。'
+    aggregateGuidance: '查看編製人員與較少使用科目的分錄筆數及金額。',
+    signalGuidance: '符合條件的分錄供初步查核；請在「進階條件篩選」設定本案的測試範圍。',
+    reportGuidance: '可在此產生預篩選報告，或在匯出底稿時一併產生。不產生也可繼續篩選與匯出底稿。',
+    overviewGuidance: '預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。',
+    exportDefaultGuidance: '預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。',
+    exportPendingRunGuidance: '尚無預篩選結果，匯出時會先執行預篩選。大型案件可能需要數分鐘到十餘分鐘。'
   };
 
   function prescreenPositioningCopy(p) {
@@ -226,7 +256,7 @@
     };
   }
 
-  // 科目配對分析三模式（guide §6.1）。
+  // 科目配對分析三模式（見 docs/jet-guide.md 第 6 節「進階條件篩選」）。
   var ACCOUNT_PAIR_MODE_OPTIONS = [
     { value: 'exact', label: '借方是 A 且貸方是 B' },
     { value: 'debitAnchor', label: '借方是 A，看它的對方科目' },
@@ -247,15 +277,16 @@
   // 常用情境範本（2026-09-04 裁定）：一鍵把草稿填成常見的審計問題，審計員再改數值或直接預覽。
   // 純前端資料；規則形狀與快速加入相同，套用時走 filter-step 的 materializeRule，不打 KCT 標記。
   // requires: 'accountMapping' 表示需要科目配對；'periodEnd' 表示套用時用查核截止日填日期。
+  // 兩個現金範本和新建條件一樣用「包含下層分類」（2026-10-04 Q4、2026-10-05 W2）。
   var FILTER_SCENARIO_TEMPLATES = [
     { key: 'cashDebitNonCashCredit', label: '借現金、貸非現金', requires: 'accountMapping',
       rationale: '借方為現金，而整張傳票沒有貸方現金的分錄。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
-        { type: 'specialAccountCategoryPair', pairMode: 'drNotCr', debitCategoryIds: ['builtin.cash'], creditCategoryIds: ['builtin.cash'] }] }] },
+        { type: 'specialAccountCategoryPair', pairMode: 'drNotCr', categorySelection: 'subtree', debitCategoryIds: ['builtin.cash'], creditCategoryIds: ['builtin.cash'] }] }] },
     { key: 'cashCreditNonCashDebit', label: '貸現金、借非現金', requires: 'accountMapping',
       rationale: '貸方為現金，而整張傳票沒有借方現金的分錄。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
-        { type: 'specialAccountCategoryPair', pairMode: 'notDrCr', debitCategoryIds: ['builtin.cash'], creditCategoryIds: ['builtin.cash'] }] }] },
+        { type: 'specialAccountCategoryPair', pairMode: 'notDrCr', categorySelection: 'subtree', debitCategoryIds: ['builtin.cash'], creditCategoryIds: ['builtin.cash'] }] }] },
     { key: 'nonBusinessDayExcludingDates', label: '非營業日且排除指定日期', kct: 'I',
       rationale: '非營業日過帳的分錄，另排除個案已知的例外日期。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
@@ -277,7 +308,7 @@
         { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '', values: [], includeBlank: false, amountBasis: 'absolute', __valueType: 'money' }] }] }
   ];
 
-  // 特殊科目類別配對三模式（manifest specialAccountCategoryPair；A=借方類別、B=貸方類別）。
+  // 特殊科目類別配對三模式（specialAccountCategoryPair；A=借方類別、B=貸方類別）。
   // 三模式皆需 A 與 B 皆填（否定模式同樣需要 B/A 才能判定「不存在」），與 accountPair 的
   // 錨定模式不同——故各 case 一律呈現借/貸兩個 categorySelect。標籤明確標示 Dr/Cr 與否定語意。
   var SPECIAL_PAIR_MODE_OPTIONS = [
@@ -304,7 +335,7 @@
     { value: 'notExact', label: '不等於（排除）' }
   ];
 
-  // Stage 5 AST 的封閉選項。顯示字串鏡像 FilterConditionRenderer；前端只負責編輯 wire，
+  // 進階篩選條件 AST 的封閉選項。顯示字串鏡像 FilterConditionRenderer；前端只負責編輯 wire，
   // matchScope 的命中語意與 textSet 的正規化／比對仍由後端權威執行。
   var FILTER_MATCH_SCOPE_OPTIONS = [
     { value: 'row', label: '同一分錄列' },
@@ -323,6 +354,9 @@
 
   // 後端 FilterScenarioLimits.MaxTextSetValuesPerRule 的 UI 鏡像；後端仍是權威。
   var TEXT_SET_MAX_VALUES = 100;
+
+  // 後端 FilterScenarioLimits.MaxSavedScenarios 的 UI 鏡像（每個案件可保存的篩選情境數）；後端仍是權威。
+  var FILTER_MAX_SAVED_SCENARIOS = 10;
 
   // typed（攸關資料元素）條件的 operator 封閉選單。value/label 逐鍵鏡像 Domain
   // FilterConditionLabels.TypedOperators 與 TypedFieldOperatorSets 的 per-type 集合；
@@ -367,7 +401,7 @@
     { value: 'absolute', label: '金額絕對值' }
   ];
 
-  // typed in／notIn 的值數上限（manifest 1–100；後端仍是權威）。
+  // typed in／notIn 的值數上限（與後端相同，1 到 100；後端仍是權威）。
   var TYPED_SET_MAX_VALUES = 100;
 
   // RDE 型別 → 可用 operator 集合；未知型別回空陣列（fail closed，同後端 ForValueType）。
@@ -384,7 +418,7 @@
     return hit ? hit.label : (op || '');
   }
 
-  // operand carrier 判定（manifest「Operand carrier 固定三種」）：只決定要渲染哪一種輸入框，
+  // operand carrier 判定（固定三種）：只決定要渲染哪一種輸入框，
   // 缺漏／型別錯誤的最終裁定仍由後端 invalid_scenario 負責。
   function typedOperatorCarrier(op) {
     if (op === 'isBlank' || op === 'isNotBlank') { return 'none'; }
@@ -414,12 +448,6 @@
 
   var TAXONOMY_MAX_LABEL_LENGTH = 400;
 
-  // legacy 單選 scalar（'Revenue' 等內建顯示名）→ 內建分類身分；只在回放舊定義時使用。
-  function builtInCategoryIdForLegacyLabel(label) {
-    var hit = ACCOUNT_TAXONOMY_BUILT_INS.filter(function (c) { return c.label === label; })[0];
-    return hit ? hit.categoryId : null;
-  }
-
   // 可作文字／日期條件的邏輯欄位（白名單的前端鏡像；權威驗證在後端）。
   var FILTER_TEXT_FIELDS = ['docNum', 'lineID', 'accNum', 'accName', 'description', 'jeSource', 'createBy', 'approveBy'];
   var FILTER_DATE_FIELDS = ['postDate', 'docDate', 'voucherDate'];
@@ -443,15 +471,37 @@
       .replace(/'/g, '&#39;');
   }
 
-  // 顯示金額固定四位小數（＝log10(標準 MoneyScale 10^4)，讓 scaled 整數的完整精度顯示出來），
-  // 保留千分位。純顯示格式化，非計算——前端不得計算金額（見 AGENTS.md 前端邊界）。
-  // 空值／無效值一律 '—'（含 null/undefined/空字串/NaN）；其餘一律四位小數（0 → 0.0000、1.39 → 1.3900）。
+  // 畫面上所有金額的唯一顯示格式：兩位小數加千分位（使用者 2026-10-02 裁定 P3-4「畫面統一兩位小數加千分位；
+  // 報表與底稿不變」）。純顯示格式化，非計算——前端不得計算金額（見 AGENTS.md 前端邊界）；
+  // 輸入框、篩選條件值與送給後端的值不經過這裡。
+  // 空值或無效值一律 '—'（含 null、undefined、空字串、NaN）；其餘一律兩位小數（0 → 0.00、35920.33 → 35,920.33）。
   function money(value) {
     if (value === null || value === undefined || value === '') { return '—'; }
     var n = Number(value);
     return isNaN(n)
       ? '—'
-      : n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+      : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // Only differences/net use this display helper; the backend value and report precision stay unchanged.
+  function moneyDifference(value) {
+    var formatted = money(value), number = Number(value);
+    if (number !== 0 && (formatted === '0.00' || formatted === '-0.00')) {
+      return number < 0 ? '負值，不足 0.01' : '不足 0.01';
+    }
+    return formatted;
+  }
+
+  // 後端的 UTC ISO 時間轉成當地的年月日時分（24 小時制）。總覽與第六步共用這一個格式；
+  // 沒有時間或無法解析時回傳固定說明，不把原始字串直接顯示給審計員。
+  function formatDateTime(iso) {
+    if (!iso) { return '尚無紀錄'; }
+    var date = new Date(iso);
+    if (isNaN(date.getTime())) { return '時間未提供'; }
+    return date.toLocaleString('zh-Hant', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    });
   }
 
   // 非同步讀取的統一最新回應守衛。每次 issue 使上一張 ticket 失效；消費者可再提供自己的狀態 predicate
@@ -531,12 +581,13 @@
         if (error && error.code === 'operation_in_progress') {
           message = '請稍候，另一項作業進行中';
         } else if (error && error.code === 'operation_cancelled') {
-          message = label + '已取消';
+          message = label + (error.completedResultsPreserved ? '的後續作業已取消，已完成的結果保留' : '已取消');
           level = 'info';
         } else if (error && error.code === 'completeness_prerequisite_failed') {
-          message = label + '已阻擋：' + error.message;
+          message = label + '已阻擋：' + trimSentenceEnd(error.message);
         } else {
-          message = label + '失敗：' + error.message;
+          // 後面還要接「，耗時…」；原因若以句號結尾，先拿掉，避免出現「。，」。
+          message = label + '失敗：' + trimSentenceEnd(error && error.message);
         }
         message += '，耗時 ' +
           formatElapsedMilliseconds(monotonicNowMilliseconds() - startedAt) + '。';
@@ -580,8 +631,9 @@
       });
   }
 
-  /* ---- 專案租約鎖：心跳保活 / 離場釋放（控制面第六輪） ------------------------ */
-  // 鏡像後端：project.load 成功後每 heartbeatSeconds 秒續租一次；實際離開專案時釋放。純鏡像、零商業邏輯。
+  /* ---- 專案租約鎖：心跳保活 / 離場釋放 ------------------------ */
+  // 鏡像後端：SQL Server 案件 project.load 成功後每 heartbeatSeconds 秒續租一次；實際離開專案時釋放。
+  // 本機案件不送心跳。純鏡像、零商業邏輯。
 
   var heartbeatTimer = null;
 
@@ -675,14 +727,14 @@
     return categories.length ? categories : ACCOUNT_TAXONOMY_BUILT_INS;
   }
 
-  // 分類身分 → 目前顯示名稱；未知身分退回原字串（同後端 renderer 的 fallback 慣例）。
+  // 分類身分只用於資料交換；已刪除的分類不以內部代號冒充顯示名稱。
   function taxonomyCategoryLabel(state, categoryId) {
     var hit = taxonomyCategories(state).filter(function (c) { return c.categoryId === categoryId; })[0];
     if (hit) { return hit.label; }
     var builtIn = ACCOUNT_TAXONOMY_BUILT_INS.filter(function (c) {
       return c.categoryId === categoryId;
     })[0];
-    return builtIn ? builtIn.label : categoryId;
+    return builtIn ? builtIn.label : '已刪除的分類，請重新選擇';
   }
 
   function taxonomyTree(state) {
@@ -697,6 +749,87 @@
     add(null, 0);
     categories.forEach(function (c) { if (!visited[c.categoryId]) { result.push(Object.assign({}, c, { depth: 0 })); } });
     return result;
+  }
+
+  // 僅展開分類中繼資料，供條件說明呈現選取範圍；實際分錄判斷仍由後端處理。
+  function taxonomySelectionCategories(state, ids, mode) {
+    var categories = taxonomyCategories(state).slice().sort(function (a, b) {
+      return (a.ordinal || 0) - (b.ordinal || 0) || (a.categoryId < b.categoryId ? -1 : a.categoryId > b.categoryId ? 1 : 0);
+    }), chosen = ids || [];
+    var selected = categories.filter(function (category) { return chosen.indexOf(category.categoryId) >= 0; });
+    if (mode === 'node') { return selected; }
+    if (!mode || mode === 'role') {
+      return categories.filter(function (category) {
+        return selected.some(function (item) { return item.semanticRole === category.semanticRole; });
+      });
+    }
+    return categories.filter(function (category) {
+      var current = category, visited = {};
+      while (current && !visited[current.categoryId]) {
+        if (chosen.indexOf(current.categoryId) >= 0) { return true; }
+        visited[current.categoryId] = true;
+        current = categories.find(function (item) { return item.categoryId === current.parentCategoryId; });
+      }
+      return false;
+    });
+  }
+
+  function taxonomyPickerHtml(state, selected, key, legend, view) {
+    var tree = taxonomyTree(state);
+    var prefix = view.focusKey || key;
+    var missing = (selected || []).some(function (id) { return !taxonomyCategories(state).some(function (category) { return category.categoryId === id; }); });
+    return '<fieldset class="category-select" data-category-picker="' + esc(key) + '"><legend class="category-select__legend">' + esc(legend) + '</legend>' +
+      '<label>搜尋分類<input type="search" data-category-search data-focus-key="' + esc(prefix + '-search') + '" value="' + esc(view.search || '') + '"></label>' +
+      (missing ? '<p class="form-notice">已刪除的分類，請重新選擇。</p>' : '') +
+      tree.map(function (category) {
+        var branch = tree.some(function (child) { return child.parentCategoryId === category.categoryId; });
+        var open = !(view.collapsed || {})[category.categoryId];
+        return '<div data-category-node="' + esc(category.categoryId) + '" style="margin-inline-start:' + category.depth + 'em">' +
+          (branch ? '<button type="button" class="btn btn--ghost btn--tiny" data-category-toggle="' + esc(category.categoryId) +
+            '" data-focus-key="' + esc(prefix + '-' + category.categoryId) + '" aria-label="展開或收合' + esc(category.label) +
+            '" aria-expanded="' + open + '">' + (open ? '收合' : '展開') + '</button>' : '') +
+          '<label class="category-option"><input type="checkbox" data-category-bind="' + esc(key) + '" value="' + esc(category.categoryId) + '"' +
+          ((selected || []).indexOf(category.categoryId) >= 0 ? ' checked' : '') + '><span>' + esc(category.label) + '</span></label></div>';
+      }).join('') + '</fieldset>';
+  }
+
+  function bindTaxonomyPicker(root, state, view) {
+    view.collapsed = view.collapsed || {};
+    var categories = taxonomyCategories(state);
+    function ancestors(category) {
+      var result = [], seen = {};
+      while (category && category.parentCategoryId && !seen[category.parentCategoryId]) {
+        seen[category.parentCategoryId] = true;
+        category = categories.find(function (item) { return item.categoryId === category.parentCategoryId; });
+        if (category) { result.push(category); }
+      }
+      return result;
+    }
+    function update() {
+      var search = String(view.search || '').trim().toLocaleLowerCase();
+      var matches = categories.filter(function (category) { return String(category.label).toLocaleLowerCase().indexOf(search) >= 0; });
+      root.querySelectorAll('[data-category-node]').forEach(function (node) {
+        var id = node.getAttribute('data-category-node');
+        var category = categories.find(function (item) { return item.categoryId === id; });
+        var parents = ancestors(category);
+        node.hidden = search ? !matches.some(function (match) {
+          return match.categoryId === id || parents.some(function (parent) { return parent.categoryId === match.categoryId; }) ||
+            ancestors(match).some(function (parent) { return parent.categoryId === id; });
+        }) : parents.some(function (parent) { return !!view.collapsed[parent.categoryId]; });
+      });
+      root.querySelectorAll('[data-category-toggle]').forEach(function (button) {
+        var open = search.length > 0 || !view.collapsed[button.getAttribute('data-category-toggle')];
+        button.setAttribute('aria-expanded', String(open)); button.textContent = open ? '收合' : '展開';
+      });
+    }
+    var search = root.querySelector('[data-category-search]');
+    if (search) { search.addEventListener('input', function () { view.search = search.value; update(); }); }
+    root.querySelectorAll('[data-category-toggle]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var id = button.getAttribute('data-category-toggle'); view.collapsed[id] = !view.collapsed[id]; update();
+      });
+    });
+    update();
   }
 
   // 目前已提交 GL 配對的攸關資料元素欄位定義；未提交或舊版配對時為空陣列。
@@ -743,16 +876,45 @@
     '</form>';
   }
 
-  // 可排序、可搜尋的分頁表。狀態只有游標、排序與搜尋文字；換排序或搜尋就清掉列從第一頁重載，
+  // 可排序、可搜尋的分頁表。呼叫端可保留viewState，讓重繪接回已由使用者逐頁讀取的列；不預讀全母體。
+  // 換排序或搜尋就清掉列從第一頁重載，
   // 「載入更多」接續同一個排序與搜尋。首擊（或第一次重載）先清掉呼叫端放的首屏預覽列，避免兩套順序混排。
   // opts: fetchPage(cursor, sort, search) → Promise({ rows, nextCursor })、appendRows(rows)、clearRows()、
   //       loadMore（按鈕，可為 null）、table（含 th[data-sort-key] 的表）、search（pageSearchHtml 的表單，可為 null）、
   //       autoLoad（掛上就載入第一頁）。
   function bindPagedTable(root, opts) {
-    var state = { cursor: null, sort: null, search: '', started: false, busy: false };
+    var persistent = !!opts.viewState;
+    var state = opts.viewState || {};
+    if (!state.initialized) {
+      Object.assign(state, { initialized: true, cursor: null, sort: null, search: '', started: false, busy: false,
+        rows: [], retryRequest: null, queuedSearch: null, statusText: '' });
+    }
     var loadMore = opts.loadMore || null;
     var table = opts.table || null;
     var form = opts.search || null;
+    var captured = Store.getState();
+    var project = captured.project;
+    var generation = captured.dataGeneration;
+    function resultSource(s) {
+      return opts.sourceKind === 'filter' ? s.filterResultRef : (opts.sourceKind ? s.lastRuns[opts.sourceKind] : null);
+    }
+    var source = resultSource(captured);
+    function current() {
+      var s = Store.getState();
+      return (persistent || root.isConnected !== false) && s.project === project && s.dataGeneration === generation && resultSource(s) === source;
+    }
+    var status = document.createElement('p');
+    status.className = 'page-status';
+    status.setAttribute('data-page-status', 'true');
+    status.setAttribute('role', 'status');
+    status.hidden = true;
+    root.appendChild(status);
+    var retry = document.createElement('button');
+    retry.type = 'button'; retry.className = 'btn btn--ghost btn--tiny';
+    retry.textContent = '重試'; retry.hidden = true;
+    root.appendChild(retry);
+    var moreText = loadMore ? loadMore.textContent : '';
+    var scrollElement = opts.scrollElement || (root.querySelector && root.querySelector('.preview-table__wrap'));
 
     // 表頭可能在首擊後才由系統端欄位定義重建，所以排序標記每次載入後重新套，點擊用事件委派。
     function applySortMarks() {
@@ -771,28 +933,100 @@
       if (clear) { clear.hidden = !state.search; }
     }
 
+    // pending回應更新同一份viewState，再交給最新的DOM綁定呈現；舊節點不接收晚到資料。
+    function refresh(replayRows) {
+      if (!current() || root.isConnected === false || (persistent && state.refresh !== refresh)) { return; }
+      if (persistent && replayRows && state.started) {
+        var top = scrollElement ? scrollElement.scrollTop : 0, left = scrollElement ? scrollElement.scrollLeft : 0;
+        opts.clearRows(); opts.appendRows(state.rows);
+        if (scrollElement) { scrollElement.scrollTop = top; scrollElement.scrollLeft = left; }
+      }
+      applySortMarks(); applySearchBox();
+      if (loadMore) {
+        if (state.started) { loadMore.hidden = state.cursor == null; }
+        loadMore.disabled = state.busy; loadMore.textContent = state.busy ? '載入中…' : moreText;
+      }
+      if (table) { table.setAttribute('aria-busy', state.busy ? 'true' : 'false'); }
+      status.textContent = state.statusText || ''; status.hidden = !state.statusText;
+      retry.hidden = !state.retryRequest || state.busy;
+    }
+    if (persistent) { state.refresh = refresh; }
+
     // 重載失敗時把排序與搜尋退回上一次成功的狀態：表格裡還是舊列，表頭與輸入框不能宣稱新的排序或搜尋。
     function fetch(reset, label, previous) {
-      if (state.busy) { return Promise.resolve(); }
+      if (state.busy || !current() || root.isConnected === false || (persistent && state.refresh !== refresh)) { return Promise.resolve(); }
       state.busy = true;
       var prev = loadMore ? loadMore.textContent : '';
       if (loadMore) { loadMore.disabled = true; loadMore.textContent = '載入中…'; }
-      // Only explicitly read-only tables may refresh while another operation owns the busy overlay.
-      var execute = opts.background ? runBackground : run;
-      return execute(label, function () {
-        return opts.fetchPage(reset ? null : state.cursor, state.sort, state.search).then(function (data) {
-          if (reset || !state.started) { opts.clearRows(); state.started = true; }
-          opts.appendRows((data && data.rows) || []);
-          applySortMarks();
+      if (table) { table.setAttribute('aria-busy', 'true'); }
+      status.hidden = false; status.textContent = '正在讀取資料…'; retry.hidden = true;
+      state.statusText = status.textContent;
+      var requested = { reset: reset, label: label, previous: previous, sort: state.sort, search: state.search };
+      // These are bounded result reads, not mutations. Their status must not acquire the whole-page busy state.
+      var pending;
+      try { pending = opts.fetchPage(reset ? null : state.cursor, requested.sort, requested.search); }
+      catch (error) { pending = Promise.reject(error); }
+      return Promise.resolve(pending).then(function (data) {
+          if (!current()) { return; }
+          var rows = (data && data.rows) || [];
+          if (persistent) {
+            if (reset || !state.started) { state.rows = []; }
+            state.rows = state.rows.concat(rows); state.started = true;
+          } else {
+            if (reset || !state.started) { opts.clearRows(); state.started = true; }
+            opts.appendRows(rows); applySortMarks();
+          }
           state.cursor = data ? data.nextCursor : null;
           if (loadMore) { loadMore.hidden = state.cursor == null; loadMore.disabled = false; loadMore.textContent = prev; }
+          status.textContent = '本次載入 ' + rows.length.toLocaleString() + ' 筆資料';
+          state.statusText = status.textContent; state.retryRequest = null;
+          if (persistent) { state.refresh(true); }
         }).catch(function (error) {
+          if (!current()) { return; }
           if (previous) { state.sort = previous.sort; state.search = previous.search; applySortMarks(); applySearchBox(); }
           if (loadMore) { loadMore.disabled = false; loadMore.textContent = prev; }
-          throw error;
-        }).finally(function () { state.busy = false; });
-      });
+          state.retryRequest = requested; retry.hidden = false;
+          status.textContent = (error && error.code === 'operation_cancelled' ? '讀取已取消。' : '讀取失敗。') +
+            '目前資料未變更，可重試。' + (error && error.message ? ' ' + error.message : '');
+          state.statusText = status.textContent;
+          if (persistent) { state.refresh(false); }
+        }).finally(function () {
+          state.busy = false;
+          if (table) { table.setAttribute('aria-busy', 'false'); }
+          if (persistent) { state.refresh(false); }
+          // 讀取中按下的「查看」或「清除」在這裡接著執行；成功或失敗都會走到這裡。
+          if (persistent) { state.runQueuedSearch(); } else { runQueuedSearch(); }
+        });
     }
+    // 讀取中只記住最後一次要求的搜尋文字，不排隊；目前的讀取結束後再執行。
+    function search(text, queuedHint) {
+      if (state.busy) {
+        state.queuedSearch = text;
+        status.hidden = false;
+        status.textContent = queuedHint;
+        state.statusText = queuedHint;
+        return;
+      }
+      state.queuedSearch = null;
+      var previous = snapshot();
+      state.search = text;
+      applySearchBox();
+      fetch(true, '依號碼查看明細', previous);
+    }
+    function runQueuedSearch() {
+      if (state.queuedSearch === null) { return; }
+      var text = state.queuedSearch;
+      state.queuedSearch = null;
+      if (!current()) { return; }
+      search(text, '');
+    }
+    if (persistent) { state.runQueuedSearch = runQueuedSearch; }
+    retry.addEventListener('click', function () {
+      if (!state.retryRequest || state.busy || !current()) { return; }
+      var request = state.retryRequest;
+      state.sort = request.sort; state.search = request.search; applySortMarks(); applySearchBox();
+      fetch(request.reset, request.label, request.previous);
+    });
     function snapshot() { return { sort: state.sort, search: state.search }; }
 
     if (loadMore) { loadMore.addEventListener('click', function () { fetch(false, '載入更多'); }); }
@@ -811,23 +1045,16 @@
     if (form) {
       form.addEventListener('submit', function (event) {
         event.preventDefault();
-        if (state.busy) { return; }
-        var previous = snapshot();
-        state.search = (input && input.value ? input.value : '').trim();
-        applySearchBox();
-        fetch(true, '依號碼查看明細', previous);
+        search((input && input.value ? input.value : '').trim(), '正在讀取資料，讀完後接著查看這個號碼。');
       });
       if (clear) {
         clear.addEventListener('click', function () {
-          if (state.busy) { return; }
-          var previous = snapshot();
-          state.search = '';
-          applySearchBox();
-          fetch(true, '依號碼查看明細', previous);
+          search('', '正在讀取資料，讀完後接著清除查看條件。');
         });
       }
     }
-    if (opts.autoLoad) { fetch(true, '載入明細'); }
+    if (persistent) { refresh(true); }
+    if (opts.autoLoad && !state.started && !state.busy) { fetch(true, '載入明細'); }
     return { reload: function () { return fetch(true, '載入明細'); } };
   }
 
@@ -850,25 +1077,6 @@
         cell: function (row) { return dynamicCellText(col, row); }
       };
     });
-  }
-
-  /* ---- 後端生命週期狀態的鏡像片段 ------------------------------------------ */
-
-  // 資料版本已失效：只鏡射 project.load.staleState 的布林，不由 latestRuns === null 猜測。
-  function staleNoticeHtml(state, kind, message) {
-    var stale = state && state.staleState ? state.staleState[kind] : false;
-    return stale
-      ? '<p class="panel__warn" data-bind="stale-' + esc(kind) + '">' + esc(message) + '</p>'
-      : '';
-  }
-
-  // 舊版欄位配對需重新確認：後端在新邏輯 action 前一律 mapping_review_required fail closed，
-  // 畫面只鏡射該旗標並指路回「欄位配對」，不自行判定哪一側是舊版。
-  function mappingReviewBannerHtml(state) {
-    if (!state || !state.mappingReviewRequired) { return ''; }
-    return '<p class="panel__warn" data-bind="mapping-review-required">' +
-      '這個案件的欄位配對是舊版本，需要重新確認後才能執行驗證、預篩選、篩選與匯出。' +
-      '請在「欄位配對」逐一檢查 GL 與 TB 的設定並重新確認配對。</p>';
   }
 
   /* ---- 步驟渲染器 / workflow 重設 的註冊表 ------------------------------- */
@@ -894,20 +1102,22 @@
     if (renderer) { renderer(container, state); }
   }
 
-  /* ---- 流程閘門（state-oriented：每一步的進入條件與缺漏） ------------------- */
+  /* ---- 流程進入條件（state-oriented：每一步的進入條件與缺漏） ------------------- */
 
   function ruleRunId(run) {
     return run && run.resultRef ? run.resultRef.runId : null;
   }
 
   var COMPLETENESS_RERUN_REASON = '請重新執行資料驗證，以取得目前資料的結果';
+  var COMPLETENESS_FIRST_RUN_REASON = '請先執行資料驗證，以取得目前資料的結果';
 
-  // 舊版欄位配對的閘門說明（與 mappingReviewBannerHtml 同一份事實，措辭就近可行動）。
-  var MAPPING_REVIEW_MISSING = '重新確認 GL 與 TB 欄位配對（目前為舊版本）';
-
-  // 完整性適格只鏡射 validate.run 的 backend verdict。舊摘要缺少 additive eligibility
-  // 時 fail closed 並要求重跑；不得在前端以 part A／B raw facts 重算第二份裁定。
+  // 「可否繼續後續步驟」只鏡射 validate.run 後端的判定（completenessTest.eligibility）。舊摘要缺少這個欄位
+  // 時 fail closed 並要求重跑；不得在前端用控制總數或逐科目比對的原始結果重算第二份判定。
+  // 從未執行資料驗證時沒有東西可以「重新」執行，改請審計員先執行。
   function completenessEligibility(validation) {
+    if (!validation) {
+      return { isEligible: false, reason: COMPLETENESS_FIRST_RUN_REASON };
+    }
     var eligibility = validation && validation.completenessTest
       ? validation.completenessTest.eligibility
       : null;
@@ -922,12 +1132,8 @@
     return { isEligible: true, reason: null, warning: eligibility.warning || null };
   }
 
-  function allScenarioPositions(state) {
-    return (state.filter.savedScenarios || []).map(function (_, index) { return index + 1; });
-  }
-
   // 步驟 index 的進入條件；missing 描述「還缺什麼」。
-  // 對齊 docs/jet-frontend-description.md §5 閘門模型（6 步版本）。
+  // 對齊 docs/jet-frontend-description.md「六個步驟」。
   function stepGate(state, index) {
     var missing = [];
     switch (index) {
@@ -941,9 +1147,6 @@
       case 3:
         if (!state.mapping.gl.committed) { missing.push('確認 GL 欄位配對'); }
         if (!state.mapping.tb.committed) { missing.push('確認 TB 欄位配對'); }
-        // 舊版配對：後端在驗證、預篩選、篩選與匯出前一律 fail closed，畫面只鏡射同一封鎖，
-        // 不讓使用者走進一條必定被拒絕的路徑；修復入口仍在「欄位配對」。
-        if (state.mappingReviewRequired) { missing.push(MAPPING_REVIEW_MISSING); }
         break;
       case 4:
         var completeness = completenessEligibility(state.lastRuns.validate);
@@ -954,22 +1157,62 @@
         }
         break;
       case 5:
-        if (state.filter.savedScenarios.length === 0) { missing.push('保存至少一個篩選情境'); }
-        if (!state.filterResultRef) {
-          missing.push('完成目前版本的條件篩選');
-        } else if (!findCurrentReportArtifact(state, 'criteriaSelectionReport', {
-          validationRunId: ruleRunId(state.lastRuns.validate),
-          scenarioRevision: state.filterResultRef.revision,
-          scenarioPositions: allScenarioPositions(state)
-        })) {
-          missing.push('產生目前版本的條件篩選報告');
-        }
+        // 第六步的工作底稿版本紀錄不依賴情境：已經有版本紀錄時，即使情境全刪或無法套用也能進來查看；
+        // 匯出按鈕仍要求可用的情境（見 export-step.js）。兩者都沒有時照舊鎖住並寫出情境的原因。
+        var scenarioMissing = filterScenarioMissing(state);
+        if (scenarioMissing && !hasWorkpaperHistory(state)) { missing.push(scenarioMissing); }
         break;
     }
     return { ok: missing.length === 0, missing: missing };
   }
 
-  // 線性流程：進入 index 必須滿足沿路所有閘門。
+  // 可以用來匯出工作底稿的已儲存情境是否齊備；齊備時回傳 null，否則回傳缺少的項目。
+  // 這也是第五步「進階條件篩選」算完成的條件。
+  function filterScenarioMissing(state) {
+    if (state.filter.savedScenarios.length === 0) { return '儲存至少一個篩選情境'; }
+    if (!state.filterResultRef || state.filterResultRef.populationScope !== 'auditPeriod') {
+      return '修改無法套用目前規則的篩選情境';
+    }
+    return null;
+  }
+
+  function hasWorkpaperHistory(state) {
+    return reportArtifactHistory(state, 'workingPaper').length > 0;
+  }
+
+  // 目前版本的工作底稿：綁定目前的資料驗證結果與目前可用的情境版本，且後端沒有標成過期。
+  // 第六步「案件流程已完成」、左側進度與流程總覽都用這一個判斷，三處不得各算一份。
+  function currentWorkpaperArtifact(state) {
+    var validationRunId = ruleRunId(state.lastRuns.validate);
+    var resultRef = state.filterResultRef;
+    var revision = resultRef && resultRef.populationScope === 'auditPeriod' ? resultRef.revision || null : null;
+    if (!validationRunId || !revision) { return null; }
+    return findCurrentReportArtifact(state, 'workingPaper', {
+      validationRunId: validationRunId,
+      scenarioRevision: revision
+    });
+  }
+
+  // 步驟 index 是否完成。前四步沿用下一步的進入條件；第五步看情境是否齊備（不因第六步可以只看
+  // 版本紀錄而算完成）；最後一步看是否已有目前版本的工作底稿。
+  function stepComplete(state, index) {
+    var last = Store.STEPS.length - 1;
+    if (index === last) { return !!currentWorkpaperArtifact(state); }
+    if (index === last - 1) { return !filterScenarioMissing(state); }
+    return stepGate(state, index + 1).ok;
+  }
+
+  // 步驟還沒完成時缺少什麼；最後一步由呼叫端依情境與底稿狀態另外說明。
+  function stepCompletionMissing(state, index) {
+    var last = Store.STEPS.length - 1;
+    if (index === last - 1) {
+      var scenarioMissing = filterScenarioMissing(state);
+      return scenarioMissing ? [scenarioMissing] : [];
+    }
+    return index < last ? stepGate(state, index + 1).missing : [];
+  }
+
+  // 線性流程：進入 index 必須滿足沿路所有進入條件。
   function isStepReachable(state, index) {
     for (var i = 1; i <= index; i++) {
       if (!stepGate(state, i).ok) { return false; }
@@ -988,18 +1231,18 @@
     return all.length ? '需先完成：' + all.join('、') : '';
   }
 
-  // 鎖定步驟對使用者顯示的簡短前置條件（鏡像 INTEGRATION_MAP §E）。
-  // 這是純顯示文字，非閘門：放行與否仍以 stepGate / isStepReachable 為準。
+  // 鎖定步驟對使用者顯示的簡短前置條件。
+  // 這是純顯示文字，不決定能否進入：放行與否仍以 stepGate / isStepReachable 為準。
   var STEP_LOCKED_REASON = {
     1: '需先建立案件',
     2: '需先完成資料匯入',
-    3: '需先完成欄位配對',
+    3: '需先確認配對',
     4: '需先完成資料驗證',
-    5: '需完成條件篩選並產生報告'
+    5: '需先儲存篩選情境'
   };
 
-  // 鎖定原因沿線找第一個未滿足閘門；完整性所在的 Step 4 使用
-  // backend eligibility 的動態原因，其餘步驟維持既有短句。
+  // 鎖定原因沿線找第一個未滿足的進入條件；完整性所在的 Step 4 使用
+  // 後端「可否繼續」判定的動態原因，其餘步驟維持既有短句。
   function lockedStepReason(state, index) {
     for (var i = 1; i <= index; i++) {
       var gate = stepGate(state, i);
@@ -1012,16 +1255,15 @@
     return STEP_LOCKED_REASON[index] || '';
   }
 
-  // 文件流／目錄的「呈現狀態」彙整：完全由既有閘門推導，不新增任何放行語意。
-  // status = 'current'（=currentStepIndex）｜'done'（本步輸出已滿足下一步閘門）｜
+  // 文件流／目錄的「呈現狀態」彙整：完全由既有進入條件推導，不新增任何放行語意。
+  // status = 'current'（=currentStepIndex）｜'done'（stepComplete 判定本步已完成）｜
   //          'available'（可達但未完成）｜'locked'（不可達）。
-  // 「完成」定義沿用 app.js 既有規則（stepGate(index+1).ok），最後一步永不計為 done。
+  // 「完成」一律由 stepComplete 判定；最後一步在有目前版本的工作底稿時算完成。
   function stepPresentation(state, index) {
-    var steps = Store.STEPS;
     var status;
     if (index === state.currentStepIndex) {
       status = 'current';
-    } else if (index < steps.length - 1 && stepGate(state, index + 1).ok) {
+    } else if (stepComplete(state, index)) {
       status = 'done';
     } else if (isStepReachable(state, index)) {
       status = 'available';
@@ -1034,12 +1276,12 @@
     };
   }
 
-  // 已完成步數（進度列用）：本步輸出已滿足下一步閘門者計入；與 done 呈現一致。
+  // 已完成步數（左側進度用）：六步都用 stepComplete 判定，與目錄勾選、流程總覽和第六步的完成摘要一致。
   function doneStepCount(state) {
     var steps = Store.STEPS;
     var count = 0;
-    for (var i = 0; i < steps.length - 1; i++) {
-      if (stepGate(state, i + 1).ok) { count++; }
+    for (var i = 0; i < steps.length; i++) {
+      if (stepComplete(state, i)) { count++; }
     }
     return count;
   }
@@ -1094,7 +1336,7 @@
     }
     return global.JetApi.projectSaveProgress({ currentStep: snapshot.currentStep });
   }, function (error) {
-    Store.addMessage('進度保存失敗：' + error.message, 'warn');
+    Store.addMessage('進度儲存失敗：' + error.message, 'warn');
   });
 
   function persistProgress(index) {
@@ -1213,7 +1455,7 @@
       : Promise.resolve();
 
     save.catch(function (error) {
-      Store.addMessage('進度保存失敗：' + error.message, 'warn');
+      Store.addMessage('進度儲存失敗：' + error.message, 'warn');
     }).then(function () {
       return releaseProjectLease();
     }).then(
@@ -1226,18 +1468,24 @@
       });
   }
 
-  function openProject(projectId) {
+  // databaseProvider 取自案件清單列。本機找不到案件資料夾時，後端只對 sqlServer 案件查線上登錄。
+  function openProject(projectId, databaseProvider) {
     pickerProjectResponseGuard.invalidate();
     Store.setPickerFeedback(null);
+    var loadPayload = { projectId: projectId };
+    if (databaseProvider) { loadPayload.databaseProvider = databaseProvider; }
     return run('載入專案', function () {
-      return global.JetApi.projectLoad({ projectId: projectId }).then(function (data) {
-        applyLoadedProject(data); // 心跳於 applyLoadedProject 內起（picker/建案共用單一起點）
+      return global.JetApi.projectLoad(loadPayload).then(function (data) {
+        applyLoadedProject(data); // 是否啟動心跳由 applyLoadedProject 依資料庫種類決定，開案與建案共用。
 
         // 還原持久化的訊息歷史（log.recent）；失敗不影響專案載入
         return global.JetApi.logRecent({}).then(function (log) {
           Store.seedMessages(log.messages || []);
         }).catch(function () {}).then(function () {
           Store.addMessage('已載入專案「' + data.project.projectId + '」。', 'info');
+          // 訊息歷史還原會整批取代畫面訊息，所以改版提示放在還原之後。
+          var recalculated = filterScenarioRecalculatedMessage(data.filterScenarioCheck);
+          if (recalculated) { Store.addMessage(recalculated, 'info'); }
         });
       });
     }, {
@@ -1251,9 +1499,8 @@
     });
   }
 
-  // project.load 的 GL mapping v2 options 鏡像。缺欄時採後端同一份 legacy normalization
-  // 的可顯示預設（未配核准日、無過帳狀態政策、人工 1／自動 0、無攸關資料元素欄位）；
-  // 這只是待確認草稿，不代表已提交，也不會把 v1 的 formatVersion 偽升為 2。
+  // project.load 的 GL mapping options 鏡像。缺欄時採可顯示的預設（未配核准日、無過帳狀態政策、
+  // 人工 1／自動 0、無攸關資料元素欄位）；這只是待確認草稿，不代表已提交。
   function glMappingOptionsFrom(glMapping) {
     var source = glMapping || {};
     var manual = source.manualAutoPolicy || {};
@@ -1281,6 +1528,39 @@
     };
   }
 
+  // project.load.filterScenarioCheck：開案時 JET 用目前規則檢查已儲存情境的結果。
+  function filterScenarioRecalculatedMessage(check) {
+    if (!check || check.status !== 'recalculated') { return null; }
+    return '篩選規則已更新，JET 已用新規則重新計算 ' + check.recalculatedCount +
+      ' 個已儲存情境；先前的條件篩選報告與底稿已標為過期，需要時請重新產生。';
+  }
+
+  var FILTER_SCENARIO_NEXT_STEP = '請到「進階條件篩選」開啟這個情境修改後儲存；' +
+    '如果原因是欄位配對少了欄位，請先到「欄位配對」補回，再按「重新檢查並儲存情境」。';
+
+  function trimSentenceEnd(text) {
+    return String(text || '').replace(/[。；\s]+$/, '');
+  }
+
+  // 已儲存情境無法套用目前規則時的說明：逐筆列出哪個情境、哪裡不符合，以及下一步。
+  // 沒有逐筆清單時（資料不一致，或尚未重新開啟案件）改寫一句整批的說明與同樣的下一步。
+  function filterScenarioProblemsHtml(state) {
+    var check = state.filterScenarioCheck;
+    var problems = check && Array.isArray(check.problems) ? check.problems : [];
+    if (problems.length > 0) {
+      return '<div class="form-notice filter-scenario-problems"><ul>' + problems.map(function (problem) {
+        var messages = (problem.messages || []).map(trimSentenceEnd).filter(Boolean).join('；');
+        return '<li>' + esc('情境 ' + problem.position + '「' + problem.name + '」無法套用目前的篩選規則：' +
+          messages + '。' + FILTER_SCENARIO_NEXT_STEP) + '</li>';
+      }).join('') + '</ul></div>';
+    }
+    var lead = check && check.status === 'inconsistent'
+      ? '已儲存的篩選情境資料不一致，無法套用目前的篩選規則。'
+      : '已儲存的篩選情境尚未套用目前的篩選規則。請重新開啟這個案件；若仍無法套用，';
+    return '<p class="form-notice">' + esc(lead + '請到「進階條件篩選」開啟情境修改後儲存；' +
+      '如果原因是欄位配對少了欄位，請先到「欄位配對」補回，再按「重新檢查並儲存情境」。') + '</p>';
+  }
+
   function applyLoadedProject(data, options) {
     Store.setProject(data.project);
 
@@ -1291,10 +1571,10 @@
     Store.setCalendarState(data.importState ? data.importState.calendar : null);
     resetStepModules();
 
-    // 專案層契約鏡像：科目分類與後端 stale 判定必須在配對快照之前套用，
-    // 讓 setMappingCommitted 重新推導的舊版旗標不被稍後的整份覆寫蓋掉。
+    // 科目分類先於配對快照；結果過期旗標在所有結果載入後套用。
     Store.setTaxonomy(data.taxonomy || null);
-    Store.setStaleState(data.staleState || null);
+    // 只在某一側沒有有效配對時才有值；它不是已生效的配對，只用來預填草稿。
+    var previousMapping = data.previousMapping || {};
 
     if (data.mapping && data.mapping.gl) {
       Store.replaceMappingDraft('gl', data.mapping.gl.mapping || {});
@@ -1306,9 +1586,16 @@
         mapping: data.mapping.gl.mapping || {},
         mode: data.mapping.gl.amountMode || 'dual',
         options: glMappingOptionsFrom(data.mapping.gl),
-        formatVersion: data.mapping.gl.formatVersion || null,
         projectedRowCount: null
       });
+    } else if (previousMapping.gl && data.importState && data.importState.gl) {
+      // 重新匯入後還沒重新確認：帶回上次確認的配對當草稿，審計員檢查後按確認即可，不必逐欄重選。
+      Store.setMappingCommitted('gl', null);
+      Store.restorePreviousMapping('gl', {
+        mapping: previousMapping.gl.mapping || {},
+        mode: previousMapping.gl.amountMode || 'dual',
+        options: glMappingOptionsFrom(previousMapping.gl)
+      }, data.importState.gl.columns || []);
     } else {
       Store.replaceMappingDraft('gl', {});
       Store.replaceGlMappingOptions(null);
@@ -1322,18 +1609,17 @@
         committedUtc: data.mapping.tb.committedUtc,
         mapping: data.mapping.tb.mapping || {},
         mode: data.mapping.tb.changeMode || 'debitCredit',
-        formatVersion: data.mapping.tb.formatVersion || null,
         projectedRowCount: null
       });
+    } else if (previousMapping.tb && data.importState && data.importState.tb) {
+      Store.setMappingCommitted('tb', null);
+      Store.restorePreviousMapping('tb', {
+        mapping: previousMapping.tb.mapping || {},
+        mode: previousMapping.tb.changeMode || 'debitCredit'
+      }, data.importState.tb.columns || []);
     } else {
       Store.replaceMappingDraft('tb', {});
       Store.setMappingCommitted('tb', null);
-    }
-
-    // 後端旗標優先：v1 mapping 的判定包含前端沒有的 metadata 事實，因此以 response 為準；
-    // 之後的成功 recommit 才由 Store 依 formatVersion 重新推導。
-    if (typeof data.mappingReviewRequired === 'boolean') {
-      Store.setMappingReviewRequired(data.mappingReviewRequired);
     }
 
     // 規則執行結果與已保存情境的 resume（原樣回放後端 latestRuns / filterScenarios）。
@@ -1341,17 +1627,24 @@
     Store.setLastRun('prescreen', data.latestRuns ? data.latestRuns.prescreen : null);
     Store.setSavedScenarios(data.filterScenarios || []);
     Store.setFilterResultRef(data.filterResultRef || null);
+    Store.setFilterScenarioCheck(data.filterScenarioCheck || null);
     Store.restoreFilterPopulationScope(data.filterResultRef || null, data.filterScenarios || []);
     Store.setReportArtifacts(data.reportArtifacts || []);
     Store.setFilterDraft(null); // 重設為空草稿（避免殘留上一個案件的條件）
+    // 載入不是重新執行。即使快照帶有歷史摘要，最後仍以後端的過期判定為準。
+    Store.setStaleState(data.staleState || null);
 
     Store.setView('workflow');
 
-    // 租約鎖心跳：任何「載入成功、進入 workflow」的路徑都在此起計時器——picker 開案（openProject）
-    // 與建案流程（create-step 的 project.load→applyLoadedProject）共用此單一起點，避免建案路徑漏起心跳
-    // （租約永不續期、120 秒後過期）。project.load 被鎖時已拋 project_locked、走不到這裡。heartbeatSeconds
-    // 由 project.load 回應提供（本地專案為常數、其 heartbeat 是後端 no-op）。
-    startHeartbeat(data.heartbeatSeconds);
+    // 租約鎖心跳只給 SQL Server 案件。開案與建案載入都經過這裡，所以建案後也不會漏掉續租；
+    // 漏掉時租約不會續期，120 秒後過期。SQLite 與 DuckDB 案件用本機檔案鎖，不送心跳；
+    // 先停掉計時器，避免從 SQL Server 案件切到本機案件時留下舊的心跳。
+    // project.load 被鎖時已回 project_locked，走不到這裡。heartbeatSeconds 由 project.load 回應提供。
+    if (data.project && data.project.databaseProvider === 'sqlServer') {
+      startHeartbeat(data.heartbeatSeconds);
+    } else {
+      stopHeartbeat();
+    }
 
     // 建立或載入案件時套用後端狀態，但停在目前步驟，不自行推進到匯入。
     if (options && options.stayOnCurrentStep) {
@@ -1362,7 +1655,7 @@
     var saved = typeof data.project.currentStep === 'number' ? data.project.currentStep : 1;
     var stepIndex = Math.min(Math.max(saved, 0), Store.STEPS.length - 1);
 
-    // 防呆：保存位置若超出閘門允許範圍（如資料被清除），退回最近可達的步驟。
+    // 防呆：保存位置若超出進入條件允許範圍（如資料被清除），退回最近可達的步驟。
     while (stepIndex > 0 && !isStepReachable(Store.getState(), stepIndex)) {
       stepIndex--;
     }
@@ -1431,7 +1724,7 @@
     return true;
   }
 
-  // 只核對 contract 中的 sourceRef；報告是否 current 仍以後端回傳的 stale 為第一道閘門。
+  // 只核對 contract 中的 sourceRef；報告是否 current 仍以後端回傳的 stale 為準。
   function reportArtifactMatches(artifact, kind, expectedRefs) {
     if (!artifact || artifact.stale || artifact.kind !== kind) { return false; }
     var source = artifact.sourceRef || {};
@@ -1468,6 +1761,13 @@
       }).map(function (item) { return item.artifact; });
   }
 
+  // 報告清單與流程總覽共用的檔案大小格式：以 1,000,000 位元組為 1 MB，固定兩位小數。
+  function fileSizeMbText(value) {
+    var bytes = Number(value);
+    return value == null || !isFinite(bytes) || bytes < 0 ? '大小未知'
+      : (bytes / 1000000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MB';
+  }
+
   function reportArtifactListHtml(artifacts, emptyText, options) {
     var list = artifacts || [];
     if (list.length === 0) {
@@ -1476,11 +1776,10 @@
 
     return '<div class="report-artifacts">' + list.map(function (artifact) {
       var generated = new Date(artifact.generatedUtc);
-      var generatedText = isNaN(generated.getTime())
+      var generatedText = !artifact.generatedUtc || isNaN(generated.getTime())
         ? '時間未知'
         : generated.toLocaleString('zh-Hant', { hour12: false });
-      var bytes = Number(artifact.bytes);
-      var bytesText = isNaN(bytes) ? '大小未知' : bytes.toLocaleString('en-US') + ' 位元組';
+      var bytesText = fileSizeMbText(artifact.bytes);
       // 檔案狀態只是提醒：審計員在 JET 之外改過或刪了檔案都不擋，重新匯出就好。
       var fileStateText = artifact.fileState === 'modifiedOutside'
         ? '已在 JET 之外修改'
@@ -1488,36 +1787,65 @@
       return (
         '<div class="report-artifact" data-artifact-id="' + esc(artifact.artifactId) + '">' +
           '<span class="report-artifact__copy">' +
+            '<span class="report-artifact__label">' + esc(reportArtifactLabel(artifact.kind)) + '</span>' +
             '<span class="report-artifact__name">' + esc(artifact.fileName || '未命名報告') + '</span>' +
-            (artifact.fullPath ? '<span class="report-artifact__path" style="display:block;overflow-wrap:anywhere;user-select:text">儲存位置：' + esc(artifact.fullPath) + '</span>' : '') +
-            '<span class="report-artifact__meta">' + esc(generatedText) + '，' + esc(bytesText) +
+            '<span class="report-artifact__meta">建立時間：' + esc(generatedText) + '　' + esc(bytesText) +
               (fileStateText ? '，<span class="report-artifact__state">' + esc(fileStateText) + '</span>' : '') +
-              (options && options.history && artifact.stale
-                ? '，<span class="report-artifact__validity">先前資料或條件的版本</span>' : '') +
-            '</span>' +
+                (options && options.history && artifact.stale
+                  ? '，<span class="report-artifact__validity">先前資料或條件的版本</span>' : '') +
+              '</span>' +
+              (artifact.catalogWarning ? '<span class="report-artifact__meta" role="status">' +
+                esc(artifact.catalogWarning) + '</span>' : '') +
           '</span>' +
           (options && options.reveal
             ? '<button type="button" class="btn btn--ghost btn--tiny" data-open-artifact="' +
               esc(artifact.artifactId) + '"' + (artifact.fileState === 'missing' ? ' disabled' : '') +
-              '>在資料夾中顯示</button>' : '') +
+              '>開啟資料夾</button>' : '') +
         '</div>'
       );
     }).join('') + '</div>';
   }
 
+  function reportArtifactLabel(kind) {
+    return {
+      validationReport: '資料驗證報告',
+      infReport: '資料可靠性抽樣清單',
+      prescreenReport: '預篩選報告',
+      criteriaSelectionReport: '條件篩選報告',
+      workingPaper: '工作底稿'
+    }[kind] || '報告';
+  }
+
+  function bindReportArtifacts(container) {
+    container.querySelectorAll('[data-open-artifact]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var artifactId = button.getAttribute('data-open-artifact');
+        run('顯示報告檔案', function () {
+          return global.JetApi.hostOpenFolder({ artifactId: artifactId });
+        });
+      });
+    });
+  }
+
+  function reportFolderButtonHtml(artifacts) {
+    var artifact = (artifacts || []).find(function (item) { return item.fileState !== 'missing'; });
+    return artifact ? '<button type="button" class="btn btn--ghost" data-open-artifact="' +
+      esc(artifact.artifactId) + '">開啟資料夾</button>' : '';
+  }
+
   /* ---- 共用 helper：預覽表格與篩選規則預設值 --------------------------------- */
 
   // 把 previewRows 陣列轉成 <table class="preview-table"> 的完整標記。
-  // 欄位順序：傳票號碼、項次、總帳日期、科目（代碼＋名稱）、摘要、金額、借貸。
+  // 欄位順序：傳票號碼、項次、總帳入帳日、科目（代碼＋名稱）、摘要、金額、借貸。
   // 供 filter-step 與 validate-step 共用；呼叫端自行包 <div class="preview-table__wrap">。
   // sortAction 有值時表頭可點排序（鍵名對齊該查詢的 wire row），供預篩選命中表；預覽列表不排序時省略。
   function previewTableHtml(previewRows, sortAction) {
     var head = sortAction === 'query.prescreenPage'
       ? sortableHeadCellsHtml('query.prescreenPage', [
-          { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳日期' },
+          { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳入帳日' },
           { key: 'accountCode', label: '科目' }, { key: 'documentDescription', label: '摘要' }, { key: 'amount', label: '金額' },
           { key: 'drCr', label: '借貸' }])
-      : '<th>傳票號碼</th><th>項次</th><th>總帳日期</th><th>科目</th><th>摘要</th><th>金額</th><th>借貸</th>';
+      : '<th>傳票號碼</th><th>項次</th><th>總帳入帳日</th><th>科目</th><th>摘要</th><th>金額</th><th>借貸</th>';
     var rows = (previewRows || []).map(function (r) {
       return (
         '<tr>' +
@@ -1552,7 +1880,7 @@
       return { type: type, field: 'accNum', countUnit: 'entries', countOperator: 'equals', countFrom: '1', countTo: '' };
     }
     if (type === 'fieldValue') { return { type: type, join: 'AND', field: 'postDate', operator: 'in', values: [], includeBlank: false }; }
-    if (type === 'accountSide') { return { type: type, join: 'AND', drCr: 'debit', categoryMode: 'is', categoryIds: ['builtin.cash'] }; }
+    if (type === 'accountSide') { return { type: type, join: 'AND', drCr: 'debit', categoryMode: 'is', categoryIds: ['builtin.cash'], categorySelection: 'subtree' }; }
     return {
       join: 'AND',
       type: type,
@@ -1572,7 +1900,8 @@
       // specialAccountCategoryPair 為 drAndCr/drNotCr/notDrCr。型別切換經此重建（filter-step
       // 的 type-change handler），故各型別取自己模式集的預設，不會殘留另一型別的 pairMode。
       pairMode: type === 'specialAccountCategoryPair' ? 'drAndCr' : 'exact',
-      // 借貸組合雙側一律以 taxonomy 分類身分陣列承載（manifest 2026-08-14 雙側多選）；
+      categorySelection: ['accountPair', 'specialAccountCategoryPair'].indexOf(type) >= 0 ? 'subtree' : undefined,
+      // 借貸組合雙側一律以 taxonomy 分類身分陣列承載（2026-08-14 起雙側都可多選）；
       // legacy scalar 只在回放舊定義時讀取，新規則不再產生第二份單選欄位。
       debitCategoryIds: ['builtin.receivables'],
       creditCategoryIds: ['builtin.revenue'],
@@ -1583,57 +1912,15 @@
       amountBasis: 'absolute',
       value: '',
       digits: '3',
-      maxEntries: (type === 'customPreparerEntryCount' || type === 'customAccountEntryCount') ? '11' : '',
+      maxEntries: type === 'customPreparerEntryCount' ? String(PRESCREEN_DEFAULTS.preparerMaxEntries)
+        : type === 'customAccountEntryCount' ? String(PRESCREEN_DEFAULTS.accountMaxEntries) : '',
       windowDays: ''
     };
   }
 
-  /* ---- 共用：「載入更多」keyset 接列膠水 ------------------------------------ */
+  /* ---- 共用：依後端回應建立表格列 ------------------------------------------ */
 
-  // 綁一顆「載入更多」鈕到 keyset 分頁:點擊 → 帶當前 cursor 呼叫 fetchPage(cursor)
-  // → 後端回 { rows, nextCursor };appendRows(rows) 由呼叫端提供(把列接到既有 tbody);
-  // cursor 以閉包保存累進;nextCursor 為 null 表已到底 → 移除鈕。
-  // 純 DOM／呼叫膠水:不算差異、不判命中、不組 SQL;只發 action、接 data.rows、管 cursor 與載入態。
-  // fetchPage 回傳 Promise<{ rows, nextCursor }>。
-  //
-  // 重要:cursor 一律自 null 起(keyset 第一頁,ASC)——不從鈕讀任何 seed。展開時上方的預覽列
-  // 是另一套排序(ABS-DESC top-50 / filter 前 10),與 page 的 keyset ASC 不一致。因此「首擊」時
-  // 先呼叫 clearTarget()(由呼叫端提供,清空目標 tbody 既有預覽列)再 append 第一頁:一旦點「載入
-  // 更多」即由預覽切換為單一一致排序、無重複的完整列表。clearTarget 省略時不清(首屏即空表的情形)。
-  function bindLoadMore(buttonEl, fetchPage, appendRows, clearTarget) {
-    if (!buttonEl) { return; }
-    var cursor = null;
-    var cleared = false;
-    buttonEl.addEventListener('click', function () {
-      buttonEl.disabled = true;
-      var prev = buttonEl.textContent;
-      buttonEl.textContent = '載入中…';
-      run('載入更多', function () {
-        return fetchPage(cursor).then(function (data) {
-          if (!cleared) {
-            // 首擊:清掉上方預覽列一次,再接 page 第一頁。
-            if (typeof clearTarget === 'function') { clearTarget(); }
-            cleared = true;
-          }
-          appendRows((data && data.rows) || []);
-          cursor = data ? data.nextCursor : null;
-          if (cursor == null) {
-            buttonEl.remove();
-          } else {
-            buttonEl.disabled = false;
-            buttonEl.textContent = prev;
-          }
-        }).catch(function (error) {
-          // 還原鈕態讓使用者可重試;錯誤交回 run() 顯示給使用者。
-          buttonEl.disabled = false;
-          buttonEl.textContent = prev;
-          throw error;
-        });
-      });
-    });
-  }
-
-  // 把後端回傳的列(物件陣列)依欄位鍵序轉成 <tr> 並接到 tbody。
+  // 分頁與等待狀態由 bindPagedTable 處理；此函式只建立列，不計算查核結果。
   // columns:每欄一個取值函式 row→cell,或 { cell:fn, className } 帶 td class(沿用既有欄樣式);
   // 呼叫端決定欄序與顯示,沿用既有 table 欄序;一律 esc 後插入,前端不做任何業務轉換(顯示形狀由後端決定)。
   function appendRowsToTbody(tbody, rows, columns) {
@@ -1677,7 +1964,10 @@
     FILTER_KCT_ATOM_LABELS: FILTER_KCT_ATOM_LABELS,
     FILTER_KCT_CHECKLIST: FILTER_KCT_CHECKLIST,
     PRESCREEN_KEY_OPTIONS: PRESCREEN_KEY_OPTIONS,
+    prescreenConditionDescription: prescreenConditionDescription,
+    prescreenConditionLabel: prescreenConditionLabel,
     PRESCREEN_POSITIONING_COPY: PRESCREEN_POSITIONING_COPY,
+    fileSizeMbText: fileSizeMbText,
     prescreenPositioningCopy: prescreenPositioningCopy,
     ACCOUNT_PAIR_MODE_OPTIONS: ACCOUNT_PAIR_MODE_OPTIONS,
     SPECIAL_PAIR_MODE_OPTIONS: SPECIAL_PAIR_MODE_OPTIONS,
@@ -1690,6 +1980,7 @@
     TEXT_SET_MODE_OPTIONS: TEXT_SET_MODE_OPTIONS,
     TEXT_SET_NORMALIZATION_OPTIONS: TEXT_SET_NORMALIZATION_OPTIONS,
     TEXT_SET_MAX_VALUES: TEXT_SET_MAX_VALUES,
+    FILTER_MAX_SAVED_SCENARIOS: FILTER_MAX_SAVED_SCENARIOS,
     FILTER_TEXT_FIELDS: FILTER_TEXT_FIELDS,
     FILTER_DATE_FIELDS: FILTER_DATE_FIELDS,
     GL_APPROVAL_DATE_MODES: GL_APPROVAL_DATE_MODES,
@@ -1697,6 +1988,10 @@
     RDE_MAX_LABEL_LENGTH: RDE_MAX_LABEL_LENGTH,
     MANUAL_AUTO_DEFAULTS: MANUAL_AUTO_DEFAULTS,
     VALUE_PROFILE_LIMIT: VALUE_PROFILE_LIMIT,
+    PRESCREEN_DEFAULTS: PRESCREEN_DEFAULTS,
+    RESULT_PREVIEW_PAGE_SIZE: RESULT_PREVIEW_PAGE_SIZE,
+    REPORT_HISTORY_PAGE_SIZE: REPORT_HISTORY_PAGE_SIZE,
+    DEV_TABLE_PAGE_SIZE: DEV_TABLE_PAGE_SIZE,
     TYPED_TEXT_OPERATORS: TYPED_TEXT_OPERATORS,
     TYPED_DATE_OPERATORS: TYPED_DATE_OPERATORS,
     TYPED_MONEY_OPERATORS: TYPED_MONEY_OPERATORS,
@@ -1708,7 +2003,6 @@
     ACCOUNT_TAXONOMY_ROLES: ACCOUNT_TAXONOMY_ROLES,
     ACCOUNT_TAXONOMY_BUILT_INS: ACCOUNT_TAXONOMY_BUILT_INS,
     TAXONOMY_MAX_LABEL_LENGTH: TAXONOMY_MAX_LABEL_LENGTH,
-    builtInCategoryIdForLegacyLabel: builtInCategoryIdForLegacyLabel,
     taxonomyCategories: taxonomyCategories,
     taxonomyCategoryLabel: taxonomyCategoryLabel,
     committedRdeFields: committedRdeFields,
@@ -1718,13 +2012,13 @@
     sortableHeadCellsHtml: sortableHeadCellsHtml,
     pageSearchHtml: pageSearchHtml,
     bindPagedTable: bindPagedTable,
-    staleNoticeHtml: staleNoticeHtml,
-    mappingReviewBannerHtml: mappingReviewBannerHtml,
     // DOM / 執行輔助
     $: $,
     setText: setText,
     esc: esc,
     money: money,
+    moneyDifference: moneyDifference,
+    formatDateTime: formatDateTime,
     createLatestResponseGuard: createLatestResponseGuard,
     run: run,
     runBackground: runBackground,
@@ -1740,6 +2034,10 @@
     isStepReachable: isStepReachable,
     lockedStepTip: lockedStepTip,
     stepPresentation: stepPresentation,
+    stepComplete: stepComplete,
+    stepCompletionMissing: stepCompletionMissing,
+    filterScenarioMissing: filterScenarioMissing,
+    currentWorkpaperArtifact: currentWorkpaperArtifact,
     doneStepCount: doneStepCount,
     gotoStep: gotoStep,
     exitApp: exitApp,
@@ -1759,12 +2057,17 @@
     previewTableHtml: previewTableHtml,
     newFilterRule: newFilterRule,
     taxonomyTree: taxonomyTree,
+    taxonomySelectionCategories: taxonomySelectionCategories,
+    taxonomyPickerHtml: taxonomyPickerHtml,
+    bindTaxonomyPicker: bindTaxonomyPicker,
     reportArtifactMatches: reportArtifactMatches,
     findCurrentReportArtifact: findCurrentReportArtifact,
     currentReportArtifacts: currentReportArtifacts,
     reportArtifactHistory: reportArtifactHistory,
     reportArtifactListHtml: reportArtifactListHtml,
-    bindLoadMore: bindLoadMore,
+    filterScenarioProblemsHtml: filterScenarioProblemsHtml,
+    bindReportArtifacts: bindReportArtifacts,
+    reportFolderButtonHtml: reportFolderButtonHtml,
     appendRowsToTbody: appendRowsToTbody
   };
 })(window);

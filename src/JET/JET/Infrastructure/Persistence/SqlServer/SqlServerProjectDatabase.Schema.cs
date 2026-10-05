@@ -8,10 +8,10 @@ public sealed partial class SqlServerProjectDatabase
 {
     // 目前 schema 版本。Fresh schema 由 SchemaSql 直接寫現行版；既有 schema 的版本則只在
     // MigrateExistingSchemaToCurrentAsync 完成 shape、data rewrite 與結果失效後最後寫回。
-    internal const string SchemaVersion = "11";
+    internal const string SchemaVersion = "12";
 
     internal const string BumpSchemaVersionSql =
-        "UPDATE {s}.schema_info SET [value] = '11' WHERE [key] = 'schema_version';";
+        "UPDATE {s}.schema_info SET [value] = '12' WHERE [key] = 'schema_version';";
 
     // SQL Server compiles a batch before executing its ALTER TABLE statements, so the v6 backfill must run
     // as a separate command after SchemaSql has added category_id. It remains inside the migration transaction.
@@ -36,13 +36,13 @@ public sealed partial class SqlServerProjectDatabase
     {
         var schema = SqlServerProjectSchema.For(projectId);
 
-        // 1) 確保單庫存在 + dbo 控制面表就位(registry/access/app_config/audit_log)。
+        // 1) 確保單庫存在 + dbo 管理表就位(registry/access/app_config/audit_log/project_lock)。
         await EnsureSingleDatabaseAndControlPlaneAsync(cancellationToken);
 
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 2) schema 已存在 → 讀版本，落後才跑守欄冪等遷移（不再無條件 early-return；死路修復見 §7）。
+        // 2) schema 已存在 → 讀版本，落後才跑守欄冪等遷移（不再無條件 early-return，否則既有 schema 永遠不會升版）。
         bool schemaExists;
         await using (var exists = connection.CreateCommand())
         {
@@ -75,8 +75,8 @@ public sealed partial class SqlServerProjectDatabase
     }
 
     /// <summary>
-    /// 既有 schema 的版本化遷移（控制面第七輪，修 <see cref="EnsureCreatedAsync"/> 的 early-return 死路；比照 SQLite
-    /// 版本鏈的 SQL script migrator——guide §15.2「SQL script migrator、非 EF migrations」）。讀
+    /// 既有 schema 的版本化遷移（修正 <see cref="EnsureCreatedAsync"/> 遇到既有 schema 就提早返回、永遠不升版的問題；
+    /// 比照 SQLite 版本鏈，用 SQL script 遷移，不用 EF migrations）。讀
     /// <c>{s}.schema_info</c> 的 <c>schema_version</c>：
     /// <list type="bullet">
     /// <item>＝現行 <see cref="SchemaVersion"/> → no-op（冪等：重跑既不重複 ALTER、也不開交易）。</item>
@@ -185,9 +185,9 @@ public sealed partial class SqlServerProjectDatabase
     /// </summary>
 
     /// <summary>
-    /// SQL Server 版 schema(對齊 SQLite SchemaSql 的第 3 版形狀,型別映射見 plan)。
+    /// SQL Server 版 schema(表形與 SQLite 對齊,目前版本見 <see cref="SchemaVersion"/>)。
     /// 冪等:每張表以 OBJECT_ID 守、每個索引以 sys.indexes 守。保留字 key/value 以方括號包。
-    /// 定序契約(design §2.1,雙保險之二):凡參與 JOIN/WHERE/GROUP BY/UNIQUE/ORDER BY 的文字鍵欄,
+    /// 定序契約(定序雙保險之二):凡參與 JOIN/WHERE/GROUP BY/UNIQUE/ORDER BY 的文字鍵欄,
     /// 一律顯式 COLLATE Latin1_General_BIN2(＝SQLite BINARY 位元序;BMP 中文＝碼位序)——即使庫層
     /// 預設定序不對(既有庫等環境重置),專案表行為仍正確,且意圖進版本控制。純顯示/payload 欄
     /// (line_item、account_name、document_description、source_module、day_name、mode_name、檔名路徑、
@@ -201,7 +201,7 @@ public sealed partial class SqlServerProjectDatabase
         IF OBJECT_ID(N'{s}.schema_info','U') IS NULL
             CREATE TABLE {s}.schema_info ([key] NVARCHAR(450) COLLATE Latin1_General_BIN2 PRIMARY KEY, [value] NVARCHAR(MAX) NOT NULL);
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'schema_version')
-            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '11');
+            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '12');
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'filter_data_revision')
             INSERT INTO {s}.schema_info ([key], [value]) VALUES ('filter_data_revision', '0');
 
@@ -283,6 +283,17 @@ public sealed partial class SqlServerProjectDatabase
             ALTER TABLE {s}.config_field_mapping ADD format_version INT NOT NULL DEFAULT 1 WITH VALUES;
         IF COL_LENGTH('{s}.config_field_mapping','options_json') IS NULL
             ALTER TABLE {s}.config_field_mapping ADD options_json NVARCHAR(MAX) NULL;
+
+        IF OBJECT_ID(N'{s}.config_field_mapping_previous','U') IS NULL
+            CREATE TABLE {s}.config_field_mapping_previous (
+                dataset_kind    NVARCHAR(20) COLLATE Latin1_General_BIN2 PRIMARY KEY CHECK (dataset_kind IN ('gl','tb')),
+                mapping_json    NVARCHAR(MAX) NOT NULL,
+                mode_name       NVARCHAR(40) NOT NULL,
+                source_batch_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
+                committed_utc   NVARCHAR(40) NOT NULL,
+                format_version  INT NOT NULL,
+                options_json    NVARCHAR(MAX) NULL
+            );
 
         IF OBJECT_ID(N'{s}.staging_calendar_raw_day','U') IS NULL
             CREATE TABLE {s}.staging_calendar_raw_day (
@@ -566,9 +577,9 @@ public sealed partial class SqlServerProjectDatabase
                 entry_id          BIGINT NOT NULL,
                 PRIMARY KEY (scenario_position, entry_id)
             );
-        -- D2 tag 矩陣即時 pivot 的輔助索引(對齊 SQLite idx_result_filter_run_entry):以 entry_id 為前導鍵,
-        -- 讓 EXISTS / entry_id 鍵範圍存取走索引(PK 前導鍵為 scenario_position,不利這兩種存取)。
-        -- sys.indexes 守欄、加法,不升 schema 版本。
+        -- tag 矩陣查詢的輔助索引，與 SQLite 的 idx_result_filter_run_entry 相同：以 entry_id 開頭，
+        -- 讓「這筆分錄有沒有命中」與「一段 entry_id 範圍命中了哪些情境」都能走索引；主鍵以 scenario_position 開頭，
+        -- 不適合這兩種查詢。先查 sys.indexes 確認索引不存在才建立，不需升 schema 版本。
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_result_filter_run_entry' AND object_id = OBJECT_ID(N'{s}.result_filter_run'))
             CREATE INDEX idx_result_filter_run_entry ON {s}.result_filter_run (entry_id, scenario_position);
         """;

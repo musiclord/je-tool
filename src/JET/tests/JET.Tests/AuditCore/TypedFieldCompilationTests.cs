@@ -37,10 +37,12 @@ public sealed class TypedFieldCompilationTests
     {
         var plan = Compile(Rule(TextFieldId, "equals", value: "  Alpha  "));
 
+        // 2026-10-04 第二遍回饋審閱第 2 批（C3）：去空白改走方言的 Trim（字元集合和 .NET 相同），原本斷言引擎原生 TRIM
+        //（第一次失敗：收據 20261004-045437671）。
         Assert.Contains(
             "EXISTS (SELECT 1 FROM target_gl_rde_value v "
             + "WHERE v.entry_id = g.entry_id AND v.field_id = @p0 "
-            + "AND v.value_type = @p1 AND UPPER(TRIM(v.text_value)) = @p2)",
+            + $"AND v.value_type = @p1 AND UPPER({Trim("v.text_value")}) = @p2)",
             plan.Sql,
             StringComparison.Ordinal);
         Assert.DoesNotContain(TextFieldId, plan.Sql, StringComparison.Ordinal);
@@ -67,13 +69,13 @@ public sealed class TypedFieldCompilationTests
             Assert.DoesNotContain("NOT EXISTS", plan.Sql, StringComparison.Ordinal);
         }
 
-        Assert.Contains("UPPER(TRIM(v.text_value)) <> @p2", notEquals.Sql, StringComparison.Ordinal);
+        Assert.Contains($"UPPER({Trim("v.text_value")}) <> @p2", notEquals.Sql, StringComparison.Ordinal);
         Assert.Contains(
-            "NOT instr(UPPER(COALESCE(TRIM(v.text_value), '')), @p2) > 0",
+            $"NOT instr(UPPER(COALESCE({Trim("v.text_value")}, '')), @p2) > 0",
             notContains.Sql,
             StringComparison.Ordinal);
         Assert.Contains(
-            "UPPER(TRIM(v.text_value)) NOT IN (@p2, @p3)",
+            $"UPPER({Trim("v.text_value")}) NOT IN (@p2, @p3)",
             notIn.Sql,
             StringComparison.Ordinal);
     }
@@ -137,7 +139,7 @@ public sealed class TypedFieldCompilationTests
             TextFieldId, "in", values: ["  Alpha ", "BETA", "alpha", "beta ", "Gamma"]));
 
         Assert.Contains(
-            "UPPER(TRIM(v.text_value)) IN (@p2, @p3, @p4)",
+            $"UPPER({Trim("v.text_value")}) IN (@p2, @p3, @p4)",
             plan.Sql,
             StringComparison.Ordinal);
         Assert.Equal(
@@ -182,14 +184,17 @@ public sealed class TypedFieldCompilationTests
     }
 
     [Fact]
-    public void UnknownField_FailsLoudNamingTheField_EvenWithoutValidation()
+    public void UnknownField_FailsLoudWithoutShowingTheInternalFieldId_EvenWithoutValidation()
     {
+        // 2026-10-03 主線裁定 T9：重新計算時這則訊息會原樣列給審計員；欄位已移除時拿不到顯示名稱，
+        // 不再顯示 rde. 內部代號，改寫下一步（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         const string removed = "rde.dddd0000dddd0000dddd0000dddd0000";
         var exception = Assert.Throws<JetActionException>(
             () => Compile(Rule(removed, "equals", value: "x")));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        Assert.Contains(removed, exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(removed, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("這個條件使用的攸關資料元素欄位已不在目前案件的欄位配對中", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -201,7 +206,9 @@ public sealed class TypedFieldCompilationTests
             () => Compile(Rule(MoneyFieldId, "contains", value: "x", amountBasis: "signed")));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        Assert.Contains(MoneyFieldId, exception.Message, StringComparison.Ordinal);
+        // 2026-10-03 主線裁定 T9：改用欄位顯示名稱指名，不顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        Assert.Contains("攸關資料元素欄位「稅額」", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(MoneyFieldId, exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -290,6 +297,9 @@ public sealed class TypedFieldCompilationTests
 
     private static FilterSqlFragmentPlan Compile(FilterRuleSpec rule) =>
         Builder().BuildPlan(Scenario(rule), Context, zeroModulus: 1_000_000);
+
+    /// <summary>SQLite 方言的去空白寫法（字元集合和 .NET 相同），供 SQL 文字斷言組出預期字串。</summary>
+    private static string Trim(string expr) => SqliteDialect.Instance.Trim(expr);
 
     private static FilterScenarioSpec Scenario(FilterRuleSpec rule) =>
         new("typed", "compile", [new FilterGroupSpec(FilterJoin.And, [rule])]);

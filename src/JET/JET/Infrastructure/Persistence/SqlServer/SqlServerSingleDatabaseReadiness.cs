@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 單庫「存在且引擎非 Express（就緒）」的 <b>process 級</b> 就緒快取（控制面第四輪 §4，master 依賴最小化）。
+/// 單庫「存在且引擎非 Express（就緒）」的 <b>process 級</b> 就緒快取，用來盡量不依賴 master。
 /// 由 <see cref="SqlServerProjectRegistry"/> 與 <see cref="SqlServerProjectDatabase"/> 共用：任一元件首次確認某
 /// 單庫目標就緒後標記,其後全 app 生命週期內所有 SqlServer 元件對<b>同一目標</b>的存在性檢查一律跳過 master 探測
 /// ——把原本的實例級快取（<c>_engineVerified</c>／<c>_tablesEnsured</c>）提升到 process 級,master 至多探一次。

@@ -14,7 +14,9 @@ public sealed class ValidationSummaryWordingFrontendTests
             "steps",
             "validate-step.js"));
 
-        Assert.Contains("異常項次合計", source, StringComparison.Ordinal);
+        // 2026-10-02 整體複審 T11：「異常項次合計」改名「空值項目合計（同一分錄可能重複計入）」；舊名稱不得再出現。
+        Assert.Contains("空值項目合計（同一分錄可能重複計入）", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("異常項次合計", source, StringComparison.Ordinal);
         Assert.Contains("同一分錄可能重複計入", source, StringComparison.Ordinal);
         Assert.DoesNotContain("欄位異常 ' +", source, StringComparison.Ordinal);
     }

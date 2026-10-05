@@ -1,10 +1,10 @@
 namespace JET.Application;
 
 /// <summary>
-/// Host→Web 單向事件推播 port（manifest「Host→Web 事件」章節）。
+/// Host→Web 單向事件推播 port（事件清單見 docs/action-contract-manifest.md「主程式進度事件」）。
 /// Application handler 發出 UX 提示事件（如 import.progress）；marshal 與序列化
 /// 由實作負責（Bridge 的 WebViewEventPublisher）。事件不承載狀態權威
-/// （權威一律以 action response 為準），也不得攜帶資料列（guide §1.5.4）。
+/// （權威一律以 action response 為準），也不得攜帶資料列（見 docs/jet-guide.md 第 10 節「大資料量原則」）。
 /// </summary>
 public interface IJetEventPublisher
 {

@@ -7,6 +7,8 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
+// 第9批中低9：呼叫改走正式同交易summary發布；透過tests-only capture保留原facts、取消、rollback及SQL日誌的全部斷言。
+
 /// <summary>
 /// Validation facts port 的交易失敗邊界。故障只在 INF 樣本 INSERT 已完成並寫出
 /// sql.executed 後注入，證明 SQLite／DuckDB／SQL Server 都不會留下部分樣本。
@@ -58,7 +60,7 @@ public sealed class ValidationFactsPortTransactionTests
 
         await AssertInjectedFaultAsync(
             mode,
-            () => repository.ExecuteAsync(Plan(projectId), cancellation.Token));
+            () => ValidationExecutionTestData.ExecuteForFactsAsync(repository, Plan(projectId), cancellation.Token));
 
         await AssertRolledBackAsync(database.CreateConnection(projectId), schemaPrefix: "", logger);
     }
@@ -82,7 +84,7 @@ public sealed class ValidationFactsPortTransactionTests
 
         await AssertInjectedFaultAsync(
             mode,
-            () => repository.ExecuteAsync(Plan(project.ProjectId), cancellation.Token));
+            () => ValidationExecutionTestData.ExecuteForFactsAsync(repository, Plan(project.ProjectId), cancellation.Token));
 
         await AssertRolledBackAsync(
             project.Database.CreateConnection(project.ProjectId),

@@ -17,6 +17,42 @@ public sealed class SqlServerSchemaMigrationTests
 {
     private const string SingleDb = "JET_Test";
 
+    [Fact]
+    public void Batch9_PreviousMappingTable_RequiresVersionTwelveForExistingV11Cases()
+    {
+        // Pure SQL-plan guard; no SQL Server connection is opened by this test.
+        Assert.Equal("12", SqlServerProjectDatabase.SchemaVersion);
+        Assert.Contains("'schema_version', '12')", SqlServerProjectDatabase.SchemaSql);
+        Assert.Contains("SET [value] = '12'", SqlServerProjectDatabase.BumpSchemaVersionSql);
+        Assert.Contains("config_field_mapping_previous", SqlServerProjectDatabase.SchemaSql);
+    }
+
+    [SqlServerFact]
+    public async Task Batch9_EnsureCreated_OnV11MissingPreviousMappingTable_AddsTableWithoutChangingData()
+    {
+        var connection = await TempSqlServerProject.ProbeConnectionStringAsync();
+        if (connection is null) return;
+        var database = new SqlServerProjectDatabase(new SqlServerConnectionOptions(connection, SingleDb));
+        var projectId = $"v12-previous-{Guid.NewGuid():N}";
+        var q = SqlServerProjectSchema.QualifierFor(projectId);
+        try
+        {
+            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
+            await ExecuteAsync(connection, $"DROP TABLE {q}config_field_mapping_previous;");
+            await ExecuteAsync(connection, $"UPDATE {q}schema_info SET [value] = '11' WHERE [key] = 'schema_version';");
+            await ExecuteAsync(connection, $"INSERT INTO {q}schema_info ([key], [value]) VALUES ('batch9-sentinel', 'preserved');");
+            Assert.Equal("11", await VersionAsync(connection, q));
+            Assert.Equal(0, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
+            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
+            Assert.Equal("12", await VersionAsync(connection, q));
+            Assert.Equal(1, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
+            Assert.Equal(1, await ScalarLongAsync(connection, $"SELECT COUNT(*) FROM {q}schema_info WHERE [key] = 'batch9-sentinel' AND [value] = 'preserved';"));
+            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
+            Assert.Equal(1, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
+        }
+        finally { await database.DeleteAsync(projectId, CancellationToken.None); }
+    }
+
     // 漂移守衛（純單元、不需 SQL Server）：fresh insert 與 transaction 最後的 bump
     // 都必須等於 SchemaVersion 常數。日後只 bump 常數、忘改任一處字面值，
     // 既有 schema 會在每次觸碰時重跑整段 DDL（讀 < 現行 → 遷移 → 寫回舊值 → 又 < 現行 → 無窮遷移）。
@@ -129,7 +165,8 @@ public sealed class SqlServerSchemaMigrationTests
 
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
 
-            Assert.Equal("11", await VersionAsync(baseConn, q));
+            // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
+            Assert.Equal("12", await VersionAsync(baseConn, q));
             Assert.Equal(1, await TablePresentAsync(baseConn, q, "audit_event_log"));
             Assert.Equal(1, await ScalarLongAsync(
                 baseConn,
@@ -160,7 +197,8 @@ public sealed class SqlServerSchemaMigrationTests
 
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
 
-            Assert.Equal("11", await VersionAsync(baseConn, q));
+            // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
+            Assert.Equal("12", await VersionAsync(baseConn, q));
             foreach (var column in new[] { "posting_status", "is_effective", "exclusion_reason" })
             {
                 Assert.Equal(1, await ColumnPresentAsync(baseConn, q, "target_gl_entry", column));
@@ -232,7 +270,8 @@ public sealed class SqlServerSchemaMigrationTests
 
             var reopened = new SqlServerProjectDatabase(options);
             await reopened.EnsureCreatedAsync(projectId, CancellationToken.None);
-            Assert.Equal("11", await VersionAsync(baseConn, q));
+            // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
+            Assert.Equal("12", await VersionAsync(baseConn, q));
             Assert.Equal(1, await ScalarLongAsync(baseConn,
                 $"SELECT COUNT(*) FROM {q}target_gl_entry WHERE document_number='DOC-V6';"));
             Assert.Equal(1, await ScalarLongAsync(baseConn,

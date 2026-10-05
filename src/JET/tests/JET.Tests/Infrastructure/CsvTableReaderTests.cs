@@ -320,6 +320,217 @@ public sealed class CsvTableReaderTests
         }
     }
 
+    // ---- 2026-10-04 第二遍回饋審閱第 1 批（C2）：文字檔讀法 ----
+
+    [Fact]
+    public async Task UnquotedFieldWithEmbeddedQuote_IsLiteralAndFollowingRowsStayIntact()
+    {
+        // 審閱 U02：沒有用引號包住的欄位裡出現一個雙引號（例如英吋符號），以前後面的列會被併成一列。
+        // 一般 CSV 讀法（Excel、Python csv）把它當一般字元；資料列數不得減少。
+        var path = TestCsvBuilder.WriteFile("doc,desc,amount\nV1,3/4\" pipe,10\nV2,plain,20\nV3,\"quoted, ok\",30\n", TestCsvBuilder.Utf8NoBom);
+        try
+        {
+            var (_, rows) = await ReadAllAsync(path);
+
+            Assert.Equal(3, rows.Count);
+            Assert.Equal("3/4\" pipe", rows[0].Values["desc"]);
+            Assert.Equal("plain", rows[1].Values["desc"]);
+            Assert.Equal("quoted, ok", rows[2].Values["desc"]);
+            Assert.Equal("30", rows[2].Values["amount"]);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task QuotedFieldFollowedByText_KeepsTrailingTextLikeExcel()
+    {
+        var path = TestCsvBuilder.WriteFile("a,b\n1,\"x\"y\n", TestCsvBuilder.Utf8NoBom);
+        try
+        {
+            var (_, rows) = await ReadAllAsync(path);
+            Assert.Equal("xy", Assert.Single(rows).Values["b"]);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task UnterminatedQuote_FailsAndNamesTheRow()
+    {
+        // 引號沒有成對、結構讀不通：明確失敗並寫出第幾列，不默默併列。
+        var path = TestCsvBuilder.WriteFile("a,b\n1,ok\n2,\"open\n3,z\n", TestCsvBuilder.Utf8NoBom);
+        try
+        {
+            var reader = new CsvTableReader();
+            var ex = await Assert.ThrowsAsync<JetActionException>(async () =>
+            {
+                await foreach (var _ in reader.ReadRowsAsync(new TabularSourceRequest(path), CancellationToken.None))
+                {
+                }
+            });
+
+            Assert.Equal(JetErrorCodes.FileReadError, ex.Code);
+            Assert.Contains("第 3 列", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("引號", ex.Message, StringComparison.Ordinal);
+            Assert.Contains(Path.GetFileName(path), ex.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task LeadingBlankLines_AreSkippedBeforeHeader_AndRowNumbersCountThem()
+    {
+        // 審閱 U15：第一行是空白行時以前找不到標頭；改成和 Excel 檔一樣略過開頭空白行。列號仍照檔案實際列數。
+        var path = TestCsvBuilder.WriteFile("\n   \n傳票號碼,金額\nV1,10\n", TestCsvBuilder.Utf8NoBom);
+        try
+        {
+            var (columns, rows) = await ReadAllAsync(path);
+
+            Assert.Equal(["傳票號碼", "金額"], columns);
+            var row = Assert.Single(rows);
+            Assert.Equal(4, row.SourceRowNumber);
+            Assert.Equal("V1", row.Values["傳票號碼"]);
+
+            var inspection = await new CsvTableReader().InspectAsync(path, CancellationToken.None);
+            Assert.Equal(["傳票號碼", "金額"], inspection.Columns);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ExtraCellsBeyondHeader_BecomePlaceholderColumns_LikeXlsx()
+    {
+        // guide 3.1.5 的規則：有資料的欄絕不靜默丟棄，標頭範圍外的資料合成 COL_n 佔位欄；缺欄視為空。
+        var path = TestCsvBuilder.WriteFile("a,b\n1,2,3\n4\n", TestCsvBuilder.Utf8NoBom);
+        try
+        {
+            var (_, rows) = await ReadAllAsync(path);
+
+            Assert.Equal(2, rows.Count);
+            Assert.Equal("3", rows[0].Values["COL_3"]);
+            Assert.Equal("4", rows[1].Values["a"]);
+            Assert.False(rows[1].Values.ContainsKey("b"));
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task InspectAsync_SingleColumn_ReportsPossibleReportLayout()
+    {
+        // 審閱 U54：報表格式的文字檔（上方有公司名稱或標題列）以前匯成單一欄而不提示。
+        var path = TestCsvBuilder.WriteFile("合成公司 總帳明細表\n2025/01/01 V001 1000\n2025/01/02 V002 2000\n", TestCsvBuilder.Utf8NoBom);
+        try
+        {
+            var inspection = await new CsvTableReader().InspectAsync(path, CancellationToken.None);
+
+            Assert.Single(inspection.Columns!);
+            var notice = Assert.Single(inspection.Notices ?? []);
+            Assert.Contains("報表", notice, StringComparison.Ordinal);
+            Assert.Contains("Excel", notice, StringComparison.Ordinal);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task InspectAsync_MultipleColumns_HasNoNotice()
+    {
+        var path = TestCsvBuilder.WriteFile(ChineseContent, TestCsvBuilder.Utf8NoBom);
+        try
+        {
+            var inspection = await new CsvTableReader().InspectAsync(path, CancellationToken.None);
+            Assert.True(inspection.Notices is null || inspection.Notices.Count == 0);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task FileOpenedByAnotherProgram_MessageAsksToCloseIt_WithoutPath()
+    {
+        // 審閱 U14：檔案被 Excel 開著時以前顯示英文例外與完整路徑。
+        var path = TestCsvBuilder.WriteFile(ChineseContent, TestCsvBuilder.Utf8NoBom);
+        using var locked = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        try
+        {
+            var reader = new CsvTableReader();
+            var ex = await Assert.ThrowsAsync<JetActionException>(
+                () => reader.InspectAsync(path, CancellationToken.None));
+
+            Assert.Equal(JetErrorCodes.FileReadError, ex.Code);
+            Assert.Contains(Path.GetFileName(path), ex.Message, StringComparison.Ordinal);
+            Assert.Contains("關閉", ex.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain(Path.GetDirectoryName(path)!, ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("process", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            locked.Dispose();
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task DecodeFailure_MessageIsPlainChinese_AndPointsToEncodingChoice()
+    {
+        // 審閱 U13、U52：解碼失敗以前把 .NET 英文例外文字放進訊息，並要審計員「改以匯入參數指定編碼」。
+        var path = TestCsvBuilder.WriteFile(ChineseContent, TestCsvBuilder.Big5);
+        try
+        {
+            var reader = new CsvTableReader();
+            var ex = await Assert.ThrowsAsync<JetActionException>(
+                () => reader.ReadColumnsAsync(new TabularSourceRequest(path, EncodingName: "utf-8"), CancellationToken.None));
+
+            Assert.Equal(JetErrorCodes.FileReadError, ex.Code);
+            Assert.Contains("utf-8", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("改選編碼", ex.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("Unable", ex.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("translate", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("匯入參數", ex.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task QuoteInsideUnquotedField_DoesNotConfuseDelimiterDetection()
+    {
+        // 分隔符偵測也要用同一套引號規則，否則一個英吋符號會讓後面的列都被當成引號內。
+        var text = "doc;desc;amount\nV1;3/4\" pipe;10\nV2;x;20\nV3;y;30\nV4;z;40\n";
+        var path = TestCsvBuilder.WriteFile(text, TestCsvBuilder.Utf8NoBom);
+        try
+        {
+            var inspection = await new CsvTableReader().InspectAsync(path, CancellationToken.None);
+            Assert.Equal(";", inspection.Delimiter);
+            var (_, rows) = await ReadAllAsync(path);
+            Assert.Equal(4, rows.Count);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
     private static async Task<(IReadOnlyList<string> Columns, List<StagingRow> Rows)> ReadAllAsync(string path)
     {
         var reader = new CsvTableReader();

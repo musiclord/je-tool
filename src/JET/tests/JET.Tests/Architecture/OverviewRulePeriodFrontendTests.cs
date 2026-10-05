@@ -52,10 +52,10 @@ public sealed class OverviewRulePeriodFrontendTests
 
         // 未執行與舊 summary 必須是 S2b 自己的分流，不能誤命中集中度既有文案而假綠。
         Assert.Contains("尚未執行預篩選（選用）", renderer, StringComparison.Ordinal);
-        Assert.Contains("逐筆輔助訊號的全期命中分布", renderer, StringComparison.Ordinal);
+        Assert.Contains("預篩選的全期結果分布", renderer, StringComparison.Ordinal);
         Assert.Contains("需重新執行預篩選以產生此統計", renderer, StringComparison.Ordinal);
         Assert.Contains(
-            "舊版本執行結果，尚未包含逐筆輔助訊號分布",
+            "這次預篩選結果沒有預篩選結果分布",
             renderer,
             StringComparison.Ordinal);
 
@@ -87,7 +87,7 @@ public sealed class OverviewRulePeriodFrontendTests
         Assert.DoesNotContain("rule.ratePct || 0", source, StringComparison.Ordinal);
 
         Assert.Contains("rulePeriod.population === 0", source, StringComparison.Ordinal);
-        Assert.Contains("查核期間母體為 0", source, StringComparison.Ordinal);
+        Assert.Contains("納入測試的分錄為 0", source, StringComparison.Ordinal);
         Assert.Contains("不代表 0%", source, StringComparison.Ordinal);
     }
 
@@ -106,7 +106,7 @@ public sealed class OverviewRulePeriodFrontendTests
         Assert.True(populationIndex >= 0, "流程總覽未組裝母體概況。");
         Assert.True(analysesIndex > populationIndex, "母體分析必須排在母體概況之後。");
         Assert.True(rulePeriodIndex >= 0, "母體分析未組裝 rulePeriod。");
-        Assert.True(rulePeriodIndex > concentrationIndex, "逐筆輔助訊號分布必須排在常用母體彙總之後。");
+        Assert.True(rulePeriodIndex > concentrationIndex, "預篩選結果分布必須排在預篩選之後。");
         Assert.Contains("state.lastRuns.validate", analyses, StringComparison.Ordinal);
         Assert.Contains("validate.stats", analyses, StringComparison.Ordinal);
         Assert.Contains("return ''", analyses, StringComparison.Ordinal);
@@ -137,7 +137,7 @@ public sealed class OverviewRulePeriodFrontendTests
         Assert.DoesNotContain("<svg", source, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("全查核期間", source, StringComparison.Ordinal);
         Assert.Contains(
-            "命中率＝命中分錄數 ÷ 查核期間母體",
+            "符合比例＝符合條件的分錄數 ÷ 納入測試的分錄",
             source,
             StringComparison.Ordinal);
         Assert.Contains("此為分布描述，非風險評估。", source, StringComparison.Ordinal);

@@ -20,7 +20,7 @@ public sealed class LocalRawGlExportRepository(ILocalProjectDatabase database) :
             throw new ArgumentOutOfRangeException(nameof(entryIds), "原始列回取一次不得超過單頁上限。");
         }
 
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();

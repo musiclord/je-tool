@@ -235,11 +235,6 @@ public sealed class InspectAndSelectFilesHandlerTests
             return Task.FromResult(filePaths);
         }
 
-        public Task<string?> PickSavePathAsync(string baseFileName, CancellationToken cancellationToken)
-        {
-            return Task.FromResult<string?>(null);
-        }
-
         public Task RevealInExplorerAsync(string path, CancellationToken cancellationToken)
         {
             return Task.CompletedTask;

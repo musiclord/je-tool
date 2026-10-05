@@ -5,23 +5,20 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// import.authorizedPreparer.fromFile：授權編製人員清單匯入（manifest 細節段）。
+/// import.authorizedPreparer.fromFile：授權編製人員清單匯入。
 /// 明確選取與 GL 相同意義的識別欄 .xlsx；匯入即投影——staging 與 target 寫入由 store 在同一 transaction 完成。
 /// replace-only：授權清單是整份替換的設定檔（append → unsupported_mode）。
 /// </summary>
 public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationActionHandler
 {
     private readonly ITabularFileReader reader;
-    private readonly IReferenceDataFactsPort referenceDataFactsPort;
     private readonly ProjectSession session;
 
     internal ImportAuthorizedPreparerFromFileHandler(
         ITabularFileReader reader,
-        IReferenceDataFactsPort referenceDataFactsPort,
         ProjectSession session)
     {
         this.reader = reader;
-        this.referenceDataFactsPort = referenceDataFactsPort;
         this.session = session;
     }
 
@@ -29,7 +26,7 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
 
         var filePath = PayloadReader.GetRequiredString(payload, "filePath");
         var fileName = ImportSourceFileName.Resolve(
@@ -55,17 +52,22 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
             {
                 var columns = await reader.ReadColumnsAsync(request, cancellationToken);
                 var rows = reader.ReadRowsAsync(request, cancellationToken);
-                return await JetAuditProgram.ExecuteAsync(
+                var projection = JetAuditProgram.PrepareAuthorizedPreparerProjection(
+                    columns,
+                    plan.Request.SourceColumn);
+                return await repositories.ReferenceDataFacts.ExecuteAsync(
                     plan,
-                    referenceDataFactsPort,
                     source,
                     columns,
+                    projection,
                     rows,
                     cancellationToken);
             },
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
         return new
         {
             batchId = result.Import.BatchId,
@@ -75,20 +77,32 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
             sourceColumn = result.Import.SourceColumn,
             sourceRowCount = result.Import.SourceRowCount,
             blankRowCount = result.Import.BlankRowCount,
-            duplicateRowCount = result.Import.DuplicateRowCount
+            duplicateRowCount = result.Import.DuplicateRowCount,
+            matchedPreparerCount = result.Import.MatchedPreparerCount,
+            invalidatedResults = mutationState.InvalidatedResults,
+            staleState = mutationState.StaleState,
+            reportArtifacts = mutationState.ReportArtifacts,
+            reportArtifactWarning = mutationState.ReportArtifactWarning
         };
     }
 }
 
-public sealed class ClearAuthorizedPreparerHandler(IAuthorizedPreparerStore store, ProjectSession session)
+public sealed class ClearAuthorizedPreparerHandler(ProjectSession session)
     : IApplicationActionHandler
 {
     public string Action => "import.authorizedPreparer.clear";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
-        await store.ClearAsync(projectId, cancellationToken);
-        return new { cleared = true };
+        var (projectId, repositories) = session.RequireActive();
+        await repositories.AuthorizedPreparers.ClearAsync(projectId, cancellationToken);
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(
+            projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore, AuditMutationEffects.For(AuditMutation.AuthorizedPreparer));
+        return new { cleared = true,
+            invalidatedResults = mutationState.InvalidatedResults,
+            staleState = mutationState.StaleState,
+            reportArtifacts = mutationState.ReportArtifacts,
+            reportArtifactWarning = mutationState.ReportArtifactWarning };
     }
 }

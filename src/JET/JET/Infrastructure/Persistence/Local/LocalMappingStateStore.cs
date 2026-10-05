@@ -10,7 +10,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
 
     public async Task SaveAsync(string projectId, CommittedMapping mapping, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -55,21 +55,67 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task<CommittedMapping?> FindAsync(
+    /// <summary>
+    /// 重新匯入時，把目前已確認的配對搬到 <c>config_field_mapping_previous</c> 再刪除，兩步在匯入的同一個交易裡。
+    /// 目前沒有已確認的配對時（例如連續匯入兩次都還沒確認）不覆蓋，留著更早那一次確認的配對。
+    /// SQLite 與 DuckDB 共用；SELECT 帶 WHERE，SQLite 才不會把 ON CONFLICT 讀成 join 的一部分。
+    /// </summary>
+    internal const string RetireCommittedMappingSql =
+        """
+        INSERT INTO config_field_mapping_previous
+            (dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json)
+        SELECT dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
+        FROM config_field_mapping
+        WHERE dataset_kind = @kind
+        ON CONFLICT(dataset_kind) DO UPDATE SET
+            mapping_json = excluded.mapping_json,
+            mode_name = excluded.mode_name,
+            source_batch_id = excluded.source_batch_id,
+            committed_utc = excluded.committed_utc,
+            format_version = excluded.format_version,
+            options_json = excluded.options_json;
+        DELETE FROM config_field_mapping WHERE dataset_kind = @kind;
+        """;
+
+    public Task<CommittedMapping?> FindAsync(
+        string projectId,
+        DatasetKind kind,
+        CancellationToken cancellationToken) =>
+        ReadAsync(projectId, kind, "config_field_mapping", cancellationToken);
+
+    // 上次確認的配對只用來帶回草稿；它讀不出來（例如日後配對格式改版）時當作沒有，不能因此擋住開案。
+    public async Task<CommittedMapping?> FindPreviousAsync(
         string projectId,
         DatasetKind kind,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        try
+        {
+            return await ReadAsync(projectId, kind, "config_field_mapping_previous", cancellationToken);
+        }
+        catch (Exception exception) when (
+            exception is JetActionException or JsonException or InvalidOperationException or FormatException)
+        {
+            return null;
+        }
+    }
+
+    private async Task<CommittedMapping?> ReadAsync(
+        string projectId,
+        DatasetKind kind,
+        string table,
+        CancellationToken cancellationToken)
+    {
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
         command.CommandText =
-            """
+            $"""
             SELECT mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
-            FROM config_field_mapping
+            FROM {table}
             WHERE dataset_kind = @kind
             LIMIT 1;
             """;
@@ -99,8 +145,12 @@ internal static class MappingStateSerialization
 {
     internal static string? EncodeOptions(CommittedMapping mapping)
     {
-        EnsureSupportedVersion(mapping.FormatVersion);
-        if (mapping.Kind != DatasetKind.Gl || mapping.FormatVersion == MappingMetadataFormat.LegacyVersion)
+        if (mapping.FormatVersion != MappingMetadataFormat.CurrentVersion)
+        {
+            throw new InvalidOperationException($"mapping state format_version '{mapping.FormatVersion}' 不受支援。");
+        }
+
+        if (mapping.Kind != DatasetKind.Gl)
         {
             return null;
         }
@@ -118,15 +168,13 @@ internal static class MappingStateSerialization
         int formatVersion,
         string? optionsJson)
     {
-        EnsureSupportedVersion(formatVersion);
+        EnsureReadableVersion(formatVersion);
         GlMappingOptions? options = null;
         if (kind == DatasetKind.Gl)
         {
-            options = formatVersion == MappingMetadataFormat.LegacyVersion
-                ? GlMappingOptions.NormalizeLegacy(mapping)
-                : !string.IsNullOrWhiteSpace(optionsJson)
-                    ? GlMappingOptionsJsonCodec.Decode(optionsJson, mapping)
-                    : throw new InvalidOperationException("mapping v2 GL 狀態缺少 options_json。");
+            options = !string.IsNullOrWhiteSpace(optionsJson)
+                ? GlMappingOptionsJsonCodec.Decode(optionsJson, mapping)
+                : throw new InvalidOperationException("mapping v2 GL 狀態缺少 options_json。");
         }
 
         return new CommittedMapping(
@@ -139,12 +187,14 @@ internal static class MappingStateSerialization
             options);
     }
 
-    private static void EnsureSupportedVersion(int formatVersion)
+    // 目前版本只寫入第 2 版；其他版本是舊版 JET 保存的配對，不能沿用舊語意讀取。
+    private static void EnsureReadableVersion(int formatVersion)
     {
-        if (formatVersion != MappingMetadataFormat.LegacyVersion
-            && formatVersion != MappingMetadataFormat.CurrentVersion)
+        if (formatVersion != MappingMetadataFormat.CurrentVersion)
         {
-            throw new InvalidOperationException($"mapping state format_version '{formatVersion}' 不受支援。");
+            throw new JetActionException(
+                JetErrorCodes.InvalidProjectSchema,
+                "這個案件的欄位配對是舊版 JET 儲存的格式，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。");
         }
     }
 }

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 開發用瀏覽器主機：在本機瀏覽器執行正式 wwwroot，action 交給正式 ActionDispatcher。
+       不屬於正式 JET，也不進封裝；只綁定 127.0.0.1，資料只使用合成示範案件。 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Jet.BrowserHost</AssemblyName>
+    <RootNamespace>Jet.BrowserHost</RootNamespace>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPublishable>false</IsPublishable>
+    <!-- WebView2 套件一律加入 Microsoft.Web.WebView2.Wpf.dll，與 ASP.NET Core 共存時出現
+         WindowsBase 版本衝突警告。主機不載入 WPF 也不建立 WebView，只關閉這一則警告。 -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\..\src\JET\JET\JET.csproj" />
+  </ItemGroup>
+
+</Project>

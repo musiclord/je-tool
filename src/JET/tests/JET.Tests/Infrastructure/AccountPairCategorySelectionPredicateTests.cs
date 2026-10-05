@@ -174,39 +174,6 @@ public sealed class AccountPairCategorySelectionPredicateTests
             both);
     }
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task LegacyScalarSelection_MatchesSingletonBuiltInCategoryId(string provider)
-    {
-        await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);
-
-        var scalar = await HitsAsync(fixture, new FilterRuleSpec(
-            FilterJoin.And,
-            FilterRuleType.SpecialAccountCategoryPair,
-            null,
-            null,
-            [],
-            TextMatchMode.Contains,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            PairMode: SpecialAccountCategoryPairModes.DrAndCr,
-            DebitCategory: AccountMappingCategories.Receivables,
-            CreditCategory: AccountMappingCategories.Revenue));
-        var singleton = await HitsAsync(fixture, Rule(
-            FilterRuleType.SpecialAccountCategoryPair,
-            SpecialAccountCategoryPairModes.DrAndCr,
-            [AccountTaxonomyBuiltIns.ReceivablesId],
-            [AccountTaxonomyBuiltIns.RevenueId]));
-
-        Assert.Equal(singleton, scalar);
-        Assert.Equal(["M1|1", "M1|2", "M5|1", "M5|2"], scalar);
-    }
-
     private static async Task AssertScenarioAsync(FilterPredicateProviderFixture fixture, string scenario)
     {
         var (rule, expectedRows) = Scenario(scenario);

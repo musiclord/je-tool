@@ -5,7 +5,7 @@ namespace JET.Application;
 
 /// <summary>
 /// import.*.fromFile / import.previewFile 共用的來源選項（sheetName/encoding/delimiter）解析與
-/// 副檔名適用性驗證（manifest import.*.fromFile 細節）。
+/// 副檔名適用性驗證。
 /// delimiter 不可走 PayloadReader.GetOptionalString：tab（"\t"）會被 trim 成空字串。
 /// </summary>
 public static class TabularSourcePayload

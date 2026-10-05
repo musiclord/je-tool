@@ -12,14 +12,14 @@
 ## 開發流程
 
 - 開發環境、可用命令與測試邊界：[`docs/development-guide.md`](docs/development-guide.md)
-- 跨多個工作階段的大型開發如何立案、續接與關閉：[`docs/development-workflow.md`](docs/development-workflow.md)
+- 跨多個工作階段的大型開發如何立案、續接與關閉：[`.agents/harness/development-workflow.md`](.agents/harness/development-workflow.md)
 - 架構規則與資料流：[`docs/jet-guide.md`](docs/jet-guide.md)。UI 只負責操作與呈現，審計判斷留在
   Domain、AuditCore、Application 與資料庫實作邊界；前端與 C# 之間只走 `JetApi` action channel。
 
 ## 驗證
 
 正式驗證一律從 `tools/verify.ps1` 進入，命令與結束碼見 [`tools/README.md`](tools/README.md)。
-直接 `dotnet test` 只能用於診斷。提交前至少要有涵蓋本次改動範圍的通過收據；改過文件要跑
+不要直接執行 `dotnet test`；需要診斷單一測試時用 `Focused` 篩選，或直接執行建置出來的測試程式。提交前至少要有涵蓋本次改動範圍的通過收據；改過文件要跑
 `Documentation` 命令並把改動段落重新讀一次。
 
 ## 文件
@@ -37,4 +37,4 @@
 
 Claude Code、Codex、GitHub Copilot 與 VS Code AI Agent 的共用規則在 [`AGENTS.md`](AGENTS.md)；
 各工具的載入方式與 Claude Code 的執行前攔截見
-[`docs/agent-compatibility.md`](docs/agent-compatibility.md)。
+[`.agents/harness/agent-compatibility.md`](.agents/harness/agent-compatibility.md)。

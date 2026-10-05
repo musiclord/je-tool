@@ -178,13 +178,13 @@ public sealed class OverviewConcentrationFrontendTests
             StringComparison.Ordinal);
 
         // 母體未就緒時沿用上方單一空狀態（不另外冒出第二個空區塊）；就緒後 renderer
-        // 必須以預設收合的 analysis details 提供常用母體彙總。
+        // 必須以預設收合的 analysis details 提供預篩選。
         Assert.Contains("if (!validate || !validate.stats) { return ''; }", source, StringComparison.Ordinal);
         var overviewBi = ReadFrontend("js", "overview-bi.js");
         Assert.Contains(
             "<details class=\"overview__bi overview__analysis\"",
             overviewBi,
             StringComparison.Ordinal);
-        Assert.Contains("<span>常用母體彙總</span>", overviewBi, StringComparison.Ordinal);
+        Assert.Contains("<span>預篩選</span>", overviewBi, StringComparison.Ordinal);
     }
 }

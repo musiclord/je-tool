@@ -5,12 +5,12 @@ using Microsoft.Data.SqlClient;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 專案租約鎖 <see cref="ILockService"/> 的 SQL Server 真實作（<c>dbo.project_lock</c>，控制面第六輪）。
-/// <b>天生只屬 sqlServer</b>：不經 ProviderRouting 直接持有 <see cref="SqlServerConnectionOptions"/> 對單庫開連線
+/// 專案租約鎖 <see cref="ILockService"/> 的 SQL Server 真實作（<c>dbo.project_lock</c>）。
+/// <b>天生只屬 sqlServer</b>：不在依資料庫種類選定的資料庫組裡，直接持有 <see cref="SqlServerConnectionOptions"/> 對單庫開連線
 /// （與 <see cref="SqlServerProjectRegistry"/>／<see cref="SqlServerAppConfigStore"/> 平行）。表隨
 /// <see cref="SqlServerControlPlaneSchema"/> bootstrap；每個公開方法開頭 ensure（冪等）。
 /// <para>
-/// 取鎖為單一交易＋<c>HOLDLOCK</c> 原子臨界區（design §2）：MERGE 對該鍵範圍持鎖至 commit，並行取鎖序列化——
+/// 取鎖為單一交易＋<c>HOLDLOCK</c> 原子臨界區：MERGE 對該鍵範圍持鎖至 commit，並行取鎖序列化——
 /// 兩並行 AcquireAsync 恰一 <see cref="LockOutcome.Acquired"/>。MERGE 同時回讀更新前持有人，區分本次新取／接管
 /// 與同 principal 既有鎖；回讀 <c>locked_by</c>：＝當前 principal → Acquired；
 /// 否則→ <see cref="LockOutcome.Held"/>（他人未過期租約）。逾時門檻 <c>@timeout</c> 讀自 <c>dbo.app_config</c>
@@ -19,12 +19,12 @@ namespace JET.Infrastructure;
 /// 心跳只更新自己持有的列、釋放只刪自己持有的列（他人的為 no-op）。以
 /// <see cref="SqlServerEngineErrors.ExecuteWithDeadlockRetryAsync"/> 包裹交易型操作（自含完整交易，rollback 後重跑安全）。
 /// 為什麼是租約表＋心跳而非 <c>sp_getapplock</c>：JET 每指令開短連線、不留長連線，連線一關 applock 就掉，撐不住
-/// 「整個開啟期間持鎖」；租約表＋背景心跳與短連線模型相容（design §0）。
+/// 「整個開啟期間持鎖」；租約表＋背景心跳與短連線模型相容。
 /// </summary>
 public sealed class SqlServerLockService(
     SqlServerConnectionOptions options, IAppConfigStore appConfig) : ILockService
 {
-    // 首次觸碰時 bootstrap dbo 控制面表；之後同一實例跳過（表已在、單庫必存在）——參考 SqlServerProjectRegistry。
+    // 首次觸碰時 bootstrap dbo 管理表；之後同一實例跳過（表已在、單庫必存在）——參考 SqlServerProjectRegistry。
     private bool _tablesEnsured;
 
     public Task<LockOutcome> AcquireAsync(string projectId, string principal, CancellationToken cancellationToken) =>
@@ -142,7 +142,7 @@ public sealed class SqlServerLockService(
         await using var connection = await TryOpenSingleDatabaseAsync(cancellationToken);
         if (connection is null)
         {
-            return []; // 單庫尚未建立 → 無鎖可列（伺服器可達但控制面尚未問世）。
+            return []; // 單庫尚未建立 → 無鎖可列（伺服器可達但 dbo 管理表尚未建立）。
         }
 
         await using var command = connection.CreateCommand();
@@ -176,7 +176,7 @@ public sealed class SqlServerLockService(
         return ProjectLockDefaults.ParsePositive(raw, ProjectLockDefaults.TimeoutSeconds);
     }
 
-    /// <summary>開單庫連線並確保控制面表就位（fail-loud：Acquire/Renew/Release 期間單庫必存在——專案已建/載入）。</summary>
+    /// <summary>開單庫連線並確保 dbo 管理表就位（fail-loud：Acquire/Renew/Release 期間單庫必存在——專案已建/載入）。</summary>
     private async Task<SqlConnection> OpenSingleDatabaseAsync(CancellationToken cancellationToken)
     {
         var connection = new SqlConnection(BuildConnectionString(options.SingleDatabaseName));

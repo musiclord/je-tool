@@ -4,12 +4,11 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.dataPreview：正式版的使用者資料預覽（manifest 細節段）。
+/// query.dataPreview：正式版的使用者資料預覽。
 /// 有界唯讀——欄位配對時對照欄名與實際內容、進階篩選前掌握數值/日期/摘要的大概樣貌；
-/// 明細分頁屬 query.*Page 里程碑，本 action 絕不回完整母體。
+/// 明細分頁由 query.*Page 負責，本 action 絕不回完整母體。
 /// </summary>
 public sealed class QueryDataPreviewHandler(
-    IDataPreviewRepository previewRepository,
     IProjectStore projectStore,
     ProjectSession session) : IApplicationActionHandler
 {
@@ -20,7 +19,7 @@ public sealed class QueryDataPreviewHandler(
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
 
         var datasetName = PayloadReader.GetRequiredString(payload, "dataset");
         if (!DataPreviewDatasetNames.TryParse(datasetName, out var dataset))
@@ -38,7 +37,7 @@ public sealed class QueryDataPreviewHandler(
                 $"找不到專案 '{projectId}'。");
 
         var preview = await Task.Run(
-            () => previewRepository.GetPreviewAsync(projectId, dataset, document.MoneyScale, limit, cancellationToken),
+            () => repositories.DataPreview.GetPreviewAsync(projectId, dataset, document.MoneyScale, limit, cancellationToken),
             cancellationToken);
 
         return new

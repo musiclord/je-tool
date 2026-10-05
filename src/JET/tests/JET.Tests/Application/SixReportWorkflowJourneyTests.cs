@@ -169,7 +169,9 @@ public sealed class SixReportWorkflowJourneyTests
             Assert.Contains(texts, text => text.Contains("全部符合（至少有一筆）", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("包含下層分類", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("財報準備日起核准", StringComparison.Ordinal));
-            Assert.Contains(texts, text => text.Contains("連續零尾數", StringComparison.Ordinal));
+            // 2026-10-04 第 8 批 L59：固定預篩選名稱明示 6 位；仍核對 Criteria 與 WorkingPaper 的實際內容。
+            // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d，確定停在舊名稱斷言。
+            Assert.Contains(texts, text => text.Contains("金額尾數連續 6 個 0", StringComparison.Ordinal));
         }
         AssertHiddenMappingMetadata(validationPath);
         AssertHiddenMappingMetadata(workingPaperPath);

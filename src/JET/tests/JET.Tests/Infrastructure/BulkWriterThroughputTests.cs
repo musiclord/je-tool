@@ -3,6 +3,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -75,13 +76,15 @@ public sealed class BulkWriterThroughputTests(ITestOutputHelper output)
         var stagingWatch = Stopwatch.StartNew();
         var batch = (await importRepo.ReplaceBatchAsync(
             projectId, DatasetKind.Gl,
-            new ImportSourceDescriptor(@"C:\gl.xlsx", "gl.xlsx", null, null, null),
-            Columns, SyntheticRows(rowCount), CancellationToken.None)).Batch;
+            [new ImportSourceInput(new ImportSourceDescriptor(@"C:\gl.xlsx", "gl.xlsx", null, null, null),
+            Columns, SyntheticRows(rowCount))], CancellationToken.None)).Batch;
         stagingWatch.Stop();
 
         var projectionWatch = Stopwatch.StartNew();
         var result = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, Spec(), 100, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, Spec(), 100, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
         projectionWatch.Stop();
 
         // 正確性守恆（唯一硬斷言）：全母體投影、無漏列。

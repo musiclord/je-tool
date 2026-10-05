@@ -26,6 +26,9 @@
     // system.whoAmI 回報的當前使用者身分 { principal, shortName, userNumber, numberSource }（純 UI 顯示：
     // 右上角身分徽章與 picker 身分註記）。只 notify、不 bump、不持久化、不進 resetWorkflow、不進任何後端 payload。
     currentUser: null,
+    // system.databaseInfo 回報的 sqlServer.configured：true、false，或尚未查到時為 null。
+    // 只用來在建立案件時停用 SQL Server 選項；不持久化、不進 resetWorkflow、不進任何後端 payload。
+    sqlServerConfigured: null,
     caseId: null,
     caseClient: null,
     messages: [],
@@ -50,23 +53,22 @@
       gl: null,                // { batchId, rowCount, columns, fileName, sources: [...] }
       tb: null,
       accountMapping: null,    // { batchId, rowCount, fileName, importedUtc, hasAnyCategory, hasRevenue, hasCounterpart }
-      authorizedPreparer: null, // 匯入當下 { batchId, rowCount, fileName, importedUtc }；resume(project.load) 只 { rowCount }
+      // 匯入與 project.load 都含有效人數、原始列數、空白與重複數及 GL 比對人數。
+      // 舊名單的原始統計可為 null；matchedPreparerCount 為 null 表示 GL 尚未確認建立人員配對。
+      authorizedPreparer: null,
       calendar: null           // { holidayCount, makeupDayCount, calendarImported, nonWorkingDays, nonWorkingDaysConfigured }
     },
     // committed = 已提交快照 { projectedRowCount, committedUtc, mapping, mode }（resume 時 projectedRowCount 可為 null）；
     // invalidatedByImport = 來源變更使配對失效（顯示說明橫幅，重新提交後解除）。
-    // options = GL 專有的投影政策草稿（核准日三態、過帳狀態政策、人工／自動代碼、攸關資料元素欄位）；
-    // formatVersion = 後端 project.load 回報的該側 committed mapping 來源版本（1 | 2 | null）。
+    // droppedFields = 來源變更後，草稿裡被拿掉的欄位（新資料沒有那個來源欄），提示審計員重新選。
+    // options = GL 專有的投影政策草稿（核准日三態、過帳狀態政策、人工／自動代碼、攸關資料元素欄位）。
     mapping: {
       gl: {
         draft: {}, amountMode: 'dual', options: freshGlOptions(),
-        committed: null, formatVersion: null, invalidatedByImport: false
+        committed: null, invalidatedByImport: false, reimportDraftOrigin: null, droppedFields: []
       },
-      tb: { draft: {}, changeMode: 'debitCredit', committed: null, formatVersion: null, invalidatedByImport: false }
+      tb: { draft: {}, changeMode: 'debitCredit', committed: null, invalidatedByImport: false, reimportDraftOrigin: null, droppedFields: [] }
     },
-    // 舊版配對需重新確認（project.load.mappingReviewRequired 的鏡像；成功 recommit 後依兩側
-    // formatVersion 重新推導，讓修復路徑不必重開案件才解除）。
-    mappingReviewRequired: false,
     // 專案科目分類（project.load.taxonomy）：{ revision, categories }；尚未載入時為 null。
     taxonomy: null,
     // 後端判定的結果失效狀態（project.load.staleState）：三個獨立布林，
@@ -79,6 +81,9 @@
     // 篩選結果版本與專案內報告索引（resume 自 project.load）。
     // artifact 只保留 wire metadata，不存絕對路徑或報告內容。
     filterResultRef: null,
+    // 開案時用目前規則檢查已儲存情境的結果（project.load.filterScenarioCheck）；
+    // 只用來說明哪些情境無法套用、下一步怎麼做，不參與步驟判定。
+    filterScenarioCheck: null,
     reportArtifacts: [],
     validationOutput: { reports: null, template: null },
     // 進階條件篩選：populationScope 是尚未提交的母體選擇；已提交母體只讀
@@ -96,7 +101,10 @@
     // contentVersion 對每次 UI 資料變動（切模式、指派欄、編草稿…）都會跳，過於嘈雜，
     // 不適合當「資料是否真的變了」的判準；dataGeneration 只對真正的資料落地事件跳，
     // 供資料預覽面板據此精準作廢快取並重抓（避免每個 action 都盲目重抓大母體）。
-    dataGeneration: 0
+    dataGeneration: 0,
+    // 後端回報篩選命中失效的次數（V7）。第五步據此清掉已載入的命中；修改案件資料不再換掉 project 物件，
+    // 所以不能再靠「換了案件」順便清掉。
+    filterResultGeneration: 0
   };
 
   // GL 投影政策草稿的初值：與後端 mapping.commit.gl 的預設一致（核准日未配、無過帳狀態政策、
@@ -129,13 +137,13 @@
   }
 
   // 核心配對已佔用的 GL 來源欄。這是「哪些欄還能當攸關資料元素」的唯一規則來源，
-  // 畫面的候選清單與全選都只呼叫它，不另寫一份。dcDebitCode 保存的是借方旗標值，不是欄名，不算佔用。
+  // 畫面的候選清單與全選都只呼叫它。借方與貸方代碼是字面值，不是欄名，不算佔用。
   function usedGlSourceColumns() {
     var used = Object.create(null);
     var draft = state.mapping.gl.draft;
     Object.keys(draft).forEach(function (key) {
       var value = draft[key];
-      if (key !== 'dcDebitCode' && value) { used[value] = true; }
+      if (key !== 'dcDebitCode' && key !== 'dcCreditCode' && value) { used[value] = true; }
     });
     return used;
   }
@@ -158,6 +166,35 @@
     }
   }
 
+  // 來源資料換過之後，草稿只留新資料仍有的來源欄；拿掉的記在 droppedFields，配對畫面據此請審計員重新選。
+  // 借方與貸方代碼都是字面值，不受來源欄改變影響。人工/自動與過帳狀態的來源欄被拿掉時，
+  // 它們的代碼設定跟著清掉，和審計員自己取消那個欄位的結果一樣（D16）。
+  function reconcileDraftWithColumns(kind, columns) {
+    var available = Object.create(null);
+    (columns || []).forEach(function (column) { available[column] = true; });
+    var mapping = state.mapping[kind];
+    var dropped = [];
+    var previousManualSource = kind === 'gl' ? mapping.draft.manual : null;
+    var previousPostingSource = kind === 'gl' ? mapping.draft.postingStatus : null;
+    Object.keys(mapping.draft).forEach(function (key) {
+      var column = mapping.draft[key];
+      if (key === 'dcDebitCode' || key === 'dcCreditCode' || !column || available[column]) { return; }
+      dropped.push({ key: key, column: column });
+      delete mapping.draft[key];
+    });
+    if (kind === 'gl') {
+      syncApprovalSource();
+      resetManualAutoPolicyIfSourceChanged(previousManualSource);
+      resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
+      mapping.options.rdeFields = (mapping.options.rdeFields || []).filter(function (field) {
+        if (available[field.sourceColumn]) { return true; }
+        dropped.push({ rde: true, column: field.sourceColumn, label: field.label });
+        return false;
+      });
+    }
+    mapping.droppedFields = dropped;
+  }
+
   var listeners = [];
 
   // 訊息流水號：供前端做增量渲染，辨識哪些訊息是新加入的。
@@ -173,8 +210,11 @@
   // 的連續文字輸入（input 事件），且必須在 blur 邊界配一次延遲 bump 收斂，讓按鈕可用性、清單與
   // 提示等衍生畫面在互動結束時對齊。select／radio／checkbox 是離散提交，永遠直接 bump。
   // 重建後的輸入焦點與捲動由 app.js renderContent 依焦點識別屬性與 data-preserve-scroll 統一
-  // 還原，步驟模組不得各自發明保留機制。已文件化的唯一例外：filter-step 規則值編輯
-  // （patchFilterRule＋softRefreshReadback／softExpirePreviewPane，連續輸入且重建成本高）。
+  // 還原，步驟模組不得各自發明保留機制。已文件化的例外：filter-step 規則值編輯
+  // （patchFilterRule＋softRefreshReadback／softExpirePreviewPane，連續輸入且重建成本高）；
+  // 欄位配對的借方代碼與攸關資料元素顯示名稱（setMappingLiteralQuiet、patchGlMappingOptionsQuiet）。
+  // 後者每次 input 就地更新必填清單、提示與「確認配對」可用性，失焦時不重建：滑鼠按下確認鈕會先讓
+  // 輸入框失焦，若此時重建，按鈕會在按下與放開之間被換掉，第一次點擊就不會送出（2026-10-02 W3）。
   function notify() {
     for (var i = 0; i < listeners.length; i++) {
       listeners[i](state);
@@ -193,37 +233,20 @@
     bump();
   }
 
-  // GL/TB、配對、科目分類、授權清單或行事曆落地後，後端會在同一交易清除規則命中。
-  // 前端依同一份依賴範圍丟棄衍生結果與快取；保留已存情境定義，讓使用者可在新母體上重新產檔。
+  // 後端明示本次修改影響哪些畫面快取；此處不保存另一份審計依賴表或推算報告過期狀態。
   function invalidateDerivedResults(options) {
     var clearValidation = !!(options && options.validation);
     var clearPrescreen = !!(options && options.prescreen);
     var clearFilter = !!(options && options.filter);
     if (clearValidation) { state.lastRuns.validate = null; }
     if (clearPrescreen) { state.lastRuns.prescreen = null; }
-    // 情境 revision 只描述已存定義，跨資料重投影仍保留；正式 Criteria/WorkingPaper
-    // 另以 validationRunId 綁定資料世代，並以 scenarioRevision 綁定條件版本。
+    // 情境 revision 只描述已存定義，跨資料重投影仍保留；報告另綁定驗證來源。
+    // 新 WorkingPaper 還記錄 filterDataRevision，因此部分情境重算不必偽造全案已更新。
     if (clearFilter) {
       state.filter.preview = null;
       filterDraftRev++;
+      state.filterResultGeneration++;
     }
-    state.reportArtifacts = state.reportArtifacts.map(function (artifact) {
-      var source = artifact.sourceRef || {};
-      var stale = (clearValidation && !!source.validationRunId) ||
-        (clearPrescreen && artifact.kind === 'prescreenReport' && !!source.prescreenRunId) ||
-        (clearFilter && (artifact.kind === 'criteriaSelectionReport' || artifact.kind === 'workingPaper') &&
-          !!source.scenarioRevision);
-      return artifact.stale || !stale ? artifact : Object.assign({}, artifact, { stale: true });
-    });
-  }
-
-  // 舊版配對旗標的重新推導：後端規則是「任何已提交的 GL 或 TB mapping 仍是 format v1 即為 true」。
-  // 這裡只依已鏡射的 formatVersion 重算，讓成功 recommit 後不必重開案件才解除封鎖；
-  // 沒有 committed mapping 的一側不算舊版，與後端一致。
-  function refreshMappingReviewRequired() {
-    state.mappingReviewRequired = ['gl', 'tb'].some(function (kind) {
-      return !!state.mapping[kind].committed && state.mapping[kind].formatVersion === 1;
-    });
   }
 
   var Store = {
@@ -261,6 +284,15 @@
     // 比照 stepFlowCollapsed 等純 UI 狀態：只 notify，不 bump、不持久化、不進 resetWorkflow、不進任何後端 payload。
     setCurrentUser: function (user) {
       state.currentUser = user || null;
+      notify();
+    },
+
+    // 背景設定查詢只通知畫面就地更新資料庫選項與提示，不能重建尚未儲存的建案表單。
+    // 是否可選仍由明確的 false 判斷，不把未知狀態當作已確認沒有設定。
+    setSqlServerConfigured: function (configured) {
+      var next = configured === true ? true : (configured === false ? false : null);
+      if (next === state.sqlServerConfigured) { return; }
+      state.sqlServerConfigured = next;
       notify();
     },
 
@@ -324,6 +356,40 @@
       bump();
     },
 
+    // 修改案件資料只更新後端回傳的摘要與失效狀態，不套用開案流程，也不丟棄未儲存的篩選草稿。
+    updateProjectMetadata: function (result) {
+      // V7：同一個案件只更新原本 project 物件的欄位。各步驟以物件身分判斷「是否換了案件」，
+      // 換掉物件會把值摘要、已載入的明細與展開的結果都當成舊案件清掉。該清的結果由下方依後端失效清單處理。
+      var current = state.project;
+      if (current && result.project && current.projectId === result.project.projectId) {
+        Object.keys(current).forEach(function (key) {
+          if (!Object.prototype.hasOwnProperty.call(result.project, key)) { delete current[key]; }
+        });
+        Object.assign(current, result.project);
+        result = Object.assign({}, result, { project: current });
+      }
+      state.project = result.project;
+      state.caseId = result.project.projectId;
+      state.caseClient = result.project.entityName;
+      // 舊 project.update 回應只帶 artifacts；新契約的 null 是尚未讀到清單，不可用 alias 冒充成功。
+      var response = Object.prototype.hasOwnProperty.call(result, 'reportArtifacts') ? result
+        : Object.assign({}, result, { reportArtifacts: result.artifacts });
+      Store.applyMutationEffects(response);
+    },
+
+    applyMutationEffects: function (result) {
+      result = result || {};
+      var invalidated = result.invalidatedResults || {};
+      invalidateDerivedResults(invalidated);
+      if (result.staleState) {
+        state.staleState = { validation: !!result.staleState.validation,
+          prescreen: !!result.staleState.prescreen, filter: !!result.staleState.filter };
+      }
+      if (Array.isArray(result.reportArtifacts)) { state.reportArtifacts = result.reportArtifacts.slice(); }
+      if (result.reportArtifactWarning) { Store.addMessage(result.reportArtifactWarning, 'warn'); }
+      if (invalidated.validation || invalidated.prescreen || invalidated.filter) { bumpData(); } else { bump(); }
+    },
+
     // 離開專案（回 picker / 建立新案件）時清空 workflow 狀態，
     // 避免上一個案件的資料殘留在建立案件等步驟。
     resetWorkflow: function () {
@@ -334,15 +400,15 @@
       state.mapping = {
         gl: {
           draft: {}, amountMode: 'dual', options: freshGlOptions(),
-          committed: null, formatVersion: null, invalidatedByImport: false
+          committed: null, invalidatedByImport: false, reimportDraftOrigin: null, droppedFields: []
         },
-        tb: { draft: {}, changeMode: 'debitCredit', committed: null, formatVersion: null, invalidatedByImport: false }
+        tb: { draft: {}, changeMode: 'debitCredit', committed: null, invalidatedByImport: false, reimportDraftOrigin: null, droppedFields: [] }
       };
-      state.mappingReviewRequired = false;
       state.taxonomy = null;
       state.staleState = { validation: false, prescreen: false, filter: false };
       state.lastRuns = { validate: null, prescreen: null };
       state.filterResultRef = null;
+      state.filterScenarioCheck = null;
       state.reportArtifacts = [];
       state.validationOutput = { reports: null, template: null };
       state.filter = {
@@ -358,17 +424,21 @@
 
     setImportResult: function (kind, info) {
       // 匯入（replace 或 append）會使後端 committed mapping 失效，前端狀態同步歸零；
-      // 原本已提交時標記失效原因（配對步驟顯示「來源資料已變更」橫幅）。
-      state.mapping[kind].invalidatedByImport = !!state.mapping[kind].committed;
+      // 原本已提交時標記失效原因（配對步驟顯示「來源資料已變更」橫幅）。草稿保留，
+      // 只拿掉新資料沒有的來源欄。
+      state.mapping[kind].invalidatedByImport = !!state.mapping[kind].committed || state.mapping[kind].invalidatedByImport;
+      state.mapping[kind].reimportDraftOrigin = state.importState[kind] ? 'current' : null;
       state.importState[kind] = info;
       state.mapping[kind].committed = null;
-      // 沒有 committed mapping 的一側不算舊版（與後端同一條規則），因此重匯後
-      // 立即丟掉該側的 format 版本並重新推導舊版旗標。
-      state.mapping[kind].formatVersion = null;
-      refreshMappingReviewRequired();
-      invalidateDerivedResults(kind === 'gl'
-        ? { validation: true, prescreen: true, filter: true }
-        : { validation: true });
+      if (kind === 'gl' && state.importState.authorizedPreparer) {
+        state.importState.authorizedPreparer = Object.assign({}, state.importState.authorizedPreparer,
+          { matchedPreparerCount: null });
+      }
+      if (info && Array.isArray(info.columns)) {
+        reconcileDraftWithColumns(kind, info.columns);
+      } else {
+        state.mapping[kind].droppedFields = [];
+      }
       bumpData(); // 匯入落地：staging 預覽（原貌）內容已變
     },
 
@@ -379,31 +449,41 @@
 
     setCalendarState: function (info) {
       state.importState.calendar = info;
-      invalidateDerivedResults({ prescreen: true, filter: true });
       bumpData(); // 假日／補班／非工作日：dateDimension 預覽內容已變
     },
 
     // 科目配對（無欄位配對步驟，匯入即投影；不影響 GL/TB 配對狀態）。
     setAccountMappingState: function (info) {
       state.importState.accountMapping = info;
-      invalidateDerivedResults({ prescreen: true, filter: true });
       bumpData(); // 科目配對匯入：accountMappings 預覽內容已變
     },
 
     // 授權編製人員清單（整份替換的設定檔，匯入即生效；不影響 GL/TB 配對狀態）。
     setAuthorizedPreparerState: function (info) {
       state.importState.authorizedPreparer = info;
-      invalidateDerivedResults({ prescreen: true, filter: true });
       bumpData(); // 授權編製人員清單匯入：authorizedPreparers 預覽內容已變
+    },
+
+    // GL 配對回傳的最新比對摘要；名單內容沒有改變，不再清除相依計算結果。
+    refreshAuthorizedPreparerState: function (info) {
+      state.importState.authorizedPreparer = info;
+      bump();
     },
 
     setLastRun: function (kind, summary) {
       state.lastRuns[kind] = summary || null;
+      if (summary) { state.staleState[kind === 'validate' ? 'validation' : kind] = false; }
       bump();
     },
 
     setFilterResultRef: function (resultRef) {
       state.filterResultRef = resultRef || null;
+      state.staleState.filter = false;
+      bump();
+    },
+
+    setFilterScenarioCheck: function (check) {
+      state.filterScenarioCheck = check || null;
       bump();
     },
 
@@ -434,11 +514,27 @@
       bump();
     },
 
-    applyReportExport: function (data) {
-      if (Array.isArray(data.reportArtifacts)) {
-        Store.setReportArtifacts(data.reportArtifacts);
-      } else {
-        Store.upsertReportArtifacts(data.artifacts || (data.artifact ? [data.artifact] : []));
+      applyReportExport: function (data) {
+        var published = data.artifacts || (data.artifact ? [data.artifact] : []);
+        // Only the just-published artifact proves successful calculation; a catalog may contain old files.
+        published.forEach(function (artifact) {
+          if (artifact.stale) { return; }
+          if (artifact.kind === 'criteriaSelectionReport' ||
+              (artifact.kind === 'workingPaper' && data.filterResultsCurrent !== false)) { state.staleState.filter = false; }
+        if (artifact.kind === 'prescreenReport') { state.staleState.prescreen = false; }
+      });
+        var catalogComplete = Array.isArray(data.reportArtifacts) && published.every(function (artifact) {
+          return data.reportArtifacts.some(function (item) { return item.artifactId === artifact.artifactId; });
+        });
+        if (catalogComplete) {
+          Store.setReportArtifacts(data.reportArtifacts);
+        } else {
+          var warning = data.reportArtifactWarning || (Array.isArray(data.reportArtifacts)
+            ? '檔案已產生，報告清單暫時無法更新。可開啟案件資料夾查看，無須重新產生。' : '');
+          Store.upsertReportArtifacts(published.map(function (artifact, index) {
+            return index === 0 && warning
+              ? Object.assign({}, artifact, { catalogWarning: warning }) : artifact;
+          }));
       }
     },
 
@@ -507,6 +603,22 @@
       bump();
     },
 
+    // 成功保存或移除後，一次更新清單、結果與編輯狀態，避免重繪看到不同版本。
+    applyFilterCommit: function (data, draftPatch, clearDraft) {
+      state.filter.savedScenarios = data.scenarios || [];
+      state.filterResultRef = state.filter.savedScenarios.length ? data.resultRef || null : null;
+      // 儲存成功表示整批已通過目前規則的檢查，開案時列出的問題不再適用。
+      state.filterScenarioCheck = null;
+      state.staleState.filter = false;
+      if (clearDraft) {
+        state.filter.draft = { name: '', rationale: '', groups: [] };
+        state.filter.preview = null;
+        state.filter.previewExpired = false;
+        filterDraftRev++;
+      } else if (draftPatch) { Object.assign(state.filter.draft, draftPatch); }
+      bump();
+    },
+
     // 可作為攸關資料元素的 GL 來源欄：匯入欄位扣掉核心配對已佔用者。順序沿用匯入欄序。
     availableGlRdeColumns: function () {
       var importInfo = state.importState.gl;
@@ -544,17 +656,10 @@
 
     setTaxonomyAfterSave: function (snapshot) {
       state.taxonomy = snapshot || null;
-      invalidateDerivedResults({ prescreen: true, filter: true });
-      state.staleState = Object.assign({}, state.staleState, { prescreen: true, filter: true });
       bumpData(); // 科目分類改變：科目配對預覽的顯示分類已變
     },
 
-    // project.load.mappingReviewRequired / staleState 的直接鏡像（不由前端猜測）。
-    setMappingReviewRequired: function (required) {
-      state.mappingReviewRequired = !!required;
-      bump();
-    },
-
+    // project.load.staleState 的直接鏡像（不由前端猜測）。
     setStaleState: function (staleState) {
       state.staleState = {
         validation: !!(staleState && staleState.validation),
@@ -562,6 +667,18 @@
         filter: !!(staleState && staleState.filter)
       };
       bump();
+    },
+
+    // 字面值欄（借方代碼）連續輸入專用：只寫草稿並 notify，不重建面板。呼叫端必須在同一次輸入
+    // 就地更新衍生畫面（mapping-step 的 refreshMappingDerived）。字面值不是來源欄名，不牽動核准日、
+    // 人工／自動代碼、過帳狀態政策或攸關資料元素欄位，所以不需要 setMappingDraft 的連動處理。
+    setMappingLiteralQuiet: function (kind, key, value) {
+      if (value) {
+        state.mapping[kind].draft[key] = value;
+      } else {
+        delete state.mapping[kind].draft[key];
+      }
+      notify();
     },
 
     setMappingDraft: function (kind, key, column) {
@@ -633,7 +750,7 @@
       bump();
     },
 
-    // P2 report round-trip：後端已把兩份 metadata 與目前 import columns 整批驗證完畢，
+    // 從報告還原欄位配對草稿：後端已把兩份 metadata 與目前 import columns 整批驗證完畢，
     // 前端只做一次原子鏡像。既有 committed/invalidated 狀態刻意保留，草稿不冒充已生效配對。
     restoreMappingDrafts: function (bundle) {
       state.mapping.gl.draft = Object.assign({}, bundle.gl.mapping || {});
@@ -667,17 +784,33 @@
       bump();
     },
 
-    // 失效旗標只由 setImportResult 立起；任何明確的提交狀態設定（含 resume 的 null）都解除。
-    // formatVersion 隨 committed 一起設定：resume 取後端回報值，成功 commit 一律是目前 writer 版本 2。
+    // 重開案件時，重新匯入後還沒重新確認的配對：把 project.load 帶回的上次確認配對當草稿，
+    // 只留新資料仍有的來源欄，並和同一次開啟中重新匯入時一樣標成「來源資料已變更」。它不是已生效的配對。
+    // previous = { mapping, mode, options }；options 只有 GL 有。
+    restorePreviousMapping: function (kind, previous, columns) {
+      var mapping = state.mapping[kind];
+      mapping.draft = Object.assign({}, previous.mapping || {});
+      if (kind === 'gl') {
+        mapping.amountMode = previous.mode || 'dual';
+        mapping.options = previous.options
+          ? JSON.parse(JSON.stringify(previous.options)) : freshGlOptions();
+        removeCoreMappedRdeFields();
+      } else {
+        mapping.changeMode = previous.mode || 'debitCredit';
+      }
+      reconcileDraftWithColumns(kind, columns);
+      mapping.invalidatedByImport = true;
+      mapping.reimportDraftOrigin = 'previous';
+      bump();
+    },
+
+    // 失效旗標只由 setImportResult 與 restorePreviousMapping 立起；任何明確的提交狀態設定（含 resume 的 null）都解除。
     setMappingCommitted: function (kind, result) {
       // 載入案件時，草稿與提交結果可能來自同一份 JSON；保存獨立快照，編輯不能改掉還原依據。
       state.mapping[kind].committed = result ? JSON.parse(JSON.stringify(result)) : null;
-      state.mapping[kind].formatVersion = result ? (result.formatVersion || null) : null;
       state.mapping[kind].invalidatedByImport = false;
-      refreshMappingReviewRequired();
-      invalidateDerivedResults(kind === 'gl'
-        ? { validation: true, prescreen: true, filter: true }
-        : { validation: true });
+      state.mapping[kind].reimportDraftOrigin = null;
+      state.mapping[kind].droppedFields = [];
       bumpData(); // 配對提交（或載入還原）：target 標準化預覽（glEntries／tbBalances）內容已變
     },
 

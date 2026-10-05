@@ -62,6 +62,6 @@ public sealed class FilterWorkspaceFrontendTests
         Assert.DoesNotContain("data-select-group", groupEditor, StringComparison.Ordinal);
         Assert.Contains("data-condition-target>", source, StringComparison.Ordinal);
         Assert.DoesNotContain("目前加入目標", source, StringComparison.Ordinal);
-        Assert.Contains("rule.type === 'prescreen' ? '預篩選訊號'", source, StringComparison.Ordinal);
+        Assert.Contains("rule.type === 'prescreen' ? '預篩選條件'", source, StringComparison.Ordinal);
     }
 }

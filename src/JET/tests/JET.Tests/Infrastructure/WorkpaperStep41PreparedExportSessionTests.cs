@@ -259,8 +259,15 @@ public sealed class WorkpaperStep41PreparedExportSessionTests
         Assert.False(new SqliteConnectionStringBuilder(connectionString).Pooling);
     }
 
+    /// <remarks>
+    /// 2026-10-02 資料庫分流簡化：分流層連同它的 typed seam 轉接與 ProviderResolutions 指標一起刪除，
+    /// handler 直接拿到該種資料庫組裡的 repository。這個測試原本經分流層準備 step4-1 session，
+    /// 改成直接用 DuckDB 的 repository 準備，並拿掉「解析 provider 恰好一次」的指標斷言（指標隨分流層一起刪除）；
+    /// 其餘連線、讀取、清理與交易斷言保留不變。第一次失敗收據（測試引用已刪除的分流類別而無法建置）：
+    /// 20261002-120244042-2aa5edaa431d4f3e89e068361d5482f5。
+    /// </remarks>
     [Fact]
-    public async Task ProviderRouting_PrepareResolvesProviderExactlyOnce()
+    public async Task PreparedSession_DirectRepository_UsesOneConnectionAndOneReader()
     {
         using var root = new TempProjectRoot();
         var database = new DuckDbProjectDatabase(new JetProjectFolder(root.Path));
@@ -268,13 +275,7 @@ public sealed class WorkpaperStep41PreparedExportSessionTests
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         await SeedAsync(database, projectId);
         var repository = new LocalTagMatrixRowPageRepository(database);
-        var router = new ProviderRoutingTagMatrixRowPageRepository(
-            new ProjectProviderResolver(
-                new StubProjectStore(Project(projectId, "duckdb"))),
-            repository,
-            repository,
-            repository);
-        var factory = (IWorkpaperStep41PreparedSessionFactory)router;
+        var factory = (IWorkpaperStep41PreparedSessionFactory)repository;
         var session = await factory.PrepareAsync(
             projectId,
             new GlPopulationContext(
@@ -292,7 +293,6 @@ public sealed class WorkpaperStep41PreparedExportSessionTests
             }
         }
 
-        Assert.Equal(1, session.Metrics.ProviderResolutions);
         Assert.Equal("duckdb", session.Metrics.Provider);
         Assert.Equal(1, session.Metrics.Connections);
         Assert.Equal(1, session.Metrics.OrderedReaderCommands);
@@ -452,41 +452,5 @@ public sealed class WorkpaperStep41PreparedExportSessionTests
         Assert.Equal(
             0,
             Convert.ToInt32(await command.ExecuteScalarAsync()));
-    }
-
-    private static ProjectDocument Project(string projectId, string provider) => new(
-        projectId,
-        "STEP41",
-        "Step4-1 prepared route",
-        "operator",
-        "2025-01-01",
-        "2025-12-31",
-        null,
-        10_000,
-        "AwayFromZero",
-        DateTimeOffset.UnixEpoch,
-        0,
-        ProjectDocument.CurrentSchemaVersion,
-        provider);
-
-    private sealed class StubProjectStore(ProjectDocument document) : IProjectStore
-    {
-        public Task CreateAsync(ProjectDocument doc, CancellationToken ct) =>
-            Task.CompletedTask;
-
-        public Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken ct) =>
-            Task.FromResult<IReadOnlyList<ProjectDocument>>([document]);
-
-        public Task<ProjectDocument?> FindAsync(string projectId, CancellationToken ct) =>
-            Task.FromResult<ProjectDocument?>(
-                string.Equals(projectId, document.ProjectId, StringComparison.Ordinal)
-                    ? document
-                    : null);
-
-        public Task SaveAsync(ProjectDocument doc, CancellationToken ct) =>
-            Task.CompletedTask;
-
-        public Task DeleteAsync(string projectId, CancellationToken ct) =>
-            Task.CompletedTask;
     }
 }

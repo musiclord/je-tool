@@ -4,6 +4,8 @@ using JET.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 第 9 批中低 9：TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
 namespace JET.Tests.Infrastructure;
 
 public sealed class SqliteRepositoryTests
@@ -119,7 +121,7 @@ public sealed class SqliteRepositoryTests
     }
 
     [Fact]
-    public async Task MappingStateStore_ReadsLegacyV1RowAsNormalizedOptionsWithoutChangingStoredVersion()
+    public async Task MappingStateStore_LegacyV1Row_IsRejectedAsOldProject()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -143,19 +145,17 @@ public sealed class SqliteRepositoryTests
             await command.ExecuteNonQueryAsync();
         }
 
-        var stored = await new LocalMappingStateStore(db).FindAsync(
+        // 舊版 JET 保存的第 1 版配對不再沿用舊語意讀取，而是明確告訴使用者重新建立案件。
+        var exception = await Assert.ThrowsAsync<JetActionException>(() => new LocalMappingStateStore(db).FindAsync(
             projectId,
             DatasetKind.Gl,
-            CancellationToken.None);
+            CancellationToken.None));
 
-        Assert.NotNull(stored);
-        Assert.Equal(MappingMetadataFormat.LegacyVersion, stored.FormatVersion);
-        Assert.NotNull(stored.GlOptions);
-        Assert.Equal(ApprovalDateModeNames.Mapped, stored.GlOptions.ApprovalDateMode);
-        Assert.Null(stored.GlOptions.PostingStatusPolicy);
-        Assert.Equal(["1"], stored.GlOptions.ManualAutoPolicy.ManualValues);
-        Assert.Equal(["0"], stored.GlOptions.ManualAutoPolicy.AutomaticValues);
-        Assert.Empty(stored.GlOptions.RdeFields);
+        Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
+        // 2026-10-03 用語統一 W10：審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        Assert.Equal(
+            "這個案件的欄位配對是舊版 JET 儲存的格式，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。",
+            exception.Message);
     }
 
     [Fact]
@@ -171,16 +171,18 @@ public sealed class SqliteRepositoryTests
 
         // 批次 A（gl，3 列）+ commit mapping + 模擬 target 資料
         var batchA = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
-            ToAsync([Row(2, "D1", "100", null), Row(3, "D1", null, "100"), Row(4, "D2", "5", null)]),
+            ToAsync([Row(2, "D1", "100", null), Row(3, "D1", null, "100"), Row(4, "D2", "5", null)]))],
             CancellationToken.None)).Batch;
 
         Assert.Equal(3, batchA.RowCount);
 
         var glRepo = new LocalGlRepository(db);
         var projection = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batchA.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batchA.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
         Assert.Empty(projection.Errors);
 
         await mappingStore.SaveAsync(
@@ -199,9 +201,9 @@ public sealed class SqliteRepositoryTests
 
         // 批次 B（gl，2 列）→ A 的 staging/batch/target/mapping 應全部清除
         var batchB = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("b.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("b.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
-            ToAsync([Row(2, "D9", "1", null), Row(3, "D9", null, "1")]),
+            ToAsync([Row(2, "D9", "1", null), Row(3, "D9", null, "1")]))],
             CancellationToken.None)).Batch;
 
         Assert.Equal(2, batchB.RowCount);
@@ -229,18 +231,20 @@ public sealed class SqliteRepositoryTests
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
             ToAsync([
                 Row(2, "D1", "100.50", null),
                 Row(3, "D1", null, "100.50"),
                 Row(4, "D2", "0", null)
-            ]),
+            ]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
         var result = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Empty(result.Errors);
         Assert.Equal(3, result.ProjectedRowCount);
@@ -264,7 +268,7 @@ public sealed class SqliteRepositoryTests
 
         // 交錯送入:批次排序鍵(source_row_number)依送入順序 → D1 在第1,3,4 位、D2 在第2,5 位。
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
             ToAsync([
                 Row(2, "D1", "100", null),
@@ -272,12 +276,14 @@ public sealed class SqliteRepositoryTests
                 Row(4, "D1", null, "100"),
                 Row(5, "D1", "1", null),
                 Row(6, "D2", null, "5")
-            ]),
+            ]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
         var result = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Empty(result.Errors);
         // 全部列都被編號(無 null)
@@ -311,7 +317,7 @@ public sealed class SqliteRepositoryTests
 
         // 多傳票、交錯送入(無 lineID)。
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
             ToAsync([
                 Row(2, "D1", "100", null),
@@ -319,20 +325,24 @@ public sealed class SqliteRepositoryTests
                 Row(4, "D1", null, "100"),
                 Row(5, "D1", "1", null),
                 Row(6, "D2", null, "5")
-            ]),
+            ]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
 
         // 第一次投影 → 讀回編號序列
         var first = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
         Assert.Empty(first.Errors);
         var sequenceAfterFirst = await LineItemSequenceAsync(db, projectId);
 
         // 第二次投影(同批次)→ 序列應與第一次完全相同
         var second = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
         Assert.Empty(second.Errors);
         var sequenceAfterSecond = await LineItemSequenceAsync(db, projectId);
 
@@ -366,7 +376,7 @@ public sealed class SqliteRepositoryTests
 
         // 交錯:3 列無 doc(source_row_number 2,4,6)+ 傳票 D1 兩列(3,5)。
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
             ToAsync([
                 NoDocRow(2, "10"),
@@ -374,12 +384,14 @@ public sealed class SqliteRepositoryTests
                 NoDocRow(4, "20"),
                 Row(5, "D1", null, "100"),
                 NoDocRow(6, "30")
-            ]),
+            ]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
         var result = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
         Assert.Empty(result.Errors);
 
         // 前置事實:NULL-doc 列確實落地為 document_number IS NULL(schema 允許 NULL;若失敗代表 NOT NULL,需另行回報)。
@@ -433,9 +445,9 @@ public sealed class SqliteRepositoryTests
         });
 
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "ln", "debit"],
-            ToAsync([LineRow(2, "D1", "10", "100"), LineRow(3, "D1", "20", "200")]),
+            ToAsync([LineRow(2, "D1", "10", "100"), LineRow(3, "D1", "20", "200")]))],
             CancellationToken.None)).Batch;
 
         var spec = new GlMappingSpec(new Dictionary<string, string>
@@ -451,7 +463,9 @@ public sealed class SqliteRepositoryTests
 
         var glRepo = new LocalGlRepository(db);
         var result = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, spec, 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, spec, 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Empty(result.Errors);
         Assert.Equal(10, await ScalarAsync(db, projectId,
@@ -472,14 +486,16 @@ public sealed class SqliteRepositoryTests
 
         // 重現借貸欄誤配傳票總額的案例：借=貸，DualAmount 逐列淨額恆 0 → 整個母體退化。
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
-            ToAsync([Row(2, "D1", "6720", "6720"), Row(3, "D1", "6720", "6720")]),
+            ToAsync([Row(2, "D1", "6720", "6720"), Row(3, "D1", "6720", "6720")]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
         var ex = await Assert.ThrowsAsync<JetActionException>(() => glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None));
+            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.GlAmountsAllZero, ex.Code);
         // 整批 rollback:target 空(壞母體未落地)。
@@ -515,14 +531,16 @@ public sealed class SqliteRepositoryTests
         }
 
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
-            ToAsync([EmptyDescRow(2, "D1", "100", null), EmptyDescRow(3, "D1", null, "100")]),
+            ToAsync([EmptyDescRow(2, "D1", "100", null), EmptyDescRow(3, "D1", null, "100")]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
         var result = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Empty(result.Errors);                  // 投影成功（空摘要不阻斷）
         Assert.Equal(2, result.ProjectedRowCount);
@@ -544,14 +562,16 @@ public sealed class SqliteRepositoryTests
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
-            ToAsync([Row(2, "D1", "100", null), Row(3, "D1", null, "100")]),
+            ToAsync([Row(2, "D1", "100", null), Row(3, "D1", null, "100")]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
         var result = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Empty(result.Errors);
         Assert.Empty(result.Warnings);
@@ -568,18 +588,20 @@ public sealed class SqliteRepositoryTests
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
             ToAsync([
                 Row(2, "D1", "100", null),
                 Row(3, "D1", "not-a-number", null),
                 Row(4, "D2", "5", null)
-            ]),
+            ]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
         var result = await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Equal(0, result.ProjectedRowCount);
         var error = Assert.Single(result.Errors);
@@ -612,9 +634,9 @@ public sealed class SqliteRepositoryTests
         };
 
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Tb, Source("tb.xlsx"),
+            projectId, DatasetKind.Tb, [new ImportSourceInput(Source("tb.xlsx"),
             ["acc", "name", "dr", "cr"],
-            ToAsync(rows),
+            ToAsync(rows))],
             CancellationToken.None)).Batch;
 
         var spec = new TbMappingSpec(
@@ -629,7 +651,7 @@ public sealed class SqliteRepositoryTests
 
         var tbRepo = new LocalTbRepository(db);
         var result = await tbRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, spec, 10_000, CancellationToken.None);
+            projectId, batch.BatchId, spec, 10_000, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
 
         Assert.Empty(result.Errors);
         Assert.Equal(2, result.ProjectedRowCount);
@@ -657,23 +679,25 @@ public sealed class SqliteRepositoryTests
 
         // 1) 先把 GL、TB 都匯入（GUI 順序），再投影 GL → gl_control_total 落地（target_row_count=2）。
         var glBatch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("gl.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("gl.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
-            ToAsync([Row(2, "D1", "100", null), Row(3, "D1", null, "100")]),
+            ToAsync([Row(2, "D1", "100", null), Row(3, "D1", null, "100")]))],
             CancellationToken.None)).Batch;
 
         var tbBatch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Tb, Source("tb.xlsx"),
+            projectId, DatasetKind.Tb, [new ImportSourceInput(Source("tb.xlsx"),
             ["acc", "name", "dr", "cr"],
             ToAsync([new StagingRow(2, new Dictionary<string, string>
             {
                 ["acc"] = "1101", ["name"] = "現金", ["dr"] = "100", ["cr"] = "0"
-            })]),
+            })]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
         await glRepo.ProjectStagingToTargetAsync(
-            projectId, glBatch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, glBatch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Equal(1, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl_control_total"));
         Assert.Equal(2, await ScalarAsync(db, projectId,
@@ -691,7 +715,7 @@ public sealed class SqliteRepositoryTests
             TbChangeMode.DebitCredit);
         var tbRepo = new LocalTbRepository(db);
         await tbRepo.ProjectStagingToTargetAsync(
-            projectId, tbBatch.BatchId, tbSpec, 10_000, CancellationToken.None);
+            projectId, tbBatch.BatchId, tbSpec, 10_000, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
 
         // 不變量：TB 投影不得清掉 GL 的 part(a) 控制總數（收斂前此處 COUNT 會變 0 → part(a) 全 null）。
         Assert.Equal(1, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl_control_total"));
@@ -717,7 +741,7 @@ public sealed class SqliteRepositoryTests
         // 播種：U1(借300貸100→不平+200), U2(借50貸50→平), U3(借0貸30→不平-30)
         // amount_scaled：DEBIT 為正，CREDIT 為負。
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("u.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("u.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
             ToAsync([
                 Row(2, "U1", "300", null),    // U1 借 300
@@ -725,12 +749,14 @@ public sealed class SqliteRepositoryTests
                 Row(4, "U2", "50", null),     // U2 借 50
                 Row(5, "U2", null, "50"),     // U2 貸 50   → diff = 0（平）
                 Row(6, "U3", null, "30")      // U3 貸 30   → diff = -30
-            ]),
+            ]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
         await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         var repo = new LocalValidationRunRepository(db);
         var plan = JetAuditProgram.Plan(new ValidationRequest(
@@ -745,7 +771,7 @@ public sealed class SqliteRepositoryTests
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             SampleSize: 10));
 
-        var result = await repo.ExecuteAsync(plan, CancellationToken.None);
+        var result = await ValidationExecutionTestData.ExecuteForFactsAsync(repo, plan, CancellationToken.None);
 
         // 只有 U1、U3 不平；U2 不出現
         Assert.Equal(2, result.UnbalancedDocumentCount);
@@ -818,14 +844,16 @@ public sealed class SqliteRepositoryTests
         });
 
         var batch = (await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("nr.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("nr.xlsx"),
             ["doc", "date", "approval", "acc", "name", "desc", "debit", "credit"],
-            ToAsync([NullAccNoDesc(2), OutOfRange(3), Normal(4)]),
+            ToAsync([NullAccNoDesc(2), OutOfRange(3), Normal(4)]))],
             CancellationToken.None)).Batch;
 
         var glRepo = new LocalGlRepository(db);
         await glRepo.ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, spec, 10_000, DateParseOptions.Default, CancellationToken.None);
+            projectId, batch.BatchId, spec, 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         var repo = new LocalValidationRunRepository(db);
         var plan = JetAuditProgram.Plan(new ValidationRequest(
@@ -840,7 +868,7 @@ public sealed class SqliteRepositoryTests
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             SampleSize: 10));
 
-        var result = await repo.ExecuteAsync(plan, CancellationToken.None);
+        var result = await ValidationExecutionTestData.ExecuteForFactsAsync(repo, plan, CancellationToken.None);
 
         // 只有 NR1（空科目+空摘要）與 NR2（日期超出）出現；NR3 全正常不出現
         Assert.Equal(2, result.NullRecordRows.Count);
@@ -875,9 +903,9 @@ public sealed class SqliteRepositoryTests
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
         await importRepo.ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source("a.xlsx"),
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
-            ToAsync(Enumerable.Range(2, 5).Select(i => Row(i, $"D{i}", "1", null))),
+            ToAsync(Enumerable.Range(2, 5).Select(i => Row(i, $"D{i}", "1", null))))],
             CancellationToken.None);
 
         var overview = await inspector.GetOverviewAsync(projectId, CancellationToken.None);
@@ -898,7 +926,9 @@ public sealed class SqliteRepositoryTests
         // NULL cell → null（import_batch 無 NULL 欄，用 target_gl_entry 驗證）
         var glRepo = new LocalGlRepository(db);
         var batch = await importRepo.GetLatestBatchAsync(projectId, DatasetKind.Gl, CancellationToken.None);
-        await glRepo.ProjectStagingToTargetAsync(projectId, batch!.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+        await glRepo.ProjectStagingToTargetAsync(projectId, batch!.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+        postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+        CancellationToken.None);
 
         var targetPage = await inspector.GetTablePageAsync(projectId, "target_gl_entry", 1, 0, CancellationToken.None);
         var nullColIndex = targetPage!.Columns.ToList().IndexOf("source_module");

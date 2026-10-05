@@ -1,9 +1,9 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 進階篩選條件 AST（manifest「Filter / Criteria」章節）。
+/// 進階篩選條件 AST。
 /// 前端 Query Builder 只組裝 JSON；後端解析成本型別後交由
-/// Infrastructure 轉成參數化 SQL（guide §1.5.2 set-based pushdown）。
+/// Infrastructure 轉成參數化 SQL，在資料庫內以集合式查詢評估。
 /// 規則間與群組間的結合律為左折疊累積括號：((c1 OP c2) OP c3)。
 /// </summary>
 public enum FilterJoin
@@ -83,9 +83,15 @@ public static class FilterScenarioLimits
     public const int MaxTypedInValuesPerRule = 100;
 
     public const int MaxCompiledParameters = 2_000;
+
+    /// <summary>
+    /// 每個案件可保存的篩選情境上限。filter.commit 的 handler 與 AuditCore 規劃共用這個值；
+    /// 前端 ui-core.js 的 FILTER_MAX_SAVED_SCENARIOS 只是就近提示用的鏡像，由架構測試比對。
+    /// </summary>
+    public const int MaxSavedScenarios = 10;
 }
 
-/// <summary>科目配對分析的三模式（guide §6.1）。</summary>
+/// <summary>科目配對分析的三模式（見 docs/jet-guide.md 第 6 節「進階條件篩選」）。</summary>
 public static class AccountPairModes
 {
     public const string Exact = "exact";
@@ -123,8 +129,7 @@ public enum TextMatchMode
 /// Prescreen → PrescreenKey；Text → Field/Keywords/Mode；
 /// DateRange → Field/FromDate/ToDate；NumRange → Field/FromAmountScaled/ToAmountScaled；
 /// DrCrOnly → DrCr（"debit"|"credit"）；ManualAuto → IsManual；
-/// AccountPair / SpecialAccountCategoryPair → PairMode + DebitCategoryIds/CreditCategoryIds
-/// （wire 未帶陣列時回退 legacy scalar DebitCategory/CreditCategory）；
+/// AccountPair / SpecialAccountCategoryPair → PairMode + DebitCategoryIds/CreditCategoryIds；
 /// CustomKeywords → Keywords；CustomTrailingZeros → Digits；CustomPreparerEntryCount / CustomAccountEntryCount → MaxEntries。
 /// KCT 小組條件（清單 A/C/D/H/J）：RevenueDebitNearQuarterEnd → WindowDays（季末視窗天數）；
 /// TrailingDigits → Keywords（尾數樣態清單，重用同欄）；
@@ -147,8 +152,6 @@ public sealed record FilterRuleSpec(
     string? DrCr,
     bool? IsManual,
     string? PairMode = null,
-    string? DebitCategory = null,
-    string? CreditCategory = null,
     int? Digits = null,
     int? MaxEntries = null,
     int? WindowDays = null,
@@ -168,8 +171,7 @@ public sealed record FilterRuleSpec(
     public string? UnknownNormalization { get; init; }
 
     /// <summary>
-    /// 科目配對借方側的多選分類身分（`debitCategoryIds`）。空集合代表 wire 沒有帶陣列，
-    /// 此時由 <see cref="EffectiveDebitCategoryIds"/> 回退到 legacy scalar 單選。
+    /// 科目配對借方側的多選分類身分（`debitCategoryIds`）。空集合代表 wire 沒有帶陣列。
     /// </summary>
     public IReadOnlyList<string> DebitCategoryIds { get; init; } = [];
 
@@ -178,11 +180,11 @@ public sealed record FilterRuleSpec(
 
     /// <summary>驗證與編譯共用的借方側權威分類集合（已去重、排序）。</summary>
     internal IReadOnlyList<string> EffectiveDebitCategoryIds =>
-        AccountPairCategorySelection.Resolve(DebitCategoryIds, DebitCategory);
+        AccountPairCategorySelection.Canonicalize(DebitCategoryIds);
 
     /// <summary>驗證與編譯共用的貸方側權威分類集合（已去重、排序）。</summary>
     internal IReadOnlyList<string> EffectiveCreditCategoryIds =>
-        AccountPairCategorySelection.Resolve(CreditCategoryIds, CreditCategory);
+        AccountPairCategorySelection.Canonicalize(CreditCategoryIds);
 
     /// <summary>typed 條件（type:"typed"）：committed RDE 欄位身分（`rde.&lt;32 lowercase hex&gt;`）。</summary>
     public string? FieldId { get; init; }
@@ -229,33 +231,13 @@ public sealed record FilterRuleSpec(
 }
 
 /// <summary>
-/// 科目配對單側選擇的正規化（驗證、編譯與 legacy 相容的唯一收斂點）。
-/// wire 帶 `debitCategoryIds`／`creditCategoryIds` 時以陣列為權威；沒有帶陣列的
-/// legacy scalar 才投影為對應內建分類的單元素集合，無法辨識的 scalar 原樣保留，
-/// 交由 validator 以「不存在於目前專案的科目分類」fail-loud（不得靜默成空集合，
-/// 否定模式的 NOT EXISTS 會因空集合反轉成全命中）。
+/// 科目配對單側選擇的正規化（驗證與編譯的唯一收斂點）。
+/// 只認 `debitCategoryIds`／`creditCategoryIds` 陣列；沒有帶陣列時是空集合，
+/// 由 validator 依配對模式要求必填。
 /// 去重後依 ordinal 排序，因此同一組分類的任何排列都編譯出逐字相同的 SQL。
 /// </summary>
 internal static class AccountPairCategorySelection
 {
-    internal static IReadOnlyList<string> Resolve(IReadOnlyList<string> categoryIds, string? legacyScalar)
-    {
-        if (categoryIds.Count > 0)
-        {
-            return Canonicalize(categoryIds);
-        }
-
-        var scalar = legacyScalar?.Trim();
-        if (string.IsNullOrEmpty(scalar))
-        {
-            return [];
-        }
-
-        return AccountTaxonomyBuiltIns.TryResolveLegacyLabel(scalar, out var category)
-            ? [category.CategoryId]
-            : [scalar];
-    }
-
     internal static IReadOnlyList<string> Canonicalize(IReadOnlyList<string> categoryIds) =>
         categoryIds
             .Select(static value => value?.Trim() ?? string.Empty)
@@ -290,7 +272,7 @@ internal static class TextSetValueNormalizer
 }
 
 /// <summary>
-/// 篩選情境來源標記（manifest「scenario.source」）：標明此情境是查核員手寫，
+/// 篩選情境來源標記（wire 欄位 scenario.source）：標明此情境是查核員手寫，
 /// 還是來自固定方法論清單。空／null／未知值一律視為查核員手寫（原行為）。
 /// 目前唯一具名來源為 KCT 小組方法論檢核清單。
 /// </summary>
@@ -378,8 +360,10 @@ public sealed record FilterValidationContext(
     /// </summary>
     public IReadOnlyList<GlRdeFieldMetadata> RdeFields { get; init; } = [];
 
-    /// <summary>typed money operand 解析所需的專案 MoneyScale（沿 guide §1.5.3）。</summary>
+    /// <summary>typed money operand 解析所需的專案 MoneyScale。</summary>
     public int MoneyScale { get; init; } = 1;
+
+    public DateParseOptions DateParseOptions { get; init; } = DateParseOptions.Default;
 }
 
 /// <summary>
@@ -417,7 +401,7 @@ public static partial class FilterScenarioValidator
         for (var groupIndex = 0; groupIndex < scenario.Groups.Count; groupIndex++)
         {
             var group = scenario.Groups[groupIndex];
-            var groupLabel = $"條件群組 {groupIndex + 1}";
+            var groupLabel = $"第 {groupIndex + 1} 組";
 
             // 未知 join fail-loud（含左折疊時被忽略的第一個群組——亂值代表前端組裝有誤）。
             if (group.UnknownJoin is not null)
@@ -453,7 +437,7 @@ public static partial class FilterScenarioValidator
             {
                 ValidateRule(
                     group.Rules[ruleIndex],
-                    $"{groupLabel} 規則 {ruleIndex + 1}",
+                    $"{groupLabel}第 {ruleIndex + 1} 條",
                     context,
                     isKct,
                     errors);
@@ -466,7 +450,7 @@ public static partial class FilterScenarioValidator
     private static void ValidateCategorySelectionMode(FilterRuleSpec rule, string label, List<string> errors)
     {
         if (rule.CategorySelection is not (null or "role" or "node" or "subtree"))
-            errors.Add($"{label}：請選審計角色、分類本身或分類及下層。");
+            errors.Add($"{label}：請選分類用途、分類本身或分類及下層。");
     }
 
     private static void ValidateRule(
@@ -496,7 +480,7 @@ public static partial class FilterScenarioValidator
                 if (rule.Rules.Count == 0) errors.Add($"{label}：請加入至少一條子條件。");
                 if (rule.Type == FilterRuleType.Voucher)
                 {
-                    if (insideVoucher) errors.Add($"{label}：傳票內的條件請設定在同一筆分錄，勿再次加入傳票量詞。");
+                    if (insideVoucher) errors.Add($"{label}：傳票內的條件請設定在同一筆分錄，勿再次加入傳票分錄條件。");
                     if (rule.Side is not ("all" or "debit" or "credit")) errors.Add($"{label}：請選整張傳票、借方或貸方。");
                     if (rule.Quantifier is not ("any" or "all" or "none")) errors.Add($"{label}：請選至少一筆、全部符合或不存在符合。");
                 }
@@ -509,12 +493,12 @@ public static partial class FilterScenarioValidator
                 break;
             case FilterRuleType.AccountSide:
                 ValidateCategorySelectionMode(rule, label, errors);
-                if (rule.DrCr is not ("debit" or "credit"))
-                    errors.Add($"{label}：請選擇借方或貸方。");
+                if (rule.DrCr is not ("debit" or "credit" or "any"))
+                    errors.Add($"{label}：請選擇借方、貸方或不限借貸。");
                 if (rule.CategoryMode is not ("is" or "isNot" or "absent"))
                     errors.Add($"{label}：請選擇科目分類的判斷方式。");
                 if (!context.HasAnyAccountCategory)
-                    errors.Add($"{label}：借貸科目分類條件需要先在「資料驗證與測試」匯入科目配對。");
+                    errors.Add($"{label}：借貸科目分類條件需要先在「資料驗證與測試」完成科目配對。");
                 ValidateCategorySelection(rule.CategoryIds, "指定", label, context, errors);
                 break;
             case FilterRuleType.Prescreen:
@@ -594,7 +578,7 @@ public static partial class FilterScenarioValidator
             case FilterRuleType.RevenueDebitNearQuarterEnd:
                 if (!context.HasRevenueCategory)
                 {
-                    errors.Add($"{label}：季末前借記收入需要科目配對 target 含 Revenue 分類。");
+                    errors.Add($"{label}：季末前借記收入需要科目配對包含 Revenue 分類。請先在科目配對把收入科目歸到 Revenue 分類。");
                 }
 
                 if (rule.WindowDays is not (>= QuarterEndWindows.MinWindowDays
@@ -607,14 +591,14 @@ public static partial class FilterScenarioValidator
             case FilterRuleType.RevenueWithoutNormalCounterpart:
                 if (!context.HasRevenueCategory || !context.HasCounterpartCategory)
                 {
-                    errors.Add($"{label}：收入無一般對方科目需要科目配對 target 同時含 Revenue，"
-                        + "以及 Receivables、Cash、Receipt in advance 至少一類。");
+                    errors.Add($"{label}：收入無一般對方科目需要科目配對同時包含 Revenue，"
+                        + "以及 Receivables、Cash、Receipt in advance 至少一類。請先在科目配對把相關科目歸到這些分類。");
                 }
                 break;
             case FilterRuleType.ManualRevenueEntry:
                 if (!context.HasRevenueCategory)
                 {
-                    errors.Add($"{label}：收入之人工分錄需要科目配對 target 含 Revenue 分類。");
+                    errors.Add($"{label}：收入之人工分錄需要科目配對包含 Revenue 分類。請先在科目配對把收入科目歸到 Revenue 分類。");
                 }
                 RequireMappedField(
                     context.HasManualFlag,
@@ -650,8 +634,9 @@ public static partial class FilterScenarioValidator
     /// typed 條件（2026-08-14 凍結）的完整驗證：fieldId 必須是目前案件 committed 的 RDE 欄位、
     /// operator 必須屬於該欄位型別的 closed 集合、operand carrier 依 operator 種類精確匹配
     /// （single→value；between→from＋to 且 from≤to；in/notIn→values 1–100；blank 家族不得帶
-    /// 任何 carrier）、money 必填正準 amountBasis 且僅 money 允許。所有錯誤指名 fieldId，
-    /// 符合 RDE lifecycle「invalid_scenario 並指名 field」的凍結裁決。
+    /// 任何 carrier）、money 必填正準 amountBasis 且僅 money 允許。錯誤一律 invalid_scenario；
+    /// 欄位仍在配對中時以顯示名稱指名，已移除時拿不到名稱，只說明欄位已不在配對中並寫出下一步，
+    /// 不把 rde. 內部代號顯示給審計員（2026-10-03 主線裁定）。
     /// </summary>
     private static void ValidateTypedField(
         FilterRuleSpec rule,
@@ -661,7 +646,7 @@ public static partial class FilterScenarioValidator
     {
         if (string.IsNullOrEmpty(rule.FieldId))
         {
-            errors.Add($"{label}：typed 條件必須指定 fieldId。");
+            errors.Add($"{label}：這個攸關資料元素欄位條件尚未選擇欄位，請選擇欄位後再儲存。");
             return;
         }
 
@@ -669,23 +654,25 @@ public static partial class FilterScenarioValidator
             string.Equals(candidate.FieldId, rule.FieldId, StringComparison.Ordinal));
         if (field is null)
         {
-            errors.Add($"{label}：RDE 欄位「{rule.FieldId}」不存在於目前案件已提交的欄位配對。");
+            // 回第三步重新勾選會產生新的欄位身分（MappingHandlers 只沿用目前已提交的身分），這個條件仍然對不上；
+            // 所以下一步寫在第五步這個條件上重新選擇欄位，不建議回第三步勾選。
+            errors.Add($"{label}：這個條件使用的攸關資料元素欄位已不在目前案件的欄位配對中。請在這個條件重新選擇欄位，或刪除這個條件。");
             return;
         }
 
         var allowedOperators = TypedFieldOperatorSets.ForValueType(field.ValueType);
         if (rule.TypedOperator is null)
         {
-            errors.Add($"{label}：typed 條件必須指定 operator。");
+            errors.Add($"{label}：這個攸關資料元素欄位條件尚未選擇比較方式，請選擇比較方式後再儲存。");
             return;
         }
 
         if (!allowedOperators.Contains(rule.TypedOperator, StringComparer.Ordinal))
         {
             errors.Add(TypedFieldOperatorSets.All.Contains(rule.TypedOperator)
-                ? $"{label}：operator「{rule.TypedOperator}」與 RDE 欄位「{field.Label}」"
-                    + $"（{field.FieldId}）的型別 {field.ValueType} 不相容。"
-                : $"{label}：不支援的 typed operator「{rule.TypedOperator}」。");
+                ? $"{label}：比較方式「{FilterConditionLabels.TypedOperatorLabel(rule.TypedOperator)}」與攸關資料元素欄位「{field.Label}」"
+                    + "目前的型別不相容。請回第三步欄位配對確認該欄位的型別，或重新選擇比較方式。"
+                : $"{label}：這個攸關資料元素欄位條件的比較方式無法使用，請重新選擇比較方式。");
             return;
         }
 
@@ -693,13 +680,13 @@ public static partial class FilterScenarioValidator
         {
             if (!TypedAmountBasisNames.IsCanonical(rule.AmountBasis))
             {
-                errors.Add($"{label}：RDE 欄位「{field.FieldId}」的 money 條件必須明示 "
+                errors.Add($"{label}：攸關資料元素欄位「{field.Label}」的 money 條件必須明示 "
                     + "amountBasis（signed 或 absolute）。");
             }
         }
         else if (rule.AmountBasis is not null)
         {
-            errors.Add($"{label}：amountBasis 僅 money 型別的 RDE 欄位允許。");
+            errors.Add($"{label}：amountBasis 僅 money 型別的攸關資料元素欄位允許。");
         }
 
         ValidateTypedOperands(rule, field, label, context, errors);
@@ -754,23 +741,21 @@ public static partial class FilterScenarioValidator
 
             if (!hasValues)
             {
-                errors.Add($"{label}：operator「{op}」必須提供 values（1–"
-                    + $"{FilterScenarioLimits.MaxTypedInValuesPerRule} 個字串）。");
+                errors.Add($"{label}：請填入清單，至少 1 個值，最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。");
                 return;
             }
 
             var values = rule.TypedValues!;
             if (values.Count is 0 or > FilterScenarioLimits.MaxTypedInValuesPerRule)
             {
-                errors.Add($"{label}：values 必須是 1–"
-                    + $"{FilterScenarioLimits.MaxTypedInValuesPerRule} 個字串的陣列。");
+                errors.Add($"{label}：清單至少需要 1 個值，最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。");
                 return;
             }
 
             for (var index = 0; index < values.Count; index++)
             {
                 ValidateTypedOperandValue(
-                    values[index], field, $"{label}：values 第 {index + 1} 個值", context, errors);
+                    values[index], field, $"{label}：清單第 {index + 1} 個值", context, errors);
             }
 
             return;
@@ -802,21 +787,21 @@ public static partial class FilterScenarioValidator
         {
             case RdeFieldValueTypeNames.Date:
             {
-                var fromValid = TypedFieldOperandRules.TryNormalizeDate(rule.TypedFrom, out var fromIso);
-                var toValid = TypedFieldOperandRules.TryNormalizeDate(rule.TypedTo, out var toIso);
+                var fromValid = TypedFieldOperandRules.TryNormalizeDate(rule.TypedFrom, context.DateParseOptions, out var fromIso);
+                var toValid = TypedFieldOperandRules.TryNormalizeDate(rule.TypedTo, context.DateParseOptions, out var toIso);
                 if (!fromValid)
                 {
-                    errors.Add($"{label}：日期「{rule.TypedFrom}」格式須為 yyyy-MM-dd。");
+                    errors.Add($"{label}：日期「{rule.TypedFrom}」無法辨識，請依 GL 匯入接受的格式輸入，例如 yyyy-MM-dd。");
                 }
 
                 if (!toValid)
                 {
-                    errors.Add($"{label}：日期「{rule.TypedTo}」格式須為 yyyy-MM-dd。");
+                    errors.Add($"{label}：日期「{rule.TypedTo}」無法辨識，請依 GL 匯入接受的格式輸入，例如 yyyy-MM-dd。");
                 }
 
                 if (fromValid && toValid && string.CompareOrdinal(fromIso, toIso) > 0)
                 {
-                    errors.Add($"{label}：between 的 from 不得晚於 to。");
+                    errors.Add($"{label}：區間的起日不得晚於迄日，請調整日期後再儲存。");
                 }
 
                 break;
@@ -830,17 +815,17 @@ public static partial class FilterScenarioValidator
                     rule.TypedTo, context.MoneyScale, out var toScaled);
                 if (!fromValid)
                 {
-                    errors.Add($"{label}：金額「{rule.TypedFrom}」格式無效。");
+                    errors.Add($"{label}：金額「{rule.TypedFrom}」格式無效，請輸入數字。");
                 }
 
                 if (!toValid)
                 {
-                    errors.Add($"{label}：金額「{rule.TypedTo}」格式無效。");
+                    errors.Add($"{label}：金額「{rule.TypedTo}」格式無效，請輸入數字。");
                 }
 
                 if (fromValid && toValid && fromScaled > toScaled)
                 {
-                    errors.Add($"{label}：between 的 from 不得大於 to。");
+                    errors.Add($"{label}：區間的下限金額不得大於上限金額，請調整金額後再儲存。");
                 }
 
                 break;
@@ -864,21 +849,21 @@ public static partial class FilterScenarioValidator
             case RdeFieldValueTypeNames.Text:
                 if (!TypedFieldOperandRules.TryNormalizeText(raw, out _))
                 {
-                    errors.Add($"{label}：文字值 trim 後不可為空。");
+                    errors.Add($"{label}：文字值不可只有空白，請輸入要比對的內容。");
                 }
 
                 break;
             case RdeFieldValueTypeNames.Date:
-                if (!TypedFieldOperandRules.TryNormalizeDate(raw, out _))
+                if (!TypedFieldOperandRules.TryNormalizeDate(raw, context.DateParseOptions, out _))
                 {
-                    errors.Add($"{label}：日期「{raw}」格式須為 yyyy-MM-dd。");
+                    errors.Add($"{label}：日期「{raw}」無法辨識，請依 GL 匯入接受的格式輸入，例如 yyyy-MM-dd。");
                 }
 
                 break;
             case RdeFieldValueTypeNames.Money:
                 if (!TypedFieldOperandRules.TryNormalizeMoney(raw, context.MoneyScale, out _))
                 {
-                    errors.Add($"{label}：金額「{raw}」格式無效。");
+                    errors.Add($"{label}：金額「{raw}」格式無效，請輸入數字。");
                 }
 
                 break;
@@ -886,7 +871,7 @@ public static partial class FilterScenarioValidator
     }
 
     /// <summary>
-    /// 科目配對分析（guide §6.1）：需科目配對已匯入；模式決定必填分類——
+    /// 科目配對分析：需科目配對已匯入；模式決定必填分類——
     /// exact 需借貸雙方、debitAnchor 只需借方、creditAnchor 只需貸方。
     /// 每一側都是專案 taxonomy 分類身分的多選集合，legacy scalar 視為單元素集合。
     /// </summary>
@@ -894,7 +879,7 @@ public static partial class FilterScenarioValidator
     {
         if (!context.HasAnyAccountCategory)
         {
-            errors.Add($"{label}：科目配對分析需要科目配對 target 至少一筆非空白分類。");
+            errors.Add($"{label}：科目配對分析需要科目配對中至少有一個科目設定了分類。請先在科目配對設定科目分類。");
         }
 
         var needDebit = rule.PairMode is AccountPairModes.Exact or AccountPairModes.DebitAnchor;
@@ -919,7 +904,7 @@ public static partial class FilterScenarioValidator
 
     /// <summary>
     /// 單側多選分類的共同驗證：至少一個、不超過上限、每個身分都存在於目前專案 taxonomy。
-    /// 空集合必須擋在這裡——否定模式的 NOT EXISTS 遇到空集合會反轉成全命中（同非授權編製人員的空名單閘控）。
+    /// 空集合必須擋在這裡——否定模式的 NOT EXISTS 遇到空集合會反轉成全命中（同非授權編製人員的空名單檢查）。
     /// </summary>
     private static void ValidateCategorySelection(
         IReadOnlyList<string> categoryIds,
@@ -941,12 +926,10 @@ public static partial class FilterScenarioValidator
             return;
         }
 
-        foreach (var categoryId in categoryIds)
+        // 分類身分是內部代號；已刪除的分類拿不到顯示名稱，因此只說明有分類不存在並給出下一步。
+        if (categoryIds.Any(categoryId => !context.TaxonomyCategoryIds.Contains(categoryId, StringComparer.Ordinal)))
         {
-            if (!context.TaxonomyCategoryIds.Contains(categoryId, StringComparer.Ordinal))
-            {
-                errors.Add($"{label}：{sideLabel}分類「{categoryId}」不存在於目前專案的科目分類。");
-            }
+            errors.Add($"{label}：{sideLabel}分類包含目前專案沒有的科目分類，請重新選擇{sideLabel}分類，或刪除這個條件。");
         }
     }
 
@@ -959,7 +942,7 @@ public static partial class FilterScenarioValidator
     {
         if (!context.HasAnyAccountCategory)
         {
-            errors.Add($"{label}：特殊科目類別配對需要科目配對 target 至少一筆非空白分類。");
+            errors.Add($"{label}：特殊科目類別配對需要科目配對中至少有一個科目設定了分類。請先在科目配對設定科目分類。");
         }
 
         if (rule.PairMode is not (SpecialAccountCategoryPairModes.DrAndCr
@@ -989,15 +972,23 @@ public static partial class FilterScenarioValidator
 
         if (rule.PrescreenKey == PrescreenRuleKeys.PostPeriodApproval && !context.HasLastPeriodStart)
         {
-            errors.Add($"{label}：財報準備日起核准條件需要專案設定期末財報準備日（lastPeriodStart）。");
+            errors.Add($"{label}：尚未填期末財報準備日，請到「修改案件資料」填寫後再試一次。");
         }
 
-        if (rule.PrescreenKey == PrescreenRuleKeys.UnexpectedAccountPair && !context.HasAccountMapping)
+        if (rule.PrescreenKey == PrescreenRuleKeys.UnexpectedAccountPair)
         {
-            errors.Add($"{label}：未預期借貸組合條件需先匯入科目配對。");
+            if (!context.HasAccountMapping)
+                errors.Add($"{label}：未預期借貸組合條件需先完成科目配對。");
+            else
+            {
+                if (!context.HasRevenueCategory)
+                    errors.Add($"{label}：未預期借貸組合缺少收入分類，請到科目配對指定收入科目。");
+                if (!context.HasCounterpartCategory)
+                    errors.Add($"{label}：未預期借貸組合缺少對方分類，請到科目配對指定應收、現金或預收至少一種科目。");
+            }
         }
 
-        // 非授權編製人員閘控（鏡射 unexpectedAccountPair）：授權編製人員清單未匯入時，
+        // 非授權編製人員前置檢查（比照 unexpectedAccountPair）：授權編製人員清單未匯入時，
         // 空名單會讓 NOT IN 述詞反轉成全命中，故在驗證層直接擋下。
         if (rule.PrescreenKey == PrescreenRuleKeys.NonAuthorizedPreparer && !context.HasAuthorizedPreparers)
         {

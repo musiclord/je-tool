@@ -61,7 +61,7 @@ function Get-JetContext {
     try {
         $branch = Invoke-JetGitLines $RepositoryRoot @('branch', '--show-current')
         $head = Invoke-JetGitLines $RepositoryRoot @('rev-parse', '--verify', 'HEAD')
-        $paths = @('AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md', '.claude', 'docs', 'tools', 'src', '.agents')
+        $paths = @('AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md', '.claude', '.codex', 'docs', 'tools', 'src', '.agents')
         $changed = Invoke-JetGitLines $RepositoryRoot (@('--no-optional-locks', 'status', '--porcelain=v1', '--untracked-files=no', '--') + $paths)
         $untracked = Invoke-JetGitLines $RepositoryRoot (@('ls-files', '--others', '--exclude-standard', '--') + $paths)
         if ($changed.ExitCode -ne 0 -or $untracked.ExitCode -ne 0) { throw [InvalidOperationException]::new('Git status unavailable.') }
@@ -145,7 +145,7 @@ function Get-JetContext {
         evidenceWindow = 'latest receipt per command/configuration/filter/scenario, up to 8 selections from the newest 20 run directories; not a full validation history'
         evidenceMeaning = '收據只證明當次執行；相同 HEAD 也不代表目前未提交內容已驗證。'
         availableChecks = $availableChecks
-        navigation = @('docs/project-context.md', 'docs/jet-guide.md', 'docs/action-contract-manifest.md', 'docs/development-workflow.md', 'tools/README.md')
+        navigation = @('docs/project-context.md', 'docs/jet-guide.md', 'docs/action-contract-manifest.md', '.agents/harness/development-workflow.md', 'tools/README.md')
         guidance = '依本次任務界定交付範圍；計畫中的下一步表示工作順序，不是本輪停止點。查來源、修改、驗證並依結果繼續，直到本輪成果完成或有具體阻礙。'
         notices = @($notices.ToArray())
         privateData = @{ pathInspected = $false }

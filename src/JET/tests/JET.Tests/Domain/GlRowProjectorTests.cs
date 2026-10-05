@@ -47,6 +47,9 @@ public sealed class GlRowProjectorTests
                 mapping[GlMappingKeys.Amount] = "amount";
                 mapping[GlMappingKeys.DcField] = "dc";
                 mapping[GlMappingKeys.DcDebitCode] = dcDebitCode!;
+                // 2026-10-04 R9：本合成表明定 D/C 與 1/0，完整金額與借貸斷言不變。
+                // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+                mapping[GlMappingKeys.DcCreditCode] = mode == GlAmountMode.AmountWithFlag ? "0" : "C";
                 break;
             case GlAmountMode.DualAmount:
                 mapping[GlMappingKeys.DebitAmount] = "debit";
@@ -181,7 +184,8 @@ public sealed class GlRowProjectorTests
                 [GlMappingKeys.Description] = "desc",
                 [GlMappingKeys.Amount] = "amt",
                 [GlMappingKeys.DcField] = "借貸別",
-                [GlMappingKeys.DcDebitCode] = "D"
+                [GlMappingKeys.DcDebitCode] = "D",
+                [GlMappingKeys.DcCreditCode] = "C" // 同一合成案例的 creditRow 明確使用 C。
             },
             GlAmountMode.AmountWithSide);
 

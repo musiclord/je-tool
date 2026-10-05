@@ -71,9 +71,6 @@ public sealed class HostSelectFileHandlerTests
             string title, IReadOnlyList<string> extensions, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<string>>([]);
 
-        public Task<string?> PickSavePathAsync(string baseFileName, CancellationToken cancellationToken) =>
-            Task.FromResult<string?>(null);
-
         public void RequestExit() { }
 
         public Task RevealInExplorerAsync(string path, CancellationToken cancellationToken) => Task.CompletedTask;

@@ -40,13 +40,14 @@ public sealed class RevenueCounterpartRelationshipTests : IDisposable
             ('b1', 7, 'ZERO', '1', '2025-03-05', '2025-03-06', '1131', '應收帳款', '零元對方', NULL, '王一', NULL, 0, 1, 0,      0,     0,     'DEBIT'),
             ('b1', 8, 'ZERO', '2', '2025-03-05', '2025-03-06', '4101', '銷貨收入', '零元對方', NULL, '王一', NULL, 0, 1, -40000, 0,     40000, 'CREDIT');
 
+        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
         INSERT INTO target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category)
+            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
         VALUES
-            ('am1', 1, '1131', '應收帳款', 'Receivables'),
-            ('am1', 2, '1101', '現金',     'Cash'),
-            ('am1', 3, '5101', '銷貨成本', 'Others'),
-            ('am1', 4, '4101', '銷貨收入', 'Revenue');
+            ('am1', 1, '1131', '應收帳款', 'Receivables', 'builtin.receivables'),
+            ('am1', 2, '1101', '現金',     'Cash', 'builtin.cash'),
+            ('am1', 3, '5101', '銷貨成本', 'Others', 'builtin.others'),
+            ('am1', 4, '4101', '銷貨收入', 'Revenue', 'builtin.revenue');
         """;
 
     private readonly TempProjectRoot _root = new();

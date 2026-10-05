@@ -39,10 +39,8 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 new DateTimeOffset(2026, 7, 19, 0, 0, 0, TimeSpan.Zero));
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                JetAuditProgram.ExecuteAsync(
-                    plan,
-                    new ReportArtifactExecutionPort(store, requests),
-                    CancellationToken.None));
+                new ReportArtifactExecutionPort(store, requests)
+                    .ExecuteAsync(plan, CancellationToken.None));
             Assert.Empty(store.Requests);
         }
     }
@@ -86,11 +84,11 @@ public sealed class ExportPrescreenReportTypedSeamTests
             },
             JetJsonStorage.Options);
         var session = new ProjectSession();
-        session.Enter(projectId);
         var writer = new RecordingPrescreenWriter();
         using var cancellation = new CancellationTokenSource();
         var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc, cancellation.Cancel);
-        var handler = new ExportPrescreenReportHandler(
+        var handler = CreateHandler(
+            projectId,
             writer,
             new FixedRunStore(
                 new RuleRunRecord(
@@ -177,11 +175,11 @@ public sealed class ExportPrescreenReportTypedSeamTests
             },
             JetJsonStorage.Options);
         var session = new ProjectSession();
-        session.Enter(projectId);
         var writer = new RecordingPrescreenWriter();
         var factsPort = new RecordingPlanningFactsPort();
         var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc);
-        var handler = new ExportPrescreenReportHandler(
+        var handler = CreateHandler(
+            projectId,
             writer,
             new FixedRunStore(
                 new RuleRunRecord(
@@ -231,6 +229,33 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 PrescreenReportDetailKind.SuspiciousKeywords)
                 .Counts!
                 .VoucherHitCount);
+    }
+
+    // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 repository，建構式只剩案件 store、
+    // session 與事件。原本逐一傳給建構式的替身改放進資料庫組；沒傳的 typed 依賴維持 null，handler 照舊走退回路徑。
+    private static ExportPrescreenReportHandler CreateHandler(
+        string projectId,
+        IPrescreenReportWriter writer,
+        IRuleRunStore runStore,
+        IProjectStore projectStore,
+        IReportArtifactStore artifactStore,
+        ProjectSession session,
+        IJetEventPublisher eventPublisher,
+        IPrescreenReportPlanningFactsPort? prescreenReportPlanningFactsPort = null)
+    {
+        session.Enter(
+            projectId,
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                PrescreenReportWriter = writer,
+                RuleRuns = runStore,
+                ReportArtifactStore = artifactStore,
+                // 第9批高3；Public首敗100911120後補目前來源的明示空替身，維持原planned/typed/public writer斷言。
+                ResultStaleStates = EmptyReportStateTestData.StaleStates,
+                FilterScenarios = EmptyReportStateTestData.Scenarios,
+                PrescreenReportPlanningFacts = prescreenReportPlanningFactsPort!,
+            });
+        return new ExportPrescreenReportHandler(projectStore, session, eventPublisher);
     }
 
     private static ProjectDocument Project(string projectId) => new(
@@ -375,6 +400,10 @@ public sealed class ExportPrescreenReportTypedSeamTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
+
         public Task<IReadOnlyList<ProjectDocument>> ListAsync(
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -450,7 +479,9 @@ public sealed class ExportPrescreenReportTypedSeamTests
             CancellationToken cancellationToken)
         {
             Assert.Equal(expectedProjectId, projectId);
-            Assert.Equal(CancellationToken.None, cancellationToken);
+            // 發布後清單有自己的短期限；使用者的晚到取消不得傳入此刷新。
+            Assert.True(cancellationToken.CanBeCanceled);
+            Assert.False(cancellationToken.IsCancellationRequested);
             Assert.Equal(new[] { "content-written", "published" }, CatalogOrder);
             Assert.Single(_published);
             CatalogOrder.Add("catalog-read");
@@ -469,11 +500,17 @@ public sealed class ExportPrescreenReportTypedSeamTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        // 第9批高3：正式匯出會重判索引；替身套用相同predicate，不省略任何原writer、發布順序或catalog斷言。
         public Task<int> MarkStaleAsync(
             string projectId,
             Func<ReportArtifact, bool> predicate,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            Assert.Equal(expectedProjectId, projectId);
+            var changed = _published.Count(artifact => !artifact.Stale && predicate(artifact));
+            _published = _published.Select(artifact => predicate(artifact) ? artifact with { Stale = true } : artifact).ToArray();
+            return Task.FromResult(changed);
+        }
 
         public Task<IAsyncDisposable> AcquireProjectDeletionLeaseAsync(
             string projectId,

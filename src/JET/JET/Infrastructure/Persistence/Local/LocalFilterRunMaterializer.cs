@@ -6,10 +6,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// filter.commit 命中落地的本地引擎實作（plan 子專案 D1 Task 2）。
+/// filter.commit 命中落地的本地引擎實作。
 /// WHERE 組譯共用 provider 中立的 <see cref="GlFilterWhereBuilder"/>（述詞 + 注入的 <see cref="ISqlDialect"/>），
 /// 與 filter.preview 同源；本類只負責連線、交易與 INSERT…SELECT 骨架。
-/// 單交易先 DELETE 全表再逐情境插入（冪等）；識別字皆常數，scenario_position 與 where 參數綁定。
+/// 全案重算在同交易替換全部結果；所選重算只替換指定情境，且不清除全案失效旗標。
 /// </summary>
 public sealed class LocalFilterRunMaterializer(ILocalProjectDatabase database, ILogger<LocalFilterRunMaterializer>? logger = null)
     : IFilterRunMaterializer
@@ -28,15 +28,17 @@ public sealed class LocalFilterRunMaterializer(ILocalProjectDatabase database, I
         string projectId,
         IReadOnlyList<MaterializableScenario> scenarios,
         FilterRuleContext context,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool replaceAll = true)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-        await using (var clear = connection.CreateCommand())
+        if (replaceAll)
         {
+            await using var clear = connection.CreateCommand();
             clear.Transaction = transaction;
             clear.CommandText = "DELETE FROM result_filter_run;";
             await clear.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
@@ -48,6 +50,14 @@ public sealed class LocalFilterRunMaterializer(ILocalProjectDatabase database, I
 
         foreach (var saved in scenarios)
         {
+            if (!replaceAll)
+            {
+                await using var clear = connection.CreateCommand();
+                clear.Transaction = transaction;
+                clear.CommandText = "DELETE FROM result_filter_run WHERE scenario_position = @selectedPosition;";
+                clear.AddWithValue("@selectedPosition", saved.Position);
+                await clear.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
+            }
             await using var insert = connection.CreateCommand();
             insert.Transaction = transaction;
             var plan = WhereBuilder.BuildPlan(saved.Spec, context, zeroModulus);
@@ -60,11 +70,11 @@ public sealed class LocalFilterRunMaterializer(ILocalProjectDatabase database, I
             await insert.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
         }
 
-        await ResultStaleStateSql.ClearFilterWithinAsync(
-            connection,
-            transaction,
-            cancellationToken,
-            schemaPrefix: string.Empty);
+        if (replaceAll)
+        {
+            await ResultStaleStateSql.ClearFilterWithinAsync(
+                connection, transaction, cancellationToken, schemaPrefix: string.Empty);
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
         await transaction.CommitAsync(CancellationToken.None);

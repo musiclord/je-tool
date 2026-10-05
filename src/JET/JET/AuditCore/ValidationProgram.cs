@@ -21,7 +21,7 @@ internal sealed record ValidationRequest(
 
 /// <summary>
 /// Validation typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
-/// 讓 typed production path 與既有 Plan／Finalize／Explain 只有一套程序裁定。
+/// 讓 typed production path 與既有 Plan／Finalize 只有一套程序裁定。
 /// </summary>
 internal sealed record ValidationPlan(
     ValidationRequest Request,
@@ -41,7 +41,7 @@ internal sealed record ValidationAmountThreshold(
     long ValueScaled);
 
 /// <summary>
-/// S3 金額級距的 typed plan。CASE、keys、順序與開閉區間皆由 AuditCore 擁有；
+/// 流程總覽金額級距的 typed plan。CASE、keys、順序與開閉區間皆由 AuditCore 擁有；
 /// provider 只把同一片段套到各自的 target table。
 /// </summary>
 internal sealed record ValidationAmountDistributionPlan(
@@ -150,7 +150,7 @@ internal static class ValidationAmountDistributionCatalog
 }
 
 /// <summary>
-/// gl_control_total 的 eligible-source controls。Match flags 不在 Infrastructure 計算，
+/// gl_control_total 中納入核對的來源控制總數。Match flags 不在 Infrastructure 計算，
 /// 由 AuditCore Finalize 依目前 effective-target facts 裁定。
 /// </summary>
 internal sealed record ValidationControlTotalsFacts(
@@ -160,7 +160,7 @@ internal sealed record ValidationControlTotalsFacts(
 
 /// <summary>
 /// Provider transaction 執行後回到 AuditCore 的 raw facts。明細皆沿用既有有界列型別；
-/// status、N/A 與 part(a) match flags 不在 facts port 裁定。
+/// status、N/A 與控制總數是否相符都不在 facts port 決定。
 /// </summary>
 internal sealed record ValidationFacts(
     GlPopulationSummary PopulationSummary,
@@ -176,11 +176,13 @@ internal sealed record ValidationFacts(
     IReadOnlyList<UnbalancedDocument> UnbalancedDocuments,
     IReadOnlyList<NullRecordRow> NullRecordRows,
     ValidationControlTotalsFacts? ControlTotals,
-    IReadOnlyList<ValidationAmountBinCount> AmountBinCounts);
+    IReadOnlyList<ValidationAmountBinCount> AmountBinCounts,
+    DocumentDateReuseCounts? DocumentDateReuse = null,
+    IReadOnlyList<SourceQualityFindingRow>? SourceQualitySampleRows = null);
 
 /// <summary>
 /// AuditCore Finalize 的 typed validation 產物。Data 保留既有 wire／report compatibility
-/// shape；Manifest 保留程式審查與 Explain 所需的程序 verdict。
+/// shape；Manifest 保留每項程序的適用性判定、狀態與計數。
 /// </summary>
 internal sealed record ValidationResult(
     ValidationRunResult Data,
@@ -188,12 +190,13 @@ internal sealed record ValidationResult(
     ValidationAmountDistribution AmountDistribution);
 
 /// <summary>
-/// Validation 的 typed Infrastructure port。實作只執行 parameterized set-based SQL、
-/// transaction 與 raw reader mapping，不裁定 audit status。
+/// Validation 的 typed Infrastructure port。SQL facts、INF 樣本及摘要共用交易。
+/// finalize 由上層提供，只用有界facts決定status及摘要；Infrastructure不解讀Application的wire形狀。
 /// </summary>
 internal interface IValidationFactsPort
 {
-    Task<ValidationFacts> ExecuteAsync(
+    Task<RuleRunRecord> ExecuteAsync(
         ValidationPlan plan,
+        Func<ValidationFacts, RuleRunRecord> finalize,
         CancellationToken cancellationToken);
 }

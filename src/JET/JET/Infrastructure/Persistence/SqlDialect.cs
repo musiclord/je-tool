@@ -1,6 +1,23 @@
 using JET.AuditCore;
+using JET.Domain;
 
 namespace JET.Infrastructure;
+
+/// <summary>三個方言共用的 TRIM 字元清單寫法，碼位來自 <see cref="TextWhitespace.CodePoints"/>。</summary>
+internal static class SqlWhitespaceList
+{
+    /// <summary>SQLite：<c>char(9,10,...)</c> 一次接受多個碼位。</summary>
+    public static readonly string Sqlite =
+        "char(" + string.Join(",", TextWhitespace.CodePoints) + ")";
+
+    /// <summary>DuckDB：<c>chr()</c> 只接受一個碼位，用 concat 接起來。</summary>
+    public static readonly string DuckDb =
+        "concat(" + string.Join(", ", TextWhitespace.CodePoints.Select(codePoint => $"chr({codePoint})")) + ")";
+
+    /// <summary>SQL Server：<c>NCHAR()</c> 相加。</summary>
+    public static readonly string SqlServer =
+        string.Join(" + ", TextWhitespace.CodePoints.Select(codePoint => $"NCHAR({codePoint})"));
+}
 
 /// <summary>
 /// Infrastructure 的 SQL 方言合成介面。<see cref="ProviderName"/> 是診斷事件標籤而非 SQL 片段，
@@ -36,6 +53,8 @@ public sealed class SqliteDialect : IProviderSqlDialect
     public string ContainsIgnoreCase(string columnExpr, string parameterName) =>
         $"instr(UPPER(COALESCE({columnExpr}, '')), {parameterName}) > 0";
 
+    public string Trim(string expr) => $"TRIM({expr}, {SqlWhitespaceList.Sqlite})";
+
     public string IntegerQuotient(string dividendExpression, string divisorExpression) =>
         $"CAST(({dividendExpression}) / ({divisorExpression}) AS INTEGER)";
 
@@ -59,7 +78,7 @@ public sealed class SqliteDialect : IProviderSqlDialect
 }
 
 /// <summary>
-/// DuckDB 方言（spec §3/§4，第二本地引擎）。與 SQLite 差異僅一項結構性（參數記號），由
+/// DuckDB 方言（第二個本地引擎）。與 SQLite 差異僅一項結構性（參數記號），由
 /// <see cref="DuckDbCommandAdapter"/> 統一把 <c>@p{i}</c> 改寫為 <c>$p{i}</c>——方言照回 <c>@p{i}</c>、不分岔。
 /// 週末判定用 DuckDB 正式形 <c>strftime(CAST(x AS DATE), '%w')</c>（<c>%w</c> 週日=0，與 .NET／SQLite 同碼；
 /// 回傳文字，比對清單沿用 SQLite 的引號字面格式）；<c>instr</c>／<c>LIMIT</c> 探針已證與 SQLite 同形。
@@ -88,6 +107,8 @@ public sealed class DuckDbDialect : IProviderSqlDialect
     public string ContainsIgnoreCase(string columnExpr, string parameterName) =>
         $"instr(UPPER(COALESCE({columnExpr}, '')), {parameterName}) > 0";
 
+    public string Trim(string expr) => $"TRIM({expr}, {SqlWhitespaceList.DuckDb})";
+
     public string IntegerQuotient(string dividendExpression, string divisorExpression) =>
         $"(({dividendExpression}) // ({divisorExpression}))";
 
@@ -109,7 +130,7 @@ public sealed class DuckDbDialect : IProviderSqlDialect
 }
 
 /// <summary>
-/// SQL Server 方言(guide §13)。日期以 ISO NVARCHAR 字串儲存,週末判定用
+/// SQL Server 方言。日期以 ISO NVARCHAR 字串儲存,週末判定用
 /// DATEFIRST/語言無關的式子:自固定錨點(1900-01-01,週一)起的天數模 7,
 /// 週六=5、週日=6。不分大小寫包含用 CHARINDEX(參數值由呼叫端先轉大寫)。
 /// </summary>
@@ -137,6 +158,9 @@ public sealed class SqlServerDialect : IProviderSqlDialect
 
     public string ContainsIgnoreCase(string columnExpr, string parameterName) =>
         $"CHARINDEX({parameterName}, UPPER(COALESCE({columnExpr}, N''))) > 0";
+
+    // TRIM(characters FROM string) 需要相容性層級 140 以上（SQL Server 2017）；值概況查詢已用同一寫法。只經編譯，未實機驗證。
+    public string Trim(string expr) => $"TRIM({SqlWhitespaceList.SqlServer} FROM {expr})";
 
     public string IntegerQuotient(string dividendExpression, string divisorExpression) =>
         $"(({dividendExpression}) / ({divisorExpression}))";

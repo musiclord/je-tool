@@ -24,8 +24,12 @@ public sealed class UserFeedbackStepsOneToFourFrontendTests
         Assert.Contains("var displayName = p.projectId", app, StringComparison.Ordinal);
         Assert.Contains("project-row__entity", app, StringComparison.Ordinal);
         Assert.DoesNotContain("state.caseClient || state.project.projectId", app, StringComparison.Ordinal);
-        // 9/21 移除工作區重複抬頭；案件名稱仍顯示於頂部，總覽視窗保留自己的標題。
-        Assert.Equal(1, Regex.Matches(app, "state\\.project\\.projectId \\+ ' — 分錄測試'").Count);
+        // 9/21 移除工作區重複抬頭；案件名稱仍顯示於頂部，總覽視窗保留自己的標題，所以這個標題只能出現一次。
+        // 2026-10-03 O8：總覽標題不再用破折號接「分錄測試」，改成客戶名稱，沒填時用案件名稱，「分錄測試」移到小標
+        // （第一次失敗：收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89）。
+        Assert.Equal(1, Regex.Matches(app, Regex.Escape("(state.caseClient || caseName || '目前案件')")).Count);
+        Assert.DoesNotContain("' — 分錄測試'", app, StringComparison.Ordinal);
+        Assert.Contains("var eyebrow = '分錄測試流程總覽';", app, StringComparison.Ordinal);
         Assert.DoesNotContain("workpaperHeaderHtml", app, StringComparison.Ordinal);
         Assert.Contains("data.project.projectId", ReadFrontend("js", "ui-core.js"), StringComparison.Ordinal);
     }
@@ -37,7 +41,10 @@ public sealed class UserFeedbackStepsOneToFourFrontendTests
         var css = ReadFrontend("css", "app.css");
 
         Assert.Contains("panel__hint panel__hint--wide", source, StringComparison.Ordinal);
-        Assert.Contains("支援 Excel、CSV、文字檔及 Access，可合併欄位相同的資料。", source, StringComparison.Ordinal);
+        // L11 separates GL merging from TB period-file handling, while keeping every supported format.
+        // First failure: 20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022.
+        Assert.Contains("支援 Excel、CSV、文字檔及 Access。總帳明細可合併欄位相同的來源。", source, StringComparison.Ordinal);
+        Assert.Contains("試算表請提供同一查核期間的資料，不會自動把期初與期末兩份檔案配成期間變動。", source, StringComparison.Ordinal);
         Assert.DoesNotContain("完整資料直接匯入案件資料庫", source, StringComparison.Ordinal);
         Assert.DoesNotContain("解鎖「非授權編製人員」", source, StringComparison.Ordinal);
         Assert.Contains("extensions: ['.xlsx', '.xlsm', '.xls', '.csv', '.txt', '.mdb', '.accdb']", source, StringComparison.Ordinal);
@@ -72,7 +79,18 @@ public sealed class UserFeedbackStepsOneToFourFrontendTests
         Assert.Contains("data-action=\"select-all-rde\"", source, StringComparison.Ordinal);
         Assert.Contains("data-action=\"clear-all-rde\"", source, StringComparison.Ordinal);
         Assert.Contains("toggleAllRdeFields", source, StringComparison.Ordinal);
-        Assert.Contains("clearMappingCommitError", source, StringComparison.Ordinal);
+        // 第二遍第 6 批裁定：修改設定後保留上次各組錯誤與導航，改標成需要重新確認，不再整份清掉。
+        // 首次失敗收據 20261004-081808251-028419be00a44696b3d2d8e01e72927f；Node 行為測試另實際修改後再確認。
+        var markModified = ExtractFunction(source, "markMappingCommitErrorModified");
+        var errorHtml = ExtractFunction(source, "mappingCommitErrorHtml");
+        var errorTarget = ExtractFunction(source, "mappingErrorTarget");
+        Assert.Contains("error.modified = true", markModified, StringComparison.Ordinal);
+        Assert.DoesNotContain("mappingCommitErrors[kind] = null", markModified, StringComparison.Ordinal);
+        Assert.Contains("設定已修改，請重新確認", errorHtml, StringComparison.Ordinal);
+        Assert.Contains("detail.sourceColumn, detail.reasonCode", errorHtml, StringComparison.Ordinal);
+        Assert.Contains("前往設定", errorHtml, StringComparison.Ordinal);
+        Assert.Contains("reasonCode === 'manual_blank' ? 'manual-blank' : 'manual-mode'", errorTarget, StringComparison.Ordinal);
+        Assert.Contains("data-focus-mapping-field", errorTarget, StringComparison.Ordinal);
         Assert.Contains("section.addEventListener('input'", source, StringComparison.Ordinal);
     }
 
@@ -83,7 +101,7 @@ public sealed class UserFeedbackStepsOneToFourFrontendTests
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
         var summary = ExtractFunction(mapping, "committedOptionsHtml");
 
-        Assert.Contains("{ key: 'postDate', label: '總帳日期'", core, StringComparison.Ordinal);
+        Assert.Contains("{ key: 'postDate', label: '總帳入帳日'", core, StringComparison.Ordinal);
         Assert.Contains("{ key: 'voucherDate', label: '傳票日期'", core, StringComparison.Ordinal);
         Assert.Contains("{ key: 'voucherDate', label: '傳票日期', req: 'optional' }", core, StringComparison.Ordinal);
         Assert.Contains("committed.mapping.manual", summary, StringComparison.Ordinal);
@@ -94,39 +112,52 @@ public sealed class UserFeedbackStepsOneToFourFrontendTests
     {
         var source = ReadFrontend("js", "steps", "validate-step.js");
 
-        // 完整性測試有兩個檢查：匯入前後控制總數，以及逐科目 GL 對 TB。說明與狀態文字都要能對回同一件事。
+        // 完整性測試有兩個檢查：存下的分錄和確認配對時算出的數字，以及逐科目 GL 對 TB。說明與狀態文字都要能對回同一件事。
+        // 2026-10-05 V2 裁定：兩組數字都由 JET 在確認配對時與存下後計算，不比對來源檔本身，所以不再寫「匯入前後」；
+        // 最後一句是使用者原句，逐字保留。W1 裁定：借貸不平判讀句照原件用「、」。
         Assert.Contains(
-            "先核對匯入前後的筆數與借貸總額是否一致，再逐科目計算 GL 發生額與 TB 期間變動額是否相等；金額不符代表總帳母體可能缺漏。",
+            "先確認 JET 存下的分錄筆數與借貸合計，和確認欄位配對時算出的一樣。這一步不和來源檔自己的合計比對。"
+            + "再比對各科目的總帳本期借貸淨額與試算表本期變動金額。金額不符代表總帳母體可能缺漏。",
             source,
             StringComparison.Ordinal);
         Assert.Contains("function controlTotalsMismatch", source, StringComparison.Ordinal);
-        Assert.Contains("'匯入前後總數不一致'", source, StringComparison.Ordinal);
+        Assert.Contains("'存下的分錄數字不一致'", source, StringComparison.Ordinal);
         Assert.Contains(
-            "逐張傳票檢查借方與貸方金額是否相等；借貸不平代表傳票編號或金額欄位可能有誤。",
+            "依傳票號碼彙總借方與貸方金額，列出不相等的傳票。借貸不平代表傳票編號、金額欄位可能有誤。",
             source,
             StringComparison.Ordinal);
         Assert.Contains("title: '資料可靠性測試'", source, StringComparison.Ordinal);
-        Assert.Contains("所選攸關資料元素（RDE）是否可靠", source, StringComparison.Ordinal);
-        Assert.Contains("title: '總帳日期空白'", source, StringComparison.Ordinal);
-        Assert.Contains("日期在查核期間外不列在這裡", source, StringComparison.Ordinal);
+        Assert.Contains("抽出分錄樣本，供核對傳票附件，確認摘要、日期等篩選欄位是否正確。", source, StringComparison.Ordinal);
+        // U23 restores the two user sentences from HEAD; L42 restores the required explanation order, not a blocker.
+        // First failure: 20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022.
+        Assert.Contains("需先確認攸關資料元素（RDE）的可靠性後，再執行高風險篩選條件。", source, StringComparison.Ordinal);
+        Assert.Contains("title: '總帳入帳日空白'", source, StringComparison.Ordinal);
+        Assert.Contains("總帳入帳日空白的分錄，無法判斷是否在查核期間內，因此未納入本次測試", source, StringComparison.Ordinal);
 
-        // 報表沿用 legacy 名稱「INF 抽樣測試」，命名是否統一待使用者裁定；裁定前畫面要說明對照關係。
-        Assert.Contains("ValidationReport 與 INF 報表中稱為「INF 抽樣測試」", source, StringComparison.Ordinal);
+        // 9/22 使用者要求移除測試說明中的報表沿革；用途與檔名改在共用報告清單對照，實際報表內容不變。
+        Assert.DoesNotContain("ValidationReport 與 INF 報表中稱為", source, StringComparison.Ordinal);
         Assert.DoesNotContain("INF Report 只會發布", source, StringComparison.Ordinal);
-        Assert.Contains("INF 報表就是資料可靠性測試的樣本", source, StringComparison.Ordinal);
+        // 用途已由上方可靠性測試說明，不在報告區再重複同一句。
+        Assert.DoesNotContain("資料可靠性抽樣清單供核對傳票附件", source, StringComparison.Ordinal);
+        var core = ReadFrontend("js", "ui-core.js");
+        Assert.Contains("infReport: '資料可靠性抽樣清單'", core, StringComparison.Ordinal);
+        Assert.Contains("esc(artifact.fileName", core, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void CreateForm_OperatorNoticeRerendersWhenIdentityArrivesAfterFirstPaint()
+    public void CreateForm_OperatorNoticeUpdatesWithoutRebuildingTheFormWhenIdentityArrives()
     {
         var app = ReadFrontend("js", "app.js");
         var create = ReadFrontend("js", "steps", "create-step.js");
         var renderContent = ExtractFunction(app, "renderContent");
 
-        // setCurrentUser 只 notify 不 bump；renderContent 的重繪鍵必須像 renderPicker 一樣把身分併進去，
-        // 否則身分晚於首次繪製抵達時，建立案件表單會停在「目前 Windows 帳號」。
-        Assert.Contains("state.currentUser", renderContent, StringComparison.Ordinal);
-        Assert.Contains("identityKey", renderContent, StringComparison.Ordinal);
+        // C9 U48/L87：舊身分重繪鍵會清掉未儲存表單，改為只更新操作人員那一行。
+        // 舊斷言首敗：20261004-084402361-d3857beabfbf4b5689007c0ac3130c98。
+        // frontend-mapping.test.cjs 另外核對相同input節點、文字、選取範圍與焦點都保留。
+        Assert.Contains("Ui.refreshCreateIdentity(container, state)", renderContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("identityKey", renderContent, StringComparison.Ordinal);
+        Assert.Contains("data-bind=\"create-operator\"", create, StringComparison.Ordinal);
+        Assert.Contains("state.currentUser", ExtractFunction(create, "operatorNoticeHtml"), StringComparison.Ordinal);
         Assert.Contains("user.shortName : '目前 Windows 帳號'", create, StringComparison.Ordinal);
     }
 

@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 授權編製人員清單的欄位辨識（manifest import.authorizedPreparer.fromFile 細節）：
-/// 單欄姓名清單——正規化標頭以關鍵字命中優先，無法命中時退回位次 1。
+/// 授權編製人員清單的欄位辨識（import.authorizedPreparer.fromFile）：
+/// 來源欄位由呼叫端明確指定，不猜姓名欄或第一欄。
 /// </summary>
 public static class AuthorizedPreparerColumnResolver
 {
@@ -14,36 +14,16 @@ public static class AuthorizedPreparerColumnResolver
                 JetErrorCodes.ProjectionFailed, "授權編製人員清單需至少一個人員識別欄位。");
         }
 
-        if (sourceColumn is not null)
-        {
-            if (!columns.Contains(sourceColumn, StringComparer.Ordinal))
-                throw new JetActionException(JetErrorCodes.InvalidPayload,
-                    "選取的人員識別欄位已不存在，請重新選擇來源欄位。", field: "sourceColumn");
-            return sourceColumn;
-        }
-
-        return FindByKeywords(columns, ["authorized_preparer", "preparer", "編製人員", "姓名", "name"])
-            ?? columns[0];
-    }
-
-    private static string? FindByKeywords(IReadOnlyList<string> columns, string[] keywords)
-    {
-        foreach (var keyword in keywords)
-        {
-            foreach (var column in columns)
-            {
-                if (column.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                {
-                    return column;
-                }
-            }
-        }
-
-        return null;
+        if (string.IsNullOrWhiteSpace(sourceColumn))
+            throw new JetActionException(JetErrorCodes.InvalidPayload,
+                "請選擇與 GL 傳票建立人員一致的人員識別欄位，再重新匯入。", field: "sourceColumn");
+        if (!columns.Contains(sourceColumn, StringComparer.Ordinal))
+            throw new JetActionException(JetErrorCodes.InvalidPayload,
+                "選取的人員識別欄位已不存在，請重新選擇來源欄位。", field: "sourceColumn");
+        return sourceColumn;
     }
 }
-
-/// <summary>匯入結果（manifest import.authorizedPreparer.fromFile response 形狀的來源）。</summary>
+/// <summary>匯入結果（import.authorizedPreparer.fromFile response 形狀的來源）。</summary>
 public sealed record AuthorizedPreparerImportResult(
     string BatchId, int RowCount, string FileName, DateTimeOffset ImportedUtc)
 {
@@ -51,16 +31,21 @@ public sealed record AuthorizedPreparerImportResult(
     public int SourceRowCount { get; init; }
     public int BlankRowCount { get; init; }
     public int DuplicateRowCount { get; init; }
+    public long? MatchedPreparerCount { get; init; }
 }
 
 /// <summary>
 /// 授權清單的目前狀態（presence 查詢，供 project.load resume 顯示「已匯入(N 筆)」）。
-/// 授權清單是 name 集合、不入 import_batch，故只持有 RowCount（無 fileName/importedUtc）；
+/// 授權清單另保存匯入統計；舊名單缺少的統計為 null。未確認 GL 建立人員配對時比對數為 null。
 /// 名單空時為 null（RowCount 永遠 &gt; 0）。
 /// </summary>
 public sealed record AuthorizedPreparerState(long RowCount)
 {
     public string? SourceColumn { get; init; }
+    public int? SourceRowCount { get; init; }
+    public int? BlankRowCount { get; init; }
+    public int? DuplicateRowCount { get; init; }
+    public long? MatchedPreparerCount { get; init; }
 }
 
 /// <summary>
@@ -83,7 +68,7 @@ public interface IAuthorizedPreparerStore
         IAsyncEnumerable<StagingRow> rows,
         CancellationToken cancellationToken);
 
-    /// <summary>授權清單筆數（供非授權編製人員預篩選閘控）。</summary>
+    /// <summary>授權清單筆數（清單為空時，非授權編製人員預篩選不執行）。</summary>
     Task<long> CountAsync(string projectId, CancellationToken cancellationToken);
 
     /// <summary>

@@ -4,6 +4,7 @@ using Xunit;
 
 namespace JET.Tests.Bridge;
 
+[Collection(TimingSensitiveCollection.Name)]
 public sealed class RequestCancellationRegistryTests
 {
     [Fact]

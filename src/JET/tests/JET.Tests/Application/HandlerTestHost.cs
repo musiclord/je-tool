@@ -125,12 +125,6 @@ internal sealed class HandlerTestHost : IDisposable
             return Task.FromResult<IReadOnlyList<string>>([]);
         }
 
-        public Task<string?> PickSavePathAsync(string baseFileName, CancellationToken cancellationToken)
-        {
-            // 預設取消(無 GUI);需驗證存檔路徑流程的測試另以 recording stub 注入。
-            return Task.FromResult<string?>(null);
-        }
-
         public Task RevealInExplorerAsync(string path, CancellationToken cancellationToken)
         {
             // 測試環境不開檔案總管;host.openFolder 的委派驗證走 recording stub。

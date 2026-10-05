@@ -31,18 +31,37 @@ internal static partial class GuiScenarios
           function field(name) {
             var element = document.querySelector('[data-bind="create-form"] [name="' + name + '"]');
             var rect = element ? element.getBoundingClientRect() : null;
+            var x = rect ? rect.left + (rect.width / 2) : 0;
+            var y = rect ? rect.top + (rect.height / 2) : 0;
+            var hit = rect ? document.elementFromPoint(x, y) : null;
             return {
               visible: visible(element),
               value: element ? element.value : '',
-              x: rect ? rect.left + (rect.width / 2) : 0,
-              y: rect ? rect.top + (rect.height / 2) : 0
+              x: x,
+              y: y,
+              focused: !!element && document.activeElement === element,
+              disabled: !!element && element.disabled,
+              centerHitsField: !!element && hit === element,
+              centerHitTag: hit ? hit.tagName : '',
+              centerHitName: hit ? hit.getAttribute('name') || '' : ''
             };
           }
           var form = document.querySelector('[data-bind="create-form"]');
           var submit = form ? form.querySelector('[type="submit"]') : null;
           var submitRect = submit ? submit.getBoundingClientRect() : null;
+          var state = window.JetStore ? window.JetStore.getState() : null;
+          var active = document.activeElement;
           return {
             formVisible: visible(form),
+            documentFocused: document.hasFocus(),
+            activeTag: active ? active.tagName : '',
+            activeName: active ? active.getAttribute('name') || '' : '',
+            viewportWidth: window.innerWidth,
+            viewportHeight: window.innerHeight,
+            contentVersion: state ? state.contentVersion : null,
+            view: state ? state.view : null,
+            sqlServerConfigured: state ? state.sqlServerConfigured : null,
+            userResolved: !!(state && state.currentUser),
             caseName: field('caseName'),
             projectCode: field('projectCode'),
             entityName: field('entityName'),
@@ -105,6 +124,9 @@ internal static partial class GuiScenarios
           var requiredSelect = section
             ? section.querySelector('.mapping-table__row.is-required select[data-mapping-key]')
             : null;
+          var literal = section ? section.querySelector('input[data-mapping-key="dcDebitCode"]') : null;
+          var creditLiteral = section ? section.querySelector('input[data-mapping-key="dcCreditCode"]') : null;
+          var committedMapping = state.mapping.gl.committed ? state.mapping.gl.committed.mapping || {} : {};
           var exit = document.querySelector('[data-action="app-exit"]');
           var suggestPoint = point(suggest);
           var remapPoint = point(remap);
@@ -132,6 +154,12 @@ internal static partial class GuiScenarios
             selectFocused: !!requiredSelect && document.activeElement === requiredSelect,
             selectX: selectPoint.x,
             selectY: selectPoint.y,
+            literalFocused: !!literal && document.activeElement === literal,
+            literalValue: literal ? literal.value : '',
+            creditLiteralFocused: !!creditLiteral && document.activeElement === creditLiteral,
+            creditLiteralValue: creditLiteral ? creditLiteral.value : '',
+            committedDebitCode: committedMapping.dcDebitCode || '',
+            committedCreditCode: committedMapping.dcCreditCode || '',
             exitVisible: visible(exit),
             exitX: exitPoint.x,
             exitY: exitPoint.y
@@ -243,7 +271,7 @@ internal static partial class GuiScenarios
         return scenario.Name switch
         {
             GuiScenarioCatalog.StartupSmoke => ExecuteStartupSmokeAsync(
-                cdp, initialUi, outcome, cancellationToken),
+                cdp, process, outcome, cancellationToken),
             GuiScenarioCatalog.SyntheticSqliteCreate => ExecuteSyntheticSqliteCreateAsync(
                 cdp, ownedRun, process, initialUi, outcome, cancellationToken),
             GuiScenarioCatalog.MappingRequiredSync => ExecuteMappingRequiredSyncAsync(
@@ -277,6 +305,8 @@ internal static partial class GuiScenarios
           var section = document.querySelector('[data-bind="mapping-gl"]');
           return {
             mode: mapping.options.approvalDateMode,
+            approvalSourceVisible: visible(section ? section.querySelector('[data-approval-source]') : null),
+            approvalFieldPresent: !!section && !!section.querySelector('[data-mapping-field="docDate"]'),
             source: mapping.draft.docDate || '',
             manualSource: mapping.draft.manual || '',
             manualPolicy: JSON.stringify(mapping.options.manualAutoPolicy || {}),
@@ -297,7 +327,7 @@ internal static partial class GuiScenarios
             draftRestored: !!mapping.committed && JSON.stringify(mapping.draft) === JSON.stringify(mapping.committed.mapping),
             amountRestored: !!mapping.committed && mapping.amountMode === mapping.committed.mode,
             dirtyWarningVisible: !!section && Array.prototype.some.call(section.querySelectorAll('.mapping-section__warn'), function (notice) {
-              return visible(notice) && notice.textContent.indexOf('修改尚未生效') >= 0;
+              return visible(notice) && notice.textContent.indexOf('配對已修改，請按「重新確認配對」儲存。') >= 0;
             }),
             manualDetachedNoteVisible: !!section && section.textContent.indexOf('尚未指派「人工/自動分錄」來源欄') >= 0,
             remapVisible: visible(section ? section.querySelector('[data-action="remap-gl"]') : null)
@@ -373,8 +403,10 @@ internal static partial class GuiScenarios
                 ReadString(probe, "optionsSnapshot"), ReadString(probe, "amountMode"));
             using var mapping = JsonDocument.Parse(original.Draft);
             using var options = JsonDocument.Parse(original.Options);
+            // 第8批DemoDataFactory已把來源欄名改為「傳票核准日」；只同步合成來源名，完整快照比較不變。
+            // 正式Gui首次失敗：20261004-111741426-5fa862bc36134c549ff230bfdcd99efb。
             if (mapping.RootElement.GetProperty("docNum").GetString() != "傳票號碼"
-                || mapping.RootElement.GetProperty("docDate").GetString() != "核准日期"
+                || mapping.RootElement.GetProperty("docDate").GetString() != "傳票核准日"
                 || options.RootElement.GetProperty("approvalDateMode").GetString() != "mapped"
                 || original.AmountMode != "flag" || !original.MatchesCommitted(probe))
             {
@@ -395,7 +427,9 @@ internal static partial class GuiScenarios
     private static Task<JsonElement> ExpectApprovalAsync(CdpSession cdp, Process process,
         string mode, string source, CancellationToken cancellationToken) =>
         WaitForMappingPolicyAsync(cdp, process,
-            probe => ReadString(probe, "mode") == mode && ReadString(probe, "source") == source,
+            probe => ReadString(probe, "mode") == mode && ReadString(probe, "source") == source
+                && ReadBoolean(probe, "approvalSourceVisible") == (mode == "mapped")
+                && ReadBoolean(probe, "approvalFieldPresent"),
             cancellationToken);
 
     private static async Task ExecuteApprovalMappingModesAsync(CdpSession cdp, OwnedGuiRun ownedRun,
@@ -444,7 +478,7 @@ internal static partial class GuiScenarios
         await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"postingStatus\"]", "傳票項次", outcome, cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"includeBlank\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process, probe => ReadBoolean(probe, "postingIncludesBlank"), cancellationToken).ConfigureAwait(false);
-        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"postingStatus\"]", "核准日期", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"postingStatus\"]", "傳票核准日", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process, probe => ReadBoolean(probe, "postingPolicyCleared") && original.MatchesCommitted(probe), cancellationToken).ConfigureAwait(false);
         await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"postingStatus\"]", string.Empty, outcome, cancellationToken).ConfigureAwait(false);
         outcome.Assertions.PostingStatusPolicyResetAfterSourceChange = true;
@@ -453,31 +487,34 @@ internal static partial class GuiScenarios
         outcome.RecordStage("classic-approval-modes");
         await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"unmapped\"]", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
-        await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "核准日期", outcome, cancellationToken).ConfigureAwait(false);
-        await ExpectApprovalAsync(cdp, process, "mapped", "核准日期", cancellationToken).ConfigureAwait(false);
+        // 9/23：來源欄只在 mapped 模式出現，先用真實 radio 操作切換，不能存取隱藏控制項。
+        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"mapped\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "傳票核准日", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"sameAsPostDate\"]", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "sameAsPostDate", "", cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process, probe => ReadBoolean(probe, "dirtyWarningVisible"),
             cancellationToken, outcome).ConfigureAwait(false);
-        await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "核准日期", outcome, cancellationToken).ConfigureAwait(false);
-        await ExpectApprovalAsync(cdp, process, "mapped", "核准日期", cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"mapped\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "傳票核准日", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
         await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
         outcome.Assertions.ClassicApprovalModesCoherent = true;
 
         outcome.RecordStage("grid-approval-modes");
         await ClickControlAsync(cdp, process, GlSection + "[data-ui-mode=\"grid\"]", outcome, cancellationToken).ConfigureAwait(false);
-        var gridSource = GlSection + "[data-map-col=\"核准日期\"]";
+        var gridSource = GlSection + "[data-map-col=\"傳票核准日\"]";
         await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
-        await ExpectApprovalAsync(cdp, process, "mapped", "核准日期", cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"unmapped\"]", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
         await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
-        await ExpectApprovalAsync(cdp, process, "mapped", "核准日期", cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"sameAsPostDate\"]", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "sameAsPostDate", "", cancellationToken).ConfigureAwait(false);
         await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
-        await ExpectApprovalAsync(cdp, process, "mapped", "核准日期", cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
         outcome.Assertions.GridApprovalModesCoherent = true;
 
         outcome.RecordStage("required-field-jump");
@@ -498,6 +535,9 @@ internal static partial class GuiScenarios
         await ClickControlAsync(cdp, process, GlSection + "[data-action=\"select-all-rde\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process,
             probe => ReadInt32(probe, "rdeCount") > 0 && ReadInt32(probe, "rdeCount") == ReadInt32(probe, "rdeAvailableCount"), cancellationToken).ConfigureAwait(false);
+        // C7: a full rerender must not leave focus on body after Select All becomes disabled.
+        var rdeFocus = await cdp.EvaluateAsync("!!document.activeElement?.closest('.map-options__group') && document.activeElement!==document.body && !document.activeElement.disabled", cancellationToken).ConfigureAwait(false);
+        if (!rdeFocus.GetBoolean()) throw new GuiCheckException("rde_select_all_focus_lost");
         await ClickControlAsync(cdp, process, GlSection + "[data-action=\"clear-all-rde\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process, probe => ReadInt32(probe, "rdeCount") == 0 && original.MatchesCommitted(probe), cancellationToken).ConfigureAwait(false);
         outcome.Assertions.RdeSelectAllAndClearVerified = true;
@@ -534,6 +574,8 @@ internal static partial class GuiScenarios
         outcome.Assertions.AutomaticValidationReportsCreated = true;
         outcome.Assertions.AutomaticMappingTemplateCreated = true;
         var firstRun = ReadString(first, "runId");
+        // The template status is shown on the Excel tab; the account mapping card opens on the JET tab.
+        await ClickControlAsync(cdp, process, "[data-action=\"toggle-account-excel\"]", outcome, cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, "[data-action=\"run-validate\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForProbeAsync(cdp, process, ValidationOutputProbeScript, value => value,
             probe => ReadString(probe, "runId") != firstRun && ReadBoolean(probe, "reportsReady")
@@ -549,11 +591,22 @@ internal static partial class GuiScenarios
 
     private static async Task ExecuteStartupSmokeAsync(
         CdpSession cdp,
-        GuiRunner.UiProbe initialUi,
+        Process process,
         GuiRunOutcome outcome,
         CancellationToken cancellationToken)
     {
-        await ClickAsync(cdp, initialUi.ExitX, initialUi.ExitY, outcome, cancellationToken)
+        // 啟動時「載入專案清單」還在進行，「結束 JET」依設計只提示作業進行中、不結束（ui-core.js 的 exitApp）。
+        // 原本直接用初始探測的座標點擊，清單載入較慢時點擊被擋下，程式不退出，情境逾時
+        // （20261002-122109009-b118247d76634624815f06a34a7d5446、20261002-135010950-9ddf7be574464a1c94b92a40e1de14fe）。
+        // 改成先等作業結束、再依按鈕目前的位置點擊；仍要求按下後程式自行退出。
+        await WaitForProbeAsync(cdp, process,
+            "({idle:!window.JetStore.getState().busy,busyLabel:window.JetStore.getState().busyLabel})",
+            value => value,
+            value => ReadBoolean(value, "idle"),
+            "application_exited_before_exit",
+            cancellationToken,
+            value => outcome.LastFilterProbe = value.Clone()).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, "[data-action=\"app-exit\"]", outcome, cancellationToken)
             .ConfigureAwait(false);
         outcome.Assertions.ExitRequested = true;
     }
@@ -578,7 +631,7 @@ internal static partial class GuiScenarios
             outcome,
             cancellationToken).ConfigureAwait(false);
 
-        var form = await WaitForCreateFormAsync(cdp, process, cancellationToken).ConfigureAwait(false);
+        var form = await WaitForCreateFormAsync(cdp, process, outcome, cancellationToken).ConfigureAwait(false);
         outcome.Assertions.CreateFormVisible = true;
 
         form = await FillTextFieldAsync(
@@ -681,6 +734,69 @@ internal static partial class GuiScenarios
         {
             throw new GuiCheckException("mapping_focus_key_missing");
         }
+
+        // 2026-10-02 主線實測 W3：借方代碼改值後不先離開輸入框，直接用滑鼠點一次「重新確認配對」，
+        // 後端就要完成配對。舊版在失焦時重建整步，按鈕在按下與放開之間被換掉，第一次點擊沒有送出。
+        // 已確認配對只在 mapping.commit.gl 成功後寫入，所以用它的借方代碼判定後端已收到這次確認。
+        outcome.RecordStage("mapping-literal-direct-commit");
+        // 第9批要求借、貸兩碼明確且不同；舊測把借方1改0會和貸方0重複，應被拒絕。
+        // 首次失敗：20261004-111252505-f9d81c2da7b7433884b572c1facb9c63。
+        // 先用四個真鍵鼠動作把貸方0改1，再沿原借方1改0的一擊提交測試；不放寬期限或預算。
+        await ClickControlAsync(cdp, process, GlSection + "input[data-mapping-key=\"dcCreditCode\"]", outcome, cancellationToken)
+            .ConfigureAwait(false);
+        await PressKeyAsync(cdp, "End", outcome, cancellationToken).ConfigureAwait(false);
+        await PressKeyAsync(cdp, "Backspace", outcome, cancellationToken).ConfigureAwait(false);
+        outcome.RecordAction();
+        await cdp.TypeTextAsync("1", cancellationToken).ConfigureAwait(false);
+        _ = await WaitForMappingStepAsync(
+            cdp,
+            process,
+            probe => ReadBoolean(probe, "creditLiteralFocused") && ReadString(probe, "creditLiteralValue") == "1"
+                && ReadString(probe, "committedDebitCode") == "1" && ReadString(probe, "committedCreditCode") == "0",
+            cancellationToken, outcome).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "input[data-mapping-key=\"dcDebitCode\"]", outcome, cancellationToken)
+            .ConfigureAwait(false);
+        await PressKeyAsync(cdp, "End", outcome, cancellationToken).ConfigureAwait(false);
+        await PressKeyAsync(cdp, "Backspace", outcome, cancellationToken).ConfigureAwait(false);
+        outcome.RecordAction();
+        await cdp.TypeTextAsync("0", cancellationToken).ConfigureAwait(false);
+        _ = await WaitForMappingStepAsync(
+            cdp,
+            process,
+            probe => ReadBoolean(probe, "literalFocused") && ReadString(probe, "literalValue") == "0"
+                && ReadString(probe, "creditLiteralValue") == "1"
+                && ReadString(probe, "committedDebitCode") == "1" && ReadString(probe, "committedCreditCode") == "0"
+                && !ReadBoolean(probe, "commitDisabled"),
+            cancellationToken, outcome).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"commit-gl\"]", outcome, cancellationToken)
+            .ConfigureAwait(false);
+        // 只點一次；有限時間內沒有完成確認就判定第一次點擊遺失，不補點第二次。期限在判定函式內檢查，
+        // 不取消 CDP 連線上的讀取，避免中途取消把連線一起中止。
+        var firstClickDeadline = Stopwatch.StartNew();
+        _ = await WaitForMappingStepAsync(
+            cdp,
+            process,
+            probe =>
+            {
+                if (ReadString(probe, "committedDebitCode") == "0" && ReadString(probe, "committedCreditCode") == "1"
+                    && ReadBoolean(probe, "remapVisible")) { return true; }
+                if (firstClickDeadline.Elapsed > TimeSpan.FromSeconds(20))
+                {
+                    throw new GuiCheckException("mapping_literal_first_click_lost");
+                }
+                return false;
+            },
+            cancellationToken, outcome).ConfigureAwait(false);
+        outcome.Assertions.LiteralCommitFirstClick = true;
+
+        await ClickControlAsync(cdp, process, GlSection + "[data-action=\"remap-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
+        _ = await WaitForMappingStepAsync(
+            cdp,
+            process,
+            probe => ReadInt32(probe, "missingCount") == 0
+                && !string.IsNullOrWhiteSpace(ReadString(probe, "selectValue"))
+                && ReadBoolean(probe, "commitDisabled") == baselineCommitDisabled,
+            cancellationToken, outcome).ConfigureAwait(false);
 
         const string requiredSelect = GlSection + ".mapping-table__row.is-required select[data-mapping-key]";
         // 人工驗收第 1 項：十次清空和補回，每次核對缺漏、按鈕與焦點。
@@ -883,7 +999,7 @@ internal static partial class GuiScenarios
         await ClickAsync(cdp, target.X, target.Y, outcome, cancellationToken).ConfigureAwait(false);
         outcome.RecordAction();
         await cdp.TypeTextAsync(expected, cancellationToken).ConfigureAwait(false);
-        return await WaitForFieldValueAsync(cdp, process, field, expected, cancellationToken)
+        return await WaitForFieldValueAsync(cdp, process, form, field, expected, outcome, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -901,7 +1017,7 @@ internal static partial class GuiScenarios
         await ClickAsync(cdp, target.X, target.Y, outcome, cancellationToken).ConfigureAwait(false);
         outcome.RecordAction();
         await cdp.TypeDateAsync(expected, cancellationToken).ConfigureAwait(false);
-        return await WaitForFieldValueAsync(cdp, process, field, expected, cancellationToken)
+        return await WaitForFieldValueAsync(cdp, process, form, field, expected, outcome, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -937,11 +1053,24 @@ internal static partial class GuiScenarios
               if (hit && (hit === element || element.contains(hit))) {
                 return { exists: true, ready: !element.disabled, disabled:element.disabled, selector:SELECTOR, x: x, y: y };
               }
+              // A pinned table action column can cover the centre of an otherwise visible
+              // sort button. Click only a point actually hit-testing to that same control.
+              var sortableHeader = element.matches('button.th-sort,th[data-sort-key]');
+              for (var candidateX of (sortableHeader ? [rect.left + Math.min(8, rect.width / 2), rect.right - Math.min(8, rect.width / 2)] : [])) {
+                var edgeHit = candidateX > 0 && candidateX < innerWidth && y > 0 && y < innerHeight
+                  ? document.elementFromPoint(candidateX, y) : null;
+                if (edgeHit && (edgeHit === element || element.contains(edgeHit))) {
+                  return { exists: true, ready: !element.disabled, disabled:element.disabled, selector:SELECTOR, x:candidateX, y:y };
+                }
+              }
+              var coveringCell = hit?.closest('th,td');
+              var stickyOcclusion = sortableHeader && coveringCell && getComputedStyle(coveringCell).position === 'sticky'
+                && coveringCell.closest('table') === element.closest('table');
               for (var parent = element.parentElement; parent; parent = parent.parentElement) {
                 var box = parent.getBoundingClientRect();
                 var style = getComputedStyle(parent);
                 var horizontal = /auto|scroll/.test(style.overflowX) && parent.scrollWidth > parent.clientWidth
-                  && (x < box.left + 8 || x > box.right - 8);
+                  && (x < box.left + 8 || x > box.right - 8 || (stickyOcclusion && parent.contains(coveringCell)));
                 var vertical = /auto|scroll/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight
                   && (y < box.top + 8 || y > box.bottom - 8);
                 if ((horizontal || vertical) && box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < innerHeight) {
@@ -975,10 +1104,13 @@ internal static partial class GuiScenarios
                     deltaY: vertical ? Math.max(-4000, Math.min(4000, y - anchorY)) : 0 };
                 }
               }
-              return { exists: true, ready: false, selector:SELECTOR, disabled:element.disabled, target:[rect.x,rect.y,rect.width,rect.height], hit:hit?.className };
+              return { exists: true, ready: false, selector:SELECTOR, disabled:element.disabled, target:[rect.x,rect.y,rect.width,rect.height], hit:hit?.className,
+                hitTag:hit?.tagName, hitMarkup:hit?.outerHTML.slice(0,240), stickyOcclusion:!!stickyOcclusion,
+                busy:window.JetStore?.getState().busy, busyLabel:window.JetStore?.getState().busyLabel };
             })()
             """.Replace("SELECTOR", JsonSerializer.Serialize(selector), StringComparison.Ordinal));
         var scrollCount = 0;
+        var obscuredPolls = 0;
         var previousX = double.NaN;
         var previousY = double.NaN;
         while (true)
@@ -987,6 +1119,11 @@ internal static partial class GuiScenarios
             ThrowIfExited(process, "application_exited_before_control");
             var probe = await cdp.EvaluateAsync(script, cancellationToken).ConfigureAwait(false);
             observed?.Invoke(probe);
+            if (probe.TryGetProperty("hitMarkup", out _) && !ReadBoolean(probe, "busy"))
+            {
+                if (++obscuredPolls >= 50) throw new GuiCheckException("control_occluded");
+            }
+            else { obscuredPolls = 0; }
             if (ReadBoolean(probe, "ready") && HasPoint(probe, "x", "y"))
             {
                 var x = ReadDouble(probe, "x");
@@ -1111,8 +1248,17 @@ internal static partial class GuiScenarios
 
                 try
                 {
-                    foreach (var line in await File.ReadAllLinesAsync(path, cancellationToken)
-                        .ConfigureAwait(false))
+                    // Share write access: JET appends to this trace while the driver polls, and an
+                    // exclusive read makes the fixture's append fail and lose the event.
+                    string text;
+                    await using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                        FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous))
+                    using (var reader = new StreamReader(stream))
+                    {
+                        text = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+                    }
+
+                    foreach (var line in text.Split('\n'))
                     {
                         if (string.IsNullOrWhiteSpace(line))
                         {
@@ -1263,15 +1409,25 @@ internal static partial class GuiScenarios
     }
 
     private static Task<CreateFormProbe> WaitForCreateFormAsync(
-        CdpSession cdp, Process process, CancellationToken cancellationToken) =>
+        CdpSession cdp, Process process, GuiRunOutcome outcome, CancellationToken cancellationToken) =>
         WaitForProbeAsync(cdp, process, CreateFormProbeScript, ReadCreateFormProbe, probe => probe.IsReady,
-            "application_exited_before_create_form", cancellationToken);
+            "application_exited_before_create_form", cancellationToken,
+            probe => outcome.LastCreateProbe = new { phase = "form-ready", current = probe.Diagnostics });
 
     private static Task<CreateFormProbe> WaitForFieldValueAsync(
-        CdpSession cdp, Process process, CreateField field, string expected, CancellationToken cancellationToken) =>
+        CdpSession cdp, Process process, CreateFormProbe beforeInput, CreateField field, string expected,
+        GuiRunOutcome outcome, CancellationToken cancellationToken) =>
         WaitForProbeAsync(cdp, process, CreateFormProbeScript, ReadCreateFormProbe,
             probe => probe.IsReady && probe.Get(field).Value == expected,
-            "application_exited_during_create_form", cancellationToken);
+            "application_exited_during_create_form", cancellationToken,
+            // GUI failure 112031834-83ece06749ab4a74aece1989cd8d4246: retain only synthetic
+            // create fields and bounded UI state. Observe the existing polls without new actions,
+            // retries, delays or relaxed acceptance, so late rerenders and missed clicks differ.
+            probe => outcome.LastCreateProbe = new
+            {
+                phase = "field-value", field = field.ToString(), expected,
+                beforeInput = beforeInput.Diagnostics, current = probe.Diagnostics
+            });
 
     private static Task<CreatedProjectProbe> WaitForCreatedProjectAsync(
         CdpSession cdp, Process process, string caseName, CancellationToken cancellationToken) =>
@@ -1347,7 +1503,8 @@ internal static partial class GuiScenarios
             ReadField(value, "databaseProvider"),
             ReadBoolean(value, "submitVisible"),
             ReadDouble(value, "submitX"),
-            ReadDouble(value, "submitY"));
+            ReadDouble(value, "submitY"),
+            value.Clone());
     }
 
     private static FieldProbe ReadField(JsonElement value, string name)
@@ -1459,7 +1616,8 @@ internal static partial class GuiScenarios
         FieldProbe DatabaseProvider,
         bool SubmitVisible,
         double SubmitX,
-        double SubmitY)
+        double SubmitY,
+        JsonElement Diagnostics)
     {
         internal bool IsReady => FormVisible
             && CaseName.IsReady

@@ -85,6 +85,32 @@ public sealed class SystemDatabaseInfoHandlerTests
         Assert.Contains("2022", summary);
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task Summary_SeparatesServerAndDatabaseWithCommas_NotMiddleDotsOrWarningSigns(bool reachable, bool isExpress)
+    {
+        // 2026-10-03 S9：使用者 2026-09-21 指出「・」串接是 AI 味，這段摘要設定 SQL Server 時會顯示在畫面上；
+        // 改用逗號與分句，也不再用「⚠」符號。只用合成的後端資訊，不連線 SQL Server。
+        var info = new SqlServerBackendInfo(
+            Configured: true, Reachable: reachable, Server: "localhost", Database: "JET",
+            Edition: isExpress ? "Express Edition (64-bit)" : "Developer Edition (64-bit)",
+            ProductName: "Microsoft SQL Server 2022", ProductVersion: "16.0.1000.6",
+            EngineEdition: isExpress ? 4 : 3, IsExpress: isExpress, Detail: reachable ? "" : "逾時");
+        var handler = new SystemDatabaseInfoHandler(new StubBackendProbe(info));
+
+        using var payload = JsonDocument.Parse("{}");
+        var result = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
+        var summary = JsonDocument.Parse(JsonSerializer.Serialize(result))
+            .RootElement.GetProperty("sqlServer").GetProperty("summary").GetString()!;
+
+        Assert.Contains("伺服器 localhost，資料庫 JET", summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("·", summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("・", summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("⚠", summary, StringComparison.Ordinal);
+    }
+
     /// <summary>手寫 stub（jet-testing §1：host/service boundary 不用 mock framework）。</summary>
     private sealed class StubBackendProbe(SqlServerBackendInfo info) : ISqlServerBackendProbe
     {

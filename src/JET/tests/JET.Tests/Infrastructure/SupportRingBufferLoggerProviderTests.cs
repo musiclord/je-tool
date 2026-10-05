@@ -69,23 +69,65 @@ public sealed class SupportRingBufferLoggerProviderTests
             logger,
             "project.load",
             57,
-            JetErrorCodes.ArtifactRecoveryConflict,
+            JetErrorCodes.ProjectLocked,
             new InvalidDataException(@"secret message C:\Secret\client.xlsx"));
         logger.LogInformation(new EventId(9999, "not.allowlisted"), "secret ignored");
 
         var entry = Assert.Single(provider.Snapshot());
         Assert.Equal("corr-123", entry.CorrelationId);
         Assert.Equal("secret-project-id", entry.InternalProjectId);
-        Assert.Equal(JetErrorCodes.ArtifactRecoveryConflict, entry.Fields["error_code"]);
+        Assert.Equal(JetErrorCodes.ProjectLocked, entry.Fields["error_code"]);
         Assert.DoesNotContain("file_path", entry.Fields.Keys);
 
         var line = SupportDiagnosticNdjson.SerializeLine(entry);
-        Assert.Contains("artifact_recovery_conflict", line, StringComparison.Ordinal);
+        Assert.Contains("project_locked", line, StringComparison.Ordinal);
         Assert.Contains("InvalidDataException", line, StringComparison.Ordinal);
         Assert.DoesNotContain("secret-project-id", line, StringComparison.Ordinal);
         Assert.DoesNotContain("secret message", line, StringComparison.Ordinal);
         Assert.DoesNotContain("client.xlsx", line, StringComparison.Ordinal);
         Assert.DoesNotContain(@"C:\Secret", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 2026-10-02：本機操作紀錄寫失敗只留這個支援事件。只保留允許的 operation 與 phase，
+    /// 訊息換成固定的安全句子，例外只留型別與堆疊位置。
+    /// </summary>
+    [Fact]
+    public void ProjectAuditWriteFailed_KeepsOnlyAllowedFieldsAndSafeMessage()
+    {
+        using var provider = new SupportRingBufferLoggerProvider(capacity: 8);
+        using var factory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Trace);
+            builder.AddProvider(provider);
+        });
+        var logger = factory.CreateLogger("JET.Tests.ProjectAudit");
+        using var scope = logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["file_path"] = @"C:\Secret\client.duckdb",
+            ["sql"] = "INSERT INTO audit_event_log VALUES ('secret')",
+        });
+
+        ProjectAuditLogDiagnostics.WriteFailed(
+            logger,
+            ProjectAuditOperations.ReportPublish,
+            "append",
+            new InvalidOperationException(@"secret message C:\Secret\client.duckdb"));
+
+        var entry = Assert.Single(provider.Snapshot());
+        Assert.Equal("project_audit.write_failed", entry.EventName);
+        Assert.Equal("Warning", entry.Level);
+        Assert.Equal("project operation record not written", entry.Message);
+        Assert.Equal(new[] { "operation", "phase" }, entry.Fields.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(ProjectAuditOperations.ReportPublish, entry.Fields["operation"]);
+        Assert.Equal("append", entry.Fields["phase"]);
+
+        var line = SupportDiagnosticNdjson.SerializeLine(entry);
+        Assert.Contains("InvalidOperationException", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("client.duckdb", line, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"C:\Secret", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("audit_event_log", line, StringComparison.Ordinal);
     }
 
     [Fact]

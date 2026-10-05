@@ -3,6 +3,7 @@ using ClosedXML.Excel;
 using System.Text;
 using System.Text.Json;
 using JET.Application;
+using JET.AuditCore;
 using JET.Bridge;
 using JET.Domain;
 using JET.Infrastructure;
@@ -280,6 +281,8 @@ internal sealed class AgentGuiTestFixtures
             {
                 filePath = preparerFile.GetProperty("filePath").GetString(),
                 fileName = preparerFile.GetProperty("fileName").GetString(),
+                // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；示範檔固定使用姓名欄。
+                sourceColumn = "姓名",
             }, cancellationToken).ConfigureAwait(false);
 
             if (IsEnabled(AuthorizedListSourceId))
@@ -1400,7 +1403,11 @@ internal sealed class AgentGuiTestFixtures
                 CurrentStep: 1,
                 ProjectDocument.CurrentSchemaVersion,
                 ProjectDocument.SqlServerDatabaseProvider,
-                LastOpenedUtc: FakeOnlineLastOpenedUtc),
+                LastOpenedUtc: FakeOnlineLastOpenedUtc,
+                // 目前版本的案件一定有 INF 抽樣種子與演算法版本；缺欄位會被當成舊版案件拒絕。
+                SampleSeed: 1_234_567,
+                SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion,
+                CalendarImported: false),
             FakeOnlineCreatedUtc,
             FakeOnlineLastOpenedUtc);
 

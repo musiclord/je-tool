@@ -20,7 +20,7 @@ public sealed record DiagnosticLogEntry(
 
 /// <summary>
 /// 診斷日誌讀取埠（dev tool 匯出用;鏡射 <see cref="IMessageLogStore"/> / IDevDatabaseInspector 的埠慣例）。
-/// 由 Infrastructure 的 ring buffer provider 實作;dev.log.export 經此匯出 NDJSON。
+/// 由 Infrastructure 的 ring buffer provider 實作;dev.log.exportFile 在檔案 sink 不可讀時經此取得紀錄。
 /// </summary>
 public interface IDiagnosticLogStore
 {

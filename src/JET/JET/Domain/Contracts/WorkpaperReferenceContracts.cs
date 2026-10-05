@@ -17,7 +17,7 @@ public sealed record AccountMappingExportRow(
 /// 科目配對範本列(產空白範本供審計員填分類):母體＝GL∪TB 完整性 diff 的科目清單。
 /// A=<see cref="AccountCode"/>(diff.account_code)、B=<see cref="AccountName"/>(diff.account_name,
 /// GL∪TB 的名稱;GL-only 科目寫其 GL 名稱而**非**字面「Not in TB」——審計員要靠名稱辨識科目才能分類,
-/// 此為對匯出 sheet 15「GL-only 寫 Not in TB」的**刻意偏離**(理由見 guide §2.3 / design §2)。
+/// 此為對匯出 sheet 15「GL-only 寫 Not in TB」的**刻意偏離**。
 /// C 欄(分類)由 writer 留空 + 下拉,不在此 model(範本產出前尚未配對)。
 /// </summary>
 public sealed record AccountMappingTemplateRow(
@@ -31,11 +31,11 @@ public sealed record AccountMappingTemplateRow(
 /// (對有界基數加分頁是過度工程化;鏡射 <see cref="ICreatorSummaryExportRepository"/>)。
 ///
 /// 為什麼新立唯讀 repo 而非擴充 <see cref="IAccountMappingStore"/>:後者是匯入(replace-only)專用,
-/// 匯出走 WorkpaperWriter 既有的「唯讀 repo 注入」管線(三 provider + ProviderRouting),兩者關注點不同。
+/// 匯出走 WorkpaperWriter 既有的「唯讀 repo 注入」管線(每種資料庫各一組),兩者關注點不同。
 /// </summary>
 public interface IAccountMappingExportRepository
 {
-    /// <summary>periodStart/periodEnd 界定完整性 not-in-tb 判定的 GL 母體本期口徑（§2；與 CTE 8 消費端一致）。</summary>
+    /// <summary>periodStart/periodEnd 界定完整性 not-in-tb 判定的 GL 母體本期口徑（與 CTE 8 消費端一致）。</summary>
     Task<IReadOnlyList<AccountMappingExportRow>> FetchAllAsync(
         string projectId,
         string periodStart,
@@ -47,7 +47,7 @@ public interface IAccountMappingExportRepository
     /// (<c>JET.AuditCore.ValidationProcedures.CompletenessDiffCte</c> 的 diff CTE),依 account_code 升冪。
     /// 與 <see cref="FetchAllAsync"/> 的差異:那讀 target_account_mapping(已配對,供匯出 sheet 15),
     /// 這讀 diff(尚未配對的母體,供產範本讓審計員填 C 欄)——不同關注點,故新方法而非改既有。
-    /// periodStart/periodEnd 界定 GL 母體本期口徑(§2;與 CTE @periodStart/@periodEnd 一致)。
+    /// periodStart/periodEnd 界定 GL 母體本期口徑(與 CTE @periodStart/@periodEnd 一致)。
     /// </summary>
     Task<IReadOnlyList<AccountMappingTemplateRow>> FetchTemplateRowsAsync(
         string projectId,

@@ -44,7 +44,10 @@ public static partial class ProjectNameRules
 
         if (!AllowedPattern().IsMatch(name))
         {
-            return "案件名稱含不允許的字元(不可有 / \\ : * ? \" < > | . 等)。";
+            var invalid = name.Where(c => !(char.IsLetter(c) || char.IsNumber(c)) && " _-()（）".IndexOf(c) < 0)
+                .Distinct().Select(c => char.IsWhiteSpace(c) ? $"空白字元 U+{(int)c:X4}" : c.ToString());
+            return "案件名稱含不允許的字元：" + string.Join("、", invalid.Select(c => "「" + c + "」"))
+                + "。請移除這些字元；完整公司名稱可填在「客戶名稱」。";
         }
 
         if (ReservedNames.Contains(name))

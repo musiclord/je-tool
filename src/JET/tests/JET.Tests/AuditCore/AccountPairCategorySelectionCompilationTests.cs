@@ -100,37 +100,6 @@ public sealed class AccountPairCategorySelectionCompilationTests
             shuffled.Parameters.Select(static parameter => (string)parameter.Value!).ToArray());
     }
 
-    [Fact]
-    public void PairRule_LegacyScalar_CompilesAsSingletonBuiltInCategory()
-    {
-        var scalar = Compile(new FilterRuleSpec(
-            FilterJoin.And,
-            FilterRuleType.SpecialAccountCategoryPair,
-            null,
-            null,
-            [],
-            TextMatchMode.Contains,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            PairMode: SpecialAccountCategoryPairModes.DrAndCr,
-            DebitCategory: AccountMappingCategories.Revenue,
-            CreditCategory: AccountMappingCategories.Cash));
-        var ids = Compile(PairRule(
-            FilterRuleType.SpecialAccountCategoryPair,
-            SpecialAccountCategoryPairModes.DrAndCr,
-            [AccountTaxonomyBuiltIns.RevenueId],
-            [AccountTaxonomyBuiltIns.CashId]));
-
-        Assert.Equal(ids.Sql, scalar.Sql);
-        Assert.Equal(
-            ids.Parameters.Select(static parameter => (string)parameter.Value!).ToArray(),
-            scalar.Parameters.Select(static parameter => (string)parameter.Value!).ToArray());
-    }
-
     [Theory]
     [InlineData(SpecialAccountCategoryPairModes.DrAndCr)]
     [InlineData(SpecialAccountCategoryPairModes.DrNotCr)]

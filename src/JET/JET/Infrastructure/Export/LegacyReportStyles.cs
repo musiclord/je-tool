@@ -61,9 +61,8 @@ internal static class LegacyReportStyles
     /// </summary>
     public const uint LegacyVersionBanner = 20;
 
-    // Stage 9 physical-oracle family for IDEA ExportDatabase pages. Keep this
-    // append-only: the long-standing 0-20 indices are consumed by template
-    // overlays and the Stage 8 script-owned appearance oracle.
+    // IDEA ExportDatabase 頁面使用的樣式。只能往後追加：既有 0 到 20 號索引
+    // 已被範本套版與外觀比對腳本使用，改動會讓既有輸出外觀跑掉。
     public const uint ExportDatabaseGeneral = 21;
     public const uint ExportDatabaseText = 22;
     public const uint ExportDatabaseDate = 23;

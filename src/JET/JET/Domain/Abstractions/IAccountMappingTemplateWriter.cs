@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 科目配對範本(空白範本供審計員填分類)寫出器的窄介面(deep module 的對外面):把 GL∪TB 母體的
+/// 科目配對範本(空白範本供審計員填分類)寫出器的窄介面(細節全藏在實作裡):把 GL∪TB 母體的
 /// 科目清單寫成三欄 .xlsx(A=科目編號、B=科目名稱、C=空白＋分類下拉),供審計員填 C 欄後
 /// 經 <c>import.accountMapping.fromFile</c> 原檔上傳(標頭與匯入契約反向對齊,round-trip 由測試鎖)。
 ///

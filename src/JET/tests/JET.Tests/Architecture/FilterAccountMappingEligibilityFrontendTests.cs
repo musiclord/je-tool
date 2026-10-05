@@ -39,7 +39,7 @@ public sealed class FilterAccountMappingEligibilityFrontendTests
         var filter = ReadFrontend("js", "steps", "filter-step.js");
 
         Assert.Contains("function accountMappingRequirementNote", filter, StringComparison.Ordinal);
-        Assert.Contains("需先匯入科目配對", filter, StringComparison.Ordinal);
+        Assert.Contains("需先完成科目配對", filter, StringComparison.Ordinal);
         Assert.Contains("科目配對需至少一筆非空白分類", filter, StringComparison.Ordinal);
         Assert.Contains("科目配對需包含 Revenue 分類", filter, StringComparison.Ordinal);
         Assert.Contains("科目配對需至少一個一般對方分類", filter, StringComparison.Ordinal);

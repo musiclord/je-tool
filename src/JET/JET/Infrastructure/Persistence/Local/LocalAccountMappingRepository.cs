@@ -6,7 +6,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 科目配對的匯入與 presence 查詢（manifest import.accountMapping.fromFile）。
+/// 科目配對的匯入與 presence 查詢（import.accountMapping.fromFile）。
 /// 與 GL/TB 匯入的差異：格式固定三欄、無欄位配對步驟——staging 寫入與
 /// target 投影在**同一 transaction**（任一列分類非法即整批 rollback）。
 /// replace-only：科目配對是整份替換的設定檔，不做多來源合併。
@@ -54,7 +54,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
         CancellationToken cancellationToken)
     {
         source = ImportSourceFileName.Normalize(source);
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         projection ??= JetAuditProgram.PrepareAccountMappingProjection(
             columns,
             AccountTaxonomyCatalog.BuiltInSnapshot);
@@ -84,7 +84,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             await cleanup.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        // 科目配對換版,未預期借貸組合等規則結果即失效(plan Phase 1)。
+        // 科目配對換版,未預期借貸組合等規則結果即失效。
         await RuleRunResultReset.ClearWithinAsync(
             connection,
             transaction,
@@ -209,7 +209,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
 
     public async Task<AccountMappingState?> FindStateAsync(string projectId, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -217,19 +217,19 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT b.batch_id, b.row_count, b.source_file_name, b.imported_utc,
+            SELECT b.batch_id,
+                   CASE WHEN b.source_file_name = @editorName THEN (SELECT COUNT(*) FROM target_account_mapping) ELSE b.row_count END,
+                   b.source_file_name, b.imported_utc,
                    EXISTS (SELECT 1 FROM target_account_mapping),
                    EXISTS (SELECT 1
                            FROM target_account_mapping m
                            JOIN config_account_taxonomy t
                              ON t.category_id = m.category_id
-                             OR (m.category_id IS NULL AND t.is_builtin = 1 AND t.label = m.standardized_category)
                            WHERE t.semantic_role = @revenue),
                    EXISTS (SELECT 1
                            FROM target_account_mapping m
                            JOIN config_account_taxonomy t
                              ON t.category_id = m.category_id
-                             OR (m.category_id IS NULL AND t.is_builtin = 1 AND t.label = m.standardized_category)
                            WHERE t.semantic_role IN (@receivables, @cash, @receiptInAdvance)),
                    (SELECT COUNT(*) FROM target_account_mapping m WHERE m.classification_explicit = 0)
             FROM import_batch b
@@ -238,6 +238,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             LIMIT 1;
             """;
         command.AddWithValue("@kind", DatasetKind.AccountMapping.ToStorageName());
+        command.AddWithValue("@editorName", AccountMappingEditorRepository.EditorSourceName);
         command.AddWithValue("@revenue", AccountTaxonomyBuiltIns.RevenueRole);
         command.AddWithValue("@receivables", AccountTaxonomyBuiltIns.ReceivablesRole);
         command.AddWithValue("@cash", AccountTaxonomyBuiltIns.CashRole);

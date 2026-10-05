@@ -34,6 +34,12 @@ internal static partial class GuiScenarios
         if (outcome.Scenario.Name == GuiScenarioCatalog.LegacyFormCatalog)
         {
           outcome.RecordStage("legacy_form_all_letters");
+          // Literal names from the approved workbook catalogue, not derived from the rendered option.
+          string[] expectedNames = ["於期末財務報表日後核准之分錄", "分錄摘要出現預設之特定描述", "未預期出現之特定借貸組合",
+              "分錄金額中有連續 0 的尾數", "人工傳票", "分錄無摘要描述（空白摘要）", "總帳入帳日在非工作日之週末",
+              "總帳入帳日在國定假日", "排除總帳入帳日的補班日或加班日", "核准日期在非工作日之週末", "核准日期在國定假日",
+              "排除核准日期的補班日或加班日", "僅考量借方傳票", "僅考量貸方傳票", "其他特定欄位篩選", "其他借貸組合",
+              "其他特定尾數", "特定日期篩選", "特定金額篩選", "科目出現次數或傳票張數", "特定人員或編製傳票張數"];
           foreach (var letter in "ABCDEFGHIJKLMNOPQRSTU")
           {
             await Choose("[data-legacy-letter]", letter.ToString());
@@ -45,7 +51,9 @@ internal static partial class GuiScenarios
                 'T' or 'U' => "entityFrequency", _ => "fieldValue"
             };
             await Check("draft.groups.flatMap(g=>g.rules).length===1 && draft.groups.flatMap(g=>g.rules)[0].type==='" + expectedType +
-                "' && document.querySelector('[data-legacy-letter]').value==='" + letter + "' && document.querySelector('[data-legacy-help]').textContent.length>0");
+                "' && document.querySelector('[data-legacy-letter]').value==='" + letter + "' && document.querySelector('[data-legacy-help]').textContent.length>0" +
+                " && document.querySelector('[data-legacy-letter]').selectedOptions[0].textContent.trim()===" +
+                JsonSerializer.Serialize($"舊表 {letter}：{expectedNames[letter - 'A']}"));
             if (letter == 'P')
                 await Check("draft.groups[0].rules[0].rules[0].side==='debit' && draft.groups[0].rules[0].rules[1].side==='credit'");
             await Click(letter is 'I' or 'L' or 'P'
@@ -56,7 +64,8 @@ internal static partial class GuiScenarios
           await Choose("[data-legacy-letter]", "P");
           await Choose("[data-legacy-account]", "categories");
           await Click("[data-action=add-legacy-rule]");
-          await Check("draft.groups[0].rules[0].type==='specialAccountCategoryPair' && draft.groups[0].rules[0].categorySelection==='node'");
+          // Batch 5 makes newly created category conditions include descendants; saved legacy node conditions remain unchanged.
+          await Check("draft.groups[0].rules[0].type==='specialAccountCategoryPair' && draft.groups[0].rules[0].categorySelection==='subtree'");
           await Click(".rule-row[data-ri='0'] [data-action=remove-rule]");
           await CaptureScreenshotAsync(cdp, outcome, ct);
           outcome.Assertions.LegacyFormCatalogVerified = true;
@@ -67,6 +76,11 @@ internal static partial class GuiScenarios
         await Click("[data-legacy-example=example2]");
         await Check("document.querySelector('[data-legacy-notice]').textContent.includes('請先選取') && draft.groups.flatMap(g=>g.rules).length===0");
         outcome.RecordStage("legacy_form_five_examples");
+        // Independent fixed answers from DemoDataFactory's synthetic population and the GUI department column:
+        // 1 no reversal description; 2 679 manual baseline vouchers, one department-matching debit each;
+        // 3 none of the specified account codes; 4 fifteen two-line million-multiple vouchers;
+        // 5 holiday seeds are automatic, while manual baseline rows are ordinary working days.
+        int[] expectedExampleCounts = [0, 679, 0, 30, 0];
         for (var i = 1; i <= 5; i++)
         {
             if (i == 2)
@@ -76,7 +90,7 @@ internal static partial class GuiScenarios
             }
             await Click("[data-legacy-example=example" + i + "]");
             await Click("[data-action=preview-scenario]");
-            await Check("!!preview && preview.count>=0");
+            await Check("!!preview && preview.count===" + expectedExampleCounts[i - 1]);
             if (i == 1)
             {
                 await Choose("[data-legacy-letter]", "S");
@@ -88,11 +102,13 @@ internal static partial class GuiScenarios
             if (i < 5)
             {
                 await Click("[data-filter-pane-select=filter]");
+                await Click("[data-action=new-scenario]");
                 await Click("[data-filter-disclosure=legacy-form] > summary");
                 await Check("document.querySelector('[data-filter-disclosure=legacy-form]').open");
             }
         }
         outcome.RecordStage("legacy_form_cancel_and_export");
+        await Click("[data-filter-pane-select=saved]");
         await Click(".saved-scenario .filter-saved-actions summary");
         await Click("[data-action=edit-scenario][data-index='0']");
         await Fill(".rule-row[data-ri='2'] [data-value-key=values]", "GUI-RETRY");
@@ -101,7 +117,7 @@ internal static partial class GuiScenarios
         await Check("saved.length===5 && saved[0].groups[0].rules[2].values[0]==='迴轉'");
         await Click("[data-bind=step-nav] [data-step-index='3']"); await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-filter-pane-select=saved]"); await Click("[data-action=export-criteria-report]");
-        await Check("window.JetUi.stepGate(state,5).ok");
+        await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
         await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
         await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2,3,4,5]})");
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");

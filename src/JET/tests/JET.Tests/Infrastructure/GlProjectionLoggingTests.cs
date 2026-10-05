@@ -3,6 +3,7 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -106,14 +107,16 @@ public sealed class GlProjectionLoggingTests
 
         // 以未接 logger 的 import repo 播種 staging（不污染診斷緩衝）
         var batch = (await new LocalImportRepository(db).ReplaceBatchAsync(
-            projectId, DatasetKind.Gl, Source(), Columns, ToAsync(ThreeRows), CancellationToken.None)).Batch;
+            projectId, DatasetKind.Gl, [new ImportSourceInput(Source(), Columns, ToAsync(ThreeRows))], CancellationToken.None)).Batch;
 
         var (diagnostic, factory) = NewDiagnostic();
         using (factory)
         {
             var glRepo = new LocalGlRepository(db, factory.CreateLogger<LocalGlRepository>());
             var result = await glRepo.ProjectStagingToTargetAsync(
-                projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+                projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+                postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+                CancellationToken.None);
             Assert.Equal(3, result.ProjectedRowCount);
         }
 
@@ -130,14 +133,16 @@ public sealed class GlProjectionLoggingTests
         }
 
         var batch = (await new SqlServerImportRepository(temp.Database).ReplaceBatchAsync(
-            temp.ProjectId, DatasetKind.Gl, Source(), Columns, ToAsync(ThreeRows), CancellationToken.None)).Batch;
+            temp.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source(), Columns, ToAsync(ThreeRows))], CancellationToken.None)).Batch;
 
         var (diagnostic, factory) = NewDiagnostic();
         using (factory)
         {
             var glRepo = new SqlServerGlRepository(temp.Database, factory.CreateLogger<SqlServerGlRepository>());
             var result = await glRepo.ProjectStagingToTargetAsync(
-                temp.ProjectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+                temp.ProjectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+                postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+                CancellationToken.None);
             Assert.Equal(3, result.ProjectedRowCount);
         }
 

@@ -15,16 +15,19 @@ public sealed class ActionDispatcher
     private readonly ProjectSession _session;
     private readonly Func<Exception, JetActionException?>? _engineErrorTranslator;
     private readonly ActionExecutionGate _executionGate;
+    private readonly IProjectDatabaseRetention? _databaseRetention;
 
     public ActionDispatcher(
         IEnumerable<IApplicationActionHandler> handlers,
         ILogger<ActionDispatcher> logger,
         ProjectSession session,
-        // 引擎錯誤的單一映射點（design §2.3）：composition 注入 Infrastructure 的轉譯 delegate
-        // （SqlServerEngineErrors.TryTranslate），Bridge 不直接依賴 Infrastructure（層依賴鐵律）。
+        // 引擎錯誤的單一映射點：composition 注入 Infrastructure 的轉譯 delegate
+        // （SqlServerEngineErrors.TryTranslate），Bridge 不直接依賴 Infrastructure（維持分層依賴方向）。
         Func<Exception, JetActionException?>? engineErrorTranslator = null,
         RequestCancellationRegistry? cancellationRegistry = null,
-        ActionExecutionGate? executionGate = null)
+        ActionExecutionGate? executionGate = null,
+        // 一次操作期間保持當前案件資料庫開啟（只有 DuckDB 有作用）；null 時不持有，自行組裝 dispatcher 的測試不受影響。
+        IProjectDatabaseRetention? databaseRetention = null)
     {
         var map = new Dictionary<string, IApplicationActionHandler>(StringComparer.Ordinal);
 
@@ -42,6 +45,7 @@ public sealed class ActionDispatcher
         _engineErrorTranslator = engineErrorTranslator;
         CancellationRegistry = cancellationRegistry ?? new RequestCancellationRegistry();
         _executionGate = executionGate ?? new ActionExecutionGate();
+        _databaseRetention = databaseRetention;
     }
 
     public IReadOnlyCollection<string> RegisteredActions => _handlers.Keys.ToArray();
@@ -100,7 +104,11 @@ public sealed class ActionDispatcher
                         "另一項作業正在進行中，請待其完成後再操作。");
             }
 
-            var result = await handler.HandleAsync(payload, cancellationToken).ConfigureAwait(false);
+            // 原生 UI 與取消控制保留原執行緒；同步資料庫呼叫及其 retention 開關都不能卡住 UI。
+            // token 同時傳入排程與 handler；Task.Run 本身只負責工作開始前的取消。
+            var result = ActionExecutionPolicy.RunsInBackground(action)
+                ? await Task.Run(() => HandleWithRetentionAsync(handler, payload, cancellationToken), cancellationToken).ConfigureAwait(false)
+                : await HandleWithRetentionAsync(handler, payload, cancellationToken).ConfigureAwait(false);
             DispatcherDiagnostics.ActionEnd(_logger, action, "ok", stopwatch.ElapsedMilliseconds);
             return result;
         }
@@ -126,8 +134,25 @@ public sealed class ActionDispatcher
         }
         finally
         {
+            // 先放開資料庫再放閘：下一個取得閘的變更型作業（例如刪除案件）開始時，這裡已經放手。
             executionLease?.Dispose();
         }
+    }
+
+    private async Task<object?> HandleWithRetentionAsync(
+        IApplicationActionHandler handler, JsonElement payload, CancellationToken cancellationToken)
+    {
+        IDisposable? retention = null;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_databaseRetention is not null
+                && ActionExecutionPolicy.RetainsProjectDatabase(handler.Action)
+                && _session.CurrentProjectId is { } projectId)
+                retention = _databaseRetention.TryRetain(projectId);
+            return await handler.HandleAsync(payload, cancellationToken).ConfigureAwait(false);
+        }
+        finally { retention?.Dispose(); }
     }
 
     private static string? TryReadSupportProjectId(JsonElement payload)

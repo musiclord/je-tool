@@ -47,7 +47,7 @@ public sealed record GlPopulationContext(
 /// <summary>
 /// filter.preview 的執行上下文與結果。本版為無狀態查詢
 /// （COUNT + COUNT DISTINCT + LIMIT 50 預覽），不落地結果
-/// （manifest Filter / Criteria 章節；result_filter_run 屬匯出里程碑）。
+/// （命中落地由 filter.commit 寫入 result_filter_run）。
 /// PeriodStart/PeriodEnd 固定界定查核期間母體（專案必填欄位）。
 /// </summary>
 public sealed record FilterRuleContext(
@@ -58,6 +58,8 @@ public sealed record FilterRuleContext(
     IReadOnlyList<int>? NonWorkingDays = null,
     GlPopulationScope PopulationScope = GlPopulationScope.AuditPeriod)
 {
+    public DateParseOptions DateParseOptions { get; init; } = DateParseOptions.Default;
+
     /// <summary>
     /// typed 條件（type:"typed"）編譯所需的 RDE 欄位 registry（fieldId → value type）。
     /// 預設空集合＝任何 typed 條件在編譯前即 fail loud，不會靜默編出錯誤 SQL。
@@ -91,9 +93,9 @@ public interface IFilterRunRepository
 }
 
 /// <summary>
-/// filter.commit 命中落地的輸入單元（plan 子專案 D1 Task 2）：已解析的情境 spec + 其保存位置。
+/// filter.commit 命中落地的輸入單元：已解析的情境 spec + 其保存位置。
 /// 解析（definition JSON → spec）屬 Application 層（FilterScenarioPayloadParser）；Infrastructure
-/// 的 materializer 只吃 Domain 型別，不反向依賴 Application（架構鐵律：Infrastructure 僅引用 Domain）。
+/// 的 materializer 只吃 Domain 型別，不反向依賴 Application（分層規則：Infrastructure 僅引用 Domain）。
 /// </summary>
 public sealed record MaterializableScenario(int Position, FilterScenarioSpec Spec);
 
@@ -115,15 +117,20 @@ public interface IFilterCommitRepository
 }
 
 /// <summary>
-/// filter.commit 命中落地（plan 子專案 D1 Task 2）：對每個已存情境把命中的 entry_id 落地到
+/// filter.commit 命中落地：對每個已存情境把命中的 entry_id 落地到
 /// result_filter_run，供 query.filterHitsPage keyset 分頁回取。契約置於 Domain（同 IFilterRunRepository），
 /// 供 Application handler 注入；provider 實作與路由在 Infrastructure。
 /// </summary>
 public interface IFilterRunMaterializer
 {
+    /// <summary>
+    /// replaceAll 為 true 時替換全案並清除篩選失效旗標；false 只替換 scenarios 內的情境位置。
+    /// 所選重算不修改其他情境的命中，也不把全案旗標改成已更新。刪寫及旗標更新必須在同一交易。
+    /// </summary>
     Task MaterializeAsync(
         string projectId,
         IReadOnlyList<MaterializableScenario> scenarios,
         FilterRuleContext context,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        bool replaceAll = true);
 }

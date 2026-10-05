@@ -6,40 +6,49 @@ using JET.Domain;
 
 namespace JET.Application;
 
-public sealed class QueryFilterVoucherPageHandler(FilterVoucherQueryService service) : IApplicationActionHandler
+public sealed class QueryFilterVoucherPageHandler(ProjectSession session) : IApplicationActionHandler
 {
     public string Action => "query.filterVoucherPage";
-    public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken) => service.ReadAsync(payload, false, cancellationToken);
+
+    public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+    {
+        var (projectId, repositories) = session.RequireActive();
+        return repositories.FilterVoucherQueryService.ReadAsync(projectId, payload, false, cancellationToken);
+    }
 }
 
-public sealed class QueryFilterVoucherRowsPageHandler(FilterVoucherQueryService service) : IApplicationActionHandler
+public sealed class QueryFilterVoucherRowsPageHandler(ProjectSession session) : IApplicationActionHandler
 {
     public string Action => "query.filterVoucherRowsPage";
-    public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken) => service.ReadAsync(payload, true, cancellationToken);
+
+    public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+    {
+        var (projectId, repositories) = session.RequireActive();
+        return repositories.FilterVoucherQueryService.ReadAsync(projectId, payload, true, cancellationToken);
+    }
 }
 
 /// <summary>
 /// 命中傳票分頁（傳票摘要與展開分錄）。草稿與已存情境用同一個編譯器；每一頁綁定情境、資料版本與查詢版本，
 /// 上游變更後游標失效。只有命中傳票，沒有待判定（2026-09-07 裁定）。
+/// 每種資料庫各有一個實例，放在該種資料庫組裡；案件編號由 handler 從作用中案件快照傳入。
 /// </summary>
 public sealed class FilterVoucherQueryService(IFilterVoucherRepository repository, IFilterScenarioStore scenarioStore,
     IMappingStateStore mappingStore, IAccountMappingStore accountMappingStore,
     IAuthorizedPreparerStore authorizedPreparerStore, IAccountTaxonomyStore taxonomyStore,
     IProjectStore projectStore, ProjectSession session, IResultPageRdeValuesPort rdeValuesPort)
 {
-    public async Task<object?> ReadAsync(JsonElement payload, bool detail, CancellationToken ct)
+    public async Task<object?> ReadAsync(string projectId, JsonElement payload, bool detail, CancellationToken ct)
     {
-        var projectId = session.RequireProjectId();
         var revision = await repository.ReadRevisionAsync(projectId, ct);
         var project = await projectStore.FindAsync(projectId, ct)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, "案件已離開，請重新載入。");
-        await MappingReviewPrerequisite.EnsureSatisfiedAsync(projectId, mappingStore, ct);
         var mapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, ct)
-            ?? throw new JetActionException(JetErrorCodes.NoTargetData, "請先完成 GL 欄位配對，再預覽篩選結果。");
+            ?? throw new JetActionException(JetErrorCodes.NoTargetData, "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
         var position = PayloadReader.GetOptionalInt(payload, "scenarioPosition");
         var hasDraft = payload.TryGetProperty("scenario", out var scenarioJson);
         if (hasDraft == position.HasValue)
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "請提供草稿或已保存情境的位置，兩者擇一。");
+            throw new JetActionException(JetErrorCodes.InvalidPayload, "請提供草稿或已儲存情境的位置，兩者擇一。");
         string? savedRevision = null;
         if (position is int selected)
         {
@@ -60,7 +69,11 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         var errors = FilterScenarioValidator.Validate(spec, validation, forSave: false);
         if (errors.Count > 0) throw FilterScenarioErrorDetails.InvalidScenario(errors);
         var context = new FilterRuleContext(project.MoneyScale, project.LastAccountingPeriodDate,
-            project.PeriodStart, project.PeriodEnd, project.NonWorkingDays, scope) { RdeFields = mapping.GlOptions?.RdeFields ?? [] };
+            project.PeriodStart, project.PeriodEnd, project.NonWorkingDays, scope)
+        {
+            RdeFields = mapping.GlOptions?.RdeFields ?? [],
+            DateParseOptions = project.DateParseOptions
+        };
         var queryRevision = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
         {
             projectId, revision, savedRevision, definition = scenarioJson, context,
@@ -101,18 +114,18 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
             var current = FilterPopulationScopeParser.RequireCurrentRevision(await scenarioStore.ListAsync(projectId, ct));
             if (current.Revision != savedRevision) throw Stale();
         }
-        // 整個情境只有傳票量詞或不存在分類等傳票層條件時，列說明用「傳票條件成立」。
+        // 整個情境只有傳票分錄條件或不存在分類等傳票層條件時，列說明用「傳票條件成立」。
         var voucherConditionOnly = spec.Groups.Count > 0 && spec.Groups.All(group =>
             group.Rules.All(rule => rule.IsVoucherCondition));
         var categoryLabels = taxonomy.Categories.ToDictionary(item => item.CategoryId, item => item.Label);
         var fieldLabels = context.RdeFields.ToDictionary(item => item.FieldId, item => item.Label);
         string Condition(FilterConditionPosition position) => $"第 {position.Group} 組條件 {position.Rule}："
             + FilterConditionRenderer.Render(JsonSerializer.SerializeToElement(new { groups = new[] { new { rules = new[] {
-                scenarioJson.GetProperty("groups")[position.Group - 1].GetProperty("rules")[position.Rule - 1] } } } }), categoryLabels, fieldLabels);
+                scenarioJson.GetProperty("groups")[position.Group - 1].GetProperty("rules")[position.Rule - 1] } } } }), categoryLabels, fieldLabels, taxonomy.Categories, project.LastAccountingPeriodDate);
         string Describe(FilterVoucherDetail row)
         {
             var descriptions = new List<string>();
-            if (row.IsHit) descriptions.Add(voucherConditionOnly ? "傳票條件成立" : "命中分錄");
+            if (row.IsHit) descriptions.Add(voucherConditionOnly ? "傳票條件成立" : "符合條件的分錄");
             if (row.PrimaryConditions.Count > 0) descriptions.Add("符合主要條件：" + string.Join("；", row.PrimaryConditions.Select(Condition)));
             if (row.EvidenceConditions.Count > 0) descriptions.Add("提供佐證：" + string.Join("；", row.EvidenceConditions.Select(Condition)));
             if (row.VoucherConditions.Count > 0) descriptions.Add("傳票條件成立：" + string.Join("；", row.VoucherConditions.Select(Condition)));
@@ -138,7 +151,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
             rows, queryRevision, scenarioRevision = savedRevision,
             columns = columnPlan.Columns.Select(column => new { key = column.Key, label = column.Label,
                 valueType = column.ValueType, isCustom = column.IsCustom }).ToArray(),
-            conditionText = FilterConditionRenderer.Render(scenarioJson, categoryLabels, fieldLabels),
+            conditionText = FilterConditionRenderer.Render(scenarioJson, categoryLabels, fieldLabels, taxonomy.Categories, project.LastAccountingPeriodDate),
             nextCursor = page.NextKey is null ? null : PageCursor.Encode(JsonSerializer.Serialize(new VoucherCursor(queryRevision, documentNumber, page.NextKey)))
         };
     }

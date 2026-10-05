@@ -79,7 +79,7 @@ public sealed partial class WorkpaperWriter
         AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
     }
 
-    // ================= 三張「自動化工具」參考資料表 emitter(Task 5;結構各異,各自處理)=================
+    // ================= 三張「自動化工具」參考資料表 emitter(結構各異,各自處理)=================
 
     /// <summary>
     /// 「自動化工具-檔案欄位資訊」：typed production path 只接受 AuditCore
@@ -777,7 +777,7 @@ public sealed partial class WorkpaperWriter
     /// 「step4-1 只用所選集合中 rowHitCount&gt;0 的 position」
     /// 這個業務分支(對齊樣本的動態 schema)收斂成兩個預先算好的有序 position list,emitter 只需:
     /// (1) 依 list 順序加欄標 cell;(2) 逐列依該列 matchedPositions 是否含某 position 標 Y——
-    /// 完全由 data structure 對映,不寫「第幾欄特判」(Linus 好品味:用資料結構消除特例)。
+    /// 完全由 data structure 對映,不寫「第幾欄特判」，新增情境欄時不必改 emitter。
     ///
     /// <see cref="Scenarios"/> 供 step3 列(name/rationale/voucherHitCount,position 升冪);
     /// <see cref="_allPositions"/> = 全部所選 position 升冪(step4 欄集);

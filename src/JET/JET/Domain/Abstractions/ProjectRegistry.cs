@@ -4,7 +4,7 @@ namespace JET.Domain;
 /// 線上（sqlServer）專案的登記簿條目：ProjectDocument（自 registry 的 project_json 反序列化）
 /// 搭配 registry 欄位的時間戳。<see cref="CreatedUtc"/> 與 <see cref="LastOpenedUtc"/> 取自
 /// registry 資料表欄位（非 doc 內欄位）——serverOnly 條目的清單排序權威即這兩欄
-/// （spec §4：serverOnly 用 registry 對應欄；last_opened 天生只在 registry 才跨機器更新）。
+/// （last_opened 只有存在 registry 才能跨機器更新）。
 /// </summary>
 public sealed record RegisteredProject(
     ProjectDocument Document,
@@ -12,11 +12,10 @@ public sealed record RegisteredProject(
     DateTimeOffset? LastOpenedUtc);
 
 /// <summary>
-/// 線上專案登記簿（<c>dbo.project_registry</c> ＋ ACL 雛形 <c>dbo.project_access</c>）的埠。
-/// <b>此埠天生只屬 sqlServer——不走 ProviderRouting</b>：sqlServer 專案的存在性與 metadata 權威
+/// 線上專案登記簿（<c>dbo.project_registry</c> ＋ 存取名單 <c>dbo.project_access</c>）的埠。
+/// <b>此埠天生只屬 sqlServer——不在依資料庫種類選定的資料庫組裡</b>：sqlServer 專案的存在性與 metadata 權威
 /// 在單庫 <c>JET</c> 的登記簿，sqlite 專案完全不觸及本埠（其資料夾即權威、可攜）。
 /// 連線失敗一律由 Application 端 catch 降級（清單 action 絕不整體失敗）——本埠不吞錯、據實拋出。
-/// 現行契約見 docs/action-contract-manifest.md 的 project persistence 章節。
 /// </summary>
 public interface IProjectRegistry
 {

@@ -12,7 +12,7 @@ internal enum RuleShape
 }
 
 /// <summary>
-/// 規則命名登錄表的單筆描述（guide §4）：slug（資料表/追溯）、
+/// 規則命名登錄表的單筆描述：slug（資料表/追溯）、
 /// wire key（JSON 屬性與 prescreenKey）、中文顯示名（UI 與工作底稿分頁）、
 /// 歷史代號（僅供回查 legacy 文件，不得進入 UI / wire / 資料表名）。
 /// </summary>
@@ -24,7 +24,7 @@ internal sealed record RuleDescriptor(
     RuleShape Shape);
 
 /// <summary>
-/// 規則命名登錄表（guide §4）的程式內單一事實來源。
+/// 規則命名登錄表的程式內單一事實來源。
 /// `PrescreenRuleKeys.FilterableKeys` 必須與本表 RowTag 集合一致
 /// （RuleCatalogTests 鎖定此不變量）。
 /// </summary>
@@ -46,10 +46,10 @@ internal static class RuleCatalog
         new("weekend_approval", "weekendApproval", "週末核准", null, RuleShape.RowTag),
         new("holiday_posting", "holidayPosting", "假日過帳", null, RuleShape.RowTag),
         new("holiday_approval", "holidayApproval", "假日核准", null, RuleShape.RowTag),
-        new("blank_description", "blankDescription", "摘要空白", "R7", RuleShape.RowTag),
-        new("backdated_posting", "backdatedPosting", "回溯過帳（總帳日期早於傳票日期）", null, RuleShape.RowTag),
+        new("blank_description", "blankDescription", "空白摘要", "R7", RuleShape.RowTag),
+        new("backdated_posting", "backdatedPosting", "回溯過帳（總帳入帳日早於傳票日期）", null, RuleShape.RowTag),
         new("non_authorized_preparer", "nonAuthorizedPreparer", "非授權編製人員", null, RuleShape.RowTag),
-        new("low_frequency_preparer", "lowFrequencyPreparer", "低頻編製者", null, RuleShape.RowTag),
-        new("low_frequency_account", "lowFrequencyAccount", "低頻科目", null, RuleShape.RowTag)
+        new("low_frequency_preparer", "lowFrequencyPreparer", "編製分錄較少的人員（11 筆以下）", null, RuleShape.RowTag),
+        new("low_frequency_account", "lowFrequencyAccount", "使用較少的科目（11 筆以下）", null, RuleShape.RowTag)
     ];
 }

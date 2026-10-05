@@ -1,5 +1,6 @@
 ---
 name: jet-converge
+disable-model-invocation: true
 description: "Use only when the user explicitly invokes $jet-converge to reconcile scattered JET viewpoints, ideas, requirements, features, deferred items, or an unclear goal across sessions into decisions aligned with the project's core business. Do not use for a narrow status lookup or an implementation whose scope is already decided."
 ---
 

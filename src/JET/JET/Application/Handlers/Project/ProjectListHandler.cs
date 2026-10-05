@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// project.list（雙來源雛形 2026-07-07）：先取得本機快照，再以同一個有界 deadline 並行查詢
+/// project.list：先取得本機快照，再以同一個有界 deadline 並行查詢
 /// <see cref="IProjectRegistry"/> 與 <see cref="ILockService"/>。任一遠端查詢失敗只降級自己的結果；
 /// caller cancellation 則一律向上傳遞。排序維持 lastOpenedUtc ?? createdUtc 新→舊。
 /// </summary>
@@ -60,13 +60,17 @@ public sealed class ProjectListHandler : IApplicationActionHandler
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         // 本機掃描不計入遠端 deadline：畫面先建立可保留的本機快照，再嘗試補上線上狀態。
-        var localDocuments = await _projectStore.ListAsync(cancellationToken);
+        var localEntries = await _projectStore.ListEntriesAsync(cancellationToken);
+        var localDocuments = localEntries
+            .Where(entry => entry.Document is not null)
+            .Select(entry => entry.Document!)
+            .ToList();
 
         using var remoteDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         remoteDeadline.CancelAfter(_remoteDeadline);
         var remoteToken = remoteDeadline.Token;
 
-        // 兩個控制面查詢共用同一 token／deadline，彼此失敗時不互相改寫降級狀態。
+        // 專案登錄與租約鎖兩個線上查詢共用同一 token／deadline，彼此失敗時不互相改寫降級狀態。
         var registryTask = ReadRegistrySnapshotAsync(localDocuments, remoteToken, cancellationToken);
         var locksTask = ReadLocksSnapshotAsync(remoteToken, cancellationToken);
 
@@ -81,7 +85,7 @@ public sealed class ProjectListHandler : IApplicationActionHandler
         var registeredById = registrySnapshot.Registered
             .ToDictionary(item => item.Document.ProjectId, StringComparer.Ordinal);
         var localIds = new HashSet<string>(
-            localDocuments.Select(document => document.ProjectId),
+            localEntries.Select(entry => entry.ProjectId),
             StringComparer.Ordinal);
         var entries = new List<ProjectListEntry>();
 
@@ -143,6 +147,7 @@ public sealed class ProjectListHandler : IApplicationActionHandler
         var projects = entries
             .OrderByDescending(entry => entry.SortKey)
             .Select(entry => entry.ToWire())
+            .Concat(localEntries.Where(entry => entry.Document is null).Select(ProjectListEntry.ReadErrorToWire))
             .ToList();
 
         return new
@@ -281,9 +286,11 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projects = (await projectStore.ListAsync(cancellationToken))
-            .Where(document =>
-                document.DatabaseProvider == ProjectDocument.DefaultDatabaseProvider
+        var localEntries = await projectStore.ListEntriesAsync(cancellationToken);
+        var projects = localEntries
+            .Where(entry => entry.Document is not null)
+            .Select(entry => entry.Document!)
+            .Where(document => document.DatabaseProvider == ProjectDocument.DefaultDatabaseProvider
                 || document.DatabaseProvider == ProjectDocument.DuckDbDatabaseProvider)
             .OrderByDescending(document => document.LastOpenedUtc ?? document.CreatedUtc)
             .Select(document => new ProjectListEntry(
@@ -291,6 +298,7 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
                 SyncStatus: null,
                 document.LastOpenedUtc,
                 document.LastOpenedUtc ?? document.CreatedUtc).ToWire())
+            .Concat(localEntries.Where(entry => entry.Document is null).Select(ProjectListEntry.ReadErrorToWire))
             .ToList();
 
         return new { projects };
@@ -308,6 +316,13 @@ internal sealed record ProjectListEntry(
     DateTimeOffset SortKey,
     ProjectLockInfo? Lock = null)
 {
+    internal static object ReadErrorToWire(ProjectStoreEntry entry) => new
+    {
+        projectId = entry.ProjectId,
+        databaseProvider = (string?)null,
+        loadError = new { code = entry.ReadErrorCode, message = entry.ReadErrorMessage }
+    };
+
     public object ToWire() => SyncStatus is null
         ? new
         {

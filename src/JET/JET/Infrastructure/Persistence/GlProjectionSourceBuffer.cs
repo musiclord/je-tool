@@ -14,7 +14,7 @@ internal static class GlProjectionSourceBuffer
     internal static IReadOnlySet<string> RequiredColumns(GlMappingSpec spec)
     {
         var columns = spec.Mapping
-            .Where(static pair => pair.Key != GlMappingKeys.DcDebitCode
+            .Where(static pair => !JetFieldCatalog.IsGlLiteralMappingKey(pair.Key)
                                   && !string.IsNullOrWhiteSpace(pair.Value))
             .Select(static pair => pair.Value)
             .ToHashSet(StringComparer.Ordinal);

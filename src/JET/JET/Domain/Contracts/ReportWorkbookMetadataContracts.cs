@@ -97,7 +97,6 @@ internal static class ReportWorkbookMetadataInvariant
     {
         ArgumentNullException.ThrowIfNull(mapping);
         if (mapping.Kind != expectedKind
-            || mapping.FormatVersion != MappingMetadataFormat.CurrentVersion
             || string.IsNullOrWhiteSpace(mapping.SourceBatchId))
         {
             throw new ArgumentException(

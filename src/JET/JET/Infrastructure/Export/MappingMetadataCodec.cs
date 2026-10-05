@@ -7,15 +7,11 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 兩套報告 writer 與 OpenXML reader 共用的 mapping metadata JSON codec。
-/// 固定 marker/version/cell 位置在 Domain；writer 永遠輸出 v2，reader 依工作表版本嚴格分流。
+/// 固定 marker/version/cell 位置在 Domain；writer 與 reader 都只接受目前的第 2 版。
 /// </summary>
 internal static class MappingMetadataCodec
 {
     private const int ExcelCellTextLimit = 32_767;
-
-    private static readonly IReadOnlyList<string> LegacyGlMappingKeys = GlMappingKeys.All
-        .Where(static key => !string.Equals(key, GlMappingKeys.PostingStatus, StringComparison.Ordinal))
-        .ToArray();
 
     public static string Encode(CommittedMapping gl, CommittedMapping tb)
     {
@@ -64,8 +60,7 @@ internal static class MappingMetadataCodec
 
     public static MappingDraftMetadata Decode(int version, string json)
     {
-        if (version != MappingMetadataFormat.LegacyVersion
-            && version != MappingMetadataFormat.CurrentVersion)
+        if (version != MappingMetadataFormat.CurrentVersion)
         {
             throw new MappingMetadataFormatException("mapping metadata 版本不受支援。");
         }
@@ -74,9 +69,7 @@ internal static class MappingMetadataCodec
         {
             using var document = JsonDocument.Parse(json, StrictDocumentOptions);
             var root = JsonContractReader.RequireObject(document.RootElement, "root", ["gl", "tb"]);
-            var gl = version == MappingMetadataFormat.LegacyVersion
-                ? ReadLegacyGl(root.GetProperty("gl"))
-                : ReadCurrentGl(root.GetProperty("gl"));
+            var gl = ReadCurrentGl(root.GetProperty("gl"));
             var tb = ReadTb(root.GetProperty("tb"));
             return new MappingDraftMetadata(MappingMetadataFormat.CurrentVersion, gl, tb);
         }
@@ -88,24 +81,6 @@ internal static class MappingMetadataCodec
         {
             throw new MappingMetadataFormatException("mapping metadata JSON 無法解析。", ex);
         }
-    }
-
-    private static GlMappingDraftMetadata ReadLegacyGl(JsonElement element)
-    {
-        var value = JsonContractReader.RequireObject(element, "gl", ["mapping", "amountMode"]);
-        var mapping = JsonContractReader.ReadMapping(
-            value.GetProperty("mapping"),
-            "gl.mapping",
-            LegacyGlMappingKeys);
-        var amountMode = ReadGlAmountMode(value.GetProperty("amountMode"));
-        var options = GlMappingOptions.NormalizeLegacy(mapping);
-        return new GlMappingDraftMetadata(
-            mapping,
-            amountMode,
-            options.ApprovalDateMode,
-            options.PostingStatusPolicy,
-            options.ManualAutoPolicy,
-            options.RdeFields);
     }
 
     private static GlMappingDraftMetadata ReadCurrentGl(JsonElement element)
@@ -416,7 +391,7 @@ internal static class GlMappingOptionsJsonCodec
         var fieldIds = new HashSet<string>(StringComparer.Ordinal);
         var rdeSources = new HashSet<string>(StringComparer.Ordinal);
         var mappedSources = mapping
-            .Where(static pair => pair.Key != GlMappingKeys.DcDebitCode && !string.IsNullOrWhiteSpace(pair.Value))
+            .Where(static pair => !JetFieldCatalog.IsGlLiteralMappingKey(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
             .Select(static pair => pair.Value)
             .ToHashSet(StringComparer.Ordinal);
         foreach (var field in options.RdeFields)

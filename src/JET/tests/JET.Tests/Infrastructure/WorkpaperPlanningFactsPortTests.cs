@@ -79,7 +79,7 @@ public sealed class WorkpaperPlanningFactsPortTests
     [Theory]
     [InlineData(true, false, "GL")]
     [InlineData(false, true, "TB")]
-    public async Task ExecuteAsync_MissingTargetDefinitions_RequiresReplace(
+    public async Task ExecuteAsync_MissingTargetDefinitions_RequiresMappingCommit(
         bool missingGl,
         bool missingTb,
         string datasetName)
@@ -97,9 +97,13 @@ public sealed class WorkpaperPlanningFactsPortTests
                 CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
+        // 目前版本只會在尚未匯入或匯入後尚未重新確認欄位配對時缺少欄位定義，訊息改指向第三步。
+        // 2026-10-02 整體複審 T4：「確認並提交」改成「完成」，斷言改鎖新句子。
+        // 2026-10-04 第 8 批 Q8 再統一為「確認配對」；兩種 dataset 的完整步驟與錯誤碼不變。
+        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         Assert.Equal(
-            $"{datasetName} 批次缺少 Legacy 欄位定義；本版不反推舊批次，"
-            + "請以 mode 'replace' 重新匯入。",
+            $"{datasetName} 還沒有在最近一次匯入後確認欄位配對，缺少底稿需要的欄位定義，無法匯出底稿。"
+            + $"請回第三步確認 {datasetName} 欄位配對；如果還沒有匯入 {datasetName}，請先回第二步匯入。",
             exception.Message);
     }
 
@@ -162,6 +166,11 @@ public sealed class WorkpaperPlanningFactsPortTests
     private sealed class RecordingDocBalanceRepository(bool hasRows)
         : IDocBalancePageRepository
     {
+        // 規劃事實只查是否有不平傳票，不讀 Step 1-1 明細。
+        public IAsyncEnumerable<UnbalancedVoucherDateRow> StreamVoucherDateRowsAsync(
+            string projectId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public int Calls { get; private set; }
 
         public string? ProjectId { get; private set; }

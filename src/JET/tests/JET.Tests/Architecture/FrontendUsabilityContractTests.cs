@@ -51,14 +51,15 @@ public sealed class FrontendUsabilityContractTests
     }
 
     [Fact]
-    public void Runtime_HasOneProjectFolderEntryAndWorkpaperHistoryRevealControls()
+    public void Runtime_HasHeaderAndMappingFolderEntriesAndSharedReportRevealControls()
     {
         var root = FrontendRoot();
         var index = File.ReadAllText(Path.Combine(root, "index.html"));
         var javascript = string.Join('\n', Directory.EnumerateFiles(Path.Combine(root, "js"), "*.js", SearchOption.AllDirectories).Select(File.ReadAllText));
 
         Assert.Single(Regex.Matches(index, "data-action=\"open-project-folder\"", RegexOptions.CultureInvariant).Cast<Match>());
-        Assert.Equal(2, Regex.Matches(javascript, @"JetApi\.hostOpenFolder\(", RegexOptions.CultureInvariant).Count);
+        // 9/22 科目配對區新增就近開啟資料夾，報告定位由各步共用一個事件綁定。
+        Assert.Equal(3, Regex.Matches(javascript, @"JetApi\.hostOpenFolder\(", RegexOptions.CultureInvariant).Count);
         Assert.Contains("hostOpenFolder({ target: 'projectFolder' })", javascript, StringComparison.Ordinal);
         Assert.Contains("data-open-artifact", javascript, StringComparison.Ordinal);
         Assert.Contains("hostOpenFolder({ artifactId: artifactId })", javascript, StringComparison.Ordinal);
@@ -75,8 +76,13 @@ public sealed class FrontendUsabilityContractTests
         Assert.DoesNotContain("進入條件已備齊", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("本步驟條件已備齊", javascript, StringComparison.Ordinal);
         Assert.Contains("已阻擋：", javascript, StringComparison.Ordinal);
-        Assert.Contains("命中不等於錯誤", javascript, StringComparison.Ordinal);
-        Assert.Contains("不適用不等於零", javascript, StringComparison.Ordinal);
+        // 「符合條件不等於錯誤」與「判斷由審計員做」在 2026-09-22 改成白話後合併為同一句，整句檢查。
+        // 2026-10-03 用語統一 T1：畫面不再使用「母體」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        Assert.Contains("預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。", javascript, StringComparison.Ordinal);
+        Assert.DoesNotContain("母體分布", javascript, StringComparison.Ordinal);
+        // 2026-10-02 整體複審 W16：「不適用不等於零。」改成完整句，語意仍是「不適用不代表沒有符合的分錄」；舊短句不得再出現。
+        Assert.Contains("列在「不適用規則」的條件因缺少所需資料或設定而沒有執行，不代表沒有符合的分錄。", javascript, StringComparison.Ordinal);
+        Assert.DoesNotContain("不適用不等於零", javascript, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -130,8 +136,10 @@ public sealed class FrontendUsabilityContractTests
         Assert.DoesNotContain("JetApi", string.Concat(pipeline, detail, detailBody, facts, binder), StringComparison.Ordinal);
         Assert.DoesNotContain("Store.set", binder, StringComparison.Ordinal);
         Assert.DoesNotContain("data-overview-step", app, StringComparison.Ordinal);
-        Assert.Contains("glCommitted ? overviewModeLabel(Ui.GL_MODES, glCommitted.mode) : '尚未提交'", facts, StringComparison.Ordinal);
-        Assert.Contains("tbCommitted ? overviewModeLabel(Ui.TB_MODES, tbCommitted.mode) : '尚未提交'", facts, StringComparison.Ordinal);
+        // 2026-10-02 整體複審 T4：欄位配對狀態不再說「尚未提交」，改用「尚未完成」；舊字樣不得再出現。
+        Assert.Contains("glCommitted ? overviewModeLabel(Ui.GL_MODES, glCommitted.mode) : '尚未完成'", facts, StringComparison.Ordinal);
+        Assert.Contains("tbCommitted ? overviewModeLabel(Ui.TB_MODES, tbCommitted.mode) : '尚未完成'", facts, StringComparison.Ordinal);
+        Assert.DoesNotContain("尚未提交", facts, StringComparison.Ordinal);
         Assert.Contains("Ui.stepPresentation(state, index).lockedReason", attention, StringComparison.Ordinal);
         Assert.Contains("等待前置步驟", attention, StringComparison.Ordinal);
     }
@@ -144,8 +152,8 @@ public sealed class FrontendUsabilityContractTests
         var progress = ExtractFunction(app, "overviewProgressHtml");
 
         Assert.DoesNotContain("current: '● 進行中'", app, StringComparison.Ordinal);
-        Assert.Contains("available: '◦ 可處理'", app, StringComparison.Ordinal);
-        Assert.Contains("locked: '○ 等待前置步驟'", app, StringComparison.Ordinal);
+        Assert.Contains("available: '可處理'", app, StringComparison.Ordinal);
+        Assert.Contains("locked: '等待前置步驟'", app, StringComparison.Ordinal);
         Assert.DoesNotContain("if (index === state.currentStepIndex) { return 'current'; }", app, StringComparison.Ordinal);
         Assert.Contains("status === 'available'", progress, StringComparison.Ordinal);
         Assert.Contains("status === 'locked'", progress, StringComparison.Ordinal);
@@ -226,17 +234,29 @@ public sealed class FrontendUsabilityContractTests
     public void Overview_CompletionEvidenceReusesExistingGatesAndCurrentArtifactPredicates()
     {
         var app = ReadFrontend("js", "app.js");
+        var core = ReadFrontend("js", "ui-core.js");
         var completion = ExtractFunction(app, "overviewStageComplete");
         var criteria = ExtractFunction(app, "overviewCurrentCriteriaArtifact");
         var workpaper = ExtractFunction(app, "overviewCurrentWorkpaperArtifact");
+        var sharedCompletion = ExtractFunction(core, "stepComplete");
+        var sharedWorkpaper = ExtractFunction(core, "currentWorkpaperArtifact");
 
-        Assert.Contains("Ui.stepGate(state, index + 1).ok", completion, StringComparison.Ordinal);
-        Assert.Contains("overviewCurrentCriteriaArtifact(state)", completion, StringComparison.Ordinal);
-        Assert.Contains("overviewCurrentWorkpaperArtifact(state)", completion, StringComparison.Ordinal);
+        // 2026-10-02 修改原因（W15）：總覽、左側進度與第六步原本各算一份完成判斷，左側寫 5/6 而總覽寫 6 個完成。
+        // 判斷改集中在 ui-core 的 stepComplete 與 currentWorkpaperArtifact，總覽只呼叫它們，
+        // 原本在 overviewStageComplete 裡找 stepGate 與 overviewCurrentWorkpaperArtifact 的斷言改到共用函式上，
+        // 第一次失敗收據 20261002-143207412-706428487ae84c538ac9734c4afe9f33。前五步沿用下一步條件、
+        // 最後一步只認目前版本工作底稿的要求不變。
+        Assert.Contains("Ui.stepComplete(state, index)", completion, StringComparison.Ordinal);
+        Assert.Contains("stepGate(state, index + 1).ok", sharedCompletion, StringComparison.Ordinal);
+        Assert.Contains("currentWorkpaperArtifact(state)", sharedCompletion, StringComparison.Ordinal);
+        Assert.DoesNotContain("CriteriaArtifact", sharedCompletion, StringComparison.Ordinal);
+        Assert.DoesNotContain("overviewCurrentCriteriaArtifact(state)", completion, StringComparison.Ordinal);
         Assert.Contains("Ui.findCurrentReportArtifact", criteria, StringComparison.Ordinal);
         Assert.Contains("scenarioPositions: overviewScenarioPositions(state)", criteria, StringComparison.Ordinal);
-        Assert.Contains("Ui.findCurrentReportArtifact", workpaper, StringComparison.Ordinal);
+        Assert.Contains("Ui.currentWorkpaperArtifact(state)", workpaper, StringComparison.Ordinal);
+        Assert.Contains("findCurrentReportArtifact(state, 'workingPaper'", sharedWorkpaper, StringComparison.Ordinal);
         Assert.DoesNotContain("state.currentStepIndex", completion, StringComparison.Ordinal);
+        Assert.DoesNotContain("state.currentStepIndex", sharedCompletion, StringComparison.Ordinal);
     }
 
     private static string ExtractFunction(string source, string name)

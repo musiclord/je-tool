@@ -339,6 +339,9 @@ public sealed class FrontendHardeningContractTests
 
         var forbiddenDisplayPhrases = new[]
         {
+            "標準化",
+            "審計角色",
+            "傳票量詞",
             "已投影",
             "後端權威",
             "Artifact ID",
@@ -365,7 +368,12 @@ public sealed class FrontendHardeningContractTests
 
         foreach (var requiredDisplayPhrase in new[]
         {
-            "標準化",
+            // Q8 confirmed-state wording; all other vocabulary assertions remain unchanged.
+            // First failure: 20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022.
+            "已確認配對",
+            "分類用途",
+            "分錄金額（單欄）",
+            "符合條件的分錄",
             "資料儲存方式",
             "應用程式連線",
         })
@@ -450,6 +458,47 @@ public sealed class FrontendHardeningContractTests
             @"<!--[\s\S]*?-->",
             string.Empty,
             RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// 2026-10-02 使用者裁定本機案件不再碰暫緩中的 SQL Server 機制：只有 SQL Server 案件啟動心跳，
+    /// 其他案件先停掉舊計時器；案件清單的開啟按鈕把資料庫種類交給 project.load，讓後端只對
+    /// SQL Server 案件查線上登錄。
+    /// </summary>
+    [Fact]
+    public void LocalProjects_DoNotStartHeartbeat_AndPickerOpenSendsDatabaseProvider()
+    {
+        var core = ReadFrontend("js", "ui-core.js");
+        var app = ReadFrontend("js", "app.js");
+
+        var apply = ExtractFunction(core, "applyLoadedProject");
+        Assert.Single(Regex.Matches(core, @"startHeartbeat\(data\.heartbeatSeconds\)").Cast<Match>());
+        AssertOrder(
+            apply,
+            "if (data.project && data.project.databaseProvider === 'sqlServer') {",
+            "startHeartbeat(data.heartbeatSeconds);",
+            "stopHeartbeat();");
+        Assert.Single(Regex.Matches(apply, @"stopHeartbeat\(\)").Cast<Match>());
+
+        var open = ExtractFunction(core, "openProject");
+        Assert.Contains("function openProject(projectId, databaseProvider)", open, StringComparison.Ordinal);
+        Assert.Contains(
+            "if (databaseProvider) { loadPayload.databaseProvider = databaseProvider; }",
+            open,
+            StringComparison.Ordinal);
+        AssertOrder(open, "var loadPayload = { projectId: projectId };", "JetApi.projectLoad(loadPayload)");
+        Assert.Contains("filterScenarioRecalculatedMessage(data.filterScenarioCheck)", open, StringComparison.Ordinal);
+
+        var row = ExtractFunction(app, "projectRowHtml");
+        AssertOrder(
+            row,
+            "data-action=\"picker-open\"",
+            "data-project-provider=\"' + Ui.esc(p.databaseProvider) + '\"",
+            "data-action=\"picker-delete\"");
+        Assert.Contains(
+            "Ui.openProject(row.getAttribute('data-project-id'), row.getAttribute('data-project-provider'))",
+            ExtractFunction(app, "bindPicker"),
+            StringComparison.Ordinal);
+    }
 
     private static void AssertOrder(string source, params string[] markers)
     {

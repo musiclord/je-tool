@@ -552,9 +552,9 @@ public sealed class AccountMappingTemplateExportTests
     }
 
     [Fact]
-    public async Task ExportAccountMappingTemplate_WithoutValidationRun_ThrowsStaleResult()
+    public async Task ExportAccountMappingTemplate_WithoutGlMapping_RequiresMapping()
     {
-        // 正式報告必須綁目前 validation run；只有案件、沒有 run 時先以 stale_result 擋下。
+        // 9/23：配對工作檔不讀驗證結果，但仍需要已確認的 GL 欄位用途。
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
@@ -568,6 +568,10 @@ public sealed class AccountMappingTemplateExportTests
         var ex = await Assert.ThrowsAsync<JetActionException>(() =>
             host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { runId = new string('a', 32) })));
         Assert.Equal(JetErrorCodes.StaleResult, ex.Code);
+        // 2026-10-04 第 8 批 Q8：已確認配對的狀態說法統一，仍要求缺 GL 配對時明確拒絕。
+        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+        Assert.Contains("正式報表需要目前已確認配對的 GL 欄位", ex.Message);
+        Assert.DoesNotContain("驗證", ex.Message);
     }
 
     // ================= (e) provider parity：SQLite 對 SQL Server 範本列等價 =================

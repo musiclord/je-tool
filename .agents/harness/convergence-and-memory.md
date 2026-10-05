@@ -73,7 +73,7 @@
 
 跨 session 工作只需在現行計畫保留一份目前摘要：本輪成果與完成條件、已做與未做、重要裁定及否決理由、
 驗證範圍與下一動作。工作樹和近期收據由 `Context` 現查；原話及第一次失敗以連結追溯，不另建交接文件。
-「下一步」表示順序，本輪結束條件另依 [`development-workflow.md`](../../docs/development-workflow.md) 判斷。
+「下一步」表示順序，本輪結束條件另依 [`development-workflow.md`](development-workflow.md) 判斷。
 
 新 session 先讀 repository，再用 task history／memory 找補充來源。若兩者衝突，以實際 working tree 與現行
 權威為起點，回報衝突，不自動覆寫。

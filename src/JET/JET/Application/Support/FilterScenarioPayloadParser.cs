@@ -31,7 +31,7 @@ public static class FilterScenarioPayloadParser
         var name = ReadString(scenario, "name") ?? string.Empty;
         var rationale = ReadString(scenario, "rationale") ?? string.Empty;
 
-        // 選填來源標記（manifest scenario.source）：ReadString 已 trim 並把空白正規化為 null，
+        // 選填來源標記（wire 欄位 scenario.source）：ReadString 已 trim 並把空白正規化為 null，
         // 故未知/空白來源自然落為「查核員手寫」（Domain 只認得 "kct"，其餘等同 null）。
         var source = ReadString(scenario, "source");
 
@@ -49,7 +49,7 @@ public static class FilterScenarioPayloadParser
         // 時 fail-loud，讓審計員把它改成一般條件，而不是靜默忽略讓命中變多。
         if (scenario.TryGetProperty("exclusions", out var exclusionElements)
             && exclusionElements.ValueKind == JsonValueKind.Array && exclusionElements.GetArrayLength() > 0)
-            throw Invalid("這個情境使用了已移除的「排除區域」；請改用日期、文字或金額條件的「不屬於」「不在區間」等模式後重新保存。");
+            throw Invalid("這個情境使用了已移除的「排除區域」；請改用日期、文字或金額條件的「不屬於」「不在區間」等模式後重新儲存。");
         ValidateEditorOrigins(scenario, groups);
         return new FilterScenarioSpec(name.Trim(), rationale.Trim(), groups, source);
     }
@@ -61,10 +61,14 @@ public static class FilterScenarioPayloadParser
         if (origins.ValueKind != JsonValueKind.Object || !origins.TryGetProperty("version", out var version)
             || !version.TryGetInt32(out var number) || number != 1
             || !origins.TryGetProperty("groups", out var items) || items.ValueKind != JsonValueKind.Array
-            || items.GetArrayLength() != groups.Count) throw Invalid("條件編輯來源不完整，請重新開啟情境後再保存。");
+            || items.GetArrayLength() != groups.Count) throw Invalid("條件編輯來源不完整，請重新開啟情境後再儲存。");
         if (origins.TryGetProperty("legacyKctSource", out var legacy)
             && legacy.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
             throw Invalid("舊情境來源資訊無效，請重新開啟情境。");
+        foreach (var key in new[] { "nameIsAutomatic", "rationaleIsAutomatic" })
+            if (origins.TryGetProperty(key, out var automatic)
+                && automatic.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                throw Invalid("情境名稱或動機的編輯來源無效，請重新開啟情境後再儲存。");
         for (var i = 0; i < groups.Count; i++)
         {
             var item = items[i];
@@ -74,7 +78,9 @@ public static class FilterScenarioPayloadParser
             foreach (var letter in letters.EnumerateArray())
                 if (letter.ValueKind != JsonValueKind.Null && (letter.ValueKind != JsonValueKind.String
                     || letter.GetString() is not { Length: 1 } value || value[0] < 'A' || value[0] > 'J'))
-                    throw Invalid("KCT 卡片來源無效，請重新開啟情境。");
+                    throw Invalid("這個情境的 KCT 標記已損毀，請重新開啟情境，或重新加入條件後儲存。");
+            // presetGroup 只會出現在 2026-10-02 以前儲存的情境：當時非營業日 I 自成一組。新版前端不再產生、
+            // 也不再讀它，但已儲存的定義會原樣送回，所以仍接受並只檢查型別，不轉換舊情境。
             if (item.TryGetProperty("presetGroup", out var preset) && preset.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
                 throw Invalid("KCT 群組來源無效，請重新開啟情境。");
         }
@@ -146,8 +152,7 @@ public static class FilterScenarioPayloadParser
             _ => throw Invalid($"不支援的文字比對模式「{modeName}」。")
         };
 
-        var keywords = (ReadString(rule, "keywords") ?? string.Empty)
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var keywords = FieldValueConditions.SplitInputList(ReadString(rule, "keywords"));
         var values = type == FilterRuleType.TextSet
             ? ParseTextSetValues(rule)
             : Array.Empty<string>();
@@ -215,8 +220,6 @@ public static class FilterScenarioPayloadParser
             type == FilterRuleType.FieldValue ? ReadTypedString(rule, "drCr") : ReadString(rule, "drCr"),
             ParseManual(rule),
             PairMode: ReadString(rule, "pairMode"),
-            DebitCategory: debitCategoryIds is null ? ReadString(rule, "debitCategory") : null,
-            CreditCategory: creditCategoryIds is null ? ReadString(rule, "creditCategory") : null,
             Digits: ParseInt(rule, "digits"),
             MaxEntries: ParseInt(rule, "maxEntries"),
             WindowDays: ParseInt(rule, "windowDays"),

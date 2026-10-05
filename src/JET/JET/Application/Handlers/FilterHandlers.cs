@@ -1,56 +1,23 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
 /// <summary>
 /// filter.preview：解析條件 AST → Domain 驗證 → 參數化 SQL set-based 評估
-/// （無狀態，previewRows ≤ 50；manifest Filter / Criteria 章節）。
+/// （無狀態，previewRows ≤ 50）。
 /// </summary>
 public sealed class FilterPreviewHandler : IApplicationActionHandler
 {
-    private readonly IFilterFactsPort filterFactsPort;
-    private readonly IMappingStateStore mappingStore;
-    private readonly IAccountMappingStore accountMappingStore;
-    private readonly IAuthorizedPreparerStore authorizedPreparerStore;
-    private readonly IAccountTaxonomyStore accountTaxonomyStore;
     private readonly IProjectStore projectStore;
     private readonly ProjectSession session;
 
-    public FilterPreviewHandler(
-        IFilterRunRepository filterRepository,
-        IMappingStateStore mappingStore,
-        IAccountMappingStore accountMappingStore,
-        IAuthorizedPreparerStore authorizedPreparerStore,
-        IAccountTaxonomyStore accountTaxonomyStore,
-        IProjectStore projectStore,
-        ProjectSession session)
-        : this(
-            new FilterPreviewCompatibilityFactsPort(filterRepository),
-            mappingStore,
-            accountMappingStore,
-            authorizedPreparerStore,
-            accountTaxonomyStore,
-            projectStore,
-            session)
-    {
-    }
-
     internal FilterPreviewHandler(
-        IFilterFactsPort filterFactsPort,
-        IMappingStateStore mappingStore,
-        IAccountMappingStore accountMappingStore,
-        IAuthorizedPreparerStore authorizedPreparerStore,
-        IAccountTaxonomyStore accountTaxonomyStore,
         IProjectStore projectStore,
         ProjectSession session)
     {
-        this.filterFactsPort = filterFactsPort;
-        this.mappingStore = mappingStore;
-        this.accountMappingStore = accountMappingStore;
-        this.authorizedPreparerStore = authorizedPreparerStore;
-        this.accountTaxonomyStore = accountTaxonomyStore;
         this.projectStore = projectStore;
         this.session = session;
     }
@@ -59,28 +26,28 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
 
-        var glMapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
+        var glMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoTargetData,
-                "尚未提交 GL 欄位配對（無投影資料），請先完成欄位配對步驟。");
+                "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
 
         if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("scenario", out var scenarioElement))
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'scenario'。");
+            throw new JetActionException(JetErrorCodes.InvalidPayload, "缺少必要的條件內容，請重新開啟第五步再試一次。");
         }
 
         var populationScope = FilterPopulationScopeParser.ReadPayload(payload);
 
         var accountMappingState =
-            await accountMappingStore.FindStateAsync(projectId, cancellationToken);
+            await repositories.AccountMappings.FindStateAsync(projectId, cancellationToken);
         var hasAuthorizedPreparers =
-            await authorizedPreparerStore.CountAsync(projectId, cancellationToken) > 0;
-        var taxonomy = await accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
+            await repositories.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
+        var taxonomy = await repositories.AccountTaxonomy.ReadAsync(projectId, cancellationToken);
 
         var canonicalDocument = FilterScenarioPayloadParser.ParseDocument(
             scenarioElement,
@@ -101,7 +68,8 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
             document.NonWorkingDays,
             populationScope)
         {
-            RdeFields = glMapping.GlOptions?.RdeFields ?? []
+            RdeFields = glMapping.GlOptions?.RdeFields ?? [],
+            DateParseOptions = document.DateParseOptions
         };
         var plan = JetAuditProgram.Plan(new FilterRequest(
             Action,
@@ -109,9 +77,8 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
             [canonicalDocument],
             ruleContext,
             validationContext));
-        var facts = await JetAuditProgram.ExecuteAsync(
+        var facts = await repositories.FilterFacts.ExecuteAsync(
             plan,
-            filterFactsPort,
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
         var preview = result.Preview
@@ -149,97 +116,60 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
 /// </summary>
 public sealed class FilterCommitHandler : IApplicationActionHandler
 {
-    private const int MaxScenarios = 10;
+    private const int MaxScenarios = FilterScenarioLimits.MaxSavedScenarios;
 
-    private readonly IFilterFactsPort filterFactsPort;
-    private readonly IMappingStateStore mappingStore;
-    private readonly IAccountMappingStore accountMappingStore;
-    private readonly IAuthorizedPreparerStore authorizedPreparerStore;
-    private readonly IAccountTaxonomyStore accountTaxonomyStore;
-    private readonly IRuleRunStore runStore;
     private readonly IProjectStore projectStore;
     private readonly ProjectSession session;
-
-    public FilterCommitHandler(
-        IFilterCommitRepository commitRepository,
-        IMappingStateStore mappingStore,
-        IAccountMappingStore accountMappingStore,
-        IAuthorizedPreparerStore authorizedPreparerStore,
-        IAccountTaxonomyStore accountTaxonomyStore,
-        IRuleRunStore runStore,
-        IProjectStore projectStore,
-        ProjectSession session)
-        : this(
-            new FilterCommitCompatibilityFactsPort(commitRepository),
-            mappingStore,
-            accountMappingStore,
-            authorizedPreparerStore,
-            accountTaxonomyStore,
-            runStore,
-            projectStore,
-            session)
-    {
-    }
+    private readonly ILogger? logger;
 
     internal FilterCommitHandler(
-        IFilterFactsPort filterFactsPort,
-        IMappingStateStore mappingStore,
-        IAccountMappingStore accountMappingStore,
-        IAuthorizedPreparerStore authorizedPreparerStore,
-        IAccountTaxonomyStore accountTaxonomyStore,
-        IRuleRunStore runStore,
         IProjectStore projectStore,
-        ProjectSession session)
+        ProjectSession session, ILogger? logger = null)
     {
-        this.filterFactsPort = filterFactsPort;
-        this.mappingStore = mappingStore;
-        this.accountMappingStore = accountMappingStore;
-        this.authorizedPreparerStore = authorizedPreparerStore;
-        this.accountTaxonomyStore = accountTaxonomyStore;
-        this.runStore = runStore;
         this.projectStore = projectStore;
         this.session = session;
+        this.logger = logger;
     }
 
     public string Action => "filter.commit";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         await CompletenessEligibilitySupport.RequireCurrentAsync(
-            runStore,
+            repositories.RuleRuns,
             projectId,
             cancellationToken);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
 
-        var glMapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
+        var glMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoTargetData,
-                "尚未提交 GL 欄位配對（無投影資料），請先完成欄位配對步驟。");
+                "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
 
         if (payload.ValueKind != JsonValueKind.Object
             || !payload.TryGetProperty("scenarios", out var scenariosElement)
             || scenariosElement.ValueKind != JsonValueKind.Array)
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'scenarios'（陣列）。");
+            throw new JetActionException(JetErrorCodes.InvalidPayload, "缺少必要的條件內容，請重新開啟第五步再試一次。");
         }
 
         if (scenariosElement.GetArrayLength() > MaxScenarios)
         {
             throw new JetActionException(
                 JetErrorCodes.ScenarioLimitReached,
-                $"最多保存 {MaxScenarios} 個篩選情境。");
+                $"最多儲存 {MaxScenarios} 個篩選情境。");
         }
 
         var populationScope = FilterPopulationScopeParser.ReadPayload(payload);
 
         var accountMappingState =
-            await accountMappingStore.FindStateAsync(projectId, cancellationToken);
+            await repositories.AccountMappings.FindStateAsync(projectId, cancellationToken);
         var hasAuthorizedPreparers =
-            await authorizedPreparerStore.CountAsync(projectId, cancellationToken) > 0;
-        var taxonomy = await accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
+            await repositories.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
+        var taxonomy = await repositories.AccountTaxonomy.ReadAsync(projectId, cancellationToken);
 
         var savedUtc = DateTimeOffset.UtcNow;
         var revision = savedUtc.ToUniversalTime().ToString("O");
@@ -261,7 +191,8 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             document.NonWorkingDays,
             populationScope)
         {
-            RdeFields = glMapping.GlOptions?.RdeFields ?? []
+            RdeFields = glMapping.GlOptions?.RdeFields ?? [],
+            DateParseOptions = document.DateParseOptions
         };
 
         foreach (var scenarioElement in scenariosElement.EnumerateArray())
@@ -312,9 +243,8 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
 
         // definitions 與命中 entry_id 由 provider repository 在同一 transaction 整批發布；
         // 只有原子 commit 成功後才可能推進步驟。
-        var facts = await JetAuditProgram.ExecuteAsync(
+        var facts = await repositories.FilterFacts.ExecuteAsync(
             plan,
-            filterFactsPort,
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
@@ -323,8 +253,8 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             await MappingCommitShared.AdvanceStepAsync(
                 projectStore,
                 document,
-                ProgramGraph.Current.RequireNode(Action),
-                CancellationToken.None);
+                WorkflowMilestones.For(Action),
+                CancellationToken.None, logger);
         }
 
         return new
@@ -388,55 +318,7 @@ internal static class FilterValidationContextFactory
                     .ToArray()
                 : taxonomy.Categories.Select(static category => category.CategoryId).ToArray(),
             RdeFields = glMapping.GlOptions?.RdeFields ?? [],
-            MoneyScale = document.MoneyScale
+            MoneyScale = document.MoneyScale,
+            DateParseOptions = document.DateParseOptions
         };
-}
-
-/// <summary>Public-constructor compatibility adapter; production composition uses Infrastructure's typed port.</summary>
-internal sealed class FilterPreviewCompatibilityFactsPort(
-    IFilterRunRepository repository) : IFilterFactsPort
-{
-    public async Task<FilterFacts> ExecuteAsync(
-        FilterPlan plan,
-        CancellationToken cancellationToken)
-    {
-        if (!string.Equals(plan.Request.ActionName, "filter.preview", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"FilterPreviewCompatibilityFactsPort 不支援 action '{plan.Request.ActionName}'。");
-        }
-
-        var document = plan.Request.Documents.Single();
-        var preview = await repository.PreviewAsync(
-            plan.Request.ProjectId,
-            document.Spec,
-            plan.Request.RuleContext,
-            cancellationToken);
-        return new FilterFacts(preview, MaterializedScenarioCount: 0);
-    }
-}
-
-/// <summary>Public-constructor adapter; production composition uses Infrastructure's typed port.</summary>
-internal sealed class FilterCommitCompatibilityFactsPort(
-    IFilterCommitRepository repository) : IFilterFactsPort
-{
-    public async Task<FilterFacts> ExecuteAsync(
-        FilterPlan plan,
-        CancellationToken cancellationToken)
-    {
-        if (!string.Equals(plan.Request.ActionName, "filter.commit", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"FilterCommitCompatibilityFactsPort 不支援 action '{plan.Request.ActionName}'。");
-        }
-
-        await repository.CommitAsync(
-            plan.Request.ProjectId,
-            plan.CommitItems,
-            plan.Request.RuleContext,
-            cancellationToken);
-        return new FilterFacts(
-            Preview: null,
-            MaterializedScenarioCount: plan.CommitItems.Count);
-    }
 }

@@ -11,7 +11,7 @@ public sealed class LocalAccountUsageExportRepository(ILocalProjectDatabase data
         string periodEnd,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();

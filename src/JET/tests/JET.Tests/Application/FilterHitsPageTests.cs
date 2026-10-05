@@ -72,9 +72,8 @@ public sealed class FilterHitsPageTests
         var ctx = await DemoProjectPipeline.SetupAsync(host);
         await host.DispatchAsync("filter.commit", ScenarioPayload("提前過帳"));
 
-        // 直接清空命中表(definition_json 仍在),模擬「定義在、命中不在」。
-        await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
-            "DELETE FROM result_filter_run; SELECT 0;");
+        // 透過正式上游變更使結果失效；情境定義保留，不把手動刪表當作產品失效流程。
+        await host.DispatchAsync("calendar.setNonWorkingDays", """{"days":[6]}""");
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
             "SELECT COUNT(*) FROM result_filter_run;"));
 

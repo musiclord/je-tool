@@ -58,13 +58,26 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
     {
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
         var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var core = ReadFrontend("js", "ui-core.js");
 
         Assert.Contains("<fieldset class=\"map-options__group\">", mapping, StringComparison.Ordinal);
         Assert.Contains("<legend class=\"map-options__legend\">", mapping, StringComparison.Ordinal);
         Assert.Contains("aria-describedby=\"gl-approval-help\"", mapping, StringComparison.Ordinal);
 
-        Assert.Contains("<fieldset class=\"category-select\">", filter, StringComparison.Ordinal);
-        Assert.Contains("<legend class=\"category-select__legend\">", filter, StringComparison.Ordinal);
+        // 第二遍第 5 批改由共同分類樹輸出群組。首次失敗收據：
+        // 20261004-075340533-87179f5019724ec89d7c19b4243fdb09；仍要求實際輸出 fieldset、legend 及有名稱的控制項。
+        Assert.Contains("Ui.taxonomyPickerHtml(state, selected, idsKey, legend, view)", filter, StringComparison.Ordinal);
+        var pickerStart = core.IndexOf("function taxonomyPickerHtml(", StringComparison.Ordinal);
+        var pickerEnd = core.IndexOf("function bindTaxonomyPicker(", StringComparison.Ordinal);
+        Assert.True(pickerStart >= 0 && pickerEnd > pickerStart, "找不到共同分類樹的呈現函式。");
+        var picker = core[pickerStart..pickerEnd];
+        Assert.Contains("<fieldset class=\"category-select\" data-category-picker=", picker, StringComparison.Ordinal);
+        Assert.Contains("<legend class=\"category-select__legend\">' + esc(legend) + '</legend>", picker, StringComparison.Ordinal);
+        Assert.Contains("<label>搜尋分類<input", picker, StringComparison.Ordinal);
+        Assert.Contains("<label class=\"category-option\"><input type=\"checkbox\"", picker, StringComparison.Ordinal);
+        Assert.Contains("<span>' + esc(category.label) + '</span></label>", picker, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"展開或收合", picker, StringComparison.Ordinal);
+        Assert.Contains("aria-expanded=\"' + open + '\"", picker, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -44,8 +45,8 @@ public sealed class SqlServerImportLoggingTests
         });
         var repo = new SqlServerImportRepository(temp.Database, factory.CreateLogger<SqlServerImportRepository>());
 
-        await repo.ReplaceBatchAsync(temp.ProjectId, DatasetKind.Gl, Src(), new[] { "科目", "金額" },
-            Stream([Row(2, ("科目", "1001"), ("金額", "100")), Row(3, ("科目", "1002"), ("金額", "200"))]),
+        await repo.ReplaceBatchAsync(temp.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), new[] { "科目", "金額" },
+            Stream([Row(2, ("科目", "1001"), ("金額", "100")), Row(3, ("科目", "1002"), ("金額", "200"))]))],
             CancellationToken.None);
 
         var entries = diagnostic.Snapshot();

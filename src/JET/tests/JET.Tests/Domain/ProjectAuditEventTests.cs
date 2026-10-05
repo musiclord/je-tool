@@ -9,7 +9,6 @@ public sealed class ProjectAuditEventTests
     [InlineData(ProjectAuditOperations.DataReimport, ProjectAuditTargetTypes.Dataset)]
     [InlineData(ProjectAuditOperations.MappingRecommit, ProjectAuditTargetTypes.Mapping)]
     [InlineData(ProjectAuditOperations.ReportPublish, ProjectAuditTargetTypes.ReportCatalog)]
-    [InlineData(ProjectAuditOperations.ReportCleanup, ProjectAuditTargetTypes.ReportCatalog)]
     public void Create_AcceptsOnlyRegisteredOperationAndTargetTokens(string operation, string targetType)
     {
         var auditEvent = ProjectAuditEvent.Create(operation, targetType, "target", 1);

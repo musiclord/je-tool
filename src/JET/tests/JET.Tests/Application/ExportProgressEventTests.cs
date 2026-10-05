@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JET.Application;
 using JET.Domain;
+using JET.Tests.Architecture;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -16,26 +17,44 @@ public sealed class ExportProgressEventTests
         "publishingArtifact"
     ];
 
+    /// <remarks>
+    /// 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 repository，建構式不再列出
+    /// IAccountMappingExportRepository、IRuleRunStore、IAccountTaxonomyStore 與 IMappingStateStore。
+    /// 改成檢查建構式只剩不分資料庫的依賴，再讀原始碼確認 handler 只用到資料庫組的這四個屬性，
+    /// 而且仍然不碰報告 store（資料庫組的 ReportArtifactStore）。第一次失敗收據：
+    /// 20261002-115426688-212aacd0011642418bc05dd51d524df6。
+    /// </remarks>
     [Fact]
     public void AccountMappingHandler_WritesWorkFileThroughProjectLocatorNotArtifactStore()
     {
         // 範本是工作檔：handler 只拿案件資料夾定位器，不再依賴報告 store。
         Assert.NotNull(typeof(ExportAccountMappingTemplateHandler).GetConstructor(
         [
-            typeof(IAccountMappingExportRepository),
             typeof(IAccountMappingTemplateWriter),
-            typeof(IRuleRunStore),
             typeof(IProjectStore),
             typeof(IProjectExportLocator),
             typeof(ProjectSession),
-            typeof(IJetEventPublisher),
-            typeof(IAccountTaxonomyStore),
-            typeof(IMappingStateStore)
+            typeof(IJetEventPublisher)
         ]));
         Assert.DoesNotContain(
             typeof(ExportAccountMappingTemplateHandler).GetConstructors()
                 .SelectMany(constructor => constructor.GetParameters()),
             parameter => parameter.ParameterType == typeof(IReportArtifactStore));
+
+        var used = HandlerRepositoryUsage.PropertiesUsedBy(
+            nameof(ExportAccountMappingTemplateHandler),
+            "Application", "Handlers", "ExportAccountMappingTemplateHandler.cs");
+        Assert.Equal(
+            ["AccountMappingExport", "AccountTaxonomy", "MappingStates", "RuleRuns"],
+            used);
+        Assert.Equal(
+            [
+                typeof(IAccountMappingExportRepository),
+                typeof(IAccountTaxonomyStore),
+                typeof(IMappingStateStore),
+                typeof(IRuleRunStore)
+            ],
+            used.Select(name => typeof(ProjectRepositories).GetProperty(name)!.PropertyType).ToArray());
     }
 
     [Fact]

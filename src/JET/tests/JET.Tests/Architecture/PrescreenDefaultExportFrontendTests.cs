@@ -29,7 +29,7 @@ public sealed class PrescreenDefaultExportFrontendTests
         // 取消勾選後只少這一份：走純 Working Paper 分支，序列不含 Pre-screening Report。
         var bind = ExtractFunction(source, "bind");
         Assert.Contains("if (!plan.included)", bind, StringComparison.Ordinal);
-        Assert.Contains("Ui.run('產生 WorkingPaper'", bind, StringComparison.Ordinal);
+        Assert.Contains("Ui.run('產生工作底稿'", bind, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public sealed class PrescreenDefaultExportFrontendTests
     /// <summary>取 bind 內「含 Pre-screening Report」那一段序列（純 Working Paper 分支在它之前）。</summary>
     private static string SequenceBranch(string bind)
     {
-        var marker = "Ui.run('產生底稿與 Pre-screening Report'";
+        var marker = "Ui.run('產生工作底稿與預篩選報告'";
         var start = bind.IndexOf(marker, StringComparison.Ordinal);
         Assert.True(start >= 0, "找不到含 Pre-screening Report 的匯出序列。 ");
         return bind[start..];

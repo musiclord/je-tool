@@ -12,18 +12,15 @@ public abstract class ImportCalendarHandler : IApplicationActionHandler
 {
     private readonly IProjectStore projectStore;
     private readonly IProjectRegistry projectRegistry;
-    private readonly IReferenceDataFactsPort referenceDataFactsPort;
     private readonly ProjectSession session;
 
     internal ImportCalendarHandler(
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        IReferenceDataFactsPort referenceDataFactsPort,
         ProjectSession session)
     {
         this.projectStore = projectStore;
         this.projectRegistry = projectRegistry;
-        this.referenceDataFactsPort = referenceDataFactsPort;
         this.session = session;
     }
 
@@ -33,7 +30,7 @@ public abstract class ImportCalendarHandler : IApplicationActionHandler
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
 
@@ -44,16 +41,21 @@ public abstract class ImportCalendarHandler : IApplicationActionHandler
                 ?? throw new InvalidOperationException("Inline 行事曆 plan 缺少正規化日期。"))
             .Select(date => new CalendarDayEntry(date, null))
             .ToList();
-        var facts = await JetAuditProgram.ExecuteAsync(
+        var facts = await repositories.ReferenceDataFacts.ExecuteAsync(
             plan,
-            referenceDataFactsPort,
             entries,
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
         await MarkCalendarImportedAsync(document);
 
-        return new { count = result.Count };
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
+        return new { count = result.Count,
+            invalidatedResults = mutationState.InvalidatedResults,
+            staleState = mutationState.StaleState,
+            reportArtifacts = mutationState.ReportArtifacts,
+            reportArtifactWarning = mutationState.ReportArtifactWarning };
     }
 
     private async Task MarkCalendarImportedAsync(ProjectDocument document)
@@ -80,9 +82,8 @@ public sealed class ImportHolidayHandler : ImportCalendarHandler
     internal ImportHolidayHandler(
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        IReferenceDataFactsPort referenceDataFactsPort,
         ProjectSession session)
-        : base(projectStore, projectRegistry, referenceDataFactsPort, session)
+        : base(projectStore, projectRegistry, session)
     {
     }
 
@@ -96,9 +97,8 @@ public sealed class ImportMakeupDayHandler : ImportCalendarHandler
     internal ImportMakeupDayHandler(
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        IReferenceDataFactsPort referenceDataFactsPort,
         ProjectSession session)
-        : base(projectStore, projectRegistry, referenceDataFactsPort, session)
+        : base(projectStore, projectRegistry, session)
     {
     }
 
@@ -108,7 +108,7 @@ public sealed class ImportMakeupDayHandler : ImportCalendarHandler
 }
 
 /// <summary>
-/// import.holiday.fromFile / import.makeupDay.fromFile:事務所行事曆檔匯入(spec F)。
+/// import.holiday.fromFile / import.makeupDay.fromFile:事務所行事曆檔匯入。
 /// 僅 .xlsx;標頭在第 2 列(LeadingRowsToSkip=1);欄位辨識與投影在 AuditCore;
 /// replace 語意,store 在同交易清規則結果。
 /// </summary>
@@ -117,20 +117,17 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
     private readonly ITabularFileReader reader;
     private readonly IProjectStore projectStore;
     private readonly IProjectRegistry projectRegistry;
-    private readonly IReferenceDataFactsPort referenceDataFactsPort;
     private readonly ProjectSession session;
 
     internal ImportCalendarFromFileHandler(
         ITabularFileReader reader,
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        IReferenceDataFactsPort referenceDataFactsPort,
         ProjectSession session)
     {
         this.reader = reader;
         this.projectStore = projectStore;
         this.projectRegistry = projectRegistry;
-        this.referenceDataFactsPort = referenceDataFactsPort;
         this.session = session;
     }
 
@@ -140,7 +137,7 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
 
@@ -170,16 +167,21 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
                 cancellationToken);
         }, cancellationToken);
 
-        var facts = await JetAuditProgram.ExecuteAsync(
+        var facts = await repositories.ReferenceDataFacts.ExecuteAsync(
             plan,
-            referenceDataFactsPort,
             entries,
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
         await MarkCalendarImportedAsync(document);
 
-        return new { count = result.Count };
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
+        return new { count = result.Count,
+            invalidatedResults = mutationState.InvalidatedResults,
+            staleState = mutationState.StaleState,
+            reportArtifacts = mutationState.ReportArtifacts,
+            reportArtifactWarning = mutationState.ReportArtifactWarning };
     }
 
     private async Task MarkCalendarImportedAsync(ProjectDocument document)
@@ -204,9 +206,8 @@ public sealed class ImportHolidayFromFileHandler : ImportCalendarFromFileHandler
         ITabularFileReader reader,
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        IReferenceDataFactsPort referenceDataFactsPort,
         ProjectSession session)
-        : base(reader, projectStore, projectRegistry, referenceDataFactsPort, session)
+        : base(reader, projectStore, projectRegistry, session)
     {
     }
 
@@ -221,9 +222,8 @@ public sealed class ImportMakeupDayFromFileHandler : ImportCalendarFromFileHandl
         ITabularFileReader reader,
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        IReferenceDataFactsPort referenceDataFactsPort,
         ProjectSession session)
-        : base(reader, projectStore, projectRegistry, referenceDataFactsPort, session)
+        : base(reader, projectStore, projectRegistry, session)
     {
     }
 
@@ -241,18 +241,15 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
 {
     private readonly IProjectStore projectStore;
     private readonly IProjectRegistry projectRegistry;
-    private readonly IReferenceDataFactsPort referenceDataFactsPort;
     private readonly ProjectSession session;
 
     internal CalendarSetNonWorkingDaysHandler(
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        IReferenceDataFactsPort referenceDataFactsPort,
         ProjectSession session)
     {
         this.projectStore = projectStore;
         this.projectRegistry = projectRegistry;
-        this.referenceDataFactsPort = referenceDataFactsPort;
         this.session = session;
     }
 
@@ -260,7 +257,7 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         // 保留既有錯誤優先序：即使 session 指到已不存在的案件，無效 days 仍先回 invalid_payload。
         var requested = JetAuditProgram.ValidateNonWorkingDays(
             PayloadReader.GetIntList(payload, "days"));
@@ -275,10 +272,11 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
 
         // 先失效再存設定：若失效失敗，重試時仍能看到舊值並再次執行，
         // 不會出現「設定已存、重試因同值跳過失效」而留下舊命中的情形。
-        await JetAuditProgram.ExecuteAsync(
-            plan,
-            referenceDataFactsPort,
-            cancellationToken);
+        if (plan.ShouldExecute)
+        {
+            await repositories.ReferenceDataFacts.ExecuteAsync(plan, cancellationToken);
+        }
+
         var result = JetAuditProgram.Finalize(plan);
         var updated = document;
         if (plan.ShouldExecute)
@@ -294,6 +292,13 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
             await projectRegistry.UpdateDocumentAsync(updated, CancellationToken.None);
         }
 
-        return new { ok = true, nonWorkingDays = result.NormalizedDays };
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(
+            projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.ShouldExecute ? plan.Effects : null);
+        return new { ok = true, nonWorkingDays = result.NormalizedDays,
+            invalidatedResults = mutationState.InvalidatedResults,
+            staleState = mutationState.StaleState,
+            reportArtifacts = mutationState.ReportArtifacts,
+            reportArtifactWarning = mutationState.ReportArtifactWarning };
     }
 }

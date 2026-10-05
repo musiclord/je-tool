@@ -68,21 +68,6 @@ public sealed class ValidationReportProgramTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_PassesUnfinalizedPlanToFactsPortWithoutLoss()
-    {
-        var plan = JetAuditProgram.Plan(Request());
-        var expected = new ValidationReportPlanningFacts(UnbalancedDetailRowCount: 7);
-        var port = new RecordingFactsPort(expected);
-        using var source = new CancellationTokenSource();
-
-        var facts = await JetAuditProgram.ExecuteAsync(plan, port, source.Token);
-
-        Assert.Same(plan, port.Plan);
-        Assert.Equal(source.Token, port.CancellationToken);
-        Assert.Same(expected, facts);
-    }
-
-    [Fact]
     public void Finalize_RejectsNegativeSavedOrProviderCounts()
     {
         var negativeSaved = JetAuditProgram.Plan(Request(nullAccountCount: -1));
@@ -126,21 +111,4 @@ public sealed class ValidationReportProgramTests
             NullDocumentCount: nullDocumentCount,
             NullDescriptionCount: nullDescriptionCount,
             OutOfRangeDateCount: outOfRangeDateCount);
-
-    private sealed class RecordingFactsPort(ValidationReportPlanningFacts result)
-        : IValidationReportPlanningFactsPort
-    {
-        internal ValidationReportPlan? Plan { get; private set; }
-
-        internal CancellationToken CancellationToken { get; private set; }
-
-        public Task<ValidationReportPlanningFacts> ExecuteAsync(
-            ValidationReportPlan plan,
-            CancellationToken cancellationToken)
-        {
-            Plan = plan;
-            CancellationToken = cancellationToken;
-            return Task.FromResult(result);
-        }
-    }
 }

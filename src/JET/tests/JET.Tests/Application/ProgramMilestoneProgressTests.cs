@@ -12,7 +12,7 @@ public sealed class ProgramMilestoneProgressTests
     [InlineData(4, "filter.commit", 5, 1)]
     [InlineData(5, "validate.run", 5, 0)]
     [InlineData(4, "mapping.commit.gl", 4, 0)]
-    public async Task MappingCommitShared_UsesMonotonicProgramNodeMilestoneOnly(
+    public async Task MappingCommitShared_UsesMonotonicWorkflowMilestoneOnly(
         int currentStep,
         string actionName,
         int expectedStep,
@@ -24,7 +24,7 @@ public sealed class ProgramMilestoneProgressTests
         await MappingCommitShared.AdvanceStepAsync(
             store,
             document,
-            ProgramGraph.Current.RequireNode(actionName),
+            WorkflowMilestones.For(actionName),
             CancellationToken.None);
 
         Assert.Equal(expectedStep, store.Document.CurrentStep);
@@ -47,6 +47,8 @@ public sealed class ProgramMilestoneProgressTests
 
     private sealed class RecordingProjectStore(ProjectDocument document) : IProjectStore
     {
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
         internal ProjectDocument Document { get; private set; } = document;
 
         internal int SaveCalls { get; private set; }

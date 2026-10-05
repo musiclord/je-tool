@@ -54,7 +54,8 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
         CancellationToken cancellationToken)
     {
         await database.EnsureCreatedAsync(projectId, cancellationToken);
-        projection ??= JetAuditProgram.PrepareAuthorizedPreparerProjection(columns);
+        projection ??= JetAuditProgram.PrepareAuthorizedPreparerProjection(
+            columns, columns.Count == 1 ? columns[0] : null);
         projection.ResolveColumns();
 
         var batchId = Guid.NewGuid().ToString("N");
@@ -133,13 +134,16 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
         }
 
         await AuthorizedPreparerMetadataSql.WriteAsync(connection, transaction, projection.SourceColumn, cancellationToken,
-            SqlServerProjectSchema.QualifierFor(projectId));
+            SqlServerProjectSchema.QualifierFor(projectId), rowCount, projection.BlankRowCount, projection.DuplicateRowCount);
+        var matchedPreparerCount = await AuthorizedPreparerMetadataSql.CountMatchedAsync(
+            connection, transaction, SqlServerDialect.Instance, cancellationToken, SqlServerProjectSchema.QualifierFor(projectId));
         await transaction.CommitAsync(cancellationToken);
 
         return new AuthorizedPreparerImportResult(batchId, names.Count, source.FileName, importedUtc)
         {
             SourceColumn = projection.SourceColumn, SourceRowCount = rowCount,
-            BlankRowCount = projection.BlankRowCount, DuplicateRowCount = projection.DuplicateRowCount
+            BlankRowCount = projection.BlankRowCount, DuplicateRowCount = projection.DuplicateRowCount,
+            MatchedPreparerCount = matchedPreparerCount
         };
     }
 
@@ -178,10 +182,16 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
         if (rowCount == 0) return null;
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
+        var prefix = SqlServerProjectSchema.QualifierFor(projectId);
+        var metadata = await AuthorizedPreparerMetadataSql.ReadAsync(connection, cancellationToken, prefix);
         return new AuthorizedPreparerState(rowCount)
         {
-            SourceColumn = await AuthorizedPreparerMetadataSql.ReadAsync(connection, cancellationToken,
-                SqlServerProjectSchema.QualifierFor(projectId))
+            SourceColumn = metadata.SourceColumn,
+            SourceRowCount = metadata.SourceRowCount,
+            BlankRowCount = metadata.BlankRowCount,
+            DuplicateRowCount = metadata.DuplicateRowCount,
+            MatchedPreparerCount = await AuthorizedPreparerMetadataSql.CountMatchedAsync(
+                connection, null, SqlServerDialect.Instance, cancellationToken, prefix)
         };
     }
 }

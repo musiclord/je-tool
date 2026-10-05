@@ -133,6 +133,10 @@ public sealed class DualSourceProjectTests
     }
 
     // ---- project.load：物化 serverOnly、幽靈擋下、lazy-heal、物化資料夾衝突 ----
+    // 2026-10-02 使用者裁定本機案件不查線上登錄：本機沒有案件資料夾時，project.load 只有在請求帶
+    // "databaseProvider":"sqlServer" 時才查登錄，所以下面本機無資料夾的四個載入請求補上這個欄位，
+    // 讓它們照舊走登錄路徑，斷言不變。這些測試只在 SQL Server 路線執行；修改時 SQL Server 開發暫緩，
+    // 沒有執行該路線，所以沒有修改前的失敗紀錄。
 
     [SqlServerFact]
     public async Task Load_ServerOnly_MaterializesCacheAndLoads()
@@ -152,7 +156,8 @@ public sealed class DualSourceProjectTests
             using var target = new HandlerTestHost(sqlServerConnectionString: conn, principalName: principal);
             Assert.False(Directory.Exists(Path.Combine(target.ProjectsRoot, name))); // 物化前本機無資料夾
 
-            var loaded = await target.DispatchAsync("project.load", $$"""{ "projectId": "{{name}}" }""");
+            var loaded = await target.DispatchAsync(
+                "project.load", $$"""{ "projectId": "{{name}}", "databaseProvider": "sqlServer" }""");
 
             // 物化：project.json 生成，內容 round-trip 等於入庫的 doc。
             Assert.True(File.Exists(Path.Combine(target.ProjectsRoot, name, "project.json")));
@@ -185,7 +190,8 @@ public sealed class DualSourceProjectTests
                 CancellationToken.None);
 
             var exception = await Assert.ThrowsAsync<JetActionException>(() =>
-                host.DispatchAsync("project.load", $$"""{ "projectId": "{{name}}" }"""));
+                host.DispatchAsync(
+                    "project.load", $$"""{ "projectId": "{{name}}", "databaseProvider": "sqlServer" }"""));
 
             Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
             Assert.Contains("INF 抽樣種子", exception.Message, StringComparison.Ordinal);
@@ -264,7 +270,8 @@ public sealed class DualSourceProjectTests
             Directory.CreateDirectory(Path.Combine(host.ProjectsRoot, name));
 
             var ex = await Assert.ThrowsAsync<JetActionException>(
-                () => host.DispatchAsync("project.load", $$"""{ "projectId": "{{name}}" }"""));
+                () => host.DispatchAsync(
+                    "project.load", $$"""{ "projectId": "{{name}}", "databaseProvider": "sqlServer" }"""));
 
             Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
             Assert.Contains("本地已有同名案件", ex.Message);
@@ -392,8 +399,10 @@ public sealed class DualSourceProjectTests
         {
             await registry.RegisterAsync(SqlServerDoc(name), $"owner-{tag}", CancellationToken.None); // 他人登記、B 本機無資料夾
 
+            // 帶 sqlServer 提示，確保是登錄查詢後判定不可見，而不是因為沒帶提示就直接回找不到。
             var ex = await Assert.ThrowsAsync<JetActionException>(
-                () => intruder.DispatchAsync("project.load", $$"""{ "projectId": "{{name}}" }"""));
+                () => intruder.DispatchAsync(
+                    "project.load", $$"""{ "projectId": "{{name}}", "databaseProvider": "sqlServer" }"""));
             Assert.Equal(JetErrorCodes.ProjectNotFound, ex.Code);
         }
         finally

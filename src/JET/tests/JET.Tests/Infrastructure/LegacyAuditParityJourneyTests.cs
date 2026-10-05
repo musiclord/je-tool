@@ -308,6 +308,9 @@ public sealed class LegacyAuditParityJourneyTests
                     ["amount"] = "金額",
                     ["dcField"] = "借方旗標",
                     ["dcDebitCode"] = "1",
+                    // R9 explicit two-code contract; this synthetic workbook uses 1/0.
+                    // First failure: 20261004-100911120-57efb95a0cae44beb892ec3c2d058592.
+                    ["dcCreditCode"] = "0",
                 },
                 GlAmountMode: "flag",
                 TbSources: [new LegacyAuditParityImportSource(tbPath, "synthetic-tb.xlsx")],

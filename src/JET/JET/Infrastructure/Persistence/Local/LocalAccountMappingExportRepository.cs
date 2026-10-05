@@ -16,7 +16,7 @@ public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase da
     public async Task<IReadOnlyList<AccountMappingExportRow>> FetchAllAsync(
         string projectId, string periodStart, string periodEnd, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
@@ -51,7 +51,7 @@ public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase da
     public async Task<IReadOnlyList<AccountMappingTemplateRow>> FetchTemplateRowsAsync(
         string projectId, string periodStart, string periodEnd, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 

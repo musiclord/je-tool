@@ -26,7 +26,6 @@ public sealed class ProjectSessionStateTests
     [Fact]
     public async Task ReleaseLock_Succeeds_ClearsCapturedProject()
     {
-        var session = ActiveSession("project-a");
         string? releasedProjectId = null;
         var locks = new StubLockService(
             release: (projectId, _, _) =>
@@ -34,8 +33,8 @@ public sealed class ProjectSessionStateTests
                 releasedProjectId = projectId;
                 return Task.CompletedTask;
             });
+        var session = ActiveSession("project-a", locks);
         var handler = new ProjectReleaseLockHandler(
-            locks,
             new CurrentPrincipal("CONTOSO\\auditor"),
             session,
             new ActionExecutionGate());
@@ -50,12 +49,11 @@ public sealed class ProjectSessionStateTests
     [Fact]
     public async Task ReleaseLock_Throws_PreservesCapturedProjectForRetry()
     {
-        var session = ActiveSession("project-a");
         var expected = new IOException("release failed");
         var locks = new StubLockService(
             release: (_, _, _) => Task.FromException(expected));
+        var session = ActiveSession("project-a", locks);
         var handler = new ProjectReleaseLockHandler(
-            locks,
             new CurrentPrincipal("CONTOSO\\auditor"),
             session,
             new ActionExecutionGate());
@@ -70,13 +68,12 @@ public sealed class ProjectSessionStateTests
     [Fact]
     public async Task ReleaseLock_IsCancelled_PreservesCapturedProjectForRetry()
     {
-        var session = ActiveSession("project-a");
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         var locks = new StubLockService(
             release: (_, _, cancellationToken) => Task.FromCanceled(cancellationToken));
+        var session = ActiveSession("project-a", locks);
         var handler = new ProjectReleaseLockHandler(
-            locks,
             new CurrentPrincipal("CONTOSO\\auditor"),
             session,
             new ActionExecutionGate());
@@ -92,22 +89,21 @@ public sealed class ProjectSessionStateTests
     {
         var releaseStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var allowRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var session = ActiveSession("project-a");
         var locks = new StubLockService(
             release: async (_, _, cancellationToken) =>
             {
                 releaseStarted.TrySetResult();
                 await allowRelease.Task.WaitAsync(cancellationToken);
             });
+        var session = ActiveSession("project-a", locks);
         var handler = new ProjectReleaseLockHandler(
-            locks,
             new CurrentPrincipal("CONTOSO\\auditor"),
             session,
             new ActionExecutionGate());
 
         var releaseTask = handler.HandleAsync(EmptyPayload(), CancellationToken.None);
         await releaseStarted.Task;
-        EnterSession(session, "project-b");
+        session.Enter("project-b", Repositories(locks));
         allowRelease.TrySetResult();
         await releaseTask;
 
@@ -117,7 +113,6 @@ public sealed class ProjectSessionStateTests
     [Fact]
     public async Task Heartbeat_ActiveProject_RenewsWithoutClearingSession()
     {
-        var session = ActiveSession("project-a");
         string? renewedProjectId = null;
         var locks = new StubLockService(
             renew: (projectId, _, _) =>
@@ -125,8 +120,8 @@ public sealed class ProjectSessionStateTests
                 renewedProjectId = projectId;
                 return Task.CompletedTask;
             });
+        var session = ActiveSession("project-a", locks);
         var handler = new ProjectHeartbeatHandler(
-            locks,
             new CurrentPrincipal("CONTOSO\\auditor"),
             session);
 
@@ -148,7 +143,6 @@ public sealed class ProjectSessionStateTests
                 return Task.CompletedTask;
             });
         var handler = new ProjectReleaseLockHandler(
-            locks,
             new CurrentPrincipal("CONTOSO\\auditor"),
             new ProjectSession(),
             new ActionExecutionGate());
@@ -169,11 +163,10 @@ public sealed class ProjectSessionStateTests
                 called = true;
                 return Task.CompletedTask;
             });
-        var session = ActiveSession("project-a");
+        var session = ActiveSession("project-a", locks);
         var gate = new ActionExecutionGate();
         using var held = Assert.IsAssignableFrom<IDisposable>(gate.TryAcquire());
         var handler = new ProjectReleaseLockHandler(
-            locks,
             new CurrentPrincipal("CONTOSO\\auditor"),
             session,
             gate);
@@ -197,7 +190,6 @@ public sealed class ProjectSessionStateTests
                 return Task.CompletedTask;
             });
         var handler = new ProjectHeartbeatHandler(
-            locks,
             new CurrentPrincipal("CONTOSO\\auditor"),
             new ProjectSession());
 
@@ -213,30 +205,17 @@ public sealed class ProjectSessionStateTests
         return document.RootElement.Clone();
     }
 
-    private static ProjectSession ActiveSession(string projectId)
+    // 2026-10-02 資料庫分流簡化：heartbeat 與 releaseLock 改從作用中案件的資料庫組取鎖服務，
+    // 測試改把替身鎖放進資料庫組再進入 session；原本用反射呼叫只設案件編號的舊 Enter(string)，該入口已移除。
+    private static ProjectSession ActiveSession(string projectId, ILockService locks)
     {
         var session = new ProjectSession();
-        EnterSession(session, projectId);
+        session.Enter(projectId, Repositories(locks));
         return session;
     }
 
-    private static void EnterSession(ProjectSession session, string projectId)
-    {
-        var enter = typeof(ProjectSession).GetMethod(
-            "Enter",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-            binder: null,
-            types: [typeof(string)],
-            modifiers: null);
-        if (enter is not null)
-        {
-            enter.Invoke(session, [projectId]);
-            return;
-        }
-
-        typeof(ProjectSession).GetProperty(nameof(ProjectSession.CurrentProjectId))!
-            .SetValue(session, projectId);
-    }
+    private static ProjectRepositories Repositories(ILockService locks) =>
+        TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with { LockService = locks };
 
     private sealed class StubLockService(
         Func<string, string, CancellationToken, Task>? renew = null,

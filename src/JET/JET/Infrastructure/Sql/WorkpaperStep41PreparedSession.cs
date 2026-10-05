@@ -618,7 +618,7 @@ internal sealed class WorkpaperStep41PreparedSession : IWorkpaperStep41PreparedS
 
     private string OrderedRowsSql()
     {
-        var documentOrder = OrdinalText("g.document_number");
+        var documentOrder = OrdinalText("COALESCE(g.document_number, '')");
         var lineOrder = _lineItemKind switch
         {
             LegacyFieldKind.Number =>
@@ -640,11 +640,12 @@ internal sealed class WorkpaperStep41PreparedSession : IWorkpaperStep41PreparedS
             + "       raw.row_json, g.line_item_numeric_sort_key, g.entry_id, "
             + "       COALESCE(t.tag_mask, 0) "
             + $"FROM {_schemaPrefix}target_gl_entry g "
-            + $"JOIN {_voucherTable} v ON v.document_number = g.document_number "
+            + $"LEFT JOIN {_voucherTable} v ON v.document_number = g.document_number "
             + $"LEFT JOIN {_schemaPrefix}staging_gl_raw_row raw "
             + "  ON raw.batch_id = g.batch_id AND raw.row_number = g.source_row_number "
             + $"LEFT JOIN {_tagTable} t ON t.entry_id = g.entry_id "
             + $"WHERE {GlPopulationScopeSql.Predicate(_context, "g")} "
+            + "AND (v.document_number IS NOT NULL OR (g.document_number IS NULL AND t.entry_id IS NOT NULL)) "
             + $"ORDER BY {documentOrder}, {lineNullRank}, {lineOrder}, g.entry_id;";
     }
 

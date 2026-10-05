@@ -6,7 +6,7 @@ namespace JET.Infrastructure;
 /// tag 矩陣情境摘要命中數的共用合併器:跑「傳票層」與「行層」兩個 GROUP BY,
 /// 把每個 scenario_position 的兩筆 count 併成 dict&lt;position,(voucher,row)&gt;。
 /// 兩 provider 唯一差異是 SELECT 片段(COUNT vs COUNT_BIG)由呼叫端各自帶入;
-/// 合併與讀取邏輯 provider 中立(DbConnection/DbCommand),避免兩處重複(Linus 好品味:消除特例)。
+/// 合併與讀取邏輯 provider 中立(DbConnection/DbCommand),避免兩處重複。
 /// 無命中的位置不會出現在任一查詢結果,故自然不入 dict。
 /// </summary>
 internal static class TagMatrixScenarioCounts

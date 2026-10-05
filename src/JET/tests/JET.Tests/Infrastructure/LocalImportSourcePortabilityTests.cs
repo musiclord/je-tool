@@ -3,11 +3,11 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 本地案件只保留來源檔名作顯示與追溯；來源機器的絕對路徑不得進入可搬移的專案資料庫。
-/// 既有案件在開啟時同樣要以不升 schema 的冪等資料衛生修正舊值。
 /// </summary>
 public sealed class LocalImportSourcePortabilityTests
 {
@@ -31,37 +31,15 @@ public sealed class LocalImportSourcePortabilityTests
         await repository.ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            new ImportSourceDescriptor(sourcePath, callerSuppliedFileName, null, null, null),
+            [new ImportSourceInput(new ImportSourceDescriptor(sourcePath, callerSuppliedFileName, null, null, null),
             ["document"],
-            OneRow(),
+            OneRow())],
             CancellationToken.None);
 
         var references = await ReadSourceReferencesAsync(database, projectId);
 
         Assert.Equal(2, references.Count);
         Assert.All(references, AssertPortableReference);
-    }
-
-    [Theory]
-    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
-    public async Task EnsureCreated_LegacyRootedSourcePaths_NormalizesWithoutSchemaBump(string provider)
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var database = CreateDatabase(provider, folder);
-        var projectId = Guid.NewGuid().ToString("N");
-        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-        var rootedPath = Path.GetFullPath(Path.Combine(root.Path, "legacy-machine", SourceFileName));
-        await SeedLegacySourceReferencesAsync(database, projectId, rootedPath);
-
-        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-
-        var references = await ReadSourceReferencesAsync(database, projectId);
-        Assert.Equal(2, references.Count);
-        Assert.All(references, AssertPortableReference);
-        Assert.Equal("11", await ReadSchemaVersionAsync(database, projectId));
     }
 
     private static ILocalProjectDatabase CreateDatabase(string provider, JetProjectFolder folder)
@@ -78,30 +56,6 @@ public sealed class LocalImportSourcePortabilityTests
             {
                 ["document"] = "PORTABLE-1"
             });
-    }
-
-    private static async Task SeedLegacySourceReferencesAsync(
-        ILocalProjectDatabase database,
-        string projectId,
-        string rootedPath)
-    {
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(CancellationToken.None);
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            INSERT INTO import_batch
-                (batch_id, dataset_kind, source_file_path, source_file_name, imported_utc, row_count, columns_json)
-            VALUES
-                ('legacy-batch', 'gl', @rootedPath, @fileName, '2026-08-20T00:00:00.0000000+00:00', 1, '["document"]');
-            INSERT INTO import_batch_source
-                (batch_id, source_no, source_file_path, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc)
-            VALUES
-                ('legacy-batch', 1, @rootedPath, @fileName, NULL, NULL, NULL, 1, '2026-08-20T00:00:00.0000000+00:00');
-            """;
-        command.AddWithValue("@rootedPath", rootedPath);
-        command.AddWithValue("@fileName", SourceFileName);
-        await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
     private static async Task<IReadOnlyList<(string Path, string FileName)>> ReadSourceReferencesAsync(
@@ -127,17 +81,6 @@ public sealed class LocalImportSourcePortabilityTests
         }
 
         return result;
-    }
-
-    private static async Task<string?> ReadSchemaVersionAsync(
-        ILocalProjectDatabase database,
-        string projectId)
-    {
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(CancellationToken.None);
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        return await command.ExecuteScalarAsync(CancellationToken.None) as string;
     }
 
     private static void AssertPortableReference((string Path, string FileName) reference)

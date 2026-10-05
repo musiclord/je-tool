@@ -77,7 +77,7 @@ internal static class FilterPopulationScopeParser
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "目前沒有已保存的篩選情境，請先重新保存情境。");
+                "目前沒有已儲存的篩選情境，請先到第五步儲存情境。");
         }
 
         GlPopulationScope? resolved = null;
@@ -122,7 +122,7 @@ internal static class FilterPopulationScopeParser
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "已存篩選情境來自舊版規則，請重新保存情境後再讀取命中。");
+                FilterScenarioRuleMessages.NotYetUpgraded);
         }
 
         var revisions = scenarios
@@ -136,7 +136,8 @@ internal static class FilterPopulationScopeParser
         }
 
         var positions = scenarios.Select(scenario => scenario.Position).ToHashSet();
-        if (positions.Count != scenarios.Count || positions.Any(position => position is < 1 or > 10))
+        if (positions.Count != scenarios.Count
+            || positions.Any(position => position < 1 || position > FilterScenarioLimits.MaxSavedScenarios))
         {
             throw StaleDefinition();
         }
@@ -153,5 +154,5 @@ internal static class FilterPopulationScopeParser
 
     private static JetActionException StaleDefinition() => new(
         JetErrorCodes.StaleResult,
-        "已存篩選情境的測試母體版本不相容，請回到進階條件篩選重新保存。");
+        "已儲存的篩選情境和目前版本不一致，請到第五步重新儲存篩選情境。");
 }

@@ -9,6 +9,94 @@ namespace JET.Tests.Application;
 public sealed class ProjectDeleteArtifactLeaseTests
 {
     [Fact]
+    public async Task Batch9_DeletePreview_CountsExistingIndexedFilesSeparatelyWithoutLoadingOrDeleting()
+    {
+        var events = new List<string>();
+        var artifacts = new LeaseArtifactStore(events)
+        {
+            PreviewArtifacts = [
+                PreviewArtifact("v", ReportArtifactKind.ValidationReport, "validation.xlsx"),
+                PreviewArtifact("p", ReportArtifactKind.PrescreenReport, "prescreen.xlsx", ReportArtifactFileState.ModifiedOutside),
+                PreviewArtifact("old", ReportArtifactKind.ValidationReport, "validation.xlsx"),
+                PreviewArtifact("missing", ReportArtifactKind.InfReport, "missing.xlsx", ReportArtifactFileState.Missing),
+                PreviewArtifact("wp1", ReportArtifactKind.WorkingPaper, "working1.xlsx"),
+                PreviewArtifact("wp2", ReportArtifactKind.WorkingPaper, "working2.xlsx", ReportArtifactFileState.ModifiedOutside),
+                PreviewArtifact("wpm", ReportArtifactKind.WorkingPaper, "working3.xlsx", ReportArtifactFileState.Missing),
+                PreviewArtifact("template", ReportArtifactKind.AccountMapping, "template.xlsx")]
+        };
+        var handler = PreviewHandler(new FakeProjectStore(Document("project-1"), events), artifacts, new FakeRegistry());
+        using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
+        var response = JsonSerializer.SerializeToElement(await handler.HandleAsync(payload.RootElement, default));
+        Assert.Equal("project-1", response.GetProperty("projectId").GetString());
+        Assert.Equal("sqlite", response.GetProperty("databaseProvider").GetString());
+        Assert.Equal(2, response.GetProperty("reportCount").GetInt32());
+        Assert.Equal(2, response.GetProperty("workpaperCount").GetInt32());
+        Assert.Equal(["artifacts.list"], events);
+        Assert.False(artifacts.LeaseHeld);
+    }
+
+    [Fact]
+    public async Task Batch9_DeletePreview_UnauthorizedServerProjectDoesNotReadCatalog()
+    {
+        var events = new List<string>();
+        var artifacts = new LeaseArtifactStore(events) { PreviewArtifacts = [] };
+        var handler = PreviewHandler(new FakeProjectStore(Document("project-1") with
+            { DatabaseProvider = ProjectDocument.SqlServerDatabaseProvider }, events), artifacts, new FakeRegistry(exists: true));
+        using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
+        var error = await Assert.ThrowsAsync<JetActionException>(() => handler.HandleAsync(payload.RootElement, default));
+        Assert.Equal(JetErrorCodes.NotAuthorized, error.Code);
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public async Task Batch9_DeletePreview_CatalogFailureDoesNotInventZeroCounts()
+    {
+        var events = new List<string>();
+        var failure = new IOException("Synthetic catalog unavailable");
+        var artifacts = new LeaseArtifactStore(events) { PreviewFailure = failure };
+        var handler = PreviewHandler(new FakeProjectStore(Document("project-1"), events), artifacts, new FakeRegistry());
+        using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
+        Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => handler.HandleAsync(payload.RootElement, default)));
+        Assert.Equal(["artifacts.list"], events);
+    }
+
+    [Fact]
+    public async Task Batch9_DeleteFolderFailureDoesNotMislabelRemainingReportsAsCache()
+    {
+        var events = new List<string>();
+        var artifacts = new LeaseArtifactStore(events);
+        var locks = new LeaseDeletionLockService(events);
+        var session = new ProjectSession();
+        session.Enter("project-1", TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider));
+        var handler = new ProjectDeleteHandler(new FakeProjectStore(Document("project-1"), events, new IOException("Synthetic folder failure")),
+            CatalogWith(new FakeDatabaseDeleter(events, artifacts, locks), artifacts, locks), new FakeRegistry(), new CurrentPrincipal("synthetic"), session);
+        using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
+        var response = JsonSerializer.SerializeToElement(await handler.HandleAsync(payload.RootElement, default));
+        var message = response.GetProperty("message").GetString()!;
+        Assert.Contains("案件資料夾", message);
+        Assert.DoesNotContain("快取", message);
+        Assert.Contains("手動移除", message);
+        Assert.True(response.GetProperty("ok").GetBoolean());
+        Assert.Null(session.CurrentProjectId);
+    }
+
+    private static IApplicationActionHandler PreviewHandler(IProjectStore projects, IReportArtifactStore artifacts, IProjectRegistry registry)
+    {
+        // Reflection keeps the first-failure tests compilable before the new read-only handler exists.
+        var type = typeof(ProjectDeleteHandler).Assembly.GetType("JET.Application.ProjectDeletePreviewHandler");
+        Assert.NotNull(type);
+        var repositories = TestProjectRepositories.CatalogWithSameObjects(
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with { ReportArtifactStore = artifacts });
+        return Assert.IsAssignableFrom<IApplicationActionHandler>(Activator.CreateInstance(type,
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
+            binder: null, args: [projects, repositories, registry, new CurrentPrincipal("synthetic")], culture: null));
+    }
+
+    private static ReportArtifact PreviewArtifact(string id, ReportArtifactKind kind, string filename,
+        ReportArtifactFileState state = ReportArtifactFileState.AsPublished) =>
+        new(id, kind, filename, new ReportArtifactSourceRefs(), DateTimeOffset.UnixEpoch, 10, DateTimeOffset.UnixEpoch, false, state);
+
+    [Fact]
     public async Task Delete_AuthorizedProject_HoldsArtifactLeaseAcrossDatabaseAndFolderDeletion()
     {
         var events = new List<string>();
@@ -17,14 +105,12 @@ public sealed class ProjectDeleteArtifactLeaseTests
         var artifacts = new LeaseArtifactStore(events);
         var deletionLocks = new LeaseDeletionLockService(events);
         var session = new ProjectSession();
-        session.Enter(projectId);
+        session.Enter(projectId, TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider));
         var handler = new ProjectDeleteHandler(
             projectStore,
-            new FakeDatabaseDeleter(events, artifacts, deletionLocks),
+            CatalogWith(new FakeDatabaseDeleter(events, artifacts, deletionLocks), artifacts, deletionLocks),
             new FakeRegistry(),
             new CurrentPrincipal("CONTOSO\\auditor"),
-            artifacts,
-            deletionLocks,
             session);
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
 
@@ -58,11 +144,9 @@ public sealed class ProjectDeleteArtifactLeaseTests
         var deletionLocks = new LeaseDeletionLockService(events);
         var handler = new ProjectDeleteHandler(
             projectStore,
-            new FakeDatabaseDeleter(events, artifacts, deletionLocks),
+            CatalogWith(new FakeDatabaseDeleter(events, artifacts, deletionLocks), artifacts, deletionLocks),
             new FakeRegistry(exists: true, visible: null),
             new CurrentPrincipal("CONTOSO\\intruder"),
-            artifacts,
-            deletionLocks,
             new ProjectSession());
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
 
@@ -84,15 +168,13 @@ public sealed class ProjectDeleteArtifactLeaseTests
         var artifacts = new LeaseArtifactStore(events);
         var deletionLocks = new LeaseDeletionLockService(events);
         var session = new ProjectSession();
-        session.Enter(projectId);
+        session.Enter(projectId, TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider));
         var failure = new IOException("database delete failed");
         var handler = new ProjectDeleteHandler(
             projectStore,
-            new FakeDatabaseDeleter(events, artifacts, deletionLocks, failure),
+            CatalogWith(new FakeDatabaseDeleter(events, artifacts, deletionLocks, failure), artifacts, deletionLocks),
             new FakeRegistry(),
             new CurrentPrincipal("CONTOSO\\auditor"),
-            artifacts,
-            deletionLocks,
             session);
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
 
@@ -125,27 +207,39 @@ public sealed class ProjectDeleteArtifactLeaseTests
         var artifacts = new LeaseArtifactStore(events);
         var deletionLocks = new LeaseDeletionLockService(events);
         var session = new ProjectSession();
-        session.Enter(projectId);
+        session.Enter(projectId, TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider));
         var handler = new ProjectDeleteHandler(
             projectStore,
-            new FakeDatabaseDeleter(events, artifacts, deletionLocks),
+            CatalogWith(new FakeDatabaseDeleter(events, artifacts, deletionLocks), artifacts, deletionLocks),
             new FakeRegistry(),
             new CurrentPrincipal("CONTOSO\\auditor"),
-            artifacts,
-            deletionLocks,
             session);
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
 
         var response = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
         var responseJson = JsonSerializer.SerializeToElement(response);
 
+        // R8刪除整個案件資料夾，報告與底稿不是快取；保留session離開與刪除lease完成的原斷言。
+        // 首次失敗：20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
         Assert.Equal(
-            "案件已刪除；本機快取資料夾清理失敗，可稍後手動移除。",
+            "案件資料庫已刪除；案件資料夾清理失敗，其中的報告、工作底稿與其他檔案可能仍在，請確認後手動移除。",
             responseJson.GetProperty("message").GetString());
         Assert.DoesNotContain("reconcile", responseJson.GetRawText(), StringComparison.OrdinalIgnoreCase);
         Assert.Null(session.CurrentProjectId);
         Assert.True(deletionLocks.Completed);
     }
+
+    private static ProjectRepositoryCatalog CatalogWith(
+        IProjectDatabaseDeleter databaseDeleter,
+        IReportArtifactStore artifacts,
+        IProjectDeletionLockService deletionLocks) =>
+        TestProjectRepositories.CatalogWithSameObjects(
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                DatabaseDeleter = databaseDeleter,
+                ReportArtifactStore = artifacts,
+                DeletionLockService = deletionLocks
+            });
 
     private static ProjectDocument Document(string projectId) => new(
         projectId,
@@ -180,6 +274,10 @@ public sealed class ProjectDeleteArtifactLeaseTests
 
         public Task CreateAsync(ProjectDocument value, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
         public Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -241,6 +339,8 @@ public sealed class ProjectDeleteArtifactLeaseTests
     private sealed class LeaseArtifactStore(List<string> events) : IReportArtifactStore
     {
         public bool LeaseHeld { get; private set; }
+        public IReadOnlyList<ReportArtifact>? PreviewArtifacts { get; init; }
+        public Exception? PreviewFailure { get; init; }
 
         public Task<IAsyncDisposable> AcquireProjectDeletionLeaseAsync(
             string projectId,
@@ -264,7 +364,12 @@ public sealed class ProjectDeleteArtifactLeaseTests
 
         public Task<IReadOnlyList<ReportArtifact>> ListAsync(
             string projectId,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            events.Add("artifacts.list");
+            return PreviewFailure is not null ? Task.FromException<IReadOnlyList<ReportArtifact>>(PreviewFailure)
+                : Task.FromResult(PreviewArtifacts ?? throw new NotSupportedException());
+        }
 
         public Task<string> ResolvePathAsync(
             string projectId,

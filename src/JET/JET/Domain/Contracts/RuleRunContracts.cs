@@ -34,9 +34,15 @@ public sealed record AuditResultStaleState(
 
 public interface IResultStaleStateStore
 {
+    /// <summary>準備日變更時使預篩選與篩選結果失效；保留驗證、抽樣與已儲存的情境定義。</summary>
+    Task InvalidateForPreparationDateChangeAsync(string projectId, CancellationToken cancellationToken);
+
     Task<AuditResultStaleState> ReadAsync(
         string projectId,
         CancellationToken cancellationToken);
+
+    /// <summary>影響篩選的來源變更版本；獨立於尚未重算的其他情境。</summary>
+    Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken);
 }
 
 /// <summary>

@@ -10,7 +10,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
         string projectId,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -48,7 +48,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
         AccountTaxonomyInvariant.ValidateReplacement(categories);
         var replacement = categories.OrderBy(item => item.Ordinal).ThenBy(item => item.CategoryId).ToArray();
 
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -62,6 +62,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
                 .Select(item => item.CategoryId)
                 .Except(replacement.Select(item => item.CategoryId), StringComparer.Ordinal)
                 .ToArray(),
+            current.Categories,
             cancellationToken);
 
         var nextRevision = checked(current.Revision + 1);
@@ -145,6 +146,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
         System.Data.Common.DbConnection connection,
         System.Data.Common.DbTransaction transaction,
         IReadOnlyList<string> deletedIds,
+        IReadOnlyList<AccountTaxonomyCategory> currentCategories,
         CancellationToken cancellationToken)
     {
         if (deletedIds.Count == 0)
@@ -160,7 +162,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
             mapping.AddWithValue("@categoryId", deletedId);
             if (Convert.ToInt64(await mapping.ExecuteScalarAsync(cancellationToken)) > 0)
             {
-                InUse(deletedId);
+                InUse(deletedId, currentCategories);
             }
         }
 
@@ -175,7 +177,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
             {
                 if (AccountTaxonomyStoreSupport.ContainsString(document.RootElement, deletedId))
                 {
-                    InUse(deletedId);
+                    InUse(deletedId, currentCategories);
                 }
             }
         }
@@ -187,18 +189,23 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
         {
             throw new JetActionException(
                 JetErrorCodes.TaxonomyRevisionConflict,
-                $"科目分類已由其他作業更新（要求 revision {expected}，目前為 {actual}），請重新載入後再試。");
+                "科目分類剛被其他操作更新，請重新開啟分類設定再儲存一次。");
         }
     }
 
-    private static void InUse(string categoryId) =>
+    private static void InUse(string categoryId, IReadOnlyList<AccountTaxonomyCategory> currentCategories) =>
         throw new JetActionException(
             JetErrorCodes.TaxonomyCategoryInUse,
-            $"科目分類 '{categoryId}' 仍被科目配對或篩選情境使用，無法刪除。");
+            $"科目分類「{AccountTaxonomyStoreSupport.DisplayLabel(categoryId, currentCategories)}」仍被科目配對或篩選情境使用，無法刪除。請先改掉使用這個分類的科目配對或篩選情境，再刪除分類。");
 }
 
 internal static class AccountTaxonomyStoreSupport
 {
+    /// <summary>錯誤訊息顯示分類名稱，不顯示內部分類身分；找不到名稱時改用不含代號的說法。</summary>
+    internal static string DisplayLabel(string categoryId, IReadOnlyList<AccountTaxonomyCategory> categories) =>
+        categories.FirstOrDefault(item => string.Equals(item.CategoryId, categoryId, StringComparison.Ordinal))?.Label
+        ?? "要刪除的分類";
+
     internal static bool ContainsString(JsonElement element, string expected)
     {
         if (element.ValueKind == JsonValueKind.String)

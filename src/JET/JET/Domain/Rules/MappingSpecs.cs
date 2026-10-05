@@ -16,7 +16,7 @@ public sealed record TbMappingSpec(
     TbChangeMode ChangeMode);
 
 /// <summary>
-/// GL logical mapping keys。名稱必須與 docs/action-contract-manifest.md 完全一致。
+/// GL logical mapping keys，也是前端與 action payload 使用的名稱。docs/action-contract-manifest.md 以此檔為準。
 /// </summary>
 public static class GlMappingKeys
 {
@@ -38,6 +38,7 @@ public static class GlMappingKeys
     public const string CreditAmount = JetFieldCatalog.GlCreditAmount;
     public const string DcField = JetFieldCatalog.GlDcField;
     public const string DcDebitCode = JetFieldCatalog.GlDcDebitCode;
+    public const string DcCreditCode = JetFieldCatalog.GlDcCreditCode;
 
     public static readonly IReadOnlyList<string> All = JetFieldCatalog.GlMappingKeys;
 }
@@ -77,4 +78,12 @@ public interface IMappingStateStore
     Task SaveAsync(string projectId, CommittedMapping mapping, CancellationToken cancellationToken);
 
     Task<CommittedMapping?> FindAsync(string projectId, DatasetKind kind, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 重新匯入（取代或附加）會讓已確認的配對失效；失效前最後一次確認的配對留在這裡，重開案件時當草稿帶回，
+    /// 審計員不必逐欄重選。它不是有效配對，任何計算都不能讀它。沒有保存這份資料的實作回 null，
+    /// 畫面就和以前一樣從空白草稿開始；SQL Server 目前暫緩開發，維持回 null。
+    /// </summary>
+    Task<CommittedMapping?> FindPreviousAsync(string projectId, DatasetKind kind, CancellationToken cancellationToken) =>
+        Task.FromResult<CommittedMapping?>(null);
 }

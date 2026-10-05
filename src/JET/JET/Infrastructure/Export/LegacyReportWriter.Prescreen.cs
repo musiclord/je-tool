@@ -251,7 +251,7 @@ public sealed partial class LegacyReportWriter
             cancellationToken,
             progress).ConfigureAwait(false);
 
-        // R5／R6 是 legacy aggregate dimensions，不套 10,000 detail gate。
+        // R5／R6 是 legacy 的彙總表，不套用 10,000 列明細上限。
         await EmitCreatorSummaryAsync(
             editor.Document,
             editor.Sheets,
@@ -593,10 +593,12 @@ public sealed partial class LegacyReportWriter
                 root,
                 "trailingZeros",
                 RuleCount(root, "trailingZeros")),
+            // V9：摘要列寫完整人數，和第四步、[R5] 工作表一致；舊的預篩選結果沒有這個欄位時，沿用清單列數。
             CreatorSummary: LegacyRule(
                 root,
                 "creatorSummary",
-                ArrayLength(root, "creatorSummary", "creators")),
+                OptionalLong(root, "creatorSummary", "totalPreparerCount")
+                    ?? ArrayLength(root, "creatorSummary", "creators")),
             RareAccounts: LegacyRule(
                 root,
                 "rareAccounts",
@@ -712,7 +714,7 @@ public sealed partial class LegacyReportWriter
                         sheet.TextCell(
                             row,
                             1,
-                            item.CreatedBy,
+                            CreatorSummaryDisplayName(item.CreatedBy),
                             LegacyReportStyles.ExportDatabaseText),
                         sheet.NumberCell(
                             row,
@@ -800,7 +802,7 @@ public sealed partial class LegacyReportWriter
             cancellationToken.ThrowIfCancellationRequested();
             widths.Observe(
             [
-                item.CreatedBy,
+                CreatorSummaryDisplayName(item.CreatedBy),
                 item.EntryCount.ToString("N0", CultureInfo.InvariantCulture),
                 FormatDisplayedAmount(item.DebitTotalScaled, moneyScale),
                 FormatDisplayedAmount(item.CreditTotalScaled, moneyScale)
@@ -808,6 +810,9 @@ public sealed partial class LegacyReportWriter
         }
         return widths.Widths;
     }
+
+    private static string CreatorSummaryDisplayName(string? createdBy) =>
+        string.IsNullOrWhiteSpace(createdBy) ? "（空白）" : createdBy;
 
     private async Task EmitAccountUsageAsync(
         SpreadsheetDocument document,

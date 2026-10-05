@@ -13,6 +13,7 @@ internal enum AuditMutation
     Calendar,
     AccountMapping,
     AuthorizedPreparer,
+    PreparationDate,
     SchemaV7Migration,
     AccountTaxonomy
 }
@@ -40,7 +41,7 @@ internal static class AuditDependencyPolicy
             Impact(validation: true, prescreen: true, filterHits: true),
         AuditMutation.TbImport or AuditMutation.TbProjection =>
             Impact(validation: true, prescreen: false, filterHits: false),
-        AuditMutation.Calendar or AuditMutation.AccountMapping or AuditMutation.AuthorizedPreparer =>
+        AuditMutation.Calendar or AuditMutation.AccountMapping or AuditMutation.AuthorizedPreparer or AuditMutation.PreparationDate =>
             Impact(validation: false, prescreen: true, filterHits: true),
         AuditMutation.SchemaV7Migration =>
             Impact(validation: true, prescreen: true, filterHits: true),

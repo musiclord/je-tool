@@ -5,18 +5,14 @@ namespace JET.Tests.Architecture;
 public sealed class MappingMetadataMirrorTests
 {
     [Fact]
-    public void RestoreUi_AppliesOneBackendResponseAndNeverAutoCommits()
+    public void RestoreUi_IsWithdrawnUntilTheReportRestoreWorkflowIsAgreed()
     {
         var source = ReadFrontend("steps", "mapping-step.js");
-        var start = source.IndexOf("function bindRestoreMappingDraft", StringComparison.Ordinal);
-        var end = source.IndexOf("/* ---- 狀態判定", start, StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start, "找不到 mapping restore 綁定函式邊界。");
-
-        var body = source[start..end];
-        Assert.Contains("mappingRestoreDraft({ filePath: file.filePath })", body, StringComparison.Ordinal);
-        Assert.Contains("Store.restoreMappingDrafts(data)", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("mappingCommitGl", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("mappingCommitTb", body, StringComparison.Ordinal);
+        // 2026-09-22 明示撤下功能；既有 restore state 與後端相容性由下方及 Application 測試保留。
+        Assert.DoesNotContain("restore-mapping-draft", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("bindRestoreMappingDraft", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("mappingRestoreDraft", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Store.restoreMappingDrafts", source, StringComparison.Ordinal);
     }
 
     [Fact]

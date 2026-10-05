@@ -484,18 +484,21 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             cancellationToken);
         var runStore = new LocalRuleRunStore(database);
         await SeedEligibleValidationAsync(runStore, ProjectId, cancellationToken);
+        // handler 從作用中案件的資料庫組取 repository，把這些物件放進該種資料庫組後再進入 session。
         var session = new ProjectSession();
-        session.Enter(ProjectId);
+        session.Enter(
+            ProjectId,
+            TestProjectRepositories.Unconfigured(provider) with
+            {
+                PrescreenFacts = new LocalPrescreenRunRepository(database),
+                MappingStates = mappingStore,
+                Calendar = new LocalCalendarStore(database),
+                AccountMappings = new LocalAccountMappingRepository(database),
+                AuthorizedPreparers = new LocalAuthorizedPreparerRepository(database),
+                RuleRuns = runStore,
+            });
 
-        return new PrescreenRunHandler(
-            new LocalPrescreenRunRepository(database),
-            mappingStore,
-            new LocalCalendarStore(database),
-            new LocalAccountMappingRepository(database),
-            new LocalAuthorizedPreparerRepository(database),
-            runStore,
-            projectStore,
-            session);
+        return new PrescreenRunHandler(projectStore, session);
     }
 
     private static async Task<PrescreenRunHandler> CreateSqlServerActionHandlerAsync(
@@ -515,18 +518,21 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             cancellationToken);
         var runStore = new SqlServerRuleRunStore(database);
         await SeedEligibleValidationAsync(runStore, projectId, cancellationToken);
+        // handler 從作用中案件的資料庫組取 repository，把這些物件放進 SQL Server 資料庫組後再進入 session。
         var session = new ProjectSession();
-        session.Enter(projectId);
+        session.Enter(
+            projectId,
+            TestProjectRepositories.Unconfigured(ProjectDocument.SqlServerDatabaseProvider) with
+            {
+                PrescreenFacts = new SqlServerPrescreenRunRepository(database),
+                MappingStates = mappingStore,
+                Calendar = new SqlServerCalendarStore(database),
+                AccountMappings = new SqlServerAccountMappingRepository(database),
+                AuthorizedPreparers = new SqlServerAuthorizedPreparerRepository(database),
+                RuleRuns = runStore,
+            });
 
-        return new PrescreenRunHandler(
-            new SqlServerPrescreenRunRepository(database),
-            mappingStore,
-            new SqlServerCalendarStore(database),
-            new SqlServerAccountMappingRepository(database),
-            new SqlServerAuthorizedPreparerRepository(database),
-            runStore,
-            projectStore,
-            session);
+        return new PrescreenRunHandler(projectStore, session);
     }
 
     private static Task SeedEligibleValidationAsync(
@@ -564,7 +570,9 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             DatabaseProvider: provider,
             RocDateEnabled: false,
             NonWorkingDays: [0, 6],
-            SampleSeed: 20_260_730);
+            SampleSeed: 20_260_730,
+            // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成舊版案件拒絕。
+            SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
 
     private static CommittedMapping BenchmarkGlMapping() =>
         new(
@@ -1137,14 +1145,15 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
              '2026-07-30T00:00:00.0000000+08:00', 5,
              '["account_code","account_name","standardized_category"]');
 
+        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
         INSERT INTO target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category)
+            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
         VALUES
-            ('s2a-map', 1, '1000', 'Cash', 'Cash'),
-            ('s2a-map', 2, '2000', 'Receivables', 'Receivables'),
-            ('s2a-map', 3, '4000', 'Revenue', 'Revenue'),
-            ('s2a-map', 4, '5000', 'Expense A', 'Others'),
-            ('s2a-map', 5, '6000', 'Expense B', 'Others');
+            ('s2a-map', 1, '1000', 'Cash', 'Cash', 'builtin.cash'),
+            ('s2a-map', 2, '2000', 'Receivables', 'Receivables', 'builtin.receivables'),
+            ('s2a-map', 3, '4000', 'Revenue', 'Revenue', 'builtin.revenue'),
+            ('s2a-map', 4, '5000', 'Expense A', 'Others', 'builtin.others'),
+            ('s2a-map', 5, '6000', 'Expense B', 'Others', 'builtin.others');
 
         INSERT INTO target_authorized_preparer (name)
         SELECT printf('P%04d', i)
@@ -1230,14 +1239,15 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
              '2026-07-30T00:00:00.0000000+08:00', 5,
              '["account_code","account_name","standardized_category"]');
 
+        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
         INSERT INTO target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category)
+            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
         VALUES
-            ('s2a-map', 1, '1000', 'Cash', 'Cash'),
-            ('s2a-map', 2, '2000', 'Receivables', 'Receivables'),
-            ('s2a-map', 3, '4000', 'Revenue', 'Revenue'),
-            ('s2a-map', 4, '5000', 'Expense A', 'Others'),
-            ('s2a-map', 5, '6000', 'Expense B', 'Others');
+            ('s2a-map', 1, '1000', 'Cash', 'Cash', 'builtin.cash'),
+            ('s2a-map', 2, '2000', 'Receivables', 'Receivables', 'builtin.receivables'),
+            ('s2a-map', 3, '4000', 'Revenue', 'Revenue', 'builtin.revenue'),
+            ('s2a-map', 4, '5000', 'Expense A', 'Others', 'builtin.others'),
+            ('s2a-map', 5, '6000', 'Expense B', 'Others', 'builtin.others');
 
         WITH RECURSIVE preparers(i) AS (
             SELECT 0
@@ -1331,14 +1341,15 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
              N'2026-07-30T00:00:00.0000000+08:00', 5,
              N'["account_code","account_name","standardized_category"]');
 
+        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
         INSERT INTO {schemaPrefix}target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category)
+            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
         VALUES
-            (N's2a-map', 1, N'1000', N'Cash', N'Cash'),
-            (N's2a-map', 2, N'2000', N'Receivables', N'Receivables'),
-            (N's2a-map', 3, N'4000', N'Revenue', N'Revenue'),
-            (N's2a-map', 4, N'5000', N'Expense A', N'Others'),
-            (N's2a-map', 5, N'6000', N'Expense B', N'Others');
+            (N's2a-map', 1, N'1000', N'Cash', N'Cash', N'builtin.cash'),
+            (N's2a-map', 2, N'2000', N'Receivables', N'Receivables', N'builtin.receivables'),
+            (N's2a-map', 3, N'4000', N'Revenue', N'Revenue', N'builtin.revenue'),
+            (N's2a-map', 4, N'5000', N'Expense A', N'Others', N'builtin.others'),
+            (N's2a-map', 5, N'6000', N'Expense B', N'Others', N'builtin.others');
 
         ;WITH preparers(i) AS (
             SELECT 0

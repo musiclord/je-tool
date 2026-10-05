@@ -19,14 +19,24 @@ public sealed class JetActionException(
     public string? Field { get; } = field;
 
     /// <summary>
-    /// 逐條錯誤與其在情境裡的位置（第幾組、第幾條）；只有 <c>invalid_scenario</c> 這類能歸屬到條件列的錯誤才提供。
-    /// 前端用它把該列標紅並就地說原因，沒有時維持整段訊息。
+    /// 逐條錯誤與其位置。<c>invalid_scenario</c> 帶情境裡的第幾組、第幾條，前端把該列標紅並就地說原因；
+    /// 欄位配對的 <c>projection_failed</c> 每項是一組問題並帶來源欄，第三步逐組列出。沒有時維持整段訊息。
     /// </summary>
     public IReadOnlyList<JetErrorDetail>? Details { get; init; }
 }
 
 /// <summary>一條可歸屬位置的錯誤；Group 與 Rule 從 1 起算，無法歸屬時為 null。</summary>
-public sealed record JetErrorDetail(int? Group, int? Rule, string Message);
+public sealed record JetErrorDetail(int? Group, int? Rule, string Message)
+{
+    /// <summary>
+    /// 欄位配對無法轉換時，這一組問題出在哪個來源欄；第三步用它找到畫面上的設定位置。其他錯誤為 null。
+    /// </summary>
+    public string? SourceColumn { get; init; }
+
+    /// <summary>可定位設定的原因代碼；前端不從中文訊息推測錯誤原因。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReasonCode { get; init; }
+}
 
 /// <summary>可跨 bridge 使用的結構化錯誤欄位名稱。</summary>
 public static class JetErrorFields
@@ -34,7 +44,7 @@ public static class JetErrorFields
     public const string CaseName = "caseName";
 }
 
-/// <summary>錯誤碼註冊表。新增時同步更新 docs/action-contract-manifest.md 的 Error Codes 章節。</summary>
+/// <summary>錯誤碼註冊表。docs/action-contract-manifest.md 以此處為準，不另列清單。</summary>
 public static class JetErrorCodes
 {
     public const string BridgeError = "bridge_error";
@@ -55,7 +65,6 @@ public static class JetErrorCodes
     public const string MappingColumnNotFound = "mapping_column_not_found";
     public const string MappingMetadataMissing = "mapping_metadata_missing";
     public const string MappingMetadataInvalid = "mapping_metadata_invalid";
-    public const string MappingReviewRequired = "mapping_review_required";
     public const string ProjectionFailed = "projection_failed";
     public const string TaxonomyRevisionConflict = "taxonomy_revision_conflict";
     public const string TaxonomyCategoryInUse = "taxonomy_category_in_use";
@@ -67,9 +76,6 @@ public static class JetErrorCodes
     public const string ScenarioLimitReached = "scenario_limit_reached";
     public const string StaleResult = "stale_result";
     public const string ArtifactNotFound = "artifact_not_found";
-    public const string ArtifactCatalogChanged = "artifact_catalog_changed";
-    public const string ArtifactCleanupFailed = "artifact_cleanup_failed";
-    public const string ArtifactRecoveryConflict = "artifact_recovery_conflict";
     public const string SupportLogExportFailed = "support_log_export_failed";
     public const string GlAmountsAllZero = "gl_amounts_all_zero";
     public const string EmptyEffectivePopulation = "empty_effective_population";
@@ -103,7 +109,7 @@ public static class JetErrorCodes
     /// <summary>本地資料庫檔案損壞或不是有效資料庫。</summary>
     public const string DatabaseCorrupt = "database_corrupt";
 
-    // SQL Server 引擎錯誤映射（design §2.3；單一映射點在 SqlServerEngineErrors、由 dispatcher 統一轉譯）。
+    // SQL Server 引擎錯誤映射（單一映射點在 SqlServerEngineErrors、由 dispatcher 統一轉譯）。
     /// <summary>選用 SQL Server，但連線或單一資料庫名尚未設定。</summary>
     public const string SqlServerNotConfigured = "sql_server_not_configured";
     /// <summary>連線目標是已淘汰的 SQL Server Express（含 LocalDB）。</summary>

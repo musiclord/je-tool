@@ -1,6 +1,11 @@
 {
   "schemaVersion": 2,
   "files": [
+    ".agents/README.md",
+    ".agents/harness/harness.md",
+    ".agents/harness/development-workflow.md",
+    ".agents/harness/agent-compatibility.md",
+    ".agents/harness/frontend-design-mode.md",
     ".agents/harness/convergence-and-memory.md",
     ".agents/skills/jet-converge/SKILL.md",
     ".agents/skills/jet-converge/agents/openai.yaml",
@@ -20,25 +25,43 @@
     "docs/project-context.md",
     "docs/jet-guide.md",
     "docs/development-guide.md",
-    "docs/development-workflow.md",
     "docs/development-status.md",
     "docs/idea-replacement-scope.md",
-    "docs/agent-compatibility.md",
-    "docs/harness.md",
     "docs/jet-frontend-description.md",
     "docs/action-contract-manifest.md",
     "docs/data-and-legacy.md",
     "docs/sqlserver-enterprise-deferred.md",
     "docs/business-logic-provenance.md",
-    "docs/repository-lineage.md",
-    "docs/specs/2026-08-28-harness-rebuild-plan.md",
-    "docs/specs/2026-08-29-agent-governance-and-context-plan.md",
-    "docs/specs/2026-08-30-repository-consolidation-plan.md",
     "docs/history/README.md",
-    "docs/specs/2026-09-06-filter-workflow-correction-plan.md",
-    "docs/specs/2026-09-09-user-feedback-steps-1-to-4-plan.md",
-    "docs/specs/2026-09-17-user-feedback-and-workflow-review-plan.md"
+    "docs/history/2026-08-30-repository-lineage.md",
+    "docs/history/2026-09-07-filter-acceptance-records.md",
+    "docs/history/2026-09-23-frontend-terminology-review.md",
+    "docs/history/2026-10-02-development-status-archive.md",
+    "docs/history/architecture-2026-08-30/README.md",
+    "docs/history/specs/2026-08-28-harness-rebuild-plan.md",
+    "docs/history/specs/2026-08-29-agent-governance-and-context-plan.md",
+    "docs/history/specs/2026-08-30-repository-consolidation-plan.md",
+    "docs/history/specs/2026-09-06-filter-workflow-correction-plan.md",
+    "docs/history/specs/2026-09-09-user-feedback-steps-1-to-4-plan.md",
+    "docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md",
+    "docs/test-environment-notes.md"
   ],
+  "links": {
+    "checkAnchors": true,
+    "skipPrefixes": ["http://", "https://", "mailto:", "thread://"],
+    "skipFiles": [
+      "docs/history/2026-08-30-repository-lineage.md",
+      "docs/history/2026-09-07-filter-acceptance-records.md",
+      "docs/history/2026-09-23-frontend-terminology-review.md",
+      "docs/history/2026-10-02-development-status-archive.md",
+      "docs/history/architecture-2026-08-30/README.md",
+      "docs/history/specs/2026-08-28-harness-rebuild-plan.md",
+      "docs/history/specs/2026-08-29-agent-governance-and-context-plan.md",
+      "docs/history/specs/2026-08-30-repository-consolidation-plan.md",
+      "docs/history/specs/2026-09-06-filter-workflow-correction-plan.md",
+      "docs/history/specs/2026-09-09-user-feedback-steps-1-to-4-plan.md"
+    ]
+  },
   "forbiddenClaims": [
     {
       "id": "stale-harness-remainder",
@@ -59,85 +82,32 @@
     {
       "id": "stale-history-by-source-repo",
       "text": "docs/history/je-testing/"
+    },
+    {
+      "id": "stale-billion-rows-target",
+      "text": "10 億 row 等級仍是設計目標"
     }
   ],
   "styleWarnings": [
-    {
-      "id": "named-closure",
-      "text": "具名規範閉環"
-    },
-    {
-      "id": "evidence-return",
-      "text": "驗證證據回流"
-    },
-    {
-      "id": "candidate-output-run",
-      "text": "候選輸出執行"
-    },
-    {
-      "id": "safe-preflight",
-      "text": "安全前置"
-    },
-    {
-      "id": "current-stop-point",
-      "text": "目前停止點"
-    },
-    {
-      "id": "public-gate",
-      "text": "公開守門"
-    },
-    {
-      "id": "entry-blocked",
-      "text": "入口完成；正式驗證受阻"
-    },
-    {
-      "id": "test-text-evidence",
-      "text": "測試文字證據"
-    },
-    {
-      "id": "mixed-provider-parity",
-      "text": "provider 一致性"
-    },
-    {
-      "id": "architecture-gate",
-      "text": "架構守門"
-    },
-    {
-      "id": "contract-guard",
-      "text": "契約守衛"
-    },
-    {
-      "id": "retirement-guard",
-      "text": "淘汰守衛"
-    },
-    {
-      "id": "first-red-short-form",
-      "text": "首紅"
-    },
-    {
-      "id": "wiring-error",
-      "text": "接線錯誤"
-    },
-    {
-      "id": "public-boundary",
-      "text": "公開邊界"
-    },
-    {
-      "id": "capability-group",
-      "text": "能力群組"
-    },
-    {
-      "id": "public-baseline",
-      "text": "公開基線"
-    },
-    {
-      "id": "regression-guard",
-      "text": "回歸守衛"
-    },
-    {
-      "id": "encryption-negotiation",
-      "text": "加密交涉"
-    }
+    { "id": "named-closure", "text": "具名規範閉環" },
+    { "id": "evidence-return", "text": "驗證證據回流" },
+    { "id": "candidate-output-run", "text": "候選輸出執行" },
+    { "id": "safe-preflight", "text": "安全前置" },
+    { "id": "current-stop-point", "text": "目前停止點" },
+    { "id": "public-gate", "text": "公開守門" },
+    { "id": "entry-blocked", "text": "入口完成；正式驗證受阻" },
+    { "id": "test-text-evidence", "text": "測試文字證據" },
+    { "id": "mixed-provider-parity", "text": "provider 一致性" },
+    { "id": "architecture-gate", "text": "架構守門" },
+    { "id": "contract-guard", "text": "契約守衛" },
+    { "id": "retirement-guard", "text": "淘汰守衛" },
+    { "id": "first-red-short-form", "text": "首紅" },
+    { "id": "wiring-error", "text": "接線錯誤" },
+    { "id": "public-boundary", "text": "公開邊界" },
+    { "id": "capability-group", "text": "能力群組" },
+    { "id": "public-baseline", "text": "公開基線" },
+    { "id": "regression-guard", "text": "回歸守衛" },
+    { "id": "encryption-negotiation", "text": "加密交涉" }
   ],
   "stylePatterns": [
     {
@@ -163,34 +133,9 @@
   ],
   "requiredMarkers": [
     {
-      "id": "audit-decision-continuity",
-      "file": "docs/harness.md",
-      "text": "業務裁定如何落實到操作與驗證"
-    },
-    {
-      "id": "audit-difference-regression",
-      "file": "docs/development-workflow.md",
-      "text": "CompletenessBackendGateProviderTests"
-    },
-    {
-      "id": "shared-agent-authority",
-      "file": "AGENTS.md",
-      "text": "docs/agent-compatibility.md"
-    },
-    {
-      "id": "development-continuity",
-      "file": "AGENTS.md",
-      "text": "docs/development-workflow.md"
-    },
-    {
-      "id": "jet-converge-canonical-skill",
-      "file": "AGENTS.md",
-      "text": ".agents/skills/jet-converge/SKILL.md"
-    },
-    {
-      "id": "convergence-memory-harness",
-      "file": "docs/development-workflow.md",
-      "text": ".agents/harness/convergence-and-memory.md"
+      "id": "claude-imports-agents",
+      "file": "CLAUDE.md",
+      "text": "@AGENTS.md"
     },
     {
       "id": "jet-converge-explicit-only",
@@ -198,39 +143,19 @@
       "text": "allow_implicit_invocation: false"
     },
     {
-      "id": "claude-jet-converge-thin-wrapper",
-      "file": ".claude/skills/jet-converge/SKILL.md",
-      "text": ".agents/skills/jet-converge/SKILL.md"
+      "id": "jet-converge-explicit-all-hosts",
+      "file": ".agents/skills/jet-converge/SKILL.md",
+      "text": "disable-model-invocation: true"
     },
     {
-      "id": "jet-converge-project-memory",
-      "file": ".agents/harness/convergence-and-memory.md",
-      "text": "repository 是專案記憶"
+      "id": "jet-readable-docs-implicit-allowed",
+      "file": ".agents/skills/jet-readable-docs/agents/openai.yaml",
+      "text": "allow_implicit_invocation: true"
     },
     {
-      "id": "explicit-staging-only",
-      "file": "AGENTS.md",
-      "text": "git add -A"
-    },
-    {
-      "id": "no-ai-attribution",
-      "file": "AGENTS.md",
-      "text": "Co-Authored-By"
-    },
-    {
-      "id": "claude-imports-agents",
-      "file": "CLAUDE.md",
-      "text": "@AGENTS.md"
-    },
-    {
-      "id": "copilot-points-to-agents",
-      "file": ".github/copilot-instructions.md",
-      "text": "[`AGENTS.md`](../AGENTS.md)"
-    },
-    {
-      "id": "readme-project-context",
-      "file": "README.md",
-      "text": "docs/project-context.md"
+      "id": "vscode-claude-hooks-off",
+      "file": ".agents/harness/agent-compatibility.md",
+      "text": "chat.useClaudeHooks"
     },
     {
       "id": "status-active-plan",
@@ -243,85 +168,38 @@
       "text": "已知但延後的事項"
     },
     {
-      "id": "agent-deferred-items-continuity",
+      "id": "explicit-staging-only",
       "file": "AGENTS.md",
-      "text": "已知但延後的事項"
+      "text": "git add -A"
     },
     {
-      "id": "company-ai-network-boundary",
-      "file": "docs/project-context.md",
-      "text": "無法存取 AI 相關網路服務"
-    },
-    {
-      "id": "history-index-points-to-log",
-      "file": "docs/history/README.md",
-      "text": "development-log.md"
-    },
-    {
-      "id": "readme-build-entry",
-      "file": "README.md",
-      "text": "tools/verify.ps1"
-    },
-    {
-      "id": "agent-enforcement-layer",
-      "file": "docs/agent-compatibility.md",
-      "text": ".claude/settings.json"
-    },
-    {
-      "id": "contributing-points-to-workflow",
-      "file": "CONTRIBUTING.md",
-      "text": "docs/development-workflow.md"
-    },
-    {
-      "id": "agents-map-not-encyclopedia",
+      "id": "no-ai-attribution",
       "file": "AGENTS.md",
-      "text": "tools/verify.ps1"
-    },
-    {
-      "id": "status-points-to-sqlserver-deferred",
-      "file": "docs/development-status.md",
-      "text": "sqlserver-enterprise-deferred.md"
-    },
-    {
-      "id": "guide-keeps-kct-mainline",
-      "file": "docs/jet-guide.md",
-      "text": "KCT"
-    },
-    {
-      "id": "agents-fact-fidelity",
-      "file": "AGENTS.md",
-      "text": "事實保真"
-    },
-    {
-      "id": "agents-human-facing-text",
-      "file": "AGENTS.md",
-      "text": "寫給人的文字"
-    },
-    {
-      "id": "agents-commit-message-chinese",
-      "file": "AGENTS.md",
-      "text": "Commit 訊息用繁體中文"
-    },
-    {
-      "id": "jet-readable-docs-canonical-skill",
-      "file": "AGENTS.md",
-      "text": ".agents/skills/jet-readable-docs/SKILL.md"
-    },
-    {
-      "id": "jet-readable-docs-implicit-allowed",
-      "file": ".agents/skills/jet-readable-docs/agents/openai.yaml",
-      "text": "allow_implicit_invocation: true"
-    },
-    {
-      "id": "claude-jet-readable-docs-thin-wrapper",
-      "file": ".claude/skills/jet-readable-docs/SKILL.md",
-      "text": ".agents/skills/jet-readable-docs/SKILL.md"
-    },
-    {
-      "id": "jet-readable-docs-links-examples",
-      "file": ".agents/skills/jet-readable-docs/SKILL.md",
-      "text": "references/rewrite-examples.md"
+      "text": "Co-Authored-By"
     }
+  ],
+  "requiredReferences": [
+    { "id": "agents-to-compatibility", "file": "AGENTS.md", "target": ".agents/harness/agent-compatibility.md" },
+    { "id": "agents-to-workflow", "file": "AGENTS.md", "target": ".agents/harness/development-workflow.md" },
+    { "id": "agents-to-harness", "file": "AGENTS.md", "target": ".agents/harness/harness.md" },
+    { "id": "agents-to-converge-skill", "file": "AGENTS.md", "target": ".agents/skills/jet-converge/SKILL.md" },
+    { "id": "agents-to-readable-docs-skill", "file": "AGENTS.md", "target": ".agents/skills/jet-readable-docs/SKILL.md" },
+    { "id": "agents-to-tools-readme", "file": "AGENTS.md", "target": "tools/README.md" },
+    { "id": "agents-to-status", "file": "AGENTS.md", "target": "docs/development-status.md" },
+    { "id": "copilot-to-agents", "file": ".github/copilot-instructions.md", "target": "AGENTS.md" },
+    { "id": "readme-to-project-context", "file": "README.md", "target": "docs/project-context.md" },
+    { "id": "readme-to-verify", "file": "README.md", "target": "tools/verify.ps1" },
+    { "id": "contributing-to-workflow", "file": "CONTRIBUTING.md", "target": ".agents/harness/development-workflow.md" },
+    { "id": "status-to-sqlserver-deferred", "file": "docs/development-status.md", "target": "docs/sqlserver-enterprise-deferred.md" },
+    { "id": "workflow-to-convergence", "file": ".agents/harness/development-workflow.md", "target": ".agents/harness/convergence-and-memory.md" },
+    { "id": "claude-converge-thin-wrapper", "file": ".claude/skills/jet-converge/SKILL.md", "target": ".agents/skills/jet-converge/SKILL.md" },
+    { "id": "claude-readable-docs-thin-wrapper", "file": ".claude/skills/jet-readable-docs/SKILL.md", "target": ".agents/skills/jet-readable-docs/SKILL.md" },
+    { "id": "readable-docs-to-examples", "file": ".agents/skills/jet-readable-docs/SKILL.md", "target": ".agents/skills/jet-readable-docs/references/rewrite-examples.md" },
+    { "id": "history-index-to-log", "file": "docs/history/README.md", "target": "docs/history/development-log.md" },
+    { "id": "compatibility-to-claude-settings", "file": ".agents/harness/agent-compatibility.md", "target": ".claude/settings.json" },
+    { "id": "compatibility-to-codex-rules", "file": ".agents/harness/agent-compatibility.md", "target": ".codex/rules/jet.rules" },
+    { "id": "compatibility-to-shared-hooks", "file": ".agents/harness/agent-compatibility.md", "target": ".agents/hooks" },
+    { "id": "docs-index-to-readable-docs", "file": "docs/README.md", "target": ".agents/skills/jet-readable-docs/SKILL.md" }
   ],
   "manualReview": [
     "讀者能否在第一次閱讀就知道誰做了什麼，以及結果是什麼",

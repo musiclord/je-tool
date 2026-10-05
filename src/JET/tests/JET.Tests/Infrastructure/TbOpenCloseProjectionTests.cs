@@ -7,6 +7,8 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 第 9 批中低 9：TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -69,8 +71,8 @@ public sealed class TbOpenCloseProjectionTests
         };
 
         var batch = (await new LocalImportRepository(db).ReplaceBatchAsync(
-            projectId, DatasetKind.Tb, Source(),
-            ["acc", "name", "opening", "closing"], ToAsync(rows), CancellationToken.None)).Batch;
+            projectId, DatasetKind.Tb, [new ImportSourceInput(Source(),
+            ["acc", "name", "opening", "closing"], ToAsync(rows))], CancellationToken.None)).Batch;
 
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
@@ -83,7 +85,7 @@ public sealed class TbOpenCloseProjectionTests
             TbChangeMode.OpenClose);
 
         var result = await new LocalTbRepository(db).ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, spec, Scale, CancellationToken.None);
+            projectId, batch.BatchId, spec, Scale, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
 
         Assert.Empty(result.Errors);
         Assert.Equal(2, result.ProjectedRowCount);
@@ -120,8 +122,8 @@ public sealed class TbOpenCloseProjectionTests
         };
 
         var batch = (await new LocalImportRepository(db).ReplaceBatchAsync(
-            projectId, DatasetKind.Tb, Source(),
-            ["acc", "name", "odr", "ocr", "cdr", "ccr"], ToAsync(rows), CancellationToken.None)).Batch;
+            projectId, DatasetKind.Tb, [new ImportSourceInput(Source(),
+            ["acc", "name", "odr", "ocr", "cdr", "ccr"], ToAsync(rows))], CancellationToken.None)).Batch;
 
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
@@ -136,7 +138,7 @@ public sealed class TbOpenCloseProjectionTests
             TbChangeMode.OpenCloseBySide);
 
         var result = await new LocalTbRepository(db).ProjectStagingToTargetAsync(
-            projectId, batch.BatchId, spec, Scale, CancellationToken.None);
+            projectId, batch.BatchId, spec, Scale, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
 
         Assert.Empty(result.Errors);
         Assert.Equal(2, result.ProjectedRowCount);
@@ -169,8 +171,8 @@ public sealed class TbOpenCloseProjectionTests
         };
 
         var batch = (await new SqlServerImportRepository(sql.Database).ReplaceBatchAsync(
-            sql.ProjectId, DatasetKind.Tb, Source(),
-            ["acc", "name", "opening", "closing"], ToAsync(rows), CancellationToken.None)).Batch;
+            sql.ProjectId, DatasetKind.Tb, [new ImportSourceInput(Source(),
+            ["acc", "name", "opening", "closing"], ToAsync(rows))], CancellationToken.None)).Batch;
 
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
@@ -183,7 +185,7 @@ public sealed class TbOpenCloseProjectionTests
             TbChangeMode.OpenClose);
 
         var result = await new SqlServerTbRepository(sql.Database).ProjectStagingToTargetAsync(
-            sql.ProjectId, batch.BatchId, spec, Scale, CancellationToken.None);
+            sql.ProjectId, batch.BatchId, spec, Scale, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
 
         Assert.Empty(result.Errors);
         Assert.Equal(2, result.ProjectedRowCount);

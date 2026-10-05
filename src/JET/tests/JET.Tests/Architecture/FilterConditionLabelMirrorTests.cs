@@ -25,8 +25,14 @@ public sealed class FilterConditionLabelMirrorTests
     [Fact]
     public void PrescreenKeyOptions_MirrorDomainLabels_Bidirectional()
     {
-        var frontend = ExtractValueLabelMap("PRESCREEN_KEY_OPTIONS");
+        // 第9批共用11/6門檻後，literal-only regex會把串接文字截斷，並非可見標籤變更。
+        // 首次失敗：20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
+        // 從JS自己的常數求出完整文字；Domain只作另一側比對，全部鍵仍逐一核對。
+        var frontend = FrontendConstantTextReader.ValueLabels(ReadUiCore(), "PRESCREEN_KEY_OPTIONS");
         Assert.Equal(FilterConditionLabels.PrescreenKeys, frontend);
+        Assert.Equal("金額尾數連續 6 個 0", frontend["trailingZeros"]);
+        Assert.Equal("編製分錄較少的人員（11 筆以下）", frontend["lowFrequencyPreparer"]);
+        Assert.Equal("使用較少的科目（11 筆以下）", frontend["lowFrequencyAccount"]);
     }
 
     [Fact]

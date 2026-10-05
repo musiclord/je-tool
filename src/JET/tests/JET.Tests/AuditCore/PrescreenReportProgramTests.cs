@@ -1,5 +1,6 @@
 using JET.AuditCore;
 using JET.Domain;
+using JET.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.AuditCore;
@@ -134,31 +135,44 @@ public sealed class PrescreenReportProgramTests
     }
 
     [Fact]
-    public void RequireDetailAndExplain_RejectUnfinalizedPlan()
+    public void RequireDetail_RejectsUnfinalizedPlan()
     {
         var plan = JetAuditProgram.Plan(Request());
 
         Assert.Throws<InvalidOperationException>(() =>
             plan.RequireDetail(PrescreenReportDetailKind.PostPeriodApproval));
-        Assert.Throws<InvalidOperationException>(() => JetAuditProgram.Explain(plan));
+    }
+
+    // 已 Finalize 的 plan 不得再查計數。AuditCore 的轉手方法移除後，這個防呆改由 planning port 開頭負責，
+    // 條件、例外型別與訊息都沿用原本的轉手方法。
+    [Fact]
+    public async Task PlanningFactsPort_FinalizedPlan_IsRejectedBeforeQuerying()
+    {
+        var finalized = JetAuditProgram.Finalize(
+            JetAuditProgram.Plan(Request()),
+            Facts(voucherHitCount: 0, rowHitCount: 0));
+        var pages = new RecordingPrescreenPageRepository();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new PrescreenReportPlanningFactsPort(pages).ExecuteAsync(finalized, CancellationToken.None));
+
+        Assert.Equal("PrescreenReportPlan 已 Finalize。", exception.Message);
+        Assert.Empty(pages.Tokens);
     }
 
     [Fact]
-    public async Task ExecuteAsync_PassesUnfinalizedPlanAndCancellationTokenToFactsPort()
+    public async Task PlanningFactsPort_UnfinalizedPlan_QueriesEachApplicableFamilyWithCallerToken()
     {
         var plan = JetAuditProgram.Plan(Request());
-        var expected = Facts(voucherHitCount: 3, rowHitCount: 7);
-        var port = new RecordingFactsPort(expected);
+        var pages = new RecordingPrescreenPageRepository();
         using var source = new CancellationTokenSource();
 
-        var facts = await JetAuditProgram.ExecuteAsync(plan, port, source.Token);
+        var facts = await new PrescreenReportPlanningFactsPort(pages).ExecuteAsync(plan, source.Token);
 
-        Assert.Same(plan, port.Plan);
-        Assert.NotNull(port.Plan);
-        Assert.False(port.Plan.IsFinalized);
-        Assert.Equal(source.Token, port.CancellationToken);
-        Assert.Equal(1, port.Calls);
-        Assert.Same(expected, facts);
+        Assert.False(plan.IsFinalized);
+        Assert.Equal(DetailKinds.Length, facts.Counts.Count);
+        Assert.Equal(DetailKinds.Length, pages.Tokens.Count);
+        Assert.All(pages.Tokens, token => Assert.Equal(source.Token, token));
     }
 
     private static PrescreenReportRequest Request(
@@ -192,23 +206,26 @@ public sealed class PrescreenReportProgramTests
             kind => kind,
             _ => new PrescreenHitCounts(voucherHitCount, rowHitCount));
 
-    private sealed class RecordingFactsPort(PrescreenReportPlanningFacts result)
-        : IPrescreenReportPlanningFactsPort
+    private sealed class RecordingPrescreenPageRepository : IPrescreenPageRepository
     {
-        internal PrescreenReportPlan? Plan { get; private set; }
+        internal List<CancellationToken> Tokens { get; } = [];
 
-        internal CancellationToken CancellationToken { get; private set; }
+        public Task<PageResult<PrescreenHitRow>> GetPageAsync(
+            string projectId,
+            string ruleKey,
+            FilterRuleContext context,
+            PageRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
-        internal int Calls { get; private set; }
-
-        public Task<PrescreenReportPlanningFacts> ExecuteAsync(
-            PrescreenReportPlan plan,
+        public Task<PrescreenHitCounts> GetCountsAsync(
+            string projectId,
+            string ruleKey,
+            FilterRuleContext context,
             CancellationToken cancellationToken)
         {
-            Plan = plan;
-            CancellationToken = cancellationToken;
-            Calls++;
-            return Task.FromResult(result);
+            Tokens.Add(cancellationToken);
+            return Task.FromResult(new PrescreenHitCounts(1, 1));
         }
     }
 }

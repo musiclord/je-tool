@@ -16,22 +16,24 @@ public sealed class LocalCreatorSummaryExportRepository(ILocalProjectDatabase da
     public async Task<IReadOnlyList<CreatorSummaryExportRow>> FetchAllAsync(
         string projectId, string periodStart, string periodEnd, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
         // 編製者彙總與 prescreen.run 共用有效分錄母體。
         await using var command = connection.CreateCommand();
+        // 人員依去空白、不分大小寫的識別值分組，顯示值取同組碼位最小的去空白寫法（與預篩選編製者彙總同口徑）。
+        var person = LocalPrescreenRunRepository.PersonKey(database.Dialect);
         command.CommandText =
             $"""
-            SELECT COALESCE(created_by, ''),
+            SELECT MIN({person}),
                    COUNT(*),
                    COALESCE(SUM(debit_amount_scaled), 0),
                    COALESCE(SUM(credit_amount_scaled), 0)
             FROM target_gl_entry
             WHERE {GlEffectivePopulation.SqlPredicate()}
-            GROUP BY created_by
-            ORDER BY COUNT(*) DESC, created_by;
+            GROUP BY UPPER({person})
+            ORDER BY COUNT(*) DESC, MIN({person});
             """;
         return await ReadRowsAsync(command, cancellationToken);
     }

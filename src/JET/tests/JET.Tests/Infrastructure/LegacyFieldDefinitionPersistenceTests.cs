@@ -3,6 +3,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -28,7 +29,7 @@ public sealed class LegacyFieldDefinitionPersistenceTests
         await repository.ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            Source("first.xlsx"),
+            [new ImportSourceInput(Source("first.xlsx"),
             ["TextField", "NumberField", "DateField", "TimeField", "NamedEmpty"],
             Rows(
                 ObservedRow(
@@ -38,7 +39,7 @@ public sealed class LegacyFieldDefinitionPersistenceTests
                     new("TextField", LegacyFieldKind.Text, 5, null),
                     new("NumberField", LegacyFieldKind.Number, 5, 2),
                     new("DateField", LegacyFieldKind.Date, 10, null),
-                    new("TimeField", LegacyFieldKind.Time, 8, null))),
+                    new("TimeField", LegacyFieldKind.Time, 8, null))))],
             CancellationToken.None);
 
         // 以新 database / facts-port instance 重開同一案件，證明不是 process memory cache。
@@ -69,7 +70,7 @@ public sealed class LegacyFieldDefinitionPersistenceTests
         await env.Repository.ReplaceBatchAsync(
             env.ProjectId,
             DatasetKind.Tb,
-            Source("first.xlsx"),
+            [new ImportSourceInput(Source("first.xlsx"),
             ["Label", "Amount", "Mixed", "NamedEmpty"],
             Rows(
                 ObservedRow(
@@ -77,14 +78,14 @@ public sealed class LegacyFieldDefinitionPersistenceTests
                     [("Label", "abc"), ("Amount", "12.3"), ("Mixed", "2024-01-01")],
                     new("Label", LegacyFieldKind.Text, 3, null),
                     new("Amount", LegacyFieldKind.Number, 4, 1),
-                    new("Mixed", LegacyFieldKind.Date, 10, null))),
+                    new("Mixed", LegacyFieldKind.Date, 10, null))))],
             CancellationToken.None);
 
         // 第二來源刻意換欄序：定義 ordinal 仍必須沿用第一來源，而非 Append 的欄序。
         await env.Repository.AppendToBatchAsync(
             env.ProjectId,
             DatasetKind.Tb,
-            Source("second.xlsx"),
+            [new ImportSourceInput(Source("second.xlsx"),
             ["NamedEmpty", "Mixed", "Amount", "Label"],
             Rows(
                 ObservedRow(
@@ -92,7 +93,7 @@ public sealed class LegacyFieldDefinitionPersistenceTests
                     [("Mixed", "alpha"), ("Amount", "1234.567"), ("Label", "long label")],
                     new("Mixed", LegacyFieldKind.Text, 5, null),
                     new("Amount", LegacyFieldKind.Number, 8, 3),
-                    new("Label", LegacyFieldKind.Text, 10, null))),
+                    new("Label", LegacyFieldKind.Text, 10, null))))],
             CancellationToken.None);
 
         var definitions = await env.FactsPort.ReadAsync(
@@ -119,12 +120,12 @@ public sealed class LegacyFieldDefinitionPersistenceTests
         await env.Repository.ReplaceBatchAsync(
             env.ProjectId,
             DatasetKind.Gl,
-            Source("old.csv"),
+            [new ImportSourceInput(Source("old.csv"),
             ["OldField"],
             Rows(ObservedRow(
                 2,
                 [("OldField", "old")],
-                new TabularCellObservation("OldField", LegacyFieldKind.Text, 3, null))),
+                new TabularCellObservation("OldField", LegacyFieldKind.Text, 3, null))))],
             CancellationToken.None);
 
         var singlePassRows = new ThrowOnSecondEnumerationRows(
@@ -136,9 +137,9 @@ public sealed class LegacyFieldDefinitionPersistenceTests
         await env.Repository.ReplaceBatchAsync(
             env.ProjectId,
             DatasetKind.Gl,
-            Source("replacement.xlsx"),
+            [new ImportSourceInput(Source("replacement.xlsx"),
             ["Replacement", "StillEmpty"],
-            singlePassRows,
+            singlePassRows)],
             CancellationToken.None);
 
         Assert.Equal(1, singlePassRows.EnumerationCount);
@@ -166,13 +167,13 @@ public sealed class LegacyFieldDefinitionPersistenceTests
         await env.Repository.ReplaceBatchAsync(
             env.ProjectId,
             DatasetKind.Gl,
-            Source("ragged.xlsx"),
+            [new ImportSourceInput(Source("ragged.xlsx"),
             ["Named"],
             Rows(ObservedRow(
                 2,
                 [("Named", "x"), ("COL_3", "12.50")],
                 new TabularCellObservation("Named", LegacyFieldKind.Text, 1, null),
-                new TabularCellObservation("COL_3", LegacyFieldKind.Number, 4, 1))),
+                new TabularCellObservation("COL_3", LegacyFieldKind.Number, 4, 1))))],
             CancellationToken.None);
 
         var definitions = await env.FactsPort.ReadAsync(
@@ -197,12 +198,12 @@ public sealed class LegacyFieldDefinitionPersistenceTests
         await env.Repository.ReplaceBatchAsync(
             env.ProjectId,
             DatasetKind.Gl,
-            Source("first.xlsx"),
+            [new ImportSourceInput(Source("first.xlsx"),
             ["Named"],
             Rows(ObservedRow(
                 2,
                 [("Named", "before")],
-                new TabularCellObservation("Named", LegacyFieldKind.Text, 6, null))),
+                new TabularCellObservation("Named", LegacyFieldKind.Text, 6, null))))],
             CancellationToken.None);
         var before = await env.FactsPort.ReadAsync(
             env.ProjectId, DatasetKind.Gl, LegacyFieldDefinitionScope.Source, CancellationToken.None);
@@ -210,13 +211,13 @@ public sealed class LegacyFieldDefinitionPersistenceTests
         var exception = await Assert.ThrowsAsync<JetActionException>(() => env.Repository.AppendToBatchAsync(
             env.ProjectId,
             DatasetKind.Gl,
-            Source("ragged-append.xlsx"),
+            [new ImportSourceInput(Source("ragged-append.xlsx"),
             ["Named"],
             Rows(ObservedRow(
                 2,
                 [("Named", "after"), ("COL_3", "12.50")],
                 new TabularCellObservation("Named", LegacyFieldKind.Text, 5, null),
-                new TabularCellObservation("COL_3", LegacyFieldKind.Number, 5, 2))),
+                new TabularCellObservation("COL_3", LegacyFieldKind.Number, 5, 2))))],
             CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ColumnMismatch, exception.Code);
@@ -234,12 +235,12 @@ public sealed class LegacyFieldDefinitionPersistenceTests
         var imported = await env.Repository.ReplaceBatchAsync(
             env.ProjectId,
             DatasetKind.Gl,
-            Source("first.xlsx"),
+            [new ImportSourceInput(Source("first.xlsx"),
             ["Named"],
             Rows(ObservedRow(
                 2,
                 [("Named", "before")],
-                new TabularCellObservation("Named", LegacyFieldKind.Text, 6, null))),
+                new TabularCellObservation("Named", LegacyFieldKind.Text, 6, null))))],
             CancellationToken.None);
 
         await using (var connection = env.Database.CreateConnection(env.ProjectId))
@@ -260,9 +261,9 @@ public sealed class LegacyFieldDefinitionPersistenceTests
         var exception = await Assert.ThrowsAsync<JetActionException>(() => env.Repository.AppendToBatchAsync(
             env.ProjectId,
             DatasetKind.Gl,
-            Source("append.xlsx"),
+            [new ImportSourceInput(Source("append.xlsx"),
             ["Named"],
-            rows,
+            rows)],
             CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);

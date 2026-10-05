@@ -1,31 +1,30 @@
 # JET 驗證框架使用說明
 
-`tools/verify.ps1` 是儲存庫唯一的公開驗證入口。Phase 1 至 Phase 7 已完成；`Provider`、`Package`、七個 GUI
-情境、五份合成報告與科目配對範本的原生 Excel 檢查、SQLite／SQL Server 的同一私人案件，以及完整 `ReleaseCandidate`
-都有歷史通過紀錄；本輪新增篩選情境的最新結果以現行計畫為準。
+`tools/verify.ps1` 是儲存庫唯一的公開驗證入口，本文件列出它的完整命令、參數與結束碼。驗證框架的原則
+與判定依據見 [`.agents/harness/harness.md`](../.agents/harness/harness.md)。
 
 ## 名稱與目錄分工
 
 前端設計預覽放在 `tools/harness/frontend-preview/`，操作方式見
-[`docs/development-guide.md`](../docs/development-guide.md#前端設計預覽試用)。
+[`docs/development-guide.md` 的「開發用的預覽工具」](../docs/development-guide.md#開發用的預覽工具)。
 這是開發用的固定合成回放，不是新增業務後端或正式 GUI 驗證。
 工具測試由 `tools/verify.ps1 -Command Contract -ContractScenario FrontendPreview` 啟動，
-沿用既有子程序、逾時與收據管理；只有這項明示檢查需要 Node.js，不加入 Public 或 ReleaseCandidate 的必要依賴。
+沿用既有子程序、逾時與收據管理；這項檢查也納入 Public，因此 Public 及包含它的 ReleaseCandidate 需要 Node.js。
 合成素材由 `Focused -Configuration Release -Filter 'FrontendPreviewFixtureTests'` 在明示環境變數下產生。
 Package 拒絕發布預覽目錄與 fixtures.json，正式 JET 不依賴預覽工具。
+
+接上正式後端的瀏覽器主機放在 `tools/harness/browser-host/`，操作方式見
+[`docs/development-guide.md`](../docs/development-guide.md#開發用的預覽工具)。
+它讓正式前端在一般瀏覽器執行，action 交給正式 dispatcher，案件只使用合成資料。它是開發時操作畫面的工具，
+不是驗證命令，也不能取代 Gui 檢查。
 
 配對前端的行為檢查使用 `tools/verify.ps1 -Command Contract -ContractScenario FrontendMapping`。
 它用 Node.js 直接執行正式前端腳本，控制合成回應的先後順序，核對重試、來源變更、政策還原、就地錯誤及
 RDE 全選，也涵蓋分類草稿的輸入、取消與保存重試，以及雙側預覽、快取與晚到回應。
 完整性有差異仍可繼續、畫面保留差異，以及兩類空值明細各自呈現也有行為檢查。DOM 接線使用測試替身，
 不代表真實版面已驗收；實際滑鼠與鍵盤操作另由 Gui 檢查。
-這項檢查只在明示選用時需要 Node.js，不增加 Public 或 ReleaseCandidate 的執行依賴。
-
-`Gui` 現有十七個情境。`feedback-workflow` 先等待合成案件經正式 action 準備完成，再做 52 次
-操作，驗證配對清單捲動、分類輸入、取消、保存、返回與重開，以及重新執行預篩選後的雙側明細。
-接著實際改配 TB 金額欄，建立完整性差異，再驗證可以預篩選、產生條件報告、匯出底稿與重開保留差異。
-中文組字透過 WebView2 的 CDP 組字事件驗證，沒有變更 Windows 輸入法，也不代表已實測各家輸入法。
-該情境保存兩張合成畫面；單獨指定 `-GuiScenario feedback-workflow` 只算該情境通過，不代替完整 Gui。
+Public 在 .NET 測試通過後，依序執行這項檢查與 FrontendPreview。任何一項失敗都會讓 Public 失敗；
+兩項各自保存輸出、管理子程序及清除私人案件環境變數。可以單獨選用 Contract 快速檢查，不必每次重跑全部 .NET 測試。
 
 - `tools/` 第一層只分成 `harness/` 與 `tests/`。新增的驗證框架子目錄一律使用小寫英文，單字之間以連字號分隔。
 - JSON 設定檔、公開入口、測試與一次性 probe 使用小寫與連字號。可重用的 PowerShell 模組與內部 verifier
@@ -34,17 +33,12 @@ RDE 全選，也涵蓋分類草稿的輸入、取消與保存重試，以及雙�
 - C# 驅動程式仍屬於驗證框架，所以專案目錄要放在 `tools/harness/` 下，不能在 `tools/` 增加第三個分類。
 - `bin/`、`obj/`、`artifacts/` 和 `TestResults/` 都是本機產物，不屬於第一次提交內容。
 
-`new-je-tool/tools/` 曾使用 `AgentGuiDriver/`、`ExcelAcceptanceDriver/` 這類 PascalCase 專案目錄。新框架沒有複製
-那些目錄；Phase 4 初版卻沿用了它們的目錄慣例，才一度出現 `tools/GuiSmokeDriver/`。目前已改成
-`tools/harness/gui-driver/`。這個名稱反映共用 GUI 驅動程式的責任，不會再把單一情境名稱當成元件名稱；
-契約測試也會拒絕舊目錄回來。
-
 ## 日常資料庫測試與服務收尾
 
 2026-09-02 使用者確認，SQL Server 開發目前暫緩，日常工作集中在 SQLite 和 DuckDB。依修改範圍選擇
 `Focused` 或 `Public`；需要比較兩個本機資料庫時，可用 `Focused -Filter 'ProviderParity'`。
 `Provider` 包含 live SQL Server 測試，只有使用者當次明示需要時才執行，也不為了補齊一般開發驗證而啟動。
-`PrivateCase` 同樣要取得當次授權，選擇 SQL Server 更不能從既有連線設定推定。
+`PrivateCase` 讀取本機私人案件的授權是常設的，不必每次再問；但選擇 SQL Server 不能從既有連線設定推定。
 
 `Focused` 和 `Public` 已排除 `Profile=Provider`，一般測試子程序也會移除 `JET_SQLSERVER_CONNECTION`；
 `ReleaseCandidate` 不包含 `Provider`。不需連線的 SQL 產生與契約測試仍保留，不按檔名整批移除 SQL Server
@@ -100,8 +94,12 @@ Context 不判定摘要是否完整或需求是否完成；範圍與來源仍由
 `-NoRestore`。
 
 `Focused` 的 `-Filter` 接受測試方法或類別的完整名稱片段，不接受萬用字元。它會先建置，再執行選取的測試，
-並固定補跑架構檢查；選不到測試或遇到跳過都不會算通過。`Public` 不接受 `-Filter`，會依固定種子、單一執行緒
+並固定補跑架構檢查；選不到測試或遇到跳過都不會算通過。`Public` 不接受 `-Filter`，會依固定種子
 跑完目前安全且不需外部服務的公開測試。這組測試至少要找到 3,000 個案例。
+`Focused`、`Public` 與 `Package` 讓不同測試類別平行執行，執行緒數等於 CPU 執行緒數；檢查實際經過時間上限的
+測試放在 `TimingSensitive` 集合，等其他測試結束後單獨執行。`Provider` 會共用同一個 SQL Server 測試資料庫，
+`PrivateCase` 會處理私人案件副本，`Excel` 只有一個案例，這三條路線仍逐一執行。改為平行執行後，
+`Public` 從約 1,000 秒縮短為約 180 秒。
 `public-skip-policy.json` 目前沒有允許略過的群組；舊儲存層的檔案系統連結測試已退役，因此任何跳過都會
 讓公開測試失敗。
 
@@ -146,67 +144,63 @@ stderr 與 TRX 也會在保存前遮蔽。
 本次專屬暫存目錄使用 FolderProfile 發布。驗證會核對 x64 單檔執行檔、八份範本、`wwwroot`、安全設定及
 禁止出現的執行期資料。測試範圍固定包含 `ReportArtifactTrustJourneyTests` 與
 `ProjectReportArtifactStoreTests`，檢查範本原檔往返、版本保留、同名覆蓋及失敗後重試；框架自身測試會確認
-這兩組沒有從封裝選取條件中消失。清單以本次現行來源產生，不沿用舊 P5 基準。暫存封裝完成後會自動移除，只保留清單
+這兩組沒有從封裝選取條件中消失。清單以本次現行來源產生，不沿用舊專案留下的封裝基準。暫存封裝完成後會自動移除，只保留清單
 與有限大小的紀錄。實際 publish 會占用較多 CPU 與磁碟，執行前應先確認本機負載。
 
-`Gui` 固定使用 `AgentGuiTest` 組態。它會先建置一次，再分別用全新的暫存目錄執行十七個情境：
+`Gui` 固定使用 `AgentGuiTest` 組態。它會先建置一次，再分別用全新的暫存目錄執行下列情境。每個情境的
+操作上限、預期次數、逾時與截圖數只寫在 `tools/harness/lanes.json`；驗證框架把預算交給驅動程式，再用同一份
+數值核對收據。驅動程式與 `AgentGuiTest` 組態另有固定的最大值（操作 102 次、截圖 2 張），調高情境預算超過
+這個值時要一起改。截圖都是合成畫面，每張不超過 2 MB。
 
-- `legacy-form-catalog` 逐一加入及移除 A–U，另驗證 P 可切換科目分類，共 95 次操作，保留一張合成畫面。
-- `legacy-form-workflow` 套用原工作簿五個組合，以 55 次操作核對缺來源選取後重試、預覽、保存、
-  取消修改、返回、兩種報表及重開，保留兩張合成畫面。只切換條件目錄不應清除已有預覽。
-  兩個情境分開執行，沒有提高原有每個情境 96 次操作上限。
+每個情境都會在目前登入的桌面重新開一次 JET 視窗，視窗最大化並取得前景，使用者這段時間的點擊與打字會落到 JET 上。
+2026-10-05 在開發電腦上跑兩次，各約 4.7 分鐘與 5.1 分鐘。日常開發不跑這條路線，改用 `Public` 與
+`Contract -ContractScenario FrontendMapping`；只在提交、交付或確認整合時執行，執行前先告訴使用者。規則見 `AGENTS.md`「測試」。
 
-- `nested-voucher-workflow` 操作分類上層設定、巢狀條件、傳票量詞及分類選取方式，
-  並核對空條件失敗後重試、保存、取消編輯、返回、案件重開及兩種篩選報表匯出。保留兩張合成畫面。
+- `startup-smoke`：檢查頁面、`JetApi`、`systemPing`、專案選擇畫面及離開按鈕，最後按下「結束 JET」。
+- `synthetic-sqlite-create`：從可見畫面只以鍵盤輸入建立 SQLite 案件，案件編號與客戶名稱留白，再核對畫面
+  上的案件名稱、本次暫存目錄中的 `project.json` 與 `jet.db`、兩個選填欄位保存為空白，以及操作人員是否為
+  隔離測試帳號。
+- `mapping-required-sync`：從已提交的合成 mapping 進入「重新配對」，先把借方代碼改成另一個值，不離開
+  輸入框就用滑鼠點一次「重新確認配對」，確認第一次點擊就完成配對；再清空並補回同一個必填欄位十次，
+  每次確認右側缺漏狀態、提交資格與焦點同步。
+- `edited-report-still-loads`：先在 JET 之外改寫已發布的 Working Paper 並放回舊版輸出紀錄檔，再從 Release
+  可見介面開啟案件，確認能載入、第六步標示「已在 JET 之外修改」、匯出仍可用、支援日誌含
+  `artifact.journal.discarded`，且過期與缺檔的歷史紀錄不被當成目前流程已完成。
+- `approval-mapping-modes`：操作兩種配對畫面的核准日方式與來源欄，確認同步、未提交提示、取消後的政策
+  重設、完整還原及缺漏欄位定位；還原結果以第一次編輯前保存的獨立快照核對。
+- `validation-auto-outputs`：執行驗證，確認兩份報告與科目配對範本自動產生，再填入合成分類並重新驗證，
+  核對已填範本逐位元組保留。
+- `filter-auditor-journey`：走一遍審計員在第五步的路，從範本「借現金、貸非現金」開始，加條件、切換作用中
+  的組、預覽、排序命中傳票、保存並核對讀回文字，也檢查多選日期、期末天數、錯誤標示、版面與草稿名稱。
+- `filter-kct-editing`：檢查 KCT 情境保存後重開案件能還原卡片，非營業日 I 留在目前組的條件括號，舊情境缺少卡片來源時保留
+  原條件，以及移除、取消、金額門檻、文字排除與自動命名的行為。
+- `feedback-workflow`：在合成案件驗證配對清單捲動、分類輸入、中文組字、取消、保存、返回與重開，再改配
+  TB 金額欄建立完整性差異，確認仍可預篩選、匯出底稿、產生條件報告並在重開後保留差異。
+- `null-details-recovery`：兩類空值明細各自跨頁、排序與搜尋，並檢查搜尋失敗保留、重試、零筆、返回及重開。
+- `kct-remap-recovery`：保存後取消配對修改、移除必要欄位、失敗重試、返回補欄、重新驗證、匯出及重開。
+- `authorized-list-recovery`：手動選欄、取消、匯入失敗重試、預覽有效清單、移除、重開、再匯入及下游失效。
+  檔案選擇 action 由封閉的合成來源替代，不代表操作了原生檔案選擇視窗。
+- `extended-conditions`：人工與自動補集的取消及保存、統計張數、日曆、金額尾數、人員清單與文字否定，再
+  保存五個情境、匯出及重開；精確條件和保存值都要相符。
+- `side-month-workflow`：在窄視窗操作欄位內的借貸方向及每月月初、月底天數，核對錯誤值修正、保存、取消
+  編輯、返回、重開、條件報告及底稿匯出。
+- `nested-voucher-workflow`：操作分類上層設定、巢狀條件、傳票分錄條件及分類選取方式，核對空條件失敗後
+  重試、保存、取消編輯、返回、案件重開及兩種篩選報表匯出。
+- `legacy-form-workflow`：套用原工作簿的五個組合，核對缺來源選取後重試、預覽、保存、取消修改、返回、兩種
+  報表及重開；只切換條件目錄不應清除已有預覽。
+- `legacy-form-catalog`：逐一加入及移除 A 到 U，另驗證 P 可切換科目分類。
 
-- `side-month-workflow` 在窄視窗操作欄位內的借貸方向及每月月初、月底天數，核對錯誤值修正、保存、
-  取消編輯、返回、重開、條件報告及底稿匯出。固定 76 次操作，保留兩張合成畫面；原有十三個情境的斷言保留。
+`null-details-recovery`、`kct-remap-recovery`、`authorized-list-recovery` 與 `extended-conditions` 全部沿
+正式前端及 action 操作，CDP 評估只讀取畫面與狀態。中文組字透過 WebView2 的
+CDP 組字事件驗證，沒有變更 Windows 輸入法，也不代表已實測各家輸入法。`edited-report-still-loads` 的
+定位入口實際路徑解析與缺檔錯誤由 handler 測試驗證，GUI 情境不開啟檔案總管。
 
-- `filter-auditor-journey` 走一遍審計員在第五步的路：點範本「借現金、貸非現金」，另開一組加一條
-  「每月幾日不屬於 28、31」，切換作用中組，預覽後對命中傳票清單的表頭排序，保存後核對讀回文字與情境數。
-  另以真實點擊驗證多選三個日期、期末最後七天，以及缺分類錯誤標示到條件列。
-  另檢查切換工作區和關閉保存區仍保留條件、矩陣三種檢視、隱藏矩陣不重載，以及報告對應目前版本。
-  也檢查加入後左側重設、右側欄位固定、單條件不顯示關係設定、直接移除，以及排除指定日期。
-  另核對期末天數直接帶入日期、每月幾日沒有無關設定、借貸分類不溢出、保存按鈕間距與傳票查看按鈕完整可見。
-  另檢查日期區間在窄版與桌面版的排列、借貸別標題間距，以及情境名稱和動機草稿隨條件更新並保留手動修改。
-  修改草稿前後另核對已保存的條件說明沒有被改寫。
-  固定 96 個操作，上限 96 個，保存兩張截圖。多組加入目標以原生下拉選擇，保存表單開啟時不重複顯示入口。
-- `filter-kct-editing` 檢查新 KCT 情境保存後重新開案，卡片與非營業日群組能還原；取消 KCT 不刪同型自訂
-  條件。舊情境缺少卡片來源時，保留原來源及條件，直接編輯後仍不猜字母；也驗證取消移除、確認移除後的
-  清單與鍵盤焦點。另檢查選單不推高情境列、金額門檻是否包含邊界、正負號與空白設定，以及文字排除方式切換。
-  同時確認摘要輸入框的起始高度與垂直對齊。固定 70 個操作，上限 70 個，保存一張截圖。
+兩個篩選情境都先使用 1024 × 640 邏輯像素視窗及 125% WebView 放大，依實際 DPI 換算，並核對網頁寬度為
+760 至 840px。審計員情境完成窄版檢查後，只將該次測試擁有的視窗調整為 1560 × 1100 補拍雙欄版面，
+網頁寬度另核對為 1200 至 1260px；不變更桌面設定或其他案件視窗。
 
-兩個篩選情境都先使用 1024 × 640 邏輯像素視窗及 125% WebView 放大，依實際 DPI 換算，並核對網頁寬度為 760 至 840px。
-審計員情境完成此窄版檢查後，
-只將該次測試擁有的視窗調整為 1560 × 1100，補拍雙欄版面；不變更桌面設定或其他案件視窗。
-桌面尺寸也以邏輯像素換算，網頁寬度另核對為 1200 至 1260px。
 只想診斷其中一個情境時，可加 `-GuiScenario <名稱>` 單跑；這種收據會標記 `partial`，不算 `Gui` 通過，
 收尾前仍要完整跑一次 `Gui`。
-
-- `startup-smoke` 檢查頁面、`JetApi`、`systemPing`、專案選擇畫面及離開按鈕，最後按下「結束 JET」。
-- `synthetic-sqlite-create` 從可見畫面點選新增專案，只以鍵盤事件輸入案件名稱及兩個查核日期，案件編號與
-  客戶名稱保持空白，資料儲存方式沿用 SQLite。建立案件並進入匯入步驟後，檢查會核對畫面顯示的案件名稱、
-  本次暫存根目錄中的 `project.json` 與 `jet.db`、兩個選填欄位確實保存為空白，以及操作人員是否為隔離測試帳號，
-  並保存一張匯入步驟的畫面供版面複核。
-- `mapping-required-sync` 從已提交的合成 mapping 進入「重新配對」，清空並補回同一個必填欄位十次，每次確認右側
-  缺漏狀態即時往返、提交資格回復，而且重建後仍聚焦同一個下拉。
-- `edited-report-still-loads` 先在 JET 之外改寫已發布的 Working Paper 並放回舊版輸出紀錄檔，再從 Release
-  可見介面開啟案件：載入成功、第六步清單標示「已在 JET 之外修改」、匯出按鈕仍可用、清理面板已移除，
-  支援日誌安全寫入案件目錄且含
-  `artifact.journal.discarded`、舊紀錄檔已清掉。
-- `approval-mapping-modes` 操作兩種配對畫面的核准日方式與來源欄，確認同步、未提交提示、人工或自動來源欄
-  取消後的政策重設、完整還原及缺漏欄位定位。還原結果以第一次編輯前保存的獨立快照核對。
-- `validation-auto-outputs` 執行驗證，確認兩份報告與科目配對範本自動產生，再填入合成分類並重新驗證，
-  核對已填範本逐位元組保留。
-
-`edited-report-still-loads` 包含 52 筆過期 Working Paper 紀錄，其中有外部修改與已刪除的檔案。第六步
-必須列出歷史紀錄並實際切換分頁，提供仍存在檔案的定位入口，且不能把舊底稿算成目前流程已完成。
-再從畫面匯出新版，確認 53 筆紀錄都保留、新版排首位，完成摘要此時才出現。定位入口的實際路徑解析
-與缺檔錯誤由 handler 測試驗證；GUI 情境不開啟檔案總管。
-
-配對與驗證輸出情境各保存一張不超過 2 MB 的合成畫面截圖，篩選情境保存傳票與日曆兩張，其餘不截圖。
-動作數量與時間上限固定在
-`harness/lanes.json`，驅動程式與收據都會核對，不接受外部擴大操作範圍。
 
 驅動程式位於 `tools/harness/gui-driver/`。外部只能選擇上述固定情境，不能傳入 JavaScript、selector 或任意
 動作；程式也不使用 Selenium、EdgeDriver 或網路下載。每個情境都必須由 JET 自行結束，並完成程序與暫存
@@ -226,10 +220,15 @@ Excel 輸入由 `SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesVa
 原生 Excel 部分仍只驗證開啟、重算和另存副本；它沒有操作範本原檔填寫，也沒有測試 Excel 佔用中的再次匯出。
 這兩項在公司環境的實際操作仍依現行計畫的人工驗收清單確認。
 
+Excel 的合成來源檢查另由既有 Office 建立 BIFF8 .xls、.mdb 與 .accdb，各在 SQLite 與 DuckDB 完成預覽、
+錯表重試、匯入、配對、驗證、篩選、重開及原檔不變檢查，共六例；結果保存在收據的
+`excelFixture.nativeSourceImports`。此檢查只使用自行產生的資料，結果限於實際執行的 Office 環境；六份
+報表的原生 Excel 往返檢查仍獨立保留。
+
 Excel 驅動程式不接受任意工作簿路徑，只能選擇設定檔中的六種合成工作簿（五份報告加科目配對範本）。它可在使用者已開啟 Excel 時執行，
 但只會透過 Excel 視窗代碼、PID 與啟動時間管理本次建立的 Excel 行程。正常情況先要求 Excel 結束；若行程沒有
 及時退出，後備清理也只能終止已確認屬於本次的 PID。Excel 不可用、工作簿無法開啟或無法證明行程歸屬時，
-結果為 `blocked`。這條路線不讀取 `data/test-case/`，也不能代替私人 JE／TB 案件驗收。
+結果為 `blocked`。這條路線不讀取 `data/test-case/`，也不能代替私人 JE 與 TB 案件驗收。
 
 `PrivateCase` 是唯一可讀取私人案件的命令，而且每次都要明示提供完整根目錄、根目錄內的案件清單相對路徑
 及資料庫實作。三項設定缺一時，命令會在建置和資料存取前回報 `blocked`。正式流程會建立安全副本，再用
@@ -237,9 +236,9 @@ JET 走完匯入、驗證、篩選、五份報告與科目配對範本輸出。�
 實際母體與樣本有效性，不要求重現舊 IDEA 的隨機列。每次執行建立的私人副本與輸出一律在收尾時清除，
 成功與失敗都不保留。收據只保存去識別化的狀態、數量與差異類型。
 
-`ReleaseCandidate` 固定使用 Release，不要求 live SQL Server。它先核對
-`docs/first-root-commit-candidate.txt` 與 Git 尚未忽略的候選檔案完全一致，再把這些檔案複製到本次專屬的
-一次性快照；建立前後會比較來源儲存庫的 Git index entries，不能只由執行器宣告未修改。快照內依序執行
+`ReleaseCandidate` 固定使用 Release，不要求 live SQL Server。候選內容直接取自 Git：已有提交時是全部已追蹤的檔案，
+而且工作樹必須乾淨；第一次根提交前則是尚未被忽略的檔案。候選裡若出現私人資料目錄的路徑會直接失敗。
+框架把這些檔案複製到本次專屬的一次性快照；建立前後會比較來源儲存庫的 Git index entries，不能只由執行器宣告未修改。快照內依序執行
 Contract、Documentation、Public、Package、Gui 與 Excel，任何一步不通過就停止。`Provider` 與
 `PrivateCase` 都不在這條路線內，也不會因本機存在連線或
 `data/test-case/` 就自動讀取；需要真實案件時仍要另行明示執行。為避免原生 Excel 無法開啟過深路徑，快照
@@ -294,17 +293,20 @@ pwsh -NoProfile -File tools/tests/verify-contract.tests.ps1
 這個腳本不啟動 Excel、不修改產品檔案，也不讀取私人案件資料。
 它另執行 `FrontendMapping` 的實際派送與程序清理檢查，因此執行完整框架自身測試時需要 Node.js。
 
-## 2026-09-17 回饋流程補充
+## 技術依據
 
-新增四個隔離 GUI 情境，全部沿正式前端及 action 操作；CDP 評估只讀取畫面與狀態。
+現行測試專案使用 .NET 10、xUnit v3 與 Microsoft Testing Platform。`Focused` 與 `Public` 直接執行 MTP
+測試程式，並使用 MTP 的方法、命名空間與 trait 標記篩選；不能套用舊 VSTest 的 `--filter` 習慣。參考資料：
 
-- `null-details-recovery`：35 次操作，兩類各 206 筆，跨頁、獨立排序、搜尋失敗保留、重試、零筆、返回及重開。
-- `kct-remap-recovery`：43 次操作，保存後取消配對修改、移除必要欄位、失敗重試、返回補欄、重新驗證、匯出及重開。
-- `authorized-list-recovery`：33 次操作，手動選欄、取消、匯入失敗重試、有效清單預覽、移除、重開、再匯入及下游失效。
-  檔案選擇 action 由封閉合成來源替代，不代表操作了原生檔案選擇視窗。
-- `extended-conditions`：95 次操作，上限 96 次，兩張截圖。人工與自動補集取消及保存、統計張數、日曆、金額尾數、
-  人員清單與文字否定，再保存五個情境、匯出及重開。精確條件和保存值都要相符。
-
-Excel 的合成來源檢查另由既有 Office 建立 BIFF8 .xls、.mdb、.accdb，各在 SQLite 與 DuckDB 完成預覽、
-錯表重試、匯入、配對、驗證、篩選、重開及原檔不變檢查，共六例；結果保存在收據的 `excelFixture.nativeSourceImports`。
-此檢查只使用自行產生的資料，結果限於實際執行的 Office 環境。六份報表的原生 Excel 往返檢查仍獨立保留。
+- [Testing with `dotnet test`](https://learn.microsoft.com/dotnet/core/testing/unit-testing-with-dotnet-test)
+- [Migrate from VSTest to Microsoft Testing Platform](https://learn.microsoft.com/dotnet/core/testing/migrating-vstest-microsoft-testing-platform)
+- [Microsoft Testing Platform test reports](https://learn.microsoft.com/dotnet/core/testing/microsoft-testing-platform-test-reports)
+- [.NET `Path.GetFullPath`](https://learn.microsoft.com/dotnet/api/system.io.path.getfullpath)
+- [.NET `FileAttributes.ReparsePoint`](https://learn.microsoft.com/dotnet/api/system.io.fileattributes)
+- [.NET `File.GetAttributes`](https://learn.microsoft.com/dotnet/api/system.io.file.getattributes)
+- [Use the Chrome DevTools Protocol in WebView2](https://learn.microsoft.com/microsoft-edge/webview2/how-to/chromium-devtools-protocol)
+- [Excel `Application.hWnd`](https://learn.microsoft.com/office/vba/api/excel.application.hwnd)
+- [Excel `Workbooks.Open`](https://learn.microsoft.com/office/vba/api/excel.workbooks.open)
+- [Excel `Application.CalculateFullRebuild`](https://learn.microsoft.com/office/vba/api/excel.application.calculatefullrebuild)
+- [Excel `Workbook.SaveCopyAs`](https://learn.microsoft.com/office/vba/api/excel.workbook.savecopyas)
+- [Excel `Workbook.LinkSources`](https://learn.microsoft.com/office/vba/api/excel.workbook.linksources)

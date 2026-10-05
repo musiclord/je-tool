@@ -6,7 +6,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 開發階段本地引擎檢視工具（SQLite／DuckDB 共用）——**獨立唯讀路徑**（manifest dev.db.* 契約）：
+/// 開發階段本地引擎檢視工具（SQLite／DuckDB 共用）——**獨立唯讀路徑**（dev.db.* action 使用）：
 /// 以 ReadOnly 連線直讀磁碟檔，零副作用（不建 schema、不寫入），
 /// 看到的必然是已持久化資料。DB 檔不存在 → file_not_found（不建檔）。
 /// 「列出資料表」與「引擎版本」查詢走 <see cref="ISqlDialect.ListTablesSql"/>／

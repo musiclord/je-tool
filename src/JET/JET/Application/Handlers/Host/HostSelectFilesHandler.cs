@@ -4,7 +4,7 @@ namespace JET.Application;
 
 /// <summary>
 /// host.selectFiles：多選版本的原生檔案對話框（匯入精靈一次選多個來源檔）。
-/// 取消 = 空陣列（manifest）。獨立 action 而非 selectFile 的旗標，避免同一 action 兩種 response 形狀。
+/// 取消 = 空陣列。獨立 action 而非 selectFile 的旗標，避免同一 action 兩種 response 形狀。
 /// </summary>
 public sealed class HostSelectFilesHandler : IApplicationActionHandler
 {

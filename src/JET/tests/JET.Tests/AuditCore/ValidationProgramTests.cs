@@ -7,19 +7,6 @@ namespace JET.Tests.AuditCore;
 public sealed class ValidationProgramTests
 {
     [Fact]
-    public async Task ExecuteAsync_PassesTypedPlanToFactsPortWithoutLoss()
-    {
-        var plan = JetAuditProgram.Plan(Request());
-        var expectedFacts = Facts();
-        var port = new RecordingFactsPort(expectedFacts);
-
-        var actual = await JetAuditProgram.ExecuteAsync(plan, port, CancellationToken.None);
-
-        Assert.Same(plan, port.Plan);
-        Assert.Same(expectedFacts, actual);
-    }
-
-    [Fact]
     public void Finalize_EligibleSourceControls_CompareWithEffectiveTargetInCore()
     {
         var plan = JetAuditProgram.Plan(Request());
@@ -127,14 +114,6 @@ public sealed class ValidationProgramTests
     }
 
     [Fact]
-    public void Explain_TypedResult_ReusesExistingReviewManifestText()
-    {
-        var result = JetAuditProgram.Finalize(JetAuditProgram.Plan(Request()), Facts());
-
-        Assert.Equal(JetAuditProgram.Explain(result.Manifest), JetAuditProgram.Explain(result));
-    }
-
-    [Fact]
     public void Finalize_AmountDistribution_UsesCanonicalOrderAndNonZeroDenominator()
     {
         var facts = Facts() with
@@ -214,17 +193,4 @@ public sealed class ValidationProgramTests
     private static ProcedureVerdict Verdict(ValidationResult result, string slug) =>
         result.Manifest.Procedures.Single(item =>
             string.Equals(item.Definition.Slug, slug, StringComparison.Ordinal));
-
-    private sealed class RecordingFactsPort(ValidationFacts result) : IValidationFactsPort
-    {
-        public ValidationPlan? Plan { get; private set; }
-
-        public Task<ValidationFacts> ExecuteAsync(
-            ValidationPlan plan,
-            CancellationToken cancellationToken)
-        {
-            Plan = plan;
-            return Task.FromResult(result);
-        }
-    }
 }

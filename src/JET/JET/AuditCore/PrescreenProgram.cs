@@ -28,7 +28,7 @@ internal sealed record PrescreenRequest(
 
 /// <summary>
 /// Prescreen typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
-/// 所有 execution gate 都從同一份程序適用性裁定衍生。
+/// 各規則要不要執行，都從同一份程序適用性判定衍生。
 /// </summary>
 internal sealed record PrescreenPlan(
     PrescreenRequest Request,
@@ -83,7 +83,10 @@ internal sealed record PrescreenFacts(
     long LowFrequencyAccountCount,
     IReadOnlyDictionary<string, long> RuleVoucherCounts,
     long TotalPreparerCount = 0,
-    long TotalEntryCount = 0);
+    long TotalEntryCount = 0)
+{
+    public long? LowFrequencyDistinctAccountCount { get; init; }
+}
 
 /// <summary>
 /// 集中度分析（流程總覽區塊⑤）的有界呈現事實。累積占比、「其他」彙總與前五佔比一律
@@ -141,7 +144,7 @@ internal static class ConcentrationLimits
 
 /// <summary>
 /// AuditCore Finalize 的 typed prescreen 產物。Data 保留既有 wire／report compatibility
-/// shape；Manifest 保留程式審查與 Explain 所需的程序 verdict；
+/// shape；Manifest 保留每項程序的適用性判定、狀態與計數；
 /// Concentration 與 RulePeriod 是流程總覽的有界呈現事實。
 /// </summary>
 internal sealed record PrescreenResult(
@@ -202,17 +205,6 @@ public static partial class JetAuditProgram
             TrailingZeroThreshold.DefaultZerosThreshold);
     }
 
-    /// <summary>由具名 prescreen facts port 執行 raw SQL facts。</summary>
-    internal static Task<PrescreenFacts> ExecuteAsync(
-        PrescreenPlan plan,
-        IPrescreenFactsPort factsPort,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        return factsPort.ExecuteAsync(plan, cancellationToken);
-    }
-
     /// <summary>
     /// Prescreen typed Finalize：AuditCore 依 plan 丟棄不適用規則的 raw facts、套用固定
     /// 尾零門檻，再沿用既有 public manifest finalizer 產生 status 與 N/A 證據。
@@ -255,7 +247,10 @@ public static partial class JetAuditProgram
                 ? facts.NonAuthorizedPreparerCount
                 : 0,
             LowFrequencyPreparerCount: plan.RunLowFrequencyPreparer ? facts.LowFrequencyPreparerCount : 0,
-            LowFrequencyAccountCount: facts.LowFrequencyAccountCount);
+            LowFrequencyAccountCount: facts.LowFrequencyAccountCount)
+        {
+            LowFrequencyDistinctAccountCount = facts.LowFrequencyDistinctAccountCount
+        };
         var manifest = Finalize(plan.ReviewPlan, new AuditOutcome(Prescreen: data));
 
         return new PrescreenResult(
@@ -325,7 +320,7 @@ public static partial class JetAuditProgram
             : (decimal)hitLines * 100m / population;
 
     /// <summary>
-    /// 集中度分析的呈現事實。適用性完全沿用 <c>creator_summary</c> 的 finalized verdict，
+    /// 集中度分析的呈現事實。適用性完全沿用 <c>creator_summary</c> 已完成的適用性判定，
     /// 不另立第二套裁定；不適用時整塊不帶數值。
     /// </summary>
     private static PrescreenConcentration Concentrate(
@@ -381,11 +376,4 @@ public static partial class JetAuditProgram
         total <= 0
             ? null
             : Math.Round((decimal)part * 100m / total, 1, MidpointRounding.AwayFromZero);
-
-    /// <summary>Typed prescreen result 的 Explain 沿用既有 review manifest 文字。</summary>
-    internal static string Explain(PrescreenResult result)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-        return Explain(result.Manifest);
-    }
 }

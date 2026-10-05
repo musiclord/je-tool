@@ -117,6 +117,7 @@ public sealed class JetSchemaCatalogTests
     [InlineData("result_inf_sampling_test_sample", "INF_SAMPLE", SchemaLayer.Target, SchemaAudience.StructureOnly)]
     // System / StructureOnly
     [InlineData("config_field_mapping", "FIELD_MAPPING_INFO", SchemaLayer.System, SchemaAudience.StructureOnly)]
+    [InlineData("config_field_mapping_previous", "FIELD_MAPPING_PREVIOUS", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("config_account_taxonomy", "ACCOUNT_TAXONOMY", SchemaLayer.System, SchemaAudience.StructureOnly)]
     [InlineData("config_account_taxonomy_path", "ACCOUNT_TAXONOMY_PATH", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("config_filter_scenario", "FILTER_CRITERIA", SchemaLayer.System, SchemaAudience.StructureOnly)]
@@ -149,12 +150,14 @@ public sealed class JetSchemaCatalogTests
     public void DecisionTable_Covers_EveryEntry()
     {
         // 上面 [Theory] 列舉的 physical 名集合,必須與 All 完全相同(雙向涵蓋)。
+        // 2026-10-03 O3 新增 config_field_mapping_previous(第一次失敗:收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89)。
         var decisionTablePhysicals = new HashSet<string>(StringComparer.Ordinal)
         {
             "staging_gl_raw_row", "staging_tb_raw_row", "target_account_mapping",
             "target_authorized_preparer", "staging_calendar_raw_day", "target_gl_entry",
             "target_tb_balance", "result_rule_run", "result_filter_run",
-            "result_inf_sampling_test_sample", "config_field_mapping", "config_account_taxonomy", "config_account_taxonomy_path",
+            "result_inf_sampling_test_sample", "config_field_mapping", "config_field_mapping_previous",
+            "config_account_taxonomy", "config_account_taxonomy_path",
             "config_filter_scenario", "config_gl_rde_field", "config_result_stale_state",
             "import_batch", "import_batch_source", "import_field_definition", "gl_control_total", "app_message_log",
             "audit_event_log",

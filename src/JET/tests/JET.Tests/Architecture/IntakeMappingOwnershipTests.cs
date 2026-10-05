@@ -73,15 +73,20 @@ public sealed class IntakeMappingOwnershipTests
         }
     }
 
+    /// <remarks>
+    /// 2026-10-02 資料庫分流簡化：建案 backend 轉接器本來就不經分流層選資料庫，分流層刪除時從
+    /// ProviderRoutingCaseCreateBackendPort 改名為 CaseCreateBackendPort，清單跟著改名，仍要求存在且為 internal。
+    /// 第一次失敗收據：20261002-120525875-ce1f07f5d912434b86ce8a6eef43759e。
+    /// </remarks>
     [Fact]
     public void TypedIntakeMappingInfrastructureAdapters_AreInternal()
     {
         var expected = new[]
         {
+            "JET.Infrastructure.CaseCreateBackendPort",
             "JET.Infrastructure.CaseCreateFactsPort",
             "JET.Infrastructure.IntakeFactsPort",
             "JET.Infrastructure.MappingFactsPort",
-            "JET.Infrastructure.ProviderRoutingCaseCreateBackendPort",
             "JET.Infrastructure.ReferenceDataFactsPort"
         };
 
@@ -101,6 +106,10 @@ public sealed class IntakeMappingOwnershipTests
                 "JET.Infrastructure.RuleRunResultReset+Scope"));
     }
 
+    /// <remarks>
+    /// 2026-10-02 資料庫分流簡化：ReferenceDataFactsPort 不是分流類別，隨 Routing 資料夾刪除搬到
+    /// Infrastructure/Persistence，這裡只跟著改讀取路徑，斷言不變。第一次失敗收據：20261002-120525875-ce1f07f5d912434b86ce8a6eef43759e。
+    /// </remarks>
     [Fact]
     public void ReferenceDataProductionPath_UsesAuditCoreDecisionOwners()
     {
@@ -111,7 +120,7 @@ public sealed class IntakeMappingOwnershipTests
         var calendarHandler = ReadProduct(
             "Application", "Handlers", "Import", "ImportCalendarHandlers.cs");
         var factsPort = ReadProduct(
-            "Infrastructure", "Persistence", "Routing", "ReferenceDataFactsPort.cs");
+            "Infrastructure", "Persistence", "ReferenceDataFactsPort.cs");
         var repositories = string.Join(
             Environment.NewLine,
             ReadProduct("Infrastructure", "Persistence", "Local", "LocalAccountMappingRepository.cs"),

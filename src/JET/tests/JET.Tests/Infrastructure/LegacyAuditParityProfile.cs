@@ -3154,8 +3154,8 @@ internal static partial class LegacyCriteriaLogParser
             return Rule(
                 "accountPair",
                 ("pairMode", AccountPairModes.Exact),
-                ("debitCategory", debit),
-                ("creditCategory", credit));
+                ("debitCategoryIds", BuiltInCategoryIds(debit)),
+                ("creditCategoryIds", BuiltInCategoryIds(credit)));
         }
 
         var specialPair = Regex.Match(
@@ -3180,8 +3180,8 @@ internal static partial class LegacyCriteriaLogParser
                 return Rule(
                     "specialAccountCategoryPair",
                     ("pairMode", pairMode),
-                    ("debitCategory", debit),
-                    ("creditCategory", credit));
+                    ("debitCategoryIds", BuiltInCategoryIds(debit)),
+                    ("creditCategoryIds", BuiltInCategoryIds(credit)));
             }
         }
 
@@ -3304,6 +3304,10 @@ internal static partial class LegacyCriteriaLogParser
         normalized = amount.ToString(CultureInfo.InvariantCulture);
         return true;
     }
+
+    // 規則只認分類身分陣列（2026-10-02 起刪除單選分類欄位），舊底稿的分類名稱在這裡換成內建分類身分。
+    private static string[] BuiltInCategoryIds(string category) =>
+        [AccountTaxonomyBuiltIns.All.Single(item => string.Equals(item.Label, category, StringComparison.Ordinal)).CategoryId];
 
     private static bool TrySingleCategory(string value, out string category)
     {

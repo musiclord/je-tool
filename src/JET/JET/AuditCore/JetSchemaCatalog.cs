@@ -86,7 +86,7 @@ internal static class JetSchemaCatalog
     [
         // ── Source:客戶提供 / 匯入原貌(DataView) ─────────────────────────────
         new("staging_gl_raw_row", "JE_PBC", SchemaLayer.Source, SchemaAudience.DataView,
-            "匯入原貌 GL(客戶提供的總帳分錄,未標準化)"),
+            "匯入原貌 GL（來源總帳明細，尚未完成欄位配對）"),
         new("staging_tb_raw_row", "TB_PBC", SchemaLayer.Source, SchemaAudience.DataView,
             "匯入原貌 TB(客戶提供的試算表,未標準化)"),
         new("target_account_mapping", "ACCOUNT_MAPPING", SchemaLayer.Source, SchemaAudience.DataView,
@@ -112,7 +112,9 @@ internal static class JetSchemaCatalog
 
         // ── System:組態與匯入批次(StructureOnly) ────────────────────────────
         new("config_field_mapping", "FIELD_MAPPING_INFO", SchemaLayer.System, SchemaAudience.StructureOnly,
-            "已提交的欄位對應(GL / TB 各一列;匯出底稿與 round-trip 所需)"),
+            "已完成的欄位對應(GL / TB 各一列;匯出底稿與 round-trip 所需)"),
+        new("config_field_mapping_previous", "FIELD_MAPPING_PREVIOUS", SchemaLayer.System, SchemaAudience.Hidden,
+            "重新匯入前最後一次確認的欄位對應(GL / TB 各一列;只在重開案件時帶回草稿,不參與計算)"),
         new("config_account_taxonomy", "ACCOUNT_TAXONOMY", SchemaLayer.System, SchemaAudience.StructureOnly,
             "案件範圍的科目分類 ID、標籤、順序與審計語意角色"),
         new("config_account_taxonomy_path", "ACCOUNT_TAXONOMY_PATH", SchemaLayer.System, SchemaAudience.Hidden,

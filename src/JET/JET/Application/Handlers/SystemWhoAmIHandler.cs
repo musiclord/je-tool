@@ -8,8 +8,8 @@ namespace JET.Application;
 /// 供右上角身分徽章與專案選擇畫面的身分註記。流程：試 <see cref="IUserDirectory.EnsureUserAsync"/>（線上註冊、
 /// 冪等）→ 成功即 <c>online</c> 並 best-effort 寫本機快取；線上不可達（含未設定 sql_server_not_configured、
 /// 連線失敗、單庫未建）→ 查快取，命中 <c>cached</c>、否則 <c>unavailable</c>（<c>userNumber</c> null）。
-/// <b>永不因線上不可達而失敗</b>——身分是本機事實，編號取不到就退階回報（spec §3）。Response 鍵恰為
-/// <c>{ principal, shortName, userNumber, numberSource }</c>（與 manifest 逐字一致）。
+/// <b>永不因線上不可達而失敗</b>——身分是本機事實，編號取不到就退階回報。Response 鍵恰為
+/// <c>{ principal, shortName, userNumber, numberSource }</c>（前端依這四個鍵讀取）。
 /// </summary>
 public sealed class SystemWhoAmIHandler(
     CurrentPrincipal principal,

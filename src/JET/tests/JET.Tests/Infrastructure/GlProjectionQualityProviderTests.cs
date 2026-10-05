@@ -3,6 +3,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 public sealed class GlProjectionQualityProviderTests
@@ -182,9 +183,9 @@ public sealed class GlProjectionQualityProviderTests
         var batch = (await imports.ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            Source(),
+            [new ImportSourceInput(Source(),
             Columns(),
-            TypedRows(),
+            TypedRows())],
             CancellationToken.None)).Batch;
         var spec = QualitySpec(includeManual: true, includeRde: true);
 
@@ -240,9 +241,9 @@ public sealed class GlProjectionQualityProviderTests
         var batch = (await imports.ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            Source(),
+            [new ImportSourceInput(Source(),
             Columns(),
-            ExcludedBadRows(),
+            ExcludedBadRows())],
             CancellationToken.None)).Batch;
 
         var baseline = await repository.ProjectStagingToTargetAsync(
@@ -296,9 +297,9 @@ public sealed class GlProjectionQualityProviderTests
         var batch = (await imports.ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            Source(),
+            [new ImportSourceInput(Source(),
             Columns(),
-            ExcludedMalformedRdeRows(),
+            ExcludedMalformedRdeRows())],
             CancellationToken.None)).Batch;
 
         var baseline = await repository.ProjectStagingToTargetAsync(

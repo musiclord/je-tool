@@ -138,7 +138,7 @@ internal sealed class LocalFieldDefinitionFactsPort(ILocalProjectDatabase databa
         LegacyFieldDefinitionScope scope,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);

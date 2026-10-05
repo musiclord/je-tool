@@ -66,7 +66,14 @@ public sealed class JetWebMessageBridge(CoreWebView2 webView, ActionDispatcher d
         }
     }
 
-    /// <summary>JetActionException 與取消有穩定 wire code；其餘例外一律 bridge_error。</summary>
+    /// <summary>
+    /// 非預期例外回給畫面的固定訊息。例外原文可能是英文，也可能含本機路徑，因此不送到畫面；
+    /// ActionDispatcher 已在丟出前把例外寫進日誌，支援人員從支援日誌與本機診斷日誌判斷原因。
+    /// </summary>
+    public const string UnexpectedErrorMessage =
+        "發生非預期的錯誤，這個動作沒有完成。請按畫面上方的「輸出支援日誌」，把檔案交給支援人員。";
+
+    /// <summary>JetActionException 與取消有穩定 wire code；其餘例外一律 bridge_error，訊息固定，不帶例外原文。</summary>
     public static JetErrorDto ToErrorDto(Exception exception)
     {
         return exception switch
@@ -77,7 +84,7 @@ public sealed class JetWebMessageBridge(CoreWebView2 webView, ActionDispatcher d
                 actionException.Field,
                 actionException.Details),
             OperationCanceledException => new JetErrorDto(JetErrorCodes.OperationCancelled, "作業已取消。"),
-            _ => new JetErrorDto(JetErrorCodes.BridgeError, exception.Message)
+            _ => new JetErrorDto(JetErrorCodes.BridgeError, UnexpectedErrorMessage)
         };
     }
 

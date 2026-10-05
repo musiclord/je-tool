@@ -4,12 +4,12 @@ using Microsoft.Data.SqlClient;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQL Server 引擎錯誤的單一映射點（design §2.3；錯誤碼契約見 manifest Error Codes 章）：
+/// SQL Server 引擎錯誤的單一映射點（錯誤碼登錄在 <see cref="JetErrorCodes"/>）：
 /// 把常見 <see cref="SqlException"/> 轉譯為明確的 <see cref="JetActionException"/> 錯誤碼，
 /// 取代裸 <c>bridge_error</c>。由 dispatcher 在 action 例外出口統一呼叫（composition 注入，
 /// Bridge 只見 delegate、不依賴 Infrastructure），涵蓋所有 sqlServer 專案操作、不逐 repository 貼片。
 /// 另提供死鎖有限次重試（指數退避）：多人共用單庫後 1205 不再是理論風險，
-/// 控制面共用表（dbo.project_registry／project_access）的寫入以它包裹。
+/// dbo 共用管理表（dbo.project_registry／project_access）的寫入以它包裹。
 /// </summary>
 public static class SqlServerEngineErrors
 {

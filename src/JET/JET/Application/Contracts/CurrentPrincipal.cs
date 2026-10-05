@@ -2,9 +2,9 @@ namespace JET.Application;
 
 /// <summary>
 /// 當前使用者身分：合格化的 Windows 帳號（<c>網域\帳號</c>；未加網域的機器為 <c>機器名\帳號</c>），
-/// 由 composition root 以 <see cref="System.Security.Principal.WindowsIdentity"/> 取得並注入。這是
-/// <b>client 自報的軟性身分</b>——SQL Server 連線用共用 jetapp 登入，資料庫端不驗證 app 報上的身分
-/// （硬身分＝AD 整合驗證屬公司佈署輪；spec §1、§7 誠實邊界）。線上專案可見性 ACL 與使用者目錄
+/// 由 composition root 以 <see cref="System.Security.Principal.WindowsIdentity"/> 取得並注入，
+/// 不採用前端傳入的 operatorId。現階段部門內使用，以 IT 管理主機的 Windows 帳號識別操作人員。
+/// SQL Server 的獨立身分驗證仍屬延後的企業部署範圍，不是本機操作的前置要求。線上案件 ACL 與使用者目錄
 /// （<c>dbo.app_user</c>／<c>dbo.project_access</c>）以 <see cref="Name"/> 原樣為鍵；埠層以字串收受，維持 Domain 純度。
 /// </summary>
 public sealed record CurrentPrincipal(string Name)

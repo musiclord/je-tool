@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 診斷日誌 NDJSON 序列化(單一事實來源:dev.log.export 與檔案 sink 共用,確保兩條路徑格式一致)。
+/// 診斷日誌 NDJSON 序列化(單一事實來源:dev.log.exportFile 的 ring buffer 退路與檔案 sink 共用,確保兩條路徑格式一致)。
 /// oracle:System.Text.Json Web 規約(camelCase 屬性、WhenWritingNull 省略)+ 手算固定 entry。
 /// </summary>
 public sealed class DiagnosticNdjsonTests

@@ -62,7 +62,10 @@ public sealed class CompletenessEligibilityFrontendTests
         Assert.DoesNotContain("naReason", prescreenCard, StringComparison.Ordinal);
         // 2026-09-17 裁定：可繼續操作仍須顯示差異，取代舊的禁止非阻擋提示斷言。
         Assert.Contains("eligibility.warning", validate, StringComparison.Ordinal);
-        Assert.Contains("prefix: eligibility.reason || eligibility.warning", validate, StringComparison.Ordinal);
+        // C8 adds the display-precision explanation alongside, not instead of, the backend warning.
+        // First failure: 20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022.
+        Assert.Contains("prefix: [eligibility.reason || eligibility.warning, differencePrecisionNote].filter(Boolean).join(' ')", validate, StringComparison.Ordinal);
+        Assert.Contains("text: eligibility.reason || eligibility.warning", validate, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -13,41 +15,34 @@ namespace JET.Application;
 public abstract class ImportFromFileHandler : IApplicationActionHandler
 {
     private readonly ITabularFileReader reader;
-    private readonly IIntakeFactsPort intakeFactsPort;
     private readonly IProjectStore projectStore;
     private readonly ProjectSession session;
     private readonly IJetEventPublisher eventPublisher;
-    private readonly IImportRepository? auditReadRepository;
-    private readonly IProjectAuditLog auditLog;
+    private readonly ILogger? logger;
 
     internal ImportFromFileHandler(
         ITabularFileReader reader,
-        IIntakeFactsPort intakeFactsPort,
         IProjectStore projectStore,
         ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IImportRepository? auditReadRepository = null,
-        IProjectAuditLog? auditLog = null)
+        IJetEventPublisher eventPublisher, ILogger? logger = null)
     {
         this.reader = reader;
-        this.intakeFactsPort = intakeFactsPort;
         this.projectStore = projectStore;
         this.session = session;
         this.eventPublisher = eventPublisher;
-        this.auditReadRepository = auditReadRepository;
-        this.auditLog = auditLog ?? NullProjectAuditLog.Instance;
+        this.logger = logger;
     }
 
     public abstract string Action { get; }
 
     protected abstract DatasetKind Kind { get; }
 
-    /// <summary>import.progress 事件節奏（manifest 事件章節）：每讀滿 20,000 列推播一次。</summary>
+    /// <summary>import.progress 事件節奏：每讀滿 20,000 列推播一次。</summary>
     internal const int ProgressRowInterval = 20_000;
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         var importPayload = ImportFromFilePayload.Parse(payload);
         var sourceCount = importPayload.Sources.Count;
         var plan = JetAuditProgram.Plan(
@@ -64,9 +59,8 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                         fileExists && reader.Supports(source.FilePath));
                 }).ToList(),
                 importPayload.Mode));
-        var replacesExistingBatch = plan.Operation == IntakeOperation.Replace
-            && auditReadRepository is not null
-            && await auditReadRepository.GetLatestBatchAsync(projectId, Kind, cancellationToken) is not null;
+        var previous = await repositories.Imports.GetLatestBatchAsync(projectId, Kind, cancellationToken);
+        var replacesExistingBatch = plan.Operation == IntakeOperation.Replace && previous is not null;
 
         var sourceRequests = new List<(ImportFileSourcePayload Payload, TabularSourceRequest Request)>(sourceCount);
         for (var index = 0; index < sourceCount; index++)
@@ -84,6 +78,9 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                 throw AddSourceContext(error, sourcePayload, index + 1, sourceCount);
             }
         }
+
+        // V11：每個來源各記一份「欄位內含換行」的筆數與前幾個列號，匯入完成後寫進提醒與支援日誌。
+        var lineBreakTallies = sourceRequests.Select(static _ => new QuotedLineBreakTally()).ToArray();
 
         // 檔案讀取 + bulk insert 移出 UI thread，避免匯入期間介面凍結
         var facts = await Task.Run(
@@ -147,13 +144,13 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                         sourceNo,
                         sourceCount,
                         item.Request,
+                        lineBreakTallies[index],
                         cancellationToken);
                     inputs.Add(new ImportSourceInput(descriptor, columnsBySource[index], rows));
                 }
 
-                return await JetAuditProgram.ExecuteAsync(
+                return await repositories.IntakeFacts.ExecuteAsync(
                     plan,
-                    intakeFactsPort,
                     inputs,
                     cancellationToken);
             },
@@ -162,13 +159,18 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
 
         // repository 已完成 transaction commit 後即跨過取消邊界；必要的 workflow metadata
         // 必須完成，不能因晚到的取消把已匯入資料留在舊步驟。
-        await AdvanceStepAsync(projectId, minimumStep: 2, CancellationToken.None);
+        await AdvanceStepAsync(projectId, WorkflowMilestones.For(Action), CancellationToken.None);
 
         var batch = result.Data.Batch;
+        string[] warnings =
+        [
+            .. DuplicateSourceWarnings(plan.Operation, previous, batch),
+            .. QuotedLineBreakWarnings(sourceRequests, lineBreakTallies)
+        ];
 
         if (replacesExistingBatch)
         {
-            await auditLog.AppendAsync(
+            await repositories.ProjectAuditLog.AppendAsync(
                 projectId,
                 ProjectAuditEvent.Create(
                     ProjectAuditOperations.DataReimport,
@@ -179,14 +181,92 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                 CancellationToken.None);
         }
 
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
         return new
         {
             batchId = batch.BatchId,
             rowCount = batch.RowCount,
             addedRowCount = result.Data.AddedRowCount,
             columns = batch.Columns,
-            sources = ImportStateShapes.ToSourceList(batch.Sources)
+            sources = ImportStateShapes.ToSourceList(batch.Sources),
+            warnings,
+            invalidatedResults = mutationState.InvalidatedResults,
+            staleState = mutationState.StaleState,
+            reportArtifacts = mutationState.ReportArtifacts,
+            reportArtifactWarning = mutationState.ReportArtifactWarning
         };
+    }
+
+    /// <summary>
+    /// V11：文字檔裡用引號包住、內含換行的欄位是合法寫法，所以不擋匯入；但引號放錯位置時，後面的列會被併進同一格。
+    /// 每個有這種資料的來源各寫一則提醒與一筆支援日誌。列號是來源列號，也就是用 Excel 打開時的列號；日誌不寫檔名。
+    /// </summary>
+    private string[] QuotedLineBreakWarnings(
+        IReadOnlyList<(ImportFileSourcePayload Payload, TabularSourceRequest Request)> sources,
+        IReadOnlyList<QuotedLineBreakTally> tallies)
+    {
+        var warnings = new List<string>();
+        for (var index = 0; index < tallies.Count; index++)
+        {
+            var tally = tallies[index];
+            if (tally.Count == 0)
+            {
+                continue;
+            }
+
+            var rows = string.Join("、", tally.FirstRows);
+            var where = tally.Count > tally.FirstRows.Count ? $"，例如第 {rows} 列" : $"：第 {rows} 列";
+            warnings.Add(
+                $"「{sources[index].Payload.FileName}」有 {tally.Count.ToString("N0", CultureInfo.InvariantCulture)} 筆資料的欄位內含換行{where}。"
+                + "欄位用引號包住時可以換行，不一定是錯誤。但如果引號放錯位置，後面幾列會被併進同一格，匯入的筆數會變少。"
+                + "請用 Excel 打開原檔，核對這幾列。");
+            if (logger is not null)
+            {
+                ImportSourceDiagnostics.QuotedLineBreaks(logger, index + 1, tally.Count, string.Join(",", tally.FirstRows));
+            }
+        }
+
+        return [.. warnings];
+    }
+
+    /// <summary>V11：一個來源裡用引號包住、內含換行的資料列筆數，以及前五個列號。</summary>
+    private sealed class QuotedLineBreakTally
+    {
+        private const int ListedRowLimit = 5;
+        private readonly List<int> firstRows = [];
+
+        public int Count { get; private set; }
+
+        public IReadOnlyList<int> FirstRows => firstRows;
+
+        public void Observe(StagingRow row)
+        {
+            if (!row.HasQuotedLineBreak)
+            {
+                return;
+            }
+
+            Count++;
+            if (firstRows.Count < ListedRowLimit)
+            {
+                firstRows.Add(row.SourceRowNumber);
+            }
+        }
+    }
+
+    private static string[] DuplicateSourceWarnings(IntakeOperation operation, ImportBatchInfo? previous, ImportBatchInfo current)
+    {
+        if (operation != IntakeOperation.Append || previous is null || previous.Sources.Count == 0) return [];
+        var lastSourceNo = previous.Sources.Max(source => source.SourceNo);
+        var existing = previous.Sources.Select(source => (source.FileName, source.SheetName, source.RowCount)).ToHashSet();
+        return current.Sources.Where(source => source.SourceNo > lastSourceNo
+                && existing.Contains((source.FileName, source.SheetName, source.RowCount)))
+            .Select(source =>
+            {
+                var label = source.SheetName is null ? $"「{source.FileName}」" : $"「{source.FileName}」的工作表「{source.SheetName}」";
+                return $"{label}與既有來源的檔名、工作表及筆數相同，可能已匯入過。本次仍已加入，請確認來源是否重複。";
+            }).ToArray();
     }
 
     /// <summary>每滿 interval 列回報一次累計列數（public static 以利直測節奏，不經 WebView）。</summary>
@@ -224,6 +304,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         int sourceNo,
         int sourceCount,
         TabularSourceRequest request,
+        QuotedLineBreakTally lineBreaks,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var enumerator = rows.GetAsyncEnumerator(cancellationToken);
@@ -253,6 +334,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             }
 
             lastCompletedRow = current.SourceRowNumber;
+            lineBreaks.Observe(current);
             yield return current;
         }
     }
@@ -301,11 +383,12 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
 
     private async Task AdvanceStepAsync(string projectId, int minimumStep, CancellationToken cancellationToken)
     {
-        var document = await projectStore.FindAsync(projectId, cancellationToken);
-        if (document is not null && document.CurrentStep < minimumStep)
+        await MappingCommitShared.AfterCommitAsync(async () =>
         {
-            await projectStore.SaveAsync(document with { CurrentStep = minimumStep }, cancellationToken);
-        }
+            var document = await projectStore.FindAsync(projectId, cancellationToken);
+            if (document is not null && document.CurrentStep < minimumStep)
+                await projectStore.SaveAsync(document with { CurrentStep = minimumStep }, cancellationToken);
+        }, logger);
     }
 }
 
@@ -386,13 +469,10 @@ public sealed class ImportGlFromFileHandler : ImportFromFileHandler
 {
     internal ImportGlFromFileHandler(
         ITabularFileReader reader,
-        IIntakeFactsPort intakeFactsPort,
         IProjectStore projectStore,
         ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IImportRepository? auditReadRepository = null,
-        IProjectAuditLog? auditLog = null)
-        : base(reader, intakeFactsPort, projectStore, session, eventPublisher, auditReadRepository, auditLog)
+        IJetEventPublisher eventPublisher, ILogger? logger = null)
+        : base(reader, projectStore, session, eventPublisher, logger)
     {
     }
 
@@ -405,13 +485,10 @@ public sealed class ImportTbFromFileHandler : ImportFromFileHandler
 {
     internal ImportTbFromFileHandler(
         ITabularFileReader reader,
-        IIntakeFactsPort intakeFactsPort,
         IProjectStore projectStore,
         ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IImportRepository? auditReadRepository = null,
-        IProjectAuditLog? auditLog = null)
-        : base(reader, intakeFactsPort, projectStore, session, eventPublisher, auditReadRepository, auditLog)
+        IJetEventPublisher eventPublisher, ILogger? logger = null)
+        : base(reader, projectStore, session, eventPublisher, logger)
     {
     }
 

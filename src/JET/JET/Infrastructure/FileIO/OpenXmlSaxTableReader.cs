@@ -9,7 +9,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Open XML SAX 串流 .xlsx 和 .xlsm 讀取器（guide §3.1.5）。單一讀取器、無檔案大小分支：
+/// Open XML SAX 串流 .xlsx 和 .xlsm 讀取器。單一讀取器、無檔案大小分支：
 /// worksheet 不建 DOM、逐列 forward-only，百萬列活頁簿與小檔走同一條路。
 /// - 標頭列 = 第一個含非空萃取值的列；ReadColumns / Inspect 讀完標頭即返回（early-exit）。
 /// - 金額可能是文字儲存格，讀取階段不解析數值語意，只做型別正規化成字串（投影階段解析）。
@@ -122,7 +122,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
                 var columnNumber = cell.ColumnNumber;
                 if (!headerByColumn.TryGetValue(columnNumber, out var header))
                 {
-                    // 標頭範圍外的資料欄：lazy 合成佔位欄（guide §3.1.5——有資料的欄絕不靜默丟棄）
+                    // 標頭範圍外的資料欄：lazy 合成佔位欄（有資料的欄絕不靜默丟棄）
                     header = SynthesizePlaceholder(columnNumber, usedNames!);
                     headerByColumn[columnNumber] = header;
                 }
@@ -171,14 +171,21 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return new WorkbookHandle(SpreadsheetDocument.Open(stream, isEditable: false), stream);
         }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or FormatException
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // 被 Excel 開著、沒有權限或磁碟讀取失敗：只寫檔名與下一步，不放 .NET 英文訊息與完整路徑。
+            stream?.Dispose();
+            throw SourceFileErrors.CannotOpen(filePath, ex);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or FormatException
             or ArgumentException or OpenXmlPackageException or InvalidDataException)
         {
             // FileFormatException（壞 zip / 非 OPC 套件）繼承 FormatException，已涵蓋
             stream?.Dispose();
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"無法讀取檔案 '{Path.GetFileName(filePath)}'：{ex.Message}", innerException: ex);
+                $"檔案 '{Path.GetFileName(filePath)}' 不是可讀取的 Excel 活頁簿，或內容已損壞。請用 Excel 開啟並另存為 .xlsx 後重試。",
+                innerException: ex);
         }
     }
 
@@ -431,7 +438,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         return strings;
     }
 
-    /// <summary>只取 &lt;t&gt; 與 &lt;r&gt;&lt;t&gt;，排除 rPh / phoneticPr（guide §3.1.5）。</summary>
+    /// <summary>只取 &lt;t&gt; 與 &lt;r&gt;&lt;t&gt;，排除 rPh / phoneticPr（注音標示不屬儲存格內容）。</summary>
     private static string ExtractRichText(OpenXmlElement container)
     {
         var builder = new StringBuilder();
@@ -564,7 +571,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             }
 
             return new ExtractedCellValue(
-                NormalizeNumericValue(number).Value,
+                DateNormalizer.ExcelSerialText(context.Date1904 ? number + 1462 : number),
                 LegacyFieldKind.Date,
                 DecimalPlaces: null);
         }
@@ -618,16 +625,18 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
     {
         isoDate = string.Empty;
 
-        // 1904 日期系統的序列值原點晚 1462 天（guide §3.1.5）
+        // 1904 日期系統的序列值原點晚 1462 天
         var oaDate = date1904 ? serial + 1462 : serial;
 
         // DateTime.FromOADate 的合法範圍外（如負數）退回數值呈現，交由投影階段判讀
-        if (oaDate is < -657434 or >= 2958466)
+        if (!double.IsFinite(oaDate) || oaDate is < -657434 or >= 2958466)
         {
             return false;
         }
 
-        isoDate = DateTime.FromOADate(oaDate).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var date = DateTime.FromOADate(oaDate);
+        if (!DateNormalizer.IsSupportedExcelDate(date)) return false;
+        isoDate = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         return true;
     }
 

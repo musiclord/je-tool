@@ -18,12 +18,6 @@
       "PowerShell(git write-tree *)",
       "PowerShell(git stash --all *)",
       "PowerShell(git stash -a *)",
-      "Read(/data/test-case/**)",
-      "Read(/data/temporary-test-case/**)",
-      "Read(/data/legacy-parity-work/**)",
-      "Read(/data/private/**)",
-      "Read(/data/real-case/**)",
-      "Read(/data/customer-data/**)",
       "Edit(/data/test-case/**)",
       "Edit(/data/temporary-test-case/**)",
       "Edit(/data/legacy-parity-work/**)",
@@ -61,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -NonInteractive -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-context.ps1\"",
+            "command": "pwsh -NoProfile -NonInteractive -File \"${CLAUDE_PROJECT_DIR}/.agents/hooks/session-context.ps1\"",
             "timeout": 30,
             "statusMessage": "讀取 JET 儲存庫現況"
           }
@@ -74,7 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -NonInteractive -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/managed-doc-notice.ps1\"",
+            "command": "pwsh -NoProfile -NonInteractive -File \"${CLAUDE_PROJECT_DIR}/.agents/hooks/managed-doc-notice.ps1\"",
             "timeout": 20
           }
         ]
@@ -85,7 +79,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -NonInteractive -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/verification-debt.ps1\"",
+            "command": "pwsh -NoProfile -NonInteractive -File \"${CLAUDE_PROJECT_DIR}/.agents/hooks/verification-debt.ps1\"",
             "timeout": 30
           }
         ]

@@ -5,11 +5,29 @@ namespace JET.Infrastructure;
 public sealed class LocalResultStaleStateStore(ILocalProjectDatabase database)
     : IResultStaleStateStore
 {
+    public async Task InvalidateForPreparationDateChangeAsync(string projectId, CancellationToken cancellationToken)
+    {
+        await database.EnsureReadyAsync(projectId, cancellationToken);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await RuleRunResultReset.ClearWithinAsync(connection, transaction, cancellationToken, AuditMutation.PreparationDate);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken)
+    {
+        await database.EnsureReadyAsync(projectId, cancellationToken);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+        return await FilterVoucherPageReader.ReadRevisionAsync(connection, "", cancellationToken);
+    }
+
     public async Task<AuditResultStaleState> ReadAsync(
         string projectId,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);

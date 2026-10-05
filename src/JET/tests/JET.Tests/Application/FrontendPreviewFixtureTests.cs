@@ -21,7 +21,44 @@ public sealed class FrontendPreviewFixtureTests
                 builder.AddRow(row.Item1, "2", row.Item2, "2000", "合成往來", "設計預覽合成資料", row.Item3, 0);
             }
         }, validateForDownstream: true);
+        await host.DispatchAsync("accountMapping.save", """
+            {"changes":[{"accountCode":"1000","categoryId":"builtin.cash"},{"accountCode":"2000","categoryId":"builtin.receivables"}]}
+            """);
+        var accountPage = await host.DispatchAsync("query.accountMappingPage", "{\"pageSize\":100}");
+        Assert.Equal(2, accountPage.GetProperty("rows").GetArrayLength());
+        Assert.Equal("builtin.cash", accountPage.GetProperty("rows")[0].GetProperty("categoryId").GetString());
+        var validation = await host.DispatchAsync("validate.run");
+        await host.DispatchAsync("export.validationArtifacts", JsonSerializer.Serialize(new
+            { runId = validation.GetProperty("resultRef").GetProperty("runId").GetString() }));
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        await host.DispatchAsync("export.prescreenReport", JsonSerializer.Serialize(new
+            { runId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString() }));
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
+        var mappingProfiles = new JsonArray();
+        foreach (var column in loaded.GetProperty("importState").GetProperty("gl").GetProperty("columns").EnumerateArray())
+        {
+            var sourceColumn = column.GetString()!;
+            JsonElement profile = default;
+            foreach (var codes in new[] { Array.Empty<string>(), new[] { "1", "0" } })
+            {
+                var payload = JsonSerializer.SerializeToElement(new
+                { dataset = "gl", sourceColumn, limit = 50, comparisonValues = codes });
+                profile = await host.DispatchAsync("mapping.valueProfile", payload.GetRawText());
+                Assert.Equal(4, profile.GetProperty("blankCount").GetInt64() + profile.GetProperty("values")
+                    .EnumerateArray().Sum(value => value.GetProperty("count").GetInt64()));
+                mappingProfiles.Add(new JsonObject { ["payload"] = JsonNode.Parse(payload.GetRawText()), ["response"] = JsonNode.Parse(profile.GetRawText()) });
+            }
+            // 預先產生幾個明示的新增代碼例子；其他輸入仍拒絕，不在 JS 重造大小寫或空白規則。
+            var sourceValues = profile.GetProperty("values").EnumerateArray().Select(value => value.GetProperty("value").GetString()!).ToArray();
+            foreach (var code in new[] { "M", "ß", "SS" })
+            {
+                var payload = JsonSerializer.SerializeToElement(new
+                { dataset = "gl", sourceColumn, comparisonOnly = true, comparisonValues = sourceValues.Append(code).ToArray() });
+                var comparison = await host.DispatchAsync("mapping.valueProfile", payload.GetRawText());
+                Assert.False(comparison.TryGetProperty("values", out _));
+                mappingProfiles.Add(new JsonObject { ["payload"] = JsonNode.Parse(payload.GetRawText()), ["response"] = JsonNode.Parse(comparison.GetRawText()) });
+            }
+        }
         var draft = JsonNode.Parse("""
             {"name":"日期與金額","rationale":"合成設計情境","groups":[{"join":"OR","matchScope":"row","rules":[
               {"type":"fieldValue","field":"postDate","operator":"between","from":"2025-12-25","to":"2025-12-31","join":"AND","includeBlank":false},
@@ -72,7 +109,8 @@ public sealed class FrontendPreviewFixtureTests
         }
         var bundle = new JsonObject {
             ["schemaVersion"] = 1, ["synthetic"] = true, ["generatedUtc"] = DateTimeOffset.UtcNow.ToString("O"),
-            ["sourceHashes"] = hashes, ["loaded"] = JsonNode.Parse(loaded.GetRawText()), ["fixtures"] = fixtures
+            ["sourceHashes"] = hashes, ["loaded"] = JsonNode.Parse(loaded.GetRawText()), ["fixtures"] = fixtures,
+            ["accountMappingPage"] = JsonNode.Parse(accountPage.GetRawText()), ["mappingValueProfiles"] = mappingProfiles
         };
         var directory = Path.Combine(root.FullName, "artifacts", "frontend-preview");
         Directory.CreateDirectory(directory);

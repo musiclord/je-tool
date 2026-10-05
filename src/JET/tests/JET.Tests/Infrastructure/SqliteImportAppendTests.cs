@@ -2,6 +2,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -86,8 +87,8 @@ public sealed class SqliteImportAppendTests
         public Task<ImportBatchResult> ReplaceThreeRowsAsync()
         {
             return ImportRepo.ReplaceBatchAsync(
-                ProjectId, DatasetKind.Gl, Source("q1.csv"), GlColumns,
-                ToAsync([Row(2, "D1", "100", null), Row(3, "D1", null, "100"), Row(4, "D2", "5", null)]),
+                ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("q1.csv"), GlColumns,
+                ToAsync([Row(2, "D1", "100", null), Row(3, "D1", null, "100"), Row(4, "D2", "5", null)]))],
                 CancellationToken.None);
         }
 
@@ -129,8 +130,8 @@ public sealed class SqliteImportAppendTests
 
         // 附加來源自己的檔內列號也是 2 起（標頭=1）；批次排序鍵必須從既有最大值（4）續編
         var result = await env.ImportRepo.AppendToBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("q2.csv", encoding: "big5"), GlColumns,
-            ToAsync([Row(2, "D3", "7", null), Row(3, "D3", null, "7")]),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("q2.csv", encoding: "big5"), GlColumns,
+            ToAsync([Row(2, "D3", "7", null), Row(3, "D3", null, "7")]))],
             CancellationToken.None);
 
         Assert.Equal(first.Batch.BatchId, result.Batch.BatchId); // 同一批次（一個資料集一個批次）
@@ -160,8 +161,8 @@ public sealed class SqliteImportAppendTests
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => env.ImportRepo.AppendToBatchAsync(
-                env.ProjectId, DatasetKind.Gl, Source("q1.csv"), GlColumns,
-                ToAsync([Row(2, "D1", "1", null)]),
+                env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("q1.csv"), GlColumns,
+                ToAsync([Row(2, "D1", "1", null)]))],
                 CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.NoImportBatch, ex.Code);
@@ -178,8 +179,8 @@ public sealed class SqliteImportAppendTests
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => env.ImportRepo.AppendToBatchAsync(
-                env.ProjectId, DatasetKind.Gl, Source("q2.csv"), renamed,
-                ToAsync([Row(2, "D3", "7", null)]),
+                env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("q2.csv"), renamed,
+                ToAsync([Row(2, "D3", "7", null)]))],
                 CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ColumnMismatch, ex.Code);
@@ -199,8 +200,8 @@ public sealed class SqliteImportAppendTests
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => env.ImportRepo.AppendToBatchAsync(
-                env.ProjectId, DatasetKind.Gl, Source("empty.csv"), GlColumns,
-                ToAsync([]),
+                env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("empty.csv"), GlColumns,
+                ToAsync([]))],
                 CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.EmptyWorkbook, ex.Code);
@@ -218,7 +219,9 @@ public sealed class SqliteImportAppendTests
         // 先投影 + commit mapping，模擬「已完成配對」狀態
         var glRepo = new LocalGlRepository(env.Database);
         var projection = await glRepo.ProjectStagingToTargetAsync(
-            env.ProjectId, first.Batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            env.ProjectId, first.Batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
         Assert.Empty(projection.Errors);
 
         var mappingStore = new LocalMappingStateStore(env.Database);
@@ -235,8 +238,8 @@ public sealed class SqliteImportAppendTests
             CancellationToken.None);
 
         await env.ImportRepo.AppendToBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("q2.csv"), GlColumns,
-            ToAsync([Row(2, "D3", "7", null)]),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("q2.csv"), GlColumns,
+            ToAsync([Row(2, "D3", "7", null)]))],
             CancellationToken.None);
 
         // 附加 = 母體改變 → 該 dataset 的 target 與 mapping 失效；TB mapping 不受影響
@@ -252,13 +255,15 @@ public sealed class SqliteImportAppendTests
         var first = await env.ReplaceThreeRowsAsync();
 
         await env.ImportRepo.AppendToBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("q2.csv"), GlColumns,
-            ToAsync([Row(2, "D3", "7", null), Row(3, "D3", null, "7")]),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("q2.csv"), GlColumns,
+            ToAsync([Row(2, "D3", "7", null), Row(3, "D3", null, "7")]))],
             CancellationToken.None);
 
         var glRepo = new LocalGlRepository(env.Database);
         var result = await glRepo.ProjectStagingToTargetAsync(
-            env.ProjectId, first.Batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            env.ProjectId, first.Batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Equal(5, result.ProjectedRowCount);
 
@@ -286,9 +291,9 @@ public sealed class SqliteImportAppendTests
 
         // 標頭縫隙佔位欄 COL_2 整欄無資料 → 批次欄位剔除；columns_json 持久化值同步
         var result = await env.ImportRepo.ReplaceBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("h1.xlsx", sheetName: "上半年"),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("h1.xlsx", sheetName: "上半年"),
             ["doc", "COL_2", "amt"],
-            ToAsync([RawRow(2, ("doc", "D1"), ("amt", "100")), RawRow(3, ("doc", "D2"), ("amt", "5"))]),
+            ToAsync([RawRow(2, ("doc", "D1"), ("amt", "100")), RawRow(3, ("doc", "D2"), ("amt", "5"))]))],
             CancellationToken.None);
 
         Assert.Equal(["doc", "amt"], result.Batch.Columns);
@@ -306,9 +311,9 @@ public sealed class SqliteImportAppendTests
         using var env = new Env();
 
         var result = await env.ImportRepo.ReplaceBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("h1.xlsx"),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("h1.xlsx"),
             ["doc", "COL_2", "amt"],
-            ToAsync([RawRow(2, ("doc", "D1"), ("COL_2", "x"), ("amt", "100"))]),
+            ToAsync([RawRow(2, ("doc", "D1"), ("COL_2", "x"), ("amt", "100"))]))],
             CancellationToken.None);
 
         Assert.Equal(["doc", "COL_2", "amt"], result.Batch.Columns);
@@ -322,15 +327,15 @@ public sealed class SqliteImportAppendTests
         // 雙工作表稀疏標頭形狀：前表具名 {A,B,D} + 空欄佔位 COL_3（無資料），後表具名 {A,B,D} 連續。
         // 具名集合相同 → 收斂後可合併為一個批次
         await env.ImportRepo.ReplaceBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("h1.xlsx", sheetName: "上半年"),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("h1.xlsx", sheetName: "上半年"),
             ["A", "B", "COL_3", "D"],
-            ToAsync([RawRow(2, ("A", "a1"), ("B", "b1"), ("D", "d1"))]),
+            ToAsync([RawRow(2, ("A", "a1"), ("B", "b1"), ("D", "d1"))]))],
             CancellationToken.None);
 
         var result = await env.ImportRepo.AppendToBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("h1.xlsx", sheetName: "下半年"),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("h1.xlsx", sheetName: "下半年"),
             ["A", "B", "D"],
-            ToAsync([RawRow(2, ("A", "a2"), ("B", "b2"), ("D", "d2"))]),
+            ToAsync([RawRow(2, ("A", "a2"), ("B", "b2"), ("D", "d2"))]))],
             CancellationToken.None);
 
         Assert.Equal(["A", "B", "D"], result.Batch.Columns);
@@ -344,15 +349,15 @@ public sealed class SqliteImportAppendTests
 
         // 反向：第一個來源無佔位欄，附加來源帶無資料佔位欄 → 仍合併成功
         await env.ImportRepo.ReplaceBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("h2.xlsx", sheetName: "下半年"),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("h2.xlsx", sheetName: "下半年"),
             ["A", "B", "D"],
-            ToAsync([RawRow(2, ("A", "a1"), ("B", "b1"), ("D", "d1"))]),
+            ToAsync([RawRow(2, ("A", "a1"), ("B", "b1"), ("D", "d1"))]))],
             CancellationToken.None);
 
         var result = await env.ImportRepo.AppendToBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("h2.xlsx", sheetName: "上半年"),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("h2.xlsx", sheetName: "上半年"),
             ["A", "B", "COL_3", "D"],
-            ToAsync([RawRow(2, ("A", "a2"), ("B", "b2"), ("D", "d2"))]),
+            ToAsync([RawRow(2, ("A", "a2"), ("B", "b2"), ("D", "d2"))]))],
             CancellationToken.None);
 
         Assert.Equal(["A", "B", "D"], result.Batch.Columns);
@@ -369,9 +374,9 @@ public sealed class SqliteImportAppendTests
         //（有資料的欄位不得靜默消失），且既有批次完全不變
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => env.ImportRepo.AppendToBatchAsync(
-                env.ProjectId, DatasetKind.Gl, Source("q2.csv"),
+                env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("q2.csv"),
                 [.. GlColumns, "COL_8"],
-                ToAsync([Row(2, "D3", "7", null), RawRow(3, ("doc", "D4"), ("COL_8", "孤兒值"))]),
+                ToAsync([Row(2, "D3", "7", null), RawRow(3, ("doc", "D4"), ("COL_8", "孤兒值"))]))],
                 CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ColumnMismatch, ex.Code);
@@ -390,16 +395,16 @@ public sealed class SqliteImportAppendTests
 
         // 批次的 COL_3 有資料（屬有效欄位）；附加來源完全沒有此欄 → 終檢拒絕並指名缺少
         await env.ImportRepo.ReplaceBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("h1.xlsx"),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("h1.xlsx"),
             ["A", "COL_3"],
-            ToAsync([RawRow(2, ("A", "a1"), ("COL_3", "x"))]),
+            ToAsync([RawRow(2, ("A", "a1"), ("COL_3", "x"))]))],
             CancellationToken.None);
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => env.ImportRepo.AppendToBatchAsync(
-                env.ProjectId, DatasetKind.Gl, Source("h2.xlsx"),
+                env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("h2.xlsx"),
                 ["A"],
-                ToAsync([RawRow(2, ("A", "a2"))]),
+                ToAsync([RawRow(2, ("A", "a2"))]))],
                 CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ColumnMismatch, ex.Code);
@@ -414,13 +419,15 @@ public sealed class SqliteImportAppendTests
         var first = await env.ReplaceThreeRowsAsync();
 
         await env.ImportRepo.AppendToBatchAsync(
-            env.ProjectId, DatasetKind.Gl, Source("q2.xlsx", sheetName: "Q2"), GlColumns,
-            ToAsync([Row(2, "D3", "7", null), Row(3, "D3", "not-a-number", null)]),
+            env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("q2.xlsx", sheetName: "Q2"), GlColumns,
+            ToAsync([Row(2, "D3", "7", null), Row(3, "D3", "not-a-number", null)]))],
             CancellationToken.None);
 
         var glRepo = new LocalGlRepository(env.Database);
         var result = await glRepo.ProjectStagingToTargetAsync(
-            env.ProjectId, first.Batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, CancellationToken.None);
+            env.ProjectId, first.Batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Equal(0, result.ProjectedRowCount);
         var error = Assert.Single(result.Errors);

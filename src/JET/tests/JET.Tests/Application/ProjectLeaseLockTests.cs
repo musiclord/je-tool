@@ -201,7 +201,9 @@ public sealed class ProjectLeaseLockTests
             Assert.Equal(projectId, deleted.GetProperty("projectId").GetString());
             Assert.Equal(JsonValueKind.String, deleted.GetProperty("message").ValueKind);
             Assert.Equal(
-                "案件已刪除；本機快取資料夾清理失敗，可稍後手動移除。",
+                // R8不再把仍可能包含報告與底稿的案件資料夾稱為快取；其餘ok/檔案/鎖斷言不變。
+                // 首次失敗：20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+                "案件資料庫已刪除；案件資料夾清理失敗，其中的報告、工作底稿與其他檔案可能仍在，請確認後手動移除。",
                 deleted.GetProperty("message").GetString());
             // DB 刪除確實已發生（jet.db 於 folder-cleanup 之前刪除、交易已 commit）。
             Assert.False(File.Exists(Path.Combine(projectDir, "jet.db")));

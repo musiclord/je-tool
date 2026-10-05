@@ -100,8 +100,10 @@ public sealed class FilterScenarioValidatorTests
 
         var errors = FilterScenarioValidator.Validate(scenario, Ready);
 
+        // 2026-10-04 第 7 批 L72：只改位置說法，保留未知 join 與完整訊息斷言。
+        // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11。
         Assert.Contains(
-            "條件群組 1：join 結合方式「XOR」無效，允許值：AND、OR。", errors);
+            "第 1 組：join 結合方式「XOR」無效，允許值：AND、OR。", errors);
     }
 
     [Fact]
@@ -111,8 +113,10 @@ public sealed class FilterScenarioValidatorTests
 
         var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), Ready);
 
+        // 2026-10-04 第 7 批 L72：完整訊息仍須指出第幾組、第幾條與原輸入。
+        // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11。
         Assert.Contains(
-            "條件群組 1 規則 1：join 結合方式「ANDD」無效，允許值：AND、OR。", errors);
+            "第 1 組第 1 條：join 結合方式「ANDD」無效，允許值：AND、OR。", errors);
     }
 
     [Fact]
@@ -246,8 +250,10 @@ public sealed class FilterScenarioValidatorTests
     {
         var scenario = Scenario(rules: PrescreenRule(PrescreenRuleKeys.UnexpectedAccountPair));
 
+        // 2026-10-04 第 7 批 R7：有效 fixture 須有收入及至少一種對方分類，沿第四步定義。
+        // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11；Assert.Empty 目的不變。
         Assert.Empty(FilterScenarioValidator.Validate(
-            scenario, Ready with { HasAccountMapping = true }));
+            scenario, Ready with { HasAccountMapping = true, HasRevenueCategory = true, HasCounterpartCategory = true }));
     }
 
     [Fact]
@@ -277,11 +283,26 @@ public sealed class FilterScenarioValidatorTests
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
     }
 
+    // 2026-10-02 起規則只認分類身分陣列，單選分類欄位已刪除；決策表的分類名稱改在這裡
+    // 換成內建分類身分的單元素陣列，不認得的名稱原樣當作分類身分，表格內容不變。
+    private static IReadOnlyList<string> CategoryIdsFor(string? category) => category switch
+    {
+        null => [],
+        "Revenue" => [AccountTaxonomyBuiltIns.RevenueId],
+        "Receivables" => [AccountTaxonomyBuiltIns.ReceivablesId],
+        "Cash" => [AccountTaxonomyBuiltIns.CashId],
+        _ => [category]
+    };
+
     private static FilterRuleSpec AccountPairRule(
         string? pairMode, string? debitCategory, string? creditCategory) =>
         new(FilterJoin.And, FilterRuleType.AccountPair, null, null, [], TextMatchMode.Contains,
             null, null, null, null, null, null,
-            PairMode: pairMode, DebitCategory: debitCategory, CreditCategory: creditCategory);
+            PairMode: pairMode)
+        {
+            DebitCategoryIds = CategoryIdsFor(debitCategory),
+            CreditCategoryIds = CategoryIdsFor(creditCategory)
+        };
 
     // 決策表（guide §6.1）：模式 × 必填分類 × 科目配對 presence。
     //  mode         | debit       | credit    | hasMapping | 預期
@@ -312,13 +333,17 @@ public sealed class FilterScenarioValidatorTests
 
     /* ---- 考量特殊科目類別配對（specialAccountCategoryPair）---------------- */
 
-    private const string SpecialPairMappingError = "特殊科目類別配對需要科目配對 target 至少一筆非空白分類。";
+    private const string SpecialPairMappingError = "特殊科目類別配對需要科目配對中至少有一個科目設定了分類。請先在科目配對設定科目分類。";
 
     private static FilterRuleSpec SpecialPairRule(
         string? pairMode, string? debitCategory, string? creditCategory) =>
         new(FilterJoin.And, FilterRuleType.SpecialAccountCategoryPair, null, null, [], TextMatchMode.Contains,
             null, null, null, null, null, null,
-            PairMode: pairMode, DebitCategory: debitCategory, CreditCategory: creditCategory);
+            PairMode: pairMode)
+        {
+            DebitCategoryIds = CategoryIdsFor(debitCategory),
+            CreditCategoryIds = CategoryIdsFor(creditCategory)
+        };
 
     private static IReadOnlyList<string> ValidateSpecialPair(
         string? pairMode, string? debit, string? credit, bool hasMapping) =>
@@ -469,9 +494,14 @@ public sealed class FilterScenarioValidatorTests
 
         var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping());
 
+        // 2026-10-03 主線裁定 T9：分類身分是內部代號，已刪除的分類拿不到顯示名稱；訊息改成不含代號的白話並寫出下一步
+        // （第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 2026-10-03 主線審查再改：同一側缺幾項都只報一則，「有一項」在缺兩項以上時不正確，改成不寫數量的說法
+        // （第一次失敗：收據 20261003-025601604-276084fa725a4007a4587e23efcf3f08）。
         Assert.Contains(
             errors,
-            e => e.Contains($"借方分類「{CustomPettyCashId}」不存在於目前專案的科目分類", StringComparison.Ordinal));
+            e => e.Contains("借方分類包含目前專案沒有的科目分類，請重新選擇借方分類，或刪除這個條件", StringComparison.Ordinal));
+        Assert.DoesNotContain(errors, e => e.Contains(CustomPettyCashId, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -521,21 +551,6 @@ public sealed class FilterScenarioValidatorTests
             [AccountTaxonomyBuiltIns.RevenueId]);
 
         Assert.Empty(FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping()));
-    }
-
-    [Fact]
-    public void Validate_LegacyScalarPair_ProjectsToBuiltInCategoryIdentity()
-    {
-        var rule = new FilterRuleSpec(
-            FilterJoin.And, FilterRuleType.SpecialAccountCategoryPair, null, null, [], TextMatchMode.Contains,
-            null, null, null, null, null, null,
-            PairMode: SpecialAccountCategoryPairModes.DrAndCr,
-            DebitCategory: AccountMappingCategories.Revenue,
-            CreditCategory: AccountMappingCategories.Cash);
-
-        Assert.Empty(FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping()));
-        Assert.Equal([AccountTaxonomyBuiltIns.RevenueId], rule.EffectiveDebitCategoryIds);
-        Assert.Equal([AccountTaxonomyBuiltIns.CashId], rule.EffectiveCreditCategoryIds);
     }
 
     // BVA：自訂尾數位數 1–12（0 下鄰拒、1 邊界收、12 邊界收、13 上鄰拒、缺漏拒）。
@@ -730,8 +745,12 @@ public sealed class FilterScenarioValidatorTests
         var accountPair = new FilterRuleSpec(
             FilterJoin.And, FilterRuleType.AccountPair, null, null, [], TextMatchMode.Contains,
             null, null, null, null, null, null,
-            PairMode: AccountPairModes.Exact, DebitCategory: AccountMappingCategories.Cash,
-            CreditCategory: AccountMappingCategories.Revenue);
+            PairMode: AccountPairModes.Exact)
+        {
+            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組借貸分類。
+            DebitCategoryIds = [AccountTaxonomyBuiltIns.CashId],
+            CreditCategoryIds = [AccountTaxonomyBuiltIns.RevenueId]
+        };
         var specialPair = accountPair with
         {
             Type = FilterRuleType.SpecialAccountCategoryPair,

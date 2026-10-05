@@ -19,6 +19,15 @@ public sealed class SqlServerRuleRunStore(SqlServerProjectDatabase database) : I
         await using var transaction =
             (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
+        await SaveWithinAsync(database, connection, transaction, projectId, record, cancellationToken);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(CancellationToken.None);
+    }
+
+    internal static async Task SaveWithinAsync(SqlServerProjectDatabase database, SqlConnection connection,
+        SqlTransaction transaction, string projectId, RuleRunRecord record, CancellationToken cancellationToken)
+    {
         await using var command = database.CreateCommand(connection, projectId,
             """
             INSERT INTO {s}.result_rule_run (run_id, run_kind, generated_utc, summary_json)
@@ -38,8 +47,6 @@ public sealed class SqlServerRuleRunStore(SqlServerProjectDatabase database) : I
             cancellationToken,
             SqlServerProjectSchema.QualifierFor(projectId));
 
-        cancellationToken.ThrowIfCancellationRequested();
-        await transaction.CommitAsync(CancellationToken.None);
     }
 
     public async Task<RuleRunRecord?> FindLatestAsync(

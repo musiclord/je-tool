@@ -15,7 +15,7 @@ public sealed class LocalFilterHitsPageRepository(ILocalProjectDatabase database
     public async Task<PageResult<FilterHitRow>> GetPageAsync(
         string projectId, int scenarioPosition, int moneyScale, PageRequest request, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 

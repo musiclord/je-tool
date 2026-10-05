@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 預篩選規則的 wire key（guide §4 命名登錄表、§5 規格）。
+/// 預篩選規則的 wire key（規則說明見 docs/jet-guide.md 第 5 節「預篩選」）。
 /// creatorSummary/rareAccounts 為彙總規則（非 row tag），不可作為進階篩選的列述詞；
 /// unexpectedAccountPair 需科目配對已匯入（驗證時依 HasAccountMapping 放行）。
 /// </summary>
@@ -57,10 +57,10 @@ public static class SuspiciousKeywordDefaults
 }
 
 /// <summary>
-/// 連續零尾數（trailing_zeros）門檻（guide §5）。prescreen 自動規則用固定預設
-/// <see cref="DefaultZerosThreshold"/>。這與 legacy R4 的借方平均金額算法不同，待 2026-09-17 計畫的邊界裁定；
-/// 可設定性與「受查者授權金額門檻」閘以進階篩選 customTrailingZeros(1–12) +
-/// 金額區間(NumRange)組合達成(guide §5)。先取主單位整數再取模,不用 provider 字串函式。
+/// 連續零尾數（trailing_zeros）門檻。prescreen 自動規則用固定預設
+/// <see cref="DefaultZerosThreshold"/>。這與 legacy R4 的借方平均金額算法不同；2026-09-18 使用者已裁定保留新版固定門檻。
+/// 需要其他位數時，審計員可在進階篩選使用 customTrailingZeros，指定 1 到 12 位；它和金額區間條件
+/// 各自獨立判斷，要不要一起使用由審計員決定。先取主單位整數再取模，不用 provider 字串函式。
 /// </summary>
 public static class TrailingZeroThreshold
 {

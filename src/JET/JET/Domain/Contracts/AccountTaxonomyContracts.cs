@@ -77,20 +77,20 @@ public static class AccountTaxonomyInvariant
             if (string.IsNullOrWhiteSpace(category.Label)
                 || category.Label.Length > MaxLabelLength)
             {
-                Invalid($"科目分類 '{category.CategoryId}' 的 label 必須為 1–{MaxLabelLength} 字元。");
+                Invalid($"科目分類名稱不可空白，也不可超過 {MaxLabelLength} 字。請修改分類名稱後再儲存。");
             }
             if (!labels.Add(category.Label))
             {
-                Invalid($"科目分類 label 重複：'{category.Label}'。");
+                Invalid($"科目分類名稱重複：'{category.Label}'。請改用不同的分類名稱後再儲存。");
             }
             if (category.Ordinal < 0 || !ordinals.Add(category.Ordinal))
             {
-                Invalid($"科目分類 ordinal 必須為不重複的非負整數：{category.Ordinal}。");
+                Invalid($"科目分類的排序有重複或無效的值：{category.Ordinal}。請重新開啟分類設定再儲存一次。");
             }
             if (string.IsNullOrWhiteSpace(category.SemanticRole)
                 || category.SemanticRole.Length > MaxSemanticRoleLength)
             {
-                Invalid($"科目分類 '{category.CategoryId}' 的 semanticRole 必須為 1–{MaxSemanticRoleLength} 字元。");
+                Invalid($"科目分類「{category.Label}」的分類角色不可空白，也不可超過 {MaxSemanticRoleLength} 字。請重新選擇分類角色後再儲存。");
             }
 
             var builtIn = AccountTaxonomyBuiltIns.All.SingleOrDefault(
@@ -100,7 +100,7 @@ public static class AccountTaxonomyInvariant
                 if (!category.IsBuiltIn
                     || !string.Equals(category.SemanticRole, builtIn.SemanticRole, StringComparison.Ordinal))
                 {
-                    Invalid($"內建科目分類 '{category.CategoryId}' 的身分與 semanticRole 不可變更。");
+                    Invalid($"內建科目分類「{category.Label}」的身分與分類角色不可變更。請保留原本的分類角色後再儲存。");
                 }
             }
             else if (category.IsBuiltIn || !IsCustomId(category.CategoryId))
@@ -125,8 +125,8 @@ public static class AccountTaxonomyInvariant
             while (parent is not null)
             {
                 if (!byId.TryGetValue(parent, out var ancestor))
-                    Invalid("上層分類不存在，請先保存上層分類或重新選擇。");
-                if (!visited.Add(parent)) Invalid("分類不能以自己或自己的下層作為上層，請重新選擇。");
+                    Invalid($"分類「{category.Label}」的上層不存在，請重新選擇上層分類後再儲存。");
+                if (!visited.Add(parent)) Invalid($"分類「{category.Label}」不能以自己或自己的下層作為上層，請重新選擇。");
                 parent = ancestor!.ParentCategoryId;
             }
         }

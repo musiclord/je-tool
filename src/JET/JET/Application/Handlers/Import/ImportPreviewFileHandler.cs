@@ -4,15 +4,17 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// import.previewFile：匯入前的逐來源有界預覽（manifest 細節段）。
+/// import.previewFile：匯入前的逐來源有界預覽。
 /// 不需 active project、唯讀零副作用；回正規化標頭 + 前 N 列原貌（≤limit），
 /// 供精靈判讀「這份檔案有沒有標頭列」。重用與 inspect/匯入相同的讀取與正規化鏈。
+/// 文字檔可帶 encoding 與 delimiter，所以它也是檢視失敗後改選編碼重試的路徑；只讀到一欄時回 notices。
+/// 失敗時附上匯入診斷（階段、格式、編碼、分隔符）。
 /// </summary>
 public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IApplicationActionHandler
 {
     public string Action => "import.previewFile";
 
-    // 預設＝上限＝10（manifest 約定）。兩者刻意相等：改動時須一起改，勿只動其一。
+    // 預設和上限都是 10。兩者刻意相等：改動時須一起改，勿只動其一。
     internal const int DefaultLimit = 10;
     internal const int MaxLimit = 10;
 
@@ -22,7 +24,7 @@ public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IAppli
 
         if (!File.Exists(filePath))
         {
-            throw new JetActionException(JetErrorCodes.FileNotFound, $"找不到檔案 '{filePath}'。");
+            throw new JetActionException(JetErrorCodes.FileNotFound, $"找不到檔案 '{Path.GetFileName(filePath)}'，請確認檔案還在原位置後重新選檔。");
         }
 
         if (!reader.Supports(filePath))
@@ -33,6 +35,7 @@ public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IAppli
         }
 
         var request = TabularSourcePayload.Parse(payload, filePath);
+        var format = Path.GetExtension(filePath).ToLowerInvariant();
 
         var limit = Math.Clamp(
             PayloadReader.GetOptionalInt(payload, "limit") ?? DefaultLimit, 1, MaxLimit);
@@ -41,23 +44,55 @@ public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IAppli
         var (columns, sampleRows) = await Task.Run(
             async () =>
             {
-                var cols = await reader.ReadColumnsAsync(request, cancellationToken);
+                IReadOnlyList<string> cols;
+                try
+                {
+                    cols = await reader.ReadColumnsAsync(request, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception error)
+                {
+                    ImportFailureDiagnostics.Attach(error, ImportSourceDiagnostics.Context(ImportFailureStage.Header, format, request));
+                    throw ImportSourceDiagnostics.AsActionError(error, filePath);
+                }
 
                 var rows = new List<string?[]>();
-                await foreach (var row in reader.ReadRowsAsync(request, cancellationToken))
+                try
                 {
-                    rows.Add(ProjectRow(row, cols));
-                    if (rows.Count >= limit)
+                    await foreach (var row in reader.ReadRowsAsync(request, cancellationToken))
                     {
-                        break; // 有界 early-exit：讀滿 limit 列即停，迭代器釋放 → reader 停止讀檔
+                        rows.Add(ProjectRow(row, cols));
+                        if (rows.Count >= limit)
+                        {
+                            break; // 有界 early-exit：讀滿 limit 列即停，迭代器釋放 → reader 停止讀檔
+                        }
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception error)
+                {
+                    ImportFailureDiagnostics.Attach(error, ImportSourceDiagnostics.Context(ImportFailureStage.Rows, format, request)
+                        with { LastCompletedRow = rows.Count });
+                    throw ImportSourceDiagnostics.AsActionError(error, filePath);
                 }
 
                 return (cols, rows);
             },
             cancellationToken);
 
-        return new { columns, sampleRows };
+        var isTextFile = format is ".csv" or ".txt";
+        return new
+        {
+            columns,
+            sampleRows,
+            notices = isTextFile && columns.Count == 1 ? new[] { TabularSourceNotices.SingleColumn } : null
+        };
     }
 
     /// <summary>StagingRow.Values 是稀疏字典（只含非空 cell）；對齊 columns 攤平成陣列，缺值 → null。</summary>

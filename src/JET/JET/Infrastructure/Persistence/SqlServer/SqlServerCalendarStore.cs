@@ -52,7 +52,7 @@ public sealed class SqlServerCalendarStore(SqlServerProjectDatabase database) : 
             }
         }
 
-        // 行事曆換版影響週末/假日預篩選,既有規則結果失效(plan Phase 1)。
+        // 行事曆換版影響週末/假日預篩選,既有規則結果失效。
         await RuleRunResultReset.ClearWithinAsync(
             connection,
             transaction,

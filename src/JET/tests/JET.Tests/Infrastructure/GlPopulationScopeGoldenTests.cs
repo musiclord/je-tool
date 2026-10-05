@@ -8,6 +8,8 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
+// 第9批中低9：呼叫改走正式同交易summary發布；透過tests-only capture保留原facts、取消、rollback及SQL日誌的全部斷言。
+
 /// <summary>
 /// revision-level populationScope 的跨 provider golden fixture。
 /// Oracle 是依 manifest Filter / Criteria 與投影後有效分錄母體手算的 21 列固定資料；
@@ -57,12 +59,13 @@ public abstract class GlPopulationScopeGoldenTests
             ('scope', 20, 'F01',   '2', '2025-02-02', '2025-02-02', '6001', '低頻科目', '狀態排除頻率列',       NULL, 'CrossPreparer', NULL, 0, 0,  999900,     999900,      0,         'DEBIT'),
             ('scope', 21, 'T1',    '4', '2025-05-03', '2025-05-03', '7306', '矩陣',     'matrix-hit-in',         NULL, 'TagOne',        NULL, 0, 0,  500000,     500000,      0,         'DEBIT');
 
+        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
         INSERT INTO target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category)
+            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
         VALUES
-            ('scope-map', 1, '4100', '收入',   'Revenue'),
-            ('scope-map', 2, '1200', '應收款', 'Receivables'),
-            ('scope-map', 3, '6001', '低頻科目', 'Others');
+            ('scope-map', 1, '4100', '收入',   'Revenue', 'builtin.revenue'),
+            ('scope-map', 2, '1200', '應收款', 'Receivables', 'builtin.receivables'),
+            ('scope-map', 3, '6001', '低頻科目', 'Others', 'builtin.others');
         """;
 
     protected abstract IFilterRunRepository FilterRepository { get; }
@@ -97,7 +100,7 @@ public abstract class GlPopulationScopeGoldenTests
             RunId: "blank-date-run",
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             SampleSize: 0));
-        var result = await ValidationFactsPort.ExecuteAsync(plan, CancellationToken.None);
+        var result = await ValidationExecutionTestData.ExecuteForFactsAsync(ValidationFactsPort, plan, CancellationToken.None);
 
         Assert.Equal(2, result.SourceQualityFindingCount);
         Assert.Equal(0, result.NullAccountCount);
@@ -122,7 +125,7 @@ public abstract class GlPopulationScopeGoldenTests
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             SampleSize: 100));
 
-        var result = await ValidationFactsPort.ExecuteAsync(plan, CancellationToken.None);
+        var result = await ValidationExecutionTestData.ExecuteForFactsAsync(ValidationFactsPort, plan, CancellationToken.None);
 
         Assert.Equal(21, result.PopulationSummary.Raw.RowCount);
         Assert.Equal(12, result.PopulationSummary.Effective.RowCount);
@@ -255,8 +258,9 @@ public abstract class GlPopulationScopeGoldenTests
         var exactPair = Rule(FilterRuleType.AccountPair) with
         {
             PairMode = AccountPairModes.Exact,
-            DebitCategory = "Receivables",
-            CreditCategory = "Revenue"
+            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
+            DebitCategoryIds = [AccountTaxonomyBuiltIns.ReceivablesId],
+            CreditCategoryIds = [AccountTaxonomyBuiltIns.RevenueId]
         };
 
         Assert.Equal(expectedIdentities, await HitIdentitiesAsync(Scenario(exactPair), scope));

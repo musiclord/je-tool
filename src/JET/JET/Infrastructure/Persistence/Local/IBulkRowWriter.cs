@@ -1,9 +1,9 @@
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 本地引擎家族（<see cref="ILocalProjectDatabase"/>）的「批量列寫入」縫（spec §7 效能修法）。
+/// 本地引擎家族（<see cref="ILocalProjectDatabase"/>）的「批量列寫入」介面，用來加快大量匯入。
 /// 熱路徑（匯入 staging、GL/TB 落地投影）原以「單一顯式交易內逐列參數化 INSERT」寫入，對
-/// OLAP 引擎（DuckDB）是最慢形；此縫讓各引擎自適配：SQLite 包裝現行參數化 INSERT（行為凍結），
+/// OLAP 引擎（DuckDB）是最慢形；此縫讓各引擎自適配：SQLite 包裝現行參數化 INSERT，
 /// DuckDB 走原生 Appender（批量 flush，快一數量級）。業務邏輯與共用 SQL 文本零改動——呼叫端只把
 /// 「逐列 ExecuteNonQuery 迴圈」換成 <see cref="AppendAsync"/> 迴圈＋一次 <see cref="CompleteAsync"/>。
 /// </summary>

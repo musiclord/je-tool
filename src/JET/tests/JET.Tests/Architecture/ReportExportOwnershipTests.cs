@@ -23,13 +23,26 @@ public sealed class ReportExportOwnershipTests
     {
         var handler = ReadTypeSource(handlerName, relativePath);
 
-        Assert.Contains("JetAuditProgram.Plan(", handler, StringComparison.Ordinal);
-        Assert.Contains("JetAuditProgram.ExecuteAsync(", handler, StringComparison.Ordinal);
-        Assert.Contains("JetAuditProgram.Finalize(", handler, StringComparison.Ordinal);
-        Assert.Contains(
-            "new ReportArtifactExecutionPort(artifactStore,",
+        // 2026-10-02 起 AuditCore 不再提供只轉手給 port 的 ExecuteAsync，handler 直接呼叫
+        // ReportArtifactExecutionPort.ExecuteAsync。原本檢查 JetAuditProgram.ExecuteAsync( 的斷言改成檢查這個呼叫，
+        // 並要求 Plan、建立 port、執行與 Finalize 依序出現，守住同一個 AuditCore 生命週期。
+        AssertAppearsInOrder(
             handler,
-            StringComparison.Ordinal);
+            "JetAuditProgram.Plan(",
+            "new ReportArtifactExecutionPort(artifactStore,",
+            ".ExecuteAsync(plan, cancellationToken);",
+            "JetAuditProgram.Finalize(plan, facts)");
+    }
+
+    private static void AssertAppearsInOrder(string source, params string[] fragments)
+    {
+        var offset = 0;
+        foreach (var fragment in fragments)
+        {
+            var index = source.IndexOf(fragment, offset, StringComparison.Ordinal);
+            Assert.True(index >= 0, $"找不到預期 source fragment：{fragment}");
+            offset = index + fragment.Length;
+        }
     }
 
     [Fact]

@@ -7,7 +7,7 @@
   var Ui = global.JetUi;
 
   // 區域狀態（dev-only，不進 Store）
-  var dev = { tables: [], selected: null, offset: 0, limit: 50, totalCount: 0 };
+  var dev = { tables: [], selected: null, offset: 0, limit: Ui.DEV_TABLE_PAGE_SIZE, totalCount: 0 };
 
   function initDevPanel() {
     var body = Ui.$('dev-panel-body');

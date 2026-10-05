@@ -42,7 +42,7 @@ public static class PageCursor
     /// <summary>
     /// 壞游標判定:有傳 cursor(非 null、非空)但無法解碼。
     /// 首頁(null/空)不算壞。handler 據此 fail loud(invalid_payload),不靜默重置為首頁
-    /// (對齊 manifest/jet-guide:游標格式不符讓 handler 報參數錯)。
+    /// (游標格式不符一律讓 handler 報參數錯)。
     /// </summary>
     public static bool IsMalformed(string? cursor) =>
         !string.IsNullOrEmpty(cursor) && !TryDecode(cursor, out _);

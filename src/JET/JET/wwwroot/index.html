@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>分錄測試自動化工具 (JE Testing Tool)</title>
+  <title>JE Tool</title>
   <link rel="stylesheet" href="./css/app.css">
   <!-- 載入順序：傳輸（jet-api）→ 狀態（state）→ 共用核心（ui-core）→
        各步驟渲染器（自行註冊）→ 總覽 BI 區塊渲染器 → 開發面板 → 殼層與啟動（app） -->
@@ -17,6 +17,7 @@
   <script defer src="./js/steps/import-step.js"></script>
   <script defer src="./js/steps/mapping-step.js"></script>
   <script defer src="./js/steps/validate-step.js"></script>
+  <script defer src="./js/account-mapping-editor.js"></script>
   <script defer src="./js/steps/filter-step.js"></script>
   <script defer src="./js/steps/export-step.js"></script>
   <script defer src="./js/data-preview.js"></script>
@@ -31,15 +32,14 @@
     <!-- 頂部標題列 -->
     <header class="app-header">
       <div class="app-header__brand">
-        <span class="app-header__eyebrow">Journal Entry Testing</span>
-        <h1 class="app-header__title">分錄測試自動化工具</h1>
+        <h1 class="app-header__title">JE Tool</h1>
       </div>
       <div class="app-header__status">
         <span class="badge" data-bind="user-identity" title="目前登入的使用者與編號">偵測中</span>
         <!-- 流程總覽（4b）開啟鈕：僅 workflow 視圖顯示（比照 back-picker 的 hidden 切換）。
              6 點點陣圖示（第 5 點訊號紅），純 CSS/HTML，不引入圖檔或 icon 字型。 -->
-        <button type="button" class="overview-btn" data-action="overview-open"
-          title="開啟流程總覽：查看六步進度、目前焦點與母體摘要" hidden>
+        <button type="button" class="btn btn--ghost overview-btn" data-action="overview-open"
+          title="開啟流程總覽：查看六步進度、目前焦點與分錄測試範圍摘要" hidden>
           <span class="overview-btn__dots" aria-hidden="true">
             <span class="overview-btn__dot"></span><span class="overview-btn__dot"></span><span class="overview-btn__dot"></span>
             <span class="overview-btn__dot"></span><span class="overview-btn__dot overview-btn__dot--signal"></span><span class="overview-btn__dot"></span>
@@ -47,11 +47,11 @@
           <span class="overview-btn__text">總覽</span>
         </button>
         <button type="button" class="btn btn--ghost" data-action="open-project-folder"
-          title="在檔案總管開啟目前專案的資料夾" hidden>資料夾</button>
+          title="在檔案總管開啟目前案件的資料夾" hidden>開啟案件資料夾</button>
         <button type="button" class="btn btn--ghost" data-action="app-back-picker" data-bind="back-picker"
-          title="保存目前進度並回到專案選擇畫面，可切換其他專案" hidden>切換案件</button>
+          title="回到案件清單" hidden>回首頁</button>
         <button type="button" class="btn btn--ghost" data-action="app-exit"
-          title="下次開啟保留已確認的配對與已保存情境；未保存草稿不會保留">退出</button>
+          title="下次開啟保留已確認的配對與已儲存情境；未儲存草稿不會保留">退出</button>
       </div>
     </header>
 
@@ -74,7 +74,7 @@
         <span class="case-summary__value" data-bind="case-step">建立案件</span>
       </div>
       <!-- 「目前步驟」＝步驟位置（step+1）；左欄目錄與流程總覽的「進度」＝已完成步驟數。
-           兩者數值不同，標籤不可互換（design 02 §B 語意區分）。 -->
+           兩者數值不同，標籤不可互換。 -->
       <div class="case-summary__item">
         <span class="case-summary__label">目前步驟</span>
         <span class="case-summary__value case-summary__value--mono" data-bind="case-progress">1 / 6</span>
@@ -89,7 +89,7 @@
       <div class="app-body" data-bind="app-body">
         <!-- 左欄：目錄（TOC）＋進度＋底部可收合訊息 -->
         <div class="toc-col">
-          <span class="toc-col__eyebrow">目錄</span>
+          <span class="toc-col__eyebrow"><span class="flow-heading__track" aria-hidden="true"></span>流程</span>
 
           <!-- 主要流程步驟：app.js 於此注入目錄清單與進度列 -->
           <nav class="step-nav" aria-label="流程步驟" data-bind="step-nav"></nav>

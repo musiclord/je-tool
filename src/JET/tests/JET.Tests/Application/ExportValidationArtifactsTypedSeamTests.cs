@@ -26,7 +26,6 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             sourceQualityFindingCount: 10_001L);
         var document = Project(projectId);
         var session = new ProjectSession();
-        session.Enter(projectId);
         var validationWriter = new RecordingPlannedValidationWriter();
         var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc);
         var planningFacts = new RecordingPlanningFactsPort(unbalancedDetailRowCount: 9_999L);
@@ -41,7 +40,8 @@ public sealed class ExportValidationArtifactsTypedSeamTests
                 new LegacyFieldDefinition(2, "傳票金額_JE", "來源金額", LegacyFieldKind.Number, null, 4),
                 new LegacyFieldDefinition(1, "來源日期", null, LegacyFieldKind.Date, null, null)
             ]);
-        var handler = new ExportValidationArtifactsHandler(
+        var handler = CreateHandler(
+            projectId,
             validationWriter,
             new NoOpInfWriter(),
             new FixedRunStore(new RuleRunRecord(
@@ -54,7 +54,9 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             session,
             new NullEventPublisher(),
             planningFacts,
-            fieldDefinitions);
+            fieldDefinitions,
+            new BuiltInAccountTaxonomyStore(),
+            new FixedMetadataMappingStore());
         using var payload = JsonDocument.Parse($$"""{"runId":"{{runId}}"}""");
 
         var response = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
@@ -149,11 +151,11 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             ]);
         var document = Project(projectId);
         var session = new ProjectSession();
-        session.Enter(projectId);
         var validationWriter = new RecordingValidationWriter();
         using var cancellation = new CancellationTokenSource();
         var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc, cancellation.Cancel);
-        var handler = new ExportValidationArtifactsHandler(
+        var handler = CreateHandler(
+            projectId,
             validationWriter,
             new NoOpInfWriter(),
             new FixedRunStore(new RuleRunRecord(
@@ -226,12 +228,12 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             JetJsonStorage.Options);
         var document = Project(projectId);
         var session = new ProjectSession();
-        session.Enter(projectId);
         var validationWriter = new RecordingPublicValidationWriter();
         var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc);
         var planningFacts = new RecordingPlanningFactsPort(unbalancedDetailRowCount: 1L);
         var fieldDefinitions = new RecordingFieldDefinitionFactsPort([], []);
-        var handler = new ExportValidationArtifactsHandler(
+        var handler = CreateHandler(
+            projectId,
             validationWriter,
             new NoOpInfWriter(),
             new FixedRunStore(new RuleRunRecord(
@@ -244,7 +246,9 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             session,
             new NullEventPublisher(),
             planningFacts,
-            fieldDefinitions);
+            fieldDefinitions,
+            new BuiltInAccountTaxonomyStore(),
+            new FixedMetadataMappingStore());
         using var payload = JsonDocument.Parse($$"""{"runId":"{{runId}}"}""");
 
         var response = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
@@ -283,6 +287,41 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             () => ValidationReportProjectionParser.Parse(malformed));
 
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
+    }
+
+    // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 repository，建構式只剩案件 store、
+    // session 與事件。原本逐一傳給建構式的替身改放進資料庫組；沒傳的 typed 依賴維持 null，handler 照舊走退回路徑。
+    private static ExportValidationArtifactsHandler CreateHandler(
+        string projectId,
+        IValidationReportWriter validationWriter,
+        IInfReportWriter infWriter,
+        IRuleRunStore runStore,
+        IProjectStore projectStore,
+        IReportArtifactStore artifactStore,
+        ProjectSession session,
+        IJetEventPublisher eventPublisher,
+        IValidationReportPlanningFactsPort? validationReportPlanningFactsPort = null,
+        ILegacyFieldDefinitionFactsPort? fieldDefinitionFactsPort = null,
+        IAccountTaxonomyStore? accountTaxonomyStore = null,
+        IMappingStateStore? mappingStateStore = null)
+    {
+        session.Enter(
+            projectId,
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                ValidationReportWriter = validationWriter,
+                InfReportWriter = infWriter,
+                RuleRuns = runStore,
+                ReportArtifactStore = artifactStore,
+                // 第9批高3；Public首敗100911120的null是Unconfigured省略新必需依賴，非可恢復IO；opaque public-writer摘要及原斷言保留。
+                ResultStaleStates = EmptyReportStateTestData.StaleStates,
+                FilterScenarios = EmptyReportStateTestData.Scenarios,
+                ValidationReportPlanningFacts = validationReportPlanningFactsPort!,
+                FieldDefinitionFacts = fieldDefinitionFactsPort!,
+                AccountTaxonomy = accountTaxonomyStore!,
+                MappingStates = mappingStateStore!,
+            });
+        return new ExportValidationArtifactsHandler(projectStore, session, eventPublisher);
     }
 
     private static ProjectDocument Project(string projectId) => new(
@@ -453,6 +492,44 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         }
     }
 
+    // 正式組裝一定帶入科目分類與欄位配對 store；這裡提供已確認的 GL 欄位配對，讓報表中繼資料可以建立。
+    private sealed class FixedMetadataMappingStore : IMappingStateStore
+    {
+        public Task SaveAsync(
+            string projectId,
+            CommittedMapping mapping,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CommittedMapping?> FindAsync(
+            string projectId,
+            DatasetKind kind,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CommittedMapping?>(kind == DatasetKind.Gl
+                ? new CommittedMapping(
+                    DatasetKind.Gl,
+                    new Dictionary<string, string>(StringComparer.Ordinal),
+                    GlAmountModeNames.Signed,
+                    "typed-validation-gl",
+                    DateTimeOffset.UnixEpoch)
+                : null);
+    }
+
+    private sealed class BuiltInAccountTaxonomyStore : IAccountTaxonomyStore
+    {
+        public Task<AccountTaxonomySnapshot> ReadAsync(
+            string projectId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(AccountTaxonomyCatalog.BuiltInSnapshot);
+
+        public Task<AccountTaxonomySnapshot> SaveAsync(
+            string projectId,
+            int expectedRevision,
+            IReadOnlyList<AccountTaxonomyCategory> categories,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
     private sealed class NoOpInfWriter : IInfReportWriter
     {
         public Task<ExportStats> WriteAsync(
@@ -511,6 +588,10 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             ProjectDocument document,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
         public Task<IReadOnlyList<ProjectDocument>> ListAsync(
             CancellationToken cancellationToken) =>
@@ -639,7 +720,9 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             CancellationToken cancellationToken)
         {
             Assert.Equal(expectedProjectId, projectId);
-            Assert.Equal(CancellationToken.None, cancellationToken);
+            // 發布後清單有自己的短期限；使用者的晚到取消不得傳入此刷新。
+            Assert.True(cancellationToken.CanBeCanceled);
+            Assert.False(cancellationToken.IsCancellationRequested);
             Assert.Equal(new[] { "content-written", "published" }, CatalogOrder);
             Assert.Equal(2, _published.Count);
             CatalogOrder.Add("catalog-read");
@@ -661,8 +744,14 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         public Task<int> MarkStaleAsync(
             string projectId,
             Func<ReportArtifact, bool> predicate,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            // 第9批高3：套用新增的來源重判，不省略writer或發布順序的任何原斷言。
+            Assert.Equal(expectedProjectId, projectId);
+            var changed = _published.Count(artifact => !artifact.Stale && predicate(artifact));
+            _published = _published.Select(artifact => predicate(artifact) ? artifact with { Stale = true } : artifact).ToArray();
+            return Task.FromResult(changed);
+        }
 
         public Task<IAsyncDisposable> AcquireProjectDeletionLeaseAsync(
             string projectId,

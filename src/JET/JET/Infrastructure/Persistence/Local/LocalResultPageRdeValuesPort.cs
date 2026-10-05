@@ -20,7 +20,7 @@ public sealed class LocalResultPageRdeValuesPort(ILocalProjectDatabase database)
             return [];
         }
 
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();

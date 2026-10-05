@@ -58,7 +58,8 @@ public sealed class EntityFrequencyWorkflowTests
         {
             Assert.Contains(workbook.Worksheets.Where(sheet => sheet.Visibility == XLWorksheetVisibility.Visible)
                 .SelectMany(sheet => sheet.CellsUsed()).Select(cell => cell.GetString()),
-                text => text.Contains("所選母體內「會計科目編號」去重傳票張數 介於 1～2（含端點）", StringComparison.Ordinal));
+                // 2026-10-03 用語統一 T1、T5：條件讀回跟著畫面改（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+                text => text.Contains("分錄測試範圍內「會計科目編號」傳票張數（同號只算一張） 介於 1～2（含端點）", StringComparison.Ordinal));
         }
         var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
         { scenario = Scenario("description", "vouchers", "equals", 1) })));

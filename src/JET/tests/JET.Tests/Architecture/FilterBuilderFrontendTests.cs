@@ -29,12 +29,14 @@ public sealed class FilterBuilderFrontendTests
         Assert.Contains("function addRuleBarHtml()", filter, StringComparison.Ordinal);
         Assert.Contains("data-custom-subject", filter, StringComparison.Ordinal);
         Assert.Contains("option('type:accountSide', '借方或貸方分類', accountNote)", filter, StringComparison.Ordinal);
-        Assert.Contains("option('type:prescreen', '預篩選訊號', '')", filter, StringComparison.Ordinal);
+        Assert.Contains("option('type:prescreen', '預篩選條件', '')", filter, StringComparison.Ordinal);
         Assert.Contains("var newRule = customSubjectRule();", filter, StringComparison.Ordinal);
         // 加入目標仍須明確，組內原有 AND/OR 與同傳票限制保留。
         Assert.Contains("var gi = btn.hasAttribute('data-gi') ? Number(btn.getAttribute('data-gi')) : NaN;", filter, StringComparison.Ordinal);
-        // 新草稿一開始就有一塊空的第 1 組帶「＋」列。
-        Assert.Contains("return setWellHtml(null, draft.groups.length, 1, false, true) + presetBlocks;", filter, StringComparison.Ordinal);
+        // 新草稿一開始就有一塊空的第 1 組帶「＋」列。2026-10-02 使用者裁定移除「情境層級」，非營業日不再有
+        // 接在條件組後面的獨立區塊，所以這行不再串接 presetBlocks。第一次失敗：收據 20261003-031918754-fe1aa08447674c618228988b042764db。
+        Assert.Contains("return setWellHtml(null, draft.groups.length, 1, false, true);", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("presetBlock", filter, StringComparison.Ordinal);
 
         Assert.DoesNotContain("FILTER_RULE_GROUPS", filter, StringComparison.Ordinal);
         Assert.DoesNotContain("picker-card--custom", filter, StringComparison.Ordinal);

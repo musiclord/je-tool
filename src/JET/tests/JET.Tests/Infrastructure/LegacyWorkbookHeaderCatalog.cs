@@ -23,7 +23,8 @@ internal static class LegacyWorkbookHeaderCatalog
             ["資料預先整理之說明"] = new(SpreadsheetContentHeaderRule.None, false),
             ["JE WorkingPaper說明"] = new(SpreadsheetContentHeaderRule.None, false),
             ["step1 完整性測試"] = new(SpreadsheetContentHeaderRule.Fixed(19), true),
-            ["step1-1 借貸不平測試"] = new(SpreadsheetContentHeaderRule.Fixed(14), true),
+            // legacy 表頭在第 16 列（idea-tool.bas:10472-10476）；2026-10-02 前誤記為第 14 列。
+            ["step1-1 借貸不平測試"] = new(SpreadsheetContentHeaderRule.Fixed(16), true),
             ["step1-2 分錄編製人員說明"] = new(SpreadsheetContentHeaderRule.Fixed(11), true),
             [CompletenessDifference] = new(SpreadsheetContentHeaderRule.Fixed(16), true),
             ["step2 可靠性測試"] = new(SpreadsheetContentHeaderRule.Fixed(49, 50, 51, 52), false),

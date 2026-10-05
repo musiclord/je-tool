@@ -100,8 +100,6 @@ internal sealed class WorkpaperStep41PreparedSessionMetrics(string provider)
 
     public string Provider { get; } = provider;
 
-    public int ProviderResolutions { get; internal set; }
-
     public int SchemaReadinessCommands { get; internal set; }
 
     public int Connections { get; internal set; }

@@ -8,6 +8,7 @@ using JET.Infrastructure;
 using Microsoft.Data.SqlClient;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -97,7 +98,7 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
-        var result = await repo.ReplaceBatchAsync(projectId, kind, Src(), columns, Stream(rows), CancellationToken.None);
+        var result = await repo.ReplaceBatchAsync(projectId, kind, [new ImportSourceInput(Src(), columns, Stream(rows))], CancellationToken.None);
         return await SnapshotAsync(result, () => db.CreateConnection(projectId), kind);
     }
 
@@ -112,8 +113,8 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
-        await repo.ReplaceBatchAsync(projectId, kind, Src("q1.csv"), columns, Stream(first), CancellationToken.None);
-        var result = await repo.AppendToBatchAsync(projectId, kind, Src("q2.csv"), columns, Stream(second), CancellationToken.None);
+        await repo.ReplaceBatchAsync(projectId, kind, [new ImportSourceInput(Src("q1.csv"), columns, Stream(first))], CancellationToken.None);
+        var result = await repo.AppendToBatchAsync(projectId, kind, [new ImportSourceInput(Src("q2.csv"), columns, Stream(second))], CancellationToken.None);
         return await SnapshotAsync(result, () => db.CreateConnection(projectId), kind);
     }
 
@@ -123,7 +124,7 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         await using var project = await TempSqlServerProject.TryCreateAsync();
         var repo = new SqlServerImportRepository(project!.Database);
 
-        var result = await repo.ReplaceBatchAsync(project.ProjectId, kind, Src(), columns, Stream(rows), CancellationToken.None);
+        var result = await repo.ReplaceBatchAsync(project.ProjectId, kind, [new ImportSourceInput(Src(), columns, Stream(rows))], CancellationToken.None);
         return await SnapshotAsync(result, () => project.Database.CreateConnection(project.ProjectId), kind,
             SqlServerProjectSchema.QualifierFor(project.ProjectId));
     }
@@ -135,8 +136,8 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         await using var project = await TempSqlServerProject.TryCreateAsync();
         var repo = new SqlServerImportRepository(project!.Database);
 
-        await repo.ReplaceBatchAsync(project.ProjectId, kind, Src("q1.csv"), columns, Stream(first), CancellationToken.None);
-        var result = await repo.AppendToBatchAsync(project.ProjectId, kind, Src("q2.csv"), columns, Stream(second), CancellationToken.None);
+        await repo.ReplaceBatchAsync(project.ProjectId, kind, [new ImportSourceInput(Src("q1.csv"), columns, Stream(first))], CancellationToken.None);
+        var result = await repo.AppendToBatchAsync(project.ProjectId, kind, [new ImportSourceInput(Src("q2.csv"), columns, Stream(second))], CancellationToken.None);
         return await SnapshotAsync(result, () => project.Database.CreateConnection(project.ProjectId), kind,
             SqlServerProjectSchema.QualifierFor(project.ProjectId));
     }
@@ -211,14 +212,14 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         await using var project = await TempSqlServerProject.TryCreateAsync();
         var repo = new SqlServerImportRepository(project!.Database);
 
-        await repo.ReplaceBatchAsync(project.ProjectId, DatasetKind.Gl, Src("q1.csv"), ["科目", "金額"],
-            Stream([Row(2, ("科目", "1001"), ("金額", "100")), Row(3, ("科目", "1002"), ("金額", "200")), Row(4, ("科目", "1003"), ("金額", "300"))]),
+        await repo.ReplaceBatchAsync(project.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src("q1.csv"), ["科目", "金額"],
+            Stream([Row(2, ("科目", "1001"), ("金額", "100")), Row(3, ("科目", "1002"), ("金額", "200")), Row(4, ("科目", "1003"), ("金額", "300"))]))],
             CancellationToken.None);
 
         // 具名欄差集:來源缺「金額」、多「日期」→ 首階快檢即拒（與 SqliteImportAppendTests 同語意）
         var ex = await Assert.ThrowsAsync<JetActionException>(() => repo.AppendToBatchAsync(
-            project.ProjectId, DatasetKind.Gl, Src("q2.csv"), ["科目", "日期"],
-            Stream([Row(2, ("科目", "2001"), ("日期", "2024-01-01"))]),
+            project.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src("q2.csv"), ["科目", "日期"],
+            Stream([Row(2, ("科目", "2001"), ("日期", "2024-01-01"))]))],
             CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ColumnMismatch, ex.Code);
@@ -245,7 +246,7 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         var repo = new SqlServerImportRepository(project!.Database);
 
         var ex = await Assert.ThrowsAsync<JetActionException>(() => repo.ReplaceBatchAsync(
-            project.ProjectId, DatasetKind.Gl, Src(), ["科目", "金額"], Stream([]), CancellationToken.None));
+            project.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), ["科目", "金額"], Stream([]))], CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.EmptyWorkbook, ex.Code);
         await using var connection = project.Database.CreateConnection(project.ProjectId);
@@ -266,12 +267,12 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         await using var project = await TempSqlServerProject.TryCreateAsync();
         var repo = new SqlServerImportRepository(project!.Database);
 
-        await repo.ReplaceBatchAsync(project.ProjectId, DatasetKind.Gl, Src("q1.csv"), ["科目", "金額"],
-            Stream([Row(2, ("科目", "1001"), ("金額", "100")), Row(3, ("科目", "1002"), ("金額", "200")), Row(4, ("科目", "1003"), ("金額", "300"))]),
+        await repo.ReplaceBatchAsync(project.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src("q1.csv"), ["科目", "金額"],
+            Stream([Row(2, ("科目", "1001"), ("金額", "100")), Row(3, ("科目", "1002"), ("金額", "200")), Row(4, ("科目", "1003"), ("金額", "300"))]))],
             CancellationToken.None);
 
         var ex = await Assert.ThrowsAsync<JetActionException>(() => repo.AppendToBatchAsync(
-            project.ProjectId, DatasetKind.Gl, Src("empty.csv"), ["科目", "金額"], Stream([]), CancellationToken.None));
+            project.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src("empty.csv"), ["科目", "金額"], Stream([]))], CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.EmptyWorkbook, ex.Code);
         await using var connection = project.Database.CreateConnection(project.ProjectId);
@@ -322,8 +323,8 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         var disposed = new StrongBox<bool>(false);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repo.ReplaceBatchAsync(
-            project.ProjectId, DatasetKind.Gl, Src(), ["科目", "金額"],
-            CancelAfter(50, cts, disposed), cts.Token));
+            project.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), ["科目", "金額"],
+            CancelAfter(50, cts, disposed))], cts.Token));
 
         Assert.True(disposed.Value); // enumerator 已釋放 → producer 無洩漏
         await using var connection = project.Database.CreateConnection(project.ProjectId);
@@ -360,9 +361,9 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         await using var project = await TempSqlServerProject.TryCreateAsync();
         var repo = new SqlServerImportRepository(project!.Database);
 
-        await repo.ReplaceBatchAsync(project.ProjectId, DatasetKind.Gl, Src(), columns, Stream(rows), CancellationToken.None); // 暖機
+        await repo.ReplaceBatchAsync(project.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), columns, Stream(rows))], CancellationToken.None); // 暖機
         var sw = Stopwatch.StartNew();
-        await repo.ReplaceBatchAsync(project.ProjectId, DatasetKind.Gl, Src(), columns, Stream(rows), CancellationToken.None);
+        await repo.ReplaceBatchAsync(project.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), columns, Stream(rows))], CancellationToken.None);
         return sw.Elapsed;
     }
 
@@ -462,9 +463,9 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         var ex = await Assert.ThrowsAsync<JetActionException>(() => repo.AppendToBatchAsync(
             project.ProjectId,
             DatasetKind.Gl,
-            Src("append.csv"),
+            [new ImportSourceInput(Src("append.csv"),
             ["科目", "金額"],
-            Stream([Row(2, ("科目", "1001"), ("金額", "100"))]),
+            Stream([Row(2, ("科目", "1001"), ("金額", "100"))]))],
             CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.NoImportBatch, ex.Code);
@@ -484,17 +485,17 @@ public sealed class SqlServerImportRepositoryTests(ITestOutputHelper output)
         await repo.ReplaceBatchAsync(
             project.ProjectId,
             DatasetKind.Gl,
-            Src("q1.csv"),
+            [new ImportSourceInput(Src("q1.csv"),
             ["科目", "金額"],
-            Stream([Row(2, ("科目", "1001"), ("金額", "100"))]),
+            Stream([Row(2, ("科目", "1001"), ("金額", "100"))]))],
             CancellationToken.None);
 
         var ex = await Assert.ThrowsAsync<JetActionException>(() => repo.AppendToBatchAsync(
             project.ProjectId,
             DatasetKind.Gl,
-            Src("q2.csv"),
+            [new ImportSourceInput(Src("q2.csv"),
             ["科目", "金額", "COL_3"],
-            Stream([Row(2, ("科目", "2001"), ("金額", "200"), ("COL_3", "extra"))]),
+            Stream([Row(2, ("科目", "2001"), ("金額", "200"), ("COL_3", "extra"))]))],
             CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ColumnMismatch, ex.Code);

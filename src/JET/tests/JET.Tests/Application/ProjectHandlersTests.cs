@@ -47,7 +47,7 @@ public sealed class ProjectHandlersTests
     /// <summary>
     /// INF per-project 種子：建案時隨機生成一次並寫進 project.json 的 sampleSeed，
     /// 值落在 [1, 2147483646]（避開 0 與 SQL 模數 2147483647 的倍數），並寫入
-    /// current sampleSeedVersion，讓既有無版本案件繼續走 legacy 排序。
+    /// current sampleSeedVersion。缺少版本的舊案件在讀取 project.json 時就會被拒絕。
     /// oracle：規格（種子生命週期）＋ 直接讀 project.json 物證。以原始 JSON 斷言，不綁 ProjectDocument 型別。
     /// </summary>
     [Fact]
@@ -436,11 +436,11 @@ public sealed class ProjectHandlersTests
     }
 
     [Fact]
-    public async Task Load_LegacyProjectJsonWithoutProvider_DefaultsToSqlite()
+    public async Task Load_LegacyProjectJsonWithoutProvider_RejectsAsOldProject()
     {
         using var host = new HandlerTestHost();
 
-        // 舊版 project.json（databaseProvider 欄位出現前的形狀）→ 讀取時一律正規化為 sqlite。
+        // 舊版 project.json（databaseProvider 欄位出現前的形狀）→ 明確拒絕，不再猜成 sqlite。
         var projectId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         var projectDir = Path.Combine(host.ProjectsRoot, projectId);
         Directory.CreateDirectory(projectDir);
@@ -461,9 +461,14 @@ public sealed class ProjectHandlersTests
             }
             """);
 
-        var loaded = await host.DispatchAsync("project.load", $$"""{ "projectId": "{{projectId}}" }""");
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            host.DispatchAsync("project.load", $$"""{ "projectId": "{{projectId}}" }"""));
 
-        Assert.Equal("sqlite", loaded.GetProperty("project").GetProperty("databaseProvider").GetString());
+        Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
+        Assert.Equal(
+            $"專案『{projectId}』的 project.json 是舊版 JET 建立的案件（缺少 databaseProvider），目前版本無法讀取。"
+            + "請用目前版本重新建立案件，再重新匯入資料。",
+            exception.Message);
     }
 
     [Fact]
@@ -719,9 +724,12 @@ public sealed class ProjectHandlersTests
               "createdUtc": "2026-06-01T00:00:00+00:00",
               "currentStep": 1,
               "schemaVersion": 1,
-              "databaseProvider": "sqlServer"
+              "databaseProvider": "sqlServer",
+              "sampleSeed": 1234567,
+              "sampleSeedVersion": 2
             }
             """);
+        // 上面補上的種子欄位是目前版本建案一定會寫入的值；缺欄位會被當成舊版案件拒絕。
     }
 
     /// <summary>

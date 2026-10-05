@@ -40,6 +40,8 @@ internal static partial class GuiScenarios
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='3']");
         outcome.RecordStage("nested_taxonomy_parent");
+        await Click("[data-action=toggle-taxonomy]");
+        await Click("[data-action=toggle-taxonomy-advanced]");
         await Click("[data-action=add-taxonomy-category]");
         await Fill(".taxonomy-row:last-child [data-taxonomy-label]", "GUI-Child-Cash");
         await Choose(".taxonomy-row:last-child [data-taxonomy-role]", "cash");
@@ -61,23 +63,26 @@ internal static partial class GuiScenarios
         await Choose(group + " > [data-child-join]", "OR");
         await AddChild(root, "type:accountSide"); await Choose(classification + " [data-rule-bind=categorySelection]", "node");
         await Choose(classification + " [data-rule-bind=categorySelection]", "subtree");
+        await Check("document.querySelectorAll('.rule-row--selected').length===1 && document.querySelector('.rule-row--selected').dataset.ri==='0.2' && document.querySelector('.scenario-set--active').dataset.groupIndex==='0'");
         await Click("[data-action=preview-scenario]");
         await Check("!!preview && preview.count===0");
         // DemoDataFactory has cash credits, while its ordinary debits are expenses.
         await Choose(root + " > [data-compound-key=side]", "credit");
+        await Check("document.querySelectorAll('.rule-row--selected').length===1 && document.querySelector('.rule-row--selected').dataset.ri==='0' && !!document.querySelector('.rule-row--selected > .filter-rule-heading > .filter-rule-selected')");
         await Choose(classification + " [data-account-subject]", "credit");
         await Click("[data-action=preview-scenario]");
         await Check("!!preview && preview.count>0 && draft.groups[0].rules[0].rules[1].rules[1].join==='OR' && document.querySelector('.scenario-readback').textContent.includes('包含下層分類')");
         await CaptureScreenshotAsync(cdp, outcome, ct);
         await Click("[data-action=open-save]"); await Click("[data-action=save-scenario]"); await Check("saved.length===1");
         outcome.RecordStage("nested_cancel_return_reopen_export");
+        await Click("[data-filter-pane-select=saved]");
         await Click(".saved-scenario .filter-saved-actions summary"); await Click("[data-action=edit-scenario][data-index='0']");
         await Choose(classification + " [data-rule-bind=categorySelection]", "role");
         await Choose(group + " > [data-child-join]", "AND"); await Click("[data-action=cancel-edit-scenario]");
         await Check("saved[0].groups[0].rules[0].rules[2].categorySelection==='subtree' && saved[0].groups[0].rules[0].rules[1].rules[1].join==='OR'");
         await Click("[data-bind=step-nav] [data-step-index='3']"); await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-filter-pane-select=saved]"); await Click("[data-action=export-criteria-report]");
-        await Check("window.JetUi.stepGate(state,5).ok");
+        await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
         await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
         await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]})");
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");

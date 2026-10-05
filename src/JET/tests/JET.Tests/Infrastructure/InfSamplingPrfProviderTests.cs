@@ -10,8 +10,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// INF v2 canonical C# fixed vectors 與三個真實 SQL provider 的逐筆等價 gate；另以實際
-/// InfSampleInsert 回放 legacy v1 golden membership，防止相容分支被新版 renderer 偷換。
+/// INF v2 canonical C# fixed vectors 與三個真實 SQL provider 的逐筆等價 gate。
 /// </summary>
 public sealed class InfSamplingPrfProviderTests
 {
@@ -33,7 +32,6 @@ public sealed class InfSamplingPrfProviderTests
         await connection.OpenAsync();
 
         await AssertV2VectorsAsync(connection, SqliteDialect.Instance);
-        await AssertLegacyGoldenAsync(connection, SqliteDialect.Instance, schemaPrefix: "");
     }
 
     [Fact]
@@ -43,7 +41,6 @@ public sealed class InfSamplingPrfProviderTests
         await connection.OpenAsync();
 
         await AssertV2VectorsAsync(connection, DuckDbDialect.Instance);
-        await AssertLegacyGoldenAsync(connection, DuckDbDialect.Instance, schemaPrefix: "");
     }
 
     [SqlServerFact]
@@ -59,12 +56,6 @@ public sealed class InfSamplingPrfProviderTests
         await connection.OpenAsync();
 
         await AssertV2VectorsAsync(connection, SqlServerDialect.Instance);
-        await SeedSqlServerLegacyRowsAsync(connection, project.ProjectId);
-        await AssertLegacyGoldenAsync(
-            connection,
-            SqlServerDialect.Instance,
-            SqlServerProjectSchema.QualifierFor(project.ProjectId),
-            createTables: false);
     }
 
     private static async Task AssertV2VectorsAsync(DbConnection connection, ISqlDialect dialect)
@@ -85,95 +76,5 @@ public sealed class InfSamplingPrfProviderTests
                 vector.SourceRow));
             Assert.Equal(vector.Expected, actual);
         }
-    }
-
-    private static async Task AssertLegacyGoldenAsync(
-        DbConnection connection,
-        ISqlDialect dialect,
-        string schemaPrefix,
-        bool createTables = true)
-    {
-        if (createTables)
-        {
-            await ExecuteAsync(
-                connection,
-                """
-                CREATE TABLE target_gl_entry (
-                    entry_id BIGINT PRIMARY KEY,
-                    source_row_number BIGINT NOT NULL,
-                    document_number VARCHAR(32),
-                    line_item VARCHAR(32),
-                    post_date VARCHAR(32),
-                    is_effective INTEGER);
-                CREATE TABLE result_inf_sampling_test_sample (
-                    run_id VARCHAR(64) NOT NULL,
-                    entry_id BIGINT NOT NULL,
-                    document_number VARCHAR(32),
-                    line_item VARCHAR(32),
-                    PRIMARY KEY (run_id, entry_id));
-                """);
-
-            for (var row = 1; row <= 8; row++)
-            {
-                await ExecuteAsync(
-                    connection,
-                    $"INSERT INTO target_gl_entry VALUES ({row}, {row}, 'JV-{row}', '{row}', '2025-01-01', 1);");
-            }
-        }
-
-        await using (var sample = connection.CreateCommand())
-        {
-            sample.CommandText = ValidationProcedures.InfSampleInsert(
-                schemaPrefix,
-                dialect,
-                JetAuditProgram.LegacyInfSamplingAlgorithmVersion);
-            Add(sample, "@runId", "legacy-golden");
-            Add(sample, "@seed", 1_987_654_321L);
-            Add(sample, "@n", 5);
-            await sample.ExecuteNonQueryAsync(CancellationToken.None);
-        }
-
-        await using var read = connection.CreateCommand();
-        read.CommandText =
-            $"SELECT entry_id FROM {schemaPrefix}result_inf_sampling_test_sample "
-            + "WHERE run_id = @runId ORDER BY entry_id;";
-        Add(read, "@runId", "legacy-golden");
-        await using var reader = await read.ExecuteReaderAsync(CancellationToken.None);
-        var members = new List<long>();
-        while (await reader.ReadAsync(CancellationToken.None))
-        {
-            members.Add(reader.GetInt64(0));
-        }
-
-        Assert.Equal([4L, 5L, 6L, 7L, 8L], members);
-    }
-
-    private static async Task SeedSqlServerLegacyRowsAsync(DbConnection connection, string projectId)
-    {
-        var prefix = SqlServerProjectSchema.QualifierFor(projectId);
-        for (var row = 1; row <= 8; row++)
-        {
-            await ExecuteAsync(
-                connection,
-                $"INSERT INTO {prefix}target_gl_entry "
-                + "(batch_id, source_row_number, document_number, line_item, post_date, "
-                + "is_effective, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr) VALUES "
-                + $"('legacy', {row}, 'JV-{row}', '{row}', '2025-01-01', 1, 0, 0, 0, 'DEBIT');");
-        }
-    }
-
-    private static async Task ExecuteAsync(DbConnection connection, string sql)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        await command.ExecuteNonQueryAsync(CancellationToken.None);
-    }
-
-    private static void Add(DbCommand command, string name, object value)
-    {
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = name;
-        parameter.Value = value;
-        command.Parameters.Add(parameter);
     }
 }

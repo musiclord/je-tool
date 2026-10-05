@@ -117,50 +117,6 @@ public sealed class MappingMetadataCodecTests
     }
 
     [Theory]
-    [InlineData("not-json")]
-    [InlineData("{}")]
-    [InlineData("{\"gl\":{},\"tb\":{}}")]
-    [InlineData("{\"gl\":{\"mapping\":{},\"amountMode\":\"SIGNED\"},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
-    [InlineData("{\"gl\":{\"mapping\":{\"unknown\":\"x\"},\"amountMode\":\"signed\"},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
-    [InlineData("{\"gl\":{\"mapping\":{\"docNum\":1},\"amountMode\":\"signed\"},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
-    [InlineData("{\"gl\":{\"mapping\":{},\"amountMode\":\"signed\",\"extra\":1},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
-    [InlineData("{\"gl\":{\"mapping\":{\"docNum\":\"a\",\"docNum\":\"b\"},\"amountMode\":\"signed\"},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
-    public void Decode_RejectsMalformedOrAmbiguousV1Payload(string json)
-    {
-        Assert.Throws<MappingMetadataFormatException>(() =>
-            MappingMetadataCodec.Decode(MappingMetadataFormat.LegacyVersion, json));
-    }
-
-    [Fact]
-    public void Decode_V1_NormalizesToPendingV2DraftWithoutInventingPostingOrRdeFields()
-    {
-        const string json =
-            "{\"gl\":{\"mapping\":{\"docDate\":\"Approval Date\"},\"amountMode\":\"signed\"},"
-            + "\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}";
-
-        var decoded = MappingMetadataCodec.Decode(MappingMetadataFormat.LegacyVersion, json);
-
-        Assert.Equal(MappingMetadataFormat.CurrentVersion, decoded.FormatVersion);
-        Assert.Equal(ApprovalDateModeNames.Mapped, decoded.Gl.ApprovalDateMode);
-        Assert.Null(decoded.Gl.PostingStatusPolicy);
-        Assert.Equal(["1"], decoded.Gl.ManualAutoPolicy.ManualValues);
-        Assert.Equal(["0"], decoded.Gl.ManualAutoPolicy.AutomaticValues);
-        Assert.Empty(decoded.Gl.RdeFields);
-    }
-
-    [Fact]
-    public void Decode_V1WithoutDocDate_NormalizesApprovalDateToUnmapped()
-    {
-        const string json =
-            "{\"gl\":{\"mapping\":{},\"amountMode\":\"signed\"},"
-            + "\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}";
-
-        var decoded = MappingMetadataCodec.Decode(MappingMetadataFormat.LegacyVersion, json);
-
-        Assert.Equal(ApprovalDateModeNames.Unmapped, decoded.Gl.ApprovalDateMode);
-    }
-
-    [Theory]
     [InlineData("{\"gl\":{\"mapping\":{},\"amountMode\":\"signed\"},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
     [InlineData("{\"gl\":{\"mapping\":{},\"amountMode\":\"signed\",\"approvalDateMode\":\"mapped\",\"postingStatusPolicy\":null,\"manualAutoPolicy\":{\"manualValues\":[\"1\"],\"automaticValues\":[\"0\"]},\"rdeFields\":[],\"extra\":true},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
     [InlineData("{\"gl\":{\"mapping\":{},\"amountMode\":\"signed\",\"approvalDateMode\":\"Mapped\",\"postingStatusPolicy\":null,\"manualAutoPolicy\":{\"manualValues\":[\"1\"],\"automaticValues\":[\"0\"]},\"rdeFields\":[]},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
@@ -218,6 +174,7 @@ public sealed class MappingMetadataCodecTests
 
     [Theory]
     [InlineData(0)]
+    [InlineData(1)] // 舊版 JET 的第 1 版 metadata 不再讀取。
     [InlineData(3)]
     public void Decode_RejectsUnsupportedVersion(int version)
     {
@@ -274,30 +231,6 @@ public sealed class OpenXmlMappingMetadataReaderTests
             Assert.Equal(GlAmountModeNames.Flag, result.Gl.AmountMode);
             Assert.Equal("D", result.Gl.Mapping[GlMappingKeys.DcDebitCode]);
             Assert.Equal(TbChangeModeNames.Direct, result.Tb.ChangeMode);
-        }
-        finally
-        {
-            TestWorkbookBuilder.Delete(path);
-        }
-    }
-
-    [Fact]
-    public async Task ReadAsync_V1Payload_NormalizesToV2Draft()
-    {
-        const string payload =
-            "{\"gl\":{\"mapping\":{\"docDate\":\"Approval Date\"},\"amountMode\":\"signed\"},"
-            + "\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}";
-        var path = Workbook(
-            MappingMetadataFormat.Marker,
-            MappingMetadataFormat.LegacyVersion.ToString(),
-            payload);
-        try
-        {
-            var result = await new OpenXmlMappingMetadataReader().ReadAsync(path, CancellationToken.None);
-
-            Assert.Equal(MappingMetadataFormat.CurrentVersion, result.FormatVersion);
-            Assert.Equal(ApprovalDateModeNames.Mapped, result.Gl.ApprovalDateMode);
-            Assert.Null(result.Gl.PostingStatusPolicy);
         }
         finally
         {

@@ -60,7 +60,7 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
         {
             throw new JetActionException(
                 JetErrorCodes.TaxonomyRevisionConflict,
-                $"科目分類已由其他作業更新（要求 revision {expectedRevision}，目前為 {current.Revision}），請重新載入後再試。");
+                "科目分類剛被其他操作更新，請重新開啟分類設定再儲存一次。");
         }
 
         await EnsureDeletedCategoriesAreUnusedAsync(
@@ -71,6 +71,7 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
                 .Select(item => item.CategoryId)
                 .Except(replacement.Select(item => item.CategoryId), StringComparer.Ordinal)
                 .ToArray(),
+            current.Categories,
             cancellationToken);
 
         var nextRevision = checked(current.Revision + 1);
@@ -160,6 +161,7 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
         SqlConnection connection,
         SqlTransaction transaction,
         IReadOnlyList<string> deletedIds,
+        IReadOnlyList<AccountTaxonomyCategory> currentCategories,
         CancellationToken cancellationToken)
     {
         if (deletedIds.Count == 0)
@@ -177,7 +179,7 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
             mapping.Parameters.AddWithValue("@categoryId", deletedId);
             if (Convert.ToInt64(await mapping.ExecuteScalarAsync(cancellationToken)) > 0)
             {
-                InUse(deletedId);
+                InUse(deletedId, currentCategories);
             }
         }
 
@@ -194,14 +196,14 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
             {
                 if (AccountTaxonomyStoreSupport.ContainsString(document.RootElement, deletedId))
                 {
-                    InUse(deletedId);
+                    InUse(deletedId, currentCategories);
                 }
             }
         }
     }
 
-    private static void InUse(string categoryId) =>
+    private static void InUse(string categoryId, IReadOnlyList<AccountTaxonomyCategory> currentCategories) =>
         throw new JetActionException(
             JetErrorCodes.TaxonomyCategoryInUse,
-            $"科目分類 '{categoryId}' 仍被科目配對或篩選情境使用，無法刪除。");
+            $"科目分類「{AccountTaxonomyStoreSupport.DisplayLabel(categoryId, currentCategories)}」仍被科目配對或篩選情境使用，無法刪除。請先改掉使用這個分類的科目配對或篩選情境，再刪除分類。");
 }

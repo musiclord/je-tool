@@ -12,7 +12,7 @@ public sealed class LocalMessageLogStore(ILocalProjectDatabase database) : IMess
 
     public async Task AppendAsync(string projectId, string level, string text, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -34,7 +34,7 @@ public sealed class LocalMessageLogStore(ILocalProjectDatabase database) : IMess
     public async Task<IReadOnlyList<MessageLogEntry>> GetRecentAsync(
         string projectId, int limit, CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);

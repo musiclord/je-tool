@@ -2,6 +2,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 public sealed class ProjectionCancellationTests
@@ -103,9 +104,9 @@ public sealed class ProjectionCancellationTests
         var batch = (await import.ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            new ImportSourceDescriptor("fixture.csv", "fixture.csv", null, null, null),
+            [new ImportSourceInput(new ImportSourceDescriptor("fixture.csv", "fixture.csv", null, null, null),
             Columns,
-            Rows(),
+            Rows())],
             CancellationToken.None)).Batch;
 
         using var cancellation = new CancellationTokenSource();
@@ -116,6 +117,8 @@ public sealed class ProjectionCancellationTests
                 Spec(),
                 10_000,
                 DateParseOptions.Default,
+                periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+                postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
                 cancellation.Token,
                 _ => cancellation.Cancel()));
 

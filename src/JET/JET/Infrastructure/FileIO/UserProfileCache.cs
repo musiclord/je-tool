@@ -7,7 +7,7 @@ namespace JET.Infrastructure;
 /// 使用者編號本機離線快取 <see cref="IUserProfileCache"/> 的檔案實作（<c>{directory}\user-profile.json</c>；
 /// app 走 <c>%LOCALAPPDATA%\JET</c>，測試釘 temp 目錄）。JSON 形如 <c>{ "principal": "...", "userNumber": 7,
 /// "savedUtc": "..." }</c>，採 <see cref="JetJsonStorage.Options"/>（UnsafeRelaxedJsonEscaping，中文原樣）。
-/// 編號永不改變，故快取無過期問題——快取內 principal 與當前身分不符時整份忽略（spec §1，不張冠李戴發別人的編號）。
+/// 編號永不改變，故快取無過期問題——快取內 principal 與當前身分不符時整份忽略，避免把別人的編號發給目前使用者。
 /// </summary>
 public sealed class UserProfileCache(string directoryPath) : IUserProfileCache
 {

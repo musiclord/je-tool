@@ -19,7 +19,6 @@ namespace JET.Infrastructure;
 public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILogger<SqlServerTbRepository>? logger = null)
     : ITbRepository
 {
-    private const int MaxCollectedErrors = 50;
     private const int ProgressRowInterval = 20_000;
     private const string Provider = "sqlServer";
 
@@ -32,6 +31,7 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
         string batchId,
         TbMappingSpec spec,
         int moneyScale,
+        DateTimeOffset committedUtc,
         CancellationToken cancellationToken,
         Action<ProjectionProgress>? progress = null)
     {
@@ -50,7 +50,7 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
             await clear.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
         }
 
-        // 重投影改寫 target,既有規則結果失效(plan Phase 1;投影失敗 rollback 時清除一併回退)。
+        // 重投影改寫 target,既有規則結果失效(投影失敗 rollback 時清除一併回退)。
         await RuleRunResultReset.ClearWithinAsync(
             connection,
             transaction,
@@ -85,7 +85,7 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
         var pChange = insert.Parameters.Add("@changeScaled", SqlDbType.BigInt);
         pBatch.Value = batchId;
 
-        var errors = new List<RowProjectionError>();
+        var errors = new ProjectionErrorCollector();
         var insertedCount = 0;
         long sourceRowCount = 0;
 
@@ -123,15 +123,12 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
 
             if (!TbRowProjector.TryProject(stagingRow, spec, moneyScale, out var projected, out var error))
             {
-                if (errors.Count < MaxCollectedErrors)
-                {
-                    errors.Add(error! with { SourceLabel = sourceLabels?.GetValueOrDefault(sourceNo) });
-                }
+                errors.Observe(error! with { SourceLabel = sourceLabels?.GetValueOrDefault(sourceNo) });
 
                 continue;
             }
 
-            if (errors.Count > 0)
+            if (errors.TotalErrorCount > 0)
             {
                 continue;
             }
@@ -145,11 +142,11 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
             insertedCount++;
         }
 
-        if (errors.Count > 0)
+        if (errors.TotalErrorCount > 0)
         {
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
-            return new ProjectionResult(0, errors);
+            return errors.FailedResult();
         }
 
         var sourceDefinitions = await SqlServerFieldDefinitionPersistence.LoadStatesAsync(
@@ -170,11 +167,16 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
             LegacyFieldDefinitionProjector.ProjectTb(sourceDefinitions, spec, moneyScale),
             cancellationToken);
 
+        var warnings = await TbMappedColumnAudit.ReadAsync(connection, transaction, spec, insertedCount,
+            SqlServerDialect.Instance, cancellationToken, SqlServerProjectSchema.QualifierFor(projectId));
+        await SqlServerMappingStateStore.SaveWithinAsync(database, connection, transaction, projectId,
+            new CommittedMapping(DatasetKind.Tb, spec.Mapping, TbChangeModeNames.ToWireName(spec.ChangeMode), batchId, committedUtc),
+            cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         await transaction.CommitAsync(CancellationToken.None);
         txLog.Committed();
         DiagnosticDbLog.ProjectionMilestone(_log, "tb-projection", insertedCount, stopwatch.ElapsedMilliseconds,
             insertedCount * 1000.0 / Math.Max(1, stopwatch.ElapsedMilliseconds));
-        return new ProjectionResult(insertedCount, []);
+        return new ProjectionResult(insertedCount, []) { Warnings = warnings };
     }
 }

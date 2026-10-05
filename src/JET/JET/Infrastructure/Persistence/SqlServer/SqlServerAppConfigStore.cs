@@ -4,8 +4,8 @@ using Microsoft.Data.SqlClient;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// <see cref="IAppConfigStore"/> 的 SQL Server 實作（<c>dbo.app_config</c>，控制面第四輪 §3）。
-/// <b>天生只屬 sqlServer</b>：不經 ProviderRouting,直接持有 <see cref="SqlServerConnectionOptions"/> 對單庫開連線
+/// <see cref="IAppConfigStore"/> 的 SQL Server 實作（<c>dbo.app_config</c>）。
+/// <b>天生只屬 sqlServer</b>：不在依資料庫種類選定的資料庫組裡,直接持有 <see cref="SqlServerConnectionOptions"/> 對單庫開連線
 /// （與 <see cref="SqlServerProjectRegistry"/> 平行）。表隨 <see cref="SqlServerControlPlaneSchema"/> bootstrap；
 /// 每個公開方法開頭 ensure（冪等）。UPSERT 走 <c>MERGE</c>,<c>updated_by = SUSER_SNAME()</c>、
 /// <c>updated_utc = SYSUTCDATETIME()</c>（伺服器端取值,不採 client 自報）。

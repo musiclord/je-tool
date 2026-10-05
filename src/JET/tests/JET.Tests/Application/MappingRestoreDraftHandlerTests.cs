@@ -9,44 +9,6 @@ namespace JET.Tests.Application;
 public sealed class MappingRestoreDraftHandlerTests
 {
     [Fact]
-    public async Task RestoreDraft_V1Metadata_ReturnsNormalizedV2DraftWithoutCommitting()
-    {
-        using var host = new HandlerTestHost();
-        var context = await DemoProjectPipeline.SetupAsync(host);
-        var before = await host.DispatchAsync(
-            "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
-        var (gl, tb) = CommittedFrom(before);
-        var path = Workbook(LegacyV1Payload(gl, tb), MappingMetadataFormat.LegacyVersion);
-
-        try
-        {
-            var restored = await host.DispatchAsync(
-                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path }));
-
-            Assert.Equal(MappingMetadataFormat.CurrentVersion, restored.GetProperty("formatVersion").GetInt32());
-            var restoredGl = restored.GetProperty("gl");
-            var expectedApprovalMode = gl.Mapping.ContainsKey(GlMappingKeys.DocDate)
-                ? ApprovalDateModeNames.Mapped
-                : ApprovalDateModeNames.Unmapped;
-            Assert.Equal(expectedApprovalMode, restoredGl.GetProperty("approvalDateMode").GetString());
-            Assert.Equal(JsonValueKind.Null, restoredGl.GetProperty("postingStatusPolicy").ValueKind);
-            Assert.Equal("1", restoredGl.GetProperty("manualAutoPolicy")
-                .GetProperty("manualValues")[0].GetString());
-            Assert.Equal("0", restoredGl.GetProperty("manualAutoPolicy")
-                .GetProperty("automaticValues")[0].GetString());
-            Assert.Equal(0, restoredGl.GetProperty("rdeFields").GetArrayLength());
-
-            var after = await host.DispatchAsync(
-                "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
-            Assert.Equal(before.GetProperty("mapping").GetRawText(), after.GetProperty("mapping").GetRawText());
-        }
-        finally
-        {
-            TestWorkbookBuilder.Delete(path);
-        }
-    }
-
-    [Fact]
     public async Task RestoreDraft_OneDatasetIncompatible_RejectsWholeResponseWithoutMutation()
     {
         using var host = new HandlerTestHost();
@@ -98,6 +60,9 @@ public sealed class MappingRestoreDraftHandlerTests
             StringComparer.Ordinal);
         mapping.Remove(GlMappingKeys.VoucherDate);
 
+        // 2026-10-04 第 8 批 L21：示範來源的「傳票登錄日」改稱「傳票日期」。
+        // 仍移除 core voucherDate 配對，避免同一來源重複指派；stable ID 與 round-trip 斷言全部保留。
+        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         var committed = await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
             mapping,
@@ -112,8 +77,8 @@ public sealed class MappingRestoreDraftHandlerTests
             {
                 new
                 {
-                    sourceColumn = "傳票登錄日",
-                    label = "傳票登錄日",
+                    sourceColumn = "傳票日期",
+                    label = "傳票日期",
                     valueType = RdeFieldValueTypeNames.Date
                 }
             }
@@ -133,8 +98,9 @@ public sealed class MappingRestoreDraftHandlerTests
                 [
                     new GlRdeFieldMetadata(
                         stableId,
-                        "傳票登錄日",
-                        "傳票登錄日",
+                        // 同一 L21 改名同步寫入回存 metadata，不更換欄位身分。
+                        "傳票日期",
+                        "傳票日期",
                         RdeFieldValueTypeNames.Date)
                 ])
         };
@@ -260,12 +226,6 @@ public sealed class MappingRestoreDraftHandlerTests
         sheet.Cell(MappingMetadataFormat.VersionCell).Value = formatVersion;
         sheet.Cell(MappingMetadataFormat.PayloadCell).Value = payload;
         sheet.Columns(6, 8).Hide();
-    });
-
-    private static string LegacyV1Payload(CommittedMapping gl, CommittedMapping tb) => JsonSerializer.Serialize(new
-    {
-        gl = new { mapping = gl.Mapping, amountMode = gl.ModeName },
-        tb = new { mapping = tb.Mapping, changeMode = tb.ModeName }
     });
 
     private static CommittedMapping MinimalGl() => new(

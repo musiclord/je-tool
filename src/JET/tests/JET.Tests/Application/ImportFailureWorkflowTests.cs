@@ -120,6 +120,45 @@ public sealed class ImportFailureWorkflowTests
         }
     }
 
+    // 2026-10-04 第二遍回饋審閱第 1 批（L07）：資料庫寫入失敗的分類以前只在 SQLite 驗證。DuckDB 沒有 trigger，
+    // 這裡在同一程序已完成結構檢查之後把暫存表改名，讓寫入在 database_write 階段失敗，確認分類、資料庫名稱與回復狀態都寫進支援日誌。
+    [Fact]
+    public async Task DuckDb_DatabaseWriteFailure_IsClassifiedWithProviderAndRollback()
+    {
+        using var host = new HandlerTestHost(enableDevTools: false);
+        var created = await host.DispatchAsync("project.create", """{"caseName":"duck-write-failure","periodStart":"2025-01-01","periodEnd":"2025-12-31","databaseProvider":"duckdb"}""");
+        var id = created.GetProperty("projectId").GetString()!;
+        var path = Path.Combine(host.ProjectsRoot, "PRIVATE_SOURCE.csv");
+        await File.WriteAllTextAsync(path, "doc,amount\nold,1\n");
+        var baseline = await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+        var database = new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        await using (var connection = database.CreateConnection(id))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "ALTER TABLE staging_gl_raw_row RENAME TO staging_gl_raw_row_unavailable;";
+            await command.ExecuteNonQueryAsync();
+        }
+        await File.WriteAllTextAsync(path, "doc,amount\nPRIVATE_VALUE,2\n");
+
+        var error = await Record.ExceptionAsync(() => host.DispatchAsync("import.gl.fromFile",
+            JsonSerializer.Serialize(new { filePath = path }), correlationId: "duck-write"));
+        Assert.NotNull(error);
+
+        var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
+        Assert.Equal(baseline.GetProperty("batchId").GetString(), loaded.GetProperty("importState").GetProperty("gl").GetProperty("batchId").GetString());
+        var export = await host.DispatchAsync("support.log.export", JsonSerializer.Serialize(new { projectId = id, correlationId = "duck-write" }));
+        var lines = await File.ReadAllLinesAsync(export.GetProperty("filePath").GetString()!);
+        Assert.DoesNotContain("PRIVATE_", string.Join('\n', lines));
+        var fields = lines.Select(line => JsonDocument.Parse(line).RootElement.Clone())
+            .Single(entry => entry.GetProperty("eventName").GetString() == "action.error").GetProperty("fields");
+        Assert.Equal("database_write", fields.GetProperty("import_stage").GetString());
+        Assert.Equal("database_error", fields.GetProperty("failure_cause").GetString());
+        Assert.Equal("duckdb", fields.GetProperty("provider").GetString());
+        Assert.Equal("succeeded", fields.GetProperty("rollback_state").GetString());
+        Assert.NotEqual("inspect_error_code_and_stack", fields.GetProperty("recovery_action").GetString());
+    }
+
     private static async Task ExecuteSqlAsync(SqliteProjectDatabase database, string id, string sql)
     {
         await using var connection = database.CreateConnection(id);

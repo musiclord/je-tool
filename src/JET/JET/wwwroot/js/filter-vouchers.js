@@ -4,16 +4,18 @@
   var Ui = global.JetUi, Api = global.JetApi;
   function count(value) { return Number(value || 0).toLocaleString(); }
   function matchStatusHtml(row) {
-    var label = row.isHit ? '命中分錄' : '參考分錄';
+    // Only mirror the backend's declared match scope; do not infer new per-row hit semantics.
+    var voucherMatch = row.isHit && /傳票條件成立/.test(row.matchDescription || '') && !/^符合條件的分錄/.test(row.matchDescription || '');
+    var label = row.isHit ? (voucherMatch ? '傳票條件成立' : '符合條件的分錄') : '參考分錄';
     return row.matchDescription
-      ? '<details class="filter-match-reason"><summary title="展開查看原因">' + label + '</summary><p>' + Ui.esc(row.matchDescription) + '</p></details>'
+      ? '<div class="filter-match-reason"><strong>' + label + '</strong><p>' + Ui.esc(row.matchDescription) + '</p></div>'
       : label;
   }
   function summary(preview) {
     return '<p class="rule-card__sub">符合條件：' + count(preview.count) + ' 筆分錄（' + count(preview.voucherCount) +
       ' 張傳票）</p>' +
-      (Number(preview.voucherCount) > 0 ? '<details class="rule-card__sub"><summary>結果說明</summary>' +
-      '<p>展開傳票可查看查核期間內的全部分錄。標示為參考的分錄不計入上方筆數。</p></details>' : '') +
+      (Number(preview.voucherCount) > 0 ? '<p class="rule-card__sub">' +
+      '展開傳票可查看查核期間內的全部分錄。標示為參考的分錄不計入上方筆數。</p>' : '') +
       '<div class="filter-voucher-host"></div>';
   }
   function mount(host, preview) {
@@ -37,7 +39,7 @@
       });
     }
     function voucherPage(cursor, backwards) {
-      read(Api.queryFilterVoucherPage, Object.assign({}, preview.voucherRequest, { cursor: cursor, pageSize: 50, queryRevision: view.page.queryRevision,
+      read(Api.queryFilterVoucherPage, Object.assign({}, preview.voucherRequest, { cursor: cursor, pageSize: Ui.RESULT_PREVIEW_PAGE_SIZE, queryRevision: view.page.queryRevision,
         sort: view.sort, search: view.search || null }), function (page) {
         if (!backwards) { view.history.push(view.cursor); if (view.history.length > 100) { view.history.shift(); } }
         view.cursor = cursor; view.page = page; view.open = null; view.detail = null;
@@ -48,7 +50,7 @@
     function restart() { view.history = []; voucherPage(null, true); }
     function details(documentNumber, cursor, backwards) {
       read(Api.queryFilterVoucherRowsPage, Object.assign({}, preview.voucherRequest, { documentNumber: documentNumber,
-        cursor: cursor, pageSize: 50, queryRevision: view.page.queryRevision }), function (page) {
+        cursor: cursor, pageSize: Ui.RESULT_PREVIEW_PAGE_SIZE, queryRevision: view.page.queryRevision }), function (page) {
         if (view.open !== documentNumber) { view.detailHistory = []; }
         else if (!backwards) { view.detailHistory.push(view.detailCursor); if (view.detailHistory.length > 100) { view.detailHistory.shift(); } }
         view.open = documentNumber; view.detail = page; view.detailCursor = cursor;
@@ -58,20 +60,25 @@
     function detailHtml() {
       if (!view.detail) { return ''; }
       var extra = (view.detail.columns || []).filter(function (column) { return column.isCustom; });
+      // 金額與金額型額外欄位走共用的 Ui.money（兩位小數加千分位），與上方傳票總額同一格式。
+      var extraCells = Ui.dynamicColumnCells(extra);
+      function cellHtml(text, className) {
+        return '<td' + (className ? ' class="' + className + '"' : '') + '>' + Ui.esc(text == null ? '' : text) + '</td>';
+      }
       return '<div class="voucher-details"><h4 tabindex="-1">傳票 ' + Ui.esc(view.open) + ' 的分錄</h4><div class="preview-table__wrap"><table class="preview-table"><thead><tr>' +
-        ['狀態', '列號', '總帳日期', '核准日期', '科目代號', '科目名稱', '金額', '摘要'].concat(extra.map(function (column) { return column.label; })).map(function (label) { return '<th>' + Ui.esc(label) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        ['狀態', '傳票文件項次', '總帳入帳日', '傳票核准日', '科目編號', '科目名稱', '金額', '摘要'].concat(extra.map(function (column) { return column.label; })).map(function (label) { return '<th>' + Ui.esc(label) + '</th>'; }).join('') + '</tr></thead><tbody>' +
         view.detail.rows.map(function (row) { return '<tr class="' + (row.isHit ? 'filter-hit-row' : '') + '"><td>' + matchStatusHtml(row) + '</td>' +
-          [row.lineItem, row.postDate, row.approvalDate, row.accountCode, row.accountName, String(row.amount), row.description]
-            .concat(extra.map(function (column) { return (row.customValues || {})[column.key]; }))
-            .map(function (value) { return '<td>' + Ui.esc(value == null ? '' : value) + '</td>'; }).join('') + '</tr>'; }).join('') +
+          [row.lineItem, row.postDate, row.approvalDate, row.accountCode, row.accountName].map(function (value) { return cellHtml(value); }).join('') +
+          cellHtml(Ui.money(row.amount), 'preview-table__amount') + cellHtml(row.description) +
+          extraCells.map(function (column) { return cellHtml(column.cell(row), column.className); }).join('') + '</tr>'; }).join('') +
         '</tbody></table></div><div class="panel__actions"><button type="button" class="btn btn--ghost" data-detail-previous' + (!view.detailHistory.length ? ' disabled' : '') + '>上一頁分錄</button>' +
         '<button type="button" class="btn btn--ghost" data-detail-next' + (!view.detail.nextCursor ? ' disabled' : '') + '>下一頁分錄</button>' +
         '<button type="button" class="btn btn--ghost" data-detail-close>收合分錄</button></div></div>';
     }
     function headHtml() {
       var cells = Ui.sortableHeadCellsHtml('query.filterVoucherPage', [
-        { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '最早總帳日期' },
-        { key: 'hitRowCount', label: '命中分錄' }, { key: 'totalRowCount', label: '期間內全部分錄' },
+        { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '最早總帳入帳日' },
+        { key: 'hitRowCount', label: '符合條件的分錄' }, { key: 'totalRowCount', label: '期間內全部分錄' },
         { key: 'voucherTotal', label: '傳票總額', className: 'preview-table__amount' }, { key: null, label: '查看內容' }]);
       return '<tr>' + cells + '</tr>';
     }
@@ -98,7 +105,7 @@
       var page = view.page;
       var searchHtml = Ui.pageSearchHtml('依傳票號碼查看');
       if (!page.rows.length) {
-        host.innerHTML = (view.search ? searchHtml : '') + '<p class="empty-state">' + (view.search ? '沒有符合「' + Ui.esc(view.search) + '」的命中傳票。' : '沒有符合的傳票。調整條件後可再次查看。') + '</p>';
+        host.innerHTML = (view.search ? searchHtml : '') + '<p class="empty-state">' + (view.search ? '沒有符合「' + Ui.esc(view.search) + '」的符合條件傳票。' : '沒有符合的傳票。調整條件後可再次查看。') + '</p>';
         bindSortAndSearch();
         return;
       }

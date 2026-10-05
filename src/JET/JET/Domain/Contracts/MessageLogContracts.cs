@@ -1,6 +1,6 @@
 namespace JET.Domain;
 
-/// <summary>一則持久化的狀態訊息（manifest log.append / log.recent）。</summary>
+/// <summary>一則持久化的狀態訊息（log.append / log.recent）。</summary>
 public sealed record MessageLogEntry(
     DateTimeOffset OccurredUtc,
     string Level,

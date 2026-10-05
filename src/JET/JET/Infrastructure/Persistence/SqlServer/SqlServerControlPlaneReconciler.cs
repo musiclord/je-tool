@@ -4,9 +4,10 @@ using Microsoft.Data.SqlClient;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// <see cref="IControlPlaneReconciler"/> 的 SQL Server 實作（<c>dev.db.reconcile</c>，控制面第四輪 §5）。
-/// 三方對帳:單庫 <c>sys.schemas</c>（<c>prj_%</c>）↔ <c>dbo.project_registry</c> ↔ 本機 projects 資料夾
-/// （<see cref="IProjectStore"/> 的 sqlServer 專案）。只讀不清:回報三種漂移供人工裁決,不自動 DROP／刪列／刪夾。
+/// <see cref="IControlPlaneReconciler"/> 的 SQL Server 實作（<c>dev.db.reconcile</c>，開發用的資料庫漂移檢查）。
+/// 比對單庫 <c>sys.schemas</c>（<c>prj_%</c>）、<c>dbo.project_registry</c> 與本機 projects 資料夾
+/// （<see cref="IProjectStore"/> 的 sqlServer 專案）。開始比對前會先確保 dbo 管理表存在，這一步可能建表，
+/// 也會移除已停用的 <c>project_schema_map</c>；比對出的三種漂移只回報給人決定，不自動刪 schema、登錄列或資料夾。
 /// <para>schema → 專案的反查一律以純函式 <see cref="SqlServerProjectSchema.For"/> 衍生 + registry.schema_name 對照,
 /// 不依賴已移除的 project_schema_map。</para>
 /// 單庫尚未建立（切換伺服器/全新環境）時 schema/registry 兩集合視為空——本機所有 sqlServer 資料夾即殭屍。

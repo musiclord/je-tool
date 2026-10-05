@@ -5,6 +5,7 @@ using JET.Infrastructure;
 using Microsoft.Data.SqlClient;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -65,7 +66,9 @@ public sealed class SqlServerGlRepositoryTests
 
         var repo = new SqlServerGlRepository(sql.Database);
         var result = await repo.ProjectStagingToTargetAsync(
-            sql.ProjectId, batchId, SignedSpec(), MoneyScale, DateParseOptions.Default, CancellationToken.None);
+            sql.ProjectId, batchId, SignedSpec(), MoneyScale, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Empty(result.Errors);
         Assert.Equal(4, result.ProjectedRowCount);
@@ -104,7 +107,9 @@ public sealed class SqlServerGlRepositoryTests
 
         var repo = new SqlServerGlRepository(sql.Database);
         await repo.ProjectStagingToTargetAsync(
-            sql.ProjectId, batchId, SignedSpec(), MoneyScale, DateParseOptions.Default, CancellationToken.None);
+            sql.ProjectId, batchId, SignedSpec(), MoneyScale, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         await using var read = sql.Database.CreateConnection(sql.ProjectId);
         await read.OpenAsync();
@@ -134,7 +139,9 @@ public sealed class SqlServerGlRepositoryTests
 
         var repo = new SqlServerGlRepository(sql.Database);
         var result = await repo.ProjectStagingToTargetAsync(
-            sql.ProjectId, batchId, SignedSpec(), MoneyScale, DateParseOptions.Default, CancellationToken.None);
+            sql.ProjectId, batchId, SignedSpec(), MoneyScale, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Equal(0, result.ProjectedRowCount);
         Assert.NotEmpty(result.Errors);
@@ -186,7 +193,9 @@ public sealed class SqlServerGlRepositoryTests
 
         var repo = new SqlServerGlRepository(sql.Database);
         var ex = await Assert.ThrowsAsync<JetActionException>(() => repo.ProjectStagingToTargetAsync(
-            sql.ProjectId, batchId, spec, MoneyScale, DateParseOptions.Default, CancellationToken.None));
+            sql.ProjectId, batchId, spec, MoneyScale, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.GlAmountsAllZero, ex.Code);
 
@@ -245,7 +254,9 @@ public sealed class SqlServerGlRepositoryTests
 
         var repo = new SqlServerGlRepository(sql.Database);
         var result = await repo.ProjectStagingToTargetAsync(
-            sql.ProjectId, batchId, spec, MoneyScale, DateParseOptions.Default, CancellationToken.None);
+            sql.ProjectId, batchId, spec, MoneyScale, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         Assert.Empty(result.Errors);
         Assert.Equal(2, result.ProjectedRowCount);
@@ -276,7 +287,9 @@ public sealed class SqlServerGlRepositoryTests
         }
 
         await new SqlServerGlRepository(sql.Database).ProjectStagingToTargetAsync(
-            sql.ProjectId, batchId, SignedSpec(), MoneyScale, DateParseOptions.Default, CancellationToken.None);
+            sql.ProjectId, batchId, SignedSpec(), MoneyScale, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         List<TargetRow> sqlServerRows;
         await using (var read = sql.Database.CreateConnection(sql.ProjectId))
@@ -297,7 +310,9 @@ public sealed class SqlServerGlRepositoryTests
         }
 
         await new LocalGlRepository(sqliteDb).ProjectStagingToTargetAsync(
-            sqliteProjectId, batchId, SignedSpec(), MoneyScale, DateParseOptions.Default, CancellationToken.None);
+            sqliteProjectId, batchId, SignedSpec(), MoneyScale, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
 
         List<TargetRow> sqliteRows;
         await using (var read = sqliteDb.CreateConnection(sqliteProjectId))
@@ -1032,8 +1047,14 @@ internal sealed class TempSqlServerProject : IAsyncDisposable
 
         try
         {
-            await using var probe = new SqlConnection(
-                new SqlConnectionStringBuilder(baseConnectionString) { InitialCatalog = "master" }.ConnectionString);
+            var builder = new SqlConnectionStringBuilder(baseConnectionString) { InitialCatalog = "master" };
+            if (string.IsNullOrWhiteSpace(builder.DataSource))
+            {
+                // 沒有伺服器名稱視同未設定；否則會連本機預設執行個體，白等 15 秒逾時。
+                return null;
+            }
+
+            await using var probe = new SqlConnection(builder.ConnectionString);
             await probe.OpenAsync(cancellationToken);
 
             // 淘汰 Express(EngineEdition=4,含 LocalDB)與 < SQL Server 2022(ProductMajorVersion<16):這類引擎上

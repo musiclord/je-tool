@@ -82,7 +82,7 @@ public interface IProjectDeletionLockService
 }
 
 /// <summary>
-/// 專案租約鎖的參數（住 <c>dbo.app_config</c>，控制面第四輪地基的消費者）：以 <see cref="IAppConfigStore.GetAsync"/>
+/// 專案租約鎖的參數（存在 <c>dbo.app_config</c>）：以 <see cref="IAppConfigStore.GetAsync"/>
 /// 讀、缺鍵回程式常數預設。<see cref="HeartbeatSeconds"/> 由 <c>project.load</c> 回應帶給前端計時器；
 /// <see cref="TimeoutSeconds"/> 於取鎖 SQL 綁 <c>@timeout</c>（心跳過期即由他人接管）。純常數＋解析，無框架相依。
 /// </summary>

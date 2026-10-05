@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using JET.Domain;
@@ -11,31 +10,16 @@ namespace JET.AuditCore;
 /// </summary>
 internal static class PrescreenProcedures
 {
-    public const string MissingApprovalDateMappingReason = "請先完成 GL「傳票核准日」欄位配對。";
-    public const string MissingLastPeriodStartReason = "案件尚未設定期末財報準備日。";
-    public const string MissingAccountMappingReason = "需先匯入科目配對。";
+    public const string MissingApprovalDateMappingReason = "請先確認 GL「傳票核准日」欄位配對。";
+    public const string MissingLastPeriodStartReason = "尚未填期末財報準備日，請到「修改案件資料」填寫後重新執行預篩選。";
+    public const string MissingAccountMappingReason = "需先完成科目配對。";
     public const string IncompleteAccountMappingReason =
         "科目配對需包含收入，以及至少一項應收款項、現金或預收款項分類。";
-    public const string MissingCreatedByMappingReason = "請先完成 GL「傳票建立人員」欄位配對。";
-    public const string MissingVoucherDateMappingReason = "請先完成 GL「傳票日期」欄位配對，才能比較是否回溯過帳。";
-    public const string MissingApprovalDateForActivityReason = "尚未完成 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。";
+    public const string MissingCreatedByMappingReason = "請先確認 GL「傳票建立人員」欄位配對。";
+    public const string MissingVoucherDateMappingReason = "請先確認 GL「傳票日期」欄位配對，才能比較是否回溯過帳。";
+    public const string MissingApprovalDateForActivityReason = "尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳入帳日。";
     public const string MissingHolidayCalendarReason = "請先上傳事務所假日檔。";
     public const string MissingAuthorizedPreparersReason = "需先匯入授權編製人員清單。";
-
-    private static readonly IReadOnlyDictionary<string, string> LegacyReasonReplacements =
-        new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["GL 未配對核准日欄位（docDate）。"] = MissingApprovalDateMappingReason,
-            ["專案未設定期末財報準備日（lastPeriodStart）。"] = MissingLastPeriodStartReason,
-            ["科目配對需含 Revenue 與至少一個對方分類（Receivables／Cash／Receipt in advance）。"] =
-                IncompleteAccountMappingReason,
-            ["GL 未配對建立人員欄位（createBy）。"] = MissingCreatedByMappingReason,
-            ["GL 未配對核准日欄位，僅計過帳日。"] = MissingApprovalDateForActivityReason,
-            ["尚未匯入假日曆（import.holiday）。"] = MissingHolidayCalendarReason
-        });
-
-    private static readonly IReadOnlyDictionary<string, string> NoParameters =
-        new ReadOnlyDictionary<string, string>(new Dictionary<string, string>());
 
     public static ProcedureVerdict Evaluate(
         ProcedureDefinition definition,
@@ -63,49 +47,22 @@ internal static class PrescreenProcedures
         return new ProcedureVerdict(
             definition,
             IsApplicable: reason is null,
-            NaReason: reason,
-            NoParameters);
+            NaReason: reason);
     }
 
     /// <summary>
-    /// 將同一 logicVersion 的既存 prescreen summary 中，已退役的工程字串正規化為目前
-    /// AuditCore 權威文案。只改名為 naReason 的字串欄，不重算 status、count 或任何審計結果。
+    /// 回放既存 prescreen summary 時補上目前的定位說明。不重算 status、count 或任何審計結果，亦不回寫原紀錄。
     /// </summary>
     internal static JsonElement RenderSummary(string summaryJson)
     {
         var root = JsonNode.Parse(summaryJson)
             ?? throw new InvalidOperationException("prescreen summary 不能是 JSON null。");
-        NormalizeReasons(root);
-        return JsonSerializer.SerializeToElement(root, JetJsonStorage.Options);
-    }
-
-    private static void NormalizeReasons(JsonNode? node)
-    {
-        switch (node)
+        if (root is JsonObject summary)
         {
-            case JsonObject obj:
-                foreach (var property in obj.ToArray())
-                {
-                    if (string.Equals(property.Key, "naReason", StringComparison.Ordinal)
-                        && property.Value is JsonValue value
-                        && value.TryGetValue<string>(out var reason)
-                        && LegacyReasonReplacements.TryGetValue(reason, out var replacement))
-                    {
-                        obj[property.Key] = replacement;
-                    }
-                    else
-                    {
-                        NormalizeReasons(property.Value);
-                    }
-                }
-                break;
-            case JsonArray array:
-                foreach (var item in array)
-                {
-                    NormalizeReasons(item);
-                }
-                break;
+            summary["positioning"] = JsonSerializer.SerializeToNode(
+                PrescreenPositioningRenderer.Render(), JetJsonStorage.Options);
         }
+        return JsonSerializer.SerializeToElement(root, JetJsonStorage.Options);
     }
 
     private static string? PostPeriodApprovalReason(AuditCaseSnapshot snapshot)

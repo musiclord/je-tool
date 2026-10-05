@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 案件資料夾內由 JET 產生的報告種類。<see cref="AccountMapping"/> 只為了讀懂舊 manifest 而保留：
-/// 2026-09-02 起帳戶對應範本是給審計員填寫的工作檔，不再進報告清單，也不再由任何匯出寫成報告。
+/// 案件資料夾內由 JET 產生的報告種類，也是匯出進度事件的產物種類。<see cref="AccountMapping"/>
+/// 用在科目配對範本匯出的進度事件；這份範本是給審計員填寫的工作檔，不進報告清單。
 /// </summary>
 public enum ReportArtifactKind
 {
@@ -87,12 +87,15 @@ public static class ReportArtifactFileStateValues
 
 /// <summary>
 /// 產物可追溯到的資料庫結果參照。這裡只保存不含帳表內容的識別值，不保存公司、科目、傳票或檔案路徑。
+/// 新 Working Paper 的 FilterDataRevision 綁定本次所選情境重算時的來源版本；舊索引缺少時仍可讀取，
+/// 並沿用原本的全案失效判斷，不能由缺少版本推定資料仍相同。
 /// </summary>
 public sealed record ReportArtifactSourceRefs(
     string? ValidationRunId = null,
     string? PrescreenRunId = null,
     string? ScenarioRevision = null,
-    IReadOnlyList<int>? ScenarioPositions = null);
+    IReadOnlyList<int>? ScenarioPositions = null,
+    string? FilterDataRevision = null);
 
 /// <summary>
 /// 專案內一份報告的索引紀錄。<see cref="RelativeFileName"/> 永遠只是專案資料夾直下的檔名；

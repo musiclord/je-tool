@@ -56,6 +56,64 @@ function Assert-NoReparsePoint {
     }
 }
 
+function ConvertTo-HeadingSlug {
+    # 依 GitHub 的標題錨點規則：去掉行內格式，轉小寫，移除標點與符號（保留字母、數字、組合符號、空白、連字號與底線），
+    # 空白換成連字號。中文字是字母類別，會原樣保留。
+    param([Parameter(Mandatory = $true)] [string] $Heading)
+
+    $text = $Heading.Trim()
+    $text = [regex]::Replace($text, '`([^`]*)`', '$1')
+    $text = [regex]::Replace($text, '\*\*([^*]*)\*\*', '$1')
+    $text = [regex]::Replace($text, '\[([^\]]*)\]\([^)]*\)', '$1')
+    $text = $text.ToLowerInvariant()
+    $text = [regex]::Replace($text, '[^\p{L}\p{N}\p{M}\s_-]', '')
+    $text = [regex]::Replace($text, '\s', '-')
+    return $text
+}
+
+function Get-HeadingSlugs {
+    param([Parameter(Mandatory = $true)] [string] $Text)
+
+    $slugs = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $counts = [Collections.Generic.Dictionary[string, int]]::new([StringComparer]::Ordinal)
+    $inFence = $false
+    foreach ($line in ($Text -split "\r?\n")) {
+        if ([regex]::IsMatch($line, '^\s*(```|~~~)')) { $inFence = -not $inFence; continue }
+        if ($inFence) { continue }
+        $match = [regex]::Match($line, '^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$')
+        if (-not $match.Success) { continue }
+        $slug = ConvertTo-HeadingSlug -Heading $match.Groups[1].Value
+        if ($counts.ContainsKey($slug)) {
+            $counts[$slug] = $counts[$slug] + 1
+            [void]$slugs.Add("$slug-$($counts[$slug])")
+        }
+        else {
+            $counts[$slug] = 0
+            [void]$slugs.Add($slug)
+        }
+    }
+    return $slugs
+}
+
+function Get-MarkdownLinks {
+    # 只收 Markdown 內文的 [文字](目標) 連結；程式碼區塊與行內程式碼不算。回傳目標與行號。
+    param([Parameter(Mandatory = $true)] [string] $Text)
+
+    $links = New-Object 'System.Collections.Generic.List[object]'
+    $lines = $Text -split "\r?\n"
+    $inFence = $false
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        $line = $lines[$index]
+        if ([regex]::IsMatch($line, '^\s*(```|~~~)')) { $inFence = -not $inFence; continue }
+        if ($inFence) { continue }
+        $prose = [regex]::Replace($line, '`[^`]*`', '')
+        foreach ($match in [regex]::Matches($prose, '\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)')) {
+            $links.Add([pscustomobject]@{ Target = $match.Groups[1].Value; Line = $index + 1 })
+        }
+    }
+    return $links
+}
+
 function Write-Report {
     param([Parameter(Mandatory = $true)] $Value)
 
@@ -131,6 +189,23 @@ try {
                 'Required markers need an identifier, a declared file, and expected text.')
         }
     }
+
+    # 必要指向：某份文件必須提到某個路徑，而且那個路徑要存在。這取代了過去用整句文字當必要字串的做法，
+    # 文件搬移或改寫時只要指向還在就不會誤判。
+    $requiredReferences = if ($policy.ContainsKey('requiredReferences')) { @($policy.requiredReferences) } else { @() }
+    foreach ($reference in $requiredReferences) {
+        if ([string]::IsNullOrWhiteSpace([string]$reference.id) -or
+            [string]::IsNullOrWhiteSpace([string]$reference.file) -or
+            [string]::IsNullOrWhiteSpace([string]$reference.target) -or
+            @($files) -cnotcontains [string]$reference.file) {
+            throw [InvalidDataException]::new(
+                'Required references need an identifier, a declared file, and a repository-relative target.')
+        }
+    }
+    $linkSettings = if ($policy.ContainsKey('links') -and $null -ne $policy.links) { $policy.links } else { @{} }
+    $checkAnchors = if ($linkSettings.ContainsKey('checkAnchors')) { [bool]$linkSettings.checkAnchors } else { $true }
+    $skipPrefixes = if ($linkSettings.ContainsKey('skipPrefixes')) { @($linkSettings.skipPrefixes) } else { @('http://', 'https://', 'mailto:') }
+    $linkSkipFiles = if ($linkSettings.ContainsKey('skipFiles')) { @($linkSettings.skipFiles | ForEach-Object { ([string]$_).Replace('\', '/') }) } else { @() }
 
     $compiledPatterns = New-Object 'System.Collections.Generic.List[object]'
     foreach ($rule in $stylePatterns) {
@@ -236,6 +311,89 @@ try {
         }
     }
 
+    # 相對連結與錨點：目標檔案要存在；指向 Markdown 標題的錨點要對得到實際標題。
+    $linksChecked = 0
+    $anchorsChecked = 0
+    $headingCache = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($relativePath in @($fileText.Keys)) {
+        if ($linkSkipFiles -ccontains $relativePath) { continue }
+        if (-not $relativePath.EndsWith('.md', [StringComparison]::OrdinalIgnoreCase)) { continue }
+        $sourceFull = [IO.Path]::GetFullPath((Join-Path $repositoryFull $relativePath))
+        $sourceDirectory = Split-Path -Parent $sourceFull
+        foreach ($link in (Get-MarkdownLinks -Text $fileText[$relativePath])) {
+            $target = [string]$link.Target
+            $skip = $false
+            foreach ($prefix in $skipPrefixes) {
+                if ($target.StartsWith([string]$prefix, [StringComparison]::OrdinalIgnoreCase)) { $skip = $true; break }
+            }
+            if ($skip) { continue }
+            $anchor = $null
+            $hashIndex = $target.IndexOf('#')
+            if ($hashIndex -ge 0) {
+                $anchor = $target.Substring($hashIndex + 1)
+                $target = $target.Substring(0, $hashIndex)
+            }
+            $target = [Uri]::UnescapeDataString($target)
+            $targetFull = if ([string]::IsNullOrEmpty($target)) { $sourceFull } else { [IO.Path]::GetFullPath((Join-Path $sourceDirectory $target)) }
+            $linksChecked++
+            if (-not (Test-DescendantPath -Root $repositoryFull -Candidate $targetFull) -or
+                -not (Test-Path -LiteralPath $targetFull)) {
+                $errors.Add([ordered]@{
+                    code = 'link_target_missing'
+                    file = $relativePath
+                    line = $link.Line
+                    target = $target
+                })
+                continue
+            }
+            if (-not $checkAnchors -or [string]::IsNullOrEmpty($anchor)) { continue }
+            if (-not $targetFull.EndsWith('.md', [StringComparison]::OrdinalIgnoreCase)) { continue }
+            $anchorsChecked++
+            if (-not $headingCache.ContainsKey($targetFull)) {
+                $headingCache[$targetFull] = Get-HeadingSlugs -Text ([IO.File]::ReadAllText($targetFull, $utf8))
+            }
+            $wanted = [Uri]::UnescapeDataString($anchor).ToLowerInvariant()
+            if (-not $headingCache[$targetFull].Contains($wanted)) {
+                $errors.Add([ordered]@{
+                    code = 'link_anchor_missing'
+                    file = $relativePath
+                    line = $link.Line
+                    target = "$target#$anchor"
+                })
+            }
+        }
+    }
+
+    foreach ($reference in $requiredReferences) {
+        $referenceFile = [string]$reference.file
+        if (-not $fileText.ContainsKey($referenceFile)) { continue }
+        $targetRelative = ([string]$reference.target).Replace('\', '/').TrimEnd('/')
+        $targetFull = [IO.Path]::GetFullPath((Join-Path $repositoryFull $targetRelative))
+        $sourceDirectory = Split-Path -Parent ([IO.Path]::GetFullPath((Join-Path $repositoryFull $referenceFile)))
+        $relativeFromSource = [IO.Path]::GetRelativePath($sourceDirectory, $targetFull).Replace('\', '/')
+        $mentioned = $fileText[$referenceFile].Contains($targetRelative, [StringComparison]::Ordinal) -or
+            $fileText[$referenceFile].Contains($relativeFromSource, [StringComparison]::Ordinal)
+        if (-not $mentioned) {
+            foreach ($link in (Get-MarkdownLinks -Text $fileText[$referenceFile])) {
+                $candidate = ([string]$link.Target -split '#')[0]
+                if ([string]::IsNullOrEmpty($candidate)) { continue }
+                $candidateFull = [IO.Path]::GetFullPath((Join-Path $sourceDirectory ([Uri]::UnescapeDataString($candidate))))
+                if ([string]::Equals($candidateFull.TrimEnd('\', '/'), $targetFull.TrimEnd('\', '/'), [StringComparison]::OrdinalIgnoreCase)) {
+                    $mentioned = $true
+                    break
+                }
+            }
+        }
+        if (-not $mentioned -or -not (Test-Path -LiteralPath $targetFull)) {
+            $errors.Add([ordered]@{
+                code = 'required_reference_missing'
+                file = $referenceFile
+                line = $null
+                ruleId = [string]$reference.id
+            })
+        }
+    }
+
     $completedUtc = [DateTime]::UtcNow
     $status = if ($errors.Count -eq 0) { 'passed' } else { 'failed' }
     $report = [ordered]@{
@@ -246,6 +404,8 @@ try {
         counters = [ordered]@{
             filesDeclared = $files.Count
             filesChecked = $checkedFiles
+            linksChecked = $linksChecked
+            anchorsChecked = $anchorsChecked
             errors = $errors.Count
             warnings = $warnings.Count
         }

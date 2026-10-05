@@ -21,7 +21,7 @@ internal static class ResultPageColumnRegistry
     [
         new("documentNumber", "傳票號碼", RdeFieldValueTypeNames.Text, false),
         new("lineItem", "傳票文件項次", RdeFieldValueTypeNames.Text, false),
-        new("postDate", "總帳日期", RdeFieldValueTypeNames.Date, false),
+        new("postDate", "總帳入帳日", RdeFieldValueTypeNames.Date, false),
         new("accountCode", "會計科目編號", RdeFieldValueTypeNames.Text, false),
         new("accountName", "會計科目名稱", RdeFieldValueTypeNames.Text, false),
         new("amount", "傳票金額", RdeFieldValueTypeNames.Money, false),
@@ -36,10 +36,10 @@ internal static class ResultPageColumnRegistry
         new("accountName", "會計科目名稱", RdeFieldValueTypeNames.Text, false),
         new("debit", "借方金額", RdeFieldValueTypeNames.Money, false),
         new("credit", "貸方金額", RdeFieldValueTypeNames.Money, false),
-        new("postDate", "總帳日期", RdeFieldValueTypeNames.Date, false),
-        new("approvalDate", "核准日期", RdeFieldValueTypeNames.Date, false),
-        new("createdBy", "編製人員", RdeFieldValueTypeNames.Text, false),
-        new("approvedBy", "核准人員", RdeFieldValueTypeNames.Text, false),
+        new("postDate", "總帳入帳日", RdeFieldValueTypeNames.Date, false),
+        new("approvalDate", "傳票核准日", RdeFieldValueTypeNames.Date, false),
+        new("createdBy", "傳票建立人員", RdeFieldValueTypeNames.Text, false),
+        new("approvedBy", "傳票核准人員", RdeFieldValueTypeNames.Text, false),
         new("description", "傳票摘要", RdeFieldValueTypeNames.Text, false)
     ];
 
@@ -67,11 +67,11 @@ internal static class ResultPageColumnRegistry
         }
         catch (JsonException)
         {
-            throw Stale("已保存的篩選情境定義無法解析，請重新保存情境。");
+            throw Stale("已儲存的篩選情境定義無法解析，請到第五步重新儲存情境。");
         }
         catch (JetActionException exception) when (exception.Code == JetErrorCodes.InvalidScenario)
         {
-            throw Stale("已保存的篩選情境定義已不相容，請重新保存情境。");
+            throw Stale("已儲存的篩選情境無法套用目前規則，請到第五步修改後重新儲存情境。");
         }
 
         foreach (var rule in spec.Groups.SelectMany(static group => group.Rules).SelectMany(rule => rule.DescendantsAndSelf())
@@ -80,14 +80,14 @@ internal static class ResultPageColumnRegistry
         {
             if (rule.FieldId is null || !byFieldId.TryGetValue(rule.FieldId, out var field))
             {
-                throw Stale("篩選情境引用的自訂欄位已移除，請重新保存情境。");
+                throw Stale("篩選情境使用的攸關資料元素欄位已不在欄位配對中。請到第五步在這個條件重新選擇欄位或刪除條件，再重新儲存情境。");
             }
 
             if (rule.TypedOperator is null
                 || !(rule.Type == FilterRuleType.FieldValue ? FieldValueConditions.Operators(field.ValueType) : TypedFieldOperatorSets.ForValueType(field.ValueType))
                     .Contains(rule.TypedOperator, StringComparer.Ordinal))
             {
-                throw Stale("篩選情境的自訂欄位型別或運算子已變更，請重新保存情境。");
+                throw Stale("篩選情境使用的攸關資料元素欄位型別或比較方式已變更，請到第五步重新選擇比較方式後儲存情境。");
             }
 
             selected.Add(field.FieldId);
@@ -110,7 +110,7 @@ internal static class ResultPageColumnRegistry
                 || field.Label.Length > GlRdeStorageLimits.LabelUtf16CodeUnits
                 || !RdeFieldValueTypeNames.IsCanonical(field.ValueType))
             {
-                throw Stale("額外欄位的配對設定不完整，請回第三步重新確認 GL 欄位配對。");
+                throw Stale("攸關資料元素欄位的配對設定不完整，請回第三步重新確認 GL 欄位配對。");
             }
         }
 
@@ -204,5 +204,5 @@ internal static class ResultPageCustomValueRenderer
 
     private static JetActionException Stale() => new(
         JetErrorCodes.StaleResult,
-        "額外欄位資料與目前配對設定不一致，請回第三步重新確認 GL 欄位配對。");
+        "攸關資料元素欄位資料與目前配對設定不一致，請回第三步重新確認 GL 欄位配對。");
 }

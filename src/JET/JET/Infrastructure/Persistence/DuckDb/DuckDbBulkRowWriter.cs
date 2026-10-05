@@ -5,7 +5,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// DuckDB 的 <see cref="IBulkRowWriter"/> 實作：走原生 Appender（繞過 SQL 解析／逐列計畫，快一數量級）。
-/// 本機探針實證（1.5.3，見 spec §7 changelog）：Appender 在顯式交易內可用、<c>Close()</c> 後同交易可見、
+/// DuckDB 1.5.3 本機實測確認：Appender 在顯式交易內可用、<c>Close()</c> 後同交易可見、
 /// 與同連線開著的 staging reader 並存（Close 延至 <see cref="CompleteAsync"/>，reader 迴圈結束後才呼叫）。
 /// </summary>
 /// <remarks>

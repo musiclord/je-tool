@@ -15,17 +15,18 @@ public sealed class PrescreenPositioningFrontendTests
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["AggregateGuidance"] =
-                "先看依分錄編製者與較少使用科目的全期彙總；這兩項是常用的母體判讀面。",
+                "查看編製人員與較少使用科目的分錄筆數及金額。",
             ["SignalGuidance"] =
-                "逐筆命中只供初步判讀，不是高風險裁定；要形成測試範圍，請到「進階條件篩選」組合 KCT 與其他條件。",
+                "符合條件的分錄供初步查核；請在「進階條件篩選」設定本案的測試範圍。",
             ["ReportGuidance"] =
-                "Pre-screening Report 預設隨匯出底稿一併產出，這裡可以先單獨產生；不產生也不影響進階條件篩選、Criteria Selection Report 或 Working Paper。",
+                "可在此產生預篩選報告，或在匯出底稿時一併產生。不產生也可繼續篩選與匯出底稿。",
             ["OverviewGuidance"] =
-                "彙總只描述母體分布；逐筆命中不等於錯誤，也不是高風險裁定；兩者都不代替審計判斷。",
+                // 2026-10-03 用語統一 T1：畫面不再使用「母體」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+                "預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。",
             ["ExportDefaultGuidance"] =
-                "匯出底稿時預設一併產出 Pre-screening Report；取消勾選只會少這一份，其餘報告與底稿內容都不受影響。",
+                "預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。",
             ["ExportPendingRunGuidance"] =
-                "目前沒有可用的預篩選結果。維持勾選並按下產生，系統會先執行一次預篩選再產出這份報告；大型案件的預篩選可能需要數分鐘到十餘分鐘。"
+                "尚無預篩選結果，匯出時會先執行預篩選。大型案件可能需要數分鐘到十餘分鐘。"
         };
 
     [Fact]
@@ -64,9 +65,9 @@ public sealed class PrescreenPositioningFrontendTests
         Assert.Contains("PRESCREEN_AGGREGATE_ITEMS", source, StringComparison.Ordinal);
         Assert.Contains("PRESCREEN_SIGNAL_ITEMS", source, StringComparison.Ordinal);
         Assert.Contains("id=\"prescreen-primary-title\">預篩選</h3>", card, StringComparison.Ordinal);
-        Assert.Contains("<span>分錄檢查</span>", card, StringComparison.Ordinal);
+        Assert.Contains("<span>篩選結果</span>", card, StringComparison.Ordinal);
         Assert.Contains("<details class=\"prescreen-signals\"", card, StringComparison.Ordinal);
-        Assert.Contains("Pre-screening Report", source, StringComparison.Ordinal);
+        Assert.Contains("預篩選報告", source, StringComparison.Ordinal);
         Assert.Contains("data-action=\"export-prescreen-report\"", source, StringComparison.Ordinal);
 
         var aggregateIndex = card.IndexOf("PRESCREEN_AGGREGATE_ITEMS", StringComparison.Ordinal);
@@ -92,12 +93,14 @@ public sealed class PrescreenPositioningFrontendTests
 
         Assert.True(concentrationIndex >= 0, "流程總覽缺少彙總分析。 ");
         Assert.True(signalIndex > concentrationIndex, "逐筆訊號分布必須排在彙總分析之後。 ");
-        Assert.Contains("輔助訊號與分析執行紀錄", app, StringComparison.Ordinal);
-        Assert.Contains("逐筆輔助訊號", app, StringComparison.Ordinal);
+        Assert.Contains("預篩選與執行紀錄", app, StringComparison.Ordinal);
+        // 改名前的「輔助訊號」用語不得殘留；單獨檢查「預篩選」三字會被上一行涵蓋，等於沒檢查。
+        Assert.DoesNotContain("輔助訊號", app, StringComparison.Ordinal);
 
         var overview = ReadFrontend("js", "overview-bi.js");
-        Assert.Contains("常用母體彙總", overview, StringComparison.Ordinal);
-        Assert.Contains("逐筆輔助訊號分布", overview, StringComparison.Ordinal);
+        Assert.Contains("預篩選結果分布", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("常用母體彙總", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("輔助訊號", overview, StringComparison.Ordinal);
     }
 
     private static string ReadFrontend(params string[] relativeParts) =>

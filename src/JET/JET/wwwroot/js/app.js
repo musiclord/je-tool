@@ -20,8 +20,17 @@
   var CANCELLABLE_ACTIONS = {
     'project.list': true,
     'project.load': true,
+    'import.inspectFile': true,
+    'import.previewFile': true,
     'import.gl.fromFile': true,
     'import.tb.fromFile': true,
+    'import.accountMapping.fromFile': true,
+    'import.authorizedPreparer.fromFile': true,
+    'import.authorizedPreparer.clear': true,
+    'import.holiday': true,
+    'import.makeupDay': true,
+    'import.holiday.fromFile': true,
+    'import.makeupDay.fromFile': true,
     'mapping.commit.gl': true,
     'mapping.commit.tb': true,
     'validate.run': true,
@@ -38,6 +47,7 @@
   // 增量渲染狀態
   var lastNavKey = null;
   var lastContentKey = null;
+  var contentComposition = null;
   var lastStepScrollKey = null; // 上次已捲頂的 (view, step)；步驟／視圖切換時把中欄捲回頂部
   var lastPickerKey = null;
   var lastMessageId = 0;
@@ -148,7 +158,7 @@
 
   /* ---- 主渲染 ---------------------------------------------------------- */
 
-  // 作業進行中的整介面阻斷 chrome（縱深防禦；後端才是權威閘）：
+  // 作業進行中的整介面阻斷 chrome（多一層防護；真正拒絕重複作業的是後端）：
   //  busy=true → 立即對 <main> 設 inert（一次擋住頂列／目錄／內容／右欄預覽／總覽 modal／dev 面板的
   //    滑鼠、鍵盤與焦點）並設 aria-busy；可見遮罩層延遲約 200ms 才顯示（<200ms 快查詢不閃遮罩）。
   //  busy=false → 清計時器、隱藏遮罩、移除 inert 與 aria-busy。
@@ -216,6 +226,10 @@
 
   function render() {
     var state = Store.getState();
+    if (contentComposition && (contentComposition.project !== state.project ||
+        contentComposition.view !== state.view || contentComposition.step !== state.currentStepIndex)) {
+      contentComposition.target = null;
+    }
     var steps = Store.STEPS;
     var current = steps[state.currentStepIndex];
 
@@ -293,7 +307,7 @@
     var title;
 
     if (user) {
-      text = '操作人員：' + user.shortName;
+      text = '目前帳號：' + user.shortName;
       title = identityTitle(user);
     } else if (state.bridgeReady) {
       text = '已連線';
@@ -334,12 +348,14 @@
     '<path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z"></path></svg>';
 
   function providerText(provider) {
+    if (!provider) { return '資料庫種類尚未確認'; }
     if (provider === 'sqlServer') { return 'SQL Server'; }
     if (provider === 'duckdb') { return 'DuckDB'; }
     return 'SQLite';
   }
 
   function providerClass(provider) {
+    if (!provider) { return ''; }
     if (provider === 'sqlServer') { return 'project-provider--sqlserver'; }
     if (provider === 'duckdb') { return 'project-provider--duckdb'; }
     return 'project-provider--sqlite';
@@ -373,7 +389,7 @@
     return '<span class="sync-badge">' + Ui.esc(label) + '</span>';
   }
 
-  // 租約鎖徽章（控制面第六輪）：有 lock 的線上案件顯示「🔒 由 {持鎖者} 開啟中」；無鎖不加。
+  // 租約鎖徽章：有 lock 的線上案件顯示「🔒 由 {持鎖者} 開啟中」；無鎖不加。
   // 純鏡像後端 project.list 的 lock 欄，不做前端擋阻——點開仍走 project.load，被鎖與否以後端權威為準。
   function lockBadgeHtml(p) {
     if (!p.lock || !p.lock.lockedBy) { return ''; }
@@ -395,7 +411,8 @@
     return (
       '<div class="project-row" data-project-id="' + Ui.esc(p.projectId) + '">' +
         '<button type="button" class="project-row__open" data-action="picker-open" data-project-id="' +
-          Ui.esc(p.projectId) + '" aria-label="開啟專案 ' + Ui.esc(displayName) + '">' +
+          Ui.esc(p.projectId) + '" data-project-provider="' + Ui.esc(p.databaseProvider) + '" ' +
+          'aria-label="開啟專案 ' + Ui.esc(displayName) + '">' +
           '<span class="project-row__main">' +
             '<span class="project-row__title">' + Ui.esc(displayName) + '</span>' +
             '<span class="project-row__meta">' +
@@ -403,6 +420,8 @@
               projectCode +
               '<span class="project-provider ' + providerClass(p.databaseProvider) + '">' +
                 Ui.esc(providerText(p.databaseProvider)) + '</span>' +
+              (p.loadError ? '<span class="project-row__load-error" role="status">案件資料無法讀取：' +
+                Ui.esc(p.loadError.message || '請還原備份，或另建案件重新匯入。') + '</span>' : '') +
               syncBadgeHtml(p, unreachable) +
               lockBadgeHtml(p) +
               '<span class="project-row__when">' + Ui.esc(pickerWhen(p)) + '</span>' +
@@ -506,7 +525,7 @@
     container.innerHTML =
       '<div class="picker-panel">' +
         '<h2 class="picker-panel__title">選擇專案</h2>' +
-        '<p class="picker-panel__hint">點整列即可開啟既有查核專案，或從最底列新增專案開始。</p>' +
+        '<p class="picker-panel__hint">選擇案件繼續作業，或建立新案件。</p>' +
         pickerFeedbackHtml(state.pickerFeedback, state.pickerFeedbackContext) +
         '<section class="picker-section">' +
           '<div class="picker-section__head">' +
@@ -541,6 +560,7 @@
           '<h3 class="modal__title" id="delete-modal-title">刪除專案</h3>' +
           '<p class="modal__body">確定要刪除「<span data-bind="delete-modal-name"></span>」嗎？' +
             '<span data-bind="delete-modal-detail"></span></p>' +
+          '<button type="button" class="btn btn--ghost" data-action="delete-preview-retry" hidden>重新確認數量</button>' +
           '<div class="modal__actions">' +
             '<button type="button" class="btn btn--ghost" data-action="modal-cancel">取消</button>' +
             '<button type="button" class="btn btn--danger" data-action="modal-confirm">刪除</button>' +
@@ -556,6 +576,38 @@
 
   function bindPicker(container) {
     var modal = container.querySelector('[data-bind="delete-modal"]');
+    var previewRetry = modal && modal.querySelector('[data-action="delete-preview-retry"]');
+
+    function deleteDetail(target, countText) {
+      var scope = target.provider === 'sqlServer'
+        ? '將從伺服器永久刪除此案件，影響所有使用者。' : '將永久刪除此案件的資料庫。';
+      return Ui.esc(countText + ' ' + scope + '案件資料夾及其中其他檔案也會一併刪除，無法復原。');
+    }
+
+    function loadDeletePreview(target) {
+      var detail = modal && modal.querySelector('[data-bind="delete-modal-detail"]');
+      if (!target || !detail) { return; }
+      var request = {};
+      target.previewRequest = request;
+      detail.innerHTML = deleteDetail(target, '正在確認報告與工作底稿數量。');
+      if (previewRetry) { previewRetry.hidden = true; }
+      function current() { return pendingDelete === target && target.previewRequest === request && modal.isConnected !== false; }
+      global.JetApi.projectDeletePreview({ projectId: target.id }).then(function (data) {
+        if (!current()) { return; }
+        if (!data || !Number.isInteger(data.reportCount) || data.reportCount < 0 ||
+            !Number.isInteger(data.workpaperCount) || data.workpaperCount < 0) {
+          throw new Error('刪除數量尚未確認');
+        }
+        detail.innerHTML = deleteDetail(target, 'JET 紀錄中仍存在的報告 ' + data.reportCount.toLocaleString() +
+          ' 份、工作底稿 ' + data.workpaperCount.toLocaleString() + ' 份。');
+      }).catch(function () {
+        if (!current()) { return; }
+        detail.innerHTML = deleteDetail(target, '報告與工作底稿數量暫時無法確認。可以重試，或在確認刪除範圍後繼續。');
+        if (previewRetry) { previewRetry.hidden = false; }
+      });
+    }
+
+    if (previewRetry) { previewRetry.addEventListener('click', function () { loadDeletePreview(pendingDelete); }); }
 
     function openCreate() {
       // 清空殘留的舊案件狀態，確保建立案件步驟是全新表單。
@@ -586,7 +638,10 @@
       var isNew = row.getAttribute('data-action') === 'picker-new';
       var activate = isNew
         ? openCreate
-        : function () { Ui.openProject(row.getAttribute('data-project-id')); };
+        : function () {
+          // 資料庫種類只讓後端判斷本機找不到資料夾時要不要查線上登錄。
+          Ui.openProject(row.getAttribute('data-project-id'), row.getAttribute('data-project-provider'));
+        };
 
       row.addEventListener('click', activate);
     });
@@ -603,15 +658,8 @@
         };
         if (modal) {
           modal.querySelector('[data-bind="delete-modal-name"]').textContent = pendingDelete.name;
-          var detail = modal.querySelector('[data-bind="delete-modal-detail"]');
-          if (detail) {
-            // 線上（sqlServer）案件刪除影響所有使用者，文案明示伺服器永久刪除；本地維持現行文案。
-            // 常數字串，無使用者輸入代入，innerHTML 用於保留 <strong> 強調不涉 XSS。
-            detail.innerHTML = pendingDelete.provider === 'sqlServer'
-              ? '將從伺服器<strong>永久刪除</strong>此案件（對所有使用者）。'
-              : '此操作會一併刪除該專案的資料庫，<strong>無法復原</strong>。';
-          }
           modal.hidden = false;
+          loadDeletePreview(pendingDelete);
           Focus.move(modal.querySelector('button[data-action="modal-cancel"]'));
         }
       });
@@ -730,13 +778,13 @@
   /* ---- 流程步驟導航 ------------------------------------------------------ */
 
   // 切換步驟：新的當前步驟預設展開（不沿用上一個步驟的手動收合狀態）。
-  // 放行仍由 Ui.gotoStep 依既有閘門判斷；此處不自行放行。
+  // 放行仍由 Ui.gotoStep 依既有進入條件判斷；此處不自行放行。
   function navigateToStep(index) {
     Store.setStepFlowCollapsed(false);
     Ui.gotoStep(index);
   }
 
-  // 左欄目錄：六步清單（狀態符號＋名稱）＋進度列。狀態全由 ui-core 閘門推導。
+  // 左欄目錄：六步清單（狀態符號＋名稱）＋進度列。狀態全由 ui-core 的進入條件推導。
   function renderStepNav(state, steps) {
     var nav = Ui.$('step-nav');
     if (!nav) { return; }
@@ -755,7 +803,7 @@
       } else if (status === 'current') {
         symbol = '<span class="toc-item__mark toc-item__mark--current"><span class="toc-item__dot"></span></span>';
       } else if (status === 'available') {
-        symbol = '<span class="toc-item__mark toc-item__mark--available">◦</span>';
+        symbol = '<span class="toc-item__mark toc-item__mark--available">—</span>';
       } else {
         symbol = '<span class="toc-item__mark toc-item__mark--locked">·</span>';
       }
@@ -790,10 +838,6 @@
 
   /* ---- 中央內容區：由上而下步驟文件流 ------------------------------------- */
 
-  function pad2(n) {
-    return n < 10 ? '0' + n : String(n);
-  }
-
   function fmtNum(n) {
     return (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('en-US');
   }
@@ -817,36 +861,41 @@
 
     if (id === 'import') {
       var seg = [];
-      if (imp.gl) { seg.push('GL ' + fmtNum(imp.gl.rowCount) + ' 列'); }
-      if (imp.tb) { seg.push('TB ' + fmtNum(imp.tb.rowCount) + ' 列'); }
-      return seg.length ? seg.join(' / ') : '匯入 GL 與 TB 資料';
+      if (imp.gl) { seg.push('總帳明細 ' + fmtNum(imp.gl.rowCount) + ' 筆'); }
+      if (imp.tb) { seg.push('試算表 ' + fmtNum(imp.tb.rowCount) + ' 筆'); }
+      return seg.length ? seg.join(' / ') : '匯入總帳明細與試算表';
     }
 
     if (id === 'mapping') {
-      if (status === 'done') { return 'GL、TB 欄位配對已完成'; }
-      var cols = [];
-      if (imp.gl && imp.gl.columns) { cols.push('GL ' + imp.gl.columns.length + ' 欄'); }
-      if (imp.tb && imp.tb.columns) { cols.push('TB ' + imp.tb.columns.length + ' 欄'); }
-      return cols.length ? cols.join('、') + '待配對至標準欄位' : '欄位待配對至標準欄位';
+      return ['gl', 'tb'].map(function (kind) {
+        var label = kind.toUpperCase();
+        if (state.mapping[kind].committed) { return label + ' 已確認配對'; }
+        return label + (imp[kind] ? ' 待確認配對' : ' 尚未匯入');
+      }).join(' / ');
     }
 
     if (id === 'validate') {
-      return status === 'done' ? '已完成資料驗證與測試' : '準備執行資料驗證與測試';
+      return state.lastRuns.validate ? '已完成資料驗證' : '準備執行資料驗證';
     }
 
     if (id === 'filter') {
       var n = state.filter.savedScenarios.length;
-      return n > 0 ? '已保存 ' + n + ' 個篩選情境' : '設定並保存篩選情境';
+      return n > 0 ? '已儲存 ' + n + ' 個篩選情境' : '設定並儲存篩選情境';
     }
 
     if (id === 'export') {
-      return '準備匯出查核底稿';
+      // 和左側進度、第六步的「完成」用同一個判斷：只有目前版本的工作底稿才算已匯出。
+      var workpaper = Ui.currentWorkpaperArtifact(state);
+      if (!workpaper) { return '匯出工作底稿'; }
+      var exportedAt = workpaper.generatedUtc && !isNaN(new Date(workpaper.generatedUtc).getTime())
+        ? Ui.formatDateTime(workpaper.generatedUtc) : '';
+      return exportedAt ? '已匯出工作底稿，' + exportedAt : '已匯出工作底稿';
     }
 
     return '';
   }
 
-  // 當前步驟的進入條件提示：鏡像下一步閘門（純呈現），最後一步不顯示。
+  // 當前步驟的進入條件提示：鏡像下一步的進入條件（純呈現），最後一步不顯示。
   function entryConditionHtml(state, index) {
     if (index >= Store.STEPS.length - 1) { return ''; }
     var gate = Ui.stepGate(state, index + 1);
@@ -900,7 +949,7 @@
       return (
         '<div class="stepflow-item stepflow-item--available" data-step-index="' + index + '" data-step-nav role="button" tabindex="0">' +
           '<span class="stepflow-item__caret">▸</span>' +
-          '<span class="stepflow-item__mark stepflow-item__mark--available">◦</span>' +
+          '<span class="stepflow-item__mark stepflow-item__mark--available">—</span>' +
           '<span class="stepflow-item__name stepflow-item__name--available">' + label + '</span>' +
           '<span class="stepflow-item__summary">' + Ui.esc(stepSummary(state, index, 'available')) + '</span>' +
         '</div>'
@@ -963,6 +1012,22 @@
     return key ? '[data-focus-key="' + global.CSS.escape(key) + '"]' : null;
   }
 
+  function captureContentTextSelection(container) {
+    var active = document.activeElement;
+    if (!active || !container.contains(active) || typeof active.selectionStart !== 'number' ||
+        typeof active.selectionEnd !== 'number' || typeof active.setSelectionRange !== 'function') { return null; }
+    return { value: active.value, start: active.selectionStart, end: active.selectionEnd, direction: active.selectionDirection };
+  }
+
+  function restoreContentTextSelection(element, selection) {
+    // date、number、select 等控制項不支援文字選取。值已改變時也不沿用舊字串的選取範圍。
+    if (element && selection && element.value === selection.value &&
+        typeof element.selectionStart === 'number' && typeof element.selectionEnd === 'number' &&
+        typeof element.setSelectionRange === 'function') {
+      element.setSelectionRange(selection.start, selection.end, selection.direction || 'none');
+    }
+  }
+
   function captureContentScrollPositions(container) {
     var positions = {};
     container.querySelectorAll('[data-preserve-scroll]').forEach(function (element) {
@@ -986,17 +1051,43 @@
     });
   }
 
+  function bindContentComposition(container) {
+    if (contentComposition && contentComposition.container === container) { return contentComposition; }
+    var composition = { container: container, target: null };
+    contentComposition = composition;
+    container.addEventListener('compositionstart', function (event) {
+      var state = Store.getState();
+      composition.target = event.target;
+      composition.project = state.project;
+      composition.view = state.view;
+      composition.step = state.currentStepIndex;
+    });
+    container.addEventListener('compositionend', function (event) {
+      if (composition.target !== event.target) { return; }
+      composition.target = null;
+      // 等最後一個 input 事件保存文字，再呈現組字期間收到的背景結果。
+      global.setTimeout(render, 0);
+    });
+    return composition;
+  }
+
   function renderContent(state, current) {
     var container = Ui.$('content');
     if (!container) { return; }
+    if (current.id === 'create' && Ui.refreshCreateIdentity) { Ui.refreshCreateIdentity(container, state); }
+    if (current.id === 'create' && Ui.refreshCreateDatabaseAvailability) { Ui.refreshCreateDatabaseAvailability(container, state); }
+    var composition = bindContentComposition(container);
+    if (composition.target) {
+      if (composition.target.isConnected && document.activeElement === composition.target && container.contains(composition.target) &&
+          composition.project === state.project && composition.view === state.view &&
+          composition.step === state.currentStepIndex) { return; }
+      composition.target = null;
+    }
 
-    // (view, step, contentVersion, 身分, 展開/收合) 五元組：資料更新或收合切換才重建，
+    // (view, step, contentVersion, 展開/收合)：資料更新或收合切換才重建，
     // 純訊息或 busy 變動不會（保住展開步驟渲染器已綁定的事件與輸入焦點）。
-    // 身分（whoAmI）只 notify 不 bump contentVersion，而建立案件步驟的操作人員提示讀它，
-    // 因此和 renderPicker 一樣把身分併入重繪鍵，身分晚於首次繪製抵達時仍會更新提示。
-    var user = state.currentUser;
-    var identityKey = user ? (user.shortName + '/' + user.userNumber) : '';
-    var key = state.view + '|' + current.id + '|' + state.contentVersion + '|' + identityKey + '|' +
+    // 身分晚到由上方只更新建立案件的操作人員提示，不能清掉已輸入的案件資料。
+    var key = state.view + '|' + current.id + '|' + state.contentVersion + '|' +
       (state.stepFlowCollapsed ? 'c' : 'e');
     if (key === lastContentKey) { return; }
     lastContentKey = key;
@@ -1007,6 +1098,7 @@
     var preserveStepHeadingFocus = !!activeElement && activeElement.matches(
       '[data-bind="current-step-title"][data-step-index="' + state.currentStepIndex + '"]');
     var focusSelector = captureContentFocusSelector(container);
+    var textSelection = focusSelector ? captureContentTextSelection(container) : null;
     var scrollPositions = captureContentScrollPositions(container);
     var contentScrollTop = container.scrollTop;
     var contentScrollLeft = container.scrollLeft;
@@ -1040,7 +1132,9 @@
     if (!stepChanged) {
       restoreContentScrollPositions(container, scrollPositions);
       if (focusSelector && !preserveStepHeadingFocus) {
-        focusElement(container.querySelector(focusSelector));
+        var focused = container.querySelector(focusSelector);
+        focusElement(focused);
+        restoreContentTextSelection(focused, textSelection);
       }
       // innerHTML 暫時縮短內容時，瀏覽器可能先夾縮外層 scrollTop；focus 也可能捲動祖先。
       // 等正式步驟與焦點都恢復後，再還原內外捲軸。
@@ -1218,12 +1312,15 @@
 
   // 抬頭只保留審計員當下辨識案件所需的案件名稱與期間；執行識別移入「技術資訊」。
   // 1) 抬頭：mono eyebrow ＋ serif 案件標題 ＋ 基準行 ＋ ✕；底部 2px 實線（CSS）。
+  // 標題放審計員最先要認的名字：有客戶名稱用客戶名稱，沒有就用案件名稱；「分錄測試」放進小標，
+  // 不用破折號接在名字後面。標題已是案件名稱時，基準行不再重複寫一次。
   function overviewHeadHtml(state) {
-    var eyebrow = '流程總覽，案件狀態';
+    var eyebrow = '分錄測試流程總覽';
+    var caseName = state.caseId || '';
     var title = state.project
-      ? state.project.projectId + ' — 分錄測試'
+      ? (state.caseClient || caseName || '目前案件')
       : '尚未選擇案件';
-    var caseId = state.caseId || '尚未建立';
+    var showCaseName = !!state.project && !!caseName && caseName !== title;
     var period = auditPeriodText(state) || '尚未設定';
     return (
       '<div class="overview__head">' +
@@ -1231,8 +1328,10 @@
           '<span class="overview__eyebrow">' + Ui.esc(eyebrow) + '</span>' +
           '<h3 class="overview__title" id="overview-title">' + Ui.esc(title) + '</h3>' +
           '<span class="overview__baseline">' +
-            '<span data-overview-fact-key="project.case-id">' + Ui.esc(caseId) + '</span>' +
-            '<span aria-hidden="true">，</span>' +
+            (showCaseName
+              ? '<span data-overview-fact-key="project.case-id">案件 ' + Ui.esc(caseName) + '</span>' +
+                '<span aria-hidden="true">，</span>'
+              : '') +
             '<span data-overview-fact-key="project.audit-period">查核期間 ' + Ui.esc(period) + '</span>' +
           '</span>' +
         '</div>' +
@@ -1242,8 +1341,8 @@
     );
   }
 
-  /* 測試母體組成（design 03 §②）：一欄一個明確事實，四欄皆直接鏡射 validate.run 的
-     stats 欄位，前端不做任何聚合或換算。未執行驗證時整段以空狀態取代（design 03 §空狀態），
+  /* 分錄測試範圍組成：一欄一個明確事實，四欄皆直接鏡射 validate.run 的
+     stats 欄位，前端不做任何聚合或換算。未執行驗證時整段以空狀態取代，
      以骨架標籤預示版位，不塞提示文字、不顯示 0 冒充「已核對為零」。
      完整的母體完整性核對清單仍只在步驟「資料驗證與測試」呈現——那裡是唯一權威判定面；
      總覽只鏡射目前有效的母體基礎，不複製判定或流程操作。 */
@@ -1251,9 +1350,9 @@
     return (
       '<div class="overview__population overview__population--empty">' +
         '<span class="overview-pop__icon" aria-hidden="true">□</span>' +
-        '<h4 class="overview-pop__empty-title">尚無可統計的母體資料</h4>' +
+        '<h4 class="overview-pop__empty-title">尚無分錄統計</h4>' +
         '<p class="overview-pop__empty-body">完成匯入、欄位配對與資料驗證後，' +
-          '這裡會顯示母體摘要與可展開的分析圖表。</p>' +
+          '這裡會顯示分錄統計與分析圖表。</p>' +
       '</div>'
     );
   }
@@ -1276,14 +1375,14 @@
     return (
       '<div class="overview__population">' +
         '<div class="overview-pop__head">' +
-          '<span class="overview__col-eyebrow">母體概況</span>' +
+          '<span class="overview__col-eyebrow">分錄測試範圍</span>' +
         '</div>' +
         '<div class="overview-pop__grid">' +
-          overviewPopKpiHtml('validation.stats.gl-row-count', '查核期間分錄', fmtNum(stats.glRowCount), '') +
+          overviewPopKpiHtml('validation.stats.gl-row-count', '納入測試的分錄', fmtNum(stats.glRowCount), '') +
           overviewPopKpiHtml('validation.stats.voucher-count', '傳票數', fmtNum(stats.voucherCount), '') +
-          overviewPopKpiHtml('validation.stats.total-debit', '借方總額', Ui.money(stats.totalDebit), '') +
-          overviewPopKpiHtml('validation.stats.total-credit', '貸方總額', Ui.money(stats.totalCredit),
-            '借貸淨額 ' + Ui.money(stats.net)) +
+          overviewPopKpiHtml('validation.stats.total-debit', '借方合計金額', Ui.money(stats.totalDebit), '') +
+          overviewPopKpiHtml('validation.stats.total-credit', '貸方合計金額', Ui.money(stats.totalCredit),
+            '借貸淨額 ' + Ui.moneyDifference(stats.net)) +
         '</div>' +
       '</div>'
     );
@@ -1297,7 +1396,7 @@
     return global.JetOverviewBi.rulePeriodHtml(state.lastRuns.prescreen);
   }
 
-  /* 分錄金額級距與累積分布（design 03 §④）：count／ECDF 直接鏡射
+  /* 分錄金額級距與累積分布：count／ECDF 直接鏡射
      validate.run.amountDistribution。母體未就緒時沿用上方單一空狀態；
      舊 validation summary 的降級由 renderer 負責。 */
   function overviewAmountDistributionHtml(state) {
@@ -1306,7 +1405,7 @@
     return global.JetOverviewBi.amountDistributionHtml(validate);
   }
 
-  /* 集中度分析（design 03 §⑤）：全部數字取自 prescreen.run 回應的 concentration 區塊，
+  /* 集中度分析：全部數字取自 prescreen.run 回應的 concentration 區塊，
      累積占比／「其他」彙總／前五佔比都由後端算好，前端只鏡射與格式化（渲染在 overview-bi.js）。
      母體尚未就緒時不單獨出現——沿用上方母體概況的單一空狀態，避免同一畫面兩種空狀態。 */
   function overviewConcentrationHtml(state) {
@@ -1322,7 +1421,7 @@
     return (
       '<section class="overview__analyses" aria-labelledby="overview-analysis-title">' +
         '<div class="overview-analyses__head">' +
-          '<span class="overview__col-eyebrow" id="overview-analysis-title">母體分析</span>' +
+          '<span class="overview__col-eyebrow" id="overview-analysis-title">分錄分析</span>' +
           '<span class="overview-analyses__scope" data-overview-fact-key="analysis.scope">全查核期間</span>' +
         '</div>' +
         overviewConcentrationHtml(state) +
@@ -1337,7 +1436,8 @@
     var positioning = Ui.prescreenPositioningCopy(state.lastRuns.prescreen);
     return (
       '<p class="overview__disclaimer">' +
-        Ui.esc(positioning.overviewGuidance) + ' 不適用不等於零。' +
+        Ui.esc(positioning.overviewGuidance) +
+        ' 列在「不適用規則」的條件因缺少所需資料或設定而沒有執行，不代表沒有符合的分錄。' +
       '</p>'
     );
   }
@@ -1346,14 +1446,9 @@
     return run && run.resultRef ? run.resultRef.runId : null;
   }
 
+  // 與第六步共用 Ui.formatDateTime，避免兩處時間格式不一致。
   function overviewWhen(iso) {
-    if (!iso) { return '尚無紀錄'; }
-    var date = new Date(iso);
-    if (isNaN(date.getTime())) { return '時間未提供'; }
-    return date.toLocaleString('zh-Hant', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false
-    });
+    return Ui.formatDateTime(iso);
   }
 
   function overviewModeLabel(options, value) {
@@ -1376,21 +1471,14 @@
     });
   }
 
+  // 目前版本的工作底稿與左側進度、第六步完成摘要共用 Ui.currentWorkpaperArtifact，不在總覽另算一份。
   function overviewCurrentWorkpaperArtifact(state) {
-    var validationRunId = overviewRunId(state.lastRuns.validate);
-    var revision = state.filterResultRef ? state.filterResultRef.revision : null;
-    if (!validationRunId || !revision) { return null; }
-    return Ui.findCurrentReportArtifact(state, 'workingPaper', {
-      validationRunId: validationRunId,
-      scenarioRevision: revision
-    });
+    return Ui.currentWorkpaperArtifact(state);
   }
 
-  // 前五階段沿用既有下一步閘門；最後階段重用匯出頁既有的目前版
-  // CriteriaSelectionReport + WorkingPaper 精確來源判定，不以任意舊檔冒充完成。
+  // 完成判定一律走 Ui.stepComplete：最後階段只以目前版本的工作底稿判定，不能拿歷史底稿冒充完成。
   function overviewStageComplete(state, index) {
-    if (index < Store.STEPS.length - 1) { return Ui.stepGate(state, index + 1).ok; }
-    return !!overviewCurrentCriteriaArtifact(state) && !!overviewCurrentWorkpaperArtifact(state);
+    return Ui.stepComplete(state, index);
   }
 
   // 「完成狀態」與「目前主畫面位置」分開：已完成的階段即使目前正在回看，仍顯示完成。
@@ -1402,8 +1490,8 @@
 
   var OVERVIEW_STAGE_STATUS = {
     done: '✓ 完成',
-    available: '◦ 可處理',
-    locked: '○ 等待前置步驟'
+    available: '可處理',
+    locked: '等待前置步驟'
   };
 
   function overviewProgressHtml(state) {
@@ -1440,7 +1528,6 @@
           'id="overview-stage-tab-' + index + '" role="tab" aria-controls="overview-step-detail" ' +
           'aria-selected="' + (selected ? 'true' : 'false') + '" tabindex="' + (selected ? '0' : '-1') + '">' +
           '<span class="overview-stage__top">' +
-            '<span class="overview-stage__num">' + pad2(index + 1) + '</span>' +
             '<span class="overview-stage__status" data-overview-fact-key="workflow.stage.' + index +
               '.status">' + OVERVIEW_STAGE_STATUS[status] + '</span>' +
           '</span>' +
@@ -1507,7 +1594,7 @@
     var imp = state.importState;
     if (index === 0) {
       var project = state.project;
-      return overviewFactHtml('project.operator', '操作人員',
+      return overviewFactHtml('project.operator', '建案者',
         project && project.operatorId ? project.operatorId : '尚無紀錄', '') +
         overviewFactHtml('project.created-at', '建立時間',
           project ? overviewWhen(project.createdUtc) : '尚無紀錄', '');
@@ -1528,10 +1615,10 @@
       var glCommitted = state.mapping.gl.committed;
       var tbCommitted = state.mapping.tb.committed;
       return overviewFactHtml('mapping.gl.commit', 'GL 欄位配對',
-        glCommitted ? overviewModeLabel(Ui.GL_MODES, glCommitted.mode) : '尚未提交',
+        glCommitted ? overviewModeLabel(Ui.GL_MODES, glCommitted.mode) : '尚未完成',
         glCommitted && glCommitted.committedUtc ? overviewWhen(glCommitted.committedUtc) : '') +
         overviewFactHtml('mapping.tb.commit', 'TB 欄位配對',
-          tbCommitted ? overviewModeLabel(Ui.TB_MODES, tbCommitted.mode) : '尚未提交',
+          tbCommitted ? overviewModeLabel(Ui.TB_MODES, tbCommitted.mode) : '尚未完成',
           tbCommitted && tbCommitted.committedUtc ? overviewWhen(tbCommitted.committedUtc) : '');
     }
     if (index === 3) {
@@ -1544,20 +1631,20 @@
         overviewFactHtml('validation.completeness', '資料驗證與後續操作', validation
           ? (eligibility.isEligible ? '可執行預篩選或進階條件篩選' : eligibility.reason)
           : '尚無可用結果', eligibility.warning || '') +
-        overviewFactHtml('prescreen.current-result', '逐筆輔助訊號',
+        overviewFactHtml('prescreen.current-result', '預篩選',
           prescreen ? '目前版本已有結果' : '選用，尚未執行',
           prescreen && prescreen.resultRef ? overviewWhen(prescreen.resultRef.generatedUtc) : '');
     }
     if (index === 4) {
       var criteria = overviewCurrentCriteriaArtifact(state);
       var resultRef = state.filterResultRef;
-      return overviewFactHtml('filter.saved-scenarios', '已存情境', state.filter.savedScenarios.length
+      return overviewFactHtml('filter.saved-scenarios', '已儲存情境', state.filter.savedScenarios.length
         ? state.filter.savedScenarios.length + ' 個'
-        : '尚未保存', '') +
-        overviewFactHtml('filter.population-scope', '測試母體',
+        : '尚未儲存', '') +
+        overviewFactHtml('filter.population-scope', '分錄測試範圍',
           resultRef && resultRef.populationScope === 'auditPeriod'
           ? '查核期間'
-          : '目前版本尚未保存', '') +
+          : '目前版本尚未儲存', '') +
         overviewFactHtml('filter.current-result', '條件篩選',
           resultRef ? '目前版本已有結果' : '目前版本需重新執行',
           resultRef ? overviewWhen(resultRef.generatedUtc) : '') +
@@ -1570,12 +1657,12 @@
     var positions = workpaper && workpaper.sourceRef && Array.isArray(workpaper.sourceRef.scenarioPositions)
       ? workpaper.sourceRef.scenarioPositions.length
       : null;
-    return overviewFactHtml('export.working-paper', 'Working Paper',
+    return overviewFactHtml('export.working-paper', '工作底稿',
       workpaper ? workpaper.fileName : '目前版本尚未產生',
         workpaper ? overviewWhen(workpaper.generatedUtc) : '') +
       (workpaper && workpaper.bytes != null
         ? overviewFactHtml('export.working-paper-bytes', '檔案大小',
-          fmtNum(workpaper.bytes) + ' 位元組', '')
+          Ui.fileSizeMbText(workpaper.bytes), '')
         : '') +
       (positions != null
         ? overviewFactHtml('export.scenario-count', '納入情境', positions + ' 個', '')
@@ -1591,10 +1678,11 @@
       var lockedReason = Ui.stepPresentation(state, index).lockedReason;
       missing = lockedReason ? [lockedReason] : [];
     } else if (index < Store.STEPS.length - 1) {
-      missing = Ui.stepGate(state, index + 1).missing;
+      missing = Ui.stepCompletionMissing(state, index);
     } else {
-      var exportGate = Ui.stepGate(state, index);
-      missing = exportGate.ok ? ['產生目前版本的 Working Paper'] : exportGate.missing;
+      // 第六步可能只因為已有版本紀錄而能進入；沒有可用情境時先說明情境，再談產生底稿。
+      var scenarioMissing = Ui.filterScenarioMissing(state);
+      missing = scenarioMissing ? [scenarioMissing] : ['產生目前版本的工作底稿'];
     }
     if (!missing.length) { return ''; }
     return (
@@ -1606,7 +1694,7 @@
   }
 
   function overviewStepDetailBodyHtml(state, index) {
-    var recordLabel = index === 3 ? '輔助訊號與分析執行紀錄' : '所選階段執行紀錄';
+    var recordLabel = index === 3 ? '預篩選與執行紀錄' : '所選階段執行紀錄';
     return (
         '<div class="overview-step-detail__head">' +
           '<span class="overview-step-detail__eyebrow">' + recordLabel + '</span>' +
@@ -1757,7 +1845,7 @@
 
   }
 
-  /* ---- 訊息持久化（log.append；manifest 細節） ------------------------------- */
+  /* ---- 訊息持久化（log.append） ------------------------------- */
 
   // 以 id 水位增量持久化：無 active project 的訊息（專案選擇畫面）只推進觀察水位不落庫；
   // fromLog（log.recent 還原的歷史）不回寫，避免重複。append 以單一 promise queue 保序，
@@ -1944,7 +2032,7 @@
       });
   }
 
-  // 匯出進度只鏡射 manifest 的真實里程碑；phase 不代表成功，也沒有可推算的總量或比例。
+  // 匯出進度只鏡射後端 export.progress 事件回報的實際里程碑；phase 不代表成功，也沒有可推算的總量或比例。
   // Payload 不完整、帶有未知欄位，或 phase／工作表語意不合法時安靜忽略，避免 busy chrome
   // 把不在公開契約內的資料呈現成權威狀態。
   function formatExportProgress(progress) {
@@ -1968,12 +2056,12 @@
     }
 
     var artifactLabels = {
-      validationReport: 'Validation 報表',
-      accountMapping: 'Account Mapping 範本',
-      infReport: 'INF 報表',
-      prescreenReport: 'Pre-screening 報表',
-      criteriaSelectionReport: '條件選取報表',
-      workingPaper: 'Working Paper'
+      validationReport: '資料驗證報告',
+      accountMapping: '科目配對檔',
+      infReport: '資料可靠性抽樣清單',
+      prescreenReport: '預篩選報告',
+      criteriaSelectionReport: '條件篩選報告',
+      workingPaper: '工作底稿'
     };
     var phaseLabels = {
       preparingData: '準備資料',
@@ -2062,7 +2150,7 @@
     var openProjectFolderBtn = document.querySelector('[data-action="open-project-folder"]');
     if (openProjectFolderBtn) {
       openProjectFolderBtn.addEventListener('click', function () {
-        Ui.run('開啟專案資料夾', function () {
+        Ui.run('開啟案件資料夾', function () {
           return global.JetApi.hostOpenFolder({ target: 'projectFolder' });
         });
       });
@@ -2081,7 +2169,7 @@
             var latest = Store.getState();
             if (latest.busy && latest.activeRequestId === targetRequestId && result) {
               if (!result.requested) {
-                Store.addMessage('作業已先完成，無需取消。', 'info');
+                Store.addMessage('目前動作已完成，已完成的結果保留；尚未開始的後續作業將停止。', 'info');
               } else {
                 var snapshot = latest.busyDetail
                   ? '，當時進度：' + latest.busyDetail
@@ -2155,6 +2243,8 @@
         // 不阻塞專案載入——伺服器慢／不可達時 connect timeout 可能達數秒。
         global.JetApi.systemDatabaseInfo({}).then(function (info) {
           var s = info && info.sqlServer;
+          // 建立案件的 SQL Server 選項只在確定沒有設定時停用；查詢失敗或還沒回來時維持可選。
+          if (s && typeof s.configured === 'boolean') { Store.setSqlServerConfigured(s.configured); }
           if (s && s.summary) {
             Store.addMessage(s.summary, (s.configured && !s.reachable) ? 'warn' : 'info');
             // 容量預警（純呈現）：整庫大小超過前端門檻時補一則 warn。schemaCount＝線上專案數（＝prj_ schema 數）。

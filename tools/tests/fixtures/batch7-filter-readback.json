@@ -1,0 +1,86 @@
+[
+  {
+    "id": "people-exact-list",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "approveBy", "operator": "in", "values": ["001", "A02"] }] }] },
+    "rdeFields": [],
+    "expected": "傳票核准人員 符合清單任一值「001、A02」；空白不列入"
+  },
+  {
+    "id": "text-list-literal-comma",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "description", "operator": "notIn", "values": ["Alpha,Beta", "Gamma"], "includeBlank": true }] }] },
+    "rdeFields": [],
+    "expected": "傳票摘要 不在清單中「Alpha,Beta、Gamma」；空白也符合"
+  },
+  {
+    "id": "contains-two-keywords",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "description", "operator": "contains", "values": ["調整", "測試"] }] }] },
+    "rdeFields": [],
+    "expected": "傳票摘要 包含任一文字「調整、測試」；空白不列入"
+  },
+  {
+    "id": "signed-amount-inclusive-range",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "amount", "operator": "between", "from": "-10.50", "to": "20", "amountBasis": "signed", "drCr": "debit" }] }] },
+    "rdeFields": [],
+    "expected": "借方分錄：金額含正負號 介於「-10.50」至「20」；空白不列入"
+  },
+  {
+    "id": "specified-date",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "postDate", "operator": "on", "value": "2025-06-11" }] }] },
+    "rdeFields": [],
+    "expected": "總帳入帳日 指定日期「2025-06-11」；空白不列入"
+  },
+  {
+    "id": "days-of-month",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "postDate", "operator": "dayOfMonthIn", "values": ["1", "15", "31"] }] }] },
+    "rdeFields": [],
+    "expected": "總帳入帳日 每月幾日屬於「1、15、31」；空白不列入"
+  },
+  {
+    "id": "tails-preserve-leading-zero",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "amount", "operator": "endsWithDigits", "value": "00,99", "amountBasis": "absolute" }] }] },
+    "rdeFields": [],
+    "expected": "金額 整數尾數符合「00,99」；空白不列入"
+  },
+  {
+    "id": "rde-renamed-label",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "fieldId": "rde.b7000000000000000000000000000002", "operator": "equals", "value": "Alpha" }] }] },
+    "rdeFields": [{ "fieldId": "rde.b7000000000000000000000000000002", "sourceColumn": "Synthetic", "label": "合成附註", "valueType": "text" }],
+    "expected": "合成附註 等於「Alpha」；空白不列入"
+  },
+  {
+    "id": "frequency-greater-than-or-equal",
+    "scenario": { "groups": [{ "rules": [{ "type": "entityFrequency", "field": "approveBy", "countUnit": "entries", "countOperator": "greaterThanOrEqual", "countFrom": 4 }] }] },
+    "rdeFields": [],
+    "expected": "分錄測試範圍內「傳票核准人員」分錄筆數 大於或等於 4"
+  },
+  {
+    "id": "empty-middle-group-keeps-next-effective-and",
+    "scenario": { "groups": [{ "rules": [{ "type": "drCrOnly", "drCr": "debit" }] }, { "join": "OR", "rules": [] }, { "join": "AND", "rules": [{ "type": "manualAuto", "isManual": true }] }] },
+    "rdeFields": [],
+    "expected": "僅借方 且 人工分錄"
+  },
+  {
+    "id": "empty-middle-group-keeps-next-effective-or",
+    "scenario": { "groups": [{ "rules": [{ "type": "drCrOnly", "drCr": "credit" }] }, { "join": "AND", "rules": [] }, { "join": "OR", "rules": [{ "type": "manualAuto", "isManual": false }] }] },
+    "rdeFields": [],
+    "expected": "僅貸方 或 自動分錄"
+  },
+  {
+    "id": "kct-i-new-excludes-makeup-days",
+    "scenario": { "groups": [{ "rules": [{ "type": "group", "rules": [{ "type": "fieldValue", "field": "postDate", "operator": "isNonBusinessDay", "join": "AND" }] }] }] },
+    "rdeFields": [],
+    "expected": "非營業日（排除補班日）"
+  },
+  {
+    "id": "old-weekend-or-holiday-still-describes-original-tree",
+    "scenario": { "groups": [{ "rules": [{ "type": "group", "rules": [{ "type": "prescreen", "prescreenKey": "weekendPosting", "join": "AND" }, { "type": "prescreen", "prescreenKey": "holidayPosting", "join": "OR" }] }] }] },
+    "rdeFields": [],
+    "expected": "（週末過帳 或 假日過帳）"
+  },
+  {
+    "id": "voucher-child-exact-list",
+    "scenario": { "groups": [{ "rules": [{ "type": "voucher", "side": "credit", "quantifier": "any", "rules": [{ "type": "fieldValue", "field": "approveBy", "operator": "in", "values": ["001", "A02"] }] }] }] },
+    "rdeFields": [],
+    "expected": "貸方至少一筆符合：傳票核准人員 符合清單任一值「001、A02」；空白不列入"
+  }
+]

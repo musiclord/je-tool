@@ -46,7 +46,9 @@ public sealed class DemoHandlersTests
         Assert.Contains("傳票號碼", columns);
         Assert.Contains("金額", columns);
         Assert.Contains("借方旗標", columns);
-        Assert.Contains("傳票登錄日", columns);
+        // 2026-10-04 第 8 批 L21：示範來源欄依既有用途改名為「傳票日期」，欄數與 reader 檢查不變。
+        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+        Assert.Contains("傳票日期", columns);
     }
 
     [Fact]

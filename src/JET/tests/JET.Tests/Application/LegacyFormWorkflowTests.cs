@@ -203,7 +203,9 @@ public sealed class LegacyFormWorkflowTests
                     foreach (var item in batch) Assert.Contains("舊表驗證 " + item.Key, text);
                 if (batch.Any(c => c.Key == "A")) Assert.Contains("財報準備日起核准", text);
                 if (batch.Any(c => c.Key == "example2")) Assert.Contains("合成部門", text);
-                if (batch.Any(c => c.Key == "T_vouchers")) Assert.Contains("去重傳票張數", text);
+                // 2026-10-03 用語統一 T5：條件讀回跟著畫面改成「傳票張數（同號只算一張）」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+                if (batch.Any(c => c.Key == "T_vouchers")) Assert.Contains("傳票張數（同號只算一張）", text);
+                Assert.DoesNotContain("去重傳票張數", text);
             }
         }
     }

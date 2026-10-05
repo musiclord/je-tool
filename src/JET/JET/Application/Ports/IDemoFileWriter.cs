@@ -4,7 +4,7 @@ public sealed record DemoExportedFile(string FilePath, string FileName);
 
 /// <summary>
 /// 將 demo 測試案件寫成實體 xlsx（host 能力，仿 IHostShell 前例）。
-/// Demo 必須走與使用者上傳相同的 file-based import pipeline（manifest 對齊原則）。
+/// Demo 必須走與使用者上傳相同的 file-based import pipeline，才能驗到真實匯入路徑。
 /// </summary>
 public interface IDemoFileWriter
 {

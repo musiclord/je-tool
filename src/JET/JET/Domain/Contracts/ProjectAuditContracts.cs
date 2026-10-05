@@ -6,7 +6,6 @@ public static class ProjectAuditOperations
     public const string DataReimport = "data.reimport";
     public const string MappingRecommit = "mapping.recommit";
     public const string ReportPublish = "report.publish";
-    public const string ReportCleanup = "report.cleanup";
 }
 
 /// <summary>稽核紀錄的封閉對象種類；不承載科目、金額、人名或來源檔名。</summary>
@@ -41,8 +40,7 @@ public sealed record ProjectAuditEvent(
     {
         if (operation is not (ProjectAuditOperations.DataReimport
             or ProjectAuditOperations.MappingRecommit
-            or ProjectAuditOperations.ReportPublish
-            or ProjectAuditOperations.ReportCleanup))
+            or ProjectAuditOperations.ReportPublish))
         {
             throw new ArgumentException($"Unknown project audit operation '{operation}'.", nameof(operation));
         }

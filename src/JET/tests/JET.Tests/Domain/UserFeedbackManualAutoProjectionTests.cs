@@ -8,6 +8,37 @@ namespace JET.Tests.Domain;
 public sealed class UserFeedbackManualAutoProjectionTests
 {
     [Theory]
+    [InlineData("ß", "SS", false)]
+    [InlineData("ı", "I", false)]
+    [InlineData("ſ", "S", false)]
+    [InlineData("K", "K", false)]
+    [InlineData("ΐ", "ΐ", false)]
+    [InlineData("ß", "ẞ", false)]
+    [InlineData("Σ", "ς", true)]
+    [InlineData("é", "É", true)]
+    [InlineData("ᾀ", "ᾈ", true)]
+    [InlineData("\u0085M\u0085", "m", true)]
+    [InlineData("\uFEFFM\uFEFF", "M", false)]
+    public void UnicodeCodes_UseOrdinalIgnoreCaseWithoutLinguisticExpansion(string manual, string automatic, bool overlap)
+    {
+        var mapping = new Dictionary<string, string> { [GlMappingKeys.Manual] = "mode" };
+        var options = GlMappingOptions.NormalizeLegacy(mapping) with
+        {
+            ManualAutoPolicy = new GlManualAutoPolicy([manual], [automatic])
+        };
+        if (overlap)
+        {
+            Assert.Throws<ArgumentException>(() => GlMappingOptionsRules.NormalizeAndValidate(mapping, ["mode"], options));
+            return;
+        }
+        var canonical = GlMappingOptionsRules.NormalizeAndValidate(mapping, ["mode"], options);
+        var spec = new GlMappingSpec(mapping, GlAmountMode.SignedAmount) { Options = canonical };
+        Assert.True(GlRowProjector.TryProject(new StagingRow(2, new Dictionary<string, string> { ["mode"] = automatic }),
+            spec, ProjectDocument.DefaultMoneyScale, out var projected, out var error), error?.Reason);
+        Assert.False(projected!.IsManual);
+    }
+
+    [Theory]
     [InlineData("automatic", "reject", "M", true)]
     [InlineData("automatic", "reject", "NEW", false)]
     [InlineData("manual", "reject", "A", false)]
@@ -93,5 +124,10 @@ public sealed class UserFeedbackManualAutoProjectionTests
         Assert.NotNull(error);
         Assert.Contains(expected, error.Reason, StringComparison.Ordinal);
         Assert.Contains("回到欄位配對", error.Reason, StringComparison.Ordinal);
+        Assert.Contains(raw.Length == 0 ? "來源空白時" : "判定方式", error.Reason, StringComparison.Ordinal);
+        if (raw.Length == 0)
+        {
+            Assert.Contains("不判定", error.Reason, StringComparison.Ordinal);
+        }
     }
 }

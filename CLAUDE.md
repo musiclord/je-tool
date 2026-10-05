@@ -9,5 +9,5 @@
 開始大型開發前，另讀 `docs/development-status.md` 指向的現行計畫；專案方向與正式環境限制見
 `docs/project-context.md`。Claude 的 auto memory 不是儲存庫證據，不能取代現行文件、測試或本次 receipt。
 
-使用者要求前端設計或畫面註解時，依 `docs/development-guide.md` 的「前端設計模式」續接。
-Code 本機 Preview 使用 `.claude/launch.json`，先確認合成素材有效；Claude Design 的交接界線見 `docs/agent-compatibility.md`。
+使用者要求前端設計或畫面註解時，依 `.agents/harness/frontend-design-mode.md` 續接。
+Code 本機 Preview 使用 `.claude/launch.json`，先確認合成素材有效；Claude Design 的交接界線見 `.agents/harness/frontend-design-mode.md`。

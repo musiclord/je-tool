@@ -22,16 +22,6 @@ public sealed class MappingHandlersTests
         """;
 
     [Fact]
-    public void MappingReviewPrerequisite_Required_UsesStableErrorCode()
-    {
-        var ex = Assert.Throws<JetActionException>(() =>
-            MappingReviewPrerequisite.EnsureSatisfied(mappingReviewRequired: true));
-
-        Assert.Equal(JetErrorCodes.MappingReviewRequired, ex.Code);
-        MappingReviewPrerequisite.EnsureSatisfied(mappingReviewRequired: false);
-    }
-
-    [Fact]
     public async Task CommitGl_CurrentPayload_PersistsV2NormalizedDefaultsWithoutChangingProjectionContract()
     {
         using var host = new HandlerTestHost();

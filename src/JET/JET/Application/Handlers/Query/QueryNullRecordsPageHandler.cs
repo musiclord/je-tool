@@ -5,13 +5,12 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.nullRecordsPage：空值/期外日期紀錄的 keyset 分頁(manifest 查詢段)。
+/// query.nullRecordsPage：空值/期外日期紀錄的 keyset 分頁。
 /// 請求多一個必填 <c>category</c>(白名單四值;非法值丟 <see cref="JetActionException"/>);
 /// 排序鍵 entry_id ASC、cursor opaque、pageSize 預設 200/上限 500。
 /// outOfRangeDate 以專案 PeriodStart/End 判定(handler 取自 document 傳入 repo)。
 /// </summary>
 public sealed class QueryNullRecordsPageHandler(
-    INullRecordsPageRepository repository,
     IProjectStore projectStore,
     ProjectSession session) : IApplicationActionHandler
 {
@@ -19,7 +18,7 @@ public sealed class QueryNullRecordsPageHandler(
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         var category = ParseCategory(PayloadReader.GetRequiredString(payload, "category"));
         var request = PageRequestReader.Read(payload, ResultPageSorting.NullRecords);
 
@@ -29,7 +28,7 @@ public sealed class QueryNullRecordsPageHandler(
                 $"找不到專案 '{projectId}'。");
 
         var page = await Task.Run(
-            () => repository.GetPageAsync(
+            () => repositories.NullRecordsPages.GetPageAsync(
                 projectId, category, document.PeriodStart, document.PeriodEnd,
                 request, cancellationToken),
             cancellationToken);

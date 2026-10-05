@@ -14,7 +14,8 @@ internal sealed record ReportExportRequest(
     string? ScenarioRevision = null,
     IReadOnlyList<int>? ScenarioPositions = null,
     ReportWorkbookMetadata? WorkbookMetadata = null,
-    IReadOnlyList<GlRdeFieldMetadata>? CustomFields = null);
+    IReadOnlyList<GlRdeFieldMetadata>? CustomFields = null,
+    string? FilterDataRevision = null);
 
 /// <summary>
 /// AuditCore-owned artifact set, source references, and atomicity for one included
@@ -22,7 +23,6 @@ internal sealed record ReportExportRequest(
 /// </summary>
 internal sealed record ReportExportPlan(
     ReportExportRequest Request,
-    ProgramNode Node,
     IReadOnlyList<ReportArtifactKind> ArtifactKinds,
     ReportArtifactSourceRefs SourceRef,
     ReportWorkbookMetadata? WorkbookMetadata,
@@ -109,7 +109,8 @@ public static partial class JetAuditProgram
                         (request.ScenarioPositions
                             ?? throw new InvalidOperationException(
                                 "Criteria export 缺少 ScenarioPositions。"))
-                        .ToArray())),
+                        .ToArray()),
+                    FilterDataRevision: Required(request.FilterDataRevision, nameof(request.FilterDataRevision))),
                 false),
             _ => throw new InvalidOperationException(
                 $"Report export lifecycle 未登錄 action '{request.ActionName}'。")
@@ -117,22 +118,11 @@ public static partial class JetAuditProgram
 
         return new ReportExportPlan(
             request,
-            ProgramGraph.Current.RequireNode(request.ActionName),
             kinds,
             sourceRef,
             workbookMetadata,
             customFields,
             useAtomicBatch);
-    }
-
-    internal static Task<ReportExportFacts> ExecuteAsync(
-        ReportExportPlan plan,
-        IReportExportFactsPort factsPort,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        return factsPort.ExecuteAsync(plan, cancellationToken);
     }
 
     internal static ReportExportResult Finalize(
@@ -146,17 +136,6 @@ public static partial class JetAuditProgram
         // Content requests are checked before the store call. Do not add a new
         // post-publication failure boundary by revalidating store output here.
         return new ReportExportResult(plan, facts.Artifacts);
-    }
-
-    internal static string Explain(ReportExportResult result)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-        return $"{result.Plan.Request.ActionName}：產出 "
-            + string.Join(
-                "、",
-                result.Artifacts.Select(artifact =>
-                    ReportArtifactKindValues.ToValue(artifact.Kind)))
-            + "。";
     }
 
     private static IReadOnlyList<ReportArtifactKind> Kinds(

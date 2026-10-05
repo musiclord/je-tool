@@ -14,25 +14,31 @@ internal sealed partial class GlRulePredicates
     {
         var field = FieldValueConditions.Resolve(rule, context.RdeFields)
             ?? throw Invalid("篩選欄位不存在，請重新確認欄位配對。");
-        rule = rule with { TypedValues = FieldValueConditions.CanonicalValues(rule, field, context.MoneyScale) };
+        rule = rule with { TypedValues = FieldValueConditions.CanonicalValues(rule, field, context.MoneyScale, context.DateParseOptions) };
         var op = rule.TypedOperator;
         if (op is null || !FieldValueConditions.Operators(field.ValueType).Contains(op))
             throw Invalid("比較方式不適用此欄位，請重新選擇。");
         string column;
+        string? rdeFieldParameter = null;
         if (rule.FieldId is null)
             column = $"g.{field.SourceColumn}";
         else
         {
             var valueColumn = field.ValueType switch { "text" => "text_value", "date" => "date_value", _ => "amount_scaled" };
-            column = $"(SELECT v.{valueColumn} FROM {schemaPrefix}target_gl_rde_value v "
-                + $"WHERE v.entry_id = g.entry_id AND v.field_id = {NextParam(parameters, field.FieldId)})";
+            rdeFieldParameter = NextParam(parameters, field.FieldId);
+            column = $"v.{valueColumn}";
         }
-        var blank = field.ValueType == "text" ? $"({column} IS NULL OR TRIM({column}) = '')" : $"{column} IS NULL";
-        if (op == "isBlank") return $"({blank})";
-        if (op == "isNotBlank") return $"NOT ({blank})";
+        // RDE 的整個判定放在同一次相關查詢內；關鍵字再多，也不逐詞重查同一個值。
+        string Complete(string predicate, bool missingMatches) => rdeFieldParameter is null ? predicate
+            : $"(COALESCE((SELECT CASE WHEN ({predicate}) THEN 1 ELSE 0 END "
+              + $"FROM {schemaPrefix}target_gl_rde_value v WHERE v.entry_id = g.entry_id "
+              + $"AND v.field_id = {rdeFieldParameter}), {(missingMatches ? 1 : 0)}) = 1)";
+        var blank = field.ValueType == "text" ? $"({column} IS NULL OR {dialect.Trim(column)} = '')" : $"{column} IS NULL";
+        if (op == "isBlank") return Complete($"({blank})", missingMatches: true);
+        if (op == "isNotBlank") return Complete($"NOT ({blank})", missingMatches: false);
 
         var originalColumn = column;
-        if (field.ValueType == "text") column = $"UPPER(TRIM({column}))";
+        if (field.ValueType == "text") column = $"UPPER({dialect.Trim(column)})";
         if (field.ValueType == "money") column = rule.AmountBasis switch
         {
             "signed" => column, "absolute" => $"ABS({column})",
@@ -41,7 +47,7 @@ internal sealed partial class GlRulePredicates
         object Normalize(string? raw) => field.ValueType switch
         {
             "text" when TypedFieldOperandRules.TryNormalizeText(raw, out var text) => TypedFieldOperandRules.TextComparisonKey(text),
-            "date" when TypedFieldOperandRules.TryNormalizeDate(raw, out var date) => date,
+            "date" when TypedFieldOperandRules.TryNormalizeDate(raw, context.DateParseOptions, out var date) => date,
             "money" when TypedFieldOperandRules.TryNormalizeMoney(raw, context.MoneyScale, out var money) => money,
             _ => throw Invalid("條件值無效，請檢查文字、日期格式或金額。")
         };
@@ -126,7 +132,7 @@ internal sealed partial class GlRulePredicates
         }
         // 2026-09-04 裁定：日期（與其他欄位）空白的分錄不列入，除非審計員勾選「空白也符合」。
         var includeBlank = rule.IncludeBlank ?? false;
-        return $"(CASE WHEN ({blank}) THEN {(includeBlank ? 1 : 0)} WHEN ({positive}) THEN 1 ELSE 0 END = 1)";
+        return Complete($"(CASE WHEN ({blank}) THEN {(includeBlank ? 1 : 0)} WHEN ({positive}) THEN 1 ELSE 0 END = 1)", includeBlank);
     }
 
     /// <summary>
@@ -138,20 +144,21 @@ internal sealed partial class GlRulePredicates
     public string AccountSide(FilterSqlParameterPlanBuilder parameters, FilterRuleSpec rule,
         FilterRuleContext context, string schemaPrefix)
     {
-        var side = rule.DrCr switch
+        string Side(string alias) => rule.DrCr switch
         {
-            "debit" => ">= 0", "credit" => "< 0", _ => throw Invalid("請選擇借方或貸方。")
+            "debit" => $"{alias}.amount_scaled >= 0", "credit" => $"{alias}.amount_scaled < 0",
+            "any" => "1 = 1", _ => throw Invalid("請選擇借方、貸方或不限借貸。")
         };
         string Selected(string alias) => $"EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m "
             + $"{TaxonomyJoin(schemaPrefix, "m", "t")} WHERE m.account_code = {alias}.account_code "
             + $"AND {CategorySelectionRoles(parameters, "t", rule.CategoryIds, "指定", schemaPrefix, rule.CategorySelection)})";
         return rule.CategoryMode switch
         {
-            "is" => $"(g.amount_scaled {side} AND {Selected("g")})",
-            "isNot" => $"(g.amount_scaled {side} AND NOT {Selected("g")})",
-            "absent" => $"(NOT EXISTS (SELECT 1 FROM {schemaPrefix}target_gl_entry s "
+            "is" => $"({Side("g")} AND {Selected("g")})",
+            "isNot" => $"({Side("g")} AND NOT {Selected("g")})",
+            "absent" => $"(g.document_number IS NOT NULL AND NOT EXISTS (SELECT 1 FROM {schemaPrefix}target_gl_entry s "
                 + $"WHERE s.document_number = g.document_number AND {populationScopePredicate(context, "s")} "
-                + $"AND s.amount_scaled {side} AND {Selected("s")}))",
+                + $"AND {Side("s")} AND {Selected("s")}))",
             _ => throw Invalid("請選擇科目分類的判斷方式。")
         };
     }

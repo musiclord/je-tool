@@ -7,18 +7,18 @@ namespace JET.Application;
 public sealed class ProjectCreateHandler : IApplicationActionHandler
 {
     private readonly IProjectStore projectStore;
-    private readonly ICaseCreateFactsPort caseCreateFactsPort;
+    private readonly ProjectRepositoryCatalog repositoryCatalog;
     private readonly CurrentPrincipal principal;
     private readonly IProjectSessionPublisher session;
 
     internal ProjectCreateHandler(
         IProjectStore projectStore,
-        ICaseCreateFactsPort caseCreateFactsPort,
+        ProjectRepositoryCatalog repositoryCatalog,
         CurrentPrincipal principal,
         IProjectSessionPublisher session)
     {
         this.projectStore = projectStore;
-        this.caseCreateFactsPort = caseCreateFactsPort;
+        this.repositoryCatalog = repositoryCatalog;
         this.principal = principal;
         this.session = session;
     }
@@ -39,8 +39,17 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
                 $"未支援的 databaseProvider '{databaseProvider}'(僅接受 sqlite / sqlServer / duckdb)。");
         }
 
+        // 案件的資料庫組在建案時就選定：建案過程與成功後的 session 都用這一組，不另外回頭讀 project.json。
+        var repositories = repositoryCatalog.For(databaseProvider);
+        var caseCreateFactsPort = repositories.CaseCreateFacts;
+
         // 選填 caseName:有值則驗證 + 唯一性檢查並作為 projectId/資料夾名;無值回退 GUID(既有程式化/測試建立行為)。
         var caseNameRaw = PayloadReader.GetOptionalString(payload, "caseName");
+        // 正式畫面明確送來的空白名稱應就地修正；未提供名稱的程式化建立仍保留既有GUID行為。
+        if (payload.TryGetProperty("caseName", out var caseNameValue)
+            && caseNameValue.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(caseNameRaw))
+            throw new JetActionException(JetErrorCodes.InvalidPayload,
+                "案件名稱不可為空白。請輸入案件名稱後再建立。", JetErrorFields.CaseName);
         string projectId;
         if (!string.IsNullOrWhiteSpace(caseNameRaw))
         {
@@ -91,6 +100,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         var periodStart = PayloadReader.GetRequiredDate(payload, "periodStart");
         var periodEnd = PayloadReader.GetRequiredDate(payload, "periodEnd");
         var lastPeriodStart = PayloadReader.GetOptionalDate(payload, "lastPeriodStart");
+        ProjectMetadataRules.RequireValidPeriod(periodStart, periodEnd);
         var createdUtc = DateTimeOffset.UtcNow;
         // INF 抽樣 per-project 種子由 Application entropy 產生一次，Domain 只套既有政策。
         var sampleSeed = Random.Shared.NextInt64(
@@ -116,9 +126,8 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         CaseCreateFacts facts;
         try
         {
-            facts = await JetAuditProgram.ExecuteAsync(
+            facts = await caseCreateFactsPort.ExecuteAsync(
                 plan,
-                caseCreateFactsPort,
                 cancellationToken);
         }
         catch (CaseCreateLockHeldException held)
@@ -142,8 +151,9 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             var result = JetAuditProgram.Finalize(plan, facts);
             document = result.Document;
             // response 必須先完成物化；從這一行之後不再做可能失敗的 response parse／shape 工作。
-            var response = new { projectId = document.ProjectId, ok = true };
-            session.Enter(document.ProjectId);
+            var response = new { projectId = document.ProjectId, ok = true,
+                warnings = ProjectMetadataRules.GetWarnings(periodStart, periodEnd, lastPeriodStart) };
+            session.Enter(document.ProjectId, repositories);
             // SQL schema remains in an uncommitted create transaction until finalize／session are ready.
             // Final registry／access／create-audit publication ignores request cancellation and commits once.
             await caseCreateFactsPort.CompleteAsync(facts, CancellationToken.None);

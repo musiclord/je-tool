@@ -10,7 +10,7 @@ namespace JET.Infrastructure;
 /// filter.commit 命中落地的 SQL Server 實作（對應 <see cref="LocalFilterRunMaterializer"/>）。
 /// WHERE 組譯共用 provider 中立的 <see cref="GlFilterWhereBuilder"/>（述詞 + <see cref="SqlServerDialect"/>），
 /// 與 filter.preview 同源；本類只負責連線、交易與 INSERT…SELECT 骨架。
-/// 單交易先 DELETE 全表再逐情境插入（冪等）。
+/// 全案重算替換全部結果；所選重算只替換指定情境，不將其他情境標成已更新。
 /// </summary>
 public sealed class SqlServerFilterRunMaterializer(SqlServerProjectDatabase database, ILogger<SqlServerFilterRunMaterializer>? logger = null)
     : IFilterRunMaterializer
@@ -28,16 +28,18 @@ public sealed class SqlServerFilterRunMaterializer(SqlServerProjectDatabase data
         string projectId,
         IReadOnlyList<MaterializableScenario> scenarios,
         FilterRuleContext context,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool replaceAll = true)
     {
         await database.EnsureCreatedAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
-        await using (var clear = database.CreateCommand(connection, projectId,
-            "DELETE FROM {s}.result_filter_run;"))
+        if (replaceAll)
         {
+            await using var clear = database.CreateCommand(connection, projectId,
+                "DELETE FROM {s}.result_filter_run;");
             clear.Transaction = transaction;
             await clear.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
         }
@@ -48,6 +50,14 @@ public sealed class SqlServerFilterRunMaterializer(SqlServerProjectDatabase data
 
         foreach (var saved in scenarios)
         {
+            if (!replaceAll)
+            {
+                await using var clear = database.CreateCommand(connection, projectId,
+                    "DELETE FROM {s}.result_filter_run WHERE scenario_position = @selectedPosition;");
+                clear.Transaction = transaction;
+                clear.Parameters.AddWithValue("@selectedPosition", saved.Position);
+                await clear.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
+            }
             await using var insert = connection.CreateCommand();
             insert.Transaction = transaction;
             var plan = WhereBuilder.BuildPlan(
@@ -69,11 +79,11 @@ public sealed class SqlServerFilterRunMaterializer(SqlServerProjectDatabase data
             await insert.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
         }
 
-        await ResultStaleStateSql.ClearFilterWithinAsync(
-            connection,
-            transaction,
-            cancellationToken,
-            SqlServerProjectSchema.QualifierFor(projectId));
+        if (replaceAll)
+        {
+            await ResultStaleStateSql.ClearFilterWithinAsync(
+                connection, transaction, cancellationToken, SqlServerProjectSchema.QualifierFor(projectId));
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
         await transaction.CommitAsync(CancellationToken.None);

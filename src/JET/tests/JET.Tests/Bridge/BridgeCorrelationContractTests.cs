@@ -13,7 +13,7 @@ public sealed class BridgeCorrelationContractTests
             "request-1",
             false,
             null,
-            new JetErrorDto("artifact_recovery_conflict", "conflict", null),
+            new JetErrorDto("project_locked", "locked", null),
             "correlation-1");
 
         var wire = JsonSerializer.SerializeToElement(
@@ -23,7 +23,7 @@ public sealed class BridgeCorrelationContractTests
         Assert.False(wire.GetProperty("ok").GetBoolean());
         Assert.Equal("correlation-1", wire.GetProperty("correlationId").GetString());
         Assert.Equal(
-            "artifact_recovery_conflict",
+            "project_locked",
             wire.GetProperty("error").GetProperty("code").GetString());
     }
 }

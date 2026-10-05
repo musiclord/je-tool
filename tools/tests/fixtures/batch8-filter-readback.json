@@ -1,0 +1,40 @@
+[
+  {
+    "id": "preparation-date-year-end",
+    "preparationDate": "2025-12-31",
+    "scenario": { "groups": [{ "rules": [{ "type": "prescreen", "prescreenKey": "postPeriodApproval" }] }] },
+    "expected": "預篩選：財報準備日起核准（2025-12-31 起，含當日）"
+  },
+  {
+    "id": "preparation-date-mid-year",
+    "preparationDate": "2025-06-15",
+    "scenario": { "groups": [{ "rules": [{ "type": "prescreen", "prescreenKey": "postPeriodApproval" }] }] },
+    "expected": "預篩選：財報準備日起核准（2025-06-15 起，含當日）"
+  },
+  {
+    "id": "trailing-zeros-fixed-six",
+    "preparationDate": "2025-12-31",
+    "scenario": { "groups": [{ "rules": [{ "type": "prescreen", "prescreenKey": "trailingZeros" }] }] },
+    "expected": "預篩選：金額尾數連續 6 個 0"
+  },
+  {
+    "id": "trailing-zeros-custom-six",
+    "preparationDate": "2025-12-31",
+    "scenario": { "groups": [{ "rules": [{ "type": "customTrailingZeros", "digits": "6" }] }] },
+    "ruleTypeLabel": "金額尾數連續 0 的位數",
+    "expected": "金額尾數連續 6 個 0"
+  },
+  {
+    "id": "trailing-zeros-custom-three",
+    "preparationDate": "2025-12-31",
+    "scenario": { "groups": [{ "rules": [{ "type": "customTrailingZeros", "digits": "3" }] }] },
+    "ruleTypeLabel": "金額尾數連續 0 的位數",
+    "expected": "金額尾數連續 3 個 0"
+  },
+  {
+    "id": "preparation-date-unavailable-does-not-invent-date",
+    "preparationDate": null,
+    "scenario": { "groups": [{ "rules": [{ "type": "prescreen", "prescreenKey": "postPeriodApproval" }] }] },
+    "expected": "預篩選：財報準備日起核准"
+  }
+]

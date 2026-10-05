@@ -5,13 +5,48 @@ namespace JET.Application;
 
 internal static class ReportExportSupport
 {
-    public static async Task<object[]> ReadArtifactCatalogAfterPublicationAsync(
-        IReportArtifactStore store, string projectId)
+    internal sealed record PublishedArtifactCatalog(object[]? Artifacts, string? Warning);
+
+    public static async Task<PublishedArtifactCatalog> ReadArtifactCatalogAfterPublicationAsync(
+        IReportArtifactStore store, string projectId, TimeSpan? refreshTimeout = null,
+        Func<CancellationToken, Task>? refreshSources = null, string? unavailableMessage = null)
     {
-        // 正式檔與索引已保存；回應必須包含容量整理後的清單，最後一刻的取消不隱藏已完成成果。
-        var artifacts = await store.ListAsync(projectId, CancellationToken.None);
-        return artifacts.Select(ArtifactWire).ToArray();
+        // 正式檔與索引已保存。清單刷新失敗或遇到其他程序持鎖，不得把已完成的匯出改報失敗。
+        // 此期限只約束可省略的清單刷新，與使用者的作業取消無關，不套用到正式檔案發布。
+        using var timeout = new CancellationTokenSource(refreshTimeout ?? TimeSpan.FromSeconds(3));
+        var refreshToken = timeout.Token;
+        try
+        {
+            // The deadline covers source refresh and stale marking as well as the final list read.
+            // Refresh may begin with synchronous local database work, so start that optional phase off-thread.
+            var pending = refreshSources is null ? store.ListAsync(projectId, refreshToken)
+                : Task.Run(async () =>
+                {
+                    await refreshSources(refreshToken);
+                    refreshToken.ThrowIfCancellationRequested();
+                    return await store.ListAsync(projectId, refreshToken);
+                }, CancellationToken.None);
+            // WaitAsync 超時會解除等待；不配合取消的 store 日後失敗時，仍需觀察該 task 的例外。
+            // 這不改變下方 await：期限內的程式錯誤仍照常拋出。
+            _ = pending.ContinueWith(static completed => { _ = completed.Exception; },
+                CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            var artifacts = await pending.WaitAsync(refreshToken);
+            return new(artifacts.Select(ArtifactWire).ToArray(), null);
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            return CatalogUnavailable(unavailableMessage);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            || exception is JetActionException { Code: JetErrorCodes.FileReadError })
+        {
+            return CatalogUnavailable(unavailableMessage);
+        }
     }
+
+    private static PublishedArtifactCatalog CatalogUnavailable(string? message) => new(null, message ??
+        "檔案已產生，報告清單暫時無法更新。可開啟案件資料夾查看，無須重新產生。");
 
     public static void RequireRequestedValidationRun(
         RuleRunRecord current,
@@ -64,14 +99,14 @@ internal static class ReportExportSupport
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "已保存的情境來自較早的版本。請回到「進階條件篩選」按「以查核期間重新保存」，再按「重新產生條件篩選報告」。");
+                FilterScenarioRuleMessages.NotYetUpgraded);
         }
 
         if (!string.Equals(current.Revision, requestedRevision, StringComparison.Ordinal))
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "畫面上的情境版本和已保存的不一致。請重新載入這個案件，再用目前已保存的情境產生一次。");
+                "畫面上的情境版本和已儲存的不一致。請重新載入這個案件，再用目前已儲存的情境產生一次。");
         }
 
         return current;
@@ -101,7 +136,7 @@ internal static class ReportExportSupport
             {
                 throw new JetActionException(
                     JetErrorCodes.InvalidPayload,
-                    "scenarioPositions 必須是目前已保存且不重複的情境位置。");
+                    "scenarioPositions 必須是目前已儲存且不重複的情境位置。");
             }
 
             selected.Add(position);
@@ -119,11 +154,11 @@ internal static class ReportExportSupport
     }
 
     /// <summary>
-    /// 先依目前的 run 與篩選版本把過期報告標為 stale，再列出清單。stale 判定只委派
-    /// <see cref="IsSourceStale(ReportArtifact, RuleRunRecord?, RuleRunRecord?, bool, string?, IReadOnlyCollection{int})"/>，
+    /// 依目前的 run 與篩選版本把過期報告標為 stale，不另讀取未使用的清單。stale 判定只委派
+    /// <see cref="IsSourceStale(ReportArtifact, RuleRunRecord?, RuleRunRecord?, bool, string?, IReadOnlyCollection{int}, string?)"/>，
     /// 不建立第二份 run／revision 規則。
     /// </summary>
-    public static async Task<IReadOnlyList<ReportArtifact>> RefreshArtifactsAsync(
+    public static async Task RefreshArtifactsAsync(
         string projectId,
         RuleRunRecord? latestValidate,
         RuleRunRecord? latestPrescreen,
@@ -131,7 +166,8 @@ internal static class ReportExportSupport
         string? currentFilterRevision,
         IReadOnlyCollection<int> scenarioPositions,
         IReportArtifactStore artifactStore,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? currentFilterDataRevision = null)
     {
         await artifactStore.MarkStaleAsync(
             projectId,
@@ -141,52 +177,21 @@ internal static class ReportExportSupport
                 latestPrescreen,
                 filterStale,
                 currentFilterRevision,
-                scenarioPositions),
+                scenarioPositions,
+                currentFilterDataRevision),
             cancellationToken);
-        return await artifactStore.ListAsync(projectId, cancellationToken);
     }
-
-    public static async Task<ReportArtifact> RequireCurrentCriteriaSelectionReportAsync(
-        IReportArtifactStore store,
-        string projectId,
-        IReadOnlyList<ReportArtifact> refreshedArtifacts,
-        CancellationToken cancellationToken)
-    {
-        var current = refreshedArtifacts
-            .Where(artifact => artifact.Kind == ReportArtifactKind.CriteriaSelectionReport)
-            .Where(artifact => !artifact.Stale)
-            .OrderByDescending(artifact => artifact.GeneratedUtc)
-            .FirstOrDefault();
-
-        if (current is null)
-        {
-            throw MissingCurrentCriteriaSelectionReport();
-        }
-
-        try
-        {
-            _ = await store.ResolvePathAsync(projectId, current.ArtifactId, cancellationToken);
-        }
-        catch (JetActionException exception) when (
-            exception.Code is JetErrorCodes.FileNotFound or JetErrorCodes.FileReadError)
-        {
-            throw MissingCurrentCriteriaSelectionReport();
-        }
-
-        return current;
-    }
-
-    private static JetActionException MissingCurrentCriteriaSelectionReport() => new(
-        JetErrorCodes.StaleResult,
-        "還沒有目前資料的條件篩選報告。請回到「進階條件篩選」按「重新產生條件篩選報告」，系統會用目前資料重新計算，然後回來匯出。");
 
     public static ReportDocumentContext ProjectContext(ProjectDocument document) => new(
         document.ProjectId,
-        document.EntityName,
+        CompanyName(document),
         document.PeriodStart,
         document.PeriodEnd,
         document.LastAccountingPeriodDate,
         document.MoneyScale);
+
+    public static string CompanyName(ProjectDocument document) =>
+        string.IsNullOrWhiteSpace(document.EntityName) ? document.ProjectId : document.EntityName;
 
     public static object ArtifactWire(ReportArtifact artifact) => new
     {
@@ -202,7 +207,8 @@ internal static class ReportExportSupport
             validationRunId = artifact.SourceRef.ValidationRunId,
             prescreenRunId = artifact.SourceRef.PrescreenRunId,
             scenarioRevision = artifact.SourceRef.ScenarioRevision,
-            scenarioPositions = artifact.SourceRef.ScenarioPositions
+            scenarioPositions = artifact.SourceRef.ScenarioPositions,
+            filterDataRevision = artifact.SourceRef.FilterDataRevision
         },
         stale = artifact.Stale
     };
@@ -212,14 +218,16 @@ internal static class ReportExportSupport
         RuleRunRecord? latestValidate,
         RuleRunRecord? latestPrescreen,
         string? filterRevision,
-        IReadOnlyCollection<int> currentScenarioPositions)
+        IReadOnlyCollection<int> currentScenarioPositions,
+        string? currentFilterDataRevision = null)
         => IsSourceStale(
             artifact,
             latestValidate,
             latestPrescreen,
             filterStale: false,
             filterRevision,
-            currentScenarioPositions);
+            currentScenarioPositions,
+            currentFilterDataRevision);
 
     public static bool IsSourceStale(
         ReportArtifact artifact,
@@ -227,7 +235,8 @@ internal static class ReportExportSupport
         RuleRunRecord? latestPrescreen,
         bool filterStale,
         string? filterRevision,
-        IReadOnlyCollection<int> currentScenarioPositions)
+        IReadOnlyCollection<int> currentScenarioPositions,
+        string? currentFilterDataRevision = null)
     {
         var source = artifact.SourceRef;
         return artifact.Kind switch
@@ -247,6 +256,8 @@ internal static class ReportExportSupport
                         StringComparison.Ordinal),
             ReportArtifactKind.CriteriaSelectionReport
                 => filterStale
+                    || string.IsNullOrWhiteSpace(source.FilterDataRevision)
+                    || !string.Equals(source.FilterDataRevision, currentFilterDataRevision, StringComparison.Ordinal)
                     || source.ValidationRunId is null
                     || !string.Equals(
                         source.ValidationRunId,
@@ -259,7 +270,11 @@ internal static class ReportExportSupport
                         StringComparison.Ordinal)
                     || !HasExactScenarioPositions(source.ScenarioPositions, currentScenarioPositions),
             ReportArtifactKind.WorkingPaper
-                => filterStale
+                // 新底稿記錄實際重算的來源版本。未選情境仍過期，不代表這份已重算底稿過期。
+                // 舊索引沒有來源版本，仍保留原本全案旗標判斷，不假裝可以證明它的資料版本。
+                => (source.FilterDataRevision is null
+                        ? filterStale
+                        : !string.Equals(source.FilterDataRevision, currentFilterDataRevision, StringComparison.Ordinal))
                     || source.ValidationRunId is null
                     || !string.Equals(
                         source.ValidationRunId,

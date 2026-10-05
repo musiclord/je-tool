@@ -3,6 +3,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -31,9 +32,9 @@ public sealed class LocalImportCancellationTests
         var oldBatch = (await repository.ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            Source("old.csv"),
+            [new ImportSourceInput(Source("old.csv"),
             Columns,
-            Rows(2),
+            Rows(2))],
             CancellationToken.None)).Batch;
 
         using var cancellation = new CancellationTokenSource();
@@ -42,9 +43,9 @@ public sealed class LocalImportCancellationTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.ReplaceBatchAsync(
             projectId,
             DatasetKind.Gl,
-            Source("replacement.csv"),
+            [new ImportSourceInput(Source("replacement.csv"),
             Columns,
-            CancelAtAndContinueRows(200, cancelAt: 51, cancellation, progress),
+            CancelAtAndContinueRows(200, cancelAt: 51, cancellation, progress))],
             cancellation.Token));
 
         Assert.Equal(51, progress.RowsYielded);

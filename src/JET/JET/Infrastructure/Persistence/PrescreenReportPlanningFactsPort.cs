@@ -15,6 +15,10 @@ internal sealed class PrescreenReportPlanningFactsPort(IPrescreenPageRepository 
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(plan);
+        if (plan.IsFinalized)
+        {
+            throw new InvalidOperationException("PrescreenReportPlan 已 Finalize。");
+        }
 
         var request = plan.Request;
         var counts = new Dictionary<PrescreenReportDetailKind, PrescreenHitCounts>();

@@ -25,7 +25,7 @@ public sealed class SqlServerNullRecordsPageRepository(SqlServerProjectDatabase 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        var predicate = NullRecordsCategoryPredicate.ScopedSqlServer(category);
+        var predicate = NullRecordsCategoryPredicate.Scoped(category, SqlServerDialect.Instance);
         var paging = KeysetPaging.Plan(Dialect, request, ResultPageSorting.NullRecords);
 
         await using var command = database.CreateCommand(connection, projectId,

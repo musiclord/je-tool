@@ -62,24 +62,39 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         }
     }
 
-    public async Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken) =>
+        (await ListEntriesAsync(cancellationToken))
+            .Where(entry => entry.Document is not null)
+            .Select(entry => entry.Document!)
+            .ToList();
+
+    public async Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken)
     {
-        var documents = new List<ProjectDocument>();
+        var entries = new List<ProjectStoreEntry>();
 
         foreach (var projectId in folder.EnumerateProjectIds())
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var document = await ReadAsync(projectId, skipReadErrors: true, cancellationToken);
-            if (document is not null)
+            try
             {
-                documents.Add(document);
+                var document = await ReadAsync(projectId, cancellationToken);
+                if (document is not null)
+                {
+                    entries.Add(new ProjectStoreEntry(projectId, document));
+                }
+            }
+            catch (JetActionException exception) when (
+                exception.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
+            {
+                // 一份損壞文件不隱藏該案件，也不阻止使用者開啟其他正常案件。
+                entries.Add(new ProjectStoreEntry(projectId, null, exception.Code, exception.Message));
             }
         }
 
         // 最近開啟者浮上（從未開啟過則退回建立時間）；非使用者可調排序。
-        return documents
-            .OrderByDescending(d => d.LastOpenedUtc ?? d.CreatedUtc)
+        return entries
+            .OrderByDescending(entry => entry.Document?.LastOpenedUtc ?? entry.Document?.CreatedUtc)
             .ToList();
     }
 
@@ -90,7 +105,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
             return Task.FromResult<ProjectDocument?>(null);
         }
 
-        return ReadAsync(projectId, skipReadErrors: false, cancellationToken);
+        return ReadAsync(projectId, cancellationToken);
     }
 
     public Task SaveAsync(ProjectDocument document, CancellationToken cancellationToken)
@@ -148,9 +163,16 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         }
     }
 
+    private static bool HasJsonProperty(string json, string propertyName)
+    {
+        using var raw = JsonDocument.Parse(json);
+        return raw.RootElement.ValueKind == JsonValueKind.Object
+            && raw.RootElement.EnumerateObject().Any(property =>
+                string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase));
+    }
+
     private async Task<ProjectDocument?> ReadAsync(
         string projectId,
-        bool skipReadErrors,
         CancellationToken cancellationToken)
     {
         var path = folder.GetProjectJsonPath(projectId);
@@ -162,37 +184,32 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         try
         {
             var json = await File.ReadAllTextAsync(path, cancellationToken);
-            var document = JsonSerializer.Deserialize<ProjectDocument>(json, JsonOptions);
+            var document = JsonSerializer.Deserialize<ProjectDocument>(json, JsonOptions)
+                ?? throw ProjectReadError(projectId);
 
-            // 舊版 project.json 缺 databaseProvider（或為 null）→ 正規化為 sqlite，不需檔案遷移。
-            document = document is null || !string.IsNullOrWhiteSpace(document.DatabaseProvider)
-                ? document
-                : document with { DatabaseProvider = ProjectDocument.DefaultDatabaseProvider };
             if (document is not null)
             {
+                // 目前版本建立的 project.json 一定寫明 databaseProvider；缺欄位代表舊版 JET 建立的案件。
+                // 反序列化會把缺席欄位補成建構式預設值，因此另外檢查原始 JSON 是否真的有這個欄位。
+                if (string.IsNullOrWhiteSpace(document.DatabaseProvider)
+                    || !HasJsonProperty(json, "databaseProvider"))
+                {
+                    throw new JetActionException(
+                        JetErrorCodes.InvalidProjectSchema,
+                        InfSamplingSeedResolution.LegacyProjectMessage(
+                            $"專案『{projectId}』的 project.json",
+                            "缺少 databaseProvider"));
+                }
+
                 ProjectDocumentSeedIntegrity.Validate(document, $"專案『{projectId}』的 project.json");
+
+                ProjectDocumentPeriodIntegrity.Validate(document, $"專案『{projectId}』的 project.json");
             }
 
             return document;
         }
-        catch (JetActionException ex) when (ex.Code == JetErrorCodes.FileReadError)
-        {
-            if (skipReadErrors)
-            {
-                // 種子損壞案件與一般 JSON 損壞案件同樣不應拖垮 project.list。
-                return null;
-            }
-
-            throw;
-        }
         catch (JsonException ex)
         {
-            if (skipReadErrors)
-            {
-                // 單一損壞案件不應讓 project.list 整份清單失敗。
-                return null;
-            }
-
             if (ProjectDocumentSeedIntegrity.IsSeedJsonPath(ex.Path))
             {
                 throw ProjectDocumentSeedIntegrity.Corruption(
@@ -200,22 +217,18 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
                     "sampleSeed 或 sampleSeedVersion 的 JSON 格式不合法");
             }
 
-            throw new JetActionException(
-                JetErrorCodes.FileReadError,
-                $"專案『{projectId}』的 project.json 無法讀取或解析。");
+            throw ProjectReadError(projectId);
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            if (skipReadErrors)
-            {
-                return null;
-            }
-
-            throw new JetActionException(
-                JetErrorCodes.FileReadError,
-                $"專案『{projectId}』的 project.json 無法讀取或解析。");
+            throw ProjectReadError(projectId);
         }
     }
+
+    private static JetActionException ProjectReadError(string projectId) => new(
+        JetErrorCodes.FileReadError,
+        $"專案『{projectId}』的 project.json 無法讀取或解析。請先確認檔案未被其他程式鎖住；"
+        + "若檔案已損壞，請從備份復原，或另建案件重新匯入。");
 }
 
 /// <summary>
@@ -229,6 +242,14 @@ internal static class ProjectDocumentSeedIntegrity
         var resolution = JetAuditProgram.ResolveInfSamplingSeed(
             document.SampleSeed,
             document.SampleSeedVersion);
+        if (resolution.IsLegacyProject)
+        {
+            // 舊版 JET 建立的案件不是損壞；告訴使用者改用目前版本重建，不要求從備份復原。
+            throw new JetActionException(
+                JetErrorCodes.InvalidProjectSchema,
+                InfSamplingSeedResolution.LegacyProjectMessage(source, resolution.Error));
+        }
+
         if (!resolution.IsValid)
         {
             throw Corruption(source, resolution.Error ?? "設定不合法");

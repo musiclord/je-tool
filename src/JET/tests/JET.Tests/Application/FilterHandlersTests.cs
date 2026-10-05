@@ -97,32 +97,6 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_CategoryIdArrays_MatchLegacyScalarForTheSameCategory()
-    {
-        // scalar 是「單元素集合」的相容輸入：同一分類的兩種寫法必須得到同一個命中母體。
-        var scalar = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(new
-        {
-            join = "AND",
-            type = "accountPair",
-            pairMode = "exact",
-            debitCategory = "Receivables",
-            creditCategory = "Revenue"
-        })));
-        var ids = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(new
-        {
-            join = "AND",
-            type = "accountPair",
-            pairMode = "exact",
-            debitCategoryIds = new[] { AccountTaxonomyBuiltIns.ReceivablesId },
-            creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId }
-        })));
-
-        var scalarCount = scalar.GetProperty("scenario").GetProperty("count").GetInt64();
-        Assert.True(scalarCount > 0, "demo 資料應含賒銷（借應收／貸收入）傳票");
-        Assert.Equal(scalarCount, ids.GetProperty("scenario").GetProperty("count").GetInt64());
-    }
-
-    [Fact]
     public async Task FilterPreview_CategoryIdArrays_TakePrecedenceOverLegacyScalars()
     {
         // 同時帶陣列與 scalar 時（migration 產生的舊定義即為此形狀），一律以陣列為準。
@@ -263,7 +237,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
 
         var payload = PreviewPayload(ValidScenario(
-            new { join = "AND", type = "accountPair", debitCategory = "Cash", creditCategory = "Revenue" }));
+            // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「科目配對未匯入」成為唯一的失敗原因。
+            new { join = "AND", type = "accountPair", debitCategoryIds = new[] { AccountTaxonomyBuiltIns.CashId }, creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } }));
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync("filter.preview", payload));
@@ -326,8 +301,9 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         try
         {
+            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留非授權人員篩選的原斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
-                JsonSerializer.Serialize(new { filePath = listPath, fileName = "ap.xlsx" }));
+                JsonSerializer.Serialize(new { filePath = listPath, fileName = "ap.xlsx", sourceColumn = "AUTHORIZED_PREPARER" }));
 
             var preview = await host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
                 new { join = "AND", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" })));
@@ -956,8 +932,11 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task ProjectLoad_PreEffectivePopulationFilterLogic_RejectsReuseAndLazyRematerialization()
+    public async Task ProjectLoad_PreEffectiveValidFilterLogic_RecalculatesWithCurrentRules()
     {
+        // 2026-10-02 使用者裁定開案時不再要求逐案重新保存：舊版本但仍符合目前規則的情境，
+        // 由 project.load 改成目前版本並清掉舊命中，第一次查詢時才用新規則重算。
+        // 原本斷言 filterResultRef 為 null 與 stale_result 的寫法隨裁定改成斷言已改版且查得到命中。
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
         await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
@@ -985,16 +964,22 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
 
         Assert.Equal(1, loaded.GetProperty("filterScenarios").GetArrayLength());
-        Assert.Equal(JsonValueKind.Null, loaded.GetProperty("filterResultRef").ValueKind);
-        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
-            host.DispatchAsync(
-                "query.filterHitsPage",
-                JsonSerializer.Serialize(new { scenarioPosition = 1 })));
-        Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
+        var check = loaded.GetProperty("filterScenarioCheck");
+        Assert.Equal("recalculated", check.GetProperty("status").GetString());
+        Assert.Equal(1, check.GetProperty("recalculatedCount").GetInt32());
+        var resultRef = loaded.GetProperty("filterResultRef");
+        Assert.Equal(JsonValueKind.Object, resultRef.ValueKind);
+        Assert.Equal(RuleLogicVersions.Filter, resultRef.GetProperty("logicVersion").GetString());
+        Assert.True(loaded.GetProperty("staleState").GetProperty("filter").GetBoolean());
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
             host,
             context.ProjectId,
             "SELECT COUNT(*) FROM result_filter_run;"));
+
+        var page = await host.DispatchAsync(
+            "query.filterHitsPage",
+            JsonSerializer.Serialize(new { scenarioPosition = 1 }));
+        Assert.NotEmpty(page.GetProperty("rows").EnumerateArray());
     }
 
     [Fact]
@@ -1025,6 +1010,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var replayed = loaded.GetProperty("filterScenarios")[0];
         Assert.Equal("auditPeriod", replayed.GetProperty("populationScope").GetString());
         Assert.Equal(JsonValueKind.Null, loaded.GetProperty("filterResultRef").ValueKind);
+        // 母體不是查核期間的情境不自動改版，回應列出這個情境請審計員修改。
+        var check = loaded.GetProperty("filterScenarioCheck");
+        Assert.Equal("needsEdit", check.GetProperty("status").GetString());
+        Assert.Equal(1, Assert.Single(check.GetProperty("problems").EnumerateArray()).GetProperty("position").GetInt32());
 
         var stale = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "query.filterHitsPage",
@@ -1363,7 +1352,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         }));
 
         var preview = await host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "accountPair", pairMode = "creditAnchor", creditCategory = "Revenue" })));
+            // 2026-10-02 起只認分類身分陣列，單選分類欄位改成同一分類的陣列。
+            new { join = "AND", type = "accountPair", pairMode = "creditAnchor", creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } })));
 
         // 貸方錨定（guide §6.1 C）：輸出貸方錨定列＋同傳票借方列（>= 0）。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
@@ -1395,7 +1385,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // 賒銷種子傳票即「應收借（1131）＋ 收入貸（4101）」同傳票（DemoDataFactory.CreditSaleVouchers），保證母體非空。
         // drAndCr 命中數須等於同述詞的獨立 recount（標記 Receivables 借「或」Revenue 貸的列）。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategory = "Receivables", creditCategory = "Revenue" })));
+            // 2026-10-02 起只認分類身分陣列，單選分類欄位改成同一分類的陣列。
+            new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { AccountTaxonomyBuiltIns.ReceivablesId }, creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } })));
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
@@ -1433,7 +1424,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
-                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategory = "Cash", creditCategory = "Revenue" }))));
+                // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「科目配對未匯入」成為唯一的失敗原因。
+                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { AccountTaxonomyBuiltIns.CashId }, creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } }))));
 
         Assert.Equal("invalid_scenario", ex.Code);
     }
@@ -1444,7 +1436,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // 分類不在白名單（共用 fixture 已匯入科目配對 → 僅分類越界觸發）。
         var ex = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
-                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategory = "NotACategory", creditCategory = "Revenue" }))));
+                // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「分類不存在」成為唯一的失敗原因。
+                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { "NotACategory" }, creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } }))));
 
         Assert.Equal("invalid_scenario", ex.Code);
     }
@@ -1455,7 +1448,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // 非法 pairMode（沿用 accountPair 的模式名 exact 也屬非法——兩條件模式集合刻意分離）。
         var ex = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
-                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "exact", debitCategory = "Cash", creditCategory = "Revenue" }))));
+                // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「模式不合法」成為唯一的失敗原因。
+                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "exact", debitCategoryIds = new[] { AccountTaxonomyBuiltIns.CashId }, creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } }))));
 
         Assert.Equal("invalid_scenario", ex.Code);
     }
@@ -1524,16 +1518,18 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Theory]
-    [InlineData("revenueWithoutNormalCounterpart")]
-    [InlineData("manualRevenueEntry")]
-    public async Task FilterPreview_KctParameterlessType_RunsEndToEnd(string type)
+    [InlineData("revenueWithoutNormalCounterpart", 30L, 30L)]
+    [InlineData("manualRevenueEntry", 0L, 0L)]
+    public async Task FilterPreview_KctParameterlessType_RunsEndToEnd(string type, long expectedCount, long expectedVouchers)
     {
-        // 證明型別字串解析 → 驗證放行 → 述詞執行整條 wire（共用 fixture 已匯入科目配對）。
-        // 正確性由 KctFilterPredicateTests 的固定 fixture 身分斷言把關；此處只驗 wire 不丟例外。
+        // 第 9 批中低 13：原 count >= 0 永遠成立，改鎖正式 demo 的手算答案。
+        // 30 張 Others 借、Revenue 貸各命中一列；12 張應收借、Revenue 貸不命中。
+        // Revenue seed 全為自動，人工列只在不含 Revenue 的 baseline，所以人工收入固定為零。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
             new { join = "AND", type })));
 
-        Assert.True(preview.GetProperty("scenario").GetProperty("count").GetInt64() >= 0);
+        Assert.Equal(expectedCount, preview.GetProperty("scenario").GetProperty("count").GetInt64());
+        Assert.Equal(expectedVouchers, preview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());
     }
 
     [Fact]
@@ -1602,8 +1598,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(KctScenario(
             new { join = "AND", type = "trailingDigits", keywords = "000000" })));
 
-        // 放行的證明：拿到 scenario response 且 count 可算（≥ 0），未走 invalid_scenario。
-        Assert.True(preview.GetProperty("scenario").GetProperty("count").GetInt64() >= 0);
+        // 第 9 批中低 13：原 count >= 0 永遠成立。Demo 只有 15 張金額 2,000,000 的傳票
+        // 符合六位零尾數，借貸兩列都命中；其餘金額不足六位，固定為 30 列、15 張。
+        Assert.Equal(30, preview.GetProperty("scenario").GetProperty("count").GetInt64());
+        Assert.Equal(15, preview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());
     }
 
     [Fact]

@@ -6,6 +6,14 @@ namespace JET.Tests.Domain;
 
 public sealed class MappingValidatorTests
 {
+    [Fact]
+    public void UnknownMappingKeys_AreRejectedEvenWhenEmpty()
+    {
+        var result = MappingValidator.ValidateGl(new GlMappingSpec(
+            new Dictionary<string, string> { ["obsoleteField"] = "" }, GlAmountMode.DualAmount), []);
+        Assert.Contains("obsoleteField (unknown mapping key)", result.UnknownColumns);
+    }
+
     private static readonly string[] JeColumns =
     [
         "日期", "傳票號碼", "會計項目", "項目名稱", "客供商代號", "客供商簡稱",
@@ -68,7 +76,10 @@ public sealed class MappingValidatorTests
                 [GlMappingKeys.Description] = "摘要",
                 [GlMappingKeys.Amount] = "借方金額",
                 [GlMappingKeys.DcField] = "部門代號",
-                [GlMappingKeys.DcDebitCode] = "D" // 字面值，不是欄位名
+                // 2026-10-04 R9：兩個方向代碼都是字面值，完整驗證斷言維持不變。
+                // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+                [GlMappingKeys.DcDebitCode] = "D",
+                [GlMappingKeys.DcCreditCode] = "C"
             },
             GlAmountMode.AmountWithSide);
 
@@ -80,8 +91,10 @@ public sealed class MappingValidatorTests
     [Theory]
     [InlineData(GlAmountMode.AmountWithSide, GlMappingKeys.DcField)]
     [InlineData(GlAmountMode.AmountWithSide, GlMappingKeys.DcDebitCode)]
+    [InlineData(GlAmountMode.AmountWithSide, GlMappingKeys.DcCreditCode)]
     [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DcField)]
     [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DcDebitCode)]
+    [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DcCreditCode)]
     public void SideAndFlagModes_MissingDirectionInput_ReportsExactRequiredKey(
         GlAmountMode mode,
         string missingKey)
@@ -95,7 +108,8 @@ public sealed class MappingValidatorTests
             [GlMappingKeys.Description] = "摘要",
             [GlMappingKeys.Amount] = "借方金額",
             [GlMappingKeys.DcField] = "部門代號",
-            [GlMappingKeys.DcDebitCode] = "D"
+            [GlMappingKeys.DcDebitCode] = "D",
+            [GlMappingKeys.DcCreditCode] = "C"
         };
         mapping.Remove(missingKey);
 
@@ -199,8 +213,8 @@ public sealed class MappingValidatorTests
 
     [Theory]
     [InlineData(GlAmountMode.SignedAmount, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount" })]
-    [InlineData(GlAmountMode.AmountWithSide, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode" })]
-    [InlineData(GlAmountMode.AmountWithFlag, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode" })]
+    [InlineData(GlAmountMode.AmountWithSide, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode", "dcCreditCode" })]
+    [InlineData(GlAmountMode.AmountWithFlag, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode", "dcCreditCode" })]
     [InlineData(GlAmountMode.DualAmount, new[] { "docNum", "postDate", "accNum", "accName", "description", "debitAmount", "creditAmount" })]
     public void GlRequiredKeyMatrix_IsAppliedExactlyAndInOrder(
         GlAmountMode mode,

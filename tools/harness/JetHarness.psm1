@@ -324,17 +324,16 @@ function Read-JetRegistry {
     }
 
     $releaseCandidateSettings = $registry.releaseCandidateSettings
-    foreach ($required in @('candidateManifest', 'snapshotWorkspaceRoot', 'privateCaseIncluded', 'liveProviderIncluded', 'steps')) {
+    foreach ($required in @('snapshotWorkspaceRoot', 'privateCaseIncluded', 'liveProviderIncluded', 'steps')) {
         if (-not $releaseCandidateSettings.ContainsKey($required)) {
             throw [InvalidDataException]::new("ReleaseCandidate settings are missing '$required'.")
         }
     }
-    if ([string]$releaseCandidateSettings.candidateManifest -cne 'docs/first-root-commit-candidate.txt' -or
-        [string]$releaseCandidateSettings.snapshotWorkspaceRoot -cne 'artifacts/harness/rc' -or
+    if ([string]$releaseCandidateSettings.snapshotWorkspaceRoot -cne 'artifacts/harness/rc' -or
         [bool]$releaseCandidateSettings.privateCaseIncluded -or
         [bool]$releaseCandidateSettings.liveProviderIncluded) {
         throw [InvalidDataException]::new(
-            'ReleaseCandidate must use the reviewed candidate manifest and short owned workspace without PrivateCase or live Provider.')
+            'ReleaseCandidate must use the short owned workspace without PrivateCase or live Provider.')
     }
     $expectedReleaseCandidateSteps = @(
         [ordered]@{ name = 'contract'; command = 'Contract'; configuration = 'Release'; noRestore = $false },
@@ -423,43 +422,38 @@ function Read-JetRegistry {
         throw [InvalidDataException]::new('GUI settings escaped the fixed application and driver boundary.')
     }
 
+    # 情境的逾時、操作上限、預期次數與截圖數只寫在 lanes.json，這裡只檢查格式。
+    # 數值上限由 GUI 驅動程式與 AgentGuiTest 組態在執行時各自檢查。
     $guiScenarios = @($guiSettings.scenarios)
-    $expectedGuiScenarios = @(
-        [ordered]@{ name = 'startup-smoke'; timeoutSeconds = 120; actionBudget = 4; expectedActionCount = 1; screenshotBudget = 0 },
-        [ordered]@{ name = 'synthetic-sqlite-create'; timeoutSeconds = 150; actionBudget = 12; expectedActionCount = 9; screenshotBudget = 1 },
-        [ordered]@{ name = 'mapping-required-sync'; timeoutSeconds = 180; actionBudget = 70; expectedActionCount = 64; screenshotBudget = 0 },
-        [ordered]@{ name = 'edited-report-still-loads'; timeoutSeconds = 180; actionBudget = 12; expectedActionCount = 9; screenshotBudget = 0 },
-        [ordered]@{ name = 'approval-mapping-modes'; timeoutSeconds = 240; actionBudget = 47; expectedActionCount = 47; screenshotBudget = 1 },
-        [ordered]@{ name = 'validation-auto-outputs'; timeoutSeconds = 240; actionBudget = 8; expectedActionCount = 5; screenshotBudget = 1 },
-        [ordered]@{ name = 'filter-auditor-journey'; timeoutSeconds = 240; actionBudget = 96; expectedActionCount = 96; screenshotBudget = 2 },
-        [ordered]@{ name = 'filter-kct-editing'; timeoutSeconds = 240; actionBudget = 70; expectedActionCount = 70; screenshotBudget = 1 },
-        [ordered]@{ name = 'feedback-workflow'; timeoutSeconds = 240; actionBudget = 52; expectedActionCount = 52; screenshotBudget = 2 },
-        [ordered]@{ name = 'null-details-recovery'; timeoutSeconds = 240; actionBudget = 35; expectedActionCount = 35; screenshotBudget = 1 },
-        [ordered]@{ name = 'kct-remap-recovery'; timeoutSeconds = 240; actionBudget = 43; expectedActionCount = 43; screenshotBudget = 1 },
-        [ordered]@{ name = 'authorized-list-recovery'; timeoutSeconds = 240; actionBudget = 33; expectedActionCount = 33; screenshotBudget = 1 },
-        [ordered]@{ name = 'extended-conditions'; timeoutSeconds = 240; actionBudget = 96; expectedActionCount = 95; screenshotBudget = 2 },
-        [ordered]@{ name = 'side-month-workflow'; timeoutSeconds = 240; actionBudget = 76; expectedActionCount = 76; screenshotBudget = 2 },
-        [ordered]@{ name = 'nested-voucher-workflow'; timeoutSeconds = 240; actionBudget = 80; expectedActionCount = 80; screenshotBudget = 2 },
-        [ordered]@{ name = 'legacy-form-workflow'; timeoutSeconds = 240; actionBudget = 55; expectedActionCount = 55; screenshotBudget = 2 },
-        [ordered]@{ name = 'legacy-form-catalog'; timeoutSeconds = 240; actionBudget = 95; expectedActionCount = 95; screenshotBudget = 1 }
-    )
-    if ($guiScenarios.Count -ne $expectedGuiScenarios.Count) {
-        throw [InvalidDataException]::new('GUI scenarios must match the reviewed scenario list.')
+    if ($guiScenarios.Count -eq 0) {
+        throw [InvalidDataException]::new('GUI settings must list at least one scenario.')
     }
-    for ($index = 0; $index -lt $expectedGuiScenarios.Count; $index++) {
-        $scenario = $guiScenarios[$index]
-        $expectedScenario = $expectedGuiScenarios[$index]
+    $guiScenarioNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($scenario in $guiScenarios) {
+        if ($scenario -isnot [Collections.IDictionary]) {
+            throw [InvalidDataException]::new('GUI scenarios must be objects.')
+        }
         foreach ($required in @('name', 'timeoutSeconds', 'actionBudget', 'expectedActionCount', 'screenshotBudget')) {
             if (-not $scenario.ContainsKey($required)) {
                 throw [InvalidDataException]::new("GUI scenario is missing '$required'.")
             }
         }
-        if ([string]$scenario.name -cne [string]$expectedScenario.name -or
-            [int]$scenario.timeoutSeconds -ne [int]$expectedScenario.timeoutSeconds -or
-            [int]$scenario.actionBudget -ne [int]$expectedScenario.actionBudget -or
-            [int]$scenario.expectedActionCount -ne [int]$expectedScenario.expectedActionCount -or
-            [int]$scenario.screenshotBudget -ne [int]$expectedScenario.screenshotBudget) {
-            throw [InvalidDataException]::new('GUI scenario name or budget escaped the reviewed boundary.')
+        $scenarioName = [string]$scenario.name
+        if ($scenarioName -cnotmatch '^[a-z][a-z0-9]*(-[a-z0-9]+)*$' -or -not $guiScenarioNames.Add($scenarioName)) {
+            throw [InvalidDataException]::new('GUI scenario names must be unique lowercase hyphenated words.')
+        }
+        foreach ($numberField in @('timeoutSeconds', 'actionBudget', 'expectedActionCount', 'screenshotBudget')) {
+            if ($scenario[$numberField] -isnot [long] -and $scenario[$numberField] -isnot [int]) {
+                throw [InvalidDataException]::new("GUI scenario '$scenarioName' field '$numberField' must be an integer.")
+            }
+        }
+        if ([long]$scenario.timeoutSeconds -lt 1 -or
+            [long]$scenario.actionBudget -lt 1 -or
+            [long]$scenario.expectedActionCount -lt 1 -or
+            [long]$scenario.expectedActionCount -gt [long]$scenario.actionBudget -or
+            [long]$scenario.screenshotBudget -lt 0) {
+            throw [InvalidDataException]::new(
+                "GUI scenario '$scenarioName' needs positive limits, and its expected action count cannot exceed its action budget.")
         }
     }
 
@@ -1649,7 +1643,9 @@ function New-JetTestArguments {
         [ValidateSet('None', 'Method', 'Namespace', 'Trait')] [string] $IncludeKind = 'None',
         [string[]] $IncludeValues = @(),
         [AllowNull()] [string[]] $ExcludedProfiles = $null,
-        [AllowNull()] [string[]] $ProtectedMethodPatterns = $null
+        [AllowNull()] [string[]] $ProtectedMethodPatterns = $null,
+        # Collections：不同測試類別平行執行。None：循序，給共用 SQL Server 資料庫或私人案件副本的路線。
+        [ValidateSet('None', 'Collections')] [string] $Parallelism = 'None'
     )
 
     $arguments = New-Object 'System.Collections.Generic.List[string]'
@@ -1665,7 +1661,7 @@ function New-JetTestArguments {
             '--output', 'Normal',
             '--show-stdout', 'Failed',
             '--show-stderr', 'Failed',
-            '--parallel', 'none',
+            '--parallel', $Parallelism.ToLowerInvariant(),
             '--seed', ([string]$Registry.testSettings.seed))) {
         $arguments.Add([string]$argument)
     }
@@ -1724,7 +1720,8 @@ function Invoke-JetTestStep {
         [string[]] $SensitiveValuesToRedact = @(),
         [ValidateSet('NoSkips', 'BlockOnSkip', 'ProviderRequired', 'PublicPolicy', 'ProviderPolicy')]
         [string] $SkipPolicy = 'NoSkips',
-        [switch] $WithholdFailureMessages
+        [switch] $WithholdFailureMessages,
+        [ValidateSet('None', 'Collections')] [string] $Parallelism = 'None'
     )
 
     $testExecutableRelative = "src/JET/tests/JET.Tests/bin/$Configuration/$($Registry.testSettings.targetFramework)/JET.Tests.exe"
@@ -1745,7 +1742,8 @@ function Invoke-JetTestStep {
         -IncludeKind $IncludeKind `
         -IncludeValues $IncludeValues `
         -ExcludedProfiles $ExcludedProfiles `
-        -ProtectedMethodPatterns $ProtectedMethodPatterns
+        -ProtectedMethodPatterns $ProtectedMethodPatterns `
+        -Parallelism $Parallelism
     if ($null -eq $EnvironmentVariablesToRemove) {
         $EnvironmentVariablesToRemove = @($Registry.testSettings.environmentVariablesToRemove)
     }
@@ -2419,6 +2417,8 @@ function Invoke-JetGuiScenarioStep {
     }
 
     $driverTimeout = [int]$Scenario.timeoutSeconds
+    $actionBudget = [string][int]$Scenario.actionBudget
+    $screenshotBudget = [string][int]$Scenario.screenshotBudget
     $step = Invoke-JetChildStep `
         -RepositoryRoot $RepositoryRoot `
         -RunDirectory $RunDirectory `
@@ -2429,14 +2429,18 @@ function Invoke-JetGuiScenarioStep {
             '--app', $applicationPath,
             '--manifest', $manifestPath,
             '--scenario', $scenarioName,
-            '--timeout-seconds', ([string]$driverTimeout)
+            '--timeout-seconds', ([string]$driverTimeout),
+            '--action-budget', $actionBudget,
+            '--screenshot-budget', $screenshotBudget
         ) `
         -DisplayCommand @(
             'dotnet', ([string]$Registry.guiSettings.driverAssembly),
             '--app', ([string]$Registry.guiSettings.applicationExecutable),
             '--manifest', (Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $manifestPath),
             '--scenario', $scenarioName,
-            '--timeout-seconds', ([string]$driverTimeout)
+            '--timeout-seconds', ([string]$driverTimeout),
+            '--action-budget', $actionBudget,
+            '--screenshot-budget', $screenshotBudget
         ) `
         -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
         -TimeoutSeconds $TimeoutSeconds `
@@ -2530,7 +2534,8 @@ function Invoke-JetGuiScenarioStep {
                     [bool]$manifest.assertions.mappingBaselineReady -and
                     [bool]$manifest.assertions.requiredRailBecameIncomplete -and
                     [bool]$manifest.assertions.requiredRailRecovered -and
-                    [bool]$manifest.assertions.mappingFocusPreserved
+                    [bool]$manifest.assertions.mappingFocusPreserved -and
+                    [bool]$manifest.assertions.literalCommitFirstClick
             }
             'edited-report-still-loads' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
@@ -3132,62 +3137,15 @@ function New-JetReleaseCandidateSnapshot {
 
     $startedUtc = [DateTime]::UtcNow
     $failureStatus = 'failed'
-    $failureReason = 'candidate_manifest_invalid'
+    $failureReason = 'candidate_inventory_invalid'
     $workspaceRoot = $null
     $snapshotRoot = $null
     $sourceIndexBefore = $null
     $sourceIndexAfter = $null
     $sourceIndexMutated = $null
     try {
-        $manifestRelativePath = [string]$Registry.releaseCandidateSettings.candidateManifest
-        $manifestPath = [IO.Path]::GetFullPath($manifestRelativePath, $RepositoryRoot)
-        if (-not (Test-JetDescendantPath -Root $RepositoryRoot -Candidate $manifestPath) -or
-            -not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or
-            (Get-Item -LiteralPath $manifestPath -Force).Length -gt 4194304) {
-            throw [InvalidDataException]::new('Candidate manifest is unavailable or too large.')
-        }
-
-        $manifestLines = [IO.File]::ReadAllLines($manifestPath, $script:Utf8)
-        if ($manifestLines.Count -eq 0) {
-            throw [InvalidDataException]::new('Candidate manifest is empty.')
-        }
-        $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-        foreach ($relativePath in $manifestLines) {
-            if ([string]::IsNullOrWhiteSpace($relativePath) -or
-                $relativePath -cne $relativePath.Trim() -or
-                $relativePath.Contains('\', [StringComparison]::Ordinal) -or
-                $relativePath -match '[\x00-\x1F\x7F]' -or
-                [IO.Path]::IsPathFullyQualified($relativePath) -or
-                $relativePath.StartsWith('./', [StringComparison]::Ordinal) -or
-                $relativePath -match '(^|/)\.\.(/|$)' -or
-                -not $seen.Add($relativePath)) {
-                throw [InvalidDataException]::new('Candidate manifest contains an invalid path.')
-            }
-
-            $normalized = $relativePath.ToLowerInvariant()
-            if ($normalized -eq '.git' -or
-                $normalized.StartsWith('.git/', [StringComparison]::Ordinal) -or
-                $normalized.StartsWith('artifacts/', [StringComparison]::Ordinal) -or
-                $normalized.StartsWith('data/test-case/', [StringComparison]::Ordinal) -or
-                $normalized.StartsWith('data/temporary-test-case/', [StringComparison]::Ordinal) -or
-                $normalized.StartsWith('data/legacy-parity-work/', [StringComparison]::Ordinal)) {
-                throw [InvalidDataException]::new('Candidate manifest includes a forbidden path class.')
-            }
-
-            $fullPath = [IO.Path]::GetFullPath($relativePath, $RepositoryRoot)
-            if (-not (Test-JetDescendantPath -Root $RepositoryRoot -Candidate $fullPath) -or
-                -not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
-                throw [InvalidDataException]::new('Candidate manifest references an unavailable file.')
-            }
-            Assert-JetNoExistingReparsePoint -RepositoryRoot $RepositoryRoot -Candidate $fullPath
-        }
-
-        $sortedManifest = [string[]]$manifestLines.Clone()
-        [Array]::Sort($sortedManifest, [StringComparer]::Ordinal)
-        if (-not (Test-JetOrdinalSequenceEqual -Left $manifestLines -Right $sortedManifest)) {
-            throw [InvalidDataException]::new('Candidate manifest must use ordinal path order.')
-        }
-
+        # 候選內容直接取自 Git：已有提交時是已追蹤的檔案，第一次根提交前是尚未被忽略的檔案。
+        # 不再維護手寫的候選清單；私人資料由下面的禁止路徑類別與 .gitignore 擋住。
         $failureStatus = 'infrastructure_error'
         $failureReason = 'candidate_git_inventory_failed'
         $sourceIndexBefore = Get-JetSourceIndexFingerprint -RepositoryRoot $RepositoryRoot
@@ -3196,8 +3154,6 @@ function New-JetReleaseCandidateSnapshot {
         $sourceMode = if ($head.ExitCode -eq 0) { 'committed-head' } else { 'first-root-candidate' }
         $tracked = Invoke-JetGitLines -RepositoryRoot $RepositoryRoot -Arguments @('ls-files', '--cached', '--')
         if ($tracked.ExitCode -ne 0) {
-            $failureStatus = 'infrastructure_error'
-            $failureReason = 'candidate_git_inventory_failed'
             throw [InvalidOperationException]::new('Tracked inventory failed.')
         }
 
@@ -3206,15 +3162,13 @@ function New-JetReleaseCandidateSnapshot {
                 -RepositoryRoot $RepositoryRoot `
                 -Arguments @('status', '--porcelain=v1', '--untracked-files=all', '--')
             if ($status.ExitCode -ne 0) {
-                $failureStatus = 'infrastructure_error'
-                $failureReason = 'candidate_git_inventory_failed'
                 throw [InvalidOperationException]::new('Git status failed.')
             }
             if ($status.Lines.Count -ne 0) {
                 $failureReason = 'candidate_source_dirty'
                 throw [InvalidDataException]::new('Committed source is not clean.')
             }
-            $actualPaths = [string[]]$tracked.Lines
+            $candidatePaths = [string[]]$tracked.Lines
         }
         else {
             if ($tracked.Lines.Count -ne 0) {
@@ -3225,17 +3179,55 @@ function New-JetReleaseCandidateSnapshot {
                 -RepositoryRoot $RepositoryRoot `
                 -Arguments @('ls-files', '--others', '--exclude-standard', '--')
             if ($untracked.ExitCode -ne 0) {
-                $failureStatus = 'infrastructure_error'
-                $failureReason = 'candidate_git_inventory_failed'
                 throw [InvalidOperationException]::new('Untracked inventory failed.')
             }
-            $actualPaths = [string[]]$untracked.Lines
+            $candidatePaths = [string[]]$untracked.Lines
         }
-        [Array]::Sort($actualPaths, [StringComparer]::Ordinal)
-        if (-not (Test-JetOrdinalSequenceEqual -Left $manifestLines -Right $actualPaths)) {
-            $failureReason = 'candidate_manifest_mismatch'
-            throw [InvalidDataException]::new('Candidate manifest does not match the source inventory.')
+        [Array]::Sort($candidatePaths, [StringComparer]::Ordinal)
+
+        $failureStatus = 'failed'
+        $failureReason = 'candidate_inventory_invalid'
+        if ($candidatePaths.Count -eq 0) {
+            throw [InvalidDataException]::new('Candidate inventory is empty.')
         }
+        $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach ($relativePath in $candidatePaths) {
+            if ([string]::IsNullOrWhiteSpace($relativePath) -or
+                $relativePath -cne $relativePath.Trim() -or
+                $relativePath.Contains('\', [StringComparison]::Ordinal) -or
+                $relativePath -match '[\x00-\x1F\x7F]' -or
+                [IO.Path]::IsPathFullyQualified($relativePath) -or
+                $relativePath.StartsWith('./', [StringComparison]::Ordinal) -or
+                $relativePath -match '(^|/)\.\.(/|$)' -or
+                -not $seen.Add($relativePath)) {
+                throw [InvalidDataException]::new('Candidate inventory contains an invalid path.')
+            }
+
+            $normalized = $relativePath.ToLowerInvariant()
+            if ($normalized -eq '.git' -or
+                $normalized.StartsWith('.git/', [StringComparison]::Ordinal) -or
+                $normalized.StartsWith('artifacts/', [StringComparison]::Ordinal)) {
+                throw [InvalidDataException]::new('Candidate inventory includes a forbidden path class.')
+            }
+            if ($normalized.StartsWith('data/test-case/', [StringComparison]::Ordinal) -or
+                $normalized.StartsWith('data/temporary-test-case/', [StringComparison]::Ordinal) -or
+                $normalized.StartsWith('data/legacy-parity-work/', [StringComparison]::Ordinal) -or
+                $normalized.StartsWith('data/private/', [StringComparison]::Ordinal) -or
+                $normalized.StartsWith('data/real-case/', [StringComparison]::Ordinal) -or
+                $normalized.StartsWith('data/customer-data/', [StringComparison]::Ordinal)) {
+                $failureReason = 'candidate_private_path'
+                throw [InvalidDataException]::new('Candidate inventory includes a private data path.')
+            }
+
+            $fullPath = [IO.Path]::GetFullPath($relativePath, $RepositoryRoot)
+            if (-not (Test-JetDescendantPath -Root $RepositoryRoot -Candidate $fullPath) -or
+                -not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+                throw [InvalidDataException]::new('Candidate inventory references an unavailable file.')
+            }
+            Assert-JetNoExistingReparsePoint -RepositoryRoot $RepositoryRoot -Candidate $fullPath
+        }
+        $manifestLines = $candidatePaths
+        $inventorySource = if ($sourceMode -ceq 'committed-head') { 'git-tracked' } else { 'git-unignored' }
 
         $workspaceRelativeRoot = [string]$Registry.releaseCandidateSettings.snapshotWorkspaceRoot
         if ([IO.Path]::IsPathRooted($workspaceRelativeRoot)) {
@@ -3328,7 +3320,7 @@ function New-JetReleaseCandidateSnapshot {
         [Array]::Sort($snapshotPaths, [StringComparer]::Ordinal)
         if ($snapshotTracked.ExitCode -ne 0 -or
             -not (Test-JetOrdinalSequenceEqual -Left $manifestLines -Right $snapshotPaths)) {
-            throw [InvalidOperationException]::new('Candidate snapshot index does not match the manifest.')
+            throw [InvalidOperationException]::new('Candidate snapshot index does not match the inventory.')
         }
 
         $sourceIndexAfter = Get-JetSourceIndexFingerprint -RepositoryRoot $RepositoryRoot
@@ -3346,7 +3338,7 @@ function New-JetReleaseCandidateSnapshot {
             -Reason $null `
             -Evidence ([ordered]@{
                 sourceMode = $sourceMode
-                manifest = $manifestRelativePath
+                inventory = $inventorySource
                 fileCount = $manifestLines.Count
                 bytes = $totalBytes
                 aggregateSha256 = $aggregateSha256
@@ -3607,6 +3599,28 @@ function New-JetUsageEnvelope {
         exitCode = $script:ExitUsage
         error = [ordered]@{ code = $Code; message = $Message }
         privateData = [ordered]@{ pathInspected = $false }
+    }
+}
+
+function Invoke-JetPublicFrontendSteps {
+    param(
+        [Parameter(Mandatory)] [string] $RepositoryRoot,
+        [Parameter(Mandatory)] [string] $RunDirectory,
+        [Parameter(Mandatory)] $Registry,
+        [Parameter(Mandatory)] [int] $TimeoutSeconds
+    )
+    foreach ($suite in @('mapping', 'preview')) {
+        $script = "frontend-$suite-contract.tests.ps1"
+        $step = Invoke-JetChildStep `
+            -RepositoryRoot $RepositoryRoot -RunDirectory $RunDirectory `
+            -Name "public-frontend-$suite" -FileName ([Environment]::ProcessPath) `
+            -Arguments @('-NoProfile', '-File', (Join-Path $RepositoryRoot "tools/tests/$script"), '-RepositoryRoot', $RepositoryRoot) `
+            -DisplayCommand @('pwsh', '-NoProfile', '-File', "tools/tests/$script") `
+            -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
+            -TimeoutSeconds $TimeoutSeconds -OwnProcessTree `
+            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove)
+        $step
+        if ($step.status -cne 'passed') { break }
     }
 }
 
@@ -3961,7 +3975,8 @@ function Invoke-JetHarness {
                             -TimeoutSeconds $parsedTimeoutSeconds `
                             -IncludeKind Method `
                             -IncludeValues @("*$Filter*") `
-                            -SkipPolicy BlockOnSkip
+                            -SkipPolicy BlockOnSkip `
+                            -Parallelism Collections
                         $steps.Add($selected)
                     }
                     if ($steps.Count -gt 0 -and $steps[$steps.Count - 1].status -ceq 'passed') {
@@ -3975,7 +3990,8 @@ function Invoke-JetHarness {
                             -TimeoutSeconds $parsedTimeoutSeconds `
                             -IncludeKind Namespace `
                             -IncludeValues @($registry.testSettings.focusedGuardNamespaces) `
-                            -SkipPolicy NoSkips
+                            -SkipPolicy NoSkips `
+                            -Parallelism Collections
                         $steps.Add($guards)
                     }
                 }
@@ -3998,8 +4014,16 @@ function Invoke-JetHarness {
                             -MinimumExpectedTests ([int]$registry.testSettings.publicMinimumExpectedTests) `
                             -Registry $registry `
                             -TimeoutSeconds $parsedTimeoutSeconds `
-                            -SkipPolicy PublicPolicy
+                            -SkipPolicy PublicPolicy `
+                            -Parallelism Collections
                         $steps.Add($public)
+                    }
+                    if ($steps.Count -gt 0 -and $steps[$steps.Count - 1].status -ceq 'passed') {
+                        foreach ($frontendStep in @(Invoke-JetPublicFrontendSteps `
+                                -RepositoryRoot $repositoryFull -RunDirectory $context.RunDirectory `
+                                -Registry $registry -TimeoutSeconds $parsedTimeoutSeconds)) {
+                            $steps.Add($frontendStep)
+                        }
                     }
                 }
                 'Provider' {
@@ -4166,7 +4190,8 @@ function Invoke-JetHarness {
                             -TimeoutSeconds $parsedTimeoutSeconds `
                             -IncludeKind Method `
                             -IncludeValues @($registry.testSettings.packageMethodPatterns) `
-                            -SkipPolicy NoSkips
+                            -SkipPolicy NoSkips `
+                            -Parallelism Collections
                         $steps.Add($packageTests)
                     }
                     $publishDirectory = Join-Path $context.ScratchDirectory 'publish'
@@ -4471,7 +4496,7 @@ function Invoke-JetHarness {
             'ReleaseCandidate' {
                 [ordered]@{
                     configuration = 'Release'
-                    candidateManifest = [string]$registry.releaseCandidateSettings.candidateManifest
+                    candidateInventory = 'git'
                     isolatedCandidateSnapshot = $true
                     sourceGitIndexMeasured = $releaseCandidateIndexMeasured
                     sourceGitIndexMutated = $releaseCandidateIndexMutated

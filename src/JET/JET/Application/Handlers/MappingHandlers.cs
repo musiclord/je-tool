@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -11,7 +12,6 @@ namespace JET.Application;
 /// </summary>
 public sealed class MappingRestoreDraftHandler(
     IMappingMetadataReader metadataReader,
-    IImportRepository importRepository,
     MappingRestoreDraftAuthorizationStore restoreAuthorizations,
     ProjectSession session) : IApplicationActionHandler
 {
@@ -19,16 +19,16 @@ public sealed class MappingRestoreDraftHandler(
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         var filePath = PayloadReader.GetRequiredString(payload, "filePath");
         var metadata = await metadataReader.ReadAsync(filePath, cancellationToken);
 
-        var glBatch = await importRepository.GetLatestBatchAsync(
+        var glBatch = await repositories.Imports.GetLatestBatchAsync(
             projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
                 "目前案件尚未匯入 GL，不能驗證還原草稿的來源欄位。");
-        var tbBatch = await importRepository.GetLatestBatchAsync(
+        var tbBatch = await repositories.Imports.GetLatestBatchAsync(
             projectId, DatasetKind.Tb, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
@@ -39,7 +39,7 @@ public sealed class MappingRestoreDraftHandler(
         {
             throw new JetActionException(
                 JetErrorCodes.MappingMetadataInvalid,
-                "欄位配對 metadata 的模式不受支援。");
+                "報告裡的欄位配對使用了目前版本不支援的金額計算方式，無法還原。請回第三步欄位配對直接重新選擇。");
         }
 
         var glValidation = MappingValidator.ValidateGl(
@@ -52,9 +52,15 @@ public sealed class MappingRestoreDraftHandler(
             .ToArray();
         if (missing.Length > 0)
         {
+            if (glValidation.MissingRequiredKeys.Any(key => key is "dcDebitCode" or "dcCreditCode"))
+            {
+                throw new JetActionException(
+                    JetErrorCodes.MappingMetadataInvalid,
+                    "報告裡的欄位配對未完整記錄借方代碼與貸方代碼，無法還原。請回第三步手動指定兩個代碼後再確認配對。");
+            }
             throw new JetActionException(
                 JetErrorCodes.MappingMetadataInvalid,
-                $"欄位配對 metadata 缺少目前模式的必要欄位：{string.Join("、", missing)}。");
+                $"報告裡的欄位配對缺少必要欄位：{string.Join("、", missing)}，無法還原。請回第三步欄位配對直接重新選擇。");
         }
 
         var unknownColumns = glValidation.UnknownColumns.Select(column => $"GL:{column}")
@@ -64,7 +70,7 @@ public sealed class MappingRestoreDraftHandler(
         {
             throw new JetActionException(
                 JetErrorCodes.MappingColumnNotFound,
-                $"還原草稿指向目前匯入批次不存在的欄位：{string.Join("、", unknownColumns)}。");
+                $"報告裡的欄位配對選到目前匯入資料中沒有的欄位：{string.Join("、", unknownColumns)}。請回第三步欄位配對重新選擇。");
         }
 
         GlMappingOptions glOptions;
@@ -77,7 +83,10 @@ public sealed class MappingRestoreDraftHandler(
         }
         catch (ArgumentException exception)
         {
-            throw new JetActionException(JetErrorCodes.MappingMetadataInvalid, exception.Message);
+            throw new JetActionException(
+                JetErrorCodes.MappingMetadataInvalid,
+                "報告裡的欄位配對進階設定與目前匯入的資料不一致，無法還原。請回第三步欄位配對直接重新選擇。",
+                innerException: exception);
         }
 
         // restoreDraft 是唯一可把既有 backend stable ID 帶回一個已失效 mapping 的可信入口。
@@ -103,57 +112,51 @@ public sealed class MappingRestoreDraftHandler(
 
 public sealed class MappingCommitGlHandler : IApplicationActionHandler
 {
-    private readonly IImportRepository importRepository;
-    private readonly IMappingFactsPort mappingFactsPort;
-    private readonly IMappingStateStore mappingStateStore;
     private readonly MappingRestoreDraftAuthorizationStore restoreAuthorizations;
     private readonly IProjectStore projectStore;
     private readonly ProjectSession session;
     private readonly IJetEventPublisher eventPublisher;
-    private readonly IProjectAuditLog auditLog;
+    private readonly ILogger? logger;
 
     internal MappingCommitGlHandler(
-        IImportRepository importRepository,
-        IMappingFactsPort mappingFactsPort,
-        IMappingStateStore mappingStateStore,
         MappingRestoreDraftAuthorizationStore restoreAuthorizations,
         IProjectStore projectStore,
         ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IProjectAuditLog? auditLog = null)
+        IJetEventPublisher eventPublisher, ILogger? logger = null)
     {
-        this.importRepository = importRepository;
-        this.mappingFactsPort = mappingFactsPort;
-        this.mappingStateStore = mappingStateStore;
         this.restoreAuthorizations = restoreAuthorizations;
         this.projectStore = projectStore;
         this.session = session;
         this.eventPublisher = eventPublisher;
-        this.auditLog = auditLog ?? NullProjectAuditLog.Instance;
+        this.logger = logger;
     }
 
     public string Action => "mapping.commit.gl";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
 
         var mapping = PayloadReader.GetStringMap(payload, "mapping");
         var amountModeName = PayloadReader.GetRequiredString(payload, "amountMode");
         var amountMode = JetAuditProgram.ParseGlAmountMode(amountModeName);
         var postingStatusPolicy = MappingV2CommitPayloadPrerequisite.ReadPostingStatusPolicy(payload);
 
-        var batch = await importRepository.GetLatestBatchAsync(projectId, DatasetKind.Gl, cancellationToken)
+        var batch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
-                "尚未匯入 GL 資料，請先執行 import.gl.fromFile。");
-        var existingMapping = await mappingStateStore.FindAsync(
+                "尚未匯入 GL 資料，請先在第二步匯入總帳。");
+        var existingMapping = await repositories.MappingStates.FindAsync(
             projectId,
             DatasetKind.Gl,
             cancellationToken);
         var recordsRecommit = existingMapping is not null
-            || await auditLog.RequiresMappingRecommitAuditAsync(projectId, "gl", cancellationToken);
-        var existingRdeIds = existingMapping?.GlOptions?.RdeFields
+            || await repositories.ProjectAuditLog.RequiresMappingRecommitAuditAsync(projectId, "gl", cancellationToken);
+        // 重新匯入會刪掉已確認的配對，但畫面的草稿仍帶著上次確認時發出的攸關資料元素欄位身分。
+        // 還沒重新確認時沿用那一份，草稿才送得出去，已儲存情境裡指到這些欄位的條件也還對得上。
+        var reusableMapping = existingMapping
+            ?? await repositories.MappingStates.FindPreviousAsync(projectId, DatasetKind.Gl, cancellationToken);
+        var existingRdeIds = reusableMapping?.GlOptions?.RdeFields
             .Select(static field => field.FieldId)
             .ToHashSet(StringComparer.Ordinal)
             ?? [];
@@ -192,9 +195,8 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             existingRdeIds);
 
         var projection = await Task.Run(
-            () => JetAuditProgram.ExecuteAsync(
+            () => repositories.MappingFacts.ExecuteAsync(
                 plan,
-                mappingFactsPort,
                 cancellationToken,
                 progress => eventPublisher.Publish("mapping.progress", new
                 {
@@ -210,12 +212,12 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         await MappingCommitShared.AdvanceStepAsync(
             projectStore,
             document,
-            plan.Node,
-            CancellationToken.None);
+            WorkflowMilestones.For(Action),
+            CancellationToken.None, logger);
 
         if (recordsRecommit)
         {
-            await auditLog.AppendAsync(
+            await repositories.ProjectAuditLog.AppendAsync(
                 projectId,
                 ProjectAuditEvent.Create(
                     ProjectAuditOperations.MappingRecommit,
@@ -226,6 +228,8 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
                 CancellationToken.None);
         }
 
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
         return new
         {
             ok = true,
@@ -238,59 +242,54 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             batchId = batch.BatchId,
             projectedRowCount = result.Projection.ProjectedRowCount,
             // 非阻斷提醒（如必填欄整欄空白，疑似配錯欄）；前端提交成功後一併顯示。多數情況為空陣列。
-            warnings = result.Projection.Warnings
+            warnings = result.Projection.Warnings,
+            authorizedPreparerState = await repositories.AuthorizedPreparers.FindStateAsync(projectId, CancellationToken.None),
+            invalidatedResults = mutationState.InvalidatedResults,
+            staleState = mutationState.StaleState,
+            reportArtifacts = mutationState.ReportArtifacts,
+            reportArtifactWarning = mutationState.ReportArtifactWarning
         };
     }
 }
 
 public sealed class MappingCommitTbHandler : IApplicationActionHandler
 {
-    private readonly IImportRepository importRepository;
-    private readonly IMappingFactsPort mappingFactsPort;
-    private readonly IMappingStateStore mappingStore;
     private readonly IProjectStore projectStore;
     private readonly ProjectSession session;
     private readonly IJetEventPublisher eventPublisher;
-    private readonly IProjectAuditLog auditLog;
+    private readonly ILogger? logger;
 
     internal MappingCommitTbHandler(
-        IImportRepository importRepository,
-        IMappingFactsPort mappingFactsPort,
-        IMappingStateStore mappingStore,
         IProjectStore projectStore,
         ProjectSession session,
-        IJetEventPublisher eventPublisher,
-        IProjectAuditLog? auditLog = null)
+        IJetEventPublisher eventPublisher, ILogger? logger = null)
     {
-        this.importRepository = importRepository;
-        this.mappingFactsPort = mappingFactsPort;
-        this.mappingStore = mappingStore;
         this.projectStore = projectStore;
         this.session = session;
         this.eventPublisher = eventPublisher;
-        this.auditLog = auditLog ?? NullProjectAuditLog.Instance;
+        this.logger = logger;
     }
 
     public string Action => "mapping.commit.tb";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
 
         var mapping = PayloadReader.GetStringMap(payload, "mapping");
         var changeModeName = PayloadReader.GetRequiredString(payload, "changeMode");
         var changeMode = JetAuditProgram.ParseTbChangeMode(changeModeName);
 
-        var batch = await importRepository.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken)
+        var batch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
-                "尚未匯入 TB 資料，請先執行 import.tb.fromFile。");
-        var existingMapping = await mappingStore.FindAsync(
+                "尚未匯入 TB 資料，請先在第二步匯入試算表。");
+        var existingMapping = await repositories.MappingStates.FindAsync(
             projectId,
             DatasetKind.Tb,
             cancellationToken);
         var recordsRecommit = existingMapping is not null
-            || await auditLog.RequiresMappingRecommitAuditAsync(projectId, "tb", cancellationToken);
+            || await repositories.ProjectAuditLog.RequiresMappingRecommitAuditAsync(projectId, "tb", cancellationToken);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
@@ -302,12 +301,12 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
                 mapping,
                 changeMode,
                 batch.Columns,
-                document.MoneyScale));
+                document.MoneyScale,
+                DateTimeOffset.UtcNow));
 
         var projection = await Task.Run(
-            () => JetAuditProgram.ExecuteAsync(
+            () => repositories.MappingFacts.ExecuteAsync(
                 plan,
-                mappingFactsPort,
                 cancellationToken,
                 progress => eventPublisher.Publish("mapping.progress", new
                 {
@@ -319,25 +318,15 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
 
         var result = JetAuditProgram.Finalize(plan, projection);
 
-        await mappingStore.SaveAsync(
-            projectId,
-            new CommittedMapping(
-                DatasetKind.Tb,
-                result.Spec.Mapping,
-                TbChangeModeNames.ToWireName(result.Spec.ChangeMode),
-                batch.BatchId,
-                DateTimeOffset.UtcNow),
-            CancellationToken.None);
-
         await MappingCommitShared.AdvanceStepAsync(
             projectStore,
             document,
-            plan.Node,
-            CancellationToken.None);
+            WorkflowMilestones.For(Action),
+            CancellationToken.None, logger);
 
         if (recordsRecommit)
         {
-            await auditLog.AppendAsync(
+            await repositories.ProjectAuditLog.AppendAsync(
                 projectId,
                 ProjectAuditEvent.Create(
                     ProjectAuditOperations.MappingRecommit,
@@ -348,13 +337,20 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
                 CancellationToken.None);
         }
 
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
         return new
         {
             ok = true,
             mapping = result.Spec.Mapping,
             changeMode = TbChangeModeNames.ToWireName(result.Spec.ChangeMode),
             batchId = batch.BatchId,
-            projectedRowCount = result.Projection.ProjectedRowCount
+            projectedRowCount = result.Projection.ProjectedRowCount,
+            warnings = result.Projection.Warnings,
+            invalidatedResults = mutationState.InvalidatedResults,
+            staleState = mutationState.StaleState,
+            reportArtifacts = mutationState.ReportArtifacts,
+            reportArtifactWarning = mutationState.ReportArtifactWarning
         };
     }
 }
@@ -364,15 +360,25 @@ internal static class MappingCommitShared
     public static async Task AdvanceStepAsync(
         IProjectStore projectStore,
         JET.Domain.ProjectDocument document,
-        ProgramNode node,
-        CancellationToken cancellationToken)
+        int milestone,
+        CancellationToken cancellationToken,
+        ILogger? logger = null)
     {
-        ArgumentNullException.ThrowIfNull(node);
-
-        var nextStep = Math.Max(document.CurrentStep, node.Milestone);
-        if (nextStep != document.CurrentStep)
+        await AfterCommitAsync(async () =>
         {
-            await projectStore.SaveAsync(document with { CurrentStep = nextStep }, cancellationToken);
+            var nextStep = Math.Max(document.CurrentStep, milestone);
+            if (nextStep != document.CurrentStep)
+                await projectStore.SaveAsync(document with { CurrentStep = nextStep }, cancellationToken);
+        }, logger);
+    }
+
+    internal static async Task AfterCommitAsync(Func<Task> updateProgress, ILogger? logger)
+    {
+        try { await updateProgress(); }
+        catch (Exception exception)
+        {
+            // Only a navigation milestone failed after data commit. Do not repeat the completed operation or expose paths.
+            logger?.LogWarning("workflow.milestone: 已完成資料儲存，但案件步驟未更新。錯誤類型：{exceptionType}", exception.GetType().Name);
         }
     }
 }

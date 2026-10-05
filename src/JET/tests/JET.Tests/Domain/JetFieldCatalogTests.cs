@@ -59,7 +59,7 @@ public sealed class JetFieldCatalogTests
                 "docNum", JetFieldValueKind.Text, "document_number", true, "傳票號碼_JE", true),
             Slot("lineID", "傳票文件項次", 1, false, [], false, true,
                 "lineID", JetFieldValueKind.Text, "line_item", true, "傳票文件項次_JE_S", true),
-            Slot("postDate", "總帳日期", 2, true, [], false, true,
+            Slot("postDate", "總帳入帳日", 2, true, [], false, true,
                 "postDate", JetFieldValueKind.Date, "post_date", true, "總帳日期_JE", true),
             Slot("docDate", "傳票核准日", 3, false, [], false, true,
                 "docDate", JetFieldValueKind.Date, "approval_date", true, null, true),
@@ -79,7 +79,7 @@ public sealed class JetFieldCatalogTests
                 "approveBy", JetFieldValueKind.Text, "approved_by", true, "傳票核准人員_JE", true),
             Slot("manual", "人工/自動分錄", 11, false, [], false, false,
                 "manual", JetFieldValueKind.Boolean, "is_manual", true, null, false),
-            Slot("amount", "傳票金額（單欄）", 12, false, ["signed", "side", "flag"], false, true,
+            Slot("amount", "分錄金額（單欄）", 12, false, ["signed", "side", "flag"], false, true,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             Slot("debitAmount", "借方金額", 13, false, ["dual"], false, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
@@ -87,9 +87,14 @@ public sealed class JetFieldCatalogTests
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             Slot("dcField", "借貸別欄位", 15, false, ["side", "flag"], false, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            Slot("dcDebitCode", "借方標識代碼", 16, false, ["side", "flag"], true, false,
+            // 2026-10-02 使用者裁定 W5：欄位配對名稱「借方標識代碼」改成「借方代碼」。
+            Slot("dcDebitCode", "借方代碼", 16, false, ["side", "flag"], true, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            Slot("postingStatus", "過帳狀態", 17, false, [], false, false,
+            // 2026-10-04 R9 加入必填貸方代碼；新增 slot，不改任何既有欄位的儲存語意。
+            // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+            Slot("dcCreditCode", "貸方代碼", 17, false, ["side", "flag"], true, false,
+                "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
+            Slot("postingStatus", "過帳狀態", 18, false, [], false, false,
                 "postingStatus", JetFieldValueKind.Text, "posting_status", true, null, false)
         };
 
@@ -140,7 +145,7 @@ public sealed class JetFieldCatalogTests
             [
                 "docNum", "lineID", "postDate", "docDate", "voucherDate", "accNum", "accName",
                 "description", "jeSource", "createBy", "approveBy", "manual", "amount",
-                "debitAmount", "creditAmount", "dcField", "dcDebitCode", "postingStatus"
+                "debitAmount", "creditAmount", "dcField", "dcDebitCode", "dcCreditCode", "postingStatus"
             ],
             GlMappingKeys.All);
         Assert.Equal(
@@ -177,8 +182,8 @@ public sealed class JetFieldCatalogTests
 
     [Theory]
     [InlineData(GlAmountMode.SignedAmount, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount" })]
-    [InlineData(GlAmountMode.AmountWithSide, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode" })]
-    [InlineData(GlAmountMode.AmountWithFlag, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode" })]
+    [InlineData(GlAmountMode.AmountWithSide, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode", "dcCreditCode" })]
+    [InlineData(GlAmountMode.AmountWithFlag, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode", "dcCreditCode" })]
     [InlineData(GlAmountMode.DualAmount, new[] { "docNum", "postDate", "accNum", "accName", "description", "debitAmount", "creditAmount" })]
     public void GlRequiredKeyMatrix_IsExactAndOrdered(GlAmountMode mode, string[] expected)
     {
@@ -232,7 +237,7 @@ public sealed class JetFieldCatalogTests
     public void LiteralAndFieldInfoCompatibility_AreExact()
     {
         Assert.Equal(
-            [GlMappingKeys.DcDebitCode],
+            [GlMappingKeys.DcDebitCode, GlMappingKeys.DcCreditCode],
             JetFieldCatalog.GlMappingSlots.Where(static slot => slot.IsLiteral).Select(static slot => slot.Key));
         Assert.DoesNotContain(JetFieldCatalog.TbMappingSlots, static slot => slot.IsLiteral);
 

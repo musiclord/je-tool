@@ -65,7 +65,6 @@ internal sealed record PrescreenReportPlanningFacts(
 /// </summary>
 internal sealed record PrescreenReportPlan(
     PrescreenReportRequest Request,
-    ProgramNode Node,
     IReadOnlyList<PrescreenReportDetailPlan> Details,
     bool IsFinalized)
 {
@@ -125,25 +124,8 @@ public static partial class JetAuditProgram
 
         return new PrescreenReportPlan(
             request,
-            ProgramGraph.Current.RequireNode(PrescreenReportAction),
             Array.AsReadOnly(details),
             IsFinalized: false);
-    }
-
-    /// <summary>由 typed port 取得五個 applicable family 的 set-based counts。</summary>
-    internal static Task<PrescreenReportPlanningFacts> ExecuteAsync(
-        PrescreenReportPlan plan,
-        IPrescreenReportPlanningFactsPort factsPort,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(factsPort);
-        if (plan.IsFinalized)
-        {
-            throw new InvalidOperationException("PrescreenReportPlan 已 Finalize。");
-        }
-
-        return factsPort.ExecuteAsync(plan, cancellationToken);
     }
 
     /// <summary>
@@ -214,22 +196,6 @@ public static partial class JetAuditProgram
             Details = Array.AsReadOnly(details),
             IsFinalized = true
         };
-    }
-
-    /// <summary>供 review 確認 emit／summary-only／N/A 決策。</summary>
-    internal static string Explain(PrescreenReportPlan plan)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        if (!plan.IsFinalized)
-        {
-            throw new InvalidOperationException("PrescreenReportPlan 尚未 Finalize。");
-        }
-
-        var emitted = plan.Details.Count(detail => detail.Emit);
-        var summaryOnly = plan.Details.Count(detail => detail.IsSummaryOnly);
-        var notApplicable = plan.Details.Count(detail =>
-            detail.Disposition == PrescreenReportDetailDisposition.NotApplicable);
-        return $"{PrescreenReportAction}：明細輸出={emitted}；僅摘要={summaryOnly}；N/A={notApplicable}。";
     }
 
     private static PrescreenReportDetailPlan PendingPrescreenDetail(

@@ -476,7 +476,7 @@ public sealed partial class LegacyReportWriter
                         ? ValidationSummaryDifferenceFill
                         : null);
                 // public summary 的 distinct voucher count 維持不變；raw joined count
-                // 只存在 finalized plan，專供 V6 workbook gate。
+                // 只存在 finalized plan，專供 V6 工作簿的明細列數上限檢查。
                 cells.SetNumber(
                     "D25",
                     projection.UnbalancedDocumentCount,
@@ -567,7 +567,7 @@ public sealed partial class LegacyReportWriter
                     WriteFieldInfoRow(sheet, rowIndex++, row, defaultStyle);
                 }
 
-                // master spec 明示兩個 physical blank rows；必須真的寫出 Row，
+                // 原有報表格式在這裡有兩列實體空白列；必須真的寫出 Row，
                 // 不能只跳過 row index。
                 sheet.WriteFixedRow(rowIndex++, []);
                 sheet.WriteFixedRow(rowIndex++, []);

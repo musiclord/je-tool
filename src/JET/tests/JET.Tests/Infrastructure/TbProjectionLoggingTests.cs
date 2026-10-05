@@ -3,6 +3,8 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 第 9 批中低 9：TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -89,14 +91,14 @@ public sealed class TbProjectionLoggingTests
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
         var batch = (await new LocalImportRepository(db).ReplaceBatchAsync(
-            projectId, DatasetKind.Tb, Source(), Columns, ToAsync(TwoRows), CancellationToken.None)).Batch;
+            projectId, DatasetKind.Tb, [new ImportSourceInput(Source(), Columns, ToAsync(TwoRows))], CancellationToken.None)).Batch;
 
         var (diagnostic, factory) = NewDiagnostic();
         using (factory)
         {
             var tbRepo = new LocalTbRepository(db, factory.CreateLogger<LocalTbRepository>());
             var result = await tbRepo.ProjectStagingToTargetAsync(
-                projectId, batch.BatchId, Spec(), 10_000, CancellationToken.None);
+                projectId, batch.BatchId, Spec(), 10_000, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
             Assert.Equal(2, result.ProjectedRowCount);
         }
 
@@ -113,14 +115,14 @@ public sealed class TbProjectionLoggingTests
         }
 
         var batch = (await new SqlServerImportRepository(temp.Database).ReplaceBatchAsync(
-            temp.ProjectId, DatasetKind.Tb, Source(), Columns, ToAsync(TwoRows), CancellationToken.None)).Batch;
+            temp.ProjectId, DatasetKind.Tb, [new ImportSourceInput(Source(), Columns, ToAsync(TwoRows))], CancellationToken.None)).Batch;
 
         var (diagnostic, factory) = NewDiagnostic();
         using (factory)
         {
             var tbRepo = new SqlServerTbRepository(temp.Database, factory.CreateLogger<SqlServerTbRepository>());
             var result = await tbRepo.ProjectStagingToTargetAsync(
-                temp.ProjectId, batch.BatchId, Spec(), 10_000, CancellationToken.None);
+                temp.ProjectId, batch.BatchId, Spec(), 10_000, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
             Assert.Equal(2, result.ProjectedRowCount);
         }
 

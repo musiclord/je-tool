@@ -36,12 +36,13 @@ public sealed class KctReadyPredicateProviderTests
             ('kct', 9,  'J1', '1', '2025-06-01', '2025-06-02', '5101', 'Others',  'same people',    NULL, ' Maker ',  'maker',     0, 1,  30000, 30000, 0,     'DEBIT'),
             ('kct', 10, 'J1', '2', '2025-06-01', '2025-06-02', '1101', 'Cash',    'different',      NULL, 'Maker',    'Controller',0, 1, -30000, 0,     30000, 'CREDIT');
 
+        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
         INSERT INTO target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category)
+            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
         VALUES
-            ('mapping', 1, '4101', 'Revenue', 'Revenue'),
-            ('mapping', 2, '1101', 'Cash',    'Cash'),
-            ('mapping', 3, '5101', 'Others',  'Others');
+            ('mapping', 1, '4101', 'Revenue', 'Revenue', 'builtin.revenue'),
+            ('mapping', 2, '1101', 'Cash',    'Cash', 'builtin.cash'),
+            ('mapping', 3, '5101', 'Others',  'Others', 'builtin.others');
         """;
 
     private static readonly FilterRuleContext Context =

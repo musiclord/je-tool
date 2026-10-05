@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -NonInteractive -Command \"& (Join-Path (git rev-parse --show-toplevel) '.agents/hooks/session-context.ps1')\"",
+            "statusMessage": "讀取 JET 儲存庫現況",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -NonInteractive -Command \"& (Join-Path (git rev-parse --show-toplevel) '.agents/hooks/verification-debt.ps1')\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

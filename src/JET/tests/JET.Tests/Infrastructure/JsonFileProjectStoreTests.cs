@@ -1,3 +1,4 @@
+using JET.AuditCore;
 using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
@@ -18,7 +19,10 @@ public sealed class JsonFileProjectStoreTests
         ProjectDocument.DefaultRoundingMode,
         createdUtc ?? DateTimeOffset.UtcNow,
         CurrentStep: 1,
-        ProjectDocument.CurrentSchemaVersion);
+        ProjectDocument.CurrentSchemaVersion,
+        // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成舊版案件拒絕。
+        SampleSeed: 1_234_567,
+        SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
 
     [Fact]
     public async Task CreateListFindRoundTrip()
@@ -155,6 +159,46 @@ public sealed class JsonFileProjectStoreTests
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
         Assert.Contains("INF 抽樣種子", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("sampleSeedVersion", null)]
+    [InlineData("sampleSeedVersion", 1)]
+    [InlineData("databaseProvider", null)]
+    public async Task LegacyProjectJson_FindRejectsAsOldProject_ListSkipsIt(
+        string propertyName,
+        int? legacyValue)
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var good = NewDocument();
+        var legacy = NewDocument();
+        await store.CreateAsync(good, CancellationToken.None);
+        await store.CreateAsync(legacy, CancellationToken.None);
+        var path = folder.GetProjectJsonPath(legacy.ProjectId);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        Assert.True(node.ContainsKey(propertyName));
+        if (legacyValue is null)
+        {
+            // 舊版 JET 建立的 project.json 沒有這個欄位。
+            node.Remove(propertyName);
+        }
+        else
+        {
+            node[propertyName] = legacyValue.Value;
+        }
+        await File.WriteAllTextAsync(path, node.ToJsonString());
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            store.FindAsync(legacy.ProjectId, CancellationToken.None));
+        Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
+        Assert.Contains("舊版 JET 建立的案件", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(propertyName, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("請用目前版本重新建立案件", exception.Message, StringComparison.Ordinal);
+
+        var listed = await store.ListAsync(CancellationToken.None);
+        Assert.Equal(good.ProjectId, Assert.Single(listed).ProjectId);
     }
 
     [Fact]

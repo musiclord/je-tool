@@ -108,9 +108,12 @@ public sealed class FilterKctMetadataFrontendTests
                 filter,
                 @"JetApi\.filterCommit\(\{\s*populationScope:\s*populationScope",
                 RegexOptions.Multiline).Count);
-        Assert.Equal(
-            3,
-            Regex.Matches(filter, Regex.Escape("Store.setSavedScenarios(data.scenarios)")).Count);
+        // 9/23：三條 commit 改走兩個完成函式，以單次通知同步清單和編輯狀態。
+        Assert.Contains("completeScenarioListChange(snapshot, data)", filter, StringComparison.Ordinal);
+        Assert.Contains("completeScenarioListChange(snapshot, data, index)", filter, StringComparison.Ordinal);
+        Assert.Contains("completeScenarioSave(saveSnapshot, data", filter, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Matches(filter, Regex.Escape("Store.applyFilterCommit(data, patch,")).Count);
+        Assert.DoesNotContain("Store.setSavedScenarios(data.scenarios)", filter, StringComparison.Ordinal);
         Assert.DoesNotContain("Store.setSavedScenarios(commit.scenarios)", filter, StringComparison.Ordinal);
     }
 

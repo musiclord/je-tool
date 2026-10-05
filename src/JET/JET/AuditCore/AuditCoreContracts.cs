@@ -47,32 +47,24 @@ public sealed record AuditOutcome(
 
 /// <summary>
 /// Finalize 產生的記憶體執行證據。Plan 保留案件與參數，Procedures 保留每項程序的
-/// V/na、N/A 原因、SQL 來源與計數；不持久化，也不攜帶有界明細列。
+/// V/na、N/A 原因與計數；不持久化，也不攜帶有界明細列。
 /// </summary>
 public sealed record AuditRunManifest(
     AuditExecutionPlan Plan,
     IReadOnlyList<ProcedureVerdict> Procedures);
 
-/// <summary>六步驟審計主線中的一項程序定義。</summary>
+/// <summary>validate.run 或 prescreen.run 家族中的一項程序定義。</summary>
 public sealed record ProcedureDefinition(
     string Slug,
-    string DisplayName,
-    string Purpose,
-    int WorkflowStep,
-    IReadOnlyList<string> RequiredInputs,
-    IReadOnlyList<string> SoftInputs,
-    IReadOnlyList<string> Outputs,
-    string? ActionName,
-    string? Sql);
+    string ActionName);
 
 /// <summary>
-/// Plan 時填入適用性、N/A 原因與綁定參數；Finalize 再填入 Status 與 Count。
+/// Plan 時填入適用性與 N/A 原因；Finalize 再填入 Status 與 Count。
 /// Status 為 null 表示尚未執行，不與 wire 的 V/na 混用。
 /// </summary>
 public sealed record ProcedureVerdict(
     ProcedureDefinition Definition,
     bool IsApplicable,
     string? NaReason,
-    IReadOnlyDictionary<string, string> Parameters,
     string? Status = null,
     long? Count = null);

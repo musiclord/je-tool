@@ -3,7 +3,7 @@ namespace JET.Domain;
 /// <summary>
 /// 作業序列化的動作分類（單一事實來源）。dispatcher 依此判定是否對 action 上序列化閘。
 /// 純類別、無框架相依（Bridge 引用 Domain 合法）。現行契約見
-/// docs/action-contract-manifest.md 的 operation_in_progress 說明。
+/// docs/action-contract-manifest.md 的「使用規則」。
 /// </summary>
 /// <remarks>
 /// 分類原則：
@@ -16,7 +16,7 @@ namespace JET.Domain;
 ///   文件化的唯一 current-project database 寫入例外是 <c>log.append</c>，其寫入範圍只限
 ///   <c>app_message_log</c>。</item>
 /// </list>
-/// 四支篩選命中查詢維持 concurrent，因為已有結果時仍是純讀。只有空結果觸發惰性補算的條件式
+/// 四支篩選命中查詢維持 concurrent，因為目前結果的讀取不需寫入。只有持久化失效旗標觸發惰性補算的條件式
 /// 寫入分支會另行試取共用 <see cref="ActionExecutionGate"/>；取不到即回 operation_in_progress。
 /// <c>project.releaseLock</c> 則整個「放鎖＋離開 session」都由 handler 試取同一把閘；它不由 dispatcher
 /// 預先取閘，避免非重入閘自我阻塞。
@@ -25,6 +25,13 @@ namespace JET.Domain;
 /// </remarks>
 public static class ActionExecutionPolicy
 {
+    /// <summary>
+    /// 資料庫的 async API 可能同步執行。除原生主機介面及取消控制外，dispatcher 一律在背景執行，
+    /// 包含唯讀查詢內的惰性補算；是否互斥仍由原有分類判定。
+    /// </summary>
+    public static bool RunsInBackground(string action) => action is not
+        ("host.selectFile" or "host.selectFiles" or "host.openFolder" or "host.exitApp" or "operation.cancel");
+
     // 變更型：同一時間至多一項執行。
     private static readonly HashSet<string> ExclusiveActions = new(StringComparer.Ordinal)
     {
@@ -32,7 +39,9 @@ public static class ActionExecutionPolicy
         "project.load",
         "project.delete",
         "project.saveProgress",
+        "project.update",
         "accountTaxonomy.save",
+        "accountMapping.save",
         "import.gl.fromFile",
         "import.tb.fromFile",
         "import.accountMapping.fromFile",
@@ -69,7 +78,8 @@ public static class ActionExecutionPolicy
         "system.whoAmI",
         "project.listLocal",
         "project.list",
-        "project.heartbeat",   // 背景心跳保活（控制面第六輪租約鎖）——絕不可被作業 busy 閘擋住
+        "project.deletePreview",
+        "project.heartbeat",   // 背景心跳保活（專案租約鎖）——絕不可被作業 busy 閘擋住
         "operation.cancel",     // 必須能穿過 exclusive busy 閘，取消正在執行的目標 request
 
         "project.loadDemo", // 只取 demo metadata，尚未建案
@@ -96,20 +106,83 @@ public static class ActionExecutionPolicy
         "query.tagMatrixVoucherPage",
         "query.tagMatrixRowPage",
         "query.accountMappingBlankPage",
+        "query.accountMappingPage",
         "log.append", // 唯一 current-project DB concurrent 寫入例外：只寫 app_message_log，不碰案件資料
         "log.recent",
         "host.selectFile",
         "host.selectFiles",
-        "host.selectSavePath",
         "host.openFolder",
         "host.exitApp",
         "dev.db.overview",
         "dev.db.tableData",
         "dev.db.reconcile",
-        "dev.log.export",
         "dev.log.exportFile", // 讀 sink 檔／ring buffer、寫選定案件目錄中的獨立 DEV 文字檔
         "support.log.export", // 寫選定案件資料夾中的獨立支援文字檔，不改業務資料或 artifact catalog
     };
+
+    // 一次操作期間保持當前案件資料庫開啟（見 IProjectDatabaseRetention）。只列出確實會開當前案件資料庫的
+    // action；沒列到就不持有。project.load 由 handler 自己在取得工作鎖之後持有；project.create、
+    // project.delete、project.releaseLock 會建立、刪除或離開案件，dev.db.reconcile 跨案件，都不得持有。
+    private static readonly HashSet<string> ProjectDatabaseRetainingActions = new(StringComparer.Ordinal)
+    {
+        // 變更型
+        "project.update",
+        "accountTaxonomy.save",
+        "accountMapping.save",
+        "import.gl.fromFile",
+        "import.tb.fromFile",
+        "import.accountMapping.fromFile",
+        "import.authorizedPreparer.fromFile",
+        "import.authorizedPreparer.clear",
+        "import.holiday",
+        "import.makeupDay",
+        "import.holiday.fromFile",
+        "import.makeupDay.fromFile",
+        "calendar.setNonWorkingDays",
+        "mapping.commit.gl",
+        "mapping.commit.tb",
+        "validate.run",
+        "prescreen.run",
+        "filter.commit",
+        "export.validationArtifacts",
+        "export.prescreenReport",
+        "export.criteriaSelectionReport",
+        "export.workpaperStream",
+        "export.accountMappingTemplate",
+
+        // 併行
+        "mapping.restoreDraft",
+        "mapping.valueProfile",
+        "filter.preview",
+        "query.dataPreview",
+        "query.completenessDiffPage",
+        "query.docBalancePage",
+        "query.nullRecordsPage",
+        "query.sourceQualityPage",
+        "query.filterHitsPage",
+        "query.filterVoucherPage",
+        "query.filterVoucherRowsPage",
+        "query.prescreenPage",
+        "query.infSamplePage",
+        "query.tagMatrixScenarios",
+        "query.tagMatrixVoucherPage",
+        "query.tagMatrixRowPage",
+        "query.accountMappingBlankPage",
+        "query.accountMappingPage",
+        "log.recent",
+        "dev.db.overview",
+        "dev.db.tableData",
+    };
+
+    /// <summary>
+    /// dispatcher 是否在這個 action 執行期間持有當前案件的資料庫。沒列到的一律不持有。
+    /// </summary>
+    public static bool RetainsProjectDatabase(string action)
+        => ProjectDatabaseRetainingActions.Contains(action);
+
+    /// <summary>測試守衛用：全部持有資料庫的 action。</summary>
+    public static IReadOnlyCollection<string> ProjectDatabaseRetainingActionNames
+        => [.. ProjectDatabaseRetainingActions];
 
     /// <summary>此 action 是否為變更型（需序列化）。未歸類者 fail-safe 回 true。</summary>
     public static bool IsExclusive(string action)

@@ -79,6 +79,28 @@ internal sealed class CdpSession : IAsyncDisposable
             new { type = "mouseWheel", x, y, deltaX, deltaY }, cancellationToken);
     }
 
+    internal async Task DragAsync(double fromX, double fromY, double toX, double toY, CancellationToken cancellationToken,
+        int holdMilliseconds = 0)
+    {
+        if (holdMilliseconds is < 0 or > 1000) throw new GuiInfrastructureException("drag_hold_invalid");
+        await DispatchMouseAsync("mouseMoved", fromX, fromY, "none", 0, 0, cancellationToken).ConfigureAwait(false);
+        await DispatchMouseAsync("mousePressed", fromX, fromY, "left", 1, 1, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            for (var step = 1; step <= 8; step++)
+            {
+                await DispatchMouseAsync("mouseMoved", fromX + (toX - fromX) * step / 8,
+                    fromY + (toY - fromY) * step / 8, "left", 1, 0, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(25, cancellationToken).ConfigureAwait(false);
+            }
+            if (holdMilliseconds > 0) await Task.Delay(holdMilliseconds, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            await DispatchMouseAsync("mouseReleased", toX, toY, "left", 0, 1, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     internal async Task<byte[]> CaptureScreenshotAsync(CancellationToken cancellationToken)
     {
         var result = await SendAsync("Page.captureScreenshot",

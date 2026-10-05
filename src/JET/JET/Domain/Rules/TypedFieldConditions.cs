@@ -1,11 +1,8 @@
-using System.Globalization;
-
 namespace JET.Domain;
 
 /// <summary>
 /// Typed dynamic rule（wire <c>type:"typed"</c>，2026-08-14 契約凍結）的 closed operator 語彙。
 /// 正準拼法逐字比對（Ordinal）；per-type 集合是 operator 與 RDE 欄位型別相容性的唯一權威，
-/// 完整驗證規則見 manifest「Mapping」段落的「Typed dynamic rule」條目。
 /// </summary>
 public static class TypedFieldOperatorSets
 {
@@ -57,7 +54,7 @@ public static class TypedAmountBasisNames
 /// <summary>
 /// typed operand 的正規化單一事實來源（Domain 驗證與 AuditCore 編譯共用，避免兩層口徑分裂）。
 /// text：trim＋不分大小寫（同既有 TextMatch 家族的 UPPER(TRIM(...))，正規化後不可為空）；
-/// date：<c>yyyy-MM-dd</c> 精確解析；money：沿 <see cref="MoneyScaling"/> 的 invariant decimal
+/// date：依案件選項沿 GL 的 <see cref="DateNormalizer"/> 解析；money：沿 <see cref="MoneyScaling"/> 的 invariant decimal
 /// 解析與專案 MoneyScale scaled integer 轉換（與 numRange operand 及 RDE 投影同一條解析鏈）。
 /// </summary>
 internal static class TypedFieldOperandRules
@@ -71,13 +68,15 @@ internal static class TypedFieldOperandRules
     /// <summary>text 比較鍵：trim 後 upper invariant（SQL 端為 UPPER(TRIM(...))，兩側同構）。</summary>
     internal static string TextComparisonKey(string normalized) => normalized.ToUpperInvariant();
 
-    internal static bool TryNormalizeDate(string? raw, out string isoDate)
+    internal static bool TryNormalizeDate(string? raw, out string isoDate) =>
+        TryNormalizeDate(raw, DateParseOptions.Default, out isoDate);
+
+    internal static bool TryNormalizeDate(string? raw, DateParseOptions options, out string isoDate)
     {
-        if (raw is not null
-            && DateOnly.TryParseExact(raw, "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                DateTimeStyles.None, out var parsed))
+        // GL may represent a blank date as null; a comparison operand still requires an actual date.
+        if (DateNormalizer.TryNormalize(raw, options, out var normalized) && normalized is not null)
         {
-            isoDate = parsed.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            isoDate = normalized;
             return true;
         }
 

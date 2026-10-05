@@ -10,9 +10,13 @@ internal static class ResultPageSorting
     private static SortColumn Text(string key, string sql) => new(key, sql, SortValueKind.Text);
     private static SortColumn Integer(string key, string sql) => new(key, sql, SortValueKind.Integer);
 
-    /// <summary>query.completenessDiffPage：完整性差異（diff CTE 的欄）。</summary>
+    /// <summary>
+    /// query.completenessDiffPage 與底稿、報告讀全科目表：完整性差異（diff CTE 的欄）。
+    /// 科目編號可能空白，也可能有兩列空白科目，所以穩定鍵用固定順序的序號 page_row，
+    /// 由 <c>CompletenessAccountPageQuery</c> 算出。
+    /// </summary>
     internal static readonly PageSortCatalog CompletenessDiff = new(
-        Text("accountCode", "account_code"),
+        Integer("pageRow", "page_row"),
         [
             Text("accountCode", "account_code"),
             Text("accountName", "account_name"),

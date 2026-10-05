@@ -3,6 +3,8 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 第 9 批中低 9：TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>Legacy 欄位定義在 fresh SQL Server project schema 的真實持久化／reopen gate。</summary>
@@ -22,23 +24,23 @@ public sealed class SqlServerLegacyFieldDefinitionTests
         await repository.ReplaceBatchAsync(
             project.ProjectId,
             DatasetKind.Gl,
-            source,
+            [new ImportSourceInput(source,
             columns,
             Rows(
                 ObservedRow(2, ("Code", "A", LegacyFieldKind.Text, 1, null),
                     ("Amount", "1.25", LegacyFieldKind.Number, 4, 2),
-                    (longHeader, "long-name", LegacyFieldKind.Text, 9, null))),
+                    (longHeader, "long-name", LegacyFieldKind.Text, 9, null))))],
             CancellationToken.None);
 
         await repository.AppendToBatchAsync(
             project.ProjectId,
             DatasetKind.Gl,
-            source with { FilePath = @"C:\second.xlsx", FileName = "second.xlsx" },
+            [new ImportSourceInput(source with { FilePath = @"C:\second.xlsx", FileName = "second.xlsx" },
             columns,
             Rows(
                 ObservedRow(2, ("Code", "LONG", LegacyFieldKind.Text, 4, null),
                     ("Amount", "text", LegacyFieldKind.Text, 4, null),
-                    (longHeader, "x", LegacyFieldKind.Text, 1, null))),
+                    (longHeader, "x", LegacyFieldKind.Text, 1, null))))],
             CancellationToken.None);
 
         ILegacyFieldDefinitionFactsPort reopened = new SqlServerFieldDefinitionFactsPort(project.Database);
@@ -71,7 +73,7 @@ public sealed class SqlServerLegacyFieldDefinitionTests
         var glBatch = await imports.ReplaceBatchAsync(
             project.ProjectId,
             DatasetKind.Gl,
-            new ImportSourceDescriptor(@"C:\gl.xlsx", "gl.xlsx", "Data", null, null),
+            [new ImportSourceInput(new ImportSourceDescriptor(@"C:\gl.xlsx", "gl.xlsx", "Data", null, null),
             glColumns,
             Rows(ObservedRow(
                 2,
@@ -83,7 +85,7 @@ public sealed class SqlServerLegacyFieldDefinitionTests
                 ("人工", "1", LegacyFieldKind.Number, 1, 0),
                 ("借方", "100.25", LegacyFieldKind.Number, 6, 2),
                 ("貸方", "0", LegacyFieldKind.Number, 1, 0),
-                ("未對應", "keep", LegacyFieldKind.Text, 4, null))),
+                ("未對應", "keep", LegacyFieldKind.Text, 4, null))))],
             CancellationToken.None);
 
         var glSpec = new GlMappingSpec(
@@ -105,6 +107,8 @@ public sealed class SqlServerLegacyFieldDefinitionTests
             glSpec,
             10_000,
             DateParseOptions.Default,
+            periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
             CancellationToken.None);
         Assert.Empty(glResult.Errors);
 
@@ -112,7 +116,7 @@ public sealed class SqlServerLegacyFieldDefinitionTests
         var tbBatch = await imports.ReplaceBatchAsync(
             project.ProjectId,
             DatasetKind.Tb,
-            new ImportSourceDescriptor(@"C:\tb.xlsx", "tb.xlsx", "Data", null, null),
+            [new ImportSourceInput(new ImportSourceDescriptor(@"C:\tb.xlsx", "tb.xlsx", "Data", null, null),
             tbColumns,
             Rows(ObservedRow(
                 2,
@@ -120,7 +124,7 @@ public sealed class SqlServerLegacyFieldDefinitionTests
                 ("科目名稱", "現金", LegacyFieldKind.Text, 2, null),
                 ("借方", "100.25", LegacyFieldKind.Number, 6, 2),
                 ("貸方", "0", LegacyFieldKind.Number, 1, 0),
-                ("未對應", "keep", LegacyFieldKind.Text, 4, null))),
+                ("未對應", "keep", LegacyFieldKind.Text, 4, null))))],
             CancellationToken.None);
         var tbResult = await new SqlServerTbRepository(project.Database).ProjectStagingToTargetAsync(
             project.ProjectId,
@@ -135,7 +139,7 @@ public sealed class SqlServerLegacyFieldDefinitionTests
                 },
                 TbChangeMode.DebitCredit),
             10_000,
-            CancellationToken.None);
+            committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
         Assert.Empty(tbResult.Errors);
 
         ILegacyFieldDefinitionFactsPort facts = new SqlServerFieldDefinitionFactsPort(project.Database);

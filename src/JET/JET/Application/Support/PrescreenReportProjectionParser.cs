@@ -34,10 +34,12 @@ internal static class PrescreenReportProjectionParser
                 root,
                 "trailingZeros",
                 itemCount: RuleCount(root, "trailingZeros", "count")),
+            // V9：摘要列寫完整人數，和第四步、[R5] 工作表一致；舊的預篩選結果沒有這個欄位時，沿用清單列數。
             CreatorSummary: Rule(
                 root,
                 "creatorSummary",
-                itemCount: ArrayLength(root, "creatorSummary", "creators")),
+                itemCount: OptionalLong(root, "creatorSummary", "totalPreparerCount")
+                    ?? ArrayLength(root, "creatorSummary", "creators")),
             RareAccounts: Rule(
                 root,
                 "rareAccounts",
@@ -81,6 +83,18 @@ internal static class PrescreenReportProjectionParser
         && array.ValueKind == JsonValueKind.Array
             ? array.GetArrayLength()
             : 0;
+
+    /// <summary>欄位存在而且是整數時回傳值；舊結果沒有這個欄位或值是 null 時回 null。</summary>
+    private static long? OptionalLong(
+        JsonElement root,
+        string section,
+        string property) =>
+        root.TryGetProperty(section, out var value)
+        && value.TryGetProperty(property, out var number)
+        && number.ValueKind == JsonValueKind.Number
+        && number.TryGetInt64(out var result)
+            ? result
+            : null;
 
     private static long GetLong(JsonElement element, string property)
     {

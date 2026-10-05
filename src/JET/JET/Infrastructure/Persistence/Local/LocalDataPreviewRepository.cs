@@ -7,14 +7,14 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 使用者資料預覽（manifest query.dataPreview）：有界唯讀查詢，絕不回完整母體。
+/// 使用者資料預覽（query.dataPreview）：有界唯讀查詢，絕不回完整母體。
 /// 統計（COUNT / MIN / MAX）一律 set-based SQL；金額顯示值由 C# decimal 自 scaled 換算（精確）。
 /// </summary>
 public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) : IDataPreviewRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
-    /// <summary>glEntries 的固定欄位集（與 filter.preview 的 previewRows 同欄位，manifest 細節段）。</summary>
+    /// <summary>glEntries 的固定欄位集（與 filter.preview 的 previewRows 同欄位）。</summary>
     private static readonly string[] GlEntryColumns =
         ["documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr"];
 
@@ -49,7 +49,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             return SchemaOverviewPreview();
         }
 
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -120,18 +120,19 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
     /// <summary>
     /// 最新科目配對匯入批次的有界原貌。分類空白列合法留在 staging，不能因未進 target 而從預覽消失。
     /// </summary>
-    private static async Task<DataPreviewResult> AccountMappingsPreviewAsync(
+    private async Task<DataPreviewResult> AccountMappingsPreviewAsync(
         DbConnection connection,
         int limit,
         CancellationToken cancellationToken)
     {
         string? batchId = null;
+        var directEdit = false;
         List<string> sourceColumns = [];
         await using (var findBatch = connection.CreateCommand())
         {
             findBatch.CommandText =
                 """
-                SELECT batch_id, columns_json
+                SELECT batch_id, columns_json, source_file_name
                 FROM import_batch
                 WHERE dataset_kind = @kind
                 ORDER BY imported_utc DESC, batch_id DESC
@@ -143,6 +144,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             {
                 batchId = reader.GetString(0);
                 sourceColumns = JsonSerializer.Deserialize<List<string>>(reader.GetString(1), JsonOptions) ?? [];
+                directEdit = reader.GetString(2) == AccountMappingEditorRepository.EditorSourceName;
             }
         }
 
@@ -151,6 +153,8 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             return new DataPreviewResult([], [], 0, null);
         }
 
+        if (directEdit)
+            return await AccountMappingEditorRepository.PreviewSavedAsync(connection, database.Dialect, "", limit, cancellationToken);
         var resolution = AccountMappingColumnResolver.Resolve(sourceColumns);
         long totalCount;
         await using (var count = connection.CreateCommand())

@@ -36,13 +36,14 @@ public sealed class SpecialAccountCategoryPairPredicateTests
             ('pair', 10, 'S5', '2', '2025-07-01', '2025-07-02', '1101', 'Cash',        'mixed credit categories',NULL, 'P', NULL, 0, 1, -40000, 0,     40000, 'CREDIT'),
             ('pair', 11, 'S5', '3', '2025-07-01', '2025-07-02', '1131', 'Receivables', 'mixed credit categories',NULL, 'P', NULL, 0, 1, -60000, 0,     60000, 'CREDIT');
 
+        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
         INSERT INTO target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category)
+            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
         VALUES
-            ('mapping', 1, '4101', 'Revenue',     'Revenue'),
-            ('mapping', 2, '1131', 'Receivables', 'Receivables'),
-            ('mapping', 3, '1101', 'Cash',        'Cash'),
-            ('mapping', 4, '5101', 'Others',      'Others');
+            ('mapping', 1, '4101', 'Revenue',     'Revenue', 'builtin.revenue'),
+            ('mapping', 2, '1131', 'Receivables', 'Receivables', 'builtin.receivables'),
+            ('mapping', 3, '1101', 'Cash',        'Cash', 'builtin.cash'),
+            ('mapping', 4, '5101', 'Others',      'Others', 'builtin.others');
         """;
 
     private static readonly FilterRuleContext Context =
@@ -111,9 +112,12 @@ public sealed class SpecialAccountCategoryPairPredicateTests
             null,
             null,
             null,
-            PairMode: pairMode,
-            DebitCategory: "Revenue",
-            CreditCategory: "Cash");
+            PairMode: pairMode)
+        {
+            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
+            DebitCategoryIds = [AccountTaxonomyBuiltIns.RevenueId],
+            CreditCategoryIds = [AccountTaxonomyBuiltIns.CashId]
+        };
 
     private static FilterScenarioSpec SingleRule(FilterRuleSpec rule) =>
         new(

@@ -48,9 +48,7 @@ public sealed class DevToolsGatingTests
     {
         using var host = new HandlerTestHost(enableDevTools: false);
 
-        // dev.log.export / dev.log.exportFile 同 dev.db.*：Release 不註冊 → unknown action
-        await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => host.DispatchAsync("dev.log.export"));
+        // dev.log.exportFile 同 dev.db.*：Release 不註冊 → unknown action
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => host.DispatchAsync("dev.log.exportFile"));
 

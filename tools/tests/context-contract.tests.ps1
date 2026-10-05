@@ -121,6 +121,7 @@ try {
     $result = Context
     $arguments = & $module { $script:contextStatusArguments }
     Check ($arguments -ccontains 'CLAUDE.md' -and $arguments -ccontains '.claude' -and $arguments -ccontains '.github/copilot-instructions.md') 'Include cross-agent adapters in the observed working tree.'
+    Check ($arguments -ccontains '.codex' -and $arguments -ccontains '.agents') 'Include Codex settings and shared agent hooks in the observed working tree.'
     [Console]::Out.WriteLine((@{ status = 'passed'; assertions = $count } | ConvertTo-Json -Compress))
 }
 finally {

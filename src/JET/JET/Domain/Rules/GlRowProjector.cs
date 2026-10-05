@@ -40,7 +40,10 @@ public sealed record RowProjectionError(
     string Field,
     string RawValue,
     string Reason,
-    string? SourceLabel = null);
+    string? SourceLabel = null)
+{
+    public string? ReasonCode { get; init; }
+}
 
 /// <summary>
 /// 將 staging row 依 mapping 投影為標準化 GL entry。
@@ -124,7 +127,7 @@ public static class GlRowProjector
             return false;
         }
 
-        // 衍生欄一律由標準化後的 AmountScaled 計算（guide §2.1），
+        // 衍生欄一律由標準化後的 AmountScaled 計算，
         // 不直接取原始借/貸欄，確保四種金額模式語意一致。
         var debitScaled = amountScaled >= 0 ? amountScaled : 0;
         var creditScaled = amountScaled < 0 ? -amountScaled : 0;
@@ -178,15 +181,32 @@ public static class GlRowProjector
                     return false;
                 }
 
-                // dcDebitCode 是借方代碼字面值；side / flag 兩模式共用
+                // 借方與貸方代碼都是字面值；side / flag 兩模式共用
                 // trim + 不分大小寫的文字相等比對（涵蓋 "D"/"d" 與 "1"/"0"）。
                 var dcValue = GetMappedValue(row, spec, GlMappingKeys.DcField);
                 spec.Mapping.TryGetValue(GlMappingKeys.DcDebitCode, out var debitCode);
+                spec.Mapping.TryGetValue(GlMappingKeys.DcCreditCode, out var creditCode);
+
+                if (string.IsNullOrWhiteSpace(dcValue))
+                {
+                    error = new RowProjectionError(row.SourceRowNumber,
+                        MappedColumnOrKey(spec, GlMappingKeys.DcField), dcValue ?? string.Empty,
+                        ProjectionErrorReasons.DebitCreditBlank) { ReasonCode = ProjectionErrorCodes.DebitCreditBlank };
+                    return false;
+                }
 
                 var isDebit = string.Equals(
                     dcValue?.Trim(),
                     debitCode?.Trim(),
                     StringComparison.OrdinalIgnoreCase);
+                var isCredit = string.Equals(dcValue.Trim(), creditCode?.Trim(), StringComparison.OrdinalIgnoreCase);
+                if (!isDebit && !isCredit)
+                {
+                    error = new RowProjectionError(row.SourceRowNumber,
+                        MappedColumnOrKey(spec, GlMappingKeys.DcField), dcValue,
+                        ProjectionErrorReasons.DebitCreditUnlisted) { ReasonCode = ProjectionErrorCodes.DebitCreditUnlisted };
+                    return false;
+                }
 
                 amount = isDebit ? Math.Abs(magnitude) : -Math.Abs(magnitude);
                 return true;
@@ -295,6 +315,13 @@ public static class GlRowProjector
         }
     }
 
+    /// <summary>人工/自動來源值先去掉頭尾空白；投影與 <see cref="ManualAutoListedCodeAudit"/> 共用。</summary>
+    internal static string NormalizeManualSourceValue(string? raw) => raw?.Trim() ?? string.Empty;
+
+    /// <summary>非空白的來源值不分大小寫等於清單上任一代碼。</summary>
+    internal static bool MatchesManualAutoCode(IReadOnlyList<string> codes, string normalized) =>
+        normalized.Length > 0 && codes.Contains(normalized, StringComparer.OrdinalIgnoreCase);
+
     private static bool TryProjectManual(
         StagingRow row,
         GlMappingSpec spec,
@@ -310,20 +337,14 @@ public static class GlRowProjector
         }
 
         var raw = row.Values.TryGetValue(sourceColumn, out var value) ? value : null;
-        var normalized = raw?.Trim() ?? string.Empty;
-        if (normalized.Length > 0
-            && spec.Options.ManualAutoPolicy.ManualValues.Contains(
-                normalized,
-                StringComparer.OrdinalIgnoreCase))
+        var normalized = NormalizeManualSourceValue(raw);
+        if (MatchesManualAutoCode(spec.Options.ManualAutoPolicy.ManualValues, normalized))
         {
             isManual = true;
             return true;
         }
 
-        if (normalized.Length > 0
-            && spec.Options.ManualAutoPolicy.AutomaticValues.Contains(
-                normalized,
-                StringComparer.OrdinalIgnoreCase))
+        if (MatchesManualAutoCode(spec.Options.ManualAutoPolicy.AutomaticValues, normalized))
         {
             isManual = false;
             return true;
@@ -344,8 +365,11 @@ public static class GlRowProjector
             sourceColumn,
             raw ?? string.Empty,
             normalized.Length == 0
-                ? "是空白，但已啟用人工或自動分錄判定。請補齊來源資料，或回到欄位配對取消這個欄位"
-                : "未歸類為人工或自動。請回到欄位配對將這個值歸類，或取消這個欄位");
+                ? ProjectionErrorReasons.ManualBlank
+                : ProjectionErrorReasons.ManualUnlisted)
+        {
+            ReasonCode = normalized.Length == 0 ? ProjectionErrorCodes.ManualBlank : ProjectionErrorCodes.ManualUnlisted
+        };
         return false;
     }
 

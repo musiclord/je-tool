@@ -112,10 +112,11 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
         SqlConnection connection, string projectId, int limit, CancellationToken cancellationToken)
     {
         string? batchId = null;
+        var directEdit = false;
         List<string> sourceColumns = [];
         await using (var findBatch = database.CreateCommand(connection, projectId,
             """
-            SELECT TOP 1 batch_id, columns_json
+            SELECT TOP 1 batch_id, columns_json, source_file_name
             FROM {s}.import_batch
             WHERE dataset_kind = @kind
             ORDER BY imported_utc DESC, batch_id DESC;
@@ -127,6 +128,7 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
             {
                 batchId = batchReader.GetString(0);
                 sourceColumns = JsonSerializer.Deserialize<List<string>>(batchReader.GetString(1), JsonOptions) ?? [];
+                directEdit = batchReader.GetString(2) == AccountMappingEditorRepository.EditorSourceName;
             }
         }
 
@@ -135,6 +137,9 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
             return new DataPreviewResult([], [], 0, null);
         }
 
+        if (directEdit)
+            return await AccountMappingEditorRepository.PreviewSavedAsync(connection, SqlServerDialect.Instance,
+                SqlServerProjectSchema.QualifierFor(projectId), limit, cancellationToken);
         var resolution = AccountMappingColumnResolver.Resolve(sourceColumns);
         long totalCount;
         await using (var count = database.CreateCommand(connection, projectId,

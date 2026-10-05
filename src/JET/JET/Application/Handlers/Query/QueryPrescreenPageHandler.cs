@@ -6,7 +6,6 @@ namespace JET.Application;
 
 /// <summary>query.prescreenPage：單一預篩選 row-tag 的完整命中 keyset 分頁。</summary>
 public sealed class QueryPrescreenPageHandler(
-    IPrescreenPageRepository repository,
     IProjectStore projectStore,
     ProjectSession session) : IApplicationActionHandler
 {
@@ -14,7 +13,7 @@ public sealed class QueryPrescreenPageHandler(
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         var ruleKey = PayloadReader.GetRequiredString(payload, "ruleKey");
         if (!PrescreenRuleKeys.FilterableKeys.Contains(ruleKey))
         {
@@ -40,7 +39,7 @@ public sealed class QueryPrescreenPageHandler(
                 document.PeriodEnd,
                 document.NonWorkingDays);
             page = await Task.Run(
-                () => repository.GetPageAsync(
+                () => repositories.PrescreenPages.GetPageAsync(
                     projectId, ruleKey, context, request, cancellationToken),
                 cancellationToken);
         }

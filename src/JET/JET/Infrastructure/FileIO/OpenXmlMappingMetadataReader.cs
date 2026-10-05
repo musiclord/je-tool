@@ -36,16 +36,15 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 
             var versionText = ReadCell(workbookPart, worksheetPart, MappingMetadataFormat.VersionCell);
             if (!int.TryParse(versionText, NumberStyles.None, CultureInfo.InvariantCulture, out var version)
-                || (version != MappingMetadataFormat.LegacyVersion
-                    && version != MappingMetadataFormat.CurrentVersion))
+                || version != MappingMetadataFormat.CurrentVersion)
             {
-                throw Invalid("欄位配對 metadata 版本不受支援。");
+                throw Invalid("報告裡的欄位配對資訊版本不受支援，無法還原。請回第三步欄位配對直接重新選擇。");
             }
 
             var payload = ReadCell(workbookPart, worksheetPart, MappingMetadataFormat.PayloadCell);
             if (string.IsNullOrWhiteSpace(payload))
             {
-                throw Invalid("欄位配對 metadata payload 缺失。");
+                throw Invalid("報告裡的欄位配對資訊不完整，無法還原。請回第三步欄位配對直接重新選擇。");
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -55,7 +54,10 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
             }
             catch (MappingMetadataFormatException ex)
             {
-                throw Invalid(ex.Message);
+                throw new JetActionException(
+                    JetErrorCodes.MappingMetadataInvalid,
+                    "報告裡的欄位配對資訊格式無效，無法還原。請回第三步欄位配對直接重新選擇。",
+                    innerException: ex);
             }
         }
         catch (OperationCanceledException)
@@ -90,7 +92,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
         {
             throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                "欄位配對 metadata 只支援 .xlsx。");
+                "從報告還原欄位配對只支援 .xlsx 檔案，請選擇 JET 匯出的 .xlsx 報告。");
         }
         if (!File.Exists(filePath))
         {
@@ -128,7 +130,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 
     private static JetActionException Missing() => new(
         JetErrorCodes.MappingMetadataMissing,
-        "這份活頁簿沒有 JET 版本化欄位配對 metadata；舊報告不能從可見欄位猜測還原。");
+        "這份活頁簿沒有 JET 記錄的欄位配對資訊，無法還原；舊報告不能從畫面上的欄位推測配對。請改選較新的 JET 報告，或回第三步欄位配對直接重新選擇。");
 
     private static JetActionException Invalid(string message) => new(
         JetErrorCodes.MappingMetadataInvalid,

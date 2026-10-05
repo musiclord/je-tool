@@ -454,9 +454,10 @@ public sealed partial class WorkpaperWriter
                 (row, column) => row >= 20 && column is >= 1 and <= 6,
                 [(1U, 1U), (2U, 1U), (3U, 1U), (7U, 1U), (15U, 2U), (17U, 2U)],
                 WorkpaperSourceProtection),
+            // legacy 版面：B14 說明、第 16 列五欄表頭、第 17 列起明細（idea-tool.bas:10468-10483）。
             WorkpaperSheetCatalog.Step11 => RowsAndCells(
-                row => row >= 15,
-                (row, column) => row >= 15 && column is >= 2 and <= 5,
+                row => row >= 17,
+                (row, column) => row >= 17 && column is >= 2 and <= 6,
                 [
                     (1U, 1U),
                     (2U, 1U),
@@ -464,9 +465,11 @@ public sealed partial class WorkpaperWriter
                     (7U, 1U),
                     (12U, 2U),
                     (14U, 2U),
-                    (14U, 3U),
-                    (14U, 4U),
-                    (14U, 5U)
+                    (16U, 2U),
+                    (16U, 3U),
+                    (16U, 4U),
+                    (16U, 5U),
+                    (16U, 6U)
                 ],
                 WorkpaperSourceProtection),
             WorkpaperSheetCatalog.Step12 => RowsAndCells(
@@ -497,7 +500,7 @@ public sealed partial class WorkpaperWriter
                 (row, column) => row >= 13
                     && (column is >= 1 and <= 15
                         || row > 1000 && column is >= 16 and <= 21),
-                [(1U, 1U), (2U, 1U)],
+                [(1U, 1U), (2U, 1U), (12U, 1U)],
                 WorkpaperSourceProtectionAndValidation),
             WorkpaperSheetCatalog.Step41 when useFinalStep41Schema =>
                 new DirectTemplateWorksheetOverlayPlan(

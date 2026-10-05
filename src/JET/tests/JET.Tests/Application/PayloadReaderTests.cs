@@ -53,39 +53,8 @@ public sealed class PayloadReaderTests
         Assert.Equal("摘要", result["description"]);
     }
 
-    [Fact]
-    public void GetFieldDefinitions_MissingArrayField_ThrowsInvalidPayload()
-    {
-        using var document = JsonDocument.Parse("""{"fields":{}}""");
-
-        var exception = Assert.Throws<JetActionException>(
-            () => PayloadReader.GetFieldDefinitions(document.RootElement, "fields"));
-
-        Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
-        Assert.Contains("fields", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void GetFieldDefinitions_InvalidItems_SkipsInvalidEntriesAndTrimsValidField()
-    {
-        using var document = JsonDocument.Parse(
-            """
-            {
-              "fields": [
-                "not-object",
-                { "key": "   ", "label": "空白 key" },
-                { "key": 10, "label": "非字串 key" },
-                { "key": " accountCode ", "label": " 科目代號 " }
-              ]
-            }
-            """);
-
-        var result = PayloadReader.GetFieldDefinitions(document.RootElement, "fields");
-
-        var field = Assert.Single(result);
-        Assert.Equal("accountCode", field.Key);
-        Assert.Equal("科目代號", field.Label);
-    }
+    // 2026-10-04 第 6 批 L20：自動猜欄已沒有正式入口，GetFieldDefinitions 及其兩個測試隨死碼移除。
+    // 仍使用中的字典、整數與字串清單解析斷言保留；Batch6ValueProfileTests 核對退役 API 不再隨程式發布。
 
     [Fact]
     public void GetStringList_MissingArrayField_ThrowsInvalidPayload()

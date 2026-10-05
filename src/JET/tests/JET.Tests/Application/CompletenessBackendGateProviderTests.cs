@@ -151,7 +151,7 @@ public sealed class CompletenessBackendGateProviderTests
         using var host = new HandlerTestHost(sqlServerConnectionString: sqlServerConnectionString);
         try
         {
-            await SetupProjectAsync(host, databaseProvider, hasCompletenessDifference: false);
+            var projectId = await SetupProjectAsync(host, databaseProvider, hasCompletenessDifference: false);
             var references = await SeedEligibleReferencesWithoutPrescreenAsync(host);
 
             var criteria = await host.DispatchAsync(
@@ -184,14 +184,23 @@ public sealed class CompletenessBackendGateProviderTests
                     JsonSerializer.Serialize(new { runId = "missing-prescreen-run" })));
             Assert.Equal(JetErrorCodes.StaleResult, prescreenReportError.Code);
 
+            var originalArtifact = workpaper.GetProperty("artifact");
+            var originalPath = Path.Combine(host.ProjectsRoot, projectId, originalArtifact.GetProperty("fileName").GetString()!);
+            var originalBytes = await File.ReadAllBytesAsync(originalPath);
             await host.DispatchAsync(
                 "calendar.setNonWorkingDays",
                 """{ "days": [1] }""");
-            var staleFilterError = await Assert.ThrowsAsync<JetActionException>(() =>
-                host.DispatchAsync(
-                    "export.workpaperStream",
-                    WorkpaperPayload(references)));
-            Assert.Equal(JetErrorCodes.StaleResult, staleFilterError.Code);
+            // 9/23：底稿自己重算目前資料，不再要求先重新產生 Criteria 檔案。
+            var recalculated = await host.DispatchAsync("export.workpaperStream", WorkpaperPayload(references));
+            Assert.True(recalculated.GetProperty("ok").GetBoolean());
+            var currentArtifact = recalculated.GetProperty("artifact");
+            Assert.False(currentArtifact.GetProperty("stale").GetBoolean());
+            Assert.NotEqual(originalArtifact.GetProperty("artifactId").GetString(), currentArtifact.GetProperty("artifactId").GetString());
+            Assert.Equal(references.ValidationRunId,
+                currentArtifact.GetProperty("sourceRef").GetProperty("validationRunId").GetString());
+            Assert.Equal(references.Revision,
+                currentArtifact.GetProperty("sourceRef").GetProperty("scenarioRevision").GetString());
+            Assert.Equal(originalBytes, await File.ReadAllBytesAsync(originalPath));
 
             var refreshedCriteria = await host.DispatchAsync(
                 "export.criteriaSelectionReport",

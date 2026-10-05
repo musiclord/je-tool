@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 跨專案系統設定的埠（<c>dbo.app_config</c>，控制面第四輪 §3）。<b>天生只屬 sqlServer 單庫控制面</b>——
-/// 存放不繫任一專案的全域參數（本輪先備地基,消費者第六輪抵達:專案租約鎖的心跳／逾時參數存此）。
+/// 跨專案系統設定的埠（<c>dbo.app_config</c>）。<b>只屬 sqlServer 單庫的 dbo 管理表</b>——
+/// 存放不繫任一專案的全域參數，目前存的是專案租約鎖的心跳與逾時參數。
 /// value 一律以 JSON 字串進出（呼叫端自負序列化）；不存在的 key 回 null。UPSERT 語意（同 key 覆寫,不重複）。
 /// SQLite／DuckDB 專案不涉本埠（本地檔式模型無跨專案系統設定）。
 /// </summary>

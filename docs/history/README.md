@@ -5,15 +5,20 @@
 
 先前這些檔案依來源專案分成兩個目錄。目前已依時間軸重組，因為開發是連續的一條線，來源專案的名稱
 對後續開發沒有意義。原本兩個來源在 2026-06-20 交接，交接前後的 Git tree 相同；詳細關係見
-[`../repository-lineage.md`](../repository-lineage.md)。
+[`2026-08-30-repository-lineage.md`](2026-08-30-repository-lineage.md)。
 
 ## 目錄
 
 | 位置 | 內容 |
 |:---|:---|
+| [`2026-08-30-repository-lineage.md`](2026-08-30-repository-lineage.md) | 兩個來源專案的提交關係、遷移基準的核對數字與關庫裁定；2026-10-02 從現行文件移入，摘要在 `../data-and-legacy.md` |
+| [`2026-09-07-filter-acceptance-records.md`](2026-09-07-filter-acceptance-records.md) | 2026-09-05 到 09-07 的篩選補充與操作驗收紀錄；2026-10-02 從 `../idea-replacement-scope.md` 移出 |
 | [`2026-09-18-feedback-execution-records.md`](2026-09-18-feedback-execution-records.md) | 從回饋修正計畫與開發現況移出的歷次執行紀錄；原話與驗證保留，當時的下一步不再指導本輪 |
+| [`2026-09-23-frontend-terminology-review.md`](2026-09-23-frontend-terminology-review.md) | 2026-09-22 到 09-23 畫面用語與呈現的核對紀錄；現行用語表已併入 `../jet-frontend-description.md` |
+| [`2026-10-02-development-status-archive.md`](2026-10-02-development-status-archive.md) | 2026-09-17 到 09-23 寫在開發現況裡的逐輪進度敘述與較早的驗證數字，原文照抄 |
+| [`architecture-2026-08-30/`](architecture-2026-08-30/README.md) | 2026-08-30 產生的執行期架構圖與說明；之後程式已大改，只供參考 |
 | [`development-log.md`](development-log.md) | 合併後的開發紀錄，依日期排列，新的在上。共 81 個條目 |
-| [`specs/`](specs/) | 當時的設計書與驗證證據，檔名以日期開頭。7 份設計書（2026-06）、5 份證據（2026-07） |
+| [`specs/`](specs/) | 當時的設計書、驗證證據與已結束的計畫，檔名以日期開頭。7 份設計書（2026-06）、5 份證據（2026-07），以及 2026-09-30 從 `docs/specs/` 移入的 7 份計畫（2026-08 至 2026-09） |
 | [`superseded/`](superseded/) | 已被現行文件取代的舊版本，檔名以世代月份結尾 |
 
 `superseded/` 的每一份都有對應的現行文件，查現況請看現行文件而不是這裡：
@@ -26,7 +31,7 @@
 | `development-status-2026-06.md`、`-2026-08.md` | [`../development-status.md`](../development-status.md) |
 | `docs-readme-2026-06.md`、`docs-readme-2026-08.md` | [`../README.md`](../README.md) |
 | `windows-handoff-2026-06.md`、`-2026-08.md` | 人工驗收改由現行計畫承接，沒有常設清單 |
-| `agent-frameworks-2026-08.md` | [`../agent-compatibility.md`](../agent-compatibility.md) |
+| `agent-frameworks-2026-08.md` | [`../../.agents/harness/agent-compatibility.md`](../../.agents/harness/agent-compatibility.md) |
 | `sqlserver-online-handoff-deferred-2026-08.md` | [`../sqlserver-enterprise-deferred.md`](../sqlserver-enterprise-deferred.md)（內容已回收為現行文件） |
 
 `agent-frameworks-2026-08.md` 記錄了當時對 Claude Code 與 Codex 載入機制的逐項查證，包含各家官方文件的
@@ -34,8 +39,24 @@
 
 ## 歷史設計與證據清單
 
-以下 12 份均為歷史文件。檔內當時的待驗收文字不自動成為目前待辦；現行承接狀態見
-[全部計畫清單](../README.md#全部計畫清單)及唯一現行計畫。
+以下 12 份均為歷史文件。檔內當時的待驗收文字不自動成為目前待辦；現行承接狀態見下方「已結束的計畫」
+及現行計畫。
+
+### 已結束的計畫
+
+2026-09-30 起 `docs/specs/` 只放進行中的計畫；下列 7 份已完成或已由後續計畫接續，移到 `specs/` 下保存。
+
+| 計畫 | 歸屬 | 查閱用途 |
+|:---|:---|:---|
+| [2026-08-28 驗證框架重建](specs/2026-08-28-harness-rebuild-plan.md) | 已完成 | 框架各階段、當時驗證與第一次失敗；操作命令改看 `../../tools/README.md`。 |
+| [2026-08-29 Agent 治理與專案脈絡](specs/2026-08-29-agent-governance-and-context-plan.md) | 已完成 | 共用入口、背景及跨 session 規則的建立過程。 |
+| [2026-08-30 儲存庫收斂](specs/2026-08-30-repository-consolidation-plan.md) | 已完成 | 文件整理與工具轉接；當時的 Git 授權不適用現在。 |
+| [2026-09-01 欄位配對同步、支援日誌與損壞案件復原](specs/2026-09-01-frontend-sync-devlog-mutation-plan.md) | 已完成，使用者已驗收 | 配對同步、報告與工作檔拆分、底稿版本及變異測試。 |
+| [2026-09-06 篩選流程修正](specs/2026-09-06-filter-workflow-correction-plan.md) | 已由 9/07 接續 | 「待判定」及獨立排除區域已被新裁定取代，不重新列待驗收。 |
+| [2026-09-07 篩選收斂](specs/2026-09-07-filter-convergence-plan.md) | 已由 9/09 接續 | 九項篩選功能與第五步操作已驗收；公司三項於 9/17 回覆通過。 |
+| [2026-09-09 第一至第四步回饋](specs/2026-09-09-user-feedback-steps-1-to-4-plan.md) | 已由 9/17 接續 | 原話、PBC 盤查及既有修正來源；未完成部分已併入現行計畫。 |
+
+### 設計書與證據
 
 | 日期 | 文件 | 保存用途 |
 |:---|:---|:---|
@@ -54,7 +75,11 @@
 
 ## 這些副本被改過什麼
 
-- 工作簿名稱已同步為 `data/` 的現行名稱。
+- legacy 腳本的檔名改成現行檔名：副本裡的 `legacy/idea-script.bas` 原文是 `legacy/ideascript.bas`，
+  `legacy/idea-tool.bas` 原文是 `legacy/JE_Tool.ism`（使用者 2026-10-01 裁定以現行檔名為準）。原件的前言沒有帶入；
+  五個指向舊目錄的連結改指現行目錄。
+- 報表工作簿的檔名只有部分段落同步為 `data/` 的現行名稱（`ValidationReport.xlsx`、`AccountMapping.xlsx`、`INFReport.xlsx`、
+  `PrescreeningReport.xlsx`），其他段落仍是原文寫法，例如 `INF_Report`、`Pre-screeningReport`。
 - 已棄用的真實案件 fixture 敘述不再作為現行測試要求。
 - 私人使用者路徑與組織信箱已改成中性 placeholder；秘密字面值不保留。
 - 2026-08-30 合併開發紀錄時只重新排序並補上分界說明，沒有改動任何條目的文字、數字、條件、例外或

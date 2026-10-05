@@ -16,10 +16,10 @@ namespace JET.Infrastructure;
 /// 失效範圍依真實依賴裁切：GL 影響全部；TB 只影響 validation；科目配對、行事曆與授權清單
 /// 只影響 prescreen/filter。不得為了方便一律清空，否則會破壞「驗證→填 AccountMapping→預篩選」流程。
 ///
-/// 注意:part(a) 控制總數 <c>gl_control_total</c> **不**在此清除範圍。它的上游只有 GL target,
+/// 注意:完整性測試的匯入控制總數 <c>gl_control_total</c> **不**在此清除範圍。它的上游只有 GL target,
 /// 由 GL 投影(<see cref="LocalGlRepository"/>/<see cref="SqlServerGlRepository"/>)在同一交易內隨
 /// target 一起 upsert 覆寫,與 target_gl_entry 恆一致。若併入本共用清除,TB 投影、科目配對／行事曆／
-/// 授權清單匯入等與 GL 無關的寫入會把它連帶刪掉,使完整性 part(a) 在常見的「先 commit GL、後 commit TB」
+/// 授權清單匯入等與 GL 無關的寫入會把它連帶刪掉,使完整性測試的控制總數核對在常見的「先 commit GL、後 commit TB」
 /// 順序下變成全 null（控制總數核對形同沒跑）——2026-06-22 實務稽核發現的失效範圍過廣，已收斂。
 /// </summary>
 internal static class RuleRunResultReset

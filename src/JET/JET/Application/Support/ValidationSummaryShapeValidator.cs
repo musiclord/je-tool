@@ -14,7 +14,7 @@ internal static class ValidationSummaryShapeValidator
     private static readonly string[] RootKeys =
     [
         "stats", "populationSummary", "amountDistribution", "completenessTest",
-        "docBalanceTest", "infSamplingTest", "nullRecordsTest", "sourceQuality", "resultRef"
+        "docBalanceTest", "infSamplingTest", "nullRecordsTest", "sourceQuality", "documentDateReuse", "resultRef"
     ];
 
     internal static bool IsValid(string summaryJson)
@@ -42,7 +42,22 @@ internal static class ValidationSummaryShapeValidator
         ValidateInf(Property(root, "infSamplingTest"));
         ValidateNullRecords(Property(root, "nullRecordsTest"));
         ValidateSourceQuality(Property(root, "sourceQuality"));
+        ValidateDocumentDateReuse(Property(root, "documentDateReuse"), Property(Property(root, "populationSummary"), "effective"));
         ValidateResultRef(Property(root, "resultRef"));
+    }
+
+    private static void ValidateDocumentDateReuse(JsonElement value, JsonElement effective)
+    {
+        RequireExactObject(value, "documentNumberCount", "entryCount");
+        var numbers = RequireNonNegativeLong(value, "documentNumberCount");
+        var entries = RequireNonNegativeLong(value, "entryCount");
+        if (numbers > RequireNonNegativeLong(effective, "voucherCount")
+            || entries > RequireNonNegativeLong(effective, "rowCount")
+            || (numbers == 0) != (entries == 0)
+            || numbers > entries / 2)
+        {
+            throw Invalid("documentDateReuse measured counts");
+        }
     }
 
     private static void ValidateStats(JsonElement value)
@@ -154,16 +169,8 @@ internal static class ValidationSummaryShapeValidator
         }
 
         var eligibility = Property(value, "eligibility");
-        // warning 是 2026-09-17 新增的衍生提示；舊案件的兩欄格式仍可讀取，載入時依原始結果重算。
-        if (eligibility.ValueKind == JsonValueKind.Object && eligibility.TryGetProperty("warning", out _))
-        {
-            RequireExactObject(eligibility, "isEligible", "reason", "warning");
-            RequireNullableString(eligibility, "warning");
-        }
-        else
-        {
-            RequireExactObject(eligibility, "isEligible", "reason");
-        }
+        RequireExactObject(eligibility, "isEligible", "reason", "warning");
+        RequireNullableString(eligibility, "warning");
         RequireBoolean(Property(eligibility, "isEligible"), "eligibility.isEligible");
         RequireNullableString(eligibility, "reason");
     }

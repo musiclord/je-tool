@@ -58,7 +58,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         PrescreenExecutionInput input,
         CancellationToken cancellationToken)
     {
-        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await database.EnsureReadyAsync(projectId, cancellationToken);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -139,7 +139,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
             connection, input, cancellationToken,
             _ => Predicates.Backdated());
 
-        // 非授權編製人員：授權清單未匯入時閘控跳過（計 0、handler 標 na）。
+        // 非授權編製人員：授權清單未匯入時不執行（計 0、handler 標 na）。
         (long HitLines, long HitVouchers) nonAuthorizedPreparer = (0L, 0L);
         if (input.RunNonAuthorizedPreparer)
         {
@@ -148,17 +148,18 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
                 _ => Predicates.NonAuthorizedPreparer());
         }
 
-        // 低頻編製者：無閘控、永遠跑（固定預設門檻）。
+        // 低頻編製者：沒有前置條件、永遠跑（固定預設門檻）。
         var lowFrequencyPreparer = await CountWhereAsync(
             connection, input, cancellationToken,
             cmd => Predicates.LowFrequencyPreparer(
                 cmd, PreparerFrequency.DefaultMaxEntries, filterContext));
 
-        // C9 低頻科目:無閘控、永遠跑(固定預設門檻)。
+        // C9 低頻科目:沒有前置條件、永遠跑(固定預設門檻)。
         var lowFrequencyAccount = await CountWhereAsync(
             connection, input, cancellationToken,
             cmd => Predicates.LowFrequencyAccount(
                 cmd, AccountFrequency.DefaultMaxEntries, filterContext));
+        var lowFrequencyAccountCount = await CountLowFrequencyAccountsAsync(connection, filterContext, cancellationToken);
 
         return new PrescreenFacts(
             postPeriod.HitLines,
@@ -194,7 +195,10 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
                 [PrescreenRuleKeys.LowFrequencyAccount] = lowFrequencyAccount.HitVouchers
             },
             totalPreparers,
-            totalEntries);
+            totalEntries)
+        {
+            LowFrequencyDistinctAccountCount = lowFrequencyAccountCount
+        };
     }
 
     private static PrescreenRunResult ToCompatibilityResult(
@@ -218,7 +222,23 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
             facts.BackdatedPostingCount,
             facts.NonAuthorizedPreparerCount,
             facts.LowFrequencyPreparerCount,
-            facts.LowFrequencyAccountCount);
+            facts.LowFrequencyAccountCount)
+        {
+            LowFrequencyDistinctAccountCount = facts.LowFrequencyDistinctAccountCount
+        };
+
+    private async Task<long> CountLowFrequencyAccountsAsync(
+        DbConnection connection, FilterRuleContext context, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        var parameters = new FilterSqlParameterPlanBuilder(database.Dialect);
+        var predicate = Predicates.LowFrequencyAccount(parameters, AccountFrequency.DefaultMaxEntries, context);
+        parameters.Build(predicate).BindParametersTo(command);
+        // 與命中列沿用同一述詞；在完整有效分錄母體計科目，不從前 50 筆摘要推算。
+        command.CommandText = $"SELECT COUNT(DISTINCT g.account_code) FROM target_gl_entry g "
+            + $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({predicate});";
+        return Convert.ToInt64(await command.ExecuteScalarLoggedAsync(_log, _provider, cancellationToken));
+    }
 
     private async Task<(long HitLines, long HitVouchers)> CountWhereAsync(
         DbConnection connection,
@@ -248,18 +268,20 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         DbConnection connection, PrescreenExecutionInput input, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        // 編製者彙總與預篩選規則共用有效分錄母體。
+        // 編製者彙總與預篩選規則共用有效分錄母體。人員依去空白、不分大小寫的識別值分組（2026-10-04 裁定 C3），
+        // 顯示值固定取同一組裡碼位最小的去空白寫法（例如 U1 與 u1 顯示 U1），兩個本地資料庫相同。
+        var person = PersonKey(database.Dialect);
         command.CommandText =
             $"""
-            SELECT COALESCE(created_by, ''),
+            SELECT MIN({person}),
                    COUNT(*),
                    COALESCE(SUM(debit_amount_scaled), 0),
                    COALESCE(SUM(credit_amount_scaled), 0),
                    COALESCE(SUM(CASE WHEN is_manual = 1 THEN 1 ELSE 0 END), 0)
             FROM target_gl_entry
             WHERE {GlEffectivePopulation.SqlPredicate()}
-            GROUP BY created_by
-            ORDER BY COUNT(*) DESC, created_by
+            GROUP BY UPPER({person})
+            ORDER BY COUNT(*) DESC, MIN({person})
             LIMIT {SummaryRowLimit};
             """;
         var rows = new List<CreatorSummaryRow>();
@@ -277,9 +299,12 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         return rows;
     }
 
+    /// <summary>編製者的分組鍵：空白視為 ''，去掉和 .NET 相同的空白字元；呼叫端再套 UPPER 做不分大小寫分組。</summary>
+    internal static string PersonKey(ISqlDialect dialect) => dialect.Trim("COALESCE(created_by, '')");
+
     /// <summary>
     /// 編製者集中度的兩個分母，一次掃描取得：期間分錄總筆數與相異編製人員總數。
-    /// 分組鍵與編製者彙總同為 COALESCE(created_by, '')，故各人筆數合計恆等於總筆數。
+    /// 分組鍵與編製者彙總同為去空白、不分大小寫的識別值，故各人筆數合計恆等於總筆數。
     /// </summary>
     private async Task<(long TotalPreparers, long TotalEntries)> ReadPreparerPopulationAsync(
         DbConnection connection, PrescreenExecutionInput input, CancellationToken cancellationToken)
@@ -289,7 +314,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         command.CommandText =
             $"""
             SELECT COUNT(*),
-                   COUNT(DISTINCT COALESCE(created_by, ''))
+                   COUNT(DISTINCT UPPER({PersonKey(database.Dialect)}))
             FROM target_gl_entry
             WHERE {GlEffectivePopulation.SqlPredicate()};
             """;

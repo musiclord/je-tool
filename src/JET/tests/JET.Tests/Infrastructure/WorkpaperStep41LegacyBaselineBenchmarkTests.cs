@@ -712,7 +712,8 @@ public sealed class WorkpaperStep41LegacyBaselineBenchmarkTests(ITestOutputHelpe
         long expectedRows)
     {
         Assert.Equal("duckdb", metrics.Provider);
-        Assert.Equal(0, metrics.ProviderResolutions);
+        // 2026-10-02 資料庫分流簡化：ProviderResolutions 指標隨分流層一起刪除，原本「為 0」的斷言拿掉；
+        // 其餘斷言不變。第一次失敗收據（引用已刪除的屬性而無法建置）：20261002-120244042-2aa5edaa431d4f3e89e068361d5482f5。
         Assert.Equal(1, metrics.SchemaReadinessCommands);
         Assert.Equal(1, metrics.Connections);
         Assert.Equal(1, metrics.Transactions);
@@ -748,7 +749,6 @@ public sealed class WorkpaperStep41LegacyBaselineBenchmarkTests(ITestOutputHelpe
         WorkpaperStep41PreparedSessionMetrics metrics) => new
     {
         metrics.Provider,
-        metrics.ProviderResolutions,
         metrics.SchemaReadinessCommands,
         metrics.Connections,
         metrics.Transactions,

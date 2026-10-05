@@ -74,7 +74,7 @@ public sealed class DemoRuleOracleTests
 
         // descNull 摘要空白:僅借方行空白(張數 = 列數)。
         Assert.Equal((long)DemoDataFactory.BlankDescriptionVouchers, Count(p, "blankDescription"));
-        // R9 回溯過帳:兩行皆命中(同傳票登錄日)。
+        // R9 回溯過帳:兩行皆命中(同傳票日期)。
         Assert.Equal(Lines(DemoDataFactory.BackdatedVouchers), Count(p, "backdatedPosting"));
         // R10 非授權編製人員:兩行同 created_by 皆命中。
         Assert.Equal(Lines(DemoDataFactory.NonAuthorizedVouchers), Count(p, "nonAuthorizedPreparer"));
@@ -139,7 +139,7 @@ public sealed class DemoRuleOracleTests
         using var host = new HandlerTestHost();
         var (p, ctx) = await RunPrescreenAsync(host);
 
-        // 述詞用「post_date < voucher_date」;此處改以 julianday 日差 > 0 表達「登錄日晚於過帳日」,
+        // 述詞用「post_date < voucher_date」;此處改以 julianday 日差 > 0 表達「傳票日期晚於總帳入帳日」,
         // 語意同義、寫法獨立(seed 為過帳日 +3 天)。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             host, ctx.ProjectId,

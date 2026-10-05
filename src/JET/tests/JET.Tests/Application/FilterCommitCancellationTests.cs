@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JET.Application;
 using JET.Domain;
+using JET.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -24,17 +25,8 @@ public sealed class FilterCommitCancellationTests
             token.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         });
-        var session = new ProjectSession();
-        session.Enter(document.ProjectId);
-        var handler = new FilterCommitHandler(
-            commitRepository,
-            new FixedMappingStore(document.ProjectId),
-            new EmptyAccountMappingStore(),
-            new EmptyAuthorizedPreparerStore(),
-            new BuiltInAccountTaxonomyStore(),
-            new EligibleValidationRunStore(),
-            projectStore,
-            session);
+        var session = ActiveSession(document.ProjectId, commitRepository);
+        var handler = new FilterCommitHandler(projectStore, session);
         using var payload = ValidPayload();
 
         var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
@@ -55,17 +47,8 @@ public sealed class FilterCommitCancellationTests
         var injected = new InjectedFilterCommitException("sentinel commit failure");
         var commitRepository = new RecordingFilterCommitRepository(
             _ => Task.FromException(injected));
-        var session = new ProjectSession();
-        session.Enter(document.ProjectId);
-        var handler = new FilterCommitHandler(
-            commitRepository,
-            new FixedMappingStore(document.ProjectId),
-            new EmptyAccountMappingStore(),
-            new EmptyAuthorizedPreparerStore(),
-            new BuiltInAccountTaxonomyStore(),
-            new EligibleValidationRunStore(),
-            projectStore,
-            session);
+        var session = ActiveSession(document.ProjectId, commitRepository);
+        var handler = new FilterCommitHandler(projectStore, session);
         using var payload = ValidPayload();
 
         var exception = await Assert.ThrowsAsync<InjectedFilterCommitException>(
@@ -75,6 +58,26 @@ public sealed class FilterCommitCancellationTests
         Assert.Equal(cancellation.Token, commitRepository.ReceivedToken);
         Assert.Equal(0, projectStore.SaveCalls);
         Assert.Equal(4, projectStore.Document.CurrentStep);
+    }
+
+    /// <summary>
+    /// handler 從作用中案件的資料庫組取 repository；把原本逐一傳給建構式的替身放進資料庫組後再進入 session。
+    /// </summary>
+    private static ProjectSession ActiveSession(string projectId, IFilterCommitRepository commitRepository)
+    {
+        var session = new ProjectSession();
+        session.Enter(
+            projectId,
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                FilterFacts = new FilterFactsPort(new UnusedFilterRunRepository(), commitRepository),
+                MappingStates = new FixedMappingStore(projectId),
+                AccountMappings = new EmptyAccountMappingStore(),
+                AuthorizedPreparers = new EmptyAuthorizedPreparerStore(),
+                AccountTaxonomy = new BuiltInAccountTaxonomyStore(),
+                RuleRuns = new EligibleValidationRunStore(),
+            });
+        return session;
     }
 
     private static ProjectDocument Document() => new(
@@ -129,6 +132,17 @@ public sealed class FilterCommitCancellationTests
 
     private sealed class InjectedFilterCommitException(string message) : Exception(message);
 
+    // 這裡只走 filter.commit；正式組裝的 FilterFactsPort 不會呼叫 preview repository。
+    private sealed class UnusedFilterRunRepository : IFilterRunRepository
+    {
+        public Task<FilterPreviewResult> PreviewAsync(
+            string projectId,
+            FilterScenarioSpec scenario,
+            FilterRuleContext context,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
     private sealed class EligibleValidationRunStore : IRuleRunStore
     {
         private static readonly RuleRunRecord ValidationRun = new(
@@ -159,6 +173,10 @@ public sealed class FilterCommitCancellationTests
 
         public Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
         public Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ProjectDocument>>([Document]);

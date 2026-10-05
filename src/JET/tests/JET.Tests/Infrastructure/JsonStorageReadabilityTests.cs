@@ -2,6 +2,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
+// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -43,8 +44,8 @@ public sealed class JsonStorageReadabilityTests
 
         await repo.ReplaceBatchAsync(
             projectId, DatasetKind.Gl,
-            new ImportSourceDescriptor(@"C:\demo.xlsx", "demo.xlsx", null, null, null),
-            ["傳票號碼", "摘要"], SingleRowAsync(row), CancellationToken.None);
+            [new ImportSourceInput(new ImportSourceDescriptor(@"C:\demo.xlsx", "demo.xlsx", null, null, null),
+            ["傳票號碼", "摘要"], SingleRowAsync(row))], CancellationToken.None);
 
         var rowJson = await ReadSingleTextAsync(db, projectId,
             "SELECT row_json FROM staging_gl_raw_row LIMIT 1");
@@ -67,8 +68,8 @@ public sealed class JsonStorageReadabilityTests
 
         await repo.ReplaceBatchAsync(
             projectId, DatasetKind.Tb,
-            new ImportSourceDescriptor(@"C:\demo.xlsx", "demo.xlsx", null, null, null),
-            ["科目代號"], SingleRowAsync(row), CancellationToken.None);
+            [new ImportSourceInput(new ImportSourceDescriptor(@"C:\demo.xlsx", "demo.xlsx", null, null, null),
+            ["科目代號"], SingleRowAsync(row))], CancellationToken.None);
 
         var columnsJson = await ReadSingleTextAsync(db, projectId,
             "SELECT columns_json FROM import_batch LIMIT 1");

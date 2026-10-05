@@ -14,7 +14,7 @@
 
   function invoke(action, payload) {
     if (!isReady()) {
-      return Promise.reject(new Error('JET host bridge is not available.'));
+      return Promise.reject(new Error('應用程式連線尚未就緒，這個動作沒有送出。'));
     }
 
     var requestId = createRequestId();
@@ -55,7 +55,7 @@
     return 'jet-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
   }
 
-  // host→web 事件訂閱表（manifest「Host→Web 事件」：信封 { event, data }、無 requestId）
+  // host→web 事件訂閱表（docs/action-contract-manifest.md「主程式進度事件」：信封 { event, data }、無 requestId）
   var eventHandlers = Object.create(null);
 
   function receive(event) {
@@ -99,9 +99,10 @@
       return;
     }
 
+    // 後端沒有附訊息時，比照非預期錯誤的固定說明，不顯示英文或技術原文。
     var detail = message.error && message.error.message
       ? message.error.message
-      : 'JET bridge request failed.';
+      : '發生非預期的錯誤，這個動作沒有完成。請按畫面上方的「輸出支援日誌」，把檔案交給支援人員。';
 
     // 把 wire 錯誤碼掛到 Error 上，供 Ui.run 區分（如 operation_in_progress → 「請稍候」）。
     var err = new Error(detail);
@@ -121,7 +122,7 @@
     Object.keys(pending).forEach(function (requestId) {
       var callbacks = pending[requestId];
       delete pending[requestId];
-      var error = new Error('JET host bridge was unloaded before the request completed.');
+      var error = new Error('畫面在動作完成前重新載入，無法確認這個動作的結果。');
       error.code = 'bridge_unloaded';
       callbacks.reject(error);
     });
@@ -144,8 +145,10 @@
     'project.listLocal',
     'project.list',
     'project.create',
+    'project.update',
     'project.load',
     'project.delete',
+    'project.deletePreview',
     'project.saveProgress',
     'project.heartbeat',
     'project.releaseLock',
@@ -158,6 +161,7 @@
     'import.tb.fromFile',
     'import.accountMapping.fromFile',
     'accountTaxonomy.save',
+    'accountMapping.save',
     'import.authorizedPreparer.fromFile',
     'import.authorizedPreparer.clear',
     'import.inspectFile',
@@ -184,6 +188,7 @@
     'query.filterVoucherPage',
     'query.filterVoucherRowsPage',
     'query.accountMappingBlankPage',
+    'query.accountMappingPage',
     'query.prescreenPage',
     'query.infSamplePage',
     'query.tagMatrixScenarios',
@@ -199,13 +204,11 @@
     'support.log.export',
     'host.selectFile',
     'host.selectFiles',
-    'host.selectSavePath',
     'host.openFolder',
     'host.exitApp',
     'dev.db.overview',
     'dev.db.tableData',
     'dev.db.reconcile',
-    'dev.log.export',
     'dev.log.exportFile'
   ];
 
@@ -220,7 +223,7 @@
     return name;
   }
 
-  // host→web 事件訂閱（manifest「Host→Web 事件」）。handler 收到 data 物件。
+  // host→web 事件訂閱（docs/action-contract-manifest.md「主程式進度事件」）。handler 收到 data 物件。
   function on(eventName, handler) {
     (eventHandlers[eventName] = eventHandlers[eventName] || []).push(handler);
   }

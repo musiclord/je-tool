@@ -56,7 +56,8 @@ public sealed class CompletenessEligibilityTests
 
         Assert.True(decision.IsEligible);
         Assert.Null(decision.Reason);
-        Assert.Contains("匯入前後", decision.Warning, StringComparison.Ordinal);
+        // 2026-10-05 V2 裁定：兩組數字都是確認配對時與存下後算的，不是「匯入前後」，提醒照實改寫。
+        Assert.Contains("和確認欄位配對時算出的不一致", decision.Warning, StringComparison.Ordinal);
     }
 
     [Fact]

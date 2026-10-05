@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Production filter lifecycle port. Existing provider-routing repositories remain the
+/// Production filter lifecycle port. The provider-specific repositories in the same repository set remain the
 /// compatibility execution mechanisms while AuditCore owns the typed plan and result.
 /// </summary>
 internal sealed class FilterFactsPort(

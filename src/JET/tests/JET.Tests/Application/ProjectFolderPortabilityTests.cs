@@ -427,9 +427,6 @@ public sealed class ProjectFolderPortabilityTests
             CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<string>>([]);
 
-        public Task<string?> PickSavePathAsync(string baseFileName, CancellationToken cancellationToken)
-            => Task.FromResult<string?>(null);
-
         public Task RevealInExplorerAsync(string path, CancellationToken cancellationToken)
         {
             RevealedPaths.Add(Path.GetFullPath(path));

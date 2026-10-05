@@ -36,6 +36,8 @@ internal static partial class GuiScenarios
         {
             await Click("[data-action=open-save]"); await Click("[data-action=save-scenario]");
             await Check("saved.length===" + count);
+            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && draft.__editingSavedRef===saved");
+            await Click("[data-action=new-scenario]");
         }
         async Task Preview() { await Click("[data-action=preview-scenario]"); await Check("!!preview && Number.isInteger(preview.count)"); }
         ResizeFilterWindow(process, 920, 760);
@@ -72,6 +74,7 @@ internal static partial class GuiScenarios
         await FindControlPointAsync(cdp, process, first + "[data-value-key=value]", ct);
         await CaptureScreenshotAsync(cdp, outcome, ct); await Save(2);
         outcome.RecordStage("side_month_cancel_return_export_reopen");
+        await Click("[data-filter-pane-select=saved]");
         await Click(".saved-scenario:nth-of-type(2) .filter-saved-actions summary");
         await Click("[data-action=edit-scenario][data-index='1']");
         await Choose(first + "[data-value-polarity]", "exclude"); await Click("[data-action=cancel-edit-scenario]");
@@ -79,7 +82,7 @@ internal static partial class GuiScenarios
         await Click("[data-bind=step-nav] [data-step-index='3']");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-filter-pane-select=saved]");
-        await Click("[data-action=export-criteria-report]"); await Check("window.JetUi.stepGate(state,5).ok");
+        await Click("[data-action=export-criteria-report]"); await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
         await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
         await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2]})");
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");

@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
 /// <summary>
-/// TB 變動金額計算模式（jet-guide.md §2.2）。四種皆對齊 legacy idea-script.bas 的 status_SA：
+/// TB 變動金額計算模式。四種皆對齊 legacy idea-script.bas 的 status_SA：
 /// DirectChange=SA1、DebitCredit=SA3、OpenClose=SA2、OpenCloseBySide=SA4。
 /// 四種換算結果都進同一統一基準（借正貸負的本期變動 change_amount_scaled）。
 /// </summary>

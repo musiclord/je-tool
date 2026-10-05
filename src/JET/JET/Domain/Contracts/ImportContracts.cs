@@ -30,6 +30,9 @@ public sealed record StagingRow(
     /// <summary>與 Values 同列的非空 cell 型態證據；空 cell 不產生 observation。</summary>
     internal IReadOnlyList<TabularCellObservation> FieldObservations { get; init; } = [];
 
+    /// <summary>文字檔這一列有用引號包住、內含換行的欄位（V11）。其他格式一律是 false。</summary>
+    internal bool HasQuotedLineBreak { get; init; }
+
     internal StagingRow(
         int sourceRowNumber,
         IReadOnlyDictionary<string, string> values,
@@ -108,7 +111,7 @@ public sealed record ImportSourceInput(
     IReadOnlyList<string> Columns,
     IAsyncEnumerable<StagingRow> Rows);
 
-/// <summary>批次內單一來源的持久化資訊（manifest sources 形狀）。</summary>
+/// <summary>批次內單一來源的持久化資訊（回應中的 sources 形狀）。</summary>
 public sealed record ImportSourceInfo(
     int SourceNo,
     string FileName,
@@ -119,7 +122,7 @@ public sealed record ImportSourceInfo(
     DateTimeOffset ImportedUtc);
 
 /// <summary>
-/// 匯入批次。一個 GL/TB 資料集對應一個批次，可由多個來源組成（guide §3.1.4）。
+/// 匯入批次。一個 GL/TB 資料集對應一個批次，可由多個來源組成。
 /// SourceFileName = 第一個來源檔名（向後相容的顯示欄位）；權威來源清單在 Sources。
 /// </summary>
 public sealed record ImportBatchInfo(
@@ -137,9 +140,10 @@ public sealed record ImportBatchResult(
     int AddedRowCount);
 
 /// <summary>
-/// 單一表格來源的讀取請求（manifest import.*.fromFile 的可選欄位）。
-/// SheetName 僅 .xlsx 或 .xlsm 有效；EncodingName 和 Delimiter 僅 .csv 或 .txt 有效，
-/// null 表示交由 reader 偵測（guide §3.1.1）。欄位適用性驗證在 handler，reader 只消費。
+/// 單一表格來源的讀取請求（import.*.fromFile 的可選欄位）。
+/// SheetName 選取 .xlsx、.xlsm 或 .xls 工作表，或 Access .mdb、.accdb 的一般資料表；
+/// EncodingName 和 Delimiter 僅 .csv 或 .txt 有效，
+/// null 表示交由 reader 偵測。欄位適用性驗證在 handler，reader 只消費。
 /// </summary>
 public sealed record TabularSourceRequest(
     string FilePath,
@@ -149,30 +153,42 @@ public sealed record TabularSourceRequest(
     int LeadingRowsToSkip = 0);
 
 /// <summary>
-/// 單一工作表的檢視結果（空工作表 Columns 為空清單）。
-/// RowCountEstimate = 自 dimension 元素推估的資料列數（manifest import.inspectFile）：
-/// 可能過時、僅顯示用、不得用於驗證；無 dimension 或無標頭列時為 null。
+/// 單一工作表或 Access 一般資料表的檢視結果（空工作表 Columns 為空清單）。
+/// RowCountEstimate 是 Open XML dimension 推估的資料列數（import.inspectFile）：
+/// 可能過時、僅顯示用、不得用於驗證；沒有估計值的來源（包括 Access）回傳 null。
 /// </summary>
 public sealed record WorksheetInspection(
     string Name,
     IReadOnlyList<string> Columns,
     int? RowCountEstimate = null);
 
+/// <summary>給審計員看的來源檔提醒文字；檢視與預覽共用，前端原樣顯示。</summary>
+public static class TabularSourceNotices
+{
+    /// <summary>文字檔只讀到一欄時的提醒；報表格式的文字檔多半會落到這裡。不擋匯入。</summary>
+    public const string SingleColumn =
+        "只讀到一欄。若檔案上方有公司名稱或報表標題列，或欄位是用空白對齊的報表格式，" +
+        "請先在 Excel 整理成第一列是欄名、一列一筆資料的表格，另存成 CSV 後再匯入。";
+}
+
 /// <summary>
-/// 匯入前的唯讀檔案檢視（manifest import.inspectFile）。
-/// .xlsx 或 .xlsm：Worksheets 有值、其餘 null；.csv 或 .txt：Columns 和 Encoding 有值、
+/// 匯入前的唯讀檔案檢視（import.inspectFile）。
+/// Excel 各支援格式與 Access：Worksheets 列出工作表或一般資料表，其餘 null；
+/// .csv 或 .txt：Columns 和 Encoding 有值、
 /// Delimiter 為偵測結果（單欄檔 null）、Worksheets null。
+/// Notices 是給審計員看的提醒，例如文字檔只讀到一欄時提示可能是報表格式；沒有提醒時為 null 或空清單。
 /// </summary>
 public sealed record TabularFileInspection(
     string FileType,
     IReadOnlyList<WorksheetInspection>? Worksheets,
     IReadOnlyList<string>? Columns,
     string? Encoding,
-    string? Delimiter);
+    string? Delimiter,
+    IReadOnlyList<string>? Notices = null);
 
 /// <summary>
-/// 表格檔案讀取器。IAsyncEnumerable 形狀讓未來 SAX reader
-/// 可直接替換而不動 handler 契約。
+/// 表格檔案讀取器。逐列串流由各格式 reader 實作，handler 透過共用契約匯入，
+/// 不把檔案結構檢視或有界預覽當成完整匯入。
 /// </summary>
 public interface ITabularFileReader
 {
@@ -188,17 +204,6 @@ public interface ITabularFileReader
 
 public interface IImportRepository
 {
-    /// <summary>
-    /// 以 replace 語意匯入：在單一 transaction 內刪除同 dataset 的舊批次、staging rows、
-    /// target rows 與 committed mapping，再以本次來源開立新批次（來源序號 1）。
-    /// </summary>
-    Task<ImportBatchResult> ReplaceBatchAsync(
-        string projectId,
-        DatasetKind kind,
-        ImportSourceDescriptor source,
-        IReadOnlyList<string> columns,
-        IAsyncEnumerable<StagingRow> rows,
-        CancellationToken cancellationToken);
 
     /// <summary>
     /// 以 replace 語意原子匯入一到多個來源；所有來源共用一個 provider transaction，
@@ -208,36 +213,6 @@ public interface IImportRepository
         string projectId,
         DatasetKind kind,
         IReadOnlyList<ImportSourceInput> sources,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(sources);
-        if (sources.Count != 1)
-        {
-            throw new NotSupportedException(
-                "此 IImportRepository adapter 尚未實作多來源 replace；production provider 必須覆寫 batch overload。");
-        }
-
-        var input = sources[0];
-        return ReplaceBatchAsync(
-            projectId,
-            kind,
-            input.Source,
-            input.Columns,
-            input.Rows,
-            cancellationToken);
-    }
-
-    /// <summary>
-    /// 以 append 語意把來源加入該 dataset 的現有批次（guide §3.1.4）。
-    /// 無批次 → no_import_batch；欄名集合不一致 → column_mismatch；0 資料列 → empty_workbook（rollback）。
-    /// 成功時在同一 transaction 內清除該 dataset 的 target rows 與 committed mapping（下游失效）。
-    /// </summary>
-    Task<ImportBatchResult> AppendToBatchAsync(
-        string projectId,
-        DatasetKind kind,
-        ImportSourceDescriptor source,
-        IReadOnlyList<string> columns,
-        IAsyncEnumerable<StagingRow> rows,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -247,24 +222,7 @@ public interface IImportRepository
         string projectId,
         DatasetKind kind,
         IReadOnlyList<ImportSourceInput> sources,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(sources);
-        if (sources.Count != 1)
-        {
-            throw new NotSupportedException(
-                "此 IImportRepository adapter 尚未實作多來源 append；production provider 必須覆寫 batch overload。");
-        }
-
-        var input = sources[0];
-        return AppendToBatchAsync(
-            projectId,
-            kind,
-            input.Source,
-            input.Columns,
-            input.Rows,
-            cancellationToken);
-    }
+        CancellationToken cancellationToken);
 
     Task<ImportBatchInfo?> GetLatestBatchAsync(
         string projectId,
@@ -279,8 +237,7 @@ public interface IProjectDatabaseInitializer
     /// <summary>
     /// 指定 provider 的後端是否已有此 projectId 的既有資料(SQLite:jet.db 檔;SQL Server:專案 schema——
     /// 含本機登記遺失後的孤兒殘留)。供 project.create 在寫入任何本機檔案之前攔截撞名與殘留。
-    /// provider 由呼叫端顯式傳入而非路由解析:此檢查發生在 project.json 落定之前,resolver 無從讀取,
-    /// 且解析結果會以 app 生命週期快取殘留、劫持同名後續建案的路由(見 ProjectCreateHandler)。
+    /// provider 由呼叫端顯式傳入:此檢查發生在 project.json 落定之前,無法從案件文件讀取資料庫種類。
     /// </summary>
     Task<bool> DatabaseExistsAsync(string projectId, string databaseProvider, CancellationToken cancellationToken);
 }
@@ -288,7 +245,7 @@ public interface IProjectDatabaseInitializer
 /// <summary>
 /// 永久刪除某專案的資料庫（鏡射 <see cref="IProjectDatabaseInitializer"/>）。
 /// 本地引擎刪資料庫檔（jet.sqlite／jet.duckdb）；SQL Server 刪單庫 JET 內的專案 schema（DROP TABLE＋DROP SCHEMA）。
-/// provider 由 ProviderRouting 包裝依專案選擇（project.delete 用）。
+/// project.delete 依被刪案件的資料庫種類取對應資料庫組裡的實作。
 /// </summary>
 public interface IProjectDatabaseDeleter
 {

@@ -9,7 +9,7 @@ public sealed class PrescreenProceduresTests
     [Fact]
     public void Plan_WithoutAccountMapping_MarksUnexpectedPairNotApplicable()
     {
-        Assert.Equal("需先匯入科目配對。", PrescreenProcedures.MissingAccountMappingReason);
+        Assert.Equal("需先完成科目配對。", PrescreenProcedures.MissingAccountMappingReason);
 
         var verdict = Verdict(Plan(Snapshot(hasAccountMapping: false)), "unexpected_account_pair");
 
@@ -65,7 +65,9 @@ public sealed class PrescreenProceduresTests
     [Fact]
     public void Plan_WithoutCreatedByMapping_MarksCreatorSummaryNotApplicable()
     {
-        Assert.Equal("請先完成 GL「傳票建立人員」欄位配對。", PrescreenProcedures.MissingCreatedByMappingReason);
+        // 2026-10-04 第 8 批 Q8：只改確認配對用語，以下 N/A 事實與狀態仍逐項核對。
+        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+        Assert.Equal("請先確認 GL「傳票建立人員」欄位配對。", PrescreenProcedures.MissingCreatedByMappingReason);
 
         var verdict = Verdict(Plan(Snapshot(hasCreatedBy: false)), "creator_summary");
 
@@ -87,8 +89,10 @@ public sealed class PrescreenProceduresTests
     [Fact]
     public void Plan_WithoutApprovalDate_PreservesBothExistingReasons()
     {
-        Assert.Equal("請先完成 GL「傳票核准日」欄位配對。", PrescreenProcedures.MissingApprovalDateMappingReason);
-        Assert.Equal("尚未完成 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。", PrescreenProcedures.MissingApprovalDateForActivityReason);
+        // 2026-10-04 第 8 批 Q8：兩個不同用途的原因都保留，只同步確認配對說法。
+        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+        Assert.Equal("請先確認 GL「傳票核准日」欄位配對。", PrescreenProcedures.MissingApprovalDateMappingReason);
+        Assert.Equal("尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳入帳日。", PrescreenProcedures.MissingApprovalDateForActivityReason);
 
         var plan = Plan(Snapshot(hasApprovalDate: false, lastPeriodStart: null));
 
@@ -110,7 +114,8 @@ public sealed class PrescreenProceduresTests
     public void Plan_WithoutLastPeriodStart_MarksPostPeriodApprovalNotApplicable()
     {
         Assert.Equal(
-            "案件尚未設定期末財報準備日。",
+            // 2026-10-04 第4批C6：新增修改入口後，仍以完整固定文字核對補救指示。
+            "尚未填期末財報準備日，請到「修改案件資料」填寫後重新執行預篩選。",
             PrescreenProcedures.MissingLastPeriodStartReason);
 
         var verdict = Verdict(Plan(Snapshot(lastPeriodStart: null)), "post_period_approval");
@@ -130,42 +135,6 @@ public sealed class PrescreenProceduresTests
             Assert.True(verdict.IsApplicable);
             Assert.Null(verdict.NaReason);
         });
-    }
-
-    [Fact]
-    public void RenderPrescreenSummary_NormalizesLegacyNaReasonsWithoutChangingResults()
-    {
-        const string legacy =
-            """
-            {
-              "postPeriodApproval": {
-                "status": "na",
-                "naReason": "GL 未配對核准日欄位（docDate）。",
-                "count": 0
-              },
-              "nested": [{
-                "naReason": "尚未匯入假日曆（import.holiday）。",
-                "count": 7
-              }],
-              "auditNote": "GL 未配對核准日欄位（docDate）。"
-            }
-            """;
-
-        var rendered = JetAuditProgram.RenderPrescreenSummary(legacy);
-
-        var postPeriod = rendered.GetProperty("postPeriodApproval");
-        Assert.Equal("na", postPeriod.GetProperty("status").GetString());
-        Assert.Equal(0, postPeriod.GetProperty("count").GetInt32());
-        Assert.Equal(
-            PrescreenProcedures.MissingApprovalDateMappingReason,
-            postPeriod.GetProperty("naReason").GetString());
-        Assert.Equal(
-            PrescreenProcedures.MissingHolidayCalendarReason,
-            rendered.GetProperty("nested").EnumerateArray().Single()
-                .GetProperty("naReason").GetString());
-        Assert.Equal(
-            "GL 未配對核准日欄位（docDate）。",
-            rendered.GetProperty("auditNote").GetString());
     }
 
     [Fact]

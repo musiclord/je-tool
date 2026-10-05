@@ -6,11 +6,11 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 使用者目錄 <see cref="IUserDirectory"/> 的 SQL Server 實作（<c>dbo.app_user</c>，在單庫 <c>JET</c>／測試 <c>JET_Test</c>
-/// 的 <c>dbo</c>）。<b>天生只屬 sqlServer</b>（比照 <see cref="SqlServerProjectRegistry"/>）：不經 ProviderRouting，
+/// 的 <c>dbo</c>）。<b>天生只屬 sqlServer</b>（比照 <see cref="SqlServerProjectRegistry"/>）：不在依資料庫種類選定的資料庫組裡，
 /// 直接持有 <see cref="SqlServerConnectionOptions"/> 對單庫開連線。bootstrap 冪等（IF OBJECT_ID IS NULL CREATE TABLE，
-/// 並以 TRY/CATCH 吞 2714 併發建表競速），首次觸碰時 ensure；<c>principal</c> 鍵欄釘 <c>Latin1_General_BIN2</c>（spec §2）。
+/// 並以 TRY/CATCH 吞 2714 併發建表競速），首次觸碰時 ensure；<c>principal</c> 鍵欄釘 <c>Latin1_General_BIN2</c>。
 /// 連線未設定 → <see cref="JetActionException"/> code <c>sql_server_not_configured</c>（fail-loud，呼叫端 handler 退階）。
-/// 這不是驗證機制：記錄「誰來過、給編號」，不證明「他是他」（spec §7）。
+/// 這不是驗證機制：記錄「誰來過、給編號」，不證明「他是他」。
 /// </summary>
 public sealed class SqlServerUserDirectory(SqlServerConnectionOptions options) : IUserDirectory
 {
@@ -27,7 +27,7 @@ public sealed class SqlServerUserDirectory(SqlServerConnectionOptions options) :
         // best-effort 戳記最近確認時間；失敗不影響「已取得編號」的主結果。
         await TryUpdateLastSeenAsync(connection, principal, cancellationToken);
 
-        // 雛形期一次性收斂：裸名 project_access 列升級為合格名（名單授權輪移除）。輔助收斂不得阻斷註冊。
+        // 一次性收斂：早期版本的 project_access 列存裸帳號名，升級為合格名。輔助收斂不得阻斷註冊。
         await TryHealBarePrincipalAccessAsync(connection, principal, cancellationToken);
 
         return new AppUserRecord(userId, principal);
@@ -103,9 +103,9 @@ public sealed class SqlServerUserDirectory(SqlServerConnectionOptions options) :
     private static async Task TryHealBarePrincipalAccessAsync(
         SqlConnection connection, string principal, CancellationToken cancellationToken)
     {
-        // 雛形期一次性收斂（spec §2 末段）：雛形的 dbo.project_access.principal 存的是裸帳號名。身分升級為合格化
+        // 一次性收斂：早期版本的 dbo.project_access.principal 存的是裸帳號名。身分升級為合格化
         // 格式後，把「等於自己短名」的 access 列升級為合格名；目標列已存在則跳過（NOT EXISTS 防主鍵衝突）。
-        // 已知取捨：同短名的跨網域他人列會被誤收編——雛形期資料僅存於開發機，風險可接受（spec §7）。名單授權輪移除本段。
+        // 已知取捨：同短名的跨網域他人列會被誤收編——早期資料僅存於開發機，風險可接受。日後改用人員名單授權時移除本段。
         var separator = principal.LastIndexOf('\\');
         if (separator < 0)
         {
@@ -156,7 +156,7 @@ public sealed class SqlServerUserDirectory(SqlServerConnectionOptions options) :
             return;
         }
 
-        // 冪等 bootstrap（spec §2 表形，principal 釘 BIN2）。TRY/CATCH 吞併發建表競速（2714＝物件已存在，屬另一
+        // 冪等 bootstrap（principal 釘 BIN2）。TRY/CATCH 吞併發建表競速（2714＝物件已存在，屬另一
         // 連線先建成，其餘錯誤照拋）——多個 dispatcher/測試並行首次觸碰可能競速。
         await using var command = connection.CreateCommand();
         command.CommandText =

@@ -45,7 +45,32 @@ test('production JetApi receives success and rejects unprepared action through p
   vm.runInContext(fs.readFileSync(path.join(root, 'src/JET/JET/wwwroot/js/jet-api.js'), 'utf8'), context);
   assert.equal(window.JetApi.isReady(), true);
   assert.equal((await window.JetApi.filterPreview({ populationScope: 'auditPeriod', scenario })).scenario.count, 2);
-  await assert.rejects(window.JetApi.filterCommit({ scenarios: [scenario] }), /設計預覽未提供/);
+  await assert.rejects(window.JetApi.filterCommit({ scenarios: [scenario] }), /此操作需在 JET 桌面程式執行；目前頁面僅供畫面預覽。/);
+});
+
+test('account page replays only the prepared bounded request', () => {
+  const prepared = { ...bundle, accountMappingPage: { rows: [{ accountCode: '1000', categoryId: 'builtin.cash' }], nextCursor: null } };
+  assert.equal(dispatch(prepared, 'query.accountMappingPage', { pageSize: 100, cursor: null, search: '' }).rows[0].categoryId, 'builtin.cash');
+  for (const payload of [{ pageSize: 500 }, { search: 'Cash' }, { cursor: 'next' }, { unexpected: true }])
+    assert.throws(() => dispatch(prepared, 'query.accountMappingPage', payload));
+  assert.throws(() => dispatch(prepared, 'accountMapping.save', { changes: [{ accountCode: '1000', categoryId: 'builtin.others' }] }));
+});
+
+test('mapping profiles and comparison metadata replay exact backend-prepared outputs only', () => {
+  const payload = { dataset: 'gl', sourceColumn: 'Mode', limit: 50, comparisonValues: ['ß', 'SS'] };
+  const comparison = { dataset: 'gl', sourceColumn: 'Mode', comparisonOnly: true, comparisonValues: ['ß', 'SS'] };
+  const prepared = { ...bundle, mappingValueProfiles: [
+    { payload, response: { sourceColumn: 'Mode', blankCount: 0, distinctCount: 2, truncated: false,
+      values: [{ value: 'ß', count: 1 }, { value: 'SS', count: 1 }], comparisonGroups: [['ß'], ['SS']] } },
+    { payload: comparison, response: { sourceColumn: 'Mode', comparisonGroups: [['ß'], ['SS']] } }
+  ] };
+  assert.deepEqual(dispatch(prepared, 'mapping.valueProfile', payload).comparisonGroups, [['ß'], ['SS']]);
+  assert.deepEqual(dispatch(prepared, 'mapping.valueProfile', comparison), prepared.mappingValueProfiles[1].response);
+  assert.throws(() => dispatch(prepared, 'mapping.valueProfile', { ...payload, comparisonValues: ['SS', 'ß'] }));
+  assert.throws(() => dispatch(prepared, 'mapping.valueProfile', { ...comparison, comparisonValues: ['ss', 'ß'] }));
+  assert.throws(() => dispatch(prepared, 'mapping.valueProfile', { ...comparison, unexpected: true }));
+  const result = dispatch(prepared, 'mapping.valueProfile', comparison); result.comparisonGroups[0].push('SS');
+  assert.deepEqual(dispatch(prepared, 'mapping.valueProfile', comparison).comparisonGroups, [['ß'], ['SS']]);
 });
 test('page reuses current production scripts and does not install preview into product', () => {
   const html = previewHtml();
@@ -55,6 +80,40 @@ test('page reuses current production scripts and does not install preview into p
   const productIndex = fs.readFileSync(path.join(root, 'src/JET/JET/wwwroot/index.html'), 'utf8');
   assert.ok(!productIndex.includes('/preview/'));
   assert.ok(!fs.existsSync(path.join(root, 'src/JET/JET/wwwroot/fixtures.json')));
+});
+test('stale preview mirrors a synthetic project-load state without claiming a fresh filter run', async () => {
+  assert.match(previewHtml(), /<option value="stale">資料已變更（結果待更新）<\/option>/);
+  const callbacks = {};
+  const controls = Object.fromEntries(['preview-status', 'preview-scene', 'preview-reload',
+    'preview-requests', 'preview-request-output'].map(id => [id, { value: '', textContent: '', hidden: false }]));
+  const calls = [];
+  const fixture = { id: 'matches', scenario: { name: 'Synthetic condition', groups: [] } };
+  const loaded = { staleState: { validation: false, prescreen: false, filter: false },
+    latestRuns: { prescreen: { resultRef: { runId: 'previous' } } },
+    reportArtifacts: [{ kind: 'prescreenReport', stale: false }, { kind: 'validationReport', stale: false }] };
+  const window = { JetPreview: { ready: Promise.resolve({ loaded, fixtures: [fixture] }), requests: [] },
+    JetUi: { applyLoadedProject(data) { calls.push(['load', data]); } },
+    JetStore: {
+      setStepIndex(index) { calls.push(['step', index]); },
+      setDataPreviewCollapsed(value) { calls.push(['collapsed', value]); },
+      setFilterDraft(draft) { calls.push(['draft', draft]); },
+      setFilterPreview() { throw Error('stale mode must not claim a fresh result'); }
+    }, JetApi: { filterPreview() { throw Error('stale mode must not run a filter preview'); } } };
+  const document = { addEventListener(name, callback) { callbacks[name] = callback; }, getElementById(id) { return controls[id]; } };
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'tools/harness/frontend-preview/bootstrap.js'), 'utf8'),
+    { window, document, location: { search: '?scene=stale' }, URLSearchParams, structuredClone });
+  await callbacks.DOMContentLoaded();
+  assert.deepEqual(calls.map(([name]) => name), ['load', 'step', 'collapsed', 'draft']);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1].staleState)),
+    { validation: false, prescreen: true, filter: true });
+  assert.deepEqual(loaded.staleState, { validation: false, prescreen: false, filter: false },
+    'the prepared source is not modified');
+  assert.equal(calls[0][1].latestRuns.prescreen, null, 'do not display old result counts as current');
+  assert.equal(loaded.latestRuns.prescreen.resultRef.runId, 'previous');
+  assert.equal(calls[0][1].reportArtifacts[0].stale, true);
+  assert.equal(calls[0][1].reportArtifacts[1].stale, false);
+  assert.equal(controls['preview-scene'].value, 'stale');
+  assert.equal(controls['preview-status'].textContent, '合成資料預覽（僅供畫面調整）');
 });
 test('server exposes only preview resources, never repository or write endpoints', async () => {
   const server = createServer();

@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 啟動時的 SQL Server 連線健康檢查（deep module）：對外只一個 <see cref="ProbeAsync"/>，
+/// 啟動時的 SQL Server 連線健康檢查：對外只一個 <see cref="ProbeAsync"/>，
 /// 藏掉開連線、跑 <c>SELECT @@VERSION, DB_NAME(), SUSER_SNAME()</c> 與「失敗訊息去敏」的全部細節。
 /// 成功 / 失敗一律以 <see cref="HealthResult.Ok"/> 顯式表達，不靠例外控制流——例外（連不上、逾時、
 /// 認證失敗等）一律被收斂成 <c>Ok=false</c> 的去敏訊息，<b>絕不</b>把整段連線字串、<c>Password</c>
@@ -177,7 +177,7 @@ public static class SqlServerHealthCheck
     /// <list type="bullet">
     /// <item><c>databaseSizeMb</c>：<c>sys.master_files</c> 該庫所有檔（含資料檔與交易記錄檔）的 8 KB 頁數總和換算 MB
     /// ——是整庫、含全部專案 schema，非單專案。</item>
-    /// <item><c>schemaCount</c>：單庫內以 <c>prj_</c> 起頭的 schema 數（＝線上專案數；dbo 控制面表不計）。
+    /// <item><c>schemaCount</c>：單庫內以 <c>prj_</c> 起頭的 schema 數（＝線上專案數；dbo 管理表不計）。
     /// schema 屬 DB-scoped catalog，故以三段式名 <c>[db].sys.schemas</c> 於 master 連線上查（庫名經 <c>QUOTENAME</c>
     /// 包裹，非使用者輸入）。<c>_</c> 是 LIKE 萬用字元，故 pattern 用 <c>prj[_]%</c> 精確錨定前綴。</item>
     /// </list>

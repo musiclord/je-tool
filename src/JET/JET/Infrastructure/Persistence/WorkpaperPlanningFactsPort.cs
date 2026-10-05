@@ -78,12 +78,14 @@ internal sealed class WorkpaperPlanningFactsPort(
         IReadOnlyList<LegacyFieldDefinition> definitions,
         string datasetName)
     {
+        // 底稿欄位定義在提交欄位配對時寫入，每次匯入都會清掉。缺少代表這一側尚未匯入，
+        // 或最近一次匯入後還沒有重新確認欄位配對。
         if (definitions.Count == 0)
         {
             throw new JetActionException(
                 JetErrorCodes.InvalidProjectSchema,
-                $"{datasetName} 批次缺少 Legacy 欄位定義；本版不反推舊批次，"
-                + "請以 mode 'replace' 重新匯入。");
+                $"{datasetName} 還沒有在最近一次匯入後確認欄位配對，缺少底稿需要的欄位定義，無法匯出底稿。"
+                + $"請回第三步確認 {datasetName} 欄位配對；如果還沒有匯入 {datasetName}，請先回第二步匯入。");
         }
     }
 }

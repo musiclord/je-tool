@@ -1050,8 +1050,9 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
                 scenarioPositions = new[] { 1 }
             }));
 
+        // 2026-10-03 用語統一 T1：條件讀回跟著畫面改成「分錄測試範圍」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         const string expected =
-            "（（所選母體內編製人員分錄筆數 ≤ 11 或 所選母體內科目分錄筆數 ≤ 11） 且 僅借方）";
+            "（（分錄測試範圍內編製人員分錄筆數 ≤ 11 或 分錄測試範圍內科目分錄筆數 ≤ 11） 且 僅借方）";
         var criteriaPath = Path.Combine(
             host.ProjectsRoot,
             projectId,

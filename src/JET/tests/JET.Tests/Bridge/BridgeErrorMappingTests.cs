@@ -88,14 +88,45 @@ public sealed class BridgeErrorMappingTests
         Assert.Equal("情境名稱必填。", details[2].GetProperty("message").GetString());
     }
 
+    private const string UnexpectedErrorText =
+        "發生非預期的錯誤，這個動作沒有完成。請按畫面上方的「輸出支援日誌」，把檔案交給支援人員。";
+
     [Fact]
     public void ArbitraryException_FallsBackToBridgeError()
     {
+        // 2026-10-02 修改原因（W19）：未知例外的原文可能是英文或含本機路徑，畫面改回固定中文訊息；
+        // 原文只留在 ActionDispatcher 寫的日誌。原本斷言畫面訊息等於例外原文 "boom"，
+        // 第一次失敗收據 20261002-143156407-11794b1f4e894fdc8bab4d05ac3c728e。錯誤碼與欄位的斷言不變。
         var dto = JetWebMessageBridge.ToErrorDto(new InvalidOperationException("boom"));
 
         Assert.Equal("bridge_error", dto.Code);
-        Assert.Equal("boom", dto.Message);
+        Assert.Equal(UnexpectedErrorText, dto.Message);
+        Assert.DoesNotContain("boom", dto.Message, StringComparison.Ordinal);
         Assert.Null(dto.Field);
+    }
+
+    [Fact]
+    public void UnknownException_DoesNotLeakMessagePathOrExceptionType()
+    {
+        var dto = JetWebMessageBridge.ToErrorDto(new IOException(
+            @"Could not find file 'C:\Users\someone\AppData\Local\JET\case.db'."));
+
+        Assert.Equal("bridge_error", dto.Code);
+        Assert.Equal(UnexpectedErrorText, dto.Message);
+        Assert.DoesNotContain("Could not find", dto.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"C:\", dto.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("IOException", dto.Message, StringComparison.Ordinal);
+        Assert.Null(dto.Details);
+    }
+
+    [Fact]
+    public void JetActionException_KeepsItsOwnMessage()
+    {
+        var dto = JetWebMessageBridge.ToErrorDto(
+            new JetActionException(JetErrorCodes.InvalidPayload, "查核起始日不得晚於查核截止日。"));
+
+        Assert.Equal("invalid_payload", dto.Code);
+        Assert.Equal("查核起始日不得晚於查核截止日。", dto.Message);
     }
 
     [Fact]
@@ -105,6 +136,8 @@ public sealed class BridgeErrorMappingTests
             new KeyNotFoundException("No JET action handler is registered for 'x.y'."));
 
         Assert.Equal("bridge_error", dto.Code);
+        // 2026-10-02 加入（W19）：未知 action 也是未知例外，畫面同樣只看到固定中文訊息。
+        Assert.Equal(UnexpectedErrorText, dto.Message);
     }
 
     [Fact]

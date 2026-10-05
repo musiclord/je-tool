@@ -8,6 +8,15 @@
       "url": "http://127.0.0.1:4243",
       "env": { "PORT": "4243" },
       "autoPort": false
+    },
+    {
+      "name": "JET browser host",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "tools/harness/browser-host/BrowserHost.csproj", "-c", "Debug", "--no-launch-profile"],
+      "port": 4244,
+      "url": "http://127.0.0.1:4244",
+      "env": { "PORT": "4244" },
+      "autoPort": false
     }
   ]
 }

@@ -50,17 +50,15 @@ public sealed class InfSamplingPrfTests
         Assert.InRange(chiSquare, 0, chiSquareUpperBound);
     }
 
+    // 舊版案件的三列（缺版本、缺種子、第 1 版）已隨固定種子與舊排序法一起移除，改由下一個測試鎖定拒絕行為。
     [Theory]
-    [InlineData(null, null, true, 48_271L, 1)]
-    [InlineData(123_456L, null, true, 123_456L, 1)]
-    [InlineData(123_456L, 1, true, 123_456L, 1)]
     [InlineData(123_456L, 2, true, 123_456L, 2)]
     [InlineData(null, 1, false, 0L, 0)]
     [InlineData(null, 2, false, 0L, 0)]
     [InlineData(0L, 2, false, 0L, 0)]
     [InlineData(2_147_483_647L, 2, false, 0L, 0)]
     [InlineData(123_456L, 99, false, 0L, 0)]
-    public void ResolveSeedVersion_RejectsCorruptionAndPreservesUnversionedLegacy(
+    public void ResolveSeedVersion_RejectsCorruption(
         long? persistedSeed,
         int? persistedVersion,
         bool expectedValid,
@@ -73,5 +71,36 @@ public sealed class InfSamplingPrfTests
         Assert.Equal(expectedSeed, result.Seed);
         Assert.Equal(expectedVersion, result.AlgorithmVersion);
         Assert.Equal(expectedValid, result.Error is null);
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData(123_456L, null)]
+    [InlineData(123_456L, 1)]
+    [InlineData(null, 1)]
+    public void ResolveSeedVersion_LegacyProject_IsRejectedWithoutFallback(
+        long? persistedSeed,
+        int? persistedVersion)
+    {
+        var result = JetAuditProgram.ResolveInfSamplingSeed(persistedSeed, persistedVersion);
+
+        Assert.False(result.IsValid);
+        Assert.True(result.IsLegacyProject);
+        Assert.Equal(0L, result.Seed);
+        Assert.NotNull(result.Error);
+    }
+
+    [Theory]
+    [InlineData(0L, 2)]
+    [InlineData(123_456L, 99)]
+    [InlineData(null, 2)]
+    public void ResolveSeedVersion_Corruption_IsNotReportedAsLegacyProject(
+        long? persistedSeed,
+        int? persistedVersion)
+    {
+        var result = JetAuditProgram.ResolveInfSamplingSeed(persistedSeed, persistedVersion);
+
+        Assert.False(result.IsValid);
+        Assert.False(result.IsLegacyProject);
     }
 }

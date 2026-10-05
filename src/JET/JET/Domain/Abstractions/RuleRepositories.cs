@@ -12,6 +12,9 @@ public sealed record ProjectionResult(
     /// </summary>
     public int TotalErrorCount { get; init; } = Errors.Count;
 
+    /// <summary>完整來源的分組計數與有界樣本；舊呼叫端未提供時仍由 Errors 呈現。</summary>
+    internal IReadOnlyList<ProjectionErrorGroupSummary>? ErrorGroups { get; init; }
+
     /// <summary>GL 投影的有效母體控制總數；TB 投影及失敗結果維持 null。</summary>
     public GlEffectivePopulationTotals? EffectivePopulation { get; init; }
 
@@ -54,48 +57,6 @@ public interface IGlRepository
         Action<ProjectionProgress>? progress = null);
 }
 
-/// <summary>
-/// 舊有 repository 單元測試的 source-compatibility 入口。Production mapping lifecycle 不得使用；
-/// 它只支援未配對 posting status 的既有 fixture，並以全日期域表達「fixture 未宣告案件期間」。
-/// 新 provider 仍必須實作完整有效母體介面，不能藉此遺漏 policy。
-/// </summary>
-internal static class GlRepositoryFixtureCompatibilityExtensions
-{
-    internal static Task<ProjectionResult> ProjectStagingToTargetAsync(
-        this IGlRepository repository,
-        string projectId,
-        string batchId,
-        GlMappingSpec spec,
-        int moneyScale,
-        DateParseOptions dateOptions,
-        CancellationToken cancellationToken,
-        Action<ProjectionProgress>? progress = null)
-    {
-        ArgumentNullException.ThrowIfNull(repository);
-        ArgumentNullException.ThrowIfNull(spec);
-        if (spec.Mapping.TryGetValue(GlMappingKeys.PostingStatus, out var sourceColumn)
-            && !string.IsNullOrWhiteSpace(sourceColumn))
-        {
-            throw new InvalidOperationException(
-                "舊 fixture projection 入口不得用於已配對 posting status 的 mapping。");
-        }
-
-        return repository.ProjectStagingToTargetAsync(
-            projectId,
-            batchId,
-            spec,
-            moneyScale,
-            dateOptions,
-            DateOnly.MinValue,
-            DateOnly.MaxValue,
-            postingStatusMapped: false,
-            postingStatusPolicy: null,
-            committedUtc: DateTimeOffset.UnixEpoch,
-            cancellationToken,
-            progress);
-    }
-}
-
 public interface ITbRepository
 {
     Task<ProjectionResult> ProjectStagingToTargetAsync(
@@ -103,6 +64,7 @@ public interface ITbRepository
         string batchId,
         TbMappingSpec spec,
         int moneyScale,
+        DateTimeOffset committedUtc,
         CancellationToken cancellationToken,
         Action<ProjectionProgress>? progress = null);
 }

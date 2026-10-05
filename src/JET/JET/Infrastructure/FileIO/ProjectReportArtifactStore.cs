@@ -30,6 +30,8 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
 
     private const string StagePrefix = ".report-artifact-stage-";
     private const string ManifestTempPrefix = ".report-artifact-manifest-";
+    // 不列入 TemporaryPrefixes：還原失敗時，之後讀清單也必須保留原檔備份。
+    private const string BackupPrefix = ".report-artifact-backup-";
     private static readonly string[] TemporaryPrefixes =
     [
         StagePrefix,
@@ -50,13 +52,24 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
     private readonly JetProjectFolder _folder;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ProjectReportArtifactStore> _logger;
+    private readonly Action<string, string, bool> _moveFile;
 
     public ProjectReportArtifactStore(
         JetProjectFolder folder,
         TimeProvider? timeProvider = null,
         ILogger<ProjectReportArtifactStore>? logger = null)
+        : this(folder, File.Move, timeProvider, logger)
+    {
+    }
+
+    internal ProjectReportArtifactStore(
+        JetProjectFolder folder,
+        Action<string, string, bool> moveFile,
+        TimeProvider? timeProvider = null,
+        ILogger<ProjectReportArtifactStore>? logger = null)
     {
         _folder = folder ?? throw new ArgumentNullException(nameof(folder));
+        _moveFile = moveFile ?? throw new ArgumentNullException(nameof(moveFile));
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = logger ?? NullLogger<ProjectReportArtifactStore>.Instance;
     }
@@ -263,48 +276,82 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             // 產生工作簿可能耗時；被使用者放回的舊檔在任何正式改名前重新納回清單。
             retained = RetainWithinCapacity(paths, originalRetained, requests.Count);
             var published = new List<ReportArtifact>(staged.Count);
-            foreach (var item in staged)
+            var changes = new List<PublicationChange>(staged.Count);
+            var backupPaths = new List<string>(staged.Count);
+            var preserveBackups = new HashSet<string>(StringComparer.Ordinal);
+            try
             {
-                try
+                foreach (var item in staged)
                 {
-                    File.Move(item.StagePath, item.FinalPath,
-                        overwrite: item.Artifact.Kind != ReportArtifactKind.WorkingPaper);
-                }
-                catch (IOException) when (item.Artifact.Kind == ReportArtifactKind.WorkingPaper
-                    && File.Exists(item.FinalPath))
-                {
-                    throw new JetActionException(
-                        JetErrorCodes.FileReadError,
-                        "同名 Working Paper 已存在，原檔已保留。請重新匯出，JET 會使用新的版本檔名。");
-                }
-                catch (IOException exception) when ((exception.HResult & 0xFFFF) is 32 or 33)
-                {
-                    throw new JetActionException(
-                        JetErrorCodes.FileReadError,
-                        "報告檔正被其他程式開著。請關閉 Excel 或其他開啟檔案的程式，再重新匯出。");
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    // Windows 無法獨占目的檔時也可能回傳存取被拒，不能只處理 sharing violation。
-                    throw new JetActionException(
-                        JetErrorCodes.FileReadError,
-                        "報告檔無法寫入。請先關閉 Excel 或其他開啟檔案的程式，並確認檔案不是唯讀且有寫入權限，再重新匯出。");
-                }
-                var lastWriteUtc = new DateTimeOffset(File.GetLastWriteTimeUtc(item.FinalPath), TimeSpan.Zero);
-                published.Add(item.Artifact with { LastWriteUtc = lastWriteUtc, FullPath = item.FinalPath });
-            }
+                    string? backupPath = null;
+                    if (item.Artifact.Kind != ReportArtifactKind.WorkingPaper && File.Exists(item.FinalPath))
+                    {
+                        backupPath = ResolveContainedPath(paths.ProjectDirectory,
+                            $"{BackupPrefix}{operationId}-{item.Artifact.RelativeFileName}.bak");
+                        backupPaths.Add(backupPath);
+                        var originalWriteTime = File.GetLastWriteTimeUtc(item.FinalPath);
+                        File.Copy(item.FinalPath, backupPath, overwrite: false);
+                        File.SetLastWriteTimeUtc(backupPath, originalWriteTime);
+                    }
 
-            // Working Paper 是正式輸出，每次都是新檔、舊版留在清單裡；其餘報告覆蓋同名檔，清單只留最新一筆。
-            var publishedNames = published
-                .Select(artifact => artifact.RelativeFileName)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var after = retained
-                .Where(artifact => !publishedNames.Contains(artifact.RelativeFileName))
-                .Concat(published)
-                .ToArray();
-            // 正式檔已改名，必須完成索引；取消仍可在發布前生效，不能在此留下舊索引。
-            await PublishManifestAsync(paths, after, CancellationToken.None).ConfigureAwait(false);
-            return Array.AsReadOnly(published.ToArray());
+                    try
+                    {
+                        _moveFile(item.StagePath, item.FinalPath,
+                            item.Artifact.Kind != ReportArtifactKind.WorkingPaper);
+                    }
+                    catch (IOException) when (item.Artifact.Kind == ReportArtifactKind.WorkingPaper
+                        && File.Exists(item.FinalPath))
+                    {
+                        throw new JetActionException(
+                            JetErrorCodes.FileReadError,
+                            "同名工作底稿已存在，原檔已保留。請重新匯出，JET 會使用新的版本檔名。");
+                    }
+
+                    // 改名成功後立即登記；後續讀時間或發布索引失敗也必須還原這一份。
+                    changes.Add(new PublicationChange(item.FinalPath, backupPath));
+                    var lastWriteUtc = new DateTimeOffset(File.GetLastWriteTimeUtc(item.FinalPath), TimeSpan.Zero);
+                    published.Add(item.Artifact with { LastWriteUtc = lastWriteUtc, FullPath = item.FinalPath });
+                }
+
+                // Working Paper 每次都是新檔；其他報告覆蓋同名檔，清單只留最新一筆。
+                var publishedNames = published
+                    .Select(artifact => artifact.RelativeFileName)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var after = retained
+                    .Where(artifact => !publishedNames.Contains(artifact.RelativeFileName))
+                    .Concat(published)
+                    .ToArray();
+                // 發布階段不再接受取消；索引成功後才算完成，失敗則連同報告檔一起還原。
+                await PublishManifestAsync(paths, after, CancellationToken.None).ConfigureAwait(false);
+                return Array.AsReadOnly(published.ToArray());
+            }
+            catch (Exception exception)
+            {
+                // 程式例外也不能留下半批檔案；先恢復檔案，再決定是否轉成操作訊息。
+                var restoreFailures = RestorePublishedFiles(changes, preserveBackups);
+                if (restoreFailures.Count > 0)
+                {
+                    throw new JetActionException(
+                        JetErrorCodes.FileReadError,
+                        preserveBackups.Count > 0
+                            ? "檔案還原未完成，請先關閉報告再重試；原檔備份仍保留。"
+                            : "檔案還原未完成，請先關閉報告再重試；本次新檔仍保留。",
+                        innerException: new AggregateException(new[] { exception }.Concat(restoreFailures)));
+                }
+
+                if (exception is not IOException and not UnauthorizedAccessException) throw;
+                throw new JetActionException(
+                    JetErrorCodes.FileReadError,
+                    "報告檔無法寫入。請先關閉 Excel 或其他開啟檔案的程式，並確認檔案不是唯讀且有寫入權限，再重新匯出。",
+                    innerException: exception);
+            }
+            finally
+            {
+                foreach (var backupPath in backupPaths)
+                {
+                    if (!preserveBackups.Contains(backupPath)) DeleteFileBestEffort(backupPath);
+                }
+            }
         }
         finally
         {
@@ -314,6 +361,31 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             }
         }
     }
+
+    private IReadOnlyList<Exception> RestorePublishedFiles(
+        IReadOnlyList<PublicationChange> changes, ISet<string> preserveBackups)
+    {
+        var failures = new List<Exception>();
+        for (var index = changes.Count - 1; index >= 0; index--)
+        {
+            var change = changes[index];
+            try
+            {
+                if (change.BackupPath is { } backupPath)
+                    _moveFile(backupPath, change.FinalPath, true);
+                else
+                    File.Delete(change.FinalPath);
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
+                if (change.BackupPath is { } backupPath) preserveBackups.Add(backupPath);
+            }
+        }
+        return failures;
+    }
+
+    private sealed record PublicationChange(string FinalPath, string? BackupPath);
 
     private static ReportArtifact[] RetainWithinCapacity(ProjectPaths paths, ReportArtifact[] original, int newCount)
     {
@@ -633,7 +705,7 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             entry.Stale);
     }
 
-    private static async Task PublishManifestAsync(
+    private async Task PublishManifestAsync(
         ProjectPaths paths,
         IReadOnlyList<ReportArtifact> artifacts,
         CancellationToken cancellationToken)
@@ -659,7 +731,7 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
                 await output.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            File.Move(temporaryPath, paths.ManifestPath, overwrite: true);
+            _moveFile(temporaryPath, paths.ManifestPath, true);
         }
         finally
         {

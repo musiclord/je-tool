@@ -9,14 +9,13 @@ namespace JET.Application;
 /// 現階段 category closed 為 nullPostDate；hard projection errors 仍由 projection_failed 回傳並 rollback。
 /// </summary>
 public sealed class QuerySourceQualityPageHandler(
-    ISourceQualityPageRepository repository,
     ProjectSession session) : IApplicationActionHandler
 {
     public string Action => "query.sourceQualityPage";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = session.RequireProjectId();
+        var (projectId, repositories) = session.RequireActive();
         if (payload.TryGetProperty("cursor", out var cursorElement)
             && cursorElement.ValueKind is not (JsonValueKind.Null or JsonValueKind.String))
         {
@@ -24,7 +23,7 @@ public sealed class QuerySourceQualityPageHandler(
         }
 
         var request = PageRequestReader.Read(payload, ResultPageSorting.SourceQuality);
-        var page = await repository.GetPageAsync(
+        var page = await repositories.SourceQualityPages.GetPageAsync(
             projectId,
             request,
             cancellationToken);

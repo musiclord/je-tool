@@ -62,10 +62,13 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "action.end",
         "action.error",
         "import.milestone",
+        "import.inspect",
+        "import.multiline_fields",
         "projection.milestone",
         "artifact.recovery.conflict",
         "artifact.journal.discarded",
         "artifact.manifest.reset",
+        "project_audit.write_failed",
     };
 
     private static readonly HashSet<string> AllowedFields = new(StringComparer.Ordinal)
@@ -95,6 +98,16 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "final_modified_after_journal",
         "final_in_use",
         "final_read_only",
+        // import.inspect：選檔階段成功時記下的格式、欄數、工作表數、編碼與分隔符；沒有檔名、欄名或資料。
+        "file_format",
+        "column_count",
+        "worksheet_count",
+        "encoding",
+        "delimiter_codepoint",
+        // import.multiline_fields：用引號包住、內含換行的資料筆數與前幾個列號（V11）；只有位置，沒有內容。
+        "source_no",
+        "multiline_record_count",
+        "multiline_record_rows",
     };
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull =>
@@ -199,10 +212,13 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
             "action.end" => $"action {action} {fields.GetValueOrDefault("result_status") ?? "ok"} in {fields.GetValueOrDefault("duration_ms") ?? 0} ms",
             "action.error" => $"action {action} failed in {fields.GetValueOrDefault("duration_ms") ?? 0} ms",
             "import.milestone" => $"import milestone {fields.GetValueOrDefault("phase") ?? "unknown"}",
+            "import.inspect" => $"import inspect {fields.GetValueOrDefault("file_format") ?? "unknown"} columns={fields.GetValueOrDefault("column_count") ?? "n/a"}",
+            "import.multiline_fields" => $"import source {fields.GetValueOrDefault("source_no") ?? "n/a"} has {fields.GetValueOrDefault("multiline_record_count") ?? 0} records with quoted line breaks",
             "projection.milestone" => $"projection milestone {fields.GetValueOrDefault("phase") ?? "unknown"}",
             "artifact.recovery.conflict" => "report artifact recovery conflict",
             "artifact.journal.discarded" => "discarded a leftover report journal from the previous store design",
             "artifact.manifest.reset" => "report manifest was unreadable and has been set aside",
+            "project_audit.write_failed" => "project operation record not written",
             _ => eventName,
         };
     }

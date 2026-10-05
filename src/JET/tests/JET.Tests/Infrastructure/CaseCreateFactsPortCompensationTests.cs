@@ -284,7 +284,8 @@ public sealed class CaseCreateFactsPortCompensationTests
             ProjectDocument.SqlServerDatabaseProvider,
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
             sampleSeed: 123,
-            sampleSeedVersion: 1);
+            // 目前版本建案一律寫入現行 INF 抽樣版本；版本 1 已改判為舊版 JET 案件，測試資料跟著用現行版本。
+            sampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
         return JetAuditProgram.Plan(new CaseCreateRequest(
             document,
             HasUserSuppliedCaseName: hasUserSuppliedCaseName,
@@ -308,6 +309,10 @@ public sealed class CaseCreateFactsPortCompensationTests
             Exists = true;
             return Task.CompletedTask;
         }
+
+        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
         public Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ProjectDocument>>([]);

@@ -110,46 +110,6 @@ public static class PayloadReader
         return map;
     }
 
-    /// <summary>讀取 fields 陣列（{key, label, ...} 物件；多餘屬性忽略）。</summary>
-    public static List<MappingFieldDefinition> GetFieldDefinitions(JsonElement payload, string name)
-    {
-        if (payload.ValueKind != JsonValueKind.Object
-            || !payload.TryGetProperty(name, out var property)
-            || property.ValueKind != JsonValueKind.Array)
-        {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"payload 缺少必填陣列欄位 '{name}'。");
-        }
-
-        var fields = new List<MappingFieldDefinition>();
-
-        foreach (var item in property.EnumerateArray())
-        {
-            if (item.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            var key = item.TryGetProperty("key", out var keyProp) && keyProp.ValueKind == JsonValueKind.String
-                ? keyProp.GetString()
-                : null;
-
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                continue;
-            }
-
-            var label = item.TryGetProperty("label", out var labelProp) && labelProp.ValueKind == JsonValueKind.String
-                ? labelProp.GetString() ?? string.Empty
-                : string.Empty;
-
-            fields.Add(new MappingFieldDefinition(key.Trim(), label.Trim()));
-        }
-
-        return fields;
-    }
-
     public static List<string> GetStringList(JsonElement payload, string name)
     {
         if (payload.ValueKind != JsonValueKind.Object

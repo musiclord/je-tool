@@ -121,12 +121,15 @@ internal sealed class AccountMappingStateFixture : IAsyncDisposable
             }
 
             var categoryList = categories.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            // 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），
+            // 測試資料依分類名稱補上對應的內建分類身分。
             var targets = categoryList.Select((category, index) =>
-                $"('batch', {index + 1}, 'A{index + 1:000}', 'Account {index + 1}', '{category}')");
+                $"('batch', {index + 1}, 'A{index + 1:000}', 'Account {index + 1}', '{category}', " +
+                $"'{AccountTaxonomyBuiltIns.All.Single(item => item.Label == category).CategoryId}')");
             var targetSql = categoryList.Length == 0
                 ? string.Empty
                 : $"INSERT INTO {prefix}target_account_mapping " +
-                  "(batch_id, source_row_number, account_code, account_name, standardized_category) VALUES " +
+                  "(batch_id, source_row_number, account_code, account_name, standardized_category, category_id) VALUES " +
                   string.Join(",", targets) + ";";
 
             await using var command = connection.CreateCommand();

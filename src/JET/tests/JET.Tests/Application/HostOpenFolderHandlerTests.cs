@@ -108,9 +108,6 @@ public sealed class HostOpenFolderHandlerTests
             CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<string>>([]);
 
-        public Task<string?> PickSavePathAsync(string baseFileName, CancellationToken cancellationToken)
-            => Task.FromResult<string?>(null);
-
         public Task RevealInExplorerAsync(string path, CancellationToken cancellationToken)
         {
             RevealedPaths.Add(path);

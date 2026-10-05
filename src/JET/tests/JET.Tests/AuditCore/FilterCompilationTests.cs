@@ -124,31 +124,33 @@ public sealed class FilterCompilationTests
             NullRecordsCategoryPredicate.All);
     }
 
+    // 2026-10-04 第二遍回饋審閱第 2 批（C3）：空白判定改走方言的 Trim，去掉的字元集合和 .NET 相同，三個 provider 一致。
+    // 原本斷言的是引擎原生 TRIM 與 LTRIM(RTRIM)（第一次失敗：收據 20261004-045437671），這裡改成以方言組出預期字串。
     [Theory]
-    [InlineData(
-        NullRecordCategory.NullAccount,
-        "(account_code IS NULL OR TRIM(account_code) = '')",
-        "(account_code IS NULL OR LTRIM(RTRIM(account_code)) = '')")]
-    [InlineData(
-        NullRecordCategory.NullDocument,
-        "(document_number IS NULL OR TRIM(document_number) = '')",
-        "(document_number IS NULL OR LTRIM(RTRIM(document_number)) = '')")]
-    [InlineData(
-        NullRecordCategory.NullDescription,
-        "(document_description IS NULL OR TRIM(document_description) = '')",
-        "(document_description IS NULL OR LTRIM(RTRIM(document_description)) = '')")]
-    [InlineData(
-        NullRecordCategory.OutOfRangeDate,
-        "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))",
-        "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))")]
-    public void NullRecordCategoryPredicates_ProviderVariants_AreExact(
-        NullRecordCategory category,
-        string expectedSqlite,
-        string expectedSqlServer)
+    [InlineData(NullRecordCategory.NullAccount, "account_code")]
+    [InlineData(NullRecordCategory.NullDocument, "document_number")]
+    [InlineData(NullRecordCategory.NullDescription, "document_description")]
+    public void NullRecordCategoryPredicates_ProviderVariants_UseDialectTrim(NullRecordCategory category, string column)
     {
-        // 等價分割：三種空白欄位與期外核准日各取一個代表。
-        Assert.Equal(expectedSqlite, NullRecordsCategoryPredicate.Sqlite(category));
-        Assert.Equal(expectedSqlServer, NullRecordsCategoryPredicate.SqlServer(category));
+        // 等價分割：三種空白欄位各取一個代表；期外核准日另測。
+        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance, DuckDbDialect.Instance, SqlServerDialect.Instance })
+        {
+            Assert.Equal(
+                $"({column} IS NULL OR {dialect.Trim(column)} = '')",
+                NullRecordsCategoryPredicate.For(category, dialect));
+        }
+
+        Assert.Contains("char(9,10,11,12,13,32,", SqliteDialect.Instance.Trim(column), StringComparison.Ordinal);
+        Assert.Contains("chr(12288)", DuckDbDialect.Instance.Trim(column), StringComparison.Ordinal);
+        Assert.Contains("NCHAR(160)", SqlServerDialect.Instance.Trim(column), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NullRecordCategoryPredicates_OutOfRangeDate_IsTheSameOnEveryProvider()
+    {
+        const string expected = "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))";
+        Assert.Equal(expected, NullRecordsCategoryPredicate.For(NullRecordCategory.OutOfRangeDate, SqliteDialect.Instance));
+        Assert.Equal(expected, NullRecordsCategoryPredicate.For(NullRecordCategory.OutOfRangeDate, SqlServerDialect.Instance));
     }
 
     [Fact]
@@ -156,8 +158,8 @@ public sealed class FilterCompilationTests
     {
         Assert.Equal(
             "(is_effective = 1) AND " +
-            "((account_code IS NULL OR TRIM(account_code) = ''))",
-            NullRecordsCategoryPredicate.ScopedSqlite(NullRecordCategory.NullAccount));
+            $"((account_code IS NULL OR {SqliteDialect.Instance.Trim("account_code")} = ''))",
+            NullRecordsCategoryPredicate.Scoped(NullRecordCategory.NullAccount, SqliteDialect.Instance));
     }
 
     [Fact]
@@ -165,8 +167,8 @@ public sealed class FilterCompilationTests
     {
         Assert.Equal(
             "(is_effective = 1) AND " +
-            "((account_code IS NULL OR LTRIM(RTRIM(account_code)) = ''))",
-            NullRecordsCategoryPredicate.ScopedSqlServer(NullRecordCategory.NullAccount));
+            $"((account_code IS NULL OR {SqlServerDialect.Instance.Trim("account_code")} = ''))",
+            NullRecordsCategoryPredicate.Scoped(NullRecordCategory.NullAccount, SqlServerDialect.Instance));
     }
 
     private static FilterRuleSpec TextRule(string keyword) =>

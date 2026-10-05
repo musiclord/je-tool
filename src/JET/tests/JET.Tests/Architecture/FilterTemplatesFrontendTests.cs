@@ -62,7 +62,11 @@ public sealed class FilterTemplatesFrontendTests
         Assert.Contains("function markRuleErrors(root, error)", filter, StringComparison.Ordinal);
         Assert.Contains("rule-row--invalid", filter, StringComparison.Ordinal);
         Assert.Contains("data-rule-error", filter, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Matches(filter, @"\.catch\(function \(error\) \{ markRuleErrors\(container, error\); throw error; \}\)").Count);
+        // 9/23：仍有兩條錯誤接線，但先拒絕舊案件或舊草稿回應，不能標紅新條件。
+        Assert.Equal(2, Regex.Matches(filter, Regex.Escape("markRuleErrors(container, error);")).Count);
+        Assert.Contains("if (!acceptResponse()) { return; } markRuleErrors", filter, StringComparison.Ordinal);
+        Assert.Contains("if (!acceptsFilterCommit(saveSnapshot)) { return; }", filter, StringComparison.Ordinal);
+        Assert.Contains("Store.getFilterDraftRev() === saveSnapshot.revision", filter, StringComparison.Ordinal);
     }
 
     [Fact]

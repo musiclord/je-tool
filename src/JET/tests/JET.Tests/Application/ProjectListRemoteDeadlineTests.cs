@@ -9,6 +9,7 @@ namespace JET.Tests.Application;
 /// Master spec「本機先顯示、線上手動同步」的 Application seam：本機查詢不持有遠端埠，
 /// 手動同步的 registry／lock 查詢共用一個有界 deadline，且 caller cancellation 不得被失聯降級吞掉。
 /// </summary>
+[Collection(TimingSensitiveCollection.Name)]
 public sealed class ProjectListRemoteDeadlineTests
 {
     private static readonly TimeSpan TestDeadline = TimeSpan.FromMilliseconds(100);
@@ -436,6 +437,10 @@ public sealed class ProjectListRemoteDeadlineTests
         public Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
+
         public Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -459,6 +464,10 @@ public sealed class ProjectListRemoteDeadlineTests
         : IProjectStore, IProjectRegistry, ILockService
     {
         public int RemoteCallCount { get; private set; }
+
+        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
         public Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken)
         {
