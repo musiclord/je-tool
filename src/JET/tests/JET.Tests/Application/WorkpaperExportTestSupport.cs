@@ -11,6 +11,7 @@ namespace JET.Tests.Application;
 /// <summary>WorkpaperExportHandler 各測試類別共用的輔助方法與事件發布器。</summary>
 internal static class WorkpaperExportTestSupport
 {
+    internal static IEnumerable<string> FindWorkpapers(string folder) => Directory.EnumerateFiles(folder, "*WorkingPaper*.xlsx", SearchOption.AllDirectories);
     internal sealed class CancelOnFirstWorkpaperSheetProgress(CancellationTokenSource source) : IJetEventPublisher
     {
         private int _cancelled;

@@ -13,6 +13,115 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class ImportAccountMappingHandlerTests
 {
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task K7_ThirdRowHeaderWithAutoFilterAndHiddenRow_ImportsEveryAccount(string provider)
+    {
+        using var host = new HandlerTestHost();
+        await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
+        {
+            caseName = "合成篩選工作簿", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+        }));
+        var path = TestWorkbookBuilder.WriteWorkbook(ws =>
+        {
+            ws.Cell(1, 1).Value = "Synthetic heading";
+            ws.Cell(3, 1).Value = "GL_Number"; ws.Cell(3, 2).Value = "GL_Name"; ws.Cell(3, 3).Value = "Standardized Account Name*";
+            ws.Cell(4, 1).Value = "A"; ws.Cell(4, 2).Value = "Visible"; ws.Cell(4, 3).Value = "Cash";
+            ws.Cell(5, 1).Value = "B"; ws.Cell(5, 2).Value = "Hidden"; ws.Cell(5, 3).Value = "Revenue";
+            ws.Range("A3:C5").SetAutoFilter();
+            ws.Row(5).Hide();
+        });
+        try
+        {
+            var imported = await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+            Assert.Equal(2, imported.GetProperty("rowCount").GetInt32());
+            var preview = await host.DispatchAsync("query.dataPreview", """{"dataset":"accountMappings"}""");
+            Assert.Equal(new[] { "A|Visible|Cash", "B|Hidden|Revenue" },
+                preview.GetProperty("rows").EnumerateArray().Select(r => string.Join("|", r.EnumerateArray().Select(c => c.GetString()))));
+        }
+        finally { TestWorkbookBuilder.Delete(path); }
+    }
+
+    [Fact]
+    public async Task K6_DifferenceQuery_RequiresProjectAndRejectsWrongListOrCursor()
+    {
+        using var host = new HandlerTestHost();
+        var noProject = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+            "query.accountMappingDifferencePage", """{"kind":"mappingOnly"}"""));
+        Assert.Equal(JetErrorCodes.NoActiveProject, noProject.Code);
+        await host.DispatchAsync("project.create", """{"caseName":"合成差異查詢","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+        foreach (var payload in new[]
+        {
+            """{"kind":"not-a-list"}""",
+            """{"kind":"mappingOnly","cursor":"not-base64!"}""",
+            JsonSerializer.Serialize(new { kind = "unmapped", cursor = PageCursor.Encode("mappingOnly\nE") })
+        })
+        {
+            var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.accountMappingDifferencePage", payload));
+            Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
+        }
+    }
+
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task K6_ImportCountsAndPages_UseEffectiveGlUnionTb_NotTheMappingEditorUnion(string provider)
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(host, b => b
+            .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
+            .AddRow("V1", "2025-01-02", " \tA　", "GL A", "Synthetic", 10, 1)
+            .AddRow("V1", "2025-01-02", "B", "GL B", "Synthetic", 10, 0)
+            .AddRow("V2", "2025-02-02", "A", "GL A", "Synthetic", 20, 1)
+            .AddRow("V2", "2025-02-02", "C", "GL C", "Synthetic", 20, 0)
+            .AddRow("OUT", "2024-01-02", "X", "Outside period", "Synthetic", 10, 1),
+            databaseProvider: provider, configureTb: b => b.AddRow("A", "TB A", 30)
+                .AddRow(" T ", "TB only", -30).AddRow("Z", "TB zero", 0));
+        var path = WriteCsv("account code,account name,category\n　A　,Mapping A,Cash\nB,Blank category,\nE,Extra,Cash\nX,Outside,Revenue\n");
+        try
+        {
+            var imported = await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+            Assert.Equal(2, imported.GetProperty("mappingOnlyCount").GetInt64());
+            Assert.Equal(3, imported.GetProperty("unmappedCount").GetInt64());
+            Assert.Equal(1, imported.GetProperty("blankCategoryCount").GetInt32());
+            Assert.True(imported.GetProperty("hasRevenue").GetBoolean()); // 額外科目的前置條件影響依裁定保留。
+            Assert.Equal(4, imported.GetProperty("rowCount").GetInt32());
+            foreach (var (kind, expected) in new[]
+            {
+                ("mappingOnly", new[] { "E|Extra", "X|Outside" }),
+                ("unmapped", new[] { "C|GL C", "T|TB only", "Z|TB zero" })
+            })
+            {
+                var rows = new List<string>();
+                string? cursor = null;
+                do
+                {
+                    var page = await host.DispatchAsync("query.accountMappingDifferencePage", JsonSerializer.Serialize(new { kind, cursor, pageSize = 1 }));
+                    if (cursor is null) Assert.Equal(expected.Length, page.GetProperty("totalCount").GetInt64());
+                    else Assert.Equal(JsonValueKind.Null, page.GetProperty("totalCount").ValueKind);
+                    var row = Assert.Single(page.GetProperty("rows").EnumerateArray());
+                    rows.Add(row.GetProperty("accountCode").GetString() + "|" + row.GetProperty("accountName").GetString());
+                    cursor = page.GetProperty("nextCursor").GetString();
+                    Assert.True(rows.Count <= expected.Length);
+                } while (cursor is not null);
+                Assert.Equal(expected, rows);
+            }
+            await host.DispatchAsync("project.releaseLock");
+            var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
+            Assert.False(loaded.GetProperty("importState").GetProperty("accountMapping").TryGetProperty("mappingOnlyCount", out _));
+            await File.WriteAllTextAsync(path, "account code,account name,category\nA,A,Cash\nB,B,\nC,C,Others\nT,T,Others\nZ,Z,Others\n");
+            var replaced = await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+            Assert.Equal(0, replaced.GetProperty("mappingOnlyCount").GetInt64());
+            Assert.Equal(0, replaced.GetProperty("unmappedCount").GetInt64());
+            var empty = await host.DispatchAsync("query.accountMappingDifferencePage", """{"kind":"mappingOnly"}""");
+            Assert.Empty(empty.GetProperty("rows").EnumerateArray());
+            Assert.Equal(0, empty.GetProperty("totalCount").GetInt64());
+            Assert.Equal(JsonValueKind.Null, empty.GetProperty("nextCursor").ValueKind);
+        }
+        finally { File.Delete(path); }
+    }
+
     private static string WriteCsv(string content)
     {
         var path = Path.Combine(Path.GetTempPath(), "jet-am-tests", Guid.NewGuid().ToString("N") + ".csv");

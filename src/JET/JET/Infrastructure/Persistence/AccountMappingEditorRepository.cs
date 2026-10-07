@@ -30,13 +30,12 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         dialect = SqlServerDialect.Instance;
     }
 
-    private static string AccountsCte(string p, ISqlDialect dialect) => ValidationProcedures.CompletenessDiffCteFor(p) + $"""
+    private static string AccountsCte(string p, ISqlDialect dialect) => AccountMappingPopulationQuery.Cte(p, dialect) + $"""
         , accounts AS (
-            SELECT account_code, account_name FROM diff
-            WHERE account_code IS NOT NULL AND {dialect.Trim("account_code")} <> ''
+            SELECT account_code, account_name FROM population
             UNION ALL
             SELECT m.account_code, m.account_name FROM {p}target_account_mapping m
-            WHERE NOT EXISTS (SELECT 1 FROM diff d WHERE d.account_code = m.account_code)
+            WHERE NOT EXISTS (SELECT 1 FROM population d WHERE d.account_code = m.account_code)
         )
         """;
 

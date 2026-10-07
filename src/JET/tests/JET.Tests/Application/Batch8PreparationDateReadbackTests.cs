@@ -52,10 +52,16 @@ public sealed class Batch8PreparationDateReadbackTests
         var oldPaper = File.ReadAllBytes(paperPath);
 
         await host.DispatchAsync("project.update", """{"lastPeriodStart":"2025-12-31"}""");
+        // 使用者 2026-10-07 裁定上游修改清除下游：改財報準備日會清掉已存情境，審計員重新儲存後才以新日期讀回。
+        // 原本直接用舊版本讀回保留的情境，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        var cleared = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
+        Assert.Empty(cleared.GetProperty("filterScenarios").EnumerateArray());
+        Assert.Equal(oldPaper, File.ReadAllBytes(paperPath));
+        var resaved = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { scenario } }));
         var next = Fixtures().Single(item => item.GetProperty("id").GetString() == "preparation-date-year-end");
         var newPage = await host.DispatchAsync("query.filterVoucherPage", JsonSerializer.Serialize(new
         {
-            scenarioPosition = 1, scenarioRevision = revision
+            scenarioPosition = 1, scenarioRevision = resaved.GetProperty("resultRef").GetProperty("revision").GetString()
         }));
         Assert.Equal(next.GetProperty("expected").GetString(), newPage.GetProperty("conditionText").GetString());
         Assert.Equal(["AFTER"], Documents(newPage.GetProperty("rows")));

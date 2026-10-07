@@ -14,6 +14,24 @@ namespace JET.Tests.Infrastructure;
 public sealed class BinaryExcelTableReaderTests
 {
     [Fact]
+    public async Task LeadingRowsToSkip_CountsPhysicalRowsIncludingBlankRows()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"jet-xls-{Guid.NewGuid():N}.xls");
+        WriteBiff2WithErrorCell(path, 2);
+        try
+        {
+            var reader = new BinaryExcelTableReader();
+            var request = new TabularSourceRequest(path, LeadingRowsToSkip: 2);
+            Assert.Equal(["Document", "Date", "Account", "Name", "Description", "Amount"], await reader.ReadColumnsAsync(request, CancellationToken.None));
+            var rows = new List<StagingRow>();
+            await foreach (var row in reader.ReadRowsAsync(request, CancellationToken.None)) rows.Add(row);
+            Assert.Equal(2, rows.Count);
+            Assert.Equal("#N/A", rows[0].Values["Amount"]);
+            Assert.Equal("12.34", rows[1].Values["Amount"]);
+        }
+        finally { File.Delete(path); }
+    }
+    [Fact]
     public async Task ErrorCell_KeepsExcelErrorText_LikeXlsx()
     {
         // 以前 #N/A 這類錯誤儲存格被讀成空白、金額變成 0；同一份活頁簿存成 .xlsx 會保留「#N/A」原文並以金額無效報錯。
@@ -65,7 +83,7 @@ public sealed class BinaryExcelTableReaderTests
     }
 
     // 最小 BIFF2 活頁簿：LABEL 記錄寫文字，BOOLERR 記錄寫錯誤儲存格（fError = 1，代碼 0x2A = #N/A）。
-    private static void WriteBiff2WithErrorCell(string path)
+    private static void WriteBiff2WithErrorCell(string path, ushort leading = 0)
     {
         using var stream = File.Create(path);
         using var writer = new BinaryWriter(stream, Encoding.ASCII);
@@ -81,14 +99,15 @@ public sealed class BinaryExcelTableReaderTests
             var bytes = Encoding.ASCII.GetBytes(text); w.Write((byte)bytes.Length); w.Write(bytes);
         });
         Record(0x0009, w => { w.Write((ushort)0x0002); w.Write((ushort)0x0010); });
-        Record(0x0000, w => { w.Write((ushort)0); w.Write((ushort)3); w.Write((ushort)0); w.Write((ushort)6); });
+        Record(0x0000, w => { w.Write((ushort)0); w.Write((ushort)(3 + leading)); w.Write((ushort)0); w.Write((ushort)6); });
+        if (leading > 0) Label(0, 0, "Title");
         string[] header = ["Document", "Date", "Account", "Name", "Description", "Amount"];
-        for (ushort c = 0; c < header.Length; c++) Label(0, c, header[c]);
+        for (ushort c = 0; c < header.Length; c++) Label(leading, c, header[c]);
         string[] first = ["JV-1", "2025-03-01", "1101", "Cash", "Synthetic debit"];
-        for (ushort c = 0; c < first.Length; c++) Label(1, c, first[c]);
-        Record(0x0005, w => { w.Write((ushort)1); w.Write((ushort)5); w.Write(new byte[3]); w.Write((byte)0x2A); w.Write((byte)1); });
+        for (ushort c = 0; c < first.Length; c++) Label((ushort)(leading + 1), c, first[c]);
+        Record(0x0005, w => { w.Write((ushort)(leading + 1)); w.Write((ushort)5); w.Write(new byte[3]); w.Write((byte)0x2A); w.Write((byte)1); });
         string[] second = ["JV-1", "2025-03-01", "4101", "Revenue", "Synthetic credit", "12.34"];
-        for (ushort c = 0; c < second.Length; c++) Label(2, c, second[c]);
+        for (ushort c = 0; c < second.Length; c++) Label((ushort)(leading + 2), c, second[c]);
         Record(0x000A, _ => { });
     }
 }

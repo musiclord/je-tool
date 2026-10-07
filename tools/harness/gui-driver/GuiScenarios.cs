@@ -289,6 +289,8 @@ internal static partial class GuiScenarios
             GuiScenarioCatalog.LegacyFormWorkflow or GuiScenarioCatalog.LegacyFormCatalog => ExecuteLegacyFormWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.AuthorizedListRecovery => ExecuteAuthorizedListRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.KctRemapRecovery => ExecuteKctRemapRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.UpstreamChangeAfterExport => ExecuteUpstreamChangeAfterExportAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.CaseToWorkpaper => ExecuteCaseToWorkpaperAsync(cdp, ownedRun, process, initialUi, outcome, cancellationToken),
             GuiScenarioCatalog.NullDetailsRecovery => ExecuteNullDetailsRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.FilterKctEditing or GuiScenarioCatalog.FilterAuditorJourney =>
                 ExecuteFilterWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
@@ -536,8 +538,21 @@ internal static partial class GuiScenarios
         await WaitForMappingPolicyAsync(cdp, process,
             probe => ReadInt32(probe, "rdeCount") > 0 && ReadInt32(probe, "rdeCount") == ReadInt32(probe, "rdeAvailableCount"), cancellationToken).ConfigureAwait(false);
         // C7: a full rerender must not leave focus on body after Select All becomes disabled.
-        var rdeFocus = await cdp.EvaluateAsync("!!document.activeElement?.closest('.map-options__group') && document.activeElement!==document.body && !document.activeElement.disabled", cancellationToken).ConfigureAwait(false);
-        if (!rdeFocus.GetBoolean()) throw new GuiCheckException("rde_select_all_focus_lost");
+        // 前端重畫後用 setTimeout(0) 把焦點移到第一個攸關資料元素欄位，所以等那一步執行完再判斷，最多 2 秒。
+        // 2026-10-07 起立即檢查會比延後的焦點移動早幾毫秒執行（收據 20261007-040407746-edd2654f66924d26b2a061f1aea020c8）。
+        const string rdeFocusScript = "!!document.activeElement?.closest('.map-options__group') && document.activeElement!==document.body && !document.activeElement.disabled";
+        var rdeFocused = false;
+        for (var attempt = 0; attempt < 20 && !rdeFocused; attempt++)
+        {
+            if (attempt > 0) await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+            rdeFocused = (await cdp.EvaluateAsync(rdeFocusScript, cancellationToken).ConfigureAwait(false)).GetBoolean();
+        }
+        if (!rdeFocused)
+        {
+            // 失敗時記下焦點實際停在哪裡，診斷時不必重跑。
+            outcome.LastFilterProbe = (await cdp.EvaluateAsync("(()=>{var a=document.activeElement;return {tag:a?a.tagName:null,action:a&&a.getAttribute('data-action'),focusKey:a&&a.getAttribute('data-focus-key'),rdeColumn:a&&a.hasAttribute('data-rde-column'),disabled:!!(a&&a.disabled),inGroup:!!(a&&a.closest('.map-options__group')),visibility:document.visibilityState,hasFocus:document.hasFocus()};})()", cancellationToken).ConfigureAwait(false)).Clone();
+            throw new GuiCheckException("rde_select_all_focus_lost");
+        }
         await ClickControlAsync(cdp, process, GlSection + "[data-action=\"clear-all-rde\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process, probe => ReadInt32(probe, "rdeCount") == 0 && original.MatchesCommitted(probe), cancellationToken).ConfigureAwait(false);
         outcome.Assertions.RdeSelectAllAndClearVerified = true;

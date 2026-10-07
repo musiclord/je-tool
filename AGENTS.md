@@ -36,8 +36,8 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
   計畫完成、測試通過或工作樹可提交，都不是授權。
 - 禁止 `git add -A`、`git add --all`、`git add -u`、`git add .` 與 `git write-tree`；獲准 stage 時也只加入使用者確認的
   明確路徑，避免忽略規則改變時把私人資料寫進 Git。
-- Commit 訊息用繁體中文：標題一行說清楚改了什麼，內文最多幾點寫結果、必要理由、風險與實際驗證，不逐檔重述 diff，
-  也不加 `Co-Authored-By`、`Generated with` 等 AI 署名。PR 內文同樣規則。
+- Commit 訊息用繁體中文並保持精簡：標題一行說清楚改了什麼，內文只寫主要變更與必要原因，保留足以追溯變更目的的資訊即可。
+  避免詳細描述實作過程、驗證細節與逐項修改內容，也不加 `Co-Authored-By`、`Generated with` 等 AI 署名。PR 內文同樣規則。
 
 **事實保真**（適用於所有改寫、轉述與遷移）
 

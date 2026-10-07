@@ -62,6 +62,7 @@ public static class ActionExecutionPolicy
         "export.criteriaSelectionReport",
         "export.workpaperStream",
         "export.accountMappingTemplate",
+        "export.calendarTemplates",
     };
 
     // handler 自行試取共用閘；不得同時放進 ExclusiveActions，否則 dispatcher 先取後會自我阻塞。
@@ -106,6 +107,7 @@ public static class ActionExecutionPolicy
         "query.tagMatrixVoucherPage",
         "query.tagMatrixRowPage",
         "query.accountMappingBlankPage",
+        "query.accountMappingDifferencePage",
         "query.accountMappingPage",
         "log.append", // 唯一 current-project DB concurrent 寫入例外：只寫 app_message_log，不碰案件資料
         "log.recent",
@@ -168,6 +170,7 @@ public static class ActionExecutionPolicy
         "query.tagMatrixVoucherPage",
         "query.tagMatrixRowPage",
         "query.accountMappingBlankPage",
+        "query.accountMappingDifferencePage",
         "query.accountMappingPage",
         "log.recent",
         "dev.db.overview",

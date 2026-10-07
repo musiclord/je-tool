@@ -10,6 +10,60 @@ namespace JET.Tests.Infrastructure;
 public sealed class PrivateCaseReportComparatorTests
 {
     [Fact]
+    public void K5_ManualAutoDisplayDecision_DoesNotAcceptUnlocalizedRowDifferences()
+    {
+        var decision = new PrivateCaseExplicitContentDecision("step41-manual-auto",
+            LegacyAuditParityContentDimension.RowValues, PrivateCaseReportDifferencePolicy.ApprovedManualAutoDisplay);
+        var difference = new LegacyAuditParityContentDifference("working-paper",
+            "step4-1 符合高風險條件傳票明細", LegacyAuditParityContentDimension.RowValues, 1);
+        Assert.Null(PrivateCaseReportDifferencePolicy.ResolveContent("working-paper", difference, [decision]));
+    }
+
+    [Theory]
+    [InlineData("ManualEquivalent", true, true)]
+    [InlineData("ManualEquivalent", false, false)]
+    [InlineData("ManualSwapped", true, false)]
+    [InlineData("ManualEmpty", true, false)]
+    public void ManualFlagNormalizationRequiresExactApprovedValues(string difference, bool approved, bool passed)
+    {
+        using var fixture = new SyntheticFixture(Enum.Parse<SyntheticDifference>(difference));
+        var decisions = approved ? new[] { new PrivateCaseExplicitContentDecision("step41-manual-auto",
+            LegacyAuditParityContentDimension.RowValues, PrivateCaseReportDifferencePolicy.ApprovedManualAutoDisplay) } : [];
+        var result = PrivateCaseReportComparator.Compare(fixture.Pairs, PrivateCaseAcceptancePolicy.Current, decisions);
+        Assert.Equal(passed, result.Passed);
+        var paper = Assert.Single(result.Reports, r => r.Kind == LegacyReportKind.WorkingPaper);
+        Assert.Equal(passed, paper.ContentMatches);
+    }
+
+    // 空白位置移動：舊端第 2 筆空白、第 3 筆為 0；JET 端第 2 筆自動、第 3 筆空白。只看有值的儲存格兩邊都是「人工、自動」，
+    // 保留空白位置後才看得出旗標落在不同傳票上。
+    [Fact]
+    public void ManualFlagNormalizationCatchesMovedBlankPositions()
+    {
+        using var fixture = new SyntheticFixture(SyntheticDifference.ManualBlankMoved);
+        var result = PrivateCaseReportComparator.Compare(fixture.Pairs, PrivateCaseAcceptancePolicy.Current, [ManualAutoDecision]);
+        var paper = Assert.Single(result.Reports, r => r.Kind == LegacyReportKind.WorkingPaper);
+        Assert.False(paper.ContentMatches);
+        Assert.False(result.Passed);
+    }
+
+    // 正規化只改 Step 4-1 的人工旗標欄：同頁其他 1、0 欄，以及其他工作表同名欄的 1、0 都保持原值，不產生任何差異。
+    [Theory]
+    [InlineData("ManualOtherColumnUntouched")]
+    [InlineData("ManualOtherSheetUntouched")]
+    public void ManualFlagNormalizationOnlyRewritesTheStep41ManualColumn(string difference)
+    {
+        using var fixture = new SyntheticFixture(Enum.Parse<SyntheticDifference>(difference));
+        var result = PrivateCaseReportComparator.Compare(fixture.Pairs, PrivateCaseAcceptancePolicy.Current, [ManualAutoDecision]);
+        var paper = Assert.Single(result.Reports, r => r.Kind == LegacyReportKind.WorkingPaper);
+        Assert.Equal(0, paper.ContentDifferenceCount);
+        Assert.True(result.Passed);
+    }
+
+    private static PrivateCaseExplicitContentDecision ManualAutoDecision => new("step41-manual-auto",
+        LegacyAuditParityContentDimension.RowValues, PrivateCaseReportDifferencePolicy.ApprovedManualAutoDisplay);
+
+    [Fact]
     public void Compare_DifferentInfMembersAndJetMetadata_AreNotTreatedAsReportDifferences()
     {
         using var fixture = new SyntheticFixture(SyntheticDifference.InfRandomContentOnly);
@@ -227,6 +281,12 @@ public sealed class PrivateCaseReportComparatorTests
         UnsupportedAppearance,
         ScenarioTagContent,
         MalformedActual,
+        ManualEquivalent,
+        ManualSwapped,
+        ManualEmpty,
+        ManualBlankMoved,
+        ManualOtherColumnUntouched,
+        ManualOtherSheetUntouched,
     }
 
     private sealed class SyntheticFixture : IDisposable
@@ -340,6 +400,53 @@ public sealed class PrivateCaseReportComparatorTests
                                 ? "synthetic-random-member-actual"
                                 : "synthetic-random-member-expected")),
                 ]);
+        }
+        else if (kind == LegacyReportKind.WorkingPaper && difference is SyntheticDifference.ManualEquivalent
+            or SyntheticDifference.ManualSwapped or SyntheticDifference.ManualEmpty)
+        {
+            var first = difference == SyntheticDifference.ManualSwapped ? "自動" : "人工";
+            var second = difference == SyntheticDifference.ManualSwapped ? "人工" : "自動";
+            if (difference == SyntheticDifference.ManualEmpty) first = second = "";
+            AddSheet(workbookPart, sheets, ref sheetId, "step4-1 符合高風險條件傳票明細",
+            [
+                Row(5, InlineCell("A5", "source-field"), InlineCell("B5", "人工傳票否_JE_S")),
+                Row(6, InlineCell("A6", "row-1"), isActual ? InlineCell("B6", first) : NumberCell("B6", "1")),
+                Row(7, InlineCell("A7", "row-2"), isActual ? InlineCell("B7", second) : NumberCell("B7", "0")),
+                Row(8, InlineCell("A8", "row-3"))
+            ]);
+        }
+        else if (kind == LegacyReportKind.WorkingPaper && difference == SyntheticDifference.ManualBlankMoved)
+        {
+            AddSheet(workbookPart, sheets, ref sheetId, "step4-1 符合高風險條件傳票明細",
+            [
+                Row(5, InlineCell("A5", "source-field"), InlineCell("B5", "人工傳票否_JE_S")),
+                Row(6, InlineCell("A6", "row-1"), isActual ? InlineCell("B6", "人工") : NumberCell("B6", "1")),
+                isActual ? Row(7, InlineCell("A7", "row-2"), InlineCell("B7", "自動")) : Row(7, InlineCell("A7", "row-2")),
+                isActual ? Row(8, InlineCell("A8", "row-3")) : Row(8, InlineCell("A8", "row-3"), NumberCell("B8", "0")),
+            ]);
+        }
+        else if (kind == LegacyReportKind.WorkingPaper && difference == SyntheticDifference.ManualOtherColumnUntouched)
+        {
+            AddSheet(workbookPart, sheets, ref sheetId, "step4-1 符合高風險條件傳票明細",
+            [
+                Row(5, InlineCell("A5", "source-field"), InlineCell("B5", "人工傳票否_JE_S"), InlineCell("C5", "other-flag")),
+                Row(6, InlineCell("A6", "row-1"), isActual ? InlineCell("B6", "人工") : NumberCell("B6", "1"), NumberCell("C6", "1")),
+                Row(7, InlineCell("A7", "row-2"), isActual ? InlineCell("B7", "自動") : NumberCell("B7", "0"), NumberCell("C7", "0")),
+            ]);
+        }
+        else if (kind == LegacyReportKind.WorkingPaper && difference == SyntheticDifference.ManualOtherSheetUntouched)
+        {
+            AddSheet(workbookPart, sheets, ref sheetId, "step4-1 符合高風險條件傳票明細",
+            [
+                Row(5, InlineCell("A5", "source-field"), InlineCell("B5", "人工傳票否_JE_S")),
+                Row(6, InlineCell("A6", "row-1"), isActual ? InlineCell("B6", "人工") : NumberCell("B6", "1")),
+            ]);
+            AddSheet(workbookPart, sheets, ref sheetId, "step1-2 synthetic",
+            [
+                Row(5, InlineCell("A5", "source-field"), InlineCell("B5", "人工傳票否_JE_S")),
+                Row(6, InlineCell("A6", "row-1"), NumberCell("B6", "1")),
+                Row(7, InlineCell("A7", "row-2"), NumberCell("B7", "0")),
+            ]);
         }
         else if (kind == LegacyReportKind.WorkingPaper
             && difference == SyntheticDifference.ScenarioTagContent)

@@ -857,6 +857,7 @@
     container.innerHTML =
       '<div class="panel panel--wide">' +
         '<h2 class="panel__title">資料驗證與測試</h2>' +
+        Ui.downstreamResetNoticeHtml(state) +
         (ready ? '' :
           '<p class="panel__warn">GL 尚未確認配對，無法執行；請先回「欄位配對」按「確認配對」。</p>') +
         statsBarHtml(v) +
@@ -1065,6 +1066,73 @@
       '<div data-bind="blank-category-list" hidden></div>';
   }
 
+  var accountDifferenceView = null;
+  function mappingDifferenceView(info) {
+    var state = Store.getState();
+    if (!accountDifferenceView || accountDifferenceView.project !== state.project ||
+        accountDifferenceView.generation !== state.dataGeneration || accountDifferenceView.info !== info) {
+      accountDifferenceView = { project: state.project, generation: state.dataGeneration, info: info,
+        counts: {}, expanded: {}, pages: {}, countNodes: {} };
+    }
+    return accountDifferenceView;
+  }
+
+  function mappingDifferenceCountText(kind, count) {
+    return (kind === 'mappingOnly' ? '本案沒有的科目：' : '配對檔未列的科目：') +
+      (count == null ? '尚未核對' : Number(count).toLocaleString() + ' 個');
+  }
+
+  function mappingDifferenceNoticeHtml(info) {
+    if (!info) { return ''; }
+    var view = mappingDifferenceView(info);
+    return ['mappingOnly', 'unmapped'].map(function (kind) {
+      return '<p class="import-card__status"><span data-difference-count="' + kind + '">' +
+        mappingDifferenceCountText(kind, view.counts[kind]) + '</span>。' +
+        (kind === 'mappingOnly' ? '這些科目保留在配對檔，但不會出現在篩選結果。' : '這些科目不屬於任何分類；分類留白視為 Others 的科目另列於上方。') +
+        ' <button type="button" class="btn btn--ghost btn--tiny" data-mapping-difference="' + kind +
+        '" aria-expanded="' + !!view.expanded[kind] + '">列出科目</button></p>' +
+        '<div data-difference-list="' + kind + '"' + (view.expanded[kind] ? '' : ' hidden') + '></div>';
+    }).join('');
+  }
+
+  function bindMappingDifferenceLists(container) {
+    var view = mappingDifferenceView(Store.getState().importState.accountMapping);
+    ['mappingOnly', 'unmapped'].forEach(function (kind) {
+      var button = container.querySelector('[data-mapping-difference="' + kind + '"]');
+      var list = container.querySelector('[data-difference-list="' + kind + '"]');
+      if (!button || !list) { return; }
+      view.countNodes[kind] = container.querySelector('[data-difference-count="' + kind + '"]');
+      function mount() {
+        list.innerHTML = '<ul class="kv-list" data-difference-rows></ul><button type="button" class="btn btn--ghost btn--tiny" data-difference-more="' + kind + '">載入更多</button>';
+        var rows = list.querySelector('[data-difference-rows]');
+        var page = view.pages[kind] || (view.pages[kind] = {});
+        Ui.bindPagedTable(list, {
+          autoLoad: true, viewState: page,
+          fetchPage: function (cursor) {
+            return global.JetApi.queryAccountMappingDifferencePage({ kind: kind, cursor: cursor, pageSize: 200 }).then(function (data) {
+              if (mappingDifferenceView(Store.getState().importState.accountMapping) === view && view.pages[kind] === page && data.totalCount != null) {
+                view.counts[kind] = data.totalCount;
+                if (view.countNodes[kind]) { view.countNodes[kind].textContent = mappingDifferenceCountText(kind, data.totalCount); }
+              }
+              return data;
+            });
+          },
+          appendRows: function (items) { rows.insertAdjacentHTML('beforeend', items.map(function (row) {
+            return '<li>' + Ui.esc(row.accountCode || '（空白科目編號）') + (row.accountName ? '　' + Ui.esc(row.accountName) : '') + '</li>';
+          }).join('')); },
+          clearRows: function () { rows.innerHTML = ''; },
+          loadMore: list.querySelector('[data-difference-more="' + kind + '"]')
+        });
+      }
+      if (view.expanded[kind]) { mount(); }
+      button.addEventListener('click', function () {
+        view.expanded[kind] = !view.expanded[kind];
+        list.hidden = !view.expanded[kind]; button.setAttribute('aria-expanded', String(view.expanded[kind]));
+        if (view.expanded[kind]) { view.pages[kind] = {}; mount(); }
+      });
+    });
+  }
+
   function accountMappingCardHtml(info, mappingReady) {
     var status = info
       ? '<p class="import-card__status import-card__status--ok">目前已儲存 ' + info.rowCount + ' 個科目的配對。</p>'
@@ -1102,7 +1170,7 @@
           '<p class="rule-card__sub">匯入會覆蓋目前全部配對。</p>' +
           status +
           '<div class="import-card__actions">' + importControls + previewBtn + '</div>' +
-          blankCategoryNoticeHtml(info) +
+          blankCategoryNoticeHtml(info) + mappingDifferenceNoticeHtml(info) +
         '</div>' +
         (mappingReady ? '<div class="account-mapping-rebuild">' +
           '<p>重建會清空檔案內的分類。</p>' +
@@ -1142,25 +1210,6 @@
     return taxonomyDraft;
   }
 
-  // 仍被已保存篩選情境引用的自訂分類：畫面先擋刪除並說明原因。
-  // 科目配對本身的引用只有系統端知道，因此後端仍會以「分類使用中」為最終權威。
-  function taxonomyCategoriesInUse(state) {
-    var used = {};
-    (state.filter.savedScenarios || []).forEach(function (scenario) {
-      (scenario.groups || []).forEach(function (group) {
-        (group.rules || []).forEach(function visit(rule) {
-          ['debitCategoryIds', 'creditCategoryIds', 'categoryIds'].forEach(function (key) {
-            if (Array.isArray(rule[key])) {
-              rule[key].forEach(function (id) { used[id] = true; });
-            }
-          });
-          (rule.rules || []).forEach(visit);
-        });
-      });
-    });
-    return used;
-  }
-
   // 前端引導檢查：顯示名稱必填且不重複（不分大小寫）。長度與身分規則仍由系統端裁定。
   function taxonomyProblems(rows) {
     var problems = [];
@@ -1186,15 +1235,11 @@
 
   function taxonomyCardHtml(state) {
     var rows = taxonomyRows(state);
-    var inUse = taxonomyCategoriesInUse(state);
     var problems = taxonomyProblems(rows);
     var dirty = !!taxonomyDraft;
 
     var tree = Ui.taxonomyTree({ taxonomy: { categories: rows } });
     var items = tree.map(function (row, index) {
-      var lockedReason = row.isBuiltIn
-        ? '內建分類不可刪除'
-        : (inUse[row.categoryId] ? '已被篩選情境使用，不可刪除' : '');
       var roleOptions = Ui.ACCOUNT_TAXONOMY_ROLES.map(function (role) {
         return '<option value="' + role.value + '"' +
           (row.semanticRole === role.value ? ' selected' : '') + '>' + role.label + '</option>';
@@ -1216,8 +1261,7 @@
               Ui.esc('　'.repeat(candidate.depth) + (candidate.depth ? '└ ' : '') + (candidate.label || '尚未命名的分類')) + '</option>';
           }).join('') + '</select></label>' +
         '<div class="taxonomy-row__actions">' +
-        (row.isBuiltIn ? '' : '<button type="button" class="btn btn--ghost btn--tiny" data-taxonomy-remove="' + Ui.esc(row.rowId) + '"' +
-          (lockedReason ? ' disabled title="' + Ui.esc(lockedReason) + '"' : '') + '>移除分類</button>') + '</div>' +
+        (row.isBuiltIn ? '' : '<button type="button" class="btn btn--ghost btn--tiny" data-taxonomy-remove="' + Ui.esc(row.rowId) + '">移除分類</button>') + '</div>' +
         '</li>';
     }).join('');
 
@@ -1508,6 +1552,7 @@
   // 已匯入即可預覽；匯入鈕只在 GL 欄位配對已確認時才會渲染出來，
   // 此處用存在性檢查綁定，所以 bind 不必重複判斷條件。
   function bindAccountMappingCard(container) {
+    bindMappingDifferenceLists(container);
     var folderBtn = container.querySelector('[data-action="open-account-mapping-folder"]');
     if (folderBtn) {
       folderBtn.addEventListener('click', function () {
@@ -1593,8 +1638,12 @@
               hasCounterpart: data.hasCounterpart,
               blankCategoryCount: data.blankCategoryCount
             });
-            Store.addMessage('科目配對匯入完成：' + data.rowCount + ' 個科目。', 'info');
+            Store.addMessage('科目配對匯入完成：' + data.rowCount + ' 個科目。可以沿用前一個案件的配對檔，請核對下方差異清單。', 'info');
+            if (data.columnMappingWarning) { Store.addMessage(data.columnMappingWarning, 'warn'); }
             Store.applyMutationEffects(data);
+            var differences = mappingDifferenceView(Store.getState().importState.accountMapping);
+            differences.counts = { mappingOnly: data.mappingOnlyCount, unmapped: data.unmappedCount };
+            Store.touch();
             return data;
           });
         });

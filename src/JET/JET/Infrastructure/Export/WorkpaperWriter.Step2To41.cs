@@ -894,7 +894,7 @@ public sealed partial class WorkpaperWriter
                 WorkpaperStep41ValueSource.Description => Typed(source.Description, column),
                 WorkpaperStep41ValueSource.SourceModule => Typed(source.SourceModule, column),
                 WorkpaperStep41ValueSource.IsManual => Typed(
-                    source.IsManual is null ? null : source.IsManual.Value ? "1" : "0",
+                    source.IsManual is null ? null : source.IsManual.Value ? "人工" : "自動",
                     column),
                 WorkpaperStep41ValueSource.SignedAmount => Amount(
                     Display(source.AmountScaled, moneyScale),

@@ -172,17 +172,19 @@ internal static class PrivateCaseReportComparator
                         column,
                         policy.InfSampleSize)
                     : null;
+                var normalizeManualAuto = slug == "working-paper" && PrivateCaseReportDifferencePolicy.NormalizeManualAuto(explicitContentDecisions);
                 var expected = LegacyAuditParityNormalizedWorkbookReader.Read(
                     slug,
                     pair.ExpectedFullPath,
                     excludeJetMetadataSheet: true,
-                    contentMask);
+                    contentMask, normalizeLegacyManualAuto: normalizeManualAuto);
                 var actual = LegacyAuditParityNormalizedWorkbookReader.Read(
                     slug,
                     pair.ActualFullPath,
                     excludeJetMetadataSheet: true,
-                    contentMask);
+                    contentMask, preserveManualAutoBlanks: normalizeManualAuto);
                 var content = LegacyAuditParityNormalizedContentComparator.Compare(expected, actual);
+                if (normalizeManualAuto) content = PrivateCaseReportDifferencePolicy.RequireExactManualAuto(expected, actual, content);
                 var classifiedContent = content.Differences
                     .Select(difference => (
                         Difference: difference,

@@ -54,13 +54,13 @@ public sealed class SqlServerAccountMappingExportRepository(SqlServerProjectData
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 範本母體＝GL∪TB 完整性 diff 的科目清單(尚未配對),account_code 升冪。
+        // 範本與科目清單、差異清單共用可配對科目母體（排除空白科目編號），account_code 升冪。
         await using var command = database.CreateCommand(connection, projectId,
-            ValidationProcedures.CompletenessDiffCteFor(SqlServerProjectSchema.QualifierFor(projectId)) +
+            AccountMappingPopulationQuery.Cte(SqlServerProjectSchema.QualifierFor(projectId), SqlServerDialect.Instance) +
             """
 
             SELECT account_code, account_name
-            FROM diff
+            FROM population
             ORDER BY account_code;
             """);
         var rows = new List<AccountMappingTemplateRow>();

@@ -22,7 +22,7 @@ public sealed class ResultInvalidationProjectionAndFilterTests
         RunGlProjectionInvalidationAsync(databaseProvider, sqlServerConnectionString: null);
 
     [Fact]
-    public async Task ReimportTb_AfterFilterCommit_PreservesGlOnlyFilterHits()
+    public async Task ReimportTb_AfterFilterCommit_ClearsHitsAndScenarioDefinitions()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -38,12 +38,14 @@ public sealed class ResultInvalidationProjectionAndFilterTests
             fileName = tbFile.GetProperty("fileName").GetString()
         }));
 
-        Assert.Equal(before, await DemoProjectPipeline.QueryScalarAsync(
+        Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId, "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
+            host, context.ProjectId, "SELECT COUNT(*) FROM config_filter_scenario;"));
     }
 
     [Fact]
-    public async Task ImportAccountMapping_AfterFilterCommit_ClearsHitsButPreservesScenarioDefinition()
+    public async Task ImportAccountMapping_AfterFilterCommit_ClearsHitsAndScenarioDefinitions()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
@@ -61,7 +63,9 @@ public sealed class ResultInvalidationProjectionAndFilterTests
 
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId, "SELECT COUNT(*) FROM result_filter_run;"));
-        Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
+        // 使用者 2026-10-07 裁定上游修改清除下游：科目配對匯入也清掉已存情境，原本斷言保留 1 個。
+        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId, "SELECT COUNT(*) FROM config_filter_scenario;"));
     }
 

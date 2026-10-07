@@ -13,6 +13,16 @@ namespace JET.Tests.Application;
 public sealed class WorkpaperExportRequestValidationTests
 {
     [Fact]
+    public void WorkpaperFileSearch_FindsTimestampedFilesInSubdirectories()
+    {
+        using var host = new HandlerTestHost();
+        var folder = Path.Combine(host.ProjectsRoot, "synthetic-outputs");
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, "Synthetic_WorkingPaper_20261007_120000.xlsx");
+        File.WriteAllText(path, "synthetic filename probe");
+        Assert.Equal(path, Assert.Single(FindWorkpapers(host.ProjectsRoot)));
+    }
+    [Fact]
     public async Task Export_StaleRunOrRevision_IsRejectedWithoutArtifact()
     {
         using var host = new HandlerTestHost();
@@ -41,7 +51,8 @@ public sealed class WorkpaperExportRequestValidationTests
         var revisionError = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync("export.workpaperStream", staleRevision));
         Assert.Equal(JetErrorCodes.StaleResult, revisionError.Code);
-        Assert.Empty(Directory.GetFiles(folder, "*_WorkingPaper.xlsx"));
+        // 2026-10-07：時間尾碼與子目錄反例首次失敗 ae7200be73cc4231bc617b19d5305d3d。
+        Assert.Empty(FindWorkpapers(folder));
     }
 
     [Theory]

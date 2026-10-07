@@ -163,15 +163,15 @@
       {
         "name": "filter-auditor-journey",
         "timeoutSeconds": 240,
-        "actionBudget": 99,
-        "expectedActionCount": 99,
+        "actionBudget": 100,
+        "expectedActionCount": 100,
         "screenshotBudget": 2
       },
       {
         "name": "filter-kct-editing",
         "timeoutSeconds": 240,
-        "actionBudget": 88,
-        "expectedActionCount": 88,
+        "actionBudget": 98,
+        "expectedActionCount": 98,
         "screenshotBudget": 1
       },
       {
@@ -191,22 +191,36 @@
       {
         "name": "kct-remap-recovery",
         "timeoutSeconds": 240,
-        "actionBudget": 43,
-        "expectedActionCount": 43,
+        "actionBudget": 52,
+        "expectedActionCount": 52,
+        "screenshotBudget": 1
+      },
+      {
+        "name": "upstream-change-after-export",
+        "timeoutSeconds": 240,
+        "actionBudget": 45,
+        "expectedActionCount": 45,
+        "screenshotBudget": 1
+      },
+      {
+        "name": "case-to-workpaper",
+        "timeoutSeconds": 240,
+        "actionBudget": 51,
+        "expectedActionCount": 51,
         "screenshotBudget": 1
       },
       {
         "name": "authorized-list-recovery",
         "timeoutSeconds": 240,
-        "actionBudget": 33,
-        "expectedActionCount": 33,
+        "actionBudget": 38,
+        "expectedActionCount": 38,
         "screenshotBudget": 1
       },
       {
         "name": "extended-conditions",
         "timeoutSeconds": 240,
         "actionBudget": 102,
-        "expectedActionCount": 101,
+        "expectedActionCount": 102,
         "screenshotBudget": 2
       },
       {

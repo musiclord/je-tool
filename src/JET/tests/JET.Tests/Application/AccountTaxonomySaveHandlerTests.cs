@@ -45,7 +45,7 @@ public sealed class AccountTaxonomySaveHandlerTests
     [Theory]
     [InlineData("mapping")]
     [InlineData("scenario")]
-    public async Task Save_RejectsDeletingCustomCategoryUsedByMappingOrScenario(string useKind)
+    public async Task Save_RejectsDeletingCategoryUsedByMapping_ButAllowsCategoryUsedOnlyByScenario(string useKind)
     {
         using var host = new HandlerTestHost();
         var projectId = await CreateProjectAsync(host, "sqlite");
@@ -86,13 +86,29 @@ public sealed class AccountTaxonomySaveHandlerTests
             await command.ExecuteNonQueryAsync();
         }
 
+        var deleteCustom = SavePayload(2, AccountTaxonomyBuiltIns.All.Select(item =>
+            Item(item.CategoryId, item.Label, item.Ordinal, item.SemanticRole)));
+        if (useKind == "scenario")
+        {
+            // 使用者 2026-10-07 裁定上游修改清除下游：分類設定的修改會清掉全部已存情境，
+            // 所以只被情境使用的分類改為可以刪除，情境一併清除。第一次失敗收據
+            // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+            var saved2 = await host.DispatchAsync("accountTaxonomy.save", deleteCustom);
+            Assert.Equal(3, saved2.GetProperty("revision").GetInt32());
+            Assert.DoesNotContain(
+                (await new LocalAccountTaxonomyStore(database).ReadAsync(projectId, CancellationToken.None)).Categories,
+                item => item.CategoryId == customId);
+            Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
+                host, projectId, "SELECT COUNT(*) FROM config_filter_scenario;"));
+            return;
+        }
+
         var error = await Assert.ThrowsAsync<JetActionException>(() =>
-            host.DispatchAsync(
-                "accountTaxonomy.save",
-                SavePayload(2, AccountTaxonomyBuiltIns.All.Select(item =>
-                    Item(item.CategoryId, item.Label, item.Ordinal, item.SemanticRole)))));
+            host.DispatchAsync("accountTaxonomy.save", deleteCustom));
 
         Assert.Equal(JetErrorCodes.TaxonomyCategoryInUse, error.Code);
+        Assert.Contains("科目配對", error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("篩選情境", error.Message, StringComparison.Ordinal);
         var loaded = await new LocalAccountTaxonomyStore(database)
             .ReadAsync(projectId, CancellationToken.None);
         Assert.Equal(2, loaded.Revision);

@@ -63,7 +63,7 @@ internal sealed partial class OwnedGuiRun : IDisposable
         int screenshotBudget = 0)
     {
         // 驅動程式自己的安全上限，要不小於 lanes.json 裡最大的情境預算；JET 的 AgentGuiTestProfile 另有同值上限。
-        if (actionBudget is < 1 or > 102)
+        if (actionBudget is < 1 or > 120)
         {
             throw new GuiInfrastructureException("action_budget_invalid");
         }

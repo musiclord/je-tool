@@ -286,13 +286,14 @@ public sealed class AdvancedFilterAstContractTests
     [InlineData("filter-2026-09-17-v14")]
     [InlineData("filter-2026-09-18-v15")]
     [InlineData("filter-2026-09-18-v16")]
-    public void FilterLogicVersion_IsV17AndV16OrEarlierDefinitionsAreStale(string savedVersion)
+    [InlineData("filter-2026-10-04-v17")]
+    public void FilterLogicVersion_IsV18AndV17OrEarlierDefinitionsAreStale(string savedVersion)
     {
-        // 2026-10-04 R1、R2 改變空白傳票號碼的命中結果，現行版本推進為 v17。
-        // v16 與更早保存的情境不是目前版本，不得沿用舊 resultRef 或直接惰性補算。
+        // 2026-10-06 條件 A 納入查核期末視窗，現行版本推進為 v18。
+        // v17 與更早保存的情境不是目前版本，不得沿用舊 resultRef 或直接惰性補算。
         // 2026-10-02 起開案時若整批仍符合目前規則，會由 FilterScenarioRuleUpgrade 改成目前版本後再重算；
         // 不符合時整批維持舊版本，查詢與匯出仍會擋下。
-        Assert.Equal("filter-2026-10-04-v17", RuleLogicVersions.Filter);
+        Assert.Equal("filter-2026-10-06-v18", RuleLogicVersions.Filter);
         var saved = new SavedFilterScenario(
             1,
             "synthetic",

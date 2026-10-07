@@ -37,7 +37,8 @@
     return Ui.FILTER_DATE_FIELDS.map(function (key) { return { id: key, label: Ui.glFieldLabel(key), type: 'date' }; })
       .concat(Ui.FILTER_TEXT_FIELDS.map(function (key) { return { id: key, label: Ui.glFieldLabel(key), type: 'text' }; }))
       .concat([{ id: 'amount', label: '金額', type: 'money' }])
-      .concat(Ui.committedRdeFields(state).map(function (field) { return { id: field.fieldId, label: field.label, type: field.valueType, extra: true }; }));
+      .concat(Ui.committedRdeFields(state).map(function (field) { return { id: field.fieldId, label: field.label, type: field.valueType, sourceColumn: field.sourceColumn, extra: true }; }))
+      .map(function (item) { item.optionLabel = item.extra ? Ui.rdeFieldOptionLabel(item, true) : item.label; return item; });
   }
   function field(rule, state) { return fields(state).find(function (item) { return item.id === (rule.fieldId || rule.field); }); }
   function fieldType(rule, state) { var selected = field(rule, state); return selected ? selected.type : (rule.__valueType || 'date'); }
@@ -75,6 +76,7 @@
     return text;
   }
   function values(rule, state) {
+    if (isTail(rule.operator)) { return Array.from(new Set(splitDelimited(rule.value || ""))); }
     var selected = field(rule, state);
     return Array.from(new Set((rule.values || []).map(function (value) {
       if (isDayOfMonth(rule.operator)) { return String(value).trim(); }
@@ -88,7 +90,7 @@
     if (rule.fieldId) { result.fieldId = rule.fieldId; } else { result.field = rule.field; }
     var mode = carrier(rule.operator, fieldType(rule, state));
     function operand(value) {
-      if (isTail(rule.operator)) { return splitDelimited(value).join(','); }
+      if (isTail(rule.operator)) { return values(rule, state).join(','); }
       return selected && selected.type === 'date' && !isDayOfMonth(rule.operator) && !isMonthWindow(rule.operator) ? normalizeDate(value || '', state) : String(value == null ? '' : value);
     }
     if (mode === 'value') { result.value = operand(rule.value); }
@@ -128,7 +130,7 @@
   function fieldOptionsHtml(state, selectedId, pseudoFields) {
     var groups = groupedFields(state).map(function (group) {
       return '<optgroup label="' + group.label + '">' + group.fields.map(function (item) {
-        return '<option value="' + Ui.esc(item.id) + '"' + (item.id === selectedId ? ' selected' : '') + '>' + Ui.esc(item.label) + (item.extra ? '（攸關資料元素欄位）' : '') + '</option>';
+        return '<option value="' + Ui.esc(item.id) + '"' + (item.id === selectedId ? ' selected' : '') + '>' + Ui.esc(item.optionLabel) + '</option>';
       }).join('') + '</optgroup>';
     }).join('');
     var pseudo = (pseudoFields || []).length
@@ -413,6 +415,7 @@
       main += '<p class="rule-field__hint">日期寫法和 GL 相同，例如 yyyy/M/d、yyyy.M.d、yyyyMMdd 或 Excel 序列值；民國年依案件設定。</p>';
     }
     if (type === 'text' && mode === 'value') { main += '<p class="rule-field__hint">此比較方式只收一個值；不會將逗號或多行內容拆成多個條件。</p>'; }
+    if (mode === 'set' || isTail(rule.operator)) { main += '<p class="rule-field__hint" data-value-count role="status">已輸入 ' + values(rule, state).length + ' 個值，上限 ' + Ui.TYPED_SET_MAX_VALUES + '</p>'; }
     main += '<p class="form-notice" data-value-warning role="status"' + (warning(rule, state) ? '' : ' hidden') + '>' + Ui.esc(warning(rule, state)) + '</p>';
     if (canIncludeBlank) {
       extra.push('<label class="value-blank"><input type="checkbox" data-value-key="includeBlank"' + (blankMatches(rule) ? ' checked' : '') + '>' +
@@ -498,6 +501,8 @@
           rule[key] = control.value;
         }
         changed(structural);
+        var counter = root.querySelector('[data-value-count]');
+        if (counter) { counter.textContent = '已輸入 ' + values(rule, state).length + ' 個值，上限 ' + Ui.TYPED_SET_MAX_VALUES; }
         var notice = root.querySelector('[data-value-warning]');
         if (notice) { notice.textContent = warning(rule, state); notice.hidden = !notice.textContent; }
         if (key === 'values') { refreshChips(); fitLists(); }
@@ -529,7 +534,8 @@
     dialog.setAttribute('aria-label', '選擇多個日期');
     document.body.appendChild(dialog);
     function close() { dialog.close(); dialog.remove(); if (opener.isConnected) { opener.focus(); } }
-    function draw() {
+    function draw(trigger) {
+      var restoreKey = trigger && trigger.getAttribute('data-calendar-focus');
       var year = focus.getUTCFullYear(), month = focus.getUTCMonth() + 1, first = day(year, month, 1);
       var end = day(year, month + 1, 0).getUTCDate(), cells = [];
       for (var pad = 0; pad < first.getUTCDay(); pad++) { cells.push('<span role="gridcell"></span>'); }
@@ -541,16 +547,24 @@
       while (cells.length % 7) { cells.push('<span role="gridcell"></span>'); }
       var calendarRows = '';
       for (var offset = 0; offset < cells.length; offset += 7) { calendarRows += '<div role="row">' + cells.slice(offset, offset + 7).join('') + '</div>'; }
-      dialog.innerHTML = '<div class="date-multiselect__head"><button type="button" data-month="-1" aria-label="上一個月">‹</button>' +
-        '<strong aria-live="polite">' + year + ' 年 ' + month + ' 月</strong><button type="button" data-month="1" aria-label="下一個月">›</button></div>' +
+      var project = state.project || {}, fromYear = Number((project.periodStart || initial).slice(0, 4)), toYear = Number((project.periodEnd || initial).slice(0, 4));
+      var years = new Set([year]);
+      for (var y = Math.max(1, Math.min(fromYear, toYear) - 5); y <= Math.min(9999, Math.max(fromYear, toYear) + 5); y++) { years.add(y); }
+      selected.forEach(function (value) { if (/^\d{4}-\d{2}-\d{2}$/.test(value)) { years.add(Number(value.slice(0, 4))); } });
+      var yearOptions = Array.from(years).sort(function (a,b) { return a-b; }).map(function (y) { return '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + ' 年</option>'; }).join('');
+      var monthOptions = Array.from({length:12}, function (_,i) { var m=i+1; return '<option value="' + m + '"' + (m === month ? ' selected' : '') + '>' + m + ' 月</option>'; }).join('');
+      dialog.innerHTML = '<div class="date-multiselect__head"><button type="button" data-month="-1" data-calendar-focus="previous" aria-label="上一個月">‹</button>' +
+        '<label><span class="visually-hidden">年份</span><select data-calendar-year data-calendar-focus="year" aria-label="年份">' + yearOptions + '</select></label><label><span class="visually-hidden">月份</span><select data-calendar-month data-calendar-focus="month" aria-label="月份">' + monthOptions + '</select></label><button type="button" data-month="1" data-calendar-focus="next" aria-label="下一個月">›</button></div>' +
         '<div class="date-multiselect__week" aria-hidden="true">' + ['日','一','二','三','四','五','六'].map(function (text) { return '<span>' + text + '</span>'; }).join('') + '</div>' +
         '<div role="grid" aria-label="' + year + ' 年 ' + month + ' 月" aria-multiselectable="true" class="date-multiselect__grid">' + calendarRows + '</div>' +
         '<p role="status">已選 ' + selected.length + ' 個日期；可切換月份繼續選取。</p><p class="rule-field__hint">方向鍵移動，空白鍵選取；Page Up 和 Page Down 換月。</p>' +
         '<p data-calendar-error role="alert"></p><div class="panel__actions"><button type="button" data-calendar-cancel>取消</button><button type="button" class="btn" data-calendar-done>完成選取</button></div>';
+      dialog.querySelector('[data-calendar-year]').onchange = function () { focus = day(Number(this.value), month, 1); draw(this); };
+      dialog.querySelector('[data-calendar-month]').onchange = function () { focus = day(year, Number(this.value), 1); draw(this); };
       dialog.querySelectorAll('[data-month]').forEach(function (button) { button.onclick = function () {
         var next = day(year, month + Number(button.dataset.month), 1);
         if (next.getUTCFullYear() < 1 || next.getUTCFullYear() > 9999) { return; }
-        focus = next; draw();
+        focus = next; draw(button);
       }; });
       dialog.querySelectorAll('[data-calendar-date]').forEach(function (button) {
         button.onclick = function () {
@@ -573,7 +587,9 @@
         rule.values = selected.slice().sort(); close(); changed(true);
         if (global.JetFocus) { global.JetFocus.defer(function () { return document.querySelector('[data-focus-key="' + originalFocus + '"]'); }); }
       };
-      var target = dialog.querySelector('[data-calendar-date="' + iso(focus) + '"]'); if (target) { target.focus(); }
+      var target = restoreKey ? dialog.querySelector('[data-calendar-focus="' + restoreKey + '"]')
+        : dialog.querySelector('[data-calendar-date="' + iso(focus) + '"]');
+      if (target) { target.focus(); }
     }
     dialog.addEventListener('cancel', function (event) { event.preventDefault(); close(); });
     draw(); dialog.showModal();

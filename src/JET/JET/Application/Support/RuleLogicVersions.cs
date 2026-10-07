@@ -13,7 +13,7 @@ internal static class RuleLogicVersions
 {
     public const string Validation = "validation-2026-10-04-v5";
     public const string Prescreen = "prescreen-2026-10-04-v9";
-    public const string Filter = "filter-2026-10-04-v17";
+    public const string Filter = "filter-2026-10-06-v18";
 
     public static string? ExpectedFor(string runKind) => runKind switch
     {

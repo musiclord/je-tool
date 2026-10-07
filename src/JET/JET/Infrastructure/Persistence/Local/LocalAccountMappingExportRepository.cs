@@ -56,13 +56,13 @@ public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase da
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        // 範本母體＝GL∪TB 完整性 diff 的科目清單(尚未配對),account_code 升冪。
+        // 範本與科目清單、差異清單共用可配對科目母體（排除空白科目編號），account_code 升冪。
         command.CommandText =
-            ValidationProcedures.CompletenessDiffCte +
+            AccountMappingPopulationQuery.Cte("", database.Dialect) +
             """
 
             SELECT account_code, account_name
-            FROM diff
+            FROM population
             ORDER BY account_code;
             """;
         var rows = new List<AccountMappingTemplateRow>();

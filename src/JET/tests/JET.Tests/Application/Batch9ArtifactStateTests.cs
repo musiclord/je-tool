@@ -40,7 +40,7 @@ public sealed class Batch9ArtifactStateTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task OldCriteria_RemainsStaleAfterCalendarChangeAndLazyRecalculation(string provider)
+    public async Task OldCriteria_RemainsStaleAfterCalendarChangeAndResavingTheSameScenario(string provider)
     {
         using var host = new HandlerTestHost();
         var prepared = await PrepareAsync(host, provider);
@@ -50,9 +50,14 @@ public sealed class Batch9ArtifactStateTests
         Assert.InRange(new FileInfo(path).Length, 1, 10_000_000);
         var bytes = File.ReadAllBytes(path);
         await host.DispatchAsync("import.holiday", """{"dates":["2025-06-01"]}""");
-        var hits = await host.DispatchAsync("query.filterHitsPage", JsonSerializer.Serialize(new
-        { scenarioPosition = 1, scenarioRevision = prepared.Revision }));
-        Assert.Single(hits.GetProperty("rows").EnumerateArray());
+        // 使用者 2026-10-07 裁定上游修改清除下游：行事曆修改會清掉已存情境，不再有舊版本可以惰性重算。
+        // 改成驗證情境清掉、重新儲存同一情境後，舊報告仍標成先前版本且檔案不被改寫。
+        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        var cleared = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
+        Assert.Empty(cleared.GetProperty("filterScenarios").EnumerateArray());
+        Assert.False(cleared.GetProperty("staleState").GetProperty("filter").GetBoolean());
+        Assert.True(Assert.Single(cleared.GetProperty("reportArtifacts").EnumerateArray()).GetProperty("stale").GetBoolean());
+        await host.DispatchAsync("filter.commit", """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}]}]}""");
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
         Assert.False(loaded.GetProperty("staleState").GetProperty("filter").GetBoolean());
         Assert.True(Assert.Single(loaded.GetProperty("reportArtifacts").EnumerateArray()).GetProperty("stale").GetBoolean());
@@ -74,12 +79,14 @@ public sealed class Batch9ArtifactStateTests
         { validationRunId = prepared.ValidationRunId, revision = prepared.Revision }));
         await host.DispatchAsync("import.holiday", """{"dates":["2025-06-01"]}""");
         var prescreen = await host.DispatchAsync("prescreen.run");
-        await host.DispatchAsync("query.filterHitsPage", JsonSerializer.Serialize(new
-        { scenarioPosition = 1, scenarioRevision = prepared.Revision }));
+        // 使用者 2026-10-07 裁定上游修改清除下游：行事曆修改清掉已存情境，舊版本不能再惰性重算；
+        // 改為重新儲存同一情境，再用新版本匯出。第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        var resaved = await host.DispatchAsync("filter.commit", """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}]}]}""");
+        var revision = resaved.GetProperty("resultRef").GetProperty("revision").GetString();
         var response = await host.DispatchAsync(action, JsonSerializer.Serialize(new
         {
             runId = action == "export.prescreenReport" ? prescreen.GetProperty("resultRef").GetProperty("runId").GetString() : prepared.ValidationRunId,
-            validationRunId = prepared.ValidationRunId, scenarioRevision = prepared.Revision, scenarioPositions = new[] { 1 }
+            validationRunId = prepared.ValidationRunId, scenarioRevision = revision, scenarioPositions = new[] { 1 }
         }));
         var old = response.GetProperty("reportArtifacts").EnumerateArray().Single(item => item.GetProperty("kind").GetString() == "criteriaSelectionReport");
         Assert.True(old.GetProperty("stale").GetBoolean());

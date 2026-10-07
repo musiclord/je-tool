@@ -161,7 +161,9 @@ public sealed class KctPrerequisiteProviderTests
                 Assert.Equal(ReadyCases[index].ExpectedRows, RowIdentities(page.GetProperty("rows")));
             }
 
-            // 真正重新配對會清除命中、保留情境。缺少建立人員時不得把補算的零筆當作正常結果。
+            // 使用者 2026-10-07 裁定上游修改清除下游：真正重新配對會連同已存情境一起清掉，不再保留情境並提示缺欄。
+            // 缺少建立人員時，重新儲存需要該欄的情境仍要指出缺欄；補回配對後重新儲存才有命中。
+            // 原本斷言重新配對後保留 4 個情境，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
             var withoutCreator = completeMapping.Mapping
                 .Where(pair => pair.Key != GlMappingKeys.CreateBy)
                 .ToDictionary(pair => pair.Key, pair => pair.Value);
@@ -170,23 +172,23 @@ public sealed class KctPrerequisiteProviderTests
                 mapping, amountMode = "flag",
                 manualAutoPolicy = new { manualValues = new[] { "true", "1" }, automaticValues = new[] { "false", "0" } }
             });
-            await host.DispatchAsync("mapping.commit.gl", RemapPayload(withoutCreator));
+            var remapped = await host.DispatchAsync("mapping.commit.gl", RemapPayload(withoutCreator));
+            Assert.True(remapped.GetProperty("invalidatedResults").GetProperty("filterScenarios").GetBoolean());
             await host.DispatchAsync("validate.run");
             loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-            Assert.Equal(4, loaded.GetProperty("filterScenarios").GetArrayLength());
-            for (var attempt = 0; attempt < 2; attempt++)
-            {
-                var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
-                    "query.filterHitsPage", """{"scenarioPosition":2,"pageSize":50}"""));
-                Assert.Equal(JetErrorCodes.InvalidScenario, missing.Code);
-                Assert.Contains("情境 2", missing.Message);
-                Assert.Contains("傳票建立人員", missing.Message);
-                Assert.Contains("設定仍保留", missing.Message);
-            }
+            Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
+            var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+                "filter.commit",
+                CommitPayload(ReadyCases.Select(static testCase => testCase.Scenario).ToArray())));
+            Assert.Equal(JetErrorCodes.InvalidScenario, missing.Code);
+            Assert.Contains("傳票建立人員", missing.Message);
             await host.DispatchAsync("mapping.commit.gl", RemapPayload(completeMapping.Mapping));
             await host.DispatchAsync("validate.run");
             loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-            Assert.Equal(4, loaded.GetProperty("filterScenarios").GetArrayLength());
+            Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
+            await host.DispatchAsync(
+                "filter.commit",
+                CommitPayload(ReadyCases.Select(static testCase => testCase.Scenario).ToArray()));
             var recovered = await host.DispatchAsync("query.filterHitsPage", """{"scenarioPosition":2,"pageSize":50}""");
             Assert.Equal(new[] { "E-1|1" }, RowIdentities(recovered.GetProperty("rows")));
         }

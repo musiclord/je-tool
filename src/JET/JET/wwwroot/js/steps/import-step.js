@@ -24,6 +24,7 @@
   //                  notices（後端提醒文字）, inspectError（檢視失敗原因，有值時這一列不能送出） }
   var wizard = { kind: null, mode: null, pending: [] };
   var preparerDraft = null;
+  var calendarTemplateResult = null;
 
   // 重新匯入/加入來源完成的「卡片成功態」一次性旗標。{ kind, mode:'replace'|'append', at:ms } | null
   var justImported = null;
@@ -34,6 +35,7 @@
   var expanded = { gl: false, tb: false, authorizedPreparer: false, calendar: false };
 
   function resetWizard() {
+    calendarTemplateResult = null;
     preparerDraft = null;
     wizard = { kind: null, mode: null, pending: [] };
   }
@@ -68,6 +70,7 @@
       '<div class="panel">' +
         '<h2 class="panel__title">匯入資料</h2>' +
         '<p class="panel__hint panel__hint--wide">支援 Excel、CSV、文字檔及 Access。總帳明細可合併欄位相同的來源。試算表請提供同一查核期間的資料，不會自動把期初與期末兩份檔案配成期間變動。</p>' +
+        Ui.downstreamResetNoticeHtml(state) +
         '<div class="import-tasklist">' +
           datasetTask('gl', 'GL（總帳明細）', imp.gl) +
           datasetTask('tb', 'TB（試算表）', imp.tb) +
@@ -283,8 +286,7 @@
           preparerDraft = null;
           Store.setAuthorizedPreparerState(null);
           Store.applyMutationEffects(result);
-          Store.addMessage('已移除授權清單，已儲存的情境設定仍保留。含「非授權編製人員」條件的情境，' +
-            '要重新匯入名單後才能計算；預篩選也要重新執行。', 'info');
+          Store.addMessage('已移除授權清單，預篩選要重新執行。', 'info');
           return result;
         });
       });
@@ -355,7 +357,12 @@
       '<section class="import-card" data-bind="import-card-calendar">' +
         '<h3 class="import-card__title">假日與補班日</h3>' +
         body +
+        (calendarTemplateResult && calendarTemplateResult.projectId === (Store.getState().project || {}).projectId
+          ? '<p class="import-card__status import-card__status--ok">' + calendarTemplateResult.files.map(function (file) { return Ui.esc(file.fileName) + '：' + (file.disposition === 'created' ? '已複製' : '已存在，保留原檔'); }).join('；') + '</p>' : '') +
+        '<p class="calendar-nonworking__hint">範本是 2025 年資料，請自行更新年份與日期。假日檔的 Date_of_Holiday、補班檔的 Date_of_MakeUpday 以 yyyy-MM-dd 填寫；假日檔若有 IS_Holiday 欄，只匯入 Y 的列。取得範本不會自動匯入，修改後請自行上傳。</p>' +
         '<div class="import-card__actions">' +
+          '<button type="button" class="btn btn--ghost" data-action="export-calendar-templates">取得假日與補班日範本</button>' +
+          '<button type="button" class="btn btn--ghost" data-action="open-calendar-folder">開啟案件資料夾</button>' +
           '<button type="button" class="btn btn--ghost" data-action="import-holiday">上傳假日檔</button>' +
           '<button type="button" class="btn btn--ghost" data-action="import-makeup">上傳補班檔</button>' +
         '</div>' +
@@ -396,6 +403,22 @@
   }
 
   function bindCalendarCard(container) {
+    var templateButton = container.querySelector('[data-action="export-calendar-templates"]');
+    if (templateButton) { templateButton.addEventListener('click', function () {
+      var project = Store.getState().project;
+      Ui.run('取得假日與補班日範本', function () {
+        return global.JetApi.exportCalendarTemplates({}).then(function (data) {
+          if (Store.getState().project !== project) { return; }
+          calendarTemplateResult = { projectId: project.projectId, files: data.files || [] };
+          Store.touch();
+        });
+      });
+    }); }
+    var folderButton = container.querySelector('[data-action="open-calendar-folder"]');
+    if (folderButton) { folderButton.addEventListener('click', function () {
+      Ui.run('開啟案件資料夾', function () { return global.JetApi.hostOpenFolder({ target: 'projectFolder' }); });
+    }); }
+
     var holidayBtn = container.querySelector('[data-action="import-holiday"]');
     if (holidayBtn) {
       holidayBtn.addEventListener('click', function () {
@@ -580,11 +603,11 @@
       return '<p class="wizard-pane__hint">加入來源：新檔的資料會附加到現有 ' +
         Number(info.rowCount).toLocaleString() + ' 列（欄位名稱需與現有一致）。' +
         (wizard.kind === 'tb' ? '請只追加同一查核期間的試算表資料，不會自動配成期初與期末的期間變動。' : '') +
-        '成功加入後，這份資料集需要重新確認配對，受影響的測試結果需要重算。已儲存的篩選情境設定與既有底稿檔案會保留。</p>';
+        '成功加入後，這份資料集需要重新確認配對，受影響的測試結果需要重算。已匯出的底稿檔案不會改寫。</p>';
     }
     if (info) {
       return '<p class="wizard-pane__hint wizard-pane__hint--danger">你正在取代這個資料集。現有的 ' +
-        Number(info.rowCount).toLocaleString() + ' 列會在匯入成功後被新來源取代。這份資料集需要重新確認欄位配對，受影響的測試結果需要重算。已儲存的篩選情境設定與既有底稿檔案會保留。</p>';
+        Number(info.rowCount).toLocaleString() + ' 列會在匯入成功後被新來源取代。這份資料集需要重新確認欄位配對，受影響的測試結果需要重算。已匯出的底稿檔案不會改寫。</p>';
     }
     return '<p class="wizard-pane__hint">建立資料集 — ' + (wizard.kind === 'tb'
       ? '選擇同一查核期間的試算表來源；不會自動配成期初與期末的期間變動。'

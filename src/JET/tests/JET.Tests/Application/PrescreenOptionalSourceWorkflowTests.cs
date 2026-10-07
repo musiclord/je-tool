@@ -48,7 +48,9 @@ public sealed class PrescreenOptionalSourceWorkflowTests
         Assert.Equal(JsonValueKind.Null, prescreen.GetProperty("lowFrequencyPreparer").GetProperty("naReason").ValueKind);
         Assert.Equal(2, prescreen.GetProperty("lowFrequencyPreparer").GetProperty("count").GetInt64());
         loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
-        Assert.Single(loaded.GetProperty("filterScenarios").EnumerateArray());
+        // 使用者 2026-10-07 裁定上游修改清除下游：重新配對會清掉已存情境，原本斷言情境保留。
+        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
         foreach (var key in new[] { "backdatedPosting", "lowFrequencyPreparer" })
         {
             var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = OptionalScenario(key) }));

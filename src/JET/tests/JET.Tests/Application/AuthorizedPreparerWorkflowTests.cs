@@ -51,7 +51,7 @@ public sealed class AuthorizedPreparerWorkflowTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task Remove_ReopenAndReimport_PreservesScenarioAndValidationButInvalidatesDependentResults(string provider)
+    public async Task Remove_ReopenAndReimport_ClearsScenarioKeepsValidationAndInvalidatesDependentResults(string provider)
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupAsync(host, provider);
@@ -61,17 +61,24 @@ public sealed class AuthorizedPreparerWorkflowTests
             await ImportAsync(host, path, "員工代碼");
             await host.DispatchAsync("prescreen.run");
             await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { Scenario } }));
-            await host.DispatchAsync("import.authorizedPreparer.clear");
+            var cleared = await host.DispatchAsync("import.authorizedPreparer.clear");
+            Assert.True(cleared.GetProperty("invalidatedResults").GetProperty("filterScenarios").GetBoolean());
             var reopened = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
             Assert.Equal(JsonValueKind.Null, reopened.GetProperty("importState").GetProperty("authorizedPreparer").ValueKind);
             Assert.Equal(JsonValueKind.Object, reopened.GetProperty("latestRuns").GetProperty("validate").ValueKind);
             Assert.Equal(JsonValueKind.Null, reopened.GetProperty("latestRuns").GetProperty("prescreen").ValueKind);
             var preview = await host.DispatchAsync("query.dataPreview", "{\"dataset\":\"authorizedPreparers\"}");
             Assert.Empty(preview.GetProperty("rows").EnumerateArray());
-            var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.tagMatrixScenarios"));
-            Assert.Equal(JetErrorCodes.InvalidScenario, missing.Code);
+            // 使用者 2026-10-07 裁定上游修改清除下游：移除授權名單會清掉已存情境，重新匯入也不會自動恢復；
+            // 審計員重新儲存情境後才有命中。原本斷言情境保留並在重新匯入後恢復，第一次失敗收據
+            // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+            Assert.Empty(reopened.GetProperty("filterScenarios").EnumerateArray());
             await host.DispatchAsync("import.authorizedPreparer.clear");
             await ImportAsync(host, path, "員工代碼");
+            var reimported = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
+            Assert.Empty(reimported.GetProperty("filterScenarios").EnumerateArray());
+            await host.DispatchAsync("prescreen.run");
+            await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { Scenario } }));
             var restored = await host.DispatchAsync("query.tagMatrixScenarios");
             Assert.Contains("Synthetic authorization", restored.GetRawText(), StringComparison.Ordinal);
         }

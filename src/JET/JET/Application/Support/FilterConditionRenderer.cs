@@ -39,7 +39,7 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? categoryLabels,
         IReadOnlyDictionary<string, string>? rdeFieldLabels = null,
         IReadOnlyList<AccountTaxonomyCategory>? taxonomyCategories = null,
-        string? preparationDate = null)
+        string? preparationDate = null, string? periodStart = null, string? periodEnd = null)
     {
         var editable = ArrayItems(scenario, "groups");
 
@@ -49,14 +49,14 @@ public static class FilterConditionRenderer
         var expr = string.Empty;
         if (ne.Count == 1)
         {
-            expr = GroupExpression(ne[0], categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate).Text;
+            expr = GroupExpression(ne[0], categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd).Text;
         }
         else if (ne.Count >= 2)
         {
             var sop = ScenarioJoin(ne); // Empty editor groups do not contribute an operand or a join to the wire.
             var parts = ne.Select(g =>
             {
-                var rendered = GroupExpression(g, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate);
+                var rendered = GroupExpression(g, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd);
                 return rendered.AtomCount > 1 && !rendered.IsExactLeftFold
                     ? "（" + rendered.Text + "）"
                     : rendered.Text; // mixed 已逐邊累積精確括號；uniform 多原子組維持既有單層括號
@@ -89,10 +89,10 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? categoryLabels,
         IReadOnlyDictionary<string, string>? rdeFieldLabels,
         IReadOnlyList<AccountTaxonomyCategory>? taxonomyCategories,
-        string? preparationDate)
+        string? preparationDate, string? periodStart, string? periodEnd)
     {
         var rules = ArrayItems(group, "rules");
-        var atoms = rules.Select(rule => RuleAtom(rule, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate)).ToList();
+        var atoms = rules.Select(rule => RuleAtom(rule, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd)).ToList();
         if (Str(group, "matchScope") == "sameVoucher")
         {
             return SameVoucherGroupExpression(atoms);
@@ -234,7 +234,7 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? categoryLabels,
         IReadOnlyDictionary<string, string>? rdeFieldLabels,
         IReadOnlyList<AccountTaxonomyCategory>? taxonomyCategories,
-        string? preparationDate)
+        string? preparationDate, string? periodStart, string? periodEnd)
     {
         var type = Str(r, "type");
         var text = type switch
@@ -243,8 +243,8 @@ public static class FilterConditionRenderer
             "group" when IsWeekendOrHolidayBracket(r) => "（"
                 + FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.WeekendPosting) + " 或 "
                 + FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.HolidayPosting) + "）",
-            "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate),
-            "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate),
+            "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd),
+            "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd),
             "prescreen" => PrescreenAtom(Str(r, "prescreenKey"), preparationDate),
             "text" => FilterConditionLabels.GlFieldLabel(Str(r, "field")) + " "
                 + FilterConditionLabels.TextModeLabel(Str(r, "mode")) + "「" + Str(r, "keywords") + "」",
@@ -267,7 +267,7 @@ public static class FilterConditionRenderer
                 (Str(r, "countUnit") == "vouchers" ? "傳票張數（同號只算一張）" : "分錄筆數") + " " +
                 (EntityFrequencyConditions.Operators.TryGetValue(Str(r, "countOperator"), out var countLabel) ? countLabel : "") + " " +
                 Str(r, "countFrom") + (Str(r, "countOperator") == "between" ? "～" + Str(r, "countTo") + "（含端點）" : ""),
-            "revenueDebitNearQuarterEnd" => "季末前 " + Ellipsis(Str(r, "windowDays")) + " 天借記收入",
+            "revenueDebitNearQuarterEnd" => QuarterEndAtom(r, periodStart, periodEnd),
             "revenueWithoutNormalCounterpart" => "貸方為收入，借方非應收或預收",
             "manualRevenueEntry" => "收入之人工分錄",
             "trailingDigits" => TrailingDigitsAtom(Str(r, "keywords")),
@@ -284,6 +284,17 @@ public static class FilterConditionRenderer
             text += "；借方實際納入分類：" + ExpandedCategoryLabels(r, "debitCategoryIds", taxonomyCategories);
         if (type != "accountPair" || Str(r, "pairMode") != AccountPairModes.DebitAnchor)
             text += "；貸方實際納入分類：" + ExpandedCategoryLabels(r, "creditCategoryIds", taxonomyCategories);
+        return text;
+    }
+
+    private static string QuarterEndAtom(JsonElement rule, string? periodStart, string? periodEnd)
+    {
+        var text = "季底或查核期末前 " + Ellipsis(Str(rule, "windowDays")) + " 天借記收入";
+        if (int.TryParse(Str(rule, "windowDays"), out var days) && periodStart is not null && periodEnd is not null)
+        {
+            var windows = QuarterEndWindows.Compute(periodStart, periodEnd, days);
+            text += "；日期區間：" + string.Join("、", windows.Select(w => w.FromIso + "～" + w.ToIso));
+        }
         return text;
     }
 
@@ -315,13 +326,13 @@ public static class FilterConditionRenderer
 
     private static string NestedAtom(JsonElement rule, IReadOnlyDictionary<string, string>? categories,
         IReadOnlyDictionary<string, string>? fields, IReadOnlyList<AccountTaxonomyCategory>? taxonomyCategories,
-        string? preparationDate)
+        string? preparationDate, string? periodStart, string? periodEnd)
     {
         var children = ArrayItems(rule, "rules");
         var text = string.Empty;
         foreach (var child in children)
         {
-            var atom = RuleAtom(child, categories, fields, taxonomyCategories, preparationDate);
+            var atom = RuleAtom(child, categories, fields, taxonomyCategories, preparationDate, periodStart, periodEnd);
             text = text.Length == 0 ? atom : "（" + text + " " + JoinLabel(EffectiveRuleJoin(child)) + " " + atom + "）";
         }
         if (Str(rule, "type") == "group")

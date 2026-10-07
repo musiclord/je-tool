@@ -61,7 +61,7 @@ public sealed class ResultInvalidationUpstreamRewriteTests
     }
 
     [Fact]
-    public async Task ReimportTb_AfterValidate_InvalidatesValidateRun()
+    public async Task ReimportTb_AfterValidate_InvalidatesValidateAndPrescreenRuns()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -70,7 +70,7 @@ public sealed class ResultInvalidationUpstreamRewriteTests
         Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
         Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
 
-        // 上游改寫:重匯入 TB（replace 清理交易,機制 a;TB 餵完整性測試）。
+        // 使用者 2026-10-07 裁定 TB 與 GL 同層級修改，一起清除驗證與預篩選。
         var tbFile = await DemoProjectPipeline.DispatchDemoFixtureAsync("demo.exportTbFile");
         await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new
         {
@@ -79,7 +79,7 @@ public sealed class ResultInvalidationUpstreamRewriteTests
         }));
 
         Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
     }
 
     [Fact]

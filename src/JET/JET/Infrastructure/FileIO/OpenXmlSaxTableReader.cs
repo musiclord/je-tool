@@ -95,15 +95,13 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
         Dictionary<int, string>? headerByColumn = null;
         HashSet<string>? usedNames = null;
-        var skipped = 0;
 
         foreach (var row in EnumerateContentRows(part, context, onDimension: null))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (skipped < request.LeadingRowsToSkip)
+            if (row.RowNumber <= request.LeadingRowsToSkip)
             {
-                skipped++;
                 continue;
             }
 
@@ -264,16 +262,14 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
     private readonly record struct ContentRow(int RowNumber, List<ContentCell> Cells);
 
-    /// <summary>第一個含非空值的列（標頭列）；讀到即停。leadingRowsToSkip 先丟棄前 N 個內容列（樣式標題列）。</summary>
+    /// <summary>略過前 N 個實際列號，再取第一個有內容的標頭；空白列也計入略過範圍（K7）。</summary>
     private static ContentRow? FindHeaderRow(
         WorksheetPart part, CellContext context, Action<string>? onDimension, int leadingRowsToSkip = 0)
     {
-        var skipped = 0;
         foreach (var row in EnumerateContentRows(part, context, onDimension))
         {
-            if (skipped < leadingRowsToSkip)
+            if (row.RowNumber <= leadingRowsToSkip)
             {
-                skipped++;
                 continue;
             }
 

@@ -568,6 +568,9 @@ function Get-JetRunnerIdentity {
         'tools/harness/gui-driver/GuiFeedbackWorkflowScenario.cs',
         'tools/harness/gui-driver/GuiDataRecoveryScenarios.cs',
         'tools/harness/gui-driver/GuiSideMonthWorkflow.cs',
+        'tools/harness/gui-driver/GuiUpstreamChangeScenario.cs',
+        'tools/harness/gui-driver/GuiCaseToWorkpaperScenario.cs',
+        'tools/harness/gui-driver/GuiWorkpaperInspection.cs',
         'tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs',
         'tools/harness/gui-driver/GuiLegacyFormWorkflow.cs',
         'tools/harness/gui-driver/Program.cs',
@@ -2589,6 +2592,14 @@ function Invoke-JetGuiScenarioStep {
             'kct-remap-recovery' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.kctRemapRecoveryVerified
+            }
+            'upstream-change-after-export' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.upstreamChangeAfterExportVerified
+            }
+            'case-to-workpaper' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.caseToWorkpaperVerified
             }
             'null-details-recovery' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and

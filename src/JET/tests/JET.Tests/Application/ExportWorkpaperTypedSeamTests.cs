@@ -392,7 +392,7 @@ public sealed class ExportWorkpaperTypedSeamTests
 
     private sealed class FixedResultStaleStateStore(bool Filter) : IResultStaleStateStore
     {
-        public Task InvalidateForPreparationDateChangeAsync(string projectId, CancellationToken cancellationToken) =>
+        public Task InvalidateForPreparationDateChangeAsync(string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken) =>
             Task.FromResult("synthetic-filter-data-revision");

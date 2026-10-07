@@ -567,7 +567,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
         }
         if (parsedVersion == 9)
         {
-            await AccountClassificationMigration.UpgradeLocalAsync(connection, DuckDbDialect.Instance, cancellationToken);
+            await AccountClassificationMigration.UpgradeLocalAsync(connection, cancellationToken);
             parsedVersion = 10;
         }
         if (parsedVersion == 10)
@@ -742,11 +742,6 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
                     """;
                 await backfill.ExecuteNonQueryAsync(cancellationToken);
             }
-
-            await SqliteProjectDatabase.MigrateScenarioCategoryIdsAsync(
-                connection, transaction, schemaPrefix: "", cancellationToken);
-
-            MigrationFaultHookForTests?.Invoke("after-v7-data-rewrite");
 
             await RuleRunResultReset.ClearWithinAsync(
                 connection,

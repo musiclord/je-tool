@@ -1,4 +1,6 @@
 using JET.Domain;
+using JET.Application;
+using System.Text.Json;
 using JET.Infrastructure;
 using Xunit;
 
@@ -71,6 +73,54 @@ public sealed class KctFilterPredicateTests : IDisposable
         """;
 
     private const int MoneyScale = 100;
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task K2_CustomPpeSubtree_ExcludesSeparateConstructionCategory(string provider)
+    {
+        const string taxonomy = """
+            INSERT INTO config_account_taxonomy (category_id,label,ordinal,semantic_role,is_builtin,revision,parent_category_id)
+            VALUES ('custom.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','固定資產',10,'others',0,2,NULL),
+                   ('custom.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','固定資產下層',11,'others',0,2,'custom.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+                   ('custom.cccccccccccccccccccccccccccccccc','營業費用',12,'others',0,2,NULL),
+                   ('custom.dddddddddddddddddddddddddddddddd','在建工程',13,'others',0,2,NULL);
+            INSERT INTO config_account_taxonomy_path (ancestor_id,descendant_id)
+            VALUES ('custom.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','custom.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+                   ('custom.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','custom.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
+                   ('custom.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','custom.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
+                   ('custom.cccccccccccccccccccccccccccccccc','custom.cccccccccccccccccccccccccccccccc'),
+                   ('custom.dddddddddddddddddddddddddddddddd','custom.dddddddddddddddddddddddddddddddd');
+            UPDATE target_account_mapping SET category_id='custom.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' WHERE account_code='4101';
+            UPDATE target_account_mapping SET category_id='custom.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' WHERE account_code='1131';
+            UPDATE target_account_mapping SET category_id='custom.cccccccccccccccccccccccccccccccc' WHERE account_code='1101';
+            UPDATE target_account_mapping SET category_id='custom.dddddddddddddddddddddddddddddddd' WHERE account_code='5101';
+            UPDATE target_gl_entry SET account_code='1101' WHERE document_number='K03' AND dr_cr='CREDIT';
+            """;
+        await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql + taxonomy);
+        using var json = JsonDocument.Parse("""
+            {"source":"kct","name":"KCT B","rationale":"合成分類固定答案","groups":[{"rules":[{
+            "type":"specialAccountCategoryPair","pairMode":"drAndCr","categorySelection":"subtree",
+            "debitCategoryIds":["custom.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+            "creditCategoryIds":["custom.cccccccccccccccccccccccccccccccc"]}]}]}
+            """);
+        var spec = FilterScenarioPayloadParser.Parse(json.RootElement, MoneyScale);
+        var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, spec, Context, CancellationToken.None);
+        Assert.Equal(new[] { "K01", "K02", "K03" }, result.PreviewRows.Select(r => r.DocumentNumber).Distinct().Order());
+        Assert.Equal(6, result.PreviewRows.Count);
+    }
+
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task K1_NonQuarterPeriodEnd_HitsRevenueDebitOnBothProviders(string provider)
+    {
+        await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);
+        var result = await fixture.Repository.PreviewAsync(fixture.ProjectId,
+            SingleRule(Rule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 5)),
+            new FilterRuleContext(MoneyScale, "2025-05-15", "2025-01-01", "2025-05-15"), CancellationToken.None);
+        Assert.Equal(new[] { "K01", "K02" }, result.PreviewRows.Select(r => r.DocumentNumber).Distinct().OrderBy(d => d));
+    }
+
     private static FilterRuleContext Context => new(MoneyScale, "2025-12-31", "2025-01-01", "2025-12-31");
 
     private readonly TempProjectRoot _root = new();

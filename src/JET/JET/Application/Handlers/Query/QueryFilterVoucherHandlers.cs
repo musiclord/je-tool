@@ -121,7 +121,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         var fieldLabels = context.RdeFields.ToDictionary(item => item.FieldId, item => item.Label);
         string Condition(FilterConditionPosition position) => $"第 {position.Group} 組條件 {position.Rule}："
             + FilterConditionRenderer.Render(JsonSerializer.SerializeToElement(new { groups = new[] { new { rules = new[] {
-                scenarioJson.GetProperty("groups")[position.Group - 1].GetProperty("rules")[position.Rule - 1] } } } }), categoryLabels, fieldLabels, taxonomy.Categories, project.LastAccountingPeriodDate);
+                scenarioJson.GetProperty("groups")[position.Group - 1].GetProperty("rules")[position.Rule - 1] } } } }), categoryLabels, fieldLabels, taxonomy.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd);
         string Describe(FilterVoucherDetail row)
         {
             var descriptions = new List<string>();
@@ -151,7 +151,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
             rows, queryRevision, scenarioRevision = savedRevision,
             columns = columnPlan.Columns.Select(column => new { key = column.Key, label = column.Label,
                 valueType = column.ValueType, isCustom = column.IsCustom }).ToArray(),
-            conditionText = FilterConditionRenderer.Render(scenarioJson, categoryLabels, fieldLabels, taxonomy.Categories, project.LastAccountingPeriodDate),
+            conditionText = FilterConditionRenderer.Render(scenarioJson, categoryLabels, fieldLabels, taxonomy.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd),
             nextCursor = page.NextKey is null ? null : PageCursor.Encode(JsonSerializer.Serialize(new VoucherCursor(queryRevision, documentNumber, page.NextKey)))
         };
     }

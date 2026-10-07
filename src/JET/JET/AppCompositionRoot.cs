@@ -353,7 +353,7 @@ public static partial class AppCompositionRoot
 #endif
             new ImportGlFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger<ImportGlFromFileHandler>()),
             new ImportTbFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger<ImportTbFromFileHandler>()),
-            new ImportAccountMappingHandler(fileReader, session),
+            new ImportAccountMappingHandler(fileReader, session, loggerFactory.CreateLogger<ImportAccountMappingHandler>()),
             new ImportAuthorizedPreparerFromFileHandler(fileReader, session),
             new ClearAuthorizedPreparerHandler(session),
             new ImportInspectFileHandler(fileReader, loggerFactory.CreateLogger<ImportInspectFileHandler>()),
@@ -375,6 +375,7 @@ public static partial class AppCompositionRoot
             queryDataPreviewHandler,
             new QueryCompletenessDiffPageHandler(projectStore, session),
             new QueryAccountMappingBlankPageHandler(session),
+            new QueryAccountMappingDifferencePageHandler(session),
             new QueryDocBalancePageHandler(projectStore, session),
             new QueryNullRecordsPageHandler(projectStore, session),
             new QuerySourceQualityPageHandler(session),
@@ -393,9 +394,10 @@ public static partial class AppCompositionRoot
             // 帳戶對應範本是給審計員填寫的工作檔，直接寫進案件資料夾，不經報告 store。
             new ExportAccountMappingTemplateHandler(
                 accountMappingTemplateWriter, projectStore, folder, session, events),
+            new ExportCalendarTemplatesHandler(new CalendarTemplateSource(), folder, session),
             new LogAppendHandler(session),
             new LogRecentHandler(session),
-            new SupportLogExportHandler(supportDiagnostic, projectStore, folder),
+            new SupportLogExportHandler(supportDiagnostic, folder),
             new HostSelectFileHandler(hostShell, hostDialogProjectContext),
             new HostSelectFilesHandler(hostShell, hostDialogProjectContext),
             new HostOpenFolderHandler(hostShell, folder, session),
@@ -428,7 +430,6 @@ public static partial class AppCompositionRoot
                 handlers.Add(new DevLogExportFileHandler(
                     diagnostic!,
                     diagnosticFile?.FilePath,
-                    projectStore,
                     folder));
             }
 

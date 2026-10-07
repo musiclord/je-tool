@@ -1,5 +1,4 @@
 using System.Data;
-using System.Text.Json;
 using JET.Domain;
 using Microsoft.Data.SqlClient;
 
@@ -183,27 +182,11 @@ public sealed class SqlServerAccountTaxonomyStore(SqlServerProjectDatabase datab
             }
         }
 
-        await using var scenarios = database.CreateCommand(
-            connection,
-            projectId,
-            "SELECT definition_json FROM {s}.config_filter_scenario;");
-        scenarios.Transaction = transaction;
-        await using var reader = await scenarios.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            using var document = JsonDocument.Parse(reader.GetString(0));
-            foreach (var deletedId in deletedIds)
-            {
-                if (AccountTaxonomyStoreSupport.ContainsString(document.RootElement, deletedId))
-                {
-                    InUse(deletedId, currentCategories);
-                }
-            }
-        }
+        // 已存篩選情境不擋刪除：分類設定的修改會在同一交易內清掉全部情境（使用者 2026-10-07 裁定上游修改清除下游）。
     }
 
     private static void InUse(string categoryId, IReadOnlyList<AccountTaxonomyCategory> currentCategories) =>
         throw new JetActionException(
             JetErrorCodes.TaxonomyCategoryInUse,
-            $"科目分類「{AccountTaxonomyStoreSupport.DisplayLabel(categoryId, currentCategories)}」仍被科目配對或篩選情境使用，無法刪除。請先改掉使用這個分類的科目配對或篩選情境，再刪除分類。");
+            AccountTaxonomyStoreSupport.InUseMessage(categoryId, currentCategories));
 }

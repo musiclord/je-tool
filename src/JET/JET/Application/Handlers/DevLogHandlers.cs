@@ -12,7 +12,6 @@ namespace JET.Application;
 /// </summary>
 public sealed class SupportLogExportHandler(
     ISupportDiagnosticLogStore supportLog,
-    IProjectStore projectStore,
     IProjectExportLocator projectLocator) : IApplicationActionHandler
 {
     public string Action => "support.log.export";
@@ -21,15 +20,11 @@ public sealed class SupportLogExportHandler(
     {
         var projectId = PayloadReader.GetRequiredString(payload, "projectId");
         var correlationId = PayloadReader.GetOptionalString(payload, "correlationId");
-        var document = await projectStore.FindAsync(projectId, cancellationToken).ConfigureAwait(false)
-            ?? throw new JetActionException(
-                JetErrorCodes.ProjectNotFound,
-                $"找不到專案 '{projectId}'，無法輸出支援日誌。");
 
         var snapshot = supportLog.Snapshot();
         var projectEntries = snapshot.Where(entry => string.Equals(
             entry.InternalProjectId,
-            document.ProjectId,
+            projectId,
             StringComparison.OrdinalIgnoreCase));
         var selected = string.IsNullOrWhiteSpace(correlationId)
             ? projectEntries.ToArray()
@@ -67,7 +62,7 @@ public sealed class SupportLogExportHandler(
             .ToArray();
         var filePath = await ProjectLogFileWriter.WriteAsync(
             projectLocator,
-            document.ProjectId,
+            projectId,
             "JET-support",
             ProjectLogFileWriter.ToAsyncLines(lines),
             cancellationToken).ConfigureAwait(false);
@@ -103,19 +98,14 @@ public sealed class SupportLogExportHandler(
 public sealed class DevLogExportFileHandler(
     IDiagnosticLogStore diagnosticLog,
     string? sinkFilePath,
-    IProjectStore projectStore,
     IProjectExportLocator projectLocator) : IApplicationActionHandler
 {
     public string Action => "dev.log.exportFile";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var requestedProjectId = PayloadReader.GetRequiredString(payload, "projectId");
+        var projectId = PayloadReader.GetRequiredString(payload, "projectId");
         var correlationId = PayloadReader.GetOptionalString(payload, "correlationId");
-        var document = await projectStore.FindAsync(requestedProjectId, cancellationToken).ConfigureAwait(false)
-            ?? throw new JetActionException(
-                JetErrorCodes.ProjectNotFound,
-                $"找不到專案 '{requestedProjectId}'，無法輸出 DEV 日誌。");
 
         string source;
         string filePath;
@@ -130,11 +120,11 @@ public sealed class DevLogExportFileHandler(
             source = "fileSink";
             filePath = await ProjectLogFileWriter.WriteAsync(
                 projectLocator,
-                document.ProjectId,
+                projectId,
                 "JET-dev-log",
                 ReadSinkLinesAsync(
                     sinkFilePath,
-                    document.ProjectId,
+                    projectId,
                     correlationId,
                     () => lineCount++,
                     cancellationToken),
@@ -148,14 +138,14 @@ public sealed class DevLogExportFileHandler(
                 .Where(entry => MatchesSelection(
                     entry.ProjectId,
                     entry.CorrelationId,
-                    document.ProjectId,
+                    projectId,
                     correlationId))
                 .Select(DiagnosticNdjson.SerializeLine)
                 .ToArray();
             lineCount = lines.Length;
             filePath = await ProjectLogFileWriter.WriteAsync(
                 projectLocator,
-                document.ProjectId,
+                projectId,
                 "JET-dev-log",
                 ProjectLogFileWriter.ToAsyncLines(lines, cancellationToken),
                 cancellationToken).ConfigureAwait(false);
@@ -242,11 +232,13 @@ internal static class ProjectLogFileWriter
         IAsyncEnumerable<string> lines,
         CancellationToken cancellationToken)
     {
+        // 診斷匯出必須能處理尚未成功載入的案件。只透過既有定位器檢查 projectId 與目的地，
+        // 不讀取 project.json，也不讓其中保存的 id 改變輸出位置或繞過連結目錄檢查。
         var projectDirectory = Path.GetFullPath(projectLocator.GetProjectDirectory(projectId));
         if (!Directory.Exists(projectDirectory))
         {
             throw new JetActionException(
-                JetErrorCodes.SupportLogExportFailed,
+                JetErrorCodes.ProjectNotFound,
                 "專案資料夾不存在，無法輸出日誌。");
         }
 

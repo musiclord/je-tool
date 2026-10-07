@@ -865,6 +865,7 @@ try {
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiFeedbackWorkflowScenario.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiDataRecoveryScenarios.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiSideMonthWorkflow.cs' -and
+        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiWorkpaperInspection.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiLegacyFormWorkflow.cs') `
         -Message 'Runner identity must include every extracted GUI workflow source file.'

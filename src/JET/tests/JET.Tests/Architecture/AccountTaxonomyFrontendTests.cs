@@ -39,18 +39,18 @@ public sealed class AccountTaxonomyFrontendTests
     }
 
     [Fact]
-    public void Editor_ProtectsBuiltInsAndCategoriesUsedBySavedScenarios()
+    public void Editor_ProtectsBuiltInsWithoutBlockingCategoriesUsedOnlyBySavedScenarios()
     {
         var validate = ReadFrontend("js", "steps", "validate-step.js");
 
-        // 內建分類不可刪、role 不可改；被已存情境引用的自訂分類先在畫面擋下並說明原因。
-        Assert.Contains("'內建分類不可刪除'", validate, StringComparison.Ordinal);
-        Assert.Contains("'已被篩選情境使用，不可刪除'", validate, StringComparison.Ordinal);
+        // 2026-10-07：儲存分類會清除情境，故引用情境不能阻擋刪除。首次失敗 a8ad54d4ecdb4e859b12b3d4a7ee03df。
+        // 內建分類不提供移除按鈕，分類用途仍不可修改；科目配對的引用由後端保護。
+        Assert.Contains("(row.isBuiltIn ? '' : '<button type=\"button\" class=\"btn btn--ghost btn--tiny\" data-taxonomy-remove=", validate, StringComparison.Ordinal);
+        Assert.DoesNotContain("已被篩選情境使用，不可刪除", validate, StringComparison.Ordinal);
         Assert.Contains("(row.isBuiltIn ? ' disabled aria-disabled=\"true\"' : '')", validate, StringComparison.Ordinal);
         Assert.Contains("if (row.rowId === rowId && !row.isBuiltIn)", validate, StringComparison.Ordinal);
 
-        // 引用偵測讀的是已存情境的分類身分陣列，不是顯示名稱。
-        Assert.Contains("['debitCategoryIds', 'creditCategoryIds', 'categoryIds']", validate, StringComparison.Ordinal);
+        Assert.DoesNotContain("taxonomyCategoriesInUse", validate, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -82,7 +82,9 @@ public sealed class AccountTaxonomyFrontendTests
         Assert.False(impact.InvalidateValidation);
         Assert.True(impact.InvalidatePrescreen);
         Assert.True(impact.InvalidateFilterHits);
-        Assert.False(impact.InvalidateFilterScenarioDefinitions);
+        // 使用者 2026-10-07 裁定上游修改清除下游：分類設定的修改也清掉全部已存情境。
+        // 第一次失敗收據 20261007-032842584-7df9061f933d49778fe4b6b9f292a9a4。
+        Assert.True(impact.InvalidateFilterScenarioDefinitions);
         Assert.Contains("Store.setTaxonomyAfterSave(data)", validate, StringComparison.Ordinal);
         Assert.Matches(@"Store\.setTaxonomyAfterSave\(data\);\s*Store\.applyMutationEffects\(data\);", validate);
         var setter = ExtractBlock(state, "setTaxonomyAfterSave");

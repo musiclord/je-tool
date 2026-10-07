@@ -153,7 +153,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         var recordsRecommit = existingMapping is not null
             || await repositories.ProjectAuditLog.RequiresMappingRecommitAuditAsync(projectId, "gl", cancellationToken);
         // 重新匯入會刪掉已確認的配對，但畫面的草稿仍帶著上次確認時發出的攸關資料元素欄位身分。
-        // 還沒重新確認時沿用那一份，草稿才送得出去，已儲存情境裡指到這些欄位的條件也還對得上。
+        // 還沒重新確認時沿用那一份，草稿才送得出去。已儲存情境會隨重新匯入一併清除（使用者 2026-10-07 裁定）。
         var reusableMapping = existingMapping
             ?? await repositories.MappingStates.FindPreviousAsync(projectId, DatasetKind.Gl, cancellationToken);
         var existingRdeIds = reusableMapping?.GlOptions?.RdeFields

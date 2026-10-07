@@ -9,6 +9,13 @@ namespace JET.Tests.Architecture;
 public sealed class ScreenWordingReviewFrontendTests
 {
     [Fact]
+    public void K3_CashCounterpartExplanation_UsesExactApprovedText()
+    {
+        Assert.Contains("現金不算一般對方科目；要排除現金銷貨，改用預篩選條件『未預期借貸組合』。",
+            ReadFrontend("js", "ui-core.js"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FieldMappingAndVoucherDetail_UseShortenedNames()
     {
         // W5：使用者 2026-10-02 裁定「借方代碼」與「傳票文件項次」。
@@ -56,9 +63,10 @@ public sealed class ScreenWordingReviewFrontendTests
         Assert.Contains("Ui.esc('舊表 ' + example.combination)", legacy, StringComparison.Ordinal);
         Assert.DoesNotContain("A–U 條件", legacy, StringComparison.Ordinal);
 
-        // KCT 情境的自動命名與自動動機會寫進底稿，這次不得改動。
-        Assert.Contains("tokens.push(letters.join('+'));", ExtractFunction(filter, "kctScenarioName"), StringComparison.Ordinal);
-        Assert.Contains(".map(function (item) { return item.letter + '：' + item.label; })", ExtractFunction(filter, "kctScenarioRationale"), StringComparison.Ordinal);
+        // K10 改用清單內的評估說明；自動命名不變。
+        // 使用者 2026-10-07 裁定同一組混有自訂條件時名稱接「+自訂」；只有 KCT 卡片時仍是字母相接（第一次失敗收據 20261007-035823939-41943206b5f747f1b7fb8dfe79f987d7）。
+        Assert.Contains("tokens.push(letters.join('+') + (hasCustom ? '+自訂' : ''));", ExtractFunction(filter, "kctScenarioName"), StringComparison.Ordinal);
+        Assert.Contains(".map(function (item) { return item.letter + '：' + (item.defaultRationale || item.label); })", ExtractFunction(filter, "kctScenarioRationale"), StringComparison.Ordinal);
     }
 
     [Fact]

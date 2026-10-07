@@ -12,6 +12,26 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public sealed class OpenXmlSaxTableReaderTests
 {
+    [Fact]
+    public async Task K7_AutoFilterAndHiddenRows_DoNotRemoveSourceRows()
+    {
+        var path = new RawXlsxBuilder().AddSheet("Synthetic", """
+            <dimension ref="A1:C3"/><sheetData>
+            <row r="1"><c r="A1" t="inlineStr"><is><t>GL_Number</t></is></c><c r="B1" t="inlineStr"><is><t>GL_Name</t></is></c><c r="C1" t="inlineStr"><is><t>Standardized Account Name*</t></is></c></row>
+            <row r="2"><c r="A2" t="inlineStr"><is><t>A</t></is></c><c r="B2" t="inlineStr"><is><t>Visible</t></is></c><c r="C2" t="inlineStr"><is><t>Cash</t></is></c></row>
+            <row r="3" hidden="1"><c r="A3" t="inlineStr"><is><t>B</t></is></c><c r="B3" t="inlineStr"><is><t>Hidden</t></is></c><c r="C3" t="inlineStr"><is><t>Revenue</t></is></c></row>
+            </sheetData><autoFilter ref="A1:C3"><filterColumn colId="0"><filters><filter val="A"/></filters></filterColumn></autoFilter>
+            """).Save();
+        try
+        {
+            var rows = await ReadAllRowsAsync(path);
+            Assert.Equal(new[] { "A", "B" }, rows.Select(r => r.Values["GL_Number"]));
+            Assert.Equal(new[] { 2, 3 }, rows.Select(r => r.SourceRowNumber));
+            Assert.Equal("Revenue", rows[1].Values["Standardized Account Name*"]);
+        }
+        finally { TestWorkbookBuilder.Delete(path); }
+    }
+
     private static async Task<List<StagingRow>> ReadAllRowsAsync(string path, string? sheetName = null)
     {
         var reader = new OpenXmlSaxTableReader();
@@ -592,6 +612,29 @@ public sealed class OpenXmlSaxTableReaderTests
         {
             TestWorkbookBuilder.Delete(path);
         }
+    }
+
+    [Fact]
+    public async Task LeadingRowsToSkip_CountsPhysicalBlankRows()
+    {
+        // 略過列數以 Excel 的實際列號計算：第 2 列空白也算在略過的兩列內，第 3 列才是標頭。
+        var path = TestWorkbookBuilder.WriteWorkbook(ws =>
+        {
+            ws.Cell(1, 1).Value = "Title";
+            ws.Cell(3, 1).Value = "Code";
+            ws.Cell(4, 1).Value = "A";
+            ws.Cell(5, 1).Value = "B";
+        });
+        try
+        {
+            var reader = new OpenXmlSaxTableReader();
+            var request = new TabularSourceRequest(path, LeadingRowsToSkip: 2);
+            Assert.Equal(["Code"], await reader.ReadColumnsAsync(request, CancellationToken.None));
+            var rows = new List<StagingRow>();
+            await foreach (var row in reader.ReadRowsAsync(request, CancellationToken.None)) rows.Add(row);
+            Assert.Equal(new[] { "A", "B" }, rows.Select(row => row.Values["Code"]));
+        }
+        finally { TestWorkbookBuilder.Delete(path); }
     }
 
     [Fact]

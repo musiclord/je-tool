@@ -144,6 +144,7 @@ public sealed record ImportBatchResult(
 /// SheetName 選取 .xlsx、.xlsm 或 .xls 工作表，或 Access .mdb、.accdb 的一般資料表；
 /// EncodingName 和 Delimiter 僅 .csv 或 .txt 有效，
 /// null 表示交由 reader 偵測。欄位適用性驗證在 handler，reader 只消費。
+/// LeadingRowsToSkip 在 Excel 以實際列號計算，包含空白列；不對一般匯入開放新的前置處理選項。
 /// </summary>
 public sealed record TabularSourceRequest(
     string FilePath,
@@ -192,6 +193,8 @@ public sealed record TabularFileInspection(
 /// </summary>
 public interface ITabularFileReader
 {
+    // Excel 的 LeadingRowsToSkip 是實際列數，包含空白列；Open XML 與二進位讀取器必須一致。
+    // 略過後仍取第一個有內容的列當欄名，不以有內容列數重新計算略過範圍。
     bool Supports(string filePath);
 
     Task<IReadOnlyList<string>> ReadColumnsAsync(TabularSourceRequest request, CancellationToken cancellationToken);

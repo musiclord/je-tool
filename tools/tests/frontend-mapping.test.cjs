@@ -32,7 +32,7 @@ function fixture() {
   } };
   const context = vm.createContext({ window, document });
   for (const file of ['state.js', 'ui-core.js', 'steps/mapping-step.js']) {
-    vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
+    vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8').replace("  Ui.registerStep('mapping', render);", "  window.mappingWire = glCommitPayload; Ui.registerStep('mapping', render);"), context, { filename: file });
   }
   const store = window.JetStore;
   store.setProject({ projectId: 'synthetic' });
@@ -60,6 +60,7 @@ function fixture() {
       addEventListener(event, handler) { delegated.set(event, (delegated.get(event) || []).concat(handler)); },
       querySelector(selector) {
         if (selector === '[data-bind="gl-options"]') return {};
+        if (selector === '[data-rde-created-date]' && container.innerHTML.includes('data-rde-created-date')) return control(selector);
         if (selector === '[data-approval-source]' && container.innerHTML.includes('data-approval-source')) return control(selector);
         if (/^\[data-bind="(manual-code-add|automatic-code-add|posting-value-add)"\]$/.test(selector)
             && container.innerHTML.includes(selector.slice(1, -1))) return control(selector);
@@ -1394,4 +1395,70 @@ test('V7 loaded source values survive a text-only project metadata edit', async 
   assert.match(html, /來源欄「Manual」共 2 種值/);
   assert.doesNotMatch(html, /data-action="load-manual-profile"/);
   assert.equal(f.pending.length, requests, 'no new source query');
+});
+
+
+test('K4 creation date shortcut selects a date RDE and keeps the existing identity when replacing its source', () => {
+ const f=fixture();
+ f.render().change('[data-rde-created-date]', 'Other');
+ let wire=f.window.mappingWire({}, 'signed');
+ assert.deepEqual(copy(wire.rdeFields), [{sourceColumn:'Other',label:'傳票建立日',valueType:'date'}]);
+ f.store.patchGlMappingOptions({rdeFields:[{sourceColumn:'Other',label:'Old',valueType:'text',fieldId:'rde.existing'}]});
+ f.render().change('[data-rde-created-date]', 'Other');
+ assert.match(f.render().html,/這個來源欄目前是「Old」欄位/);
+ assert.equal(f.window.mappingWire({},'signed').rdeFields[0].label,'Old');
+ f.render().click('confirm-created-date');
+ assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields), [{sourceColumn:'Other',label:'傳票建立日',valueType:'date',fieldId:'rde.existing'}]);
+ f.render().change('[data-rde-created-date]', '__proto__');
+ assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields), [{sourceColumn:'__proto__',label:'傳票建立日',valueType:'date',fieldId:'rde.existing'}]);
+ f.store.patchGlMappingOptions({rdeFields:[{sourceColumn:'Other',label:'Department',valueType:'text',fieldId:'rde.target'},{sourceColumn:'__proto__',label:'傳票建立日',valueType:'date',fieldId:'rde.created'}]});
+ const before=copy(f.window.mappingWire({},'signed').rdeFields);
+ f.render().change('[data-rde-created-date]', 'Other');
+ assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields),before);
+ assert.match(f.render().html,/另一個「傳票建立日」欄位會保留/);
+ f.render().click('cancel-created-date');
+ assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields),before);
+ assert.doesNotMatch(f.render().html,/data-action="confirm-created-date"/);
+ f.render().change('[data-rde-created-date]', 'Other');
+ f.render().click('confirm-created-date');
+ assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields), [
+  {sourceColumn:'Other',label:'傳票建立日',valueType:'date',fieldId:'rde.target'},
+  {sourceColumn:'__proto__',label:'傳票建立日',valueType:'date',fieldId:'rde.created'}]);
+});
+
+test('creation date confirmation cannot mutate another project or an edited field',()=>{
+ const f=fixture();
+ f.store.patchGlMappingOptions({rdeFields:[{sourceColumn:'Other',label:'Department',valueType:'text',fieldId:'rde.target'}]});
+ f.render().change('[data-rde-created-date]','Other');
+ const pending=f.render();
+ f.store.patchGlMappingOptions({rdeFields:[{sourceColumn:'Other',label:'Changed',valueType:'text',fieldId:'rde.target'}]});
+ pending.click('confirm-created-date');
+ assert.equal(f.window.mappingWire({},'signed').rdeFields[0].label,'Changed');
+ f.render().change('[data-rde-created-date]','Other');
+ const old=f.render();f.store.setProject({projectId:'another'});
+ old.click('confirm-created-date');
+ assert.doesNotMatch(f.render().html,/data-action="confirm-created-date"/);
+});
+
+test('creation date shortcut confirms restoring date type without losing a same-name field identity',()=>{
+ const f=fixture();
+ f.store.patchGlMappingOptions({rdeFields:[{sourceColumn:'Other',label:'傳票建立日',valueType:'text',fieldId:'rde.created'}]});
+ f.render().change('[data-rde-created-date]','Other');
+ assert.match(f.render().html,/data-action="confirm-created-date"/);
+ assert.equal(f.window.mappingWire({},'signed').rdeFields[0].valueType,'text');
+ f.render().click('confirm-created-date');
+ assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields),[{sourceColumn:'Other',label:'傳票建立日',valueType:'date',fieldId:'rde.created'}]);
+});
+
+// FD 315-319 and action-contract-manifest: reimported RDE sources retain their issued identity through the real confirmation button.
+test('remap S3-14 reopening preserves an existing RDE field id through confirmation', async () => {
+  const f = fixture(), sent = [], field = { fieldId: 'rde.keep', sourceColumn: 'Dept', label: '部門', valueType: 'text' };
+  f.window.JetUi.applyLoadedProject({ project: { projectId: 'synthetic', currentStep: 2 },
+    importState: { gl: { batchId: 'b2', columns: ['Doc', 'Date', 'Account', 'Name', 'Memo', 'Amount', 'Dept'], rowCount: 1 } }, mapping: { gl: null },
+    previousMapping: { gl: { mapping: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount' },
+      amountMode: 'signed', approvalDateMode: 'unmapped', rdeFields: [field] } } });
+  const gl = f.store.getState().mapping.gl; assert.equal(gl.committed, null); assert.deepEqual(copy(gl.options.rdeFields), [field]);
+  const page = f.render(); assert.match(page.html, /已保留上次確認的配對/);
+  f.window.JetApi.mappingCommitGl = payload => { sent.push(payload); return Promise.resolve({ projectedRowCount: 1 }); };
+  page.click('commit-gl'); await settle(); assert.equal(sent.length, 1); assert.deepEqual(copy(sent[0].rdeFields), [field]);
 });

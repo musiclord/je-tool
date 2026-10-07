@@ -6,6 +6,19 @@ namespace JET.Tests.AuditCore;
 
 public sealed class IntakeMappingProgramTests
 {
+    [Theory]
+    [MemberData(nameof(JET.Tests.Domain.AccountMappingColumnResolverTests.K7HeaderOrders), MemberType = typeof(JET.Tests.Domain.AccountMappingColumnResolverTests))]
+    public void K7_AccountMappingProjection_UsesTheSameNamedColumnsRegardlessOfOrder(
+        string[] columns, string code, string name, string category)
+    {
+        var projection = JetAuditProgram.PrepareAccountMappingProjection(columns);
+        projection.Observe(Row(2, (code, "　A1　"), (name, "合成科目"), (category, "Cash")));
+        var actual = Assert.Single(projection.Complete(1, "synthetic.xlsx", AccountMappingFailureStyle.Local));
+        Assert.Equal("A1", actual.AccountCode);
+        Assert.Equal("合成科目", actual.AccountName);
+        Assert.Equal(AccountTaxonomyBuiltIns.CashId, actual.CategoryId);
+    }
+
     [Fact]
     public void IntakePlan_InvalidModeKeepsExistingErrorPrecedenceBeforeMissingFile()
     {
@@ -45,8 +58,9 @@ public sealed class IntakeMappingProgramTests
             Mode: operation == IntakeOperation.Append ? "append" : "replace"));
 
         Assert.Equal(operation, plan.Operation);
-        Assert.Equal(kind == DatasetKind.Gl, plan.Effects.InvalidatePrescreen);
-        Assert.Equal(kind == DatasetKind.Gl, plan.Effects.InvalidateFilterHits);
+        Assert.True(plan.Effects.InvalidatePrescreen);
+        Assert.True(plan.Effects.InvalidateFilterHits);
+        Assert.True(plan.Effects.InvalidateFilterScenarioDefinitions);
         Assert.True(plan.Effects.InvalidateValidation);
     }
 

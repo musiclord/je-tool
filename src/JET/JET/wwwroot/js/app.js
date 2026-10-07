@@ -39,6 +39,7 @@
     'filter.commit': true,
     'export.validationArtifacts': true,
     'export.accountMappingTemplate': true,
+    'export.calendarTemplates': true,
     'export.prescreenReport': true,
     'export.criteriaSelectionReport': true,
     'export.workpaperStream': true
@@ -1849,7 +1850,7 @@
 
   // 以 id 水位增量持久化：無 active project 的訊息（專案選擇畫面）只推進觀察水位不落庫；
   // fromLog（log.recent 還原的歷史）不回寫，避免重複。append 以單一 promise queue 保序，
-  // 只有後端確認後才推進持久化水位；失敗項保留，下一次狀態變動或「複製紀錄」會重試。
+  // 只有後端確認後才推進持久化水位；暫時性失敗保留重試。格式拒收已由 dispatcher 寫入支援日誌，跳過該筆。
   var lastObservedMessageId = 0;
   var lastPersistedId = 0;
   var pendingMessageWrites = [];
@@ -1875,6 +1876,12 @@
         }).then(function () {
           pendingMessageWrites.shift();
           lastPersistedId = Math.max(lastPersistedId, pending.id);
+          return drain();
+        }, function (error) {
+          if (!error || error.code !== 'invalid_payload') { throw error; }
+          // 後端已在回覆錯誤前記錄 action.error；不再用 addMessage 遞迴製造另一筆訊息。
+          // 只略過確定無法接受的格式，不把 I/O、忙碌或傳輸失敗當成已保存。
+          pendingMessageWrites.shift();
           return drain();
         });
       });

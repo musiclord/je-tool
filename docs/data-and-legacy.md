@@ -37,7 +37,8 @@ Git tree 相同，所以是同一條開發線，不是需要合併的兩套產�
 這項裁定只適用於上述十份頂層範例，不放寬真實案件、客戶資料或私人資料根目錄的限制。
 
 使用者另於 2026-09-18 提供 `XXX_2024_JE篩選條件_1210.xlsm` 供規則查核。它不是上述十份版控範例或程式範本；
-原件保留本機並由精確忽略規則排除，未改寫或刪除。現行計畫保留來源版本、雜湊、儲存格對照及已裁定差異，
+原件保留本機並由精確忽略規則排除，未改寫或刪除。[已歸檔的回饋計畫](history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md)
+保留來源版本、雜湊、儲存格對照及已裁定差異，
 程式條件目錄與合成固定答案納入 Git。建立、測試及發布 JET 不依賴此原件；文件中的來源連結只供持有原件者查閱。
 
 ## 程式隨附範本
@@ -48,8 +49,8 @@ Git tree 相同，所以是同一條開發線，不是需要合併的兩套產�
 |:---|:---|
 | `AccountMapping.xlsx` | 同名打包 |
 | `CriteriaSelectionReport.xlsx` | 同名打包 |
-| `Holiday2025TW.xlsx` | 同名打包 |
-| `MakeUpDay2025TW.xlsx` | 同名打包 |
+| `Holiday2025TW.xlsx` | 同名打包；第二步可複製到案件資料夾，日期與年份須自行更新 |
+| `MakeUpDay2025TW.xlsx` | 同名打包；第二步可複製到案件資料夾，同名檔保留，不自動匯入 |
 | `INFReport.xlsx` | 同名打包；程式隨附內容不以 `data/` 版本覆蓋 |
 | `PrescreeningReport.xlsx` | 同名打包 |
 | `ValidationReport.xlsx` | 同名打包 |

@@ -13,6 +13,27 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class QueryDataPreviewHandlerTests
 {
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task K5_ManualAutoPreview_AppendsCanonicalValuesAndPreservesBlank(string provider)
+    {
+        using var host = new HandlerTestHost();
+        await InlineWorkbookProject.SetupAsync(host, K5ManualFixture, databaseProvider: provider, manualBlankValueKind: "unclassified");
+        var data = await host.DispatchAsync("query.dataPreview", """{"dataset":"glEntries"}""");
+        Assert.Equal(new[] { "documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr", "manualAuto" },
+            data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
+        Assert.Equal(new string?[] { "manual", "automatic", null }, data.GetProperty("rows").EnumerateArray().Select(r => r[8].GetString()));
+        var excluded = await host.DispatchAsync("query.dataPreview", """{"dataset":"glExcludedEntries"}""");
+        Assert.DoesNotContain("manualAuto", excluded.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
+    }
+
+    internal static void K5ManualFixture(InlineGlWorkbookBuilder b) => b
+        .WithColumns("傳票號碼", "傳票項次", "傳票日期", "科目代號", "科目名稱", "摘要", "人工傳票", "金額", "借方旗標")
+        .AddRow("M1", "1", "2025-01-02", "A", "合成科目", "命中", "1", 100, "1")
+        .AddRow("M1", "2", "2025-01-02", "B", "合成科目", "命中", "0", 100, "0")
+        .AddRow("M2", "1", "2025-01-03", "C", "合成科目", "命中", null, 0, "1");
+
     private const string CreatePayload =
         """
         {

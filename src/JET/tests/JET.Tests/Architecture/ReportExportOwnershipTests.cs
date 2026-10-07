@@ -4,6 +4,16 @@ namespace JET.Tests.Architecture;
 
 public sealed class ReportExportOwnershipTests
 {
+    [Fact]
+    public void K15_CalendarTemplates_AreKeepExistingWorkFilesNotReports()
+    {
+        var handler = ReadTypeSource("ExportCalendarTemplatesHandler", "Application/Handlers/ExportCalendarTemplatesHandler.cs");
+        Assert.Contains("ProjectWorkFileWriter.WriteAsync(", handler, StringComparison.Ordinal);
+        Assert.Contains("onlyIfMissing: true", handler, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportArtifactExecutionPort", handler, StringComparison.Ordinal);
+        Assert.DoesNotContain("Import", handler, StringComparison.Ordinal);
+    }
+
     private static readonly System.Reflection.Assembly ProductionAssembly =
         typeof(global::JET.Domain.JetActionException).Assembly;
 

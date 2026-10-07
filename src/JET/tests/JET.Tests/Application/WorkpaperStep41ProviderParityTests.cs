@@ -22,12 +22,24 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
 {
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task K5_WorkpaperManualAuto_UsesTextAndPreservesBlank(string provider)
+    {
+        using var host = CreateHost(provider, null);
+        var result = await ExportAsync(host, provider, QueryDataPreviewHandlerTests.K5ManualFixture, manualBlankValueKind: "unclassified");
+        var column = Array.IndexOf(result.Snapshot.Headers.ToArray(), "人工傳票否_JE_S");
+        Assert.True(column >= 0);
+        Assert.Equal(new[] { "人工", "自動", "" }, result.Snapshot.Rows.Select(r => r[column]));
+    }
+
     private const string EvidenceRootVariable = "JET_STEP41_PARITY_EVIDENCE_ROOT";
     private const string Step41SheetName = "step4-1 符合高風險條件傳票明細";
     private const string LegacyFingerprint =
-        "0C00056B2893AFC6D6F0DB9EED07B070B1FFA9CB2104F23C378C730783E3EC87";
+        "3190670025C0A2A6F077C6C16907F3E34CE6CE209D387F8A4A0A09115024EA76";
     private const string NumericCursorFingerprint =
-        "D879BCDF37C34CA585097C366EF4F010401B30F8BDFD499CC6F56713A011B32D";
+        "1EDA198B596A886F319A9F05CCA0D0333EA310B695AE958617690CCCCB0A2FC6";
 
     private static readonly string[] ExpectedHeaders =
     [
@@ -250,13 +262,13 @@ public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
         HandlerTestHost host,
         string databaseProvider,
         Action<InlineGlWorkbookBuilder>? configure = null,
-        bool verifyNumericPaging = false)
+        bool verifyNumericPaging = false, string manualBlankValueKind = "reject")
     {
         var projectId = await InlineWorkbookProject.SetupAsync(
             host,
             configure ?? ConfigureFixture,
             databaseProvider: databaseProvider,
-            validateForDownstream: true);
+            validateForDownstream: true, manualBlankValueKind: manualBlankValueKind);
         var validation = await host.DispatchAsync("validate.run");
         var prescreen = await host.DispatchAsync("prescreen.run");
         var committed = await host.DispatchAsync(
@@ -541,7 +553,7 @@ public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
         Assert.All(snapshot.CellKinds, row => Assert.Equal("N|yyyy-mm-dd", row[2]));
         Assert.All(snapshot.CellKinds, row => Assert.Equal("N|yyyy-mm-dd", row[3]));
         Assert.All(snapshot.CellKinds, row => Assert.Equal("N|#,##0.0000", row[8]));
-        Assert.All(snapshot.CellKinds, row => Assert.Equal("N|0", row[11]));
+        Assert.All(snapshot.CellKinds, row => Assert.Equal("T|builtin:49", row[11]));
         Assert.All(snapshot.CellKinds, row => Assert.Equal("N|0", row[13]));
         Assert.Equal(
             ["N|0.00", "N|0.00", "N|0.00", "B|0.00", "N|0.00", "N|0.00", "N|0.00"],
@@ -550,7 +562,7 @@ public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
             ["N|hh:mm:ss", "N|hh:mm:ss", "N|hh:mm:ss", "B|hh:mm:ss", "N|hh:mm:ss", "N|hh:mm:ss", "N|hh:mm:ss"],
             snapshot.CellKinds.Select(row => row[15]).ToArray());
         Assert.Equal(
-            ["1", "1", "0", "1", "0", "1", "0"],
+            ["人工", "人工", "自動", "人工", "自動", "人工", "自動"],
             snapshot.Rows.Select(row => row[11]).ToArray());
         Assert.Equal(
             ["0", "10", "11", "20", "30", "40", "50"],

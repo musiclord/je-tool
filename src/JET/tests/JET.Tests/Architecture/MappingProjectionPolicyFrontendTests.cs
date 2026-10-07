@@ -129,7 +129,7 @@ public sealed class MappingProjectionPolicyFrontendTests
         Assert.Contains("data-rde-column=", mapping, StringComparison.Ordinal);
         Assert.DoesNotContain("function rdeAvailableColumns", mapping, StringComparison.Ordinal);
         Assert.DoesNotContain("key !== 'dcDebitCode'", mapping, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Matches(mapping, Regex.Escape("Store.availableGlRdeColumns()")).Count);
+        Assert.Equal(4, Regex.Matches(mapping, Regex.Escape("Store.availableGlRdeColumns()")).Count);
 
         var state = ReadFrontend("js", "state.js");
         var used = ExtractFunction(state, "usedGlSourceColumns", "removeCoreMappedRdeFields");

@@ -115,9 +115,19 @@ internal static class FilterPopulationScopeParser
         return RequireCurrentRevision(scenarios).PopulationScope;
     }
 
+    /// <summary>沒有任何已存情境時的下一步說明；上游修改清除全部情境後最常遇到。</summary>
+    internal const string NoSavedScenarios =
+        "目前沒有已儲存的篩選情境。請到「進階條件篩選」設定並儲存情境，再執行這個動作。";
+
     public static CurrentFilterRevision RequireCurrentRevision(
         IReadOnlyList<SavedFilterScenario> scenarios)
     {
+        if (scenarios.Count == 0)
+        {
+            // 使用者 2026-10-07 裁定上游修改清除下游後，沒有情境是常見狀態，不能誤導成「尚未套用目前規則」。
+            throw new JetActionException(JetErrorCodes.StaleResult, NoSavedScenarios);
+        }
+
         if (!RuleLogicVersions.AreCurrent(scenarios))
         {
             throw new JetActionException(

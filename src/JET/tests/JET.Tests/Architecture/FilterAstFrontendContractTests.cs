@@ -121,7 +121,8 @@ public sealed class FilterAstFrontendContractTests
         var softGate = ExtractFunction(filter, "softRefreshGate", "softRefreshReadback");
         Assert.Contains("hasOversizedTextSet(draft)", softGate, StringComparison.Ordinal);
         Assert.Contains("if (!scenarioGate(container, false))", filter, StringComparison.Ordinal);
-        Assert.Contains("if (!scenarioGate(container, true))", filter, StringComparison.Ordinal);
+        // 使用者 2026-10-07 要求重名不得影響唯一性：儲存多傳 asCopy，另存副本才略過重名檢查（第一次失敗收據 20261007-035823939-41943206b5f747f1b7fb8dfe79f987d7）。
+        Assert.Contains("if (!scenarioGate(container, true, asCopy))", filter, StringComparison.Ordinal);
     }
 
     [Fact]

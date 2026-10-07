@@ -41,46 +41,23 @@ public static class AccountMappingCategories
 
 /// <summary>
 /// 科目配對檔的欄位辨識（import.accountMapping.fromFile）：
-/// 正規化標頭以關鍵字命中優先；任一欄無法命中時整組退回位次 1/2/3。
+/// 確切欄名優先，再比對未認領欄的關鍵字，最後用剩餘欄位的順序。
 /// </summary>
 public static class AccountMappingColumnResolver
 {
     public sealed record Resolution(string CodeColumn, string NameColumn, string CategoryColumn);
 
-    public static Resolution Resolve(IReadOnlyList<string> columns)
+    public enum MatchMethod { ExactName, Keyword, Position }
+    public sealed record ColumnMatch(string Column, MatchMethod Method);
+    public sealed record DetailedResolution(ColumnMatch Code, ColumnMatch Name, ColumnMatch Category)
     {
-        if (columns.Count < 3)
-        {
-            throw new JetActionException(
-                JetErrorCodes.ProjectionFailed,
-                "科目配對檔需含科目編號、科目名稱、科目分類三欄。");
-        }
-
-        var code = FindByKeywords(columns, ["科目代號", "科目編號", "account code", "code", "gl_number"]);
-        var name = FindByKeywords(columns, ["科目名稱", "account name", "gl_name", "name"]);
-        var category = FindByKeywords(columns, ["分類", "category", "standardized"]);
-
-        return code is not null && name is not null && category is not null
-            && code != name && name != category && code != category
-            ? new Resolution(code, name, category)
-            : new Resolution(columns[0], columns[1], columns[2]);
+        public Resolution Columns => new(Code.Column, Name.Column, Category.Column);
     }
 
-    private static string? FindByKeywords(IReadOnlyList<string> columns, string[] keywords)
-    {
-        foreach (var keyword in keywords)
-        {
-            foreach (var column in columns)
-            {
-                if (column.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                {
-                    return column;
-                }
-            }
-        }
+    public static Resolution Resolve(IReadOnlyList<string> columns) => AccountMappingColumnMatcher.Resolve(columns);
 
-        return null;
-    }
+    public static DetailedResolution ResolveDetailed(IReadOnlyList<string> columns) => AccountMappingColumnMatcher.ResolveDetailed(columns);
+
 }
 
 /// <summary>投影成功的一列科目配對。</summary>

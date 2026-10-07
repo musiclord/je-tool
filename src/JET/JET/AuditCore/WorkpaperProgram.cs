@@ -588,12 +588,11 @@ public static partial class JetAuditProgram
                 "人工傳票否_JE_S",
                 StringComparison.Ordinal))
         {
-            // actual target 已正規化為 0/1；即使讀到舊版或受損的 source-preserving
-            // metadata，也不得回讀 raw y/yes/no 或把旗標輸出成文字。
+            // 2026-10-06 K5：以正規化旗標輸出「人工」「自動」，空白仍留白；不回讀原始代碼。
             return new WorkpaperStep41Column(
                 definition.FieldName,
                 definition.Description ?? definition.FieldName,
-                LegacyFieldKind.Number,
+                LegacyFieldKind.Text,
                 DecimalPlaces: 0,
                 WorkpaperStep41ValueSource.IsManual);
         }

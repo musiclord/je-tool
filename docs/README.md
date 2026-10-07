@@ -9,6 +9,7 @@
 | 想知道什麼 | 請看 |
 |:---|:---|
 | JET 為什麼存在、目前先服務什麼、正式環境有何限制 | [`project-context.md`](project-context.md) |
+| KCT 小組怎麼整理總帳與試算表、用舊版 JE tool 設定哪些條件 | [`kct-gl-workflow.md`](kct-gl-workflow.md) |
 | JET 是什麼、資料怎麼流動、各層怎麼分工 | [`jet-guide.md`](jet-guide.md) |
 | 畫面結構、六個操作步驟與畫面用語 | [`jet-frontend-description.md`](jet-frontend-description.md) |
 | 前端與 C# 之間的 action 通道 | [`action-contract-manifest.md`](action-contract-manifest.md) |
@@ -23,7 +24,13 @@
 
 ## 計畫
 
-`specs/` 放進行中的大型計畫，目前沒有。上一份是[使用者回饋與操作流程一致性修正計畫](history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md)，
+`specs/` 只放進行中的大型計畫，目前是 2026-10-06 開始的
+[KCT 總帳資料整理需求與新版 JET 對照](specs/2026-10-06-kct-gl-requirements-plan.md)，狀態是待使用者人工核對與驗收。
+兩批開發、各輪複審的修正、進階篩選的完整操作測試、上游修改清除已存情境，以及依使用情境補齊的測試都已完成；
+試算表的修改也改成比照總帳處理。最後一輪指定檢查與完整 Gui 19 個情境都通過。
+修正做法、首次失敗、收據與複核結論記在計畫第八節；這些都不代表已獲准提交。
+試用重點見[測試環境交付說明](test-environment-notes.md)。
+[使用者回饋與操作流程一致性修正計畫](history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md)另依原安排驗收，
 2026-10-05 完成交付前修正後移到歷史文件，成果待使用者驗收。接手先讀 `development-status.md` 的「目前大型計畫」。
 已結束的計畫在 `history/specs/`，清單與歸屬見 [`history/README.md`](history/README.md)。
 

@@ -11,6 +11,15 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed partial class HandlerRepositoryScopeTests
 {
+    [Fact]
+    public void K15_CalendarTemplates_DoesNotAcquireDatabaseRepositories()
+    {
+        var source = File.ReadAllText(Path.Combine(ProductRoot(), "Application", "Handlers", "ExportCalendarTemplatesHandler.cs"));
+        Assert.Contains("session.RequireProjectId()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("RequireActive", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Repositories", source, StringComparison.Ordinal);
+    }
+
     /// <summary>handler 類別、所在檔案（Application/Handlers 之下）與它可用的資料庫組屬性（以逗號分隔）。</summary>
     // 2026-10-04 第9批高3；Public 首敗 100911120-57efb95a0cae44beb892ec3c2d058592。
     // 變更回應及匯出清單必須重新讀取目前結果，因此逐項加入四個明示port；整組傳遞禁令及精確相等斷言不變。
@@ -24,6 +33,7 @@ public sealed partial class HandlerRepositoryScopeTests
         ("ProjectUpdateHandler", "Project/ProjectUpdateHandler.cs", "FilterScenarios,ReportArtifactStore,ResultStaleStates,RuleRuns"),
         ("ProjectHeartbeatHandler", "Project/ProjectSessionHandlers.cs", "LockService"),
         ("ProjectReleaseLockHandler", "Project/ProjectSessionHandlers.cs", "LockService"),
+        ("QueryAccountMappingDifferencePageHandler", "Query/QueryAccountMappingDifferencePageHandler.cs", "AccountMappingDifferences"),
         ("QueryAccountMappingBlankPageHandler", "Query/QueryAccountMappingBlankPageHandler.cs", "AccountMappingBlankPages"),
         ("QueryCompletenessDiffPageHandler", "Query/QueryCompletenessDiffPageHandler.cs", "CompletenessDiffPages"),
         ("QueryDataPreviewHandler", "Query/QueryDataPreviewHandler.cs", "DataPreview"),
@@ -57,7 +67,7 @@ public sealed partial class HandlerRepositoryScopeTests
         ("AccountMappingSaveHandler", "AccountMappingEditorHandlers.cs", "AccountMappingEditor,AccountMappings,FilterScenarios,ReportArtifactStore,ResultStaleStates,RuleRuns"),
         ("AccountTaxonomySaveHandler", "AccountTaxonomySaveHandler.cs", "AccountTaxonomy,FilterScenarios,ReportArtifactStore,ResultStaleStates,RuleRuns"),
         ("ImportFromFileHandler", "Import/ImportFromFileHandler.cs", "FilterScenarios,Imports,IntakeFacts,ProjectAuditLog,ReportArtifactStore,ResultStaleStates,RuleRuns"),
-        ("ImportAccountMappingHandler", "Import/ImportAccountMappingHandler.cs", "AccountTaxonomy,FilterScenarios,ReferenceDataFacts,ReportArtifactStore,ResultStaleStates,RuleRuns"),
+        ("ImportAccountMappingHandler", "Import/ImportAccountMappingHandler.cs", "AccountMappingDifferences,AccountTaxonomy,FilterScenarios,ReferenceDataFacts,ReportArtifactStore,ResultStaleStates,RuleRuns"),
         ("ImportAuthorizedPreparerFromFileHandler", "Import/ImportAuthorizedPreparerFromFileHandler.cs", "FilterScenarios,ReferenceDataFacts,ReportArtifactStore,ResultStaleStates,RuleRuns"),
         ("ClearAuthorizedPreparerHandler", "Import/ImportAuthorizedPreparerFromFileHandler.cs", "AuthorizedPreparers,FilterScenarios,ReportArtifactStore,ResultStaleStates,RuleRuns"),
         ("ImportCalendarHandler", "Import/ImportCalendarHandlers.cs", "FilterScenarios,ReferenceDataFacts,ReportArtifactStore,ResultStaleStates,RuleRuns"),

@@ -1,5 +1,4 @@
 using System.Data;
-using System.Text.Json;
 using JET.Domain;
 
 namespace JET.Infrastructure;
@@ -166,21 +165,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
             }
         }
 
-        await using var scenarios = connection.CreateCommand();
-        scenarios.Transaction = transaction;
-        scenarios.CommandText = "SELECT definition_json FROM config_filter_scenario;";
-        await using var reader = await scenarios.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            using var document = JsonDocument.Parse(reader.GetString(0));
-            foreach (var deletedId in deletedIds)
-            {
-                if (AccountTaxonomyStoreSupport.ContainsString(document.RootElement, deletedId))
-                {
-                    InUse(deletedId, currentCategories);
-                }
-            }
-        }
+        // 已存篩選情境不擋刪除：分類設定的修改會在同一交易內清掉全部情境（使用者 2026-10-07 裁定上游修改清除下游）。
     }
 
     private static void EnsureRevision(int expected, int actual)
@@ -196,7 +181,7 @@ public sealed class LocalAccountTaxonomyStore(ILocalProjectDatabase database) : 
     private static void InUse(string categoryId, IReadOnlyList<AccountTaxonomyCategory> currentCategories) =>
         throw new JetActionException(
             JetErrorCodes.TaxonomyCategoryInUse,
-            $"科目分類「{AccountTaxonomyStoreSupport.DisplayLabel(categoryId, currentCategories)}」仍被科目配對或篩選情境使用，無法刪除。請先改掉使用這個分類的科目配對或篩選情境，再刪除分類。");
+            AccountTaxonomyStoreSupport.InUseMessage(categoryId, currentCategories));
 }
 
 internal static class AccountTaxonomyStoreSupport
@@ -206,20 +191,7 @@ internal static class AccountTaxonomyStoreSupport
         categories.FirstOrDefault(item => string.Equals(item.CategoryId, categoryId, StringComparison.Ordinal))?.Label
         ?? "要刪除的分類";
 
-    internal static bool ContainsString(JsonElement element, string expected)
-    {
-        if (element.ValueKind == JsonValueKind.String)
-        {
-            return string.Equals(element.GetString(), expected, StringComparison.Ordinal);
-        }
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            return element.EnumerateObject().Any(property => ContainsString(property.Value, expected));
-        }
-        if (element.ValueKind == JsonValueKind.Array)
-        {
-            return element.EnumerateArray().Any(item => ContainsString(item, expected));
-        }
-        return false;
-    }
+    /// <summary>只有科目配對仍指到的分類會擋下刪除；已存篩選情境會隨分類修改一併清除，不在此列。</summary>
+    internal static string InUseMessage(string categoryId, IReadOnlyList<AccountTaxonomyCategory> categories) =>
+        $"科目分類「{DisplayLabel(categoryId, categories)}」仍有科目配對使用，無法刪除。請先把這些科目改到其他分類，再刪除這個分類。";
 }

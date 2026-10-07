@@ -15,8 +15,6 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
 {
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
-    private static readonly string[] GlEntryColumns =
-        ["documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr"];
 
     private static readonly string[] GlExcludedEntryColumns =
     [
@@ -25,8 +23,6 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
     ];
 
     private static readonly string[] TbBalanceColumns = ["accountCode", "accountName", "changeAmount"];
-
-    private static readonly string[] AccountMappingColumns = ["accountCode", "accountName", "standardizedCategory"];
 
     private static readonly string[] AuthorizedPreparerColumns = ["preparerName"];
 
@@ -108,78 +104,10 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
         return new DataPreviewResult(DateDimensionColumns, rows, totalCount, null);
     }
 
-    private async Task<DataPreviewResult> AccountMappingsPreviewAsync(
-        SqlConnection connection, string projectId, int limit, CancellationToken cancellationToken)
-    {
-        string? batchId = null;
-        var directEdit = false;
-        List<string> sourceColumns = [];
-        await using (var findBatch = database.CreateCommand(connection, projectId,
-            """
-            SELECT TOP 1 batch_id, columns_json, source_file_name
-            FROM {s}.import_batch
-            WHERE dataset_kind = @kind
-            ORDER BY imported_utc DESC, batch_id DESC;
-            """))
-        {
-            findBatch.Parameters.AddWithValue("@kind", DatasetKind.AccountMapping.ToStorageName());
-            await using var batchReader = await findBatch.ExecuteReaderAsync(cancellationToken);
-            if (await batchReader.ReadAsync(cancellationToken))
-            {
-                batchId = batchReader.GetString(0);
-                sourceColumns = JsonSerializer.Deserialize<List<string>>(batchReader.GetString(1), JsonOptions) ?? [];
-                directEdit = batchReader.GetString(2) == AccountMappingEditorRepository.EditorSourceName;
-            }
-        }
-
-        if (batchId is null)
-        {
-            return new DataPreviewResult([], [], 0, null);
-        }
-
-        if (directEdit)
-            return await AccountMappingEditorRepository.PreviewSavedAsync(connection, SqlServerDialect.Instance,
-                SqlServerProjectSchema.QualifierFor(projectId), limit, cancellationToken);
-        var resolution = AccountMappingColumnResolver.Resolve(sourceColumns);
-        long totalCount;
-        await using (var count = database.CreateCommand(connection, projectId,
-            "SELECT COUNT_BIG(*) FROM {s}.staging_account_mapping_raw_row WHERE batch_id = @batchId;"))
-        {
-            count.Parameters.AddWithValue("@batchId", batchId);
-            totalCount = Convert.ToInt64(await count.ExecuteScalarAsync(cancellationToken));
-        }
-
-        await using var command = database.CreateCommand(connection, projectId,
-            """
-            SELECT row_json
-            FROM {s}.staging_account_mapping_raw_row
-            WHERE batch_id = @batchId
-            ORDER BY row_number
-            OFFSET 0 ROWS FETCH NEXT @limit ROWS ONLY;
-            """);
-        command.Parameters.AddWithValue("@batchId", batchId);
-        command.Parameters.AddWithValue("@limit", limit);
-
-        var rows = new List<IReadOnlyList<string?>>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            var values = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(0), JsonOptions)
-                ?? [];
-            rows.Add(
-            [
-                ValueOrNull(values, resolution.CodeColumn),
-                ValueOrNull(values, resolution.NameColumn),
-                ValueOrNull(values, resolution.CategoryColumn)
-            ]);
-        }
-
-        return new DataPreviewResult(AccountMappingColumns, rows, totalCount, null);
-    }
-
-    private static string? ValueOrNull(IReadOnlyDictionary<string, string> values, string column)
-        => values.TryGetValue(column, out var value) ? value : null;
-
+    private Task<DataPreviewResult> AccountMappingsPreviewAsync(
+        SqlConnection connection, string projectId, int limit, CancellationToken cancellationToken) =>
+        AccountMappingEditorRepository.PreviewSavedAsync(connection, SqlServerDialect.Instance,
+            SqlServerProjectSchema.QualifierFor(projectId), limit, cancellationToken);
     private async Task<DataPreviewResult> AuthorizedPreparersPreviewAsync(
         SqlConnection connection, string projectId, int limit, CancellationToken cancellationToken)
     {
@@ -316,7 +244,7 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
         await using (var select = database.CreateCommand(connection, projectId,
             $$"""
             SELECT document_number, line_item, post_date, account_code, account_name,
-                   document_description, amount_scaled, dr_cr
+                   document_description, amount_scaled, dr_cr, is_manual
             FROM {s}.target_gl_entry
             WHERE {{GlEffectivePopulation.SqlPredicate()}}
             ORDER BY entry_id
@@ -337,12 +265,13 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
                     reader.IsDBNull(4) ? null : reader.GetString(4),
                     reader.IsDBNull(5) ? null : reader.GetString(5),
                     ToDisplayAmount(reader.GetInt64(6), moneyScale).ToString(CultureInfo.InvariantCulture),
-                    reader.GetString(7)
+                    reader.GetString(7),
+                    DataPreviewColumns.ManualAuto(reader, 8)
                 ]);
             }
         }
 
-        return new DataPreviewResult(GlEntryColumns, rows, totalCount, stats);
+        return new DataPreviewResult(DataPreviewColumns.GlEntries, rows, totalCount, stats);
     }
 
     private async Task<DataPreviewResult> GlExcludedEntriesPreviewAsync(

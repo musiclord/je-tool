@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -10,17 +11,19 @@ namespace JET.Application;
 /// staging 與 target 寫入由 store 在同一 transaction 完成。
 /// replace-only：科目配對是整份替換的設定檔（append → unsupported_mode）。
 /// </summary>
-public sealed class ImportAccountMappingHandler : IApplicationActionHandler
+public sealed partial class ImportAccountMappingHandler : IApplicationActionHandler
 {
     private readonly ITabularFileReader reader;
     private readonly ProjectSession session;
+    private readonly ILogger? logger;
 
     internal ImportAccountMappingHandler(
         ITabularFileReader reader,
-        ProjectSession session)
+        ProjectSession session, ILogger? logger = null)
     {
         this.reader = reader;
         this.session = session;
+        this.logger = logger;
     }
 
     public string Action => "import.accountMapping.fromFile";
@@ -78,9 +81,18 @@ public sealed class ImportAccountMappingHandler : IApplicationActionHandler
             },
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
-
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
+        AccountMappingDifferenceCounts? differences = null;
+        try
+        {
+            differences = await repositories.AccountMappingDifferences.CountAsync(projectId, CancellationToken.None);
+        }
+        catch (Exception error)
+        {
+            // 寫入已完成。摘要可從清單重算，不能讓畫面誤以為匯入失敗。
+            if (logger is not null) DifferenceSummaryFailed(logger, error.GetType().Name);
+        }
         return new
         {
             batchId = result.Import.BatchId,
@@ -92,10 +104,16 @@ public sealed class ImportAccountMappingHandler : IApplicationActionHandler
             hasRevenue = result.State.HasRevenue,
             hasCounterpart = result.State.HasCounterpart,
             blankCategoryCount = result.State.BlankCategoryCount,
+            mappingOnlyCount = differences?.MappingOnlyCount,
+            unmappedCount = differences?.UnmappedCount,
+            columnMappingWarning = result.ColumnMappingWarning,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
             reportArtifacts = mutationState.ReportArtifacts,
             reportArtifactWarning = mutationState.ReportArtifactWarning
         };
     }
+
+    [LoggerMessage(EventName = "import.account_mapping.summary_failed", Level = LogLevel.Warning, Message = "Account mapping import committed; difference summary unavailable. Error type: {error_type}")]
+    private static partial void DifferenceSummaryFailed(ILogger logger, string error_type);
 }

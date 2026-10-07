@@ -153,8 +153,10 @@ public sealed class ProjectFolderPortabilityTests
                 shell.RevealedPaths[0]);
             Assert.Equal(Path.GetFullPath(targetProjectDirectory), shell.RevealedPaths[1]);
 
-            // 變更非工作日會清除既有 prescreen/filter 命中，但保留情境定義；首頁查詢應在新根惰性補算。
-            await target.DispatchAsync("calendar.setNonWorkingDays", """{ "days": [5, 6] }""");
+            // 情境定義保留、命中清空時，首頁查詢應在新根惰性補算。使用者 2026-10-07 裁定上游修改清除下游後，
+            // 變更非工作日會連情境一起清掉，改用開案規則升版的情境整批取代製造這個狀態。
+            // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+            await SavedScenarioReplay.ReplaceLikeRuleUpgradeAsync(target, projectId, databaseProvider);
             var lazyPage = await target.DispatchAsync(
                 "query.filterHitsPage",
                 """{ "scenarioPosition": 1, "pageSize": 200 }""");

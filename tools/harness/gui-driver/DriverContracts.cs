@@ -28,6 +28,8 @@ internal static class GuiScenarioCatalog
     internal const string LegacyFormWorkflow = "legacy-form-workflow";
     internal const string LegacyFormCatalog = "legacy-form-catalog";
     internal const string AuthorizedListRecovery = "authorized-list-recovery";
+    internal const string UpstreamChangeAfterExport = "upstream-change-after-export";
+    internal const string CaseToWorkpaper = "case-to-workpaper";
 
     // 這裡只記每個情境需要的合成夾具。操作上限、預期次數、逾時與截圖數只寫在 tools/harness/lanes.json，
     // 由驗證框架以命令列參數傳進來。
@@ -50,6 +52,8 @@ internal static class GuiScenarioCatalog
         [NestedVoucherWorkflow] = ["seed-export-ready-project"],
         [LegacyFormWorkflow] = ["seed-export-ready-project", "legacy-form-source"],
         [LegacyFormCatalog] = ["seed-export-ready-project", "legacy-form-source"],
+        [UpstreamChangeAfterExport] = ["seed-six-stage-complete-project"],
+        [CaseToWorkpaper] = ["case-import-source"],
     };
 
     internal static bool TryResolve(
@@ -222,6 +226,8 @@ internal sealed class GuiAssertions
     internal bool LegacyFormWorkflowVerified { get; set; }
     internal bool LegacyFormCatalogVerified { get; set; }
     internal bool AuthorizedListRecoveryVerified { get; set; }
+    internal bool UpstreamChangeAfterExportVerified { get; set; }
+    internal bool CaseToWorkpaperVerified { get; set; }
 }
 
 internal sealed class GuiProcessEvidence
@@ -395,6 +401,8 @@ internal static class ManifestWriter
                 legacyFormWorkflowVerified = outcome.Assertions.LegacyFormWorkflowVerified,
                 legacyFormCatalogVerified = outcome.Assertions.LegacyFormCatalogVerified,
                 authorizedListRecoveryVerified = outcome.Assertions.AuthorizedListRecoveryVerified,
+                upstreamChangeAfterExportVerified = outcome.Assertions.UpstreamChangeAfterExportVerified,
+                caseToWorkpaperVerified = outcome.Assertions.CaseToWorkpaperVerified,
                 workpaperHistoryPaginationVerified = outcome.Assertions.WorkpaperHistoryPaginationVerified
             },
             process = new

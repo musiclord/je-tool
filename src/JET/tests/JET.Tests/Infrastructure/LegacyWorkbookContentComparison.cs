@@ -183,7 +183,9 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
         string reportSlug,
         string workbookPath,
         bool excludeJetMetadataSheet,
-        Func<string, int, int, bool>? contentMask)
+        Func<string, int, int, bool>? contentMask,
+        bool normalizeLegacyManualAuto = false,
+        bool preserveManualAutoBlanks = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reportSlug);
         ArgumentException.ThrowIfNullOrWhiteSpace(workbookPath);
@@ -225,6 +227,9 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
             }
 
             var parsed = ParseSheet(worksheetPart, shared, sheetName, contentMask);
+            if (reportSlug == "working-paper" && (normalizeLegacyManualAuto || preserveManualAutoBlanks)
+                && ResolveDirectFamilyBase(["step4-1 符合高風險條件傳票明細"], sheetName) is not null)
+                parsed = PrepareManualAutoColumn(parsed, normalizeLegacyManualAuto);
             sheets.Add(BuildPhysicalSheet(sheetName, parsed));
 
             var baseName = ResolveDirectFamilyBase(familyHeaderRows.Keys, sheetName);
@@ -275,6 +280,24 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
         IReadOnlyList<(int Column, string Kind, string Value, string Formula)> Cells);
 
     private sealed record ParsedSheet(IReadOnlyList<ParsedRow> Rows);
+
+    private static ParsedSheet PrepareManualAutoColumn(ParsedSheet parsed, bool legacyValues)
+    {
+        var columns = parsed.Rows.FirstOrDefault(row => row.RowIndex == 5)?.Cells
+            .Where(cell => cell.Value == "人工傳票否_JE_S").Select(cell => cell.Column).ToArray() ?? [];
+        if (columns.Length != 1) return parsed;
+        var column = columns[0];
+        return new ParsedSheet(parsed.Rows.Select(row =>
+        {
+            if (row.RowIndex <= 5) return row;
+            var cells = row.Cells.Select(cell => legacyValues && cell.Column == column
+                && cell.Formula.Length == 0 && cell.Kind is "number" or "text" && cell.Value is "1" or "0"
+                ? (cell.Column, "text", cell.Value == "1" ? "人工" : "自動", cell.Formula) : cell).ToList();
+            // 空白也保留位置，避免人工旗標在兩列之間移動卻因省略空值而被當成相同。
+            if (!cells.Any(cell => cell.Column == column)) cells.Add((column, "text", "", ""));
+            return row with { Cells = cells.OrderBy(cell => cell.Column).ToArray() };
+        }).ToArray());
+    }
 
     private sealed class DirectFamilyBuilder(int headerRowIndex)
     {

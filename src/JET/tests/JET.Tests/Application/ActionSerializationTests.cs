@@ -16,6 +16,13 @@ namespace JET.Tests.Application;
 public sealed class ActionSerializationTests
 {
     [Fact]
+    public void CalendarTemplateExportDoesNotRetainAnUnusedDatabase()
+    {
+        Assert.True(ActionExecutionPolicy.IsClassified("export.calendarTemplates"));
+        Assert.False(ActionExecutionPolicy.RetainsProjectDatabase("export.calendarTemplates"));
+        Assert.True(ActionExecutionPolicy.RetainsProjectDatabase("export.accountMappingTemplate"));
+    }
+    [Fact]
     public void OperationCancel_IsConcurrentSoItCanReachAnInFlightExclusiveAction()
     {
         Assert.True(ActionExecutionPolicy.IsClassified("operation.cancel"));

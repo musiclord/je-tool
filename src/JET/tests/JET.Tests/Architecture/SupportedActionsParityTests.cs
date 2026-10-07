@@ -18,6 +18,15 @@ namespace JET.Tests.Architecture;
 public sealed class SupportedActionsParityTests
 {
     [Fact]
+    public void K15_CalendarTemplateAction_IsRegisteredAndClassified()
+    {
+        using var host = new HandlerTestHost();
+        Assert.Contains("export.calendarTemplates", host.Dispatcher.RegisteredActions);
+        Assert.Contains("export.calendarTemplates", ReadFrontendSupportedActions());
+        Assert.True(ActionExecutionPolicy.IsClassified("export.calendarTemplates"));
+    }
+
+    [Fact]
     public void FrontendSupportedActions_MatchDispatcherForBuildConfiguration()
     {
         var frontendActions = ReadFrontendSupportedActions();

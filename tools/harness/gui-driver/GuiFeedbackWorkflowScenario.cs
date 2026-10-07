@@ -17,7 +17,7 @@ internal static partial class GuiScenarios
         {
             outcome.RecordStage(phase);
             var value = await cdp.EvaluateAsync("(()=>{var state=window.JetStore.getState();return {ok:!!(" +
-                expression + "),busy:state.busy};})()", ct);
+                expression + "),busy:state.busy,selectedAccounts:Array.from(document.querySelectorAll('[data-account-select]:checked')).map(e=>e.getAttribute('data-account-select')),selectionCount:document.querySelector('[data-account-selection-count]')?.textContent,saveDisabled:document.querySelector('[data-account-save]')?.disabled,tableScroll:document.querySelector('.account-editor__table')?.scrollTop,selecting:!!document.querySelector('.account-editor__table--selecting')};})()", ct);
             outcome.LastFilterProbe = value.Clone();
             if (!ReadBoolean(value, "ok")) throw new GuiCheckException(phase);
         }

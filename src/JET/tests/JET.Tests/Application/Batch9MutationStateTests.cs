@@ -16,9 +16,9 @@ public sealed class Batch9MutationStateTests
         foreach (var provider in new[] { "sqlite", "duckdb" })
         {
             data.Add(provider, "import.gl.fromFile", true, true, true);
-            data.Add(provider, "import.tb.fromFile", true, false, false);
+            data.Add(provider, "import.tb.fromFile", true, true, true);
             data.Add(provider, "mapping.commit.gl", true, true, true);
-            data.Add(provider, "mapping.commit.tb", true, false, false);
+            data.Add(provider, "mapping.commit.tb", true, true, true);
             foreach (var action in new[]
             {
                 "import.accountMapping.fromFile", "accountMapping.save", "accountTaxonomy.save",
@@ -40,8 +40,11 @@ public sealed class Batch9MutationStateTests
         using var host = new HandlerTestHost();
         var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
         var response = await MutateAsync(host, prepared.Id, action);
-        AssertFlags(response.GetProperty("invalidatedResults"), validation, prescreen, filter);
-        AssertFlags(response.GetProperty("staleState"), validation, prescreen, filter);
+        // 使用者 2026-10-07 裁定上游修改清除下游：invalidatedResults 多了 filterScenarios，與 filter 同值；
+        // 篩選命中失效時情境也一起清掉，staleState.filter 回到從未執行，因此恆為 false。
+        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        AssertInvalidated(response.GetProperty("invalidatedResults"), validation, prescreen, filter);
+        AssertFlags(response.GetProperty("staleState"), validation, prescreen, false);
         Assert.Equal(JsonValueKind.Array, response.GetProperty("reportArtifacts").ValueKind);
         Assert.Empty(response.GetProperty("reportArtifacts").EnumerateArray());
         Assert.Equal(JsonValueKind.Null, response.GetProperty("reportArtifactWarning").ValueKind);
@@ -58,7 +61,8 @@ public sealed class Batch9MutationStateTests
             caseName = "Batch9-Empty", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         var response = await host.DispatchAsync("import.holiday", """{"dates":["2025-01-01"]}""");
-        AssertFlags(response.GetProperty("invalidatedResults"), false, true, true);
+        // 鍵集合多了 filterScenarios（使用者 2026-10-07 裁定上游修改清除下游）；第一次失敗收據同上。
+        AssertInvalidated(response.GetProperty("invalidatedResults"), false, true, true);
         AssertFlags(response.GetProperty("staleState"), false, false, false);
     }
 
@@ -80,18 +84,21 @@ public sealed class Batch9MutationStateTests
                 .WaitAsync(TimeSpan.FromSeconds(6));
             Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5));
             Assert.Equal(1, response.GetProperty("count").GetInt32());
-            AssertFlags(response.GetProperty("invalidatedResults"), false, true, true);
-            AssertFlags(response.GetProperty("staleState"), false, true, true);
+            // 使用者 2026-10-07 裁定上游修改清除下游：情境一起清掉，filter 回到從未執行；第一次失敗收據
+            // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+            AssertInvalidated(response.GetProperty("invalidatedResults"), false, true, true);
+            AssertFlags(response.GetProperty("staleState"), false, true, false);
             Assert.Equal(JsonValueKind.Null, response.GetProperty("reportArtifacts").ValueKind);
             Assert.Equal("變更已儲存，報告清單暫時無法更新。請稍後重新開啟案件查看，無須重做變更。",
                 response.GetProperty("reportArtifactWarning").GetString());
         }
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
         Assert.Equal(1, loaded.GetProperty("importState").GetProperty("calendar").GetProperty("holidayCount").GetInt32());
-        AssertFlags(loaded.GetProperty("staleState"), false, true, true);
+        AssertFlags(loaded.GetProperty("staleState"), false, true, false);
+        Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
     }
 
-    private static async Task<JsonElement> MutateAsync(HandlerTestHost host, string id, string action)
+    internal static async Task<JsonElement> MutateAsync(HandlerTestHost host, string id, string action)
     {
         if (action.StartsWith("mapping.commit.", StringComparison.Ordinal))
         {
@@ -161,6 +168,15 @@ public sealed class Batch9MutationStateTests
             return await host.DispatchAsync(action, JsonSerializer.Serialize(new { filePath = path, sourceColumn = "Personnel" }));
         }
         finally { TestWorkbookBuilder.Delete(path); }
+    }
+
+    private static void AssertInvalidated(JsonElement value, bool validation, bool prescreen, bool filter)
+    {
+        Assert.Equal(new[] { "filter", "filterScenarios", "prescreen", "validation" }, value.EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(validation, value.GetProperty("validation").GetBoolean());
+        Assert.Equal(prescreen, value.GetProperty("prescreen").GetBoolean());
+        Assert.Equal(filter, value.GetProperty("filter").GetBoolean());
+        Assert.Equal(filter, value.GetProperty("filterScenarios").GetBoolean());
     }
 
     private static void AssertFlags(JsonElement value, bool validation, bool prescreen, bool filter)

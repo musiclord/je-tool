@@ -49,7 +49,10 @@ public sealed class ResultInvalidationNonWorkingDaysTests
 
         Assert.NotEqual(JsonValueKind.Null, LatestRunKind(loaded, "validate"));
         Assert.Equal(JsonValueKind.Null, LatestRunKind(loaded, "prescreen"));
-        Assert.Single(loaded.GetProperty("filterScenarios").EnumerateArray());
+        // 使用者 2026-10-07 裁定上游修改清除下游：改非工作日會清掉已存情境，重新儲存後命中才依新設定計算。
+        // 原本斷言情境保留，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
+        await CommitWeekendScenarioAsync(reopened);
 
         var after = await reopened.DispatchAsync(
             "query.filterHitsPage", """{ "scenarioPosition": 1, "pageSize": 500 }""");

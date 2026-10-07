@@ -73,11 +73,13 @@ public sealed class SqlServerDataPreviewRepositoryTests
             CancellationToken.None);
 
         Assert.Equal(
-            ["documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr"],
+            ["documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr", "manualAuto"],
             result.Columns);
         Assert.Equal(2, result.TotalCount);
         var row = Assert.Single(result.Rows);
-        Assert.Equal(["JV-100", "1", "2024-01-01", "1101", "現金", "借方", "1234.56", "DEBIT"], row);
+        Assert.Equal(["JV-100", "1", "2024-01-01", "1101", "現金", "借方", "1234.56", "DEBIT", "manual"], row);
+        var both = await repository.GetPreviewAsync(project.ProjectId, DataPreviewDataset.GlEntries, 100, 2, CancellationToken.None);
+        Assert.Equal("automatic", both.Rows[1][8]);
         var stats = Assert.IsType<GlEntriesPreviewStats>(result.Stats);
         Assert.Equal(25m, stats.AmountAbsMin);
         Assert.Equal(1234.56m, stats.AmountAbsMax);
@@ -177,9 +179,9 @@ public sealed class SqlServerDataPreviewRepositoryTests
             CancellationToken.None);
 
         Assert.Equal(["accountCode", "accountName", "standardizedCategory"], result.Columns);
-        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(2, result.TotalCount);
         var row = Assert.Single(result.Rows);
-        Assert.Equal(["1101", "現金", ""], row);
+        Assert.Equal(["1101", "現金", "Cash"], row);
         Assert.Null(result.Stats);
     }
 
@@ -280,16 +282,16 @@ public sealed class SqlServerDataPreviewRepositoryTests
             INSERT INTO {{s}}target_gl_entry (
                 batch_id, source_row_number, document_number, line_item, post_date, posting_status,
                 is_effective, exclusion_reason, account_code, account_name, document_description,
-                amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
+                amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_manual)
             VALUES
                 ('gl-target', 2, 'JV-100', '1', '2024-01-01', 'POSTED', 1, NULL,
-                 '1101', N'現金', N'借方', 123456, 123456, 0, 'DEBIT'),
+                 '1101', N'現金', N'借方', 123456, 123456, 0, 'DEBIT', 1),
                 ('gl-target', 3, 'JV-200', '1', '2024-01-31', 'POSTED', 1, NULL,
-                 '4101', N'銷貨', N'貸方', -2500, 0, 2500, 'CREDIT'),
+                 '4101', N'銷貨', N'貸方', -2500, 0, 2500, 'CREDIT', 0),
                 ('gl-target', 4, 'JV-300', '1', NULL, 'POSTED', 0, 'period',
-                 '5200', N'一般費用', N'期外', 1000, 1000, 0, 'DEBIT'),
+                 '5200', N'一般費用', N'期外', 1000, 1000, 0, 'DEBIT', NULL),
                 ('gl-target', 5, 'JV-400', '1', '2024-02-01', 'DRAFT', 0, 'posting_status',
-                 '6100', N'其他費用', N'未過帳', -750, 0, 750, 'CREDIT');
+                 '6100', N'其他費用', N'未過帳', -750, 0, 750, 'CREDIT', NULL);
 
             INSERT INTO {{s}}target_tb_balance (batch_id, source_row_number, account_code, account_name, change_amount_scaled)
             VALUES

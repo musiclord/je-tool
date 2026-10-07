@@ -48,6 +48,14 @@ public sealed class FilterConditionRendererTests
         return FilterConditionRenderer.Render(document.RootElement);
     }
 
+    [Fact]
+    public void K1_ReadbackIncludesActualMergedPeriodEndWindows()
+    {
+        using var doc = JsonDocument.Parse("""{"groups":[{"rules":[{"type":"revenueDebitNearQuarterEnd","windowDays":5}]}]}""");
+        Assert.Equal("季底或查核期末前 5 天借記收入；日期區間：2025-11-26～2025-11-30",
+            FilterConditionRenderer.Render(doc.RootElement, null, periodStart: "2025-11-01", periodEnd: "2025-11-30"));
+    }
+
     // ---- 單組（ne=1）----
 
     [Fact]
@@ -510,8 +518,8 @@ public sealed class FilterConditionRendererTests
     [InlineData("""{"join":"AND","type":"customTrailingZeros","digits":"6"}""", "金額尾數連續 6 個 0")]
     [InlineData("""{"join":"AND","type":"customPreparerEntryCount","maxEntries":"11"}""", "分錄測試範圍內編製人員分錄筆數 ≤ 11")]
     [InlineData("""{"join":"AND","type":"customAccountEntryCount","maxEntries":"11"}""", "分錄測試範圍內科目分錄筆數 ≤ 11")]
-    [InlineData("""{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":"5"}""", "季末前 5 天借記收入")]
-    [InlineData("""{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":""}""", "季末前 … 天借記收入")]
+    [InlineData("""{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":"5"}""", "季底或查核期末前 5 天借記收入")]
+    [InlineData("""{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":""}""", "季底或查核期末前 … 天借記收入")]
     [InlineData("""{"join":"AND","type":"revenueWithoutNormalCounterpart"}""", "貸方為收入，借方非應收或預收")]
     [InlineData("""{"join":"AND","type":"manualRevenueEntry"}""", "收入之人工分錄")]
     [InlineData("""{"join":"AND","type":"trailingDigits","keywords":"999999"}""", "金額整數部分（不含小數）末 6 位 = 999999")]

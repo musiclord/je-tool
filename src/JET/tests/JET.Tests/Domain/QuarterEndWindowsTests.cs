@@ -10,6 +10,16 @@ namespace JET.Tests.Domain;
 /// </summary>
 public sealed class QuarterEndWindowsTests
 {
+    [Theory]
+    [InlineData("2025-11-01", "2025-11-30", "2025-11-26..2025-11-30")]
+    [InlineData("2025-12-01", "2025-12-31", "2025-12-27..2025-12-31")]
+    [InlineData("2025-09-01", "2025-10-03", "2025-09-26..2025-10-03")]
+    [InlineData("2025-09-01", "2025-10-05", "2025-09-26..2025-10-05")]
+    public void K1_PeriodEndWindow_IsIncludedWithoutDuplicatesAndMerged(string start, string end, string expected)
+    {
+        Assert.Equal([expected], WindowStrings(start, end, 5));
+    }
+
     private static IReadOnlyList<string> WindowStrings(string start, string end, int days) =>
         QuarterEndWindows.Compute(start, end, days)
             .Select(w => $"{w.FromIso}..{w.ToIso}")
@@ -46,25 +56,25 @@ public sealed class QuarterEndWindowsTests
     [Fact]
     public void Compute_MaxWindowDays_IsAccepted()
     {
-        // BVA：X=92（上界）→ 仍產出四個視窗（不空）。
-        Assert.Equal(4, QuarterEndWindows.Compute("2025-01-01", "2025-12-31", 92).Count);
+        // BVA：X=92（上界）→ 相連或重疊的四季視窗合併（K1）。
+        Assert.Equal(["2024-12-30..2025-12-31"], WindowStrings("2025-01-01", "2025-12-31", 92));
     }
 
     [Fact]
     public void Compute_PeriodSpanningYearEnd_KeepsOnlyIntersectingQuarterEnds()
     {
-        // 期間 2025-12-01～2026-02-28、X=2：只有 2025-12-31 的視窗 [12-30,12-31] 與期間相交；
+        // 期間 2025-12-01～2026-02-28、X=2：包含 2025-12-31 的視窗及查核期末視窗；
         // 2026-03-31 視窗起點 03-30 已超出期末、2025 前三季底在期初之前 → 排除。
         Assert.Equal(
-            ["2025-12-30..2025-12-31"],
+            ["2025-12-30..2025-12-31", "2026-02-27..2026-02-28"],
             WindowStrings("2025-12-01", "2026-02-28", 2));
     }
 
     [Fact]
-    public void Compute_PeriodBetweenQuarterEnds_ReturnsEmpty()
+    public void Compute_PeriodBetweenQuarterEnds_ReturnsPeriodEnd()
     {
         // 期間 2025-04-01～2025-05-31 不含任何季底視窗（03-31 在期初前、06-30 視窗在期末後）。
-        Assert.Empty(QuarterEndWindows.Compute("2025-04-01", "2025-05-31", 3));
+        Assert.Equal(["2025-05-29..2025-05-31"], WindowStrings("2025-04-01", "2025-05-31", 3));
     }
 
     [Fact]

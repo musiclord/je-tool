@@ -27,6 +27,8 @@ internal static class PrivateCaseReportDifferencePolicy
     internal const string ApprovedCompletenessTotals = "approved-completeness-totals";
     internal const string ApprovedInfSampling = "approved-inf-sampling";
     internal const string ApprovedPrescreenRule = "approved-prescreen-rule";
+    // 2026-10-06 K5：只在明示比對裁定時正規化 Step 4-1 舊端人工旗標；正規化後不得放行該欄差異。
+    internal const string ApprovedManualAutoDisplay = "approved-manual-auto-display";
 
     internal const string UnifiedFormalWorkbookFont = "unified-formal-workbook-font";
     internal const string DynamicSafeWidth = "dynamic-safe-width";
@@ -80,6 +82,8 @@ internal static class PrivateCaseReportDifferencePolicy
             (string, LegacyAuditParityContentDimension, string),
             (string, string)>
         {
+            [("step41-manual-auto", LegacyAuditParityContentDimension.RowValues,
+                ApprovedManualAutoDisplay)] = ("working-paper", "step4-1 符合高風險條件傳票明細"),
             [("validation-v5", LegacyAuditParityContentDimension.RowValues,
                 ApprovedCompletenessTotals)] = ("validation-report", "V_Report 5"),
             [("inf-all-fields", LegacyAuditParityContentDimension.RowCount,
@@ -118,6 +122,11 @@ internal static class PrivateCaseReportDifferencePolicy
                 && string.Equals(target.SheetName, difference.SheetName, StringComparison.Ordinal)
                 && decision.Dimension == difference.Dimension)
             {
+                if (decision.DecisionId == ApprovedManualAutoDisplay)
+                {
+                    // 此裁定只允許讀取舊端時正規化，不能接受正規化後的任何值差異。
+                    continue;
+                }
                 return decision.DecisionId;
             }
         }
@@ -144,6 +153,28 @@ internal static class PrivateCaseReportDifferencePolicy
             return DetailRowOrdering;
         }
         return null;
+    }
+
+    internal static bool NormalizeManualAuto(IReadOnlyList<PrivateCaseExplicitContentDecision> decisions) =>
+        decisions.Any(decision => decision.Scope == "step41-manual-auto"
+            && decision.Dimension == LegacyAuditParityContentDimension.RowValues && decision.DecisionId == ApprovedManualAutoDisplay);
+
+    internal static LegacyAuditParityContentComparisonResult RequireExactManualAuto(
+        LegacyAuditParityNormalizedWorkbook expected, LegacyAuditParityNormalizedWorkbook actual,
+        LegacyAuditParityContentComparisonResult comparison)
+    {
+        const string sheet = "step4-1 符合高風險條件傳票明細";
+        var key = HashHeader("人工傳票否_JE_S");
+        var left = expected.DirectFamilies.SingleOrDefault(f => f.BaseSheetName == sheet);
+        var right = actual.DirectFamilies.SingleOrDefault(f => f.BaseSheetName == sheet);
+        var leftColumn = left?.Columns.SingleOrDefault(c => c.Key == key);
+        var rightColumn = right?.Columns.SingleOrDefault(c => c.Key == key);
+        if (leftColumn?.SequenceDigest == rightColumn?.SequenceDigest
+            && left?.ColumnNameHashes.Count(c => c == key) == right?.ColumnNameHashes.Count(c => c == key)) return comparison;
+        // 一般比對容許資料列排序或獨有欄位差異，此裁定不適用那些豁免。
+        if (comparison.Differences.Any(d => d.SheetName == sheet && d.Dimension == LegacyAuditParityContentDimension.RowValues)) return comparison;
+        return comparison with { Differences = [.. comparison.Differences,
+            new LegacyAuditParityContentDifference("working-paper", sheet, LegacyAuditParityContentDimension.RowValues, 1)] };
     }
 
     internal static string? ResolveAppearance(

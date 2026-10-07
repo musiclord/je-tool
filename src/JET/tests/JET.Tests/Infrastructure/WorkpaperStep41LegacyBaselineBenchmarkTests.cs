@@ -126,7 +126,7 @@ public sealed class WorkpaperStep41LegacyBaselineBenchmarkTests(ITestOutputHelpe
         "#,##0.0000",
         "@",
         "@",
-        "0",
+        "@",
         "@",
         "@",
         "@",
@@ -1294,12 +1294,12 @@ public sealed class WorkpaperStep41LegacyBaselineBenchmarkTests(ITestOutputHelpe
         }
         if (!string.Equals(
                 cells[11].Value,
-                sourceRow % 2 == 1 ? "1" : "0",
+                sourceRow % 2 == 1 ? "人工" : "自動",
                 StringComparison.Ordinal)
-            || !string.Equals(cells[11].Kind, "N", StringComparison.Ordinal))
+            || !string.Equals(cells[11].Kind, "T", StringComparison.Ordinal))
         {
             throw new InvalidDataException(
-                $"Step4-1 {expectedToken} 的 manual 0/1 native 型態不正確。");
+                $"Step4-1 {expectedToken} 的 人工或自動的文字型態不正確。");
         }
 
         if (!string.Equals(

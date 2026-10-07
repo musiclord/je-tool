@@ -36,6 +36,7 @@
   var mappingCommitErrors = { gl: null, tb: null };
   var pendingCodeInputs = null;
   var codeComparisonScope = null;
+  var pendingCreationDate = null;
 
   Ui.registerWorkflowReset(function () {
     sourceResponseGuards.gl.invalidate();
@@ -48,6 +49,7 @@
     mappingCommitErrors = { gl: null, tb: null };
     pendingCodeInputs = null;
     codeComparisonScope = null;
+    pendingCreationDate = null;
   });
 
   function glOptions() {
@@ -461,6 +463,7 @@
       '<div class="panel panel--wide panel--mapping">' +
         '<h2 class="panel__title">欄位配對</h2>' +
         '<p class="panel__hint panel__hint--wide">選擇各欄位的資料來源，標示 * 的欄位為必填。</p>' +
+        Ui.downstreamResetNoticeHtml(state) +
         mappingSection('gl', 'GL 欄位配對', Ui.GL_FIELDS, Ui.GL_MODES,
           state.importState.gl, state.mapping.gl, state.mapping.gl.amountMode) +
         mappingSection('tb', 'TB 欄位配對', Ui.TB_FIELDS, Ui.TB_MODES,
@@ -805,6 +808,45 @@
     });
   }
 
+  function selectCreationDateRde(column) {
+    pendingCreationDate = null;
+    if (Store.availableGlRdeColumns().indexOf(column) < 0) { return; }
+    var fields = glOptions().rdeFields || [];
+    var occupied = fields.find(function (field) { return field.sourceColumn === column; });
+    if (occupied && (occupied.label !== '傳票建立日' || occupied.valueType !== 'date')) {
+      pendingCreationDate = { project: Store.getState().project, batch: Store.getState().importState.gl,
+        column: column, fields: JSON.stringify(fields), label: occupied.label };
+      Store.touch();
+      return;
+    }
+    if (occupied) { return; }
+    var existing = fields.find(function (field) { return field.label === '傳票建立日'; });
+    var replacement = Object.assign({}, existing || {}, { sourceColumn: column, label: '傳票建立日', valueType: 'date' });
+    var next = fields.map(function (field) { return field === existing ? replacement : field; });
+    if (!existing) { next.push(replacement); }
+    mappingCommitErrors.gl = null;
+    Store.patchGlMappingOptions({ rdeFields: next });
+  }
+
+  function currentCreationDateRequest() {
+    if (pendingCreationDate && (pendingCreationDate.project !== Store.getState().project ||
+        pendingCreationDate.batch !== Store.getState().importState.gl ||
+        pendingCreationDate.fields !== JSON.stringify(glOptions().rdeFields || []) ||
+        Store.availableGlRdeColumns().indexOf(pendingCreationDate.column) < 0)) { pendingCreationDate = null; }
+    return pendingCreationDate;
+  }
+
+  function creationDateConfirmationHtml() {
+    var request = currentCreationDateRequest();
+    if (!request) { return ''; }
+    var other = (glOptions().rdeFields || []).some(function (field) { return field.label === '傳票建立日'; });
+    return '<div role="status" class="map-options__note">這個來源欄目前是「' + Ui.esc(request.label) + '」欄位。' +
+      '改成傳票建立日後會使用日期型別。' +
+      (other ? '另一個「傳票建立日」欄位會保留，請依來源欄確認是否需要。' : '') +
+      '<button type="button" class="btn btn--ghost" data-action="confirm-created-date">把它改成傳票建立日</button>' +
+      '<button type="button" class="btn btn--ghost" data-action="cancel-created-date">取消</button></div>';
+  }
+
   function rdeFieldsHtml(options) {
     var selected = options.rdeFields || [];
     var columns = Store.availableGlRdeColumns();
@@ -849,6 +891,9 @@
       '<legend class="map-options__legend">攸關資料元素欄位</legend>' +
       '<p class="map-options__note map-options__note--wide">勾選要用於篩選、可靠性抽樣及底稿的欄位。' +
         '未勾選的欄位只保留在原始資料。</p>' +
+      (columns.length ? '<label>傳票建立日<select data-rde-created-date data-focus-key="rde-created-date"><option value="">選擇建立日期的來源欄</option>' +
+        columns.map(function (column) { return '<option value="' + Ui.esc(column) + '"' + (selected.some(function (f) { return f.label === '傳票建立日' && f.sourceColumn === column; }) ? ' selected' : '') + '>' + Ui.esc(column) + '</option>'; }).join('') + '</select></label>' : '') +
+      creationDateConfirmationHtml() +
       (rows
         ? '<div class="map-options__inline">' +
             '<button type="button" class="btn btn--ghost btn--tiny" data-action="select-all-rde" data-focus-key="rde-select-all"' +
@@ -1653,6 +1698,24 @@
         Store.patchGlMappingOptions({ rdeFields: fields });
       });
     });
+
+    var creationDate = section.querySelector('[data-rde-created-date]');
+    if (creationDate) { creationDate.addEventListener('change', function () { selectCreationDateRde(creationDate.value); }); }
+    var creationRequest = currentCreationDateRequest();
+    var confirmCreation = section.querySelector('[data-action="confirm-created-date"]');
+    if (confirmCreation) { confirmCreation.addEventListener('click', function () {
+      if (!creationRequest || currentCreationDateRequest() !== creationRequest) { return; }
+      pendingCreationDate = null;
+      mappingCommitErrors.gl = null;
+      Store.patchGlMappingOptions({ rdeFields: (glOptions().rdeFields || []).map(function (field) {
+        return field.sourceColumn === creationRequest.column
+          ? Object.assign({}, field, { label: '傳票建立日', valueType: 'date' }) : field;
+      }) });
+    }); }
+    var cancelCreation = section.querySelector('[data-action="cancel-created-date"]');
+    if (cancelCreation) { cancelCreation.addEventListener('click', function () {
+      if (pendingCreationDate === creationRequest) { pendingCreationDate = null; Store.touch(); }
+    }); }
 
     var selectAllRde = section.querySelector('[data-action="select-all-rde"]');
     if (selectAllRde) {

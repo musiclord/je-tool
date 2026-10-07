@@ -11,7 +11,7 @@ internal static class EmptyReportStateTestData
 
     private sealed class EmptyStaleStates : IResultStaleStateStore
     {
-        public Task InvalidateForPreparationDateChangeAsync(string projectId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task InvalidateForPreparationDateChangeAsync(string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<AuditResultStaleState> ReadAsync(string projectId, CancellationToken cancellationToken) =>
             Task.FromResult(new AuditResultStaleState(false, false, false));
         public Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken) => Task.FromResult("0");

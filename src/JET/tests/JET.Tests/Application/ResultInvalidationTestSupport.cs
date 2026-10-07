@@ -13,14 +13,15 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 結果失效驗收（plan Phase 1）：規則執行結果(result_rule_run / 抽樣)是衍生資料,
 /// 一旦其實際上游被改寫，project.load 的對應 latestRuns 必須回 null（要求重跑），
-/// 但不得把無依賴的 run 一併清除：GL 影響兩種 run、TB 只影響 validate、
+/// 依同層級修改裁定，GL 與 TB 影響兩種 run，
 /// 科目配對／行事曆／授權清單只影響 prescreen。
 ///
 /// 設計技術：狀態轉換 —— 每條合法的「上游改寫」轉換各一測試,涵蓋三個失效機制:
 ///   (a) 匯入 replace 清理交易（GL/TB/科目配對 re-import）
 ///   (b) 重投影交易（mapping re-commit）
 ///   (c) 行事曆 replace 交易（假日/補班匯入）
-/// oracle：依賴到該上游的 latest run 應為 JSON null；無依賴者必須保留。
+/// oracle：依賴到該上游的 latest run 應為 JSON null；無依賴者必須保留。篩選命中失效時，
+/// 已存篩選情境也一起清掉（使用者 2026-10-07 裁定上游修改清除下游）。
 /// 每個測試自建 host（會變更狀態,不可共用 DemoProjectFixture）。
 /// </summary>
 public static class ResultInvalidationTestSupport
@@ -52,9 +53,9 @@ public static class ResultInvalidationTestSupport
         [
             (MatrixMutation.GlImportReplace, true, true, true),
             (MatrixMutation.GlImportAppend, true, true, true),
-            (MatrixMutation.TbImportReplace, true, false, false),
-            (MatrixMutation.TbImportAppend, true, false, false),
-            (MatrixMutation.TbProjection, true, false, false),
+            (MatrixMutation.TbImportReplace, true, true, true),
+            (MatrixMutation.TbImportAppend, true, true, true),
+            (MatrixMutation.TbProjection, true, true, true),
             (MatrixMutation.Calendar, false, true, true),
             (MatrixMutation.NonWorkingDays, false, true, true),
             (MatrixMutation.AccountMapping, false, true, true),
@@ -314,10 +315,21 @@ public static class ResultInvalidationTestSupport
         AssertRunState(before.PrescreenRun, after.PrescreenRun, clearsPrescreen);
         Assert.Equal(clearsFilterHits ? 0 : before.FilterHitCount, after.FilterHitCount);
 
-        // Filter 失效只清 materialized hits；著作定義與 revision 必須逐字保留。
-        Assert.Equal(before.ScenarioDefinitions, after.ScenarioDefinitions);
-        Assert.Equal(before.ScenarioRevisions, after.ScenarioRevisions);
-        Assert.Equal(before.FilterResultRevision, after.FilterResultRevision);
+        // 使用者 2026-10-07 裁定上游修改清除下游：命中失效時，已存情境定義與版本也一起清掉；
+        // 若政策保留命中，定義與版本也必須逐字保留。原本斷言情境一律保留，第一次失敗收據
+        // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        if (clearsFilterHits)
+        {
+            Assert.Empty(after.ScenarioDefinitions);
+            Assert.Empty(after.ScenarioRevisions);
+            Assert.Null(after.FilterResultRevision);
+        }
+        else
+        {
+            Assert.Equal(before.ScenarioDefinitions, after.ScenarioDefinitions);
+            Assert.Equal(before.ScenarioRevisions, after.ScenarioRevisions);
+            Assert.Equal(before.FilterResultRevision, after.FilterResultRevision);
+        }
 
         // gl_control_total 不屬共用 reset；只有 GL projection 會在自己的交易內 upsert。
         Assert.Equal(expectedGlControlTotal, after.GlControlTotal);

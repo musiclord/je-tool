@@ -187,15 +187,6 @@ internal sealed class AccountMappingProjection
 {
     private const int MaxReportedErrors = 10;
 
-    private static readonly string[] CodeKeywords =
-        ["科目代號", "科目編號", "account code", "code", "gl_number"];
-
-    private static readonly string[] NameKeywords =
-        ["科目名稱", "account name", "gl_name", "name"];
-
-    private static readonly string[] CategoryKeywords =
-        ["分類", "category", "standardized"];
-
     private readonly string codeColumn;
     private readonly string nameColumn;
     private readonly string categoryColumn;
@@ -213,32 +204,10 @@ internal sealed class AccountMappingProjection
         ArgumentNullException.ThrowIfNull(taxonomy);
         AccountTaxonomyInvariant.ValidateReplacement(taxonomy.Categories);
         this.taxonomy = taxonomy;
-        if (columns.Count < 3)
-        {
-            throw new JetActionException(
-                JetErrorCodes.ProjectionFailed,
-                "科目配對檔需含科目編號、科目名稱、科目分類三欄。");
-        }
-
-        var code = FindByKeywords(columns, CodeKeywords);
-        var name = FindByKeywords(columns, NameKeywords);
-        var category = FindByKeywords(columns, CategoryKeywords);
-        if (code is not null
-            && name is not null
-            && category is not null
-            && code != name
-            && name != category
-            && code != category)
-        {
-            codeColumn = code;
-            nameColumn = name;
-            categoryColumn = category;
-            return;
-        }
-
-        codeColumn = columns[0];
-        nameColumn = columns[1];
-        categoryColumn = columns[2];
+        var resolved = AccountMappingColumnMatcher.Resolve(columns);
+        codeColumn = resolved.CodeColumn;
+        nameColumn = resolved.NameColumn;
+        categoryColumn = resolved.CategoryColumn;
     }
 
     internal void Observe(StagingRow row)
@@ -313,23 +282,6 @@ internal sealed class AccountMappingProjection
         }
     }
 
-    private static string? FindByKeywords(
-        IReadOnlyList<string> columns,
-        IReadOnlyList<string> keywords)
-    {
-        foreach (var keyword in keywords)
-        {
-            foreach (var column in columns)
-            {
-                if (column.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                {
-                    return column;
-                }
-            }
-        }
-
-        return null;
-    }
 }
 
 internal sealed record AccountMappingFacts(
@@ -339,7 +291,20 @@ internal sealed record AccountMappingFacts(
 internal sealed record AccountMappingResult(
     AccountMappingImportResult Import,
     AccountMappingState State,
-    AuditMutationEffects Effects);
+    AuditMutationEffects Effects)
+{
+    internal string? ColumnMappingWarning
+    {
+        get
+        {
+            var columns = AccountMappingColumnMatcher.ResolveDetailed(Import.Columns);
+            var positional = new[] { (columns.Code, "科目編號"), (columns.Name, "科目名稱"), (columns.Category, "科目分類") }
+                .Where(item => item.Item1.Method == AccountMappingColumnResolver.MatchMethod.Position)
+                .Select(item => $"「{item.Item1.Column}」當成{item.Item2}").ToArray();
+            return positional.Length == 0 ? null : "部分欄名無法辨識，這次依欄位順序將" + string.Join("、", positional) + "。請確認科目配對預覽。";
+        }
+    }
+}
 
 internal sealed record AuthorizedPreparerRequest(
     string ProjectId,

@@ -47,7 +47,12 @@ internal static class ResultStaleStateSql
                 """);
         }
 
-        if (impact.InvalidateFilterHits)
+        if (impact.InvalidateFilterScenarioDefinitions)
+        {
+            // 同一交易會刪掉全部情境與命中，沒有可重跑的篩選；回到「從未執行」，與 filter.commit 空清單一致。
+            statements.Add($"UPDATE {schemaPrefix}config_result_stale_state SET filter_stale = 0 WHERE singleton = 1;");
+        }
+        else if (impact.InvalidateFilterHits)
         {
             statements.Add(FilterInvalidationStatement(schemaPrefix));
         }

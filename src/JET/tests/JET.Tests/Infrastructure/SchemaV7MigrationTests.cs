@@ -196,7 +196,7 @@ public sealed class SchemaV7MigrationTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task FrozenV6_MigratesAtomically_PreservesSourcesAndDefinitions_StalesDerivedResults(string provider)
+    public async Task FrozenV6_MigratesAtomically_PreservesSources_ClearsScenariosAndStalesDerivedResults(string provider)
     {
         using var env = new LocalEnv(provider, seedV6: true);
 
@@ -222,26 +222,17 @@ public sealed class SchemaV7MigrationTests
             AccountTaxonomyBuiltIns.All.ToArray(),
             (await env.TaxonomyAsync()).ToArray());
 
-        var scenario = await env.TextAsync(
-            "SELECT definition_json FROM config_filter_scenario WHERE position=1;");
-        Assert.Contains("\"debitCategory\":\"Cash\"", scenario, StringComparison.Ordinal);
-        Assert.Contains("\"creditCategory\":\"Revenue\"", scenario, StringComparison.Ordinal);
-        Assert.Contains("\"debitCategoryIds\":[\"builtin.cash\"]", scenario, StringComparison.Ordinal);
-        Assert.Contains("\"creditCategoryIds\":[\"builtin.revenue\"]", scenario, StringComparison.Ordinal);
-        Assert.Contains("\"logicVersion\":\"filter-2026-08-04-v6\"", scenario, StringComparison.Ordinal);
-        Assert.False(RuleLogicVersions.IsCurrent(new SavedFilterScenario(
-            1,
-            "legacy pair",
-            "migration oracle",
-            scenario,
-            new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero))));
+        // 使用者 2026-10-07 裁定上游修改清除下游：舊案件結構升級也屬於會讓篩選結果過期的修改，
+        // 已存情境與命中在同一筆升級交易內清掉，filter 回到從未執行；驗證與預篩選仍標成待重跑。
+        // 第一次失敗收據 20261007-033240978-87b22715a057481a849ce3013975e5c1。
+        Assert.Equal(0, await env.ScalarAsync("SELECT COUNT(*) FROM config_filter_scenario;"));
 
         Assert.Equal(0, await env.ScalarAsync("SELECT COUNT(*) FROM result_rule_run;"));
         Assert.Equal(0, await env.ScalarAsync("SELECT COUNT(*) FROM result_inf_sampling_test_sample;"));
         Assert.Equal(0, await env.ScalarAsync("SELECT COUNT(*) FROM result_filter_run;"));
         Assert.Equal(1, await env.ScalarAsync(
             "SELECT COUNT(*) FROM config_result_stale_state "
-            + "WHERE singleton=1 AND validation_stale=1 AND prescreen_stale=1 AND filter_stale=1;"));
+            + "WHERE singleton=1 AND validation_stale=1 AND prescreen_stale=1 AND filter_stale=0;"));
 
         var reopened = env.CreateReopenedDatabase();
         await reopened.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);

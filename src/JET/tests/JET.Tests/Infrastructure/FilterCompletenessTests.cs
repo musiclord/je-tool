@@ -497,6 +497,55 @@ public sealed class FilterCompletenessTests
         Assert.Equal(oldResult.Count, again.Count);
     }
 
+    // 已存配對是唯一來源：升級時不用目前的欄名規則猜分類欄，而是找出和已存分類一致的來源欄。
+    // 第一組：目前規則會因關鍵字選到「Category remark」，但已存分類只和「Group」一致。
+    // 第二組：「Category」與「Group」都和已存分類一致，002 卻一欄空白、一欄寫 Others，無從判斷，不計入留白。
+    [Theory]
+    [InlineData("sqlite", """["Code","Name","Group","Category remark"]""",
+        """{"Code":"001","Name":"Cash","Group":"Cash","Category remark":""}""",
+        """{"Code":"002","Name":"Other","Group":"","Category remark":"confirm with client"}""",
+        """{"Code":"003","Name":"Petty","Group":"Petty cash","Category remark":""}""", "1,0,1")]
+    [InlineData("duckdb", """["Code","Name","Group","Category remark"]""",
+        """{"Code":"001","Name":"Cash","Group":"Cash","Category remark":""}""",
+        """{"Code":"002","Name":"Other","Group":"","Category remark":"confirm with client"}""",
+        """{"Code":"003","Name":"Petty","Group":"Petty cash","Category remark":""}""", "1,0,1")]
+    [InlineData("sqlite", """["Code","Name","Category","Group"]""",
+        """{"Code":"001","Name":"Cash","Category":"Cash","Group":"Cash"}""",
+        """{"Code":"002","Name":"Other","Category":"","Group":"Others"}""",
+        """{"Code":"003","Name":"Petty","Category":"Petty cash","Group":"Petty cash"}""", "1,null,1")]
+    public async Task V10Migration_ReadsBlankProvenanceFromTheColumnConsistentWithTheSavedMapping(
+        string provider, string columnsJson, string row1, string row2, string row3, string expected)
+    {
+        using var root = new TempProjectRoot(); var folder = new JetProjectFolder(root.Path);
+        ILocalProjectDatabase Database() => provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        var db = Database(); const string id = "classification-saved-source";
+        Directory.CreateDirectory(folder.GetProjectDirectory(id));
+        await db.EnsureCreatedAsync(id, CancellationToken.None);
+        await using (var connection = db.CreateConnection(id))
+        {
+            await connection.OpenAsync(); await using var seed = connection.CreateCommand();
+            seed.CommandText = Seed + $"""
+                INSERT INTO import_batch (batch_id,dataset_kind,source_file_path,source_file_name,imported_utc,row_count,columns_json)
+                VALUES ('m','account_mapping','synthetic.csv','synthetic.csv','2025-01-01',3,'{columnsJson}');
+                INSERT INTO staging_account_mapping_raw_row (batch_id,row_number,source_row_number,row_json)
+                VALUES ('m',1,1,'{row1}'),('m',2,2,'{row2}'),('m',3,3,'{row3}');
+                ALTER TABLE target_account_mapping DROP COLUMN classification_explicit;
+                UPDATE schema_info SET value = '9' WHERE key = 'schema_version';
+                """;
+            await seed.ExecuteNonQueryAsync();
+        }
+        var upgraded = Database(); await upgraded.EnsureCreatedAsync(id, CancellationToken.None);
+        await using (var connection = upgraded.CreateConnection(id))
+        {
+            await connection.OpenAsync(); await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT classification_explicit FROM target_account_mapping ORDER BY account_code";
+            await using var reader = await command.ExecuteReaderAsync();
+            var values = new List<string>();
+            while (await reader.ReadAsync()) values.Add(reader.IsDBNull(0) ? "null" : Convert.ToInt32(reader.GetValue(0)).ToString());
+            Assert.Equal(expected, string.Join(",", values));
+        }
+    }
+
     [Theory]
     [InlineData("""{"type":"fieldValue","field":"postDate","operator":"in","values":["2025-02-29"]}""")]
     [InlineData("""{"type":"fieldValue","field":"postDate","operator":"between","from":"2025-03-01","to":"2025-01-01"}""")]

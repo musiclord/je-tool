@@ -3,7 +3,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 案件資料夾內給人用的工作檔（目前只有帳戶對應範本）：寫暫存檔、完整後改名覆蓋同名檔。
+/// 案件資料夾內給人用的工作檔（科目配對與行事曆範本）：寫暫存檔、完整後改名覆蓋同名檔。
 /// 不進報告清單、不核對內容；審計員用 Excel 開來填、存回原檔再匯回，都是預期中的事。
 /// </summary>
 internal static class ProjectWorkFileWriter

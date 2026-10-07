@@ -160,19 +160,20 @@
   // 而非十段重複 HTML，新增卡片只要加一筆資料。每筆只是「指向既有述詞」的標記：
   //   kind:'type'   → ref 是既有 FILTER_RULE_TYPES 的 value；點按帶入一條 newFilterRule(ref)。
   //   kind:'preset' → ref 是既有 FILTER_KCT_PRESETS 的 key；點按帶入該預設的一條規則（I 是條件括號）。
-  //   disabled:true → 暫不提供（B：等 KCT 提供 BS/IS 分類表），只渲染為停用，不實作述詞。
+  //   kind:'spec' → 使用明確覆寫值，B 不預選分類。
   // label 為 KCT 清單用語（卡片顯示文字）。每張卡是可複選 toggle：選取即把其規格落地成 rule
   // 併入草稿、並在每條 rule 打上 __kctLetter 身分標記（UI-only，剝除後才送 wire）；取消即移除帶
   // 該字母標記的 rule。送出時由 marker 推導 source:'kct'；KCT 名稱／動機可沿用自動值、手改或留白，
   // 一般自訂情境仍必填。已存情境由 project.load 回傳 canonical source，重存不得遺失。
   // 不在此引入任何新 wire 型別／述詞；A/C/D/H/J 與 E/F/G/I 全部重用既有 type/preset。
   var FILTER_KCT_CHECKLIST = [
-    { letter: 'A', kind: 'type', ref: 'revenueDebitNearQuarterEnd', label: '在該季度前 X 天借記收入的會計分錄' },
-    { letter: 'B', kind: 'type', ref: null, disabled: true, note: '尚未支援此條件',
+    { letter: 'A', defaultRationale: "期末前 X天內收入科目有迴轉分錄，表示收入認列過程中可能存在不適當的調整或更正(案件團隊須提供天數)", kind: 'type', ref: 'revenueDebitNearQuarterEnd', label: '在該季度前 X 天借記收入的會計分錄' },
+    { letter: 'B', defaultRationale: "借記固定資產科目(如不動產、廠房和設備(PPE))但貸記營業費用或維修費用等費用科目之分錄組合不符合公司營業流程的瞭解，因此屬於為非預期的過帳，可能為舞弊類型分錄及其他調整的特質。", kind: 'spec', ref: 'specialAccountCategoryPair', overrides: { type: 'specialAccountCategoryPair', pairMode: 'drAndCr', categorySelection: 'subtree', debitCategoryIds: [], creditCategoryIds: [] },
+      description: '借方選固定資產，貸方選營業費用；請先在第四步「分類設定」新增這兩類並配對科目。在建工程不要配到固定資產，也不要放在固定資產底下，因為預設包含下層分類。',
       label: '借記固定資產(PPE，不含在建)且貸記費用之分錄' },
-    { letter: 'C', kind: 'type', ref: 'revenueWithoutNormalCounterpart', label: '貸方為收入但借方非一般對方科目之分錄' },
-    { letter: 'D', kind: 'type', ref: 'manualRevenueEntry', label: '收入之人工分錄' },
-    { letter: 'E', kind: 'preset', ref: 'kctSpecificPreparer', label: '特定人員(財務長/執行長/高階主管等)建立之分錄' },
+    { letter: 'C', defaultRationale: "查核團隊已發現與收入科目相關的未預期或不尋常過帳(貸方為收入，但借方科目非為應收票據/帳款、預收貨款/合約負債)", description: '現金不算一般對方科目；要排除現金銷貨，改用預篩選條件『未預期借貸組合』。', kind: 'type', ref: 'revenueWithoutNormalCounterpart', label: '貸方為收入但借方非一般對方科目之分錄' },
+    { letter: 'D', defaultRationale: "根據查核核團隊的瞭解，收入科目的過帳一般是自動產生，如為人工分錄非屬正常營業流程的會計分錄", kind: 'type', ref: 'manualRevenueEntry', label: '收入之人工分錄' },
+    { letter: 'E', defaultRationale: "執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。", kind: 'preset', ref: 'kctSpecificPreparer', label: '特定人員(財務長/執行長/高階主管等)建立之分錄' },
     { letter: 'F', kind: 'preset', ref: 'kctSpecificKeywords', label: '特定摘要(如迴轉、調整等)' },
     { letter: 'G', kind: 'preset', ref: 'kctBlankDescription', label: '空白摘要' },
     { letter: 'H', kind: 'type', ref: 'trailingDigits', label: '特定尾數(如 999999/000000 結尾)' },
@@ -842,6 +843,14 @@
   function rdeFieldLabel(state, fieldId) {
     var hit = committedRdeFields(state).filter(function (f) { return f.fieldId === fieldId; })[0];
     return hit ? hit.label : fieldId;
+  }
+
+  // 第五步選欄位時在名稱後加註來源欄，兩個同名的攸關資料元素欄位也分得出來；只改顯示，選項值仍是 fieldId。
+  // 回傳未跳脫的文字，由呼叫端跳脫。
+  function rdeFieldOptionLabel(field, withKind) {
+    var notes = (withKind ? ['攸關資料元素欄位'] : [])
+      .concat(field.sourceColumn ? ['來源欄：' + field.sourceColumn] : []);
+    return field.label + (notes.length ? '（' + notes.join('，') + '）' : '');
   }
 
   /* ---- 後端欄位 metadata 驅動的結果表（動態欄） ---------------------------- */
@@ -1542,6 +1551,14 @@
     return String(text || '').replace(/[。；\s]+$/, '');
   }
 
+  // 使用者 2026-10-07 裁定：更改前面已設定的資料，會清除後面步驟的篩選情境。已有篩選情境時才提醒一句，不列細節。
+  function downstreamResetNoticeHtml(state) {
+    var saved = state && state.filter ? state.filter.savedScenarios : null;
+    return saved && saved.length
+      ? '<p class="panel__hint panel__hint--wide" data-bind="downstream-reset-notice">更改已設定好的資料，會清除後面步驟的設定。</p>'
+      : '';
+  }
+
   // 已儲存情境無法套用目前規則時的說明：逐筆列出哪個情境、哪裡不符合，以及下一步。
   // 沒有逐筆清單時（資料不一致，或尚未重新開啟案件）改寫一句整批的說明與同樣的下一步。
   function filterScenarioProblemsHtml(state) {
@@ -2007,6 +2024,7 @@
     taxonomyCategoryLabel: taxonomyCategoryLabel,
     committedRdeFields: committedRdeFields,
     rdeFieldLabel: rdeFieldLabel,
+    rdeFieldOptionLabel: rdeFieldOptionLabel,
     dynamicColumnCells: dynamicColumnCells,
     dynamicColumnHeadHtml: dynamicColumnHeadHtml,
     sortableHeadCellsHtml: sortableHeadCellsHtml,
@@ -2021,6 +2039,7 @@
     formatDateTime: formatDateTime,
     createLatestResponseGuard: createLatestResponseGuard,
     run: run,
+    downstreamResetNoticeHtml: downstreamResetNoticeHtml,
     runBackground: runBackground,
     isRequired: isRequired,
     glFieldLabel: glFieldLabel,

@@ -89,8 +89,11 @@ internal static partial class GuiScenarios
         outcome.RecordStage("extended_export_and_reopen");
         await Click("[data-filter-pane-select=saved]");
         await Click("[data-action=export-criteria-report]"); await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
-        await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
-        await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2,3,4,5]})");
+        await Click("[data-bind=step-nav] [data-step-index='5']");
+        await Click("[data-scenario-position='2']");
+        await Check("document.querySelectorAll('[data-scenario-position]:checked').length===4");
+        await Click("[data-action=export-workpaper]");
+        await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,3,4,5]})");
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='2']");
         await Check(policy + "?.unlistedValueKind==='automatic' && " + policy + ".blankValueKind==='unclassified'");
@@ -120,6 +123,15 @@ internal static partial class GuiScenarios
         ResizeFilterWindow(process, 1250, 950);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
+        // 使用者 2026-10-07 要求依完整使用情境測試：審計員通常已設定篩選情境才回頭換授權名單，
+        // 所以先存一個情境，之後核對取消與匯入失敗保留情境、匯入成功才清除（上游修改清除下游）。
+        outcome.RecordStage("authorized_saved_scenario");
+        await Click("[data-bind=step-nav] [data-step-index='4']");
+        await Click("[data-condition-source=kct]");
+        await Click("[data-kct-letter=G]");
+        await Click("[data-action=open-save]");
+        await Click("[data-action=save-scenario]");
+        await Check("state.filter.savedScenarios.length===1");
         await Click("[data-bind=step-nav] [data-step-index='3']");
         await Click("[data-action=run-prescreen]");
         await Check("!!state.lastRuns.prescreen");
@@ -128,14 +140,15 @@ internal static partial class GuiScenarios
         outcome.RecordStage("authorized_explicit_column_and_cancel");
         await SelectColumn("姓名");
         await Click("[data-action=cancel-authorized-preparer]");
-        await Check("!document.querySelector('[data-ap-column]') && JSON.stringify(ap)===" + previous.GetRawText() + " && !!state.lastRuns.prescreen");
+        await Check("!document.querySelector('[data-ap-column]') && JSON.stringify(ap)===" + previous.GetRawText() + " && !!state.lastRuns.prescreen && state.filter.savedScenarios.length===1 && !!document.querySelector('[data-bind=downstream-reset-notice]')");
         outcome.RecordStage("authorized_failure_and_retry");
         await SelectColumn("員工代碼");
         await Click("[data-action=commit-authorized-preparer]");
         await WaitForFixtureEventAsync(ownedRun, process, "fail-authorized-import-once", "failure.injected", ct);
-        await Check("document.querySelector('[data-ap-column]').value==='員工代碼' && JSON.stringify(ap)===" + previous.GetRawText() + " && !!state.lastRuns.prescreen");
+        await Check("document.querySelector('[data-ap-column]').value==='員工代碼' && JSON.stringify(ap)===" + previous.GetRawText() + " && !!state.lastRuns.prescreen && state.filter.savedScenarios.length===1");
         await Click("[data-action=commit-authorized-preparer]");
         await Check("ap.rowCount===2 && ap.sourceColumn==='員工代碼' && ap.sourceRowCount===4 && ap.blankRowCount===1 && ap.duplicateRowCount===1 && !state.lastRuns.prescreen && !!state.lastRuns.validate");
+        await Check("state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.filter(m=>m.text==='前面的資料已更改，請重新設定篩選情境。').length===1 && !document.querySelector('[data-bind=downstream-reset-notice]')");
         await Click("[data-action=preview-authorized-preparer]");
         await Check("document.querySelector('.data-preview__table')?.textContent.includes('E01') && document.querySelector('.data-preview__table')?.textContent.includes('E02')");
         await FindControlPointAsync(cdp, process, "[data-bind=import-card-authorized-preparer]", ct);
@@ -193,42 +206,55 @@ internal static partial class GuiScenarios
             await Click("[data-bind=step-nav] [data-step-index='4']");
         }
         const string hit = "document.querySelector('[data-bind=scenario-preview-0][data-loaded]')?.textContent.includes('符合條件：1 筆分錄')";
-        const string missing = "document.querySelector('[data-bind=scenario-preview-0]')?.textContent.includes('核准人員') && !!document.querySelector('[data-scenario-return-mapping]') && !document.querySelector('[data-bind=scenario-preview-0][data-loaded]')";
+        const string cleared = "state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.some(m=>m.text==='前面的資料已更改，請重新設定篩選情境。')";
+        const string missingApprover = "state.filter.savedScenarios.length===0 && ((document.querySelector('[data-rule-error]')?.textContent||'') + (document.querySelector('[data-bind=scenario-notice]')?.textContent||'')).includes('核准人員')";
+        async Task SaveJ()
+        {
+            await Click("[data-condition-source=kct]");
+            await Click("[data-kct-letter=J]");
+            await Click("[data-action=open-save]");
+            await Click("[data-action=save-scenario]");
+        }
         ResizeFilterWindow(process, 1250, 950);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         outcome.RecordStage("kct_save_and_result");
-        await Click("[data-condition-source=kct]");
-        await Click("[data-kct-letter=J]");
-        await Click("[data-action=open-save]");
-        await Click("[data-action=save-scenario]");
+        await SaveJ();
         await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].source==='kct'");
         var definition = await cdp.EvaluateAsync("JSON.stringify(window.JetStore.getState().filter.savedScenarios[0])", ct);
         await Result();
         await Check(hit);
         outcome.RecordStage("kct_cancel_mapping_preserves_scenario");
         await Click("[data-bind=step-nav] [data-step-index='2']");
+        await Check("!!document.querySelector('[data-bind=downstream-reset-notice]')");
         await Click(GlSection + "[data-action=remap-gl]");
         await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=approveBy]", "", outcome, ct);
         await Click(GlSection + "[data-action=restore-gl]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Result();
         await Check(hit + " && JSON.stringify(state.filter.savedScenarios[0])===" + definition.GetRawText());
-        outcome.RecordStage("kct_missing_field_and_retry");
+        // 使用者 2026-10-07 裁定上游修改清除下游：確認配對後已存情境清空，第五步回到預設；
+        // 沒有核准人員欄位時 J 存不進去，畫面就地說明缺的欄位。原本這裡驗證情境保留並提示缺欄、重試與返回補欄，
+        // 第一次失敗收據 20261007-041919444-f03fb3816dec4d5f9758ebd9b5d2a1f2。
+        outcome.RecordStage("kct_remap_clears_scenarios");
         await Click("[data-bind=step-nav] [data-step-index='2']");
         await MapApprover("");
-        await Result();
-        await Check(missing + " && JSON.stringify(state.filter.savedScenarios[0])===" + definition.GetRawText());
-        await Click("[data-scenario-retry]");
-        await Check(missing);
-        await FindControlPointAsync(cdp, process, "[data-scenario-return-mapping]", ct);
+        await Check(cleared + " && !document.querySelector('[data-bind=downstream-reset-notice]')");
+        await Click("[data-filter-pane-select=filter]");
+        await SaveJ();
+        await Check(missingApprover);
         await CaptureScreenshotAsync(cdp, outcome, ct);
-        outcome.RecordStage("kct_return_fix_and_export");
-        await Click("[data-scenario-return-mapping]");
+        outcome.RecordStage("kct_remap_fix_resave_and_export");
+        await Click("[data-bind=step-nav] [data-step-index='2']");
         await MapApprover("GUI核准人員");
+        await Check(cleared);
+        await Click("[data-filter-pane-select=filter]");
+        await SaveJ();
+        await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].source==='kct'");
+        var resaved = await cdp.EvaluateAsync("JSON.stringify(window.JetStore.getState().filter.savedScenarios[0])", ct);
         await Result();
-        await Check(hit + " && JSON.stringify(state.filter.savedScenarios[0])===" + definition.GetRawText());
+        await Check(hit);
         await Click("[data-action=export-criteria-report]");
         await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
         await Click("[data-bind=step-nav] [data-step-index='5']");
@@ -239,7 +265,7 @@ internal static partial class GuiScenarios
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Result();
-        await Check(hit + " && state.reportArtifacts.some(a=>a.kind==='workingPaper') && JSON.stringify(state.filter.savedScenarios[0])===" + definition.GetRawText());
+        await Check(hit + " && state.reportArtifacts.some(a=>a.kind==='workingPaper') && JSON.stringify(state.filter.savedScenarios[0])===" + resaved.GetRawText());
         outcome.Assertions.KctRemapRecoveryVerified = true;
         await Click("[data-action=app-exit]");
         outcome.Assertions.ExitRequested = true;

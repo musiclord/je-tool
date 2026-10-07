@@ -168,7 +168,8 @@
       formRow('entityName', '客戶名稱（選填）', 'text', false, values.entityName) +
       formRow('projectCode', '案件編號（選填）', 'text', false, values.projectCode) +
       formRow('lastPeriodStart', '期末財報準備日', 'date', false, values.lastPeriodStart) +
-      '<p class="rule-card__sub">修改期末財報準備日後，用到這個日期的預篩選與篩選結果需要重新計算。</p>' +
+      '<p class="rule-card__sub">修改期末財報準備日後，預篩選需要重新計算。</p>' +
+      Ui.downstreamResetNoticeHtml(Store.getState()) +
       preparationWarningHtml() +
       '<div id="project-update-error" class="form-notice" data-bind="project-update-error" role="alert" tabindex="-1" hidden></div>' +
       '<div class="panel__actions"><button type="submit" class="btn">儲存案件資料</button>' +

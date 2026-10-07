@@ -247,7 +247,7 @@ public sealed class WorkpaperProgramTests
             {
                 Assert.Equal("人工傳票否_JE_S", column.Header);
                 Assert.Equal(WorkpaperStep41ValueSource.IsManual, column.ValueSource);
-                Assert.Equal(LegacyFieldKind.Number, column.Kind);
+                Assert.Equal(LegacyFieldKind.Text, column.Kind);
                 Assert.Equal(0, column.DecimalPlaces);
             },
             column =>

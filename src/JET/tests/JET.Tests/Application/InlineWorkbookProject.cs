@@ -276,7 +276,7 @@ internal static class InlineWorkbookProject
         Action<InlineTbWorkbookBuilder>? configureTb = null,
         string periodStart = "2025-01-01",
         string periodEnd = "2025-12-31",
-        bool validateForDownstream = false)
+        bool validateForDownstream = false, string manualBlankValueKind = "reject")
     {
         var builder = new InlineGlWorkbookBuilder();
         configure(builder);
@@ -348,7 +348,7 @@ internal static class InlineWorkbookProject
             manualAutoPolicy = new
             {
                 manualValues = new[] { "true", "1" },
-                automaticValues = new[] { "false", "0" }
+                automaticValues = new[] { "false", "0" }, blankValueKind = manualBlankValueKind
             }
         }));
 

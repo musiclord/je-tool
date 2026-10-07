@@ -4,7 +4,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 規則結果(result_rule_run / result_inf_sampling_test_sample / result_filter_run)失效的共用技術執行點。
+/// 規則結果(result_rule_run / result_inf_sampling_test_sample / result_filter_run)與已存篩選情境
+/// (config_filter_scenario)失效的共用技術執行點。
 /// 失效矩陣的唯一政策來源是 Domain <see cref="AuditDependencyPolicy"/>；本類只把政策結果翻成
 /// stale-state UPDATE 與既有 DELETE statements。只有真正存在、即將被清除的結果會把對應
 /// stale flag 置 true；「從未執行」維持 false。
@@ -13,8 +14,10 @@ namespace JET.Infrastructure;
 /// 上游若 rollback,stale 標記與清除亦一併回退。清空後 project.load 的 latestRuns 自然回 null,
 /// 並以持久化 stale state 區分「要求重跑」與「從未執行」。
 /// (DELETE 為 ANSI 共通,SQLite 與 SQL Server 路徑共用同一不變量。)
-/// 失效範圍依真實依賴裁切：GL 影響全部；TB 只影響 validation；科目配對、行事曆與授權清單
+/// 失效範圍依共用政策：GL 與 TB 同層級的修改影響全部；科目配對、行事曆與授權清單
 /// 只影響 prescreen/filter。不得為了方便一律清空，否則會破壞「驗證→填 AccountMapping→預篩選」流程。
+/// 篩選命中失效時，已存篩選情境定義(config_filter_scenario)也在同一交易內一併刪除(使用者 2026-10-07
+/// 裁定上游修改清除下游)；stale flag 同時回到「從未執行」，因為已沒有可重跑的情境。
 ///
 /// 注意:完整性測試的匯入控制總數 <c>gl_control_total</c> **不**在此清除範圍。它的上游只有 GL target,
 /// 由 GL 投影(<see cref="LocalGlRepository"/>/<see cref="SqlServerGlRepository"/>)在同一交易內隨
@@ -39,7 +42,7 @@ internal static class RuleRunResultReset
             cancellationToken,
             schemaPrefix);
 
-        var statements = new List<string>(3);
+        var statements = new List<string>(5);
         if (impact.InvalidateValidation && impact.InvalidatePrescreen)
         {
             statements.Add($"DELETE FROM {schemaPrefix}result_rule_run;");
@@ -61,6 +64,13 @@ internal static class RuleRunResultReset
         if (impact.InvalidateFilterHits)
         {
             statements.Add($"DELETE FROM {schemaPrefix}result_filter_run;");
+            if (impact.InvalidateFilterScenarioDefinitions)
+            {
+                // 使用者 2026-10-07 裁定上游修改清除下游：命中先清，再清全部已存情境定義。
+                // 兩表之間沒有外鍵，順序只為讓讀者看出命中依附情境。
+                statements.Add($"DELETE FROM {schemaPrefix}config_filter_scenario;");
+            }
+
             var keyColumn = schemaPrefix.Length == 0 ? "key" : "[key]";
             statements.Add($"UPDATE {schemaPrefix}schema_info SET value = CAST(CAST(value AS BIGINT) + 1 AS VARCHAR(40)) "
                 + $"WHERE {keyColumn} = 'filter_data_revision';");

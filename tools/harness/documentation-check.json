@@ -23,6 +23,8 @@
     "tools/README.md",
     "docs/README.md",
     "docs/project-context.md",
+    "docs/kct-gl-workflow.md",
+    "docs/specs/2026-10-06-kct-gl-requirements-plan.md",
     "docs/jet-guide.md",
     "docs/development-guide.md",
     "docs/development-status.md",
@@ -86,6 +88,10 @@
     {
       "id": "stale-billion-rows-target",
       "text": "10 億 row 等級仍是設計目標"
+    },
+    {
+      "id": "delivery-notes-extra-field-wording",
+      "text": "勾選為額外欄位"
     }
   ],
   "styleWarnings": [
@@ -176,6 +182,36 @@
       "id": "no-ai-attribution",
       "file": "AGENTS.md",
       "text": "Co-Authored-By"
+    },
+    {
+      "id": "delivery-notes-visible-field-name",
+      "file": "docs/test-environment-notes.md",
+      "text": "攸關資料元素欄位"
+    },
+    {
+      "id": "delivery-notes-calendar-template-step",
+      "file": "docs/test-environment-notes.md",
+      "text": "第二步的「假日與補班日」"
+    },
+    {
+      "id": "delivery-notes-date-example",
+      "file": "docs/test-environment-notes.md",
+      "text": "2025-01-01"
+    },
+    {
+      "id": "scope-kct-list-pending",
+      "file": "docs/idea-replacement-scope.md",
+      "text": "F 到 J 與完整清單仍待 KCT 提供"
+    },
+    {
+      "id": "guide-physical-skip-rows",
+      "file": "docs/jet-guide.md",
+      "text": "略過列數以 Excel 的實際列號計算，包含空白列"
+    },
+    {
+      "id": "guide-calendar-skip-first-row",
+      "file": "docs/jet-guide.md",
+      "text": "假日與補班日匯入固定略過第一列"
     }
   ],
   "requiredReferences": [

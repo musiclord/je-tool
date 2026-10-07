@@ -240,12 +240,24 @@
     var clearFilter = !!(options && options.filter);
     if (clearValidation) { state.lastRuns.validate = null; }
     if (clearPrescreen) { state.lastRuns.prescreen = null; }
-    // 情境 revision 只描述已存定義，跨資料重投影仍保留；報告另綁定驗證來源。
+    // 只有命中失效時清掉預覽；已存情境是否一起清除，由後端的 filterScenarios 決定。
     // 新 WorkingPaper 還記錄 filterDataRevision，因此部分情境重算不必偽造全案已更新。
     if (clearFilter) {
       state.filter.preview = null;
       filterDraftRev++;
       state.filterResultGeneration++;
+    }
+    // 使用者 2026-10-07 裁定：上游修改會清除後面步驟的篩選情境，第五步回到預設狀態。
+    if (options && options.filterScenarios) {
+      var hadScenarios = state.filter.savedScenarios.length > 0 || state.filter.draft.groups.length > 0;
+      state.filter.savedScenarios = [];
+      state.filter.draft = { name: '', rationale: '', groups: [] };
+      state.filter.preview = null;
+      state.filter.previewExpired = false;
+      state.filterResultRef = null;
+      state.filterScenarioCheck = null;
+      filterDraftRev++;
+      if (hadScenarios) { Store.addMessage('前面的資料已更改，請重新設定篩選情境。', 'info'); }
     }
   }
 
@@ -561,8 +573,11 @@
     },
 
     setFilterDraft: function (draft) {
+      // 同一份草稿改了條件才提示「條件已變更」；換成新草稿（新增情境、取消編輯、開啟已存情境、套用範例）
+      // 時重新開始，不沿用上一份草稿的預覽狀態。
+      var sameDraft = !!draft && draft === state.filter.draft;
       state.filter.draft = draft || { name: '', rationale: '', groups: [] };
-      state.filter.previewExpired = !!state.filter.preview || !!state.filter.previewExpired;
+      state.filter.previewExpired = sameDraft && (!!state.filter.preview || !!state.filter.previewExpired);
       state.filter.preview = null; // 草稿結構變動使預覽失效
       filterDraftRev++;
       bump();
@@ -815,10 +830,12 @@
     },
 
     addMessage: function (text, level) {
+      if (level === undefined) { level = 'info'; }
+      if ((level !== 'info' && level !== 'warn') || typeof text !== 'string' || !text.trim()) { return; }
       state.messages.unshift({
         id: ++messageSeq,
         text: text,
-        level: level || 'info',
+        level: level,
         time: new Date().toLocaleTimeString('zh-Hant', { hour12: false })
       });
       // 僅保留最近數則訊息，避免無上限累積（完整歷史持久化於專案資料庫 app_message_log）。

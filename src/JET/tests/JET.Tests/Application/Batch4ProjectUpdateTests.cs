@@ -80,13 +80,17 @@ public sealed class Batch4ProjectUpdateTests
         var before = await LoadAsync(host, projectId);
         Assert.Equal(4, await PreviewCountAsync(host));
         var updated = await UpdateAsync(host, new { lastPeriodStart = "2025-11-01" });
-        AssertStale(updated.GetProperty("staleState"), false, true, true);
+        // 使用者 2026-10-07 裁定上游修改清除下游：改財報準備日會清掉已存情境，篩選回到從未執行，
+        // 不再標成待重跑也不保留情境。第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        AssertStale(updated.GetProperty("staleState"), false, true, false);
+        Assert.True(updated.GetProperty("invalidatedResults").GetProperty("filterScenarios").GetBoolean());
         var loaded = await LoadAsync(host, projectId);
-        AssertStale(loaded.GetProperty("staleState"), false, true, true);
+        AssertStale(loaded.GetProperty("staleState"), false, true, false);
         Assert.Equal(before.GetProperty("latestRuns").GetProperty("validate").GetRawText(),
             loaded.GetProperty("latestRuns").GetProperty("validate").GetRawText());
         Assert.Equal(JsonValueKind.Null, loaded.GetProperty("latestRuns").GetProperty("prescreen").ValueKind);
-        Assert.Equal(before.GetProperty("filterScenarios").GetRawText(), loaded.GetProperty("filterScenarios").GetRawText());
+        Assert.Single(before.GetProperty("filterScenarios").EnumerateArray());
+        Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
         Assert.Equal(2, await PreviewCountAsync(host));
         var rerun = await host.DispatchAsync("prescreen.run");
         Assert.Equal(2, rerun.GetProperty("postPeriodApproval").GetProperty("count").GetInt64());
@@ -95,7 +99,7 @@ public sealed class Batch4ProjectUpdateTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task ClearingPreparationDate_PreservesScenarios_AndExplainsWhereToRestoreIt(string provider)
+    public async Task ClearingPreparationDate_ClearsScenarios_AndExplainsWhereToRestoreIt(string provider)
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupAsync(host, provider);
@@ -104,7 +108,9 @@ public sealed class Batch4ProjectUpdateTests
         Assert.Equal(JsonValueKind.Null, updated.GetProperty("project").GetProperty("lastPeriodStart").ValueKind);
         Assert.Equal("", updated.GetProperty("project").GetProperty("projectCode").GetString());
         var loaded = await LoadAsync(host, projectId);
-        Assert.Single(loaded.GetProperty("filterScenarios").EnumerateArray());
+        // 使用者 2026-10-07 裁定上游修改清除下游：清除財報準備日會清掉已存情境，原本斷言情境保留。
+        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
         var error = await Assert.ThrowsAsync<JetActionException>(() => PreviewCountAsync(host));
         Assert.Equal(JetErrorCodes.InvalidScenario, error.Code);
         Assert.Contains("修改案件資料", error.Message, StringComparison.Ordinal);
@@ -113,6 +119,38 @@ public sealed class Batch4ProjectUpdateTests
         var reason = prescreen.GetProperty("postPeriodApproval").GetProperty("naReason").GetString()!;
         Assert.Contains("修改案件資料", reason, StringComparison.Ordinal);
         Assert.DoesNotContain("lastPeriodStart", reason, StringComparison.Ordinal);
+    }
+
+    // 使用者 2026-10-07 同意改善財報準備日的存檔：案件設定檔存不進去時，資料庫的清除一起回復，
+    // 情境、預篩選結果與舊日期都留著，審計員排除檔案問題後重送即可。
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task ChangedPreparationDate_WhenSettingsCannotBeSaved_KeepsScenariosResultsAndOldDate(string provider)
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await SetupAsync(host, provider);
+        await MaterializeAsync(host);
+        var before = await LoadAsync(host, projectId);
+        var settings = Path.Combine(host.ProjectsRoot, projectId, "project.json");
+        using (new FileStream(settings, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var error = await Assert.ThrowsAsync<JetActionException>(() => UpdateAsync(host, new { lastPeriodStart = "2025-11-01" }));
+            Assert.Equal(JetErrorCodes.FileReadError, error.Code);
+        }
+
+        var loaded = await LoadAsync(host, projectId);
+        Assert.Equal("2025-09-01", loaded.GetProperty("project").GetProperty("lastPeriodStart").GetString());
+        Assert.Equal(before.GetProperty("filterScenarios").GetRawText(), loaded.GetProperty("filterScenarios").GetRawText());
+        Assert.Equal(before.GetProperty("latestRuns").GetRawText(), loaded.GetProperty("latestRuns").GetRawText());
+        Assert.Equal(before.GetProperty("filterResultRef").GetRawText(), loaded.GetProperty("filterResultRef").GetRawText());
+        AssertStale(loaded.GetProperty("staleState"), false, false, false);
+        Assert.Equal(4, await PreviewCountAsync(host));
+
+        var retried = await UpdateAsync(host, new { lastPeriodStart = "2025-11-01" });
+        Assert.True(retried.GetProperty("invalidatedResults").GetProperty("filterScenarios").GetBoolean());
+        Assert.Empty((await LoadAsync(host, projectId)).GetProperty("filterScenarios").EnumerateArray());
+        Assert.Equal(2, await PreviewCountAsync(host));
     }
 
     [Theory]

@@ -31,7 +31,7 @@ internal sealed record AgentGuiTestProfile(
     internal const string SecondaryChildId = "secondary";
     internal const int MaximumDurationSeconds = 300;
     // 測試組態自己的安全上限，要不小於 tools/harness/lanes.json 裡最大的情境預算；各情境的預算只寫在 lanes.json。
-    internal const int MaximumActionBudget = 102;
+    internal const int MaximumActionBudget = 120;
     internal const int MaximumScreenshotBudget = 2;
 
     internal const string IsolatedSqlServerConnectionString =

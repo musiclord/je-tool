@@ -500,7 +500,7 @@ public sealed class AccountMappingTemplateExportTests
         var firstPreviewRow = preview.GetProperty("rows")[0];
         Assert.Equal("1101", firstPreviewRow[0].GetString());
         Assert.Equal("現金", firstPreviewRow[1].GetString());
-        Assert.Equal(JsonValueKind.Null, firstPreviewRow[2].ValueKind);
+        Assert.Equal("Others", firstPreviewRow[2].GetString());
 
         var loaded = await host.DispatchAsync(
             "project.load",
@@ -509,6 +509,70 @@ public sealed class AccountMappingTemplateExportTests
             3,
             loaded.GetProperty("importState").GetProperty("accountMapping").GetProperty("rowCount").GetInt32());
 
+    }
+
+    /// <summary>
+    /// 範本與差異清單、科目清單用同一份可配對科目母體：總帳的空白科目編號由第三步的空白明細揭露，
+    /// 不能變成範本的一列；否則審計員填完再匯入，會因「科目編號空白」整份被拒收。
+    /// </summary>
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task Template_ExcludesBlankGlAccountCodes_AndFilledTemplateImportsBack(string databaseProvider)
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            builder => builder
+                .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
+                .AddRow("JV-001", "2025-03-05", "", "空白科目", "借方", "300.00", 1)
+                .AddRow("JV-001", "2025-03-05", "  ", "空白科目二", "借方", "200.00", 1)
+                .AddRow("JV-001", "2025-03-05", "5101", "薪資費用", "貸方", "500.00", 0),
+            databaseProvider: databaseProvider,
+            configureTb: tb => tb.AddRow("1101", "現金", 300));
+
+        ILocalProjectDatabase database = databaseProvider == "sqlite"
+            ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))
+            : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        var rows = await new LocalAccountMappingExportRepository(database)
+            .FetchTemplateRowsAsync(projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
+        Assert.Equal(new[] { "1101", "5101" }, rows.Select(r => r.AccountCode).ToArray());
+
+        var population = await host.DispatchAsync("query.accountMappingDifferencePage", """{"kind":"unmapped"}""");
+        Assert.Equal(
+            population.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("accountCode").GetString()).ToArray(),
+            rows.Select(r => r.AccountCode).ToArray());
+
+        string? templatePath = null;
+        var filledPath = NewTempXlsxPath();
+        try
+        {
+            var validate = await host.DispatchAsync("validate.run");
+            var runId = validate.GetProperty("resultRef").GetProperty("runId").GetString();
+            var export = await host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { runId }));
+            Assert.Equal(2, export.GetProperty("rowCount").GetInt32());
+            templatePath = export.GetProperty("filePath").GetString()!;
+            using (var wb = new XLWorkbook(templatePath))
+            {
+                var ws = wb.Worksheet("AccountMapping");
+                for (var row = 4; row <= ws.LastRowUsed()!.RowNumber(); row++)
+                {
+                    Assert.False(string.IsNullOrWhiteSpace(ws.Cell(row, 1).GetString()), $"A{row} 不應是空白科目編號");
+                    ws.Cell(row, 3).Value = AccountMappingCategories.Cash;
+                }
+                wb.SaveAs(filledPath);
+            }
+
+            var import = await host.DispatchAsync("import.accountMapping.fromFile",
+                JsonSerializer.Serialize(new { filePath = filledPath, fileName = "filled.xlsx" }));
+            Assert.Equal(2, import.GetProperty("rowCount").GetInt32());
+            Assert.Equal(0, import.GetProperty("unmappedCount").GetInt64());
+        }
+        finally
+        {
+            if (templatePath is not null && File.Exists(templatePath)) { File.Delete(templatePath); }
+            if (File.Exists(filledPath)) { File.Delete(filledPath); }
+        }
     }
 
     // ================= (d) handler 端到端：寫檔 + rowCount == 獨立 recount diff =================
@@ -627,7 +691,7 @@ public sealed class AccountMappingTemplateExportTests
                 "query.dataPreview",
                 JsonSerializer.Serialize(new { dataset = "accountMappings" }));
             Assert.Equal(sqlServerRows.Count, preview.GetProperty("totalCount").GetInt32());
-            Assert.Equal(JsonValueKind.Null, preview.GetProperty("rows")[0][2].ValueKind);
+            Assert.Equal("Others", preview.GetProperty("rows")[0][2].GetString());
             var sqlServerRepository = new SqlServerAccountMappingExportRepository(
                 new SqlServerProjectDatabase(new SqlServerConnectionOptions(connectionString)));
             var exportedRows = await sqlServerRepository.FetchAllAsync(

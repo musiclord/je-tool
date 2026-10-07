@@ -44,7 +44,8 @@ public sealed class TerminologyUnificationFrontendTests
     {
         var core = ReadFrontend("js", "ui-core.js");
         Assert.Contains("quickLabel: '攸關資料元素欄位條件'", core, StringComparison.Ordinal);
-        Assert.Contains("(item.extra ? '（攸關資料元素欄位）' : '')", ReadFrontend("js", "filter-values.js"), StringComparison.Ordinal);
+        Assert.Contains("(withKind ? ['攸關資料元素欄位'] : [])", core, StringComparison.Ordinal);
+        Assert.Contains("Ui.rdeFieldOptionLabel(item, true)", ReadFrontend("js", "filter-values.js"), StringComparison.Ordinal);
         var filter = ReadFrontend("js", "steps", "filter-step.js");
         Assert.Contains("請選已配對的文字型攸關資料元素欄位", filter, StringComparison.Ordinal);
         Assert.Contains("'此攸關資料元素欄位條件沿用原設定：不納入空白值。'", filter, StringComparison.Ordinal);

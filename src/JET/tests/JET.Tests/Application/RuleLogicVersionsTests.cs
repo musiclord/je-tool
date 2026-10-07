@@ -25,7 +25,7 @@ public sealed class RuleLogicVersionsTests
         // 第9批R3/R10；Public首敗100911120：空白號碼計數與同號多日期摘要使validation升v5；仍鎖定三個完整字面值。
         Assert.Equal("validation-2026-10-04-v5", RuleLogicVersions.Validation);
         Assert.Equal("prescreen-2026-10-04-v9", RuleLogicVersions.Prescreen);
-        Assert.Equal("filter-2026-10-04-v17", RuleLogicVersions.Filter);
+        Assert.Equal("filter-2026-10-06-v18", RuleLogicVersions.Filter);
     }
 
     [Fact]

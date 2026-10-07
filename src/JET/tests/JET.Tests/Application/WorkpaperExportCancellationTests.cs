@@ -25,7 +25,7 @@ public sealed class WorkpaperExportCancellationTests
             () => host.DispatchAsync("export.workpaperStream", Payload(prepared), source.Token));
 
         Assert.Empty(Directory.GetFiles(folder, "*.tmp"));
-        Assert.Empty(Directory.GetFiles(folder, "*_WorkingPaper.xlsx"));
+        Assert.Empty(FindWorkpapers(folder));
         Assert.NotEmpty(publisher.WorkpaperEvents);
         Assert.Equal("preparingData", publisher.WorkpaperEvents[0].GetProperty("phase").GetString());
         Assert.Equal("writingSheet", publisher.WorkpaperEvents[^1].GetProperty("phase").GetString());

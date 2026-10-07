@@ -35,6 +35,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\JET\JET.csproj" />
+    <Compile Include="..\..\..\..\tools\harness\gui-driver\GuiWorkpaperInspection.cs" Link="Harness\GuiWorkpaperInspection.cs" />
   </ItemGroup>
 
 </Project>

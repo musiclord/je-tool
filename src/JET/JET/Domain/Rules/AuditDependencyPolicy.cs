@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 會讓既有審計結果失效的上游 mutation。這些名稱描述真正依賴，不描述
+/// 會讓既有審計結果失效的上游 mutation。這些名稱描述資料修改事件，不描述
 /// repository 或 provider 實作。
 /// </summary>
 internal enum AuditMutation
@@ -19,8 +19,9 @@ internal enum AuditMutation
 }
 
 /// <summary>
-/// 上游 mutation 對衍生審計資料的精確影響。Filter scenario definition／revision
-/// 與 GL control total 是明列的保留例外，避免呼叫端以方便為由擴大清除。
+/// 上游 mutation 對衍生審計資料的精確影響。使用者 2026-10-07 裁定上游修改清除下游：
+/// 會讓篩選命中過期的修改，同時清掉全部已存篩選情境定義，不保留需要逐一修正的舊情境。
+/// GL control total 仍是明列的保留例外，避免呼叫端以方便為由擴大清除。
 /// </summary>
 internal sealed record AuditDependencyImpact(
     bool InvalidateValidation,
@@ -37,10 +38,8 @@ internal static class AuditDependencyPolicy
 {
     internal static AuditDependencyImpact For(AuditMutation mutation) => mutation switch
     {
-        AuditMutation.GlImport or AuditMutation.GlProjection =>
+        AuditMutation.GlImport or AuditMutation.GlProjection or AuditMutation.TbImport or AuditMutation.TbProjection =>
             Impact(validation: true, prescreen: true, filterHits: true),
-        AuditMutation.TbImport or AuditMutation.TbProjection =>
-            Impact(validation: true, prescreen: false, filterHits: false),
         AuditMutation.Calendar or AuditMutation.AccountMapping or AuditMutation.AuthorizedPreparer or AuditMutation.PreparationDate =>
             Impact(validation: false, prescreen: true, filterHits: true),
         AuditMutation.SchemaV7Migration =>
@@ -58,6 +57,7 @@ internal static class AuditDependencyPolicy
             validation,
             prescreen,
             filterHits,
-            InvalidateFilterScenarioDefinitions: false,
+            // 情境定義與命中同進退；總帳與試算表使用同一條資料修改規則。
+            InvalidateFilterScenarioDefinitions: filterHits,
             ClearGlControlTotal: false);
 }

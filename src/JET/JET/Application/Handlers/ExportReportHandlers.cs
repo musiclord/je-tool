@@ -439,7 +439,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
         {
             using var definition = JsonDocument.Parse(scenario.DefinitionJson);
             conditionLogic[scenario.Position] =
-                FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels, taxonomy.Categories, document.LastAccountingPeriodDate);
+                FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels, taxonomy.Categories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd);
             var scenarioSpec = FilterScenarioPayloadParser.Parse(
                 definition.RootElement,
                 document.MoneyScale);

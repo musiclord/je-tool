@@ -230,8 +230,10 @@ public sealed class TagMatrixRowPageTests
         var ctx = await DemoProjectPipeline.SetupAsync(host);
         await host.DispatchAsync("filter.commit", ThreeScenarioPayload());
 
-        // 透過正式上游變更使結果失效；情境定義保留。
-        await host.DispatchAsync("calendar.setNonWorkingDays", """{"days":[6]}""");
+        // 透過正式流程使結果失效；情境定義保留。
+        // 使用者 2026-10-07 裁定上游修改清除下游後，行事曆修改會連情境一起清掉；改用開案規則升版的情境整批取代。
+        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        await SavedScenarioReplay.ReplaceLikeRuleUpgradeAsync(host, ctx.ProjectId);
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
             "SELECT COUNT(*) FROM result_filter_run;"));
 

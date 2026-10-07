@@ -64,6 +64,7 @@ internal sealed record ProjectRepositories
     public required ICompletenessDiffPageRepository CompletenessDiffPages { get; init; }
     public required ICompletenessAccountPageRepository CompletenessAccountPages { get; init; }
     public required IAccountMappingBlankPageRepository AccountMappingBlankPages { get; init; }
+    public required IAccountMappingDifferenceRepository AccountMappingDifferences { get; init; }
     public required IDocBalancePageRepository DocBalancePages { get; init; }
     public required IUnbalancedGlEntryPageRepository UnbalancedGlEntryPages { get; init; }
     public required INullRecordsPageRepository NullRecordsPages { get; init; }

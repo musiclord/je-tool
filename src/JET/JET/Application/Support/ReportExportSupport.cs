@@ -95,7 +95,7 @@ internal static class ReportExportSupport
         {
             current = FilterPopulationScopeParser.RequireCurrentRevision(scenarios);
         }
-        catch (JetActionException exception) when (exception.Code == JetErrorCodes.StaleResult)
+        catch (JetActionException exception) when (exception.Code == JetErrorCodes.StaleResult && scenarios.Count > 0)
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,

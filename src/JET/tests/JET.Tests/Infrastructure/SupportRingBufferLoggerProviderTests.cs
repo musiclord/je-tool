@@ -1,4 +1,7 @@
 using JET.Bridge;
+using JET.Application;
+using JET.Tests.Application;
+using System.Text.Json;
 using JET.Domain;
 using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
@@ -8,6 +11,26 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class SupportRingBufferLoggerProviderTests
 {
+    [Theory]
+    [InlineData("{\"level\":\"warning\",\"text\":\"SYNTHETIC_PRIVATE_TEXT\"}")]
+    [InlineData("{\"level\":\"info\",\"text\":\"  \"}")]
+    public async Task RejectedMessagePayloadIsLoggedBeforeTheDispatcherReturnsWithoutMessageContent(string payload)
+    {
+        var session = new ProjectSession();
+        session.Enter("synthetic-log", TestProjectRepositories.Unconfigured("sqlite"));
+        using var provider = new SupportRingBufferLoggerProvider(8);
+        using var factory = LoggerFactory.Create(builder => builder.AddProvider(provider));
+        var dispatcher = new ActionDispatcher(new[] { new LogAppendHandler(session) }, factory.CreateLogger<ActionDispatcher>(), session);
+        using var document = JsonDocument.Parse(payload);
+        var error = await Assert.ThrowsAsync<JetActionException>(() => dispatcher.DispatchAsync(
+            "log.append", document.RootElement, CancellationToken.None));
+        Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
+        var entry = Assert.Single(provider.Snapshot(), item => item.EventName == "action.error");
+        Assert.Equal("log.append", entry.Fields["action"]);
+        Assert.Equal(JetErrorCodes.InvalidPayload, entry.Fields["error_code"]);
+        Assert.DoesNotContain("SYNTHETIC_PRIVATE_TEXT", SupportDiagnosticNdjson.SerializeLine(entry));
+    }
+
     [Fact]
     public void FailureSurvivesHeartbeats_AndSnapshotReportsOmittedEvents()
     {

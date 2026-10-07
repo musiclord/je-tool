@@ -87,13 +87,18 @@ public sealed class ResultStaleStateLifecycleTests
         await SeedAllResultKindsAsync(connectionFactory(projectId), schemaPrefix);
 
         // Taxonomy affects prescreen/filter only. Validation summary and INF rows remain current.
+        // 使用者 2026-10-07 裁定上游修改清除下游：篩選情境與命中一起清掉，沒有可重跑的篩選，filter 回到從未執行。
+        // 第一次失敗收據 20261007-033240978-87b22715a057481a849ce3013975e5c1。
         await ResetAsync(
             connectionFactory(projectId),
             schemaPrefix,
             AuditMutation.AccountTaxonomy);
         Assert.Equal(
-            new AuditResultStaleState(false, true, true),
+            new AuditResultStaleState(false, true, false),
             await staleStore.ReadAsync(projectId, CancellationToken.None));
+        Assert.Equal(0, await ScalarAsync(
+            connectionFactory(projectId),
+            $"SELECT COUNT(*) FROM {schemaPrefix}result_filter_run;"));
         Assert.Equal(1, await ScalarAsync(
             connectionFactory(projectId),
             $"SELECT COUNT(*) FROM {schemaPrefix}result_rule_run WHERE run_kind = 'validate';"));
@@ -101,13 +106,14 @@ public sealed class ResultStaleStateLifecycleTests
             connectionFactory(projectId),
             $"SELECT COUNT(*) FROM {schemaPrefix}result_inf_sampling_test_sample;"));
 
-        // TB projection then marks and deletes only the truly existing validation family.
+        // TB projection invalidates all families; only validation still exists after the earlier reset.
+        // filter 在上一步分類修改時已回到從未執行，以下 filter 期望值隨之改為 false（同一次第一次失敗收據）。
         await ResetAsync(
             connectionFactory(projectId),
             schemaPrefix,
             AuditMutation.TbProjection);
         Assert.Equal(
-            new AuditResultStaleState(true, true, true),
+            new AuditResultStaleState(true, true, false),
             await staleStore.ReadAsync(projectId, CancellationToken.None));
 
         await ruleRunStore.SaveAsync(
@@ -115,7 +121,7 @@ public sealed class ResultStaleStateLifecycleTests
             Run("new-validation", RuleRunKinds.Validate),
             CancellationToken.None);
         Assert.Equal(
-            new AuditResultStaleState(false, true, true),
+            new AuditResultStaleState(false, true, false),
             await staleStore.ReadAsync(projectId, CancellationToken.None));
 
         await SetStaleAsync(
@@ -138,15 +144,17 @@ public sealed class ResultStaleStateLifecycleTests
             Run("new-prescreen", RuleRunKinds.Prescreen),
             CancellationToken.None);
         Assert.Equal(
-            new AuditResultStaleState(false, false, true),
+            new AuditResultStaleState(false, false, false),
             await staleStore.ReadAsync(projectId, CancellationToken.None));
 
         // Replacing authoring definitions is not successful result materialization.
+        // 使用者 2026-10-07 裁定上游修改清除下游：前面的分類修改已清掉情境與命中，這裡是從未執行的狀態，
+        // 寫入定義不會憑空產生待重跑；原本斷言 true，第一次失敗收據 20261007-034754014-ce0d7c7e932f4d58b70af5629c1da8c2。
         await scenarioStore.ReplaceAllAsync(
             projectId,
             [new SavedFilterScenario(1, "definition", "rationale", "{}", DateTimeOffset.UnixEpoch)],
             CancellationToken.None);
-        Assert.True((await staleStore.ReadAsync(projectId, CancellationToken.None)).Filter);
+        Assert.False((await staleStore.ReadAsync(projectId, CancellationToken.None)).Filter);
 
         // A successfully materialized revision may legitimately have zero hits. Its saved definition/revision
         // is therefore the durable completion marker: replacing it invalidates that result just like nonzero hits.
@@ -170,13 +178,17 @@ public sealed class ResultStaleStateLifecycleTests
             CancellationToken.None);
         Assert.False((await staleStore.ReadAsync(projectId, CancellationToken.None)).Filter);
 
-        // An upstream mutation must also mark a committed zero-hit revision stale; an empty hit table alone
-        // cannot be used as the never-run marker.
+        // 使用者 2026-10-07 裁定上游修改清除下游：上游修改不再把零命中的已存版本標成待重跑，而是連同定義一起清掉，
+        // filter 回到從未執行。原本「零命中版本也要標過期」的保護改由上方 ReplaceAllAsync 的檢查涵蓋。
+        // 第一次失敗收據 20261007-033240978-87b22715a057481a849ce3013975e5c1。
         await ResetAsync(
             connectionFactory(projectId),
             schemaPrefix,
             AuditMutation.AccountTaxonomy);
-        Assert.True((await staleStore.ReadAsync(projectId, CancellationToken.None)).Filter);
+        Assert.False((await staleStore.ReadAsync(projectId, CancellationToken.None)).Filter);
+        Assert.Equal(0, await ScalarAsync(
+            connectionFactory(projectId),
+            $"SELECT COUNT(*) FROM {schemaPrefix}config_filter_scenario;"));
 
         await SeedFilterHitAsync(connectionFactory(projectId), schemaPrefix);
         await scenarioStore.ReplaceAllAsync(

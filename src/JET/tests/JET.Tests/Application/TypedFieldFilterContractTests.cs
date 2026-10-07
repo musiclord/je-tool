@@ -28,10 +28,10 @@ public sealed class TypedFieldFilterContractTests
     }
 
     [Fact]
-    public void FilterLogicVersion_CurrentContractIsV17()
+    public void FilterLogicVersion_CurrentContractIsV18()
     {
-        // 2026-10-04 R1、R2 改變空白傳票號碼的命中結果，因此推進整份篩選定義的版本。
-        Assert.Equal("filter-2026-10-04-v17", RuleLogicVersions.Filter);
+        // 2026-10-06 條件 A 加入查核期末視窗，因此推進整份篩選定義的版本。
+        Assert.Equal("filter-2026-10-06-v18", RuleLogicVersions.Filter);
     }
 
     [Fact]

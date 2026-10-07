@@ -102,14 +102,14 @@ public sealed class CompletenessBackendGateProviderTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public Task ReimportedTb_RetainsPrescreenRunButRejectsPrescreenReport_LocalProviders(
+    public Task ReimportedTb_ClearsPrescreenRunAndRejectsPrescreenReport_LocalProviders(
         string databaseProvider) =>
         RunPrescreenReportAfterTbReimportAsync(
             databaseProvider,
             sqlServerConnectionString: null);
 
     [SqlServerFact]
-    public async Task ReimportedTb_RetainsPrescreenRunButRejectsPrescreenReport_SqlServer()
+    public async Task ReimportedTb_ClearsPrescreenRunAndRejectsPrescreenReport_SqlServer()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync()
             ?? throw new InvalidOperationException(
@@ -190,6 +190,10 @@ public sealed class CompletenessBackendGateProviderTests
             await host.DispatchAsync(
                 "calendar.setNonWorkingDays",
                 """{ "days": [1] }""");
+            // 使用者 2026-10-07 裁定上游修改清除下游：行事曆修改清掉已存情境，審計員重新儲存情境後再匯出。
+            // 原本直接沿用舊情境版本匯出，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+            var resaved = await host.DispatchAsync("filter.commit", FilterCommitPayload());
+            references = references with { Revision = resaved.GetProperty("resultRef").GetProperty("revision").GetString()! };
             // 9/23：底稿自己重算目前資料，不再要求先重新產生 Criteria 檔案。
             var recalculated = await host.DispatchAsync("export.workpaperStream", WorkpaperPayload(references));
             Assert.True(recalculated.GetProperty("ok").GetBoolean());
@@ -242,9 +246,8 @@ public sealed class CompletenessBackendGateProviderTests
                 JsonValueKind.Null,
                 loaded.GetProperty("latestRuns").GetProperty("validate").ValueKind);
             Assert.Equal(
-                references.PrescreenRunId,
-                loaded.GetProperty("latestRuns").GetProperty("prescreen")
-                    .GetProperty("resultRef").GetProperty("runId").GetString());
+                JsonValueKind.Null,
+                loaded.GetProperty("latestRuns").GetProperty("prescreen").ValueKind);
 
             var exception = await Assert.ThrowsAsync<JetActionException>(() =>
                 host.DispatchAsync(

@@ -47,7 +47,9 @@ public sealed class FilterQueryFreshnessTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         await host.DispatchAsync("filter.commit", ScenarioPayload("999999999999"));
-        await host.DispatchAsync("calendar.setNonWorkingDays", """{"days":[6]}""");
+        // 使用者 2026-10-07 裁定上游修改清除下游後，行事曆修改會連情境一起清掉，不再留下待重算的零筆結果；
+        // 改用開案規則升版的情境整批取代製造同一狀態。第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        await SavedScenarioReplay.ReplaceLikeRuleUpgradeAsync(host, context.ProjectId, provider);
         Assert.Equal(1, await FilterStaleAsync(host, context.ProjectId, provider));
 
         using (var held = Assert.IsAssignableFrom<IDisposable>(host.Dispatcher.TryAcquireExecutionLease()))

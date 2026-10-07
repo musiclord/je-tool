@@ -59,7 +59,7 @@ public sealed class FrontendUsabilityContractTests
 
         Assert.Single(Regex.Matches(index, "data-action=\"open-project-folder\"", RegexOptions.CultureInvariant).Cast<Match>());
         // 9/22 科目配對區新增就近開啟資料夾，報告定位由各步共用一個事件綁定。
-        Assert.Equal(3, Regex.Matches(javascript, @"JetApi\.hostOpenFolder\(", RegexOptions.CultureInvariant).Count);
+        Assert.Equal(4, Regex.Matches(javascript, @"JetApi\.hostOpenFolder\(", RegexOptions.CultureInvariant).Count);
         Assert.Contains("hostOpenFolder({ target: 'projectFolder' })", javascript, StringComparison.Ordinal);
         Assert.Contains("data-open-artifact", javascript, StringComparison.Ordinal);
         Assert.Contains("hostOpenFolder({ artifactId: artifactId })", javascript, StringComparison.Ordinal);

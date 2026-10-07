@@ -61,6 +61,7 @@
     documentDescription: '摘要',
     amount: '金額',
     drCr: '借貸',
+    manualAuto: '人工/自動',
     postingStatus: '過帳狀態',
     exclusionReason: '未納入原因',
     changeAmount: '變動金額',
@@ -87,6 +88,7 @@
   // 純顯示層的 cell 改寫（不改後端語意）：dayType 原值轉中文；會計金額欄一律走 Ui.money（兩位小數加千分位）。
   function displayCell(dataset, column, cell) {
     if (cell === null) { return null; }
+    if (dataset === 'glEntries' && column === 'manualAuto') { return { manual: '人工', automatic: '自動' }[cell] || cell; }
     if (dataset === 'dateDimension' && column === 'dayType') {
       return DAY_TYPE_LABELS[cell] || cell;
     }

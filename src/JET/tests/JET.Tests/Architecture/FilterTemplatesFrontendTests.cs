@@ -63,7 +63,9 @@ public sealed class FilterTemplatesFrontendTests
         Assert.Contains("rule-row--invalid", filter, StringComparison.Ordinal);
         Assert.Contains("data-rule-error", filter, StringComparison.Ordinal);
         // 9/23：仍有兩條錯誤接線，但先拒絕舊案件或舊草稿回應，不能標紅新條件。
-        Assert.Equal(2, Regex.Matches(filter, Regex.Escape("markRuleErrors(container, error);")).Count);
+        // 2026-10-07 操作測試 F6：儲存路線對不到條件列時改在儲存按鈕上方寫原因，所以這條接線改成 if 形式（第一次失敗收據 20261007-035823939-41943206b5f747f1b7fb8dfe79f987d7）。
+        Assert.Equal(1, Regex.Matches(filter, Regex.Escape("markRuleErrors(container, error);")).Count);
+        Assert.Equal(1, Regex.Matches(filter, Regex.Escape("if (!markRuleErrors(container, error)) { showSaveNotice(")).Count);
         Assert.Contains("if (!acceptResponse()) { return; } markRuleErrors", filter, StringComparison.Ordinal);
         Assert.Contains("if (!acceptsFilterCommit(saveSnapshot)) { return; }", filter, StringComparison.Ordinal);
         Assert.Contains("Store.getFilterDraftRev() === saveSnapshot.revision", filter, StringComparison.Ordinal);

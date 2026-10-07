@@ -16,7 +16,10 @@ public sealed class FilterKctMetadataFrontendTests
         var filter = ReadFrontend("js", "steps", "filter-step.js");
         var marker = ExtractFunction(filter, "hasKctMarker");
         var source = ExtractFunction(filter, "scenarioSource");
-        var projection = ExtractFunction(filter, "toWireScenario");
+        // 2026-10-07 操作測試 F4：已存情境與草稿共用 projectWireScenario，只有草稿產生命名來源；
+        // toWireScenario 只剩轉呼叫，所以來源投影改在 projectWireScenario 裡檢查（第一次失敗收據 20261007-035823939-41943206b5f747f1b7fb8dfe79f987d7）。
+        Assert.Contains("function toWireScenario(s) { return projectWireScenario(s, false); }", filter, StringComparison.Ordinal);
+        var projection = ExtractFunction(filter, "projectWireScenario");
 
         Assert.Contains("(scenario.groups || []).some", marker, StringComparison.Ordinal);
         Assert.Contains("(group.rules || []).some", marker, StringComparison.Ordinal);

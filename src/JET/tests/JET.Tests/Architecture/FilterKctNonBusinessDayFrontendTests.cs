@@ -49,6 +49,8 @@ public sealed class FilterKctNonBusinessDayFrontendTests
         Assert.Contains("var text = '第 ' + (gi + 1) + ' 組第 ' + (path[0] + 1) + ' 條';", filter, StringComparison.Ordinal);
         Assert.Contains("text += '的第 ' + (path[i] + 1) + ' 項';", filter, StringComparison.Ordinal);
         Assert.Contains("var problems = draftRuleProblems(draft).map(function (item) { return item.text; });", filter, StringComparison.Ordinal);
-        Assert.Contains("notice.textContent = '尚需補齊：' + problems.join('、');", filter, StringComparison.Ordinal);
+        // 使用者 2026-10-07 要求重名不得影響唯一性：同一則提示接著寫重名原因，缺值清單本身不變（第一次失敗收據 20261007-035823939-41943206b5f747f1b7fb8dfe79f987d7）。
+        Assert.Contains("'尚需補齊：' + problems.join('、')", filter, StringComparison.Ordinal);
+        Assert.Contains("notice.textContent = (problems.length ? '尚需補齊：' + problems.join('、')", filter, StringComparison.Ordinal);
     }
 }

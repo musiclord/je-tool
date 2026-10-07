@@ -86,8 +86,10 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         var validate = ReadFrontend("js", "steps", "validate-step.js");
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
 
-        // 停用的刪除鈕帶 title 說明原因；被擋下的提交在按鈕上方列出缺什麼。
-        Assert.Contains("' disabled title=\"' + Ui.esc(lockedReason) + '\"'", validate, StringComparison.Ordinal);
+        // 2026-10-07：引用情境不再阻擋自訂分類刪除；首次失敗 16649cbb7e60449ca9bbdd2e532e22bc。
+        // 仍被擋下的分類儲存與配對提交，在按鈕上方列出缺什麼。
+        Assert.Contains("data-taxonomy-remove=", validate, StringComparison.Ordinal);
+        Assert.DoesNotContain("已被篩選情境使用，不可刪除", validate, StringComparison.Ordinal);
         Assert.Contains("data-bind=\"taxonomy-problems\"", validate, StringComparison.Ordinal);
         Assert.Contains("data-bind=\"mapping-option-problems\"", mapping, StringComparison.Ordinal);
         Assert.Contains("尚需補齊：", mapping, StringComparison.Ordinal);

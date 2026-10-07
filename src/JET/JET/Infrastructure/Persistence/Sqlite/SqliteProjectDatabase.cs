@@ -499,7 +499,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         }
         if (version == "9")
         {
-            await AccountClassificationMigration.UpgradeLocalAsync(connection, SqliteDialect.Instance, cancellationToken);
+            await AccountClassificationMigration.UpgradeLocalAsync(connection, cancellationToken);
             version = "10";
         }
         if (version == "10")
@@ -615,11 +615,6 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
                 await backfill.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            await MigrateScenarioCategoryIdsAsync(
-                connection, transaction, schemaPrefix: "", cancellationToken);
-
-            MigrationFaultHookForTests?.Invoke("after-v7-data-rewrite");
-
             await RuleRunResultReset.ClearWithinAsync(
                 connection,
                 transaction,
@@ -676,41 +671,6 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         await add.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    internal static async Task MigrateScenarioCategoryIdsAsync(
-        DbConnection connection,
-        DbTransaction transaction,
-        string schemaPrefix,
-        CancellationToken cancellationToken)
-    {
-        var changes = new List<(int Position, string Json)>();
-        await using (var select = connection.CreateCommand())
-        {
-            select.Transaction = transaction;
-            select.CommandText = $"SELECT position, definition_json FROM {schemaPrefix}config_filter_scenario ORDER BY position;";
-            await using var reader = await select.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var position = reader.GetInt32(0);
-                var json = reader.GetString(1);
-                var rewritten = ScenarioV7DefinitionMigration.Rewrite(json);
-                if (!string.Equals(json, rewritten, StringComparison.Ordinal))
-                {
-                    changes.Add((position, rewritten));
-                }
-            }
-        }
-
-        foreach (var change in changes)
-        {
-            await using var update = connection.CreateCommand();
-            update.Transaction = transaction;
-            update.CommandText = $"UPDATE {schemaPrefix}config_filter_scenario SET definition_json = @json WHERE position = @position;";
-            update.AddWithValue("@json", change.Json);
-            update.AddWithValue("@position", change.Position);
-            await update.ExecuteNonQueryAsync(cancellationToken);
-        }
-    }
-
     /// <summary>
     /// 刪除該專案的 jet.db（含 WAL/SHM 邊檔）。只清除此專案的連線池以釋放檔案鎖，
     /// 避免刪除一案時中斷其他專案正在執行的 SQLite 工作。
@@ -757,67 +717,5 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         }
 
         return await ReadVersionAsync(connection, cancellationToken);
-    }
-}
-
-internal static class ScenarioV7DefinitionMigration
-{
-    internal static string Rewrite(string json)
-    {
-        var root = System.Text.Json.Nodes.JsonNode.Parse(json);
-        if (root is null)
-        {
-            return json;
-        }
-
-        var changed = RewriteNode(root);
-        return changed ? root.ToJsonString(JetJsonStorage.Options) : json;
-    }
-
-    private static bool RewriteNode(System.Text.Json.Nodes.JsonNode node)
-    {
-        var changed = false;
-        if (node is System.Text.Json.Nodes.JsonObject obj)
-        {
-            changed |= AddSingletonId(obj, "debitCategory", "debitCategoryIds");
-            changed |= AddSingletonId(obj, "creditCategory", "creditCategoryIds");
-            foreach (var property in obj.ToList())
-            {
-                if (property.Value is not null)
-                {
-                    changed |= RewriteNode(property.Value);
-                }
-            }
-        }
-        else if (node is System.Text.Json.Nodes.JsonArray array)
-        {
-            foreach (var item in array)
-            {
-                if (item is not null)
-                {
-                    changed |= RewriteNode(item);
-                }
-            }
-        }
-
-        return changed;
-    }
-
-    private static bool AddSingletonId(
-        System.Text.Json.Nodes.JsonObject obj,
-        string legacyProperty,
-        string idArrayProperty)
-    {
-        if (obj.ContainsKey(idArrayProperty)
-            || obj[legacyProperty] is not System.Text.Json.Nodes.JsonValue value
-            || !value.TryGetValue<string>(out var label)
-            || !AccountTaxonomyBuiltIns.TryResolveLegacyLabel(label, out var category))
-        {
-            return false;
-        }
-
-        obj[idArrayProperty] = new System.Text.Json.Nodes.JsonArray(
-            System.Text.Json.Nodes.JsonValue.Create(category.CategoryId));
-        return true;
     }
 }

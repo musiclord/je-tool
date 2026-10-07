@@ -119,14 +119,6 @@ public sealed partial class SqlServerProjectDatabase
                     await backfill.ExecuteNonQueryAsync(cancellationToken);
                 }
 
-                await SqliteProjectDatabase.MigrateScenarioCategoryIdsAsync(
-                    connection,
-                    tx,
-                    SqlServerProjectSchema.QualifierFor(projectId),
-                    cancellationToken);
-
-                MigrationFaultHookForTests?.Invoke("after-v7-data-rewrite");
-
                 await RuleRunResultReset.ClearWithinAsync(
                     connection,
                     tx,
@@ -138,7 +130,7 @@ public sealed partial class SqlServerProjectDatabase
             }
 
             if (parsedExisting < 10)
-                await AccountClassificationMigration.BackfillAsync(connection, tx, SqlServerDialect.Instance,
+                await AccountClassificationMigration.BackfillAsync(connection, tx,
                     SqlServerProjectSchema.QualifierFor(projectId), cancellationToken);
 
             await using (var bump = CreateCommand(connection, projectId, BumpSchemaVersionSql))

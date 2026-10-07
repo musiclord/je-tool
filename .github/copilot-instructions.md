@@ -10,7 +10,7 @@ VS Code AI Agent 的共用規則權威；本檔只是 Copilot 與 VS Code 的入
 - Commit、PR 與同步說明不得自行加入 `Co-Authored-By`、`Generated with` 或其他 AI 署名。
 - 不讀取、上傳或記錄 `AGENTS.md` 所列私人案件路徑；一般驗證只使用合成或已核准資料。
 - 正式驗證從 `pwsh -NoProfile -File tools/verify.ps1` 進入，不用直接 `dotnet test` 取代收據、鎖與清理。
-- 交付說明只寫結果、必要理由、風險與實際驗證，不逐檔重述 diff。
+- Commit 與 PR 內文保持精簡，只寫主要變更與必要原因，避免詳細描述實作過程、驗證細節與逐項修改內容。
 
 專案目的與公司環境限制見 [`docs/project-context.md`](../docs/project-context.md)；跨 session 開發先讀
 [`docs/development-status.md`](../docs/development-status.md) 的現行計畫，再依

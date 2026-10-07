@@ -43,7 +43,7 @@ internal static partial class GuiScenarios
         Task Click(string selector) => ClickControlAsync(cdp, process, selector, outcome, ct);
         Task Choose(string selector, string value) => ChooseOptionAsync(cdp, process, selector, value, outcome, ct);
         Task Check(string expression) => WaitForProbeAsync(cdp, process,
-            "(function(){ var state=window.JetStore.getState(), draft=state.filter.draft, saved=state.filter.savedScenarios, preview=state.filter.preview; return {viewport:[innerWidth,innerHeight],pixelRatio:devicePixelRatio,busyLabel:state.busyLabel,idle:!state.busy, ok:!!(" + expression + "), matrixVoucherRows:document.querySelectorAll('[data-bind=matrix-vouchers] tbody tr').length, matrixRowRows:document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length, matrixReady:!!document.querySelector('[data-bind=matrix-body][data-loaded]'), pairWidths:Array.from(document.querySelectorAll('.filter-account-pair .category-select')).map(e=>[e.clientWidth,e.scrollWidth]), dateOperator:draft.groups.flatMap(g=>g.rules).find(r=>r.type==='fieldValue')?.operator, matrixHasNames:!!document.querySelector('[data-bind=matrix-vouchers] .filter-matrix-name')}; })()",
+            "(function(){ var state=window.JetStore.getState(), draft=state.filter.draft, saved=state.filter.savedScenarios, preview=state.filter.preview; return {viewport:[innerWidth,innerHeight],pixelRatio:devicePixelRatio,busyLabel:state.busyLabel,idle:!state.busy, ok:!!(" + expression + "), matrixVoucherRows:document.querySelectorAll('[data-bind=matrix-vouchers] tbody tr').length, matrixRowRows:document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length, matrixReady:!!document.querySelector('[data-bind=matrix-body][data-loaded]'), pairWidths:Array.from(document.querySelectorAll('.filter-account-pair .category-select')).map(e=>[e.clientWidth,e.scrollWidth]), dateOperator:draft.groups.flatMap(g=>g.rules).find(r=>r.type==='fieldValue')?.operator, matrixHasNames:!!document.querySelector('[data-bind=matrix-vouchers] .filter-matrix-name'), active:{tag:document.activeElement?.tagName,cls:document.activeElement?.className,inControls:!!document.activeElement?.closest('.rule-row__controls')}, selectedRows:Array.from(document.querySelectorAll('.rule-row--selected')).map(e=>({text:e.querySelector('.filter-rule-selected')?.textContent,containsActive:e.contains(document.activeElement),top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom})),workbenchColumns:document.querySelector('.filter-workbench')?getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns:null,draftRules:draft.groups.map(g=>g.rules.map(r=>({type:r.type,field:r.field,operator:r.operator}))),customSubject:document.querySelector('[data-custom-subject]')?.value,addDisabled:document.querySelector('[data-action=add-rule]')?.disabled}; })()",
             value => value, value => ReadBoolean(value,"idle") && ReadBoolean(value,"ok"), "filter_workflow_failed", ct,
             value => outcome.LastFilterProbe = value.Clone());
         async Task Fill(string selector, string value)
@@ -57,6 +57,7 @@ internal static partial class GuiScenarios
             await Check("window.innerWidth>760 && window.innerWidth<840 && window.innerHeight>440");
             await Click("[data-action=\"picker-open\"][data-project-id=\"agent-gui-export-ready\"]");
             await Click("[data-bind=\"step-nav\"] [data-step-index=\"4\"]");
+            await Check("window.innerWidth<900 && getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns.split(' ').length===1");
         }
         async Task Save(bool expectSuccess = true)
         {
@@ -116,6 +117,24 @@ internal static partial class GuiScenarios
             await Click("[data-filter-pane-select=\"filter\"]");
             await Click("[data-action=\"new-scenario\"]");
             await Click("[data-condition-source=\"kct\"]");
+            outcome.RecordStage("kct_a_to_e_default_rationales");
+            var rationales = new (string Letter, string Text)[]
+            {
+                ("A", "期末前 X天內收入科目有迴轉分錄，表示收入認列過程中可能存在不適當的調整或更正(案件團隊須提供天數)"),
+                ("B", "借記固定資產科目(如不動產、廠房和設備(PPE))但貸記營業費用或維修費用等費用科目之分錄組合不符合公司營業流程的瞭解，因此屬於為非預期的過帳，可能為舞弊類型分錄及其他調整的特質。"),
+                ("C", "查核團隊已發現與收入科目相關的未預期或不尋常過帳(貸方為收入，但借方科目非為應收票據/帳款、預收貨款/合約負債)"),
+                ("D", "根據查核核團隊的瞭解，收入科目的過帳一般是自動產生，如為人工分錄非屬正常營業流程的會計分錄"),
+                ("E", "執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。")
+            };
+            foreach (var (letter, rationale) in rationales)
+            {
+                outcome.RecordStage($"kct_{letter}_default_rationale");
+                await Click($"[data-kct-letter='{letter}']");
+                await Check("draft.rationale===" + JsonSerializer.Serialize(letter + "：" + rationale));
+                if (letter == "B") await Check("draft.groups[0].rules[0].__kctLetter==='B' && draft.groups[0].rules[0].type==='specialAccountCategoryPair' && document.querySelector('[data-kct-letter=B]').getAttribute('aria-pressed')==='true'");
+                await Click($"[data-kct-letter='{letter}']");
+                await Check("draft.groups[0].rules.length===0");
+            }
             await Click("[data-kct-letter=\"G\"]");
             await Save();
             await Check("saved.length===2 && saved[1].editorOrigins.groups[0].letters[0]==='G'");
@@ -281,14 +300,16 @@ internal static partial class GuiScenarios
             await FindControlPointAsync(cdp,process,".filter-voucher-host th[data-sort-key=\"totalRowCount\"]",ct);
             await CaptureScreenshotAsync(cdp,outcome,ct);
             await Save();
-            await Check("saved.length===1 && saved[0].name==='借現金、貸非現金' && saved[0].groups.length===2 && document.body.textContent.includes('每月幾日不屬於「28、31」') && document.body.textContent.includes('借貸科目組合')");
+            // 使用者 2026-10-07 裁定範例文字在增減條件後改回自動：套用範例後又加了第二組，名稱與動機依目前條件重算，
+            // 不再是範例的「借現金、貸非現金」（第一次失敗收據 20261007-041440189-2762d661a1654592b1318cbe1b439b0d）。
+            await Check("saved.length===1 && saved[0].name!=='借現金、貸非現金' && saved[0].name.includes('借貸科目組合') && saved[0].name.includes('總帳入帳日') && saved[0].rationale!=='借方為現金，而整張傳票沒有貸方現金的分錄。' && saved[0].groups.length===2 && document.body.textContent.includes('每月幾日不屬於「28、31」') && document.body.textContent.includes('借貸科目組合')");
             var savedReadback = await cdp.EvaluateAsync("document.querySelector('.saved-scenario .scenario-readback').textContent", ct);
             await Check("!document.querySelector('[data-filter-pane=saved]').hidden");
             await Click("[data-action=\"toggle-matrix\"]");
             await Check("document.querySelector('[data-bind=matrix-scenarios] table') && document.querySelector('[data-bind=matrix-vouchers]').hidden && !document.querySelector('[data-bind=matrix-vouchers] table')");
             await Click("[data-matrix-view=\"vouchers\"]");
             outcome.RecordStage("matrix-vouchers");
-            await Check("document.querySelector('[data-bind=matrix-vouchers] tbody tr') && document.querySelector('[data-bind=matrix-scenarios]').hidden && document.querySelector('[data-bind=matrix-vouchers] .filter-matrix-name').textContent==='借現金、貸非現金'");
+            await Check("document.querySelector('[data-bind=matrix-vouchers] tbody tr') && document.querySelector('[data-bind=matrix-scenarios]').hidden && document.querySelector('[data-bind=matrix-vouchers] .filter-matrix-name').textContent===saved[0].name");
             await Click("[data-matrix-view=\"rows\"]");
             await Check("document.querySelector('[data-bind=matrix-rows] tbody tr') && document.querySelector('[data-bind=matrix-vouchers]').hidden");
             await FindControlPointAsync(cdp,process,"[data-matrix-view=\"rows\"]",ct);
@@ -331,7 +352,10 @@ internal static partial class GuiScenarios
             await Check($"document.querySelector('.saved-scenario .scenario-readback').textContent==={savedReadback.GetRawText()}");
             await Click(".data-preview__rail");
             await Click(".data-preview [data-more-toggle]");
-            await Check("(()=>{var w=document.querySelector('.filter-workbench'),r=w.querySelector('.rule-row');return w.clientWidth>660 || (getComputedStyle(w).gridTemplateColumns.split(' ').length===1 && r.clientWidth>=300);})()");
+            // 保持視窗大於 900px，但讓預覽佔去寬度，實際走過工作區不足 660px 的單欄分支。
+            outcome.RecordAction();
+            ResizeFilterWindow(process, 1400, 1100);
+            await Check("(()=>{var w=document.querySelector('.filter-workbench'),r=w.querySelector('.rule-row');return innerWidth>900 && w.clientWidth<660 && getComputedStyle(w).gridTemplateColumns.split(' ').length===1 && r.clientWidth>=300;})()");
             await Check("(()=>{var p=document.querySelector('.data-preview').getBoundingClientRect(),m=document.querySelector('.data-preview__menu').getBoundingClientRect();return m.left>=p.left && m.right<=p.right;})()");
             await Check("(()=>{var p=document.querySelector('.data-preview'),labels=Array.from(p.querySelectorAll('.data-preview__tab,.data-preview__menu-item')).map(e=>e.textContent.trim()),elements=p.querySelectorAll('.data-preview__eyebrow,.data-preview__tab,.data-preview__menu-item,.data-preview__hint,.data-preview__table th,.data-preview__table td,.data-preview__count');return p.querySelector('.data-preview__eyebrow').textContent==='資料預覽' && labels.includes('納入測試的分錄') && labels.includes('未納入測試的分錄') && labels.every(s=>!s.includes('JE')) && Array.from(elements).every(e=>getComputedStyle(e).fontFamily===getComputedStyle(p).fontFamily && getComputedStyle(e).fontSize==='12px');})()");
             await FindControlPointAsync(cdp,process,"[data-action=\"remove-rule\"]",ct);

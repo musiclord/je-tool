@@ -27,18 +27,24 @@ public sealed class IndependentWorkpaperWorkflowTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task Workpaper_RecalculatesAfterCalendarChange_WithoutPrescreenOrCriteriaReport(string provider)
+    public async Task Workpaper_ExportsAfterCalendarChangeAndResave_WithoutPrescreenOrCriteriaReport(string provider)
     {
         using var host = new HandlerTestHost();
         var setup = await DemoProjectPipeline.SetupAsync(host, runValidation: false, databaseProvider: provider);
         var validation = await host.DispatchAsync("validate.run");
-        var saved = await host.DispatchAsync("filter.commit", """
+        const string scenarios = """
             {"scenarios":[{"name":"借方分錄","rationale":"合成流程核對","groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}]}]}
-            """);
+            """;
+        await host.DispatchAsync("filter.commit", scenarios);
         await host.DispatchAsync("calendar.setNonWorkingDays", """{"days":[6]}""");
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = setup.ProjectId }));
-        Assert.True(loaded.GetProperty("staleState").GetProperty("filter").GetBoolean());
+        // 使用者 2026-10-07 裁定上游修改清除下游：行事曆修改清掉已存情境，篩選回到從未執行；
+        // 審計員重新儲存後即可直接匯出底稿。原本斷言情境保留且標成待重跑，第一次失敗收據
+        // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        Assert.False(loaded.GetProperty("staleState").GetProperty("filter").GetBoolean());
+        Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
         Assert.False(loaded.GetProperty("staleState").GetProperty("validation").GetBoolean());
+        var saved = await host.DispatchAsync("filter.commit", scenarios);
         var response = await host.DispatchAsync("export.workpaperStream", JsonSerializer.Serialize(new
         {
             validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString(),

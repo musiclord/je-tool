@@ -85,8 +85,12 @@ internal static partial class GuiScenarios
         {
             if (i == 2)
             {
-                var field = await cdp.EvaluateAsync("Array.from(document.querySelector('[data-legacy-example-field]').options).find(o=>o.textContent==='GUI部門').value", ct);
+                // Resolve identity from the fixed fixture source, not the option's presentation text.
+                var field = await cdp.EvaluateAsync("(()=>{var fields=window.JetStore.getState().mapping.gl.committed.options.rdeFields.filter(f=>f.sourceColumn==='GUI部門' && f.valueType==='text');return fields.length===1?fields[0].fieldId:null;})()", ct);
+                if (field.ValueKind != JsonValueKind.String) throw new GuiCheckException("legacy_department_field_missing");
                 await Choose("[data-legacy-example-field]", field.GetString()!);
+                await Check("document.querySelector('[data-legacy-example-field]').value===" + JsonSerializer.Serialize(field.GetString()) +
+                    " && document.querySelector('[data-legacy-example-field]').selectedOptions[0].textContent==='GUI部門（攸關資料元素欄位，來源欄：GUI部門）'");
             }
             await Click("[data-legacy-example=example" + i + "]");
             await Click("[data-action=preview-scenario]");

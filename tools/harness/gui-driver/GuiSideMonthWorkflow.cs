@@ -85,6 +85,10 @@ internal static partial class GuiScenarios
         await Click("[data-action=export-criteria-report]"); await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
         await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
         await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2]})");
+        outcome.RecordStage("workpaper_manual_flag_text");
+        var workbookPath = (await cdp.EvaluateAsync("(()=>{var state=window.JetStore.getState();return window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2]}).fullPath;})()", ct)).GetString();
+        if (string.IsNullOrEmpty(workbookPath)) throw new GuiCheckException("workpaper_manual_flag_path_missing");
+        GuiWorkpaperInspection.RequireManualAutoText(workbookPath, ownedRun.ProjectsRootPath);
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']"); await Click("[data-filter-pane-select=saved]");
         await Check("saved.length===2 && saved[0].groups[0].matchScope==='sameVoucher' && saved[0].groups[0].rules[0].drCr==='debit' && saved[0].groups[0].rules[1].drCr==='credit' && saved[1].groups[0].rules[0].operator==='monthEndDays' && saved[1].groups[0].rules[0].value==='2' && saved[1].groups[0].rules[1].operator==='notMonthStartDays'");

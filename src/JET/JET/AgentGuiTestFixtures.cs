@@ -51,6 +51,7 @@ internal sealed class AgentGuiTestFixtures
     internal const string LegacyFormSourceId = "legacy-form-source";
     internal const string FailNullSearchOnceId = "fail-null-search-once";
     internal const string AuthorizedListSourceId = "authorized-list-source";
+    internal const string CaseImportSourceId = "case-import-source";
     internal const string FailAuthorizedImportOnceId = "fail-authorized-import-once";
     internal const int MaximumFixtureCount = 3;
     internal const string TraceFileName = "agent-gui-fixtures.ndjson";
@@ -151,6 +152,7 @@ internal sealed class AgentGuiTestFixtures
             or LegacyFormSourceId
             or FailNullSearchOnceId
             or AuthorizedListSourceId
+            or CaseImportSourceId
             or FailAuthorizedImportOnceId;
 
     /// <summary>
@@ -692,9 +694,56 @@ internal sealed class AgentGuiTestFixtures
     }
 
     internal IApplicationActionHandler DecorateAuthorizedList(IApplicationActionHandler handler) =>
-        (IsEnabled(AuthorizedListSourceId) && handler.Action == "host.selectFile")
+        IsEnabled(CaseImportSourceId) && handler.Action == "host.selectFiles"
+            ? new CaseImportFixtureHandler(handler, this)
+            : (IsEnabled(AuthorizedListSourceId) && handler.Action == "host.selectFile")
         || (IsEnabled(FailAuthorizedImportOnceId) && handler.Action == "import.authorizedPreparer.fromFile")
             ? new AuthorizedListFixtureHandler(handler, this) : handler;
+
+    private sealed class CaseImportFixtureHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures) : IApplicationActionHandler
+    {
+        public string Action => inner.Action;
+        public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+        {
+            var title = payload.TryGetProperty("title", out var value) ? value.GetString() : null;
+            if (title is not "選擇 GL 來源檔（可多選）" and not "選擇 TB 來源檔（可多選）")
+                return inner.HandleAsync(payload, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var gl = title == "選擇 GL 來源檔（可多選）";
+            Directory.CreateDirectory(fixtures.DemoWorkbookRootPath);
+            var path = Path.Combine(fixtures.DemoWorkbookRootPath, gl ? "synthetic-gl.xlsx" : "synthetic-tb.xlsx");
+            using var workbook = new XLWorkbook();
+            if (gl)
+            {
+                for (var part = 1; part <= 2; part++)
+                {
+                    var sheet = workbook.AddWorksheet("Synthetic" + part);
+                    string[] columns = ["Doc", "Date", "Code", "Name", "Memo", "Debit", "Credit"];
+                    for (var c = 0; c < columns.Length; c++) sheet.Cell(1, c + 1).Value = columns[c];
+                    for (var row = 2; row <= 3; row++)
+                    {
+                        sheet.Cell(row, 1).Value = "SYN-" + part;
+                        sheet.Cell(row, 2).Value = part == 1 ? "2025-06-01" : "2025-07-01";
+                        sheet.Cell(row, 3).Value = row == 2 ? "1000" : "4000";
+                        sheet.Cell(row, 4).Value = row == 2 ? "合成現金" : "合成收入";
+                        sheet.Cell(row, 5).Value = row == 2 ? "" : "合成銷貨";
+                        sheet.Cell(row, 6).Value = row == 2 ? 100 : 0;
+                        sheet.Cell(row, 7).Value = row == 3 ? 100 : 0;
+                    }
+                }
+            }
+            else
+            {
+                var sheet = workbook.AddWorksheet("SyntheticTB");
+                sheet.Cell(1, 1).Value = "Code"; sheet.Cell(1, 2).Value = "Name"; sheet.Cell(1, 3).Value = "Amount";
+                sheet.Cell(2, 1).Value = "1000"; sheet.Cell(2, 2).Value = "合成現金"; sheet.Cell(2, 3).Value = 200;
+                sheet.Cell(3, 1).Value = "4000"; sheet.Cell(3, 2).Value = "合成收入"; sheet.Cell(3, 3).Value = -200;
+            }
+            workbook.SaveAs(path);
+            fixtures._trace.Write(CaseImportSourceId, gl ? "gl.selected" : "tb.selected");
+            return Task.FromResult<object?>(new { files = new[] { new { filePath = path, fileName = Path.GetFileName(path) } } });
+        }
+    }
 
     private sealed class AuthorizedListFixtureHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures)
         : IApplicationActionHandler

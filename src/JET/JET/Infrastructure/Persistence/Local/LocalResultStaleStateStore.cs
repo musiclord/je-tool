@@ -5,13 +5,16 @@ namespace JET.Infrastructure;
 public sealed class LocalResultStaleStateStore(ILocalProjectDatabase database)
     : IResultStaleStateStore
 {
-    public async Task InvalidateForPreparationDateChangeAsync(string projectId, CancellationToken cancellationToken)
+    public async Task InvalidateForPreparationDateChangeAsync(
+        string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken)
     {
         await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await RuleRunResultReset.ClearWithinAsync(connection, transaction, cancellationToken, AuditMutation.PreparationDate);
+        // 設定存不進去時直接離開，交易在釋放時回復。
+        await saveSettings(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
 

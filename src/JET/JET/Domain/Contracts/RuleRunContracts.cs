@@ -34,8 +34,12 @@ public sealed record AuditResultStaleState(
 
 public interface IResultStaleStateStore
 {
-    /// <summary>準備日變更時使預篩選與篩選結果失效；保留驗證、抽樣與已儲存的情境定義。</summary>
-    Task InvalidateForPreparationDateChangeAsync(string projectId, CancellationToken cancellationToken);
+    /// <summary>
+    /// 準備日變更時清除預篩選、篩選命中與已儲存情境，保留驗證與抽樣。清除放在同一筆交易裡，
+    /// 提交前先執行 <paramref name="saveSettings"/>（寫入新設定）；它失敗時交易回復，資料庫不變。
+    /// </summary>
+    Task InvalidateForPreparationDateChangeAsync(
+        string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken);
 
     Task<AuditResultStaleState> ReadAsync(
         string projectId,
