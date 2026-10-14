@@ -21,9 +21,7 @@ public sealed class AccountTaxonomySaveHandler(
         if (!payload.TryGetProperty("categories", out var categoriesElement)
             || categoriesElement.ValueKind != JsonValueKind.Array)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "payload 缺少必填陣列 'categories'。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "taxonomy_categories_missing");
         }
 
         var current = await repositories.AccountTaxonomy.ReadAsync(projectId, cancellationToken);
@@ -43,7 +41,7 @@ public sealed class AccountTaxonomySaveHandler(
         {
             if (element.ValueKind != JsonValueKind.Object)
             {
-                Invalid("categories 內每一項都必須是物件。");
+                Reject("taxonomy_category_not_object");
             }
 
             var requestedId = OptionalString(element, "categoryId");
@@ -69,7 +67,7 @@ public sealed class AccountTaxonomySaveHandler(
             }
             else
             {
-                Invalid("分類識別不存在。新增分類請省略 categoryId，或使用同一份草稿中唯一的 draft-N 暫存識別。");
+                Reject("taxonomy_category_id_unknown");
                 throw new InvalidOperationException("unreachable");
             }
 
@@ -139,7 +137,7 @@ public sealed class AccountTaxonomySaveHandler(
         var value = OptionalString(element, property);
         if (value is null)
         {
-            Invalid($"payload 缺少必填字串 '{property}'。");
+            Reject("taxonomy_string_missing:" + property);
         }
         return value!;
     }
@@ -153,7 +151,7 @@ public sealed class AccountTaxonomySaveHandler(
         }
         if (value.ValueKind != JsonValueKind.String)
         {
-            Invalid($"payload 欄位 '{property}' 必須是字串。");
+            Reject("taxonomy_string_expected:" + property);
         }
         var normalized = value.GetString()?.Trim();
         return string.IsNullOrEmpty(normalized) ? null : normalized;
@@ -166,7 +164,7 @@ public sealed class AccountTaxonomySaveHandler(
             || value.ValueKind != JsonValueKind.Number
             || !value.TryGetInt32(out result))
         {
-            Invalid($"payload 欄位 '{property}' 必須是整數。");
+            Reject("taxonomy_integer_expected:" + property);
         }
         return result;
     }
@@ -174,4 +172,10 @@ public sealed class AccountTaxonomySaveHandler(
     [DoesNotReturn]
     private static void Invalid(string message) =>
         throw new JetActionException(JetErrorCodes.InvalidPayload, message);
+
+    // 只有程式送錯資料才會走到：畫面顯示非預期錯誤那一句，檢查代號記進支援日誌（使用者 2026-10-14 第三輪勾選頁確認 R3-65）。
+    // check 只能是程式寫死的代號；property 是程式寫死的 payload 欄位名稱，不含使用者資料。
+    [DoesNotReturn]
+    private static void Reject(string check) =>
+        throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, check);
 }

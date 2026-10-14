@@ -19,7 +19,7 @@ public sealed class QuerySourceQualityPageHandler(
         if (payload.TryGetProperty("cursor", out var cursorElement)
             && cursorElement.ValueKind is not (JsonValueKind.Null or JsonValueKind.String))
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "cursor 必須是 opaque 字串或 null。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "cursor_not_string");
         }
 
         var request = PageRequestReader.Read(payload, ResultPageSorting.SourceQuality);

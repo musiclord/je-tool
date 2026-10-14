@@ -83,7 +83,7 @@ public sealed class TbRowProjectorTests
             },
             TbChangeMode.DebitCredit);
 
-        // 真實 PBC TB（會計格式輸出，guide §3.1.2）：零以單獨連字號顯示，
+        // 真實 PBC-TB（會計格式輸出，guide §3.1.2）：零以單獨連字號顯示，
         // 借 "-"、貸 "100" → 變動 = 0 - 100 = -100。
         var row = new StagingRow(5, new Dictionary<string, string>
         {
@@ -170,7 +170,8 @@ public sealed class TbRowProjectorTests
         Assert.Equal(9, error!.SourceRowNumber);
         Assert.Equal("credit", error.Field);
         Assert.Equal("oops", error.RawValue);
-        Assert.Equal("不是有效金額。請確認來源資料的金額格式，或回到欄位配對改選正確的金額欄", error.Reason);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
 
@@ -385,7 +386,8 @@ public sealed class TbRowProjectorTests
         Assert.Equal(8, error!.SourceRowNumber);
         Assert.Equal("ccr", error.Field);
         Assert.Equal("oops", error.RawValue);
-        Assert.Equal("不是有效金額。請確認來源資料的金額格式，或回到欄位配對改選正確的金額欄", error.Reason);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
     [Fact]
@@ -412,7 +414,8 @@ public sealed class TbRowProjectorTests
         Assert.Equal(11, error!.SourceRowNumber);
         Assert.Equal("change", error.Field);
         Assert.Equal("79228162514264337593543950335", error.RawValue);
-        Assert.Equal("金額換算後超過系統可保存的範圍。請確認這個金額是否正確，或調整案件的金額小數位數", error.Reason);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("金額超出可儲存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
     }
 
 }

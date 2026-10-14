@@ -42,6 +42,9 @@ public sealed class Batch9FrontendConstantsTests
     public void PagingFifties_AreNamedByPurposeWithoutChangingTheTwoHundredRowQueryDefault()
     {
         var core = Read("JET", "wwwroot", "js", "ui-core.js");
+        // 工作底稿版本紀錄改用具名的 REPORT_HISTORY_PAGE_SIZE，仍固定 50 份；首次失敗：20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6
+        // （原寫在已刪除的 WorkpaperSheetMirrorTests.WorkpaperHistory_DoesNotReplaceCurrentCompletionEvidence，2026-10-14 搬來）。
+        // 第六步實際一頁 50 份由 tools/tests/frontend-journey-tables.test.cjs 與 frontend-workflow.test.cjs 的 batch9 report history 測試核對。
         foreach (var key in new[] { "RESULT_PREVIEW_PAGE_SIZE", "REPORT_HISTORY_PAGE_SIZE", "DEV_TABLE_PAGE_SIZE", "VALUE_PROFILE_LIMIT" })
         {
             Assert.Equal(50, NumericConstant(core, key));
@@ -53,33 +56,25 @@ public sealed class Batch9FrontendConstantsTests
         Assert.Equal(50, HandlerDefault(typeof(DevDbTableDataHandler)));
         Assert.Equal(200, PageRequest.DefaultPageSize);
         Assert.Equal(500, PageRequest.MaxPageSize);
-    }
-
-    [Fact]
-    public void PagingConsumers_UseTheMatchingSharedUiConstant()
-    {
-        foreach (var path in new[] { new[] { "steps", "filter-step.js" }, new[] { "filter-vouchers.js" }, new[] { "steps", "validate-step.js" } })
-        {
-            var source = Read(new[] { "JET", "wwwroot", "js" }.Concat(path).ToArray());
-            Assert.Contains("pageSize: Ui.RESULT_PREVIEW_PAGE_SIZE", source, StringComparison.Ordinal);
-            Assert.DoesNotMatch(@"pageSize\s*:\s*50\b", source);
-        }
-        Assert.Contains("HISTORY_PAGE_SIZE = Ui.REPORT_HISTORY_PAGE_SIZE", Read("JET", "wwwroot", "js", "steps", "export-step.js"), StringComparison.Ordinal);
+        // 2026-10-14 從 PagingConsumers_UseTheMatchingSharedUiConstant 原樣搬來。開發者面板不是審計員畫面，不寫情境行為測試；
+        // 其他畫面的一頁 50 筆已由 tools/tests/frontend-journey-tables.test.cjs 以實際送出的請求測過。
         Assert.Contains("limit: Ui.DEV_TABLE_PAGE_SIZE", Read("JET", "wwwroot", "js", "dev-panel.js"), StringComparison.Ordinal);
-        Assert.Contains("limit: Ui.VALUE_PROFILE_LIMIT", Read("JET", "wwwroot", "js", "steps", "mapping-step.js"), StringComparison.Ordinal);
     }
 
     [Fact]
     public void LegacyFixedCatalogue_RemainsJsonAndKeepsItsSixZeroExplanation()
     {
-        var source = Read("JET", "wwwroot", "js", "filter-legacy.js");
-        const string startMarker = "/* legacy-catalog:start */";
-        var start = source.IndexOf(startMarker, StringComparison.Ordinal) + startMarker.Length;
-        var end = source.IndexOf("/* legacy-catalog:end */", start, StringComparison.Ordinal);
-        using var json = JsonDocument.Parse(source[start..end]);
+        // 使用者 2026-10-08 要求重新設計自訂篩選條件：目錄從正式前端移到測試夾具，內容仍是 JSON 且原文不變；
+        // 新選單的「金額尾數連續多個 0」預設位數直接取同一個六個零的門檻常數。
+        using var json = JsonDocument.Parse(Read("tests", "JET.Tests", "Fixtures", "legacy-form-2024-1210.json"));
         var condition = json.RootElement.GetProperty("conditions").EnumerateArray().Single(item => item.GetProperty("letter").GetString() == "D");
         Assert.Equal("金額整數部分以至少 6 個零結尾，整數為零不選取。可另用「金額尾數連續 0 的位數」調整位數。", condition.GetProperty("help").GetString());
         Assert.Equal(6, TrailingZeroThreshold.DefaultZerosThreshold);
+        // 第九節 G2 改用欄位尾數與至少一元的子條件組；六位預設仍來自同一常數。
+        // 首次失敗：20261014-133317716-754ea282ab3842268400b7daca79b593。
+        var core = Read("JET", "wwwroot", "js", "ui-core.js");
+        Assert.Contains("operator: 'endsWithDigits', value: '0'.repeat(PRESCREEN_DEFAULTS.trailingZeroDigits)", core, StringComparison.Ordinal);
+        Assert.Contains("operator: 'greaterThanOrEqual', value: '1', amountBasis: 'absolute'", core, StringComparison.Ordinal);
     }
 
     [Fact]

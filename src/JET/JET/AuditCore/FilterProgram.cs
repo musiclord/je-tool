@@ -12,7 +12,7 @@ internal sealed record CanonicalFilterDocument(
     string RawJson,
     FilterScenarioSpec Spec);
 
-/// <summary>Bounded Application input for filter.preview or filter.commit.</summary>
+/// <summary>Bounded Application input for filter.preview, filter.commit or the one-scenario changes.</summary>
 internal sealed record FilterRequest(
     string ActionName,
     string ProjectId,
@@ -54,6 +54,22 @@ public static partial class JetAuditProgram
     private const int MaxFilterScenarios = FilterScenarioLimits.MaxSavedScenarios;
 
     /// <summary>
+    /// 一次只存、刪或重新檢查一個情境的三個動作：整批發布，但每一份已由 Application 逐筆檢查過。
+    /// 這裡只做不套儲存規則的安全檢查（正在編輯的那一份已用儲存規則檢查；其他情境照資料庫原樣保留，
+    /// 不套儲存規則），而且一定要帶 definitions。
+    /// </summary>
+    private static readonly HashSet<string> ReviewedBatchActions = new(StringComparer.Ordinal)
+    {
+        "filter.scenario.save",
+        "filter.scenario.remove",
+        "filter.scenario.recheck"
+    };
+
+    private static bool PublishesBatch(string actionName) =>
+        string.Equals(actionName, FilterCommitAction, StringComparison.Ordinal)
+        || ReviewedBatchActions.Contains(actionName);
+
+    /// <summary>
     /// Plans one preview document or a bounded commit set. Domain validation remains the
     /// sole rule validator; AuditCore owns when it is applied in the production lifecycle.
     /// </summary>
@@ -66,20 +82,23 @@ public static partial class JetAuditProgram
         ArgumentNullException.ThrowIfNull(request.RuleContext);
         ArgumentNullException.ThrowIfNull(request.ValidationContext);
 
-        switch (request.ActionName)
+        var isPreview = string.Equals(request.ActionName, FilterPreviewAction, StringComparison.Ordinal);
+        if (isPreview && request.Documents.Count != 1)
         {
-            case FilterPreviewAction when request.Documents.Count != 1:
-                throw new InvalidOperationException("filter.preview 必須且只能規劃一個情境。");
-            case FilterCommitAction when request.Documents.Count > MaxFilterScenarios:
-                throw new JetActionException(
-                    JetErrorCodes.ScenarioLimitReached,
-                    $"最多儲存 {MaxFilterScenarios} 個篩選情境。");
-            case FilterPreviewAction:
-            case FilterCommitAction:
-                break;
-            default:
-                throw new InvalidOperationException(
-                    $"Filter lifecycle 不支援 action '{request.ActionName}'。");
+            throw new InvalidOperationException("filter.preview 必須且只能規劃一個情境。");
+        }
+
+        if (!isPreview && !PublishesBatch(request.ActionName))
+        {
+            throw new InvalidOperationException(
+                $"Filter lifecycle 不支援 action '{request.ActionName}'。");
+        }
+
+        if (!isPreview && request.Documents.Count > MaxFilterScenarios)
+        {
+            throw new JetActionException(
+                JetErrorCodes.ScenarioLimitReached,
+                $"最多可儲存 {MaxFilterScenarios} 個篩選情境，請先移除不需要的情境。");
         }
 
         foreach (var document in request.Documents)
@@ -91,18 +110,30 @@ public static partial class JetAuditProgram
                 forSave: request.ActionName == FilterCommitAction);
             if (errors.Count > 0)
             {
-                throw FilterScenarioErrorDetails.InvalidScenario(errors);
+                // 預覽的位置 1 是虛設的，不標情境；整批發布時標出錯誤屬於第幾個情境，前端才不會標錯條件列。
+                throw isPreview
+                    ? FilterScenarioErrorDetails.InvalidScenario(errors)
+                    : FilterScenarioErrorDetails.InvalidScenario(
+                        errors,
+                        document.Position,
+                        FilterScenarioSources.ResolvePersistable(document.Spec, document.Position).Name);
             }
         }
 
         var savedDefinitions = definitions ?? [];
         IReadOnlyList<FilterCommitItem> commitItems;
-        if (string.Equals(request.ActionName, FilterCommitAction, StringComparison.Ordinal))
+        if (!isPreview)
         {
-            // Handler 在逐份解析時重用 Plan 做累進驗證；definitions 尚未完成前只規劃／驗證，
+            // filter.commit 的 handler 在逐份解析時重用 Plan 做累進驗證；definitions 尚未完成前只規劃／驗證，
             // 最終 execution plan 會明示傳入（即使是空陣列）並建立 paired commit items。
+            // 一次處理一個情境的三個動作沒有累進驗證，一定要帶 definitions。
             if (definitions is null)
             {
+                if (ReviewedBatchActions.Contains(request.ActionName))
+                {
+                    throw new InvalidOperationException($"{request.ActionName} 必須帶要發布的 definitions。");
+                }
+
                 commitItems = [];
                 return new FilterPlan(request, commitItems);
             }
@@ -110,7 +141,7 @@ public static partial class JetAuditProgram
             if (savedDefinitions.Count != request.Documents.Count)
             {
                 throw new InvalidOperationException(
-                    "filter.commit definitions 與 canonical documents 數量不一致。");
+                    $"{request.ActionName} definitions 與 canonical documents 數量不一致。");
             }
 
             var items = new FilterCommitItem[savedDefinitions.Count];
@@ -121,7 +152,7 @@ public static partial class JetAuditProgram
                 if (definition.Position != document.Position)
                 {
                     throw new InvalidOperationException(
-                        "filter.commit definition 與 canonical document 位置不一致。");
+                        $"{request.ActionName} definition 與 canonical document 位置不一致。");
                 }
 
                 items[index] = new FilterCommitItem(definition, document.Spec);
@@ -156,10 +187,11 @@ public static partial class JetAuditProgram
             throw new InvalidOperationException("filter.preview 未收到 preview facts。");
         }
 
-        if (string.Equals(plan.Request.ActionName, FilterCommitAction, StringComparison.Ordinal)
+        if (PublishesBatch(plan.Request.ActionName)
             && facts.MaterializedScenarioCount != plan.Request.Documents.Count)
         {
-            throw new InvalidOperationException("filter.commit materialized scenario count 與 plan 不一致。");
+            throw new InvalidOperationException(
+                $"{plan.Request.ActionName} materialized scenario count 與 plan 不一致。");
         }
 
         return new FilterResult(

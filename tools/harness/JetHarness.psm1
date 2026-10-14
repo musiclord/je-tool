@@ -140,6 +140,11 @@ function Read-JetRegistry {
     if ([string]$registry.runnerContractVersion -cne '8.2') {
         throw [InvalidDataException]::new('Unsupported runner contract version.')
     }
+    # 2026-10-13：建置、.NET 測試與前端測試的自有程序樹記憶體上限，至少 1024 MB。
+    if (-not $registry.limits.ContainsKey('maximumProcessTreeMemoryMegabytes') -or
+        [long]$registry.limits.maximumProcessTreeMemoryMegabytes -lt 1024) {
+        throw [InvalidDataException]::new('Lane registry limits must set maximumProcessTreeMemoryMegabytes to at least 1024.')
+    }
 
     $enabledLaneNames = @(
         $registry.lanes.Keys |
@@ -701,6 +706,93 @@ function Remove-JetOwnedDirectory {
             errorType = $_.Exception.GetType().Name
         }
     }
+}
+
+# 收據保留期限（使用者 2026-10-14 選「連收據保留期限一起做」；當時本機有 3,226 次執行、2.9 GB，沒有上限）。
+# 同一種檢查（命令，加上是否只跑單一情境或篩選）只完整保留最新的幾次執行；更舊的執行只留 receipt.json、
+# 各步驟的 *.receipt.json 與擁有者標記，測試結果明細、記錄檔、截圖與暫存都刪掉。收據摘要仍在，
+# 文件與測試註解引用的舊收據仍讀得到。只處理已寫好 receipt.json 的執行，進行中的執行不會被碰到。
+$script:ReceiptRetentionKeepPerGroup = 10
+
+function Invoke-JetReceiptRetention {
+    param(
+        [Parameter(Mandatory = $true)] [string] $EvidenceRoot,
+        [int] $KeepPerGroup = $script:ReceiptRetentionKeepPerGroup
+    )
+
+    $result = [ordered]@{ prunedRuns = 0; skippedRuns = 0 }
+    $rootFull = [IO.Path]::GetFullPath($EvidenceRoot)
+    if (-not [IO.Directory]::Exists($rootFull) -or
+        ([IO.File]::GetAttributes($rootFull) -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        return $result
+    }
+
+    # 每次驗證結束都會跑一次，所以用 .NET 呼叫列目錄與比對檔名，不用 PowerShell 管線與 cmdlet。
+    $kept = @{}
+    $names = [Collections.Generic.List[string]]::new()
+    foreach ($path in [IO.Directory]::GetDirectories($rootFull)) {
+        $name = [IO.Path]::GetFileName($path)
+        if ($name -cmatch '^\d{8}-\d{9}-[a-f0-9]{32}$') { $names.Add($name) }
+    }
+    $names.Sort([StringComparer]::Ordinal)
+    $names.Reverse()
+    foreach ($name in $names) {
+        $directory = [IO.Path]::Combine($rootFull, $name)
+        try {
+            if (([IO.File]::GetAttributes($directory) -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                $result.skippedRuns++
+                continue
+            }
+            $receiptPath = [IO.Path]::Combine($directory, 'receipt.json')
+            if (-not [IO.File]::Exists($receiptPath)) { continue }
+            # 已經整理過的執行只剩保留的檔案，不再讀它的收據，也不佔同組的名額；它們一定比同組保留的執行舊。
+            $removable = [Collections.Generic.List[string]]::new()
+            foreach ($entry in [IO.Directory]::GetFileSystemEntries($directory)) {
+                $entryName = [IO.Path]::GetFileName($entry)
+                $retained = [IO.File]::Exists($entry) -and ($entryName -ceq 'receipt.json' -or
+                    $entryName -ceq $script:OwnerMarkerName -or
+                    $entryName.EndsWith('.receipt.json', [StringComparison]::Ordinal))
+                if (-not $retained) { $removable.Add($entry) }
+            }
+            if ($removable.Count -eq 0) { continue }
+
+            # 只需要最上層的 command 與 partial，兩者都寫在 steps 等巢狀內容之前，所以取第一個符合的值，
+            # 不必解析整份收據。較早的收據沒有 partial 欄位，當成完整執行。
+            $receiptText = [IO.File]::ReadAllText($receiptPath)
+            $commandMatch = [regex]::Match($receiptText, '"command"\s*:\s*"([^"]*)"')
+            $partialMatch = [regex]::Match($receiptText, '"partial"\s*:\s*(true|false)')
+            $group = '{0}|{1}' -f $commandMatch.Groups[1].Value,
+                ($partialMatch.Success -and $partialMatch.Groups[1].Value -ceq 'true')
+            $count = if ($kept.ContainsKey($group)) { [int]$kept[$group] } else { 0 }
+            if ($count -lt $KeepPerGroup) {
+                $kept[$group] = $count + 1
+                continue
+            }
+
+            $markerPath = Join-Path $directory $script:OwnerMarkerName
+            if (-not [IO.File]::Exists($markerPath)) {
+                $result.skippedRuns++
+                continue
+            }
+            $marker = [IO.File]::ReadAllText($markerPath) | ConvertFrom-Json
+            if ($marker.kind -cne 'jet-harness-run' -or $marker.runId -cne $name) {
+                $result.skippedRuns++
+                continue
+            }
+
+            # 底下有連結點時整個執行跳過，不跟著連結刪到別處。
+            Clear-JetOwnedReadOnlyAttributes -Root $directory
+            foreach ($entry in $removable) {
+                if ([IO.Directory]::Exists($entry)) { [IO.Directory]::Delete($entry, $true) }
+                else { [IO.File]::Delete($entry) }
+            }
+            $result.prunedRuns++
+        }
+        catch {
+            $result.skippedRuns++
+        }
+    }
+    return $result
 }
 
 function Remove-JetReleaseCandidateWorkspace {
@@ -1323,9 +1415,14 @@ function Invoke-JetChildStep {
         [string[]] $SensitiveValuesToRedact = @(),
         [int] $StandardStreamCodePage = 65001,
         [switch] $OwnProcessTree,
+        # 2026-10-13：自有程序樹合計的記憶體上限（MB），0 表示不設；超過就整批結束，步驟判定失敗。
+        [long] $MaximumProcessTreeMemoryMegabytes = 0,
         [switch] $TreatNuGetSourceFailureAsBlocked
     )
 
+    if ($MaximumProcessTreeMemoryMegabytes -lt 0 -or ($MaximumProcessTreeMemoryMegabytes -gt 0 -and -not $OwnProcessTree)) {
+        throw [ArgumentException]::new('A process-tree memory limit requires an owned process tree.')
+    }
     $startedUtc = [DateTime]::UtcNow
     $stdoutPath = Join-Path $RunDirectory "$Name.stdout.log"
     $stderrPath = Join-Path $RunDirectory "$Name.stderr.log"
@@ -1368,7 +1465,8 @@ function Invoke-JetChildStep {
         $redactionValues,
         $StandardStreamCodePage,
         [bool]$OwnProcessTree,
-        [Threading.CancellationToken]::None)
+        [Threading.CancellationToken]::None,
+        [long]($MaximumProcessTreeMemoryMegabytes * 1MB))
     $completedUtc = [DateTime]::UtcNow
 
     $status = if ($result.TimedOut -or $result.Cancelled) {
@@ -1385,6 +1483,10 @@ function Invoke-JetChildStep {
     if ($OwnProcessTree -and (-not $result.OwnedProcessTree -or $result.CleanupSucceeded -ne $true -or $result.BelowNormalApplied -ne $true)) {
         $status = 'failed'
         $classificationReason = 'owned_process_tree_incomplete'
+    }
+    elseif ($result.MemoryLimitReached) {
+        $status = 'failed'
+        $classificationReason = 'memory_limit_reached'
     }
     if ($status -ceq 'failed' -and $TreatNuGetSourceFailureAsBlocked -and
         (Test-JetNuGetSourceUnavailable -Paths @($stdoutPath, $stderrPath))) {
@@ -1415,6 +1517,9 @@ function Invoke-JetChildStep {
             ownedProcessTree = $result.OwnedProcessTree
             cleanupSucceeded = $result.CleanupSucceeded
             belowNormalApplied = $result.BelowNormalApplied
+            memoryLimitMegabytes = if ($null -ne $result.ProcessTreeMemoryLimitBytes) { [long]($result.ProcessTreeMemoryLimitBytes / 1MB) } else { $null }
+            peakMemoryMegabytes = if ($null -ne $result.PeakProcessTreeMemoryBytes) { [Math]::Round($result.PeakProcessTreeMemoryBytes / 1MB, 1) } else { $null }
+            memoryLimitReached = $result.MemoryLimitReached
         }
         stdout = [ordered]@{
             path = Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $stdoutPath
@@ -1431,6 +1536,17 @@ function Invoke-JetChildStep {
     }
 }
 
+# 2026-10-13：建置、.NET 測試與前端測試放在自有程序樹裡執行，整個程序樹合計的已認可記憶體超過
+# lanes.json 的 limits.maximumProcessTreeMemoryMegabytes 就整批結束，步驟判定失敗並記下 memory_limit_reached。
+# 建置另加 --disable-build-servers：編譯伺服器與重複使用的 MSBuild 節點不會留在背景，也不會被別的建置共用到一半就隨程序樹結束。
+function Get-JetMemoryBoundedTreeSettings {
+    param([Parameter(Mandatory = $true)] $Registry)
+    return @{
+        OwnProcessTree = $true
+        MaximumProcessTreeMemoryMegabytes = [long]$Registry.limits.maximumProcessTreeMemoryMegabytes
+    }
+}
+
 function Invoke-JetBuildPipeline {
     param(
         [Parameter(Mandatory = $true)] [string] $RepositoryRoot,
@@ -1442,6 +1558,7 @@ function Invoke-JetBuildPipeline {
     )
 
     $results = New-Object 'System.Collections.Generic.List[object]'
+    $boundedTree = Get-JetMemoryBoundedTreeSettings -Registry $Registry
     $dotnet = Get-Command dotnet -CommandType Application -ErrorAction Stop |
         Select-Object -First 1 -ExpandProperty Source
     if (-not $SkipRestore) {
@@ -1468,15 +1585,16 @@ function Invoke-JetBuildPipeline {
             -Arguments @(
                 'build', (Join-Path $RepositoryRoot 'src/JET/JET.slnx'),
                 '--configuration', $Configuration,
-                '--no-restore'
+                '--no-restore', '--disable-build-servers'
             ) `
             -DisplayCommand @(
                 'dotnet', 'build', 'src/JET/JET.slnx',
-                '--configuration', $Configuration, '--no-restore'
+                '--configuration', $Configuration, '--no-restore', '--disable-build-servers'
             ) `
             -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
             -TimeoutSeconds $TimeoutSeconds `
-            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove)
+            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove) `
+            @boundedTree
         $results.Add($build)
     }
 
@@ -1492,6 +1610,7 @@ function Invoke-JetGuiBuildPipeline {
     )
 
     $results = New-Object 'System.Collections.Generic.List[object]'
+    $boundedTree = Get-JetMemoryBoundedTreeSettings -Registry $Registry
     $dotnet = Get-Command dotnet -CommandType Application -ErrorAction Stop |
         Select-Object -First 1 -ExpandProperty Source
     $applicationProject = Join-Path $RepositoryRoot ([string]$Registry.guiSettings.applicationProject)
@@ -1527,15 +1646,16 @@ function Invoke-JetGuiBuildPipeline {
             -Arguments @(
                 'build', $applicationProject,
                 '--configuration', ([string]$Registry.guiSettings.configuration),
-                '--no-restore'
+                '--no-restore', '--disable-build-servers'
             ) `
             -DisplayCommand @(
                 'dotnet', 'build', ([string]$Registry.guiSettings.applicationProject),
-                '--configuration', ([string]$Registry.guiSettings.configuration), '--no-restore'
+                '--configuration', ([string]$Registry.guiSettings.configuration), '--no-restore', '--disable-build-servers'
             ) `
             -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
             -TimeoutSeconds $TimeoutSeconds `
-            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove)
+            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove) `
+            @boundedTree
         $results.Add($applicationBuild)
     }
 
@@ -1545,14 +1665,15 @@ function Invoke-JetGuiBuildPipeline {
             -RunDirectory $RunDirectory `
             -Name 'gui-driver-build' `
             -FileName $dotnet `
-            -Arguments @('build', $driverProject, '--configuration', 'Release', '--no-restore') `
+            -Arguments @('build', $driverProject, '--configuration', 'Release', '--no-restore', '--disable-build-servers') `
             -DisplayCommand @(
                 'dotnet', 'build', ([string]$Registry.guiSettings.driverProject),
-                '--configuration', 'Release', '--no-restore'
+                '--configuration', 'Release', '--no-restore', '--disable-build-servers'
             ) `
             -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
             -TimeoutSeconds $TimeoutSeconds `
-            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove)
+            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove) `
+            @boundedTree
         $results.Add($driverBuild)
     }
 
@@ -1568,6 +1689,7 @@ function Invoke-JetExcelBuildPipeline {
     )
 
     $results = New-Object 'System.Collections.Generic.List[object]'
+    $boundedTree = Get-JetMemoryBoundedTreeSettings -Registry $Registry
     $dotnet = Get-Command dotnet -CommandType Application -ErrorAction Stop |
         Select-Object -First 1 -ExpandProperty Source
     $solution = Join-Path $RepositoryRoot 'src/JET/JET.slnx'
@@ -1603,15 +1725,16 @@ function Invoke-JetExcelBuildPipeline {
             -Arguments @(
                 'build', $solution,
                 '--configuration', ([string]$Registry.excelSettings.configuration),
-                '--no-restore'
+                '--no-restore', '--disable-build-servers'
             ) `
             -DisplayCommand @(
                 'dotnet', 'build', 'src/JET/JET.slnx',
-                '--configuration', ([string]$Registry.excelSettings.configuration), '--no-restore'
+                '--configuration', ([string]$Registry.excelSettings.configuration), '--no-restore', '--disable-build-servers'
             ) `
             -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
             -TimeoutSeconds $TimeoutSeconds `
-            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove)
+            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove) `
+            @boundedTree
         $results.Add($solutionBuild)
     }
 
@@ -1623,15 +1746,16 @@ function Invoke-JetExcelBuildPipeline {
             -FileName $dotnet `
             -Arguments @(
                 'build', $driverProject,
-                '--configuration', ([string]$Registry.excelSettings.configuration), '--no-restore'
+                '--configuration', ([string]$Registry.excelSettings.configuration), '--no-restore', '--disable-build-servers'
             ) `
             -DisplayCommand @(
                 'dotnet', 'build', ([string]$Registry.excelSettings.driverProject),
-                '--configuration', ([string]$Registry.excelSettings.configuration), '--no-restore'
+                '--configuration', ([string]$Registry.excelSettings.configuration), '--no-restore', '--disable-build-servers'
             ) `
             -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
             -TimeoutSeconds $TimeoutSeconds `
-            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove)
+            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove) `
+            @boundedTree
         $results.Add($driverBuild)
     }
 
@@ -1758,6 +1882,7 @@ function Invoke-JetTestStep {
             $argument
         }
     }
+    $boundedTree = Get-JetMemoryBoundedTreeSettings -Registry $Registry
     $step = Invoke-JetChildStep `
         -RepositoryRoot $RepositoryRoot `
         -RunDirectory $RunDirectory `
@@ -1770,7 +1895,8 @@ function Invoke-JetTestStep {
         -EnvironmentVariablesToRemove $EnvironmentVariablesToRemove `
         -EnvironmentVariablesToSet $EnvironmentVariablesToSet `
         -SensitiveValuesToRedact $SensitiveValuesToRedact `
-        -StandardStreamCodePage ([Globalization.CultureInfo]::CurrentCulture.TextInfo.OEMCodePage)
+        -StandardStreamCodePage ([Globalization.CultureInfo]::CurrentCulture.TextInfo.OEMCodePage) `
+        @boundedTree
 
     $trxPath = Join-Path $resultsDirectory 'result.trx'
     $summaryPath = Join-Path $resultsDirectory 'test-summary.json'
@@ -3620,6 +3746,7 @@ function Invoke-JetPublicFrontendSteps {
         [Parameter(Mandatory)] $Registry,
         [Parameter(Mandatory)] [int] $TimeoutSeconds
     )
+    $boundedTree = Get-JetMemoryBoundedTreeSettings -Registry $Registry
     foreach ($suite in @('mapping', 'preview')) {
         $script = "frontend-$suite-contract.tests.ps1"
         $step = Invoke-JetChildStep `
@@ -3628,8 +3755,9 @@ function Invoke-JetPublicFrontendSteps {
             -Arguments @('-NoProfile', '-File', (Join-Path $RepositoryRoot "tools/tests/$script"), '-RepositoryRoot', $RepositoryRoot) `
             -DisplayCommand @('pwsh', '-NoProfile', '-File', "tools/tests/$script") `
             -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
-            -TimeoutSeconds $TimeoutSeconds -OwnProcessTree `
-            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove)
+            -TimeoutSeconds $TimeoutSeconds `
+            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove) `
+            @boundedTree
         $step
         if ($step.status -cne 'passed') { break }
     }
@@ -3908,14 +4036,16 @@ function Invoke-JetHarness {
                             'FrontendMapping' { 'frontend-mapping-contract.tests.ps1' }
                             'Context' { 'context-contract.tests.ps1' }
                         }
+                        $boundedTree = Get-JetMemoryBoundedTreeSettings -Registry $registry
                         $steps.Add((Invoke-JetChildStep `
                             -RepositoryRoot $repositoryFull -RunDirectory $context.RunDirectory `
                             -Name 'contract-specialized' -FileName $pwshPath `
                             -Arguments @('-NoProfile', '-File', (Join-Path $repositoryFull "tools/tests/$testScript"), '-RepositoryRoot', $repositoryFull) `
                             -DisplayCommand @('pwsh', '-NoProfile', '-File', "tools/tests/$testScript") `
                             -MaximumCapturedBytes ([int]$registry.limits.maximumCapturedBytesPerStream) `
-                            -TimeoutSeconds $parsedTimeoutSeconds -OwnProcessTree `
-                            -EnvironmentVariablesToRemove @($registry.testSettings.environmentVariablesToRemove)))
+                            -TimeoutSeconds $parsedTimeoutSeconds `
+                            -EnvironmentVariablesToRemove @($registry.testSettings.environmentVariablesToRemove) `
+                            @boundedTree))
                     }
                 }
                 'Restore' {
@@ -4210,6 +4340,7 @@ function Invoke-JetHarness {
                         Assert-JetNoExistingReparsePoint -RepositoryRoot $repositoryFull -Candidate $publishDirectory
                         $dotnet = Get-Command dotnet -CommandType Application -ErrorAction Stop |
                             Select-Object -First 1 -ExpandProperty Source
+                        $boundedTree = Get-JetMemoryBoundedTreeSettings -Registry $registry
                         $publish = Invoke-JetChildStep `
                             -RepositoryRoot $repositoryFull `
                             -RunDirectory $context.RunDirectory `
@@ -4219,7 +4350,7 @@ function Invoke-JetHarness {
                                 'publish', (Join-Path $repositoryFull ([string]$registry.packageSettings.project)),
                                 '--configuration', 'Release',
                                 '--runtime', ([string]$registry.packageSettings.runtimeIdentifier),
-                                '--no-restore',
+                                '--no-restore', '--disable-build-servers',
                                 '--output', $publishDirectory,
                                 "/p:PublishProfile=$([string]$registry.packageSettings.publishProfile)"
                             ) `
@@ -4227,14 +4358,15 @@ function Invoke-JetHarness {
                                 'dotnet', 'publish', ([string]$registry.packageSettings.project),
                                 '--configuration', 'Release',
                                 '--runtime', ([string]$registry.packageSettings.runtimeIdentifier),
-                                '--no-restore',
+                                '--no-restore', '--disable-build-servers',
                                 '--output', (Get-JetRelativePath -RepositoryRoot $repositoryFull -Path $publishDirectory),
                                 "/p:PublishProfile=$([string]$registry.packageSettings.publishProfile)"
                             ) `
                             -MaximumCapturedBytes ([int]$registry.limits.maximumCapturedBytesPerStream) `
                             -TimeoutSeconds $parsedTimeoutSeconds `
                             -EnvironmentVariablesToRemove @($registry.testSettings.environmentVariablesToRemove) `
-                            -TreatNuGetSourceFailureAsBlocked
+                            -TreatNuGetSourceFailureAsBlocked `
+                            @boundedTree
                         $steps.Add($publish)
                     }
                     if ($steps[$steps.Count - 1].status -ceq 'passed') {
@@ -4586,6 +4718,8 @@ function Invoke-JetHarness {
 
     try {
         Write-JetAtomicJson -Path $context.ReceiptPath -Value $receipt
+        # 收據寫好之後才整理舊執行；整理失敗不影響這次的結果。
+        try { $null = Invoke-JetReceiptRetention -EvidenceRoot $evidenceFull } catch { }
         Write-JetEnvelope ([ordered]@{
             schemaVersion = $script:ReceiptSchemaVersion
             ok = $receipt.ok

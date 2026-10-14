@@ -15,7 +15,7 @@
   var historyPage = 0;
   var historyNewestId = null;
   var HISTORY_PAGE_SIZE = Ui.REPORT_HISTORY_PAGE_SIZE;
-  var NO_SCENARIO_NOTICE = '目前沒有已儲存的篩選情境，無法匯出工作底稿。請到「進階條件篩選」儲存至少一個篩選情境，再匯出工作底稿。';
+  var NO_SCENARIO_NOTICE = '還沒有已儲存的篩選情境，請先到「進階條件篩選」儲存，再匯出工作底稿。';
   // Pre-screening Report 預設納入輸出家族；使用者可取消，取消後只影響這一份。
   var includePrescreenReport = true;
 
@@ -72,7 +72,7 @@
           '</span>' +
         '</label>' +
         (notice
-          ? '<p class="prescreen-export__notice" data-bind="prescreen-export-notice">' +
+          ? '<p class="prescreen-export__notice" data-bind="prescreen-export-notice" data-motion-key="prescreen-export-notice">' +
             Ui.esc(notice) + '</p>'
           : '') +
       '</section>'
@@ -134,18 +134,18 @@
             '<h3 class="scenario-export-selection__title" id="scenario-export-heading">納入底稿的篩選情境</h3>' +
             '<p class="scenario-export-selection__hint">預設全選。底稿會標示符合所選情境的分錄，並保留同傳票參考分錄。</p>' +
             '<p class="scenario-export-selection__hint">條件儲存時間：' +
-              Ui.esc(filterRevision(state) ? Ui.formatDateTime(filterRevision(state)) : '尚無可用版本') + '。' +
+              Ui.esc(filterRevision(state) ? Ui.formatDateTime(filterRevision(state)) : '尚未套用目前規則') + '。' +
               '使用目前資料及已儲存條件；草稿不會自動納入。</p>' +
           '</div>' +
-          '<div class="panel__actions">' +
+          '<div class="panel__actions panel__actions--start">' +
             '<button type="button" class="btn btn--ghost btn--tiny" data-action="select-all-scenarios">全選</button>' +
-            '<button type="button" class="btn btn--ghost btn--tiny" data-action="clear-scenario-selection">清除</button>' +
+            '<button type="button" class="btn btn--ghost btn--tiny" data-action="clear-scenario-selection">全部取消</button>' +
           '</div>' +
         '</div>' +
         '<div class="scenario-export-grid">' + options + '</div>' +
         '<p class="scenario-export-selection__count" data-bind="selected-scenario-count">已選 ' +
           selectedScenarioPositions.length + ' / ' + scenarios.length + ' 個情境</p>' +
-        '<p class="form-notice" data-bind="scenario-selection-error"' + (empty ? '' : ' hidden') +
+        '<p class="form-notice" data-bind="scenario-selection-error" data-collapsible' + (empty ? '' : ' hidden') +
           '>請至少選擇一個已儲存篩選情境。</p>' +
       '</section>'
     );
@@ -178,7 +178,7 @@
       return '<span class="completion__tag">' + Ui.esc(kind) + '</span>';
     }).join('');
     return (
-      '<section class="completion" role="status" aria-labelledby="completion-heading">' +
+      '<section class="completion" data-motion-key="completion" role="status" aria-labelledby="completion-heading">' +
         '<span class="completion__mark" aria-hidden="true">✓</span>' +
         '<div class="completion__copy">' +
           '<h3 class="completion__title" id="completion-heading">案件流程已完成</h3>' +
@@ -225,13 +225,14 @@
     var prescreenPlan = prescreenExportPlan(state);
 
     container.innerHTML =
-      '<div class="panel">' +
+      '<div class="panel" data-motion-key="export-panel">' +
         '<h2 class="panel__title">匯出底稿</h2>' +
         (populationScope
-          ? '<p class="panel__hint">已儲存的分錄測試範圍：' + Ui.esc(populationScopeLabel(populationScope)) + '。</p>'
+          ? '<p class="panel__hint">已儲存的 GL：' + Ui.esc(populationScopeLabel(populationScope)) + '內的分錄。</p>'
           : '') +
         (needsScenarioResave ? Ui.filterScenarioProblemsHtml(state) : '') +
-        (noScenario ? '<p class="form-notice" data-bind="export-no-scenario">' + Ui.esc(NO_SCENARIO_NOTICE) + '</p>' : '') +
+        // 還沒儲存情境是使用者接下來要去做的事，用琥珀色；紅色只留給執行失敗與資料錯誤（使用者 2026-10-11 裁定）。
+        (noScenario ? '<p class="form-notice form-notice--warning" data-bind="export-no-scenario">' + Ui.esc(NO_SCENARIO_NOTICE) + '</p>' : '') +
         completionSummaryHtml(criteriaArtifact, currentWorkpaper) +
         (noScenario ? '' : scenarioSelectionHtml(state)) +
         prescreenExportOptionHtml(prescreenPlan) +
@@ -245,8 +246,11 @@
             '<h3 class="report-output__title">工作底稿版本紀錄</h3>' +
           '</div>' +
           '<p class="panel__hint">每次匯出會新增版本，不覆蓋既有底稿。</p>' +
-          Ui.reportArtifactListHtml(visibleWorkpapers, '尚未產生工作底稿。', { history: true, reveal: true }) +
-          (pageCount > 1 ? '<div class="panel__actions">' +
+          // 翻頁是整頁換掉：新的一頁只淡入，不讓五十份文件卡一起收起又長出來；同一頁裡新產生的底稿才長出來。
+          '<div data-motion="fade" data-motion-key="workpapers-page-' + historyPage + '">' +
+          Ui.reportArtifactListHtml(visibleWorkpapers, '尚未產生工作底稿。', { history: true, reveal: true, motion: 'workpapers' }) +
+          '</div>' +
+          (pageCount > 1 ? '<div class="panel__actions panel__actions--start">' +
             '<button type="button" class="btn btn--ghost btn--tiny" data-history-page="-1"' +
               (historyPage === 0 ? ' disabled' : '') + '>上一頁</button>' +
             '<span>第 ' + (historyPage + 1) + ' 頁，共 ' + pageCount + ' 頁（' + workpapers.length + ' 份）</span>' +
@@ -296,6 +300,16 @@
     var clearButton = container.querySelector('[data-action="clear-scenario-selection"]');
     if (clearButton) {
       clearButton.addEventListener('click', function () {
+        // 清除時被取消勾選的情境先輕微晃一下，讓使用者知道哪些被拿掉了（使用者 2026-10-13 要求）。
+        // 只晃原本有勾的；東西不會離開畫面，所以直接用 shake，不經過 removing。
+        if (global.JetMotion && typeof global.JetMotion.shake === 'function') {
+          var cleared = [];
+          inputs.forEach(function (input) {
+            var option = input.checked && typeof input.closest === 'function' ? input.closest('.scenario-export-option') : null;
+            if (option) { cleared.push(option); }
+          });
+          if (cleared.length) { global.JetMotion.shake(cleared); }
+        }
         inputs.forEach(function (input) { input.checked = false; });
         sync();
       });
@@ -329,21 +343,24 @@
   function runPrescreenForExport(project, payload) {
     return global.JetApi.prescreenRun({}).then(function (data) {
       requireExportActive(project, payload, true);
+      // 不再另記「預篩選已完成，接著產生預篩選報告」（使用者 2026-10-13 勾選頁確認刪除 50）。
       Store.setLastRun('prescreen', data);
-      Store.addMessage('預篩選已完成，接著產生預篩選報告。', 'info');
       return runId(data);
     });
   }
 
+  // 完成句由 Ui.run 接上耗時後記一則（使用者 2026-10-13 裁定成功時只留一則）。
   function exportWorkpaper(payload, project) {
     return global.JetApi.exportWorkpaperStream(payload).then(function (data) {
       requireExportActive(project, payload, true);
       lastSheetStats = data.sheetStats || [];
       Store.applyReportExport(data);
-      Store.addMessage('已在案件資料夾產生工作底稿（' +
-        lastSheetStats.length + ' 張工作表）。', 'info');
       return data;
     });
+  }
+
+  function workpaperCompletionMessage(data) {
+    return data ? '已在案件資料夾產生工作底稿（' + (data.sheetStats || []).length + ' 張工作表）。' : '';
   }
 
   function requireExportActive(project, payload, completed) {
@@ -387,7 +404,7 @@
         Ui.run('產生工作底稿', function () {
           requireExportActive(project, payload);
           return exportWorkpaper(payload, project);
-        }, { logCompletion: true });
+        }, { completionMessage: workpaperCompletionMessage });
         return;
       }
 
@@ -402,7 +419,7 @@
             requireExportActive(project, payload);
             return exportWorkpaper(payload, project);
           });
-      }, { logCompletion: true });
+      }, { completionMessage: workpaperCompletionMessage });
     });
   }
 

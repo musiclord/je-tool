@@ -12,11 +12,12 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public abstract class BulkRowWriterTests : IDisposable
 {
-    // target_gl_entry 的 18 個可寫欄（不含 entry_id auto-id；與 LocalGlRepository.TargetColumns 對齊）。
+    // target_gl_entry 的 17 個可寫欄（不含 entry_id auto-id；與 LocalGlRepository.TargetColumns 對齊）。
+    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，不再寫 voucher_date。
     private static readonly string[] TargetGlColumns =
     [
         "batch_id", "source_row_number",
-        "document_number", "line_item", "post_date", "approval_date", "voucher_date",
+        "document_number", "line_item", "post_date", "approval_date",
         "account_code", "account_name", "document_description",
         "source_module", "created_by", "approved_by", "is_manual",
         "amount_scaled", "debit_amount_scaled", "credit_amount_scaled", "dr_cr"
@@ -76,12 +77,12 @@ public abstract class BulkRowWriterTests : IDisposable
 
         await using (var writer = _db.CreateBulkRowWriter(connection, transaction, "target_gl_entry", TargetGlColumns))
         {
-            // line_item / voucher_date / source_module / approved_by / is_manual 為 null → 寫入器轉 NULL。
+            // line_item / approval_date / source_module / approved_by 為 null → 寫入器轉 NULL。
             await writer.AppendAsync(
-                ["b1", 1L, "D01", null, "2025-01-01", null, null, "1101", "Cash", "desc", null, "u", null, 0, 100L, 100L, 0L, "DEBIT"],
+                ["b1", 1L, "D01", null, "2025-01-01", null, "1101", "Cash", "desc", null, "u", null, 0, 100L, 100L, 0L, "DEBIT"],
                 CancellationToken.None);
             await writer.AppendAsync(
-                ["b1", 2L, "D02", "L2", "2025-01-02", null, null, "4101", "Rev", null, null, "u", null, 1, -50L, 0L, 50L, "CREDIT"],
+                ["b1", 2L, "D02", "L2", "2025-01-02", null, "4101", "Rev", null, null, "u", null, 1, -50L, 0L, 50L, "CREDIT"],
                 CancellationToken.None);
             await writer.CompleteAsync(CancellationToken.None);
         }
@@ -194,7 +195,7 @@ public abstract class BulkRowWriterTests : IDisposable
     }
 
     private static object?[] TargetRow(string doc, long sourceRow) =>
-        ["b1", sourceRow, doc, "L", "2025-01-01", null, null, "1101", "Cash", "desc", null, "u", null, 0, 100L, 100L, 0L, "DEBIT"];
+        ["b1", sourceRow, doc, "L", "2025-01-01", null, "1101", "Cash", "desc", null, "u", null, 0, 100L, 100L, 0L, "DEBIT"];
 
     private static async Task<long> ScalarAsync(DbConnection connection, DbTransaction? transaction, string sql)
     {

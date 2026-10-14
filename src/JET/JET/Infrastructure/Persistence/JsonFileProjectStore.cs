@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Text;
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
@@ -7,6 +9,14 @@ namespace JET.Infrastructure;
 public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStore
 {
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.IndentedOptions;
+
+    // 寫入型 action 由 dispatcher 序列化，但資料預覽、案件清單等唯讀查詢會和它們同時執行。換檔瞬間開檔的讀取
+    // 會碰到共用違規或找不到檔案，被誤報成 project.json 損壞；開著檔案的讀取也會讓換檔失敗。同一程式內以每個
+    // 檔案一把鎖讓讀寫互相等待；其他程式（另一個 JET 視窗、備份或防毒）造成的短暫鎖定，讀寫各自稍候重試。
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> FileGates =
+        new(StringComparer.OrdinalIgnoreCase);
+    private const int TransientAttempts = 6;
+    private static readonly TimeSpan TransientDelay = TimeSpan.FromMilliseconds(25);
 
     public async Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken)
     {
@@ -132,35 +142,87 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         var temporaryPath = Path.Combine(
             folder.GetProjectDirectory(document.ProjectId),
             $".project-json-{Guid.NewGuid():N}.tmp");
-
+        var gate = GateFor(destinationPath);
+        await gate.WaitAsync(cancellationToken);
         try
         {
             await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);
 
-            if (File.Exists(destinationPath))
+            // 每次重試都重新判斷：上一次換檔若已移走舊檔但沒換上新檔，這次直接搬入。
+            await RetryTransientAsync(() =>
             {
-                File.Replace(temporaryPath, destinationPath, destinationBackupFileName: null);
-            }
-            else
-            {
-                File.Move(temporaryPath, destinationPath);
-            }
+                if (File.Exists(destinationPath))
+                {
+                    File.Replace(temporaryPath, destinationPath, destinationBackupFileName: null);
+                }
+                else
+                {
+                    File.Move(temporaryPath, destinationPath);
+                }
+
+                return Task.FromResult(true);
+            }, cancellationToken);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            // 寫不進 project.json 是環境問題（唯讀、被其他程式開著、磁碟滿），給使用者出路而不是裸例外。
+            // 寫不進 project.json 是環境問題（唯讀、被其他程式開啟、磁碟滿），給使用者出路而不是裸例外
+            // （使用者 2026-10-14 第三輪勾選頁確認 R3-50：不寫檔名與例外型別）。
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"專案『{document.ProjectId}』的 project.json 無法寫入（{exception.GetType().Name}）；"
-                + "確認檔案沒有被設成唯讀、也沒有被其他程式開著後再試一次。");
+                $"案件「{document.ProjectId}」的設定未能儲存。請確認案件資料夾不是唯讀、設定檔沒有被其他程式開啟，再試一次。");
         }
         finally
         {
-            if (File.Exists(temporaryPath))
+            try
             {
-                File.Delete(temporaryPath);
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
+            finally
+            {
+                gate.Release();
             }
         }
+    }
+
+    /// <summary>
+    /// 同一程式內讀寫同一個檔案共用的鎖。internal 只為讓 <c>JET.Tests</c> 經 InternalsVisibleTo 拿同一把鎖，
+    /// 固定重現換檔換到一半的狀態。
+    /// </summary>
+    internal static SemaphoreSlim GateFor(string path) =>
+        FileGates.GetOrAdd(Path.GetFullPath(path), static _ => new SemaphoreSlim(1, 1));
+
+    /// <summary>其他程式短暫開著或正在換檔時，等一下再試；超過次數才把例外交給呼叫端。</summary>
+    private static async Task<T> RetryTransientAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await operation();
+            }
+            catch (Exception exception) when (
+                attempt < TransientAttempts && exception is IOException or UnauthorizedAccessException)
+            {
+                await Task.Delay(TransientDelay * attempt, cancellationToken);
+            }
+        }
+    }
+
+    /// <summary>允許其他程式同時換檔或刪檔的讀法：換檔時讀到的是換檔前的完整內容。</summary>
+    private static async Task<string> ReadSharedAsync(string path, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            bufferSize: 4096,
+            useAsync: true);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return await reader.ReadToEndAsync(cancellationToken);
     }
 
     private static bool HasJsonProperty(string json, string propertyName)
@@ -176,14 +238,28 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         CancellationToken cancellationToken)
     {
         var path = folder.GetProjectJsonPath(projectId);
-        if (!File.Exists(path))
-        {
-            return null;
-        }
 
         try
         {
-            var json = await File.ReadAllTextAsync(path, cancellationToken);
+            string json;
+            var gate = GateFor(path);
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                // 案件在不在也要等寫入換完檔再判斷：換檔進行中，正式檔名會有一小段時間不存在，
+                // 在鎖外判斷會把正在儲存的案件當成找不到，也會讓它從案件清單上暫時消失。
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
+                json = await RetryTransientAsync(() => ReadSharedAsync(path, cancellationToken), cancellationToken);
+            }
+            finally
+            {
+                gate.Release();
+            }
+
             var document = JsonSerializer.Deserialize<ProjectDocument>(json, JsonOptions)
                 ?? throw ProjectReadError(projectId);
 
@@ -196,14 +272,12 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
                 {
                     throw new JetActionException(
                         JetErrorCodes.InvalidProjectSchema,
-                        InfSamplingSeedResolution.LegacyProjectMessage(
-                            $"專案『{projectId}』的 project.json",
-                            "缺少 databaseProvider"));
+                        InfSamplingSeedResolution.LegacyProjectMessage(projectId));
                 }
 
-                ProjectDocumentSeedIntegrity.Validate(document, $"專案『{projectId}』的 project.json");
+                ProjectDocumentSeedIntegrity.Validate(document, projectId);
 
-                ProjectDocumentPeriodIntegrity.Validate(document, $"專案『{projectId}』的 project.json");
+                ProjectDocumentPeriodIntegrity.Validate(document, projectId);
             }
 
             return document;
@@ -212,9 +286,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         {
             if (ProjectDocumentSeedIntegrity.IsSeedJsonPath(ex.Path))
             {
-                throw ProjectDocumentSeedIntegrity.Corruption(
-                    $"專案『{projectId}』的 project.json",
-                    "sampleSeed 或 sampleSeedVersion 的 JSON 格式不合法");
+                throw ProjectDocumentSeedIntegrity.Corruption(projectId);
             }
 
             throw ProjectReadError(projectId);
@@ -227,8 +299,8 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 
     private static JetActionException ProjectReadError(string projectId) => new(
         JetErrorCodes.FileReadError,
-        $"專案『{projectId}』的 project.json 無法讀取或解析。請先確認檔案未被其他程式鎖住；"
-        + "若檔案已損壞，請從備份復原，或另建案件重新匯入。");
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-50。
+        $"案件「{projectId}」的設定檔無法讀取。請確認設定檔沒有被其他程式開啟；檔案已損壞時，請從備份還原案件資料夾，或另建案件重新匯入。");
 }
 
 /// <summary>
@@ -237,7 +309,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 /// </summary>
 internal static class ProjectDocumentSeedIntegrity
 {
-    internal static void Validate(ProjectDocument document, string source)
+    internal static void Validate(ProjectDocument document, string caseName)
     {
         var resolution = JetAuditProgram.ResolveInfSamplingSeed(
             document.SampleSeed,
@@ -247,12 +319,12 @@ internal static class ProjectDocumentSeedIntegrity
             // 舊版 JET 建立的案件不是損壞；告訴使用者改用目前版本重建，不要求從備份復原。
             throw new JetActionException(
                 JetErrorCodes.InvalidProjectSchema,
-                InfSamplingSeedResolution.LegacyProjectMessage(source, resolution.Error));
+                InfSamplingSeedResolution.LegacyProjectMessage(caseName));
         }
 
         if (!resolution.IsValid)
         {
-            throw Corruption(source, resolution.Error ?? "設定不合法");
+            throw Corruption(caseName);
         }
     }
 
@@ -260,9 +332,13 @@ internal static class ProjectDocumentSeedIntegrity
         string.Equals(path, "$.sampleSeed", StringComparison.OrdinalIgnoreCase)
         || string.Equals(path, "$.sampleSeedVersion", StringComparison.OrdinalIgnoreCase);
 
-    internal static JetActionException Corruption(string source, string detail) =>
+    /// <summary>
+    /// 抽樣設定損壞（使用者 2026-10-14 第三輪勾選頁確認 R3-51）：不寫檔名、鍵名與種子值。
+    /// 讀不到案件名稱時（線上案件登記簿的內容損壞）省略名稱。
+    /// </summary>
+    internal static JetActionException Corruption(string? caseName) =>
         new(
             JetErrorCodes.FileReadError,
-            $"{source} 的 INF 抽樣種子設定損壞：{detail}；"
-            + "為避免改變查核樣本，系統不會重新產生 seed，請從已知良好的 project.json 或備份復原。");
+            (string.IsNullOrEmpty(caseName) ? "案件" : $"案件「{caseName}」")
+            + "設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。");
 }

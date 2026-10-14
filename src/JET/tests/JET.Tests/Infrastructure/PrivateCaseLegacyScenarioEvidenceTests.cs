@@ -5,6 +5,8 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
+// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose input; keep independent hit, amount, and report assertions.
+
 public sealed class PrivateCaseLegacyScenarioEvidenceTests
 {
     [Fact]
@@ -75,25 +77,17 @@ public sealed class PrivateCaseLegacyScenarioEvidenceTests
                 new
                 {
                     join = "AND",
-                    matchScope = "sameVoucher",
+                    matchScope = "row",
                     rules = new object[]
                     {
                         new { join = "AND", type = "drCrOnly", drCr = "credit" },
-                        new
-                        {
-                            join = "AND",
-                            type = "prescreen",
-                            prescreenKey = PrescreenRuleKeys.BlankDescription,
-                        },
-                        new
-                        {
-                            join = "AND",
-                            type = "textSet",
-                            field = GlMappingKeys.Description,
-                            mode = "contains",
-                            normalization = "preserve",
-                            values,
-                        },
+                        new { join = "AND", type = "voucher", quantifier = "any", rules = new[] {
+                            new { join = "AND", type = "prescreen", prescreenKey = PrescreenRuleKeys.BlankDescription }
+                        } },
+                        new { join = "AND", type = "voucher", quantifier = "any", rules = new[] {
+                            new { join = "AND", type = "textSet", field = GlMappingKeys.Description,
+                                mode = "contains", normalization = "preserve", values }
+                        } },
                     },
                 },
             },

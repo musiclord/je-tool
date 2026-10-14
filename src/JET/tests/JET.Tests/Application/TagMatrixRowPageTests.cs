@@ -23,16 +23,17 @@ public sealed class TagMatrixRowPageTests
 {
     private const int DemoMoneyScale = 10_000;
 
-    /// <summary>命中(backdatedPosting)+ 命中(廣域金額)+ 0 命中(天價金額)三情境,position 1/2/3。</summary>
+    /// <summary>命中(nonAuthorizedPreparer)+ 命中(廣域金額)+ 0 命中(天價金額)三情境,position 1/2/3。</summary>
     private static string ThreeScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new object[]
             {
                 new {
-                    name = "提前過帳", rationale = "命中情境",
+                    name = "非授權編製人員", rationale = "命中情境",
                     groups = new[] { new { join = "and", rules = new object[] {
-                        new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } },
+                        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                        new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
                 new {
                     name = "廣域金額", rationale = "命中情境",
                     groups = new[] { new { join = "and", rules = new object[] {

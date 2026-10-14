@@ -83,7 +83,8 @@ public sealed class Batch9CreditCodeWorkflowTests
         var mapping = Codes(); mapping["dcField"] = "BadSide";
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, mode));
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        Assert.StartsWith("65 列無法轉換", error.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.Equal(2, error.Details!.Count);
         var unknown = Assert.Single(error.Details.Where(item => item.ReasonCode == "dc_unlisted"));
         var blank = Assert.Single(error.Details.Where(item => item.ReasonCode == "dc_blank"));
@@ -104,15 +105,25 @@ public sealed class Batch9CreditCodeWorkflowTests
     [InlineData("duckdb", false)]
     [InlineData("sqlite", true)]
     [InlineData("duckdb", true)]
-    public async Task MissingOrOverlappingCreditCode_ExplainsNextStepWithoutChangingCommittedMapping(string provider, bool overlap)
+    public async Task MissingBothOrOverlappingCodes_ExplainsNextStepWithoutChangingCommittedMapping(string provider, bool overlap)
     {
         using var fixture = await Batch9MappingTestFixture.CreateAsync(provider);
         var before = await fixture.LoadAsync();
         var mapping = Codes();
-        if (overlap) mapping["dcCreditCode"] = "\u3000d "; else mapping.Remove("dcCreditCode");
+        // 第 6 則允許只填一側；改以兩側都空白驗證必要提示，重複代碼與不改原資料的斷言保留。
+        if (overlap) mapping["dcCreditCode"] = "\u3000d ";
+        else { mapping.Remove("dcCreditCode"); mapping.Remove("dcDebitCode"); }
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, "side"));
-        Assert.Contains("貸方代碼", error.Message, StringComparison.Ordinal);
-        Assert.Contains("借方代碼", error.Message, StringComparison.Ordinal);
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                if (overlap)
+        {
+            Assert.Equal("借方與貸方代碼必須不同。", error.Message);
+        }
+        else
+        {
+            Assert.Contains("貸方代碼", error.Message, StringComparison.Ordinal);
+            Assert.Contains("借方代碼", error.Message, StringComparison.Ordinal);
+        }
         var after = await fixture.LoadAsync();
         Assert.Equal(before.GetProperty("mapping").GetRawText(), after.GetProperty("mapping").GetRawText());
     }
@@ -122,7 +133,7 @@ public sealed class Batch9CreditCodeWorkflowTests
     [InlineData("duckdb", false)]
     [InlineData("sqlite", true)]
     [InlineData("duckdb", true)]
-    public async Task Metadata_OldMissingCreditCodeFailsWithoutMutation_NewCodesRoundTripVerbatim(string provider, bool hasCredit)
+    public async Task Metadata_OneOrTwoCodesRoundTripWithoutMutatingTheCommittedMapping(string provider, bool hasCredit)
     {
         using var fixture = await Batch9MappingTestFixture.CreateAsync(provider);
         var before = await fixture.LoadAsync();
@@ -141,18 +152,16 @@ public sealed class Batch9CreditCodeWorkflowTests
         });
         try
         {
+            // 第 6 則讓單邊舊草稿也可讀回；確認完整內容且不保存、不投影，不再要求杜撰貸方碼。
+            var restored = await fixture.Host.DispatchAsync("mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path }));
+            Assert.Equal("D", restored.GetProperty("gl").GetProperty("mapping").GetProperty("dcDebitCode").GetString());
             if (hasCredit)
             {
-                var restored = await fixture.Host.DispatchAsync("mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path }));
-                Assert.Equal("D", restored.GetProperty("gl").GetProperty("mapping").GetProperty("dcDebitCode").GetString());
                 Assert.Equal("c", restored.GetProperty("gl").GetProperty("mapping").GetProperty("dcCreditCode").GetString());
             }
             else
             {
-                var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync("mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path })));
-                Assert.Equal(JetErrorCodes.MappingMetadataInvalid, error.Code);
-                Assert.Contains("貸方代碼", error.Message, StringComparison.Ordinal);
-                Assert.Contains("第三步", error.Message, StringComparison.Ordinal);
+                Assert.False(restored.GetProperty("gl").GetProperty("mapping").TryGetProperty("dcCreditCode", out _));
             }
             var after = await fixture.LoadAsync();
             Assert.Equal(before.GetProperty("mapping").GetRawText(), after.GetProperty("mapping").GetRawText());

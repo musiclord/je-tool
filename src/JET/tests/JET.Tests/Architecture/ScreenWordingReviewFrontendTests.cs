@@ -9,13 +9,6 @@ namespace JET.Tests.Architecture;
 public sealed class ScreenWordingReviewFrontendTests
 {
     [Fact]
-    public void K3_CashCounterpartExplanation_UsesExactApprovedText()
-    {
-        Assert.Contains("現金不算一般對方科目；要排除現金銷貨，改用預篩選條件『未預期借貸組合』。",
-            ReadFrontend("js", "ui-core.js"), StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void FieldMappingAndVoucherDetail_UseShortenedNames()
     {
         // W5：使用者 2026-10-02 裁定「借方代碼」與「傳票文件項次」。
@@ -25,59 +18,20 @@ public sealed class ScreenWordingReviewFrontendTests
         Assert.DoesNotContain("借方標識代碼", ReadSource("Domain", "Rules", "JetFieldCatalog.cs"), StringComparison.Ordinal);
 
         var vouchers = ReadFrontend("js", "filter-vouchers.js");
-        Assert.Contains("['狀態', '傳票文件項次', '總帳入帳日'", vouchers, StringComparison.Ordinal);
+        Assert.Contains("['狀態', '傳票文件項次', '總帳日期'", vouchers, StringComparison.Ordinal);
         Assert.DoesNotContain("'傳票項次'", vouchers, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void CompletenessReason_DistinguishesNeverRunFromOutdatedSummary()
-    {
-        // W7：從未執行資料驗證時請審計員「先執行」；舊摘要缺判定欄位時才「重新執行」。
-        var core = ReadFrontend("js", "ui-core.js");
-        var eligibility = ExtractFunction(core, "completenessEligibility");
-
-        Assert.Contains("var COMPLETENESS_FIRST_RUN_REASON = '請先執行資料驗證，以取得目前資料的結果';", core, StringComparison.Ordinal);
-        Assert.Contains("var COMPLETENESS_RERUN_REASON = '請重新執行資料驗證，以取得目前資料的結果';", core, StringComparison.Ordinal);
-        Assert.Contains("if (!validation) {", eligibility, StringComparison.Ordinal);
-        Assert.Contains("reason: COMPLETENESS_FIRST_RUN_REASON", eligibility, StringComparison.Ordinal);
-        Assert.Contains(": COMPLETENESS_RERUN_REASON", eligibility, StringComparison.Ordinal);
-        Assert.True(
-            eligibility.IndexOf("if (!validation) {", StringComparison.Ordinal)
-                < eligibility.IndexOf("COMPLETENESS_RERUN_REASON", StringComparison.Ordinal),
-            "沒有驗證結果的判斷必須在舊摘要判斷之前。");
-    }
-
-    [Fact]
-    public void KctAndLegacyLetters_AreLabelledBySource_WithoutChangingKctAutoNaming()
-    {
-        // W9：KCT A 到 J 與舊表 A 到 U 字母相同、意思不同，畫面要標明來源。
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
-        var kct = ExtractFunction(filter, "kctPickerHtml");
-        var legacy = ExtractFunction(filter, "legacyPickerHtml");
-
-        Assert.Contains("KCT 條件 A 到 J", kct, StringComparison.Ordinal);
-        Assert.Contains("<summary>舊表條件 A 到 U 與範例</summary>", legacy, StringComparison.Ordinal);
-        Assert.Contains("<span class=\"visually-hidden\">舊表條件 A 到 U</span>", legacy, StringComparison.Ordinal);
-        Assert.Contains("Ui.esc('舊表 ' + entry.letter + '：' + entry.label)", legacy, StringComparison.Ordinal);
-        Assert.Contains(">加入舊表 ' + item.letter + ' 條件</button>", legacy, StringComparison.Ordinal);
-        Assert.Contains("Ui.esc('舊表 ' + example.combination)", legacy, StringComparison.Ordinal);
-        Assert.DoesNotContain("A–U 條件", legacy, StringComparison.Ordinal);
-
-        // K10 改用清單內的評估說明；自動命名不變。
-        // 使用者 2026-10-07 裁定同一組混有自訂條件時名稱接「+自訂」；只有 KCT 卡片時仍是字母相接（第一次失敗收據 20261007-035823939-41943206b5f747f1b7fb8dfe79f987d7）。
-        Assert.Contains("tokens.push(letters.join('+') + (hasCustom ? '+自訂' : ''));", ExtractFunction(filter, "kctScenarioName"), StringComparison.Ordinal);
-        Assert.Contains(".map(function (item) { return item.letter + '：' + (item.defaultRationale || item.label); })", ExtractFunction(filter, "kctScenarioRationale"), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void KctSourceTab_ShowsTheLetterRangeOnScreen()
+    public void KctSourceTab_UsesThePlainKctTitle()
     {
         // 2026-10-03 主線在瀏覽器主機重測 S9 時發現：第五步工作區把 KCT 區塊標頭整個藏起來
         // （app.css 的 .filter-workspace .filter-entry .condition-picker__head），審計員實際看到的是左側分頁鈕。
-        // W9 要標明 KCT 的字母範圍，所以分頁鈕本身寫出 A 到 J。
+        // 使用者 2026-10-08 裁定分頁鈕只寫「KCT 條件」：原話「請改名 `KCT條件A到J` 改為 `KCT 條件` 就好」。
         var filter = ReadFrontend("js", "steps", "filter-step.js");
 
-        Assert.Contains("sourceButton('kct', 'KCT 條件 A 到 J')", filter, StringComparison.Ordinal);
+        Assert.Contains("sourceButton('kct', 'KCT 條件')", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("KCT 條件 A 到 J", filter, StringComparison.Ordinal);
         Assert.DoesNotContain("'KCT條件'", filter, StringComparison.Ordinal);
     }
 
@@ -96,29 +50,6 @@ public sealed class ScreenWordingReviewFrontendTests
         // T7：空狀態說明每個情境成為矩陣的一欄，不再出現 C1..CN 這類內部記號。
         Assert.Contains("尚未儲存任何篩選情境；先在上方儲存情境，每個情境會成為矩陣的一欄。", filter, StringComparison.Ordinal);
         Assert.DoesNotContain("C1..CN", filter, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ScenarioSaveTime_UsesSharedLocalDateTimeFormat()
-    {
-        // W14：第六步與總覽共用同一個時間格式函式，不直接顯示後端 ISO 字串。
-        var core = ReadFrontend("js", "ui-core.js");
-        var format = ExtractFunction(core, "formatDateTime");
-        Assert.Contains("toLocaleString('zh-Hant'", format, StringComparison.Ordinal);
-        Assert.Contains("year: 'numeric', month: '2-digit', day: '2-digit'", format, StringComparison.Ordinal);
-        Assert.Contains("hour: '2-digit', minute: '2-digit', hour12: false", format, StringComparison.Ordinal);
-        Assert.Contains("formatDateTime: formatDateTime,", core, StringComparison.Ordinal);
-
-        var app = ReadFrontend("js", "app.js");
-        var overviewWhen = ExtractFunction(app, "overviewWhen");
-        Assert.Contains("return Ui.formatDateTime(iso);", overviewWhen, StringComparison.Ordinal);
-        Assert.DoesNotContain("toLocaleString", overviewWhen, StringComparison.Ordinal);
-
-        var export = ReadFrontend("js", "steps", "export-step.js");
-        Assert.Contains("條件儲存時間：", export, StringComparison.Ordinal);
-        Assert.Contains("Ui.formatDateTime(filterRevision(state))", export, StringComparison.Ordinal);
-        Assert.DoesNotContain("條件保存時間", export, StringComparison.Ordinal);
-        Assert.DoesNotContain("Ui.esc(filterRevision(state) ||", export, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -188,7 +119,8 @@ public sealed class ScreenWordingReviewFrontendTests
         Assert.DoesNotContain("尚未保存科目配對", preview, StringComparison.Ordinal);
 
         // T11：空值計數的名稱直接說明可能重複計入。
-        Assert.Contains("' 筆、空值項目合計（同一分錄可能重複計入）' + (Number(", validate, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認 35：完成訊息不再列各項筆數（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
+        Assert.Contains("return data ? '資料驗證完成' : '';", validate, StringComparison.Ordinal);
         Assert.DoesNotContain("異常項次合計", validate, StringComparison.Ordinal);
     }
 

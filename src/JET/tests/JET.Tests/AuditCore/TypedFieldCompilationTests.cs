@@ -186,28 +186,37 @@ public sealed class TypedFieldCompilationTests
     [Fact]
     public void UnknownField_FailsLoudWithoutShowingTheInternalFieldId_EvenWithoutValidation()
     {
-        // 2026-10-03 主線裁定 T9：重新計算時這則訊息會原樣列給審計員；欄位已移除時拿不到顯示名稱，
-        // 不再顯示 rde. 內部代號，改寫下一步（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 2026-10-03 主線裁定 T9：欄位已移除時不顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-62（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 原本註解說「重新計算時這則訊息會原樣列給審計員」，因為 materialize 會繞過驗證器；現在 FilterRunMaterializeService
+        // 在編譯前一律先跑 FilterScenarioValidator，驗證器會先寫出 V12，編譯時的這個檢查只在驗證器與執行時檢查不一致
+        // （程式錯誤）時才會走到。所以畫面改顯示非預期錯誤那一句，檢查代號記進支援日誌，錯誤代碼仍是 invalid_scenario。
         const string removed = "rde.dddd0000dddd0000dddd0000dddd0000";
         var exception = Assert.Throws<JetActionException>(
             () => Compile(Rule(removed, "equals", value: "x")));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
         Assert.DoesNotContain(removed, exception.Message, StringComparison.Ordinal);
-        Assert.Contains("這個條件使用的攸關資料元素欄位已不在目前案件的欄位配對中", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
+        Assert.Equal("typed_field_not_mapped", FilterCompileCheck.CheckOf(exception));
     }
 
     [Fact]
     public void OperatorIncompatibleWithCurrentType_FailsLoudNamingTheField()
     {
-        // type-changed lifecycle 的編譯端最後防線：validator 被繞過（materialize 重新解析
-        // 已存 JSON）時仍不得編出錯型別 SQL。
+        // type-changed lifecycle 的編譯端最後防線：仍不得編出錯型別 SQL。
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-62（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 原本註解說 validator 會被 materialize 重新解析已存 JSON 時繞過；現在 FilterRunMaterializeService 在編譯前一律
+        // 先驗證，驗證器會先寫出 V14，走到這裡只會是驗證器與執行時檢查不一致的程式錯誤。原本鎖「攸關資料元素欄位「稅額」」
+        // 的斷言改鎖非預期錯誤那一句與檢查代號；不顯示 rde. 內部代號的斷言照留。
         var exception = Assert.Throws<JetActionException>(
             () => Compile(Rule(MoneyFieldId, "contains", value: "x", amountBasis: "signed")));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        // 2026-10-03 主線裁定 T9：改用欄位顯示名稱指名，不顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        Assert.Contains("攸關資料元素欄位「稅額」", exception.Message, StringComparison.Ordinal);
+        // 2026-10-03 主線裁定 T9：不顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
+        Assert.Equal("typed_operator_type_mismatch", FilterCompileCheck.CheckOf(exception));
+        Assert.DoesNotContain("稅額", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(MoneyFieldId, exception.Message, StringComparison.Ordinal);
     }
 

@@ -192,8 +192,7 @@ internal static class WorkpaperWriterTestSupport
             completenessDiffsOverride ?? new LocalCompletenessDiffPageRepository(database),
             new LocalDocBalancePageRepository(database),
             new LocalTagMatrixScenariosRepository(database),
-            new LocalFieldDefinitionFactsPort(database),
-            new LocalMappingStateStore(database));
+            new LocalFieldDefinitionFactsPort(database));
         var facts = await factsPort.ExecuteAsync(
             initial,
             CancellationToken.None);
@@ -286,7 +285,7 @@ internal static class WorkpaperWriterTestSupport
                 tb.AddRow("6101", "費用", -100);  // GL 6101 淨 -100
             });
 
-    /// <summary>命中(backdatedPosting=傳票層+行層)+ 命中(借方行=行層子集)+ 0 命中(天價金額);position 1/2/3。</summary>
+    /// <summary>命中(nonAuthorizedPreparer=傳票層+行層)+ 命中(借方行=行層子集)+ 0 命中(天價金額);position 1/2/3。</summary>
     internal static string MatrixScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
@@ -294,9 +293,10 @@ internal static class WorkpaperWriterTestSupport
             scenarios = new object[]
             {
                 new {
-                    name = "提前過帳", rationale = "過帳日期早於傳票日期,可能顯示回溯日期",
+                    name = "非授權編製人員", rationale = "編製人員不在授權清單內",
                     groups = new[] { new { join = "and", rules = new object[] {
-                        new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } },
+                        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                        new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
                 new {
                     name = "借方行", rationale = "借方側可靠性較高之子集",
                     groups = new[] { new { join = "and", rules = new object[] {

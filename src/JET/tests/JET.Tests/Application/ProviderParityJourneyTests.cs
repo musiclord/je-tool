@@ -305,7 +305,7 @@ public sealed class ProviderParityJourneyTests
 
     /// <summary>
     /// filterHitsPage keyset 分頁 provider 等價:同一 demo 案件,commit 一個確有命中的情境
-    /// (backdatedPosting),以小 pageSize 走訪 query.filterHitsPage{scenarioPosition:1} 到底,
+    /// (nonAuthorizedPreparer),以小 pageSize 走訪 query.filterHitsPage{scenarioPosition:1} 到底,
     /// 斷言兩 provider 回傳的 doc|lineItem 序列完全相同(SequenceEqual)。證明 SQL Server OFFSET/FETCH
     /// 合法、entry_id 游標(long 綁參)等價、JOIN result_filter_run 集合等價、無漏無重序穩。
     /// >pageSize 擋偽綠。無 LocalDB → 跳過。
@@ -323,14 +323,14 @@ public sealed class ProviderParityJourneyTests
 
         using var sqliteHost = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(sqliteHost);
-        await sqliteHost.DispatchAsync("filter.commit", BackdatedScenarioPayload());
+        await sqliteHost.DispatchAsync("filter.commit", NonAuthorizedScenarioPayload());
         var sqliteSequence = await WalkFilterHitsPagesAsync(sqliteHost, pageSize);
 
         using var sqlServerHost = new HandlerTestHost(sqlServerConnectionString: connectionString);
         try
         {
             await DemoProjectPipeline.SetupAsync(sqlServerHost, databaseProvider: "sqlServer");
-            await sqlServerHost.DispatchAsync("filter.commit", BackdatedScenarioPayload());
+            await sqlServerHost.DispatchAsync("filter.commit", NonAuthorizedScenarioPayload());
             var sqlServerSequence = await WalkFilterHitsPagesAsync(sqlServerHost, pageSize);
 
             Assert.True(sqliteSequence.Count > pageSize,
@@ -383,16 +383,17 @@ public sealed class ProviderParityJourneyTests
         }
     }
 
-    /// <summary>多情境(命中 backdatedPosting + 命中廣域金額 + 0 命中天價金額),供 tagMatrixScenarios parity 共用。</summary>
+    /// <summary>多情境(命中 nonAuthorizedPreparer + 命中廣域金額 + 0 命中天價金額),供 tagMatrixScenarios parity 共用。</summary>
     private static string TagMatrixScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new object[]
             {
                 new {
-                    name = "提前過帳", rationale = "雙 provider 等價",
+                    name = "非授權編製人員", rationale = "雙 provider 等價",
                     groups = new[] { new { join = "and", rules = new object[] {
-                        new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } },
+                        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                        new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
                 new {
                     name = "廣域金額", rationale = "雙 provider 等價",
                     groups = new[] { new { join = "and", rules = new object[] {
@@ -406,7 +407,7 @@ public sealed class ProviderParityJourneyTests
 
     /// <summary>
     /// rowPage parity 專用多情境:借方行(drCrOnly=debit,行層子集——命中傳票的貸方行為非命中行)
-    /// + 提前過帳 + 0 命中天價金額。借方行情境保證命中傳票內存在非命中行(matchedPositions=[]),
+    /// + 非授權編製人員 + 0 命中天價金額。借方行情境保證命中傳票內存在非命中行(matchedPositions=[]),
     /// 使 parity 同時覆蓋非命中行於兩 provider 一致列出。
     /// </summary>
     private static string TagMatrixRowScenarioPayload() =>
@@ -419,9 +420,10 @@ public sealed class ProviderParityJourneyTests
                     groups = new[] { new { join = "and", rules = new object[] {
                         new { join = "and", type = "drCrOnly", drCr = "debit" } } } } },
                 new {
-                    name = "提前過帳", rationale = "雙 provider 等價",
+                    name = "非授權編製人員", rationale = "雙 provider 等價",
                     groups = new[] { new { join = "and", rules = new object[] {
-                        new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } },
+                        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                        new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
                 new {
                     name = "天價(打不中)", rationale = "雙 provider 等價",
                     groups = new[] { new { join = "and", rules = new object[] {
@@ -921,14 +923,15 @@ public sealed class ProviderParityJourneyTests
                     new { join = "and", type = "customPreparerEntryCount", maxEntries = AllMatchingMaxEntries } } } } } }
         });
 
-    /// <summary>backdatedPosting 情境(demo 母體確有命中),供 filterHits parity 兩 provider 共用。</summary>
-    private static string BackdatedScenarioPayload() =>
+    /// <summary>nonAuthorizedPreparer 情境(demo 母體確有命中；使用者 2026-10-08 裁定移除傳票日期與回溯過帳，原為 backdatedPosting),供 filterHits parity 兩 provider 共用。</summary>
+    private static string NonAuthorizedScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
-                name = "提前過帳", rationale = "雙 provider 等價",
+                name = "非授權編製人員", rationale = "雙 provider 等價",
                 groups = new[] { new { join = "and", rules = new[] {
-                    new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } } }
+                    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         });
 
     /// <summary>逐頁帶 nextCursor 走訪 query.filterHitsPage(scenarioPosition=1)到底,回傳 doc|lineItem 序列。</summary>
@@ -1077,7 +1080,7 @@ public sealed class ProviderParityJourneyTests
         metrics["prescreen.nonAuthorizedPreparer.status"] = prescreen.GetProperty("nonAuthorizedPreparer").GetProperty("status").GetString()!;
         metrics["prescreen.lowFrequencyPreparer.count"] = prescreen.GetProperty("lowFrequencyPreparer").GetProperty("count").GetRawText();
         metrics["prescreen.lowFrequencyAccount.count"] = prescreen.GetProperty("lowFrequencyAccount").GetProperty("count").GetRawText();
-        metrics["prescreen.backdatedPosting.count"] = prescreen.GetProperty("backdatedPosting").GetProperty("count").GetRawText();
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，不再比對 backdatedPosting。
         metrics["prescreen.rareAccounts.distinct"] = prescreen.GetProperty("rareAccounts").GetProperty("distinctAccountCount").GetRawText();
         var creators = prescreen.GetProperty("creatorSummary").GetProperty("creators").EnumerateArray().ToList();
         metrics["prescreen.creatorSummary.count"] = creators.Count.ToString();

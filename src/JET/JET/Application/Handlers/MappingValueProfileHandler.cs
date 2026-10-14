@@ -15,15 +15,17 @@ public sealed class MappingValueProfileHandler(
 
     public string Action => "mapping.valueProfile";
 
+    // 所選來源欄已不在最近一次匯入的 GL 中（使用者 2026-10-14 第三輪勾選頁確認 R3-36，沿用 A7）。
+    private static string SourceColumnMissing(string sourceColumn) =>
+        $"所選來源欄已不在本次匯入的資料中：{sourceColumn}，請重新選擇。";
+
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
         var dataset = PayloadReader.GetRequiredString(payload, "dataset");
         if (!string.Equals(dataset, "gl", StringComparison.Ordinal))
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"dataset '{dataset}' 無效，mapping.valueProfile 只允許 gl。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "value_profile_dataset_not_gl");
         }
 
         var sourceColumn = PayloadReader.GetRequiredString(payload, "sourceColumn");
@@ -33,23 +35,22 @@ public sealed class MappingValueProfileHandler(
         if (payload.TryGetProperty("comparisonOnly", out var comparisonOnlyElement))
         {
             if (comparisonOnlyElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "comparisonOnly 必須是布林值。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "comparison_only_not_boolean");
             comparisonOnly = comparisonOnlyElement.GetBoolean();
         }
         var checkSourceValues = false;
         if (payload.TryGetProperty("checkSourceValues", out var checkElement))
         {
             if (checkElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "checkSourceValues 必須是布林值。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "check_source_values_not_boolean");
             checkSourceValues = checkElement.GetBoolean();
         }
         if (checkSourceValues && (comparisonOnly || !hasComparisonValues))
-            throw new JetActionException(JetErrorCodes.InvalidPayload,
-                "核對來源值時請提供 comparisonValues，且不要同時使用 comparisonOnly。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "check_source_values_shape");
         if (comparisonOnly)
         {
             if (!hasComparisonValues)
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "比較來源值時必須提供 comparisonValues。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "comparison_values_missing");
             // 純前端值對應 metadata；不查匯入批次、不讀母體，也不保存或驗證配對政策。
             return new
             {
@@ -66,13 +67,13 @@ public sealed class MappingValueProfileHandler(
             cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
-                "目前案件尚未匯入 GL，不能取得欄位值分布。");
+                SourceColumnMissing(sourceColumn));
 
         if (!batch.Columns.Contains(sourceColumn, StringComparer.Ordinal))
         {
             throw new JetActionException(
                 JetErrorCodes.MappingColumnNotFound,
-                $"目前 GL 匯入批次不存在來源欄位 '{sourceColumn}'。");
+                SourceColumnMissing(sourceColumn));
         }
 
         var profile = await repositories.MappingValueProfiles.GetAsync(
@@ -127,12 +128,12 @@ public sealed class MappingValueProfileHandler(
     {
         if (!present) return [];
         if (element.ValueKind != JsonValueKind.Array || element.GetArrayLength() > MaxLimit)
-            throw new JetActionException(JetErrorCodes.InvalidPayload, $"comparisonValues 每次最多 {MaxLimit} 個字串；較長清單請分批取得值對應。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "comparison_values_too_many");
         var values = new List<string>(element.GetArrayLength());
         foreach (var item in element.EnumerateArray())
         {
             if (item.ValueKind != JsonValueKind.String)
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "comparisonValues 的每個項目都必須是字串。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "comparison_values_not_strings");
             values.Add(item.GetString()!);
         }
         return values;
@@ -160,9 +161,7 @@ public sealed class MappingValueProfileHandler(
             || !property.TryGetInt32(out var limit)
             || limit is < 1 or > MaxLimit)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"limit 必須是 1 到 {MaxLimit} 的整數。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "value_profile_limit_invalid");
         }
 
         return limit;

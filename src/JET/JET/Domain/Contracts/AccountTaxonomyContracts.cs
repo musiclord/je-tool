@@ -72,7 +72,7 @@ public static class AccountTaxonomyInvariant
         {
             if (!ids.Add(category.CategoryId))
             {
-                Invalid($"科目分類 ID 重複：'{category.CategoryId}'。");
+                Reject("taxonomy_category_id_duplicate");
             }
             if (string.IsNullOrWhiteSpace(category.Label)
                 || category.Label.Length > MaxLabelLength)
@@ -105,7 +105,7 @@ public static class AccountTaxonomyInvariant
             }
             else if (category.IsBuiltIn || !IsCustomId(category.CategoryId))
             {
-                Invalid($"自訂科目分類 ID '{category.CategoryId}' 無效。");
+                Reject("taxonomy_custom_category_id_invalid");
             }
         }
 
@@ -113,7 +113,7 @@ public static class AccountTaxonomyInvariant
         {
             if (!ids.Contains(builtIn.CategoryId))
             {
-                Invalid($"內建科目分類 '{builtIn.CategoryId}' 不可刪除。");
+                Reject("taxonomy_built_in_removed");
             }
         }
 
@@ -148,6 +148,10 @@ public static class AccountTaxonomyInvariant
 
     private static void Invalid(string message) =>
         throw new JetActionException(JetErrorCodes.InvalidPayload, message);
+
+    // 只有程式送錯資料才會走到：畫面顯示非預期錯誤那一句，檢查代號記進支援日誌（使用者 2026-10-14 第三輪勾選頁確認 R3-65）。
+    private static void Reject(string check) =>
+        throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, check);
 }
 
 public static class AccountTaxonomyCatalog
@@ -177,7 +181,7 @@ public static class AccountTaxonomyCatalog
 
         throw new JetActionException(
             JetErrorCodes.ProjectionFailed,
-            $"分類「{raw}」不存在於目前專案的科目分類（{string.Join("、", taxonomy.Categories.OrderBy(item => item.Ordinal).Select(item => item.Label))}）。");
+            $"分類「{raw}」不在本案件的科目分類中（{string.Join("、", taxonomy.Categories.OrderBy(item => item.Ordinal).Select(item => item.Label))}），請改用清單中的分類名稱。");
     }
 
     public static string LegacyLabelForSemanticRole(string semanticRole)

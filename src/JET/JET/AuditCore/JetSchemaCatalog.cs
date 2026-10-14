@@ -12,10 +12,10 @@ namespace JET.AuditCore;
 /// </summary>
 internal enum SchemaLayer
 {
-    /// <summary>來源層:客戶提供 / 匯入原貌(JE_PBC、TB_PBC、ACCOUNT_MAPPING…)。</summary>
+    /// <summary>來源層:客戶提供的匯入資料(PBC-GL、PBC-TB、ACCOUNT_MAPPING…)。</summary>
     Source,
 
-    /// <summary>暫存層(ETL):標準化後的測試母體與餘額(JE、TB)。</summary>
+    /// <summary>暫存層(ETL):標準化後的 GL 與 TB。</summary>
     Staging,
 
     /// <summary>報表層:可供判讀 / 報導的測試結果摘要與命中(VALIDATION_OVERVIEW…)。</summary>
@@ -45,7 +45,8 @@ internal enum SchemaAudience
 /// 中央三層表名登錄的單筆條目:實體表名 → 正準審計名 + 層 + 曝光 + 中文說明。
 /// </summary>
 /// <param name="PhysicalName">實體表名(SQLite 與 SQL Server 同一扁平名;CREATE TABLE 的權威名)。</param>
-/// <param name="CanonicalName">正準審計名(承襲 legacy 三層結構的審計詞彙,如 JE_PBC / JE)。</param>
+/// <param name="CanonicalName">正準審計名,只用於資料表摘要顯示(如 PBC-GL、GL)。使用者 2026-10-08 裁定資料名稱全系統統一,
+/// legacy 的 JE_PBC、TB_PBC、JE 改為 PBC-GL、PBC-TB、GL;不是 SQL 識別字或檔名。</param>
 /// <param name="Layer">審計三層 + System。</param>
 /// <param name="Audience">資料預覽 / 結構總覽的曝光程度。</param>
 /// <param name="Description">一句中文說明(用途 / 由來)。</param>
@@ -85,10 +86,10 @@ internal static class JetSchemaCatalog
     public static readonly IReadOnlyList<SchemaTableEntry> All =
     [
         // ── Source:客戶提供 / 匯入原貌(DataView) ─────────────────────────────
-        new("staging_gl_raw_row", "JE_PBC", SchemaLayer.Source, SchemaAudience.DataView,
-            "匯入原貌 GL（來源總帳明細，尚未完成欄位配對）"),
-        new("staging_tb_raw_row", "TB_PBC", SchemaLayer.Source, SchemaAudience.DataView,
-            "匯入原貌 TB(客戶提供的試算表,未標準化)"),
+        new("staging_gl_raw_row", "PBC-GL", SchemaLayer.Source, SchemaAudience.DataView,
+            "PBC-GL（匯入的總帳明細原樣，尚未完成欄位配對）"),
+        new("staging_tb_raw_row", "PBC-TB", SchemaLayer.Source, SchemaAudience.DataView,
+            "PBC-TB(匯入的試算表原樣,未標準化)"),
         new("target_account_mapping", "ACCOUNT_MAPPING", SchemaLayer.Source, SchemaAudience.DataView,
             "科目 → 標準化分類對照(未預期借貸組合 / 科目配對分析所需)"),
         new("target_authorized_preparer", "AUTHORIZED_PREPARER", SchemaLayer.Source, SchemaAudience.DataView,
@@ -97,8 +98,8 @@ internal static class JetSchemaCatalog
             "日期維度:事務所假日 / 補班日(週末假日過帳核准規則所需)"),
 
         // ── Staging(ETL):標準化後的測試母體與餘額(DataView) ──────────────────
-        new("target_gl_entry", "JE", SchemaLayer.Staging, SchemaAudience.DataView,
-            "標準化分錄(JET 測試母體;由 GL 原貌投影而來)"),
+        new("target_gl_entry", "GL、GL(未納入測試)", SchemaLayer.Staging, SchemaAudience.DataView,
+            "標準化分錄(由 PBC-GL 投影而來;同一張表依查核期間與過帳狀態分成 GL 與 GL(未納入測試))"),
         new("target_tb_balance", "TB", SchemaLayer.Staging, SchemaAudience.DataView,
             "標準化試算表餘額(本期變動額;完整性測試所需)"),
 

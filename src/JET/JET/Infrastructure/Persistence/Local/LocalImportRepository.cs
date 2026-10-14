@@ -138,7 +138,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                     {
                         throw new JetActionException(
                             JetErrorCodes.EmptyWorkbook,
-                            $"檔案 '{input.Source.FileName}' 沒有任何資料列。");
+                            $"檔案「{input.Source.FileName}」沒有任何資料列。");
                     }
 
                     var effectiveColumns = TabularHeaderNormalizer.FinalizeBatchColumns(
@@ -389,7 +389,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                     {
                         throw new JetActionException(
                             JetErrorCodes.EmptyWorkbook,
-                            $"檔案 '{input.Source.FileName}' 沒有任何資料列，未附加（既有批次不受影響）。");
+                            ImportMessages.EmptyAppend(input.Source.FileName));
                     }
 
                     var effectiveColumns = TabularHeaderNormalizer.FinalizeBatchColumns(
@@ -565,7 +565,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
 
         throw new JetActionException(
             JetErrorCodes.ColumnMismatch,
-            $"檔案 '{sourceFileName}' 的欄位與已匯入的資料不一致（{string.Join("；", parts)}）。請改用取代匯入，或先在 Excel 把兩份檔案的欄位對齊。");
+            $"檔案「{sourceFileName}」的欄位與已匯入的資料不一致（{string.Join("；", parts)}）。請改用取代匯入，或先在 Excel 把兩份檔案的欄位對齊。");
     }
 
     private async Task<BatchSourceWriteResult> WriteBatchSourceAsync(
@@ -675,8 +675,8 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         }
 
         var context = source.SheetName is null
-            ? $"來源 {sourceNo}/{sourceCount}，檔案 '{source.FileName}'"
-            : $"來源 {sourceNo}/{sourceCount}，檔案 '{source.FileName}'，工作表 '{source.SheetName}'";
+            ? $"來源 {sourceNo}/{sourceCount}，檔案「{source.FileName}」"
+            : $"來源 {sourceNo}/{sourceCount}，檔案「{source.FileName}」，工作表「{source.SheetName}」";
         return new JetActionException(error.Code, $"{context}：{error.Message}", error.Field, error) { Details = error.Details };
     }
 

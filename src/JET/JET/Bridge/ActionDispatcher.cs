@@ -122,6 +122,14 @@ public sealed class ActionDispatcher
                     ? actionException.Code
                     : JetErrorCodes.BridgeError,
                 exception);
+            if (JetPayloadRejection.CheckOf(exception) is { } payloadCheck)
+            {
+                // 畫面只看到非預期錯誤那一句；沒過的檢查代號記進支援日誌。
+                DispatcherDiagnostics.PayloadRejected(_logger, action, ((JetActionException)exception).Code, payloadCheck);
+            }
+
+            // 第五步損毀的條件：畫面只看到通用句，哪一條、哪一種記進支援日誌。
+            FilterScenarioDiagnostics.LogException(_logger, action, exception);
 
             // 引擎錯誤映射：業務錯誤（JetActionException）原樣放行；其餘例外先過映射點，
             // 可辨識者（登入失敗/唯一鍵衝突/死鎖/逾時）以明確錯誤碼取代裸 bridge_error。
@@ -192,6 +200,15 @@ internal static partial class DispatcherDiagnostics
         long duration_ms,
         string error_code,
         Exception exception);
+
+    /// <summary>畫面送出的資料沒過後端格式檢查；payload_check 是程式寫死的檢查代號，不含資料內容。</summary>
+    [LoggerMessage(EventId = 1003, EventName = "action.payload_rejected", Level = LogLevel.Warning,
+        Message = "action {action} payload rejected code={error_code} check={payload_check}")]
+    public static partial void PayloadRejected(
+        ILogger logger,
+        string action,
+        string error_code,
+        string payload_check);
 }
 
 /// <summary>
@@ -221,9 +238,7 @@ public sealed class RequestCancellationRegistry : IOperationCancellationService
             if (!_requests.TryAdd(requestId, source))
             {
                 source.Dispose();
-                throw new JetActionException(
-                    JetErrorCodes.InvalidPayload,
-                    $"requestId '{requestId}' 已在執行中，不能重複使用。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "request_id_in_use");
             }
 
             if (_requests.Count == 1)

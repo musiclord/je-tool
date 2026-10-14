@@ -28,7 +28,7 @@ public sealed class ExportAccountMappingTemplateHandler(
         {
             if (mode.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
             {
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "onlyIfMissing 必須是布林值。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "only_if_missing_not_boolean");
             }
             onlyIfMissing = mode.GetBoolean();
         }
@@ -43,7 +43,7 @@ public sealed class ExportAccountMappingTemplateHandler(
         var run = await runStore.FindLatestAsync(projectId, RuleRunKinds.Validate, cancellationToken);
         if (!RuleLogicVersions.IsCurrent(run)) { run = null; }
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var formalWriter = writer as IFormalAccountMappingTemplateWriter;
         if (formalWriter is not null && (taxonomyStore is null || mappingStore is null))

@@ -160,7 +160,7 @@ public static partial class AppCompositionRoot
             CalendarExport = calendarExport,
             AccountMappingExport = accountMappingExport,
             WorkpaperPlanningFacts = new WorkpaperPlanningFactsPort(
-                completenessDiffPages, docBalancePages, tagMatrixScenarios, fieldDefinitionFacts, mappingStates),
+                completenessDiffPages, docBalancePages, tagMatrixScenarios, fieldDefinitionFacts),
             WorkpaperPlanWriter = CreateWorkpaperWriter(
                 completenessAccountPages, completenessDiffPages, docBalancePages, creatorSummaryExport,
                 infSamplePages, filterScenarios, tagMatrixScenarios, tagMatrixVoucherPages, tagMatrixRowPages,
@@ -296,7 +296,7 @@ public static partial class AppCompositionRoot
             CalendarExport = calendarExport,
             AccountMappingExport = accountMappingExport,
             WorkpaperPlanningFacts = new WorkpaperPlanningFactsPort(
-                completenessDiffPages, docBalancePages, tagMatrixScenarios, fieldDefinitionFacts, mappingStates),
+                completenessDiffPages, docBalancePages, tagMatrixScenarios, fieldDefinitionFacts),
             WorkpaperPlanWriter = CreateWorkpaperWriter(
                 completenessAccountPages, completenessDiffPages, docBalancePages, creatorSummaryExport,
                 infSamplePages, filterScenarios, tagMatrixScenarios, tagMatrixVoucherPages, tagMatrixRowPages,

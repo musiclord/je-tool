@@ -213,7 +213,7 @@ public sealed class CsvTableReader : ITabularFileReader
 
     private static JetActionException EmptyFile(string filePath) => new(
         JetErrorCodes.EmptyWorkbook,
-        $"檔案 '{Path.GetFileName(filePath)}' 找不到標頭列。請確認第一個有內容的列是欄名。");
+        $"檔案「{Path.GetFileName(filePath)}」找不到標頭列。請確認第一個有內容的列是欄名。");
 
     private (Encoding Encoding, char Delimiter) ResolveDialect(TabularSourceRequest request)
     {

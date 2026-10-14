@@ -21,16 +21,17 @@ public sealed class TagMatrixVoucherPageTests
 {
     private const int DemoMoneyScale = 10_000;
 
-    /// <summary>命中(backdatedPosting)+ 命中(廣域金額)+ 0 命中(天價金額)三情境,position 1/2/3。</summary>
+    /// <summary>命中(nonAuthorizedPreparer)+ 命中(廣域金額)+ 0 命中(天價金額)三情境,position 1/2/3。</summary>
     private static string ThreeScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new object[]
             {
                 new {
-                    name = "提前過帳", rationale = "命中情境",
+                    name = "非授權編製人員", rationale = "命中情境",
                     groups = new[] { new { join = "and", rules = new object[] {
-                        new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } },
+                        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                        new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
                 new {
                     name = "廣域金額", rationale = "命中情境",
                     groups = new[] { new { join = "and", rules = new object[] {
@@ -117,7 +118,7 @@ public sealed class TagMatrixVoucherPageTests
             Assert.Equal((decimal)totalScaled / DemoMoneyScale, row.VoucherTotal);
         }
 
-        // 至少有一張傳票同時命中 position 1 與 2(廣域金額涵蓋全部 → 與 backdatedPosting 交集非空),
+        // 至少有一張傳票同時命中 position 1 與 2(廣域金額涵蓋全部 → 與 nonAuthorizedPreparer 交集非空),
         // 證明 matchedPositions 確實是「多情境集合」而非單一值。
         Assert.Contains(walked, w => w.MatchedPositions.Length >= 2);
         // 0 命中情境(position 3)不應出現在任何傳票的 matchedPositions。

@@ -24,7 +24,7 @@ public sealed class QueryInfSamplePageHandler(
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                $"找不到專案 '{projectId}'。");
+                ProjectFolderMessages.ActiveProjectMissing);
         var mapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
         var columnPlan = ResultPageColumnRegistry.ForInf(mapping);
 
@@ -44,7 +44,7 @@ public sealed class QueryInfSamplePageHandler(
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "最新 Validation 結果來自舊版規則，請重新執行資料驗證。");
+                "資料驗證結果是用舊版規則產生的，請重新執行資料驗證。");
         }
 
         var page = await Task.Run(

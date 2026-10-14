@@ -10,13 +10,14 @@ namespace JET.Tests.Application;
 public sealed class Batch8DisplayTextTests
 {
     [Fact]
-    public async Task DemoDateColumns_DescribeTheSameThreeDatesInMetadataAndExportedWorkbook()
+    public async Task DemoDateColumns_DescribeTheSameTwoDatesInMetadataAndExportedWorkbook()
     {
         var demo = DemoDataFactory.Create();
-        Assert.Equal("總帳入帳日", demo.GlMapping[GlMappingKeys.PostDate]);
-        Assert.Equal("傳票日期", demo.GlMapping[GlMappingKeys.VoucherDate]);
+        Assert.Equal("總帳日期", demo.GlMapping[GlMappingKeys.PostDate]);
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：示範資料只剩總帳日期與傳票核准日。
+        Assert.DoesNotContain("voucherDate", demo.GlMapping.Keys);
         Assert.Equal("傳票核准日", demo.GlMapping[GlMappingKeys.DocDate]);
-        string[] expected = ["總帳入帳日", "傳票號碼", "傳票項次", "科目代號", "科目名稱", "摘要", "金額", "借方旗標", "建立人員", "傳票核准日", "人工傳票", "傳票日期"];
+        string[] expected = ["總帳日期", "傳票號碼", "傳票項次", "科目代號", "科目名稱", "摘要", "金額", "借方旗標", "建立人員", "傳票核准日", "人工傳票"];
         Assert.Equal(expected, demo.GlColumns);
         var exported = await DemoProjectPipeline.DispatchDemoFixtureAsync("demo.exportGlFile");
         var path = exported.GetProperty("filePath").GetString()!;
@@ -32,7 +33,7 @@ public sealed class Batch8DisplayTextTests
         {
             ("documentNumber", "傳票號碼", "text"), ("accountCode", "會計科目編號", "text"),
             ("accountName", "會計科目名稱", "text"), ("debit", "借方金額", "money"),
-            ("credit", "貸方金額", "money"), ("postDate", "總帳入帳日", "date"),
+            ("credit", "貸方金額", "money"), ("postDate", "總帳日期", "date"),
             ("approvalDate", "傳票核准日", "date"), ("createdBy", "傳票建立人員", "text"),
             ("approvedBy", "傳票核准人員", "text"), ("description", "傳票摘要", "text")
         }, plan.Columns.Select(column => (column.Key, column.Label, column.ValueType)).ToArray());
@@ -40,9 +41,10 @@ public sealed class Batch8DisplayTextTests
     }
 
     [Fact]
-    public void ConfirmedTbPreview_UsesConfirmedMappingStatusWithoutChangingDatasetKey()
+    public void ConfirmedTbPreview_UsesUnifiedTbNameAndKey()
     {
-        Assert.Equal("已確認配對的試算表", DataPreviewDatasetLabels.MainTabs.Single(tab => tab.Dataset == "tbBalances").Label);
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：已確認配對的試算表改叫 TB，wire key 改為 tb。
+        Assert.Equal("TB", DataPreviewDatasetLabels.MainTabs.Single(tab => tab.Dataset == "tb").Label);
     }
 
     [Theory]
@@ -57,9 +59,12 @@ public sealed class Batch8DisplayTextTests
             .AddRow("OUT", "2024-12-31", "4101", "合成", "期外非零", "1.0000", 0), databaseProvider: provider));
         Assert.Equal(JetErrorCodes.GlAmountsAllZero, error.Code);
         Assert.DoesNotContain("母體", error.Message, StringComparison.Ordinal);
-        Assert.Contains("納入測試的分錄", error.Message, StringComparison.Ordinal);
-        Assert.Contains("借方與貸方總額都是 0", error.Message, StringComparison.Ordinal);
-        Assert.Contains("確認配對", error.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：納入測試的分錄改叫 GL。
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Contains("GL 借方與貸方總額皆為 0", error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("納入測試的分錄", error.Message, StringComparison.Ordinal);
+        Assert.Contains("借方與貸方總額皆為 0", error.Message, StringComparison.Ordinal);
+        Assert.Contains("請確認所選金額欄是每列的分錄金額", error.Message, StringComparison.Ordinal);
         var store = new JsonFileProjectStore(new JetProjectFolder(host.ProjectsRoot));
         var project = Assert.Single(await store.ListAsync(CancellationToken.None));
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = project.ProjectId }));
@@ -101,7 +106,6 @@ public sealed class Batch8DisplayTextTests
         Assert.Equal("完整性測試無法執行 GL 與 TB 的逐科目比對：TB 欄位配對尚未確認，補齊後可重新驗證。 審計員可說明差異原因並繼續篩選與匯出。", decision.Warning);
         Assert.Equal("請先確認 GL「傳票核准日」欄位配對。", PrescreenProcedures.MissingApprovalDateMappingReason);
         Assert.Equal("請先確認 GL「傳票建立人員」欄位配對。", PrescreenProcedures.MissingCreatedByMappingReason);
-        Assert.Equal("請先確認 GL「傳票日期」欄位配對，才能比較是否回溯過帳。", PrescreenProcedures.MissingVoucherDateMappingReason);
-        Assert.Equal("尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳入帳日。", PrescreenProcedures.MissingApprovalDateForActivityReason);
+        Assert.Equal("尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。", PrescreenProcedures.MissingApprovalDateForActivityReason);
     }
 }

@@ -223,6 +223,9 @@ internal static partial class GuiScenarios
           var railPoint = point(rail);
           var exportPoint = point(exportButton);
           var exitPoint = point(exit);
+          // 訊息區是從欄底拉開的抽屜：打開的過程中按鈕還會被裁掉、位置也還在動，等抽屜停下、按鈕中心點得到才算可以按。
+          var drawer = document.querySelector('.messages__panel');
+          var exportHit = exportButton && visible(exportButton) ? document.elementFromPoint(exportPoint.x, exportPoint.y) : null;
           return {
             artifactCount: document.querySelectorAll('.report-artifact').length,
             totalWorkpaperCount: stateArtifacts.filter(function (artifact) { return artifact.kind === 'workingPaper'; }).length,
@@ -249,6 +252,8 @@ internal static partial class GuiScenarios
             railX: railPoint.x,
             railY: railPoint.y,
             exportVisible: visible(exportButton),
+            exportReady: visible(exportButton) && !!exportHit && (exportHit === exportButton || exportButton.contains(exportHit))
+              && !!drawer && drawer.getAnimations().length === 0,
             exportX: exportPoint.x,
             exportY: exportPoint.y,
             supportLogMessageVisible: messages.some(function (text) { return text.indexOf('支援日誌已輸出') >= 0; }),
@@ -305,10 +310,16 @@ internal static partial class GuiScenarios
           var state = window.JetStore.getState();
           var mapping = state.mapping.gl;
           var section = document.querySelector('[data-bind="mapping-gl"]');
+          var approvalSelect = section ? section.querySelector('[data-approval-choice]') : null;
+          var approvalColumn = section ? Array.prototype.find.call(section.querySelectorAll('[data-map-col]'), function (select) {
+            return visible(select) && select.value === 'docDate';
+          }) : null;
+          var approvalSameDate = section ? section.querySelector('[data-approval-same-date]') : null;
           return {
             mode: mapping.options.approvalDateMode,
-            approvalSourceVisible: visible(section ? section.querySelector('[data-approval-source]') : null),
-            approvalFieldPresent: !!section && !!section.querySelector('[data-mapping-field="docDate"]'),
+            approvalChoice: visible(approvalSelect) ? approvalSelect.value : approvalColumn ? 'column:' + approvalColumn.getAttribute('data-map-col') :
+              visible(approvalSameDate) ? (approvalSameDate.checked ? 'mode:sameAsPostDate' : 'mode:unmapped') : '',
+            approvalFieldPresent: visible(approvalSelect) || !!approvalColumn || visible(approvalSameDate),
             source: mapping.draft.docDate || '',
             manualSource: mapping.draft.manual || '',
             manualPolicy: JSON.stringify(mapping.options.manualAutoPolicy || {}),
@@ -430,7 +441,7 @@ internal static partial class GuiScenarios
         string mode, string source, CancellationToken cancellationToken) =>
         WaitForMappingPolicyAsync(cdp, process,
             probe => ReadString(probe, "mode") == mode && ReadString(probe, "source") == source
-                && ReadBoolean(probe, "approvalSourceVisible") == (mode == "mapped")
+                && ReadString(probe, "approvalChoice") == (mode == "mapped" ? "column:" + source : "mode:" + mode)
                 && ReadBoolean(probe, "approvalFieldPresent"),
             cancellationToken);
 
@@ -447,7 +458,11 @@ internal static partial class GuiScenarios
             cancellationToken, outcome).ConfigureAwait(false);
         var original = MappingFixtureSnapshot.Capture(baseline);
         outcome.RecordStage("options-only-dirty-warning");
-        await ClickControlAsync(cdp, process, GlSection + "[data-remove-code]", outcome, cancellationToken).ConfigureAwait(false);
+        // 2026-10-09 第 9 則註解：代碼改成輸入框；合成資料原值為單一字元 1，以鍵盤清空。
+        // 選取器第一次失敗：FrontendMapping 20261009-062729225-fa4549ec34744ea3a7f6257c3d49b7fa。
+        await ClickControlAsync(cdp, process, GlSection + "[data-manual-code-edit=\"manual:0\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await PressKeyAsync(cdp, "End", outcome, cancellationToken).ConfigureAwait(false);
+        await PressKeyAsync(cdp, "Backspace", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process,
             probe => ReadBoolean(probe, "draftRestored") && ReadBoolean(probe, "amountRestored")
                 && !ReadBoolean(probe, "optionsRestored") && ReadBoolean(probe, "dirtyWarningVisible")
@@ -487,20 +502,19 @@ internal static partial class GuiScenarios
         await ClickControlAsync(cdp, process, GlSection + "[data-action=\"restore-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, GlSection + "[data-action=\"remap-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
         outcome.RecordStage("classic-approval-modes");
-        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"unmapped\"]", outcome, cancellationToken).ConfigureAwait(false);
+        // 使用者 2026-10-08 畫面註解：傳票核准日只有一個下拉，選來源欄即代表由來源欄提供。
+        var approvalChoice = GlSection + "[data-approval-choice]";
+        await ChooseOptionAsync(cdp, process, approvalChoice, "mode:unmapped", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
-        // 9/23：來源欄只在 mapped 模式出現，先用真實 radio 操作切換，不能存取隱藏控制項。
-        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"mapped\"]", outcome, cancellationToken).ConfigureAwait(false);
-        await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "傳票核准日", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, approvalChoice, "column:傳票核准日", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
-        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"sameAsPostDate\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, approvalChoice, "mode:sameAsPostDate", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "sameAsPostDate", "", cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process, probe => ReadBoolean(probe, "dirtyWarningVisible"),
             cancellationToken, outcome).ConfigureAwait(false);
-        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"mapped\"]", outcome, cancellationToken).ConfigureAwait(false);
-        await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "傳票核准日", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, approvalChoice, "column:傳票核准日", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
-        await ChooseOptionAsync(cdp, process, GlSection + "[data-approval-source]", "", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, approvalChoice, "mode:unmapped", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
         outcome.Assertions.ClassicApprovalModesCoherent = true;
 
@@ -509,11 +523,13 @@ internal static partial class GuiScenarios
         var gridSource = GlSection + "[data-map-col=\"傳票核准日\"]";
         await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
-        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"unmapped\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, gridSource, "", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
         await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
-        await ClickControlAsync(cdp, process, GlSection + "[data-option-bind=\"approvalDateMode\"][value=\"sameAsPostDate\"]", outcome, cancellationToken).ConfigureAwait(false);
+        // 對照表格只在表頭選來源；解除來源後才顯示同日勾選，不借用簡易清單的下拉。
+        await ChooseOptionAsync(cdp, process, gridSource, "", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-approval-same-date]", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "sameAsPostDate", "", cancellationToken).ConfigureAwait(false);
         await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
@@ -569,7 +585,7 @@ internal static partial class GuiScenarios
         outcome.Assertions.CommittedMappingOptionsRestored = true;
         outcome.RecordStage("capture-restored-mapping");
         await ClickControlAsync(cdp, process, GlSection + "[data-action=\"remap-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
-        await FindControlPointAsync(cdp, process, GlSection + "[data-approval-source]", cancellationToken).ConfigureAwait(false);
+        await FindControlPointAsync(cdp, process, GlSection + "[data-approval-choice]", cancellationToken).ConfigureAwait(false);
         await CaptureScreenshotAsync(cdp, outcome, cancellationToken).ConfigureAwait(false);
         outcome.RecordStage("exit");
         await ClickControlAsync(cdp, process, "[data-action=\"app-exit\"]", outcome, cancellationToken).ConfigureAwait(false);
@@ -610,7 +626,7 @@ internal static partial class GuiScenarios
         GuiRunOutcome outcome,
         CancellationToken cancellationToken)
     {
-        // 啟動時「載入專案清單」還在進行，「結束 JET」依設計只提示作業進行中、不結束（ui-core.js 的 exitApp）。
+        // 啟動時「讀取案件清單」還在進行，「結束 JET」依設計只提示作業進行中、不結束（ui-core.js 的 exitApp）。
         // 原本直接用初始探測的座標點擊，清單載入較慢時點擊被擋下，程式不退出，情境逾時
         // （20261002-122109009-b118247d76634624815f06a34a7d5446、20261002-135010950-9ddf7be574464a1c94b92a40e1de14fe）。
         // 改成先等作業結束、再依按鈕目前的位置點擊；仍要求按下後程式自行退出。
@@ -964,7 +980,7 @@ internal static partial class GuiScenarios
             exportStep = await WaitForEditedReportStepAsync(
                 cdp,
                 process,
-                probe => ReadBoolean(probe, "exportVisible"),
+                probe => ReadBoolean(probe, "exportReady"),
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -1086,8 +1102,11 @@ internal static partial class GuiScenarios
                 var style = getComputedStyle(parent);
                 var horizontal = /auto|scroll/.test(style.overflowX) && parent.scrollWidth > parent.clientWidth
                   && (x < box.left + 8 || x > box.right - 8 || (stickyOcclusion && parent.contains(coveringCell)));
+                // 捲動區的上緣可能藏在玻璃標題列下面；scroll-padding 標出被蓋住的那一段，也算看不到。
+                var padTop = parseFloat(style.scrollPaddingTop) || 0;
+                var padBottom = parseFloat(style.scrollPaddingBottom) || 0;
                 var vertical = /auto|scroll/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight
-                  && (y < box.top + 8 || y > box.bottom - 8);
+                  && (y < box.top + padTop + 8 || y > box.bottom - padBottom - 8);
                 if ((horizontal || vertical) && box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < innerHeight) {
                   // 內層捲軸即使在 viewport 內，仍可能完全被外層 content 裁掉。
                   // 滾輪必須落在所有祖先裁切後實際可見的範圍；不可見時先捲外層。

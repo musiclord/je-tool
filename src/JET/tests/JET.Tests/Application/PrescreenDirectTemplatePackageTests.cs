@@ -711,8 +711,9 @@ public sealed class PrescreenDirectTemplatePackageTests
                     new
                     {
                         join = "AND",
-                        type = "customKeywords",
-                        keywords = keyword
+                        // 第九節 G2、G5：保留範本與套件斷言，改用欄位條件；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+                        type = "fieldValue", field = "description", @operator = "contains",
+                        values = new[] { keyword }
                     }
                 }
             }

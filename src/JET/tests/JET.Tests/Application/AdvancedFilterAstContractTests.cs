@@ -29,13 +29,17 @@ public sealed class AdvancedFilterAstContractTests
         Assert.Equal(["anchor"], group.Rules[0].Values);
         Assert.Equal(TextSetNormalization.Preserve, group.Rules[0].Normalization);
         Assert.Equal(TextSetNormalization.RemoveAsciiSpaces, group.Rules[1].Normalization);
-        Assert.Empty(FilterScenarioValidator.Validate(scenario, Ready));
+        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Retain historical parsing; saving now requires explicit voucher conditions.
+        Assert.Equal("第 1 組：" + FilterSinglePurposeRules.SameVoucher,
+            Assert.Single(FilterScenarioValidator.Validate(scenario, Ready)));
     }
 
+    // 使用者 2026-10-13 勾選頁確認（文字批次 C）：原本第四個參數是訊息片段（matchScope、至少需要兩條、只允許 AND），這三種只會是內容損毀，
+    // 畫面改寫通用句；參數改成程式寫死的原因代號，仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
     [Theory]
-    [InlineData("mystery", 2, "AND", "matchScope")]
-    [InlineData("sameVoucher", 1, "AND", "至少需要兩條")]
-    [InlineData("sameVoucher", 2, "OR", "只允許 AND")]
+    [InlineData("mystery", 2, "AND", "group_match_scope_invalid")]
+    [InlineData("sameVoucher", 1, "AND", "same_voucher_too_few_rules")]
+    [InlineData("sameVoucher", 2, "OR", "same_voucher_or_join")]
     public void Validate_InvalidSameVoucherGroup_FailsLoudly(
         string matchScope,
         int ruleCount,
@@ -66,15 +70,17 @@ public sealed class AdvancedFilterAstContractTests
             groups = new[] { new { join = "AND", matchScope, rules } }
         }));
 
-        Assert.Contains(
-            FilterScenarioValidator.Validate(scenario, Ready),
-            error => error.Contains(expected, StringComparison.Ordinal));
+        var errors = FilterScenarioValidator.Validate(scenario, Ready);
+        Assert.Contains("第 1 組：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
+        Assert.True(FilterScenarioCorruption.ReasonsOf(errors).Any(reason => reason.Code == expected));
     }
 
+    // 使用者 2026-10-13 勾選頁確認（文字批次 C）：原本第四個參數是訊息片段，這三種只會是內容損毀，畫面改寫通用句；
+    // 參數改成程式寫死的原因代號，仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
     [Theory]
-    [InlineData("notContains", "preserve", "value", "contains 或 exact")]
-    [InlineData("contains", "unknown", "value", "normalization")]
-    [InlineData("contains", "removeAsciiSpaces", "   ", "正規化後不可為空")]
+    [InlineData("notContains", "preserve", "value", "text_set_mode_invalid")]
+    [InlineData("contains", "unknown", "value", "text_set_normalization_invalid")]
+    [InlineData("contains", "removeAsciiSpaces", "   ", "text_set_value_blank")]
     public void Validate_InvalidTextSetContract_FailsLoudly(
         string mode,
         string normalization,
@@ -103,9 +109,9 @@ public sealed class AdvancedFilterAstContractTests
             }
         }));
 
-        Assert.Contains(
-            FilterScenarioValidator.Validate(scenario, Ready),
-            error => error.Contains(expected, StringComparison.Ordinal));
+        var errors = FilterScenarioValidator.Validate(scenario, Ready);
+        Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
+        Assert.True(FilterScenarioCorruption.ReasonsOf(errors).Any(reason => reason.Code == expected));
     }
 
     [Theory]
@@ -148,11 +154,11 @@ public sealed class AdvancedFilterAstContractTests
             Groups = [group with { Rules = [rule] }]
         };
 
-        Assert.Contains(
-            FilterScenarioValidator.Validate(oversized, Ready),
-            error => error.Contains(
-                FilterScenarioLimits.MaxTextSetValuesPerRule.ToString(),
-                StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        var errors = FilterScenarioValidator.Validate(oversized, Ready);
+        Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
+        Assert.True(FilterScenarioCorruption.ReasonsOf(errors).Any(reason => reason.Code == "text_set_values_too_many"));
     }
 
     [Fact]
@@ -188,10 +194,10 @@ public sealed class AdvancedFilterAstContractTests
             () => FilterScenarioPayloadParser.Parse(document.RootElement, moneyScale: 100));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        Assert.Contains(
-            FilterScenarioLimits.MaxTextSetValuesPerRule.ToString(),
-            exception.Message,
-            StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", exception.Message);
+        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "text_set_values_too_many"), FilterScenarioCorruption.ReasonsOf(exception));
     }
 
     [Theory]
@@ -274,8 +280,9 @@ public sealed class AdvancedFilterAstContractTests
         Assert.Contains("後續條件可由同一傳票的其他分錄列符合", rendered, StringComparison.Ordinal);
         Assert.Contains("包含任一值", rendered, StringComparison.Ordinal);
         Assert.Contains("完全符合任一值", rendered, StringComparison.Ordinal);
-        Assert.Contains("保留 ASCII 空白", rendered, StringComparison.Ordinal);
-        Assert.Contains("移除 ASCII 空白", rendered, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-69（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        Assert.Contains("保留半形空白", rendered, StringComparison.Ordinal);
+        Assert.Contains("移除半形空白", rendered, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -287,13 +294,17 @@ public sealed class AdvancedFilterAstContractTests
     [InlineData("filter-2026-09-18-v15")]
     [InlineData("filter-2026-09-18-v16")]
     [InlineData("filter-2026-10-04-v17")]
-    public void FilterLogicVersion_IsV18AndV17OrEarlierDefinitionsAreStale(string savedVersion)
+    [InlineData("filter-2026-10-06-v18")]
+    [InlineData("filter-2026-10-08-v19")]
+    public void FilterLogicVersion_IsV20AndV19OrEarlierDefinitionsAreStale(string savedVersion)
     {
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，現行版本推進為 v19；第一次失敗收據 20261008-042049371-eba08c280cca4ff59170a6e88e87291a。
         // 2026-10-06 條件 A 納入查核期末視窗，現行版本推進為 v18。
         // v17 與更早保存的情境不是目前版本，不得沿用舊 resultRef 或直接惰性補算。
         // 2026-10-02 起開案時若整批仍符合目前規則，會由 FilterScenarioRuleUpgrade 改成目前版本後再重算；
         // 不符合時整批維持舊版本，查詢與匯出仍會擋下。
-        Assert.Equal("filter-2026-10-06-v18", RuleLogicVersions.Filter);
+        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose conditions.
+        Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
         var saved = new SavedFilterScenario(
             1,
             "synthetic",
@@ -366,7 +377,8 @@ public sealed class AdvancedFilterAstContractTests
                 HasAccountMapping = true,
                 HasAnyAccountCategory = true
             }),
-            error => error.Contains("借方分類至少需選擇一項", StringComparison.Ordinal));
+            // 使用者 2026-10-13 勾選頁確認（文字批次 C）：改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+            error => error == "第 1 組第 1 條：尚未選擇借方分類");
     }
 
     [Theory]

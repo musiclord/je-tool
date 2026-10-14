@@ -57,10 +57,41 @@ public sealed class FilterScenarioRuleUpgradeTests
     }
 
     [Fact]
-    public void CurrentBatch_IsCurrentWithoutRevalidation()
+    public void CurrentBatch_IsRevalidatedOnLoad()
     {
-        // 已是目前版本的整批維持改版前的行為：開案時不重新驗證，問題留給補算時回報。
+        // 改動原因：使用者 2026-10-13 裁定「開案也逐一檢查」，拿掉「已是目前版本就不驗證」的捷徑；原本斷言 Current
+        // （問題留給補算時回報）。第一次失敗：Focused 收據 20261013-133703293-a159a47c0ec64441a7dbc9702c86d15a。
+        // 同一個不合格的目前版本情境，現在開案就列在待修正清單；合格的目前版本仍回 Current，見 CurrentValidBatch_StaysCurrentWithoutNewVersions。
         var result = Evaluate(Saved(1, Definition(RuleLogicVersions.Filter, rule: UnknownRdeRule)));
+
+        Assert.Equal(FilterScenarioUpgradeStatus.NeedsEdit, result.Status);
+        Assert.Null(result.Scenarios);
+        var problem = Assert.Single(result.Problems);
+        Assert.Equal(1, problem.Position);
+        Assert.Equal("情境1", problem.Name);
+    }
+
+    // 使用者 2026-10-13 裁定「開案也逐一檢查」：已是目前版本、但因其他資料改變而不合格的情境，開案時就列在待修正清單；
+    // 合格的目前版本照舊回 Current，不重新蓋版本。
+    [Fact]
+    public void CurrentVersionThatNoLongerValidates_IsListedOnLoad()
+    {
+        var result = Evaluate(
+            Saved(1, Definition(RuleLogicVersions.Filter)),
+            Saved(2, Definition(RuleLogicVersions.Filter, rule: UnknownRdeRule)));
+
+        Assert.Equal(FilterScenarioUpgradeStatus.NeedsEdit, result.Status);
+        Assert.Null(result.Scenarios);
+        var problem = Assert.Single(result.Problems);
+        Assert.Equal(2, problem.Position);
+        Assert.Equal("情境2", problem.Name);
+        Assert.NotEmpty(problem.Messages);
+    }
+
+    [Fact]
+    public void CurrentValidBatch_StaysCurrentWithoutNewVersions()
+    {
+        var result = Evaluate(Saved(1, Definition(RuleLogicVersions.Filter)), Saved(2, Definition(RuleLogicVersions.Filter)));
 
         Assert.Equal(FilterScenarioUpgradeStatus.Current, result.Status);
         Assert.Null(result.Scenarios);
@@ -174,15 +205,106 @@ public sealed class FilterScenarioRuleUpgradeTests
         Assert.Equal(FilterScenarioUpgradeStatus.Inconsistent, result.Status);
     }
 
+    // 改動原因：使用者 2026-10-13「損毀的情境」裁定開案清單一律寫「條件內容讀不出來」，「情境卡住」裁定待修正的情境要能一個一個刪；
+    // 讀不出來的情境因此改列成這個情境的一筆問題，不再讓整批變成沒有清單的 Inconsistent（保存時間與位置的結構問題仍是 Inconsistent）。
+    // 原斷言（Status 為 Inconsistent）的第一次失敗：Public 收據 20261013-103826650-632ded11dde247d0b97d4e5ea6dd63bf。
+    // 預期的訊息常數與位置、名稱都寫死，整批照舊不動（Scenarios 為 null）。
     [Theory]
     [InlineData("[]")]
     [InlineData("{\"logicVersion\":\"filter-2026-09-18-v15\",\"populationScope\":7,\"groups\":[]}")]
     [InlineData("not json")]
-    public void UnreadableDefinition_IsInconsistent(string definition)
+    public void UnreadableDefinition_IsListedAsThatScenariosProblem(string definition)
     {
-        var result = Evaluate(Saved(1, definition));
+        var result = Evaluate(Saved(1, Definition()), Saved(2, definition));
 
-        Assert.Equal(FilterScenarioUpgradeStatus.Inconsistent, result.Status);
+        Assert.Equal(FilterScenarioUpgradeStatus.NeedsEdit, result.Status);
         Assert.Null(result.Scenarios);
+        var problem = Assert.Single(result.Problems);
+        Assert.Equal(2, problem.Position);
+        Assert.Equal("情境2", problem.Name);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：B3 改為「條件內容無法讀取」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Equal(["條件內容無法讀取"], problem.Messages);
+    }
+
+    // ── 一次只存、刪或重新檢查一個情境時寫回的整批（2026-10-13）──
+
+    [Fact]
+    public void PlanWrite_AllValid_RenumbersStampsEveryRowAndUsesOneSavedTime()
+    {
+        var batch = new[]
+        {
+            Saved(3, Definition()),
+            Saved(7, Definition(RuleLogicVersions.Filter), SavedUtc.AddSeconds(5))
+        };
+
+        var write = FilterScenarioRuleUpgrade.PlanWrite(
+            batch, null, FilterScenarioWriteMode.KeepOthersVerbatim, Context, moneyScale: 100, NowUtc);
+
+        Assert.True(write.AllValid);
+        Assert.Empty(write.Problems);
+        Assert.Equal([1, 2], write.Rows.Select(row => row.Position));
+        Assert.All(write.Rows, row => Assert.Equal(NowUtc, row.SavedUtc));
+        Assert.All(write.Rows, row => Assert.True(RuleLogicVersions.IsCurrent(row)));
+        Assert.Equal(["情境3", "情境7"], write.Rows.Select(row => row.Name));
+        Assert.Equal(1, write.UpgradedOthers);
+    }
+
+    [Fact]
+    public void PlanWrite_KeepOthersVerbatim_LeavesEveryOtherDefinitionUntouchedWhenOneStillNeedsEdits()
+    {
+        var invalid = Definition(rule: UnknownRdeRule);
+        var olderValid = Definition();
+        var edited = Definition(RuleLogicVersions.Filter);
+        var batch = new[] { Saved(1, invalid), Saved(2, edited), Saved(3, olderValid) };
+
+        var write = FilterScenarioRuleUpgrade.PlanWrite(
+            batch, 2, FilterScenarioWriteMode.KeepOthersVerbatim, Context, moneyScale: 100, NowUtc);
+
+        Assert.False(write.AllValid);
+        Assert.Equal([invalid, edited, olderValid], write.Rows.Select(row => row.DefinitionJson));
+        Assert.All(write.Rows, row => Assert.Equal(NowUtc, row.SavedUtc));
+        var problem = Assert.Single(write.Problems);
+        Assert.Equal(1, problem.Position);
+        Assert.Equal(0, write.UpgradedOthers);
+    }
+
+    [Fact]
+    public void PlanWrite_UpgradeApplicable_StampsTheValidOnesAndKeepsTheInvalidOnesVerbatim()
+    {
+        var invalid = Definition(rule: UnknownRdeRule);
+        var batch = new[] { Saved(1, invalid), Saved(2, Definition()), Saved(3, "not json") };
+
+        var write = FilterScenarioRuleUpgrade.PlanWrite(
+            batch, null, FilterScenarioWriteMode.UpgradeApplicable, Context, moneyScale: 100, NowUtc);
+
+        Assert.False(write.AllValid);
+        Assert.Equal(invalid, write.Rows[0].DefinitionJson);
+        Assert.True(RuleLogicVersions.IsCurrent(write.Rows[1]));
+        Assert.Equal("not json", write.Rows[2].DefinitionJson);
+        Assert.Equal([1, 3], write.Problems.Select(problem => problem.Position));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：B3 改為「條件內容無法讀取」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Equal(["條件內容無法讀取"], write.Problems[1].Messages);
+        Assert.Equal(1, write.UpgradedOthers);
+    }
+
+    [Fact]
+    public void PlanWrite_ChecksCurrentVersionsToo()
+    {
+        var write = FilterScenarioRuleUpgrade.PlanWrite(
+            [Saved(1, Definition(RuleLogicVersions.Filter, rule: UnknownRdeRule))],
+            null, FilterScenarioWriteMode.UpgradeApplicable, Context, moneyScale: 100, NowUtc);
+
+        Assert.False(write.AllValid);
+        Assert.Single(write.Problems);
+    }
+
+    [Fact]
+    public void PlanWrite_EmptyBatch_IsAllValid()
+    {
+        var write = FilterScenarioRuleUpgrade.PlanWrite(
+            [], null, FilterScenarioWriteMode.KeepOthersVerbatim, Context, moneyScale: 100, NowUtc);
+
+        Assert.True(write.AllValid);
+        Assert.Empty(write.Rows);
     }
 }

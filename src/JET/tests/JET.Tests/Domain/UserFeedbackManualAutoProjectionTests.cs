@@ -123,11 +123,18 @@ public sealed class UserFeedbackManualAutoProjectionTests
             out var error));
         Assert.NotNull(error);
         Assert.Contains(expected, error.Reason, StringComparison.Ordinal);
-        Assert.Contains("回到欄位配對", error.Reason, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal(
+            raw.Length == 0
+                ? "是空白。請在「來源空白時」選擇處理方式，或先補齊來源資料"
+                : "未歸類為人工或自動。請將這些值歸類，或在「判定方式」改為只列一側",
+            error.Reason);
         Assert.Contains(raw.Length == 0 ? "來源空白時" : "判定方式", error.Reason, StringComparison.Ordinal);
         if (raw.Length == 0)
         {
-            Assert.Contains("不判定", error.Reason, StringComparison.Ordinal);
+            // 確認後的句子不再逐一列出「視為人工、視為自動或不判定」，改說在「來源空白時」選擇處理方式。
+            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-131740634-2a35146b081648eb92cf69bc9c18b5ef）。
+            Assert.Contains("「來源空白時」選擇處理方式", error.Reason, StringComparison.Ordinal);
         }
     }
 }

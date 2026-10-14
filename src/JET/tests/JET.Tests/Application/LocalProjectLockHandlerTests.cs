@@ -13,8 +13,9 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class LocalProjectLockHandlerTests
 {
+    // 使用者 2026-10-14 第三輪勾選頁確認 R3-69（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
     private const string ExternalProcessLockMessage =
-        "此案件正由另一個 JET 執行個體開啟中，請先在該視窗離開案件後再試。";
+        "此案件已在另一個 JET 視窗中開啟，請先在該視窗離開案件後再試一次。";
 
     [Theory]
     [InlineData("sqlite")]
@@ -68,7 +69,8 @@ public sealed class LocalProjectLockHandlerTests
         var held = await Assert.ThrowsAsync<JetActionException>(
             () => contender.DispatchAsync("project.load", LoadPayload(projectId)));
         Assert.Equal(JetErrorCodes.ProjectLocked, held.Code);
-        Assert.Contains("開啟中", held.Message);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-69（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 句子不再有「開啟中」，改鎖整句。
+        Assert.Equal(ExternalProcessLockMessage, held.Message);
 
         // State Transition：心跳只續持有狀態，不得意外釋放本地檔案鎖。
         await owner.DispatchAsync("project.heartbeat");

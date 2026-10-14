@@ -47,8 +47,7 @@ internal sealed record WorkpaperPlanningFacts(
     bool HasUnbalancedDocuments,
     IReadOnlyDictionary<int, (long VoucherHitCount, long RowHitCount)> ScenarioHitCounts,
     IReadOnlyList<LegacyFieldDefinition> TargetTbDefinitions,
-    IReadOnlyList<LegacyFieldDefinition> TargetGlDefinitions,
-    string? VoucherDateSourceField = null);
+    IReadOnlyList<LegacyFieldDefinition> TargetGlDefinitions);
 
 /// <summary>供 step3 row 與 step4／step4-1 動態欄集共用的 finalized 情境計畫。</summary>
 internal sealed record WorkpaperScenarioPlan(
@@ -439,7 +438,6 @@ public static partial class JetAuditProgram
                 facts.TargetGlDefinitions),
             Step41Columns = ProjectStep41Columns(
                 facts.TargetGlDefinitions,
-                facts.VoucherDateSourceField,
                 request.CustomFields ?? [],
                 request.MoneyScale),
             IsFinalized = true
@@ -470,32 +468,14 @@ public static partial class JetAuditProgram
 
     private static IReadOnlyList<WorkpaperStep41Column> ProjectStep41Columns(
         IReadOnlyList<LegacyFieldDefinition> definitions,
-        string? voucherDateSourceField,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         int moneyScale)
     {
-        var voucherCandidates = string.IsNullOrEmpty(voucherDateSourceField)
-            ? []
-            : definitions
-                .Where(definition =>
-                    string.Equals(
-                        definition.FieldName,
-                        voucherDateSourceField,
-                        StringComparison.Ordinal)
-                    && string.IsNullOrEmpty(definition.Description))
-                .ToArray();
-        if (voucherCandidates.Length > 1)
-        {
-            throw new InvalidOperationException(
-                $"step4-1 voucherDate 來源欄位 '{voucherDateSourceField}' 不唯一。");
-        }
-
-        var voucherOrdinal = voucherCandidates.SingleOrDefault()?.Ordinal;
+        // 使用者 2026-10-08 裁定移除傳票日期，step4-1 不再另外排除它的來源欄。
         var eligible = definitions
             .Where(definition =>
-                (definition.FieldName.EndsWith("_JE", StringComparison.Ordinal)
-                 || definition.FieldName.EndsWith("_JE_S", StringComparison.Ordinal))
-                && definition.Ordinal != voucherOrdinal)
+                definition.FieldName.EndsWith("_JE", StringComparison.Ordinal)
+                || definition.FieldName.EndsWith("_JE_S", StringComparison.Ordinal))
             .OrderBy(definition => definition.Ordinal)
             .ToArray();
         var duplicate = eligible
@@ -630,7 +610,7 @@ public static partial class JetAuditProgram
             "測試範圍",
             $"查核期間內（{request.PeriodStart} ~ {request.PeriodEnd}）之會計分錄",
             "選擇該測試範圍的理由",
-            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳入帳日之列不納入本版情境命中與矩陣。",
+            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳日期之列不納入本版情境命中與矩陣。",
             "Step 3",
             "辨認高風險條件",
             "風險評估及查核程序：",

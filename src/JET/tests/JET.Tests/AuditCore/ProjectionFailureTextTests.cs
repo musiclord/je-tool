@@ -27,17 +27,18 @@ public sealed class ProjectionFailureTextTests
         ]));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        Assert.Collection(
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                Assert.Collection(
             error.Details!,
             first => Assert.Equal(
-                "欄位「人工註記」有 4 列未歸類為人工或自動：「調整」在第 2、3、568 列；「補登」在第 139 列。請回到欄位配對把這些值歸類。",
+                "來源欄「人工註記」有 4 列未歸類為人工或自動：「調整」在第 2、3、568 列；「補登」在第 139 列。請回到欄位配對把這些值歸類。",
                 first.Message),
             second => Assert.Equal(
-                "欄位「人工註記」有 2 列是空白：第 327、385 列。請回到欄位配對，在「來源空白時」選擇處理方式。",
+                "來源欄「人工註記」有 2 列是空白：第 327、385 列。請回到欄位配對，在「來源空白時」選擇處理方式。",
                 second.Message));
         Assert.All(error.Details!, detail => Assert.Equal("人工註記", detail.SourceColumn));
         Assert.Equal(
-            "6 列無法轉換，系統沒有儲存這次配對結果。" + error.Details![0].Message + error.Details[1].Message,
+            "有 6 列的值無法讀取，本次配對未儲存。" + error.Details![0].Message + error.Details[1].Message,
             error.Message);
         Assert.DoesNotContain("「」", error.Message, StringComparison.Ordinal);
     }
@@ -52,8 +53,9 @@ public sealed class ProjectionFailureTextTests
         });
 
         Assert.Equal(
-            "573 列無法轉換，系統沒有儲存這次配對結果。以下依前 1 列整理。" +
-            "欄位「金額」有 1 列不是有效金額：「abc」在第 7 列。請確認來源資料的金額格式。",
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        "有 573 列的值無法讀取，本次配對未儲存。以下僅列出部分的值與列號。" +
+            "來源欄「金額」有 1 列不是有效金額：「abc」在第 7 列。請確認來源資料的金額格式。",
             error.Message);
     }
 
@@ -69,7 +71,8 @@ public sealed class ProjectionFailureTextTests
         var detail = Assert.Single(ProjectionFailureText.Create(new ProjectionResult(0, rows)).Details!);
 
         Assert.StartsWith(
-            "欄位「代碼」有 23 列未歸類為人工或自動：「X」在第 2、3、4、5、6、7、8、9、10、11 列，共 12 列；「V1」在第 101 列；",
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        "來源欄「代碼」有 23 列未歸類為人工或自動：「X」在第 2、3、4、5、6、7、8、9、10、11 列，共 12 列；「V1」在第 101 列；",
             detail.Message,
             StringComparison.Ordinal);
         Assert.Contains("「V9」在第 109 列；另有 2 個值。", detail.Message, StringComparison.Ordinal);
@@ -86,7 +89,8 @@ public sealed class ProjectionFailureTextTests
         var detail = Assert.Single(ProjectionFailureText.Create(new ProjectionResult(0, rows)).Details!);
 
         Assert.Equal(
-            "欄位「代碼」有 12 列未歸類為人工或自動：「轉入」在第 2、3、4、5、6、7、8、9、10、11 列等。請回到欄位配對把這些值歸類。",
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        "來源欄「代碼」有 12 列未歸類為人工或自動：「轉入」在第 2、3、4、5、6、7、8、9、10、11 列等。請回到欄位配對把這些值歸類。",
             detail.Message);
     }
 
@@ -100,7 +104,8 @@ public sealed class ProjectionFailureTextTests
             new RowProjectionError(5, "金額", "bad", "不是有效金額", "JE-q2.csv [Q2]")
         ])).Details!);
 
-        Assert.Equal("欄位「金額」有 3 列不是有效金額：「bad」在 JE.csv 第 7、9 列，JE-q2.csv [Q2] 第 5 列。", detail.Message);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("來源欄「金額」有 3 列不是有效金額：「bad」在 JE.csv 第 7、9 列，JE-q2.csv [Q2] 第 5 列。", detail.Message);
     }
 
     [Fact]

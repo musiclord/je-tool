@@ -67,14 +67,14 @@ public sealed partial class SqlServerProjectDatabase(SqlServerConnectionOptions 
         {
             throw new JetActionException(
                 JetErrorCodes.SqlServerNotConfigured,
-                "未設定 SQL Server 連線(環境變數 JET_SQLSERVER_CONNECTION)。選用 sqlServer provider 的專案需要它。");
+                SqlServerMessages.NotConfigured);
         }
 
         if (string.IsNullOrWhiteSpace(databaseName))
         {
             throw new JetActionException(
                 JetErrorCodes.SqlServerNotConfigured,
-                "SQL Server 單一資料庫名未設定(SqlServerConnectionOptions.SingleDatabaseName)。選用 sqlServer provider 的專案需要它。");
+                SqlServerMessages.NotConfigured);
         }
 
         return new SqlConnectionStringBuilder(options.BaseConnectionString)

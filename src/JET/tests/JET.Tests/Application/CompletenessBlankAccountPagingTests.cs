@@ -9,6 +9,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 /// <summary>
 /// 2026-10-05 最後獨立複審 V1：科目編號空白的列，SQLite 排在最前、DuckDB 排在最後，
 /// 舊的換頁條件「科目編號大於上一頁最後一個」又會排除空白，所以 DuckDB 在科目超過一頁時漏掉它。
@@ -184,7 +186,7 @@ public sealed class CompletenessBlankAccountPagingTests
         await host.DispatchAsync("export.validationArtifacts", JsonSerializer.Serialize(new { runId = validationRunId }));
         var committed = await host.DispatchAsync("filter.commit", """
             {"scenarios":[{"name":"合成空白科目","rationale":"只核對完整性表格","groups":[{"rules":[
-                {"type":"customKeywords","keywords":"空白"}
+                {"type":"fieldValue","field":"description","operator":"contains","values":["空白"]}
             ]}]}]}
             """);
         await host.DispatchAsync("export.workpaperStream", JsonSerializer.Serialize(new

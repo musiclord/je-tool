@@ -60,13 +60,16 @@ public sealed class SqlServerEngineErrorsTests
     }
 
     [Fact]
-    public void TryTranslate_DuplicateKey_PreservesEngineMessage()
+    public void TryTranslate_DuplicateKey_UsesTheConfirmedSentenceWithoutTheEngineMessage()
     {
-        // 引擎原文含索引/資料表與重複鍵值方向（design §2.3），映射不得吞掉。
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-66（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 引擎原文含資料表名與重複的鍵值，改用確認後的句子，不再送到畫面；錯誤代碼不變。
         var translated = SqlServerEngineErrors.TryTranslate(CreateSqlException(2627));
 
         Assert.NotNull(translated);
-        Assert.Contains("測試用引擎錯誤", translated.Message);
+        Assert.Equal(JetErrorCodes.DuplicateKey, translated.Code);
+        Assert.Equal("資料與既有紀錄重複，本次操作未完成。", translated.Message);
+        Assert.DoesNotContain("測試用引擎錯誤", translated.Message);
     }
 
     [Fact]

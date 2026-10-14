@@ -1,29 +1,15 @@
 using System.Text.RegularExpressions;
-using JET.Domain;
 using Xunit;
 
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 欄位配對步驟的標準化政策接線守衛（前端工作流整合）。後端 <c>mapping.commit.gl</c> 仍是
-/// 權威驗證；本組只鎖 closed 選項鏡像、互斥引導、來源值分布的取得方式與送出形狀。
+/// 欄位配對步驟的標準化政策鏡像守衛（前端工作流整合）。後端 <c>mapping.commit.gl</c> 仍是
+/// 權威驗證；本組只剩核准日模式的封閉選項鏡像。互斥引導、來源值分布的取得方式與送出形狀，
+/// 2026-10-14 起改由 <c>tools/tests/frontend-journey-mapping.test.cjs</c> 在正式第三步畫面上核對。
 /// </summary>
 public sealed class MappingProjectionPolicyFrontendTests
 {
-    [Fact]
-    public void PostingStatus_IsAVisibleMappingSlotMirroringTheCatalog()
-    {
-        var core = ReadFrontend("js", "ui-core.js");
-        var slot = JetFieldCatalog.GlMappingUiSlots
-            .Single(item => item.Key == GlMappingKeys.PostingStatus);
-
-        Assert.True(slot.IncludeInMappingUi);
-        Assert.Contains(
-            "{ key: 'postingStatus', label: '" + slot.Label + "', req: 'optional' }",
-            core,
-            StringComparison.Ordinal);
-    }
-
     [Fact]
     public void ApprovalDateModes_MirrorTheClosedWireValues()
     {
@@ -34,127 +20,6 @@ public sealed class MappingProjectionPolicyFrontendTests
             new[] { "unmapped", "mapped", "sameAsPostDate" },
             modes.Keys.ToArray());
         Assert.All(modes.Values, label => Assert.False(string.IsNullOrWhiteSpace(label)));
-    }
-
-    [Fact]
-    public void ApprovalDateModes_AreMutuallyExclusiveWithTheApprovalSourceColumn()
-    {
-        var mapping = ReadFrontend("js", "steps", "mapping-step.js");
-        var state = ReadFrontend("js", "state.js");
-
-        // 2026-09-05：指定來源欄即切換模式，互斥由一次 store 更新維持。
-        // 9/23：兩種介面共用完整適用欄位；核准來源欄只在 mapped 顯示。
-        Assert.Contains("function fieldsForMode(fields, mode)", mapping, StringComparison.Ordinal);
-        Assert.DoesNotContain("field.key === 'docDate') { return false; }", mapping, StringComparison.Ordinal);
-        Assert.Contains("options.approvalDateMode === 'mapped' ? '<label class=\"map-approval-source\">", mapping, StringComparison.Ordinal);
-        Assert.Contains("data-approval-source", mapping, StringComparison.Ordinal);
-        Assert.Contains("Store.setMappingDraft('gl', 'docDate', approvalSource.value)", mapping, StringComparison.Ordinal);
-        Assert.Contains("patch.approvalDateMode !== 'mapped'", state, StringComparison.Ordinal);
-        Assert.Contains("delete state.mapping.gl.draft.docDate;", state, StringComparison.Ordinal);
-        Assert.Contains("gl.options.approvalDateMode = 'mapped';", state, StringComparison.Ordinal);
-        Assert.Contains("gl.options.approvalDateMode = 'unmapped';", state, StringComparison.Ordinal);
-
-        // mapped 模式必須有來源欄，否則不得提交。
-        Assert.Contains("options.approvalDateMode === 'mapped' && !draft.docDate", mapping, StringComparison.Ordinal);
-        Assert.Contains(
-            "options.approvalDateMode === 'sameAsPostDate' && draft.docDate",
-            mapping,
-            StringComparison.Ordinal);
-        Assert.Contains("options.approvalDateMode === 'unmapped' && draft.docDate", mapping, StringComparison.Ordinal);
-        Assert.Contains("Store.restoreCommittedMapping(kind)", mapping, StringComparison.Ordinal);
-        Assert.Contains("JSON.parse(JSON.stringify(committed.options))", state, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void PostingStatusAndManualCodes_ComeFromTheBackendValueProfile()
-    {
-        var mapping = ReadFrontend("js", "steps", "mapping-step.js");
-
-        // 值、次數、空白數與截斷旗標全部取自後端聚合，畫面不掃描來源列。
-        Assert.Contains("global.JetApi.mappingValueProfile({", mapping, StringComparison.Ordinal);
-        Assert.Contains("dataset: 'gl'", mapping, StringComparison.Ordinal);
-        Assert.Contains("limit: Ui.VALUE_PROFILE_LIMIT", mapping, StringComparison.Ordinal);
-        Assert.Contains("data-action=\"load-posting-profile\"", mapping, StringComparison.Ordinal);
-        Assert.Contains("data-action=\"load-manual-profile\"", mapping, StringComparison.Ordinal);
-        Assert.Contains("data-posting-value=", mapping, StringComparison.Ordinal);
-        Assert.Contains("data-manual-assign=", mapping, StringComparison.Ordinal);
-
-        // 載入中／失敗都有可讀文字與可重試入口，不只靠顏色或空白表達。
-        Assert.Contains("讀取來源值中…", mapping, StringComparison.Ordinal);
-        Assert.Contains("讀取來源值失敗。", mapping, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ManualAutoCodes_UseBackendComparisonWithoutASecondUnicodeOrOverlapGate()
-    {
-        var mapping = ReadFrontend("js", "steps", "mapping-step.js");
-        var problems = ExtractFunction(mapping, "glOptionProblems", "glOptionsHtml");
-
-        Assert.Contains("人工與自動代碼各需至少一個值", problems, StringComparison.Ordinal);
-        // 2026-09-23 固定 Unicode 案例證明 JS 大寫展開與 .NET OrdinalIgnoreCase 不等價。
-        // 保留必要代碼引導，但重疊由既有後端 commit 驗證，不再用不同的比較先擋住合法政策。
-        Assert.DoesNotContain("人工與自動代碼不得重複", problems, StringComparison.Ordinal);
-        Assert.DoesNotContain(".trim().toUpperCase()", mapping, StringComparison.Ordinal);
-        var comparison = ExtractFunction(mapping, "sameCode", "mergeComparisonGroups");
-        Assert.Contains("left === right", comparison, StringComparison.Ordinal);
-        Assert.Contains("profile.comparisonGroups", comparison, StringComparison.Ordinal);
-        Assert.Contains("group.indexOf(left) >= 0 && group.indexOf(right) >= 0", comparison, StringComparison.Ordinal);
-        Assert.Contains("comparisonOnly: true, comparisonValues: values", mapping, StringComparison.Ordinal);
-        Assert.Contains("'pending'", mapping, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void PostingStatusPolicy_RequiresAnAcceptedValueOrBlankAndIsOnlySentWhenMapped()
-    {
-        var mapping = ReadFrontend("js", "steps", "mapping-step.js");
-        var problems = ExtractFunction(mapping, "glOptionProblems", "glOptionsHtml");
-        var payload = ExtractFunction(mapping, "glCommitPayload", "canonicalGlOptions");
-
-        Assert.Contains("accepted.length === 0 && !(policy && policy.includeBlank)", problems, StringComparison.Ordinal);
-        Assert.Contains("if (mapping.postingStatus) {", payload, StringComparison.Ordinal);
-        Assert.Contains("payload.postingStatusPolicy = {", payload, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void RelevantDataElementFields_AreOptInOnlyAndNeverMintFieldIdsInTheFrontend()
-    {
-        var core = ReadFrontend("js", "ui-core.js");
-        var mapping = ReadFrontend("js", "steps", "mapping-step.js");
-        var types = ExtractValueLabelMap(core, "RDE_VALUE_TYPES");
-
-        Assert.Equal(new[] { "text", "date", "money" }, types.Keys.ToArray());
-
-        // 只有勾選的來源欄會成為 RDE；核心配對已佔用的欄不列入候選。
-        // 「哪些來源欄已被核心配對佔用」只在 state.js 定義一次，畫面只呼叫，不另寫一份。
-        Assert.Contains("data-rde-column=", mapping, StringComparison.Ordinal);
-        Assert.DoesNotContain("function rdeAvailableColumns", mapping, StringComparison.Ordinal);
-        Assert.DoesNotContain("key !== 'dcDebitCode'", mapping, StringComparison.Ordinal);
-        Assert.Equal(4, Regex.Matches(mapping, Regex.Escape("Store.availableGlRdeColumns()")).Count);
-
-        var state = ReadFrontend("js", "state.js");
-        var used = ExtractFunction(state, "usedGlSourceColumns", "removeCoreMappedRdeFields");
-        Assert.Contains("Object.create(null)", used, StringComparison.Ordinal);
-        // 第二遍第9批新增貸方literal；兩碼都不能佔用同名來源欄，也不能被當成RDE來源。
-        // 首次失敗：20261004-100752118-a195c091201e444d858ec7d7bee3d291；候選來源與stable ID斷言全部保留。
-        Assert.Contains("key !== 'dcDebitCode' && key !== 'dcCreditCode' && value", used, StringComparison.Ordinal);
-        Assert.Contains("{ key: 'dcDebitCode', label: '借方代碼', req: ['side', 'flag'], literal: true }", core, StringComparison.Ordinal);
-        Assert.Contains("{ key: 'dcCreditCode', label: '貸方代碼', req: ['side', 'flag'], literal: true }", core, StringComparison.Ordinal);
-
-        // 核心配對變動時，state 會清掉已被核心欄位佔用的 RDE，不能只靠畫面把衝突項目藏起來。
-        var cleanup = ExtractFunction(state, "removeCoreMappedRdeFields", "syncApprovalSource");
-        Assert.Contains("usedGlSourceColumns()", cleanup, StringComparison.Ordinal);
-        Assert.Contains("!used[field.sourceColumn]", cleanup, StringComparison.Ordinal);
-
-        // 新欄一律省略 fieldId；既有欄沿用後端 stable ID。
-        Assert.Contains(
-            "fields.push({ sourceColumn: column, label: column, valueType: 'text' });",
-            mapping,
-            StringComparison.Ordinal);
-        Assert.Contains("if (field.fieldId) { wire.fieldId = field.fieldId; }", mapping, StringComparison.Ordinal);
-        Assert.DoesNotContain("'rde.'", mapping, StringComparison.Ordinal);
-
-        // commit response 的 canonical options 覆寫草稿，下一次 recommit 才會沿用同一身分。
-        Assert.Contains("Store.replaceGlMappingOptions(canonicalGlOptions(data))", mapping, StringComparison.Ordinal);
     }
 
     private static Dictionary<string, string> ExtractValueLabelMap(string source, string arrayName)
@@ -175,14 +40,6 @@ public sealed class MappingProjectionPolicyFrontendTests
 
         Assert.NotEmpty(result);
         return result;
-    }
-
-    private static string ExtractFunction(string source, string functionName, string nextFunctionName)
-    {
-        var start = source.IndexOf("function " + functionName, StringComparison.Ordinal);
-        var end = source.IndexOf("function " + nextFunctionName, start, StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start, $"找不到 mapping-step.js 的 {functionName} 邊界。");
-        return source[start..end];
     }
 
     private static string ReadFrontend(params string[] segments)

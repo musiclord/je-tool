@@ -14,6 +14,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 /// <summary>
 /// 五份正式報告與科目配對範本工作檔的 application 驗收測試。Oracle 來自 action manifest、
 /// 六種工作簿的本地格式盤點與一個自含的兩列 GL/TB 母體；不讀取外部參考檔或真實帳務資料。
@@ -1052,7 +1054,8 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
 
         // 2026-10-03 用語統一 T1：條件讀回跟著畫面改成「分錄測試範圍」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         const string expected =
-            "（（分錄測試範圍內編製人員分錄筆數 ≤ 11 或 分錄測試範圍內科目分錄筆數 ≤ 11） 且 僅借方）";
+            // 使用者 2026-10-08 裁定資料名稱全系統統一：「分錄測試範圍內」改為「GL 中」。
+            "（（GL 中編製人員分錄筆數 ≤ 11 或 GL 中科目分錄筆數 ≤ 11） 且 僅借方）";
         var criteriaPath = Path.Combine(
             host.ProjectsRoot,
             projectId,
@@ -1326,8 +1329,9 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             })));
 
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-55（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
-            "指定的 validate 執行結果已不是目前版本，請重新執行並使用最新結果。",
+            "這份報告依據的資料驗證結果已不是目前的結果，請重新執行資料驗證後再產生。",
             exception.Message);
     }
 
@@ -1808,7 +1812,7 @@ public sealed class ReportArtifactExportFixture : IAsyncLifetime
                                 join = "AND",
                                 rules = new[]
                                 {
-                                    new { join = "AND", type = "customKeywords", keywords = "調整" }
+                                    new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } }
                                 }
                             }
                         }

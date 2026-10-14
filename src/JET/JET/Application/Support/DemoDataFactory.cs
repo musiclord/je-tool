@@ -15,8 +15,7 @@ public sealed record DemoGlRow(
     bool IsDebit,
     string CreatedBy,
     DateOnly ApprovalDate,
-    bool IsManual,
-    DateOnly VoucherDate);
+    bool IsManual);
 
 /// <summary>單筆 demo TB 科目餘額(期末 = 期初 + 借方 − 貸方)。</summary>
 public sealed record DemoTbRow(
@@ -86,13 +85,15 @@ public static class DemoDataFactory
     public const int HolidayPostingVouchers = 14;
     public const int HolidayApprovalVouchers = 8;
     public const int BlankDescriptionVouchers = 18;
-    public const int BackdatedVouchers = 22;
+    // 原本是 22 張回溯過帳示範傳票。使用者 2026-10-08 裁定移除傳票日期與回溯過帳後，改成不觸發任何規則的
+    // 一般傳票，保留原來的位置與張數，讓其他示範群組的日期、金額與抽樣結果維持不變。
+    public const int FormerBackdatedPlainVouchers = 22;
     public const int NonAuthorizedVouchers = 16;
     public const int LowFrequencyPreparerVouchers = 5;
     public const int RareAccountCount = 3;
     public const int RareAccountVouchersEach = 2;
 
-    // 期外總帳入帳日對照組，用來驗證查核期間界定：總帳入帳日 2026-01-05（期後）的兩張傳票，
+    // 期外總帳日期對照組，用來驗證查核期間界定：總帳日期 2026-01-05（期後）的兩張傳票，
     // 刻意造成「若未界定期間會被誤納」的多重命中——借貸不平、摘要關鍵字、空白摘要、期外核准、
     // 完整性 GL≠TB。兩張互為鏡像的不平對，全域借貸淨額仍為 0；用固定值（不動任何 cursor / RNG），
     // 對其餘 seed 與 baseline 的確定性零影響。期間界定生效後四母體皆排除 → 所有規則命中數回原值。
@@ -103,7 +104,7 @@ public static class DemoDataFactory
         CreditSaleVouchers +
         TrailingZerosVouchers + WeekendPostingVouchers + WeekendApprovalVouchers +
         HolidayPostingVouchers + HolidayApprovalVouchers + BlankDescriptionVouchers +
-        BackdatedVouchers + NonAuthorizedVouchers + LowFrequencyPreparerVouchers +
+        FormerBackdatedPlainVouchers + NonAuthorizedVouchers + LowFrequencyPreparerVouchers +
         (RareAccountCount * RareAccountVouchersEach) + OutOfPeriodVouchers; // 215
     public const int BaselineVoucherCount = GlVoucherCount - SeedVoucherCount; // 6785
 
@@ -175,7 +176,7 @@ public static class DemoDataFactory
     private static readonly DateOnly[] HolidayPostingDates =
         [new(2025, 2, 28), new(2025, 4, 4), new(2025, 5, 1), new(2025, 10, 10)]; // 平日假日
     private static readonly DateOnly HolidayApprovalDate = new(2025, 4, 4);       // 平日假日,< 期末
-    // 期外對照組：總帳入帳日 2026-01-05(週一、非 2025 假日、期後)、核准日 2026-01-20(期後)。
+    // 期外對照組：總帳日期 2026-01-05(週一、非 2025 假日、期後)、核准日 2026-01-20(期後)。
     private static readonly DateOnly OutOfPeriodPostDate = new(2026, 1, 5);
     private static readonly DateOnly OutOfPeriodApprovalDate = new(2026, 1, 20);
     // 會計期間(對齊 DemoProjectData 的 PeriodStart/End 字串;供 TB 本期變動彙總過濾)。
@@ -205,17 +206,16 @@ public static class DemoDataFactory
             GlFileName: "JE-demo-2025.xlsx",
             GlColumns:
             [
-                "總帳入帳日", "傳票號碼", "傳票項次", "科目代號", "科目名稱",
-                "摘要", "金額", "借方旗標", "建立人員", "傳票核准日", "人工傳票", "傳票日期"
+                "總帳日期", "傳票號碼", "傳票項次", "科目代號", "科目名稱",
+                "摘要", "金額", "借方旗標", "建立人員", "傳票核准日", "人工傳票"
             ],
             GlRows: glRows,
             GlMapping: new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 [GlMappingKeys.DocNum] = "傳票號碼",
                 [GlMappingKeys.LineId] = "傳票項次",
-                [GlMappingKeys.PostDate] = "總帳入帳日",
+                [GlMappingKeys.PostDate] = "總帳日期",
                 [GlMappingKeys.DocDate] = "傳票核准日",
-                [GlMappingKeys.VoucherDate] = "傳票日期",
                 [GlMappingKeys.AccNum] = "科目代號",
                 [GlMappingKeys.AccName] = "科目名稱",
                 [GlMappingKeys.Description] = "摘要",
@@ -331,7 +331,7 @@ public static class DemoDataFactory
         for (var i = 0; i < PostPeriodApprovalVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, PostPeriodApprovalDate, post,
+            AddVoucher(rows, ref voucherSeq, post, PostPeriodApprovalDate,
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -339,7 +339,7 @@ public static class DemoDataFactory
         for (var i = 0; i < SuspiciousKeywordVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, post, post,
+            AddVoucher(rows, ref voucherSeq, post, post,
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), KeywordDescription, SafeDesc());
         }
 
@@ -349,7 +349,7 @@ public static class DemoDataFactory
         for (var i = 0; i < UnexpectedPairVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, post, post,
+            AddVoucher(rows, ref voucherSeq, post, post,
                 NextPreparer(), UnexpectedPairDebitAccount, RevenueAccount, NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -358,7 +358,7 @@ public static class DemoDataFactory
         for (var i = 0; i < CreditSaleVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, post, post,
+            AddVoucher(rows, ref voucherSeq, post, post,
                 NextPreparer(), ReceivableAccount, RevenueAccount, NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -366,7 +366,7 @@ public static class DemoDataFactory
         for (var i = 0; i < TrailingZerosVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, post, post,
+            AddVoucher(rows, ref voucherSeq, post, post,
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), 2_000_000m, SafeDesc(), SafeDesc());
         }
 
@@ -374,7 +374,7 @@ public static class DemoDataFactory
         for (var i = 0; i < WeekendPostingVouchers; i++)
         {
             var post = WeekendPostingDates[i % WeekendPostingDates.Length];
-            AddVoucher(rows, ref voucherSeq, post, NextWeekday(), post,
+            AddVoucher(rows, ref voucherSeq, post, NextWeekday(),
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -382,7 +382,7 @@ public static class DemoDataFactory
         for (var i = 0; i < WeekendApprovalVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, WeekendApprovalDate, post,
+            AddVoucher(rows, ref voucherSeq, post, WeekendApprovalDate,
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -390,7 +390,7 @@ public static class DemoDataFactory
         for (var i = 0; i < HolidayPostingVouchers; i++)
         {
             var post = HolidayPostingDates[i % HolidayPostingDates.Length];
-            AddVoucher(rows, ref voucherSeq, post, NextWeekday(), post,
+            AddVoucher(rows, ref voucherSeq, post, NextWeekday(),
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -398,7 +398,7 @@ public static class DemoDataFactory
         for (var i = 0; i < HolidayApprovalVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, HolidayApprovalDate, post,
+            AddVoucher(rows, ref voucherSeq, post, HolidayApprovalDate,
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -406,15 +406,15 @@ public static class DemoDataFactory
         for (var i = 0; i < BlankDescriptionVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, post, post,
+            AddVoucher(rows, ref voucherSeq, post, post,
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), string.Empty, SafeDesc());
         }
 
-        // R9 回溯過帳：傳票日期比總帳入帳日晚 3 天，兩行皆命中。來源欄名與日期含義一致。
-        for (var i = 0; i < BackdatedVouchers; i++)
+        // 原回溯過帳群組的位置：改為一般傳票，亂數與游標的取用順序和原本相同。
+        for (var i = 0; i < FormerBackdatedPlainVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, post, post.AddDays(3),
+            AddVoucher(rows, ref voucherSeq, post, post,
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -422,7 +422,7 @@ public static class DemoDataFactory
         for (var i = 0; i < NonAuthorizedVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, post, post,
+            AddVoucher(rows, ref voucherSeq, post, post,
                 NonAuthorizedPreparer, NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -430,7 +430,7 @@ public static class DemoDataFactory
         for (var i = 0; i < LowFrequencyPreparerVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, post, post,
+            AddVoucher(rows, ref voucherSeq, post, post,
                 LowFrequencyPreparer, NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -440,12 +440,12 @@ public static class DemoDataFactory
             for (var i = 0; i < RareAccountVouchersEach; i++)
             {
                 var post = NextWeekday();
-                AddVoucher(rows, ref voucherSeq, post, post, post,
+                AddVoucher(rows, ref voucherSeq, post, post,
                     NextPreparer(), rare, NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
             }
         }
 
-        // 期外總帳入帳日對照組：兩張 post_date=2026-01-05(期後)的傳票,固定值、不動 cursor。
+        // 期外總帳日期對照組：兩張 post_date=2026-01-05(期後)的傳票,固定值、不動 cursor。
         // 各自借≠貸(不平),互為鏡像使全域淨額為 0;借方一列帶 suspicious 關鍵字、另一張借方摘要空白;
         // 核准日 2026-01-20(期後,同時觸發期外核准與期末後核准)。期間界定生效後全數排除。
         // 用 6101/2101/6111/2111 皆高頻共用科目(不影響低頻科目/罕用科目判定);王小明為授權高頻編製者
@@ -459,7 +459,7 @@ public static class DemoDataFactory
         for (var i = 0; i < BaselineVoucherCount; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, post, post,
+            AddVoucher(rows, ref voucherSeq, post, post,
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc(),
                 isManual: i % 10 == 0);
         }
@@ -473,7 +473,6 @@ public static class DemoDataFactory
         ref int voucherSeq,
         DateOnly postDate,
         DateOnly approvalDate,
-        DateOnly voucherDate,
         string createdBy,
         (string Code, string Name) debit,
         (string Code, string Name) credit,
@@ -486,10 +485,10 @@ public static class DemoDataFactory
         var vn = $"JV2025-{voucherSeq:00000}";
         rows.Add(new DemoGlRow(
             postDate, vn, 1, debit.Code, debit.Name, debitDesc,
-            amount, true, createdBy, approvalDate, isManual, voucherDate));
+            amount, true, createdBy, approvalDate, isManual));
         rows.Add(new DemoGlRow(
             postDate, vn, 2, credit.Code, credit.Name, creditDesc,
-            amount, false, createdBy, approvalDate, isManual, voucherDate));
+            amount, false, createdBy, approvalDate, isManual));
     }
 
     /// <summary>加一張 2 行「借≠貸」不平傳票（期外對照組用）：借方 debitAmount、貸方 creditAmount 各異。
@@ -511,10 +510,10 @@ public static class DemoDataFactory
         var vn = $"JV2025-{voucherSeq:00000}";
         rows.Add(new DemoGlRow(
             postDate, vn, 1, debit.Code, debit.Name, debitDesc,
-            debitAmount, true, createdBy, approvalDate, false, postDate));
+            debitAmount, true, createdBy, approvalDate, false));
         rows.Add(new DemoGlRow(
             postDate, vn, 2, credit.Code, credit.Name, creditDesc,
-            creditAmount, false, createdBy, approvalDate, false, postDate));
+            creditAmount, false, createdBy, approvalDate, false));
     }
 
     private static List<DateOnly> BuildWeekdayPool()

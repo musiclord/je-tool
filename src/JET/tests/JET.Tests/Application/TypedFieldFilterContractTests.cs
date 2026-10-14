@@ -28,10 +28,12 @@ public sealed class TypedFieldFilterContractTests
     }
 
     [Fact]
-    public void FilterLogicVersion_CurrentContractIsV18()
+    public void FilterLogicVersion_CurrentContractIsV20()
     {
-        // 2026-10-06 條件 A 加入查核期末視窗，因此推進整份篩選定義的版本。
-        Assert.Equal("filter-2026-10-06-v18", RuleLogicVersions.Filter);
+        // 2026-10-06 條件 A 加入查核期末視窗，推進為 v18。
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，再推進為 v19；第一次失敗收據 20261008-042053814-db83ce7928b241c08a45387aea1a42fa。
+        // 第九節 G5 停用重複寫法，推進 v20；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+        Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
     }
 
     [Fact]
@@ -83,7 +85,10 @@ public sealed class TypedFieldFilterContractTests
             """));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        Assert.Contains("100", exception.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", exception.Message);
+        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "typed_values_too_many"), FilterScenarioCorruption.ReasonsOf(exception));
     }
 
     [Fact]

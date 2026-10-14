@@ -134,7 +134,7 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
     {
         if (!IsValidArtifactId(artifactId))
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "artifactId 格式無效。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "artifact_id_invalid");
         }
 
         var paths = GetProjectPaths(projectId);
@@ -145,13 +145,13 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             item => string.Equals(item.ArtifactId, artifactId, StringComparison.Ordinal));
         if (artifact is null)
         {
-            throw new JetActionException(JetErrorCodes.FileNotFound, "找不到指定的報告；重新匯出即可。");
+            throw new JetActionException(JetErrorCodes.FileNotFound, ReportArtifactMessages.FileMissing);
         }
 
         var path = ResolveContainedPath(paths.ProjectDirectory, artifact.RelativeFileName);
         if (!File.Exists(path))
         {
-            throw new JetActionException(JetErrorCodes.FileNotFound, "報告檔已不在案件資料夾，重新匯出即可。");
+            throw new JetActionException(JetErrorCodes.FileNotFound, ReportArtifactMessages.FileMissing);
         }
 
         return path;
@@ -477,25 +477,25 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
     {
         if (requests is null || requests.Count == 0)
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "報告產物批次不可為空白。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "artifact_batch_empty");
         }
 
         foreach (var request in requests)
         {
             if (request is null)
             {
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "報告產物寫入要求不可為 null。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "artifact_request_null");
             }
 
             ValidateKind(request.Kind);
             if (request.SourceRef is null)
             {
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "報告產物的來源參照不可為 null。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "artifact_source_null");
             }
 
             if (request.WriteContentAsync is null)
             {
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "報告產物缺少內容寫入器。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "artifact_writer_missing");
             }
         }
     }
@@ -504,14 +504,12 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
     {
         if (!Enum.IsDefined(kind))
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "報告產物種類無效。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "artifact_kind_invalid");
         }
 
         if (kind == ReportArtifactKind.AccountMapping)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "帳戶對應範本是工作檔，不是報告；請用 export.accountMappingTemplate 產生。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "artifact_kind_is_work_file");
         }
     }
 
@@ -532,22 +530,22 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
         catch (Exception exception) when (
             exception is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            throw new JetActionException(JetErrorCodes.FileReadError, "專案資料夾路徑格式無效。");
+            throw new JetActionException(JetErrorCodes.FileReadError, ProjectFolderMessages.InvalidPath);
         }
 
         if (!Directory.Exists(root))
         {
-            throw new JetActionException(JetErrorCodes.ProjectNotFound, "找不到專案根目錄。");
+            throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
         }
 
         if (!projectDirectory.StartsWith(root + Path.DirectorySeparatorChar, PathComparison))
         {
-            throw new JetActionException(JetErrorCodes.FileReadError, "專案資料夾路徑超出受控的專案根目錄。");
+            throw JetPayloadRejection.Create(JetErrorCodes.FileReadError, "project_path_outside_root");
         }
 
         if (!Directory.Exists(projectDirectory))
         {
-            throw new JetActionException(JetErrorCodes.ProjectNotFound, "找不到指定的專案資料夾。");
+            throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
         }
 
         var normalizedForHash = OperatingSystem.IsWindows() ? projectDirectory.ToUpperInvariant() : projectDirectory;
@@ -585,7 +583,7 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             {
                 throw new JetActionException(
                     JetErrorCodes.FileReadError,
-                    $"無法取得報告的跨程序鎖（{exception.GetType().Name}）；確認專案根目錄可寫入後再試。");
+                    "無法寫入案件位置，本次報告未產生。請確認案件資料夾的寫入權限後再試一次。");
             }
         }
     }
@@ -796,21 +794,21 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
         ReportArtifactKind.PrescreenReport => "PrescreeningReport",
         ReportArtifactKind.CriteriaSelectionReport => "CriteriaSelectionReport",
         ReportArtifactKind.WorkingPaper => "WorkingPaper",
-        _ => throw new JetActionException(JetErrorCodes.InvalidPayload, "報告產物種類無效。")
+        _ => throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "artifact_kind_invalid")
     };
 
     private static string ResolveContainedPath(string directory, string relativeFileName)
     {
         if (!IsDirectChildName(relativeFileName))
         {
-            throw new JetActionException(JetErrorCodes.FileReadError, "報告產物的相對檔名無效。");
+            throw JetPayloadRejection.Create(JetErrorCodes.FileReadError, "artifact_file_name_invalid");
         }
 
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
         var candidate = Path.GetFullPath(Path.Combine(root, relativeFileName));
         if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, PathComparison))
         {
-            throw new JetActionException(JetErrorCodes.FileReadError, "報告產物路徑超出受控資料夾。");
+            throw JetPayloadRejection.Create(JetErrorCodes.FileReadError, "artifact_path_outside_folder");
         }
 
         return candidate;

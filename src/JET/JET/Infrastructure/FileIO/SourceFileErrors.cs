@@ -20,7 +20,7 @@ internal static class SourceFileErrors
         {
             return new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"檔案 '{name}' 正被其他程式開啟（例如 Excel）。請關閉該檔案後重試。",
+                $"檔案「{name}」正被其他程式開啟（例如 Excel）。請關閉該檔案後重試。",
                 innerException: error);
         }
 
@@ -28,13 +28,13 @@ internal static class SourceFileErrors
         {
             return new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"目前的帳號沒有權限讀取檔案 '{name}'。請確認檔案所在位置的存取權限，或把檔案複製到自己的資料夾後重試。",
+                $"目前的帳號沒有權限讀取檔案「{name}」。請確認檔案所在位置的存取權限，或把檔案複製到自己的資料夾後重試。",
                 innerException: error);
         }
 
         return new JetActionException(
             JetErrorCodes.FileReadError,
-            $"無法讀取檔案 '{name}'。請確認檔案可以正常開啟且沒有損壞，必要時另存一份後重試；仍失敗時可匯出支援日誌。",
+            $"無法讀取檔案「{name}」。請確認檔案可以正常開啟且未損壞，必要時另存新檔後重試。",
             innerException: error);
     }
 
@@ -45,7 +45,7 @@ internal static class SourceFileErrors
     {
         return new JetActionException(
             JetErrorCodes.FileReadError,
-            $"檔案 '{Path.GetFileName(filePath)}' 有無法以 {encodingName} 解讀的內容。" +
+            $"檔案「{Path.GetFileName(filePath)}」有無法以 {encodingName} 解讀的內容。" +
             "請在匯入清單改選編碼（utf-8、big5 或 utf-16）後重試，或把檔案另存為 UTF-8。",
             innerException: error);
     }
@@ -54,8 +54,8 @@ internal static class SourceFileErrors
     {
         return new JetActionException(
             JetErrorCodes.FileReadError,
-            $"檔案 '{Path.GetFileName(filePath)}' 第 {error.RecordNumber} 列開始的引號沒有成對，讀不出後面的欄位結構。" +
-            "請用 Excel 開啟後另存成 CSV，或修正該列的引號後重試。",
+            $"檔案「{Path.GetFileName(filePath)}」第 {error.RecordNumber} 列開始的引號沒有成對，無法讀取後續的欄位。" +
+            "請用 Excel 開啟後另存成 CSV，或修正該列的引號後再試一次。",
             innerException: error);
     }
 }

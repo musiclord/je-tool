@@ -58,6 +58,30 @@ public sealed class LegacyFormWorkflowTests
     private static string[] Keys(string value) => value.Split(';').SelectMany(part =>
     { var pieces = part.Split(':'); return pieces[1].Split(',').Select(line => pieces[0] + "|" + line); }).Order().ToArray();
 
+    // 使用者 2026-10-08 要求重新設計自訂篩選條件：新選單有四項改用別種規則，預期值由上面的手寫固定答案以集合運算取得。
+    // 摘要含特定字詞（預設字詞）等於 B；金額尾數連續 6 個 0 等於 D。
+    // 總帳日期在非營業日等於「(G 或 H) 且不是補班日」：I 是「不是補班日且不在每月 1 到 5 日」，R 是 10 月 1 到 5 日；
+    // 這份合成資料在每月 1 到 5 日的週末或假日只有 10 月 2 日，且不是補班日，所以 I 與 R 的聯集在 G 或 H 之內就等於「不是補班日」。
+    // 傳票核准日在非營業日等於「(J 或 K) 且不是補班日」：L 是「不是補班日且不在每月 1 到 5 日」；
+    // 落在 J 或 K 的核准日沒有一天在每月 1 到 5 日，所以 J 或 K 與 L 的交集就等於「不是補班日」。
+    private static readonly Dictionary<string, string[]> Derived = new()
+    {
+        ["B_customKeywords"] = Keys(Expected["B"]),
+        ["D_customTrailingZeros"] = Keys(Expected["D"]),
+        ["F_fieldBlank"] = Keys(Expected["F"]),
+        ["P_explicitSides"] = Keys(Expected["P"]),
+        ["example3_explicitSides"] = Keys(Expected["example3"]),
+        ["GH_nonBusinessDay"] = Keys(Expected["G"]).Union(Keys(Expected["H"]))
+            .Intersect(Keys(Expected["I"]).Union(Keys(Expected["R"]))).Order().ToArray(),
+        ["JK_nonBusinessDay"] = Keys(Expected["J"]).Union(Keys(Expected["K"]))
+            .Intersect(Keys(Expected["L"])).Order().ToArray()
+    };
+
+    private static string[] ExpectedKeys(string key) => Derived.TryGetValue(key, out var keys) ? keys : Keys(Expected[key]);
+
+    private const string DefaultKeywords = "ADJ,REV,RECLASS,SUSPENSE,ERROR,WRONG,調整,迴轉,沖銷,重分類,避險,重編,錯誤,計畫外,預算外,帳外,"
+        + "调整,回转,冲销,重分类,避险,重编,错误,计画外,预算外";
+
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
@@ -125,6 +149,15 @@ public sealed class LegacyFormWorkflowTests
             }
             if (key == "R") { rules[0]!["from"] = "2018-10-01"; rules[0]!["to"] = "2018-10-05"; }
             if (key == "example2") rules[1]!["fieldId"] = fieldId;
+            // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Frozen catalogue stays historical; submitted scenarios use explicit directions.
+            if (key is "P" or "example3")
+                foreach (var child in rules[0]!["rules"]!.AsArray())
+                {
+                    var voucher = child!.AsObject();
+                    var side = voucher["side"]!.GetValue<string>();
+                    voucher.Remove("side");
+                    voucher["rules"]!.AsArray().Insert(0, new JsonObject { ["type"] = "drCrOnly", ["drCr"] = side });
+                }
             return (Key: key, Scenario: Scenario(key, rules));
         }).ToList();
         JsonArray Rules(string key) => cases.Single(c => c.Key == key).Scenario["groups"]![0]!["rules"]!.DeepClone().AsArray();
@@ -142,14 +175,32 @@ public sealed class LegacyFormWorkflowTests
         foreach (var unit in new[] { "entries", "vouchers" })
         { var rules = Rules("T"); rules[0]!["countFrom"] = "3"; rules[0]!["countUnit"] = unit; Add("T_" + unit, rules); }
         Add("U_approver", JsonNode.Parse("""[{"type":"fieldValue","field":"approveBy","operator":"in","values":["User99"]}]""")!.AsArray());
-        Assert.Equal(Expected.Keys.Order(), cases.Select(c => c.Key).Order());
+        // 使用者 2026-10-08 要求重新設計自訂篩選條件：新選單改用別種規則的四項，以 Derived 的集合運算答案驗證等價。
+        // 第九節 G2：欄位條件對照同一份 B、D、F 固定答案；原案例名稱保留以追溯舊寫法。
+        Add("B_customKeywords", new JsonArray(new JsonObject { ["type"] = "fieldValue", ["field"] = "description", ["operator"] = "contains",
+            ["values"] = JsonSerializer.SerializeToNode(DefaultKeywords.Split(',')) }));
+        Add("D_customTrailingZeros", JsonNode.Parse("""
+            [{"type":"group","rules":[
+            {"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"000000","amountBasis":"absolute"},
+            {"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}]
+            """)!.AsArray());
+        Add("F_fieldBlank", JsonNode.Parse("""[{"type":"fieldValue","field":"description","operator":"isBlank"}]""")!.AsArray());
+        // 第九節 G1：方向改成明示子條件，沿用原本手寫的固定答案；不修改歷史目錄。
+        foreach (var key in new[] { "P", "example3" })
+        {
+            var rules = Rules(key);
+            Add(key + "_explicitSides", rules);
+        }
+        Add("GH_nonBusinessDay", JsonNode.Parse("""[{"type":"fieldValue","field":"postDate","operator":"isNonBusinessDay"}]""")!.AsArray());
+        Add("JK_nonBusinessDay", JsonNode.Parse("""[{"type":"fieldValue","field":"docDate","operator":"isNonBusinessDay"}]""")!.AsArray());
+        Assert.Equal(Expected.Keys.Concat(Derived.Keys).Order(), cases.Select(c => c.Key).Order());
         Assert.Equal(21, Keys(All).Length);
 
         foreach (var batch in cases.Chunk(9))
         {
             foreach (var (key, scenario) in batch)
             {
-                var expected = Keys(Expected[key]);
+                var expected = ExpectedKeys(key);
                 var preview = await host.DispatchAsync("filter.preview", new JsonObject { ["scenario"] = scenario.DeepClone() }.ToJsonString());
                 var count = preview.GetProperty("scenario").GetProperty("count").GetInt64();
                 Assert.True(expected.Length == count, $"{key}: expected {expected.Length} rows, got {count}.");
@@ -177,7 +228,7 @@ public sealed class LegacyFormWorkflowTests
                     JsonNode.Parse(loaded.GetProperty("filterScenarios")[i].GetProperty("groups").GetRawText())),
                     batch[i].Key + ": reopening after failed replacement must retain the saved AST.");
                 var hits = await host.DispatchAsync("query.filterHitsPage", JsonSerializer.Serialize(new { scenarioPosition = i + 1, scenarioRevision = revision, pageSize = 50 }));
-                Assert.Equal(Keys(Expected[batch[i].Key]), hits.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("documentNumber").GetString() + "|" + r.GetProperty("lineItem").GetString()).Order());
+                Assert.Equal(ExpectedKeys(batch[i].Key), hits.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("documentNumber").GetString() + "|" + r.GetProperty("lineItem").GetString()).Order());
             }
             saved = await host.DispatchAsync("filter.commit", Payload()); // Corrected retry, after verifying the retained definitions and results.
             revision = saved.GetProperty("resultRef").GetProperty("revision").GetString();
@@ -190,7 +241,7 @@ public sealed class LegacyFormWorkflowTests
                 var text = string.Join("\n", book.Worksheets.Where(s => s.Visibility == XLWorksheetVisibility.Visible).SelectMany(s => s.CellsUsed()).Select(c => c.GetString()));
                 for (var i = 0; i < batch.Length; i++)
                 {
-                    var voucherCount = Keys(Expected[batch[i].Key]).Select(key => key.Split('|')[0]).Distinct().Count();
+                    var voucherCount = ExpectedKeys(batch[i].Key).Select(key => key.Split('|')[0]).Distinct().Count();
                     if (Path.GetFileName(file).Contains("WorkingPaper", StringComparison.Ordinal))
                     {
                         var row = book.Worksheet(WorkpaperSheetCatalog.Step3).RowsUsed().Single(row => row.Cell(2).GetString() == "C" + (i + 1));

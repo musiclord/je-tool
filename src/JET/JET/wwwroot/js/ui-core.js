@@ -9,15 +9,66 @@
 
   var Store = global.JetStore;
 
+  // 步驟可以獨立載入；有動畫時由殼層排除淡出複本，沒有動畫時維持一般查找。
+  function findLive(root, selector) {
+    return global.JetMotion && global.JetMotion.findLive ? global.JetMotion.findLive(root, selector) :
+      (root ? root.querySelector(selector) : null);
+  }
+
+  // 所有日期輸入沿用建立案件的原生日期框；條件清單的多種日期寫法仍由貼上清單處理。
+  function dateInputHtml(attributes) {
+    return '<input type="date" class="form__input date-input"' + controlAttributes(attributes) + '>';
+  }
+
+  function controlAttributes(attributes) {
+    return Object.keys(attributes || {}).map(function (key) {
+      var value = attributes[key];
+      return value === false || value == null ? '' : ' ' + key + (value === true ? '' : '="' + esc(value) + '"');
+    }).join('');
+  }
+
+  function loadFailureHtml(message, retryAttributes, attributes) {
+    return '<div class="form-notice" data-load-failure role="alert"' + controlAttributes(attributes) + '><span>' + esc(message) + '</span>' +
+      (retryAttributes ? ' <button type="button" class="btn btn--ghost btn--tiny"' + controlAttributes(retryAttributes) + '>重新載入</button>' : '') + '</div>';
+  }
+
+  function searchBoxHtml(label, options) {
+    options = options || {};
+    return '<form class="page-search' + (options.className ? ' ' + esc(options.className) : '') + '" data-search-box' + controlAttributes(options.attributes) + '>' +
+      '<label class="page-search__label"><span>' + esc(label) + '</span>' +
+      '<input type="search" class="form__input page-search__input" data-search-input maxlength="' + (options.maxLength || 200) +
+      '" placeholder="輸入一部分即可" value="' + esc(options.value || '') + '"' + controlAttributes(options.inputAttributes) + '></label>' +
+      '<button type="submit" class="btn btn--ghost btn--tiny"' + (options.disabled ? ' disabled' : '') + '>搜尋</button>' +
+      '<button type="button" class="btn btn--ghost btn--tiny" data-search-clear data-collapsible-inline' + controlAttributes(options.clearAttributes) +
+      (options.value ? '' : ' hidden') + (options.disabled ? ' disabled' : '') + '>清除</button></form>';
+  }
+
+  function bindSearchBox(form, submit, inputChanged) {
+    if (!form) { return; }
+    var input = form.querySelector('[data-search-input]'), clear = form.querySelector('[data-search-clear]');
+    form.addEventListener('submit', function (event) {
+      event.preventDefault(); submit(input.value.trim(), false);
+    });
+    input.addEventListener('input', function () {
+      clear.hidden = !input.value;
+      if (inputChanged) { inputChanged(input.value); }
+    });
+    clear.addEventListener('click', function () {
+      if (global.JetMotion && typeof global.JetMotion.shake === 'function') { global.JetMotion.shake(input); }
+      input.value = ''; clear.hidden = true;
+      if (inputChanged) { inputChanged(''); }
+      submit('', true);
+    });
+  }
+
   /* ---- 共用契約鏡像（key/label 對齊後端 action 契約） ------ */
 
   // GL 借方與貸方代碼都是字面值，不是來源欄位 select。
   var GL_FIELDS = [
     { key: 'docNum', label: '傳票號碼', req: 'always' },
     { key: 'lineID', label: '傳票文件項次', req: 'optional' },
-    { key: 'postDate', label: '總帳入帳日', req: 'always' },
+    { key: 'postDate', label: '總帳日期', req: 'always' },
     { key: 'docDate', label: '傳票核准日', req: 'optional' },
-    { key: 'voucherDate', label: '傳票日期', req: 'optional' },
     { key: 'accNum', label: '會計科目編號', req: 'always' },
     { key: 'accName', label: '會計科目名稱', req: 'always' },
     { key: 'description', label: '傳票摘要', req: 'always' },
@@ -25,10 +76,10 @@
     { key: 'createBy', label: '傳票建立人員', req: 'optional' },
     { key: 'approveBy', label: '傳票核准人員', req: 'optional' },
     { key: 'manual', label: '人工/自動分錄', req: 'optional' },
-    { key: 'amount', label: '分錄金額（單欄）', req: ['signed', 'side', 'flag'] },
+    { key: 'amount', label: '金額', req: ['signed', 'side', 'flag'] },
     { key: 'debitAmount', label: '借方金額', req: ['dual'] },
     { key: 'creditAmount', label: '貸方金額', req: ['dual'] },
-    { key: 'dcField', label: '借貸別欄位', req: ['side', 'flag'] },
+    { key: 'dcField', label: '借貸別', req: ['side', 'flag'] },
     { key: 'dcDebitCode', label: '借方代碼', req: ['side', 'flag'], literal: true },
     { key: 'dcCreditCode', label: '貸方代碼', req: ['side', 'flag'], literal: true },
     { key: 'postingStatus', label: '過帳狀態', req: 'optional' }
@@ -49,12 +100,12 @@
   ];
 
   // GL 核准日三態（後端 mapping.commit.gl 接受的 approvalDateMode 固定值）。
-  // mapped 必須且只可配「傳票核准日」來源欄；sameAsPostDate 直接沿用標準化後的總帳入帳日，
+  // mapped 必須且只可配「傳票核准日」來源欄；sameAsPostDate 直接沿用標準化後的總帳日期，
   // 兩者互斥由前端就近引導，後端 mapping.commit.gl 仍是權威。
   var GL_APPROVAL_DATE_MODES = [
-    { value: 'unmapped', label: '沒有核准日' },
+    { value: 'unmapped', label: '—' },
     { value: 'mapped', label: '由來源欄提供' },
-    { value: 'sameAsPostDate', label: '與總帳入帳日相同' }
+    { value: 'sameAsPostDate', label: '與總帳日期相同' }
   ];
 
   // 攸關資料元素（RDE）欄位型別（後端接受的 rdeFields.valueType 固定值）。
@@ -82,8 +133,7 @@
   var GL_MODES = [
     { value: 'dual', label: '借方欄＋貸方欄' },
     { value: 'signed', label: '單一帶號金額欄' },
-    { value: 'side', label: '金額＋借貸別（文字）' },
-    { value: 'flag', label: '金額＋借方旗標（數字）' }
+    { value: 'side', label: '金額與借貸別' }
   ];
 
   var TB_MODES = [
@@ -94,7 +144,7 @@
   ];
 
   // 進階篩選的條件型別。label 逐鍵鏡像 Domain FilterConditionLabels.RuleTypes；
-  // quickLabel、group、accountMappingRequirement 與 requiresRdeFields 是前端呈現／可用性 metadata。
+  // quickLabel、group 與 accountMappingRequirement 是前端呈現／可用性 metadata。
   // accountMappingRequirement 逐條鏡像 target 內容資格，不以來源檔存在代替（權威驗證仍在後端）。
   // group 只剩 'kct' 有意義（風險樣態下拉的「KCT 專屬」分組）；其餘分組與 quickLabel 是舊挑選區的遺留 metadata，
   // 2026-09-07 改版後畫面改用三個家族（filter-step 的 RULE_FAMILIES）。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
@@ -119,9 +169,8 @@
     { value: 'entityFrequency', label: '科目與人員統計', group: 'pattern' },
     { value: 'group', label: '條件括號', group: 'compound' },
     { value: 'voucher', label: '傳票分錄條件', group: 'compound' },
-    // 攸關資料元素條件：只在欄位配對已提交至少一個額外欄位時才可用（requiresRdeFields）。
-    { value: 'typed', label: '攸關資料元素條件', quickLabel: '攸關資料元素欄位條件', group: 'field',
-      requiresRdeFields: true },
+    // 攸關資料元素條件：舊式條件，只在舊情境讀回與編輯時出現，畫面不提供新增。
+    { value: 'typed', label: '攸關資料元素條件', quickLabel: '攸關資料元素欄位條件', group: 'field' },
     // KCT 小組條件（清單 A/C/D/H/J；分組獨立於其他四組）。Revenue 型依內容事實逐條解鎖。
     { value: 'revenueDebitNearQuarterEnd', label: '季末前借記收入', group: 'kct', accountMappingRequirement: 'revenue' },
     { value: 'revenueWithoutNormalCounterpart', label: '收入無一般對方科目', group: 'kct', accountMappingRequirement: 'revenueAndCounterpart' },
@@ -135,15 +184,22 @@
 
   // KCT 小組「重用既有型別」的預設條件（清單 E/F/G/I）：點按鈕即帶入既有型別的預填規則，
   // 不另立 wire 型別（避免重複既有述詞，單一事實在後端述詞）。overrides 套在 newFilterRule 之上，
-  // 加入時整份深拷貝。非營業日 I 是一條「條件括號」，括號內只有「總帳入帳日是非營業日」（排除補班日）；
+  // 加入時整份深拷貝。非營業日 I 是一條「條件括號」，括號內只有「總帳日期是非營業日」（排除補班日）；
   // 2026-10-02 使用者裁定 I 不再自成一組，和其他單規則 KCT 一樣加入目前條件組。
+  // 鏡像 Domain SuspiciousKeywordDefaults；KCT 與常用查核共用同一份預填清單。
+  var SUSPICIOUS_KEYWORD_DEFAULTS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG',
+    '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外', '帳外',
+    '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外'];
+
   var FILTER_KCT_PRESETS = [
     { key: 'kctSpecificPreparer', label: '特定人員建立之分錄',
-      overrides: { type: 'text', field: 'createBy', mode: 'exact' } },
+      overrides: { type: 'fieldValue', field: 'createBy', operator: 'in', values: [] } },
     { key: 'kctSpecificKeywords', label: '特定摘要',
-      overrides: { type: 'customKeywords' } },
+      overrides: { type: 'fieldValue', field: 'description', operator: 'contains', values: SUSPICIOUS_KEYWORD_DEFAULTS.slice() } },
     { key: 'kctBlankDescription', label: '空白摘要',
-      overrides: { type: 'prescreen', prescreenKey: 'blankDescription' } },
+      overrides: { type: 'fieldValue', field: 'description', operator: 'isBlank' } },
+    { key: 'kctTrailingDigits', label: '特定金額尾數',
+      overrides: { type: 'fieldValue', field: 'amount', operator: 'endsWithDigits', value: '000000', amountBasis: 'absolute' } },
     { key: 'kctNonBusinessDay', label: '非營業日分錄',
       overrides: { type: 'group', rules: [
         { type: 'fieldValue', field: 'postDate', operator: 'isNonBusinessDay', join: 'AND' }
@@ -156,7 +212,7 @@
     kctNonBusinessDay: '非營業日（排除補班日）'
   };
 
-  // KCT 小組方法學檢核清單（A–J）：獨立顯著面板的「單一資料來源」，十顆按鈕由此一份資料驅動，
+  // KCT 小組方法學檢核清單：獨立顯著面板的「單一資料來源」，十顆按鈕由此一份資料驅動，
   // 而非十段重複 HTML，新增卡片只要加一筆資料。每筆只是「指向既有述詞」的標記：
   //   kind:'type'   → ref 是既有 FILTER_RULE_TYPES 的 value；點按帶入一條 newFilterRule(ref)。
   //   kind:'preset' → ref 是既有 FILTER_KCT_PRESETS 的 key；點按帶入該預設的一條規則（I 是條件括號）。
@@ -176,7 +232,7 @@
     { letter: 'E', defaultRationale: "執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。", kind: 'preset', ref: 'kctSpecificPreparer', label: '特定人員(財務長/執行長/高階主管等)建立之分錄' },
     { letter: 'F', kind: 'preset', ref: 'kctSpecificKeywords', label: '特定摘要(如迴轉、調整等)' },
     { letter: 'G', kind: 'preset', ref: 'kctBlankDescription', label: '空白摘要' },
-    { letter: 'H', kind: 'type', ref: 'trailingDigits', label: '特定尾數(如 999999/000000 結尾)' },
+    { letter: 'H', kind: 'preset', ref: 'kctTrailingDigits', label: '特定尾數(如 999999/000000 結尾)' },
     { letter: 'I', kind: 'preset', ref: 'kctNonBusinessDay', label: '非營業日之分錄' },
     { letter: 'J', kind: 'type', ref: 'preparerEqualsApprover', label: '編製人員與核准人員相同' }
   ];
@@ -194,7 +250,6 @@
     { value: 'holidayPosting', label: '假日過帳' },
     { value: 'holidayApproval', label: '假日核准' },
     { value: 'blankDescription', label: '空白摘要' },
-    { value: 'backdatedPosting', label: '回溯過帳' },
     { value: 'nonAuthorizedPreparer', label: '非授權編製人員', requiresAuthorizedPreparers: true },
     { value: 'lowFrequencyPreparer', label: '編製分錄較少的人員（' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下）' },
     { value: 'lowFrequencyAccount', label: '使用較少的科目（' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下）' }
@@ -204,15 +259,14 @@
   // The predicates and prerequisites remain backend-owned.
   var PRESCREEN_DESCRIPTIONS = {
     postPeriodApproval: '傳票核准日在案件設定的期末財報準備日當日或之後。檢查範圍為本次測試的分錄。',
-    suspiciousKeywords: '摘要包含預設的 25 個中英文關鍵字之一，包含繁體與簡體文字。在進階篩選選「摘要關鍵字（可自行編輯）」可檢視及調整整份清單。',
+    suspiciousKeywords: '摘要包含預設的 25 個中英文關鍵字之一，包含繁體與簡體文字。在進階篩選加入「摘要含特定字詞」可檢視及調整整份清單。',
     unexpectedAccountPair: '列出貸方為收入，但同張傳票沒有應收款項、現金或預收款借方的分錄。需先完成科目配對。',
     trailingZeros: '依本次測試的分錄，找出金額整數部分尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0 的分錄；不含小數，整數部分為 0 不列入。',
-    weekendPosting: '總帳入帳日落在案件設定的週末日；補班日仍納入。',
+    weekendPosting: '總帳日期落在案件設定的週末日；補班日仍納入。',
     weekendApproval: '傳票核准日落在案件設定的週末日；補班日仍納入。',
-    holidayPosting: '總帳入帳日落在已匯入假日清單的日期。',
+    holidayPosting: '總帳日期落在已匯入假日清單的日期。',
     holidayApproval: '傳票核准日落在已匯入假日清單的日期。',
     blankDescription: '摘要欄位空白的分錄；可在下一步直接作為篩選條件。',
-    backdatedPosting: '總帳入帳日早於傳票日期的分錄。兩個日期均有值才比較；需先配對傳票日期。這是供審計員查核的日期差異，不代表已判定不當過帳。',
     nonAuthorizedPreparer: '傳票建立人員的識別值非空白，且未列在匯入的授權清單中。請使用與 GL 相同的姓名或員工代碼欄位；這個差異本身不代表已判定越權。',
     lowFrequencyPreparer: '依本次測試的分錄，按傳票建立人員計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下的人員分錄。同張傳票多列會計多筆；空白人員不列入。自訂條件可另設分錄筆數上限。',
     lowFrequencyAccount: '依本次測試的分錄，按科目編號計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下的科目分錄。同張傳票多列會計多筆；空白科目不列入。自訂條件可另設分錄筆數上限。'
@@ -223,11 +277,6 @@
     return option ? option.label : key;
   }
 
-  // 鏡像 Domain SuspiciousKeywordDefaults；繁簡詞逐一保留，不改寫其他識別值。
-  var SUSPICIOUS_KEYWORD_DEFAULTS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG',
-    '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外', '帳外',
-    '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外'];
-
   // AuditCore PrescreenPositioningRenderer 的逐字鏡像。新 prescreen.run 會回 positioning；
   // 舊摘要沒有此加法欄位時才使用本 fallback。文字由 mirror 守衛逐欄比對，前端不得自行改寫審計定位。
   var PRESCREEN_POSITIONING_COPY = {
@@ -236,7 +285,7 @@
     reportGuidance: '可在此產生預篩選報告，或在匯出底稿時一併產生。不產生也可繼續篩選與匯出底稿。',
     overviewGuidance: '預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。',
     exportDefaultGuidance: '預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。',
-    exportPendingRunGuidance: '尚無預篩選結果，匯出時會先執行預篩選。大型案件可能需要數分鐘到十餘分鐘。'
+    exportPendingRunGuidance: '尚無預篩選結果，匯出時會先執行預篩選；資料量大時需要數分鐘到十餘分鐘。'
   };
 
   function prescreenPositioningCopy(p) {
@@ -275,10 +324,13 @@
     { type: 'accountPair', mode: 'exact', label: '借方是 A 且貸方是 B（舊格式）', hint: '同一張傳票同時有 A 借方與 B 貸方；結果列出符合的借方與貸方分錄。', legacy: true }
   ];
 
-  // 常用情境範本（2026-09-04 裁定）：一鍵把草稿填成常見的審計問題，審計員再改數值或直接預覽。
-  // 純前端資料；規則形狀與快速加入相同，套用時走 filter-step 的 materializeRule，不打 KCT 標記。
-  // requires: 'accountMapping' 表示需要科目配對；'periodEnd' 表示套用時用查核截止日填日期。
-  // 兩個現金範本和新建條件一樣用「包含下層分類」（2026-10-04 Q4、2026-10-05 W2）。
+  // 第五步「從範例開始」的範例：一鍵把草稿換成常見的審計問題，審計員再改數值或直接預覽。
+  // 純前端資料；套用時由 filter-step 的 applyTemplate 深拷貝規則，不打 KCT 標記。
+  // requires 只用 FILTER_CONDITION_REQUIREMENTS 列出的幾種，停用原因由 filter-step 依案件狀態產生。
+  // 查核截止日在建立案件時必填，不列為前置條件（使用者 2026-10-14 同意刪除沒有作用的「案件沒有查核截止日」分支）。
+  // pickField: 'text' 表示條件裡 fieldId 空白的那一條，要換成一個文字型攸關資料元素欄位。
+  // 兩個現金範本和新建條件一樣用「包含下層分類」。
+  var FILTER_CONDITION_REQUIREMENTS = ['accountMapping', 'preparationDate', 'approveByMapped', 'createByMapped', 'unexpectedAccountPair'];
   var FILTER_SCENARIO_TEMPLATES = [
     { key: 'cashDebitNonCashCredit', label: '借現金、貸非現金', requires: 'accountMapping',
       rationale: '借方為現金，而整張傳票沒有貸方現金的分錄。',
@@ -292,12 +344,12 @@
       rationale: '非營業日過帳的分錄，另排除個案已知的例外日期。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'fieldValue', field: 'postDate', operator: 'notIn', values: [], includeBlank: false, __valueType: 'date' }] }] },
-    { key: 'periodEndManual', label: '期末最後 7 天的人工分錄', requires: 'periodEnd',
+    { key: 'periodEndManual', label: '期末最後 7 天的人工分錄',
       rationale: '期末最後幾天入帳的人工分錄，容易用來調整期末數字。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'fieldValue', field: 'postDate', operator: 'between', from: '', to: '', values: [], includeBlank: false, __valueType: 'date', __periodEndDays: 7 },
         { type: 'manualAuto', isManual: 'true' }] }] },
-    { key: 'blankDescriptionOrApprover', label: '空白摘要或空白核准人員',
+    { key: 'blankDescriptionOrApprover', label: '空白摘要或空白核准人員', requires: 'approveByMapped',
       rationale: '缺少說明或缺少核准人員的分錄。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'fieldValue', field: 'description', operator: 'isBlank', values: [], includeBlank: false, __valueType: 'text' },
@@ -306,7 +358,84 @@
       rationale: '指定建立人員且金額超過門檻的分錄；人員與門檻請自行填入。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'fieldValue', field: 'createBy', operator: 'in', values: [], includeBlank: false, __valueType: 'text' },
-        { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '', values: [], includeBlank: false, amountBasis: 'absolute', __valueType: 'money' }] }] }
+        { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '', values: [], includeBlank: false, amountBasis: 'absolute', __valueType: 'money' }] }] },
+    { key: 'weekendManualDescription', label: '週末人工分錄的特定摘要',
+      rationale: '週末以人工方式入帳且摘要含特定字詞的分錄，可能是非例行的調整。',
+      groups: [{ join: 'AND', matchScope: 'row', rules: [
+        { type: 'manualAuto', isManual: 'true' },
+        { type: 'fieldValue', field: 'postDate', operator: 'isWeekend', values: [], includeBlank: false, __valueType: 'date' },
+        { type: 'fieldValue', field: 'description', operator: 'contains', values: ['迴轉'], includeBlank: false, __valueType: 'text' }] }] },
+    { key: 'manualDepartment', label: '人工分錄的特定部門', pickField: 'text',
+      rationale: '特定部門的人工分錄，用來檢查高風險單位是否有非例行的入帳。',
+      groups: [{ join: 'AND', matchScope: 'row', rules: [
+        { type: 'manualAuto', isManual: 'true' },
+        { type: 'fieldValue', fieldId: '', operator: 'contains', values: ['總經理室'], includeBlank: false, __valueType: 'text' }] }] },
+    { key: 'accountPairLargeAmount', label: '指定借貸科目組合的大額分錄',
+      rationale: '指定借方與貸方科目組合中的大額分錄，用來檢查不尋常的科目對應。',
+      groups: [{ join: 'AND', matchScope: 'row', rules: [
+        { type: 'group', rules: [
+          { type: 'voucher', quantifier: 'any', rules: [
+            { type: 'drCrOnly', drCr: 'debit' },
+            { type: 'fieldValue', field: 'accNum', operator: 'in', values: ['1111', '1113', '1114', '1115', '1116', '2223'], includeBlank: false, __valueType: 'text' }] },
+          { type: 'voucher', quantifier: 'any', rules: [
+            { type: 'drCrOnly', drCr: 'credit' },
+            { type: 'fieldValue', field: 'accNum', operator: 'in', values: ['5550', '5551', '6501'], includeBlank: false, __valueType: 'text' }] }] },
+        { type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '300000', values: [], includeBlank: false, amountBasis: 'absolute', __valueType: 'money' }] }] },
+    { key: 'preparationManualHoliday', label: '財報準備期間的人工假日分錄', requires: 'preparationDate',
+      rationale: '財報準備日起核准、在假日以人工入帳的分錄，可能是期末的不當調整，並排除每月 1 到 3 日。',
+      groups: [{ join: 'AND', matchScope: 'row', rules: [
+        { type: 'prescreen', prescreenKey: 'postPeriodApproval' },
+        { type: 'manualAuto', isManual: 'true' },
+        { type: 'fieldValue', field: 'postDate', operator: 'isHoliday', values: [], includeBlank: false, __valueType: 'date' },
+        { type: 'group', rules: [
+          { type: 'fieldValue', field: 'postDate', operator: 'isNotMakeupDay', values: [], includeBlank: false, __valueType: 'date' },
+          { type: 'fieldValue', field: 'postDate', operator: 'dayOfMonthNotIn', values: ['1', '2', '3'], includeBlank: false, __valueType: 'date' }] }] }] }
+  ];
+
+  // 第五步「常用查核條件」：依審計目的分類，按「加入」把 rules 加入目前作用中的條件組。
+  // 型別與比較方式都是後端既有的；requires 同上，只有後端一定會擋的情況才標。
+  // prescreen 沒寫 prescreenKey 時，加入當下改用第一個可用的預篩選規則，審計員再在條件卡片上改選。
+  // __periodEndDays 與範例相同，加入時由查核截止日往前算出起訖日期。
+  var FILTER_COMMON_CHECK_GROUPS = [
+    { key: 'dates', label: '日期與時點', checks: [
+      { key: 'postDateWeekend', label: '總帳日期在週末', rules: [{ type: 'fieldValue', field: 'postDate', operator: 'isWeekend' }] },
+      { key: 'postDateHoliday', label: '總帳日期在國定假日', rules: [{ type: 'fieldValue', field: 'postDate', operator: 'isHoliday' }] },
+      { key: 'postDateNonBusinessDay', label: '總帳日期在非營業日', rules: [{ type: 'fieldValue', field: 'postDate', operator: 'isNonBusinessDay' }] },
+      { key: 'docDateNonBusinessDay', label: '傳票核准日在非營業日', rules: [{ type: 'fieldValue', field: 'docDate', operator: 'isNonBusinessDay' }] },
+      { key: 'postPeriodApproval', label: '財報準備日起核准的分錄', requires: 'preparationDate', rules: [{ type: 'prescreen', prescreenKey: 'postPeriodApproval' }] },
+      { key: 'postDateRange', label: '指定日期區間', focusValue: true, rules: [{ type: 'fieldValue', field: 'postDate', operator: 'between', from: '', to: '' }] },
+      { key: 'periodEndDays', label: '查核期末最後幾天', rules: [{ type: 'fieldValue', field: 'postDate', operator: 'between', from: '', to: '', __periodEndDays: 7 }] }
+    ] },
+    { key: 'amounts', label: '金額', checks: [
+      { key: 'largeAmount', label: '大額分錄', focusValue: true, rules: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '', amountBasis: 'absolute' }] },
+      { key: 'trailingZeros', label: '金額尾數連續多個 0', rules: [{ type: 'group', rules: [
+        { type: 'fieldValue', field: 'amount', operator: 'endsWithDigits', value: '0'.repeat(PRESCREEN_DEFAULTS.trailingZeroDigits), amountBasis: 'absolute' },
+        { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '1', amountBasis: 'absolute' }] }] }
+    ] },
+    { key: 'description', label: '摘要', checks: [
+      { key: 'descriptionKeywords', label: '摘要含特定字詞', rules: [{ type: 'fieldValue', field: 'description', operator: 'contains', values: SUSPICIOUS_KEYWORD_DEFAULTS.slice() }] },
+      { key: 'blankDescription', label: '空白摘要', rules: [{ type: 'fieldValue', field: 'description', operator: 'isBlank' }] }
+    ] },
+    { key: 'accounts', label: '科目與借貸', checks: [
+      { key: 'debitOrCreditOnly', label: '只看借方或貸方', rules: [{ type: 'drCrOnly', drCr: 'debit' }] },
+      { key: 'accountCategory', label: '科目屬於指定分類', requires: 'accountMapping', rules: [{ type: 'group', rules: [
+        { type: 'drCrOnly', drCr: 'debit' }, { type: 'accountSide', categoryMode: 'is', categoryIds: ['builtin.cash'], categorySelection: 'subtree' }] }] },
+      { key: 'categoryPair', label: '借方與貸方分類組合', requires: 'accountMapping', rules: [{ type: 'specialAccountCategoryPair' }] },
+      { key: 'accountCodePair', label: '借方與貸方科目編號組合', rules: [{ type: 'group', rules: [
+        { type: 'voucher', quantifier: 'any', rules: [{ type: 'drCrOnly', drCr: 'debit' }, { type: 'fieldValue', field: 'accNum', operator: 'in', values: [] }] },
+        { type: 'voucher', quantifier: 'any', rules: [{ type: 'drCrOnly', drCr: 'credit' }, { type: 'fieldValue', field: 'accNum', operator: 'in', values: [] }] }] }] },
+      { key: 'unexpectedAccountPair', label: '未預期的借貸組合', requires: 'unexpectedAccountPair', rules: [{ type: 'prescreen', prescreenKey: 'unexpectedAccountPair' }] },
+      { key: 'rareAccounts', label: '較少使用的科目', rules: [{ type: 'entityFrequency', field: 'accNum', countUnit: 'entries', countOperator: 'lessThanOrEqual',
+        countFrom: String(PRESCREEN_DEFAULTS.accountMaxEntries) }] }
+    ] },
+    { key: 'people', label: '人員與分錄性質', checks: [
+      { key: 'manualEntries', label: '人工分錄', rules: [{ type: 'manualAuto', isManual: 'true' }] },
+      { key: 'rarePreparers', label: '編製分錄較少的人員', requires: 'createByMapped', rules: [{ type: 'entityFrequency', field: 'createBy', countUnit: 'entries',
+        countOperator: 'lessThanOrEqual', countFrom: String(PRESCREEN_DEFAULTS.preparerMaxEntries) }] }
+    ] },
+    { key: 'prescreen', label: '預篩選結果', checks: [
+      { key: 'prescreenResult', label: '沿用第四步預篩選規則', rules: [{ type: 'prescreen' }] }
+    ] }
   ];
 
   // 特殊科目類別配對三模式（specialAccountCategoryPair；A=借方類別、B=貸方類別）。
@@ -321,8 +450,7 @@
   // 借貸科目分類（accountSide）三模式（兩值語意，2026-09-07 裁定）。標籤鏡像 Domain FilterConditionLabels。
   var ACCOUNT_SIDE_MODE_OPTIONS = [
     { value: 'is', label: '科目屬於指定分類' },
-    { value: 'isNot', label: '科目不屬於指定分類' },
-    { value: 'absent', label: '整張傳票的這一側都不屬於指定分類' }
+    { value: 'isNot', label: '科目不屬於指定分類' }
   ];
 
   // 科目配對單側多選分類的讀回分隔字元。正本是 Domain FilterConditionLabels.CategoryListSeparator，
@@ -349,8 +477,8 @@
   ];
 
   var TEXT_SET_NORMALIZATION_OPTIONS = [
-    { value: 'preserve', label: '保留 ASCII 空白' },
-    { value: 'removeAsciiSpaces', label: '移除 ASCII 空白' }
+    { value: 'preserve', label: '保留半形空白' },
+    { value: 'removeAsciiSpaces', label: '移除半形空白' }
   ];
 
   // 後端 FilterScenarioLimits.MaxTextSetValuesPerRule 的 UI 鏡像；後端仍是權威。
@@ -413,10 +541,13 @@
     return [];
   }
 
+  // 認不得的預篩選條件、比對方式或借貸組合方式不印程式代號（使用者 2026-10-14 第三輪勾選頁確認 R3-03）。
+  var RETIRED_CONDITION_LABEL = '已停用的條件';
+
   function typedOperatorLabel(op) {
     var all = TYPED_TEXT_OPERATORS.concat(TYPED_DATE_OPERATORS, TYPED_MONEY_OPERATORS);
     var hit = all.filter(function (o) { return o.value === op; })[0];
-    return hit ? hit.label : (op || '');
+    return hit ? hit.label : (op ? RETIRED_CONDITION_LABEL : '');
   }
 
   // operand carrier 判定（固定三種）：只決定要渲染哪一種輸入框，
@@ -451,7 +582,7 @@
 
   // 可作文字／日期條件的邏輯欄位（白名單的前端鏡像；權威驗證在後端）。
   var FILTER_TEXT_FIELDS = ['docNum', 'lineID', 'accNum', 'accName', 'description', 'jeSource', 'createBy', 'approveBy'];
-  var FILTER_DATE_FIELDS = ['postDate', 'docDate', 'voucherDate'];
+  var FILTER_DATE_FIELDS = ['postDate', 'docDate'];
 
   /* ---- DOM 輔助 ------------------------------------------------------------ */
 
@@ -523,11 +654,15 @@
   // 統一的 action 執行包裝：權威 single-flight（同一時間至多一項作業）＋ busy 狀態 ＋ 錯誤導入訊息區。
   // 進入時若已 busy：留下可見提示後回 resolved no-op（不執行 factory），把各步驟手寫的
   //   `if (busy) return` 一般化到唯一入口，杜絕鍵盤／頂列／目錄／預覽等破口併發第二項作業。
-  // 錯誤在此吸收（已顯示給使用者），避免 unhandled rejection；後端 operation_in_progress 誠實呈現「請稍候」。
-  // options.logCompletion 只由關鍵長操作明示 opt-in，成功時留下單一總耗時摘要；
-  // logCompletionWhen 可排除「檔案選擇已取消」這類 resolved no-op。取消／失敗則一律記錄總耗時，
-  // 並在有 busyDetail 時濃縮最後進度。options.refresh 由呼叫點宣告完成後刷新；
-  // refreshWhen 可為 success 或 settled（預設 settled）。
+  // 錯誤在此吸收（已顯示給使用者），避免 unhandled rejection；後端 operation_in_progress 誠實呈現「另一項作業還在進行」。
+  // 成功時只留一則完成訊息（使用者 2026-10-13 裁定：耗時保留，改成秒並合併）：
+  // options.completionMessage(value) 回傳這個操作自己的完成句，Ui.run 記「完成句，耗時 X。」，操作本身不再另記完成句；
+  // 回傳空字串表示這次其實沒有做事（例如沒有選檔），不記。沒有 completionMessage 而有 logCompletion 時，
+  // 記「操作名稱完成，耗時 X。」。logCompletionWhen 可排除「檔案選擇已取消」這類 resolved no-op。
+  // 失敗與取消在括號裡附總耗時，有 busyDetail 時再附最後進度；被擋下與「另一項作業還在進行」沒有開始做事，不附耗時。
+  // 失敗與被擋下時一律在目前步驟顯示提示框（見 state.operationFailure），除非 options.inlineError 表示
+  // 這個操作已把錯誤寫在自己的就地錯誤框；onError 只是收到錯誤後的處理，不影響提示框。
+  // options.refresh 由呼叫點宣告完成後刷新；refreshWhen 可為 success 或 settled（預設 settled）。
   // refresh 一律等主作業解除 busy 後才執行，且 refresh 失敗只另記訊息，不改寫主作業結果。
   function monotonicNowMilliseconds() {
     if (global.performance && typeof global.performance.now === 'function') {
@@ -536,20 +671,69 @@
     return Date.now();
   }
 
-  function formatElapsedMilliseconds(value) {
-    return Math.max(0, Math.round(value)).toLocaleString('zh-Hant') + ' 毫秒';
+  // 耗時的唯一寫法（使用者 2026-10-13 裁定不再用毫秒）：不到 60 秒寫一位小數的秒，例如「4.2 秒」；
+  // 60 秒以上寫「2 分 51 秒」；一小時以上寫「1 小時 3 分」。四捨五入是 0.0 秒時寫「不到 0.1 秒」
+  // （使用者 2026-10-14 第三輪勾選頁確認 R3-26）。
+  var UNDER_TENTH_SECOND = '不到 0.1 秒';
+  function formatElapsed(milliseconds) {
+    var value = Math.max(0, Number(milliseconds) || 0);
+    var tenths = Math.round(value / 100);
+    if (tenths === 0) { return UNDER_TENTH_SECOND; }
+    if (tenths < 600) { return (tenths / 10).toFixed(1) + ' 秒'; }
+    var seconds = Math.round(value / 1000);
+    if (seconds < 3600) { return Math.floor(seconds / 60) + ' 分 ' + (seconds % 60) + ' 秒'; }
+    var minutes = Math.floor(seconds / 60);
+    return Math.floor(minutes / 60) + ' 小時 ' + (minutes % 60) + ' 分';
+  }
+
+  // 「耗時」「經過」接上時間的唯一寫法：「耗時 4.2 秒」；不到 0.1 秒時寫「耗時不到 0.1 秒」，中間不空格。
+  function elapsedPhrase(prefix, milliseconds) {
+    var text = formatElapsed(milliseconds);
+    return prefix + (text === UNDER_TENTH_SECOND ? '' : ' ') + text;
+  }
+
+  // 成功時要記的那一句；不需要記時回傳空字串。
+  function completionSentence(label, options, value) {
+    if (typeof options.logCompletionWhen === 'function' && !options.logCompletionWhen(value)) { return ''; }
+    if (typeof options.completionMessage === 'function') {
+      return trimSentenceEnd(options.completionMessage(value));
+    }
+    return options.logCompletion ? label + '完成' : '';
+  }
+
+  // 「另一項作業還在進行」的唯一寫法（使用者 2026-10-13 勾選頁確認，14、16 統一成同一句）。
+  var OTHER_OPERATION_RUNNING = '另一項作業還在進行，請等它完成後再試。';
+
+  // 進度接進訊息時，開頭「工作底稿：正在…」的冒號拿掉，免得一句出現兩個冒號（使用者 2026-10-14 第三輪勾選頁確認 R3-28）。
+  // 忙碌畫面上的進度照舊，只有訊息面板用這個寫法。
+  function progressInMessage(detail) {
+    return String(detail || '').replace(/^([^：，「」]+)：(?=正在)/, '$1');
+  }
+
+  // 最後進度不再重複耗時：進度文字結尾的「，經過 …」拿掉（使用者 2026-10-13 勾選頁確認 19）。
+  function progressWithoutElapsed(detail) {
+    return progressInMessage(detail).replace(/，經過[^，]*$/, '');
+  }
+
+  // 操作是否已把錯誤寫在自己的就地錯誤框（使用者 2026-10-13 裁定「已經有就地錯誤框的操作維持原樣」）。
+  // inlineError 可以是布林值，或收到錯誤後回傳真假的函式；沒有標的操作一律顯示步驟提示框。
+  function showsErrorInline(options, error) {
+    if (typeof options.inlineError === 'function') { return !!options.inlineError(error); }
+    return !!options.inlineError;
   }
 
   function run(label, promiseFactory, options) {
     if (Store.getState().busy) {
       var current = Store.getState();
       Store.addMessage(
-        current.busyLabel ? current.busyLabel + '仍在處理中，完成後再試。' : '目前仍有作業進行中，完成後再試。',
+        current.busyLabel ? '「' + current.busyLabel + '」還在進行，請等它完成後再試。' : OTHER_OPERATION_RUNNING,
         'info');
       return Promise.resolve();
     }
     options = options || {};
     var startedAt = monotonicNowMilliseconds();
+    // 重試任何操作時，上一次的步驟失敗提示先拿掉。
+    Store.clearOperationFailure();
     Store.setBusy(true, label);
     var operationSucceeded = false;
     var promise;
@@ -564,38 +748,55 @@
     return Promise.resolve(promise)
       .then(function (value) {
         operationSucceeded = true;
-        var shouldLogCompletion = options.logCompletion
-          && (typeof options.logCompletionWhen !== 'function'
-            || options.logCompletionWhen(value));
-        if (shouldLogCompletion) {
+        var sentence = completionSentence(label, options, value);
+        if (sentence) {
           Store.addMessage(
-            label + '完成，耗時 ' +
-              formatElapsedMilliseconds(monotonicNowMilliseconds() - startedAt) + '。',
+            sentence + '，' + elapsedPhrase('耗時', monotonicNowMilliseconds() - startedAt) + '。',
             'info');
         }
         return value;
       })
       .catch(function (error) {
         var message;
-        var level = 'warn';
-        var lastProgress = Store.getState().busyDetail;
+        // 訊息分三級（使用者 2026-10-13 裁定）：操作失敗是錯誤；被阻擋與另一項作業進行中是需要注意；使用者自己取消是一般說明。
+        var level = 'error';
+        var showInStep = true;
+        var lastProgress = progressWithoutElapsed(Store.getState().busyDetail);
+        // 句子照使用者 2026-10-13 勾選頁確認的 16、17、18、19：
+        // 另一項作業還在進行與尚無法執行都沒有開始做事，不附耗時；取消與失敗把耗時與最後進度收進括號。
+        var timed = false;
         if (error && error.code === 'operation_in_progress') {
-          message = '請稍候，另一項作業進行中';
+          message = trimSentenceEnd(OTHER_OPERATION_RUNNING);
+          level = 'warn';
+          showInStep = false;
         } else if (error && error.code === 'operation_cancelled') {
-          message = label + (error.completedResultsPreserved ? '的後續作業已取消，已完成的結果保留' : '已取消');
+          message = label + (error.completedResultsPreserved ? '已取消，已完成的部分仍保留' : '已取消');
           level = 'info';
-        } else if (error && error.code === 'completeness_prerequisite_failed') {
-          message = label + '已阻擋：' + trimSentenceEnd(error.message);
+          showInStep = false;
+          timed = true;
+        } else if (error && (error.code === 'completeness_prerequisite_failed' || error.code === 'no_saved_scenario')) {
+          // 沒有已儲存的情境也是前置條件不足（使用者 2026-10-14 第三輪勾選頁確認 R3-34，照 18 的寫法）。
+          message = label + '尚無法執行：' + trimSentenceEnd(error.message);
+          level = 'warn';
         } else {
-          // 後面還要接「，耗時…」；原因若以句號結尾，先拿掉，避免出現「。，」。
+          // 原因若以句號結尾，先拿掉，避免出現「。（」或「。。」。
           message = label + '失敗：' + trimSentenceEnd(error && error.message);
+          timed = true;
         }
-        message += '，耗時 ' +
-          formatElapsedMilliseconds(monotonicNowMilliseconds() - startedAt) + '。';
-        if (lastProgress) {
-          message += ' 最後進度：' + lastProgress + '。';
+        // 步驟提示框只寫動作與原因；耗時與最後進度只進訊息面板。
+        var stepNotice = message + '。';
+        // 失敗與取消的括號後面也以句號結尾（使用者 2026-10-14 第三輪勾選頁確認 R3-27）。
+        if (timed) {
+          message += '（' + elapsedPhrase('耗時', monotonicNowMilliseconds() - startedAt) +
+            (lastProgress ? '，最後進度：' + lastProgress : '') + '）。';
+        } else {
+          message += '。';
         }
         Store.addMessage(message, level);
+        var current = Store.getState();
+        if (showInStep && current.view === 'workflow' && !showsErrorInline(options, error)) {
+          Store.setOperationFailure({ label: label, message: stepNotice, level: level, stepIndex: current.currentStepIndex });
+        }
         if (typeof options.onError === 'function') {
           try {
             options.onError(message, error);
@@ -614,7 +815,7 @@
         return Promise.resolve()
           .then(options.refresh)
           .catch(function (error) {
-            Store.addMessage((options.refreshLabel || '重新整理') + '失敗：' + error.message, 'warn');
+            Store.addMessage((options.refreshLabel || '重新整理') + '失敗：' + error.message, 'error');
           })
           .then(function () { return value; });
       });
@@ -628,7 +829,7 @@
       .catch(function (error) {
         // 唯讀動作理論上不會被後端序列化閘回絕；若真回絕就靜默（背景刷新不打擾使用者）。
         if (error && error.code === 'operation_in_progress') { return; }
-        Store.addMessage(label + '失敗：' + error.message, 'warn');
+        Store.addMessage(label + '失敗：' + error.message, 'error');
       });
   }
 
@@ -653,7 +854,7 @@
     var interval = (typeof seconds === 'number' && seconds > 0 ? seconds : 30) * 1000;
     heartbeatTimer = global.setInterval(function () {
       if (!global.JetApi.isReady()) { return; }
-      runBackground('租約續期', function () { return global.JetApi.projectHeartbeat({}); });
+      runBackground('確認線上案件使用狀態', function () { return global.JetApi.projectHeartbeat({}); });
     }, interval);
   }
 
@@ -675,24 +876,25 @@
     return Promise.reject(unavailable);
   }
 
-  function departureRetryMessage(state, retryAction) {
+  // 句子不再寫按鈕名稱（使用者 2026-10-13 勾選頁確認 22、23，統一成第一輪的寫法）；departure 參數只標明是哪個離開動作。
+  function departureRetryMessage(state) {
     return state.activeRequestId
-      ? '目前作業尚未結束。請按「取消作業」，待取消完成後再重試「' + retryAction + '」。'
-      : '目前作業尚未結束。請等待作業完成後再重試「' + retryAction + '」。';
+      ? '作業還在進行。請先按「取消作業」，等取消完成後再試一次。'
+      : '作業還在進行，請等它完成後再試一次。';
   }
 
   // busy 時主畫面與訊息 rail 會被 overlay 遮住；提示必須同步寫進可見的 busyDetail。
-  function showBusyDepartureGuidance(retryAction) {
+  function showBusyDepartureGuidance(departure) {
     var state = Store.getState();
-    var message = departureRetryMessage(state, retryAction);
+    var message = departureRetryMessage(state);
     Store.setBusyDetail(message);
     Store.addMessage(message, 'warn');
   }
 
-  function handleProjectDepartureFailure(error, retryAction) {
+  function handleProjectDepartureFailure(error, departure) {
     if (error && error.code === 'operation_in_progress') {
       var state = Store.getState();
-      var message = departureRetryMessage(state, retryAction);
+      var message = departureRetryMessage(state);
       if (state.activeRequestId) {
         Store.setBusyDetail(message);
       } else {
@@ -702,9 +904,10 @@
       return;
     }
     Store.setBusy(false);
+    // 沒有原因時不寫「未知錯誤」（使用者 2026-10-14 第三輪勾選頁確認 R3-29）。
     Store.addMessage(
-      '無法完成離場，已保留目前畫面：' + (error && error.message ? error.message : '未知錯誤'),
-      'warn');
+      error && error.message ? '無法離開案件，已保留目前畫面：' + error.message : '無法離開案件，已保留目前畫面。請再試一次。',
+      'error');
   }
 
   function isRequired(field, mode) {
@@ -716,6 +919,23 @@
   function glFieldLabel(key) {
     var hit = GL_FIELDS.filter(function (f) { return f.key === key; })[0];
     return hit ? hit.label : key;
+  }
+
+  // 條件用的欄位已不存在時，標題與讀回寫的名稱（使用者 2026-10-14 第三輪勾選頁確認 R3-03），不印程式代號。
+  // 已移除欄位的名稱由 project.load 回應的 retiredGlFieldLabels 帶來，正本只在後端 JetFieldCatalog.RetiredGlFieldLabels。
+  function missingConditionFieldName(state, rule, usage) {
+    var readback = usage === 'readback';
+    if (rule && rule.fieldId) { return '已不在欄位配對中的攸關資料元素欄位'; }
+    var labels = state && state.retiredGlFieldLabels;
+    var retired = labels && rule && rule.field && Object.prototype.hasOwnProperty.call(labels, rule.field) ? labels[rule.field] : '';
+    if (retired) { return readback ? '已移除的「' + retired + '」' : retired + '（已移除）'; }
+    return readback ? '已不存在的欄位' : '欄位已不存在';
+  }
+
+  // 舊式文字、日期條件讀回用的 GL 欄位名稱；欄位已不存在時同上，不印程式代號。
+  function glFieldReadback(state, key) {
+    var hit = GL_FIELDS.filter(function (f) { return f.key === key; })[0];
+    return hit ? hit.label : missingConditionFieldName(state, { field: key }, 'readback');
   }
 
   /* ---- 專案層契約鏡像的讀取輔助（純讀取，不重算任何審計語意） -------------- */
@@ -775,56 +995,63 @@
     });
   }
 
-  function taxonomyPickerHtml(state, selected, key, legend, view) {
+  // 分類節點是否被收合中的上層藏起來；畫面輸出與綁定後的 update 用同一套判斷，第一次綁定時不會重播收起。
+  function taxonomyNodeHidden(categories, collapsed, id) {
+    var seen = {};
+    var category = categories.find(function (item) { return item.categoryId === id; });
+    while (category && category.parentCategoryId && !seen[category.parentCategoryId]) {
+      var parentId = category.parentCategoryId;
+      seen[parentId] = true;
+      // 上層已不在清單裡的節點畫在最外層，沒有收合鈕可以打開，所以只看真的找得到的上層。
+      var parent = categories.find(function (item) { return item.categoryId === parentId; });
+      if (!parent) { break; }
+      if ((collapsed || {})[parentId]) { return true; }
+      category = parent;
+    }
+    return false;
+  }
+
+  function taxonomyTreeHtml(state, view, rowHtml) {
     var tree = taxonomyTree(state);
-    var prefix = view.focusKey || key;
-    var missing = (selected || []).some(function (id) { return !taxonomyCategories(state).some(function (category) { return category.categoryId === id; }); });
-    return '<fieldset class="category-select" data-category-picker="' + esc(key) + '"><legend class="category-select__legend">' + esc(legend) + '</legend>' +
-      '<label>搜尋分類<input type="search" data-category-search data-focus-key="' + esc(prefix + '-search') + '" value="' + esc(view.search || '') + '"></label>' +
-      (missing ? '<p class="form-notice">已刪除的分類，請重新選擇。</p>' : '') +
-      tree.map(function (category) {
+    var prefix = view.focusKey || 'category';
+    var all = taxonomyCategories(state);
+    return '<div class="category-tree">' + tree.map(function (category) {
         var branch = tree.some(function (child) { return child.parentCategoryId === category.categoryId; });
         var open = !(view.collapsed || {})[category.categoryId];
-        return '<div data-category-node="' + esc(category.categoryId) + '" style="margin-inline-start:' + category.depth + 'em">' +
+        // 使用者 2026-10-13 要求展開與收合一致：分類節點跟著上層收放，標 data-collapsible；一開始就藏起來的節點直接輸出 hidden。
+        var hidden = taxonomyNodeHidden(all, view.collapsed, category.categoryId);
+        return '<div class="category-tree__row" data-category-node="' + esc(category.categoryId) + '" data-collapsible' + (hidden ? ' hidden' : '') +
+          ' style="margin-inline-start:' + category.depth + 'em">' +
           (branch ? '<button type="button" class="btn btn--ghost btn--tiny" data-category-toggle="' + esc(category.categoryId) +
             '" data-focus-key="' + esc(prefix + '-' + category.categoryId) + '" aria-label="展開或收合' + esc(category.label) +
             '" aria-expanded="' + open + '">' + (open ? '收合' : '展開') + '</button>' : '') +
-          '<label class="category-option"><input type="checkbox" data-category-bind="' + esc(key) + '" value="' + esc(category.categoryId) + '"' +
-          ((selected || []).indexOf(category.categoryId) >= 0 ? ' checked' : '') + '><span>' + esc(category.label) + '</span></label></div>';
-      }).join('') + '</fieldset>';
+          rowHtml(category) + '</div>';
+      }).join('') + '</div>';
+  }
+
+  function taxonomyPickerHtml(state, selected, key, legend, view) {
+    var missing = (selected || []).some(function (id) { return !taxonomyCategories(state).some(function (category) { return category.categoryId === id; }); });
+    return '<fieldset class="category-select" data-category-picker="' + esc(key) + '"><legend class="category-select__legend">' + esc(legend) + '</legend>' +
+      (missing ? '<p class="form-notice">已刪除的分類，請重新選擇。</p>' : '') +
+      taxonomyTreeHtml(state, view, function (category) {
+        return '<label class="category-option"><input type="checkbox" data-category-bind="' + esc(key) + '" value="' + esc(category.categoryId) + '"' +
+          ((selected || []).indexOf(category.categoryId) >= 0 ? ' checked' : '') + '><span>' + esc(category.label) + '</span></label>';
+      }) + '</fieldset>';
   }
 
   function bindTaxonomyPicker(root, state, view) {
     view.collapsed = view.collapsed || {};
     var categories = taxonomyCategories(state);
-    function ancestors(category) {
-      var result = [], seen = {};
-      while (category && category.parentCategoryId && !seen[category.parentCategoryId]) {
-        seen[category.parentCategoryId] = true;
-        category = categories.find(function (item) { return item.categoryId === category.parentCategoryId; });
-        if (category) { result.push(category); }
-      }
-      return result;
-    }
     function update() {
-      var search = String(view.search || '').trim().toLocaleLowerCase();
-      var matches = categories.filter(function (category) { return String(category.label).toLocaleLowerCase().indexOf(search) >= 0; });
       root.querySelectorAll('[data-category-node]').forEach(function (node) {
-        var id = node.getAttribute('data-category-node');
-        var category = categories.find(function (item) { return item.categoryId === id; });
-        var parents = ancestors(category);
-        node.hidden = search ? !matches.some(function (match) {
-          return match.categoryId === id || parents.some(function (parent) { return parent.categoryId === match.categoryId; }) ||
-            ancestors(match).some(function (parent) { return parent.categoryId === id; });
-        }) : parents.some(function (parent) { return !!view.collapsed[parent.categoryId]; });
+        var hidden = taxonomyNodeHidden(categories, view.collapsed, node.getAttribute('data-category-node'));
+        if (node.hidden !== hidden) { node.hidden = hidden; }
       });
       root.querySelectorAll('[data-category-toggle]').forEach(function (button) {
-        var open = search.length > 0 || !view.collapsed[button.getAttribute('data-category-toggle')];
+        var open = !view.collapsed[button.getAttribute('data-category-toggle')];
         button.setAttribute('aria-expanded', String(open)); button.textContent = open ? '收合' : '展開';
       });
     }
-    var search = root.querySelector('[data-category-search]');
-    if (search) { search.addEventListener('input', function () { view.search = search.value; update(); }); }
     root.querySelectorAll('[data-category-toggle]').forEach(function (button) {
       button.addEventListener('click', function () {
         var id = button.getAttribute('data-category-toggle'); view.collapsed[id] = !view.collapsed[id]; update();
@@ -842,15 +1069,13 @@
 
   function rdeFieldLabel(state, fieldId) {
     var hit = committedRdeFields(state).filter(function (f) { return f.fieldId === fieldId; })[0];
-    return hit ? hit.label : fieldId;
+    return hit ? hit.label : missingConditionFieldName(state, { fieldId: fieldId || 'missing' }, 'readback');
   }
 
   // 第五步選欄位時在名稱後加註來源欄，兩個同名的攸關資料元素欄位也分得出來；只改顯示，選項值仍是 fieldId。
   // 回傳未跳脫的文字，由呼叫端跳脫。
-  function rdeFieldOptionLabel(field, withKind) {
-    var notes = (withKind ? ['攸關資料元素欄位'] : [])
-      .concat(field.sourceColumn ? ['來源欄：' + field.sourceColumn] : []);
-    return field.label + (notes.length ? '（' + notes.join('，') + '）' : '');
+  function rdeFieldOptionLabel(field) {
+    return field.label + (field.sourceColumn ? '（來源欄：' + field.sourceColumn + '）' : '');
   }
 
   /* ---- 後端欄位 metadata 驅動的結果表（動態欄） ---------------------------- */
@@ -870,19 +1095,15 @@
       var cls = col.className ? ' class="' + esc(col.className) + '"' : '';
       if (!col.key) { return '<th' + cls + '>' + esc(col.label) + '</th>'; }
       return '<th' + cls + ' data-sort-key="' + esc(col.key) + '" aria-sort="none">' +
-        '<button type="button" class="th-sort" data-sort-key="' + esc(col.key) + '" title="點一下排序，再點一下反向">' +
+        '<button type="button" class="th-sort" data-sort-key="' + esc(col.key) + '" title="按一下依此欄排序，再按一下反向排序">' +
         esc(col.label) + '<span class="th-sort__mark" aria-hidden="true"></span></button></th>';
     }).join('');
   }
 
   // 「依傳票號碼查看」或「依科目編號查看」：送出後從第一頁重載，只在資料庫端比對，不在畫面過濾。
   function pageSearchHtml(label) {
-    return '<form class="page-search" data-page-search>' +
-      '<label class="page-search__label"><span>' + esc(label) + '</span>' +
-        '<input type="search" class="page-search__input" data-page-search-input maxlength="200" placeholder="輸入一部分即可"></label>' +
-      '<button type="submit" class="btn btn--ghost btn--tiny">查看</button>' +
-      '<button type="button" class="btn btn--ghost btn--tiny" data-page-search-clear hidden>清除</button>' +
-    '</form>';
+    return searchBoxHtml(label, { attributes: { 'data-page-search': true }, inputAttributes: { 'data-page-search-input': true },
+      clearAttributes: { 'data-page-search-clear': true } });
   }
 
   // 可排序、可搜尋的分頁表。呼叫端可保留viewState，讓重繪接回已由使用者逐頁讀取的列；不預讀全母體。
@@ -912,15 +1133,21 @@
       var s = Store.getState();
       return (persistent || root.isConnected !== false) && s.project === project && s.dataGeneration === generation && resultSource(s) === source;
     }
+    // 使用者 2026-10-13 要求展開與收合一致：狀態列與重試按鈕原地收放，標 data-collapsible；收起時保留原來的字，
+    // 才看得到它收回去，不會先變成空白再消失。
     var status = document.createElement('p');
     status.className = 'page-status';
+    status.setAttribute('data-collapsible', '');
     status.setAttribute('data-page-status', 'true');
     status.setAttribute('role', 'status');
     status.hidden = true;
     root.appendChild(status);
     var retry = document.createElement('button');
     retry.type = 'button'; retry.className = 'btn btn--ghost btn--tiny';
-    retry.textContent = '重試'; retry.hidden = true;
+    retry.textContent = '重試'; retry.hidden = true; retry.setAttribute('data-collapsible', '');
+    // 行內按鈕收高度時，所在的匿名行框還留一行高，收到最後會跳一下；改成區塊排版，整行跟著收。
+    // [hidden] 的 display:none 帶 !important，這裡的行內樣式不會讓它藏不起來。
+    if (retry.style) { retry.style.display = 'block'; retry.style.width = 'fit-content'; }
     root.appendChild(retry);
     var moreText = loadMore ? loadMore.textContent : '';
     var scrollElement = opts.scrollElement || (root.querySelector && root.querySelector('.preview-table__wrap'));
@@ -956,7 +1183,8 @@
         loadMore.disabled = state.busy; loadMore.textContent = state.busy ? '載入中…' : moreText;
       }
       if (table) { table.setAttribute('aria-busy', state.busy ? 'true' : 'false'); }
-      status.textContent = state.statusText || ''; status.hidden = !state.statusText;
+      if (state.statusText) { status.textContent = state.statusText; }
+      status.hidden = !state.statusText;
       retry.hidden = !state.retryRequest || state.busy;
     }
     if (persistent) { state.refresh = refresh; }
@@ -1051,17 +1279,9 @@
         fetch(true, '重新排序明細', previous);
       });
     }
-    if (form) {
-      form.addEventListener('submit', function (event) {
-        event.preventDefault();
-        search((input && input.value ? input.value : '').trim(), '正在讀取資料，讀完後接著查看這個號碼。');
-      });
-      if (clear) {
-        clear.addEventListener('click', function () {
-          search('', '正在讀取資料，讀完後接著清除查看條件。');
-        });
-      }
-    }
+    bindSearchBox(form, function (text, cleared) {
+      search(text, cleared ? '正在讀取資料，讀完後接著清除查看條件。' : '正在讀取資料，讀完後接著查看這個號碼。');
+    });
     if (persistent) { refresh(true); }
     if (opts.autoLoad && !state.started && !state.busy) { fetch(true, '載入明細'); }
     return { reload: function () { return fetch(true, '載入明細'); } };
@@ -1150,8 +1370,8 @@
         if (!state.project) { missing.push('建立或載入案件'); }
         break;
       case 2:
-        if (!state.importState.gl) { missing.push('匯入 GL 檔案'); }
-        if (!state.importState.tb) { missing.push('匯入 TB 檔案'); }
+        if (!state.importState.gl) { missing.push('匯入 PBC-GL'); }
+        if (!state.importState.tb) { missing.push('匯入 PBC-TB'); }
         break;
       case 3:
         if (!state.mapping.gl.committed) { missing.push('確認 GL 欄位配對'); }
@@ -1296,13 +1516,47 @@
   }
 
   // 統一導航入口：切換步驟並把目前位置持久化到專案（resume 用）。
-  function gotoStep(index) {
+  function gotoStep(index, pendingConfirmed) {
     var state = Store.getState();
     if (index < 0 || index >= Store.STEPS.length || !isStepReachable(state, index)) {
       return;
     }
+    var current = Store.STEPS[state.currentStepIndex];
+    if (!pendingConfirmed && current && current.id === 'validate' && index !== state.currentStepIndex &&
+        pendingAccountCategoryCount()) {
+      // 第四步的科目分類還沒儲存時先問；選「先不儲存」也能離開，改動留在畫面上，回來仍可儲存。
+      // 儲存會清除篩選情境，原本要去的步驟可能因此不能進入，這時改到最遠還能進入的一步。
+      confirmPendingAccountCategories('後續步驟只會使用已儲存的分類；改動會留在這個畫面，回來仍可儲存。', '先不儲存')
+        .then(function (proceed) {
+          if (!proceed) { return; }
+          var latest = Store.getState();
+          var target = index;
+          while (target > latest.currentStepIndex && !isStepReachable(latest, target)) { target--; }
+          if (target !== latest.currentStepIndex) { gotoStep(target, true); }
+        });
+      return;
+    }
     Store.setStepIndex(index);
     persistProgress(index);
+  }
+
+  // 科目分類的待儲存改動只存在畫面上；沒有改動時直接通過。
+  function pendingAccountCategoryCount() {
+    var editor = global.JetUi && global.JetUi.accountMappingEditor;
+    return editor && typeof editor.pendingCount === 'function' ? editor.pendingCount() : 0;
+  }
+
+  function confirmPendingAccountCategories(consequence, continueLabel) {
+    if (!pendingAccountCategoryCount()) { return Promise.resolve(true); }
+    return global.JetUi.accountMappingEditor.confirmPending(consequence, continueLabel);
+  }
+
+  // 選了「不儲存」後重新進入離場流程時，改動仍在，所以這一次不再詢問，避免對話框一直重複出現。
+  var pendingDepartureConfirmed = false;
+
+  function departAfterPendingConfirmed(depart) {
+    pendingDepartureConfirmed = true;
+    try { depart(); } finally { pendingDepartureConfirmed = false; }
   }
 
   // 單一 in-flight 的 latest-value 合併器：進行中只覆寫 pending 最新值；完成後補發一次並持續 drain。
@@ -1338,6 +1592,12 @@
     };
   }
 
+  // 記下目前步驟失敗時的唯一寫法（使用者 2026-10-13 勾選頁確認 25、27）。開案時回到上次儲存的步驟。
+  function stepSaveFailureText(error) {
+    return '目前所在的步驟未能儲存：' + trimSentenceEnd(error && error.message) +
+      '。下次開啟此案件時，會回到上次儲存的步驟。';
+  }
+
   var mergeProgressSave = createLatestSaveMerger(function (snapshot) {
     var state = Store.getState();
     if (!global.JetApi.isReady() || !state.project || state.project.projectId !== snapshot.projectId) {
@@ -1345,7 +1605,7 @@
     }
     return global.JetApi.projectSaveProgress({ currentStep: snapshot.currentStep });
   }, function (error) {
-    Store.addMessage('進度儲存失敗：' + error.message, 'warn');
+    Store.addMessage(stepSaveFailureText(error), 'error');
   });
 
   function persistProgress(index) {
@@ -1358,13 +1618,19 @@
   // 視窗可能在 response 抵達前關閉，因此不依賴 host.exitApp 的回應。
   function exitApp() {
     if (!global.JetApi.isReady()) {
-      Store.addMessage('應用程式尚未連線，請直接關閉視窗。', 'warn');
+      Store.addMessage('應用程式尚未連線，請直接關閉視窗。', 'error');
       return;
     }
 
     var state = Store.getState();
     if (state.busy) {
       showBusyDepartureGuidance('儲存並結束');
+      return;
+    }
+    if (!pendingDepartureConfirmed && pendingAccountCategoryCount()) {
+      confirmPendingAccountCategories('結束後，這些改動不會保留。', '不儲存，直接結束').then(function (proceed) {
+        if (proceed) { departAfterPendingConfirmed(exitApp); }
+      });
       return;
     }
     var save = (state.view === 'workflow' && state.project)
@@ -1400,7 +1666,7 @@
 
   function loadProjects() {
     Store.setPickerFeedback(null);
-    return run('載入專案清單', function () {
+    return run('讀取案件清單', function () {
       var acceptResponse = pickerProjectResponseGuard.issue(function () {
         return Store.getState().view === 'picker';
       });
@@ -1416,6 +1682,8 @@
           throw error;
         });
     }, {
+      // 案件清單的錯誤框就是這個操作的就地錯誤框。
+      inlineError: true,
       onError: function (message) { Store.setPickerFeedback(message); }
     });
   }
@@ -1437,11 +1705,13 @@
           throw error;
         });
     }, {
+      // 案件清單的錯誤框就是這個操作的就地錯誤框。
+      inlineError: true,
       onError: function (message) { Store.setPickerFeedback(message); }
     });
   }
 
-  // 統一的「回專案選擇」：清空 workflow 與步驟模組狀態再切回 picker。
+  // 統一的「回首頁」：清空 workflow 與步驟模組狀態再切回 picker。
   function goBackToPicker() {
     pickerProjectResponseGuard.invalidate();
     resetStepModules();
@@ -1450,21 +1720,27 @@
     loadProjects();
   }
 
-  // 頁首「回專案選擇」：比照 exitApp 先保存目前步驟位置，再切回 picker（保存失敗仍允許切回）。
+  // 頁首「回首頁」：比照 exitApp 先保存目前步驟位置，再切回 picker（保存失敗仍允許切回）。
   function backToPickerFromHeader() {
     var state = Store.getState();
     if (state.busy) {
-      showBusyDepartureGuidance('回專案選擇');
+      showBusyDepartureGuidance('回首頁');
+      return;
+    }
+    if (!pendingDepartureConfirmed && pendingAccountCategoryCount()) {
+      confirmPendingAccountCategories('離開案件後，這些改動不會保留。', '不儲存，直接離開').then(function (proceed) {
+        if (proceed) { departAfterPendingConfirmed(backToPickerFromHeader); }
+      });
       return;
     }
 
-    Store.setBusy(true, '回專案選擇');
+    Store.setBusy(true, '回首頁');
     var save = (state.view === 'workflow' && state.project && global.JetApi.isReady())
       ? persistProgress(state.currentStepIndex)
       : Promise.resolve();
 
     save.catch(function (error) {
-      Store.addMessage('進度儲存失敗：' + error.message, 'warn');
+      Store.addMessage(stepSaveFailureText(error), 'error');
     }).then(function () {
       return releaseProjectLease();
     }).then(
@@ -1473,7 +1749,7 @@
         goBackToPicker();
       },
       function (error) {
-        handleProjectDepartureFailure(error, '回專案選擇');
+        handleProjectDepartureFailure(error, '回首頁');
       });
   }
 
@@ -1483,7 +1759,7 @@
     Store.setPickerFeedback(null);
     var loadPayload = { projectId: projectId };
     if (databaseProvider) { loadPayload.databaseProvider = databaseProvider; }
-    return run('載入專案', function () {
+    return run('開啟案件', function () {
       return global.JetApi.projectLoad(loadPayload).then(function (data) {
         applyLoadedProject(data); // 是否啟動心跳由 applyLoadedProject 依資料庫種類決定，開案與建案共用。
 
@@ -1491,13 +1767,16 @@
         return global.JetApi.logRecent({}).then(function (log) {
           Store.seedMessages(log.messages || []);
         }).catch(function () {}).then(function () {
-          Store.addMessage('已載入專案「' + data.project.projectId + '」。', 'info');
+          // 案件名稱就是 projectId（使用者 2026-10-13 勾選頁確認 28）。
+          Store.addMessage('已開啟案件「' + data.project.projectId + '」。', 'info');
           // 訊息歷史還原會整批取代畫面訊息，所以改版提示放在還原之後。
           var recalculated = filterScenarioRecalculatedMessage(data.filterScenarioCheck);
-          if (recalculated) { Store.addMessage(recalculated, 'info'); }
+          // 報告已過期、需要時要重新產生，屬於「需要注意」（使用者 2026-10-13 裁定訊息分三級）。
+          if (recalculated) { Store.addMessage(recalculated, 'warn'); }
         });
       });
     }, {
+      inlineError: true,
       onError: function (message, error) {
         Store.setPickerFeedback(message, {
           projectId: projectId,
@@ -1540,12 +1819,16 @@
   // project.load.filterScenarioCheck：開案時 JET 用目前規則檢查已儲存情境的結果。
   function filterScenarioRecalculatedMessage(check) {
     if (!check || check.status !== 'recalculated') { return null; }
-    return '篩選規則已更新，JET 已用新規則重新計算 ' + check.recalculatedCount +
-      ' 個已儲存情境；先前的條件篩選報告與底稿已標為過期，需要時請重新產生。';
+    // 使用者 2026-10-13 勾選頁確認 29。
+    return '篩選規則已更新，已重算 ' + check.recalculatedCount +
+      ' 個情境；之前的條件篩選報告與底稿需要重新產生。';
   }
 
-  var FILTER_SCENARIO_NEXT_STEP = '請到「進階條件篩選」開啟這個情境修改後儲存；' +
-    '如果原因是欄位配對少了欄位，請先到「欄位配對」補回，再按「重新檢查並儲存情境」。';
+  // 待修正清單最後的下一步與沒有逐筆清單時的整批說明（使用者 2026-10-13 勾選頁確認 N1、N2）。
+  // 使用者 2026-10-14 要求黃色提示不過度解釋，這兩句和上面的重算訊息依同日確認的清單縮短。
+  var FILTER_SCENARIO_NEXT_STEP = '請到「進階條件篩選」修改後儲存，或移除不需要的情境。';
+  var FILTER_SCENARIO_RECHECK_NEEDED = '已儲存的篩選情境無法套用目前規則，' +
+    '請到「進階條件篩選」按「重新檢查並儲存情境」。';
 
   function trimSentenceEnd(text) {
     return String(text || '').replace(/[。；\s]+$/, '');
@@ -1559,23 +1842,22 @@
       : '';
   }
 
-  // 已儲存情境無法套用目前規則時的說明：逐筆列出哪個情境、哪裡不符合，以及下一步。
-  // 沒有逐筆清單時（資料不一致，或尚未重新開啟案件）改寫一句整批的說明與同樣的下一步。
+  // 已儲存情境無法套用目前規則時的說明：先說狀態，逐筆列出哪個情境、哪裡不符合，最後只說一次下一步。
+  // 沒有逐筆清單時（資料不一致，或尚未重新開啟案件）改寫一句整批的說明，請審計員按「重新檢查並儲存情境」列出清單。
+  // 使用者 2026-10-09 要求提示避免專業術語、不得過長，所以下一步不再逐筆重複。
   function filterScenarioProblemsHtml(state) {
     var check = state.filterScenarioCheck;
     var problems = check && Array.isArray(check.problems) ? check.problems : [];
     if (problems.length > 0) {
-      return '<div class="form-notice filter-scenario-problems"><ul>' + problems.map(function (problem) {
-        var messages = (problem.messages || []).map(trimSentenceEnd).filter(Boolean).join('；');
-        return '<li>' + esc('情境 ' + problem.position + '「' + problem.name + '」無法套用目前的篩選規則：' +
-          messages + '。' + FILTER_SCENARIO_NEXT_STEP) + '</li>';
-      }).join('') + '</ul></div>';
+      // 情境需要修改並重新儲存，是使用者接下來要去做的事，用琥珀色（使用者 2026-10-11 裁定）。
+      return '<div class="form-notice form-notice--warning filter-scenario-problems"><strong>下列情境無法套用目前規則：</strong><ul>' +
+        problems.map(function (problem) {
+          var messages = (problem.messages || []).map(trimSentenceEnd).filter(Boolean).join('；');
+          return '<li>' + esc('情境 ' + problem.position + '「' + problem.name + '」' +
+            (messages ? '：' + messages : '') + '。') + '</li>';
+        }).join('') + '</ul><p>' + esc(FILTER_SCENARIO_NEXT_STEP) + '</p></div>';
     }
-    var lead = check && check.status === 'inconsistent'
-      ? '已儲存的篩選情境資料不一致，無法套用目前的篩選規則。'
-      : '已儲存的篩選情境尚未套用目前的篩選規則。請重新開啟這個案件；若仍無法套用，';
-    return '<p class="form-notice">' + esc(lead + '請到「進階條件篩選」開啟情境修改後儲存；' +
-      '如果原因是欄位配對少了欄位，請先到「欄位配對」補回，再按「重新檢查並儲存情境」。') + '</p>';
+    return '<p class="form-notice form-notice--warning">' + esc(FILTER_SCENARIO_RECHECK_NEEDED) + '</p>';
   }
 
   function applyLoadedProject(data, options) {
@@ -1642,10 +1924,10 @@
     // 規則執行結果與已保存情境的 resume（原樣回放後端 latestRuns / filterScenarios）。
     Store.setLastRun('validate', data.latestRuns ? data.latestRuns.validate : null);
     Store.setLastRun('prescreen', data.latestRuns ? data.latestRuns.prescreen : null);
+    Store.setRetiredGlFieldLabels(data.retiredGlFieldLabels || null);
     Store.setSavedScenarios(data.filterScenarios || []);
     Store.setFilterResultRef(data.filterResultRef || null);
     Store.setFilterScenarioCheck(data.filterScenarioCheck || null);
-    Store.restoreFilterPopulationScope(data.filterResultRef || null, data.filterScenarios || []);
     Store.setReportArtifacts(data.reportArtifacts || []);
     Store.setFilterDraft(null); // 重設為空草稿（避免殘留上一個案件的條件）
     // 載入不是重新執行。即使快照帶有歷史摘要，最後仍以後端的過期判定為準。
@@ -1785,13 +2067,16 @@
       : (bytes / 1000000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MB';
   }
 
+  // options.motion 是這份清單在同一步裡的名稱：app.js 的 JetMotion 用它讓新產生的報告長出來、換掉的收起來。
   function reportArtifactListHtml(artifacts, emptyText, options) {
     var list = artifacts || [];
+    var motion = options && options.motion ? String(options.motion) : '';
     if (list.length === 0) {
-      return '<p class="report-artifacts__empty">' + esc(emptyText || '尚未產生報告。') + '</p>';
+      return '<p class="report-artifacts__empty"' + (motion ? ' data-motion-key="' + esc('artifacts-empty-' + motion) + '"' : '') + '>' +
+        esc(emptyText || '尚未產生報告。') + '</p>';
     }
 
-    return '<div class="report-artifacts">' + list.map(function (artifact) {
+    return '<div class="report-artifacts"' + (motion ? ' data-motion-list="' + esc('artifacts-' + motion) + '"' : '') + '>' + list.map(function (artifact) {
       var generated = new Date(artifact.generatedUtc);
       var generatedText = !artifact.generatedUtc || isNaN(generated.getTime())
         ? '時間未知'
@@ -1802,7 +2087,8 @@
         ? '已在 JET 之外修改'
         : (artifact.fileState === 'missing' ? '檔案不存在，重新匯出即可' : '');
       return (
-        '<div class="report-artifact" data-artifact-id="' + esc(artifact.artifactId) + '">' +
+        '<div class="report-artifact" data-artifact-id="' + esc(artifact.artifactId) + '"' +
+          (motion ? ' data-motion-key="' + esc('artifact-' + motion + '-' + artifact.artifactId) + '"' : '') + '>' +
           '<span class="report-artifact__copy">' +
             '<span class="report-artifact__label">' + esc(reportArtifactLabel(artifact.kind)) + '</span>' +
             '<span class="report-artifact__name">' + esc(artifact.fileName || '未命名報告') + '</span>' +
@@ -1853,16 +2139,16 @@
   /* ---- 共用 helper：預覽表格與篩選規則預設值 --------------------------------- */
 
   // 把 previewRows 陣列轉成 <table class="preview-table"> 的完整標記。
-  // 欄位順序：傳票號碼、項次、總帳入帳日、科目（代碼＋名稱）、摘要、金額、借貸。
+  // 欄位順序：傳票號碼、項次、總帳日期、科目（代碼＋名稱）、摘要、金額、借貸。
   // 供 filter-step 與 validate-step 共用；呼叫端自行包 <div class="preview-table__wrap">。
   // sortAction 有值時表頭可點排序（鍵名對齊該查詢的 wire row），供預篩選命中表；預覽列表不排序時省略。
   function previewTableHtml(previewRows, sortAction) {
     var head = sortAction === 'query.prescreenPage'
       ? sortableHeadCellsHtml('query.prescreenPage', [
-          { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳入帳日' },
+          { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳日期' },
           { key: 'accountCode', label: '科目' }, { key: 'documentDescription', label: '摘要' }, { key: 'amount', label: '金額' },
           { key: 'drCr', label: '借貸' }])
-      : '<th>傳票號碼</th><th>項次</th><th>總帳入帳日</th><th>科目</th><th>摘要</th><th>金額</th><th>借貸</th>';
+      : '<th>傳票號碼</th><th>項次</th><th>總帳日期</th><th>科目</th><th>摘要</th><th>金額</th><th>借貸</th>';
     var rows = (previewRows || []).map(function (r) {
       return (
         '<tr>' +
@@ -1890,14 +2176,15 @@
   function newFilterRule(type) {
     if (type === 'group' || type === 'voucher') {
       var compound = { type: type, join: 'AND', rules: [] };
-      if (type === 'voucher') { compound.side = 'all'; compound.quantifier = 'any'; }
+      if (type === 'voucher') { compound.quantifier = 'any'; }
       return compound;
     }
     if (type === 'entityFrequency') {
       return { type: type, field: 'accNum', countUnit: 'entries', countOperator: 'equals', countFrom: '1', countTo: '' };
     }
     if (type === 'fieldValue') { return { type: type, join: 'AND', field: 'postDate', operator: 'in', values: [], includeBlank: false }; }
-    if (type === 'accountSide') { return { type: type, join: 'AND', drCr: 'debit', categoryMode: 'is', categoryIds: ['builtin.cash'], categorySelection: 'subtree' }; }
+    if (type === 'drCrOnly') { return { type: type, join: 'AND', drCr: 'debit' }; }
+    if (type === 'accountSide') { return { type: type, join: 'AND', categoryMode: 'is', categoryIds: ['builtin.cash'], categorySelection: 'subtree' }; }
     return {
       join: 'AND',
       type: type,
@@ -1958,9 +2245,9 @@
     return (
       '<div class="panel">' +
         '<h2 class="panel__title">' + title + '</h2>' +
-        '<p class="panel__hint">尚未建立或載入專案。</p>' +
+        '<p class="panel__hint">尚未開啟案件。</p>' +
         '<div class="panel__actions">' +
-          '<button type="button" class="btn" data-action="back-picker">回專案選擇</button>' +
+          '<button type="button" class="btn" data-action="back-picker">回首頁</button>' +
         '</div>' +
       '</div>'
     );
@@ -1991,6 +2278,8 @@
     ACCOUNT_SIDE_MODE_OPTIONS: ACCOUNT_SIDE_MODE_OPTIONS,
     ACCOUNT_COMBINATION_OPTIONS: ACCOUNT_COMBINATION_OPTIONS,
     FILTER_SCENARIO_TEMPLATES: FILTER_SCENARIO_TEMPLATES,
+    FILTER_COMMON_CHECK_GROUPS: FILTER_COMMON_CHECK_GROUPS,
+    FILTER_CONDITION_REQUIREMENTS: FILTER_CONDITION_REQUIREMENTS,
     FILTER_CATEGORY_LIST_SEPARATOR: FILTER_CATEGORY_LIST_SEPARATOR,
     TEXT_MODE_OPTIONS: TEXT_MODE_OPTIONS,
     FILTER_MATCH_SCOPE_OPTIONS: FILTER_MATCH_SCOPE_OPTIONS,
@@ -2034,15 +2323,26 @@
     $: $,
     setText: setText,
     esc: esc,
+    findLive: findLive,
+    dateInputHtml: dateInputHtml,
+    loadFailureHtml: loadFailureHtml,
+    searchBoxHtml: searchBoxHtml,
+    bindSearchBox: bindSearchBox,
     money: money,
     moneyDifference: moneyDifference,
     formatDateTime: formatDateTime,
+    formatElapsed: formatElapsed,
+    elapsedPhrase: elapsedPhrase,
+    progressInMessage: progressInMessage,
     createLatestResponseGuard: createLatestResponseGuard,
     run: run,
     downstreamResetNoticeHtml: downstreamResetNoticeHtml,
     runBackground: runBackground,
     isRequired: isRequired,
     glFieldLabel: glFieldLabel,
+    glFieldReadback: glFieldReadback,
+    missingConditionFieldName: missingConditionFieldName,
+    RETIRED_CONDITION_LABEL: RETIRED_CONDITION_LABEL,
     // 註冊表
     registerStep: registerStep,
     registerWorkflowReset: registerWorkflowReset,
@@ -2061,6 +2361,8 @@
     gotoStep: gotoStep,
     exitApp: exitApp,
     backToPickerFromHeader: backToPickerFromHeader,
+    pendingAccountCategoryCount: pendingAccountCategoryCount,
+    confirmPendingAccountCategories: confirmPendingAccountCategories,
     loadProjects: loadProjects,
     syncOnlineProjects: syncOnlineProjects,
     invalidateProjectListRequests: invalidateProjectListRequests,
@@ -2078,6 +2380,7 @@
     taxonomyTree: taxonomyTree,
     taxonomySelectionCategories: taxonomySelectionCategories,
     taxonomyPickerHtml: taxonomyPickerHtml,
+    taxonomyTreeHtml: taxonomyTreeHtml,
     bindTaxonomyPicker: bindTaxonomyPicker,
     reportArtifactMatches: reportArtifactMatches,
     findCurrentReportArtifact: findCurrentReportArtifact,

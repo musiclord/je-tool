@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using ClosedXML.Excel;
+using JET.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -9,17 +10,19 @@ public sealed class CalendarTemplateRoundTripTests
 {
     // jet-guide section 2 and test-environment-notes: row 1 is instructions,
     // row 2 contains headers, and only Y rows from IS_Holiday are imported.
+    // 改動原因：使用者 2026-10-08 畫面註解要求移除範本入口，K15 的 export.calendarTemplates 隨之移除；
+    // 這裡改由 ReportTemplateCatalog 直接複製隨附範本，其餘匯入列數與日期斷言不變。
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task CopiedBundledCalendarTemplates_ImportTheirDocumentedRows(string provider)
+    public async Task BundledCalendarTemplates_ImportTheirDocumentedRows(string provider)
     {
         using var host = new HandlerTestHost();
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         { caseName = "Synthetic calendar round trip", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
         var id = created.GetProperty("projectId").GetString()!;
-        var copied = await host.DispatchAsync("export.calendarTemplates");
-        Assert.Equal(new[] { "Holiday2025TW.xlsx", "MakeUpDay2025TW.xlsx" }, copied.GetProperty("files").EnumerateArray().Select(file => file.GetProperty("fileName").GetString()));
+        Assert.Equal("Holiday2025TW.xlsx", ReportTemplateCatalog.Holiday);
+        Assert.Equal("MakeUpDay2025TW.xlsx", ReportTemplateCatalog.MakeUpDay);
         var expected = new Dictionary<string, string[]>();
         foreach (var (fileName, column, action) in new[]
         {
@@ -28,6 +31,11 @@ public sealed class CalendarTemplateRoundTripTests
         })
         {
             var path = Path.Combine(host.ProjectsRoot, id, fileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await using (var output = File.Create(path))
+            {
+                await ReportTemplateCatalog.Default.CopyToAsync(fileName, output, CancellationToken.None);
+            }
             using var book = new XLWorkbook(path);
             var sheet = book.Worksheet(1);
             Assert.False(sheet.Row(1).IsEmpty());

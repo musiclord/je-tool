@@ -87,7 +87,7 @@ public sealed partial class SqlServerProjectDatabase
                 {
                     throw new JetActionException(
                         JetErrorCodes.InvalidPayload,
-                        $"案件名稱『{document.ProjectId}』在 SQL Server 後端已有既有的案件資料，請換一個。");
+                        SqlServerMessages.CaseNameTakenOnServer(document.ProjectId));
                 }
             }
 

@@ -22,9 +22,7 @@ public static class TabularSourcePayload
         var sheetName = PayloadReader.GetOptionalString(payload, "sheetName");
         if (sheetName is not null && !isTableFile)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"欄位 'sheetName' 僅適用於 Excel 工作表或 Access 資料表，'{extension}' 不支援。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "sheet_name_not_applicable");
         }
 
         var encodingName = PayloadReader.GetOptionalString(payload, "encoding")?.ToLowerInvariant();
@@ -32,16 +30,12 @@ public static class TabularSourcePayload
         {
             if (!isTextFile)
             {
-                throw new JetActionException(
-                    JetErrorCodes.InvalidPayload,
-                    $"欄位 'encoding' 僅適用於 .csv / .txt 檔案，'{extension}' 不支援。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "encoding_not_applicable");
             }
 
             if (!AllowedEncodings.Contains(encodingName))
             {
-                throw new JetActionException(
-                    JetErrorCodes.InvalidPayload,
-                    $"欄位 'encoding' 的值 '{encodingName}' 無效，允許值：utf-8、big5、utf-16。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "encoding_invalid");
             }
         }
 
@@ -54,16 +48,12 @@ public static class TabularSourcePayload
 
             if (!isTextFile)
             {
-                throw new JetActionException(
-                    JetErrorCodes.InvalidPayload,
-                    $"欄位 'delimiter' 僅適用於 .csv / .txt 檔案，'{extension}' 不支援。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "delimiter_not_applicable");
             }
 
             if (text.Length != 1 || !AllowedDelimiters.Contains(text[0]))
             {
-                throw new JetActionException(
-                    JetErrorCodes.InvalidPayload,
-                    "欄位 'delimiter' 必須是單一字元，允許值：','、'\\t'、';'、'|'。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "delimiter_invalid");
             }
 
             delimiter = text[0];

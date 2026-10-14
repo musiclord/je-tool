@@ -21,7 +21,7 @@ internal sealed class GlProjectionDataReader : DbDataReader
     public static readonly string[] ColumnNames =
     [
         "batch_id", "source_row_number",
-        "document_number", "line_item", "post_date", "approval_date", "voucher_date",
+        "document_number", "line_item", "post_date", "approval_date",
         "account_code", "account_name", "document_description",
         "source_module", "created_by", "approved_by", "is_manual",
         "amount_scaled", "debit_amount_scaled", "credit_amount_scaled", "dr_cr",
@@ -31,7 +31,7 @@ internal sealed class GlProjectionDataReader : DbDataReader
     private static readonly Type[] ColumnTypes =
     [
         typeof(string), typeof(long),
-        typeof(string), typeof(string), typeof(string), typeof(string), typeof(string),
+        typeof(string), typeof(string), typeof(string), typeof(string),
         typeof(string), typeof(string), typeof(string),
         typeof(string), typeof(string), typeof(string), typeof(int),
         typeof(long), typeof(long), typeof(long), typeof(string), typeof(string),
@@ -246,7 +246,7 @@ internal sealed class GlProjectionDataReader : DbDataReader
                     ExcludedByPostingStatusCount++;
                     break;
                 default:
-                    throw new InvalidOperationException("未知的 GL 有效母體分類。");
+                    throw new InvalidOperationException("未知的 GL 分類：每一列只能列入 GL 或 GL(未納入測試)。");
             }
             return true;
         }
@@ -274,22 +274,21 @@ internal sealed class GlProjectionDataReader : DbDataReader
         _current[3] = (object?)p.LineItem ?? DBNull.Value;
         _current[4] = (object?)p.PostDate ?? DBNull.Value;
         _current[5] = (object?)p.ApprovalDate ?? DBNull.Value;
-        _current[6] = (object?)p.VoucherDate ?? DBNull.Value;
-        _current[7] = (object?)p.AccountCode ?? DBNull.Value;
-        _current[8] = (object?)p.AccountName ?? DBNull.Value;
-        _current[9] = (object?)p.DocumentDescription ?? DBNull.Value;
-        _current[10] = (object?)p.SourceModule ?? DBNull.Value;
-        _current[11] = (object?)p.CreatedBy ?? DBNull.Value;
-        _current[12] = (object?)p.ApprovedBy ?? DBNull.Value;
-        _current[13] = p.IsManual is null ? DBNull.Value : p.IsManual.Value ? 1 : 0;
-        _current[14] = p.AmountScaled;
-        _current[15] = p.DebitAmountScaled;
-        _current[16] = p.CreditAmountScaled;
-        _current[17] = p.DrCr;
-        _current[18] = (object?)LineItemNumericSortKey.CreateOrNull(p.LineItem) ?? DBNull.Value;
-        _current[19] = (object?)p.PostingStatus ?? DBNull.Value;
-        _current[20] = classification.IsEffective;
-        _current[21] = (object?)classification.StorageReason ?? DBNull.Value;
+        _current[6] = (object?)p.AccountCode ?? DBNull.Value;
+        _current[7] = (object?)p.AccountName ?? DBNull.Value;
+        _current[8] = (object?)p.DocumentDescription ?? DBNull.Value;
+        _current[9] = (object?)p.SourceModule ?? DBNull.Value;
+        _current[10] = (object?)p.CreatedBy ?? DBNull.Value;
+        _current[11] = (object?)p.ApprovedBy ?? DBNull.Value;
+        _current[12] = p.IsManual is null ? DBNull.Value : p.IsManual.Value ? 1 : 0;
+        _current[13] = p.AmountScaled;
+        _current[14] = p.DebitAmountScaled;
+        _current[15] = p.CreditAmountScaled;
+        _current[16] = p.DrCr;
+        _current[17] = (object?)LineItemNumericSortKey.CreateOrNull(p.LineItem) ?? DBNull.Value;
+        _current[18] = (object?)p.PostingStatus ?? DBNull.Value;
+        _current[19] = classification.IsEffective;
+        _current[20] = (object?)classification.StorageReason ?? DBNull.Value;
     }
 
     // ---- SqlBulkCopy(EnableStreaming)實際會用到的成員 ----

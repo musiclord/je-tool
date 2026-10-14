@@ -53,12 +53,17 @@
 使用 `caseName`。`error.details` 出現在兩種錯誤。`invalid_scenario` 這類能歸屬到條件列的錯誤，每一項帶第幾組、
 第幾條（從 1 起算，無法歸屬時為 null）與那一條的原因；`message` 仍是全部原因合併的整段文字。步驟五用
 `details` 把對應的條件列標紅並就地說原因，沒有 `details` 的錯誤維持整段訊息。
+篩選情境的 `invalid_scenario` 每一項另帶 `scenarioPosition`（錯誤屬於清單上第幾個情境，從 1 起算）與
+`scenarioName`（那個情境的名稱）；預覽與其他錯誤不帶這兩個鍵。步驟五只在錯誤屬於正在儲存的情境時標紅條件列，
+屬於別的情境時在儲存按鈕上方寫出是哪一個情境。
 `mapping.commit.gl` 與 `mapping.commit.tb` 的 `projection_failed` 也帶 `details`：每一項是同一個來源欄、同一種問題，
 `group` 與 `rule` 為 null，`sourceColumn` 是那個來源欄，`message` 寫出有幾列、哪些值在哪幾列，以及一次處理方式。
-`message` 是開頭一句（幾列無法轉換、沒有儲存，收集的列數少於總數時另說依前幾列整理）接上各項文字。
+`message` 是開頭一句「有 N 列的值無法讀取，本次配對未儲存。」，清單只列出一部分時再接「以下僅列出部分的值與列號。」，
+然後接上各項文字；每項以「來源欄「X」」開頭。
 第三步逐項列出，並依 `sourceColumn` 提供「前往設定」；其他錯誤的 `sourceColumn` 為 null。
-`correlationId` 串起同一次 action 的開始、結束或錯誤事件；picker 可用它輸出該次
-去識別支援紀錄。完整錯誤碼登錄位於 `Domain/JetActionException.cs`。
+`correlationId` 串起同一次 action 的開始、結束或錯誤事件；Debug 組建在 picker 上開案或刪除失敗時，
+「輸出診斷日誌（DEV）」用它帶出該次紀錄。picker 的「輸出支援日誌」不帶 `projectId` 與 `correlationId`，
+匯出全部去識別紀錄。完整錯誤碼登錄位於 `Domain/JetActionException.cs`。
 
 ## 主程式進度事件
 
@@ -87,6 +92,7 @@
 ### 科目清單直接分類
 
 `query.accountMappingPage` 回傳本案科目與已保存分類，每頁預設 100 筆、上限 500 筆。
+第四步的科目配對畫面明確要求每頁 200 筆；其他呼叫者省略筆數時仍使用預設值。
 參數為 `cursor`、`pageSize` 與選用的 `search`、`categoryId`；科目來源與 Excel 配對範本相同，並保留先前匯入的額外科目。
 回應 `rows` 含 `accountCode`、`accountName`、`categoryId`，另回 `nextCursor`。尚無配對的 `categoryId` 為 null；
 Excel 空白分類則沿用既有的 Others 處理方式，清單顯示其目前分類。
@@ -153,12 +159,20 @@ Excel 空白分類則沿用既有的 Others 處理方式，清單顯示其目前
 只有 SQL Server 案件會送 `project.heartbeat`：前端載入資料庫種類為 `sqlServer` 的案件後才啟動心跳計時器，
 SQLite 與 DuckDB 案件不送。這個 action 本身與 `project.load` 回應的 `heartbeatSeconds` 都沒有改變。
 
+`project.load` 回應另含 `retiredGlFieldLabels`，是已移除的 GL 欄位代號對應名稱的物件，目前只有
+`{ "voucherDate": "傳票日期" }`，內容來自 `JetFieldCatalog.RetiredGlFieldLabels`。舊情境用到這些欄位時，
+前端用它寫出「傳票日期（已移除）」與「已移除的「傳票日期」」，不印程式代號（使用者 2026-10-14 第三輪勾選頁確認）。
+
 `project.load` 回應另含 `filterScenarioCheck: { status, recalculatedCount, problems }`，說明開案時用目前篩選規則
-檢查已儲存情境的結果。`status` 為 `current`（沒有情境或都已是目前規則）、`recalculated`（整批已改用目前規則，
+檢查已儲存情境的結果。已是目前規則版本的情境也逐一檢查（使用者 2026-10-13 裁定）。`status` 為 `current`（沒有情境，或都已是目前規則而且檢查合格）、`recalculated`（整批已改用目前規則，
 `recalculatedCount` 是情境數，舊命中已清除，條件篩選報告與底稿依新的 revision 標為過期）、`needsEdit`
-（至少一個情境不符合目前規則，整批不動）或 `inconsistent`（同一批的儲存時間、位置或定義格式不一致，整批不動）。
-`problems` 每筆為 `{ position, name, messages }`，只在 `needsEdit` 時有內容。改版發生在戳記上次開啟時間之前，
-之後載入失敗時改版仍保留。
+（至少一個情境不符合目前規則，或條件內容讀不出來，整批不動，`filterResultRef` 為 null）或 `inconsistent`（同一批的儲存時間不一致，
+或位置重複、超出範圍，整批不動）。條件內容讀不出來的情境也逐筆列在 `problems`，審計員可以移除它；
+這個情境在 `filterScenarios` 裡的 `groups` 是空陣列。
+`problems` 每筆為 `{ position, name, messages }`，只在 `needsEdit` 時有內容。`messages` 只寫原因，不寫下一步；
+損毀的條件不論幾條，同一個情境只有一句「條件內容無法讀取」，不含英文代碼（見下方「進階篩選」的驗證失敗說明）。改版發生在戳記上次開啟時間之前，
+之後載入失敗時改版仍保留。`filter.scenario.save`、`filter.scenario.remove` 與 `filter.scenario.recheck`
+的回應也帶同樣形狀的 `filterScenarioCheck`，`status` 只有 `current` 或 `needsEdit`，見下方「進階篩選」。
 
 `project.load` 回應另含 `previousMapping: { gl, tb }`。重新匯入 GL 或 TB（取代或附加）會讓已確認的配對失效；
 匯入時把失效前最後一次確認的配對另存一份，那一側還沒重新確認時，這裡回傳它，形狀和 `mapping.gl`、`mapping.tb`
@@ -180,11 +194,14 @@ DuckDB 案件的資料庫若還有操作在使用，`project.delete` 回 `operat
 前端另明說整個案件資料夾及其他檔案都會刪除；計數失敗顯示未知及重試，不假設零份，也不增加刪除關卡。
 
 GL、TB、科目配對、授權清單、行事曆匯入，GL、TB 配對確認，科目分類或配對儲存、授權清單清除、非工作日設定與案件資料更新，
-成功回應共同帶 `invalidatedResults: { validation, prescreen, filter, filterScenarios }`、`staleState`、`reportArtifacts` 與 `reportArtifactWarning`。
+成功回應共同帶 `invalidatedResults: { validation, prescreen, filter, filterScenarios, accountMapping }`、`staleState`、`reportArtifacts` 與 `reportArtifactWarning`。
 前者是本次需要清掉的結果範圍，包含未儲存的預覽；後者只描述已保存結果是否過期。前端不再用 action 名稱或 setter 自行推算失效範圍。
 `filterScenarios` 為 true 時，後端已刪除全部已存篩選情境與命中，前端應把第五步回到預設狀態。
-它和 `filter` 同值：GL 或 TB 匯入與配對確認、科目配對與分類、授權清單、行事曆、非工作日與財報準備日的實際修改為 true。
-GL 與 TB 的匯入或配對確認都回傳四個 true，使用同一條失效規則；非工作日或財報準備日同值重送、案件資料只改文字時為 false。
+`accountMapping` 為 true 時，後端已在來源修改的同一交易清除科目配對、原始配對列及配對匯入狀態，分類定義保留。
+GL 與 TB 的取代、附加及重新確認欄位配對會回傳 true，其他事件不清除科目配對。前端同步清除配對狀態、勾選與未儲存分類，重新讀取現行科目。
+失敗或取消時，來源與科目配對一併回復，不回傳成功的清除結果。
+`filterScenarios` 和 `filter` 同值：GL 或 TB 匯入與配對確認、科目配對與分類、授權清單、行事曆、非工作日與財報準備日的實際修改為 true。
+GL 與 TB 的匯入或配對確認都回傳五個 true，使用同一條失效規則；非工作日或財報準備日同值重送、案件資料只改文字時為 false。
 這是使用者 2026-10-07 裁定的「上游修改時清除下游」。
 情境已清除時 `staleState.filter` 回到 false，表示沒有可重跑的篩選，而不是待重跑。已匯出的報告與底稿檔不改寫，索引照舊標成過期。
 資料庫內的修改和清除在同一筆交易完成，修改失敗時一起回復，情境與命中都保留。
@@ -239,8 +256,8 @@ GL 與 TB 的主資料匯入支援 `.xlsx`、`.xlsm`、`.xls`、`.csv`、`.txt`�
 Access 透過公司既有 Office 資料介面唯讀讀取一般資料表；`sheetName` 指選定資料表。`.xlsb` 不支援。
 一個 GL 或 TB 資料集可以追加多個欄位相同的檔案或工作表；這只會合併列，不會把兩份 TB 自動解讀成期初與期末。
 GL 與 TB 匯入成功回應的 `warnings` 為字串陣列。追加來源的實際檔名、工作表與列數都和某份既有來源相同時，
-提醒「可能已匯入過」，但本次照常提交；取代模式不提醒，不以預估列數判斷，也不把這個提醒當成去重功能。
-文字檔來源有用引號包住、內含換行的欄位時，每個來源再加一則提醒，寫出筆數與前五個列號，匯入照常完成；
+提醒檔名、工作表及筆數皆相同、已照常加入，請使用者確認是否重複匯入；取代模式不提醒，不以預估列數判斷，也不把這個提醒當成去重功能。
+文字檔來源有用引號包住、內含換行的欄位時，每個來源再加一則提醒，寫出列數與前五個列號，匯入照常完成；
 支援日誌另記一筆 `import.multiline_fields` 事件，只含來源序號、筆數與列號，不含檔名或內容。
 
 文字檔（`.csv`、`.txt`）照一般 CSV 讀法：只有欄位開頭的引號會被當成引號，欄位中間的引號（例如英吋符號）是一般字元，
@@ -281,9 +298,10 @@ GL 與 TB 匯入成功回應的 `warnings` 為字串陣列。追加來源的實�
 已保存配對仍保留。2026-09-22 使用者要求暫時移除從報告載入配對草稿的功能；
 前端入口及事件綁定已撤下，`mapping.restoreDraft` 暫留後端相容契約，操作設計待複盤。
 
-GL 的 `postDate` 在畫面顯示為「總帳入帳日」，用來界定案件期間；`voucherDate` 顯示為「傳票日期」，是
-回溯過帳判斷及一般日期條件使用的選填日期。`docDate` 對應「傳票核准日」及資料庫 `approval_date`，
-不是傳票日期的別名。完整對照見 `jet-guide.md` 第 2 節；action 欄位名稱、資料庫欄位與既有報告正準名不變。
+GL 的 `postDate` 在畫面顯示為「總帳日期」，用來界定案件期間。`docDate` 對應「傳票核准日」及資料庫 `approval_date`。
+2026-10-08 使用者裁定移除新版自行加入的傳票日期與回溯過帳規則，`mapping.commit.gl` 不再接受 `voucherDate`。
+舊案件已存的配對讀出時會略過 `voucherDate`，重開後的草稿與重新確認都不會帶上它。
+完整對照見 `jet-guide.md` 第 2 節；其他 action 欄位名稱與既有報告正準名不變。
 
 `mapping.commit.gl` 和 `mapping.commit.tb` 的 commit 指確認配對設定並建立標準資料，成功後畫面顯示
 「已確認配對」及時間，不稱為提交審計結論。成功回應才更新完成狀態；案件或來源已更換時，舊回應不得
@@ -292,10 +310,11 @@ GL 與 TB 都在投影資料的同一交易內保存配對與確認時間；任�
 匯入、配對、驗證、預篩選及篩選已完成資料保存後，案件步驟更新失敗只記錄 `workflow.milestone` 支援日誌，
 不把已完成的操作誤報失敗。這只適用附帶的步驟紀錄，不放寬審計結果或使用者修改案件資料的保存錯誤。
 
-GL 的 `side` 與 `flag` 金額模式都必填 `mapping.dcDebitCode` 和 `mapping.dcCreditCode`；兩者是字面代碼，不是來源欄名。
-前後空白修整後以 `OrdinalIgnoreCase` 比對，兩碼不得相同。來源借貸別空白或不符合任一代碼時，即使金額為零也以 `projection_failed` 列出來源列號，
-不把未知值當成貸方；金額或日期解析失敗時，GL、TB 投影都保留原有資料。TB 不新增貸方代碼欄。
-舊案已投影資料不自動重寫，重新確認 GL 配對才要求填齊兩碼。舊報告還原配對草稿若缺碼，明說回第三步填齊，不猜代碼或只還原一部分。
+GL 的 `side` 與 `flag` 金額模式共用判定，畫面合併為「金額與借貸別」，舊案件的兩種模式仍可讀取。
+`mapping.dcDebitCode` 與 `mapping.dcCreditCode` 至少填一個；兩者是字面代碼，不是來源欄名。前後空白修整後以 `OrdinalIgnoreCase` 比對。
+只填借方碼時，其餘全部值包含空白都算貸方；只填貸方碼時方向相反。兩側都有填時，兩碼不得相同，來源空白或不符合任一碼仍以 `projection_failed` 列出來源列號，零金額也相同。
+這是使用者 2026-10-08 第 6 則的裁定。金額或日期解析失敗時，GL、TB 投影都保留原有資料；TB 不新增貸方代碼欄。
+舊案已投影資料不自動重寫。重新確認 GL 配對才按目前設定投影；還原草稿接受有效的單邊代碼，但不猜另一側代碼，也不改寫已確認配對。
 千分位逗號只接受每組三位；括號可表示負數，不可再疊加正負號。GL、TB、RDE 金額與篩選運算值共用相同解析。
 Excel 序列值只接受 1900 到 2100 年，原生日期儲存格及 1904 日期制同樣檢查；明確西元或民國文字日期的原範圍不變，Access 原生日期不套 Excel 限制。
 年份在後的數字三段式日期不猜月日順序，帶時間也一樣拒絕。
@@ -335,14 +354,14 @@ SQL Server 的值概況目前仍區分大小寫，也尚未實作完整來源的
 GL 和 TB 都掃描完整來源來計算錯誤總數；每組只保留最多 10 個值、每值最多 10 個列號，原 `Errors` 樣本仍最多 50 列。
 TB 成功回應的 `warnings` 和 GL 一樣，必填文字欄整欄空白時提醒，但不阻擋確認。
 GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單代碼在來源裡一筆都沒有時，`warnings` 另加一則提醒，
-寫出代碼、來源欄、可能的後果與下一步；比對方式和投影相同，去掉頭尾空白、不分大小寫。逐值指定時不做這項檢查。
+寫出代碼、來源欄、有值的列會怎麼判定與下一步；比對方式和投影相同，去掉頭尾空白、不分大小寫。逐值指定時不做這項檢查。
 
 ### 資料驗證
 
 - `validate.run`
 
-驗證摘要另含 `documentDateReuse: { documentNumberCount, entryCount }`，計算納入測試的分錄中，同一非空白傳票號碼出現在兩個以上總帳入帳日的號碼數及分錄筆數。
-同月不同日也計入，空白號碼與未納入測試的分錄不計入；不改傳票比對鍵或既有驗證判定。兩個數字隨驗證摘要保存，重開案件不另掃母體。
+驗證摘要另含 `documentDateReuse: { documentNumberCount, entryCount }`，計算 GL 中，同一非空白傳票號碼出現在兩個以上總帳日期的號碼數及分錄筆數。
+同月不同日也計入，空白號碼與 GL(未納入測試) 不計入；不改傳票比對鍵或既有驗證判定。兩個數字隨驗證摘要保存，重開案件不另掃母體。
 第一步依有效摘要提醒，尚未驗證、缺欄或結果過期時顯示尚未確認，不把未知當零，也不阻擋後續操作。
 
 `completenessTest.eligibility.isEligible` 表示目前驗證結果可供後續操作使用，不代表完整性通過。
@@ -354,7 +373,7 @@ GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單�
 `completenessTest.partA` 等 action 回應欄位為既有資料形狀，不是使用者可見名稱。`partA.eligibleSource` 是確認 GL 欄位配對時
 逐列算出的數字，`partA.effectiveTarget` 是驗證時從存下的分錄重新計算的數字，兩者都不是來源檔本身的合計。
 畫面和錯誤分別說明「存下的分錄和確認配對時算出的是否一致」及「GL 與 TB 逐科目比對」，不顯示 Part A 或 Part B。`sourceQuality` 目前只有
-`nullPostDate`，表示總帳入帳日空白且不能界定案件期間的來源列；日期在期間外不是這個集合。
+`nullPostDate`，表示總帳日期空白且不能界定案件期間的來源列；日期在期間外不是這個集合。
 驗證的 INF 樣本、來源品質有界樣本與摘要由同一交易取得並保存，摘要寫入失敗會回滾本次樣本與失效狀態變更。
 後端不再把「存在 INF 樣本」視為已完成驗證的證據。
 
@@ -362,11 +381,13 @@ GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單�
 
 - `prescreen.run`
 
-`backdatedPosting` 與 `lowFrequencyPreparer` 和其他有選用來源的規則一樣，回傳 `status`、`naReason`、`count`。
-未配對傳票日期時回溯測試無法執行；未配對傳票建立人員時，人員彙總、編製分錄較少的人員及非授權人員測試無法執行。
+`lowFrequencyPreparer` 和其他有選用來源的規則一樣，回傳 `status`、`naReason`、`count`。
+未配對傳票建立人員時，人員彙總、編製分錄較少的人員及非授權人員測試無法執行。
 這些原因只影響相依規則，不阻擋其他程序；補回配對後重新驗證及預篩選即可。
-進階篩選選用回溯、編製分錄較少的人員或非授權人員條件時，也依目前配對指出必要來源缺漏，保留條件供修正，不能把無來源當成零筆。
-`rareAccounts.lowFrequencyAccountCount` 是完整分錄測試範圍內，出現 11 筆以下分錄的相異科目數，不是前 50 個科目摘要的列數。
+進階篩選選用編製分錄較少的人員或非授權人員條件時，也依目前配對指出必要來源缺漏，保留條件供修正，不能把無來源當成零筆。
+2026-10-08 使用者裁定移除回溯過帳，`prescreen.run` 不再回傳 `backdatedPosting`，`query.prescreenPage` 也不再接受這個規則鍵。
+舊情境含回溯過帳條件時，開案的規則版本檢查會列出這條條件已停用，審計員刪除這條條件後再儲存即可。
+`rareAccounts.lowFrequencyAccountCount` 是整個 GL 中，出現 11 筆以下分錄的相異科目數，不是前 50 個科目摘要的列數。
 原有 `rareAccounts.distinctAccountCount` 仍是全部相異科目數，`lowFrequencyAccount.count` 仍是命中的分錄筆數。舊結果缺少新欄位時，畫面說明尚未取得，不當成 0。
 編製者彙總仍使用既有的去空白、不分大小寫規則分組；空白組的資料值不改，只有畫面與報告將它顯示為「（空白）」。實際人員代碼恰為「（空白）」時，仍是另一組。
 `creatorSummary.creators` 最多 50 列；`creatorSummary.totalPreparerCount` 是查核期間的完整人數，空白人員組算一位，
@@ -376,11 +397,16 @@ GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單�
 ### 進階篩選
 
 - `filter.preview`
-- `filter.commit`
+- `filter.scenario.save`
+- `filter.scenario.remove`
+- `filter.scenario.recheck`
+- `filter.commit`：整批取代全部已存情境。正式畫面不再呼叫，留給程式化佈置與既有測試使用。
 
-2024 舊表 A–U 與五個填寫範例是前端的條件目錄，仍呼叫上述 action，使用既有 `groups` 和 `rules`。
-來源版本 `je-form-2024-1210` 及儲存格位置記於 `filter-legacy.js`；送出並儲存的是展開後的條件與使用者參數，
-不新增由後端解讀字母的通道，也不以 A–U 代號覆蓋 KCT 來源。目前篩選計算版本為 `filter-2026-10-06-v18`；
+第五步的欄位按鈕、常用查核條件與「從範例開始」都只在前端組出既有 `groups` 和 `rules`，再呼叫上述 action；
+送出並儲存的是展開後的條件與使用者參數，沒有新增規則型別或比較方式。2024 篩選表的 A 到 U 與五個填寫範例
+（來源版本 `je-form-2024-1210`）已從正式前端移除，目錄原文只留在測試夾具
+`src/JET/tests/JET.Tests/Fixtures/legacy-form-2024-1210.json`。後端不解讀這些代號，也沒有接收代號的通道，
+KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 空白傳票號碼與非營業日的裁定見[已歸檔的回饋計畫](history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md)第 7 批。
 
 ### 有界查詢
@@ -388,8 +414,13 @@ GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單�
 空值明細的 `query.nullRecordsPage` 保留類別、排序與游標契約；搜尋文字現在比對傳票號碼、科目編號或摘要，
 因此缺傳票號碼的資料也能搜尋。各類結果分別排序及分頁，同筆缺兩欄時在各類明細中各出現一次。
 
-- `query.dataPreview`（`dataset: "glEntries"` 的 `columns` 最後新增 `manualAuto`，對應值是 `manual`、`automatic` 或 null；
-  既有八欄及順序不變。`glExcludedEntries` 與 `filter.preview` 不加此欄。）
+- `query.dataPreview`（`dataset: "gl"` 的 `columns` 最後新增 `manualAuto`，對應值是 `manual`、`automatic` 或 null；
+  既有八欄及順序不變。`glExcluded` 與 `filter.preview` 不加此欄。）
+  使用者 2026-10-08 裁定資料名稱全系統統一，`dataset` 的值同步改名：`glStaging` 改為 `pbcGl`（PBC-GL），
+  `glEntries` 改為 `gl`（GL），`tbStaging` 改為 `pbcTb`（PBC-TB），`tbBalances` 改為 `tb`（TB），
+  `glExcludedEntries` 改為 `glExcluded`（GL(未納入測試)）。舊值不再接受，會回 `InvalidPayload`。
+  `accountMappings`、`authorizedPreparers`、`dateDimension`、`schemaOverview` 不變。
+  `dataset: "gl"` 的 `gl` 和匯入批次 `dataset_kind` 的 `gl` 同字不同義，後者仍指 GL 或 TB 這一類匯入資料。
 - `query.completenessDiffPage`
 - `query.docBalancePage`
 - `query.nullRecordsPage`
@@ -414,8 +445,9 @@ GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單�
 綁定案件、來源資料版本、情境版本、查詢種類及排序搜尋。來源或情境變更後，即使已重新計算完成，舊游標
 也必須從第一頁重新載入，不能把兩代結果接起來。最後一個情境被刪除時，首次查詢可以回空集合，舊續頁
 則回 `stale_result`。無法辨識的游標也要求回第一頁；資料庫 keyset 排序與 action 欄位形狀不變。
-上游修改清除全部情境後，`query.filterHitsPage`、指定已存情境的傳票查詢、條件篩選報告與底稿匯出回 `stale_result`，
-訊息說明目前沒有已儲存的篩選情境，請到「進階條件篩選」設定並儲存後再執行；標籤矩陣三個查詢的首頁照舊回空集合。
+上游修改清除全部情境後，`query.filterHitsPage`、指定已存情境的傳票查詢、條件篩選報告與底稿匯出回 `no_saved_scenario`，
+訊息是「尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境」；標籤矩陣三個查詢的首頁照舊回空集合。
+前端把這個錯誤碼當成前置條件不足，寫成「〈作業名稱〉尚無法執行：〈原因〉。」，不附耗時（使用者 2026-10-14 第三輪勾選頁確認）。
 
 四個既有篩選結果查詢以持久化失效旗標判斷是否需要補算，零筆與搜尋無結果不再觸發寫入。只有實際
 失效的首頁需要既有寫入鎖；一般讀取前後核對資料、情境及案件，避免切換期間回傳混合結果。
@@ -456,24 +488,24 @@ GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單�
 回應另有欄位 metadata `columns`，明細的攸關資料元素欄位值在 `customValues`。展開必須帶 `queryRevision`。
 游標綁定條件與資料版本，過期回 `stale_result`，審計員重新預覽即可。查詢不保存草稿，不改寫已存命中。
 
-**條件目錄（2026-09-07 收斂後）。** 情境是 `{ name, rationale, groups[], editorOrigins? }`，每組
-`{ join, matchScope, rules[] }`：`join` 為 `AND` 或 `OR`；`matchScope` 為 `row`（同一分錄）或
-`sameVoucher`（同一傳票，只允許 AND，至少兩條，第一條是輸出錨點）。每條規則帶 `type` 與 `join`，
+**條件目錄。** 情境是 `{ name, rationale, groups[], editorOrigins? }`，每組
+`{ join, matchScope?, rules[] }`：`join` 為 `AND` 或 `OR`；`matchScope` 只能省略或為 `row`。
+傳票層判斷用 `voucher` 子條件，舊 `sameVoucher` 不再接受預覽或儲存。每條規則帶 `type` 與 `join`，
 其餘欄位依型別：
 
 | `type` | wire 欄位 | 允許值與說明 |
 |:---|:---|:---|
-| `fieldValue` | `field` 或 `fieldId` 擇一、`operator`、`value`、`values`、`from`、`to`、`includeBlank`、`amountBasis`、`drCr` | 文字：`equals`、`notEquals`、`contains`、`notContains`、`startsWith`、`notStartsWith`、`endsWith`、`notEndsWith`、`in`、`notIn`、`isBlank`、`isNotBlank`；日期：`on`、`notEquals`、`before`、`onOrBefore`、`after`、`onOrAfter`、`between`、`notBetween`、`in`、`notIn`、`dayOfMonthIn`、`dayOfMonthNotIn`、`isBlank`、`isNotBlank`；金額：`equals`、`notEquals`、`greaterThan`、`greaterThanOrEqual`、`lessThan`、`lessThanOrEqual`、`between`、`notBetween`、`in`、`notIn`、`isBlank`、`isNotBlank`。`contains` 的 `values` 可放多個關鍵字（任一命中），`notContains` 是它的否定（一個都不含）；`dayOfMonthIn`、`dayOfMonthNotIn` 的 `values` 是 1 到 31 的整數，重複自動合併；`includeBlank` 省略時一律 false（空白不列入）；金額 `amountBasis` 為 `absolute`（預設）或 `signed` |
+| `fieldValue` | `field` 或 `fieldId` 擇一、`operator`、`value`、`values`、`from`、`to`、`includeBlank`、`amountBasis` | 文字：`equals`、`notEquals`、`contains`、`notContains`、`startsWith`、`notStartsWith`、`endsWith`、`notEndsWith`、`in`、`notIn`、`isBlank`、`isNotBlank`；日期：`on`、`notEquals`、`before`、`onOrBefore`、`after`、`onOrAfter`、`between`、`notBetween`、`in`、`notIn`、`dayOfMonthIn`、`dayOfMonthNotIn`、`isBlank`、`isNotBlank`；金額：`equals`、`notEquals`、`greaterThan`、`greaterThanOrEqual`、`lessThan`、`lessThanOrEqual`、`between`、`notBetween`、`in`、`notIn`、`isBlank`、`isNotBlank`。`contains` 的 `values` 可放多個關鍵字（任一命中），`notContains` 是它的否定（一個都不含）；`dayOfMonthIn`、`dayOfMonthNotIn` 的 `values` 是 1 到 31 的整數，重複自動合併；`includeBlank` 省略時一律 false（空白不列入）。核心金額的 `amountBasis` 只接受 `absolute` 或省略；額外數值欄位仍可用 `signed` |
 | `entityFrequency` | `field`、`countUnit`、`countOperator`、`countFrom`、`countTo` | `field` 為 `accNum`、`createBy` 或 `approveBy`；單位為 `entries` 或 `vouchers`；比較為 `equals`、`lessThan`、`greaterThan`、`between`、`lessThanOrEqual` 或 `greaterThanOrEqual`。門檻為非負整數，`between` 含兩端。依分錄測試範圍計算，空白識別值不命中；傳票張數同號只算一張，不計空白號碼 |
-| `accountSide` | `drCr`、`categoryMode`、`categoryIds[]` | `drCr` 為 `debit`、`credit` 或 `any`（不限借貸）；`categoryMode` 為 `is`（科目屬於）、`isNot`（科目不屬於）、`absent`（整張傳票的這一側都不屬於）；需要案件已匯入科目配對。分類留白的科目依 legacy 視為 `builtin.others`，不在配對檔的科目不屬於任何分類 |
+| `accountSide` | `categoryMode`、`categoryIds[]` | `categoryMode` 為 `is`（科目屬於）或 `isNot`（科目不屬於），不帶 `drCr`；需要案件已匯入科目配對。分類留白的科目依 legacy 視為 `builtin.others`，不在配對檔的科目不屬於任何分類 |
 | `specialAccountCategoryPair` | `pairMode`、`debitCategoryIds[]`、`creditCategoryIds[]` | `drAndCr`（借方是 A 且貸方是 B）、`drNotCr`（借方是 A 且整張傳票沒有 B 貸方）、`notDrCr`（貸方是 B 且整張傳票沒有 A 借方） |
 | `accountPair` | `pairMode`、`debitCategoryIds[]`、`creditCategoryIds[]` | `exact`（舊情境讀回用，不再新建）、`debitAnchor`（借方是 A，看它的對方科目）、`creditAnchor`（貸方是 B，看它的對方科目） |
 | `prescreen` | `prescreenKey` | 預篩選規則鍵 |
-| `text`、`textSet`、`customKeywords` | `keywords`（逗號分隔）、`mode`、`values[]`、`normalization` | `mode` 為 `contains`、`exact`、`notContains`、`notExact`；`textSet` 舊情境讀回用 |
+| `text`、`textSet` | `keywords`（逗號分隔）、`mode`、`values[]`、`normalization` | `mode` 為 `contains`、`exact`、`notContains`、`notExact`；舊情境讀回與編輯用，不提供新建 |
 | `numRange`、`dateRange` | `field`、`from`、`to` | 金額以顯示值字串，日期為 ISO 字串；區間含兩端 |
 | `drCrOnly`、`manualAuto` | `drCr`、`isManual` | `debit` 或 `credit`；布林 |
-| `customTrailingZeros`、`customPreparerEntryCount`、`customAccountEntryCount`、`revenueDebitNearQuarterEnd` | `digits`、`maxEntries`、`windowDays` | 整數門檻，範圍由 Domain 驗證 |
-| `revenueWithoutNormalCounterpart`、`manualRevenueEntry`、`trailingDigits`、`preparerEqualsApprover` | 無 | 固定規則 |
+| `customPreparerEntryCount`、`customAccountEntryCount`、`revenueDebitNearQuarterEnd` | `maxEntries`、`windowDays` | 整數門檻，範圍由 Domain 驗證；兩種自訂筆數條件只供舊情境讀回與編輯 |
+| `revenueWithoutNormalCounterpart`、`manualRevenueEntry`、`preparerEqualsApprover` | 無 | 固定規則 |
 | `typed` | `fieldId`、`operator`、`value`、`values`、`from`、`to`、`amountBasis` | 2026-08-14 凍結的攸關資料元素欄位條件，契約不變 |
 
 `fieldValue` 日期另支援 `isWeekend`、`isHoliday`、`isMakeupDay`、`isNonBusinessDay` 及各自的 `isNot…` 否定形式，
@@ -481,10 +513,9 @@ GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單�
 日期另支援 `monthStartDays`、`notMonthStartDays`、`monthEndDays`、`notMonthEndDays`，`value` 是
 1 到 31 的整數字串，不同時帶清單或區間。範圍包含月初或月底當天，超過該月天數時涵蓋全月，
 核心與額外日期欄位都可使用。否定不納入空白，除非 `includeBlank` 明示為 true。
-所有 `fieldValue` 可另帶 `drCr: "debit" | "credit"`；省略時不限方向，其他拼法、空字串或非字串會回報無效條件。
-借貸別使用既有標準化 `dr_cr`，
-與欄位條件在同一筆分錄上判斷，包含空白條件和否定條件。在 `sameVoucher` 組內仍由第一條決定命中列，
-後續每條各自在同一傳票尋找符合列；不把多條欄位條件自動綁成同一筆佐證分錄。
+借貸方向只由 `drCrOnly` 表達，使用既有標準化 `dr_cr`。需要和欄位值由同一筆分錄符合時，
+以 `group` 組合方向與欄位條件。要保留舊 `sameVoucher` 的命中方式，第一條留在一般組，
+其餘各條分別放進 `quantifier: "any"` 的 `voucher`；不同條件仍可由同張傳票的不同分錄符合。
 金額另支援 `endsWithDigits`、`notEndsWithDigits`，`value` 為逗號分隔尾數，最多 100 組、每組最多 12 位。
 比較整數部分的絕對值，不看正負或小數，保留前導零的位數；核心欄位與攸關資料元素欄位共用相同規則。
 
@@ -498,18 +529,29 @@ GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單�
 2026-09-18 新增欄位內的借貸方向限制及每月月初、月底天數後，篩選版本為 `filter-2026-09-18-v15`。
 加入條件括號、傳票量詞與分類階層時的篩選版本為 `filter-2026-09-18-v16`。
 2026-10-04 落實空白號碼不屬於任何傳票的裁定，篩選版本推進為 `filter-2026-10-04-v17`，預篩選版本為 `prescreen-2026-10-04-v9`。
-2026-10-06 KCT 條件 A 加入查核期末視窗，現行篩選版本為 `filter-2026-10-06-v18`。舊命中需重新計算，預篩選版本維持不變。
+2026-10-06 KCT 條件 A 加入查核期末視窗，篩選版本推進為 `filter-2026-10-06-v18`。舊命中需重新計算，預篩選版本維持不變。
+2026-10-08 使用者裁定移除傳票日期與回溯過帳，當時篩選版本為 `filter-2026-10-08-v19`，預篩選版本推進為 `prescreen-2026-10-08-v10`。
+舊預篩選結果視為過期，需重新執行預篩選。
+2026-10-14 篩選條件改為每條只表達一件事，現行篩選版本為 `filter-2026-10-14-v20`。已停用的寫法列為待修正，定義不自動轉換。
 日期運算值沿用 GL 匯入的 `DateNormalizer` 與案件 `DateParseOptions`，從預覽、儲存到重開及匯出都使用同一選項。
 摘要關鍵字、尾數、人員代號與科目編號的文字輸入接受換行、半形與全形逗號、頓號及 Tab；已送成 `values` 陣列的文字值不再拆逗號。
 「包含任一文字」依實際送出的清單計算 100 個上限，修剪前後空白後仍區分大小寫，不拿不分大小寫的摘要筆數代替。
+KCT E、F、G、H 分別使用人員、摘要與金額的 `fieldValue`，卡片來源仍保存於 `editorOrigins`。
+超過 100 個值時回報拆成多條並放進「任一符合」子條件組；否定清單則使用「全部符合」。
 條件驗證訊息以「第 N 組第 M 條」指出位置；`FilterScenarioErrorDetails` 同時接受這個寫法與舊訊息，保留逐列錯誤定位。
 
 規則新增 `type: "group"` 和 `type: "voucher"`，兩者以 `rules` 保存子規則。`group` 的欄位條件綁定同一筆分錄；
-各層的 `join` 仍依原有順序左折疊，最多巢狀八層。`voucher` 必填 `side: "all" | "debit" | "credit"`
-及 `quantifier: "any" | "all" | "none"`。子條件先在每筆分錄上計算，`all` 額外要求範圍內至少有一筆。
-`voucher` 內可有 `group`，不可再嵌另一個 `voucher`。沒有該側分錄時只有 `none` 成立。
-空白傳票號碼對三種量詞與 `accountSide` 的 absent 模式一律不成立；KCT C 和 unexpectedAccountPair 也不命中空白號碼的收入貸方。
-舊 `row`、`sameVoucher` 和省略新欄位的情境維持原語意。
+各層的 `join` 仍依原有順序左折疊，最多巢狀八層。`voucher` 必填 `quantifier: "any" | "all" | "none"`，不帶 `side`。
+子條件先在每筆分錄上計算，`all` 額外要求整張傳票至少有一筆。`voucher` 內可有 `group`，不可再嵌另一個 `voucher`。
+空白傳票號碼對三種量詞一律不成立；KCT C 和 unexpectedAccountPair 也不命中空白號碼的收入貸方。
+原分類的 `absent` 改以 `voucher` 的 `none` 組合 `drCrOnly` 與分類 `is`。
+原本限定某側的 `all` 若改成 `none` 加上該側與反向條件，沒有該側分錄時會由不成立變成成立；
+要保留原結果，須再加一個 `any` 確認該側至少有一筆，並留意空白值是否列入反向條件。
+
+已停用的寫法包括 `sameVoucher`、欄位附帶借貸方向、分類附帶方向或 `absent`、傳票附帶 `side`、核心金額 `signed`，
+以及 `customKeywords`、`customTrailingZeros`、`trailingDigits`。預覽或儲存回 `invalid_scenario`，原因指出位置與替代操作。
+開案時經既有待修正檢查列出問題，保留原定義，不自動轉換。舊格式仍可解析與如實讀回，不能當成現行可儲存的格式。
+`customTrailingZeros` 的替代條件是同組的金額尾數與絕對值至少 1 元，維持整數部分為零不命中的結果。
 
 `accountSide`、`accountPair` 和 `specialAccountCategoryPair` 的 `categorySelection` 可選 `role`、`node`、`subtree`，
 依序表示相同分類用途、僅分類本身、分類及所有下層。借貸組合的兩側使用同一選取方式；兩側要各自選取時可組合單側條件。
@@ -524,8 +566,47 @@ GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單�
 `accountTaxonomy.save` 要刪除的自訂分類若仍有科目配對使用，回 `taxonomy_category_in_use`，整次儲存不生效，
 訊息請審計員先把這些科目改到其他分類。分類只被已存篩選情境使用時不再擋下刪除，因為這次儲存會一併清掉情境。
 
-`filter.preview` 和草稿傳票查詢只檢查條件有效性，不要求名稱或動機；`filter.commit` 才要求自訂情境的
+`filter.preview` 和草稿傳票查詢只檢查條件有效性，不要求名稱或動機；`filter.scenario.save` 與 `filter.commit` 才要求自訂情境的
 名稱與動機，KCT 沿用原有例外。驗證失敗回 `invalid_scenario`，`error.details` 帶每一條的位置與原因。
+只有存檔內容損毀或程式送錯資料才會出現的錯誤，`message` 與 `details[].message` 一律是「此條件內容有誤，無法儲存。請刪除此條件後重新設定。」，
+能歸屬到條件時帶組號與條號，不能歸屬時兩者為 null；原本的檢查只以程式寫死的英文代號記進支援日誌的
+`filter.scenario_unreadable` 事件（`action`、`scenario_position`、`group_no`、`rule_no`、`reason_code` 欄），不含情境名稱或條件內容。
+開案與一次處理一個情境時列出的待修正原因若有這類損毀，也記同一個事件。
+通過驗證後，篩選條件編譯時的檢查仍沒過，只會是程式錯誤。這時回 `invalid_scenario`，`message` 是
+「發生非預期的錯誤，此操作未完成。請再試一次。」；檢查代號與位置記進支援日誌的 `filter.compile_check_failed` 事件
+（`action`、`group_no`、`rule_no`、`compile_check` 欄），不含欄位名稱或輸入值（使用者 2026-10-14 第三輪勾選頁確認）。
+
+第五步一次只存或刪一個情境（使用者 2026-10-13 對「情境卡住」選「本計畫內修好」）。三個 action 的 payload：
+
+```text
+filter.scenario.save    { position: int | null, expectedName?: string, scenario: {…}, populationScope?: "auditPeriod" }
+filter.scenario.remove  { position: int, expectedName: string, populationScope?: "auditPeriod" }
+filter.scenario.recheck { populationScope?: "auditPeriod" }
+```
+
+`position` 是畫面清單上的第幾個（從 1 起算）；`save` 傳 null 表示新增或另存副本，加在清單最後。給了 `position`
+就必須帶 `expectedName`，也就是畫面上那個情境目前的名稱，後端用它確認畫面清單和資料庫是同一個情境。`scenario` 的形狀與
+`filter.preview` 相同。其他已存情境由後端從資料庫讀出、照原樣寫回，不經畫面重組，也不用儲存規則重新檢查；
+只有這次儲存的那一個用儲存規則檢查。`recheck` 不帶情境：能套用目前規則的情境改用目前規則，不能套用的照原樣保留並列在回應裡，
+不會整批失敗。
+
+三個 action 的回應相同：
+
+```text
+{ ok, position, savedCount, scenarios, resultRef, filterScenarioCheck, staleState }
+```
+
+`position` 是這次存下的那一個的位置，移除與重新檢查為 null。`scenarios` 與 `project.load.filterScenarios` 同形狀。
+寫入後全部情境都符合目前規則時，定義與命中一起發布，篩選結果不再過期，`filterScenarioCheck.status` 為 `current`，
+`resultRef` 帶新的 revision；清單空了時 `resultRef` 為 null。還有情境不符合時只寫定義、清掉命中，`status` 為 `needsEdit`，
+`resultRef` 為 null，矩陣、命中查詢、條件篩選報告與第六步照樣回 `stale_result`。`recalculatedCount` 是這次順帶改用目前規則的
+其他情境數。`staleState` 是寫入後讀出的結果狀態。每次寫入都把全部情境重新編號為 1 到 n，並換成同一個保存時間。
+
+錯誤：缺 `scenario`、`position` 不是正整數或 null、給了 `position` 卻缺 `expectedName` 時回 `invalid_payload`；
+`position` 超出清單或 `expectedName` 和資料庫那一筆不同時回 `stale_result`，不寫入；新增時已有 10 個情境回
+`scenario_limit_reached`；條件不合格或名稱和其他情境重複時回 `invalid_scenario`。驗證結果不是目前的、GL 欄位配對未確認時，
+回應與 `filter.commit` 相同。失敗時資料庫不變。三個 action 都是變更型，同一時間只有一項變更作業。
+SQL Server 沿用同一套整批寫入的資料庫實作，沒有新的 SQL；這部分只經過編譯，沒有實機執行。
 
 情境可帶 `editorOrigins: { version: 1, legacyKctSource?: boolean, nameIsAutomatic?: boolean, rationaleIsAutomatic?: boolean, groups: [{ letters: [...] }] }`。
 每個 group 和 letters 的長度及位置對應原條件；letters 為 A–J 字母或 null。它只還原 KCT 卡片，
@@ -542,7 +623,6 @@ GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單�
 - `export.prescreenReport`
 - `export.criteriaSelectionReport`
 - `export.workpaperStream`
-- `export.calendarTemplates`
 - `export.accountMappingTemplate`
 
 `export.validationArtifacts` 只發布 Validation Report 與 INF Report 兩份，同名檔覆蓋。
@@ -566,17 +646,12 @@ true 表示只在檔案不存在時建立，最後發布時也不覆蓋稍後出
 四個報告匯出 action 的回應另提供完整 `reportArtifacts`，供前端同步容量整理後的清單；原有 `artifact`
 或 `artifacts` 仍只表示這次發布的報告。發布成功後，清單刷新是可省略的呈現工作，不是另一個發布條件。
 可恢復的清單讀取失敗或 3 秒內未完成時，仍回 `ok: true` 及本次產物，`reportArtifacts: null`，另回
-`reportArtifactWarning`。前端保留原清單並加入本次產物，在旁邊提示可開啟案件資料夾，無須重新產生。
+`reportArtifactWarning`。前端保留原清單並加入本次產物，在旁邊提示「檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。」。
 清單之後讀取成功就清除該暫時提示；不得將 null 當成空清單，也不把程式錯誤偽裝成成功。
 清單即將超過 4,096 筆時，只移除已確認檔案不存在的底稿紀錄。
 產生內容後、正式發布前會再次確認，途中被放回或無法確認的檔案仍保留。若仍超限，本次不發布新檔，
 使用者可自行整理不需要的舊底稿後重試。
 2026-09-02 以前的 `report.cleanupPreview`／`report.cleanupConfirm` 已移除。
-
-`export.calendarTemplates` 接受空物件，須有作用中案件，回傳 `{ files: [{ fileName, disposition }] }`。
-兩個固定檔名是 `Holiday2025TW.xlsx` 與 `MakeUpDay2025TW.xlsx`；`disposition` 為 `created` 或 `kept`。
-只在案件資料夾缺檔時複製，已有檔案保留，不匯入、不建立報告紀錄，也不自動開啟資料夾。
-中途失敗或取消時，已完成的檔案保留，重試會略過它，不留下未完成的暫存檔。
 
 ### 訊息、原生視窗與開發工具
 
@@ -596,10 +671,22 @@ true 表示只在檔案不存在時建立，最後發布時也不覆蓋稍後出
 任意路徑。第四、第五與第六步的報告入口共用 `artifactId`，由後端在目前案件解析檔案並交給檔案總管選取。過期的
 Working Paper 仍可定位；檔案已移動或刪除時回傳 `artifact_not_found`，不開啟其他位置。
 
-`support.log.export` 在 Release 與 Debug 都可用。輸入 `{ projectId, correlationId? }`；只從有界記憶體
+`support.log.export` 在 Release 與 Debug 都可用。輸入 `{ projectId?, correlationId? }`。有 `projectId` 時只從有界記憶體
 取出該案件的 allowlist 事件，若有 correlation 則再縮成該次操作。內容在進入 buffer 前就已去識別：
 不保存 SQL、參數值、檔名、絕對路徑、案件名稱或原始 exception message。輸出固定為案件目錄內的
 `JET-support-*.txt`，每行一個 JSON；案件目錄不存在或是 reparse point 時直接失敗，不改寫到其他位置。
+省略 `projectId` 時是一般工具，不需要先開案件：匯出記憶體裡目前保留的全部去識別紀錄，忽略 `correlationId`，
+寫到 `%LOCALAPPDATA%\JET\logs\`，檔名同樣是 `JET-support-*.txt`，回應的 `scope` 為 `all`，仍回傳 `filePath` 與 `lineCount`。
+有 `projectId` 時 `scope` 為 `project` 或 `correlation`，行為不變（使用者 2026-10-13 選「從錯誤框拿掉，改成一般工具」）。
+畫面上，訊息面板的「輸出支援日誌」帶目前案件的 `projectId`；案件清單操作列的「輸出支援日誌」送 `{}`。
+
+畫面照正常操作送不出、只有前端送錯資料時才會被後端拒絕的格式檢查，例如 `mapping.commit.gl` 的 `amountMode`、
+`rdeFields` 或 `postingStatusPolicy` 形狀不對，錯誤碼不變（`invalid_payload` 或 `unsupported_mode`），
+訊息改為非預期錯誤的同一句「發生非預期的錯誤，此操作未完成。請再試一次。」。沒過的是哪一項檢查，
+只以程式寫死的英文代號記進支援日誌的 `action.payload_rejected` 事件（`payload_check` 欄），不含資料內容、
+本機路徑或來源欄名。`system.databaseInfo` 連不上 SQL Server 時，摘要不附原因，錯誤類別或錯誤碼只記進
+支援日誌的 `sql_server.unreachable` 事件（`failure_category` 欄）；沒有設定 SQL Server 時 `summary` 為空字串，
+畫面不加訊息。
 診斷匯出不要求案件已載入，也不解析 `project.json`；設定損壞或遺失時仍可將該次載入錯誤匯出到既有案件目錄。
 兩種日誌匯出都使用請求的案件 ID 定位，不使用設定檔內的 ID 改變目的地；非法 ID 或不存在的目錄回 `project_not_found`。
 

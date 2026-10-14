@@ -1,8 +1,8 @@
 /*
   資料預覽（正式版功能；query.dataPreview）。
   讓使用者隨時看到目前操作的資料長什麼樣子：
-  - 欄位配對時對照「欄名 ↔ 實際內容」（來源原貌資料集）
-  - 進階篩選前掌握數值/日期/摘要的大概樣貌（標準化後資料集 + 概況統計）
+  - 欄位配對時對照「欄名 ↔ 實際內容」（PBC-GL、PBC-TB）
+  - 進階篩選前掌握數值/日期/摘要的大概樣貌（GL、TB 與概況統計）
   有界預覽（≤50 列 + 總列數），絕不載入完整母體；權威計算一律在後端。
 
   第二波呈現層：常駐右欄面板（頁籤切換資料表＋橫向捲動表格）。
@@ -22,14 +22,14 @@
   var Store = global.JetStore;
   var Ui = global.JetUi;
 
-  // wire key → 顯示標籤。直接頁籤逐字鏡射 Domain DataPreviewDatasetLabels；
-  // DATASETS 的選單與載入狀態使用相同的業務名稱。
+  // wire key → 顯示標籤。DATASETS 逐字鏡射 Domain DataPreviewDatasetLabels.All，MAIN_TABS 逐字鏡射 .MainTabs；
+  // 使用者 2026-10-08 裁定資料名稱全系統統一，改名時兩邊一起改。
   var DATASETS = [
-    { value: 'glStaging', label: 'GL 原始資料' },
-    { value: 'tbStaging', label: 'TB 原始資料' },
-    { value: 'glEntries', label: '納入測試的分錄' },
-    { value: 'glExcludedEntries', label: '未納入測試的分錄' },
-    { value: 'tbBalances', label: '已確認配對的試算表' },
+    { value: 'pbcGl', label: 'PBC-GL' },
+    { value: 'pbcTb', label: 'PBC-TB' },
+    { value: 'gl', label: 'GL' },
+    { value: 'glExcluded', label: 'GL(未納入測試)' },
+    { value: 'tb', label: 'TB' },
     { value: 'accountMappings', label: '科目配對' },
     { value: 'authorizedPreparers', label: '授權編製人員清單' },
     { value: 'dateDimension', label: '行事曆（假日與補班日）' },
@@ -39,10 +39,10 @@
   // 受查者提供資料（PBC）與標準化資料成對直接呈現；科目配對是驗證步驟的主要工作資料，
   // 同樣保持直接可見，避免步驟按鈕換位後只亮「其他資料」而看不出目前資料集。
   var MAIN_TABS = [
-    { value: 'glStaging', label: 'GL 原始資料' },
-    { value: 'glEntries', label: '納入測試的分錄' },
-    { value: 'tbStaging', label: 'TB 原始資料' },
-    { value: 'tbBalances', label: '已確認配對的試算表' },
+    { value: 'pbcGl', label: 'PBC-GL' },
+    { value: 'gl', label: 'GL' },
+    { value: 'pbcTb', label: 'PBC-TB' },
+    { value: 'tb', label: 'TB' },
     { value: 'accountMappings', label: '科目配對' }
   ];
 
@@ -55,7 +55,7 @@
   var COLUMN_LABELS = {
     documentNumber: '傳票號碼',
     lineItem: '項次',
-    postDate: '總帳入帳日',
+    postDate: '總帳日期',
     accountCode: '科目編號',
     accountName: '科目名稱',
     documentDescription: '摘要',
@@ -82,25 +82,25 @@
   // dateDimension 的 dayType 原值（holiday/makeup）→ 中文顯示
   var DAY_TYPE_LABELS = { holiday: '假日', makeup: '補班' };
 
-  // 未納入分錄測試範圍的原因（後端 closed wire value）→ 中文顯示；未登錄值原樣呈現。
+  // GL(未納入測試) 的排除原因（後端 closed wire value）→ 中文顯示；未登錄值原樣呈現。
   var EXCLUSION_REASON_LABELS = { period: '日期不符', postingStatus: '過帳狀態不符' };
 
   // 純顯示層的 cell 改寫（不改後端語意）：dayType 原值轉中文；會計金額欄一律走 Ui.money（兩位小數加千分位）。
   function displayCell(dataset, column, cell) {
     if (cell === null) { return null; }
-    if (dataset === 'glEntries' && column === 'manualAuto') { return { manual: '人工', automatic: '自動' }[cell] || cell; }
+    if (dataset === 'gl' && column === 'manualAuto') { return { manual: '人工', automatic: '自動' }[cell] || cell; }
     if (dataset === 'dateDimension' && column === 'dayType') {
       return DAY_TYPE_LABELS[cell] || cell;
     }
     // 標準化資料集的會計金額欄（GL amount、TB changeAmount）一律兩位小數加千分位，與左側篩選預覽同一 Ui.money 呈現。
-    // 明確綁定資料集＋欄 id：原貌（glStaging）用來源欄名保真呈現、其數值欄可能是項次等非金額，故不套此格式，
+    // 明確綁定資料集＋欄 id：PBC-GL（pbcGl）用來源欄名保真呈現、其數值欄可能是項次等非金額，故不套此格式，
     // 也不會因某來源欄剛好叫 amount 而誤中。
-    if (dataset === 'glExcludedEntries' && column === 'exclusionReason') {
+    if (dataset === 'glExcluded' && column === 'exclusionReason') {
       return EXCLUSION_REASON_LABELS[cell] || cell;
     }
-    if ((dataset === 'glEntries' && column === 'amount') ||
-        (dataset === 'glExcludedEntries' && column === 'amount') ||
-        (dataset === 'tbBalances' && column === 'changeAmount')) {
+    if ((dataset === 'gl' && column === 'amount') ||
+        (dataset === 'glExcluded' && column === 'amount') ||
+        (dataset === 'tb' && column === 'changeAmount')) {
       return Ui.money(cell);
     }
     return cell;
@@ -115,7 +115,7 @@
 
   var RESIZE_MIN = 300; // 最窄可拖到的寬度（再窄請用收合鈕）；預設 436、上限依視窗推算。
 
-  var activeDataset = MAIN_TABS[0].value; // 預設受查者提供的 GL 原始資料
+  var activeDataset = MAIN_TABS[0].value; // 預設 PBC-GL
   var menuOpen = false;                   // 「其他資料」選單是否展開
   var compactMediaQuery = null;           // 半屏模式的唯一 viewport 判定
   var autoCollapsed = false;              // 只有系統收合者，回到寬螢幕才自動恢復
@@ -138,7 +138,7 @@
     if (elBody) {
       elBody.removeAttribute('aria-busy');
       elBody.removeAttribute('data-preview-state');
-      elBody.innerHTML = '<p class="data-preview__hint">正在切換專案；新案件資料載入後會自動更新預覽。</p>';
+      elBody.innerHTML = '<p class="data-preview__hint">正在切換案件，新案件的資料載入後會自動更新預覽。</p>';
     }
     if (elNote) { elNote.innerHTML = ''; }
     syncTabs();
@@ -434,7 +434,7 @@
       '<span class="data-preview__more">' +
         '<button type="button" class="data-preview__tab data-preview__tab--more' + (moreActive ? ' is-active' : '') +
           '" data-more-toggle aria-haspopup="menu" aria-controls="data-preview-other-menu" aria-expanded="' +
-          (menuOpen ? 'true' : 'false') + '">其他資料 ▾</button>' +
+          (menuOpen ? 'true' : 'false') + '">其他資料</button>' +
         '<div class="data-preview__menu" id="data-preview-other-menu" role="menu"' +
           (menuOpen ? '' : ' hidden') + '>' + menuHtml + '</div>' +
       '</span>';
@@ -514,7 +514,7 @@
       loadedOnce = false; // 尚無專案，等有專案再由訂閱者自動載入一次
       if (elBody) {
         clearPreviewRequestState();
-        elBody.innerHTML = '<p class="data-preview__hint">尚未建立或載入專案；建立或載入專案後即可預覽資料。</p>';
+        elBody.innerHTML = '<p class="data-preview__hint">尚未開啟案件。開啟案件後即可預覽資料。</p>';
       }
       if (elNote) { elNote.innerHTML = ''; }
       return;
@@ -611,7 +611,7 @@
   }
 
   // 底部註記：左＝真實列數／欄數（不寫死示意數字），右＝橫向捲動提示；
-  // glEntries 有概況統計時另補一列（供進階篩選前把關數值／日期區間）。
+  // GL 有概況統計時另補一列（供進階篩選前把關數值／日期區間）。
   function renderNote(data) {
     if (!elNote) { return; }
     if (!data) { elNote.innerHTML = ''; return; }
@@ -621,8 +621,8 @@
     var cols = (data.columns && data.columns.length) || 0;
     var count = '前 ' + shown + ' 列，共 ' + total + ' 列，全 ' + cols + ' 欄';
 
-    // stats 的形狀依資料集而異，由後端決定：標準化分錄回金額／日期／傳票概況，
-    // 未納入本次測試的分錄回兩類排除計數。畫面只複述既有欄位，不跨資料集猜欄位。
+    // stats 的形狀依資料集而異，由後端決定：GL 回金額、日期與傳票概況，
+    // GL(未納入測試) 回兩類排除計數。畫面只複述既有欄位，不跨資料集猜欄位。
     var statsHtml = '';
     if (data.stats && data.stats.excludedByPeriodCount != null) {
       statsHtml = '<div class="data-preview__stats">' + Ui.esc(
@@ -633,7 +633,7 @@
       var parts = ['金額（絕對值）' + Ui.money(data.stats.amountAbsMin) +
         ' ～ ' + Ui.money(data.stats.amountAbsMax)];
       if (data.stats.postDateMin) {
-        parts.push('總帳入帳日 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
+        parts.push('總帳日期 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
       }
       parts.push('傳票 ' + Number(data.stats.voucherCount).toLocaleString() + ' 張');
       statsHtml = '<div class="data-preview__stats">' + Ui.esc(parts.join(' ｜ ')) + '</div>';
@@ -649,12 +649,12 @@
 
   function emptyHint(dataset) {
     switch (dataset) {
-      case 'glExcludedEntries':
-        return '目前沒有未納入測試的分錄：已確認配對的分錄均已納入本次測試。';
-      case 'glStaging': return '尚未匯入 GL 資料；完成「匯入資料」後即可預覽來源原貌。';
-      case 'tbStaging': return '尚未匯入 TB 資料；完成「匯入資料」後即可預覽來源原貌。';
-      case 'glEntries': return '總帳明細尚未確認配對；確認配對後即可預覽納入測試的分錄。';
-      case 'tbBalances': return '試算表尚未確認配對；確認配對後即可預覽。';
+      case 'glExcluded':
+        return 'GL(未納入測試) 目前沒有分錄：確認 GL 欄位配對後的分錄都已列入 GL。';
+      case 'pbcGl': return '尚未匯入 PBC-GL；完成「匯入資料」後即可預覽。';
+      case 'pbcTb': return '尚未匯入 PBC-TB；完成「匯入資料」後即可預覽。';
+      case 'gl': return '尚未確認 GL 欄位配對；確認後即可預覽 GL。';
+      case 'tb': return '尚未確認 TB 欄位配對；確認後即可預覽 TB。';
       case 'accountMappings': return '尚未儲存科目配對；請在「資料驗證與測試」的科目清單選擇分類並儲存。';
       case 'authorizedPreparers': return '尚未匯入授權編製人員清單；在「匯入資料」步驟匯入後即可預覽。';
       case 'dateDimension': return '尚未匯入事務所假日／補班日；在「匯入資料」步驟匯入行事曆後即可預覽。';

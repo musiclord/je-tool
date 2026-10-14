@@ -68,12 +68,6 @@ public sealed class LegacyAuditParityMetricDependenciesTests
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlDescription,
             ],
-            [LegacyPrescreenRuleId.BackdatedPosting] =
-            [
-                LegacyMappingSlot.GlDocumentNumber,
-                LegacyMappingSlot.GlPostingDate,
-                LegacyMappingSlot.GlVoucherDate,
-            ],
             [LegacyPrescreenRuleId.NonAuthorizedPreparer] =
             [
                 LegacyMappingSlot.GlDocumentNumber,
@@ -334,7 +328,6 @@ public sealed class LegacyAuditParityMetricDependenciesTests
     [
         LegacyPrescreenRuleId.HolidayPosting,
         LegacyPrescreenRuleId.HolidayApproval,
-        LegacyPrescreenRuleId.BackdatedPosting,
         LegacyPrescreenRuleId.NonAuthorizedPreparer,
         LegacyPrescreenRuleId.LowFrequencyPreparer,
         LegacyPrescreenRuleId.LowFrequencyAccount,

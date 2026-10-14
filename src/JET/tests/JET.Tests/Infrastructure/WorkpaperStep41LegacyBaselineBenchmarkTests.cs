@@ -856,11 +856,8 @@ public sealed class WorkpaperStep41LegacyBaselineBenchmarkTests(ITestOutputHelpe
                 14,
                 "LATE_WIDE_JE",
                 LegacyFieldKind.Text,
-                description: "LATE_WIDE_JE"),
-            Definition(
-                15,
-                "傳票日期_僅條件_JE",
-                LegacyFieldKind.Date)
+                description: "LATE_WIDE_JE")
+            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：原本 ordinal 15 的傳票日期來源欄與它的 step4-1 排除一起拿掉。
         };
         var facts = new WorkpaperPlanningFacts(
             HasCompletenessDifferences: false,
@@ -875,8 +872,7 @@ public sealed class WorkpaperStep41LegacyBaselineBenchmarkTests(ITestOutputHelpe
             [
                 Definition(1, "會計科目編號_TB", LegacyFieldKind.Text)
             ],
-            TargetGlDefinitions: definitions,
-            VoucherDateSourceField: "傳票日期_僅條件_JE");
+            TargetGlDefinitions: definitions);
         return JetAuditProgram.Finalize(initial, facts);
     }
 
@@ -916,12 +912,12 @@ public sealed class WorkpaperStep41LegacyBaselineBenchmarkTests(ITestOutputHelpe
                 '{"ROW_TOKEN_JE":"' || printf('R%07d', i)
                     || '","LATE_WIDE_JE":"'
                     || CASE WHEN i = {{rowCount}} THEN repeat('界', 150) ELSE 'x' END
-                    || '","傳票日期_僅條件_JE":"2025-06-29"}'
+                    || '"}'
             FROM range(1, {{rowCount + 1}}) AS source(i);
 
             INSERT INTO target_gl_entry
                 (entry_id, batch_id, source_row_number, document_number, line_item,
-                 line_item_numeric_sort_key, post_date, approval_date, voucher_date,
+                 line_item_numeric_sort_key, post_date, approval_date,
                  account_code, account_name,
                  document_description, source_module, created_by, approved_by, is_manual,
                  is_effective, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
@@ -944,7 +940,6 @@ public sealed class WorkpaperStep41LegacyBaselineBenchmarkTests(ITestOutputHelpe
                 END,
                 '2025-06-30',
                 '2025-07-01',
-                NULL,
                 '1101',
                 'Baseline Account',
                 'baseline hit',

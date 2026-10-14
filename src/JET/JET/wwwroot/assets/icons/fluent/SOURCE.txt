@@ -1,0 +1,2 @@
+Fluent UI System Icons 1.1.344 (npm package @fluentui/svg-icons), 20px regular and filled SVG files.
+License: MIT, see LICENSE in this folder. Downloaded and checked on 2026-10-11 (svg and path elements only).

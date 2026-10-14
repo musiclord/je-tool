@@ -12,17 +12,24 @@
   'use strict';
 
   var Ui = global.JetUi;
-  var CHART_FONT = '"Noto Sans TC", "Microsoft JhengHei", sans-serif';
-  var BAR_FILL = '#b08968';
-  var BAR_HOVER = '#7a6033';
-  var BAR_MANUAL_FILL = '#d8c3a5';
-  var LINE_STROKE = '#1f6c9f';
-  var DOT_FILL = '#7a6033';
+  // 數字與英文用 Instrument Sans，中文用 Noto Sans TC，和 app.css 的 --font-sans 相同。
+  var CHART_FONT = '"Instrument Sans", "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+  // 圖表色和 app.css 的 --chart-* 與重點色同色系；改色票時兩邊一起改。
+  var BAR_FILL = '#5b8db8';
+  var BAR_HOVER = '#1f6c9f';
+  var BAR_MANUAL_FILL = '#a9c7e1';
+  var LINE_STROKE = '#183348';
+  var DOT_FILL = '#5b8db8';
   var AXIS_STROKE = '#c9c5b9';
   var GRID_STROKE = '#eceadf';
-  var LABEL_FILL = '#6f6d64';
-  var VALUE_FILL = '#4a4840';
-  var PLACEHOLDER_FILL = '#a5a297';
+  var LABEL_FILL = '#5e5b52';
+  var VALUE_FILL = '#3f3d36';
+  var PLACEHOLDER_FILL = '#716e64';
+  // 圖表的提示框浮在圖表上，是和選單同一種玻璃（使用者 2026-10-12 要求整個 JE Tool 帶有 Liquid Glass 的質感）；
+  // 值引用 app.css 的變數，關閉透明效果或高對比時跟著改成不透明。
+  var TOOLTIP_GLASS = 'background-color: var(--glass-fill) !important; border-color: transparent !important; ' +
+    '-webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-radius: var(--radius-group) !important; ' +
+    'box-shadow: var(--glass-rim), 0 0 0 0.5px var(--glass-line), var(--shadow-overlay) !important;';
 
   // validate.run 的 canonical key presentation mirror。順序、數量與 keys 由
   // AmountDistributionWireKeys guard 對齊後端；軸只顯示上界，完整區間進 tooltip。
@@ -149,6 +156,7 @@
         description: '適用的預篩選規則全查核期間符合比例分布；沒有符合分錄的項目仍顯示為零。'
       },
       tooltip: {
+        extraCssText: TOOLTIP_GLASS,
         trigger: 'axis',
         confine: true,
         axisPointer: { type: 'shadow' },
@@ -160,7 +168,7 @@
             '全查核期間',
             '符合條件的分錄 ' + fmtNum(item.hitLines) + ' 筆',
             '傳票 ' + fmtNum(item.hitVouchers) + ' 張（同號只算一張）',
-            '納入測試 ' + fmtNum(rulePeriod.population) + ' 筆',
+            'GL ' + fmtNum(rulePeriod.population) + ' 筆',
             '符合比例 ' + fmtRulePct(item.ratePct)
           ]);
         }
@@ -172,14 +180,14 @@
         name: '符合比例',
         nameLocation: 'middle',
         nameGap: 28,
-        nameTextStyle: { fontFamily: CHART_FONT, fontSize: 10, color: LABEL_FILL },
+        nameTextStyle: { fontFamily: CHART_FONT, fontSize: 12, color: LABEL_FILL },
         axisLine: { show: true, lineStyle: { color: AXIS_STROKE } },
         axisTick: { show: false },
         splitLine: { show: true, lineStyle: { color: GRID_STROKE } },
         axisLabel: {
           color: LABEL_FILL,
           fontFamily: CHART_FONT,
-          fontSize: 9.5,
+          fontSize: 12,
           formatter: function (value) { return fmtRulePct(value); }
         }
       },
@@ -195,7 +203,7 @@
           align: 'right',
           color: LABEL_FILL,
           fontFamily: CHART_FONT,
-          fontSize: 10.5,
+          fontSize: 12,
           formatter: function (value) { return clip(value, 24); }
         }
       },
@@ -233,6 +241,7 @@
         description: '分錄金額級距與累積分布；零元另計，累積分布以非零元分錄為分母。'
       },
       tooltip: {
+        extraCssText: TOOLTIP_GLASS,
         trigger: 'axis',
         confine: true,
         axisPointer: { type: 'shadow' },
@@ -261,7 +270,7 @@
           rotate: 45,
           color: LABEL_FILL,
           fontFamily: CHART_FONT,
-          fontSize: 9.5
+          fontSize: 12
         }
       },
       yAxis: [
@@ -269,14 +278,14 @@
           type: 'value',
           name: '分錄筆數',
           min: 0,
-          nameTextStyle: { color: LABEL_FILL, fontFamily: CHART_FONT, fontSize: 10 },
+          nameTextStyle: { color: LABEL_FILL, fontFamily: CHART_FONT, fontSize: 12 },
           axisLine: { show: true, lineStyle: { color: AXIS_STROKE } },
           axisTick: { show: false },
           splitLine: { show: true, lineStyle: { color: GRID_STROKE } },
           axisLabel: {
             color: LABEL_FILL,
             fontFamily: CHART_FONT,
-            fontSize: 9.5,
+            fontSize: 12,
             formatter: fmtAxisCount
           }
         },
@@ -285,14 +294,14 @@
           name: '累積分布',
           min: 0,
           max: 100,
-          nameTextStyle: { color: LINE_STROKE, fontFamily: CHART_FONT, fontSize: 10 },
+          nameTextStyle: { color: LINE_STROKE, fontFamily: CHART_FONT, fontSize: 12 },
           axisLine: { show: true, lineStyle: { color: AXIS_STROKE } },
           axisTick: { show: false },
           splitLine: { show: false },
           axisLabel: {
             color: LABEL_FILL,
             fontFamily: CHART_FONT,
-            fontSize: 9.5,
+            fontSize: 12,
             formatter: function (value) { return value + '%'; }
           }
         }
@@ -350,6 +359,7 @@
         description: '編製人員分錄筆數、人工分錄與累積占比分布。'
       },
       tooltip: {
+        extraCssText: TOOLTIP_GLASS,
         trigger: 'axis',
         confine: true,
         axisPointer: { type: 'shadow' },
@@ -380,7 +390,7 @@
           rotate: rows.length > 7 ? 35 : 0,
           color: LABEL_FILL,
           fontFamily: CHART_FONT,
-          fontSize: 10,
+          fontSize: 12,
           formatter: function (value) { return clip(value, 10); }
         }
       },
@@ -389,14 +399,14 @@
           type: 'value',
           name: '分錄筆數',
           min: 0,
-          nameTextStyle: { color: LABEL_FILL, fontFamily: CHART_FONT, fontSize: 10 },
+          nameTextStyle: { color: LABEL_FILL, fontFamily: CHART_FONT, fontSize: 12 },
           axisLine: { show: true, lineStyle: { color: AXIS_STROKE } },
           axisTick: { show: false },
           splitLine: { show: true, lineStyle: { color: GRID_STROKE } },
           axisLabel: {
             color: LABEL_FILL,
             fontFamily: CHART_FONT,
-            fontSize: 9.5,
+            fontSize: 12,
             formatter: fmtAxisCount
           }
         },
@@ -405,14 +415,14 @@
           name: '累積占比',
           min: 0,
           max: 100,
-          nameTextStyle: { color: LINE_STROKE, fontFamily: CHART_FONT, fontSize: 10 },
+          nameTextStyle: { color: LINE_STROKE, fontFamily: CHART_FONT, fontSize: 12 },
           axisLine: { show: true, lineStyle: { color: AXIS_STROKE } },
           axisTick: { show: false },
           splitLine: { show: false },
           axisLabel: {
             color: LABEL_FILL,
             fontFamily: CHART_FONT,
-            fontSize: 9.5,
+            fontSize: 12,
             formatter: function (value) { return value + '%'; }
           }
         }
@@ -472,6 +482,7 @@
         description: '使用次數最低的科目分布，依使用次數由少至多呈現。'
       },
       tooltip: {
+        extraCssText: TOOLTIP_GLASS,
         trigger: 'item',
         confine: true,
         formatter: function (param) {
@@ -487,11 +498,11 @@
         name: '使用次數',
         nameLocation: 'middle',
         nameGap: 28,
-        nameTextStyle: { color: LABEL_FILL, fontFamily: CHART_FONT, fontSize: 10 },
+        nameTextStyle: { color: LABEL_FILL, fontFamily: CHART_FONT, fontSize: 12 },
         axisLine: { show: true, lineStyle: { color: AXIS_STROKE } },
         axisTick: { show: false },
         splitLine: { show: true, lineStyle: { color: GRID_STROKE } },
-        axisLabel: { color: LABEL_FILL, fontFamily: CHART_FONT, fontSize: 9.5 }
+        axisLabel: { color: LABEL_FILL, fontFamily: CHART_FONT, fontSize: 12 }
       },
       yAxis: {
         type: 'category',
@@ -503,7 +514,7 @@
           interval: 0,
           color: LABEL_FILL,
           fontFamily: CHART_FONT,
-          fontSize: 10.5,
+          fontSize: 12,
           formatter: function (value) { return clip(value, 24); }
         }
       },
@@ -513,7 +524,7 @@
         data: data,
         symbolSize: 9,
         itemStyle: { color: DOT_FILL },
-        emphasis: { itemStyle: { color: '#d64422' } }
+        emphasis: { itemStyle: { color: BAR_HOVER } }
       }]
     };
   }
@@ -542,7 +553,7 @@
   function sectionHtml(inner, tabs, activeTab) {
     var content = tabs
       ? '<div class="overview-bi__tabs" role="tablist" aria-label="集中度檢視">' + tabs + '</div>' +
-        '<div id="overview-concentration-panel" role="tabpanel" tabindex="0" ' +
+        '<div id="overview-concentration-panel" role="tabpanel" data-motion-key="overview-concentration-panel" tabindex="0" ' +
           'aria-labelledby="overview-concentration-tab-' + activeTab + '">' + inner + '</div>'
       : inner;
     return (
@@ -597,9 +608,9 @@
   function rulePeriodPanelHtml(rulePeriod) {
     var applicable = rulePeriod.rules.filter(function (rule) { return rule.naReason == null; });
     var zeroPopulationNote = rulePeriod.population === 0
-      ? '納入測試的分錄為 0，符合比例以「—」表示，不代表 0%。'
+      ? 'GL 為 0 筆，符合比例以「—」表示，不代表 0%。'
       : '';
-    var note = '符合比例＝符合條件的分錄數 ÷ 納入測試的分錄 ' + fmtNum(rulePeriod.population) +
+    var note = '符合比例＝符合條件的分錄數 ÷ GL 分錄數 ' + fmtNum(rulePeriod.population) +
       ' 筆。長條依各規則符合比例呈現，僅供比較規則間分布。' +
       zeroPopulationNote + '此為分布描述，非風險評估。';
 
@@ -662,7 +673,7 @@
       '</p>' +
       '<p class="overview-bi__note">' +
         'X 軸為絕對金額的 1–2–5 對數級距；零元另計、不納入對數軸。' +
-        '累積分布由系統計算，並以納入測試的非零金額分錄為分母；沒有累積比例的級距不連線。' +
+        '累積分布由系統計算，並以 GL 中的非零金額分錄為分母；沒有累積比例的級距不連線。' +
         '完整區間請查看圖形提示。未設重要性門檻線。此為分布描述，非風險評估。' +
       '</p>'
     );

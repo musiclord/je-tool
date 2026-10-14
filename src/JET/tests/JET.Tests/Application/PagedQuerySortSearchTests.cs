@@ -17,9 +17,10 @@ public sealed class PagedQuerySortSearchTests
         JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
-                name = "提前過帳", rationale = "test",
+                name = "非授權編製人員", rationale = "test",
                 groups = new[] { new { join = "and", rules = new[] {
-                    new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } } }
+                    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         });
 
     private static async Task<List<JsonElement>> WalkAsync(
@@ -113,8 +114,9 @@ public sealed class PagedQuerySortSearchTests
         await AssertSortAndSearchAsync(host, "query.nullRecordsPage", new() { ["category"] = "nullDescription" }, "postDate", "documentNumber", 5);
         await AssertSortAndSearchAsync(host, "query.infSamplePage", [], "approvedBy", "documentNumber", 7);
         await AssertSortAndSearchAsync(host, "query.infSamplePage", [], "debit", "documentNumber", 7);
-        await AssertSortAndSearchAsync(host, "query.prescreenPage", new() { ["ruleKey"] = "backdatedPosting" }, "amount", "documentNumber", 3);
-        await AssertSortAndSearchAsync(host, "query.prescreenPage", new() { ["ruleKey"] = "backdatedPosting" }, "documentDescription", "documentNumber", 3);
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用同樣命中多頁的非授權編製人員。
+        await AssertSortAndSearchAsync(host, "query.prescreenPage", new() { ["ruleKey"] = "nonAuthorizedPreparer" }, "amount", "documentNumber", 3);
+        await AssertSortAndSearchAsync(host, "query.prescreenPage", new() { ["ruleKey"] = "nonAuthorizedPreparer" }, "documentDescription", "documentNumber", 3);
 
         // 來源品質在 demo 母體可能沒有列；只驗證排序參數被接受且走訪一致。
         var plain = await WalkAsync(host, "query.sourceQualityPage", [], 5);
@@ -154,7 +156,11 @@ public sealed class PagedQuerySortSearchTests
         var badKey = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.docBalancePage",
             JsonSerializer.Serialize(new { sort = new { key = "document_number; DROP TABLE x", direction = "asc" } })));
         Assert.Equal("invalid_payload", badKey.Code);
-        Assert.Contains("documentNumber、debit、credit、diff", badKey.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面只送表頭上的排序鍵，
+        // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現，檢查代號記進支援日誌。
+        Assert.Equal(JET.Domain.JetPayloadRejection.UnexpectedErrorMessage, badKey.Message);
+        Assert.Equal("sort_key_invalid", JET.Domain.JetPayloadRejection.CheckOf(badKey));
+        Assert.DoesNotContain("DROP TABLE", badKey.Message, StringComparison.Ordinal);
 
         var badDirection = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.docBalancePage",
             JsonSerializer.Serialize(new { sort = new { key = "diff", direction = "sideways" } })));
@@ -164,13 +170,13 @@ public sealed class PagedQuerySortSearchTests
             JsonSerializer.Serialize(new { search = new string('x', 201) })));
         Assert.Equal("invalid_payload", tooLong.Code);
 
-        // 換了排序卻沿用舊游標：明確擋下，不靜默回到第一頁。demo 的提前過帳命中超過一頁，游標一定存在。
+        // 換了排序卻沿用舊游標：明確擋下，不靜默回到第一頁。demo 的非授權編製人員命中超過一頁，游標一定存在（使用者 2026-10-08 裁定移除傳票日期與回溯過帳，原用回溯過帳）。
         var first = await host.DispatchAsync("query.prescreenPage",
-            JsonSerializer.Serialize(new { ruleKey = "backdatedPosting", pageSize = 1, sort = new { key = "amount", direction = "asc" } }));
+            JsonSerializer.Serialize(new { ruleKey = "nonAuthorizedPreparer", pageSize = 1, sort = new { key = "amount", direction = "asc" } }));
         var cursor = first.GetProperty("nextCursor").GetString();
         Assert.False(string.IsNullOrEmpty(cursor));
         var mismatch = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.prescreenPage",
-            JsonSerializer.Serialize(new { ruleKey = "backdatedPosting", pageSize = 1, cursor, sort = new { key = "postDate", direction = "asc" } })));
+            JsonSerializer.Serialize(new { ruleKey = "nonAuthorizedPreparer", pageSize = 1, cursor, sort = new { key = "postDate", direction = "asc" } })));
         Assert.Equal("invalid_payload", mismatch.Code);
         Assert.Contains("從第一頁重新載入", mismatch.Message, StringComparison.Ordinal);
     }

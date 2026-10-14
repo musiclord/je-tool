@@ -32,7 +32,7 @@ public abstract class ImportCalendarHandler : IApplicationActionHandler
     {
         var (projectId, repositories) = session.RequireActive();
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var dates = PayloadReader.GetStringList(payload, "dates");
         var plan = JetAuditProgram.Plan(
@@ -139,7 +139,7 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
     {
         var (projectId, repositories) = session.RequireActive();
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var filePath = PayloadReader.GetRequiredString(payload, "filePath");
         var sheetName = PayloadReader.GetOptionalString(payload, "sheetName");
@@ -263,7 +263,7 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
             PayloadReader.GetIntList(payload, "days"));
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
         var plan = JetAuditProgram.Plan(
             new NonWorkingDaysRequest(
                 projectId,

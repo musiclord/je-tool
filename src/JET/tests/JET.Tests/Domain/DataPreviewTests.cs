@@ -6,19 +6,19 @@ namespace JET.Tests.Domain;
 public sealed class DataPreviewTests
 {
     [Fact]
-    public void TryParse_TbStagingWireName_ReturnsTbStaging()
+    public void TryParse_PbcTbWireName_ReturnsPbcTb()
     {
-        var parsed = DataPreviewDatasetNames.TryParse("tbStaging", out var dataset);
+        var parsed = DataPreviewDatasetNames.TryParse("pbcTb", out var dataset);
 
         Assert.True(parsed);
-        Assert.Equal(DataPreviewDataset.TbStaging, dataset);
+        Assert.Equal(DataPreviewDataset.PbcTb, dataset);
     }
 
     [Theory]
-    [InlineData("glStaging", DataPreviewDataset.GlStaging)]
-    [InlineData("glEntries", DataPreviewDataset.GlEntries)]
-    [InlineData("glExcludedEntries", DataPreviewDataset.GlExcludedEntries)]
-    [InlineData("tbBalances", DataPreviewDataset.TbBalances)]
+    [InlineData("pbcGl", DataPreviewDataset.PbcGl)]
+    [InlineData("gl", DataPreviewDataset.Gl)]
+    [InlineData("glExcluded", DataPreviewDataset.GlExcluded)]
+    [InlineData("tb", DataPreviewDataset.Tb)]
     [InlineData("accountMappings", DataPreviewDataset.AccountMappings)]
     [InlineData("authorizedPreparers", DataPreviewDataset.AuthorizedPreparers)]
     [InlineData("dateDimension", DataPreviewDataset.DateDimension)]
@@ -35,7 +35,13 @@ public sealed class DataPreviewTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("tb_staging")]
-    [InlineData("TbStaging")]
+    [InlineData("PbcTb")]
+    // 使用者 2026-10-08 裁定資料名稱全系統統一；舊 wire key 不再接受。
+    [InlineData("glStaging")]
+    [InlineData("glEntries")]
+    [InlineData("glExcludedEntries")]
+    [InlineData("tbStaging")]
+    [InlineData("tbBalances")]
     public void TryParse_UnknownWireName_ReturnsFalseAndDefault(string? wireName)
     {
         var parsed = DataPreviewDatasetNames.TryParse(wireName, out var dataset);

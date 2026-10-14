@@ -102,7 +102,7 @@
     // 後端沒有附訊息時，比照非預期錯誤的固定說明，不顯示英文或技術原文。
     var detail = message.error && message.error.message
       ? message.error.message
-      : '發生非預期的錯誤，這個動作沒有完成。請按畫面上方的「輸出支援日誌」，把檔案交給支援人員。';
+      : '發生非預期的錯誤，此操作未完成。請再試一次。';
 
     // 把 wire 錯誤碼掛到 Error 上，供 Ui.run 區分（如 operation_in_progress → 「請稍候」）。
     var err = new Error(detail);
@@ -179,6 +179,9 @@
     'prescreen.run',
     'filter.preview',
     'filter.commit',
+    'filter.scenario.save',
+    'filter.scenario.remove',
+    'filter.scenario.recheck',
     'query.dataPreview',
     'query.completenessDiffPage',
     'query.docBalancePage',
@@ -200,7 +203,6 @@
     'export.criteriaSelectionReport',
     'export.workpaperStream',
     'export.accountMappingTemplate',
-    'export.calendarTemplates',
     'log.append',
     'log.recent',
     'support.log.export',

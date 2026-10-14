@@ -26,14 +26,13 @@ public sealed class QueryFilterHitsPageHandler(
         var (projectId, repositories) = session.RequireActive();
         var dataRevision = await repositories.FilterRunMaterializeService.ReadQueryDataRevisionAsync(projectId, cancellationToken);
         var scenarioPosition = PayloadReader.GetOptionalInt(payload, "scenarioPosition")
-            ?? throw new JetActionException(
-                JetErrorCodes.InvalidPayload, "scenarioPosition 為必填(整數)。");
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "scenario_position_missing");
         var request = PageRequestReader.Read(payload, ResultPageSorting.GlEntryRows);
         var cursor = request.Cursor;
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
-                JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+                JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
         var scenarios = await repositories.FilterScenarios.ListAsync(projectId, cancellationToken);
         var currentRevision = FilterPopulationScopeParser.RequireCurrentRevision(scenarios);
         if (!currentRevision.Positions.Contains(scenarioPosition))

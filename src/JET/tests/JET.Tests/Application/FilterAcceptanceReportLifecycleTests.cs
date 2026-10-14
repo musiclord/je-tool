@@ -4,6 +4,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 /// <summary>人工驗收第 1、8 項：實際工作簿編輯、重開、GL 重匯與重新產生報告，最後刪除合成案件。</summary>
 public sealed class FilterAcceptanceReportLifecycleTests
 {
@@ -23,7 +25,7 @@ public sealed class FilterAcceptanceReportLifecycleTests
             var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString();
             var committed = await host.DispatchAsync("filter.commit", """
                 {"scenarios":[{"name":"合成版本驗收","rationale":"固定操作旅程","groups":[{"rules":[
-                {"type":"customKeywords","keywords":"調整"}]}]}]}
+                {"type":"fieldValue","field":"description","operator":"contains","values":["調整"]}]}]}]}
                 """);
             var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString();
             await host.DispatchAsync("export.criteriaSelectionReport", JsonSerializer.Serialize(new { validationRunId, prescreenRunId, revision }));

@@ -23,7 +23,7 @@ public sealed class QueryCompletenessDiffPageHandler(
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                $"找不到專案 '{projectId}'。");
+                ProjectFolderMessages.ActiveProjectMissing);
 
         var page = await Task.Run(
             () => repositories.CompletenessDiffPages.GetPageAsync(

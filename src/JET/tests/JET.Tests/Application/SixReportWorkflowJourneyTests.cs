@@ -7,6 +7,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 /// <summary>
 /// 五份報告與科目配對工作檔的完整旅程：驗證、填回範本原檔、重新匯出驗證報告，再完成篩選與底稿。
 /// 類別名稱與 JET_SIX_REPORT_EVIDENCE_DIR 為既有篩選及證據介面保留；六份工作簿只有五份進報告清單。
@@ -81,22 +83,24 @@ public sealed class SixReportWorkflowJourneyTests
             JsonSerializer.Serialize(new { runId = prescreenRunId }));
 
         var originalScenarios = JsonDocument.Parse("""
-          [{"name":"完整旅程情境","rationale":"以合成摘要條件驗證報告與工作檔流程","groups":[{"rules":[{"type":"customKeywords","keywords":"調整"}]}]},
+          [{"name":"完整旅程情境","rationale":"以合成摘要條件驗證報告與工作檔流程","groups":[{"rules":[{"type":"fieldValue","field":"description","operator":"contains","values":["調整"]}]}]},
            {"name":"分類與指定日期","rationale":"分類留白的貸方科目視為 Others，兩張都命中","groups":[
-             {"matchScope":"sameVoucher","rules":[
-               {"type":"accountSide","drCr":"debit","categoryMode":"is","categoryIds":["builtin.cash"]},
-               {"type":"group","rules":[
-                 {"type":"accountSide","drCr":"credit","categoryMode":"isNot","categoryIds":["builtin.cash"],"categorySelection":"node"},
+             {"rules":[
+               {"type":"group","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},
+               {"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"},
+                 {"type":"accountSide","categoryMode":"isNot","categoryIds":["builtin.cash"],"categorySelection":"node"},
                  {"type":"fieldValue","field":"description","operator":"isBlank"}]}]},
              {"join":"AND","rules":[
                {"type":"fieldValue","field":"postDate","operator":"in","values":["2025-03-05","2025-06-06"]},
                {"type":"fieldValue","field":"amount","operator":"between","from":"100","to":"2000000","amountBasis":"absolute"},
                {"type":"fieldValue","field":"description","operator":"notContains","value":"NO_MATCH%_"}]},
-             {"join":"AND","rules":[{"type":"voucher","side":"debit","quantifier":"all","rules":[
-               {"type":"accountSide","drCr":"debit","categoryMode":"is","categoryIds":["builtin.cash"],"categorySelection":"subtree"}]}]}]}]
+             {"join":"AND","rules":[{"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"debit"}]},
+               {"type":"voucher","quantifier":"all","rules":[{"type":"drCrOnly","drCr":"credit"},
+                 {"type":"accountSide","join":"OR","categoryMode":"is","categoryIds":["builtin.cash"],"categorySelection":"subtree"}]}]}]}]
           """).RootElement;
-        // Keep both existing independent answers; add A and D from the production entry catalogue
+        // Keep both existing independent answers; add A and D from the retired entry catalogue
         // so the native Excel round-trip also exercises the formerly omitted prescreen descriptions.
+        // 使用者 2026-10-08 要求重新設計自訂篩選條件：目錄改放在測試夾具，條件內容不變，固定答案照舊。
         var scenarios = JsonNode.Parse(originalScenarios.GetRawText())!.AsArray();
         var legacy = Architecture.LegacyFormCatalogTests.ReadCatalog()["conditions"]!.AsArray();
         foreach (var letter in new[] { "A", "D" })

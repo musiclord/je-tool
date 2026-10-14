@@ -38,7 +38,7 @@
       .concat(Ui.FILTER_TEXT_FIELDS.map(function (key) { return { id: key, label: Ui.glFieldLabel(key), type: 'text' }; }))
       .concat([{ id: 'amount', label: '金額', type: 'money' }])
       .concat(Ui.committedRdeFields(state).map(function (field) { return { id: field.fieldId, label: field.label, type: field.valueType, sourceColumn: field.sourceColumn, extra: true }; }))
-      .map(function (item) { item.optionLabel = item.extra ? Ui.rdeFieldOptionLabel(item, true) : item.label; return item; });
+      .map(function (item) { item.optionLabel = item.extra ? Ui.rdeFieldOptionLabel(item) : item.label; return item; });
   }
   function field(rule, state) { return fields(state).find(function (item) { return item.id === (rule.fieldId || rule.field); }); }
   function fieldType(rule, state) { var selected = field(rule, state); return selected ? selected.type : (rule.__valueType || 'date'); }
@@ -103,10 +103,10 @@
     var selected = field(rule, state);
     var value = wire(rule, state);
     var mode = carrier(rule.operator, fieldType(rule, state));
-    var fieldLabel = selected ? selected.label : rule.fieldId || rule.field || '尚未選擇欄位';
+    var fieldLabel = selected ? selected.label : rule.fieldId || rule.field ? Ui.missingConditionFieldName(state, rule, 'readback') : '尚未選擇欄位';
     if (selected && selected.type === 'money' && mode !== 'none' && !isTail(rule.operator)) { fieldLabel += value.amountBasis === 'absolute' ? '絕對值' : '含正負號'; }
     var side = rule.drCr === 'debit' ? '借方分錄：' : rule.drCr === 'credit' ? '貸方分錄：' : '';
-    var text = side + fieldLabel + ' ' + (labels[rule.operator] || '尚未選擇比較方式');
+    var text = side + fieldLabel + ' ' + (labels[rule.operator] || (rule.operator ? Ui.RETIRED_CONDITION_LABEL : '尚未選擇比較方式'));
     if (mode === 'value') { text += '「' + value.value + '」'; }
     if (isMonthWindow(rule.operator)) { text += ' 天'; }
     if (mode === 'range') { text += '「' + value.from + '」至「' + value.to + '」'; }
@@ -114,8 +114,12 @@
     if ((mode !== 'none' || isCalendar(rule.operator)) && (!compact || blankMatches(rule))) { text += blankMatches(rule) ? '；空白也符合' : '；空白不列入'; }
     return text;
   }
-  // 欄位下拉：同型別欄位、其他型別欄位與「分錄性質」（借貸別、人工／自動）都列出來，審計員在同一個下拉
-  // 換欄位就換條件；換到其他型別由本模組重設運算子，換到分錄性質交回呼叫端換成對應的規則型別。
+  // 條件標題的欄位名稱；欄位已不存在時寫畫面名稱，不印程式代號（使用者 2026-10-14 第三輪勾選頁確認 R3-03）。
+  function fieldTitle(rule, state) {
+    var selected = field(rule, state);
+    return selected ? selected.label : Ui.missingConditionFieldName(state, rule, 'title');
+  }
+  // 欄位下拉：同型別欄位與其他型別欄位都列出來，審計員在同一個下拉換欄位就換條件；換到其他型別由本模組重設運算子。
   function groupedFields(state) {
     var all = fields(state);
     function group(label, predicate) { return { label: label, fields: all.filter(predicate) }; }
@@ -127,26 +131,32 @@
       group('其他文字', function (item) { return item.type === 'text' && special.indexOf(item.id) < 0; })]
       .filter(function (item) { return item.fields.length > 0; });
   }
-  function fieldOptionsHtml(state, selectedId, pseudoFields) {
+  function fieldOptionsHtml(state, selectedId) {
     var groups = groupedFields(state).map(function (group) {
       return '<optgroup label="' + group.label + '">' + group.fields.map(function (item) {
         return '<option value="' + Ui.esc(item.id) + '"' + (item.id === selectedId ? ' selected' : '') + '>' + Ui.esc(item.optionLabel) + '</option>';
       }).join('') + '</optgroup>';
     }).join('');
-    var pseudo = (pseudoFields || []).length
-      ? '<optgroup label="分錄性質">' + pseudoFields.map(function (item) {
-          return '<option value="' + Ui.esc(item.id) + '"' + (item.id === selectedId ? ' selected' : '') + '>' + Ui.esc(item.label) + '</option>';
-        }).join('') + '</optgroup>'
-      : '';
-    var available = fields(state).concat(pseudoFields || []).some(function (item) { return item.id === selectedId; });
+    var available = fields(state).some(function (item) { return item.id === selectedId; });
     var unavailable = selectedId && !available ? '<option value="' + Ui.esc(selectedId) + '" selected disabled>此欄位目前未配對，請重新選擇</option>' : '';
-    return unavailable + groups + pseudo;
+    return unavailable + groups;
   }
   // Presentation groups share an input intent; the original operator remains authoritative.
   var editorViews = new WeakMap();
+  var motionSerial = 0;
   function editorView(rule) {
-    if (!editorViews.has(rule)) { editorViews.set(rule, { optionsOpen: false, periodEnd: false, days: 7 }); }
+    if (!editorViews.has(rule)) { motionSerial += 1; editorViews.set(rule, { optionsOpen: false, periodEnd: false, days: 7, motionId: 'values-' + motionSerial }); }
     return editorViews.get(rule);
+  }
+  // app.js 的 JetMotion 比對用的識別：跟著同一個條件物件，不用條件的位置；同一畫面有兩條日期條件選了同一天時也不會撞在一起。
+  function motionId(rule) { return editorView(rule).motionId; }
+  function dateChipKey(rule, date) { return 'date-' + motionId(rule) + '-' + date; }
+  // 已選日期的標籤直接隨畫面輸出，整段重繪時才比得到哪一個新出現、哪一個被移除。
+  function dateChipsHtml(rule, state) {
+    return values(rule, state).map(function (date) {
+      return '<button type="button" class="scenario-pill" data-date-remove="' + Ui.esc(date) + '" data-motion="inline" data-motion-key="' +
+        Ui.esc(dateChipKey(rule, date)) + '" aria-label="移除日期 ' + Ui.esc(date) + '">' + Ui.esc(date) + ' ×</button>';
+    }).join('');
   }
   function hasAccountTree(rule) {
     return rule.field === 'accNum' && !rule.fieldId && (rule.operator === 'in' || rule.operator === 'notIn');
@@ -155,7 +165,7 @@
     var view = editorView(rule), tree = view.accountTree;
     if (!tree || tree.project !== state.project || tree.generation !== state.dataGeneration || tree.taxonomy !== state.taxonomy) {
       tree = { project: state.project, generation: state.dataGeneration, taxonomy: state.taxonomy,
-        open: false, categoryId: null, search: '', rows: [], cursor: null, nextCursor: null, sequence: 0,
+        open: false, categoryId: null, search: '', searchDraft: '', collapsed: {}, rows: [], cursor: null, nextCursor: null, sequence: 0,
         pending: false, error: '', loaded: false, lastRequest: null };
       view.accountTree = tree;
     }
@@ -163,16 +173,16 @@
   }
   function accountTreeHtml(rule, state, focusKey) {
     var tree = accountTreeView(rule, state), selected = new Set(values(rule, state));
-    var categories = Ui.taxonomyTree(state);
-    var categoryRows = categories.map(function (category) {
+    tree.focusKey = focusKey + '-category';
+    var categoryRows = Ui.taxonomyTreeHtml(state, tree, function (category) {
       var checked = tree.categoryId === category.categoryId && tree.loaded && !tree.cursor && !tree.nextCursor && tree.rows.length &&
         tree.rows.every(function (row) { return selected.has(row.accountCode); });
-      return '<div class="account-tree__category" style="margin-inline-start:' + (category.depth * 16) + 'px">' +
+      return '<div class="account-tree__category">' +
         '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-category="' + Ui.esc(category.categoryId) +
         '" aria-expanded="' + (tree.categoryId === category.categoryId) + '">' + Ui.esc(category.label) + '</button>' +
         '<label><input type="checkbox" data-account-tree-select-category="' + Ui.esc(category.categoryId) + '"' +
         (checked ? ' checked' : '') + '>勾選此分類及下層科目</label></div>';
-    }).join('');
+    });
     var groups = [];
     tree.rows.forEach(function (row) {
       var group = groups.find(function (item) { return item.categoryId === row.categoryId; });
@@ -181,7 +191,9 @@
     });
     var accounts = groups.map(function (group) {
       var label = group.categoryId ? Ui.taxonomyCategoryLabel(state, group.categoryId) : '尚未分類';
-      return '<section class="account-tree__accounts" aria-label="' + Ui.esc(label) + '的科目"><strong>' + Ui.esc(label) + '</strong>' +
+      // 使用者 2026-10-13 要求展開與收合一致：每個分類的科目區跟著分類標識別，換分類或載入完成時舊的收起、新的長出來。
+      return '<section class="account-tree__accounts" data-motion-key="' + Ui.esc('acct-' + motionId(rule) + '-' + (group.categoryId || 'none')) +
+        '" aria-label="' + Ui.esc(label) + '的科目"><strong>' + Ui.esc(label) + '</strong>' +
         group.rows.map(function (row) {
           return '<div><label><input type="checkbox" data-account-tree-code="' + Ui.esc(row.accountCode) + '"' +
             (selected.has(row.accountCode) ? ' checked' : '') + '>' + Ui.esc(row.accountCode) +
@@ -191,14 +203,17 @@
     var status = tree.pending ? '正在載入科目…' : tree.loaded ?
       (tree.rows.length ? '本頁 ' + tree.rows.length + ' 個科目；已選 ' + selected.size + ' 個。' : '目前範圍沒有符合的科目。') : '先選分類，或搜尋本案科目。';
     return '<details class="value-editor__options" data-account-tree' + (tree.open ? ' open' : '') + '><summary>從科目樹選取</summary>' +
-      '<div class="value-editor__aux"><label>搜尋科目編號或名稱<input type="search" data-account-tree-search' +
-      ' data-focus-key="' + Ui.esc(focusKey + '-account-search') + '" aria-label="搜尋科目編號或名稱" maxlength="400" value="' + Ui.esc(tree.search) + '"></label>' +
+      '<div class="value-editor__aux" data-motion-list="account-tree">' +
+      Ui.searchBoxHtml('搜尋科目編號或名稱', { attributes: { 'data-account-tree-search-form': true },
+        inputAttributes: { 'data-account-tree-search': true, 'data-focus-key': focusKey + '-account-search' }, maxLength: 400, value: tree.searchDraft }) +
       '<p class="rule-field__hint">分類會包含所有下層；勾選後寫入上方科目編號清單，不改變保留或排除方式。</p>' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-category="">查看全部科目</button>' + categoryRows +
-      '<p data-account-tree-status role="status">' + status + '</p>' + accounts +
-      (tree.nextCursor ? '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-more' + (tree.pending ? ' disabled' : '') + '>載入下一頁科目</button>' : '') +
-      '<p data-account-tree-error role="alert"' + (tree.error ? '' : ' hidden') + '>' + Ui.esc(tree.error) + '</p>' +
-      (tree.error && tree.lastRequest ? '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-retry>重新載入科目</button>' : '') +
+      '<p data-account-tree-status data-motion-key="' + Ui.esc('acct-status-' + motionId(rule)) + '" role="status">' + status + '</p>' + accounts +
+      (tree.nextCursor ? '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-more data-motion-key="' + Ui.esc('acct-more-' + motionId(rule)) + '"' +
+        (tree.pending ? ' disabled' : '') + '>載入下一頁科目</button>' : '') +
+      // 錯誤與重新載入按鈕用同一元件，保留節點識別以沿用展開與收合動態。
+      (tree.error ? Ui.loadFailureHtml(tree.error, tree.lastRequest ? { 'data-account-tree-retry': true } : null,
+        { 'data-account-tree-error': true, 'data-motion-key': 'acct-error-' + motionId(rule) }) : '') +
       '</div></details>';
   }
   function bindAccountTree(root, rule, state, changed) {
@@ -206,6 +221,7 @@
     var details = root.querySelector('[data-account-tree]');
     if (!details) { return; }
     var tree = accountTreeView(rule, state);
+    Ui.bindTaxonomyPicker(details, state, tree);
     function currentState() { return global.JetStore && global.JetStore.getState ? global.JetStore.getState() : state; }
     function containsRule(current) {
       function includes(rules) { return (rules || []).some(function (item) { return item === rule || includes(item.rules); }); }
@@ -252,7 +268,7 @@
         redraw();
       }).catch(function (error) {
         if (!active() || tree.sequence !== sequence) { return; }
-        tree.pending = false; tree.error = (error && error.message ? error.message : '科目清單讀取失敗。') + ' 可按「重新載入科目」重試。';
+        tree.pending = false; tree.error = (error && error.message ? error.message : '科目清單讀取失敗。') + ' 可按「重新載入」重試。';
         redraw();
       });
     }
@@ -273,10 +289,9 @@
         setCodes([control.getAttribute('data-account-tree-code')], control.checked); redraw();
       });
     });
-    var search = root.querySelector('[data-account-tree-search]');
-    if (search) search.addEventListener('input', function () {
-      tree.search = search.value; readPage(payload(tree.categoryId, null), null);
-    });
+    Ui.bindSearchBox(root.querySelector('[data-account-tree-search-form]'), function (text) {
+      tree.search = text; tree.searchDraft = text; readPage(payload(tree.categoryId, null), null);
+    }, function (text) { tree.searchDraft = text; });
     var more = root.querySelector('[data-account-tree-more]');
     if (more) more.addEventListener('click', function () {
       if (!tree.pending && tree.nextCursor) { readPage(payload(tree.categoryId, tree.nextCursor), null); }
@@ -341,23 +356,21 @@
   function warning(rule, state) {
     var selected = field(rule, state), value = wire(rule, state), mode = carrier(rule.operator, fieldType(rule, state));
     if (selected && selected.type === 'text' && mode === 'value' && /[\r\n]/.test(value.value)) {
-      return '這個比較方式只收一個值；目前輸入多行，仍會整段當成一個值，不會拆成多個條件。';
+      return '目前輸入了多行，會整段當成同一個值。';
     }
     if (selected && selected.type === 'money' && !isTail(rule.operator) && value.amountBasis === 'absolute') {
       var inputs = mode === 'set' ? value.values : mode === 'range' ? [value.from, value.to] : [value.value];
       if (inputs.some(function (input) { var number = moneyNumber(input); return number !== null && number < 0; })) {
-        return '目前比較金額絕對值，但條件填了負數。請確認這是預期門檻；若要保留正負號，可改用「含正負號」。這項提醒不會阻止計算。';
+        return selected && selected.extra ? '比較基準是絕對值，但填了負數；要比較正負號請改選「含正負號」。' :
+          '金額只比較絕對值，目前填了負數。請填正數；要限定方向請另加「借貸別」條件。';
       }
     }
     return '';
   }
-  function render(rule, state, focusKey, pseudoFields) {
+  function render(rule, state, focusKey) {
     var selected = field(rule, state), type = fieldType(rule, state), mode = carrier(rule.operator, type);
     var choice = selectedMode(rule, state), view = editorView(rule);
-    var direction = '<label>分錄方向<select data-value-key="drCr" aria-label="此條件的分錄方向"><option value=""' + (!rule.drCr ? ' selected' : '') + '>不限借貸</option>' +
-      '<option value="debit"' + (rule.drCr === 'debit' ? ' selected' : '') + '>借方</option><option value="credit"' + (rule.drCr === 'credit' ? ' selected' : '') + '>貸方</option></select></label>';
-    var showDirection = (!rule.fieldId && ['accNum', 'accName'].indexOf(rule.field) >= 0) || !!rule.drCr;
-    var main = showDirection ? direction : '';
+    var main = '';
     if (choice) {
       main += choice.no ? '<select data-value-polarity aria-label="保留或排除"><option value="keep"' + (!excluded(rule, choice) ? ' selected' : '') +
         '>保留</option><option value="exclude"' + (excluded(rule, choice) ? ' selected' : '') + '>排除</option></select>' : '<span>保留</span>';
@@ -366,6 +379,7 @@
       commonModes[type].map(function (item) { return '<option value="' + item.key + '"' + (choice === item && !view.periodEnd ? ' selected' : '') + '>' + item.label + '</option>'; }).join('') +
       (type === 'date' && state.project && state.project.periodEnd ? '<option value="periodEnd"' + (view.periodEnd ? ' selected' : '') + '>查核期末最後幾天</option>' : '') + '</select>';
     function input(key, label) {
+      if (type === 'date') { return Ui.dateInputHtml({ 'data-value-key': key, 'aria-label': label, value: normalizeDate(rule[key] || '', state) }); }
       // A textarea retains pasted line breaks so single-value comparisons can explain them instead of silently flattening them.
       if (type === 'text' || isTail(rule.operator)) { return '<textarea rows="1" class="value-editor__list" data-value-key="' + key + '" aria-label="' + label + '" placeholder="' + label + '">' + Ui.esc(rule[key] || '') + '</textarea>'; }
       return '<input type="text" data-value-key="' + key + '" aria-label="' + label + '" placeholder="' + label + '" value="' + Ui.esc(rule[key] || '') + '">';
@@ -395,28 +409,29 @@
       var isPerson = ['createBy', 'approveBy'].indexOf(rule.field) >= 0 && !rule.fieldId;
       var listHint = type === 'date' ? '每行一個日期' : type === 'text' && /^(contains|notContains)$/.test(rule.operator) ? '每行一個關鍵字' :
         isPerson ? '每行一個人員代號或姓名' : rule.field === 'accNum' ? '每行一個科目編號' : '每行一個值';
-      var list = '<textarea rows="1" class="value-editor__list" data-value-key="values" aria-label="' + listHint + '" placeholder="' + listHint + '">' + Ui.esc((rule.values || []).join('\n')) + '</textarea>';
+      var list = '<textarea rows="1" class="value-editor__list" data-value-key="values" data-values-for="' + Ui.esc(motionId(rule)) + '" aria-label="' + listHint + '" placeholder="' + listHint + '">' + Ui.esc((rule.values || []).join('\n')) + '</textarea>';
       if (delimitedList(rule, state)) { list += '<p class="rule-field__hint">' + delimiterHint + '</p>'; }
       else if (type === 'text') { list += '<p class="rule-field__hint">文字值清單每行一個值；值內的逗號、頓號與 Tab 保留，不會拆開。</p>'; }
-      if (isPerson) { list += '<p class="form-notice">填入 GL 實際提供的姓名或員工代碼，重複項目會合併。姓名本身含逗號時也會拆開，請改填來源中的員工代碼。可在上方選保留或排除。</p>'; }
+      if (isPerson) { list += '<p class="help-text">請填 GL 裡的姓名或員工代碼；姓名本身有逗號時，請改填員工代碼。</p>'; }
       if (type === 'date') {
-        main += '<button type="button" class="btn btn--ghost btn--tiny" data-calendar-open data-focus-key="' + focusKey + '">選日期</button>' +
-          '<div class="selected-dates" data-selected-dates aria-label="已選日期"></div>';
+        main += Ui.dateInputHtml({ 'data-date-input': true, 'data-focus-key': focusKey + '-date', 'aria-label': '加入日期' }) +
+          '<button type="button" class="btn btn--ghost" data-date-add>加入</button>' +
+          '<p class="form-notice" data-date-error data-collapsible role="alert" hidden></p>' +
+          '<div class="selected-dates" data-selected-dates data-motion-key="' + Ui.esc('dates-' + motionId(rule)) + '" data-motion-list="selected-dates" aria-label="已選日期">' +
+          dateChipsHtml(rule, state) + '</div>';
         extra.push('<label>貼上日期清單' + list + '</label>');
       } else { main += list; }
       extra.push('<p class="rule-field__hint">最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同值，空行不列入。' + (type === 'date' ? '日期可用 2025-08-01、2025/8/1、2025.8.1、20250801 或 Excel 序列值；民國年依案件設定。' : '保留文字前置零；金額千分位逗號不拆開。') + '</p>');
-      if (current.length) { extra.push('<button type="button" class="btn btn--ghost btn--tiny" data-values-clear>清空所有值</button>'); }
+      if (current.length) { extra.push('<button type="button" class="btn btn--ghost btn--tiny" data-values-clear data-motion-key="' + Ui.esc('values-clear-' + motionId(rule)) + '">清空所有值</button>'); }
     }
-    if (type === 'money' && !isTail(rule.operator)) {
+    if (type === 'money' && selected && selected.extra && !isTail(rule.operator)) {
       var basis = rule.amountBasis || (selected && selected.extra ? 'signed' : 'absolute');
       extra.push('<label>金額比較基準<select data-value-key="amountBasis" aria-label="金額比較基準"><option value="absolute"' + (basis !== 'signed' ? ' selected' : '') + '>絕對值（不分借貸）</option><option value="signed"' + (basis === 'signed' ? ' selected' : '') + '>含正負號</option></select></label>');
     }
-    if (type === 'date' && (mode === 'value' || mode === 'range') && !isMonthWindow(rule.operator)) {
-      main += '<p class="rule-field__hint">日期寫法和 GL 相同，例如 yyyy/M/d、yyyy.M.d、yyyyMMdd 或 Excel 序列值；民國年依案件設定。</p>';
-    }
     if (type === 'text' && mode === 'value') { main += '<p class="rule-field__hint">此比較方式只收一個值；不會將逗號或多行內容拆成多個條件。</p>'; }
     if (mode === 'set' || isTail(rule.operator)) { main += '<p class="rule-field__hint" data-value-count role="status">已輸入 ' + values(rule, state).length + ' 個值，上限 ' + Ui.TYPED_SET_MAX_VALUES + '</p>'; }
-    main += '<p class="form-notice" data-value-warning role="status"' + (warning(rule, state) ? '' : ' hidden') + '>' + Ui.esc(warning(rule, state)) + '</p>';
+    // 使用者 2026-10-13 要求展開與收合一致：提醒原地收放，標 data-collapsible；收起時保留原來的字（見 bind）。
+    main += '<p class="form-notice form-notice--warning" data-value-warning data-collapsible role="status"' + (warning(rule, state) ? '' : ' hidden') + '>' + Ui.esc(warning(rule, state)) + '</p>';
     if (canIncludeBlank) {
       extra.push('<label class="value-blank"><input type="checkbox" data-value-key="includeBlank"' + (blankMatches(rule) ? ' checked' : '') + '>' +
         (type === 'date' ? '沒有日期的分錄也列入結果' : '此欄位空白的分錄也列入結果') + '</label>');
@@ -438,7 +453,8 @@
       root.querySelectorAll('textarea.value-editor__list').forEach(function (input) {
         if (!input.getClientRects().length) { return; }
         input.style.height = 'auto';
-        input.style.height = Math.min(160, Math.max(36, input.scrollHeight)) + 'px';
+        // 起始高度 32px，和旁邊的下拉選單同高（app.css 的 --control-height）。
+        input.style.height = Math.min(160, Math.max(32, input.scrollHeight)) + 'px';
       });
     }
     fitLists();
@@ -486,8 +502,7 @@
         var key = control.getAttribute('data-value-key'), structural = key === 'field' || key === 'operator' || key === 'includeBlank' || key === 'amountBasis' || key === 'drCr';
         if (key === 'field') {
           var selected = fields(state).find(function (item) { return item.id === control.value; });
-          // 分錄性質（借貸別、人工／自動）不是 fieldValue 的欄位：交回呼叫端換成對應的規則型別。
-          if (!selected) { changed('pseudo', control.value); return; }
+          if (!selected) { return; }
           delete rule.field; delete rule.fieldId;
           rule[selected.extra ? 'fieldId' : 'field'] = selected.id;
           rule.operator = selected.type === 'date' || !selected.extra && ['createBy', 'approveBy', 'accNum'].indexOf(selected.id) >= 0 ? 'in' : selected.type === 'text' ? 'contains' : 'equals';
@@ -504,115 +519,104 @@
         var counter = root.querySelector('[data-value-count]');
         if (counter) { counter.textContent = '已輸入 ' + values(rule, state).length + ' 個值，上限 ' + Ui.TYPED_SET_MAX_VALUES; }
         var notice = root.querySelector('[data-value-warning]');
-        if (notice) { notice.textContent = warning(rule, state); notice.hidden = !notice.textContent; }
+        if (notice) {
+          var noticeText = warning(rule, state);
+          if (noticeText) { notice.textContent = noticeText; }
+          notice.hidden = !noticeText;
+        }
         if (key === 'values') { refreshChips(); fitLists(); }
       });
     });
-    function refreshChips() {
-      var chips = root.querySelector('[data-selected-dates]');
-      if (!chips) { return; }
-      chips.innerHTML = values(rule, state).map(function (date, index) {
-        return '<button type="button" class="scenario-pill" data-date-remove="' + index + '" aria-label="移除日期 ' + Ui.esc(date) + '">' + Ui.esc(date) + ' ×</button>';
-      }).join('');
+    function motion() { return global.JetMotion && typeof global.JetMotion.morph === 'function' ? global.JetMotion : null; }
+    function bindChips(chips) {
       chips.querySelectorAll('[data-date-remove]').forEach(function (button) {
-        button.addEventListener('click', function () { rule.values = values(rule, state); rule.values.splice(Number(button.dataset.dateRemove), 1); changed(true); });
+        button.addEventListener('click', function () {
+          var date = button.getAttribute('data-date-remove');
+          // 使用者 2026-10-13 要求移除時先輕微快速地晃一下：被移除的日期標籤先晃，再在下一次重繪時收起。
+          if (motion() && typeof motion().removing === 'function') { motion().removing({ keys: [dateChipKey(rule, date)] }); }
+          rule.values = values(rule, state).filter(function (value) { return value !== date; });
+          changed(true);
+        });
       });
     }
-    refreshChips();
+    // 在日期清單裡貼上或刪改時不會整段重繪，標籤在這裡重建；交給 JetMotion.morph，新的日期長出來、刪掉的收起來。
+    function refreshChips() {
+      var chips = Ui.findLive(root, '[data-selected-dates]');
+      if (!chips) { return; }
+      function rebuild() { chips.innerHTML = dateChipsHtml(rule, state); bindChips(chips); }
+      if (motion()) { motion().morph(chips, rebuild); } else { rebuild(); }
+    }
+    var dates = root.querySelector('[data-selected-dates]');
+    if (dates) { bindChips(dates); }
     var clear = root.querySelector('[data-values-clear]');
-    if (clear) { clear.addEventListener('click', function () { rule.values = []; changed(true); }); }
-    var opener = root.querySelector('[data-calendar-open]');
-    if (opener) { opener.addEventListener('click', function () { calendar(opener, rule, state, changed); }); }
-    bindAccountTree(root, rule, state, changed);
-  }
-  function calendar(opener, rule, state, changed) {
-    var selected = values(rule, state), originalFocus = opener.getAttribute('data-focus-key');
-    var initial = selected.find(function (value) { return /^\d{4}-\d{2}-\d{2}$/.test(value); }) ||
-      (state.project && state.project.periodStart) || iso(new Date());
-    var parts = initial.split('-').map(Number), focus = day(parts[0], parts[1], parts[2]);
-    var dialog = document.createElement('dialog'); dialog.className = 'date-multiselect';
-    dialog.setAttribute('aria-label', '選擇多個日期');
-    document.body.appendChild(dialog);
-    function close() { dialog.close(); dialog.remove(); if (opener.isConnected) { opener.focus(); } }
-    function draw(trigger) {
-      var restoreKey = trigger && trigger.getAttribute('data-calendar-focus');
-      var year = focus.getUTCFullYear(), month = focus.getUTCMonth() + 1, first = day(year, month, 1);
-      var end = day(year, month + 1, 0).getUTCDate(), cells = [];
-      for (var pad = 0; pad < first.getUTCDay(); pad++) { cells.push('<span role="gridcell"></span>'); }
-      for (var n = 1; n <= end; n++) {
-        var date = iso(day(year, month, n)), on = selected.indexOf(date) >= 0;
-        cells.push('<button type="button" role="gridcell" data-calendar-date="' + date + '" aria-label="' + date +
-          '" aria-selected="' + on + '" tabindex="' + (n === focus.getUTCDate() ? '0' : '-1') + '" class="' + (on ? 'is-selected' : '') + '">' + n + '</button>');
+    if (clear) { clear.addEventListener('click', function () {
+      var jet = motion();
+      // 使用者 2026-10-13 要求清除時先輕微快速地晃一下：所有日期標籤先晃再收起；值清單不會拿掉，只是被清空，
+      // 所以重繪後直接晃新的那一個（重繪是同步的；沒有重繪時晃原本那一個）。
+      if (jet && typeof jet.removing === 'function') {
+        jet.removing({ keys: values(rule, state).map(function (date) { return dateChipKey(rule, date); }) });
       }
-      while (cells.length % 7) { cells.push('<span role="gridcell"></span>'); }
-      var calendarRows = '';
-      for (var offset = 0; offset < cells.length; offset += 7) { calendarRows += '<div role="row">' + cells.slice(offset, offset + 7).join('') + '</div>'; }
-      var project = state.project || {}, fromYear = Number((project.periodStart || initial).slice(0, 4)), toYear = Number((project.periodEnd || initial).slice(0, 4));
-      var years = new Set([year]);
-      for (var y = Math.max(1, Math.min(fromYear, toYear) - 5); y <= Math.min(9999, Math.max(fromYear, toYear) + 5); y++) { years.add(y); }
-      selected.forEach(function (value) { if (/^\d{4}-\d{2}-\d{2}$/.test(value)) { years.add(Number(value.slice(0, 4))); } });
-      var yearOptions = Array.from(years).sort(function (a,b) { return a-b; }).map(function (y) { return '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + ' 年</option>'; }).join('');
-      var monthOptions = Array.from({length:12}, function (_,i) { var m=i+1; return '<option value="' + m + '"' + (m === month ? ' selected' : '') + '>' + m + ' 月</option>'; }).join('');
-      dialog.innerHTML = '<div class="date-multiselect__head"><button type="button" data-month="-1" data-calendar-focus="previous" aria-label="上一個月">‹</button>' +
-        '<label><span class="visually-hidden">年份</span><select data-calendar-year data-calendar-focus="year" aria-label="年份">' + yearOptions + '</select></label><label><span class="visually-hidden">月份</span><select data-calendar-month data-calendar-focus="month" aria-label="月份">' + monthOptions + '</select></label><button type="button" data-month="1" data-calendar-focus="next" aria-label="下一個月">›</button></div>' +
-        '<div class="date-multiselect__week" aria-hidden="true">' + ['日','一','二','三','四','五','六'].map(function (text) { return '<span>' + text + '</span>'; }).join('') + '</div>' +
-        '<div role="grid" aria-label="' + year + ' 年 ' + month + ' 月" aria-multiselectable="true" class="date-multiselect__grid">' + calendarRows + '</div>' +
-        '<p role="status">已選 ' + selected.length + ' 個日期；可切換月份繼續選取。</p><p class="rule-field__hint">方向鍵移動，空白鍵選取；Page Up 和 Page Down 換月。</p>' +
-        '<p data-calendar-error role="alert"></p><div class="panel__actions"><button type="button" data-calendar-cancel>取消</button><button type="button" class="btn" data-calendar-done>完成選取</button></div>';
-      dialog.querySelector('[data-calendar-year]').onchange = function () { focus = day(Number(this.value), month, 1); draw(this); };
-      dialog.querySelector('[data-calendar-month]').onchange = function () { focus = day(year, Number(this.value), 1); draw(this); };
-      dialog.querySelectorAll('[data-month]').forEach(function (button) { button.onclick = function () {
-        var next = day(year, month + Number(button.dataset.month), 1);
-        if (next.getUTCFullYear() < 1 || next.getUTCFullYear() > 9999) { return; }
-        focus = next; draw(button);
-      }; });
-      dialog.querySelectorAll('[data-calendar-date]').forEach(function (button) {
-        button.onclick = function () {
-          var date = button.dataset.calendarDate, index = selected.indexOf(date);
-          if (index >= 0) { selected.splice(index, 1); }
-          else if (selected.length < Ui.TYPED_SET_MAX_VALUES) { selected.push(date); }
-          else { dialog.querySelector('[data-calendar-error]').textContent = '最多選取 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同日期，請先移除不需要的日期。'; return; }
-          var p = date.split('-').map(Number); focus = day(p[0], p[1], p[2]); draw();
-        };
-        button.onkeydown = function (event) {
-          var delta = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[event.key], next;
-          if (delta) { next = day(year, month, focus.getUTCDate() + delta); }
-          else if (event.key === 'Home' || event.key === 'End') { next = day(year, month, focus.getUTCDate() + (event.key === 'Home' ? -focus.getUTCDay() : 6 - focus.getUTCDay())); }
-          else if (event.key === 'PageUp' || event.key === 'PageDown') { next = day(year, month + (event.key === 'PageUp' ? -1 : 1) * (event.shiftKey ? 12 : 1), 1); }
-          if (next && next.getUTCFullYear() >= 1 && next.getUTCFullYear() <= 9999) { event.preventDefault(); focus = next; draw(); }
-        };
+      rule.values = []; changed(true);
+      if (jet && typeof jet.shake === 'function') {
+        var doc = global.document;
+        var list = doc && typeof doc.querySelector === 'function'
+          ? doc.querySelector('[data-values-for="' + motionId(rule) + '"]') : null;
+        if (!list || !list.isConnected) { list = root.querySelector('[data-value-key="values"]'); }
+        if (list) { jet.shake(list); }
+      }
+    }); }
+    var dateInput = root.querySelector('[data-date-input]');
+    if (dateInput) {
+      var dateError = root.querySelector('[data-date-error]');
+      function addDate() {
+        if (!dateInput.value || dateInput.checkValidity && !dateInput.checkValidity()) {
+          if (dateInput.reportValidity) { dateInput.reportValidity(); }
+          return;
+        }
+        var selected = values(rule, state), date = dateInput.value;
+        var duplicate = selected.indexOf(date) >= 0;
+        if (!duplicate && selected.length >= Ui.TYPED_SET_MAX_VALUES) {
+          dateError.textContent = '最多選取 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同日期，請先移除不需要的日期。';
+          dateError.hidden = false;
+          return;
+        }
+        dateInput.value = ''; dateError.hidden = true;
+        var key = dateInput.getAttribute('data-focus-key');
+        if (!duplicate) { rule.values = selected.concat(date); changed(true); }
+        if (global.JetFocus) { global.JetFocus.defer(function () { return document.querySelector('[data-focus-key="' + key + '"]'); }); }
+      }
+      root.querySelector('[data-date-add]').addEventListener('click', addDate);
+      dateInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') { event.preventDefault(); addDate(); }
       });
-      dialog.querySelector('[data-calendar-cancel]').onclick = close;
-      dialog.querySelector('[data-calendar-done]').onclick = function () {
-        rule.values = selected.slice().sort(); close(); changed(true);
-        if (global.JetFocus) { global.JetFocus.defer(function () { return document.querySelector('[data-focus-key="' + originalFocus + '"]'); }); }
-      };
-      var target = restoreKey ? dialog.querySelector('[data-calendar-focus="' + restoreKey + '"]')
-        : dialog.querySelector('[data-calendar-date="' + iso(focus) + '"]');
-      if (target) { target.focus(); }
+      dateInput.addEventListener('input', function () { dateError.hidden = true; });
     }
-    dialog.addEventListener('cancel', function (event) { event.preventDefault(); close(); });
-    draw(); dialog.showModal();
-    var target = dialog.querySelector('[data-calendar-date="' + iso(focus) + '"]'); if (target) { target.focus(); }
+    bindAccountTree(root, rule, state, changed);
   }
   function problem(rule, state) {
     var selected = field(rule, state);
     if (!selected) { return '重新選擇欄位，或回到第三步確認配對'; }
     var value = wire(rule, state), mode = carrier(rule.operator, selected.type);
     if (operators[selected.type].indexOf(rule.operator) < 0) { return selected.label + '需選擇比較方式'; }
-    if (rule.drCr && ['debit', 'credit'].indexOf(rule.drCr) < 0) { return '請重新選擇分錄方向'; }
+    // 分錄方向無效只會出現在存檔內容損毀時，沿用損毀條件的儲存句（使用者 2026-10-14 第三輪勾選頁確認 R3-64）。
+    if (rule.drCr && ['debit', 'credit'].indexOf(rule.drCr) < 0) { return '此條件內容有誤，無法儲存。請刪除此條件後重新設定。'; }
     if (isMonthWindow(rule.operator)) {
-      return /^\d{1,2}$/.test(value.value.trim()) && Number(value.value) >= 1 && Number(value.value) <= 31 ? '' : '每月月初或月底天數只能是 1 到 31 的整數';
+      return /^\d{1,2}$/.test(value.value.trim()) && Number(value.value) >= 1 && Number(value.value) <= 31 ? '' : '每月月初或月底天數須為 1 到 31 的整數';
     }
     if (isDayOfMonth(rule.operator)) {
       var days = value.values;
-      if (!days.length) { return selected.label + '請填入每月幾日（1 到 31）'; }
-      if (days.some(function (item) { return !/^\d{1,2}$/.test(item) || Number(item) < 1 || Number(item) > 31; })) { return selected.label + '的每月幾日只能是 1 到 31，重複的會自動合併'; }
+      // 沒有填與填錯用同一句（使用者 2026-10-14 第三輪勾選頁確認 R3-07）。
+      if (!days.length || days.some(function (item) { return !/^\d{1,2}$/.test(item) || Number(item) < 1 || Number(item) > 31; })) { return '每月日期須為 1 到 31 的整數，至少填寫一個'; }
       return '';
     }
     var inputs = mode === 'set' ? value.values : mode === 'range' ? [value.from, value.to] : mode === 'value' ? [value.value] : [];
     // Count exactly what wire() sends; never guess case equivalence in JavaScript.
-    if (mode === 'set' && (!inputs.length || inputs.length > Ui.TYPED_SET_MAX_VALUES)) { return selected.label + '請填入 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同值'; }
+    var count = isTail(rule.operator) ? values(rule, state).length : mode === 'set' ? inputs.length : 0;
+    if (count > Ui.TYPED_SET_MAX_VALUES) {
+      return '每條最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值。請拆成多條條件，放進「' +
+        (/^(notIn|notContains|notEndsWithDigits)$/.test(rule.operator) ? '全部符合' : '任一符合') + '」子條件組。';
+    }
+    if (mode === 'set' && !inputs.length) { return '請填 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值'; }
     if (inputs.some(function (input) { return !input.trim(); })) { return selected.label + '請填好條件值'; }
     if (isTail(rule.operator)) {
       var tails = splitDelimited(value.value);
@@ -621,24 +625,27 @@
       }
       return '';
     }
+    // 原因句照使用者 2026-10-14 第三輪勾選頁確認 R3-11、R3-12：寫出無法辨識的那個值。
     if (selected.type === 'money') {
-      if (inputs.some(function (input) { return moneyNumber(input) === null; })) { return '金額格式無效，請填數字，可保留千分位逗號、小數與正負號'; }
-      if (mode === 'range' && moneyNumber(value.from) > moneyNumber(value.to)) { return '金額區間起點大於終點，請修正'; }
+      var badAmount = inputs.find(function (input) { return moneyNumber(input) === null; });
+      if (badAmount !== undefined) { return '金額「' + badAmount + '」不是數字'; }
+      if (mode === 'range' && moneyNumber(value.from) > moneyNumber(value.to)) { return '下限金額大於上限金額'; }
     }
-    if (selected.type === 'date' && inputs.some(function (input) {
+    var badDate = selected.type !== 'date' ? undefined : inputs.find(function (input) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) {
         // Recognizable invalid dates can be corrected here. Other invariant-culture formats
         // are forwarded unchanged to DateNormalizer; browser parsing must not redefine GL dates.
         return /^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(input) || moneyNumber(input) !== null;
       }
       var p = input.split('-').map(Number); return p[0] < 1 || iso(day(p[0], p[1], p[2])) !== input;
-    })) { return selected.label + '含無效日期，請依提示格式修正'; }
-    if (selected.type === 'date' && mode === 'range' && /^\d{4}-\d{2}-\d{2}$/.test(value.from) && /^\d{4}-\d{2}-\d{2}$/.test(value.to) && value.from > value.to) { return selected.label + '起點晚於終點，請修正日期區間'; }
+    });
+    if (badDate !== undefined) { return '日期「' + badDate + '」無法辨識，請以 2026-12-31 的格式輸入'; }
+    if (selected.type === 'date' && mode === 'range' && /^\d{4}-\d{2}-\d{2}$/.test(value.from) && /^\d{4}-\d{2}-\d{2}$/.test(value.to) && value.from > value.to) { return '起日晚於迄日'; }
     return '';
   }
   function create(type) {
     return { type: 'fieldValue', join: 'AND', field: type === 'date' ? 'postDate' : type === 'money' ? 'amount' : 'description',
       operator: type === 'date' ? 'in' : type === 'text' ? 'contains' : 'equals', values: [], value: '', includeBlank: false, amountBasis: 'absolute', __valueType: type };
   }
-  Ui.FilterValues = { create: create, render: render, bind: bind, wire: wire, summary: summary, field: field, fields: fields, groupedFields: groupedFields, fieldOptionsHtml: fieldOptionsHtml, values: values, normalizeDate: normalizeDate, splitDelimited: splitDelimited, problem: problem, isDayOfMonth: isDayOfMonth };
+  Ui.FilterValues = { create: create, render: render, bind: bind, wire: wire, summary: summary, field: field, fieldTitle: fieldTitle, fields: fields, groupedFields: groupedFields, fieldOptionsHtml: fieldOptionsHtml, values: values, normalizeDate: normalizeDate, splitDelimited: splitDelimited, problem: problem, isDayOfMonth: isDayOfMonth };
 })(window);

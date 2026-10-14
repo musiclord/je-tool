@@ -1,5 +1,35 @@
 [
   {
+    "id": "explicit-direction-and-account-child-group",
+    "scenario": { "groups": [{ "rules": [{ "type": "group", "rules": [{ "type": "drCrOnly", "drCr": "debit" }, { "type": "fieldValue", "field": "accNum", "operator": "in", "values": ["A"] }] }] }] },
+    "rdeFields": [],
+    "expected": "同一分錄（（僅借方 且 會計科目編號 符合清單任一值「A」；空白不列入））"
+  },
+  {
+    "id": "explicit-voucher-absence-and-classification",
+    "scenario": { "groups": [{ "rules": [{ "type": "voucher", "quantifier": "none", "rules": [{ "type": "drCrOnly", "drCr": "credit" }, { "type": "accountSide", "categoryMode": "is", "categoryIds": ["builtin.cash"], "categorySelection": "subtree" }] }] }] },
+    "rdeFields": [],
+    "expected": "整張傳票不存在符合：同一分錄（（僅貸方 且 科目屬於「Cash」（包含下層分類）））"
+  },
+  {
+    "id": "explicit-voucher-witness-after-output-rule",
+    "scenario": { "groups": [{ "rules": [{ "type": "drCrOnly", "drCr": "debit" }, { "type": "voucher", "quantifier": "any", "rules": [{ "type": "fieldValue", "field": "description", "operator": "contains", "values": ["調整"] }] }] }] },
+    "rdeFields": [],
+    "expected": "僅借方 且 整張傳票至少一筆符合：傳票摘要 包含任一文字「調整」；空白不列入"
+  },
+  {
+    "id": "classification-without-hidden-direction",
+    "scenario": { "groups": [{ "rules": [{ "type": "accountSide", "categoryMode": "is", "categoryIds": ["builtin.cash"], "categorySelection": "subtree" }] }] },
+    "rdeFields": [],
+    "expected": "科目屬於「Cash」（包含下層分類）"
+  },
+  {
+    "id": "voucher-without-hidden-scope",
+    "scenario": { "groups": [{ "rules": [{ "type": "voucher", "quantifier": "any", "rules": [{ "type": "drCrOnly", "drCr": "credit" }] }] }] },
+    "rdeFields": [],
+    "expected": "整張傳票至少一筆符合：僅貸方"
+  },
+  {
     "id": "people-exact-list",
     "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "approveBy", "operator": "in", "values": ["001", "A02"] }] }] },
     "rdeFields": [],
@@ -27,13 +57,13 @@
     "id": "specified-date",
     "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "postDate", "operator": "on", "value": "2025-06-11" }] }] },
     "rdeFields": [],
-    "expected": "總帳入帳日 指定日期「2025-06-11」；空白不列入"
+    "expected": "總帳日期 指定日期「2025-06-11」；空白不列入"
   },
   {
     "id": "days-of-month",
     "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "postDate", "operator": "dayOfMonthIn", "values": ["1", "15", "31"] }] }] },
     "rdeFields": [],
-    "expected": "總帳入帳日 每月幾日屬於「1、15、31」；空白不列入"
+    "expected": "總帳日期 每月幾日屬於「1、15、31」；空白不列入"
   },
   {
     "id": "tails-preserve-leading-zero",
@@ -51,7 +81,7 @@
     "id": "frequency-greater-than-or-equal",
     "scenario": { "groups": [{ "rules": [{ "type": "entityFrequency", "field": "approveBy", "countUnit": "entries", "countOperator": "greaterThanOrEqual", "countFrom": 4 }] }] },
     "rdeFields": [],
-    "expected": "分錄測試範圍內「傳票核准人員」分錄筆數 大於或等於 4"
+    "expected": "GL 中「傳票核准人員」分錄筆數 大於或等於 4"
   },
   {
     "id": "empty-middle-group-keeps-next-effective-and",
@@ -82,5 +112,78 @@
     "scenario": { "groups": [{ "rules": [{ "type": "voucher", "side": "credit", "quantifier": "any", "rules": [{ "type": "fieldValue", "field": "approveBy", "operator": "in", "values": ["001", "A02"] }] }] }] },
     "rdeFields": [],
     "expected": "貸方至少一筆符合：傳票核准人員 符合清單任一值「001、A02」；空白不列入"
+  },
+  {
+    "id": "text-set-contains-preserve-spaces",
+    "scenario": { "groups": [{ "join": "AND", "matchScope": "row", "rules": [{ "join": "AND", "type": "textSet", "field": "description", "mode": "contains", "normalization": "preserve", "values": ["Alpha,Beta", "Gamma"] }] }] },
+    "rdeFields": [],
+    "expected": "傳票摘要 包含任一值「Alpha,Beta、Gamma」（保留半形空白）"
+  },
+  {
+    "id": "text-set-exact-remove-spaces",
+    "scenario": { "groups": [{ "join": "AND", "matchScope": "row", "rules": [{ "join": "AND", "type": "textSet", "field": "description", "mode": "exact", "normalization": "removeAsciiSpaces", "values": ["A 01", "B02"] }] }] },
+    "rdeFields": [],
+    "expected": "傳票摘要 完全符合任一值「A 01、B02」（移除半形空白）"
+  },
+  {
+    "id": "same-voucher-three-rules",
+    "scenario": { "groups": [{ "join": "AND", "matchScope": "sameVoucher", "rules": [{ "join": "AND", "type": "fieldValue", "field": "approveBy", "operator": "in", "values": ["001"] }, { "join": "AND", "type": "textSet", "field": "description", "mode": "contains", "normalization": "preserve", "values": ["調整"] }, { "join": "AND", "type": "manualAuto", "isManual": true }] }] },
+    "rdeFields": [],
+    "expected": "主要條件（決定符合條件的分錄）：傳票核准人員 符合清單任一值「001」；空白不列入 且 後續條件可由同一傳票的其他分錄列符合：傳票摘要 包含任一值「調整」（保留半形空白） 且 人工分錄"
+  },
+  {
+    "id": "mixed-joins-in-one-group-fold-left",
+    "scenario": { "groups": [{ "join": "AND", "rules": [{ "join": "AND", "type": "drCrOnly", "drCr": "debit" }, { "join": "OR", "type": "manualAuto", "isManual": true }, { "join": "AND", "type": "manualAuto", "isManual": false }] }] },
+    "rdeFields": [],
+    "expected": "（（僅借方 或 人工分錄） 且 自動分錄）"
+  },
+  {
+    "id": "mixed-joins-ignore-case-and-spaces-before-next-group",
+    "scenario": { "groups": [{ "join": "AND", "rules": [{ "join": "AND", "type": "drCrOnly", "drCr": "credit" }, { "join": " or ", "type": "manualAuto", "isManual": true }, { "join": "and", "type": "manualAuto", "isManual": false }] }, { "join": "AND", "rules": [{ "join": "AND", "type": "drCrOnly", "drCr": "debit" }] }] },
+    "rdeFields": [],
+    "expected": "（（僅貸方 或 人工分錄） 且 自動分錄） 且 僅借方"
+  },
+  {
+    "id": "typed-money-between-absolute",
+    "scenario": { "groups": [{ "join": "AND", "rules": [{ "join": "AND", "type": "typed", "fieldId": "rde.b7000000000000000000000000000003", "operator": "between", "from": "10", "to": "20.5", "amountBasis": "absolute" }] }] },
+    "rdeFields": [{ "fieldId": "rde.b7000000000000000000000000000003", "sourceColumn": "SyntheticAmount", "label": "合成金額", "valueType": "money" }],
+    "expected": "合成金額 介於「10」～「20.5」（金額絕對值）"
+  },
+  {
+    "id": "first-rule-join-has-no-left-side",
+    "scenario": { "groups": [{ "join": "AND", "rules": [{ "join": "OR", "type": "drCrOnly", "drCr": "debit" }, { "join": "AND", "type": "manualAuto", "isManual": true }] }] },
+    "rdeFields": [],
+    "expected": "僅借方 且 人工分錄"
+  },
+  {
+    "id": "retired-gl-field-non-business-day",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "voucherDate", "operator": "isNonBusinessDay" }] }] },
+    "rdeFields": [],
+    "retiredGlFieldLabels": { "voucherDate": "傳票日期" },
+    "expected": "已移除的「傳票日期」 非營業日（排除補班日）；空白不列入"
+  },
+  {
+    "id": "unknown-gl-field-list",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "field": "syntheticGoneField", "operator": "in", "values": ["X1"] }] }] },
+    "rdeFields": [],
+    "expected": "已不存在的欄位 符合清單任一值「X1」；空白不列入"
+  },
+  {
+    "id": "rde-field-not-in-mapping-equals",
+    "scenario": { "groups": [{ "rules": [{ "type": "fieldValue", "fieldId": "rde.b7000000000000000000000000000009", "operator": "equals", "value": "Alpha" }] }] },
+    "rdeFields": [],
+    "expected": "已不在欄位配對中的攸關資料元素欄位 等於「Alpha」；空白不列入"
+  },
+  {
+    "id": "typed-field-not-in-mapping-has-no-basis",
+    "scenario": { "groups": [{ "rules": [{ "type": "typed", "fieldId": "rde.b7000000000000000000000000000009", "operator": "between", "from": "10", "to": "20.5", "amountBasis": "absolute" }] }] },
+    "rdeFields": [],
+    "expected": "已不在欄位配對中的攸關資料元素欄位 介於「10」～「20.5」"
+  },
+  {
+    "id": "unknown-prescreen-key",
+    "scenario": { "groups": [{ "rules": [{ "type": "prescreen", "prescreenKey": "syntheticRetiredCheck" }] }] },
+    "rdeFields": [],
+    "expected": "預篩選：已停用的條件"
   }
 ]

@@ -86,15 +86,22 @@ internal static class Batch5CategoryFixture
 
     internal static object ScenarioPayload(string side, string? selection, string mode = "is")
     {
+        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Keep fixed answers; express direction and absence explicitly.
         var rule = new Dictionary<string, object>
         {
-            ["type"] = "accountSide", ["drCr"] = side, ["categoryMode"] = mode, ["categoryIds"] = new[] { B }
+            ["type"] = "accountSide", ["categoryMode"] = mode == "absent" ? "is" : mode, ["categoryIds"] = new[] { B }
         };
         if (selection is not null) rule["categorySelection"] = selection;
+        var children = new List<object>();
+        if (side != "any") children.Add(new { type = "drCrOnly", drCr = side });
+        children.Add(rule);
+        object condition = mode == "absent"
+            ? new { type = "voucher", quantifier = "none", rules = children }
+            : side == "any" ? rule : new { type = "group", rules = children };
         return new
         {
             name = "Synthetic category selection", rationale = "Fixed category membership",
-            groups = new[] { new { rules = new[] { rule } } }
+            groups = new[] { new { rules = new[] { condition } } }
         };
     }
 

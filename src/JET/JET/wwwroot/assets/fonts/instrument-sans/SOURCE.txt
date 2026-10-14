@@ -1,0 +1,2 @@
+Instrument Sans variable font, Latin subset WOFF2 (wdth 75-100, wght 400-700), Google Fonts v4.
+License: SIL Open Font License 1.1, see OFL.txt in this folder. Downloaded and checked on 2026-10-11.

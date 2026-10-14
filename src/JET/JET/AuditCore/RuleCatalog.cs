@@ -47,7 +47,6 @@ internal static class RuleCatalog
         new("holiday_posting", "holidayPosting", "假日過帳", null, RuleShape.RowTag),
         new("holiday_approval", "holidayApproval", "假日核准", null, RuleShape.RowTag),
         new("blank_description", "blankDescription", "空白摘要", "R7", RuleShape.RowTag),
-        new("backdated_posting", "backdatedPosting", "回溯過帳（總帳入帳日早於傳票日期）", null, RuleShape.RowTag),
         new("non_authorized_preparer", "nonAuthorizedPreparer", "非授權編製人員", null, RuleShape.RowTag),
         new("low_frequency_preparer", "lowFrequencyPreparer", "編製分錄較少的人員（11 筆以下）", null, RuleShape.RowTag),
         new("low_frequency_account", "lowFrequencyAccount", "使用較少的科目（11 筆以下）", null, RuleShape.RowTag)

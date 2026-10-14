@@ -21,21 +21,17 @@ public sealed class ProjectSaveProgressHandler(
         var projectId = session.RequireProjectId();
 
         var currentStep = PayloadReader.GetOptionalInt(payload, "currentStep")
-            ?? throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "payload 缺少必填欄位 'currentStep'。");
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "current_step_missing");
 
         if (currentStep < 0 || currentStep > MaxStepIndex)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"欄位 'currentStep' 必須介於 0 與 {MaxStepIndex}，收到 {currentStep}。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "current_step_out_of_range");
         }
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                $"找不到專案 '{projectId}'。");
+                ProjectFolderMessages.ActiveProjectMissing);
 
         if (document.CurrentStep != currentStep)
         {

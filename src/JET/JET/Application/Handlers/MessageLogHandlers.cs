@@ -12,7 +12,8 @@ public sealed class LogAppendHandler(ProjectSession session) : IApplicationActio
     /// <summary>超長訊息（如 column_mismatch 雙向差集）截斷而非拒絕——持久化不該因訊息太長而失敗。</summary>
     public const int MaxTextLength = 4000;
 
-    private static readonly string[] AllowedLevels = ["info", "warn"];
+    // 訊息分三級（使用者 2026-10-13 裁定）：error 是操作失敗，warn 是需要注意，info 是一般說明與完成紀錄。
+    private static readonly string[] AllowedLevels = ["info", "warn", "error"];
 
     public string Action => "log.append";
 
@@ -23,9 +24,7 @@ public sealed class LogAppendHandler(ProjectSession session) : IApplicationActio
         var level = (PayloadReader.GetOptionalString(payload, "level") ?? "info").ToLowerInvariant();
         if (!AllowedLevels.Contains(level))
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"欄位 'level' 的值 '{level}' 無效，允許值：info、warn。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "message_level_invalid");
         }
 
         var text = PayloadReader.GetRequiredString(payload, "text");

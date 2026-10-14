@@ -57,7 +57,7 @@ internal sealed class CaseCreateFactsPort(
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
                 plan.HasUserSuppliedCaseName
-                    ? $"專案資料夾『{exception.ProjectId}』已存在，請換一個案件名稱。"
+                    ? $"案件位置已有名為「{exception.ProjectId}」的資料夾，請改用其他案件名稱，或先刪除該資料夾。"
                     : $"產生的專案識別碼『{exception.ProjectId}』已存在，請重新建立案件。",
                 plan.HasUserSuppliedCaseName ? JetErrorFields.CaseName : null);
         }
@@ -108,7 +108,7 @@ internal sealed class CaseCreateFactsPort(
                 CancellationToken.None);
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
-                $"案件名稱『{document.ProjectId}』在 SQL Server 後端已有既有的案件資料，請換一個。",
+                SqlServerMessages.CaseNameTakenOnServer(document.ProjectId),
                 plan.HasUserSuppliedCaseName ? JetErrorFields.CaseName : null);
         }
         catch

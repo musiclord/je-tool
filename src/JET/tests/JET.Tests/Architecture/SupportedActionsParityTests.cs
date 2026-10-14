@@ -17,13 +17,15 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed class SupportedActionsParityTests
 {
+    // 改動原因：使用者 2026-10-08 畫面註解要求移除假日範本入口，K15 的 export.calendarTemplates 隨之移除；
+    // 原本確認它已註冊的測試，改成確認後端與前端都不再有這個 action。
     [Fact]
-    public void K15_CalendarTemplateAction_IsRegisteredAndClassified()
+    public void RemovedCalendarTemplateAction_IsNotRegisteredOrSupported()
     {
         using var host = new HandlerTestHost();
-        Assert.Contains("export.calendarTemplates", host.Dispatcher.RegisteredActions);
-        Assert.Contains("export.calendarTemplates", ReadFrontendSupportedActions());
-        Assert.True(ActionExecutionPolicy.IsClassified("export.calendarTemplates"));
+        Assert.DoesNotContain("export.calendarTemplates", host.Dispatcher.RegisteredActions);
+        Assert.DoesNotContain("export.calendarTemplates", ReadFrontendSupportedActions());
+        Assert.False(ActionExecutionPolicy.IsClassified("export.calendarTemplates"));
     }
 
     [Fact]

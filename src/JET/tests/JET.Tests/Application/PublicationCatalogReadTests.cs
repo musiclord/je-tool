@@ -8,7 +8,8 @@ namespace JET.Tests.Application;
 /// <summary>發布已成功之後，清單讀取失敗只能影響清單，不能把已完成的匯出改報失敗。</summary>
 public sealed class PublicationCatalogReadTests
 {
-    private const string Warning = "檔案已產生，報告清單暫時無法更新。可開啟案件資料夾查看，無須重新產生。";
+    // 使用者 2026-10-14 第三輪勾選頁確認 R3-30（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+    private const string Warning = "檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。";
 
     [Theory]
     [InlineData("io")]

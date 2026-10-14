@@ -1186,6 +1186,48 @@ try {
             -Message 'Sanitized test evidence must retain a stable marker.'
     }
 
+    # 收據保留期限（使用者 2026-10-14 裁定）：同一種檢查只完整保留最新幾次，更舊的只留收據摘要與擁有者標記；
+    # 別種檢查各自計算，還沒寫收據的執行不碰，第二次整理不再刪任何東西。較早的收據沒有 partial 欄位，也要能整理
+    # （第一次實際整理時，嚴格模式讀不存在的欄位丟例外，593 次執行全被跳過）。
+    $retentionRoot = Join-Path $suiteRoot 'receipt-retention'
+    [void][IO.Directory]::CreateDirectory($retentionRoot)
+    function New-RetentionRun([int] $Index, [string] $Command, [bool] $Partial, [bool] $WithReceipt) {
+        $runId = '20260101-{0:D9}-{1}' -f $Index, ([string]$Index * 32)
+        $directory = Join-Path $retentionRoot $runId
+        [void][IO.Directory]::CreateDirectory((Join-Path $directory 'test-results'))
+        [IO.File]::WriteAllText((Join-Path $directory '.jet-harness-owner.json'),
+            (ConvertTo-Json -Compress @{ kind = 'jet-harness-run'; runId = $runId }), $utf8)
+        [IO.File]::WriteAllText((Join-Path $directory 'test-results/result.trx'), '<TestRun />', $utf8)
+        [IO.File]::WriteAllText((Join-Path $directory 'public-tests.stdout.log'), 'log', $utf8)
+        [IO.File]::WriteAllText((Join-Path $directory 'child.receipt.json'), '{}', $utf8)
+        if ($WithReceipt) {
+            $receiptValue = if ($Index -eq 2) { @{ command = $Command } } else { @{ command = $Command; partial = $Partial } }
+            [IO.File]::WriteAllText((Join-Path $directory 'receipt.json'), (ConvertTo-Json -Compress $receiptValue), $utf8)
+        }
+        return $directory
+    }
+    $inProgress = New-RetentionRun 1 'Public' $false $false
+    $oldPublic = @((New-RetentionRun 2 'Public' $false $true), (New-RetentionRun 3 'Public' $false $true))
+    $newPublic = @((New-RetentionRun 4 'Public' $false $true), (New-RetentionRun 5 'Public' $false $true))
+    $partialGui = New-RetentionRun 6 'Gui' $true $true
+    $retention = & $harnessModule {
+        param($root)
+        @((Invoke-JetReceiptRetention -EvidenceRoot $root -KeepPerGroup 2), (Invoke-JetReceiptRetention -EvidenceRoot $root -KeepPerGroup 2))
+    } $retentionRoot
+    $scenarioNames.Add('ReceiptRetention')
+    Assert-Contract -Condition ($retention[0].prunedRuns -eq 2 -and $retention[1].prunedRuns -eq 0) `
+        -Message 'Receipt retention must prune only runs beyond the newest per check, once.'
+    foreach ($directory in $oldPublic) {
+        $left = @([IO.Directory]::GetFileSystemEntries($directory) | ForEach-Object { [IO.Path]::GetFileName($_) } | Sort-Object)
+        Assert-Contract -Condition (($left -join ',') -ceq '.jet-harness-owner.json,child.receipt.json,receipt.json') `
+            -Message 'An old run keeps only its receipts and owner marker.'
+    }
+    foreach ($directory in @($newPublic + $partialGui + $inProgress)) {
+        Assert-Contract -Condition ([IO.File]::Exists((Join-Path $directory 'test-results/result.trx')) -and
+            [IO.File]::Exists((Join-Path $directory 'public-tests.stdout.log'))) `
+            -Message 'Recent runs, other checks and runs without a receipt stay whole.'
+    }
+
     # 失敗收據要能直接看出哪個測試為何失敗；訊息一行、遮蔽儲存庫根目錄，私人案件只留名稱。
     $firstFailureRoot = Join-Path $suiteRoot 'first-failure-evidence'
     [void][IO.Directory]::CreateDirectory($firstFailureRoot)

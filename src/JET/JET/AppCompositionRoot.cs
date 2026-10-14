@@ -322,7 +322,9 @@ public static partial class AppCompositionRoot
                 new SystemPingHandler(enableDevTools),
             new OperationCancelHandler(cancellationRegistry),
             // SQL Server 後端身分（去敏）：前端啟動後查一次,在訊息面板顯示連到哪台/版本/是否 Express。
-            new SystemDatabaseInfoHandler(new SqlServerBackendProbe(sqlServerConnString, singleDatabaseName)),
+            new SystemDatabaseInfoHandler(
+                new SqlServerBackendProbe(sqlServerConnString, singleDatabaseName),
+                loggerFactory.CreateLogger<SystemDatabaseInfoHandler>()),
             // 使用者身分徽章：回報合格化帳號＋線上單庫使用者編號(冪等註冊)；線上不可達時退階本機快取,永不失敗。
             new SystemWhoAmIHandler(currentPrincipal, userDirectory, userProfileCache),
             projectListLocalHandler,
@@ -332,7 +334,7 @@ public static partial class AppCompositionRoot
             new ProjectUpdateHandler(projectStore, projectRegistry, session),
             new ProjectLoadHandler(
                 projectStore, repositoryCatalog, projectRegistry, appConfigStore, currentPrincipal, session,
-                duckDbDatabase),
+                duckDbDatabase, loggerFactory.CreateLogger<ProjectLoadHandler>()),
             new AccountTaxonomySaveHandler(session),
             new QueryAccountMappingPageHandler(session),
             new AccountMappingSaveHandler(session),
@@ -371,6 +373,9 @@ public static partial class AppCompositionRoot
             new PrescreenRunHandler(projectStore, session, loggerFactory.CreateLogger<PrescreenRunHandler>()),
             new FilterPreviewHandler(projectStore, session),
             new FilterCommitHandler(projectStore, session, loggerFactory.CreateLogger<FilterCommitHandler>()),
+            new FilterScenarioSaveHandler(projectStore, session, loggerFactory.CreateLogger<FilterScenarioSaveHandler>()),
+            new FilterScenarioRemoveHandler(projectStore, session, loggerFactory.CreateLogger<FilterScenarioRemoveHandler>()),
+            new FilterScenarioRecheckHandler(projectStore, session, loggerFactory.CreateLogger<FilterScenarioRecheckHandler>()),
             projectSaveProgressHandler,
             queryDataPreviewHandler,
             new QueryCompletenessDiffPageHandler(projectStore, session),
@@ -394,10 +399,13 @@ public static partial class AppCompositionRoot
             // 帳戶對應範本是給審計員填寫的工作檔，直接寫進案件資料夾，不經報告 store。
             new ExportAccountMappingTemplateHandler(
                 accountMappingTemplateWriter, projectStore, folder, session, events),
-            new ExportCalendarTemplatesHandler(new CalendarTemplateSource(), folder, session),
             new LogAppendHandler(session),
             new LogRecentHandler(session),
-            new SupportLogExportHandler(supportDiagnostic, folder),
+            new SupportLogExportHandler(
+                supportDiagnostic,
+                folder,
+                // 省略 projectId 時的輸出位置：%LOCALAPPDATA%\JET\logs\；測試釘 temp 目錄，不碰真的 %LOCALAPPDATA%。
+                Path.Combine(userProfileDirectory ?? GetUserProfileDirectory(), "logs")),
             new HostSelectFileHandler(hostShell, hostDialogProjectContext),
             new HostSelectFilesHandler(hostShell, hostDialogProjectContext),
             new HostOpenFolderHandler(hostShell, folder, session),

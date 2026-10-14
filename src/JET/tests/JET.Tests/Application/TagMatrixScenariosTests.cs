@@ -17,16 +17,17 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class TagMatrixScenariosTests
 {
-    /// <summary>命中(backdatedPosting)+ 命中(廣域金額)+ 0 命中(天價金額)三情境,position 1/2/3。</summary>
+    /// <summary>命中(nonAuthorizedPreparer)+ 命中(廣域金額)+ 0 命中(天價金額)三情境,position 1/2/3。</summary>
     private static string ThreeScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new object[]
             {
                 new {
-                    name = "提前過帳", rationale = "命中情境",
+                    name = "非授權編製人員", rationale = "命中情境",
                     groups = new[] { new { join = "and", rules = new object[] {
-                        new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } },
+                        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                        new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
                 new {
                     name = "廣域金額", rationale = "命中情境",
                     groups = new[] { new { join = "and", rules = new object[] {
@@ -54,7 +55,7 @@ public sealed class TagMatrixScenariosTests
         // 三情境全列出、依 position 升冪。
         var positions = scenarios.EnumerateArray().Select(s => s.GetProperty("position").GetInt32()).ToArray();
         Assert.Equal(new[] { 1, 2, 3 }, positions);
-        Assert.Equal("提前過帳", scenarios[0].GetProperty("name").GetString());
+        Assert.Equal("非授權編製人員", scenarios[0].GetProperty("name").GetString());
 
         // 每個 position 的兩 count == 獨立 ANSI recount(由 result_filter_run 即時算)。
         foreach (var s in scenarios.EnumerateArray())
@@ -112,7 +113,7 @@ public sealed class TagMatrixScenariosTests
             Assert.Equal(rowRecount, s.GetProperty("rowHitCount").GetInt64());
         }
 
-        Assert.True(PositionOf(scenarios, 1) > 0, "惰性補算後 backdatedPosting 應仍命中");
+        Assert.True(PositionOf(scenarios, 1) > 0, "惰性補算後 nonAuthorizedPreparer 應仍命中");
     }
 
     [Fact]

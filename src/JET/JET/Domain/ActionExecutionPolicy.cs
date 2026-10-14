@@ -57,12 +57,14 @@ public static class ActionExecutionPolicy
         "validate.run",
         "prescreen.run",
         "filter.commit",
+        "filter.scenario.save",
+        "filter.scenario.remove",
+        "filter.scenario.recheck",
         "export.validationArtifacts",
         "export.prescreenReport",
         "export.criteriaSelectionReport",
         "export.workpaperStream",
         "export.accountMappingTemplate",
-        "export.calendarTemplates",
     };
 
     // handler 自行試取共用閘；不得同時放進 ExclusiveActions，否則 dispatcher 先取後會自我阻塞。
@@ -146,6 +148,9 @@ public static class ActionExecutionPolicy
         "validate.run",
         "prescreen.run",
         "filter.commit",
+        "filter.scenario.save",
+        "filter.scenario.remove",
+        "filter.scenario.recheck",
         "export.validationArtifacts",
         "export.prescreenReport",
         "export.criteriaSelectionReport",

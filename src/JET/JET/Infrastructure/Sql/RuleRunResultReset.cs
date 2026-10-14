@@ -43,6 +43,17 @@ internal static class RuleRunResultReset
             schemaPrefix);
 
         var statements = new List<string>(5);
+        if (impact.ClearAccountMapping)
+        {
+            // GL/TB 來源或投影更換時，配對、原始配對列及匯入狀態一起清除；分類定義保留。
+            // 與來源寫入同一交易，失敗或取消時全部回復。
+            var kind = DatasetKind.AccountMapping.ToStorageName();
+            statements.Add($"DELETE FROM {schemaPrefix}target_account_mapping;");
+            statements.Add($"DELETE FROM {schemaPrefix}staging_account_mapping_raw_row;");
+            statements.Add($"DELETE FROM {schemaPrefix}import_batch_source WHERE batch_id IN "
+                + $"(SELECT batch_id FROM {schemaPrefix}import_batch WHERE dataset_kind = '{kind}');");
+            statements.Add($"DELETE FROM {schemaPrefix}import_batch WHERE dataset_kind = '{kind}';");
+        }
         if (impact.InvalidateValidation && impact.InvalidatePrescreen)
         {
             statements.Add($"DELETE FROM {schemaPrefix}result_rule_run;");

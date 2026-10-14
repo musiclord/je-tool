@@ -284,7 +284,6 @@ public static partial class JetAuditProgram
             PrescreenDefinition("holiday_posting"),
             PrescreenDefinition("holiday_approval"),
             PrescreenDefinition("blank_description"),
-            PrescreenDefinition("backdated_posting"),
             PrescreenDefinition("non_authorized_preparer"),
             PrescreenDefinition("low_frequency_preparer"),
             PrescreenDefinition("low_frequency_account")
@@ -308,11 +307,8 @@ public static partial class JetAuditProgram
             // 只支援目前的 INF 抽樣演算法；沒有版本或舊版本的案件不得靜默改用新排序。
             if (snapshot.SampleSeedVersion != InfSamplingPrf.CurrentAlgorithmVersion)
             {
-                throw new JetActionException(
-                    JetErrorCodes.InvalidProjectSchema,
-                    InfSamplingSeedResolution.LegacyProjectMessage(
-                        $"案件『{snapshot.ProjectId}』",
-                        $"INF 抽樣演算法版本是 {snapshot.SampleSeedVersion?.ToString(CultureInfo.InvariantCulture) ?? "空白"}"));
+                // 開案時已擋下舊版案件，畫面照正常操作走不到這裡（使用者 2026-10-14 第三輪勾選頁確認 R3-65）。
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidProjectSchema, "inf_algorithm_version_legacy");
             }
         }
 
@@ -393,7 +389,6 @@ public static partial class JetAuditProgram
         "holiday_posting" => result.HolidayPostingCount,
         "holiday_approval" => result.HolidayApprovalCount ?? 0L,
         "blank_description" => result.BlankDescriptionCount,
-        "backdated_posting" => result.BackdatedPostingCount,
         "non_authorized_preparer" => result.NonAuthorizedPreparerCount,
         "low_frequency_preparer" => result.LowFrequencyPreparerCount,
         "low_frequency_account" => result.LowFrequencyAccountCount,

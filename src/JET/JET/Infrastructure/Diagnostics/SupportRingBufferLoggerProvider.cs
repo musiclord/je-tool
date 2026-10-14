@@ -61,6 +61,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "action.start",
         "action.end",
         "action.error",
+        "action.payload_rejected",
         "import.milestone",
         "import.inspect",
         "import.account_mapping.summary_failed",
@@ -70,6 +71,9 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "artifact.journal.discarded",
         "artifact.manifest.reset",
         "project_audit.write_failed",
+        "sql_server.unreachable",
+        "filter.scenario_unreadable",
+        "filter.compile_check_failed",
     };
 
     private static readonly HashSet<string> AllowedFields = new(StringComparer.Ordinal)
@@ -110,6 +114,17 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "source_no",
         "multiline_record_count",
         "multiline_record_rows",
+        // action.payload_rejected：沒過的格式檢查代號，程式寫死，不含資料內容。
+        "payload_check",
+        // sql_server.unreachable：連不上 SQL Server 時的錯誤分類代號，不含伺服器、帳號或原始訊息。
+        "failure_category",
+        // filter.scenario_unreadable：第五步損毀條件的位置與程式寫死的原因代號，不含情境名稱或條件內容。
+        "scenario_position",
+        "group_no",
+        "rule_no",
+        "reason_code",
+        // filter.compile_check_failed：篩選條件編譯時沒過的檢查代號，程式寫死，不含欄位名稱或輸入值。
+        "compile_check",
     };
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull =>
@@ -213,6 +228,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
             "action.start" => $"action {action} start",
             "action.end" => $"action {action} {fields.GetValueOrDefault("result_status") ?? "ok"} in {fields.GetValueOrDefault("duration_ms") ?? 0} ms",
             "action.error" => $"action {action} failed in {fields.GetValueOrDefault("duration_ms") ?? 0} ms",
+            "action.payload_rejected" => $"action {action} payload rejected by check {fields.GetValueOrDefault("payload_check") ?? "unknown"}",
             "import.milestone" => $"import milestone {fields.GetValueOrDefault("phase") ?? "unknown"}",
             "import.inspect" => $"import inspect {fields.GetValueOrDefault("file_format") ?? "unknown"} columns={fields.GetValueOrDefault("column_count") ?? "n/a"}",
             "import.account_mapping.summary_failed" => "account mapping saved; difference summary unavailable",
@@ -222,6 +238,12 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
             "artifact.journal.discarded" => "discarded a leftover report journal from the previous store design",
             "artifact.manifest.reset" => "report manifest was unreadable and has been set aside",
             "project_audit.write_failed" => "project operation record not written",
+            "sql_server.unreachable" => $"sql server unreachable: {fields.GetValueOrDefault("failure_category") ?? "unknown"}",
+            "filter.scenario_unreadable" => $"action {action} filter scenario {fields.GetValueOrDefault("scenario_position") ?? "n/a"} "
+                + $"group {fields.GetValueOrDefault("group_no") ?? "n/a"} rule {fields.GetValueOrDefault("rule_no") ?? "n/a"} "
+                + $"unreadable: {fields.GetValueOrDefault("reason_code") ?? "unknown"}",
+            "filter.compile_check_failed" => $"action {action} filter group {fields.GetValueOrDefault("group_no") ?? "n/a"} "
+                + $"rule {fields.GetValueOrDefault("rule_no") ?? "n/a"} compile check failed: {fields.GetValueOrDefault("compile_check") ?? "unknown"}",
             _ => eventName,
         };
     }

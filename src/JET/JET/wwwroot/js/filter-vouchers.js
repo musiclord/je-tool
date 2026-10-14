@@ -18,22 +18,49 @@
       '展開傳票可查看查核期間內的全部分錄。標示為參考的分錄不計入上方筆數。</p>' : '') +
       '<div class="filter-voucher-host"></div>';
   }
+  // app.js 的 JetMotion 比對用的識別：跟著同一份預覽結果，不用位置；草稿預覽與各個已存情境的清單可能同時在畫面上，各自一組。
+  var motionIds = new WeakMap();
+  var motionSerial = 0;
+  function motionId(preview) {
+    if (!motionIds.has(preview)) { motionSerial += 1; motionIds.set(preview, 'vouchers-' + motionSerial); }
+    return motionIds.get(preview);
+  }
   function mount(host, preview) {
     if (!host || !preview || !preview.voucherPage) { return; }
     var view = preview.__voucherView || { page: preview.voucherPage, cursor: null, history: [], open: null, detail: null, detailCursor: null, detailHistory: [], sort: null, search: '' };
     preview.__voucherView = view;
     var generation = 0;
+    var id = motionId(preview);
+    if (host.setAttribute && !(host.getAttribute && host.getAttribute('data-motion-key'))) { host.setAttribute('data-motion-key', id); }
+    // 使用者 2026-10-13 要求展開與收合一致：換頁、展開或收合分錄只重畫這一塊，交給 JetMotion.morph，
+    // 分錄明細從表格下方長出來、收合時收回，換頁時高度沿彈簧改變。第一次掛上時跟著整段重繪比對，不另外播。
+    function redraw() {
+      if (global.JetMotion && typeof global.JetMotion.morph === 'function') { global.JetMotion.morph(host, draw); } else { draw(); }
+    }
+    function fail(message) {
+      host.innerHTML = '<p class="form-notice" role="alert">' + Ui.esc(message) + '</p>';
+    }
+    // 換開另一張傳票時，舊的分錄明細會留一份正在收回的副本（inert），排在新明細前面；
+    // 焦點要跳過這份副本，否則落不到任何地方。只在這塊裡找，草稿預覽與儲存情境各有自己的一塊。
     function focus(selector) {
-      if (global.JetFocus) { global.JetFocus.defer(function () { return host.querySelector(selector); }); }
+      if (global.JetFocus) {
+        global.JetFocus.defer(function () {
+          return Array.prototype.find.call(host.querySelectorAll(selector), function (el) {
+            return !(el.closest && el.closest('[data-motion-leaving], [inert]'));
+          }) || null;
+        });
+      }
     }
     function read(method, payload, accept) {
       var token = ++generation;
       Ui.runBackground('讀取篩選傳票', function () {
         return method(payload).then(function (page) {
-          if (host.isConnected && token === generation) { accept(page); draw(); }
+          if (host.isConnected && token === generation) { accept(page); redraw(); }
         }).catch(function (error) {
           if (!host.isConnected || token !== generation) { return; }
-          host.innerHTML = '<p class="form-notice" role="alert">' + Ui.esc(error.message || '讀取失敗，請重新預覽。') + '</p>';
+          var message = error.message || '讀取失敗，請重新預覽。';
+          if (global.JetMotion && typeof global.JetMotion.morph === 'function') { global.JetMotion.morph(host, function () { fail(message); }); }
+          else { fail(message); }
           throw error;
         });
       });
@@ -65,20 +92,21 @@
       function cellHtml(text, className) {
         return '<td' + (className ? ' class="' + className + '"' : '') + '>' + Ui.esc(text == null ? '' : text) + '</td>';
       }
-      return '<div class="voucher-details"><h4 tabindex="-1">傳票 ' + Ui.esc(view.open) + ' 的分錄</h4><div class="preview-table__wrap"><table class="preview-table"><thead><tr>' +
-        ['狀態', '傳票文件項次', '總帳入帳日', '傳票核准日', '科目編號', '科目名稱', '金額', '摘要'].concat(extra.map(function (column) { return column.label; })).map(function (label) { return '<th>' + Ui.esc(label) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      return '<div class="voucher-details" data-motion-key="' + Ui.esc(id + '-details-' + view.open) + '"><h4 tabindex="-1">傳票 ' + Ui.esc(view.open) + ' 的分錄</h4><div class="preview-table__wrap"><table class="preview-table"><thead><tr>' +
+        ['狀態', '傳票文件項次', '總帳日期', '傳票核准日', '科目編號', '科目名稱', '金額', '摘要'].concat(extra.map(function (column) { return column.label; })).map(function (label) { return '<th>' + Ui.esc(label) + '</th>'; }).join('') + '</tr></thead><tbody>' +
         view.detail.rows.map(function (row) { return '<tr class="' + (row.isHit ? 'filter-hit-row' : '') + '"><td>' + matchStatusHtml(row) + '</td>' +
           [row.lineItem, row.postDate, row.approvalDate, row.accountCode, row.accountName].map(function (value) { return cellHtml(value); }).join('') +
           cellHtml(Ui.money(row.amount), 'preview-table__amount') + cellHtml(row.description) +
           extraCells.map(function (column) { return cellHtml(column.cell(row), column.className); }).join('') + '</tr>'; }).join('') +
-        '</tbody></table></div><div class="panel__actions"><button type="button" class="btn btn--ghost" data-detail-previous' + (!view.detailHistory.length ? ' disabled' : '') + '>上一頁分錄</button>' +
+        '</tbody></table></div><div class="panel__actions panel__actions--start"><button type="button" class="btn btn--ghost" data-detail-previous' + (!view.detailHistory.length ? ' disabled' : '') + '>上一頁分錄</button>' +
         '<button type="button" class="btn btn--ghost" data-detail-next' + (!view.detail.nextCursor ? ' disabled' : '') + '>下一頁分錄</button>' +
         '<button type="button" class="btn btn--ghost" data-detail-close>收合分錄</button></div></div>';
     }
     function headHtml() {
       var cells = Ui.sortableHeadCellsHtml('query.filterVoucherPage', [
-        { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '最早總帳入帳日' },
-        { key: 'hitRowCount', label: '符合條件的分錄' }, { key: 'totalRowCount', label: '期間內全部分錄' },
+        { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '最早總帳日期' },
+        { key: 'hitRowCount', label: '符合條件的分錄', className: 'preview-table__amount' },
+        { key: 'totalRowCount', label: '期間內全部分錄', className: 'preview-table__amount' },
         { key: 'voucherTotal', label: '傳票總額', className: 'preview-table__amount' }, { key: null, label: '查看內容' }]);
       return '<tr>' + cells + '</tr>';
     }
@@ -99,20 +127,25 @@
       input.value = view.search || '';
       clear.hidden = !view.search;
       form.onsubmit = function (event) { event.preventDefault(); view.search = (input.value || '').trim(); restart(); };
-      clear.onclick = function () { view.search = ''; restart(); };
+      clear.onclick = function () {
+        // 使用者 2026-10-13 要求清除東西時先輕微快速地晃一下：輸入框不會拿掉，只是被清空，所以直接晃它。
+        if (global.JetMotion && typeof global.JetMotion.shake === 'function') { global.JetMotion.shake(input); }
+        view.search = ''; restart();
+      };
     }
     function draw() {
       var page = view.page;
       var searchHtml = Ui.pageSearchHtml('依傳票號碼查看');
       if (!page.rows.length) {
-        host.innerHTML = (view.search ? searchHtml : '') + '<p class="empty-state">' + (view.search ? '沒有符合「' + Ui.esc(view.search) + '」的符合條件傳票。' : '沒有符合的傳票。調整條件後可再次查看。') + '</p>';
+        host.innerHTML = (view.search ? searchHtml : '') + '<p class="empty-state" data-motion-key="' + Ui.esc(id + '-empty') + '">' + (view.search ? '沒有符合「' + Ui.esc(view.search) + '」的符合條件傳票。' : '沒有符合的傳票。調整條件後可再次查看。') + '</p>';
         bindSortAndSearch();
         return;
       }
-      host.innerHTML = searchHtml + '<div class="preview-table__wrap"><table class="preview-table"><thead>' + headHtml() + '</thead><tbody>' +
-        page.rows.map(function (row, index) { return '<tr><td>' + Ui.esc(row.documentNumber) + '</td><td>' + Ui.esc(row.postDate || '') + '</td><td>' + count(row.hitRowCount) + '</td><td>' + count(row.totalRowCount) +
+      host.innerHTML = searchHtml + '<div class="preview-table__wrap" data-motion-key="' + Ui.esc(id + '-page') + '"><table class="preview-table"><thead>' + headHtml() + '</thead><tbody>' +
+        // 筆數與金額欄靠右，和表頭同一側。
+        page.rows.map(function (row, index) { return '<tr><td>' + Ui.esc(row.documentNumber) + '</td><td>' + Ui.esc(row.postDate || '') + '</td><td class="preview-table__amount">' + count(row.hitRowCount) + '</td><td class="preview-table__amount">' + count(row.totalRowCount) +
           '</td><td class="preview-table__amount">' + Ui.money(row.voucherTotal) + '</td><td><button type="button" class="btn btn--ghost btn--tiny" data-voucher-open="' + index + '">展開分錄</button></td></tr>'; }).join('') +
-        '</tbody></table></div><div class="panel__actions"><button type="button" class="btn btn--ghost" data-voucher-first' + (view.cursor === null ? ' disabled' : '') + '>第一頁</button>' +
+        '</tbody></table></div><div class="panel__actions panel__actions--start"><button type="button" class="btn btn--ghost" data-voucher-first' + (view.cursor === null ? ' disabled' : '') + '>第一頁</button>' +
         '<button type="button" class="btn btn--ghost" data-voucher-previous' + (!view.history.length ? ' disabled' : '') + '>上一頁傳票</button>' +
         '<button type="button" class="btn btn--ghost" data-voucher-next' + (!page.nextCursor ? ' disabled' : '') + '>下一頁傳票</button></div>' + detailHtml();
       bindSortAndSearch();
@@ -125,7 +158,7 @@
         host.querySelector('[data-detail-previous]').onclick = function () { details(view.open, view.detailHistory.pop(), true); };
         host.querySelector('[data-detail-close]').onclick = function () {
           var index = page.rows.findIndex(function (row) { return row.documentNumber === view.open; });
-          view.open = null; view.detail = null; draw(); focus('[data-voucher-open="' + index + '"]');
+          view.open = null; view.detail = null; redraw(); focus('[data-voucher-open="' + index + '"]');
         };
       }
     }

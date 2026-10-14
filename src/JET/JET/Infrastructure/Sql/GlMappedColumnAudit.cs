@@ -45,12 +45,17 @@ internal static class GlMappedColumnAudit
                 continue;
             }
 
-            warnings.Add(spec.Mapping.TryGetValue(fieldKey, out var source) && !string.IsNullOrWhiteSpace(source)
-                ? $"必填欄「{friendly}」配對到的來源欄「{source}」整欄空白，疑似配錯欄位"
-                  + "（例如來源有重複標頭、其中一欄為空），請回欄位配對確認。"
-                : $"必填欄「{friendly}」整欄空白，請回欄位配對確認是否配錯欄位。");
+            warnings.Add(BlankColumnWarning(friendly, spec.Mapping.GetValueOrDefault(fieldKey)));
         }
 
         return warnings;
     }
+
+    /// <summary>
+    /// GL 與 TB 共用的整欄空白提醒句子（使用者 2026-10-13 勾選頁確認）；有來源欄名時一併寫出。
+    /// </summary>
+    internal static string BlankColumnWarning(string friendlyName, string? sourceColumn) =>
+        string.IsNullOrWhiteSpace(sourceColumn)
+            ? $"「{friendlyName}」整欄空白，請確認對應的來源欄是否正確。"
+            : $"「{friendlyName}」對應的來源欄「{sourceColumn}」整欄空白，請確認對應是否正確。";
 }

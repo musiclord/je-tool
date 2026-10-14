@@ -13,11 +13,11 @@ internal sealed partial class GlRulePredicates
         FilterRuleContext context, string schemaPrefix)
     {
         var field = FieldValueConditions.Resolve(rule, context.RdeFields)
-            ?? throw Invalid("篩選欄位不存在，請重新確認欄位配對。");
+            ?? throw Invalid("field_value_field_missing");
         rule = rule with { TypedValues = FieldValueConditions.CanonicalValues(rule, field, context.MoneyScale, context.DateParseOptions) };
         var op = rule.TypedOperator;
         if (op is null || !FieldValueConditions.Operators(field.ValueType).Contains(op))
-            throw Invalid("比較方式不適用此欄位，請重新選擇。");
+            throw Invalid("field_value_operator_unsupported");
         string column;
         string? rdeFieldParameter = null;
         if (rule.FieldId is null)
@@ -42,14 +42,14 @@ internal sealed partial class GlRulePredicates
         if (field.ValueType == "money") column = rule.AmountBasis switch
         {
             "signed" => column, "absolute" => $"ABS({column})",
-            _ => throw Invalid("請選擇含正負號或絕對值金額。")
+            _ => throw Invalid("field_value_amount_basis_invalid")
         };
         object Normalize(string? raw) => field.ValueType switch
         {
             "text" when TypedFieldOperandRules.TryNormalizeText(raw, out var text) => TypedFieldOperandRules.TextComparisonKey(text),
             "date" when TypedFieldOperandRules.TryNormalizeDate(raw, context.DateParseOptions, out var date) => date,
             "money" when TypedFieldOperandRules.TryNormalizeMoney(raw, context.MoneyScale, out var money) => money,
-            _ => throw Invalid("條件值無效，請檢查文字、日期格式或金額。")
+            _ => throw Invalid("field_value_value_invalid")
         };
         string Param(string? raw) => NextParam(parameters, Normalize(raw));
         string positive;
@@ -75,7 +75,7 @@ internal sealed partial class GlRulePredicates
         else if (FieldValueConditions.IsMonthWindow(op))
         {
             if (!FieldValueConditions.TryParseMonthWindowDays(rule.TypedValue, out var days))
-                throw Invalid("每月月初或月底天數只能是 1 到 31 的整數。");
+                throw Invalid("field_value_month_window_days_invalid");
             var distance = op is "monthStartDays" or "notMonthStartDays"
                 ? dialect.DayOfMonth(column)
                 : $"({dialect.DaysInMonth(column)} - {dialect.DayOfMonth(column)} + 1)";
@@ -85,14 +85,14 @@ internal sealed partial class GlRulePredicates
         else if (FieldValueConditions.IsDayOfMonth(op))
         {
             if (!FieldValueConditions.TryParseDaysOfMonth(rule.TypedValues, out var days))
-                throw Invalid("每月幾日只能是 1 到 31 的整數。");
+                throw Invalid("field_value_day_of_month_invalid");
             var dayParameters = days.Select(day => NextParam(parameters, (long)day));
             positive = $"{dialect.DayOfMonth(column)} {(op == FieldValueConditions.DayOfMonthIn ? "IN" : "NOT IN")} ({string.Join(", ", dayParameters)})";
         }
         else if (op is "in" or "notIn")
         {
             if (rule.TypedValues is not { Count: > 0 and <= FilterScenarioLimits.MaxTypedInValuesPerRule })
-                throw Invalid("清單需要 1 到 100 個值，請檢查輸入。");
+                throw Invalid("field_value_set_count_invalid");
             var values = rule.TypedValues.Select(value => Normalize(value)).Distinct().Select(value => NextParam(parameters, value));
             positive = $"{column} {(op == "in" ? "IN" : "NOT IN")} ({string.Join(", ", values)})";
         }
@@ -104,7 +104,7 @@ internal sealed partial class GlRulePredicates
         else if (op is "contains" or "notContains" or "startsWith" or "notStartsWith" or "endsWith" or "notEndsWith")
         {
             var keywords = FieldValueConditions.IsContains(op) ? FieldValueConditions.ContainsKeywords(rule) : [rule.TypedValue ?? string.Empty];
-            if (keywords.Count == 0) throw Invalid("包含比對至少需要一個文字。");
+            if (keywords.Count == 0) throw Invalid("field_value_keywords_empty");
             var likes = keywords.Select(keyword =>
             {
                 var value = (string)Normalize(keyword);
@@ -126,7 +126,7 @@ internal sealed partial class GlRulePredicates
                 "equals" or "on" => "=", "notEquals" => "<>",
                 "before" or "lessThan" => "<", "onOrBefore" or "lessThanOrEqual" => "<=",
                 "after" or "greaterThan" => ">", "onOrAfter" or "greaterThanOrEqual" => ">=",
-                _ => throw Invalid("比較方式無效，請重新選擇。")
+                _ => throw Invalid("field_value_operator_invalid")
             };
             positive = $"{column} {comparison} {Param(rule.TypedValue)}";
         }
@@ -147,7 +147,7 @@ internal sealed partial class GlRulePredicates
         string Side(string alias) => rule.DrCr switch
         {
             "debit" => $"{alias}.amount_scaled >= 0", "credit" => $"{alias}.amount_scaled < 0",
-            "any" => "1 = 1", _ => throw Invalid("請選擇借方、貸方或不限借貸。")
+            null or "any" => "1 = 1", _ => throw Invalid("drcr_invalid")
         };
         string Selected(string alias) => $"EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m "
             + $"{TaxonomyJoin(schemaPrefix, "m", "t")} WHERE m.account_code = {alias}.account_code "
@@ -159,7 +159,7 @@ internal sealed partial class GlRulePredicates
             "absent" => $"(g.document_number IS NOT NULL AND NOT EXISTS (SELECT 1 FROM {schemaPrefix}target_gl_entry s "
                 + $"WHERE s.document_number = g.document_number AND {populationScopePredicate(context, "s")} "
                 + $"AND {Side("s")} AND {Selected("s")}))",
-            _ => throw Invalid("請選擇科目分類的判斷方式。")
+            _ => throw Invalid("category_mode_invalid")
         };
     }
 

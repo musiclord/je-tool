@@ -81,7 +81,7 @@ public static class ValidationProcedures
         extraFilter;
 
     /// <summary>
-    /// 底稿 Step 1-1 明細：不平傳票的有效分錄依傳票號碼與總帳入帳日彙總借方與貸方（legacy
+    /// 底稿 Step 1-1 明細：不平傳票的有效分錄依傳票號碼與總帳日期彙總借方與貸方（legacy
     /// idea-tool.bas:6686-6691）。不平的判定沿用 <see cref="UnbalancedDetailCore"/>，只看傳票號碼。
     /// 輸出欄：document_number、post_date、debit_s、credit_s（貸方為非負合計）。
     /// </summary>
@@ -288,10 +288,11 @@ internal sealed record InfSamplingSeedResolution(
     internal static InfSamplingSeedResolution Legacy(string error) =>
         new(false, 0, 0, error, IsLegacyProject: true);
 
-    /// <summary>舊版案件的使用者訊息；project.json 讀取與驗證執行共用同一段文字。</summary>
-    internal static string LegacyProjectMessage(string source, string? detail) =>
-        $"{source} 是舊版 JET 建立的案件（{detail}），目前版本無法讀取。"
-        + "請用目前版本重新建立案件，再重新匯入資料。";
+    /// <summary>
+    /// 舊版案件的使用者訊息（使用者 2026-10-14 第三輪勾選頁確認 R3-51）：不寫檔名、內部鍵名與缺了哪個設定。
+    /// </summary>
+    internal static string LegacyProjectMessage(string caseName) =>
+        $"案件「{caseName}」是舊版 JET 建立的，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。";
 }
 
 public static partial class JetAuditProgram

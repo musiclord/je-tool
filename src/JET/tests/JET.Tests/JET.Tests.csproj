@@ -36,6 +36,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\JET\JET.csproj" />
     <Compile Include="..\..\..\..\tools\harness\gui-driver\GuiWorkpaperInspection.cs" Link="Harness\GuiWorkpaperInspection.cs" />
+    <!-- 台灣中小企業合成案件的產生器、獨立答案與建案流程，和 Claude 瀏覽器主機共用同一份原始檔。 -->
+    <Compile Include="..\..\..\..\tools\harness\browser-host\TaiwanSme\Sme*.cs" Link="Harness\TaiwanSme\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

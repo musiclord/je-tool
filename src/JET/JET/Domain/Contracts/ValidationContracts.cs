@@ -64,7 +64,7 @@ public sealed record UnbalancedDocument(
     long DiffScaled);
 
 /// <summary>
-/// 不平傳票依傳票號碼與總帳入帳日彙總的一列，供底稿 Step 1-1 明細表使用（legacy 依這兩欄彙總，
+/// 不平傳票依傳票號碼與總帳日期彙總的一列，供底稿 Step 1-1 明細表使用（legacy 依這兩欄彙總，
 /// idea-tool.bas:6686-6691）。借方與貸方合計都是非負的 scaled 值，正負號由寫出端依 legacy 顯示。
 /// </summary>
 public sealed record UnbalancedVoucherDateRow(
@@ -85,7 +85,7 @@ public sealed record NullRecordRow(
     bool OutOfRangeDate,
     long EntryId = 0);
 
-/// <summary>有效分錄內，同一非空傳票號碼出現在多個總帳入帳日的非阻擋提醒。</summary>
+/// <summary>有效分錄內，同一非空傳票號碼出現在多個總帳日期的非阻擋提醒。</summary>
 public sealed record DocumentDateReuseCounts(long DocumentNumberCount, long EntryCount);
 
 public sealed record ValidationRunResult(

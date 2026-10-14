@@ -96,10 +96,10 @@ public sealed class TypedFieldRuleValidationTests
         var error = Assert.Single(errors);
         Assert.DoesNotContain(removed, error, StringComparison.Ordinal);
         Assert.DoesNotContain("rde.", error, StringComparison.Ordinal);
-        Assert.Contains("這個條件使用的攸關資料元素欄位已不在目前案件的欄位配對中", error, StringComparison.Ordinal);
         // 2026-10-03 主線審查改下一步：回第三步重新勾選會產生新的欄位身分，這個條件仍然對不上，
         // 正確的下一步是在第五步這個條件重新選擇欄位（第一次失敗：收據 20261003-025309380-f5004d2af23d4f7a9c32ae8f17b89367）。
-        Assert.Contains("請在這個條件重新選擇欄位，或刪除這個條件", error, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：保留下一步的少數句子之一，改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Equal("第 1 組第 1 條：所用的攸關資料元素欄位已不在欄位配對中，請重新選擇欄位或刪除此條件", error);
         Assert.DoesNotContain("勾選該欄位", error, StringComparison.Ordinal);
     }
 
@@ -109,7 +109,8 @@ public sealed class TypedFieldRuleValidationTests
         var errors = Validate(TypedRule(fieldId: null, op: "equals", value: "x"));
 
         // 2026-10-03 主線裁定 T9：沒選欄位是正常操作會看到的訊息，改用白話並寫出下一步（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        Assert.Contains(errors, error => error.Contains("這個攸關資料元素欄位條件尚未選擇欄位，請選擇欄位後再儲存", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只寫原因。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains("第 1 組第 1 條：尚未選擇攸關資料元素欄位", errors);
         Assert.DoesNotContain(errors, error => error.Contains("fieldId", StringComparison.Ordinal));
     }
 
@@ -122,7 +123,8 @@ public sealed class TypedFieldRuleValidationTests
             Scenario(TypedRule(TextFieldId, "equals", value: "x")), context);
 
         // 2026-10-03 主線裁定 T9：仍然失敗關閉，但訊息不再顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        Assert.Contains(errors, error => error.Contains("已不在目前案件的欄位配對中", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains(errors, error => error.Contains("已不在欄位配對中", StringComparison.Ordinal));
         Assert.DoesNotContain(errors, error => error.Contains(TextFieldId, StringComparison.Ordinal));
     }
 
@@ -143,10 +145,11 @@ public sealed class TypedFieldRuleValidationTests
         var label = fieldId == TextFieldId ? "備註" : fieldId == DateFieldId ? "審核日" : "稅額";
 
         var error = Assert.Single(errors);
-        Assert.Contains("攸關資料元素欄位「" + label + "」", error, StringComparison.Ordinal);
-        Assert.Contains("比較方式「" + FilterConditionLabels.TypedOperatorLabel(op) + "」", error, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：改鎖確認後的整句，仍指名欄位與比較方式。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Equal(
+            "第 1 組第 1 條：「" + label + "」目前的型別不適用「" + FilterConditionLabels.TypedOperatorLabel(op) + "」",
+            error);
         Assert.DoesNotContain(fieldId, error, StringComparison.Ordinal);
-        Assert.Contains("不相容", error, StringComparison.Ordinal);
     }
 
     // ── operand carrier 精確匹配 ────────────────────────────────────────────
@@ -165,30 +168,29 @@ public sealed class TypedFieldRuleValidationTests
     [Fact]
     public void SingleValueOperator_MissingValueOrExtraCarrier_IsInvalid()
     {
-        Assert.Contains(
-            Validate(TypedRule(TextFieldId, "equals")),
-            error => error.Contains("必須提供 value", StringComparison.Ordinal));
-        Assert.Contains(
-            Validate(TypedRule(TextFieldId, "equals", value: "x", from: "y")),
-            error => error.Contains("不得帶 from", StringComparison.Ordinal));
-        Assert.Contains(
-            Validate(TypedRule(TextFieldId, "equals", value: "x", values: ["y"])),
-            error => error.Contains("不得帶 from、to 或 values", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.True(HasCorruptReason(Validate(TypedRule(TextFieldId, "equals")), "typed_single_value_missing"));
+        Assert.True(HasCorruptReason(
+            Validate(TypedRule(TextFieldId, "equals", value: "x", from: "y")), "typed_single_extra_operand"));
+        Assert.True(HasCorruptReason(
+            Validate(TypedRule(TextFieldId, "equals", value: "x", values: ["y"])), "typed_single_extra_operand"));
+        Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", Validate(TypedRule(TextFieldId, "equals")));
     }
 
     [Fact]
     public void Between_RequiresBothBoundsAndForbidsOtherCarriers()
     {
-        Assert.Contains(
-            Validate(TypedRule(DateFieldId, "between", from: "2025-01-01")),
-            error => error.Contains("同時提供 from 與 to", StringComparison.Ordinal));
-        Assert.Contains(
-            Validate(TypedRule(DateFieldId, "between", to: "2025-01-01")),
-            error => error.Contains("同時提供 from 與 to", StringComparison.Ordinal));
-        Assert.Contains(
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.True(HasCorruptReason(
+            Validate(TypedRule(DateFieldId, "between", from: "2025-01-01")), "typed_between_bound_missing"));
+        Assert.True(HasCorruptReason(
+            Validate(TypedRule(DateFieldId, "between", to: "2025-01-01")), "typed_between_bound_missing"));
+        Assert.True(HasCorruptReason(
             Validate(TypedRule(
                 DateFieldId, "between", value: "x", from: "2025-01-01", to: "2025-12-31")),
-            error => error.Contains("不得帶 value", StringComparison.Ordinal));
+            "typed_between_extra_operand"));
     }
 
     [Theory]
@@ -202,8 +204,10 @@ public sealed class TypedFieldRuleValidationTests
     {
         var errors = Validate(TypedRule(fieldId, "between", from: from, to: to, amountBasis: amountBasis));
 
-        Assert.Contains(errors, error => error.Contains("不得", StringComparison.Ordinal)
-            && error.Contains("區間", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains(
+            fieldId == DateFieldId ? "第 1 組第 1 條：起日晚於迄日" : "第 1 組第 1 條：下限金額大於上限金額",
+            errors);
     }
 
     [Fact]
@@ -222,15 +226,12 @@ public sealed class TypedFieldRuleValidationTests
     {
         // 2026-10-04 第 7 批 L72：清單錯誤改白話，缺值、空清單、額外欄位、空白元素與 100 個邊界仍逐項驗證。
         // 第一次失敗：20261004-085516563-cc5e5a0682e8482a9771daf26cb186d9。
-        Assert.Contains(
-            Validate(TypedRule(TextFieldId, op)),
-            error => error.Contains("請填入清單，至少 1 個值，最多 100 個值。", StringComparison.Ordinal));
-        Assert.Contains(
-            Validate(TypedRule(TextFieldId, op, values: [])),
-            error => error.Contains("清單至少需要 1 個值，最多 100 個值。", StringComparison.Ordinal));
-        Assert.Contains(
-            Validate(TypedRule(TextFieldId, op, value: "x", values: ["y"])),
-            error => error.Contains("不得帶 value", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：清單個數的四種說法收成一句；多帶 value 只會是內容損毀，改鎖原因代號。
+        // 第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains("第 1 組第 1 條：請填 1 到 100 個值", Validate(TypedRule(TextFieldId, op)));
+        Assert.Contains("第 1 組第 1 條：請填 1 到 100 個值", Validate(TypedRule(TextFieldId, op, values: [])));
+        Assert.True(HasCorruptReason(
+            Validate(TypedRule(TextFieldId, op, value: "x", values: ["y"])), "typed_set_extra_operand"));
         Assert.Contains(
             Validate(TypedRule(TextFieldId, op, values: ["ok", "   "])),
             error => error.Contains("第 2 個值", StringComparison.Ordinal));
@@ -252,7 +253,10 @@ public sealed class TypedFieldRuleValidationTests
         var errors = Validate(TypedRule(
             MoneyFieldId, "equals", value: "1", amountBasis: amountBasis));
 
-        Assert.Contains(errors, error => error.Contains("amountBasis", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.True(HasCorruptReason(errors, "typed_amount_basis_missing"));
+        Assert.DoesNotContain(errors, error => error.Contains("amountBasis", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -262,8 +266,9 @@ public sealed class TypedFieldRuleValidationTests
     {
         var errors = Validate(TypedRule(fieldId, op, value: value, amountBasis: "signed"));
 
-        Assert.Contains(errors, error =>
-            error.Contains("amountBasis 僅 money", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.True(HasCorruptReason(errors, "typed_amount_basis_not_money"));
     }
 
     // ── 值格式（malformed operands）───────────────────────────────────────
@@ -287,7 +292,8 @@ public sealed class TypedFieldRuleValidationTests
         // 同批仍保留真正無效日期與空白的拒絕斷言。
         var errors = Validate(TypedRule(DateFieldId, "on", value: value));
 
-        Assert.Contains(errors, error => error.Contains("yyyy-MM-dd", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains($"第 1 組第 1 條：日期「{value}」無法辨識，請以 2026-12-31 的格式輸入", errors);
     }
 
     [Theory]
@@ -300,7 +306,8 @@ public sealed class TypedFieldRuleValidationTests
         var errors = Validate(TypedRule(
             MoneyFieldId, "equals", value: value, amountBasis: "signed"));
 
-        Assert.Contains(errors, error => error.Contains("格式無效", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains($"第 1 組第 1 條：金額「{value}」不是數字", errors);
     }
 
     [Theory]
@@ -310,7 +317,8 @@ public sealed class TypedFieldRuleValidationTests
     {
         var errors = Validate(TypedRule(TextFieldId, "equals", value: value));
 
-        Assert.Contains(errors, error => error.Contains("不可只有空白", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains("第 1 組第 1 條：比對文字不得為空白", errors);
     }
 
     [Fact]
@@ -325,6 +333,9 @@ public sealed class TypedFieldRuleValidationTests
 
     private static IReadOnlyList<string> Validate(FilterRuleSpec rule) =>
         FilterScenarioValidator.Validate(Scenario(rule), Context);
+
+    private static bool HasCorruptReason(IReadOnlyList<string> errors, string code) =>
+        FilterScenarioCorruption.ReasonsOf(errors).Any(reason => reason.Code == code);
 
     private static FilterScenarioSpec Scenario(FilterRuleSpec rule) =>
         new("typed", "validation matrix", [new FilterGroupSpec(FilterJoin.And, [rule])]);

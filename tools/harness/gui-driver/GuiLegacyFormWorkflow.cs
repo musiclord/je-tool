@@ -3,18 +3,16 @@ using System.Text.Json;
 
 namespace Jet.GuiDriver;
 
+// Section 9: align selectors with the verified frontend contracts. Gui is not executed per the user request.
+
 internal static partial class GuiScenarios
 {
+    // 使用者 2026-10-08 要求重新設計自訂篩選條件：兩個情境保留原名稱，改成操作新的「常用查核條件」與「從範例開始」。
+    // 名稱、型別與預期筆數都逐字寫在這裡，不從畫面推導。
     private static async Task ExecuteLegacyFormWorkflowAsync(CdpSession cdp, OwnedGuiRun ownedRun,
         Process process, GuiRunOutcome outcome, CancellationToken ct)
     {
         Task Click(string selector) => ClickRecoveryControlAsync(cdp, process, selector, outcome, ct);
-        async Task Choose(string selector, string value)
-        {
-            using var pending = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            pending.CancelAfter(TimeSpan.FromSeconds(20));
-            await ChooseOptionAsync(cdp, process, selector, value, outcome, pending.Token);
-        }
         async Task Check(string expression)
         {
             using var pending = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -30,87 +28,102 @@ internal static partial class GuiScenarios
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-condition-source=custom]");
-        await Click("[data-filter-disclosure=legacy-form] > summary");
         if (outcome.Scenario.Name == GuiScenarioCatalog.LegacyFormCatalog)
         {
-          outcome.RecordStage("legacy_form_all_letters");
-          // Literal names from the approved workbook catalogue, not derived from the rendered option.
-          string[] expectedNames = ["於期末財務報表日後核准之分錄", "分錄摘要出現預設之特定描述", "未預期出現之特定借貸組合",
-              "分錄金額中有連續 0 的尾數", "人工傳票", "分錄無摘要描述（空白摘要）", "總帳入帳日在非工作日之週末",
-              "總帳入帳日在國定假日", "排除總帳入帳日的補班日或加班日", "核准日期在非工作日之週末", "核准日期在國定假日",
-              "排除核准日期的補班日或加班日", "僅考量借方傳票", "僅考量貸方傳票", "其他特定欄位篩選", "其他借貸組合",
-              "其他特定尾數", "特定日期篩選", "特定金額篩選", "科目出現次數或傳票張數", "特定人員或編製傳票張數"];
-          foreach (var letter in "ABCDEFGHIJKLMNOPQRSTU")
-          {
-            await Choose("[data-legacy-letter]", letter.ToString());
-            await Click("[data-action=add-legacy-rule]");
-            var expectedType = letter switch
+            outcome.RecordStage("custom_common_checks");
+            (string Category, string Key, string Label, string Type)[] checks =
+            [
+                ("dates", "postDateWeekend", "總帳日期在週末", "fieldValue"),
+                ("dates", "postDateHoliday", "總帳日期在國定假日", "fieldValue"),
+                ("dates", "postDateNonBusinessDay", "總帳日期在非營業日", "fieldValue"),
+                ("dates", "docDateNonBusinessDay", "傳票核准日在非營業日", "fieldValue"),
+                ("dates", "postPeriodApproval", "財報準備日起核准的分錄", "prescreen"),
+                ("dates", "postDateRange", "指定日期區間", "fieldValue"),
+                ("dates", "periodEndDays", "查核期末最後幾天", "fieldValue"),
+                ("amounts", "largeAmount", "大額分錄", "fieldValue"),
+                ("amounts", "trailingZeros", "金額尾數連續多個 0", "group"),
+                ("description", "descriptionKeywords", "摘要含特定字詞", "fieldValue"),
+                ("description", "blankDescription", "空白摘要", "fieldValue"),
+                ("accounts", "debitOrCreditOnly", "只看借方或貸方", "drCrOnly"),
+                ("accounts", "accountCategory", "科目屬於指定分類", "group"),
+                ("accounts", "categoryPair", "借方與貸方分類組合", "specialAccountCategoryPair"),
+                ("accounts", "accountCodePair", "借方與貸方科目編號組合", "group"),
+                ("accounts", "unexpectedAccountPair", "未預期的借貸組合", "prescreen"),
+                ("accounts", "rareAccounts", "較少使用的科目", "entityFrequency"),
+                ("people", "manualEntries", "人工分錄", "manualAuto"),
+                ("people", "rarePreparers", "編製分錄較少的人員", "entityFrequency"),
+                ("prescreen", "prescreenResult", "沿用第四步預篩選規則", "prescreen")
+            ];
+            foreach (var (category, key, label, type) in checks)
             {
-                'A' or 'B' or 'C' or 'D' or 'F' => "prescreen", 'E' => "manualAuto",
-                'I' or 'L' or 'P' => "group", 'M' or 'N' => "drCrOnly",
-                'T' or 'U' => "entityFrequency", _ => "fieldValue"
-            };
-            await Check("draft.groups.flatMap(g=>g.rules).length===1 && draft.groups.flatMap(g=>g.rules)[0].type==='" + expectedType +
-                "' && document.querySelector('[data-legacy-letter]').value==='" + letter + "' && document.querySelector('[data-legacy-help]').textContent.length>0" +
-                " && document.querySelector('[data-legacy-letter]').selectedOptions[0].textContent.trim()===" +
-                JsonSerializer.Serialize($"舊表 {letter}：{expectedNames[letter - 'A']}"));
-            if (letter == 'P')
-                await Check("draft.groups[0].rules[0].rules[0].side==='debit' && draft.groups[0].rules[0].rules[1].side==='credit'");
-            await Click(letter is 'I' or 'L' or 'P'
-                ? ".rule-row[data-ri='0'] > .filter-rule-heading [data-compound-remove]"
-                : ".rule-row[data-ri='0'] [data-action=remove-rule]");
-            await Check("draft.groups.flatMap(g=>g.rules).length===0");
-          }
-          await Choose("[data-legacy-letter]", "P");
-          await Choose("[data-legacy-account]", "categories");
-          await Click("[data-action=add-legacy-rule]");
-          // Batch 5 makes newly created category conditions include descendants; saved legacy node conditions remain unchanged.
-          await Check("draft.groups[0].rules[0].type==='specialAccountCategoryPair' && draft.groups[0].rules[0].categorySelection==='subtree'");
-          await Click(".rule-row[data-ri='0'] [data-action=remove-rule]");
-          await CaptureScreenshotAsync(cdp, outcome, ct);
-          outcome.Assertions.LegacyFormCatalogVerified = true;
-          await Click("[data-action=app-exit]"); outcome.Assertions.ExitRequested = true;
-          return;
-        }
-        // Missing department selection must leave the current draft intact; selecting it is the retry.
-        await Click("[data-legacy-example=example2]");
-        await Check("document.querySelector('[data-legacy-notice]').textContent.includes('請先選取') && draft.groups.flatMap(g=>g.rules).length===0");
-        outcome.RecordStage("legacy_form_five_examples");
-        // Independent fixed answers from DemoDataFactory's synthetic population and the GUI department column:
-        // 1 no reversal description; 2 679 manual baseline vouchers, one department-matching debit each;
-        // 3 none of the specified account codes; 4 fifteen two-line million-multiple vouchers;
-        // 5 holiday seeds are automatic, while manual baseline rows are ordinary working days.
-        int[] expectedExampleCounts = [0, 679, 0, 30, 0];
-        for (var i = 1; i <= 5; i++)
-        {
-            if (i == 2)
-            {
-                // Resolve identity from the fixed fixture source, not the option's presentation text.
-                var field = await cdp.EvaluateAsync("(()=>{var fields=window.JetStore.getState().mapping.gl.committed.options.rdeFields.filter(f=>f.sourceColumn==='GUI部門' && f.valueType==='text');return fields.length===1?fields[0].fieldId:null;})()", ct);
-                if (field.ValueKind != JsonValueKind.String) throw new GuiCheckException("legacy_department_field_missing");
-                await Choose("[data-legacy-example-field]", field.GetString()!);
-                await Check("document.querySelector('[data-legacy-example-field]').value===" + JsonSerializer.Serialize(field.GetString()) +
-                    " && document.querySelector('[data-legacy-example-field]').selectedOptions[0].textContent==='GUI部門（攸關資料元素欄位，來源欄：GUI部門）'");
+                await AddCustomConditionAsync(cdp, "check:" + key, Click, ct);
+                await Check("draft.groups.flatMap(g=>g.rules).length===1 && draft.groups.flatMap(g=>g.rules)[0].type===" + JsonSerializer.Serialize(type) +
+                    " && document.querySelectorAll('[data-check-category][aria-expanded=true]').length===1" +
+                    " && document.querySelector('[data-check-category=" + category + "]').getAttribute('aria-expanded')==='true'" +
+                    " && document.querySelector('[data-add-check=" + key + "]').closest('.filter-check').querySelector('.filter-check__label').textContent===" + JsonSerializer.Serialize(label));
+                if (key == "accountCodePair")
+                    await Check("draft.groups[0].rules[0].rules[0].rules[0].drCr==='debit' && draft.groups[0].rules[0].rules[1].rules[0].drCr==='credit'");
+                // 新建的分類條件預設包含下層分類；已儲存的舊分類條件不變。
+                if (key == "categoryPair")
+                    await Check("draft.groups[0].rules[0].categorySelection==='subtree'");
+                if (key == "trailingZeros")
+                    await Check("draft.groups[0].rules[0].rules[0].value==='000000' && draft.groups[0].rules[0].rules[1].value==='1'");
+                await Click(type == "group"
+                    ? ".rule-row[data-ri='0'] > .filter-rule-heading [data-compound-remove]"
+                    : ".rule-row[data-ri='0'] [data-action=remove-rule]");
+                await Check("draft.groups.flatMap(g=>g.rules).length===0");
             }
-            await Click("[data-legacy-example=example" + i + "]");
-            await Click("[data-action=preview-scenario]");
-            await Check("!!preview && preview.count===" + expectedExampleCounts[i - 1]);
-            if (i == 1)
+            await CaptureScreenshotAsync(cdp, outcome, ct);
+            outcome.Assertions.LegacyFormCatalogVerified = true;
+            await Click("[data-action=app-exit]"); outcome.Assertions.ExitRequested = true;
+            return;
+        }
+        outcome.RecordStage("custom_examples_and_trailing_zeros");
+        // Independent fixed answers from DemoDataFactory's synthetic population and the GUI department column:
+        // weekend manual reversal descriptions: none; manual department entries: 679 baseline vouchers, one department-matching
+        // debit each; the specified account codes: none; holiday seeds are automatic while manual baseline rows are ordinary
+        // working days: none; fifteen two-line million-multiple vouchers end in six zeros: 30 rows.
+        (string Key, string Name, int Count)[] examples =
+        [
+            ("weekendManualDescription", "週末人工分錄的特定摘要", 0),
+            ("manualDepartment", "人工分錄的特定部門", 679),
+            ("accountPairLargeAmount", "指定借貸科目組合的大額分錄", 0),
+            ("preparationManualHoliday", "財報準備期間的人工假日分錄", 0)
+        ];
+        for (var i = 0; i < examples.Length; i++)
+        {
+            var (key, name, count) = examples[i];
+            await OpenExampleListAsync(cdp, Click, ct);
+            await Click("[data-action=apply-template][data-template-key=" + key + "]");
+            await Check("draft.name===" + JsonSerializer.Serialize(name) + " && !document.querySelector('[data-example-pick]')");
+            if (key == "manualDepartment")
             {
-                await Choose("[data-legacy-letter]", "S");
-                await Check("!!preview && draft.groups[0].rules.length===3");
+                // The fixture has exactly one text relevant data element field, so the example fills it without asking.
+                // Resolve identity from the fixed fixture source, not the button text.
+                var field = await cdp.EvaluateAsync("(()=>{var fields=window.JetStore.getState().mapping.gl.committed.options.rdeFields.filter(f=>f.valueType==='text');return fields.length===1 && fields[0].sourceColumn==='GUI部門'?fields[0].fieldId:null;})()", ct);
+                if (field.ValueKind != JsonValueKind.String) throw new GuiCheckException("legacy_department_field_missing");
+                await Check("draft.groups[0].rules[1].fieldId===" + JsonSerializer.Serialize(field.GetString()) + " && !draft.groups[0].rules[1].field");
+            }
+            await Click("[data-action=preview-scenario]");
+            await Check("!!preview && preview.count===" + count);
+            if (i == 0)
+            {
+                // 切換常用查核條件的分類只改畫面，不清除草稿或預覽。
+                await Click("[data-check-category=amounts]");
+                await Check("!!preview && draft.groups[0].rules.length===3 && document.querySelector('[data-check-category=amounts]').getAttribute('aria-expanded')==='true'");
                 await CaptureScreenshotAsync(cdp, outcome, ct);
             }
-            await Click("[data-action=open-save]"); await Click("[data-action=save-scenario]");
-            await Check("saved.length===" + i);
-            if (i < 5)
-            {
-                await Click("[data-filter-pane-select=filter]");
-                await Click("[data-action=new-scenario]");
-                await Click("[data-filter-disclosure=legacy-form] > summary");
-                await Check("document.querySelector('[data-filter-disclosure=legacy-form]').open");
-            }
+            await Click("[data-action=save-scenario]");
+            await Check("saved.length===" + (i + 1));
+            await Click("[data-filter-pane-select=filter]");
+            await Check("draft.groups.every(g=>g.rules.length===0) && !preview");
         }
+        await AddCustomConditionAsync(cdp, "check:trailingZeros", Click, ct);
+        await Check("draft.groups.flatMap(g=>g.rules).length===1 && draft.groups[0].rules[0].type==='group' && draft.groups[0].rules[0].rules[0].value==='000000' && draft.groups[0].rules[0].rules[1].value==='1'");
+        await Click("[data-action=preview-scenario]");
+        await Check("!!preview && preview.count===30");
+        await Click("[data-action=save-scenario]");
+        await Check("saved.length===5");
         outcome.RecordStage("legacy_form_cancel_and_export");
         await Click("[data-filter-pane-select=saved]");
         await Click(".saved-scenario .filter-saved-actions summary");
@@ -126,9 +139,9 @@ internal static partial class GuiScenarios
         await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2,3,4,5]})");
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']"); await Click("[data-filter-pane-select=saved]");
-        await Check("saved.length===5 && saved[2].groups[0].rules[0].rules[1].quantifier==='any' && saved[4].groups[0].rules[3].rules[1].values.join(',')==='1,2,3'");
+        await Check("saved.length===5 && saved[2].groups[0].rules[0].rules[1].quantifier==='any' && saved[3].groups[0].rules[3].rules[1].values.join(',')==='1,2,3' && saved[4].groups[0].rules[0].type==='group' && saved[4].groups[0].rules[0].rules[0].operator==='endsWithDigits'");
         await Click("[data-action=toggle-scenario][data-index='2']");
-        await Check("(()=>{var text=document.querySelector('[data-bind=scenario-body-2] .scenario-readback').textContent;return text.includes('同張傳票') && text.includes('貸方至少一筆') && !text.includes('同一分錄');})()");
+        await Check("(()=>{var text=document.querySelector('[data-bind=scenario-body-2] .scenario-readback').textContent;return text.includes('同張傳票') && text.includes('整張傳票至少一筆符合') && text.includes('僅貸方') && !text.includes('同一分錄');})()");
         await CaptureScreenshotAsync(cdp, outcome, ct);
         outcome.Assertions.LegacyFormWorkflowVerified = true;
         await Click("[data-action=app-exit]"); outcome.Assertions.ExitRequested = true;

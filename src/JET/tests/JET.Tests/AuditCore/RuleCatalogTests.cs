@@ -87,7 +87,6 @@ public sealed class RuleCatalogTests
             PrescreenRuleKeys.WeekendApproval,
             PrescreenRuleKeys.HolidayPosting,
             PrescreenRuleKeys.HolidayApproval,
-            PrescreenRuleKeys.BackdatedPosting,
             PrescreenRuleKeys.NonAuthorizedPreparer,
             PrescreenRuleKeys.LowFrequencyPreparer,
             PrescreenRuleKeys.LowFrequencyAccount

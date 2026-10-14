@@ -21,7 +21,8 @@ public sealed class DataPreviewColumnOwnershipTests
         foreach (var relativePath in PreviewRepositories)
         {
             var source = Read(relativePath);
-            Assert.Contains("DataPreviewColumns.GlEntries", source, StringComparison.Ordinal);
+            // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
+            Assert.Contains("DataPreviewColumns.Gl", source, StringComparison.Ordinal);
             Assert.Contains("DataPreviewColumns.ManualAuto(", source, StringComparison.Ordinal);
             Assert.DoesNotContain("\"manual\"", source, StringComparison.Ordinal);
             Assert.DoesNotContain("\"automatic\"", source, StringComparison.Ordinal);

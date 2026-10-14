@@ -107,10 +107,11 @@ internal static class WorkpaperExportTestSupport
         {
             new
             {
-                name = "回溯過帳",
+                name = "非授權編製人員",
                 rationale = "測試第一個情境",
                 groups = new[] { new { join = "and", rules = new object[] {
-                    new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" }
+                    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" }
                 } } }
             },
             new

@@ -37,7 +37,8 @@ public sealed class Batch6MappingDiagnosticsTests
         var before = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
         var error = await Assert.ThrowsAsync<JetActionException>(() => CommitManualAsync(host, ["M"], ["A"]));
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        Assert.StartsWith("65 列無法轉換", error.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("以下依前", error.Message, StringComparison.Ordinal);
         var details = ErrorDetails(error).EnumerateArray().ToArray();
         Assert.Equal(2, details.Length);
@@ -63,7 +64,8 @@ public sealed class Batch6MappingDiagnosticsTests
         using var host = new HandlerTestHost();
         await SetupGlAsync(host, provider, Enumerable.Range(1, 400).Select(index => $"BAD-{index:000}").ToArray());
         var error = await Assert.ThrowsAsync<JetActionException>(() => CommitManualAsync(host, ["M"], ["A"]));
-        Assert.StartsWith("400 列無法轉換", error.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.StartsWith("有 400 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("以下依前", error.Message, StringComparison.Ordinal);
         var detail = Assert.Single(ErrorDetails(error).EnumerateArray());
         Assert.Equal("manual_unlisted", detail.GetProperty("reasonCode").GetString());
@@ -92,14 +94,16 @@ public sealed class Batch6MappingDiagnosticsTests
             await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new
             { filePath = second, fileName = "second-source.xlsx", mode = "append" }));
             var error = await Assert.ThrowsAsync<JetActionException>(() => CommitManualAsync(host, ["M"], ["A"]));
-            Assert.StartsWith("65 列無法轉換", error.Message, StringComparison.Ordinal);
+            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
             var detail = Assert.Single(ErrorDetails(error).EnumerateArray());
             var text = detail.GetProperty("message").GetString()!;
             Assert.Contains("有 65 列未歸類為人工或自動", text, StringComparison.Ordinal);
             Assert.Contains("共 62 列", text, StringComparison.Ordinal);
             Assert.Contains("「Y」在 second-source.xlsx 第 4、5、6 列", text, StringComparison.Ordinal);
             Assert.Contains("inline-gl.xlsx", text, StringComparison.Ordinal);
-            Assert.Contains("以下只列出部分來源與列號，未列出的錯誤仍計入總數。", error.Message, StringComparison.Ordinal);
+            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            Assert.Contains("以下僅列出部分的值與列號。", error.Message, StringComparison.Ordinal);
             Assert.InRange(error.Message.Length, 1, 2000);
         }
         finally { TestWorkbookBuilder.Delete(second); }
@@ -120,12 +124,14 @@ public sealed class Batch6MappingDiagnosticsTests
         {
             await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = path }));
             var error = await Assert.ThrowsAsync<JetActionException>(() => CommitTbAsync(host));
-            Assert.StartsWith("63 列無法轉換", error.Message, StringComparison.Ordinal);
+            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            Assert.StartsWith("有 63 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("以下依前", error.Message, StringComparison.Ordinal);
             var detail = Assert.Single(ErrorDetails(error).EnumerateArray());
             Assert.Equal("變動金額", detail.GetProperty("sourceColumn").GetString());
             var text = detail.GetProperty("message").GetString()!;
-            Assert.Contains("有 63 列不是有效金額", text, StringComparison.Ordinal);
+            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-131740634-2a35146b081648eb92cf69bc9c18b5ef）。
+            Assert.Contains("有 63 列不是有效的金額", text, StringComparison.Ordinal);
             Assert.Contains("共 60 列", text, StringComparison.Ordinal);
             Assert.Contains("「bad-Y」在第 62、63、64 列", text, StringComparison.Ordinal);
         }

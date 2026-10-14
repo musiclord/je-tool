@@ -37,8 +37,9 @@ public sealed class ReportExportSupportTests
                 "22222222222222222222222222222222"));
 
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-55（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
-            "指定的 validate 執行結果已不是目前版本，請重新執行並使用最新結果。",
+            "這份報告依據的資料驗證結果已不是目前的結果，請重新執行資料驗證後再產生。",
             exception.Message);
     }
 

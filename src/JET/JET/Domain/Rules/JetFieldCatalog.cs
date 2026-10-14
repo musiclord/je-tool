@@ -52,12 +52,19 @@ internal sealed record JetFieldDefinition(
 /// </summary>
 internal static class JetFieldCatalog
 {
+    /// <summary>
+    /// 已移除的 GL 欄位與它在畫面上的名稱，只用來辨認舊資料。使用者 2026-10-08 裁定移除傳票日期（voucherDate）；
+    /// 舊案件讀出已存配對時略過這些鍵（<see cref="GlMappingKeys"/> 不含它們），舊情境用到它們時第五步原因寫出名稱
+    /// （使用者 2026-10-13 裁定「寫出名稱」）。
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> RetiredGlFieldLabels =
+        new Dictionary<string, string>(StringComparer.Ordinal) { ["voucherDate"] = "傳票日期" };
+
     internal const string GlDocNum = "docNum";
     internal const string GlLineId = "lineID";
     internal const string GlPostDate = "postDate";
     // 歷史 action 鍵 docDate 在本案表示「傳票核准日」，不是 Document Date；儲存欄為 approval_date。
     internal const string GlDocDate = "docDate";
-    internal const string GlVoucherDate = "voucherDate";
     internal const string GlAccNum = "accNum";
     internal const string GlAccName = "accName";
     internal const string GlDescription = "description";
@@ -100,7 +107,7 @@ internal static class JetFieldCatalog
         Field(
             DatasetKind.Gl, GlPostDate, JetFieldValueKind.Date, 2, storageNullable: true, "post_date",
             "總帳日期_JE", canonicalOrder: 2, isGenericFilterField: true,
-            Slot(GlPostDate, "總帳入帳日", 2, always: true, fieldInfo: true)),
+            Slot(GlPostDate, "總帳日期", 2, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlDocDate, JetFieldValueKind.Date, 3, storageNullable: true, "approval_date",
             canonicalName: null, canonicalOrder: null, isGenericFilterField: true,
@@ -108,10 +115,8 @@ internal static class JetFieldCatalog
         {
             LegacyFieldName = "傳票核准日_JE"
         },
-        Field(
-            DatasetKind.Gl, GlVoucherDate, JetFieldValueKind.Date, 4, storageNullable: true, "voucher_date",
-            canonicalName: null, canonicalOrder: null, isGenericFilterField: true,
-            Slot(GlVoucherDate, "傳票日期", 4, fieldInfo: true)),
+        // 使用者 2026-10-08 裁定移除新版自行加入的傳票日期（voucherDate）；其餘欄位的順序值不重排。
+        // 名稱留在 RetiredGlFieldLabels，舊情境用到它時第五步原因寫得出名稱。
         Field(
             DatasetKind.Gl, GlAccNum, JetFieldValueKind.Text, 5, storageNullable: true, "account_code",
             "會計科目編號_JE", canonicalOrder: 5, isGenericFilterField: true,
@@ -149,12 +154,12 @@ internal static class JetFieldCatalog
         Field(
             DatasetKind.Gl, GlAmount, JetFieldValueKind.Amount, 12, storageNullable: false, "amount_scaled",
             "傳票金額_JE", canonicalOrder: 7, isGenericFilterField: true,
-            Slot(GlAmount, "分錄金額（單欄）", 12,
+            Slot(GlAmount, "金額", 12,
                 modes: [GlAmountModeNames.Signed, GlAmountModeNames.Side, GlAmountModeNames.Flag],
                 fieldInfo: true),
             Slot(GlDebitAmount, "借方金額", 13, modes: [GlAmountModeNames.Dual]),
             Slot(GlCreditAmount, "貸方金額", 14, modes: [GlAmountModeNames.Dual]),
-            Slot(GlDcField, "借貸別欄位", 15,
+            Slot(GlDcField, "借貸別", 15,
                 modes: [GlAmountModeNames.Side, GlAmountModeNames.Flag]),
             Slot(GlDcDebitCode, "借方代碼", 16,
                 modes: [GlAmountModeNames.Side, GlAmountModeNames.Flag], literal: true),

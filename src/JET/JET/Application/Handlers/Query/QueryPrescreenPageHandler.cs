@@ -17,12 +17,12 @@ public sealed class QueryPrescreenPageHandler(
         var ruleKey = PayloadReader.GetRequiredString(payload, "ruleKey");
         if (!PrescreenRuleKeys.FilterableKeys.Contains(ruleKey))
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, $"ruleKey '{ruleKey}' 不是可分頁的預篩選規則。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "prescreen_rule_key_invalid");
         }
 
         var request = PageRequestReader.Read(payload, ResultPageSorting.Prescreen);
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         PageResult<PrescreenHitRow> page;
         if (ruleKey == PrescreenRuleKeys.PostPeriodApproval

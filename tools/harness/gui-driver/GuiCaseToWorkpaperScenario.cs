@@ -3,6 +3,8 @@ using System.Text.Json;
 
 namespace Jet.GuiDriver;
 
+// Section 9: align selectors with the verified frontend contracts. Gui is not executed per the user request.
+
 internal static partial class GuiScenarios
 {
     private static async Task ExecuteCaseToWorkpaperAsync(CdpSession cdp, OwnedGuiRun ownedRun, Process process,
@@ -56,7 +58,7 @@ internal static partial class GuiScenarios
         await Click("[data-action=run-validate]");
         await Check("state.lastRuns.validate?.completenessTest.diffAccountCount===0");
         await Click("[data-bind=step-nav] [data-step-index='4']");
-        await Click("[data-kct-letter=G]"); await Click("[data-action=open-save]"); await Click("[data-action=save-scenario]");
+        await Click("[data-kct-letter=G]"); await Click("[data-action=save-scenario]");
         await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].name==='G'");
         await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
         await Check("!!window.JetUi.currentWorkpaperArtifact(state) && state.reportArtifacts.some(a=>a.kind==='workingPaper' && !a.stale) && document.querySelector('.toc-progress').textContent.includes('進度 6/6')");

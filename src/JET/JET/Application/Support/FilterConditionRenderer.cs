@@ -30,7 +30,7 @@ public static class FilterConditionRenderer
     /// 傳入專案 taxonomy，才會反映使用者改過的顯示名稱。
     /// <paramref name="rdeFieldLabels"/> 是目前 committed RDE 欄位的 fieldId → 顯示 label 對照，
     /// 供 typed 條件讀回（凍結裁決：renderer 用目前 metadata，僅 label 改名時顯示新名稱）；
-    /// 省略或欄位已不存在時退回 fieldId 原字串。
+    /// 省略或欄位已不存在時寫「已不在欄位配對中的攸關資料元素欄位」，不印 fieldId（使用者 2026-10-14 第三輪勾選頁確認 R3-03）。
     /// <paramref name="taxonomyCategories"/> 帶完整分類用途與階層，才能列出實際納入分類。省略時不猜分類範圍。
     /// <paramref name="preparationDate"/> 是目前案件的期末財報準備日，只供讀回說明，不寫入條件 AST。
     /// </summary>
@@ -246,10 +246,10 @@ public static class FilterConditionRenderer
             "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd),
             "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd),
             "prescreen" => PrescreenAtom(Str(r, "prescreenKey"), preparationDate),
-            "text" => FilterConditionLabels.GlFieldLabel(Str(r, "field")) + " "
+            "text" => FilterConditionLabels.GlFieldReadback(Str(r, "field")) + " "
                 + FilterConditionLabels.TextModeLabel(Str(r, "mode")) + "「" + Str(r, "keywords") + "」",
             "textSet" => TextSetAtom(r),
-            "dateRange" => FilterConditionLabels.GlFieldLabel(Str(r, "field")) + " "
+            "dateRange" => FilterConditionLabels.GlFieldReadback(Str(r, "field")) + " "
                 + Ellipsis(Str(r, "from")) + "～" + Ellipsis(Str(r, "to")),
             "numRange" => NumRangeAtom(r),
             "drCrOnly" => Str(r, "drCr") == "credit" ? "僅貸方" : "僅借方",
@@ -261,9 +261,9 @@ public static class FilterConditionRenderer
                 + CategorySelection(r, "creditCategoryIds", categoryLabels) + "）",
             "customKeywords" => "自訂關鍵字「" + Str(r, "keywords") + "」",
             "customTrailingZeros" => "金額尾數連續 " + Str(r, "digits") + " 個 0",
-            "customPreparerEntryCount" => "分錄測試範圍內編製人員分錄筆數 ≤ " + Str(r, "maxEntries"),
-            "customAccountEntryCount" => "分錄測試範圍內科目分錄筆數 ≤ " + Str(r, "maxEntries"),
-            "entityFrequency" => "分錄測試範圍內「" + JetFieldCatalog.GlSemanticFieldMappingLabel(Str(r, "field")) + "」" +
+            "customPreparerEntryCount" => "GL 中編製人員分錄筆數 ≤ " + Str(r, "maxEntries"),
+            "customAccountEntryCount" => "GL 中科目分錄筆數 ≤ " + Str(r, "maxEntries"),
+            "entityFrequency" => "GL 中「" + JetFieldCatalog.GlSemanticFieldMappingLabel(Str(r, "field")) + "」" +
                 (Str(r, "countUnit") == "vouchers" ? "傳票張數（同號只算一張）" : "分錄筆數") + " " +
                 (EntityFrequencyConditions.Operators.TryGetValue(Str(r, "countOperator"), out var countLabel) ? countLabel : "") + " " +
                 Str(r, "countFrom") + (Str(r, "countOperator") == "between" ? "～" + Str(r, "countTo") + "（含端點）" : ""),
@@ -275,7 +275,7 @@ public static class FilterConditionRenderer
             "typed" => TypedFieldAtom(r, rdeFieldLabels),
             "fieldValue" => FieldValueAtom(r, rdeFieldLabels),
             "accountSide" => AccountSideAtom(r, categoryLabels, taxonomyCategories),
-            _ => type,
+            _ => FilterConditionLabels.RetiredCondition,
         };
         if (type is not ("accountPair" or "specialAccountCategoryPair")) return text;
         text = CategorySelectionModeLabel(r) + "：" + text;
@@ -309,7 +309,7 @@ public static class FilterConditionRenderer
     private static string AccountSideAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels,
         IReadOnlyList<AccountTaxonomyCategory>? taxonomyCategories)
     {
-        var side = Str(rule, "drCr") switch { "credit" => "貸方", "any" => "不限借貸", _ => "借方" };
+        var side = Str(rule, "drCr") switch { "debit" => "借方", "credit" => "貸方", "any" => "不限借貸", _ => "" };
         var categories = CategorySelection(rule, "categoryIds", labels);
         var text = Str(rule, "categoryMode") switch
         {
@@ -355,12 +355,18 @@ public static class FilterConditionRenderer
     private static string FieldValueAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels)
     {
         var fieldId = Str(rule, "fieldId");
-        var field = fieldId.Length == 0 ? FilterConditionLabels.GlFieldLabel(Str(rule, "field"))
-            : labels?.GetValueOrDefault(fieldId) ?? fieldId;
-        // Normalized filter amount has no text/date mapping label in GlFields.
-        if (fieldId.Length == 0 && Str(rule, "field") == "amount") field = "金額";
+        var glKey = Str(rule, "field");
+        // 欄位已不存在時寫畫面名稱、不接金額比較基準（使用者 2026-10-14 第三輪勾選頁確認 R3-03，前端 FilterValues.summary 同構）。
+        var fieldKnown = fieldId.Length == 0
+            ? glKey == "amount" || FilterConditionLabels.GlFields.ContainsKey(glKey)
+            : labels is not null && labels.ContainsKey(fieldId);
+        var field = fieldId.Length > 0
+            ? (fieldKnown ? labels![fieldId] : FilterConditionLabels.MissingRdeField)
+            // Normalized filter amount has no text/date mapping label in GlFields.
+            : glKey == "amount" ? "金額" : FilterConditionLabels.GlFieldReadback(glKey);
         var op = Str(rule, "operator");
-        var opLabel = FieldValueConditions.Labels.GetValueOrDefault(op, op);
+        var opLabel = FieldValueConditions.Labels.TryGetValue(op, out var knownOp) ? knownOp
+            : op.Length == 0 ? string.Empty : FilterConditionLabels.RetiredCondition;
         var listValues = StringArrayItems(rule, "values");
         var operand = op is "isBlank" or "isNotBlank" || FieldValueConditions.IsCalendar(op) ? "" : op is "between" or "notBetween"
             ? "「" + Str(rule, "from") + "」至「" + Str(rule, "to") + "」"
@@ -368,7 +374,7 @@ public static class FilterConditionRenderer
                 ? "「" + string.Join("、", listValues) + "」"
             : FieldValueConditions.IsContains(op) && listValues.Count > 0 ? "「" + string.Join("、", listValues) + "」"
             : "「" + Str(rule, "value") + "」";
-        if (op is not "isBlank" and not "isNotBlank" && !FieldValueConditions.IsTail(op))
+        if (fieldKnown && op is not "isBlank" and not "isNotBlank" && !FieldValueConditions.IsTail(op))
             field += Str(rule, "amountBasis") switch { "absolute" => "絕對值", "signed" => "含正負號", _ => "" };
         // 空白預設不列入（2026-09-04 裁定），與 GlRulePredicates.FieldValue 的預設一致。
         var includeBlank = rule.TryGetProperty("includeBlank", out var blank) && blank.ValueKind == JsonValueKind.True;
@@ -378,19 +384,17 @@ public static class FilterConditionRenderer
     }
 
     /// <summary>
-    /// typed 條件讀回：RDE 欄位以目前 metadata 的顯示 label 呈現（僅 label 改名時自動跟進；
-    /// 欄位已不存在或未提供對照時退回 fieldId 原字串）；operand 依 carrier 呈現原始 wire 字串；
-    /// money 條件附 amountBasis 標示。標籤正本在 Domain <see cref="FilterConditionLabels.TypedOperators"/>。
+    /// typed 條件讀回：RDE 欄位以目前 metadata 的顯示 label 呈現（僅 label 改名時自動跟進）；
+    /// 欄位已不存在或未提供對照時寫「已不在欄位配對中的攸關資料元素欄位」，不接比較基準（R3-03）；
+    /// operand 依 carrier 呈現原始 wire 字串；money 條件附 amountBasis 標示。標籤正本在 Domain <see cref="FilterConditionLabels.TypedOperators"/>。
     /// </summary>
     private static string TypedFieldAtom(
         JsonElement r,
         IReadOnlyDictionary<string, string>? rdeFieldLabels)
     {
         var fieldId = Str(r, "fieldId");
-        var fieldLabel = rdeFieldLabels is not null
-            && rdeFieldLabels.TryGetValue(fieldId, out var label)
-            ? label
-            : fieldId;
+        var fieldKnown = rdeFieldLabels is not null && rdeFieldLabels.ContainsKey(fieldId);
+        var fieldLabel = fieldKnown ? rdeFieldLabels![fieldId] : FilterConditionLabels.MissingRdeField;
         var op = Str(r, "operator");
         var opLabel = FilterConditionLabels.TypedOperatorLabel(op);
 
@@ -413,7 +417,7 @@ public static class FilterConditionRenderer
             operand = "「" + Str(r, "value") + "」";
         }
 
-        var basis = Str(r, "amountBasis") switch
+        var basis = !fieldKnown ? string.Empty : Str(r, "amountBasis") switch
         {
             TypedAmountBasisNames.Signed => "（" + FilterConditionLabels.TypedSignedAmountBasis + "）",
             TypedAmountBasisNames.Absolute => "（" + FilterConditionLabels.TypedAbsoluteAmountBasis + "）",
@@ -441,7 +445,7 @@ public static class FilterConditionRenderer
         var normalizationLabel = Str(r, "normalization") == "removeAsciiSpaces"
             ? FilterConditionLabels.TextSetRemoveAsciiSpaces
             : FilterConditionLabels.TextSetPreserveAsciiSpaces;
-        return FilterConditionLabels.GlFieldLabel(Str(r, "field"))
+        return FilterConditionLabels.GlFieldReadback(Str(r, "field"))
             + " "
             + modeLabel
             + "「"

@@ -263,9 +263,11 @@ public sealed class ImportAccountMappingHandlerTests
 
         Assert.Equal("projection_failed", ex.Code);
         Assert.Equal(
-            "科目配對檔有 1 列無法轉換（整批已還原）："
-            + "第 3 列：分類「NotACategory」不存在於目前專案的科目分類"
-            + "（Revenue、Receivables、Cash、Receipt in advance、Others）。",
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        "科目配對檔有 1 列無法讀取，本次匯入未儲存："
+            // 使用者 2026-10-14 第三輪勾選頁確認 R3-60（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+            + "第 3 列：分類「NotACategory」不在本案件的科目分類中"
+            + "（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。",
             ex.Message);
 
         // 整批 rollback：target 與批次皆不留殘骸。

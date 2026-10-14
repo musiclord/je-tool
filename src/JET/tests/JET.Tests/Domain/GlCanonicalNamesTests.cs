@@ -63,12 +63,11 @@ public sealed class GlCanonicalNamesTests
     }
 
     /// <summary>
-    /// 無對應正準名的白名單鍵(docDate/voucherDate/jeSource)不得出現在 GL 正準名表
+    /// 無對應正準名的白名單鍵(docDate/jeSource)不得出現在 GL 正準名表
     /// (樣本 Field Mapping Info 未列;不得臆造)。等價分割:白名單鍵分「有正準名 / 無正準名」兩類。
     /// </summary>
     [Theory]
     [InlineData("docDate")]
-    [InlineData("voucherDate")]
     [InlineData("jeSource")]
     public void Gl_KeysWithoutSampleCanonicalName_AreAbsent(string logicalKey)
     {

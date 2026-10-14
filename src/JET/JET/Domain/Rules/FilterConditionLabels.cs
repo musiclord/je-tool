@@ -63,7 +63,6 @@ public static class FilterConditionLabels
             [PrescreenRuleKeys.HolidayPosting] = "假日過帳",
             [PrescreenRuleKeys.HolidayApproval] = "假日核准",
             [PrescreenRuleKeys.BlankDescription] = "空白摘要",
-            [PrescreenRuleKeys.BackdatedPosting] = "回溯過帳",
             [PrescreenRuleKeys.NonAuthorizedPreparer] = "非授權編製人員",
             [PrescreenRuleKeys.LowFrequencyPreparer] = $"編製分錄較少的人員（{PreparerFrequency.DefaultMaxEntries} 筆以下）",
             [PrescreenRuleKeys.LowFrequencyAccount] = $"使用較少的科目（{AccountFrequency.DefaultMaxEntries} 筆以下）",
@@ -94,7 +93,6 @@ public static class FilterConditionLabels
         {
             ["is"] = "科目屬於指定分類",
             ["isNot"] = "科目不屬於指定分類",
-            ["absent"] = "整張傳票的這一側都不屬於指定分類",
         };
 
     /// <summary>
@@ -144,9 +142,10 @@ public static class FilterConditionLabels
 
     public const string TextSetExactAny = "完全符合任一值";
 
-    public const string TextSetPreserveAsciiSpaces = "保留 ASCII 空白";
+    // 使用者 2026-10-14 第三輪勾選頁確認 R3-69：「ASCII 空白」改說半形空白。
+    public const string TextSetPreserveAsciiSpaces = "保留半形空白";
 
-    public const string TextSetRemoveAsciiSpaces = "移除 ASCII 空白";
+    public const string TextSetRemoveAsciiSpaces = "移除半形空白";
 
     /// <summary>
     /// typed 條件 operator → 中文標籤。後端 renderer 是唯一權威輸出；typed 前端 UI 於
@@ -180,27 +179,48 @@ public static class FilterConditionLabels
 
     public const string TypedAbsoluteAmountBasis = "金額絕對值";
 
-    /// <summary>typed operator → 標籤；未登錄回退原值（同其他 closed token 的 fallback 慣例）。</summary>
+    /// <summary>
+    /// 認不得的預篩選條件、比對方式、借貸組合方式或條件型別在讀回裡的寫法，不印程式代號
+    /// （使用者 2026-10-14 第三輪勾選頁確認 R3-03；前端 <c>RETIRED_CONDITION_LABEL</c> 同一句）。
+    /// </summary>
+    public const string RetiredCondition = "已停用的條件";
+
+    /// <summary>攸關資料元素欄位已不在欄位配對中時，讀回與標題寫的名稱（R3-03）。</summary>
+    public const string MissingRdeField = "已不在欄位配對中的攸關資料元素欄位";
+
+    /// <summary>認不得的 GL 欄位在讀回裡的名稱（R3-03）。</summary>
+    public const string MissingGlField = "已不存在的欄位";
+
+    /// <summary>typed operator → 標籤；未登錄時寫 <see cref="RetiredCondition"/>，空白時不寫（同前端 <c>typedOperatorLabel</c>）。</summary>
     public static string TypedOperatorLabel(string? op) =>
-        op is not null && TypedOperators.TryGetValue(op, out var label) ? label : op ?? string.Empty;
+        string.IsNullOrEmpty(op) ? string.Empty : TypedOperators.TryGetValue(op, out var label) ? label : RetiredCondition;
 
-    /// <summary>預篩選鍵 → 標籤；未登錄回退原鍵（與前端 <c>ruleSummaryLabel</c> 的 fallback 同構）。</summary>
+    /// <summary>預篩選鍵 → 標籤；未登錄時寫 <see cref="RetiredCondition"/>（與前端 <c>ruleSummaryLabel</c> 同構）。</summary>
     public static string PrescreenLabel(string? key) =>
-        key is not null && PrescreenKeys.TryGetValue(key, out var label) ? label : key ?? string.Empty;
+        key is not null && PrescreenKeys.TryGetValue(key, out var label) ? label : RetiredCondition;
 
-    /// <summary>文字模式 → 標籤；未登錄回退原值。</summary>
+    /// <summary>文字模式 → 標籤；未登錄時寫 <see cref="RetiredCondition"/>。</summary>
     public static string TextModeLabel(string? mode) =>
-        mode is not null && TextModes.TryGetValue(mode, out var label) ? label : mode ?? string.Empty;
+        mode is not null && TextModes.TryGetValue(mode, out var label) ? label : RetiredCondition;
 
-    /// <summary>科目配對模式 → 標籤；未登錄回退原值。</summary>
+    /// <summary>科目配對模式 → 標籤；未登錄時寫 <see cref="RetiredCondition"/>。</summary>
     public static string AccountPairModeLabel(string? mode) =>
-        mode is not null && AccountPairModes.TryGetValue(mode, out var label) ? label : mode ?? string.Empty;
+        mode is not null && AccountPairModes.TryGetValue(mode, out var label) ? label : RetiredCondition;
 
-    /// <summary>特殊科目配對模式 → 標籤；未登錄回退原值。</summary>
+    /// <summary>特殊科目配對模式 → 標籤；未登錄時寫 <see cref="RetiredCondition"/>。</summary>
     public static string SpecialPairModeLabel(string? mode) =>
-        mode is not null && SpecialPairModes.TryGetValue(mode, out var label) ? label : mode ?? string.Empty;
+        mode is not null && SpecialPairModes.TryGetValue(mode, out var label) ? label : RetiredCondition;
 
-    /// <summary>GL 欄鍵 → 標籤；未登錄回退原鍵（同前端 <c>glFieldLabel</c>）。</summary>
+    /// <summary>GL 欄鍵 → 標籤；未登錄回退原鍵（同前端 <c>glFieldLabel</c>）。讀回改用 <see cref="GlFieldReadback"/>。</summary>
     public static string GlFieldLabel(string? key) =>
         key is not null && GlFields.TryGetValue(key, out var label) ? label : key ?? string.Empty;
+
+    /// <summary>
+    /// 讀回裡的 GL 欄位名稱（前端 <c>glFieldReadback</c> 同構）：已移除的欄位寫「已移除的「名稱」」，
+    /// 名稱只在 <see cref="JetFieldCatalog.RetiredGlFieldLabels"/>；認不得的欄位寫 <see cref="MissingGlField"/>，不印程式代號（R3-03）。
+    /// </summary>
+    public static string GlFieldReadback(string? key) =>
+        key is not null && GlFields.TryGetValue(key, out var label) ? label
+        : key is not null && JetFieldCatalog.RetiredGlFieldLabels.TryGetValue(key, out var retired) ? "已移除的「" + retired + "」"
+        : MissingGlField;
 }

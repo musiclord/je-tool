@@ -243,7 +243,6 @@ internal static class LegacyAuditParityMetricIds
         LegacyPrescreenRuleId.HolidayPosting => "holiday_posting",
         LegacyPrescreenRuleId.HolidayApproval => "holiday_approval",
         LegacyPrescreenRuleId.BlankDescription => "blank_description",
-        LegacyPrescreenRuleId.BackdatedPosting => "backdated_posting",
         LegacyPrescreenRuleId.NonAuthorizedPreparer => "non_authorized_preparer",
         LegacyPrescreenRuleId.LowFrequencyPreparer => "low_frequency_preparer",
         LegacyPrescreenRuleId.LowFrequencyAccount => "low_frequency_account",
@@ -285,7 +284,6 @@ internal static class LegacyPrescreenParityPlan
     [
         LegacyPrescreenRuleId.HolidayPosting,
         LegacyPrescreenRuleId.HolidayApproval,
-        LegacyPrescreenRuleId.BackdatedPosting,
         LegacyPrescreenRuleId.NonAuthorizedPreparer,
         LegacyPrescreenRuleId.LowFrequencyPreparer,
         LegacyPrescreenRuleId.LowFrequencyAccount,

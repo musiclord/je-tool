@@ -240,7 +240,7 @@ public sealed class SqlServerLockService(
         {
             throw new JetActionException(
                 JetErrorCodes.SqlServerNotConfigured,
-                "未設定 SQL Server 連線。專案租約鎖需要環境變數 JET_SQLSERVER_CONNECTION。");
+                SqlServerMessages.NotConfigured);
         }
 
         return new SqlConnectionStringBuilder(options.BaseConnectionString)

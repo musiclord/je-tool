@@ -1,168 +1,50 @@
 'use strict';
+// 測試程序的記憶體與時間上限，見 support/resource-guard.cjs（2026-10-13）。
+require('./support/resource-guard.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const root = path.resolve(__dirname, '../../src/JET/JET/wwwroot/js');
-const copy = value => JSON.parse(JSON.stringify(value));
-const settle = () => new Promise(resolve => setImmediate(resolve));
+// 共用夾具在 support/frontend-fixtures.cjs。本檔的 fixture() 就是模組的 mappingFixture：載入整份正式腳本，
+// 只有 DOM 管線與後端時序是替身，畫面、事件綁定、快取與狀態轉換都執行正式程式。第 11 批（2026-10-14）刪掉本檔的副本改用模組。
+const { root, copy, settle, profile, mappingFixture: fixture } = require('./support/frontend-fixtures.cjs');
 
-// Load whole production scripts unchanged. Only DOM plumbing and backend timing are test doubles;
-// rendering, event binding, cache lifetime and state transitions all execute production code.
-function fixture() {
-  const pending = [];
-  const window = { setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {}, JetApi: {
-    queryDataPreview() { return Promise.resolve({ columns: [], rows: [] }); },
-    mappingValueProfile(payload) {
-      return new Promise((resolve, reject) => pending.push({ payload, reject, resolve(data) {
-        // Default fake returns only exact identity groups. Unicode equivalence cases below
-        // supply fixed backend groups explicitly; no JS case/trim implementation acts as oracle.
-        if (!data.comparisonGroups) data = { ...data, comparisonGroups:
-          [...(data.values || []).map(item => item.value), ...(payload.comparisonValues || [])].map(value => [value]) };
-        if (payload.checkSourceValues && !Object.hasOwn(data, 'missingComparisonValues')) data = { ...data, missingComparisonValues: [] };
-        resolve(data);
-      } }));
-    }
-  } };
-  const document = { querySelector: () => null, createElement() {
-    return { textContent: '', get innerHTML() {
-      return String(this.textContent).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    } };
-  } };
-  const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'steps/mapping-step.js']) {
-    vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8').replace("  Ui.registerStep('mapping', render);", "  window.mappingWire = glCommitPayload; Ui.registerStep('mapping', render);"), context, { filename: file });
+test('acceptance comments remove permanent date notes and unify the debit-credit choice in both views', () => {
+  const f = fixture();
+  f.store.setMappingMode('gl', 'flag'); // 舊案件仍可讀取，但不能顯示成未選金額模式。
+  for (const view of ['classic', 'grid']) {
+    f.store.setMappingUiMode(view);
+    const html = f.render().html;
+    assert.doesNotMatch(html, /用來決定查核期間內|用於核准日期條件|這份總帳沒有核准日|id="gl-approval-help"/);
+    if (view === 'classic') assert.match(html, /<option value="mode:unmapped" selected>—<\/option>/);
+    else assert.doesNotMatch(html, /data-approval-choice/);
+    assert.match(html, /value="side" checked/);
+    assert.match(html, /金額與借貸別/);
+    assert.doesNotMatch(html, /value="flag"|金額＋借方旗標|金額＋借貸別/);
+    assert.equal((html.match(/name="mode-gl"/g) || []).length, 3);
   }
-  const store = window.JetStore;
-  store.setProject({ projectId: 'synthetic' });
-  store.setImportResult('gl', { batchId: 'batch-1', columns: ['Manual', 'Posting', 'Other', '__proto__'], rowCount: 2 });
-  store.setMappingDraft('gl', 'manual', 'Manual');
-  store.setMappingDraft('gl', 'postingStatus', 'Posting');
+});
 
-  function render() {
-    const events = new Map();
-    const delegated = new Map();
-    const controls = new Map();
-    function control(selector) {
-      if (!controls.has(selector)) {
-        const attribute = selector.match(/^\[([^\]]+)\]/)?.[1] || '';
-        const literal = attribute.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const tag = container.innerHTML.match(new RegExp('<input[^>]*' + literal + '[^>]*>'));
-        controls.set(selector, { value: tag && (tag[0].match(/value="([^"]*)"/) || [])[1] || '',
-          closest: () => null,
-          addEventListener(event, fn) { events.set(selector + ':' + event, fn); } });
-      }
-      return controls.get(selector);
-    }
-    const action = /^\[data-action="([a-z-]+)"\]$/;
-    const section = {
-      addEventListener(event, handler) { delegated.set(event, (delegated.get(event) || []).concat(handler)); },
-      querySelector(selector) {
-        if (selector === '[data-bind="gl-options"]') return {};
-        if (selector === '[data-rde-created-date]' && container.innerHTML.includes('data-rde-created-date')) return control(selector);
-        if (selector === '[data-approval-source]' && container.innerHTML.includes('data-approval-source')) return control(selector);
-        if (/^\[data-bind="(manual-code-add|automatic-code-add|posting-value-add)"\]$/.test(selector)
-            && container.innerHTML.includes(selector.slice(1, -1))) return control(selector);
-        if (/^\[data-manual-(mode|blank)\]$/.test(selector) && container.innerHTML.includes(selector.slice(1, -1))) return control(selector);
-        if (action.test(selector) && container.innerHTML.includes(selector.slice(1, -1))) return control(selector);
-        return null;
-      },
-      querySelectorAll(selector) {
-        if (selector === '[data-option-bind="approvalDateMode"]') {
-          return ['unmapped', 'mapped', 'sameAsPostDate'].map(mode => {
-            const target = control(selector + '[value="' + mode + '"]');
-            target.value = mode; target.checked = store.getState().mapping.gl.options.approvalDateMode === mode;
-            return target;
-          });
-        }
-        if (['[data-manual-assign]', '[data-posting-value]', '[data-manual-include]', '[data-rde-column]', '[data-rde-type]'].includes(selector)) {
-          const attribute = selector.slice(1, -1);
-          return Array.from(container.innerHTML.matchAll(/<(?:input|select)\b[^>]*>/g)).filter(match => match[0].includes(attribute + '=')).map(match => {
-            const raw = match[0].match(new RegExp(attribute + '="([^"]*)"'))[1];
-            const kind = match[0].match(/value="([^"]*)"/)?.[1];
-            const identity = '[' + attribute + '="' + raw + '"]' + (attribute === 'data-manual-assign' ? '[value="' + kind + '"]' : '');
-            const target = control(identity);
-            target.value = kind; target.checked = / checked/.test(match[0]); target.disabled = / disabled/.test(match[0]);
-            target.getAttribute = name => name === attribute ? raw : (match[0].match(new RegExp(name + '="([^"]*)"')) || [])[1] || null;
-            return target;
-          });
-        }
-        if (selector === '[data-action="add-code"]') {
-          return ['manual', 'automatic'].map(group => {
-            const target = control('[data-action="add-code"][data-code-group="' + group + '"]');
-            target.getAttribute = name => name === 'data-code-group' ? group : null;
-            return target;
-          });
-        }
-        if (selector === '[data-retry-comparison]' || selector === '[data-retry-source-check]') {
-          const attribute = selector.slice(1, -1);
-          return Array.from(container.innerHTML.matchAll(new RegExp(attribute + '="([^"]*)"', 'g')), match => {
-            const target = control('[' + attribute + '="' + match[1] + '"]');
-            target.getAttribute = () => match[1]; return target;
-          });
-        }
-        const item = this.querySelector(selector);
-        return item ? [item] : [];
-      }
-    };
-    const container = {
-      innerHTML: '',
-      querySelector(selector) { return selector === '[data-bind="mapping-gl"]' ? section : null; },
-      querySelectorAll() { return []; }
-    };
-    window.JetUi.renderStep('mapping', container, store.getState());
-    return {
-      html: container.innerHTML,
-      find(selector) { return controls.get(selector) || controls.get([...controls.keys()].find(key => key.startsWith(selector))); },
-      toggle(selector, checked) {
-        const target = controls.get(selector); assert.ok(target, selector + ' rendered'); target.checked = checked;
-        for (const fn of delegated.get('change') || []) fn({ target, currentTarget: section });
-        const handler = events.get(selector + ':change'); assert.ok(handler, selector + ' bound'); handler();
-      },
-      input(selector, value) {
-        const target = controls.get(selector);
-        assert.ok(target, 'Rendered input must exist: ' + selector);
-        target.value = value;
-        const handler = events.get(selector + ':input');
-        assert.ok(handler, 'Rendered input must preserve its draft: ' + selector);
-        handler();
-      },
-      value(selector) { return controls.get(selector)?.value; },
-      addCode(group) { events.get('[data-action="add-code"][data-code-group="' + group + '"]:click')(); },
-      retryComparison(column) { events.get('[data-retry-comparison="' + column + '"]:click')(); },
-      retrySource(column) { events.get('[data-retry-source-check="' + column + '"]:click')(); },
-      chooseManual(value, kind) {
-        const key = '[data-manual-assign="' + value + '"][value="' + kind + '"]';
-        controls.get(key).checked = true; events.get(key + ':change')();
-      },
-      togglePosting(value, checked) {
-        const key = '[data-posting-value="' + value + '"]';
-        controls.get(key).checked = checked; events.get(key + ':change')();
-      },
-      change(selector, value) {
-        const target = controls.get(selector);
-        assert.ok(target, 'Rendered selector must exist: ' + selector);
-        target.value = value;
-        const handler = events.get(selector + ':change');
-        assert.ok(handler, 'Rendered selector must be bound: ' + selector);
-        for (const fn of delegated.get('change') || []) fn({ target, currentTarget: section });
-        handler();
-      },
-      approval(mode) {
-        const key = '[data-option-bind="approvalDateMode"][value="' + mode + '"]';
-        controls.get(key).checked = true; events.get(key + ':change')();
-      },
-      click(name) {
-        const fn = events.get('[data-action="' + name + '"]:click');
-        assert.ok(fn, 'Rendered control must be bound: ' + name);
-        fn();
-      }
-    };
-  }
-  return { store, pending, render, window, document };
+for (const mode of ['side', 'flag']) for (const codeKey of ['dcDebitCode', 'dcCreditCode']) {
+  test('acceptance single ' + codeKey + ' enables confirmation for ' + mode + ' without inventing the opposite code', () => {
+    const f = fixture(), ui = f.window.JetUi;
+    f.store.setMappingDraft('gl', 'manual', ''); f.store.setMappingDraft('gl', 'postingStatus', '');
+    f.store.setMappingMode('gl', mode);
+    for (const field of ui.GL_FIELDS.filter(field => ui.isRequired(field, mode) && !field.literal))
+      f.store.setMappingDraft('gl', field.key, field.key + 'Source');
+    f.store.setMappingDraft('gl', codeKey, 'S');
+    const mapping = f.store.getState().mapping.gl;
+    assert.equal(f.window.mappingEligibility(ui.GL_FIELDS, mode, mapping, 'gl').canCommit, true);
+    const opposite = codeKey === 'dcDebitCode' ? 'dcCreditCode' : 'dcDebitCode';
+    const wire = f.window.mappingWire(mapping.draft, mode);
+    assert.equal(wire.mapping[codeKey], 'S');
+    assert.equal(Object.hasOwn(wire.mapping, opposite), false);
+    assert.equal(mapping.draft[opposite] || '', '');
+    f.store.setMappingDraft('gl', codeKey, ' ');
+    assert.equal(f.window.mappingEligibility(ui.GL_FIELDS, mode, mapping, 'gl').canCommit, false);
+  });
 }
-const profile = value => ({ blankCount: 0, distinctCount: 1, values: [{ value, count: 2 }], truncated: false });
 
 // Batch9 high5 adds the explicit credit literal; first failure: 20261004-095907202-301e794a887548aba0f6956b27416aad.
 // Preserve the exact schema equality: only side/flag gain this approved field, not TB or other GL modes.
@@ -177,7 +59,8 @@ for (const [kind, mode, amountKeys] of [
     const f = fixture();
     f.store.setImportResult('tb', { batchId: 'tb-schema', columns: ['Account', 'Value'], rowCount: 2 });
     f.store.setMappingMode(kind, mode);
-    const expected = (kind === 'gl' ? ['docNum', 'lineID', 'postDate', 'docDate', 'voucherDate', 'accNum', 'accName',
+    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，固定欄位不再有 voucherDate。
+    const expected = (kind === 'gl' ? ['docNum', 'lineID', 'postDate', 'docDate', 'accNum', 'accName',
       'description', 'jeSource', 'createBy', 'approveBy', 'manual', 'postingStatus'] : ['accNum', 'accName']).concat(amountKeys).sort();
     for (const view of ['classic', 'grid']) {
       f.store.setMappingUiMode(view);
@@ -192,35 +75,55 @@ for (const [kind, mode, amountKeys] of [
   });
 }
 
-test('approval source is present only for source-provided mode in both mapping views', () => {
+// 使用者 2026-10-08 畫面註解：傳票核准日只保留一處設定；選來源欄即代表由來源欄提供，
+// 另有「沒有核准日」與「與總帳日期相同」。原本鎖住三顆 radio 加來源下拉的兩個測試改成下列兩個，
+// 保留「兩種介面都只有一套控制項」與「切換不會誤刪共用來源」的檢查。
+// 2026-10-09 第 6 則：表格只從表頭指定來源，保留同日選項；首次失敗見 20261009-055004704-9034eb39fd534277a4c717aa738ee619。
+test('approval date has one source control per view and all three states survive switching views', () => {
   const f = fixture();
+  f.store.setMappingDraft('gl', 'postDate', 'Date');
   for (const view of ['classic', 'grid']) for (const mode of ['unmapped', 'mapped', 'sameAsPostDate']) {
     f.store.setMappingUiMode(view);
-    f.store.patchGlMappingOptions({ approvalDateMode: mode });
+    if (mode === 'mapped') f.store.setMappingDraft('gl', 'docDate', 'Other');
+    else f.store.patchGlMappingOptions({ approvalDateMode: mode });
     const html = f.render().html;
-    assert.equal((html.match(/data-approval-source/g) || []).length, mode === 'mapped' ? 1 : 0, view + '/' + mode);
-    assert.equal((html.match(/name="gl-approval-mode"/g) || []).length, 3, 'one shared three-mode control, not duplicate widgets');
-    assert.match(html, /傳票核准日/);
+    assert.equal((html.match(/data-approval-choice/g) || []).length, view === 'classic' ? 1 : 0);
+    assert.doesNotMatch(html, /name="gl-approval-mode"|data-approval-source/);
+    if (view === 'classic') {
+      const selected = mode === 'mapped' ? 'column:Other' : 'mode:' + mode;
+      assert.match(html, new RegExp('<option value="' + selected + '" selected>'));
+    } else if (mode === 'mapped') {
+      assert.match(html, /value="docDate" selected/);
+      assert.doesNotMatch(html, /data-approval-same-date/);
+    } else {
+      assert.match(html, /data-approval-same-date/);
+      assert.equal(/data-approval-same-date[^>]* checked/.test(html), mode === 'sameAsPostDate');
+    }
+    assert.equal(f.window.mappingWire({}, 'dual').approvalDateMode, mode);
   }
 });
 
-test('switching approval mode and view preserves a shared source until the user detaches it', () => {
+test('switching approval choice and view preserves a shared source until the user detaches it', () => {
   const f = fixture();
   f.store.setMappingDraft('gl', 'postDate', 'Other');
-  f.render().approval('mapped');
-  f.render().change('[data-approval-source]', 'Other');
+  f.render().approval('column:Other');
   assert.equal(f.store.getState().mapping.gl.draft.docDate, 'Other');
+  assert.equal(f.store.getState().mapping.gl.options.approvalDateMode, 'mapped');
+  assert.match(f.render().html, /這一欄也是總帳日期的來源欄/);
   f.store.setMappingUiMode('grid');
-  assert.match(f.render().html, /data-approval-source/);
+  assert.match(f.render().html, /class="map-grid__shared">總帳日期、傳票核准日<\/span>/);
+  f.store.setMappingUiMode('classic');
   assert.equal(f.store.getState().mapping.gl.draft.postDate, 'Other');
-  f.render().approval('sameAsPostDate');
+  f.render().approval('mode:sameAsPostDate');
   assert.equal(f.store.getState().mapping.gl.draft.docDate, undefined);
   assert.equal(f.store.getState().mapping.gl.draft.postDate, 'Other');
-  assert.doesNotMatch(f.render().html, /data-approval-source/);
+  assert.equal(f.store.getState().mapping.gl.options.approvalDateMode, 'sameAsPostDate');
   f.store.setMappingUiMode('classic');
-  f.render().approval('unmapped');
-  assert.doesNotMatch(f.render().html, /data-approval-source/);
-  f.render().approval('mapped'); f.render().change('[data-approval-source]', 'Manual');
+  f.render().approval('mode:unmapped');
+  assert.equal(f.store.getState().mapping.gl.options.approvalDateMode, 'unmapped');
+  // 第 3 則移除常駐說明；核准日狀態與切換的斷言保留。
+  assert.doesNotMatch(f.render().html, /這份總帳沒有核准日/);
+  f.render().approval('column:Manual');
   assert.equal(f.store.getState().mapping.gl.options.approvalDateMode, 'mapped');
   assert.equal(f.store.getState().mapping.gl.draft.docDate, 'Manual');
 });
@@ -335,8 +238,9 @@ test('comparison metadata pages do not cap the number of saved policy codes', as
 test('pending equality never half-applies a reverse manual assignment', async () => {
   const f = fixture();
   f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: ['M'], automaticValues: ['Z'] } });
-  f.render().click('load-manual-profile'); f.pending[0].resolve(profile('A')); await settle(); f.render();
+  f.render().click('load-manual-profile'); f.pending[0].resolve(profile('A')); await settle(); f.render().click('manual-entry-codes');
   const form = f.render(); form.input('[data-bind="automatic-code-add"]', ' A '); form.addCode('automatic');
+  f.render().click('manual-entry-values');
   const waiting = f.render();
   assert.match(waiting.html.match(/<li class="value-assign">([\s\S]*?)<\/li>/)[1], /value="manual" disabled/);
   waiting.chooseManual('A', 'manual');
@@ -416,6 +320,7 @@ test('unsubmitted code text survives unrelated profile completion and stays boun
   assert.equal(f.render().value('[data-bind="manual-code-add"]'), '');
   assert.equal(f.render().value('[data-bind="posting-value-add"]'), 'POSTING-DRAFT', 'unrelated source draft stays');
   f.store.setMappingDraft('gl', 'manual', 'Manual');
+  f.render().click('manual-entry-codes');
   assert.equal(f.render().value('[data-bind="manual-code-add"]'), '', 'detached source draft must not return');
 });
 
@@ -509,12 +414,39 @@ test('one-sided manual policy and explicit blank choice survive editing and load
     mapping: { gl: { ...saved, mapping: { manual: 'Manual' }, amountMode: 'dual', formatVersion: 2 } } });
   assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy), saved.manualAutoPolicy);
   f.render().click('remap-gl');
-  assert.match(f.render().html, /只列人工，其餘非空白值視為自動/);
+  assert.match(f.render().html, /只指定人工代碼/);
+  assert.match(f.render().html, /其他非空白值一律算自動/);
   f.render().change('[data-manual-mode]', 'reject');
   assert.equal(f.store.getState().mapping.gl.options.manualAutoPolicy.blankValueKind, 'unclassified');
   f.store.setMappingDraft('gl', 'manual', '');
   f.store.setMappingDraft('gl', 'manual', 'Manual');
   assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy), { manualValues: ['1'], automaticValues: ['0'] });
+});
+
+// 使用者 2026-10-08 畫面註解要求人工/自動區簡化：只顯示判定方式需要的那一側代碼，
+// 順序固定為判定方式、代碼、來源值、來源空白時；預設政策不寫入兩項補集設定。
+test('manual policy shows only the code side its mode needs and keeps the default policy untouched', () => {
+  const f = fixture();
+  f.store.setMappingDraft('gl', 'manual', 'Manual');
+  assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy), { manualValues: ['1'], automaticValues: ['0'] });
+  const both = f.render().html;
+  assert.match(both, /data-bind="manual-code-add"/);
+  assert.match(both, /data-bind="automatic-code-add"/);
+  assert.match(both, /每個非空白值都要指定人工或自動/);
+  const order = ['data-manual-mode', 'data-manual-blank', 'data-bind="manual-code-add"', 'data-action="load-manual-profile"']
+    .map(marker => both.indexOf(marker));
+  assert.ok(order.every(index => index >= 0) && order.every((index, i) => i === 0 || index > order[i - 1]),
+    'mode and blank policy are together, followed by codes and optional source lookup');
+  f.render().change('[data-manual-mode]', 'automatic');
+  const manualOnly = f.render().html;
+  assert.match(manualOnly, /data-bind="manual-code-add"/);
+  assert.doesNotMatch(manualOnly, /data-bind="automatic-code-add"/);
+  assert.match(manualOnly, /其他非空白值一律算自動/);
+  f.render().change('[data-manual-mode]', 'manual');
+  const automaticOnly = f.render().html;
+  assert.doesNotMatch(automaticOnly, /data-bind="manual-code-add"/);
+  assert.match(automaticOnly, /data-bind="automatic-code-add"/);
+  assert.match(automaticOnly, /其他非空白值一律算人工/);
 });
 
 for (const order of [[0, 1], [1, 0]]) {
@@ -540,7 +472,8 @@ test('failed profile can be retried and duplicate pending requests are suppresse
   assert.equal(f.pending.length, 1);
   f.pending[0].reject(new Error('synthetic read failure'));
   await settle();
-  assert.match(f.render().html, /再試一次/);
+  // 第九節 F 統一重試用字；原斷言首次失敗：20261014-125419175-08e0cec4d9cf4360ac4af81713f531b3。
+  assert.match(f.render().html, /重新載入/);
   f.render().click('load-manual-profile');
   assert.equal(f.pending.length, 2);
   f.pending[1].resolve(profile('RETRIED'));
@@ -699,8 +632,10 @@ test('reimport keeps the current draft, drops missing columns and names them', (
   // 第 6 批 L26：同次開啟保留目前草稿，只有重開 previousMapping 才是上次確認配對。
   // 首次失敗：20261004-081326275-60bc24fa144349f6bc2cba5c8f6cafa8；其餘資料與缺欄斷言保留。
   assert.equal(gl.reimportDraftOrigin, 'current');
-  assert.ok(html.includes('來源資料已變更，已保留目前草稿；請檢查後按「確認配對」。'));
-  assert.ok(html.includes('新資料沒有下列來源欄，請重新選擇：總帳入帳日（原為「Date」）、人工/自動分錄（原為「Manual」）。'));
+  // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）。
+  // 提示不再寫保留的是哪一份；保留目前草稿由上面的 reimportDraftOrigin 與 draft 斷言核對。
+  assert.ok(html.includes('來源資料已變更，請檢查配對後按「確認配對」。'));
+  assert.ok(html.includes('新資料沒有這些來源欄，請重新選擇：總帳日期（原為「Date」）、人工/自動分錄（原為「Manual」）。'));
   f.store.setMappingCommitted('gl', { mapping: gl.draft, mode: gl.amountMode, options: gl.options });
   assert.deepEqual(copy(f.store.getState().mapping.gl.droppedFields), [], 'a confirmed mapping clears the notice');
 });
@@ -785,7 +720,9 @@ test('grid displays shared source uses without clearing either mapping', () => {
 // deliberately resets caret position and scroll when replacing nodes, as browsers do.
 function contentFixture(type = 'text', stepId = 'mapping') {
   const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-  const begin = source.indexOf('  function captureContentFocusSelector(');
+  // 2026-10-13 起重繪後也放回沒標 data-focus-key 的控制項（身分在重繪前後都唯一才放回），這段程式改從焦點身分的常數開始。
+  // 原本的起點 captureContentFocusSelector 已改名，依預期失敗，首敗收據 20261013-023538154-5e52ebde1ed140709d92d4bb07d6ea38。
+  const begin = source.indexOf('  var FOCUS_CANDIDATES');
   const end = source.indexOf('  /* ---- 訊息區', begin);
   assert.ok(begin >= 0 && end > begin);
   const listeners = new Map(), deferred = [];
@@ -895,7 +832,7 @@ test('mapping controls carry names from the field catalog and source values in b
   const tbLabel = key => f.window.JetUi.TB_FIELDS.find(field => field.key === key).label;
   let html = f.render().html;
   assert.ok(html.includes('aria-label="' + glLabel('postDate') + '的來源欄"'));
-  assert.ok(html.includes('aria-label="總帳入帳日的來源欄"'));
+  assert.ok(html.includes('aria-label="總帳日期的來源欄"'));
   assert.ok(html.includes('<input class="form__input mapping-table__input" type="text" data-mapping-key="dcDebitCode" aria-label="借方代碼"'));
   assert.ok(html.includes('aria-label="' + tbLabel('accNum') + '的來源欄"'), 'TB uses the same naming');
   assert.equal((html.match(/<select class="mapping-table__select"(?![^>]*aria-label=)/g) || []).length, 0, 'every classic source select is named');
@@ -909,7 +846,8 @@ test('mapping controls carry names from the field catalog and source values in b
   assert.match(html, /<input class="form__input map-literal__input" type="text" id="mapping-gl-dcDebitCode-literal" data-mapping-key="dcDebitCode" aria-label="借方代碼" aria-describedby="mapping-gl-dcDebitCode-literal-hint"/);
   assert.ok(html.includes('id="mapping-gl-dcDebitCode-literal-hint">輸入代表借方的代碼，例如 D 或 1</span>'));
   assert.ok(!html.includes('字面值（不是欄位名稱）'));
-  assert.ok(html.includes('aria-label="來源欄「Manual」對應的分錄測試欄位"'));
+  // 表頭與報讀名稱的「分錄測試欄位」改成「JET 欄位」。使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；同批改名的 C# 測試第一次失敗收據是 20261013-092449164-3847782f6c50488b86a0ac3856e606ca，那次在 C# 測試步驟停止，Node 前端測試尚未執行。
+  assert.ok(html.includes('aria-label="來源欄「Manual」對應的 JET 欄位"'));
   assert.equal((html.match(/<select class="map-grid__select"(?![^>]*aria-label=)/g) || []).length, 0, 'every grid select is named');
 
   f.store.setMappingUiMode('classic');
@@ -944,6 +882,7 @@ test('batch6 source-existence warnings use full-source evidence rather than the 
   assert.equal(f.pending[0].payload.checkSourceValues, true);
   f.pending[0].resolve({ blankCount: 0, distinctCount: 80, truncated: true, values: [{ value: 'HEAD', count: 10 }],
     comparisonGroups: [['HEAD'], ['TYPO'], ['TAIL']], missingComparisonValues: ['TYPO'] }); await settle();
+  f.render().click('manual-entry-codes');
   const html = f.render().html;
   const chip = code => html.match(new RegExp('data-source-code="' + code + '"[^>]*>[\\s\\S]*?</span>'))?.[0] || '';
   assert.match(chip('TYPO'), /來源裡沒有這個值/);
@@ -961,7 +900,9 @@ test('batch6 unsupported-provider source checking remains explicitly unknown and
   f.pending[0].resolve({ blankCount: 0, distinctCount: 80, truncated: true, values: [{ value: 'HEAD', count: 10 }],
     comparisonGroups: [['HEAD'], ['TAIL']], missingComparisonValues: null, sourceValueCheckStatus: 'unsupportedProvider' }); await settle();
   const html = f.render().html;
-  assert.match(html, /尚未核對/);
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-45（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.ok(html.includes('<p class="map-options__note">線上案件無法核對清單代碼是否出現在來源中，仍可確認配對。</p>'));
+  assert.doesNotMatch(html, /尚未支援來源值存在性查詢/);
   assert.doesNotMatch(html, /來源裡沒有這個值/);
   assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy.manualValues), ['TAIL']);
   assert.ok(html.includes('data-action="commit-gl">'));
@@ -1047,12 +988,12 @@ test('batch6 selecting all RDE fields explicitly restores focus to a usable cont
   assert.equal(target, first); assert.notEqual(target.disabled, true);
 });
 
-test('batch6 a committed mapping reserves its edit-banner position before the first setting change', () => {
+test('batch6 a committed mapping has no empty banner and reveals a real warning after editing', () => {
   const f = readyBatch6Fixture();
   const before = f.store.getState().mapping.gl;
   f.store.setMappingCommitted('gl', { mapping: before.draft, mode: before.amountMode, options: before.options });
   f.render().click('remap-gl');
-  assert.match(f.render().html, /data-bind="mapping-banner-gl"/, 'an empty banner still reserves layout space');
+  assert.doesNotMatch(f.render().html, /data-bind="mapping-banner-gl"/, '2026-10-09 comment 3 removes the empty reserved space');
   f.render().toggle('[data-rde-column="Other"]', true);
   assert.equal((f.render().html.match(/data-bind="mapping-banner-gl"/g) || []).length, 1);
   assert.match(f.render().html, /配對已修改/);
@@ -1065,10 +1006,14 @@ test('batch6 reimport distinguishes the current in-session draft from a reloaded
   f.store.setMappingDraft('gl', 'description', 'Other');
   f.store.setImportResult('gl', { batchId: 'new-import', columns: Object.values(f.mapping).concat(['Other']), rowCount: 1 });
   assert.equal(f.store.getState().mapping.gl.draft.description, 'Other');
-  assert.match(f.render().html, /已保留目前草稿/);
+  // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）。
+  // 提示不再分辨保留的是目前草稿或上次確認的配對，改由狀態與草稿內容核對兩種來源。
+  assert.equal(f.store.getState().mapping.gl.reimportDraftOrigin, 'current');
+  assert.match(f.render().html, /來源資料已變更，請檢查配對後按「確認配對」。/);
   f.store.restorePreviousMapping('gl', { mapping: f.mapping, mode: 'dual' }, Object.values(f.mapping));
   assert.equal(f.store.getState().mapping.gl.draft.description, 'Memo');
-  assert.match(f.render().html, /已保留上次確認的配對/);
+  assert.equal(f.store.getState().mapping.gl.reimportDraftOrigin, 'previous');
+  assert.match(f.render().html, /來源資料已變更，請檢查配對後按「確認配對」。/);
 });
 
 test('batch6 one-sided checkboxes update only the explicit list and keep stable focus and scroll keys', async () => {
@@ -1138,6 +1083,7 @@ test('batch6 source-presence failures retain codes and expose an exact retry wit
   f.render().retrySource('Manual');
   assert.deepEqual(copy(f.pending[2].payload), copy(f.pending[1].payload));
   f.pending[2].resolve({ missingComparisonValues: ['TAIL'], sourceValueCheckStatus: 'checked' }); await settle();
+  f.render().click('manual-entry-codes');
   const html = f.render().html;
   assert.match(html, /data-source-code="TAIL"[^>]*>[\s\S]*?來源裡沒有這個值/);
   assert.doesNotMatch(html, /尚未核對|正在核對清單代碼/);
@@ -1195,6 +1141,7 @@ test('batch6 separately added missing manual and automatic codes share backend k
   const keys = new Map([['0', 'opaque-zero'], ['1', 'opaque-one'], ['B6-MISSING', 'opaque-person-27'], ['b6-missing', 'opaque-person-27']]);
   f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: ['1'], automaticValues: ['0'] } });
   f.render().click('load-manual-profile'); f.pending[0].resolve(fixedComparisonKeyResponse(f.pending[0], keys)); await settle();
+  f.render().click('manual-entry-codes');
   let page = f.render(); page.input('[data-bind="manual-code-add"]', 'B6-MISSING'); page.addCode('manual'); f.render();
   assert.equal(f.pending[1].payload.comparisonOnly, true);
   f.pending[1].resolve(fixedComparisonKeyResponse(f.pending[1], keys)); await settle(); f.render();
@@ -1297,6 +1244,11 @@ test('batch7 late whoAmI updates only the create operator line and preserves the
   f.context.Ui.registerWorkflowReset = () => {};
   f.context.Ui.registerStep = () => {};
   f.context.Ui.esc = value => String(value);
+  // 第九節 A 改用共用查找；夾具載入正式輔助函式，保留原有焦點與草稿斷言。
+  // 第一次失敗：FrontendMapping 20261014-121309866-e1d1cf83cc494ed180b9d0ce5acdf143。
+  const core = fs.readFileSync(path.join(root, 'ui-core.js'), 'utf8');
+  vm.runInContext(core.slice(core.indexOf('  function findLive('), core.indexOf('  /* ---- 共用契約')), f.context);
+  f.context.Ui.findLive = f.context.findLive;
   f.context.window = { JetStore: f.context.Store, JetUi: f.context.Ui };
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/create-step.js'), 'utf8'), f.context);
   f.render();
@@ -1344,18 +1296,20 @@ test('V3 single-side codes not yet checked against the source are named before c
   f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: ['1'], automaticValues: [],
     unlistedValueKind: 'automatic', blankValueKind: 'automatic' } });
   let html = f.render().html;
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-42（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。 一個代碼寫「此代碼」，多個寫「這些代碼」。
+  // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）；拿掉「可先按「讀取來源值」確認」，按鈕就在旁邊。
   assert.match(preflight(html),
-    /人工分錄代碼「1」還沒和來源核對。來源裡沒有這個代碼時，其他非空白的值都會算成自動分錄。可以先按「讀取來源值」確認。/);
+    /人工分錄代碼「1」尚未與來源核對；來源沒有此代碼時，有值的列都會視為自動分錄。<\/li>/);
   assert.ok(html.includes('data-action="commit-gl">'), 'the reminder does not add a frontend gate');
 
   f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: [], automaticValues: ['0', 'N'],
     unlistedValueKind: 'manual', blankValueKind: 'manual' } });
   assert.match(preflight(f.render().html),
-    /自動分錄代碼「0、N」還沒和來源核對。來源裡沒有這些代碼時，其他非空白的值都會算成人工分錄。可以先按「讀取來源值」確認。/);
+    /自動分錄代碼「0、N」尚未與來源核對；來源沒有這些代碼時，有值的列都會視為人工分錄。<\/li>/);
 
   f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: ['M'], automaticValues: ['A'],
     unlistedValueKind: 'reject', blankValueKind: 'reject' } });
-  assert.doesNotMatch(f.render().html, /還沒和來源核對/, 'per-value mode classifies every value, so no single-side reminder');
+  assert.doesNotMatch(f.render().html, /尚未與來源核對/, 'per-value mode classifies every value, so no single-side reminder');
 
   f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: ['1'], automaticValues: [],
     unlistedValueKind: 'automatic', blankValueKind: 'automatic' } });
@@ -1365,7 +1319,7 @@ test('V3 single-side codes not yet checked against the source are named before c
     values: [{ value: 'M', count: 1 }, { value: 'A', count: 1 }], missingComparisonValues: ['1'] });
   await settle();
   html = f.render().html;
-  assert.doesNotMatch(html, /還沒和來源核對/);
+  assert.doesNotMatch(html, /尚未與來源核對/);
   assert.match(preflight(html), /「1」：來源裡沒有這個值/);
 
   // 獨立複審補充：讀取來源值失敗時，代碼同樣沒有核對，確認前仍要提醒。
@@ -1377,7 +1331,7 @@ test('V3 single-side codes not yet checked against the source are named before c
   await settle();
   html = failed.render().html;
   assert.match(html, /讀取來源值失敗/);
-  assert.match(preflight(html), /人工分錄代碼「1」還沒和來源核對。/);
+  assert.match(preflight(html), /人工分錄代碼「1」尚未與來源核對；來源沒有此代碼時，有值的列都會視為自動分錄。讀取來源值失敗，可按「再試一次」。/);
   assert.ok(html.includes('data-action="commit-gl">'));
 });
 
@@ -1458,7 +1412,146 @@ test('remap S3-14 reopening preserves an existing RDE field id through confirmat
     previousMapping: { gl: { mapping: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount' },
       amountMode: 'signed', approvalDateMode: 'unmapped', rdeFields: [field] } } });
   const gl = f.store.getState().mapping.gl; assert.equal(gl.committed, null); assert.deepEqual(copy(gl.options.rdeFields), [field]);
-  const page = f.render(); assert.match(page.html, /已保留上次確認的配對/);
+  // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）；保留上次確認的配對改由狀態核對。
+  assert.equal(gl.reimportDraftOrigin, 'previous');
+  const page = f.render(); assert.match(page.html, /來源資料已變更，請檢查配對後按「確認配對」。/);
   f.window.JetApi.mappingCommitGl = payload => { sent.push(payload); return Promise.resolve({ projectedRowCount: 1 }); };
   page.click('commit-gl'); await settle(); assert.equal(sent.length, 1); assert.deepEqual(copy(sent[0].rdeFields), [field]);
+});
+
+
+// 2026-10-09 第 1 則畫面註解要求移除泛用提示「選擇各欄位的資料來源，標示 * 的欄位為必填。」；報表欄名與必填行為仍由原有測試驗證。
+// 第一次失敗收據：20261009-061206716-ef0be66afbf843b79f09a6e474a24c5d。
+// 這段出處原本寫在已刪除的 C# 方法 UserFeedbackStepsOneToFourFrontendTests.MappingUi_KeepsCommitErrorLifecycleOutOfRenderAndUsesBriefGuidance，
+// 2026-10-14 搬來（收尾四項第一項第一波整併）；該方法的其他行為由本檔「projection error is escaped…」與「batch6 editing one setting…」測。
+test('oct9 mapping keeps one compact toolbar without generic hints or an empty warning spacer', () => {
+  const f = fixture();
+  for (const view of ['classic', 'grid']) {
+    f.store.setMappingUiMode(view);
+    const html = f.render().html;
+    assert.doesNotMatch(html, /選擇各欄位的資料來源，標示/);
+    assert.doesNotMatch(html, /<span class="seg-toggle__label">配對介面/);
+    assert.match(html, /class="mapping-section__toolbar"/);
+    assert.match(html, /role="radiogroup" aria-label="金額欄位格式"/);
+  }
+  f.store.setMappingCommitted('gl', { mapping: { manual: 'Manual', postingStatus: 'Posting' }, mode: 'dual', projectedRowCount: 2 });
+  f.render().click('remap-gl');
+  assert.doesNotMatch(f.render().html, /mapping-section__warn--reserved/);
+});
+
+test('oct9 unassigned voucher line item says it is numbered automatically without changing the payload', () => {
+  const f = fixture(); f.store.setMappingUiMode('classic');
+  assert.match(f.render().html, /data-mapping-key="lineID"[^>]*><optgroup label="系統產生"><option value="">由 JET 自動編號<\/option>/);
+  assert.equal(f.store.getState().mapping.gl.draft.lineID, undefined);
+});
+
+test('oct9 layout followup distinguishes system numbering from a source column with the same name', () => {
+  const f = fixture(); f.store.setMappingUiMode('classic');
+  f.store.setImportResult('gl', { batchId: 'numbering-groups', columns: ['自動編號', '由 JET 自動編號', '項次<&>'], rowCount: 2 });
+  function select() { return f.render().html.match(/<select[^>]*data-mapping-key="lineID"[\s\S]*?<\/select>/)[0]; }
+  assert.match(select(), /<optgroup label="系統產生"><option value="">由 JET 自動編號<\/option><\/optgroup>/);
+  assert.match(select(), /<optgroup label="來源欄位">/);
+  assert.match(select(), /<option value="項次&lt;&amp;&gt;">項次&lt;&amp;&gt;<\/option>/);
+  assert.equal(f.store.getState().mapping.gl.draft.lineID, undefined);
+  for (const name of ['自動編號', '由 JET 自動編號']) {
+    f.render().change('[data-mapping-key="lineID"]', name);
+    const draft = copy(f.store.getState().mapping.gl.draft);
+    assert.equal(draft.lineID, name);
+    assert.equal(f.window.mappingWire(draft, 'dual').mapping.lineID, name);
+    f.store.setMappingUiMode('grid'); f.render(); f.store.setMappingUiMode('classic');
+    assert.match(select(), new RegExp('value="' + name + '" selected'));
+  }
+  f.render().change('[data-mapping-key="lineID"]', '');
+  const draft = copy(f.store.getState().mapping.gl.draft);
+  assert.equal(draft.lineID, undefined);
+  assert.equal(Object.hasOwn(f.window.mappingWire(draft, 'dual').mapping, 'lineID'), false);
+});
+
+test('oct9 grid chooses approval sources in headers and retains same-date as a separate non-source choice', () => {
+  const f = fixture(); f.store.setMappingUiMode('grid');
+  f.store.setMappingDraft('gl', 'postDate', 'Other');
+  let page = f.render();
+  assert.doesNotMatch(page.html, /data-approval-choice/);
+  assert.match(page.html, /data-approval-same-date/);
+  page.toggle('[data-approval-same-date]', true);
+  assert.equal(f.window.mappingWire({}, 'dual').approvalDateMode, 'sameAsPostDate');
+  assert.equal(f.store.getState().mapping.gl.draft.docDate, undefined);
+  f.store.setMappingUiMode('classic');
+  assert.match(f.render().html, /value="mode:sameAsPostDate" selected/);
+  f.store.setMappingUiMode('grid');
+  f.render().toggle('[data-approval-same-date]', false);
+  assert.equal(f.window.mappingWire({}, 'dual').approvalDateMode, 'unmapped');
+  f.store.assignColumnToField('gl', 'Other', 'docDate', ['dcDebitCode', 'dcCreditCode']);
+  page = f.render();
+  assert.match(page.html, /value="docDate" selected/);
+  assert.doesNotMatch(page.html, /data-approval-choice|data-approval-same-date/);
+  assert.equal(f.window.mappingWire({}, 'dual').approvalDateMode, 'mapped');
+});
+
+test('oct9 manual codes are editable values without X buttons and clearing an input removes only that code', () => {
+  const f = fixture();
+  f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: ['M', 'M,1'], automaticValues: ['A'], blankValueKind: 'unclassified' } });
+  let page = f.render();
+  assert.doesNotMatch(page.html, /data-remove-code/);
+  page.input('[data-manual-code-edit="manual:0"]', 'X');
+  assert.deepEqual(copy(f.window.mappingWire({}, 'dual').manualAutoPolicy.manualValues), ['X', 'M,1']);
+  page.input('[data-manual-code-edit="manual:0"]', '');
+  assert.deepEqual(copy(f.window.mappingWire({}, 'dual').manualAutoPolicy.manualValues), ['M,1']);
+  page.input('[data-manual-code-edit="manual:0"]', 'M2');
+  assert.deepEqual(copy(f.window.mappingWire({}, 'dual').manualAutoPolicy.manualValues), ['M2', 'M,1']);
+  assert.deepEqual(copy(f.window.mappingWire({}, 'dual').manualAutoPolicy.automaticValues), ['A']);
+  assert.equal(f.window.mappingWire({}, 'dual').manualAutoPolicy.blankValueKind, 'unclassified');
+  assert.match(f.render().html, /aria-label="人工代碼 1"/);
+});
+
+
+test('oct9 followup manual classification uses one editor at a time without changing its policy', async () => {
+  const f = readyBatch6Fixture();
+  f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: ['M', 'TAIL'], automaticValues: ['A'], unlistedValueKind: 'reject', blankValueKind: 'unclassified' } });
+  let page = f.render(); page.input('[data-bind="manual-code-add"]', 'new,code');
+  page.click('load-manual-profile');
+  f.pending.find(item => item.payload.checkSourceValues).resolve({ blankCount: 0, distinctCount: 60, truncated: true,
+    values: [{ value: 'M', count: 5 }, { value: 'A', count: 5 }], missingComparisonValues: [] });
+  await settle();
+  const policy = copy(f.store.getState().mapping.gl.options.manualAutoPolicy);
+  f.render().click('manual-entry-values');
+  page = f.render();
+  assert.match(page.html, /data-manual-assign="M"/);
+  assert.doesNotMatch(page.html, /data-manual-code-edit|id="manual-code-add"/);
+  page.click('manual-entry-codes'); page = f.render();
+  assert.match(page.html, /data-manual-code-edit="manual:1"/);
+  assert.match(page.html, /value="new,code"/);
+  assert.doesNotMatch(page.html, /data-manual-assign|data-manual-include/);
+  assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy), policy);
+  page.input('[data-manual-code-edit="manual:1"]', 'TAIL2');
+  page.click('manual-entry-values');
+  assert.match(f.render().html, /data-manual-assign="M"/);
+  assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy.manualValues), ['M', 'TAIL2']);
+});
+
+test('oct9 followup a source-list failure keeps the code editor and changing source resets the chosen presentation only', async () => {
+  const f = readyBatch6Fixture();
+  f.render().click('load-manual-profile');
+  f.pending.find(item => item.payload.checkSourceValues).reject(new Error('Synthetic load failure')); await settle();
+  assert.match(f.render().html, /data-manual-code-edit/);
+  assert.match(f.render().html, /load-manual-profile/);
+  f.render().click('load-manual-profile');
+  f.pending.filter(item => item.payload.checkSourceValues).at(-1).resolve({ blankCount: 0, distinctCount: 2,
+    values: [{ value: 'M', count: 5 }, { value: 'A', count: 5 }], missingComparisonValues: [] }); await settle();
+  assert.doesNotMatch(f.render().html, /data-manual-code-edit/);
+  f.render().click('manual-entry-codes');
+  f.store.setMappingDraft('gl', 'manual', 'Other');
+  assert.match(f.render().html, /data-action="load-manual-profile"/);
+  assert.doesNotMatch(f.render().html, /data-manual-assign/);
+});
+
+test('oct9 followup GL and TB required rails use matched wording without implying a committed mapping', () => {
+  const f = readyBatch6Fixture();
+  f.store.setImportResult('tb', { batchId: 'tb', columns: ['Account', 'Name', 'Change'], rowCount: 2 });
+  f.store.setMappingMode('tb', 'direct');
+  f.store.replaceMappingDraft('tb', { accNum: 'Account', accName: 'Name', amount: 'Change' });
+  const html = f.render().html;
+  assert.equal((html.match(/必填欄位皆已配對/g) || []).length, 2);
+  assert.equal(f.store.getState().mapping.gl.committed, null);
+  assert.equal(f.store.getState().mapping.tb.committed, null);
 });

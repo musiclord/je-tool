@@ -16,7 +16,6 @@ public static class PrescreenRuleKeys
     public const string HolidayPosting = "holidayPosting";
     public const string HolidayApproval = "holidayApproval";
     public const string BlankDescription = "blankDescription";
-    public const string BackdatedPosting = "backdatedPosting";
     public const string NonAuthorizedPreparer = "nonAuthorizedPreparer";
     public const string LowFrequencyPreparer = "lowFrequencyPreparer";
     public const string LowFrequencyAccount = "lowFrequencyAccount";
@@ -26,7 +25,7 @@ public static class PrescreenRuleKeys
     {
         PostPeriodApproval, SuspiciousKeywords, UnexpectedAccountPair, TrailingZeros,
         WeekendPosting, WeekendApproval, HolidayPosting, HolidayApproval, BlankDescription,
-        BackdatedPosting, NonAuthorizedPreparer, LowFrequencyPreparer, LowFrequencyAccount
+        NonAuthorizedPreparer, LowFrequencyPreparer, LowFrequencyAccount
     };
 }
 

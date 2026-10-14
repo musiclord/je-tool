@@ -3,6 +3,8 @@ using System.Text.Json;
 
 namespace Jet.GuiDriver;
 
+// Section 9: align selectors with the verified frontend contracts. Gui is not executed per the user request.
+
 internal static partial class GuiScenarios
 {
     private static async Task ClickRecoveryControlAsync(CdpSession cdp, Process process, string selector,
@@ -14,6 +16,69 @@ internal static partial class GuiScenarios
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         { throw new GuiCheckException("recovery_control_unavailable"); }
     }
+
+    // 使用者 2026-10-08 要求重新設計自訂篩選條件。各情境加入自訂條件時共用這裡：
+    // 「field:欄位識別」點「依欄位設定」的欄位按鈕；「check:項目」先展開所屬分類再按「加入」；
+    // 「compound:group」或「compound:voucher」從第一組的「⋯」選單加入。分類對照照 ui-core.js 的常用查核條件逐字寫死。
+    private static readonly IReadOnlyDictionary<string, string> CommonCheckCategories = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["postDateWeekend"] = "dates", ["postDateHoliday"] = "dates", ["postDateNonBusinessDay"] = "dates",
+        ["docDateNonBusinessDay"] = "dates", ["postPeriodApproval"] = "dates", ["postDateRange"] = "dates", ["periodEndDays"] = "dates",
+        ["largeAmount"] = "amounts", ["trailingZeros"] = "amounts",
+        ["descriptionKeywords"] = "description", ["blankDescription"] = "description",
+        ["debitOrCreditOnly"] = "accounts", ["accountCategory"] = "accounts", ["categoryPair"] = "accounts",
+        ["accountCodePair"] = "accounts", ["unexpectedAccountPair"] = "accounts", ["rareAccounts"] = "accounts",
+        ["manualEntries"] = "people", ["rarePreparers"] = "people",
+        ["prescreenResult"] = "prescreen"
+    };
+
+    private static async Task AddCustomConditionAsync(CdpSession cdp, string subject, Func<string, Task> click, CancellationToken ct)
+    {
+        await click("[data-condition-source=\"custom\"]");
+        var separator = subject.IndexOf(':', StringComparison.Ordinal);
+        if (separator < 1) throw new GuiCheckException("custom_condition_subject_invalid");
+        var kind = subject[..separator];
+        var key = subject[(separator + 1)..];
+        switch (kind)
+        {
+            case "field":
+                await click($"[data-add-field=\"{key}\"]");
+                return;
+            case "check":
+                if (!CommonCheckCategories.TryGetValue(key, out var category)) throw new GuiCheckException("custom_check_unknown");
+                var open = await cdp.EvaluateAsync($"document.querySelector('[data-check-category=\"{category}\"]').getAttribute('aria-expanded')==='true'", ct);
+                if (!open.GetBoolean()) await click($"[data-check-category=\"{category}\"]");
+                await click($"[data-add-check=\"{key}\"]");
+                return;
+            case "compound":
+                await click($"[data-add-compound=\"{key}\"][data-gi=\"0\"]");
+                return;
+            default:
+                throw new GuiCheckException("custom_condition_subject_invalid");
+        }
+    }
+
+    // 「從範例開始」清單收起時先展開；已展開就不再點，避免把清單收回去。
+    private static async Task OpenExampleListAsync(CdpSession cdp, Func<string, Task> click, CancellationToken ct)
+    {
+        var open = await cdp.EvaluateAsync("document.querySelector('[data-action=\"toggle-examples\"]').getAttribute('aria-expanded')==='true'", ct);
+        if (!open.GetBoolean()) await click("[data-action=\"toggle-examples\"]");
+    }
+
+    // 套用範例、開啟或新增情境會換掉目前的草稿。草稿有還沒儲存的內容時，JET 先問要不要儲存；
+    // 用到這裡的情境要的是直接換掉，所以選「不儲存，直接…」。草稿是空的或已儲存就不會問，也不多點。
+    private static async Task ContinueWithoutSavingIfAskedAsync(CdpSession cdp, Func<string, Task> click, CancellationToken ct)
+    {
+        var asked = await cdp.EvaluateAsync("!!document.querySelector('[data-bind=\"filter-pending-modal\"] [data-pending-choice=\"continue\"]')", ct);
+        if (asked.GetBoolean()) await click("[data-bind=\"filter-pending-modal\"] [data-pending-choice=\"continue\"]");
+    }
+
+    private static async Task ApplyExampleAsync(CdpSession cdp, string key, Func<string, Task> click, CancellationToken ct)
+    {
+        await click($"[data-action=\"apply-template\"][data-template-key=\"{key}\"]");
+        await ContinueWithoutSavingIfAskedAsync(cdp, click, ct);
+    }
+
     private static async Task ExecuteExtendedConditionsAsync(CdpSession cdp, OwnedGuiRun ownedRun,
         Process process, GuiRunOutcome outcome, CancellationToken ct)
     {
@@ -25,18 +90,21 @@ internal static partial class GuiScenarios
             value => value, value => ReadBoolean(value,"idle") && ReadBoolean(value,"ok"), "extended_conditions_failed", ct,
             value => outcome.LastFilterProbe = value.Clone());
         async Task Fill(string selector, string value) { await Click(selector); outcome.RecordAction(); await cdp.TypeTextAsync(value, ct); }
-        async Task Add(string subject)
+        Task Add(string subject) => AddCustomConditionAsync(cdp, subject, Click, ct);
+        // 選取欄位原有內容後輸入，取代預設值（例如常用查核條件帶入的門檻）。
+        // select() 沒有回傳值，EvaluateAsync 會把沒有值當成執行失敗，所以另外回傳 true。
+        async Task Replace(string selector, string value)
         {
-            await Click("[data-condition-source=custom]");
-            await Choose("[data-custom-subject]", subject);
-            await Click("[data-action=add-rule]");
+            await Click(selector);
+            await cdp.EvaluateAsync("(document.querySelector(" + JsonSerializer.Serialize(selector) + ").select(), true)", ct);
+            outcome.RecordAction(); await cdp.TypeTextAsync(value, ct);
         }
         async Task Save(int count)
         {
-            await Click("[data-action=open-save]"); await Click("[data-action=save-scenario]");
+            await Click("[data-action=save-scenario]");
             await Check("saved.length===" + count);
-            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && draft.__editingSavedRef===saved");
-            await Click("[data-action=new-scenario]");
+            // 第九節 D：成功後直接留下空白草稿，無須另外按「新增情境」。
+            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && draft.groups.every(g=>g.rules.length===0) && draft.name==='' && !preview && draft.__editingIndex===undefined");
         }
         async Task Preview() { await Click("[data-action=preview-scenario]"); await Check("!!preview && Number.isInteger(preview.count)"); }
         const string policy = "state.mapping.gl.committed.options.manualAutoPolicy";
@@ -60,10 +128,12 @@ internal static partial class GuiScenarios
         await Click("[data-bind=step-nav] [data-step-index='4']");
         ResizeFilterWindow(process, 920, 760);
         outcome.RecordStage("extended_distinct_voucher_frequency");
-        await Add("type:entityFrequency");
+        // 使用者 2026-10-08 要求重新設計自訂篩選條件：統計條件改由常用查核條件「編製分錄較少的人員」加入，
+        // 再改成原本驗證的傳票張數介於 1 到 100，條件內容與改版前相同。
+        await Add("check:rarePreparers");
         await Choose("[data-rule-bind=field]", "createBy"); await Choose("[data-rule-bind=countUnit]", "vouchers");
-        await Choose("[data-rule-bind=countOperator]", "between"); await Fill("[data-rule-bind=countTo]", "100");
-        await Check("draft.groups[0].rules[0].countUnit==='vouchers' && document.querySelector('.rule-row').textContent.includes('含兩個端點') && Array.from(document.querySelectorAll('.rule-row input,.rule-row select')).every(e=>{var r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth;})");
+        await Choose("[data-rule-bind=countOperator]", "between"); await Replace("[data-rule-bind=countFrom]", "1"); await Fill("[data-rule-bind=countTo]", "100");
+        await Check("draft.groups[0].rules[0].countFrom==='1' && draft.groups[0].rules[0].countUnit==='vouchers' && document.querySelector('.rule-row').textContent.includes('含兩個端點') && Array.from(document.querySelectorAll('.rule-row input,.rule-row select')).every(e=>{var r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth;})");
         await CaptureScreenshotAsync(cdp, outcome, ct);
         await Preview(); await Check("preview.count>0"); await Save(1);
         outcome.RecordStage("extended_calendar_rule");
@@ -129,7 +199,7 @@ internal static partial class GuiScenarios
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-condition-source=kct]");
         await Click("[data-kct-letter=G]");
-        await Click("[data-action=open-save]");
+        
         await Click("[data-action=save-scenario]");
         await Check("state.filter.savedScenarios.length===1");
         await Click("[data-bind=step-nav] [data-step-index='3']");
@@ -148,7 +218,7 @@ internal static partial class GuiScenarios
         await Check("document.querySelector('[data-ap-column]').value==='員工代碼' && JSON.stringify(ap)===" + previous.GetRawText() + " && !!state.lastRuns.prescreen && state.filter.savedScenarios.length===1");
         await Click("[data-action=commit-authorized-preparer]");
         await Check("ap.rowCount===2 && ap.sourceColumn==='員工代碼' && ap.sourceRowCount===4 && ap.blankRowCount===1 && ap.duplicateRowCount===1 && !state.lastRuns.prescreen && !!state.lastRuns.validate");
-        await Check("state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.filter(m=>m.text==='前面的資料已更改，請重新設定篩選情境。').length===1 && !document.querySelector('[data-bind=downstream-reset-notice]')");
+        await Check("state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.filter(m=>m.text==='前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。').length===1 && !document.querySelector('[data-bind=downstream-reset-notice]')");
         await Click("[data-action=preview-authorized-preparer]");
         await Check("document.querySelector('.data-preview__table')?.textContent.includes('E01') && document.querySelector('.data-preview__table')?.textContent.includes('E02')");
         await FindControlPointAsync(cdp, process, "[data-bind=import-card-authorized-preparer]", ct);
@@ -206,13 +276,13 @@ internal static partial class GuiScenarios
             await Click("[data-bind=step-nav] [data-step-index='4']");
         }
         const string hit = "document.querySelector('[data-bind=scenario-preview-0][data-loaded]')?.textContent.includes('符合條件：1 筆分錄')";
-        const string cleared = "state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.some(m=>m.text==='前面的資料已更改，請重新設定篩選情境。')";
+        const string cleared = "state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.some(m=>m.text==='前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。')";
         const string missingApprover = "state.filter.savedScenarios.length===0 && ((document.querySelector('[data-rule-error]')?.textContent||'') + (document.querySelector('[data-bind=scenario-notice]')?.textContent||'')).includes('核准人員')";
         async Task SaveJ()
         {
             await Click("[data-condition-source=kct]");
             await Click("[data-kct-letter=J]");
-            await Click("[data-action=open-save]");
+            
             await Click("[data-action=save-scenario]");
         }
         ResizeFilterWindow(process, 1250, 950);
@@ -302,7 +372,7 @@ internal static partial class GuiScenarios
         await Click(".prescreen-signals > summary");
         await Click("[data-action=toggle-detail][data-scope=pn][data-idx='1']");
         await Click(docMore);
-        await Check(Rows(doc, 200) + " && document.querySelector('" + doc + " th[data-sort-key=postDate]').textContent.includes('總帳入帳日')");
+        await Check(Rows(doc, 200) + " && document.querySelector('" + doc + " th[data-sort-key=postDate]').textContent.includes('總帳日期')");
         await Click(docMore);
         await Check(Rows(doc, 206) + " && document.querySelector('" + docMore + "').hidden");
         await Click("[data-action=toggle-detail][data-scope=pn][data-idx='2']");

@@ -15,7 +15,8 @@ public sealed class Batch9ExcelDateWorkflowTests
     {
         foreach (var provider in new[] { "sqlite", "duckdb" })
         foreach (var format in new[] { "csv", "xlsx", "xlsx1904", "xls", "xls1904" })
-        foreach (var field in new[] { "postDate", "docDate", "voucherDate", "rde" }) yield return [provider, format, field];
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，日期角色不再有 voucherDate。
+        foreach (var field in new[] { "postDate", "docDate", "rde" }) yield return [provider, format, field];
     }
 
     [Theory]
@@ -46,7 +47,8 @@ public sealed class Batch9ExcelDateWorkflowTests
             var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("mapping.commit.gl",
                 JsonSerializer.Serialize(new { mapping, amountMode = "signed", rdeFields = rde })));
             Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-            Assert.StartsWith("1 列無法轉換", error.Message, StringComparison.Ordinal);
+            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            Assert.StartsWith("有 1 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
             var detail = Assert.Single(error.Details!);
             Assert.Equal("NativeDate", detail.SourceColumn);
             Assert.Contains("第 2 列", detail.Message, StringComparison.Ordinal);
@@ -85,7 +87,8 @@ public sealed class Batch9ExcelDateWorkflowTests
             var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("mapping.commit.gl",
                 JsonSerializer.Serialize(new { mapping, amountMode = "signed" })));
             Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-            Assert.StartsWith("1 列無法轉換", error.Message, StringComparison.Ordinal);
+            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            Assert.StartsWith("有 1 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
             var detail = Assert.Single(error.Details!);
             Assert.Equal("NativeDate", detail.SourceColumn);
             Assert.Contains("第 2 列", detail.Message, StringComparison.Ordinal);

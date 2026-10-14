@@ -95,5 +95,5 @@ public sealed class ProjectSession : IProjectSessionPublisher
     private static JetActionException NoActiveProject() =>
         new(
             JetErrorCodes.NoActiveProject,
-            "尚未建立或載入任何專案，請先透過 project.create 或 project.load 選擇專案。");
+            "尚未開啟案件。");
 }

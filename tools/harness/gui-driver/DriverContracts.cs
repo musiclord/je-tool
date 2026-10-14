@@ -272,7 +272,8 @@ internal sealed class GuiRunOutcome
     internal void RecordStage(string name)
     {
         // Four additional checkpoints cover header geometry, both drag directions and edge scrolling.
-        var stageLimit = Scenario.Name == GuiScenarioCatalog.FeedbackWorkflow ? 28 : 16;
+        // 2026-10-14 回饋流程再加兩個檢查點：「全選本頁」的部分選取，以及匯出前的情境條件，所以上限從 28 調成 30。
+        var stageLimit = Scenario.Name == GuiScenarioCatalog.FeedbackWorkflow ? 30 : 16;
         if (Stages.Count >= stageLimit) { throw new GuiInfrastructureException("stage_diagnostic_budget_exceeded"); }
         Stages.Add(new { name, actionCount = ActionCount });
     }

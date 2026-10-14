@@ -142,7 +142,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             txLog.RolledBack();
             throw new JetActionException(
                 JetErrorCodes.EmptyEffectivePopulation,
-                "GL 依案件期間與過帳狀態政策篩選後沒有有效分錄；本次投影已全部 rollback。");
+                GlProjectionGuard.EmptyEffectivePopulationMessage);
         }
 
         // 退化母體守門(語意對齊 LocalGlRepository):母體非空但借貸總額皆為 0 → 金額欄誤配,整批 rollback。

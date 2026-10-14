@@ -24,8 +24,22 @@ public sealed class RuleLogicVersionsTests
         // 2026-10-04 R1、R2 排除空白傳票號碼的整張傳票條件，舊預篩選與篩選結果必須重算。
         // 第9批R3/R10；Public首敗100911120：空白號碼計數與同號多日期摘要使validation升v5；仍鎖定三個完整字面值。
         Assert.Equal("validation-2026-10-04-v5", RuleLogicVersions.Validation);
-        Assert.Equal("prescreen-2026-10-04-v9", RuleLogicVersions.Prescreen);
-        Assert.Equal("filter-2026-10-06-v18", RuleLogicVersions.Filter);
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：預篩選升 v10、篩選升 v19。第一次失敗收據 20261008-042044720-73933024e0f84158a07081513d017018。
+        Assert.Equal("prescreen-2026-10-08-v10", RuleLogicVersions.Prescreen);
+        // 第九節 G5 停用重複寫法，推進 v20；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+        Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
+    }
+
+    [Fact]
+    public void BeforeVoucherDateRemoval_SavedFilterAndPrescreenResultsAreStale()
+    {
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：含回溯過帳的舊預篩選摘要與舊情境都不能當成目前結果。
+        var saved = new SavedFilterScenario(1, "舊回溯條件", "合成測試", """
+            {"populationScope":"auditPeriod","logicVersion":"filter-2026-10-06-v18","groups":[]}
+            """, DateTimeOffset.UnixEpoch);
+        Assert.False(RuleLogicVersions.IsCurrent(saved));
+        var summary = """{"resultRef":{"logicVersion":"prescreen-2026-10-04-v9"}}""";
+        Assert.False(RuleLogicVersions.IsCurrent(new RuleRunRecord("old", RuleRunKinds.Prescreen, DateTimeOffset.UnixEpoch, summary)));
     }
 
     [Fact]

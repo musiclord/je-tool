@@ -27,7 +27,8 @@ internal static class Program
     {
         var repositoryRoot = FindRepositoryRoot();
         var port = ReadPort();
-        var paths = HostPaths.Create(repositoryRoot);
+        var seed = ReadSeed();
+        var paths = HostPaths.Create(repositoryRoot, ReadDataFolder());
         if (args.Contains("--reset", StringComparer.Ordinal))
         {
             paths.ResetProjects();
@@ -47,7 +48,21 @@ internal static class Program
             principalName: Principal,
             userProfileDirectory: paths.Profile);
         var dispatcher = runtime.Dispatcher;
-        await DemoSeeder.EnsureSeededAsync(dispatcher, paths.Projects).ConfigureAwait(false);
+        var seeded = true;
+        if (seed == TaiwanSmeSeed)
+        {
+            seeded = await Jet.Harness.TaiwanSme.TaiwanSmeSeeder.EnsureSeededAsync(dispatcher, paths.Projects, paths.Run).ConfigureAwait(false);
+        }
+        else
+        {
+            await DemoSeeder.EnsureSeededAsync(dispatcher, paths.Projects).ConfigureAwait(false);
+        }
+
+        if (args.Contains("--seed-only", StringComparer.Ordinal))
+        {
+            // 只建立案件與比對報告，不啟動網站；預覽前先跑一次，避免啟動等候過久。
+            return seeded ? 0 : 1;
+        }
 
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions
         {
@@ -249,6 +264,50 @@ internal static class Program
             ? value.GetString()
             : null;
 
+    private const string DemoSeed = "demo";
+    private const string TaiwanSmeSeed = "taiwan-sme";
+
+    /// <summary>
+    /// JET_BROWSER_HOST_SEED 決定案件目錄空白時建立哪一組合成案件：demo（預設，兩個示範案件）
+    /// 或 taiwan-sme（台灣中小企業一整年的總帳與試算表）。
+    /// </summary>
+    private static string ReadSeed()
+    {
+        var value = Environment.GetEnvironmentVariable("JET_BROWSER_HOST_SEED");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return DemoSeed;
+        }
+
+        return value.Trim() switch
+        {
+            DemoSeed => DemoSeed,
+            TaiwanSmeSeed => TaiwanSmeSeed,
+            _ => throw new InvalidOperationException("JET_BROWSER_HOST_SEED 只接受 demo 或 taiwan-sme。"),
+        };
+    }
+
+    /// <summary>
+    /// JET_BROWSER_HOST_DATA 是 artifacts 底下的資料夾名稱，預設 browser-host。另開一台主機時給不同名稱，
+    /// 兩台主機的案件、日誌與設定就不會互相覆蓋。只接受單一層的資料夾名稱，確保資料一定留在 artifacts 底下。
+    /// </summary>
+    private static string ReadDataFolder()
+    {
+        var value = Environment.GetEnvironmentVariable("JET_BROWSER_HOST_DATA");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "browser-host";
+        }
+
+        var name = value.Trim();
+        if (name is "." or ".." || name.Any(ch => !(char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_' or '.')))
+        {
+            throw new InvalidOperationException("JET_BROWSER_HOST_DATA 只接受英數字、連字號、底線與點組成的單一資料夾名稱。");
+        }
+
+        return name;
+    }
+
     private static int ReadPort()
     {
         var value = Environment.GetEnvironmentVariable("PORT");
@@ -285,12 +344,12 @@ internal sealed record BrowserResponseEnvelope(
     JetErrorDto? Error,
     string CorrelationId);
 
-/// <summary>主機的所有讀寫位置；案件與日誌都在 Git 忽略的 artifacts/browser-host 之下。</summary>
+/// <summary>主機的所有讀寫位置；案件與日誌都在 Git 忽略的 artifacts 之下，預設資料夾是 browser-host。</summary>
 internal sealed record HostPaths(string Run, string Projects, string Logs, string Profile, string WebRoot, string HostSource)
 {
-    public static HostPaths Create(string repositoryRoot)
+    public static HostPaths Create(string repositoryRoot, string dataFolder)
     {
-        var run = Path.Combine(repositoryRoot, "artifacts", "browser-host");
+        var run = Path.Combine(repositoryRoot, "artifacts", dataFolder);
         return new HostPaths(
             run,
             Path.Combine(run, "projects"),
@@ -312,12 +371,19 @@ internal sealed record HostPaths(string Run, string Projects, string Logs, strin
         var projects = Path.GetFullPath(Projects);
         if (!projects.StartsWith(Path.GetFullPath(Run) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Refusing to reset a directory outside artifacts/browser-host.");
+            throw new InvalidOperationException("Refusing to reset a directory outside the browser host data folder.");
         }
 
         if (Directory.Exists(projects))
         {
             Directory.Delete(projects, recursive: true);
+        }
+
+        // 台灣中小企業案件的比對報告跟著案件重建，舊報告一併移除。
+        var report = Path.Combine(Run, "seed-report");
+        if (Directory.Exists(report))
+        {
+            Directory.Delete(report, recursive: true);
         }
     }
 }

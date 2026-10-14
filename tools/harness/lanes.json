@@ -5,7 +5,8 @@
     "defaultTimeoutSeconds": 1800,
     "maximumTimeoutSeconds": 3600,
     "maximumWaitSeconds": 3600,
-    "maximumCapturedBytesPerStream": 262144
+    "maximumCapturedBytesPerStream": 262144,
+    "maximumProcessTreeMemoryMegabytes": 8192
   },
   "testSettings": {
     "project": "src/JET/tests/JET.Tests/JET.Tests.csproj",
@@ -149,8 +150,8 @@
       {
         "name": "approval-mapping-modes",
         "timeoutSeconds": 240,
-        "actionBudget": 49,
-        "expectedActionCount": 49,
+        "actionBudget": 54,
+        "expectedActionCount": 54,
         "screenshotBudget": 1
       },
       {
@@ -163,22 +164,22 @@
       {
         "name": "filter-auditor-journey",
         "timeoutSeconds": 240,
-        "actionBudget": 100,
-        "expectedActionCount": 100,
+        "actionBudget": 91,
+        "expectedActionCount": 91,
         "screenshotBudget": 2
       },
       {
         "name": "filter-kct-editing",
         "timeoutSeconds": 240,
-        "actionBudget": 98,
-        "expectedActionCount": 98,
+        "actionBudget": 94,
+        "expectedActionCount": 94,
         "screenshotBudget": 1
       },
       {
         "name": "feedback-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 82,
-        "expectedActionCount": 82,
+        "actionBudget": 88,
+        "expectedActionCount": 88,
         "screenshotBudget": 2
       },
       {
@@ -219,36 +220,36 @@
       {
         "name": "extended-conditions",
         "timeoutSeconds": 240,
-        "actionBudget": 102,
-        "expectedActionCount": 102,
+        "actionBudget": 95,
+        "expectedActionCount": 95,
         "screenshotBudget": 2
       },
       {
         "name": "side-month-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 79,
-        "expectedActionCount": 79,
+        "actionBudget": 71,
+        "expectedActionCount": 71,
         "screenshotBudget": 2
       },
       {
         "name": "nested-voucher-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 83,
-        "expectedActionCount": 83,
+        "actionBudget": 82,
+        "expectedActionCount": 82,
         "screenshotBudget": 2
       },
       {
         "name": "legacy-form-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 60,
-        "expectedActionCount": 60,
+        "actionBudget": 56,
+        "expectedActionCount": 56,
         "screenshotBudget": 2
       },
       {
         "name": "legacy-form-catalog",
         "timeoutSeconds": 240,
-        "actionBudget": 95,
-        "expectedActionCount": 95,
+        "actionBudget": 69,
+        "expectedActionCount": 69,
         "screenshotBudget": 1
       }
     ]

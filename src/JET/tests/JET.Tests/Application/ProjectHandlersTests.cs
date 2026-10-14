@@ -465,9 +465,9 @@ public sealed class ProjectHandlersTests
             host.DispatchAsync("project.load", $$"""{ "projectId": "{{projectId}}" }"""));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-51（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 不寫檔名與缺了哪個設定。
         Assert.Equal(
-            $"專案『{projectId}』的 project.json 是舊版 JET 建立的案件（缺少 databaseProvider），目前版本無法讀取。"
-            + "請用目前版本重新建立案件，再重新匯入資料。",
+            $"案件「{projectId}」是舊版 JET 建立的，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。",
             exception.Message);
     }
 
@@ -699,7 +699,11 @@ public sealed class ProjectHandlersTests
                 CreatePayload.Insert(CreatePayload.LastIndexOf('}'), """, "databaseProvider": "postgres" """)));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        Assert.Contains("未支援的 databaseProvider 'postgres'", ex.Message);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面只送三種資料庫，
+        // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
+        Assert.Equal("database_provider_unsupported", JetPayloadRejection.CheckOf(ex));
+        Assert.DoesNotContain("postgres", ex.Message);
         Assert.Null(ex.Field);
     }
 

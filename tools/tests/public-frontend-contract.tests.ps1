@@ -17,16 +17,22 @@ $module = Import-Module $modulePath -Force -PassThru
     param($root)
     $original = (Get-Item Function:Invoke-JetChildStep).ScriptBlock
     try {
+        # 2026-10-13：前端測試步驟另帶整個程序樹的記憶體上限（lanes.json 的 limits.maximumProcessTreeMemoryMegabytes），
+        # 模擬設定補上這個值並要求步驟照值帶上。改動前的第一次失敗收據：20261013-132902263-e46be90d030a479c887537b908f3d82d。
         function Invoke-JetChildStep {
             param($RepositoryRoot, $RunDirectory, $Name, $FileName, $Arguments, $DisplayCommand,
-                $MaximumCapturedBytes, $TimeoutSeconds, [switch]$OwnProcessTree, $EnvironmentVariablesToRemove)
+                $MaximumCapturedBytes, $TimeoutSeconds, [switch]$OwnProcessTree, $EnvironmentVariablesToRemove,
+                [long]$MaximumProcessTreeMemoryMegabytes = 0)
             if (-not $OwnProcessTree -or $EnvironmentVariablesToRemove -notcontains 'JET_PRIVATE_CASE_ROOT') {
                 throw 'Public frontend tests must own and clean their child tree and remove private inputs.'
+            }
+            if ($MaximumProcessTreeMemoryMegabytes -ne 6144) {
+                throw 'Public frontend tests must cap the memory of their child tree with the registry limit.'
             }
             [pscustomobject]@{ name = $Name; status = $(if ($script:failFrontend) { 'failed' } else { 'passed' });
                 script = [IO.Path]::GetFileName($Arguments[2]) }
         }
-        $registry = [pscustomobject]@{ limits = @{ maximumCapturedBytesPerStream = 262144 };
+        $registry = [pscustomobject]@{ limits = @{ maximumCapturedBytesPerStream = 262144; maximumProcessTreeMemoryMegabytes = 6144 };
             testSettings = @{ environmentVariablesToRemove = @('JET_PRIVATE_CASE_ROOT') } }
         $script:failFrontend = $false
         $steps = @(Invoke-JetPublicFrontendSteps -RepositoryRoot $root -RunDirectory $root -Registry $registry -TimeoutSeconds 120)

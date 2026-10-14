@@ -377,8 +377,9 @@ public sealed class SqlServerGlRepositoryTests
         Assert.Equal("batch-7", reader.GetValue(0));
         Assert.Equal(7L, reader.GetValue(1));
         Assert.Equal("JV-007", reader.GetValue(2));
-        Assert.Equal(1_234_500L, reader.GetValue(15));
-        Assert.Equal(0L, reader.GetValue(16));
+        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        Assert.Equal(1_234_500L, reader.GetValue(reader.GetOrdinal("debit_amount_scaled")));
+        Assert.Equal(0L, reader.GetValue(reader.GetOrdinal("credit_amount_scaled")));
         Assert.Equal(1, reader.ValidRowCount);
     }
 
@@ -396,7 +397,8 @@ public sealed class SqlServerGlRepositoryTests
             JetJsonStorage.Options,
             CancellationToken.None);
 
-        var name = reader.GetName(17);
+        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。
+        var name = reader.GetName(16);
 
         Assert.Equal("dr_cr", name);
     }
@@ -415,7 +417,8 @@ public sealed class SqlServerGlRepositoryTests
             JetJsonStorage.Options,
             CancellationToken.None);
 
-        var fieldType = reader.GetFieldType(16);
+        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。
+        var fieldType = reader.GetFieldType(15);
 
         Assert.Equal(typeof(long), fieldType);
     }
@@ -434,7 +437,8 @@ public sealed class SqlServerGlRepositoryTests
             JetJsonStorage.Options,
             CancellationToken.None);
 
-        var dataTypeName = reader.GetDataTypeName(13);
+        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。
+        var dataTypeName = reader.GetDataTypeName(12);
 
         Assert.Equal("Int32", dataTypeName);
     }
@@ -513,7 +517,8 @@ public sealed class SqlServerGlRepositoryTests
         var count = reader.GetValues(values);
 
         Assert.Equal(reader.FieldCount, count);
-        Assert.Equal("DEBIT", values[17]);
+        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        Assert.Equal("DEBIT", values[reader.GetOrdinal("dr_cr")]);
         Assert.Same(sentinel, values[^1]);
     }
 
@@ -546,7 +551,8 @@ public sealed class SqlServerGlRepositoryTests
             CancellationToken.None);
         Assert.True(reader.Read());
 
-        var value = reader.GetBoolean(13);
+        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        var value = reader.GetBoolean(reader.GetOrdinal("is_manual"));
 
         Assert.True(value);
     }
@@ -638,7 +644,8 @@ public sealed class SqlServerGlRepositoryTests
             CancellationToken.None);
         Assert.True(reader.Read());
 
-        var value = reader.GetDecimal(14);
+        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        var value = reader.GetDecimal(reader.GetOrdinal("amount_scaled"));
 
         Assert.Equal(70_000m, value);
     }
@@ -661,7 +668,8 @@ public sealed class SqlServerGlRepositoryTests
             CancellationToken.None);
         Assert.True(reader.Read());
 
-        var value = reader.GetDouble(14);
+        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        var value = reader.GetDouble(reader.GetOrdinal("amount_scaled"));
 
         Assert.Equal(80_000d, value);
     }
@@ -684,7 +692,8 @@ public sealed class SqlServerGlRepositoryTests
             CancellationToken.None);
         Assert.True(reader.Read());
 
-        var value = reader.GetFloat(14);
+        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        var value = reader.GetFloat(reader.GetOrdinal("amount_scaled"));
 
         Assert.Equal(90_000f, value);
     }
@@ -779,7 +788,8 @@ public sealed class SqlServerGlRepositoryTests
             CancellationToken.None);
         Assert.True(reader.Read());
 
-        var value = reader.GetInt64(14);
+        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        var value = reader.GetInt64(reader.GetOrdinal("amount_scaled"));
 
         Assert.Equal(130_000L, value);
     }

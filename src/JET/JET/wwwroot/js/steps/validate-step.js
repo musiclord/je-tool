@@ -23,6 +23,7 @@
       prefix: '確認 JET 存下的分錄沒有少，也沒有重複。兩欄都只算查核期間內、符合過帳狀態設定的分錄。' +
         '這一項不和來源檔自己的合計比對。舊案件沒有這組數字時顯示「—」，不代表 0。',
       columns: ['核對項目', '確認配對時算出', '存下後重新計算'],
+      numeric: [1, 2],
       rows: [['分錄筆數', countText(source.rowCount), countText(target.rowCount)],
         ['借方合計', Ui.money(source.totalDebit), Ui.money(target.totalDebit)],
         ['貸方合計', Ui.money(source.totalCredit), Ui.money(target.totalCredit)]]
@@ -147,19 +148,39 @@
     body.setAttribute('aria-busy', 'true');
     body.innerHTML = '<p role="status">正在讀取分錄…</p>';
     entry.promise.then(function (data) {
-      if (current() && body.isConnected) { show(data); }
+      if (current() && body.isConnected) { morphDetailBody(body, function () { show(data); }); }
     }).catch(function (error) {
       if (!current() || !body.isConnected) { return; }
-      body.setAttribute('aria-busy', 'false');
-      var message = error && error.code === 'operation_cancelled'
-        ? '讀取已取消。'
-        : '讀取分錄失敗。' + (error && error.message ? ' ' + error.message : '');
-      body.innerHTML = '<p role="status">' + Ui.esc(message) + '</p>' +
-        '<button type="button" class="btn btn--ghost btn--tiny" data-detail-retry>重試</button>';
+      morphDetailBody(body, function () {
+        body.setAttribute('aria-busy', 'false');
+        var message = error && error.code === 'operation_cancelled'
+          ? '讀取已取消。'
+          : '讀取分錄失敗。' + (error && error.message ? ' ' + error.message : '');
+        body.innerHTML = '<p role="status">' + Ui.esc(message) + '</p>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-detail-retry>重試</button>';
+      });
       body.querySelector('[data-detail-retry]').addEventListener('click', function () {
-        if (current() && body.isConnected) { loadDetailPreview(body, key, runKind, run, fetchPage, display); }
+        if (current() && body.isConnected) {
+          morphDetailBody(body, function () { loadDetailPreview(body, key, runKind, run, fetchPage, display); });
+        }
       });
     });
+  }
+
+  // 明細晚到的內容（讀到的分錄或失敗提示）走 JetMotion：明細從「正在讀取分錄…」的高度沿彈簧長到表格的高度，
+  // 不在展開後才一下跳開（使用者 2026-10-13 要求展開與收合一致）。body 自己有 data-motion-key（detailBodyKey）。
+  // 展開當下同步放進去的內容不走這裡：那時外層的展開區正在由 app.css 長出來，量一次會讓它停在舊的高度。
+  function morphDetailBody(body, fill) {
+    if (global.JetMotion && typeof global.JetMotion.morph === 'function' && body.hasAttribute &&
+        body.hasAttribute('data-motion-key')) {
+      global.JetMotion.morph(body, fill);
+    } else {
+      fill();
+    }
+  }
+
+  function detailBodyKey(scrollKey, part) {
+    return Ui.esc('detail-preview-' + (scrollKey || 'detail') + '-' + part);
   }
 
   // 科目分類編輯草稿（純畫面狀態）。null = 尚未編輯，直接顯示後端 snapshot；
@@ -172,6 +193,8 @@
   // 新增分類的本地識別（尚未取得後端 stable ID 前只用於 DOM 對位；絕不送進 payload）。
   var taxonomyDraftSeq = 0;
   var taxonomyRemoval = null;
+  // 預篩選「篩選結果」有沒有展開；重繪時照原樣畫出來，不每次都收起（使用者 2026-10-13 交接）。
+  var prescreenSignalsOpen = false;
 
   Ui.registerWorkflowReset(function () {
     prescreenPreviewCache = {};
@@ -186,6 +209,7 @@
     taxonomyAdvanced = false;
     taxonomyRemoval = null;
     accountExcelOpen = false;
+    prescreenSignalsOpen = false;
   });
 
   var PRESCREEN_PAGE_COLUMNS = [
@@ -246,15 +270,21 @@
       var lmIdsForHead = detail.loadMore == null ? [] :
         (Array.isArray(detail.loadMore) ? detail.loadMore : [detail.loadMore]);
       var sortable = !!detail.sortAction && lmIdsForHead.length === 1;
+      // 金額與筆數欄連同表頭靠右（使用者 2026-10-13 選擇處理數字欄靠左）；detail.numeric 列出是數字的欄。
+      var numeric = detail.numeric || [];
+      var amountClass = function (index) { return numeric.indexOf(index) >= 0 ? 'preview-table__amount' : ''; };
       var thead = '<tr>' + (sortable
         ? Ui.sortableHeadCellsHtml(detail.sortAction, detail.columns.map(function (c, index) {
-            return { label: c, key: (detail.sortKeys || [])[index] || null };
+            return { label: c, key: (detail.sortKeys || [])[index] || null, className: amountClass(index) };
           }))
-        : detail.columns.map(function (c) { return '<th>' + Ui.esc(c) + '</th>'; }).join('')) + '</tr>';
+        : detail.columns.map(function (c, index) {
+            return '<th' + (amountClass(index) ? ' class="' + amountClass(index) + '"' : '') + '>' + Ui.esc(c) + '</th>';
+          }).join('')) + '</tr>';
       var searchHtml = sortable && detail.searchLabel ? Ui.pageSearchHtml(detail.searchLabel) : '';
       var tbody = detail.rows.map(function (row) {
-        return '<tr>' + row.map(function (cell) {
-          return '<td>' + Ui.esc(String(cell == null ? '' : cell)) + '</td>';
+        return '<tr>' + row.map(function (cell, index) {
+          return '<td' + (amountClass(index) ? ' class="' + amountClass(index) + '"' : '') + '>' +
+            Ui.esc(String(cell == null ? '' : cell)) + '</td>';
         }).join('') + '</tr>';
       }).join('');
       var prefix = detail.prefix ? '<p class="rule-detail__prefix">' + Ui.esc(detail.prefix) + '</p>' : '';
@@ -276,7 +306,7 @@
       var spec = DYNAMIC_PAGE_SPECS[detail.pageKey];
       return '<div class="rule-detail__preview-block" data-dynamic-page="' + Ui.esc(detail.pageKey) + '">' +
         '<span class="rule-detail__preview-label">' + Ui.esc(spec ? spec.label : '') + '</span>' +
-        '<div class="rule-detail__preview-body">載入中…</div>' +
+        '<div class="rule-detail__preview-body" data-motion-key="' + detailBodyKey(scrollKey, detail.pageKey) + '">載入中…</div>' +
       '</div>';
     }
     if (detail.kind === 'prescreenPreview') {
@@ -284,7 +314,7 @@
       return detail.previews.map(function (pv) {
         return '<div class="rule-detail__preview-block" data-prescreen-key="' + Ui.esc(pv.key) + '">' +
           '<span class="rule-detail__preview-label">' + Ui.esc(pv.label) + '</span>' +
-          '<div class="rule-detail__preview-body">載入中…</div>' +
+          '<div class="rule-detail__preview-body" data-motion-key="' + detailBodyKey(scrollKey, pv.key) + '">載入中…</div>' +
         '</div>';
       }).join('');
     }
@@ -312,9 +342,9 @@
       columns: [
         function (r) { return r.accountCode || ''; },
         function (r) { return r.accountName || ''; },
-        function (r) { return num(r.tbAmount); },
-        function (r) { return num(r.glAmount); },
-        function (r) { return Ui.moneyDifference(r.diff); }
+        amountColumn(function (r) { return num(r.tbAmount); }),
+        amountColumn(function (r) { return num(r.glAmount); }),
+        amountColumn(function (r) { return Ui.moneyDifference(r.diff); })
       ]
     },
     docBalance: {
@@ -323,12 +353,15 @@
       },
       columns: [
         function (r) { return r.documentNumber || ''; },
-        function (r) { return num(r.debit); },
-        function (r) { return num(r.credit); },
-        function (r) { return Ui.moneyDifference(r.diff); }
+        amountColumn(function (r) { return num(r.debit); }),
+        amountColumn(function (r) { return num(r.credit); }),
+        amountColumn(function (r) { return Ui.moneyDifference(r.diff); })
       ]
     },
   };
+
+  // 「載入更多」接上的列和首頁同一欄靠右，和 detailHtml 的 numeric 對齊。
+  function amountColumn(cell) { return { cell: cell, className: 'preview-table__amount' }; }
 
   // 空值四子項共對應五個後端 category 與固定的「異常類別」顯示字;
   // id 形如 null-<category>,動態註冊進 LOAD_MORE_SPECS（columns 與既有空值 table 欄序對齊）。
@@ -348,14 +381,14 @@
   }
 
   // 後端 nullRecordsPage 白名單四 category → 「異常類別」顯示字(對齊 issuesCn map)。
-  // 空白總帳入帳日已改由來源品質承載，不再屬於空值紀錄測試。
+  // 空白總帳日期已改由來源品質承載，不再屬於空值紀錄測試。
   LOAD_MORE_SPECS['null-outOfRangeDate'] = nullLoadMoreSpec('outOfRangeDate', '核准日不在期間');
   LOAD_MORE_SPECS['null-nullDescription'] = nullLoadMoreSpec('nullDescription', '空白摘要');
   LOAD_MORE_SPECS['null-nullDocument'] = nullLoadMoreSpec('nullDocument', '空白傳票號碼');
   LOAD_MORE_SPECS['null-nullAccount'] = nullLoadMoreSpec('nullAccount', '空白科目編號');
 
   // 來源品質全量明細（query.sourceQualityPage）：不套查核期間述詞，因此仍看得到
-  // 被期間界定排除的空白總帳入帳日；欄序與下方 detail 的固定欄一致。
+  // 被期間界定排除的空白總帳日期；欄序與下方 detail 的固定欄一致。
   LOAD_MORE_SPECS.sourceQuality = {
     fetchPage: function (cursor, sort, search) {
       return global.JetApi.querySourceQualityPage({ cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
@@ -372,7 +405,7 @@
 
   // 來源品質 finding 類別 → 顯示字。目前後端只回一種類別，未登錄值原樣顯示。
   function sourceQualityCategoryLabel(category) {
-    return category === 'nullPostDate' ? '總帳入帳日空白' : (category || '');
+    return category === 'nullPostDate' ? '總帳日期空白' : (category || '');
   }
 
   // INF 抽樣明細改由後端欄位 metadata 驅動（固定欄 + 已提交的攸關資料元素欄位）。
@@ -390,7 +423,7 @@
 
   // issues 陣列（英文鍵）→ 中文顯示，以「、」接合。
   function issuesCn(issues) {
-    // 空白總帳入帳日已移出空值紀錄測試（改由來源品質承載），故不在這份封閉類別內。
+    // 空白總帳日期已移出空值紀錄測試（改由來源品質承載），故不在這份封閉類別內。
     var map = {
       account: '空白科目編號', document: '空白傳票號碼', description: '空白摘要',
       date: '核准日不在期間'
@@ -426,7 +459,7 @@
         });
         return {
           kind: 'table',
-          columns: ['傳票號碼', '科目編號', '總帳入帳日', '摘要', '異常類別'],
+          columns: ['傳票號碼', '科目編號', '總帳日期', '摘要', '異常類別'],
           sortAction: 'query.nullRecordsPage', sortKeys: ['documentNumber', 'accountCode', 'postDate', 'description', null],
           searchLabel: '依傳票號碼、科目編號或摘要搜尋',
           rows: rows,
@@ -476,6 +509,7 @@
           return withControlTotals(v, {
             kind: 'table',
             columns: ['科目編號', '科目名稱', 'TB 金額', 'GL 金額', '差額'],
+            numeric: [2, 3, 4],
             sortAction: 'query.completenessDiffPage', sortKeys: ['accountCode', 'accountName', 'tbAmount', 'glAmount', 'diff'],
             searchLabel: '依科目編號查看',
             rows: rows,
@@ -518,6 +552,7 @@
           return {
             kind: 'table',
             columns: ['傳票號碼', '借方', '貸方', '差額'],
+            numeric: [1, 2, 3],
             sortAction: 'query.docBalancePage', sortKeys: ['documentNumber', 'debit', 'credit', 'diff'],
             searchLabel: '依傳票號碼查看',
             rows: rows,
@@ -547,10 +582,10 @@
     nullSubItem('核准日不在期間', '傳票核准日落在查核期間之外的分錄。', ['date'],
       function (nrt) { return Number(nrt.outOfRangeDateCount); }, ['outOfRangeDate']),
     {
-      // 來源品質是 validate.run 的獨立區塊，不是第五條資料驗證規則：它看的是匯入原貌，
+      // 來源品質是 validate.run 的獨立區塊，不是第五條資料驗證規則：它看的是 PBC-GL，
       // 不套查核期間，因此筆數不與空值紀錄的四類相加。
-      title: '總帳入帳日空白',
-      desc: '總帳入帳日空白的分錄，無法判斷是否在查核期間內，因此未納入本次測試。',
+      title: '總帳日期空白',
+      desc: '總帳日期空白的分錄，無法判斷是否在查核期間內，因此未納入本次測試。',
       status: function (v) {
         if (!v || !v.sourceQuality) { return null; }
         var n = Number(v.sourceQuality.findingCount);
@@ -576,7 +611,7 @@
           sortAction: 'query.sourceQualityPage', sortKeys: [null, null, 'sourceRowNumber', 'documentNumber', 'accountCode', 'description'],
           searchLabel: '依傳票號碼查看',
           rows: rows,
-          prefix: '這些分錄保留在匯入原貌中，但未納入本次測試。',
+          prefix: '這些分錄保留在 PBC-GL 中，並列入 GL(未納入測試)。',
           loadMore: 'sourceQuality'
         };
       }
@@ -590,7 +625,7 @@
   var NULL_PRESCREEN_ITEMS = [
     nullSubItem('空白摘要', Ui.prescreenConditionDescription('blankDescription'), ['description'],
       function (nrt) { return Number(nrt.nullDescriptionCount); }, ['nullDescription']),
-    nullSubItem('空白傳票號碼', '傳票號碼空白的分錄。與空白科目編號分開列示；同一筆可能同時出現在兩份明細。', ['document'],
+    nullSubItem('空白傳票號碼', '傳票號碼空白的分錄。與空白科目編號分開列示；傳票號碼與科目編號都空白的分錄，兩份明細都會列出。', ['document'],
       function (nrt) { return Number(nrt.nullDocumentCount); }, ['nullDocument']),
     nullSubItem('空白科目編號', '科目編號空白的分錄。各類筆數分別計算，不將兩類相加當作分錄總數。', ['account'],
       function (nrt) { return Number(nrt.nullAccountCount); }, ['nullAccount'])
@@ -669,7 +704,7 @@
         // V9：creators 最多 50 列，人數改用後端的完整人數（空白人員算一組，與流程總覽同一個數字）。
         // 舊的預篩選結果沒有這個數字，照「較少使用之科目」的前例請使用者重新執行，不拿清單長度冒充。
         if (p.creatorSummary.totalPreparerCount == null) {
-          return { tone: 'info', text: '人員數未知，請重新執行預篩選' };
+          return { tone: 'info', text: '預篩選結果未包含人員數，請重新執行預篩選' };
         }
         return { tone: 'info', text: countText(p.creatorSummary.totalPreparerCount) + ' 位人員' };
       },
@@ -692,7 +727,7 @@
           var prefix = total != null && Number(total) > rows.length
             ? '共 ' + countText(total) + ' 位人員，這裡列出分錄筆數最多的 ' + countText(rows.length) + ' 位。'
             : null;
-          return { kind: 'table', prefix: prefix, columns: ['編製人員', '分錄筆數', '借方', '貸方', '人工分錄筆數'], rows: rows };
+          return { kind: 'table', prefix: prefix, columns: ['編製人員', '分錄筆數', '借方', '貸方', '人工分錄筆數'], numeric: [1, 2, 3, 4], rows: rows };
         }
         return null;
       }
@@ -703,7 +738,7 @@
       status: function (p) {
         if (!p) { return null; }
         if (!p.rareAccounts || p.rareAccounts.lowFrequencyAccountCount == null) {
-          return { tone: 'info', text: '較少使用的科目數未知，請重新執行預篩選' };
+          return { tone: 'info', text: '預篩選結果未包含較少使用的科目數，請重新執行預篩選' };
         }
         return { tone: 'info', text: countText(p.rareAccounts.lowFrequencyAccountCount) + ' 個較少使用的科目（' + Ui.PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下）' };
       },
@@ -719,19 +754,19 @@
               Ui.money(a.creditTotal)
             ];
           });
-          return { kind: 'table', columns: ['科目編號', '科目名稱', '分錄筆數', '借方', '貸方'], rows: rows };
+          return { kind: 'table', columns: ['科目編號', '科目名稱', '分錄筆數', '借方', '貸方'], numeric: [2, 3, 4], rows: rows };
         }
         return null;
       }
     },
     {
       title: '週末過帳／核准之分錄',
-      desc: '總帳入帳日或傳票核准日落在設定週末日的分錄（補班日仍納入）。',
+      desc: '總帳日期或傳票核准日落在設定週末日的分錄（補班日仍納入）。',
       status: function (p) { return p ? pairCountStatus(p.weekendActivity) : null; },
       detail: function (p) {
         if (!p) { return null; }
         if (p.weekendActivity.naReason) {
-          return { kind: 'reason', text: p.weekendActivity.naReason, remedy: '確認總帳入帳日欄位配對正確' };
+          return { kind: 'reason', text: p.weekendActivity.naReason, remedy: '確認總帳日期欄位配對正確' };
         }
         var previews = [];
         if (Number(p.weekendActivity.postingCount) > 0) {
@@ -745,7 +780,7 @@
     },
     {
       title: '假日過帳／核准之分錄',
-      desc: '總帳入帳日或傳票核准日落在國定假日的分錄（需先匯入假日清單）。',
+      desc: '總帳日期或傳票核准日落在國定假日的分錄（需先匯入假日清單）。',
       status: function (p) { return p ? pairCountStatus(p.holidayActivity) : null; },
       detail: function (p) {
         if (!p) { return null; }
@@ -760,21 +795,6 @@
           previews.push({ label: '核准側', key: 'holidayApproval' });
         }
         return previews.length > 0 ? { kind: 'prescreenPreview', previews: previews } : null;
-      }
-    },
-    {
-      title: '回溯過帳之分錄',
-      desc: Ui.prescreenConditionDescription('backdatedPosting'),
-      status: function (p) { return p ? hitCountStatus(p.backdatedPosting) : null; },
-      detail: function (p) {
-        if (!p) { return null; }
-        if (p.backdatedPosting.naReason) {
-          return { kind: 'reason', text: p.backdatedPosting.naReason, remedy: '確認傳票日期欄位配對正確' };
-        }
-        if (Number(p.backdatedPosting.count) > 0) {
-          return { kind: 'prescreenPreview', previews: [{ label: '符合條件的分錄', key: 'backdatedPosting' }] };
-        }
-        return null;
       }
     },
     {
@@ -855,25 +875,28 @@
     var eligibility = Ui.completenessEligibility(v);
 
     container.innerHTML =
-      '<div class="panel panel--wide">' +
+      '<div class="panel panel--wide" data-motion-key="validate-panel">' +
         '<h2 class="panel__title">資料驗證與測試</h2>' +
         Ui.downstreamResetNoticeHtml(state) +
         (ready ? '' :
           '<p class="panel__warn">GL 尚未確認配對，無法執行；請先回「欄位配對」按「確認配對」。</p>') +
         statsBarHtml(v) +
-        populationSummaryHtml(v) +
         validationCardHtml(v, ready, state) +
         '<section class="rule-card account-preparation" aria-labelledby="account-preparation-title">' +
           '<div class="rule-card__head"><h3 class="rule-card__title" id="account-preparation-title">科目配對</h3>' +
             '<button type="button" class="btn btn--ghost" data-action="toggle-taxonomy" data-focus-key="account-settings" aria-expanded="' + taxonomyOpen + '">' +
               (taxonomyOpen ? '返回科目配對' : '分類設定') + '</button></div>' +
+          // 配對方式的頁籤與內容包成一塊：和分類設定互換時整塊原地交叉淡化；換頁籤時只有內容交叉淡化，
+          // 高度平順改變，下面的預篩選跟著移動（app.js 的 JetMotion，使用者 2026-10-12）。
           (taxonomyOpen ? taxonomyCardHtml(state) :
+            '<div class="account-methods-block" data-motion-key="account-methods">' +
             '<div class="account-methods" role="tablist" aria-label="科目配對方式">' +
               '<button type="button" role="tab" id="account-method-jet" data-action="select-account-jet" data-focus-key="account-method-jet" aria-controls="account-method-panel" aria-selected="' + !accountExcelOpen + '" tabindex="' + (accountExcelOpen ? '-1' : '0') + '">在 JET 配對</button>' +
               '<button type="button" role="tab" id="account-method-excel" data-action="toggle-account-excel" data-focus-key="account-method-excel" aria-controls="account-method-panel" aria-selected="' + accountExcelOpen + '" tabindex="' + (accountExcelOpen ? '0' : '-1') + '">用 Excel 配對</button>' +
-            '</div><div role="tabpanel" id="account-method-panel" aria-labelledby="account-method-' + (accountExcelOpen ? 'excel' : 'jet') + '">' +
+            '</div><div role="tabpanel" id="account-method-panel" data-motion-key="account-method-' + (accountExcelOpen ? 'excel' : 'jet') +
+              '" aria-labelledby="account-method-' + (accountExcelOpen ? 'excel' : 'jet') + '">' +
               (accountExcelOpen ? accountMappingCardHtml(state.importState.accountMapping, ready)
-                : accountTemplateJetStatusHtml() + Ui.accountMappingEditor.html(state, ready)) + '</div>') +
+                : accountTemplateJetStatusHtml() + Ui.accountMappingEditor.html(state, ready)) + '</div></div>') +
         '</section>' +
         prescreenCardHtml(p, v, ready, state, eligibility) +
         Ui.stepFooterHtml(state) +
@@ -884,9 +907,9 @@
 
   function statsBarHtml(v) {
     var stats = v && v.stats ? v.stats : null;
-    function card(label, value) {
+    function card(label, value, modifier) {
       return (
-        '<div class="stat-card">' +
+        '<div class="stat-card' + (modifier ? ' stat-card--' + modifier : '') + '">' +
           '<span class="stat-card__value">' + value + '</span>' +
           '<span class="stat-card__label">' + label + '</span>' +
         '</div>'
@@ -894,44 +917,11 @@
     }
 
     return (
-      '<div class="stats-bar">' +
-        card('納入測試的分錄', stats ? countText(stats.glRowCount) : '—') +
+      '<div class="stats-bar stats-bar--validation">' +
+        card('GL 分錄數', stats ? countText(stats.glRowCount) : '—') +
         card('傳票數', stats ? countText(stats.voucherCount) : '—') +
         card('借貸淨額（應為 0）', stats ? Ui.moneyDifference(stats.net) : '—') +
-        card('查核期間', stats ? Ui.esc(stats.periodStart) + ' ～ ' + Ui.esc(stats.periodEnd) : '—') +
       '</div>'
-    );
-  }
-
-  // 母體分區：全部標準化列 = 分錄測試範圍 + 日期未符合 + 過帳狀態未符合。
-  // 三個數字與兩類排除原因都由系統端在同一次驗證裁定，畫面只複述，不自行相減或推算。
-  function populationSummaryHtml(v) {
-    var summary = v && v.populationSummary ? v.populationSummary : null;
-    if (!summary) { return ''; }
-    var raw = summary.raw || {};
-    var effective = summary.effective || {};
-    var excluded = summary.excluded || {};
-
-    function cell(label, value, hint) {
-      return '<div class="population-cell">' +
-        '<span class="population-cell__value">' + countText(value) + '</span>' +
-        '<span class="population-cell__label">' + Ui.esc(label) + '</span>' +
-        (hint ? '<span class="population-cell__hint">' + Ui.esc(hint) + '</span>' : '') +
-        '</div>';
-    }
-
-    return (
-      '<section class="population-summary" data-bind="population-summary">' +
-        '<h3 class="population-summary__title">分錄測試範圍</h3>' +
-        '<div class="population-summary__grid">' +
-          cell('已確認配對的分錄', raw.rowCount, '已依欄位配對整理的總帳明細') +
-          cell('納入本次測試', effective.rowCount, '符合查核期間與過帳狀態設定的分錄') +
-          cell('日期不符', excluded.byPeriodCount, '總帳入帳日空白或不在查核期間') +
-          cell('過帳狀態不符', excluded.byPostingStatusCount, '過帳狀態不符合本案設定') +
-        '</div>' +
-        '<button type="button" class="btn btn--ghost btn--tiny" data-action="preview-excluded-entries">' +
-          '檢視未納入測試的分錄</button>' +
-      '</section>'
     );
   }
 
@@ -959,7 +949,7 @@
             (expanded ? '收合' : '檢視') + '</button>'
         : '';
       var detailContainer = detail
-        ? '<div class="rule-detail" data-bind="rule-detail-' + Ui.esc(scope) + '-' + idx + '"' + (expanded ? '' : ' hidden') + '>' +
+        ? '<div class="rule-detail" data-bind="rule-detail-' + Ui.esc(scope) + '-' + idx + '" data-collapsible' + (expanded ? '' : ' hidden') + '>' +
             detailHtml(detail, scope + '-' + idx) +
           '</div>'
         : '';
@@ -969,8 +959,7 @@
             '<span class="rule-item__title">' + Ui.esc(item.title) + '</span>' +
             '<span class="rule-item__desc">' + Ui.esc(item.desc) + '</span>' +
           '</div>' +
-          ruleBadge(status) +
-          toggleBtn +
+          '<div class="rule-item__aside">' + ruleBadge(status) + toggleBtn + '</div>' +
           detailContainer +
         '</li>'
       );
@@ -992,7 +981,7 @@
       { validationRunId: v.resultRef.runId });
     var complete = artifacts.length === 2;
     return (
-      '<div class="report-output">' +
+      '<div class="report-output" data-motion-key="validation-output">' +
         '<div class="report-output__head">' +
           '<div>' +
             '<h4 class="report-output__title">驗證報告與抽樣清單</h4>' +
@@ -1002,7 +991,7 @@
             (complete ? '重新產生兩份報告' : '產生報告與抽樣清單') + '</button></div>' +
         '</div>' +
         validationOutputStatusHtml('reports') +
-        Ui.reportArtifactListHtml(artifacts, '驗證已完成，報告尚未產生。') +
+        Ui.reportArtifactListHtml(artifacts, '驗證已完成，報告尚未產生。', { motion: 'validation' }) +
       '</div>'
     );
   }
@@ -1028,8 +1017,9 @@
         Ui.esc(output.message) + '</p>';
     }
     if (output.status !== 'failed') { return ''; }
-    return '<p class="form-notice" data-account-template-status="failed" role="status">科目配對檔尚未準備好：' +
-      Ui.esc(output.reason || '系統沒有提供失敗原因。') + ' ' +
+    // 沒有原因時請審計員再試一次，不再說明後端沒有給原因（使用者 2026-10-14 第三輪勾選頁確認 R3-32）。
+    return '<p class="form-notice" data-account-template-status="failed" role="status">科目配對檔尚未準備好' +
+      (output.reason ? '：' + Ui.esc(output.reason) : '，請再試一次。') + ' ' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-action="retry-account-template-in-excel">' +
         '到「用 Excel 配對」重試</button></p>';
   }
@@ -1058,12 +1048,38 @@
   // 前端只做操作引導，未預期借貸組合是否能執行仍由後端預篩選判定。
   // 分類留白的科目在投影時已視為 Others（同 legacy），篩選不受影響；這裡只讓審計員看到哪些科目沒填，
   // 想改分類就到範本 C 欄填好再重新匯入。清單走 query.accountMappingBlankPage 的有界分頁。
+  // 「列出科目」打開的清單和下面兩份差異清單一樣記在 mappingDifferenceView：整段重繪後照原樣打開，
+  // 已讀的列從同一份分頁狀態接回，不會一重繪就收起來（使用者 2026-10-13 要求展開與收合一致）。
   function blankCategoryNoticeHtml(info) {
     if (!info || !(info.blankCategoryCount > 0)) { return ''; }
+    var open = !!mappingDifferenceView(info).expanded.blank;
     return '<p class="import-card__status" data-bind="blank-category-notice">分類留白 ' + Number(info.blankCategoryCount).toLocaleString() +
         ' 筆，視為 Others。可在下方整批調整分類，或修改科目配對檔後重新匯入。 ' +
-        '<button type="button" class="btn btn--ghost btn--tiny" data-action="list-blank-categories" aria-expanded="false">列出科目</button></p>' +
-      '<div data-bind="blank-category-list" hidden></div>';
+        '<button type="button" class="btn btn--ghost btn--tiny" data-action="list-blank-categories" aria-expanded="' + open + '">列出科目</button></p>' +
+      '<div class="account-mapping-checks__list" data-bind="blank-category-list" data-motion-key="blank-category-list" data-collapsible' +
+        (open ? '' : ' hidden') + '></div>';
+  }
+
+  // 清單晚到的第一頁走 JetMotion：清單從「正在讀取資料…」的高度沿彈簧長到列出來的高度，不在展開後才一下跳開
+  // （使用者 2026-10-13 要求展開與收合一致）。清單本身有 data-motion-key。整段重繪時接回已讀的列不走這裡，
+  // 那時重繪本身就在比對（容器帶 data-motion-rendering）。
+  // 清單還在展開的高度轉場中（剛按下「列出科目」，本機第一頁常在轉場結束前就回來，或重新打開時同步接回已讀的列）
+  // 直接放進去：[data-collapsible] 的轉場會自己長到新的高度。這時再走 JetMotion，量到的是轉場到一半的高度，
+  // 轉場一結束清單會先縮回那個高度再跳開。
+  function collapsibleHeightTransitionRunning(list) {
+    if (typeof list.getAnimations !== 'function') { return false; }
+    return list.getAnimations().some(function (animation) {
+      return animation.transitionProperty === 'height' && animation.playState === 'running';
+    });
+  }
+
+  function morphCheckList(list, fill) {
+    if (global.JetMotion && typeof global.JetMotion.morph === 'function' && list.isConnected && !list.hidden &&
+        !list.closest('[data-motion-rendering]') && !collapsibleHeightTransitionRunning(list)) {
+      global.JetMotion.morph(list, fill);
+    } else {
+      fill();
+    }
   }
 
   var accountDifferenceView = null;
@@ -1085,13 +1101,13 @@
   function mappingDifferenceNoticeHtml(info) {
     if (!info) { return ''; }
     var view = mappingDifferenceView(info);
+    // 使用者 2026-10-10 認為說明過多，兩份清單只留名稱與筆數，不再附說明句。
     return ['mappingOnly', 'unmapped'].map(function (kind) {
       return '<p class="import-card__status"><span data-difference-count="' + kind + '">' +
-        mappingDifferenceCountText(kind, view.counts[kind]) + '</span>。' +
-        (kind === 'mappingOnly' ? '這些科目保留在配對檔，但不會出現在篩選結果。' : '這些科目不屬於任何分類；分類留白視為 Others 的科目另列於上方。') +
+        mappingDifferenceCountText(kind, view.counts[kind]) + '</span>' +
         ' <button type="button" class="btn btn--ghost btn--tiny" data-mapping-difference="' + kind +
         '" aria-expanded="' + !!view.expanded[kind] + '">列出科目</button></p>' +
-        '<div data-difference-list="' + kind + '"' + (view.expanded[kind] ? '' : ' hidden') + '></div>';
+        '<div class="account-mapping-checks__list" data-difference-list="' + kind + '" data-motion-key="difference-list-' + kind + '" data-collapsible' + (view.expanded[kind] ? '' : ' hidden') + '></div>';
     }).join('');
   }
 
@@ -1105,6 +1121,7 @@
       function mount() {
         list.innerHTML = '<ul class="kv-list" data-difference-rows></ul><button type="button" class="btn btn--ghost btn--tiny" data-difference-more="' + kind + '">載入更多</button>';
         var rows = list.querySelector('[data-difference-rows]');
+        var listed = 0;
         var page = view.pages[kind] || (view.pages[kind] = {});
         Ui.bindPagedTable(list, {
           autoLoad: true, viewState: page,
@@ -1117,9 +1134,16 @@
               return data;
             });
           },
-          appendRows: function (items) { rows.insertAdjacentHTML('beforeend', items.map(function (row) {
-            return '<li>' + Ui.esc(row.accountCode || '（空白科目編號）') + (row.accountName ? '　' + Ui.esc(row.accountName) : '') + '</li>';
-          }).join('')); },
+          appendRows: function (items) {
+            function fill() {
+              rows.insertAdjacentHTML('beforeend', items.map(function (row) {
+                return '<li>' + Ui.esc(row.accountCode || '（空白科目編號）') + (row.accountName ? '　' + Ui.esc(row.accountName) : '') + '</li>';
+              }).join(''));
+            }
+            // 只有這次掛上後第一次放進列（第一頁）時走 JetMotion；「載入更多」接在後面，不再整塊比對。
+            if (listed === 0) { morphCheckList(list, fill); } else { fill(); }
+            listed += items.length;
+          },
           clearRows: function () { rows.innerHTML = ''; },
           loadMore: list.querySelector('[data-difference-more="' + kind + '"]')
         });
@@ -1149,7 +1173,12 @@
       ? '<button type="button" class="btn' + (info ? ' btn--ghost' : '') +
           '" data-action="import-account-mapping">' +
           (info ? '重新匯入科目配對檔' : '匯入科目配對檔') + '</button>'
-      : '<p class="rule-card__gate">GL 尚未確認配對，請先按「確認配對」。</p>';
+      : '';
+    // 說明和按鈕分欄：GL 未確認時，原因放在說明欄；已有配對時才提醒重新匯入會覆蓋。
+    var importNote = !mappingReady
+      ? '<p class="rule-card__gate">GL 尚未確認配對，請先按「確認配對」。</p>'
+      : (info ? '<p class="rule-card__sub">重新匯入會覆蓋目前全部配對。</p>' : '');
+    var checks = blankCategoryNoticeHtml(info) + mappingDifferenceNoticeHtml(info);
 
     // 空白範本由目前 GL/TB 科目產生，沒有驗證 run 的依賴。
     var templateBtn = mappingReady
@@ -1157,20 +1186,20 @@
         '<button type="button" class="btn btn--ghost" data-action="open-account-mapping-folder">開啟案件資料夾</button>'
       : '';
 
+    // 兩個步驟各占一列：標題、說明、按鈕左右排開；狀態與清單接在同一列下方（使用者 2026-10-10 選定）。
     return (
       '<section class="account-mapping-workflow" data-bind="account-mapping-card" tabindex="-1">' +
         '<div class="account-mapping-workflow__part">' +
           '<h4 class="rule-card__title">1. 取得配對檔</h4>' +
-          '<p class="rule-card__sub">在「Standardized Account Name*」欄選擇科目分類，例如 Cash 或 Revenue，再存檔。</p>' +
+          '<div class="account-mapping-workflow__text"><p class="rule-card__sub">在「Standardized Account Name*」欄填入分類後存檔；也可匯入前一個案件的配對檔。</p></div>' +
           '<div class="import-card__actions">' + templateBtn + '</div>' +
           validationOutputStatusHtml('template') +
         '</div>' +
         '<div class="account-mapping-workflow__part">' +
           '<h4 class="rule-card__title">2. 匯入配對檔</h4>' +
-          '<p class="rule-card__sub">匯入會覆蓋目前全部配對。</p>' +
-          status +
+          '<div class="account-mapping-workflow__text">' + status + importNote + '</div>' +
           '<div class="import-card__actions">' + importControls + previewBtn + '</div>' +
-          blankCategoryNoticeHtml(info) + mappingDifferenceNoticeHtml(info) +
+          (checks ? '<div class="account-mapping-checks" data-motion-key="account-mapping-checks">' + checks + '</div>' : '') +
         '</div>' +
         (mappingReady ? '<div class="account-mapping-rebuild">' +
           '<p>重建會清空檔案內的分類。</p>' +
@@ -1239,53 +1268,70 @@
     var dirty = !!taxonomyDraft;
 
     var tree = Ui.taxonomyTree({ taxonomy: { categories: rows } });
+    // 上下層的連接線：每一層一格。上層後面還有同一層的分類時畫直線；自己這一層畫 ├，是最後一個時畫 └。
+    // 只算畫面要畫的線，不改分類資料。
+    function treeGuidesHtml(index) {
+      var depth = tree[index].depth;
+      if (!depth) { return ''; }
+      function continues(level) {
+        for (var next = index + 1; next < tree.length; next += 1) {
+          if (tree[next].depth <= level) { return tree[next].depth === level; }
+        }
+        return false;
+      }
+      var cells = '';
+      for (var level = 1; level < depth; level += 1) { cells += '<i' + (continues(level) ? ' class="is-through"' : '') + '></i>'; }
+      return '<span class="taxonomy-row__tree" aria-hidden="true">' + cells +
+        '<i class="' + (continues(depth) ? 'is-branch' : 'is-last') + '"></i></span>';
+    }
     var items = tree.map(function (row, index) {
       var roleOptions = Ui.ACCOUNT_TAXONOMY_ROLES.map(function (role) {
         return '<option value="' + role.value + '"' +
           (row.semanticRole === role.value ? ' selected' : '') + '>' + role.label + '</option>';
       }).join('');
       var descendants = Ui.taxonomySelectionCategories({ taxonomy: { categories: rows } }, [row.categoryId], 'subtree');
-      return '<li class="taxonomy-row' + (row.isBuiltIn ? ' is-builtin' : '') + '" data-taxonomy-depth="' + row.depth +
-        '" style="margin-inline-start:' + row.depth + 'em">' +
+      return '<li class="taxonomy-row' + (row.isBuiltIn ? ' is-builtin' : '') + '" data-motion-key="' + Ui.esc('taxonomy-' + row.rowId) + '" data-taxonomy-depth="' + row.depth +
+        '" style="--taxonomy-depth:' + row.depth + '">' + treeGuidesHtml(index) +
         '<div class="taxonomy-row__field"><label for="taxonomy-label-' + index + '">分類名稱</label>' +
         '<input class="form__input taxonomy-row__label" type="text" id="taxonomy-label-' + index + '" aria-describedby="taxonomy-name-help"' +
           ' data-taxonomy-label="' + Ui.esc(row.rowId) + '" data-focus-key="taxonomy-label-' + Ui.esc(row.rowId) + '" value="' + Ui.esc(row.label) +
           '" maxlength="' + Ui.TAXONOMY_MAX_LABEL_LENGTH + '"></div>' +
-        '<div class="taxonomy-row__field taxonomy-row__advanced"' + (taxonomyAdvanced ? '' : ' hidden') + '><label for="taxonomy-role-' + index + '">分類用途</label>' +
+        '<div class="taxonomy-row__field taxonomy-row__advanced" data-motion="fade" data-motion-key="' + Ui.esc('taxonomy-role-' + row.rowId) + '"' + (taxonomyAdvanced ? '' : ' hidden') + '><label for="taxonomy-role-' + index + '">分類用途</label>' +
         '<select id="taxonomy-role-' + index + '" aria-describedby="taxonomy-role-help" data-taxonomy-role="' + Ui.esc(row.rowId) + '"' +
           ' data-focus-key="taxonomy-role-' + Ui.esc(row.rowId) + '"' +
           (row.isBuiltIn ? ' disabled aria-disabled="true"' : '') + '>' + roleOptions + '</select></div>' +
-        '<label class="taxonomy-row__field taxonomy-row__advanced"' + (taxonomyAdvanced ? '' : ' hidden') + '>上層分類<select aria-describedby="taxonomy-parent-help" data-taxonomy-parent="' + Ui.esc(row.rowId) + '" data-focus-key="taxonomy-parent-' + Ui.esc(row.rowId) + '"><option value="">無（最上層）</option>' +
+        '<label class="taxonomy-row__field taxonomy-row__advanced" data-motion="fade" data-motion-key="' + Ui.esc('taxonomy-parent-' + row.rowId) + '"' + (taxonomyAdvanced ? '' : ' hidden') + '>上層分類<select aria-describedby="taxonomy-parent-help" data-taxonomy-parent="' + Ui.esc(row.rowId) + '" data-focus-key="taxonomy-parent-' + Ui.esc(row.rowId) + '"><option value="">無（最上層）</option>' +
           tree.filter(function (candidate) { return !descendants.some(function (descendant) { return descendant.categoryId === candidate.categoryId; }); }).map(function (candidate) {
             return '<option value="' + Ui.esc(candidate.categoryId) + '"' + (row.parentCategoryId === candidate.categoryId ? ' selected' : '') + '>' +
               Ui.esc('　'.repeat(candidate.depth) + (candidate.depth ? '└ ' : '') + (candidate.label || '尚未命名的分類')) + '</option>';
           }).join('') + '</select></label>' +
+        (row.isBuiltIn ? '<span class="taxonomy-row__badge" title="JET 內建的分類，可以改名，不能移除">內建</span>' : '') +
         '<div class="taxonomy-row__actions">' +
         (row.isBuiltIn ? '' : '<button type="button" class="btn btn--ghost btn--tiny" data-taxonomy-remove="' + Ui.esc(row.rowId) + '">移除分類</button>') + '</div>' +
         '</li>';
     }).join('');
 
     return (
-      '<section class="account-classification' + (taxonomyAdvanced ? ' is-advanced' : '') + '" data-bind="account-taxonomy-card">' +
+      '<section class="account-classification' + (taxonomyAdvanced ? ' is-advanced' : '') + '" data-bind="account-taxonomy-card" data-motion-key="account-taxonomy">' +
         '<div class="rule-card__head"><h4 class="rule-card__title">分類設定</h4>' +
         '<button class="btn btn--ghost btn--tiny" data-action="toggle-taxonomy-advanced" data-focus-key="taxonomy-advanced" aria-expanded="' + taxonomyAdvanced + '">進階設定</button></div>' +
-        '<dl class="taxonomy-guide"' + (taxonomyAdvanced ? '' : ' hidden') + '>' +
+        '<dl class="taxonomy-guide" data-motion-key="taxonomy-guide"' + (taxonomyAdvanced ? '' : ' hidden') + '>' +
           '<div><dt>分類名稱</dt><dd id="taxonomy-name-help">用於配對檔與篩選條件，可依案件命名。</dd></div>' +
           '<div><dt>分類用途</dt><dd id="taxonomy-role-help">自訂分類需要參與收入與現金等借貸組合檢查時才設定。Cash 已對應現金，無須另設。</dd></div>' +
           '<div><dt>上層分類</dt><dd id="taxonomy-parent-help">需要將多個分類一起篩選時，可歸入同一上層。新增下層分類時，分類用途預設沿用上層，之後可以自行修改。</dd></div>' +
         '</dl>' +
         taxonomyRemovalHtml(rows) +
-        '<ul class="taxonomy-list" data-preserve-scroll="taxonomy-list">' + items + '</ul>' +
-        '<p class="form-notice" data-bind="taxonomy-problems"' + (problems.length ? '' : ' hidden') + '>' +
+        '<ul class="taxonomy-list" data-preserve-scroll="taxonomy-list" data-motion-list="taxonomy">' + items + '</ul>' +
+        '<p class="form-notice" data-bind="taxonomy-problems" data-collapsible' + (problems.length ? '' : ' hidden') + '>' +
           (problems.length ? '尚需補齊：' + problems.map(Ui.esc).join('、') : '') + '</p>' +
         '<div class="import-card__actions">' +
           '<button type="button" class="btn btn--ghost" data-action="add-taxonomy-category" data-focus-key="taxonomy-add">新增分類</button>' +
           '<button type="button" class="btn" data-action="save-taxonomy"' +
             (dirty && problems.length === 0 ? '' : ' disabled') + '>儲存分類設定</button>' +
-          '<button type="button" class="btn btn--ghost" data-action="reset-taxonomy"' +
+          '<button type="button" class="btn btn--ghost" data-action="reset-taxonomy" data-collapsible-inline' +
             (dirty ? '' : ' hidden') + '>取消變更</button>' +
         '</div>' +
-        '<p class="rule-card__gate" data-bind="taxonomy-dirty-notice"' + (dirty ? '' : ' hidden') +
+        '<p class="rule-card__gate" data-bind="taxonomy-dirty-notice" data-collapsible' + (dirty ? '' : ' hidden') +
           '>分類設定尚未儲存。</p>' +
       '</section>'
     );
@@ -1296,9 +1342,10 @@
     if (!removed) { return ''; }
     var children = rows.filter(function (row) { return row.parentCategoryId === removed.categoryId; });
     var parent = rows.find(function (row) { return row.categoryId === removed.parentCategoryId; });
-    return '<div class="form-notice" role="alert">移除「' + Ui.esc(removed.label) + '」後，直接下層「' +
-      children.map(function (row) { return Ui.esc(row.label || '尚未命名的分類'); }).join('、') + '」會改接到「' +
-      Ui.esc(parent ? parent.label : '最上層') + '」。儲存前仍可按「取消變更」還原。' +
+    // 確認後果而不是錯誤，用「需要注意」的琥珀色（使用者 2026-10-09 裁定）。
+    return '<div class="form-notice form-notice--warning" data-motion-key="taxonomy-removal" role="alert">移除「' + Ui.esc(removed.label) + '」後，它下面的「' +
+      children.map(function (row) { return Ui.esc(row.label || '尚未命名的分類'); }).join('、') + '」會改放到' +
+      (parent ? '「' + Ui.esc(parent.label) + '」底下' : '最上層') + '。' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-action="confirm-taxonomy-remove">確認移除分類</button>' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-action="cancel-taxonomy-remove">先不移除</button></div>';
   }
@@ -1327,9 +1374,11 @@
         });
         // 草稿只存在此編輯器；就地更新衍生提示，不換掉正在組字或移動游標的 input。
         // 保存、取消、新增與移除仍走完整重繪，保存前也會重新檢查同一份草稿。
+        // 提示與「取消變更」原地收放（data-collapsible、data-collapsible-inline）；收起時保留原來的字，
+        // 才看得到它收回去，不會先變成空白再消失（使用者 2026-10-13 要求展開與收合一致）。
         var problems = taxonomyProblems(rows);
         var notice = card.querySelector('[data-bind="taxonomy-problems"]');
-        notice.textContent = problems.length ? '尚需補齊：' + problems.join('、') : '';
+        if (problems.length) { notice.textContent = '尚需補齊：' + problems.join('、'); }
         notice.hidden = problems.length === 0;
         card.querySelector('[data-action="save-taxonomy"]').disabled = problems.length > 0;
         card.querySelector('[data-action="reset-taxonomy"]').hidden = false;
@@ -1372,7 +1421,16 @@
       });
     });
     var confirmRemove = card.querySelector('[data-action="confirm-taxonomy-remove"]');
-    if (confirmRemove) { confirmRemove.addEventListener('click', function () { removeTaxonomyRow(taxonomyRemoval); }); }
+    if (confirmRemove) {
+      confirmRemove.addEventListener('click', function () {
+        // 確認移除後，那一列先輕微快速地晃一下再收起來，讓使用者知道哪一個分類被拿掉（使用者 2026-10-13）。
+        // 確認提示本身只收起來、不晃；直接按「移除分類」（沒有下層）的路徑由 app.js 統一處理。
+        if (taxonomyRemoval && global.JetMotion && typeof global.JetMotion.removing === 'function') {
+          global.JetMotion.removing({ keys: ['taxonomy-' + taxonomyRemoval] });
+        }
+        removeTaxonomyRow(taxonomyRemoval);
+      });
+    }
     var cancelRemove = card.querySelector('[data-action="cancel-taxonomy-remove"]');
     if (cancelRemove) { cancelRemove.addEventListener('click', function () { taxonomyRemoval = null; Store.touch(); }); }
 
@@ -1434,13 +1492,16 @@
             taxonomyDraft = null;
             taxonomyRemoval = null;
             taxonomyDraftRevision = data.revision;
-            Store.setTaxonomyAfterSave(data);
-            Store.applyMutationEffects(data);
-            Store.addMessage('科目分類已更新（共 ' + data.categories.length +
-              ' 類）；風險預篩選與篩選命中需要重新執行。', 'info');
+            // 儲存後新分類換成正式 ID，畫面上還是同一列；直接換，不當成移除再加入。
+            var apply = function () { Store.setTaxonomyAfterSave(data); Store.applyMutationEffects(data); };
+            if (global.JetMotion) { global.JetMotion.still(apply); } else { apply(); }
             return data;
           });
-        }, { logCompletion: true });
+        }, { completionMessage: function (data) {
+          // 完成句由 Ui.run 接上耗時後記一則（使用者 2026-10-13 裁定成功時只留一則）。
+          // 句子照使用者 2026-10-13 勾選頁確認 30。
+          return data ? '科目分類已更新，共 ' + data.categories.length + ' 類；預篩選要重新執行。' : '';
+        } });
       });
     }
   }
@@ -1451,11 +1512,14 @@
     return performValidationOutput('reports', runId, function () {
       return global.JetApi.exportValidationArtifacts({ runId: runId });
     }, function (data) {
-      var artifacts = data.artifacts || [];
       Store.applyReportExport(data);
-      Store.addMessage('已在案件資料夾產生驗證階段的 ' + artifacts.length + ' 份報告。', 'info');
       return '驗證報告與抽樣清單已產生，可從下方清單查看。';
     });
+  }
+
+  // 單獨產生驗證報告時，這句是整個操作的完成句；和執行驗證一起產生時，是驗證完成前的一則紀錄。
+  function validationArtifactsMessage(data) {
+    return data ? '已在案件資料夾產生驗證階段的 ' + (data.artifacts || []).length + ' 份報告。' : '';
   }
 
   function requireValidationOutputActive(projectId, runId, requiresValidation) {
@@ -1496,6 +1560,14 @@
     });
   }
 
+  // 報告與科目配對檔失敗時，區塊內已寫「報告尚未產生」「範本尚未產生」與原因，就不再另外顯示步驟提示框。
+  function reportsFailureShown() { return outputFailureShown('reports'); }
+  function templateFailureShown() { return outputFailureShown('template'); }
+  function outputFailureShown(kind) {
+    var output = Store.getState().validationOutput[kind];
+    return !!output && output.status === 'failed';
+  }
+
   function exportAccountMappingTemplate(runData, onlyIfMissing) {
     var runId = runData && runData.resultRef ? runData.resultRef.runId : null;
     return performValidationOutput('template', runId, function () {
@@ -1517,7 +1589,10 @@
       if (error && error.code === 'operation_cancelled') { throw error; }
       failures.push(error);
     }
-    return exportValidationArtifacts(runData).catch(preserveFailure).then(function () {
+    return exportValidationArtifacts(runData).then(function (data) {
+      var sentence = validationArtifactsMessage(data);
+      if (sentence) { Store.addMessage(sentence, 'info'); }
+    }).catch(preserveFailure).then(function () {
       if (!active()) { return null; }
       return exportAccountMappingTemplate(runData, true).catch(preserveFailure);
     }).then(function () {
@@ -1540,7 +1615,6 @@
     return global.JetApi.exportPrescreenReport({ runId: runId }).then(function (data) {
       if (!active()) { return null; }
       Store.applyReportExport(data);
-      Store.addMessage('已在案件資料夾產生預篩選報告。', 'info');
       return data;
     }).catch(function (error) {
       if (!active()) { return null; }
@@ -1564,27 +1638,49 @@
     var blankBtn = container.querySelector('[data-action="list-blank-categories"]');
     var blankList = container.querySelector('[data-bind="blank-category-list"]');
     if (blankBtn && blankList) {
-      blankBtn.addEventListener('click', function () {
-        if (!blankList.hidden) { blankList.hidden = true; blankBtn.setAttribute('aria-expanded', 'false'); return; }
-        blankList.hidden = false; blankBtn.setAttribute('aria-expanded', 'true');
-        if (blankList.dataset.loaded) { return; }
+      var blankView = mappingDifferenceView(Store.getState().importState.accountMapping);
+      // 第一次打開才讀第一頁；之後收起再打開或整段重繪，都從 blankView.pages.blank 接回已讀的列，不重讀。
+      var mountBlank = function () {
         blankList.dataset.loaded = '1';
         blankList.innerHTML = '<ul class="kv-list" data-bind="blank-category-rows"></ul>' +
           '<button type="button" class="btn btn--ghost btn--tiny" data-action="blank-category-more">載入更多</button>';
         var rowsEl = blankList.querySelector('[data-bind="blank-category-rows"]');
         var moreBtn = blankList.querySelector('[data-action="blank-category-more"]');
+        var listed = 0;
+        // 掛上時從 blankView.pages.blank 同步接回的已讀列直接放進去：這時清單剛取消 hidden，
+        // 走 JetMotion 會在列放進去前先量高度，展開區反而朝空清單的高度長。只有晚到的第一頁才走 JetMotion。
+        var mounting = true;
         function appendRows(rows) {
-          rowsEl.insertAdjacentHTML('beforeend', rows.map(function (row) {
-            return '<li>' + Ui.esc(row.accountCode) + (row.accountName ? '　' + Ui.esc(row.accountName) : '') + '</li>';
-          }).join(''));
+          function fill() {
+            rowsEl.insertAdjacentHTML('beforeend', rows.map(function (row) {
+              return '<li>' + Ui.esc(row.accountCode) + (row.accountName ? '　' + Ui.esc(row.accountName) : '') + '</li>';
+            }).join(''));
+          }
+          if (listed === 0 && !mounting) { morphCheckList(blankList, fill); } else { fill(); }
+          listed += rows.length;
         }
-        Ui.bindPagedTable(blankList, {
-          autoLoad: true,
-          fetchPage: function (cursor) { return global.JetApi.queryAccountMappingBlankPage({ cursor: cursor, pageSize: 200 }); },
-          appendRows: appendRows,
-          clearRows: function () { rowsEl.innerHTML = ''; },
-          loadMore: moreBtn
-        });
+        try {
+          Ui.bindPagedTable(blankList, {
+            autoLoad: true,
+            viewState: blankView.pages.blank || (blankView.pages.blank = {}),
+            fetchPage: function (cursor) { return global.JetApi.queryAccountMappingBlankPage({ cursor: cursor, pageSize: 200 }); },
+            appendRows: appendRows,
+            clearRows: function () { rowsEl.innerHTML = ''; },
+            loadMore: moreBtn
+          });
+        } finally {
+          mounting = false;
+        }
+      };
+      if (blankView.expanded.blank) { mountBlank(); }
+      blankBtn.addEventListener('click', function () {
+        if (!blankList.hidden) {
+          blankView.expanded.blank = false;
+          blankList.hidden = true; blankBtn.setAttribute('aria-expanded', 'false'); return;
+        }
+        blankView.expanded.blank = true;
+        blankList.hidden = false; blankBtn.setAttribute('aria-expanded', 'true');
+        if (!blankList.dataset.loaded) { mountBlank(); }
       });
     }
 
@@ -1599,18 +1695,19 @@
     var templateBtn = container.querySelector('[data-action="download-account-mapping-template"]');
     if (templateBtn) {
       templateBtn.addEventListener('click', function () {
-        Ui.run('重新產生空白科目配對範本', function () {
+        // 操作名稱照按鈕（使用者 2026-10-13 勾選頁確認 L27、L28）；失敗原因寫在區塊內的狀態，不另外在步驟上方顯示。
+        Ui.run('重建科目配對檔', function () {
           return exportAccountMappingTemplate(Store.getState().lastRuns.validate, false);
-        }, { logCompletion: true });
+        }, { logCompletion: true, inlineError: templateFailureShown });
       });
     }
 
     var ensureTemplateBtn = container.querySelector('[data-action="ensure-account-mapping-template"]');
     if (ensureTemplateBtn) {
       ensureTemplateBtn.addEventListener('click', function () {
-        Ui.run('取得科目配對範本', function () {
+        Ui.run('準備科目配對檔', function () {
           return exportAccountMappingTemplate(Store.getState().lastRuns.validate, true);
-        });
+        }, { inlineError: templateFailureShown });
       });
     }
 
@@ -1618,7 +1715,7 @@
     if (!btn) { return; }
 
     btn.addEventListener('click', function () {
-      Ui.run('匯入科目配對', function () {
+      Ui.run('匯入科目配對檔', function () {
         return global.JetApi.hostSelectFile({
           title: '選擇科目配對檔（科目編號、科目名稱、科目分類）',
           extensions: ['.xlsx', '.csv']
@@ -1638,7 +1735,6 @@
               hasCounterpart: data.hasCounterpart,
               blankCategoryCount: data.blankCategoryCount
             });
-            Store.addMessage('科目配對匯入完成：' + data.rowCount + ' 個科目。可以沿用前一個案件的配對檔，請核對下方差異清單。', 'info');
             if (data.columnMappingWarning) { Store.addMessage(data.columnMappingWarning, 'warn'); }
             Store.applyMutationEffects(data);
             var differences = mappingDifferenceView(Store.getState().importState.accountMapping);
@@ -1648,8 +1744,11 @@
           });
         });
       }, {
-        logCompletion: true,
-        logCompletionWhen: function (result) { return !!result; }
+        // 完成句由 Ui.run 接上耗時後記一則；沒有選檔時不記（使用者 2026-10-13 裁定成功時只留一則）。
+        completionMessage: function (data) {
+          // 句子照使用者 2026-10-13 勾選頁確認 33；沿用前一個案件的說明移到「1. 取得配對檔」。
+          return data ? '科目配對匯入完成，共 ' + data.rowCount + ' 個科目。' : '';
+        }
       });
     });
   }
@@ -1661,11 +1760,14 @@
     var artifacts = Ui.currentReportArtifacts(
       state, ['prescreenReport'], { prescreenRunId: p.resultRef.runId });
     return (
-      '<div class="report-output">' +
+      '<div class="report-output" data-motion-key="prescreen-output">' +
+        '<div class="report-output__head">' +
+          '<div><h4 class="report-output__title">預篩選報告</h4></div>' +
           '<div class="report-output__actions">' + Ui.reportFolderButtonHtml(artifacts) +
             '<button type="button" class="btn btn--ghost" data-action="export-prescreen-report">' +
             (artifacts.length ? '重新產生報告' : '產生報告') + '</button></div>' +
-        Ui.reportArtifactListHtml(artifacts, '預篩選已完成，報告尚未產生。') +
+        '</div>' +
+        Ui.reportArtifactListHtml(artifacts, '預篩選已完成，報告尚未產生。', { motion: 'prescreen' }) +
       '</div>'
     );
   }
@@ -1688,7 +1790,7 @@
         '<section class="prescreen-primary" aria-labelledby="prescreen-primary-title">' +
           ruleListHtml(PRESCREEN_AGGREGATE_ITEMS, p, 'pa') +
         '</section>' +
-        '<details class="prescreen-signals">' +
+        '<details class="prescreen-signals"' + (prescreenSignalsOpen ? ' open' : '') + '>' +
           '<summary class="prescreen-signals__summary">' +
             '<span>篩選結果</span><span class="prescreen-signals__hint">展開查看</span>' +
           '</summary>' +
@@ -1768,13 +1870,8 @@
     }
     Ui.bindReportArtifacts(container);
     Ui.bindStepFooter(container);
-
-    var excludedBtn = container.querySelector('[data-action="preview-excluded-entries"]');
-    if (excludedBtn && Ui.openDataPreview) {
-      excludedBtn.addEventListener('click', function () {
-        Ui.openDataPreview('glExcludedEntries');
-      });
-    }
+    var signals = container.querySelector('.prescreen-signals');
+    if (signals) { signals.addEventListener('toggle', function () { prescreenSignalsOpen = signals.open; }); }
 
     bindTaxonomyCard(container);
     bindAccountMappingCard(container);
@@ -1784,7 +1881,7 @@
       validationExportBtn.addEventListener('click', function () {
         Ui.run('產生驗證階段報告', function () {
           return exportValidationArtifacts(Store.getState().lastRuns.validate);
-        }, { logCompletion: true, logCompletionWhen: function (data) { return data != null; } });
+        }, { completionMessage: validationArtifactsMessage, inlineError: reportsFailureShown });
       });
     }
 
@@ -1793,7 +1890,7 @@
       prescreenExportBtn.addEventListener('click', function () {
         Ui.run('產生預篩選報告', function () {
           return exportPrescreenReport(Store.getState().lastRuns.prescreen);
-        }, { logCompletion: true, logCompletionWhen: function (data) { return data != null; } });
+        }, { completionMessage: function (data) { return data ? '已在案件資料夾產生預篩選報告。' : ''; } });
       });
     }
 
@@ -1879,40 +1976,40 @@
       Ui.run('執行驗證並產生報告', function () {
         return global.JetApi.validateRun({}).then(function (data) {
           Store.setLastRun('validate', data);
-          Store.addMessage(
-            '資料驗證完成：科目不符 ' + data.completenessTest.diffAccountCount + '、傳票不平 ' +
-            data.docBalanceTest.unbalancedDocumentCount + '、抽樣 ' + data.infSamplingTest.sampleSize +
-            ' 筆、空值項目合計（同一分錄可能重複計入）' + (Number(data.nullRecordsTest.nullAccountCount) +
-              Number(data.nullRecordsTest.nullDocumentCount) +
-              Number(data.nullRecordsTest.nullDescriptionCount) +
-              Number(data.nullRecordsTest.outOfRangeDateCount)) +
-            ' 筆、總帳入帳日空白 ' +
-            Number(data.sourceQuality ? data.sourceQuality.findingCount : 0) +
-            ' 筆（獨立計數，不與上一項相加）。', 'info');
           return exportValidationOutputs(data);
         });
-      }, { logCompletion: true, logCompletionWhen: function (data) { return data != null; } });
+      }, { completionMessage: function (data) {
+        // 驗證結果的完成句由 Ui.run 接上整個操作的耗時後記一則（使用者 2026-10-13 裁定成功時只留一則）；
+        // 報告與範本是這個操作的一部分，各自的紀錄照舊。
+        // 各項筆數已寫在下方各項結果，完成句只留一句（使用者 2026-10-13 勾選頁確認 35）。
+        return data ? '資料驗證完成' : '';
+      } });
     });
 
     container.querySelector('[data-action="run-prescreen"]').addEventListener('click', function () {
       var eligibility = Ui.completenessEligibility(Store.getState().lastRuns.validate);
       if (!eligibility.isEligible) {
-        Store.addMessage('已阻擋：' + eligibility.reason, 'warn');
+        // 句子照使用者 2026-10-13 勾選頁確認 36。
+        Store.addMessage('預篩選尚無法執行：' + eligibility.reason, 'warn');
         return;
       }
+      if (!Ui.pendingAccountCategoryCount()) { runPrescreen(); return; }
+      Ui.confirmPendingAccountCategories('預篩選只會使用已儲存的分類。', '先不儲存，直接執行')
+        .then(function (proceed) { if (proceed) { runPrescreen(); } });
+    });
+
+    function runPrescreen() {
       Ui.run('執行預篩選', function () {
         return global.JetApi.prescreenRun({}).then(function (data) {
           Store.setLastRun('prescreen', data);
-          Store.addMessage(
-            '預篩選已更新：財報準備日起核准 ' + countText(data.postPeriodApproval && data.postPeriodApproval.count) +
-            '、摘要特定描述 ' + countText(data.suspiciousKeywords && data.suspiciousKeywords.count) +
-            '、' + Ui.prescreenConditionLabel('trailingZeros') + ' ' + countText(data.trailingZeros && data.trailingZeros.count) +
-            '、週末過帳 ' + countText(data.weekendActivity && data.weekendActivity.postingCount) +
-            '、假日過帳 ' + countText(data.holidayActivity && data.holidayActivity.postingCount) + ' 筆；「—」表示尚無可用筆數，原因請見各項說明。', 'info');
           return data;
         });
-      }, { logCompletion: true });
-    });
+      }, { completionMessage: function (data) {
+        // 完成句由 Ui.run 接上耗時後記一則（使用者 2026-10-13 裁定成功時只留一則）。
+        // 各項筆數已寫在下方各項結果，完成句只留一句（使用者 2026-10-13 勾選頁確認 37）。
+        return data ? '預篩選已更新' : '';
+      } });
+    }
   }
 
   Ui.registerStep('validate', render);

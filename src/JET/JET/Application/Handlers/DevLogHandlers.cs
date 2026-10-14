@@ -7,18 +7,26 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// support.log.export：Release/Debug 皆可用的去識別支援日誌匯出。指定 projectId，因此即使案件載入
+/// support.log.export：Release/Debug 皆可用的去識別支援日誌匯出。指定 projectId 時，即使案件載入
 /// 失敗、尚無 active session，仍能把該次 correlation 寫入使用者所選案件資料夾。
+/// 省略 projectId 時是一般工具：匯出目前保留的全部去識別紀錄，寫到 JET 的日誌資料夾
+/// （<c>%LOCALAPPDATA%\JET\logs\</c>），不需要先開案件（使用者 2026-10-13 選「從錯誤框拿掉，改成一般工具」）。
 /// </summary>
 public sealed class SupportLogExportHandler(
     ISupportDiagnosticLogStore supportLog,
-    IProjectExportLocator projectLocator) : IApplicationActionHandler
+    IProjectExportLocator projectLocator,
+    string supportLogDirectory) : IApplicationActionHandler
 {
     public string Action => "support.log.export";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var projectId = PayloadReader.GetRequiredString(payload, "projectId");
+        var projectId = PayloadReader.GetOptionalString(payload, "projectId");
+        if (projectId is null)
+        {
+            return await ExportAllAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         var correlationId = PayloadReader.GetOptionalString(payload, "correlationId");
 
         var snapshot = supportLog.Snapshot();
@@ -33,6 +41,42 @@ public sealed class SupportLogExportHandler(
                 correlationId,
                 StringComparison.Ordinal)).ToArray();
 
+        var scope = string.IsNullOrWhiteSpace(correlationId) ? "project" : "correlation";
+        var lines = Lines(selected, scope);
+        var filePath = await ProjectLogFileWriter.WriteAsync(
+            projectLocator,
+            projectId,
+            "JET-support",
+            ProjectLogFileWriter.ToAsyncLines(lines),
+            cancellationToken).ConfigureAwait(false);
+
+        return new
+        {
+            filePath,
+            lineCount = lines.Length,
+            scope,
+        };
+    }
+
+    private async Task<object> ExportAllAsync(CancellationToken cancellationToken)
+    {
+        var lines = Lines(supportLog.Snapshot(), "all");
+        var filePath = await ProjectLogFileWriter.WriteToDirectoryAsync(
+            supportLogDirectory,
+            "JET-support",
+            ProjectLogFileWriter.ToAsyncLines(lines),
+            cancellationToken).ConfigureAwait(false);
+
+        return new
+        {
+            filePath,
+            lineCount = lines.Length,
+            scope = "all",
+        };
+    }
+
+    private string[] Lines(IEnumerable<SupportDiagnosticLogEntry> selected, string scope)
+    {
         var metadata = new
         {
             timestamp = DateTimeOffset.UtcNow,
@@ -53,26 +97,13 @@ public sealed class SupportLogExportHandler(
                 framework = RuntimeInformation.FrameworkDescription,
                 os = RuntimeInformation.OSDescription,
                 processArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
-                scope = string.IsNullOrWhiteSpace(correlationId) ? "project" : "correlation",
+                scope,
             }
         };
 
-        var lines = new[] { SupportDiagnosticNdjson.SerializeObject(metadata) }
+        return new[] { SupportDiagnosticNdjson.SerializeObject(metadata) }
             .Concat(selected.Select(SupportDiagnosticNdjson.SerializeLine))
             .ToArray();
-        var filePath = await ProjectLogFileWriter.WriteAsync(
-            projectLocator,
-            projectId,
-            "JET-support",
-            ProjectLogFileWriter.ToAsyncLines(lines),
-            cancellationToken).ConfigureAwait(false);
-
-        return new
-        {
-            filePath,
-            lineCount = lines.Length,
-            scope = string.IsNullOrWhiteSpace(correlationId) ? "project" : "correlation",
-        };
     }
 
     private static string BuildConfiguration()
@@ -213,6 +244,9 @@ public sealed class DevLogExportFileHandler(
 
 internal static class ProjectLogFileWriter
 {
+    // 支援日誌寫不進資料夾時的句子（使用者 2026-10-14 第三輪勾選頁確認 R3-54），不寫例外型別。
+    private const string LogFolderWriteFailure = "支援日誌無法寫入 JET 的日誌資料夾。請確認磁碟空間與資料夾權限後再試一次。";
+
     public static async IAsyncEnumerable<string> ToAsyncLines(
         IEnumerable<string> lines,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -239,7 +273,7 @@ internal static class ProjectLogFileWriter
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                "專案資料夾不存在，無法輸出日誌。");
+                "找不到案件資料夾，無法輸出支援日誌。");
         }
 
         var attributes = File.GetAttributes(projectDirectory);
@@ -247,9 +281,45 @@ internal static class ProjectLogFileWriter
         {
             throw new JetActionException(
                 JetErrorCodes.SupportLogExportFailed,
-                "專案資料夾為不受支援的檔案系統連結，未輸出日誌。");
+                "案件資料夾連結到其他位置，未輸出支援日誌。");
         }
 
+        return await WriteFileAsync(projectDirectory, prefix, lines, "支援日誌無法寫入案件資料夾。請確認磁碟空間與資料夾權限後再試一次。", cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 不屬於任何案件的日誌（例如全部支援紀錄）寫到 JET 的日誌資料夾；資料夾不存在時建立，檔名規則與案件資料夾相同。
+    /// </summary>
+    public static async Task<string> WriteToDirectoryAsync(
+        string directory,
+        string prefix,
+        IAsyncEnumerable<string> lines,
+        CancellationToken cancellationToken)
+    {
+        var fullDirectory = Path.GetFullPath(directory);
+        try
+        {
+            Directory.CreateDirectory(fullDirectory);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new JetActionException(
+                JetErrorCodes.SupportLogExportFailed,
+                LogFolderWriteFailure);
+        }
+
+        return await WriteFileAsync(fullDirectory, prefix, lines, LogFolderWriteFailure, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<string> WriteFileAsync(
+        string projectDirectory,
+        string prefix,
+        IAsyncEnumerable<string> lines,
+        string writeFailureMessage,
+        CancellationToken cancellationToken)
+    {
         var token = Guid.NewGuid().ToString("N");
         var fileName = $"{prefix}-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmssfff}-{token[..8]}.txt";
         var destinationPath = Path.Combine(projectDirectory, fileName);
@@ -309,7 +379,7 @@ internal static class ProjectLogFileWriter
             DeleteTemporaryBestEffort(temporaryPath);
             throw new JetActionException(
                 JetErrorCodes.SupportLogExportFailed,
-                $"日誌無法寫入專案資料夾（{exception.GetType().Name}）。");
+                writeFailureMessage);
         }
         catch
         {

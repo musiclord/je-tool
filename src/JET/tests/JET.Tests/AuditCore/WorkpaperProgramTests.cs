@@ -189,13 +189,13 @@ public sealed class WorkpaperProgramTests
     }
 
     [Fact]
-    public void Finalize_Step41Columns_UsesLegacyPriorityThenRemainingOrdinal_AndExcludesVoucherDate()
+    public void Finalize_Step41Columns_UsesLegacyPriorityThenRemainingOrdinal()
     {
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：step4-1 不再有傳票日期來源欄的排除，原本 ordinal 3 的 VOUCHER_DATE_JE 隨之拿掉。
         var definitions = new[]
         {
             Field(1, "ROW_TOKEN_JE"),
             Field(2, "會計科目名稱_JE"),
-            Field(3, "VOUCHER_DATE_JE"),
             Field(4, "傳票金額_JE", LegacyFieldKind.Number, description: "system generated"),
             Field(5, "傳票號碼_JE", description: "Document"),
             Field(6, "CUSTOM_FLAG_JE_S"),
@@ -211,9 +211,7 @@ public sealed class WorkpaperProgramTests
 
         var finalized = JetAuditProgram.Finalize(
             JetAuditProgram.Plan(Request()),
-            Facts(
-                targetGlDefinitions: definitions,
-                voucherDateSourceField: "VOUCHER_DATE_JE"));
+            Facts(targetGlDefinitions: definitions));
 
         Assert.Collection(
             finalized.Step41Columns,
@@ -261,32 +259,6 @@ public sealed class WorkpaperProgramTests
                 Assert.Equal("CUSTOM_FLAG_JE_S", column.Header);
                 Assert.Equal(WorkpaperStep41ValueSource.RawField, column.ValueSource);
             });
-        Assert.DoesNotContain(
-            finalized.Step41Columns,
-            column => string.Equals(column.Header, "VOUCHER_DATE_JE", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void Finalize_Step41Columns_ExcludesExactVoucherProvenance_AndKeepsCanonicalCollision()
-    {
-        var finalized = JetAuditProgram.Finalize(
-            JetAuditProgram.Plan(Request()),
-            Facts(
-                targetGlDefinitions:
-                [
-                    Field(1, "總帳日期_JE", LegacyFieldKind.Date),
-                    Field(
-                        2,
-                        "總帳日期_JE",
-                        LegacyFieldKind.Date,
-                        description: "PostingDate")
-                ],
-                voucherDateSourceField: "總帳日期_JE"));
-
-        var column = Assert.Single(finalized.Step41Columns);
-        Assert.Equal("總帳日期_JE", column.Header);
-        Assert.Equal("PostingDate", column.RawFieldName);
-        Assert.Equal(WorkpaperStep41ValueSource.RawField, column.ValueSource);
     }
 
     [Fact]
@@ -323,7 +295,7 @@ public sealed class WorkpaperProgramTests
             "查核期間內（2025-01-01 ~ 2025-12-31）之會計分錄",
             Sheet(finalized, WorkpaperSheetCatalog.Step3).AuditCondition);
         Assert.Contains(
-            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳入帳日之列不納入本版情境命中與矩陣。",
+            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳日期之列不納入本版情境命中與矩陣。",
             Sheet(finalized, WorkpaperSheetCatalog.Step3).Methodology);
         Assert.Equal(
             "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)",
@@ -357,16 +329,14 @@ public sealed class WorkpaperProgramTests
         long completenessDiffs = 0,
         long unbalancedDocuments = 0,
         IReadOnlyDictionary<int, (long VoucherHitCount, long RowHitCount)>? scenarioHits = null,
-        IReadOnlyList<LegacyFieldDefinition>? targetGlDefinitions = null,
-        string? voucherDateSourceField = null) =>
+        IReadOnlyList<LegacyFieldDefinition>? targetGlDefinitions = null) =>
         new(
             completenessDiffs > 0,
             unbalancedDocuments > 0,
             scenarioHits
                 ?? new Dictionary<int, (long VoucherHitCount, long RowHitCount)>(),
             Array.Empty<LegacyFieldDefinition>(),
-            targetGlDefinitions ?? Array.Empty<LegacyFieldDefinition>(),
-            voucherDateSourceField);
+            targetGlDefinitions ?? Array.Empty<LegacyFieldDefinition>());
 
     private static LegacyFieldDefinition Field(
         int ordinal,

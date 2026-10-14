@@ -72,7 +72,7 @@ internal sealed class FilterSqlParameterPlanBuilder(
         {
             throw new JetActionException(
                 JetErrorCodes.InvalidScenario,
-                $"條件值太多（上限 {maximum} 個），請減少清單中的值，或拆成兩個情境。");
+                $"此情境所有條件的值合計超過 {maximum} 個，請減少清單中的值，或拆成兩個情境");
         }
     }
 }

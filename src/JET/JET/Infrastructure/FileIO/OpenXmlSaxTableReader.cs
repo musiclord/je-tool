@@ -49,7 +49,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         {
             throw new JetActionException(
                 JetErrorCodes.EmptyWorkbook,
-                $"檔案 '{Path.GetFileName(filePath)}' 沒有任何工作表。");
+                $"檔案「{Path.GetFileName(filePath)}」沒有任何工作表。");
         }
 
         var context = CellContext.Create(handle.Document);
@@ -182,7 +182,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             stream?.Dispose();
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"檔案 '{Path.GetFileName(filePath)}' 不是可讀取的 Excel 活頁簿，或內容已損壞。請用 Excel 開啟並另存為 .xlsx 後重試。",
+                $"檔案「{Path.GetFileName(filePath)}」不是可讀取的 Excel 活頁簿，或內容已損壞。請用 Excel 開啟並另存為 .xlsx 後重試。",
                 innerException: ex);
         }
     }
@@ -224,7 +224,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         {
             throw new JetActionException(
                 JetErrorCodes.EmptyWorkbook,
-                $"檔案 '{fileName}' 沒有任何工作表。");
+                $"檔案「{fileName}」沒有任何工作表。");
         }
 
         if (request.SheetName is null)
@@ -242,14 +242,14 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
         throw new JetActionException(
             JetErrorCodes.SheetNotFound,
-            $"檔案 '{fileName}' 沒有名為 '{request.SheetName}' 的工作表。");
+            $"檔案「{fileName}」沒有名為「{request.SheetName}」的工作表。");
     }
 
     private static JetActionException EmptySheet(string filePath, string sheetName)
     {
         return new JetActionException(
             JetErrorCodes.EmptyWorkbook,
-            $"檔案 '{Path.GetFileName(filePath)}' 的工作表 '{sheetName}' 是空的。");
+            $"檔案「{Path.GetFileName(filePath)}」的工作表「{sheetName}」是空的。");
     }
 
     // ---- 串流列舉 ----

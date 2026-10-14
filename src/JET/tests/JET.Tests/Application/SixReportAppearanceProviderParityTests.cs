@@ -12,6 +12,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 /// <summary>
 /// Value-blind appearance parity for all six formal report artifacts. The fixture is
 /// deterministic and synthetic. Workbook metadata lineage is first matched to this
@@ -135,8 +137,7 @@ public sealed class SixReportAppearanceProviderParityTests
                                     new
                                     {
                                         join = "AND",
-                                        type = "customKeywords",
-                                        keywords = "調整"
+                                        type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" }
                                     }
                                 }
                             }

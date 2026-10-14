@@ -31,6 +31,10 @@ public sealed class BoundedProcessResult
     public bool StandardOutputTruncated { get; init; }
     public long StandardErrorBytes { get; init; }
     public bool StandardErrorTruncated { get; init; }
+    // 2026-10-13：自有程序樹的記憶體上限。沒有設定上限或不是自有程序樹時，上限是 null；尖峰只在自有程序樹讀得到。
+    public long? ProcessTreeMemoryLimitBytes { get; init; }
+    public long? PeakProcessTreeMemoryBytes { get; init; }
+    public bool MemoryLimitReached { get; init; }
 }
 
 public static class BoundedProcessRunner
@@ -70,7 +74,30 @@ public static class BoundedProcessRunner
         IReadOnlyList<string> sensitiveValuesToRedact,
         int standardStreamCodePage,
         bool ownProcessTree = false,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) => Run(
+            fileName, arguments, workingDirectory, userProfileDirectory,
+            standardOutputPath, standardErrorPath, maximumBytesPerStream, timeout,
+            environmentVariablesToRemove, environmentVariablesToSet, sensitiveValuesToRedact,
+            standardStreamCodePage, ownProcessTree, cancellationToken, 0);
+
+    // maximumProcessTreeMemoryBytes 大於 0 時，整個自有程序樹的已認可記憶體合計不得超過這個值；
+    // 一碰到上限就整批結束，結果標記 MemoryLimitReached（2026-10-13）。0 表示不設上限。
+    public static BoundedProcessResult Run(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string workingDirectory,
+        string? userProfileDirectory,
+        string standardOutputPath,
+        string standardErrorPath,
+        int maximumBytesPerStream,
+        TimeSpan timeout,
+        IReadOnlyList<string> environmentVariablesToRemove,
+        IReadOnlyDictionary<string, string> environmentVariablesToSet,
+        IReadOnlyList<string> sensitiveValuesToRedact,
+        int standardStreamCodePage,
+        bool ownProcessTree,
+        CancellationToken cancellationToken,
+        long maximumProcessTreeMemoryBytes)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(workingDirectory);
@@ -89,6 +116,19 @@ public static class BoundedProcessRunner
         if (timeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
+        if (maximumProcessTreeMemoryBytes < 0
+            || (maximumProcessTreeMemoryBytes > 0 && maximumProcessTreeMemoryBytes < 64L * 1024 * 1024))
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumProcessTreeMemoryBytes));
+        }
+
+        if (maximumProcessTreeMemoryBytes > 0 && !ownProcessTree)
+        {
+            throw new ArgumentException(
+                "A process-tree memory limit requires an owned process tree.",
+                nameof(maximumProcessTreeMemoryBytes));
         }
 
         var standardStreamEncoding = standardStreamCodePage == Utf8.CodePage
@@ -128,7 +168,8 @@ public static class BoundedProcessRunner
                     linkedCancellation.Token,
                     timeoutCancellation,
                     () => Volatile.Read(ref cancellationRequested) == 1 || cancellationToken.IsCancellationRequested,
-                    ownProcessTree)
+                    ownProcessTree,
+                    maximumProcessTreeMemoryBytes)
                 .GetAwaiter()
                 .GetResult();
         }
@@ -153,7 +194,8 @@ public static class BoundedProcessRunner
         CancellationToken cancellationToken,
         CancellationTokenSource timeoutCancellation,
         Func<bool> wasUserCancelled,
-        bool ownProcessTree)
+        bool ownProcessTree,
+        long maximumProcessTreeMemoryBytes)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(standardOutputPath)
             ?? throw new InvalidOperationException("Standard-output path has no parent directory."));
@@ -220,7 +262,7 @@ public static class BoundedProcessRunner
             cancellationToken.ThrowIfCancellationRequested();
         }
 
-        using var ownedProcess = ownProcessTree ? OwnedWindowsProcess.Start(startInfo) : null;
+        using var ownedProcess = ownProcessTree ? OwnedWindowsProcess.Start(startInfo, maximumProcessTreeMemoryBytes) : null;
         using var process = ownedProcess?.Process ?? new Process { StartInfo = startInfo };
         if (ownedProcess is null && !process.Start())
         {
@@ -244,6 +286,8 @@ public static class BoundedProcessRunner
         var killAttempted = false;
         var killSucceeded = false;
         string? killError = null;
+        var memoryLimitReached = false;
+        long? peakProcessTreeMemory = null;
 
         try
         {
@@ -295,6 +339,8 @@ public static class BoundedProcessRunner
             }
             finally
             {
+                memoryLimitReached = ownedProcess.MemoryLimitReached;
+                peakProcessTreeMemory = ownedProcess.TryReadPeakJobMemoryBytes();
                 ownedProcess.CloseJob();
             }
         }
@@ -321,7 +367,10 @@ public static class BoundedProcessRunner
             StandardOutputBytes = captures[0].Bytes,
             StandardOutputTruncated = captures[0].Truncated,
             StandardErrorBytes = captures[1].Bytes,
-            StandardErrorTruncated = captures[1].Truncated
+            StandardErrorTruncated = captures[1].Truncated,
+            ProcessTreeMemoryLimitBytes = ownProcessTree && maximumProcessTreeMemoryBytes > 0 ? maximumProcessTreeMemoryBytes : null,
+            PeakProcessTreeMemoryBytes = peakProcessTreeMemory,
+            MemoryLimitReached = memoryLimitReached
         };
     }
 
@@ -476,25 +525,68 @@ public static class BoundedProcessRunner
 
     private sealed class OwnedWindowsProcess : IDisposable
     {
+        private const uint JobMessageJobMemoryLimit = 10; // JOB_OBJECT_MSG_JOB_MEMORY_LIMIT
+        private const uint JobMessageNotificationLimit = 11; // JOB_OBJECT_MSG_NOTIFICATION_LIMIT
+        private const uint StatusNoMemory = 0xC0000017; // 碰到記憶體上限時，整批程序的結束碼
         private readonly SafeJobHandle _job;
+        private readonly IntPtr _completionPort;
+        private readonly Thread? _memoryMonitor;
+        private int _memoryLimitReached;
+        private volatile bool _stopMemoryMonitor;
 
         private OwnedWindowsProcess(
             Process process,
             SafeJobHandle job,
+            IntPtr completionPort,
             StreamReader standardOutput,
             StreamReader standardError)
         {
             Process = process;
             _job = job;
+            _completionPort = completionPort;
             StandardOutput = standardOutput;
             StandardError = standardError;
+            if (completionPort != IntPtr.Zero)
+            {
+                _memoryMonitor = new Thread(MonitorMemoryLimit) { IsBackground = true, Name = "Jet owned process memory limit" };
+                _memoryMonitor.Start();
+            }
         }
 
         internal Process Process { get; }
         internal StreamReader StandardOutput { get; }
         internal StreamReader StandardError { get; }
+        internal bool MemoryLimitReached => Volatile.Read(ref _memoryLimitReached) == 1;
 
-        internal static OwnedWindowsProcess Start(ProcessStartInfo startInfo)
+        // 上限分兩層。程序樹合計的已認可記憶體超過上限時，Windows 送出預警通知，這裡收到就結束整個 Job。
+        // .NET 程式在有記憶體上限的 Job 裡，會把自己的堆積上限設成 Job 硬上限的 75%，所以硬上限放在上限的 1.5 倍：
+        // .NET 程式不會在碰到上限之前先自己丟出記憶體不足，硬上限也還在，預警漏接時配置會直接失敗並送出另一種通知。
+        private void MonitorMemoryLimit()
+        {
+            while (!_stopMemoryMonitor)
+            {
+                if (!Native.GetQueuedCompletionStatus(_completionPort, out var message, out _, out _, 200))
+                {
+                    if (Marshal.GetLastWin32Error() == 258) continue; // WAIT_TIMEOUT
+                    return;
+                }
+                if (message != JobMessageNotificationLimit && message != JobMessageJobMemoryLimit) continue;
+                Interlocked.Exchange(ref _memoryLimitReached, 1);
+                try { Native.TerminateJobObject(_job, StatusNoMemory); }
+                catch (ObjectDisposedException) { return; }
+            }
+        }
+
+        internal long? TryReadPeakJobMemoryBytes()
+        {
+            if (_job.IsClosed) return null;
+            return Native.QueryInformationJobObject(
+                _job, 9, out Native.ExtendedLimitInformation limits, Marshal.SizeOf<Native.ExtendedLimitInformation>(), IntPtr.Zero)
+                ? (long)limits.PeakJobMemoryUsed
+                : null;
+        }
+
+        internal static OwnedWindowsProcess Start(ProcessStartInfo startInfo, long memoryLimitBytes = 0)
         {
             if (!OperatingSystem.IsWindows())
             {
@@ -517,15 +609,46 @@ public static class BoundedProcessRunner
             var attributes = IntPtr.Zero;
             var handleList = IntPtr.Zero;
             var environment = IntPtr.Zero;
+            var completionPort = IntPtr.Zero;
             var attributesInitialized = false;
             try
             {
                 var limits = new Native.ExtendedLimitInformation();
                 limits.BasicLimitInformation.LimitFlags = 0x2000 | 0x20; // KILL_ON_JOB_CLOSE | PRIORITY_CLASS
                 limits.BasicLimitInformation.PriorityClass = 0x4000; // BELOW_NORMAL_PRIORITY_CLASS
+                if (memoryLimitBytes > 0)
+                {
+                    limits.BasicLimitInformation.LimitFlags |= 0x200; // JOB_OBJECT_LIMIT_JOB_MEMORY，硬上限
+                    limits.JobMemoryLimit = (nuint)(memoryLimitBytes + memoryLimitBytes / 2);
+                }
                 if (!Native.SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf<Native.ExtendedLimitInformation>()))
                 {
                     throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to configure the owned process job.");
+                }
+                if (memoryLimitBytes > 0)
+                {
+                    // 先接上通知與預警門檻，再放任何程序進 Job，才不會漏掉第一次超過上限的通知。
+                    completionPort = Native.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, UIntPtr.Zero, 1);
+                    if (completionPort == IntPtr.Zero)
+                    {
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to create the job notification port.");
+                    }
+                    var association = new Native.AssociateCompletionPort { CompletionKey = IntPtr.Zero, CompletionPort = completionPort };
+                    if (!Native.SetInformationJobObject(job, 7, ref association, Marshal.SizeOf<Native.AssociateCompletionPort>()))
+                    {
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to attach the job notification port.");
+                    }
+                    var notification = new Native.NotificationLimitInformation
+                    {
+                        JobMemoryLimit = (ulong)memoryLimitBytes,
+                        RateControlTolerance = 1, // ToleranceLow；只有限制速率時才用到，這裡填合法值
+                        RateControlToleranceInterval = 1, // ToleranceIntervalShort
+                        LimitFlags = 0x200 // JOB_OBJECT_LIMIT_JOB_MEMORY，預警門檻
+                    };
+                    if (!Native.SetInformationJobObject(job, 12, ref notification, Marshal.SizeOf<Native.NotificationLimitInformation>()))
+                    {
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to set the job memory notification limit.");
+                    }
                 }
 
                 stdout = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
@@ -608,13 +731,14 @@ public static class BoundedProcessRunner
                 }
 
                 return new OwnedWindowsProcess(
-                    process, job,
+                    process, job, completionPort,
                     new StreamReader(stdout, startInfo.StandardOutputEncoding ?? Utf8),
                     new StreamReader(stderr, startInfo.StandardErrorEncoding ?? Utf8));
             }
             catch (Exception startupException)
             {
                 job.Dispose();
+                if (completionPort != IntPtr.Zero) Native.CloseHandle(completionPort);
                 var stopped = true;
                 if (processInfo.Process != IntPtr.Zero)
                 {
@@ -655,7 +779,7 @@ public static class BoundedProcessRunner
             while (true)
             {
                 if (!Native.QueryInformationJobObject(
-                    _job, 1, out var accounting, Marshal.SizeOf<Native.BasicAccountingInformation>(), IntPtr.Zero))
+                    _job, 1, out Native.BasicAccountingInformation accounting, Marshal.SizeOf<Native.BasicAccountingInformation>(), IntPtr.Zero))
                 {
                     throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to confirm owned process cleanup.");
                 }
@@ -694,7 +818,16 @@ public static class BoundedProcessRunner
             StandardError.Dispose();
         }
 
-        internal void CloseJob() => _job.Dispose();
+        internal void CloseJob()
+        {
+            if (_completionPort != IntPtr.Zero && !_stopMemoryMonitor)
+            {
+                _stopMemoryMonitor = true;
+                _memoryMonitor?.Join(TimeSpan.FromSeconds(2));
+                Native.CloseHandle(_completionPort);
+            }
+            _job.Dispose();
+        }
     }
 
     private sealed class SafeJobHandle : SafeHandleZeroOrMinusOneIsInvalid
@@ -729,6 +862,22 @@ public static class BoundedProcessRunner
             internal BasicLimitInformation BasicLimitInformation;
             internal IoCounters IoInfo;
             internal nuint ProcessMemoryLimit, JobMemoryLimit, PeakProcessMemoryUsed, PeakJobMemoryUsed;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct AssociateCompletionPort
+        {
+            internal IntPtr CompletionKey, CompletionPort;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct NotificationLimitInformation
+        {
+            internal ulong IoReadBytesLimit, IoWriteBytesLimit;
+            internal long PerJobUserTimeLimit;
+            internal ulong JobMemoryLimit;
+            internal int RateControlTolerance, RateControlToleranceInterval;
+            internal uint LimitFlags;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -775,7 +924,21 @@ public static class BoundedProcessRunner
         internal static extern bool TerminateJobObject(SafeJobHandle job, uint exitCode);
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SetInformationJobObject(SafeJobHandle job, int informationClass, ref AssociateCompletionPort information, int length);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SetInformationJobObject(SafeJobHandle job, int informationClass, ref NotificationLimitInformation information, int length);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool QueryInformationJobObject(SafeJobHandle job, int informationClass, out BasicAccountingInformation information, int length, IntPtr returnedLength);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool QueryInformationJobObject(SafeJobHandle job, int informationClass, out ExtendedLimitInformation information, int length, IntPtr returnedLength);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        internal static extern IntPtr CreateIoCompletionPort(IntPtr fileHandle, IntPtr existingCompletionPort, UIntPtr completionKey, uint numberOfConcurrentThreads);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetQueuedCompletionStatus(IntPtr completionPort, out uint numberOfBytes, out UIntPtr completionKey, out IntPtr overlapped, uint milliseconds);
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool InitializeProcThreadAttributeList(IntPtr attributes, int count, uint flags, ref nuint size);

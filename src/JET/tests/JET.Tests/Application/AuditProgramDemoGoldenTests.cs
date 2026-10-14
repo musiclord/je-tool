@@ -79,7 +79,7 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
                 HasRevenue: true,
                 HasCounterpart: true,
                 HasAuthorizedPreparers: true,
-                NonWorkingDays: [0, 6], HasVoucherDate: true));
+                NonWorkingDays: [0, 6]));
         IPrescreenFactsPort factsPort =
             new LocalPrescreenRunRepository(DatabaseFor(provider, host));
 
@@ -100,7 +100,7 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
             ("holiday_posting", "V", 28L),
             ("holiday_approval", "V", 16L),
             ("blank_description", "V", 18L),
-            ("backdated_posting", "V", 44L),
+            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，不再有 backdated_posting 程序。
             ("non_authorized_preparer", "V", 32L),
             ("low_frequency_preparer", "V", 10L),
             ("low_frequency_account", "V", 6L));

@@ -203,7 +203,8 @@ public sealed class ProjectLeaseLockTests
             Assert.Equal(
                 // R8不再把仍可能包含報告與底稿的案件資料夾稱為快取；其餘ok/檔案/鎖斷言不變。
                 // 首次失敗：20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
-                "案件資料庫已刪除；案件資料夾清理失敗，其中的報告、工作底稿與其他檔案可能仍在，請確認後手動移除。",
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                                "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。",
                 deleted.GetProperty("message").GetString());
             // DB 刪除確實已發生（jet.db 於 folder-cleanup 之前刪除、交易已 commit）。
             Assert.False(File.Exists(Path.Combine(projectDir, "jet.db")));

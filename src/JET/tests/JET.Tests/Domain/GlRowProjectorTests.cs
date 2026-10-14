@@ -229,7 +229,8 @@ public sealed class GlRowProjectorTests
         Assert.Equal(423, error.SourceRowNumber);
         Assert.Equal("借方金額", error.Field);
         Assert.Equal("12..3", error.RawValue);
-        Assert.Equal("不是有效金額。請確認來源資料的金額格式，或回到欄位配對改選正確的金額欄", error.Reason);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
     [Theory]
@@ -268,7 +269,8 @@ public sealed class GlRowProjectorTests
         Assert.False(GlRowProjector.TryProject(garbage, DualSpec(), Scale, out _, out var error));
         Assert.Equal(9, error!.SourceRowNumber);
         Assert.Equal("日期", error.Field);
-        Assert.Equal("無法解析為日期。請確認來源資料的日期格式，或回到欄位配對改選正確的日期欄", error.Reason);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
 
         var missing = new StagingRow(10, new Dictionary<string, string>
         {
@@ -303,7 +305,8 @@ public sealed class GlRowProjectorTests
         Assert.Equal(88, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("922337203685477.5808", error.RawValue);
-        Assert.Equal("金額換算後超過系統可保存的範圍。請確認這個金額是否正確，或調整案件的金額小數位數", error.Reason);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("金額超出可儲存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
     }
 
     [Fact]
@@ -326,7 +329,8 @@ public sealed class GlRowProjectorTests
         Assert.Equal(89, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("-922337203685477.5808", error.RawValue);
-        Assert.Equal("金額加總後超過系統可保存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("加總後的金額超出可儲存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
     }
 
     [Fact]
@@ -439,8 +443,9 @@ public sealed class GlRowProjectorTests
     }
 
     [Theory]
-    [InlineData("date", "2025/13/40", "無法解析為日期。請確認來源資料的日期格式，或回到欄位配對把這個攸關資料元素改為文字型別")]
-    [InlineData("money", "12.abc", "不是有效金額，或小數位數超過案件設定。請確認來源資料，或回到欄位配對把這個攸關資料元素改為文字型別")]
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        [InlineData("date", "2025/13/40", "無法辨識為日期。請確認來源的日期格式，或將此攸關資料元素欄位改為文字")]
+    [InlineData("money", "12.abc", "不是有效的金額，或小數位數超過案件設定。請確認來源資料，或將此攸關資料元素欄位改為文字")]
     public void TypedRde_InvalidValue_ReturnsChineseReasonWithNextStep(string valueType, string raw, string expectedReason)
     {
         var mapping = new Dictionary<string, string> { [GlMappingKeys.Amount] = "amt" };
@@ -500,7 +505,8 @@ public sealed class GlRowProjectorTests
         else
         {
             Assert.Equal("custom", error!.Field);
-            Assert.Equal("文字長度超過攸關資料元素可保存的 450 個字元（以 UTF-16 計算）。請縮短來源資料，或回到欄位配對取消保留這個欄位", error.Reason);
+            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            Assert.Equal("文字超過 450 個字。請縮短來源資料，或取消保留此欄位", error.Reason);
         }
     }
 

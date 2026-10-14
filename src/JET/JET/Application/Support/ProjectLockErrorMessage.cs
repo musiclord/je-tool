@@ -4,7 +4,7 @@ namespace JET.Application;
 internal static class ProjectLockErrorMessage
 {
     private const string ExternalProcessMessage =
-        "此案件正由另一個 JET 執行個體開啟中，請先在該視窗離開案件後再試。";
+        "此案件已在另一個 JET 視窗中開啟，請先在該視窗離開案件後再試一次。";
 
     public static string Format(string lockedBy, string machineName, DateTimeOffset lockedUtc)
     {

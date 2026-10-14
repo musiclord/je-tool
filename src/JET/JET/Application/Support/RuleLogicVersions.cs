@@ -12,8 +12,10 @@ namespace JET.Application;
 internal static class RuleLogicVersions
 {
     public const string Validation = "validation-2026-10-04-v5";
-    public const string Prescreen = "prescreen-2026-10-04-v9";
-    public const string Filter = "filter-2026-10-06-v18";
+    // 2026-10-08 使用者裁定移除傳票日期與回溯過帳：預篩選少一條規則，篩選不再接受回溯過帳條件，兩者都推進版本。
+    public const string Prescreen = "prescreen-2026-10-08-v10";
+    // 第九節：每條條件只表達一件事；停用的寫法列為待修正，保留原文。
+    public const string Filter = "filter-2026-10-14-v20";
 
     public static string? ExpectedFor(string runKind) => runKind switch
     {

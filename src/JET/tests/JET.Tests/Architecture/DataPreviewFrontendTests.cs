@@ -17,12 +17,13 @@ public sealed class DataPreviewFrontendTests
 
         Assert.True(tabs.Success, "找不到 data-preview.js 的 MAIN_TABS。");
         var body = tabs.Groups["body"].Value;
-        Assert.Contains("{ value: 'glStaging', label: 'GL 原始資料' }", body, StringComparison.Ordinal);
-        Assert.Contains("{ value: 'glEntries', label: '納入測試的分錄' }", body, StringComparison.Ordinal);
-        Assert.Contains("{ value: 'tbStaging', label: 'TB 原始資料' }", body, StringComparison.Ordinal);
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：PBC-GL、GL、PBC-TB、TB；wire key 同步改名。
+        Assert.Contains("{ value: 'pbcGl', label: 'PBC-GL' }", body, StringComparison.Ordinal);
+        Assert.Contains("{ value: 'gl', label: 'GL' }", body, StringComparison.Ordinal);
+        Assert.Contains("{ value: 'pbcTb', label: 'PBC-TB' }", body, StringComparison.Ordinal);
         // Q8 unifies the confirmed label; retain both the fixed label and the full Domain mirror below.
         // First fixed-label failure: 20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d.
-        Assert.Contains("{ value: 'tbBalances', label: '已確認配對的試算表' }", body, StringComparison.Ordinal);
+        Assert.Contains("{ value: 'tb', label: 'TB' }", body, StringComparison.Ordinal);
         Assert.Contains("{ value: 'accountMappings', label: '科目配對' }", body, StringComparison.Ordinal);
         Assert.DoesNotContain("GL (PBC)", body, StringComparison.Ordinal);
         Assert.DoesNotContain("TB (PBC)", body, StringComparison.Ordinal);
@@ -38,12 +39,24 @@ public sealed class DataPreviewFrontendTests
     }
 
     [Fact]
-    public void AccountMappingPreviewButton_OpensDirectAccountMappingDataset()
+    public void Datasets_MirrorDomainLabelsIncludingGlExcluded()
     {
-        var validate = ReadFrontend("js", "steps", "validate-step.js");
+        // 使用者 2026-10-08 裁定資料名稱全系統統一；「其他資料」選單與載入狀態也逐字鏡射 Domain 權威。
+        var preview = ReadFrontend("js", "data-preview.js");
+        var datasets = Regex.Match(
+            preview,
+            @"var DATASETS\s*=\s*\[(?<body>[\s\S]*?)\];");
 
-        Assert.Contains("data-action=\"preview-account-mapping\"", validate, StringComparison.Ordinal);
-        Assert.Contains("Ui.openDataPreview('accountMappings')", validate, StringComparison.Ordinal);
+        Assert.True(datasets.Success, "找不到 data-preview.js 的 DATASETS。");
+        var actual = Regex.Matches(
+                datasets.Groups["body"].Value,
+                @"\{\s*value:\s*'(?<dataset>[^']+)',\s*label:\s*'(?<label>[^']+)'\s*\}")
+            .Select(match => new DataPreviewDatasetLabel(
+                match.Groups["dataset"].Value,
+                match.Groups["label"].Value))
+            .ToArray();
+        Assert.Equal(DataPreviewDatasetLabels.All, actual);
+        Assert.Contains(new DataPreviewDatasetLabel("glExcluded", "GL(未納入測試)"), actual);
     }
 
     private static string ReadFrontend(params string[] segments)

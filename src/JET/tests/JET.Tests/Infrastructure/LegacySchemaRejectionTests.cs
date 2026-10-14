@@ -152,6 +152,7 @@ public sealed class LegacySchemaRejectionTests
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        Assert.Equal("11", await command.ExecuteScalarAsync() as string);
+        // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 12 版加上 error。第一次失敗收據 20261013-095708679-ad35db917ff24a45800e552e9bc7753c。
+        Assert.Equal("12", await command.ExecuteScalarAsync() as string);
     }
 }

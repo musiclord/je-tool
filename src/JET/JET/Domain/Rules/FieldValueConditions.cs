@@ -118,37 +118,36 @@ public static partial class FilterScenarioValidator
         FilterValidationContext context, List<string> errors)
     {
         if (rule.DrCr is not null and not "debit" and not "credit")
-            errors.Add($"{label}：分錄方向只能選借方或貸方；不限制時請移除方向設定。");
+            FilterScenarioCorruption.Add(errors, label, "field_value_side_invalid");
         var field = FieldValueConditions.Resolve(rule, context.RdeFields);
         if (field is null)
         {
-            errors.Add($"{label}：欄位不存在，請回到欄位配對確認，或重新選擇篩選欄位。");
+            errors.Add($"{label}：{MissingFieldReason(rule.Field)}");
             return;
         }
-        // 空白內容與沒有來源配對是兩件事。保留已配對空白值的查核用途，未配對時引導回第三步。
+        // 空白內容與沒有來源配對是兩件事。保留已配對空白值的查核用途，未配對時說明欄位沒有選來源欄。
         if (rule.FieldId is null && rule.Field is { } coreField
             && rule.TypedOperator is "isBlank" or "isNotBlank"
             && context.AvailableGlFields is { } available && !available.Contains(coreField, StringComparer.Ordinal))
         {
-            var fieldLabel = JetFieldCatalog.GlSemanticFieldMappingLabel(coreField);
-            errors.Add($"{label}：{fieldLabel}尚未配對，無法判斷是否空白；請回「欄位配對」指派或改選其他欄位。");
+            errors.Add($"{label}：{UnmappedFieldReason(coreField)}");
             return;
         }
         if (rule.TypedOperator is null || !FieldValueConditions.Operators(field.ValueType).Contains(rule.TypedOperator))
         {
-            errors.Add($"{label}：比較方式不適用此欄位，請重新選擇。");
+            errors.Add($"{label}：此欄位不適用此比較方式");
             return;
         }
         if (field.ValueType == "money" && !TypedAmountBasisNames.IsCanonical(rule.AmountBasis))
-            errors.Add($"{label}：請選擇比較含正負號或絕對值金額。");
+            FilterScenarioCorruption.Add(errors, label, "field_value_amount_basis_missing");
         if (field.ValueType != "money" && rule.AmountBasis is not null)
-            errors.Add($"{label}：只有金額欄位能設定含正負號或絕對值。");
+            FilterScenarioCorruption.Add(errors, label, "field_value_amount_basis_not_money");
         if (FieldValueConditions.IsMonthWindow(rule.TypedOperator))
         {
             if (!FieldValueConditions.TryParseMonthWindowDays(rule.TypedValue, out _))
-                errors.Add($"{label}：每月月初或月底天數只能是 1 到 31 的整數。");
+                errors.Add($"{label}：每月月初或月底天數須為 1 到 31 的整數");
             if (rule.TypedValues is not null || rule.TypedFrom is not null || rule.TypedTo is not null)
-                errors.Add($"{label}：每月月初或月底只需填天數，請移除日期清單或區間。");
+                FilterScenarioCorruption.Add(errors, label, "field_value_month_window_extra");
             return;
         }
         if (FieldValueConditions.IsCalendar(rule.TypedOperator)) return;
@@ -156,26 +155,37 @@ public static partial class FilterScenarioValidator
         {
             var patterns = FieldValueConditions.TailPatterns(rule);
             if (patterns.Count > FilterScenarioLimits.MaxTypedInValuesPerRule)
-                errors.Add($"{label}：尾數清單最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。");
+                errors.Add($"{label}：{FieldValueListLimitReason(rule.TypedOperator)}");
             ValidateTrailingDigits(rule with { Keywords = patterns }, label, errors);
             return;
         }
         if (FieldValueConditions.IsDayOfMonth(rule.TypedOperator))
         {
             if (!FieldValueConditions.TryParseDaysOfMonth(rule.TypedValues, out _))
-                errors.Add($"{label}：每月幾日只能是 1 到 31 的整數，至少填一個，重複的會自動合併。");
+                errors.Add($"{label}：每月日期須為 1 到 31 的整數，至少填寫一個");
             return;
         }
         if (field.ValueType == "text" && FieldValueConditions.IsContains(rule.TypedOperator))
         {
             var keywords = FieldValueConditions.ContainsKeywords(rule);
-            if (keywords.Count is 0 or > FilterScenarioLimits.MaxTypedInValuesPerRule
-                || keywords.Any(static keyword => string.IsNullOrWhiteSpace(keyword)))
-                errors.Add($"{label}：包含比對需要 1 到 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個非空白的文字。");
+            if (keywords.Count > FilterScenarioLimits.MaxTypedInValuesPerRule)
+                errors.Add($"{label}：{FieldValueListLimitReason(rule.TypedOperator)}");
+            else if (keywords.Count == 0 || keywords.Any(static keyword => string.IsNullOrWhiteSpace(keyword)))
+                errors.Add($"{label}：{ValueCountReason(FilterScenarioLimits.MaxTypedInValuesPerRule)}");
             return;
         }
         var normalized = rule with { TypedValues = FieldValueConditions.CanonicalValues(rule, field, context.MoneyScale, context.DateParseOptions) };
+        if (TypedFieldOperatorSets.IsSetOperator(rule.TypedOperator)
+            && normalized.TypedValues?.Count > FilterScenarioLimits.MaxTypedInValuesPerRule)
+        {
+            errors.Add($"{label}：{FieldValueListLimitReason(rule.TypedOperator)}");
+            return;
+        }
         ValidateTypedOperands(normalized.TypedOperator == "notBetween" ? normalized with { TypedOperator = "between" } : normalized,
             field, label, context, errors);
     }
+
+    private static string FieldValueListLimitReason(string? op) =>
+        $"每條最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。請拆成多條條件，放進「"
+        + (op is "notIn" or "notContains" or "notEndsWithDigits" ? "全部符合" : "任一符合") + "」子條件組。";
 }

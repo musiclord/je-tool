@@ -72,7 +72,8 @@ public sealed class TbMutationParityTests
         }
 
         var invalidated = response.GetProperty("invalidatedResults");
-        Assert.Equal(new[] { "filter", "filterScenarios", "prescreen", "validation" },
+        // 2026-10-08 第 7 則新增科目配對清除，TB 各種修改也必須回傳 true。
+        Assert.Equal(new[] { "accountMapping", "filter", "filterScenarios", "prescreen", "validation" },
             invalidated.EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
         Assert.All(invalidated.EnumerateObject(), item => Assert.True(item.Value.GetBoolean(), item.Name));
         AssertClearedState(response);

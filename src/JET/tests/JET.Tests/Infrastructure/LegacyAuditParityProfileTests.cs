@@ -913,14 +913,20 @@ public sealed class LegacyAuditParityProfileTests
         var scenario = AssertScenario(result);
         Assert.Equal($"legacy-scenario-{legacyPosition:D2}", scenario.GetProperty("name").GetString());
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
-        Assert.Equal("sameVoucher", group.GetProperty("matchScope").GetString());
+        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Historical anchor order now has explicit voucher witnesses.
+        Assert.Equal("row", group.GetProperty("matchScope").GetString());
         var rules = group.GetProperty("rules").EnumerateArray().ToArray();
         Assert.Equal(3, rules.Length);
         Assert.Equal("drCrOnly", rules[0].GetProperty("type").GetString());
-        Assert.Equal("textSet", rules[1].GetProperty("type").GetString());
-        Assert.Equal("preserve", rules[1].GetProperty("normalization").GetString());
-        Assert.Equal("textSet", rules[2].GetProperty("type").GetString());
-        Assert.Equal("preserve", rules[2].GetProperty("normalization").GetString());
+        foreach (var witness in rules.Skip(1))
+        {
+            Assert.Equal("voucher", witness.GetProperty("type").GetString());
+            Assert.Equal("any", witness.GetProperty("quantifier").GetString());
+            Assert.False(witness.TryGetProperty("side", out _));
+            var rule = Assert.Single(witness.GetProperty("rules").EnumerateArray());
+            Assert.Equal("textSet", rule.GetProperty("type").GetString());
+            Assert.Equal("preserve", rule.GetProperty("normalization").GetString());
+        }
     }
 
     [Fact]
@@ -940,11 +946,16 @@ public sealed class LegacyAuditParityProfileTests
 
         var scenario = AssertScenario(result);
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
-        Assert.Equal("sameVoucher", group.GetProperty("matchScope").GetString());
+        Assert.Equal("row", group.GetProperty("matchScope").GetString());
         var rules = group.GetProperty("rules").EnumerateArray().ToArray();
         Assert.Equal(2, rules.Length);
-        Assert.All(rules, rule => Assert.Equal("textSet", rule.GetProperty("type").GetString()));
-        Assert.All(rules, rule => Assert.Equal("preserve", rule.GetProperty("normalization").GetString()));
+        Assert.Equal("voucher", rules[1].GetProperty("type").GetString());
+        Assert.Equal("any", rules[1].GetProperty("quantifier").GetString());
+        Assert.All(new[] { rules[0], Assert.Single(rules[1].GetProperty("rules").EnumerateArray()) }, rule =>
+        {
+            Assert.Equal("textSet", rule.GetProperty("type").GetString());
+            Assert.Equal("preserve", rule.GetProperty("normalization").GetString());
+        });
     }
 
     [Theory]
@@ -966,9 +977,11 @@ public sealed class LegacyAuditParityProfileTests
 
         var scenario = AssertScenario(result);
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
-        Assert.Equal(matchScope, group.GetProperty("matchScope").GetString());
+        Assert.Equal("row", group.GetProperty("matchScope").GetString());
         var rule = Assert.Single(
-            group.GetProperty("rules").EnumerateArray(),
+            group.GetProperty("rules").EnumerateArray().Select(candidate =>
+                matchScope == "sameVoucher" && candidate.GetProperty("type").GetString() == "voucher"
+                    ? Assert.Single(candidate.GetProperty("rules").EnumerateArray()) : candidate),
             candidate => candidate.GetProperty("type").GetString() == "textSet");
         Assert.Equal(GlMappingKeys.Description, rule.GetProperty("field").GetString());
         Assert.Equal(normalization, rule.GetProperty("normalization").GetString());
@@ -991,11 +1004,13 @@ public sealed class LegacyAuditParityProfileTests
 
         var scenario = AssertScenario(result);
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
-        Assert.Equal("sameVoucher", group.GetProperty("matchScope").GetString());
+        Assert.Equal("row", group.GetProperty("matchScope").GetString());
         var rules = group.GetProperty("rules").EnumerateArray().ToArray();
         Assert.Equal(2, rules.Length);
         Assert.Equal("numRange", rules[0].GetProperty("type").GetString());
-        Assert.Equal("textSet", rules[1].GetProperty("type").GetString());
+        Assert.Equal("voucher", rules[1].GetProperty("type").GetString());
+        Assert.Equal("any", rules[1].GetProperty("quantifier").GetString());
+        Assert.Equal("textSet", Assert.Single(rules[1].GetProperty("rules").EnumerateArray()).GetProperty("type").GetString());
     }
 
     [Fact]

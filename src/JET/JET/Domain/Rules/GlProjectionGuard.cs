@@ -22,8 +22,13 @@ public static class GlProjectionGuard
         long totalCreditScaled) =>
         projectedRowCount > 0 && totalDebitScaled == 0 && totalCreditScaled == 0;
 
+    // 使用者 2026-10-13 勾選頁確認的句子。
     public const string DegenerateAmountMessage =
-        "GL 金額轉換後，納入測試的分錄，其借方與貸方總額都是 0，無法用於完整性測試與後續規則。" +
-        "最常見原因：借方／貸方金額欄配對到了「傳票總額」欄（同一張傳票每列借貸相等，逐列淨額恆為 0），或配對到空欄。" +
-        "請回第三步欄位配對，改選每一列自己的借方或貸方金額欄後重新確認配對。";
+        "GL 借方與貸方總額皆為 0，請確認所選金額欄是每列的分錄金額，而非傳票總額或空白欄。";
+
+    /// <summary>
+    /// 依查核期間與過帳狀態篩選後母體為空。三種資料庫用同一句（使用者 2026-10-13 勾選頁確認）。
+    /// </summary>
+    public const string EmptyEffectivePopulationMessage =
+        "依查核期間與過帳狀態篩選後，GL 沒有可測試的分錄，本次配對未儲存。請確認查核期間或過帳狀態要納入的值。";
 }

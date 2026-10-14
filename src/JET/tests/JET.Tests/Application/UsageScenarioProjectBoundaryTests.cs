@@ -49,7 +49,7 @@ public sealed class UsageScenarioProjectBoundaryTests
         const string correlationId = "synthetic-picker-load-failure";
         await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load",
             JsonSerializer.Serialize(new { projectId = id }), correlationId: correlationId));
-        var noProject = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("export.calendarTemplates"));
+        var noProject = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.nullRecordsPage"));
         Assert.Equal(JetErrorCodes.NoActiveProject, noProject.Code);
 
         var exported = await host.DispatchAsync("support.log.export", JsonSerializer.Serialize(new { projectId = id, correlationId }));

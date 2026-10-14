@@ -84,9 +84,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
     {
         if (string.IsNullOrWhiteSpace(filePath) || !Path.IsPathFullyQualified(filePath))
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "filePath 必須是本機絕對路徑。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "file_path_not_absolute");
         }
         if (!string.Equals(Path.GetExtension(filePath), ".xlsx", StringComparison.OrdinalIgnoreCase))
         {

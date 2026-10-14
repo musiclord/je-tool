@@ -88,8 +88,9 @@ public sealed class BridgeErrorMappingTests
         Assert.Equal("情境名稱必填。", details[2].GetProperty("message").GetString());
     }
 
-    private const string UnexpectedErrorText =
-        "發生非預期的錯誤，這個動作沒有完成。請按畫面上方的「輸出支援日誌」，把檔案交給支援人員。";
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        private const string UnexpectedErrorText =
+        "發生非預期的錯誤，此操作未完成。請再試一次。";
 
     [Fact]
     public void ArbitraryException_FallsBackToBridgeError()

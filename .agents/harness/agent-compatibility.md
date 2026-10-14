@@ -64,6 +64,9 @@ Claude Code 的官方預覽設定預設使用 `localhost`，JET 預覽目前只�
 連接埠衝突由 Agent 辨識後調整這三個值；不放寬服務的對外存取限制。未指定 PORT 的原有啟動方式不變。
 `JET browser host` 使用 `127.0.0.1:4244`，接上正式後端並使用合成案件；用途和界線見
 [`docs/development-guide.md`](../../docs/development-guide.md#開發用的預覽工具)。
+2026-10-11 起 4244 保留給使用者在 Codex 檢查畫面，Claude 不連線；Claude 改用 `JET browser host (Claude)` 的
+`127.0.0.1:4245`（台灣中小企業合成案件），自動交錯操作檢查用 `JET browser host (Claude QA)` 的 `127.0.0.1:4246`。
+兩者的資料與建置輸出各自分開，見 [`frontend-design-mode.md`](frontend-design-mode.md#台灣中小企業合成案件與交錯操作檢查)。
 
 Claude Design 官方提供 `/design-sync`、Design MCP 和交回 Claude Code 的方式，也可交給其他 coding agent。
 本輪只研究相容方法，沒有配置帳號、MCP、雲端專案或上傳檔案。下載內容須由本機 Agent 核對原有元件與契約後採用，
@@ -78,7 +81,7 @@ Claude Design 官方提供 `/design-sync`、Design MCP 和交回 Claude Code 的
 
 ## Repo-scoped skills
 
-專案 skill 的正本放在 `.agents/skills/`，目前有兩個：
+專案 skill 的正本放在 `.agents/skills/`，目前有三個：
 
 `jet-converge` 的唯一正本是 `.agents/skills/jet-converge/SKILL.md`，只有使用者明示呼叫時才啟動完整訪談，
 避免一般小修正被擴張成大型規劃。三個平台各用自己認得的方式表達這個限制：
@@ -97,11 +100,19 @@ Claude Design 官方提供 `/design-sync`、Design MCP 和交回 Claude Code 的
 agent 寫文件時的慣性，等使用者明說「太難讀」才載入就太晚了。範圍只限改寫面向人的文字，不改事實、
 程式或 JSON；命中的檢查表項目與 `Documentation` 的 warning 對應。
 
-Claude Code 的 `.claude/skills/jet-converge/SKILL.md` 與 `.claude/skills/jet-readable-docs/SKILL.md` 都只轉讀
-同一份正本，不保存第二套內容。VS Code 同時掃描 `.agents/skills/` 與 `.claude/skills/`，所以每個 skill 會看到
-兩個同名項目；兩者指向同一份內容，官方文件沒有說明 VS Code 如何處理同名 skill。GitHub Copilot 或不支援
-repo skill 的介面仍可從 `AGENTS.md` 指向的 `.agents/harness/convergence-and-memory.md` 與
-`.agents/skills/jet-readable-docs/SKILL.md` 使用相同規則，但不宣稱支援 `$jet-converge` 或 `$jet-readable-docs` 命令。
+`jet-frontend-design` 的唯一正本是 `.agents/skills/jet-frontend-design/SKILL.md`，2026-10-08 依使用者要求新增。
+它記錄 JET 的設計簡報、使用者裁定的設計方向、AI 預設樣式的禁止清單與無頭截圖檢查；參考檔在同目錄的
+`references/`，截圖腳本在 `scripts/preview-shot.cjs`。它允許隱含載入（`allow_implicit_invocation: true`），
+因為模型在沒有被要求時就會套用預設樣式，等使用者說畫面像 AI 做的才載入就太晚了。Claude Code 的薄入口另用
+`when_to_use` 補充觸發情境。這台電腦的 Claude 另外載入同名概念的通用 frontend-design skill，JET 前端以本 skill 為準。
+
+Claude Code 的 `.claude/skills/jet-converge/SKILL.md`、`.claude/skills/jet-readable-docs/SKILL.md` 與
+`.claude/skills/jet-frontend-design/SKILL.md` 都只轉讀同一份正本，不保存第二套內容。VS Code 同時掃描
+`.agents/skills/` 與 `.claude/skills/`，所以每個 skill 會看到兩個同名項目；兩者指向同一份內容，官方文件沒有說明
+VS Code 如何處理同名 skill。GitHub Copilot 或不支援 repo skill 的介面仍可從 `AGENTS.md` 指向的
+`.agents/harness/convergence-and-memory.md`、`.agents/skills/jet-readable-docs/SKILL.md` 與
+`.agents/skills/jet-frontend-design/SKILL.md` 使用相同規則，但不宣稱支援 `$jet-converge`、`$jet-readable-docs`
+或 `$jet-frontend-design` 命令。
 
 Codex 會自動偵測 skill 檔案變更；若目前 session 的 skill 清單尚未出現，重新啟動 Codex。技能採漸進載入：
 平常只暴露名稱與描述，被選取後才讀完整 `SKILL.md`，跨 session 的細節再按需讀 `references/`。

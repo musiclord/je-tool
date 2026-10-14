@@ -57,7 +57,8 @@ public sealed class CompletenessEligibilityTests
         Assert.True(decision.IsEligible);
         Assert.Null(decision.Reason);
         // 2026-10-05 V2 裁定：兩組數字都是確認配對時與存下後算的，不是「匯入前後」，提醒照實改寫。
-        Assert.Contains("和確認欄位配對時算出的不一致", decision.Warning, StringComparison.Ordinal);
+        // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：收據 20261014-085536011-fede37aa52f440d68dd459ddba8df94f）。
+        Assert.Contains("存下的分錄筆數或借貸合計與配對時不一致", decision.Warning, StringComparison.Ordinal);
     }
 
     [Fact]

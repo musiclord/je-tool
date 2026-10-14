@@ -85,16 +85,6 @@ internal static class DemoProjectPipeline
             await host.DispatchAsync("import.makeupDay", JsonSerializer.Serialize(new { dates = makeupDays }));
         }
 
-        if (importAccountMapping)
-        {
-            var amFile = await DispatchDemoFixtureAsync("demo.exportAccountMappingFile");
-            await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new
-            {
-                filePath = amFile.GetProperty("filePath").GetString(),
-                fileName = amFile.GetProperty("fileName").GetString()
-            }));
-        }
-
         if (importAuthorizedPreparer)
         {
             var apFile = await DispatchDemoFixtureAsync("demo.exportAuthorizedPreparerFile");
@@ -124,6 +114,17 @@ internal static class DemoProjectPipeline
                 mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(
                     demo.GetProperty("tb").GetProperty("mapping").GetRawText()),
                 changeMode = demo.GetProperty("tb").GetProperty("changeMode").GetString()
+            }));
+        }
+
+        // 第 7 則：GL/TB 確認會清除科目配對，所以示範分類在兩者之後建立。
+        if (importAccountMapping)
+        {
+            var amFile = await DispatchDemoFixtureAsync("demo.exportAccountMappingFile");
+            await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new
+            {
+                filePath = amFile.GetProperty("filePath").GetString(),
+                fileName = amFile.GetProperty("fileName").GetString()
             }));
         }
 

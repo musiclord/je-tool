@@ -4,15 +4,8 @@ namespace JET.Tests.Architecture;
 
 public sealed class ReportExportOwnershipTests
 {
-    [Fact]
-    public void K15_CalendarTemplates_AreKeepExistingWorkFilesNotReports()
-    {
-        var handler = ReadTypeSource("ExportCalendarTemplatesHandler", "Application/Handlers/ExportCalendarTemplatesHandler.cs");
-        Assert.Contains("ProjectWorkFileWriter.WriteAsync(", handler, StringComparison.Ordinal);
-        Assert.Contains("onlyIfMissing: true", handler, StringComparison.Ordinal);
-        Assert.DoesNotContain("ReportArtifactExecutionPort", handler, StringComparison.Ordinal);
-        Assert.DoesNotContain("Import", handler, StringComparison.Ordinal);
-    }
+    // 改動原因：使用者 2026-10-08 畫面註解要求移除假日範本入口，K15 的 ExportCalendarTemplatesHandler 隨之刪除，
+    // 原本只檢查該 handler 的測試一併移除。
 
     private static readonly System.Reflection.Assembly ProductionAssembly =
         typeof(global::JET.Domain.JetActionException).Assembly;

@@ -27,17 +27,26 @@ internal static partial class GuiScenarios
             }
             outcome.RecordAction(); await cdp.TypeTextAsync(value, ct);
         }
-        async Task Add(string subject)
-        {
-            await Click("[data-condition-source=custom]");
-            await Choose("[data-custom-subject]", subject); await Click("[data-action=add-rule]");
-        }
+        // 使用者 2026-10-08 要求重新設計自訂篩選條件：欄位改由「依欄位設定」的欄位按鈕加入。
+        Task Add(string subject) => AddCustomConditionAsync(cdp, subject, Click, ct);
         async Task Save(int count)
         {
-            await Click("[data-action=open-save]"); await Click("[data-action=save-scenario]");
+            await Click("[data-action=save-scenario]");
             await Check("saved.length===" + count);
-            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && draft.__editingSavedRef===saved");
-            await Click("[data-action=new-scenario]");
+            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && draft.groups.every(g=>g.rules.length===0) && !preview");
+        }
+        // 第九節 G1、G3：第一組決定借方命中，第二條整張傳票條件找貸方佐證。
+        async Task AddSideAndAccount(string kind, int index, string side)
+        {
+            await Click("[data-add-compound=" + kind + "]");
+            var parent = ".rule-row[data-ri='" + index + "'] ";
+            await Choose(parent + "[data-child-kind]", "type:drCrOnly"); await Click(parent + "[data-child-add]");
+            await Choose(".rule-row[data-ri='" + index + ".0'] [data-rule-bind=drCr]", side);
+            await Choose(parent + "[data-child-kind]", "field:accNum"); await Click(parent + "[data-child-add]");
+            var account = ".rule-row[data-ri='" + index + ".1'] ";
+            await Choose(account + "[data-value-kind]", "exact");
+            await Fill(account + "[data-value-key=values]", "GUI-NOT-AN-ACCOUNT");
+            await Choose(account + "[data-value-polarity]", "exclude");
         }
         async Task Preview() { await Click("[data-action=preview-scenario]"); await Check("!!preview && Number.isInteger(preview.count)"); }
         ResizeFilterWindow(process, 920, 760);
@@ -47,17 +56,12 @@ internal static partial class GuiScenarios
         outcome.RecordStage("side_month_account_direction");
         const string first = ".rule-row[data-ri='0'] ";
         const string second = ".rule-row[data-ri='1'] ";
-        await Add("field:accNum"); await Choose(first + "[data-value-kind]", "exact");
-        await Fill(first + "[data-value-key=values]", "GUI-NOT-AN-ACCOUNT");
-        await Choose(first + "[data-value-polarity]", "exclude"); await Choose(first + "[data-value-key=drCr]", "debit");
-        await Add("field:accNum"); await Choose(second + "[data-value-kind]", "exact");
-        await Fill(second + "[data-value-key=values]", "GUI-NOT-AN-ACCOUNT");
-        await Choose(second + "[data-value-polarity]", "exclude"); await Choose(second + "[data-value-key=drCr]", "credit");
-        await Click(".filter-relations > summary"); await Choose("[data-group-bind=matchScope]", "sameVoucher");
+        await AddSideAndAccount("group", 0, "debit");
+        await AddSideAndAccount("voucher", 1, "credit");
         await Preview();
-        await Check("preview.count>0 && draft.groups[0].rules[0].drCr==='debit' && draft.groups[0].rules[1].drCr==='credit' && document.querySelector('[data-bind=content]').textContent.includes('貸方分錄：') && Array.from(document.querySelectorAll('.rule-row input,.rule-row select')).every(e=>{var r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth;})");
-        await FindControlPointAsync(cdp, process, first + "[data-value-key=drCr]", ct);
-        await FindControlPointAsync(cdp, process, first + "[data-value-key=drCr]", ct);
+        await Check("preview.count>0 && draft.groups[0].rules[0].rules[0].drCr==='debit' && draft.groups[0].rules[1].rules[0].drCr==='credit' && document.querySelector('[data-bind=content]').textContent.includes('整張傳票至少一筆符合') && Array.from(document.querySelectorAll('.rule-row input,.rule-row select')).every(e=>{var r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth;})");
+        await FindControlPointAsync(cdp, process, ".rule-row[data-ri='0.0'] [data-rule-bind=drCr]", ct);
+        await FindControlPointAsync(cdp, process, ".rule-row[data-ri='1.0'] [data-rule-bind=drCr]", ct);
         await CaptureScreenshotAsync(cdp, outcome, ct); await Save(1);
         outcome.RecordStage("side_month_invalid_days_and_retry");
         await Click("[data-filter-pane-select=filter]"); await Add("field:postDate");
@@ -91,7 +95,7 @@ internal static partial class GuiScenarios
         GuiWorkpaperInspection.RequireManualAutoText(workbookPath, ownedRun.ProjectsRootPath);
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']"); await Click("[data-filter-pane-select=saved]");
-        await Check("saved.length===2 && saved[0].groups[0].matchScope==='sameVoucher' && saved[0].groups[0].rules[0].drCr==='debit' && saved[0].groups[0].rules[1].drCr==='credit' && saved[1].groups[0].rules[0].operator==='monthEndDays' && saved[1].groups[0].rules[0].value==='2' && saved[1].groups[0].rules[1].operator==='notMonthStartDays'");
+        await Check("saved.length===2 && saved[0].groups[0].matchScope==='row' && saved[0].groups[0].rules[0].rules[0].drCr==='debit' && saved[0].groups[0].rules[1].type==='voucher' && saved[0].groups[0].rules[1].rules[0].drCr==='credit' && saved[1].groups[0].rules[0].operator==='monthEndDays' && saved[1].groups[0].rules[0].value==='2' && saved[1].groups[0].rules[1].operator==='notMonthStartDays'");
         outcome.Assertions.SideMonthWorkflowVerified = true;
         await Click("[data-action=app-exit]"); outcome.Assertions.ExitRequested = true;
     }

@@ -298,9 +298,9 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-51（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 不寫檔名與缺了哪個設定。
         Assert.Equal(
-            $"專案『{projectId}』的 project.json 是舊版 JET 建立的案件（缺少 sampleSeedVersion），"
-            + "目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。",
+            $"案件「{projectId}」是舊版 JET 建立的，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。",
             exception.Message);
     }
 
@@ -327,7 +327,10 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        Assert.Contains("INF 抽樣種子", exception.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-51（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        Assert.Equal(
+            $"案件「{projectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
+            exception.Message);
         Assert.Contains("不會重新產生", exception.Message, StringComparison.Ordinal);
     }
 
@@ -349,7 +352,10 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        Assert.Contains("INF 抽樣種子", exception.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-51（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        Assert.Equal(
+            $"案件「{projectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
+            exception.Message);
         Assert.Contains("不會重新產生", exception.Message, StringComparison.Ordinal);
     }
 

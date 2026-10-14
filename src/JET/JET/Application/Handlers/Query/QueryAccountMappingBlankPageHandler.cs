@@ -18,7 +18,7 @@ public sealed class QueryAccountMappingBlankPageHandler(
         var cursor = PayloadReader.GetOptionalString(payload, "cursor");
         if (PageCursor.IsMalformed(cursor))
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "cursor 格式不符(無法解碼)。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "cursor_invalid");
         }
 
         var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;

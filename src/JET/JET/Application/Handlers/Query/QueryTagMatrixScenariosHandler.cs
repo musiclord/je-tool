@@ -25,7 +25,7 @@ public sealed class QueryTagMatrixScenariosHandler(
 
         _ = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
-                JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+                JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var scenarios = await repositories.FilterScenarios.ListAsync(projectId, cancellationToken);
         if (scenarios.Count == 0)

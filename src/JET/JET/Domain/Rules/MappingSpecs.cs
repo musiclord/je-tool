@@ -24,7 +24,6 @@ public static class GlMappingKeys
     public const string LineId = JetFieldCatalog.GlLineId;
     public const string PostDate = JetFieldCatalog.GlPostDate;
     public const string DocDate = JetFieldCatalog.GlDocDate;
-    public const string VoucherDate = JetFieldCatalog.GlVoucherDate;
     public const string AccNum = JetFieldCatalog.GlAccNum;
     public const string AccName = JetFieldCatalog.GlAccName;
     public const string Description = JetFieldCatalog.GlDescription;
@@ -41,6 +40,13 @@ public static class GlMappingKeys
     public const string DcCreditCode = JetFieldCatalog.GlDcCreditCode;
 
     public static readonly IReadOnlyList<string> All = JetFieldCatalog.GlMappingKeys;
+
+    /// <summary>
+    /// 已移除的配對鍵。使用者 2026-10-08 裁定移除傳票日期（voucherDate）；舊案件讀出已存配對時略過這些鍵，
+    /// 重開後的草稿與重新確認都不會再帶上它們。
+    /// </summary>
+    internal static readonly IReadOnlySet<string> Retired =
+        new HashSet<string>(JetFieldCatalog.RetiredGlFieldLabels.Keys, StringComparer.Ordinal);
 }
 
 public static class TbMappingKeys

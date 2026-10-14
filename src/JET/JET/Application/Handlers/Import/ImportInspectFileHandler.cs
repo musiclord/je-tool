@@ -23,14 +23,14 @@ public sealed class ImportInspectFileHandler(ITabularFileReader reader, ILogger?
         {
             throw new JetActionException(
                 JetErrorCodes.FileNotFound,
-                $"找不到檔案 '{Path.GetFileName(filePath)}'，請確認檔案還在原位置後重新選檔。");
+                $"找不到檔案「{Path.GetFileName(filePath)}」，請確認檔案還在原位置後重新選檔。");
         }
 
         if (!reader.Supports(filePath))
         {
             throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                $"不支援的檔案類型 '{Path.GetExtension(filePath)}'，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
+                $"不支援的檔案類型「{Path.GetExtension(filePath)}」，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
         }
 
         var format = Path.GetExtension(filePath).ToLowerInvariant();
@@ -90,7 +90,7 @@ internal static partial class ImportSourceDiagnostics
             ? error
             : new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"檔案 '{Path.GetFileName(filePath)}' 讀取失敗，請確認檔案可以開啟與編碼設定後重試；仍失敗時可匯出支援日誌。",
+                $"無法讀取檔案「{Path.GetFileName(filePath)}」，請確認檔案可以開啟、編碼設定正確後重試。",
                 innerException: error);
 
     [LoggerMessage(EventId = 2110, EventName = "import.inspect", Level = LogLevel.Information,

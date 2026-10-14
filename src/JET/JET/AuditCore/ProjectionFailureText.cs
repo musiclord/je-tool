@@ -19,12 +19,14 @@ internal static class ProjectionFailureText
     {
         ArgumentNullException.ThrowIfNull(projection);
         var errors = projection.Errors;
-        var lead = projection.ErrorGroups is null && projection.TotalErrorCount > errors.Count && errors.Count > 0
-            ? $"{projection.TotalErrorCount} 列無法轉換，系統沒有儲存這次配對結果。以下依前 {errors.Count} 列整理。"
-            : $"{projection.TotalErrorCount} 列無法轉換，系統沒有儲存這次配對結果。";
-        if (projection.ErrorGroups?.Any(group => group.OmittedValueRowCount > 0
-            || group.Values.Any(value => value.Count > value.Rows.Count)) == true)
-            lead += "以下只列出部分來源與列號，未列出的錯誤仍計入總數。";
+        // 使用者 2026-10-13 勾選頁確認：開頭一句，清單只列一部分時再接一句；不再寫「以下依前 k 列整理」。
+        var partial = projection.ErrorGroups is null
+            ? projection.TotalErrorCount > errors.Count && errors.Count > 0
+            : projection.ErrorGroups.Any(group => group.OmittedValueRowCount > 0
+                || group.Values.Any(value => value.Count > value.Rows.Count));
+        var lead = $"有 {projection.TotalErrorCount} 列的值無法讀取，本次配對未儲存。";
+        if (partial)
+            lead += "以下僅列出部分的值與列號。";
 
         var details = projection.ErrorGroups is { } summaries
             ? summaries.Select(group => new JetErrorDetail(null, null, GroupText(group))
@@ -61,11 +63,11 @@ internal static class ProjectionFailureText
         }));
         if (group.OmittedValueRowCount > 0)
             located += $"；另有 {group.OmittedValueRowCount} 列的值未列出";
-        var text = $"欄位「{group.Field}」有 {group.Count} 列{problem}：{located}。";
+        var text = $"來源欄「{group.Field}」有 {group.Count} 列{problem}：{located}。";
         return instruction.Length == 0 ? text : text + instruction + "。";
     }
 
-    // 例：欄位「人工註記」有 8 列未歸類為人工或自動：「調整」在第 2、3、568 列；「補登」在第 139、140 列。請回到欄位配對…。
+    // 例：來源欄「人工註記」有 8 列未歸類為人工或自動：「調整」在第 2、3、568 列；「補登」在第 139、140 列。請將這些值歸類…。
     private static string GroupText(string field, string reason, IReadOnlyList<RowProjectionError> rows)
     {
         var (problem, instruction) = SplitReason(reason);
@@ -94,7 +96,7 @@ internal static class ProjectionFailureText
             }
         }
 
-        var text = $"欄位「{field}」有 {rows.Count} 列{problem}：{located}。";
+        var text = $"來源欄「{field}」有 {rows.Count} 列{problem}：{located}。";
         return instruction.Length == 0 ? text : text + instruction + "。";
     }
 

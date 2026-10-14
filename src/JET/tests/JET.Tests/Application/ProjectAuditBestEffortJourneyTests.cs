@@ -19,8 +19,9 @@ public sealed class ProjectAuditBestEffortJourneyTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         var projectId = context.ProjectId;
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
         var firstBatch = await host.DispatchAsync(
-            "query.dataPreview", JsonSerializer.Serialize(new { dataset = "glEntries", limit = 1 }));
+            "query.dataPreview", JsonSerializer.Serialize(new { dataset = "gl", limit = 1 }));
         Assert.True(firstBatch.GetProperty("totalCount").GetInt64() > 0);
 
         await DropAuditTableAsync(host, projectId, provider);
@@ -55,7 +56,7 @@ public sealed class ProjectAuditBestEffortJourneyTests
         var projected = recommit.GetProperty("projectedRowCount").GetInt64();
         Assert.True(projected > 0);
         var entries = await host.DispatchAsync(
-            "query.dataPreview", JsonSerializer.Serialize(new { dataset = "glEntries", limit = 1 }));
+            "query.dataPreview", JsonSerializer.Serialize(new { dataset = "gl", limit = 1 }));
         // 重新匯入同一份 demo 檔，投影後的分錄數應與表格損壞前相同。
         Assert.Equal(
             firstBatch.GetProperty("totalCount").GetInt64(),

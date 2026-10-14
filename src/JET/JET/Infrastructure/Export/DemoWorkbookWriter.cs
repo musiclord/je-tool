@@ -75,7 +75,6 @@ public sealed class DemoWorkbookWriter : IDemoFileWriter
             worksheet.Cell(rowNumber, 9).Value = row.CreatedBy;
             worksheet.Cell(rowNumber, 10).Value = row.ApprovalDate.ToDateTime(TimeOnly.MinValue);
             worksheet.Cell(rowNumber, 11).Value = row.IsManual ? 1 : 0;
-            worksheet.Cell(rowNumber, 12).Value = row.VoucherDate.ToDateTime(TimeOnly.MinValue);
         }
 
         workbook.SaveAs(filePath);

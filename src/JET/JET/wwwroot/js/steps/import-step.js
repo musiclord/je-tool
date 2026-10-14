@@ -24,7 +24,10 @@
   //                  notices（後端提醒文字）, inspectError（檢視失敗原因，有值時這一列不能送出） }
   var wizard = { kind: null, mode: null, pending: [] };
   var preparerDraft = null;
-  var calendarTemplateResult = null;
+
+  // 匯入期間最後一次顯示的進度，依資料集（gl／tb）記下：忙碌狀態的重繪會重建精靈，
+  // 有值時直接畫成已展開的進度，不會先收起再隨下一個進度事件重新長出來。匯入完成或失敗時清掉。
+  var progressShown = {};
 
   // 重新匯入/加入來源完成的「卡片成功態」一次性旗標。{ kind, mode:'replace'|'append', at:ms } | null
   var justImported = null;
@@ -35,8 +38,8 @@
   var expanded = { gl: false, tb: false, authorizedPreparer: false, calendar: false };
 
   function resetWizard() {
-    calendarTemplateResult = null;
     preparerDraft = null;
+    progressShown = {};
     wizard = { kind: null, mode: null, pending: [] };
   }
 
@@ -67,13 +70,13 @@
     var imp = state.importState;
 
     container.innerHTML =
-      '<div class="panel">' +
+      '<div class="panel" data-motion-key="import-panel">' +
         '<h2 class="panel__title">匯入資料</h2>' +
         '<p class="panel__hint panel__hint--wide">支援 Excel、CSV、文字檔及 Access。總帳明細可合併欄位相同的來源。試算表請提供同一查核期間的資料，不會自動把期初與期末兩份檔案配成期間變動。</p>' +
         Ui.downstreamResetNoticeHtml(state) +
         '<div class="import-tasklist">' +
-          datasetTask('gl', 'GL（總帳明細）', imp.gl) +
-          datasetTask('tb', 'TB（試算表）', imp.tb) +
+          datasetTask('gl', 'GL (總帳明細)', imp.gl) +
+          datasetTask('tb', 'TB (試算表)', imp.tb) +
           authorizedPreparerTask(imp.authorizedPreparer) +
           calendarTask(imp.calendar) +
         '</div>' +
@@ -81,8 +84,8 @@
       '</div>';
 
     bindTaskToggles(container);
-    bindDatasetCard(container, 'gl', 'GL');
-    bindDatasetCard(container, 'tb', 'TB');
+    bindDatasetCard(container, 'gl', 'PBC-GL');
+    bindDatasetCard(container, 'tb', 'PBC-TB');
     bindAuthorizedPreparerCard(container);
     bindCalendarCard(container);
     Ui.bindStepFooter(container);
@@ -91,7 +94,7 @@
   /* ---- 任務清單（呈現層：把四張卡收斂成四列，展開才嵌入完整卡片）------------- */
 
   // 任務列外框：狀態符號 + 名稱(+必要/選用標) + 單一關鍵數字 + 單一動作鈕。
-  // opts.done 決定符號與名稱色（✓ 已備／○ 未匯入）；opts.actionPrimary＝主要下一步動作（動作鈕文字轉紅、外框不變）。
+  // opts.done 決定符號與名稱色（✓ 已備／○ 未匯入）；opts.actionPrimary＝主要下一步動作（動作鈕文字改用重點色、外框不變）。
   // 展開（opts.open）時在列下方嵌入 cardHtml（既有卡片完整 UI，DOM 未改）。
   function taskItemHtml(key, opts, cardHtml) {
     var open = opts.open;
@@ -113,7 +116,7 @@
             'data-task-toggle="' + key + '" aria-label="操作：' + Ui.esc(opts.name) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
             '操作</button>' +
         '</div>' +
-        (open ? '<div class="import-task__panel">' + cardHtml + '</div>' : '') +
+        (open ? '<div class="import-task__panel" data-motion-key="' + Ui.esc('task-' + key) + '">' + cardHtml + '</div>' : '') +
       '</div>'
     );
   }
@@ -222,15 +225,18 @@
         body += '<p>有效名單 ' + info.rowCount + ' 位中，有 ' + info.matchedPreparerCount +
           ' 位出現在 GL 傳票建立人員。</p>';
         if (info.matchedPreparerCount === 0) {
-          body += '<p class="form-notice">有效名單與 GL 傳票建立人員一位都對不上，可能選錯識別欄。' +
-            '請確認名單與 GL 使用相同的姓名或員工代碼；名單已匯入，這項提醒不影響後續操作。</p>';
+          body += '<p class="form-notice form-notice--warning">清單中的人員都不在 GL 的傳票建立人員裡，' +
+            '請確認所選欄位是人員代號或姓名。</p>';
         }
       }
     }
+    // 有清單時的摘要包成一塊並標上 data-motion-key：移除授權清單後這一塊整個不畫，JetMotion 先晃一下再收起
+    // （使用者 2026-10-13 要求移除時先晃一下）。沒有清單時不畫這個容器，才會被當成消失的東西。
+    if (body) { body = '<div class="authorized-preparer__summary" data-motion-key="preparer-summary">' + body + '</div>'; }
     var draft = preparerDraft;
     var pending = '';
     if (draft) {
-      pending = '<div class="pending-preview" data-bind="authorized-preparer-draft">' +
+      pending = '<div class="pending-preview" data-bind="authorized-preparer-draft" data-motion-key="preparer-draft">' +
         '<p>來源檔：' + Ui.esc(draft.fileName) + '</p>' +
         '<p>選擇與 GL「傳票建立人員」一致的姓名或員工代碼欄。</p>' +
         '<label>工作表 <select data-ap-sheet>' + draft.worksheets.map(function (sheet) {
@@ -253,10 +259,15 @@
     return '<section class="import-card" data-bind="import-card-authorized-preparer">' +
       '<h3 class="import-card__title">授權編製人員清單</h3>' + body +
       '<p>匯入可編製分錄的人員名單，用來篩選名單外的編製人員。</p>' +
-      '<div class="import-card__actions"><button type="button" class="btn btn--ghost" data-action="import-authorized-preparer">' +
+      // 這一排有沒有清單都帶同一個 key：兩個鈕同時消失時沒有留下的鄰居可以對齊，要靠這一排找回原本的位置，
+      // 才能先晃一下再左右收起（使用者 2026-10-13 要求移除時先晃一下）。
+      '<div class="import-card__actions" data-motion-key="preparer-actions"><button type="button" class="btn btn--ghost" data-action="import-authorized-preparer">' +
       (info ? '重新選擇授權清單檔' : '選擇授權清單檔') + '</button>' +
-      (info ? '<button type="button" class="btn btn--ghost" data-action="preview-authorized-preparer">預覽有效授權清單</button>' +
-        '<button type="button" class="btn btn--ghost" data-action="clear-authorized-preparer">移除授權清單</button>' : '') +
+      // 只在有清單時出現的兩個鈕各自帶 key，移除後在這一排左右收起，旁邊的鈕跟著平順移動。
+      (info ? '<button type="button" class="btn btn--ghost" data-action="preview-authorized-preparer" ' +
+          'data-motion-key="preparer-preview-action" data-motion="inline">預覽有效授權清單</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="clear-authorized-preparer" ' +
+          'data-motion-key="preparer-clear-action" data-motion="inline">移除授權清單</button>' : '') +
       '</div>' + pending + '</section>';
   }
 
@@ -281,6 +292,10 @@
     bind('preview-authorized-preparer', function () { Ui.openDataPreview('authorizedPreparers'); });
     bind('cancel-authorized-preparer', function () { preparerDraft = null; Store.touch(); });
     bind('clear-authorized-preparer', function () {
+      // 先說明要拿掉的是摘要與兩個只屬於清單的鈕；等 JetApi 回來的那次重繪它們先晃一下再收起。
+      if (global.JetMotion && typeof global.JetMotion.removing === 'function') {
+        global.JetMotion.removing({ keys: ['preparer-summary', 'preparer-preview-action', 'preparer-clear-action'], wait: 15000 });
+      }
       Ui.run('移除授權清單', function () {
         return global.JetApi.importAuthorizedPreparerClear({}).then(function (result) {
           preparerDraft = null;
@@ -303,10 +318,12 @@
           if (preparerDraft === draft) { preparerDraft = null; }
           Store.setAuthorizedPreparerState(data);
           Store.applyMutationEffects(data);
-          Store.addMessage('授權清單匯入完成：' + data.rowCount + ' 個有效人員代號或姓名。', 'info');
           return data;
         });
-      }, { logCompletion: true, logCompletionWhen: function (result) { return !!result; } });
+      }, { completionMessage: function (data) {
+        // 完成句由 Ui.run 接上耗時後記一則（使用者 2026-10-13 裁定成功時只留一則）。
+        return data ? '授權清單匯入完成：' + data.rowCount + ' 個有效人員代號或姓名。' : '';
+      } });
     });
     bind('import-authorized-preparer', function () {
       var projectId = Store.getState().project.projectId;
@@ -354,15 +371,11 @@
         : '<p class="import-card__status">上傳假日及補班日清單，或設定每週非工作日，供日期條件篩選使用。</p>';
 
     return (
-      '<section class="import-card" data-bind="import-card-calendar">' +
+      '<section class="import-card import-card--calendar" data-bind="import-card-calendar">' +
         '<h3 class="import-card__title">假日與補班日</h3>' +
         body +
-        (calendarTemplateResult && calendarTemplateResult.projectId === (Store.getState().project || {}).projectId
-          ? '<p class="import-card__status import-card__status--ok">' + calendarTemplateResult.files.map(function (file) { return Ui.esc(file.fileName) + '：' + (file.disposition === 'created' ? '已複製' : '已存在，保留原檔'); }).join('；') + '</p>' : '') +
-        '<p class="calendar-nonworking__hint">範本是 2025 年資料，請自行更新年份與日期。假日檔的 Date_of_Holiday、補班檔的 Date_of_MakeUpday 以 yyyy-MM-dd 填寫；假日檔若有 IS_Holiday 欄，只匯入 Y 的列。取得範本不會自動匯入，修改後請自行上傳。</p>' +
+        '<p class="calendar-nonworking__hint">假日檔讀 Date_of_Holiday 欄，補班檔讀 Date_of_MakeUpday 欄，日期寫成 2026-12-31 的格式。</p>' +
         '<div class="import-card__actions">' +
-          '<button type="button" class="btn btn--ghost" data-action="export-calendar-templates">取得假日與補班日範本</button>' +
-          '<button type="button" class="btn btn--ghost" data-action="open-calendar-folder">開啟案件資料夾</button>' +
           '<button type="button" class="btn btn--ghost" data-action="import-holiday">上傳假日檔</button>' +
           '<button type="button" class="btn btn--ghost" data-action="import-makeup">上傳補班檔</button>' +
         '</div>' +
@@ -403,22 +416,6 @@
   }
 
   function bindCalendarCard(container) {
-    var templateButton = container.querySelector('[data-action="export-calendar-templates"]');
-    if (templateButton) { templateButton.addEventListener('click', function () {
-      var project = Store.getState().project;
-      Ui.run('取得假日與補班日範本', function () {
-        return global.JetApi.exportCalendarTemplates({}).then(function (data) {
-          if (Store.getState().project !== project) { return; }
-          calendarTemplateResult = { projectId: project.projectId, files: data.files || [] };
-          Store.touch();
-        });
-      });
-    }); }
-    var folderButton = container.querySelector('[data-action="open-calendar-folder"]');
-    if (folderButton) { folderButton.addEventListener('click', function () {
-      Ui.run('開啟案件資料夾', function () { return global.JetApi.hostOpenFolder({ target: 'projectFolder' }); });
-    }); }
-
     var holidayBtn = container.querySelector('[data-action="import-holiday"]');
     if (holidayBtn) {
       holidayBtn.addEventListener('click', function () {
@@ -440,14 +437,13 @@
                 nonWorkingDays: existing.nonWorkingDays,
                 nonWorkingDaysConfigured: !!existing.nonWorkingDaysConfigured
               });
-              Store.addMessage('假日匯入完成：' + data.count + ' 天。', 'info');
               Store.applyMutationEffects(data);
               return data;
             });
           });
         }, {
-          logCompletion: true,
-          logCompletionWhen: function (result) { return !!result; }
+          // 完成句由 Ui.run 接上耗時後記一則；沒有選檔時不記（使用者 2026-10-13 裁定成功時只留一則）。
+          completionMessage: function (data) { return data ? '假日匯入完成：' + data.count + ' 天。' : ''; }
         });
       });
     }
@@ -473,14 +469,12 @@
                 nonWorkingDays: existing.nonWorkingDays,
                 nonWorkingDaysConfigured: !!existing.nonWorkingDaysConfigured
               });
-              Store.addMessage('補班匯入完成：' + data.count + ' 天。', 'info');
               Store.applyMutationEffects(data);
               return data;
             });
           });
         }, {
-          logCompletion: true,
-          logCompletionWhen: function (result) { return !!result; }
+          completionMessage: function (data) { return data ? '補班匯入完成：' + data.count + ' 天。' : ''; }
         });
       });
     }
@@ -505,7 +499,8 @@
                 nonWorkingDaysConfigured: true
               });
             }
-            Store.addMessage(changed ? '已更新非工作日設定。' : '非工作日設定未變更。', 'info');
+            // 沒有變更時不記（使用者 2026-10-13 勾選頁確認刪除 44b）。
+            if (changed) { Store.addMessage('已更新非工作日設定。', 'info'); }
             Store.applyMutationEffects(data);
           });
         });
@@ -514,8 +509,10 @@
   }
 
   // 卡片三狀態互斥：工作區啟動時不渲染摘要與入口鈕 → 永不三鈕同框。
+  // 卡片內容包在一層有識別的外框裡：摘要、空白與匯入工作區互換時，JetMotion 讓舊的收起、新的長出來，卡片高度平順改變。
   function datasetCard(kind, title, info) {
     var body;
+    var face = wizard.kind === kind ? 'wizard' : (info ? 'summary' : 'empty');
     if (wizard.kind === kind) {
       body = wizardWorkspaceHtml(kind, info);
     } else if (info) {
@@ -527,7 +524,7 @@
     return (
       '<section class="import-card" data-bind="import-card-' + kind + '">' +
         '<h3 class="import-card__title">' + title + '</h3>' +
-        body +
+        '<div class="import-card__face" data-motion-key="' + Ui.esc(kind + '-' + face) + '">' + body + '</div>' +
       '</section>'
     );
   }
@@ -536,7 +533,7 @@
     var justBadge = '';
     if (justImported && justImported.kind === kind) {
       var label = justImported.mode === 'append' ? '已加入來源' : '剛剛重新匯入';
-      justBadge = '<p class="import-card__just" data-bind="just-imported-' + kind + '">' +
+      justBadge = '<p class="import-card__just" data-bind="just-imported-' + kind + '" data-motion-key="' + Ui.esc('just-' + kind) + '">' +
         '<span class="import-card__just-mark" aria-hidden="true">✓</span> ' + label + '（' +
         new Date(justImported.at).toLocaleTimeString('zh-Hant', { hour12: false }) + '）</p>';
     }
@@ -586,13 +583,14 @@
 
     return (
       '<table class="source-list">' +
-        '<thead><tr><th>#</th><th>來源（檔案、工作表或資料表）</th><th>列數</th><th>匯入時間</th></tr></thead>' +
+        '<thead><tr><th>#</th><th>來源（檔案、工作表或資料表）</th><th class="source-list__rows">列數</th><th>匯入時間</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>'
     );
   }
 
-  // 模式橫幅：明講意圖與後果（append / 破壞性 replace / 首次建立）。
+  // 模式橫幅：明講意圖與後果（append / 破壞性 replace / 首次建立）。取代時用「需要注意」提示（琥珀），
+  // 它說明後果但不擋操作（使用者 2026-10-09 裁定）。
   // 匯入進行中改顯示中性「匯入中」：使用者已按下「開始匯入」，「即將取代」的預警已過時，
   // 不該在匯入期間（大檔可能數十秒）續掛破壞性警告，造成「完成後還掛著警告」的錯覺。
   function wizardBannerHtml(info) {
@@ -606,8 +604,8 @@
         '成功加入後，這份資料集需要重新確認配對，受影響的測試結果需要重算。已匯出的底稿檔案不會改寫。</p>';
     }
     if (info) {
-      return '<p class="wizard-pane__hint wizard-pane__hint--danger">你正在取代這個資料集。現有的 ' +
-        Number(info.rowCount).toLocaleString() + ' 列會在匯入成功後被新來源取代。這份資料集需要重新確認欄位配對，受影響的測試結果需要重算。已匯出的底稿檔案不會改寫。</p>';
+      return '<p class="form-notice form-notice--warning">匯入後，現有的 ' +
+        Number(info.rowCount).toLocaleString() + ' 列會換成新檔，需重新確認欄位配對並重跑測試。</p>';
     }
     return '<p class="wizard-pane__hint">建立資料集 — ' + (wizard.kind === 'tb'
       ? '選擇同一查核期間的試算表來源；不會自動配成期初與期末的期間變動。'
@@ -637,13 +635,22 @@
       '<div class="wizard-pane">' +
         wizardBannerHtml(info) +
         (hasFiles ? pendingListHtml() : '') +
-        '<div class="wizard-progress" data-bind="wizard-progress" hidden>' +
-          '<p class="wizard-progress__label" data-bind="wizard-progress-label"></p>' +
-          '<div class="wizard-progress__track"><div class="wizard-progress__fill" data-bind="wizard-progress-fill"></div></div>' +
-        '</div>' +
+        wizardProgressHtml(kind) +
         actions +
       '</div>'
     );
+  }
+
+  // 進度區原地展開與收起（data-collapsible，使用者 2026-10-13 要求展開與收合一致）。
+  // 匯入中已有進度時照最後一次的內容畫成展開，重繪不重播展開動畫。
+  function wizardProgressHtml(kind) {
+    var shown = progressShown[kind];
+    return '<div class="wizard-progress" data-bind="wizard-progress" data-collapsible' + (shown ? '' : ' hidden') + '>' +
+      '<p class="wizard-progress__label" data-bind="wizard-progress-label">' + (shown ? Ui.esc(shown.label) : '') + '</p>' +
+      '<div class="wizard-progress__track"><div class="wizard-progress__fill' +
+        (shown && shown.indeterminate ? ' wizard-progress__fill--indeterminate' : '') + '" data-bind="wizard-progress-fill"' +
+        (shown ? ' style="width: ' + shown.width + '"' : '') + '></div></div>' +
+    '</div>';
   }
 
   // 每個來源一列。檢視失敗的來源留在清單上並寫出原因：文字檔可在這一列改選編碼或分隔符重試，其他格式按「重新檢視」；
@@ -655,7 +662,7 @@
       var failed = !!item.inspectError;
 
       return (
-        '<li class="pending-row' + (failed ? ' pending-row--error' : '') + '">' +
+        '<li class="pending-row' + (failed ? ' pending-row--error' : '') + '" data-motion-key="' + Ui.esc('pending-' + pendingMotionKey(item)) + '">' +
           '<div class="pending-row__head">' +
             '<label class="pending-row__main">' +
               '<input type="checkbox" data-pending-bind="include" data-index="' + index + '"' +
@@ -667,23 +674,28 @@
               ? '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-retry" ' +
                   'data-index="' + index + '">重新檢視</button>'
               : '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-preview" ' +
-                  'data-index="' + index + '">' + (item.previewOpen ? '預覽 ▾' : '預覽 ▸') + '</button>') +
+                  'data-index="' + index + '" aria-expanded="' + (item.previewOpen ? 'true' : 'false') + '">預覽</button>') +
             '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-remove" ' +
               'data-index="' + index + '" title="從清單移除這個來源">移除</button>' +
           '</div>' +
           (failed
-            ? '<p class="pending-row__error" role="alert">讀不出這個檔案：' + Ui.esc(item.inspectError) +
+            ? '<p class="pending-row__error" role="alert" data-motion-key="' + Ui.esc('pending-error-' + pendingMotionKey(item)) + '">讀不出這個檔案：' + Ui.esc(item.inspectError) +
                 (item.fileType === 'csv' ? ' 可在同一列改選編碼或分隔符後重試。' : '') + '</p>'
             : '') +
-          (item.notices || []).map(function (notice) {
-            return '<p class="pending-row__notice">' + Ui.esc(notice) + '</p>';
+          // 失敗原因與提醒帶著來源自己的 key，重試成功或改選設定後原地長出、收起。
+          // 提醒用文字本身區分（同一段文字重複時再加上第幾次），不用位置，前面的提醒消失時後面的不會被當成換掉。
+          (item.notices || []).map(function (notice, noticeIndex, notices) {
+            var repeat = notices.slice(0, noticeIndex).filter(function (other) { return other === notice; }).length;
+            return '<p class="pending-row__notice" data-motion-key="' +
+              Ui.esc('pending-notice-' + pendingMotionKey(item) + '|' + notice + (repeat ? '|' + repeat : '')) + '">' +
+              Ui.esc(notice) + '</p>';
           }).join('') +
           (item.previewOpen && !failed ? previewTableHtml(item) : '') +
         '</li>'
       );
     }).join('');
 
-    return '<ul class="wizard-pane__list">' + rows + '</ul>';
+    return '<ul class="wizard-pane__list" data-motion-list="pending">' + rows + '</ul>';
   }
 
   function pendingDetailHtml(item, index) {
@@ -715,10 +727,16 @@
     return '<span class="pending-row__detail">' + item.columnCount + ' 欄' + estimate + '</span>';
   }
 
+  // JetMotion 用的識別：同一個來源（檔案路徑不分大小寫加上工作表）在重繪之間都是同一列。
+  function pendingMotionKey(item) {
+    return String(item.filePath || item.fileName || '').toLowerCase() + '|' + (item.sheetName || '');
+  }
+
   // 逐來源預覽：表頭 + 前 10 列原貌（import.previewFile）。有界，絕不載入完整母體。
   function previewTableHtml(item) {
+    var motion = ' data-motion-key="' + Ui.esc('pending-preview-' + pendingMotionKey(item)) + '"';
     if (!item.previewData) {
-      return '<div class="pending-preview"><p class="pending-preview__hint">載入預覽中…</p></div>';
+      return '<div class="pending-preview"' + motion + '><p class="pending-preview__hint">載入預覽中…</p></div>';
     }
 
     var data = item.previewData;
@@ -733,9 +751,9 @@
     }).join('');
 
     return (
-      '<div class="pending-preview">' +
-        '<p class="pending-preview__hint">預覽只顯示前 10 列資料。最上方一列是被當成欄名的標頭；若它看起來是資料而非欄名，' +
-          '代表這份檔案可能沒有標頭列。若真正的欄名上方還有標題列，請先在 Excel 刪除標題列後重新匯入。</p>' +
+      '<div class="pending-preview"' + motion + '>' +
+        '<p class="pending-preview__hint">預覽只顯示前 10 列資料。最上方一列會作為欄名；這一列是資料而不是欄名時，' +
+          '表示檔案沒有標頭列。欄名上方還有標題列時，請先在 Excel 刪除標題列後重新匯入。</p>' +
         '<div class="pending-preview__grid">' +
           '<table class="data-preview__table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>' +
         '</div>' +
@@ -747,27 +765,30 @@
 
   // 進度是 UX 提示：百分比以 inspect 的 rowCountEstimate 估算（dimension 推估、可能過時），
   // 權威列數以匯入 response 為準。estimate 缺席（CSV）→ 只顯示已寫入列數。
-  function updateProgress(item, itemIndex, totalItems, data) {
+  function updateProgress(kind, item, itemIndex, totalItems, data) {
     var pane = document.querySelector('[data-bind="wizard-progress"]');
     var label = document.querySelector('[data-bind="wizard-progress-label"]');
     var fill = document.querySelector('[data-bind="wizard-progress-fill"]');
-    if (!pane || !label || !fill) { return; }
-
-    pane.hidden = false;
 
     var sourceName = data.fileName + (data.sheetName ? '［' + data.sheetName + '］' : '');
     var countText = Number(data.rowsRead).toLocaleString() + ' 列';
     var position = totalItems > 1 ? '來源 ' + (itemIndex + 1) + '／' + totalItems + '：' : '';
 
+    var shown;
     if (item && item.rowCountEstimate) {
       var percent = Math.min(99, Math.round(data.rowsRead / item.rowCountEstimate * 100));
-      label.textContent = position + sourceName + '　已寫入 ' + countText + '（約 ' + percent + '%）';
-      fill.style.width = percent + '%';
+      shown = { label: position + sourceName + '　已寫入 ' + countText + '（約 ' + percent + '%）', width: percent + '%', indeterminate: false };
     } else {
-      label.textContent = position + sourceName + '　已寫入 ' + countText;
-      fill.style.width = '100%';
-      fill.classList.add('wizard-progress__fill--indeterminate');
+      shown = { label: position + sourceName + '　已寫入 ' + countText, width: '100%', indeterminate: true };
     }
+    // 先記下內容再找進度區：進度區暫時不在畫面上時也要記住，之後重建精靈時直接畫成最後一次的進度，不會先收起再長出。
+    progressShown[kind] = shown;
+    if (!pane || !label || !fill) { return; }
+    // 先寫文字再展開。不定進度的樣式依這次的估計值切換，和忙碌重繪依 progressShown 畫出來的一致。
+    label.textContent = shown.label;
+    fill.style.width = shown.width;
+    fill.classList.toggle('wizard-progress__fill--indeterminate', !!shown.indeterminate);
+    pane.hidden = false;
   }
 
   /* ---- 事件 ------------------------------------------------------------------ */
@@ -815,7 +836,12 @@
 
     var cancelBtn = card.querySelector('[data-action="wizard-cancel"]');
     if (cancelBtn) {
-      cancelBtn.addEventListener('click', function () { resetWizard(); Store.touch(); });
+      cancelBtn.addEventListener('click', function () {
+        var opener = '[data-bind="import-card-' + kind + '"] [data-action="wizard-' + wizard.mode + '-' + kind + '"]';
+        resetWizard();
+        Store.touch();
+        focusImport([opener, '[data-task-toggle="' + kind + '"]']);
+      });
     }
 
     card.querySelectorAll('[data-action="pending-preview"]').forEach(function (btn) {
@@ -831,10 +857,16 @@
     });
 
     // 單列移除：誤加的來源可直接從待匯入清單拿掉，不必整個精靈取消。splice 後重繪即重新編號。
+    // 焦點交給接替的那一列的「移除」，清單空了就交給「選擇來源檔」。
     card.querySelectorAll('[data-action="pending-remove"]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        wizard.pending.splice(Number(btn.getAttribute('data-index')), 1);
+        var index = Number(btn.getAttribute('data-index'));
+        wizard.pending.splice(index, 1);
         Store.touch();
+        var scope = '[data-bind="import-card-' + kind + '"] ';
+        focusImport([scope + '[data-action="pending-remove"][data-index="' + index + '"]',
+          scope + '[data-action="pending-remove"][data-index="' + (index - 1) + '"]',
+          scope + '[data-action="wizard-pick"]']);
       });
     });
 
@@ -867,13 +899,21 @@
   // 入口：開啟工作區（設定 kind/mode、清空待匯入清單）。
   // 首次建立（空資料集、無破壞性疑慮）直接開檔，少一次點擊；
   // 已有資料時不自動開檔——讓使用者先看到模式橫幅、可在開檔前反悔（尤其破壞性的重新匯入）。
+  // 「加入來源」「取代這份資料集」和工作區互換，按下的那一個跟著不見：打開時焦點交給「選擇來源檔」，
+  // 取消時交回打開它的按鈕（使用者 2026-10-13 交接：原本焦點落到整個頁面）。
+  function focusImport(selectors) {
+    if (global.JetFocus && global.JetFocus.deferFirst) { global.JetFocus.deferFirst(selectors); }
+  }
+
   function openWorkspace(kind, label, mode) {
     var hasData = !!Store.getState().importState[kind];
     wizard = { kind: kind, mode: mode, pending: [] };
     Store.touch();
     if (mode === 'replace' && !hasData) {
       pickSources(kind, label);
+      return;
     }
+    focusImport(['[data-bind="import-card-' + kind + '"] [data-action="wizard-pick"]']);
   }
 
   // 選檔 → 逐檔 inspect → 附加到工作區待匯入清單（Open XML 活頁簿的每個非空工作表各是一個來源）。
@@ -903,7 +943,7 @@
             Store.addMessage('已在清單中，沒有重複加入：' + skipped.join('、') + '。', 'info');
           }
           if (wizard.pending.length === 0) {
-            Store.addMessage('選取的檔案沒有含欄位的工作表或資料表。', 'warn');
+            Store.addMessage('選取的檔案沒有含欄位的工作表或資料表。', 'error');
           }
           Store.touch();
         }).finally(function () {
@@ -1090,12 +1130,10 @@
     var onProgress = function (data) {
       if (data.kind !== kind) { return; }
       var itemIndex = Math.max(0, Math.min(items.length - 1, Number(data.sourceNo || 1) - 1));
-      updateProgress(items[itemIndex], itemIndex, Number(data.sourceCount) || items.length, data);
+      updateProgress(kind, items[itemIndex], itemIndex, Number(data.sourceCount) || items.length, data);
     };
     global.JetApi.on('import.progress', onProgress);
     var unsubscribe = function () { global.JetApi.off('import.progress', onProgress); };
-
-    var startedAt = Date.now();
 
     // 進入匯入態：Ui.run 內 setBusy(true) 會立即觸發重繪，橫幅換成「匯入中」、動作鈕收起。
     wizard.importing = true;
@@ -1109,18 +1147,25 @@
         resetWizard();
         applyResponse(kind, data);
         (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
-        Store.addMessage(
-          label + ' 匯入完成：' + items.length + ' 個來源、本次新增 ' +
-          Number(data.addedRowCount).toLocaleString() + ' 列、批次共 ' +
-          Number(data.rowCount).toLocaleString() + ' 列、' +
-          data.columns.length + ' 欄，耗時 ' +
-          ((Date.now() - startedAt) / 1000).toFixed(1) + ' 秒。', 'info');
+        // 匯入期間動作鈕收起，按下的「開始匯入」已經不見；完成後焦點交給這份資料集的「加入來源」。
+        focusImport(['[data-bind="import-card-' + kind + '"] [data-action="wizard-append-' + kind + '"]', '[data-task-toggle="' + kind + '"]']);
+        return data;
       }).catch(function (error) {
         unsubscribe();
         wizard.importing = false; // 退出匯入態，橫幅恢復預警、動作鈕回來供修正後重試
+        delete progressShown[kind];
         Store.touch();
+        focusImport(['[data-bind="import-card-' + kind + '"] [data-action="wizard-confirm"]',
+          '[data-bind="import-card-' + kind + '"] [data-action="wizard-pick"]']);
         throw error; // 交給 run() 顯示錯誤訊息（如 column_mismatch 的差集說明）
       });
+    }, {
+      // 完成句由 Ui.run 接上耗時（改用秒與分秒的共用寫法）後記一則（使用者 2026-10-13 裁定）。
+      completionMessage: function (data) {
+        // 句子照使用者 2026-10-13 勾選頁確認 48。
+        return data ? label + ' 匯入完成：本次新增 ' + Number(data.addedRowCount).toLocaleString() + ' 列，目前共 ' +
+          Number(data.rowCount).toLocaleString() + ' 列、' + data.columns.length + ' 欄。' : '';
+      }
     });
   }
 

@@ -43,7 +43,8 @@ public sealed class Batch9MutationStateTests
         // 使用者 2026-10-07 裁定上游修改清除下游：invalidatedResults 多了 filterScenarios，與 filter 同值；
         // 篩選命中失效時情境也一起清掉，staleState.filter 回到從未執行，因此恆為 false。
         // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
-        AssertInvalidated(response.GetProperty("invalidatedResults"), validation, prescreen, filter);
+        AssertInvalidated(response.GetProperty("invalidatedResults"), validation, prescreen, filter,
+            accountMapping: action is "import.gl.fromFile" or "import.tb.fromFile" or "mapping.commit.gl" or "mapping.commit.tb");
         AssertFlags(response.GetProperty("staleState"), validation, prescreen, false);
         Assert.Equal(JsonValueKind.Array, response.GetProperty("reportArtifacts").ValueKind);
         Assert.Empty(response.GetProperty("reportArtifacts").EnumerateArray());
@@ -89,7 +90,8 @@ public sealed class Batch9MutationStateTests
             AssertInvalidated(response.GetProperty("invalidatedResults"), false, true, true);
             AssertFlags(response.GetProperty("staleState"), false, true, false);
             Assert.Equal(JsonValueKind.Null, response.GetProperty("reportArtifacts").ValueKind);
-            Assert.Equal("變更已儲存，報告清單暫時無法更新。請稍後重新開啟案件查看，無須重做變更。",
+            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            Assert.Equal("變更已儲存，但報告清單沒有更新；重新開啟案件就會更新，不必重做變更。",
                 response.GetProperty("reportArtifactWarning").GetString());
         }
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
@@ -170,9 +172,11 @@ public sealed class Batch9MutationStateTests
         finally { TestWorkbookBuilder.Delete(path); }
     }
 
-    private static void AssertInvalidated(JsonElement value, bool validation, bool prescreen, bool filter)
+    private static void AssertInvalidated(JsonElement value, bool validation, bool prescreen, bool filter, bool accountMapping = false)
     {
-        Assert.Equal(new[] { "filter", "filterScenarios", "prescreen", "validation" }, value.EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
+        // 第 7 則新增科目配對清除旗標；精確鍵集合與所有既有結果斷言仍保留。
+        Assert.Equal(new[] { "accountMapping", "filter", "filterScenarios", "prescreen", "validation" }, value.EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(accountMapping, value.GetProperty("accountMapping").GetBoolean());
         Assert.Equal(validation, value.GetProperty("validation").GetBoolean());
         Assert.Equal(prescreen, value.GetProperty("prescreen").GetBoolean());
         Assert.Equal(filter, value.GetProperty("filter").GetBoolean());

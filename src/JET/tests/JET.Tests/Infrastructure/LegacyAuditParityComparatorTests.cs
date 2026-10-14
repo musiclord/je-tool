@@ -378,25 +378,25 @@ public sealed class LegacyAuditParityComparatorTests
     }
 
     [Fact]
-    public void LegacyNoCounterpartRules_AreTheIndependentExactSixRuleSet()
+    public void LegacyNoCounterpartRules_AreTheIndependentExactFiveRuleSet()
     {
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，回溯過帳不再列入。
         var expected = new HashSet<LegacyPrescreenRuleId>
         {
             LegacyPrescreenRuleId.HolidayPosting,
             LegacyPrescreenRuleId.HolidayApproval,
-            LegacyPrescreenRuleId.BackdatedPosting,
             LegacyPrescreenRuleId.NonAuthorizedPreparer,
             LegacyPrescreenRuleId.LowFrequencyPreparer,
             LegacyPrescreenRuleId.LowFrequencyAccount,
         };
 
-        Assert.Equal(6, LegacyPrescreenParityPlan.LegacyNoCounterpartRules.Count);
+        Assert.Equal(5, LegacyPrescreenParityPlan.LegacyNoCounterpartRules.Count);
         Assert.Equal(
-            6,
+            5,
             LegacyPrescreenParityPlan.LegacyNoCounterpartRules.Distinct().Count());
         Assert.True(
             expected.SetEquals(LegacyPrescreenParityPlan.LegacyNoCounterpartRules),
-            "Legacy-no-counterpart rules must remain the exact repository-defined six-rule set.");
+            "Legacy-no-counterpart rules must remain the exact repository-defined five-rule set.");
     }
 
     [Fact]
@@ -420,11 +420,11 @@ public sealed class LegacyAuditParityComparatorTests
     [Fact]
     public void LegacyNoCounterpartRules_EachRegisterBothRowAndVoucherMetrics()
     {
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，回溯過帳不再列入。
         var expectedRules = new[]
         {
             LegacyPrescreenRuleId.HolidayPosting,
             LegacyPrescreenRuleId.HolidayApproval,
-            LegacyPrescreenRuleId.BackdatedPosting,
             LegacyPrescreenRuleId.NonAuthorizedPreparer,
             LegacyPrescreenRuleId.LowFrequencyPreparer,
             LegacyPrescreenRuleId.LowFrequencyAccount,

@@ -103,13 +103,15 @@ public sealed class JetSchemaCatalogTests
     /// </summary>
     [Theory]
     // Source / DataView
-    [InlineData("staging_gl_raw_row", "JE_PBC", SchemaLayer.Source, SchemaAudience.DataView)]
-    [InlineData("staging_tb_raw_row", "TB_PBC", SchemaLayer.Source, SchemaAudience.DataView)]
+    // 使用者 2026-10-08 裁定資料名稱全系統統一。
+    // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
+    [InlineData("staging_gl_raw_row", "PBC-GL", SchemaLayer.Source, SchemaAudience.DataView)]
+    [InlineData("staging_tb_raw_row", "PBC-TB", SchemaLayer.Source, SchemaAudience.DataView)]
     [InlineData("target_account_mapping", "ACCOUNT_MAPPING", SchemaLayer.Source, SchemaAudience.DataView)]
     [InlineData("target_authorized_preparer", "AUTHORIZED_PREPARER", SchemaLayer.Source, SchemaAudience.DataView)]
     [InlineData("staging_calendar_raw_day", "DATE_DIMENSION", SchemaLayer.Source, SchemaAudience.DataView)]
     // Staging / DataView
-    [InlineData("target_gl_entry", "JE", SchemaLayer.Staging, SchemaAudience.DataView)]
+    [InlineData("target_gl_entry", "GL、GL(未納入測試)", SchemaLayer.Staging, SchemaAudience.DataView)]
     [InlineData("target_tb_balance", "TB", SchemaLayer.Staging, SchemaAudience.DataView)]
     // Target / StructureOnly
     [InlineData("result_rule_run", "VALIDATION_OVERVIEW", SchemaLayer.Target, SchemaAudience.StructureOnly)]
@@ -176,7 +178,8 @@ public sealed class JetSchemaCatalogTests
     [Fact]
     public void ResolveCanonical_KnownAndUnknown()
     {
-        Assert.Equal("JE", JetSchemaCatalog.ResolveCanonical("target_gl_entry"));
+        // 使用者 2026-10-08 裁定資料名稱全系統統一。
+        Assert.Equal("GL、GL(未納入測試)", JetSchemaCatalog.ResolveCanonical("target_gl_entry"));
         Assert.Null(JetSchemaCatalog.ResolveCanonical("no_such_table"));
     }
 

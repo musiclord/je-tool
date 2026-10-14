@@ -6,6 +6,38 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class PrivateCaseScenarioDiagnosticsTests
 {
+    [Fact]
+    public async Task ExplicitVoucherWitnesses_PreserveSameRowAndTextDiagnostics()
+    {
+        var scenarios = Element("""
+            [{"groups":[{"matchScope":"row","rules":[
+              {"type":"drCrOnly","drCr":"credit"},
+              {"type":"voucher","quantifier":"any","rules":[{"type":"prescreen","prescreenKey":"blankDescription"}]},
+              {"type":"voucher","quantifier":"any","rules":[{"type":"textSet","field":"description","mode":"contains","values":["alpha"]}]}]}]}]
+            """);
+        var previews = 0;
+        Task<JsonElement> Dispatch(string action, string payload)
+        {
+            if (action == "query.tagMatrixRowPage") return Task.FromResult(Element("""
+                {"rows":[{"documentNumber":"synthetic","description":null,"matchedPositions":[1]},
+                 {"documentNumber":"synthetic","description":"alpha","matchedPositions":[]}],"nextCursor":null}
+                """));
+            Assert.Equal("filter.preview", action);
+            var rules = Element(payload).GetProperty("scenario").GetProperty("groups")[0].GetProperty("rules");
+            Assert.Equal(new[] { "drCrOnly", "prescreen", "textSet" }, rules.EnumerateArray().Select(r => r.GetProperty("type").GetString()));
+            previews++;
+            return Task.FromResult(Element("""{"scenario":{"count":3,"voucherCount":2}}"""));
+        }
+        var facts = Assert.Single((await PrivateCaseScenarioDiagnostics.CaptureAsync(scenarios, [], Dispatch)).Counts);
+        Assert.Equal(1, previews);
+        Assert.Equal(3, facts.SameRowRuleMatchRowCount);
+        Assert.Equal(2, facts.SameRowRuleMatchVoucherCount);
+        Assert.Equal(2, facts.ExpandedRowsWithLegacyTextMatch);
+        Assert.Equal(1, facts.VouchersWithLegacyTextMatch);
+        Assert.Equal(2, facts.ExpandedRowsWhoseDirectHitHasNullOrEmptyDescription);
+        Assert.Equal(1, facts.VouchersWhoseDirectHitHasNullOrEmptyDescription);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

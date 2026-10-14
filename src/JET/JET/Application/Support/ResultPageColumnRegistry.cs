@@ -21,10 +21,10 @@ internal static class ResultPageColumnRegistry
     [
         new("documentNumber", "傳票號碼", RdeFieldValueTypeNames.Text, false),
         new("lineItem", "傳票文件項次", RdeFieldValueTypeNames.Text, false),
-        new("postDate", "總帳入帳日", RdeFieldValueTypeNames.Date, false),
+        new("postDate", "總帳日期", RdeFieldValueTypeNames.Date, false),
         new("accountCode", "會計科目編號", RdeFieldValueTypeNames.Text, false),
         new("accountName", "會計科目名稱", RdeFieldValueTypeNames.Text, false),
-        new("amount", "傳票金額", RdeFieldValueTypeNames.Money, false),
+        new("amount", "金額", RdeFieldValueTypeNames.Money, false),
         new("drCr", "借貸別", RdeFieldValueTypeNames.Text, false),
         new("description", "傳票摘要", RdeFieldValueTypeNames.Text, false)
     ];
@@ -36,7 +36,7 @@ internal static class ResultPageColumnRegistry
         new("accountName", "會計科目名稱", RdeFieldValueTypeNames.Text, false),
         new("debit", "借方金額", RdeFieldValueTypeNames.Money, false),
         new("credit", "貸方金額", RdeFieldValueTypeNames.Money, false),
-        new("postDate", "總帳入帳日", RdeFieldValueTypeNames.Date, false),
+        new("postDate", "總帳日期", RdeFieldValueTypeNames.Date, false),
         new("approvalDate", "傳票核准日", RdeFieldValueTypeNames.Date, false),
         new("createdBy", "傳票建立人員", RdeFieldValueTypeNames.Text, false),
         new("approvedBy", "傳票核准人員", RdeFieldValueTypeNames.Text, false),

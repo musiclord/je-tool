@@ -11,7 +11,7 @@ namespace JET.Domain;
 /// 本表是 logical key → 對外顯示/匯入比對用的正準中文名。兩個 public view 用途不同，
 /// 但都由 internal <see cref="JetFieldCatalog"/> 投影，不能用其中一份反向重建另一份。
 /// 涵蓋範圍:只列樣本 Field Mapping Info 有對應正準名的鍵;樣本未給正準名者
-/// (docDate/voucherDate/jeSource 等)刻意不列——不臆造名稱(no silent assumption)。
+/// (docDate/jeSource 等)刻意不列——不臆造名稱(no silent assumption)。
 /// </summary>
 public static class GlCanonicalNames
 {

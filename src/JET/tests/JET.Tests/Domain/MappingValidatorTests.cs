@@ -95,7 +95,7 @@ public sealed class MappingValidatorTests
     [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DcField)]
     [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DcDebitCode)]
     [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DcCreditCode)]
-    public void SideAndFlagModes_MissingDirectionInput_ReportsExactRequiredKey(
+    public void SideAndFlagModes_RequireTheDirectionColumnButOnlyOneDirectionCode(
         GlAmountMode mode,
         string missingKey)
     {
@@ -117,8 +117,9 @@ public sealed class MappingValidatorTests
             new GlMappingSpec(mapping, mode),
             JeColumns);
 
-        Assert.False(result.IsValid);
-        Assert.Equal([missingKey], result.MissingRequiredKeys);
+        // 2026-10-08 第 6 則：缺一側代碼可用補集；借貸別來源欄仍必填。
+        Assert.Equal(missingKey != GlMappingKeys.DcField, result.IsValid);
+        Assert.Equal(missingKey == GlMappingKeys.DcField ? new[] { missingKey } : [], result.MissingRequiredKeys);
         Assert.Empty(result.UnknownColumns);
     }
 

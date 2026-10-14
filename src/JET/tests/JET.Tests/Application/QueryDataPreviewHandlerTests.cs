@@ -20,11 +20,12 @@ public sealed class QueryDataPreviewHandlerTests
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, K5ManualFixture, databaseProvider: provider, manualBlankValueKind: "unclassified");
-        var data = await host.DispatchAsync("query.dataPreview", """{"dataset":"glEntries"}""");
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
+        var data = await host.DispatchAsync("query.dataPreview", """{"dataset":"gl"}""");
         Assert.Equal(new[] { "documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr", "manualAuto" },
             data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
         Assert.Equal(new string?[] { "manual", "automatic", null }, data.GetProperty("rows").EnumerateArray().Select(r => r[8].GetString()));
-        var excluded = await host.DispatchAsync("query.dataPreview", """{"dataset":"glExcludedEntries"}""");
+        var excluded = await host.DispatchAsync("query.dataPreview", """{"dataset":"glExcluded"}""");
         Assert.DoesNotContain("manualAuto", excluded.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
     }
 
@@ -105,7 +106,7 @@ public sealed class QueryDataPreviewHandlerTests
         using var host = new HandlerTestHost();
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
-            () => host.DispatchAsync("query.dataPreview", """{ "dataset": "glStaging" }"""));
+            () => host.DispatchAsync("query.dataPreview", """{ "dataset": "pbcGl" }"""));
 
         Assert.Equal(JetErrorCodes.NoActiveProject, ex.Code);
     }
@@ -124,14 +125,14 @@ public sealed class QueryDataPreviewHandlerTests
     }
 
     [Fact]
-    public async Task Preview_GlExcludedEntries_EmptyReturnsFixedColumnsAndZeroStats()
+    public async Task Preview_GlExcluded_EmptyReturnsFixedColumnsAndZeroStats()
     {
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
         var data = await host.DispatchAsync(
             "query.dataPreview",
-            """{ "dataset": "glExcludedEntries" }""");
+            """{ "dataset": "glExcluded" }""");
 
         Assert.Equal(
             [
@@ -153,7 +154,7 @@ public sealed class QueryDataPreviewHandlerTests
         await host.DispatchAsync("project.create", CreatePayload);
 
         // 尚未匯入/投影 → 空狀態（前端顯示提示），不是錯誤
-        var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "glEntries" }""");
+        var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "gl" }""");
 
         Assert.Equal(0, data.GetProperty("totalCount").GetInt64());
         Assert.Equal(0, data.GetProperty("columns").GetArrayLength());
@@ -161,14 +162,14 @@ public sealed class QueryDataPreviewHandlerTests
     }
 
     [Fact]
-    public async Task Preview_GlStaging_ReturnsSourceColumnsAndRawCells()
+    public async Task Preview_PbcGl_ReturnsSourceColumnsAndRawCells()
     {
         var glPath = WriteGlWorkbook();
         try
         {
             using var host = await CreateImportedHostAsync(glPath);
 
-            var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "glStaging" }""");
+            var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "pbcGl" }""");
 
             // columns = 正規化來源欄名（與欄位配對下拉一字不差）
             var columns = data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToList();
@@ -190,7 +191,7 @@ public sealed class QueryDataPreviewHandlerTests
     }
 
     [Fact]
-    public async Task Preview_GlEntries_ReturnsFixedColumnsAndStats()
+    public async Task Preview_Gl_ReturnsFixedColumnsAndStats()
     {
         var glPath = WriteGlWorkbook();
         try
@@ -198,7 +199,7 @@ public sealed class QueryDataPreviewHandlerTests
             using var host = await CreateImportedHostAsync(glPath);
             await host.DispatchAsync("mapping.commit.gl", GlCommitPayload);
 
-            var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "glEntries" }""");
+            var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "gl" }""");
 
             Assert.Equal(5, data.GetProperty("totalCount").GetInt64());
             Assert.Equal("documentNumber", data.GetProperty("columns")[0].GetString());
@@ -225,7 +226,7 @@ public sealed class QueryDataPreviewHandlerTests
     }
 
     [Fact]
-    public async Task Preview_GlEntriesAndExcludedEntries_UsePartitionedPopulationAndBoundedRows()
+    public async Task Preview_GlAndGlExcluded_UsePartitionedPopulationAndBoundedRows()
     {
         using var host = new HandlerTestHost();
         var builder = new InlineGlWorkbookBuilder()
@@ -262,13 +263,13 @@ public sealed class QueryDataPreviewHandlerTests
 
         var effective = await host.DispatchAsync(
             "query.dataPreview",
-            """{ "dataset": "glEntries", "limit": 1 }""");
+            """{ "dataset": "gl", "limit": 1 }""");
         Assert.Equal(1, effective.GetProperty("totalCount").GetInt64());
         Assert.Equal("JV-100", effective.GetProperty("rows")[0][0].GetString());
 
         var excluded = await host.DispatchAsync(
             "query.dataPreview",
-            """{ "dataset": "glExcludedEntries", "limit": 1 }""");
+            """{ "dataset": "glExcluded", "limit": 1 }""");
         Assert.Equal(2, excluded.GetProperty("totalCount").GetInt64());
         Assert.Equal(1, excluded.GetProperty("rows").GetArrayLength());
         var firstRow = excluded.GetProperty("rows")[0];
@@ -281,7 +282,7 @@ public sealed class QueryDataPreviewHandlerTests
     }
 
     [Fact]
-    public async Task Preview_TbBalances_ReturnsChangeAmounts()
+    public async Task Preview_Tb_ReturnsChangeAmounts()
     {
         var tbPath = TestWorkbookBuilder.WriteWorkbook(ws =>
         {
@@ -319,7 +320,7 @@ public sealed class QueryDataPreviewHandlerTests
                 }
                 """);
 
-            var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "tbBalances" }""");
+            var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "tb" }""");
 
             Assert.Equal(2, data.GetProperty("totalCount").GetInt64());
             Assert.Equal("changeAmount", data.GetProperty("columns")[2].GetString());
@@ -346,7 +347,7 @@ public sealed class QueryDataPreviewHandlerTests
 
             // 有界預覽：rows 受 limit 夾擠、totalCount 仍回完整母體大小
             var data = await host.DispatchAsync(
-                "query.dataPreview", """{ "dataset": "glStaging", "limit": 2 }""");
+                "query.dataPreview", """{ "dataset": "pbcGl", "limit": 2 }""");
 
             Assert.Equal(2, data.GetProperty("rows").GetArrayLength());
             Assert.Equal(5, data.GetProperty("totalCount").GetInt64());
@@ -439,7 +440,9 @@ public sealed class QueryDataPreviewHandlerTests
 
         // 正準名出現、Hidden 不出現（負向）。
         var canonicalNames = data.GetProperty("rows").EnumerateArray().Select(r => r[0].GetString()).ToList();
-        Assert.Contains("JE_PBC", canonicalNames);
+        // 使用者 2026-10-08 裁定資料名稱全系統統一。
+        // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
+        Assert.Contains("PBC-GL", canonicalNames);
         Assert.DoesNotContain("GL_CONTROL_TOTAL", canonicalNames);
         Assert.DoesNotContain("APP_MESSAGE_LOG", canonicalNames);
     }

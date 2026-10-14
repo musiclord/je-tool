@@ -23,8 +23,7 @@ internal sealed record PrescreenRequest(
     bool HasRevenue,
     bool HasCounterpart,
     bool HasAuthorizedPreparers,
-    IReadOnlyList<int>? NonWorkingDays,
-    bool HasVoucherDate);
+    IReadOnlyList<int>? NonWorkingDays);
 
 /// <summary>
 /// Prescreen typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
@@ -48,7 +47,6 @@ internal sealed record PrescreenPlan(
     internal bool RunHolidayApproval => IsApplicable("holiday_approval");
 
     internal bool RunNonAuthorizedPreparer => IsApplicable("non_authorized_preparer");
-    internal bool RunBackdatedPosting => IsApplicable("backdated_posting");
     internal bool RunLowFrequencyPreparer => IsApplicable("low_frequency_preparer");
 
     internal bool IsApplicable(string slug) =>
@@ -62,7 +60,7 @@ internal sealed record PrescreenPlan(
 /// 跳過規則的 outward 0／null、固定尾零門檻與 status 不由 Infrastructure 決定。
 /// Creators／Accounts 沿用既有 50 列上限的有界摘要型別；
 /// TotalPreparerCount／TotalEntryCount 是查核期間的全母體純量（非上限內合計）；
-/// RuleVoucherCounts 與既有 13 條 row-tag 行數來自同一批規則查詢，不另跑第二套述詞。
+/// RuleVoucherCounts 與既有 12 條 row-tag 行數來自同一批規則查詢，不另跑第二套述詞。
 /// </summary>
 internal sealed record PrescreenFacts(
     long PostPeriodApprovalCount,
@@ -77,7 +75,6 @@ internal sealed record PrescreenFacts(
     long HolidayPostingCount,
     long HolidayApprovalCount,
     long BlankDescriptionCount,
-    long BackdatedPostingCount,
     long NonAuthorizedPreparerCount,
     long LowFrequencyPreparerCount,
     long LowFrequencyAccountCount,
@@ -191,8 +188,7 @@ public static partial class JetAuditProgram
                 HasRevenue: request.HasRevenue,
                 HasCounterpart: request.HasCounterpart,
                 HasAuthorizedPreparers: request.HasAuthorizedPreparers,
-                NonWorkingDays: request.NonWorkingDays,
-                HasVoucherDate: request.HasVoucherDate),
+                NonWorkingDays: request.NonWorkingDays),
             new AuditUserParameters(
                 RunId: request.RunId,
                 GeneratedUtc: request.GeneratedUtc,
@@ -242,7 +238,6 @@ public static partial class JetAuditProgram
                 ? facts.HolidayApprovalCount
                 : null,
             BlankDescriptionCount: facts.BlankDescriptionCount,
-            BackdatedPostingCount: plan.RunBackdatedPosting ? facts.BackdatedPostingCount : 0,
             NonAuthorizedPreparerCount: plan.RunNonAuthorizedPreparer
                 ? facts.NonAuthorizedPreparerCount
                 : 0,

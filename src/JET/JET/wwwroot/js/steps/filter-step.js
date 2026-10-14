@@ -20,7 +20,44 @@
     return views[key];
   }
 
-  function revealAddedRule(rule) {
+  // app.js 的 JetMotion 用的識別：同一個條件或條件組物件在每次重繪都用同一個 data-motion-key，
+  // 加入的長出來、移除與清除的收起來。只放在畫面上，不寫進草稿，也不送出。
+  // 還沒有條件組時畫的空白第 1 組，和之後真的建立的第 1 組是同一塊，所以建組時接手它的識別。
+  var motionKeys = new WeakMap();
+  var motionSerial = 0;
+  var EMPTY_FIRST_GROUP = {};
+
+  function motionKey(object, prefix) {
+    if (!motionKeys.has(object)) { motionSerial += 1; motionKeys.set(object, prefix + '-' + motionSerial); }
+    return motionKeys.get(object);
+  }
+
+  function groupMotionKey(group) {
+    return motionKey(group || EMPTY_FIRST_GROUP, 'set');
+  }
+
+  // 換掉的物件仍是畫面上同一個東西時（清除條件組、換條件的對象），新的物件接手舊的識別。
+  function keepMotionKey(previous, next) {
+    if (previous && next && motionKeys.has(previous)) { motionKeys.set(next, motionKeys.get(previous)); }
+  }
+
+  // 頁籤底下的窗格原地切換（使用者 2026-10-12）：新的窗格從舊窗格的高度平順變成自己的高度，舊的那一份疊在底下淡掉，
+  // 下面的內容跟著移動；裡面原本就打開的展開區不因為窗格重新出現而再長一次（app.js 的 JetMotion.swap）。
+  // chosen 挑出要顯示的窗格；fill 在它顯示之後、量高度之前補上還沒畫的內容。
+  function showOnly(panes, chosen, fill) {
+    var list = Array.prototype.slice.call(panes).filter(Boolean);
+    var to = list.filter(chosen)[0] || null;
+    var from = list.filter(function (pane) { return pane !== to && !pane.hidden; })[0] || null;
+    list.forEach(function (pane) { if (pane !== to && pane !== from) { pane.hidden = true; } });
+    if (to && global.JetMotion && global.JetMotion.swap) { global.JetMotion.swap(from, to, fill); return; }
+    if (from) { from.hidden = true; }
+    if (to) { to.hidden = false; }
+    if (fill) { fill(); }
+  }
+
+  // focusValue：起訖或門檻留空的條件，焦點直接移到要填的值。
+  // 加入的條件正由標籤帶過去時，中欄跟著標籤平順捲到這一列（app.js 的 JetMotion），這裡不再瞬間捲過去，移焦點也不捲。
+  function revealAddedRule(rule, focusValue) {
     selectedRule = rule;
     global.JetFocus.defer(function () {
       var draft = Store.getState().filter.draft;
@@ -29,9 +66,16 @@
       var ri = draft.groups[gi].rules.indexOf(rule);
       var row = document.querySelector('.filter-workspace .rule-row[data-gi="' + gi + '"][data-ri="' + ri + '"]');
       if (!row || !row.getClientRects().length) { return null; }
-      row.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
-      return Array.from(row.querySelectorAll('.rule-row__controls input:not([disabled]), .rule-row__controls select:not([disabled]), .rule-row__controls textarea:not([disabled]), .rule-row__controls button:not([disabled])'))
+      var carried = !!(global.JetMotion && global.JetMotion.carries && global.JetMotion.carries(row));
+      if (!carried) { row.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }); }
+      var value = focusValue ? ruleValueControl(gi, [ri]) : null;
+      var control = value || Array.from(row.querySelectorAll('.rule-row__controls input:not([disabled]), .rule-row__controls select:not([disabled]), .rule-row__controls textarea:not([disabled]), .rule-row__controls button:not([disabled])'))
         .find(function (control) { return control.getClientRects().length > 0; });
+      if (carried && control) {
+        global.JetFocus.move(control, { preventScroll: true });
+        return null;
+      }
+      return control;
     });
   }
 
@@ -65,24 +109,30 @@
     input.setAttribute('aria-invalid', 'true');
     var row = input.parentNode;
     if (!row) { return; }
-    var err = row.querySelector('.field-error');
+    // 正在收起的舊訊息不沿用；新的一行從欄位下方長出來，清掉時收回去（使用者 2026-10-13 要求出現與消失都有動態）。
+    var err = row.querySelector('.field-error:not([data-motion-folding])');
     if (!err) {
       err = document.createElement('span');
       err.className = 'field-error';
       err.setAttribute('role', 'alert');
+      if (message != null) { err.textContent = message; }
       row.appendChild(err);
+      if (global.JetMotion && typeof global.JetMotion.enter === 'function') { global.JetMotion.enter(err); }
+      return;
     }
     if (message != null) { err.textContent = message; }
   }
 
-  // 清掉某欄位的錯誤狀態（紅框與訊息）。使用者修正欄位時即呼叫，避免「持續責備」。
+  // 清掉某欄位的錯誤狀態（紅框與訊息）。使用者修正欄位時即呼叫，避免「持續責備」。訊息收回欄位下方再拿掉。
   function clearFieldError(input) {
     if (!input) { return; }
     input.classList.remove('form__input--error');
     input.removeAttribute('aria-invalid');
     var row = input.parentNode;
-    var err = row ? row.querySelector('.field-error') : null;
-    if (err && err.parentNode) { err.parentNode.removeChild(err); }
+    var err = row ? row.querySelector('.field-error:not([data-motion-folding])') : null;
+    if (!err) { return; }
+    var drop = function () { if (err.parentNode) { err.parentNode.removeChild(err); } };
+    if (global.JetMotion && typeof global.JetMotion.fold === 'function') { global.JetMotion.fold(err, drop); } else { drop(); }
   }
 
   /* ============================================================================
@@ -92,12 +142,16 @@
      純檢視狀態放到重繪之外。放 module 層而非 Store：比照匯入精靈「模組區域狀態」的既有慣例
      （見 state.js touch() 的註解），Store 不需要知道單一步驟的展開細節；生命週期由本模組在每次
      render 時自行對齊（syncViewState）。
-       customPickerOpen —— 自訂篩選條件挑選區展開狀態。
+       checkCategory    —— 「常用查核條件」目前展開的分類（一次只展開一類；null 表示全部收起）。
+       examplesOpen     —— 「從範例開始」清單是否展開。
+       examplePick      —— 正在選欄位的範例（範例需要文字型攸關資料元素欄位且有兩個以上可選時）。
        openScenarios    —— 已存情境詳情展開狀態（index → true）。
        scenarioPreviews —— 已存情境惰性命中預覽快取（index → filter.preview 回傳的 scenario 物件）。
                            草稿編輯不影響已存情境的命中（已存定義只在 commit 時變），跨草稿編輯保留
                            快取是安全的。
        matrixOpen / matrixData —— 高風險條件矩陣展開狀態與情境摘要（tagMatrixScenarios）快取。
+       cleanDraftKey    —— 換成目前這份草稿後，第一次畫好時的內容；之後內容不同才算有還沒存的修改。
+                           換草稿時清成 null，下一次 bind 在自動名稱與 KCT 身分收斂後補記。
      重置時機（三個訊號、範圍遞減）：
        1. 專案切換或同案重新載入（project 參照變）→ 全重置。
        2. 已存清單被替換（savedScenarios 參照變＝commit 成功、移除情境、resume、resetWorkflow）
@@ -108,13 +162,12 @@
      ============================================================================ */
   function freshViewState() {
     return {
-      customPickerOpen: true,
       workspacePane: 'filter',
       conditionSource: 'kct',
-      legacyLetter: 'A',
-      legacyField: '',
-      customSubject: '',
-      saveOpen: false,
+      checkCategory: Ui.FILTER_COMMON_CHECK_GROUPS[0].key,
+      examplesOpen: false,
+      examplePick: null,
+      lastSavedName: null,
       savedDraftKey: null,
       disclosures: {},
       matrixView: 'scenarios',
@@ -122,7 +175,8 @@
       scenarioPreviews: {},
       matrixOpen: false,
       matrixData: null,
-      pendingRemovalIndex: null
+      pendingRemovalIndex: null,
+      cleanDraftKey: null
     };
   }
   var viewState = freshViewState();
@@ -191,10 +245,10 @@
       viewState = freshViewState();
       return;
     }
-    // 草稿在第五步以外被換成空白草稿（例如上游修改清除篩選情境）時，收起儲存區，回到初始畫面。
+    // 換成另一份草稿後，等下一次畫好再記下它沒有修改時的內容。
     if (state.filter.draft !== viewDraftRef) {
       viewDraftRef = state.filter.draft;
-      if (!state.filter.draft.groups.length && !state.filter.draft.name) { viewState.saveOpen = false; }
+      viewState.cleanDraftKey = null;
     }
     if (state.filter.savedScenarios !== viewSavedRef) {
       invalidateScenarioResponseGuards();
@@ -227,7 +281,6 @@
   function availableRuleTypes() {
     var state = Store.getState();
     var imp = state.importState;
-    var hasRdeFields = Ui.committedRdeFields(state).length > 0;
     return Ui.FILTER_RULE_TYPES.filter(function (t) {
       var requirement = t.accountMappingRequirement;
       var mapping = imp.accountMapping;
@@ -237,8 +290,7 @@
         (requirement === 'revenueAndCounterpart' && mapping.hasRevenue && mapping.hasCounterpart)
       ));
       return mappingEligible &&
-        (!t.requiresAuthorizedPreparers || !!imp.authorizedPreparer) &&
-        (!t.requiresRdeFields || hasRdeFields);
+        (!t.requiresAuthorizedPreparers || !!imp.authorizedPreparer);
     });
   }
 
@@ -253,25 +305,36 @@
     return hit ? hit.valueType : null;
   }
 
+  // 科目分類前置條件的說明，和後端 V7、V8、V9 同一句（使用者 2026-10-14 第三輪勾選頁確認 R3-15）。
+  // 分類名稱用第四步分類設定裡這個用途的內建分類目前的名稱，審計員改過名稱時寫新名稱。
+  var NO_ACCOUNT_CATEGORY_NOTE = '科目配對中尚無任何科目設定分類，請先在第四步設定';
+  function roleCategoryLabel(role) {
+    return Ui.taxonomyCategoryLabel(Store.getState(), 'builtin.' + role);
+  }
+  function revenueMissingNote() {
+    return '科目配對中尚無歸類為「' + roleCategoryLabel('revenue') + '」的科目，請先在第四步設定';
+  }
+  function counterpartMissingNote() {
+    return '科目配對中尚無歸類為「' + roleCategoryLabel('receivables') + '」「' + roleCategoryLabel('cash') +
+      '」或「' + roleCategoryLabel('receipt_in_advance') + '」的科目，請先在第四步設定';
+  }
+
   function accountMappingRequirementNote(ruleType) {
     var type = Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === ruleType; });
-    if (type && type.requiresRdeFields && rdeFieldOptions().length === 0) {
-      return '需先在欄位配對勾選攸關資料元素欄位';
-    }
     var requirement = type && type.accountMappingRequirement;
     if (!requirement) { return ''; }
 
     var mapping = Store.getState().importState.accountMapping;
-    if (!mapping) { return '需先完成科目配對'; }
+    if (!mapping) { return NO_ACCOUNT_CATEGORY_NOTE; }
     if (requirement === 'any') {
-      return mapping.hasAnyCategory ? '' : '科目配對需至少一筆非空白分類';
+      return mapping.hasAnyCategory ? '' : NO_ACCOUNT_CATEGORY_NOTE;
     }
     if (requirement === 'revenue') {
-      return mapping.hasRevenue ? '' : '科目配對需包含 Revenue 分類';
+      return mapping.hasRevenue ? '' : revenueMissingNote();
     }
     if (requirement === 'revenueAndCounterpart') {
-      if (!mapping.hasRevenue) { return '科目配對需包含 Revenue 分類'; }
-      return mapping.hasCounterpart ? '' : '科目配對需至少一個一般對方分類';
+      if (!mapping.hasRevenue) { return revenueMissingNote(); }
+      return mapping.hasCounterpart ? '' : counterpartMissingNote();
     }
     return '';
   }
@@ -282,15 +345,18 @@
     });
   }
 
+  var RETIRED_TYPE_NOTE = '此條件的類型已停用，請刪除此條件';
+
   function prescreenRequirementNote(key) {
     var option = Ui.PRESCREEN_KEY_OPTIONS.find(function (item) { return item.value === key; });
-    if (!option) { return '這個條件目前無法使用，請重新選擇'; }
+    // 和後端 P8 同一句（使用者 2026-10-14 第三輪勾選頁確認 R3-18）。
+    if (!option) { return RETIRED_TYPE_NOTE; }
     var imp = Store.getState().importState, mapping = imp.accountMapping;
-    if (option.requiresAuthorizedPreparers && !imp.authorizedPreparer) { return '需先匯入授權編製人員名單'; }
-    if (option.requiresAccountMapping && !mapping) { return '需先完成科目配對'; }
+    if (option.requiresAuthorizedPreparers && !imp.authorizedPreparer) { return '尚未匯入授權編製人員清單，請先在第二步匯入'; }
+    if (option.requiresAccountMapping && !mapping) { return NO_ACCOUNT_CATEGORY_NOTE; }
     if (key === 'unexpectedAccountPair') {
-      if (!mapping || !mapping.hasRevenue) { return '科目配對缺少收入（Revenue）分類'; }
-      if (!mapping.hasCounterpart) { return '科目配對缺少對方分類（應收、現金或預收）'; }
+      if (!mapping || !mapping.hasRevenue) { return revenueMissingNote(); }
+      if (!mapping.hasCounterpart) { return counterpartMissingNote(); }
     }
     return '';
   }
@@ -404,12 +470,11 @@
     var target = activeEditableGroup(draft);
     if (!target) {
       target = { join: 'AND', matchScope: 'row', rules: [] };
+      if (draft.groups.length === 0) { keepMotionKey(EMPTY_FIRST_GROUP, target); }
       draft.groups.push(target);
       setActiveGroup(draft, target);
     }
-    var combinator = groupMatchScope(target) === 'sameVoucher'
-      ? 'AND'
-      : (target.rules.length ? groupCombinator(target) : 'AND');
+    var combinator = target.rules.length ? groupCombinator(target) : 'AND';
     specs.forEach(function (spec) {
       var r = materializeRule(spec, item.letter);
       r.join = combinator;
@@ -423,7 +488,41 @@
   function removeKctFromActiveGroup(draft, item) {
     var active = activeEditableGroup(draft);
     if (!active) { return; }
+    announceRemoval(active.rules.filter(function (r) { return r[KCT_LETTER_KEY] === item.letter; }));
     active.rules = active.rules.filter(function (r) { return r[KCT_LETTER_KEY] !== item.letter; });
+  }
+
+  // 要拿掉的條件先輕微快速地晃一下再收起來（使用者 2026-10-13，app.js 的 JetMotion.removing）。
+  // 移除鈕在條件列裡的由 app.js 的 REMOVAL_SOURCES 處理；按鈕不在要拿掉的條件裡時（例如再按一次 KCT 卡片），在這裡說明是哪幾條。
+  function announceRemoval(rules) {
+    if (!rules.length || !global.JetMotion || typeof global.JetMotion.removing !== 'function') { return; }
+    global.JetMotion.removing({ keys: rules.map(function (rule) { return motionKey(rule, 'rule'); }) });
+  }
+
+  // 清空整個條件組合（取消編輯、新增情境）時，組合裡要拿掉的條件組與條件同樣先晃一下再收起。
+  function announceClearedComposition() {
+    if (!global.JetMotion || typeof global.JetMotion.removing !== 'function') { return; }
+    global.JetMotion.removing({ within: ['filter-panel'], only: '.scenario-set, .rule-row' });
+  }
+
+  // 晚一點才讀回來的內容（例如打開「查看結果」後才載入的傳票），整塊從原本的高度平順變成新的高度，
+  // 不在讀回來的那一刻一下子撐開（使用者 2026-10-13 要求展開與收合一致）。element 要有 data-motion-key，app.js 的 JetMotion 才認得是同一塊。
+  function fillSmoothly(element, fill) {
+    if (element && global.JetMotion && typeof global.JetMotion.morph === 'function' && element.hasAttribute('data-motion-key')) {
+      global.JetMotion.morph(element, fill);
+      return;
+    }
+    fill();
+  }
+
+  // 動態被系統設定關掉時（減少動態、高對比佈景），捲動也直接到位。
+  function smoothScroll() {
+    return !!global.JetMotion && typeof global.JetMotion.allowed === 'function' && global.JetMotion.allowed() ? 'smooth' : 'auto';
+  }
+
+  // 「選取中」換到別條時收回去再拿掉。
+  function dropRuleBadge(badge) {
+    if (global.JetMotion && typeof global.JetMotion.fold === 'function') { global.JetMotion.fold(badge, function () { badge.remove(); }); } else { badge.remove(); }
   }
 
   // wire 投影（單一收斂點）：把一個情境（草稿或已存）深拷貝成 filter.preview / filter.commit 的
@@ -459,8 +558,9 @@
         };
       })
     };
-    // 2026-09-05 到 06 那一輪保存的情境可能還帶 exclusions；原樣送出讓後端以 invalid_scenario 指路改用否定模式，
-    // 不在畫面默默丟掉。
+    // 2026-09-05 到 06 那一輪保存的情境可能還帶 exclusions；草稿若帶著就原樣送出，讓後端以 invalid_scenario 指路改用否定模式，
+    // 不在畫面默默丟掉。已存情境的摘要不帶 exclusions，而且儲存或移除別的情境時不再回送已存情境，
+    // 資料庫裡帶排除區的舊情境原文保留，列在待修正清單，直到審計員修改或移除它。
     if (Array.isArray(s.exclusions) && s.exclusions.length) { wire.exclusions = s.exclusions; }
     var source = scenarioSource(s);
     var originGroups = ordered.filter(function (g) { return (g.rules || []).length > 0; });
@@ -664,7 +764,7 @@
   }
 
   /* ============================================================================
-     區塊 1：KCT條件 選取（A–J 可複選 toggle）
+     區塊 1：KCT 條件選取（可複選 toggle）
      十顆卡片由 FILTER_KCT_CHECKLIST 一份資料驅動。已選/未選兩態由身分標記得出（isKctSelected：
      草稿中是否存在帶該卡字母標記 __kctLetter 的 rule），不再做結構簽章猜測。
      未符合逐條科目配對內容資格的 A/B/C/D：停用＋原因註記，不綁 toggle。
@@ -709,7 +809,7 @@
     return (
       '<section class="condition-picker condition-picker--kct">' +
         '<div class="condition-picker__head">' +
-          '<h3 class="condition-picker__title">KCT 條件 A 到 J</h3>' +
+          '<h3 class="condition-picker__title">KCT 條件</h3>' +
           '<span class="condition-picker__count">作用中組已選 ' + selectedCount + ' 項</span>' +
         '</div>' +
         '<div class="condition-picker__grid condition-picker__grid--kct">' + cells + '</div>' +
@@ -719,41 +819,79 @@
     );
   }
 
-  // 自訂條件入口只選擇篩選對象；常用情境範例另有獨立入口。
+  // 自訂篩選條件分頁只有兩區：上面依欄位型別列出欄位按鈕，下面是依審計目的分類的常用查核條件。
   function customPickerHtml() {
-    return '<section class="condition-picker condition-picker--custom">' +
-      '<h3 class="condition-picker__title">自訂篩選條件</h3>' +
-      addRuleBarHtml() + '<div data-legacy-host>' + legacyPickerHtml() + '</div></section>';
+    return '<section class="condition-picker condition-picker--custom">' + fieldChipsHtml() + commonChecksHtml() + '</section>';
   }
 
-  function legacyPickerHtml() {
-    var catalog = global.JetLegacyFilters.catalogue;
-    var item = catalog.conditions.find(function (entry) { return entry.letter === viewState.legacyLetter; });
-    var allFields = Ui.FilterValues.fields(Store.getState());
-    var selectable = allFields.filter(function (field) {
-      return item.letter === 'R' ? field.type === 'date' : field.type === 'text';
-    });
-    var showField = item.letter === 'O' || item.letter === 'R';
-    var unavailable = item.letter === 'C' ? prescreenRequirementNote('unexpectedAccountPair') : '';
-    var extras = allFields.filter(function (field) { return field.extra && field.type === 'text'; });
-    function options(fields, selected) { return fields.map(function (field) {
-      return '<option value="' + Ui.esc(field.id) + '"' + (field.id === selected ? ' selected' : '') + '>' + Ui.esc(field.optionLabel) + '</option>';
-    }).join(''); }
-    return '<details class="filter-examples"' + disclosureAttributes('legacy-form') + '><summary>舊表條件 A 到 U 與範例</summary>' +
-      '<label class="form__row"><span class="visually-hidden">舊表條件 A 到 U</span><select class="form__input" data-legacy-letter>' + catalog.conditions.map(function (entry) {
-        return '<option value="' + entry.letter + '"' + (entry === item ? ' selected' : '') + '>' + Ui.esc('舊表 ' + entry.letter + '：' + entry.label) + '</option>';
-      }).join('') + '</select></label><p data-legacy-help>' + Ui.esc(item.help) + '</p>' +
-      (showField ? '<label class="form__row">使用欄位<select class="form__input" data-legacy-field>' + options(selectable, viewState.legacyField || item.rules[0].field) + '</select></label>' : '') +
-      (item.letter === 'P' ? '<label class="form__row">指定對象<select class="form__input" data-legacy-account><option value="codes">科目編號</option><option value="categories">科目分類</option></select></label>' : '') +
-      (item.letter === 'U' ? '<label class="form__row">人員條件<select class="form__input" data-legacy-person><option value="frequency">建立人員的傳票張數</option><option value="createBy">指定建立人員</option><option value="approveBy">指定核准人員</option></select></label>' : '') +
-      '<button type="button" class="btn btn--ghost" data-action="add-legacy-rule"' + (unavailable ? ' disabled' : '') + '>加入舊表 ' + item.letter + ' 條件</button>' +
-      (unavailable ? '<p class="form-notice">' + Ui.esc(unavailable) + '。完成後即可加入舊表 C。</p>' : '') +
-      '<p>套用範例會替換目前條件，已儲存情境不變。</p>' +
-      '<div class="condition-picker__grid">' + catalog.examples.map(function (example) {
-        return '<div class="legacy-example">' +
-          (example.key === 'example2' ? '<label class="form__row">範例 2 的部門欄位<select class="form__input" data-legacy-example-field><option value="">請選已配對的文字型攸關資料元素欄位</option>' + options(extras, '') + '</select></label>' : '') +
-          '<button type="button" class="picker-card picker-card--template" data-legacy-example="' + example.key + '"><span class="picker-card__label">' + Ui.esc(example.label) + '</span><span class="picker-card__note">' + Ui.esc('舊表 ' + example.combination) + '</span></button></div>';
-      }).join('') + '</div><p data-legacy-notice role="status"></p></details>';
+  // 欄位按鈕的三列。核心欄位全部列出，不依配對狀態篩選；攸關資料元素欄位依型別接在核心欄位後面。
+  var FIELD_CHIP_ROWS = [
+    { type: 'date', label: '日期', core: ['postDate', 'docDate'] },
+    { type: 'money', label: '數字', core: ['amount'] },
+    { type: 'text', label: '文字', core: ['description', 'accNum', 'accName', 'createBy', 'approveBy', 'docNum', 'jeSource', 'lineID'] }
+  ];
+
+  // 按鈕文字只寫欄位名稱，和其他欄位同名時才加來源欄名；完整說明放在 title 與 aria-label。
+  // attributes 是按鈕的識別屬性（屬性名稱寫到等號前），值是欄位識別。
+  function fieldButtonHtml(field, fields, attributes, purpose) {
+    var duplicate = fields.filter(function (item) { return item.label === field.label; }).length > 1;
+    var text = field.label + (duplicate && field.sourceColumn ? '（' + field.sourceColumn + '）' : '');
+    var full = field.extra ? Ui.rdeFieldOptionLabel(field) : field.label;
+    return '<button type="button" class="filter-chip' + (field.extra ? ' filter-chip--extra' : '') + '" ' + attributes + '="' + Ui.esc(field.id) + '"' +
+      ' title="' + Ui.esc(full) + '" aria-label="' + Ui.esc(purpose + full) + '">' + Ui.esc(text) + '</button>';
+  }
+
+  function fieldChipsHtml() {
+    var fields = Ui.FilterValues.fields(Store.getState());
+    var rows = FIELD_CHIP_ROWS.map(function (row) {
+      var core = row.core.map(function (id) { return fields.find(function (field) { return !field.extra && field.id === id; }); }).filter(Boolean);
+      var extra = fields.filter(function (field) { return field.extra && field.type === row.type; });
+      return '<div class="filter-chip-row" role="group" aria-label="' + row.label + '欄位"><span class="filter-chip-row__label">' + row.label + '</span>' +
+        '<div class="filter-chip-row__chips">' + core.concat(extra).map(function (field) {
+          return fieldButtonHtml(field, fields, 'data-action="add-rule" data-add-field', '加入條件：');
+        }).join('') + '</div></div>';
+    }).join('');
+    return '<div class="filter-custom-block"><h4 class="filter-custom-block__title">依欄位設定</h4>' + rows + '</div>';
+  }
+
+  var PREPARATION_DATE_MISSING_NOTE = '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫';
+
+  // 範例與常用查核條件的前置條件。只列後端一定會擋的情況；未配對的欄位或沒有假日清單不在此列。
+  // 查核截止日在建立案件時必填，不另外檢查。
+  function conditionRequirementNote(requires) {
+    var state = Store.getState(), project = state.project || {};
+    if (requires === 'accountMapping') { return accountMappingRequirementNote('specialAccountCategoryPair'); }
+    // 說明和後端 V25、V30 同一句（使用者 2026-10-14 第三輪勾選頁確認 R3-17）。
+    if (requires === 'preparationDate') { return project.lastPeriodStart ? '' : PREPARATION_DATE_MISSING_NOTE; }
+    if (requires === 'approveByMapped') { return glFieldMapped(state, 'approveBy') ? '' : '「傳票核准人員」尚未選擇來源欄'; }
+    if (requires === 'createByMapped') { return glFieldMapped(state, 'createBy') ? '' : '「傳票建立人員」尚未選擇來源欄'; }
+    if (requires === 'unexpectedAccountPair') { return prescreenRequirementNote('unexpectedAccountPair'); }
+    return '';
+  }
+
+  function glFieldMapped(state, key) {
+    var committed = state.mapping && state.mapping.gl ? state.mapping.gl.committed : null;
+    return !!(committed && committed.mapping && String(committed.mapping[key] || '').trim());
+  }
+
+  function commonChecksHtml() {
+    var groups = Ui.FILTER_COMMON_CHECK_GROUPS.map(function (group) {
+      var open = viewState.checkCategory === group.key;
+      var listId = 'filter-checks-' + group.key;
+      var items = group.checks.map(function (check) {
+        var note = conditionRequirementNote(check.requires);
+        var noteId = 'filter-check-note-' + check.key;
+        return '<li class="filter-check"><span class="filter-check__label">' + Ui.esc(check.label) + '</span>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-action="add-rule" data-add-check="' + check.key + '"' +
+            ' aria-label="' + Ui.esc('加入「' + check.label + '」') + '"' + (note ? ' disabled aria-describedby="' + noteId + '"' : '') + '>加入</button>' +
+          (note ? '<p class="filter-check__note" id="' + noteId + '">' + Ui.esc(note) + '</p>' : '') + '</li>';
+      }).join('');
+      return '<div class="filter-check-group"><h5 class="filter-check-group__heading">' +
+        '<button type="button" class="filter-check-group__toggle" data-check-category="' + group.key + '" aria-expanded="' + open + '" aria-controls="' + listId + '">' +
+          Ui.esc(group.label) + '</button></h5>' +
+        '<ul class="filter-check-group__items" id="' + listId + '" data-collapsible' + (open ? '' : ' hidden') + '>' + items + '</ul></div>';
+    }).join('');
+    return '<div class="filter-custom-block"><h4 class="filter-custom-block__title">常用查核條件</h4>' + groups + '</div>';
   }
 
   // 條件列的三個家族：畫面只用家族分類，wire 型別維持原樣（後端不動）。
@@ -765,46 +903,27 @@
       'trailingDigits', 'revenueDebitNearQuarterEnd', 'revenueWithoutNormalCounterpart', 'manualRevenueEntry', 'preparerEqualsApprover'] },
     legacy: { label: '舊式', types: ['text', 'textSet', 'dateRange', 'numRange', 'typed'] }
   };
-  var PSEUDO_FIELDS = [{ id: '__drCr', label: '借貸別' }, { id: '__isManual', label: '人工／自動' }];
   var PATTERN_PARAM_TYPES = [
-    { value: 'customTrailingZeros', label: '金額尾數連續 0 的位數' },
-    { value: 'customPreparerEntryCount', label: '分錄測試範圍內編製人員分錄筆數 ≤' },
-    { value: 'customAccountEntryCount', label: '分錄測試範圍內科目分錄筆數 ≤' },
-    { value: 'entityFrequency', label: '科目與人員統計' },
-    { value: 'customKeywords', label: '摘要關鍵字（可自行編輯）' }
+    { value: 'entityFrequency', label: '科目與人員統計' }
   ];
+  // 只用來顯示已儲存情境裡的筆數條件；新條件改用「科目與人員統計」，不再提供這兩種。
+  var SAVED_ONLY_PATTERN_LABELS = [
+    { value: 'customPreparerEntryCount', label: 'GL 中編製人員分錄筆數 ≤' },
+    { value: 'customAccountEntryCount', label: 'GL 中科目分錄筆數 ≤' }
+  ];
+
+  // 樣態下拉的選項：可新增的型別，加上目前這條條件本身的已儲存型別。
+  function patternTypeOptions(rule) {
+    return PATTERN_PARAM_TYPES.concat(SAVED_ONLY_PATTERN_LABELS.filter(function (item) { return item.value === rule.type; }));
+  }
 
   function ruleFamily(rule) {
     return Object.keys(RULE_FAMILIES).filter(function (key) { return RULE_FAMILIES[key].types.indexOf(rule.type) >= 0; })[0] || 'legacy';
   }
 
-  // 新條件共用一個對象選單，加入 activeEditableGroup；不改既有規則型別。
-  function addRuleBarHtml() {
-    function option(value, label, note) {
-      return '<option value="' + Ui.esc(value) + '"' + (value === viewState.customSubject ? ' selected' : '') +
-        (note ? ' disabled' : '') + '>' + Ui.esc(label + (note ? '（' + note + '）' : '')) + '</option>';
-    }
-    var choices = Ui.FilterValues.groupedFields(Store.getState()).map(function (group) {
-      return '<optgroup label="' + group.label + '">' + group.fields.map(function (field) {
-        return option('field:' + field.id, field.optionLabel, '');
-      }).join('') + '</optgroup>';
-    }).join('') + '<optgroup label="分錄性質">' + option('type:drCrOnly', '借貸別', '') + option('type:manualAuto', '人工或自動分錄', '') + '</optgroup>';
-    var accountNote = accountMappingRequirementNote('accountSide');
-    choices += '<optgroup label="條件組合">' + option('type:group', '同一分錄的條件括號', '') + option('type:voucher', '整張傳票或借貸方的分錄條件', '') + '</optgroup>';
-    choices += '<optgroup label="科目分類">' + option('type:accountSide', '借方或貸方分類', accountNote) +
-      option('type:specialAccountCategoryPair', '借貸分類組合', accountNote) + '</optgroup>';
-    choices += '<optgroup label="分錄特徵">' + option('type:prescreen', '預篩選條件', '') +
-      PATTERN_PARAM_TYPES.map(function (item) { return option('type:' + item.value, item.label, ''); }).join('') + '</optgroup>';
-    return '<div class="filter-custom-add"><label for="filter-custom-subject">新增篩選條件</label>' +
-      '<select id="filter-custom-subject" class="form__input" data-custom-subject><option value="">選擇欄位或項目</option>' + choices + '</select>' +
-      '<button type="button" class="btn btn--ghost" data-action="add-rule"' + (viewState.customSubject ? '' : ' disabled') + '>加入條件</button>' +
-      (accountNote ? '<p class="scenario-add__note">' + Ui.esc(accountNote) + '</p>' : '') + '</div>';
-  }
-
-  function customSubjectRule() {
-    var value = viewState.customSubject;
-    if (value.indexOf('type:') === 0) { return Ui.newFilterRule(value.slice(5)); }
-    var field = Ui.FilterValues.fields(Store.getState()).find(function (item) { return item.id === value.slice(6); });
+  // 欄位按鈕帶入的條件：比較方式仍在右側條件卡片上選。人員與科目編號預設完整值清單。
+  function fieldConditionRule(fieldId) {
+    var field = Ui.FilterValues.fields(Store.getState()).find(function (item) { return item.id === fieldId; });
     if (!field) { return null; }
     var rule = Ui.FilterValues.create(field.type);
     if (['createBy', 'approveBy', 'accNum'].indexOf(field.id) >= 0) { rule.operator = 'in'; }
@@ -812,6 +931,81 @@
     rule[field.extra ? 'fieldId' : 'field'] = field.id;
     if (field.extra && field.type === 'money') { rule.amountBasis = 'signed'; }
     return rule;
+  }
+
+  function findCommonCheck(key) {
+    var found = null;
+    Ui.FILTER_COMMON_CHECK_GROUPS.forEach(function (group) {
+      group.checks.forEach(function (check) { if (check.key === key) { found = check; } });
+    });
+    return found;
+  }
+
+  // 第一個可用的預篩選規則；案件沒有期末財報準備日時跳過「財報準備日起核准」，因為後端會擋。
+  function firstUsablePrescreenKey() {
+    var hasPreparationDate = !!(Store.getState().project || {}).lastPeriodStart;
+    var usable = availablePrescreenKeys().filter(function (option) { return hasPreparationDate || option.value !== 'postPeriodApproval'; });
+    return usable.length ? usable[0].value : 'suspiciousKeywords';
+  }
+
+  // 由查核截止日往前算 days 天（含截止日）的起訖日期；沒有查核截止日時留空。
+  function periodEndRange(days) {
+    var project = Store.getState().project;
+    if (!project || !project.periodEnd) { return { from: '', to: '' }; }
+    var parts = project.periodEnd.split('-').map(Number);
+    var end = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    var start = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] - (days - 1)));
+    return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
+  }
+
+  // 把一條規格做成可編輯的條件：欄位條件以該欄位型別的預設值為底，其他型別以 newFilterRule 為底，再套上規格的值。
+  function conditionFromSpec(spec) {
+    var copy = JSON.parse(JSON.stringify(spec));
+    var field = copy.type === 'fieldValue' ? Ui.FilterValues.field(copy, Store.getState()) : null;
+    var rule = copy.type === 'fieldValue' ? Ui.FilterValues.create(field ? field.type : 'text') : Ui.newFilterRule(copy.type);
+    Object.keys(copy).forEach(function (key) { rule[key] = copy[key]; });
+    if (Array.isArray(copy.rules)) { rule.rules = copy.rules.map(conditionFromSpec); }
+    if (rule.type === 'prescreen' && !copy.prescreenKey) { rule.prescreenKey = firstUsablePrescreenKey(); }
+    if (rule.__periodEndDays) {
+      var range = periodEndRange(rule.__periodEndDays);
+      rule.from = range.from; rule.to = range.to;
+      delete rule.__periodEndDays;
+    }
+    return rule;
+  }
+
+  // 新條件加入目前作用中的組，沒有條件組就先建立。同一傳票的組一律用「且」，其他沿用組內現有的連接方式。
+  function addRulesToActiveGroup(draft, rules) {
+    var target = activeEditableGroup(draft);
+    if (!target) {
+      target = { join: 'AND', matchScope: 'row', rules: [] };
+      if (draft.groups.length === 0) { keepMotionKey(EMPTY_FIRST_GROUP, target); }
+      draft.groups.push(target);
+    }
+    setActiveGroup(draft, target);
+    var join = target.rules.length ? groupCombinator(target) : 'AND';
+    rules.forEach(function (rule) { rule.join = join; target.rules.push(rule); });
+    return target;
+  }
+
+  function addConditions(rules, focusValue) {
+    if (!rules || !rules.length) { return; }
+    var draft = Store.getState().filter.draft;
+    addRulesToActiveGroup(draft, rules);
+    revealAddedRule(rules[rules.length - 1], focusValue);
+    refreshAutomaticMetadata(draft, true);
+    Store.setFilterDraft(draft);
+  }
+
+  function addFieldCondition(fieldId) {
+    var rule = fieldConditionRule(fieldId);
+    if (rule) { addConditions([rule]); }
+  }
+
+  function addCommonCheck(key) {
+    var check = findCommonCheck(key);
+    if (!check || conditionRequirementNote(check.requires)) { return; }
+    addConditions(check.rules.map(conditionFromSpec), !!check.focusValue);
   }
 
   function disclosureAttributes(key) {
@@ -841,64 +1035,42 @@
     return keys[0] === 'holidayPosting' && keys[1] === 'weekendPosting';
   }
 
-  // 群組的比對範圍是 AST 資料，不是前端運算模式。fieldset/legend 讓下拉可報讀；
-  // 比對範圍縮成組標頭上的一個小下拉，只有選「同一傳票」時才多一行說明（錨點、佐證與 AND 限制）。
-  function matchScopeHtml(group, gi) {
-    var current = groupMatchScope(group);
-    var helpId = 'match-scope-help-' + gi;
-    var options = Ui.FILTER_MATCH_SCOPE_OPTIONS.map(function (option) {
-      return '<option value="' + Ui.esc(option.value) + '"' + (option.value === current ? ' selected' : '') + '>' + Ui.esc(option.label) + '</option>';
-    }).join('');
-    var help = current === 'sameVoucher'
-      ? '第 1 條標示為「' + OUTPUT_ANCHOR_LABEL + '」；' + SAME_VOUCHER_EXPLANATION +
-        '。至少需要 2 條條件，條件之間固定全部符合。'
-      : (group && group.rules.some(function (rule) { return rule.type === 'accountSide'; })
-          ? '借方與貸方條件要由不同列符合時，請選「同一傳票」。' : '');
-
-    // 說明放在 fieldset 之外、組標頭的最後，獨占一行；aria-describedby 仍指向它。
-    return (
-      '<fieldset class="match-scope" aria-describedby="' + helpId + '">' +
-        '<legend class="match-scope__legend">比對範圍</legend>' +
-        '<select class="inline-select" data-group-bind="matchScope" data-gi="' + gi + '" aria-label="比對範圍">' + options + '</select>' +
-      '</fieldset>' +
-      (help ? '<p class="match-scope__help" id="' + helpId + '">' + help + '</p>' : '<span id="' + helpId + '" hidden></span>')
-    );
-  }
-
   // 一塊 well（一個條件組）：組合器段控（該組 ≥2 條件才顯示）＋條件清單。multi（≥2 組）時段控放進
   // 組標頭「第 N 組」旁（組內中性段控，與組間藍色段控分層）；single 時段控放 well 頂端、前綴白話 lead
   // 「條件之間」。
   // 一組＝一句標頭「符合以下 [全部/任一] 條件，條件在 [同一分錄/同一傳票]」＋條件列＋「＋」列。
   // 標頭在單組時也顯示（一致的閱讀順序）；多組時多「第 N 組」、作用中徽章（只影響 KCT 卡的落點）與移除。
   function setWellHtml(group, gi, setNumber, multi, isActive) {
-    var sameVoucher = groupMatchScope(group) === 'sameVoucher';
-    var comb = sameVoucher ? 'AND' : (group && group.rules.length ? groupCombinator(group) : 'AND');
+    var comb = group && group.rules.length ? groupCombinator(group) : 'AND';
     var combinator = group && group.rules.length > 1
-      ? '<label class="filter-combinator">組內條件 <select class="inline-select" data-set-combinator data-gi="' + gi + '" aria-label="條件之間的關係"' +
-        (sameVoucher ? ' disabled aria-disabled="true" title="同一傳票固定全部符合"' : '') + '>' +
+      ? '<label class="filter-combinator">組內條件 <select class="inline-select" data-set-combinator data-gi="' + gi + '" aria-label="條件之間的關係">' +
         '<option value="AND"' + (comb === 'AND' ? ' selected' : '') + '>AND（全部符合）</option>' +
         '<option value="OR"' + (comb === 'OR' ? ' selected' : '') + '>OR（任一符合）</option></select></label>' : '';
-    var scope = group && (group.rules.length > 1 || sameVoucher)
-      ? '<details class="filter-relations"' + disclosureAttributes('relations-' + gi) + '><summary>' +
-        '本組比對範圍：' + (sameVoucher ? '同一傳票' : '同一分錄') + '</summary>' + matchScopeHtml(group, gi) + '</details>' : '';
     var head = '<div class="filter-group-heading"><strong>第 ' + setNumber + ' 組' +
-      '<span class="filter-group-selected"' + (isActive ? '' : ' hidden') + '>已選取</span></strong>' +
-      (multi ? '<button type="button" class="btn btn--ghost btn--tiny" data-action="remove-set" data-gi="' + gi + '">移除這組</button>' : '') + '</div>';
+      '<span class="filter-group-selected" data-collapsible-inline' + (isActive ? '' : ' hidden') + '>已選取</span></strong>' +
+      '<div class="filter-group-actions">' +
+      '<button type="button" class="btn btn--ghost btn--tiny" data-add-compound="group" data-gi="' + gi + '">加入子條件組</button>' +
+      '<button type="button" class="btn btn--ghost btn--tiny" data-add-compound="voucher" data-gi="' + gi + '">加入整張傳票條件</button>' +
+      '<button type="button" class="btn btn--ghost btn--tiny" data-action="clear-set" data-gi="' + gi + '" aria-label="清除第 ' + setNumber + ' 組的條件"' +
+        (group && group.rules.length ? '' : ' disabled') + '>清除</button>' +
+      (multi ? '<button type="button" class="btn btn--ghost btn--tiny" data-action="remove-set" data-gi="' + gi + '" aria-label="移除第 ' + setNumber + ' 組">移除</button>' : '') +
+      '</div></div>';
     var rows = group ? group.rules.map(function (rule, ri) { return ruleRowHtml(rule, group, gi, ri); }).join('') : '';
-    var settings = combinator || scope
-      ? '<div class="filter-group-settings" role="group" aria-label="第 ' + setNumber + ' 組設定">' +
-        combinator + scope + '</div>' : '';
-    return '<div class="scenario-flat scenario-set' + (isActive ? ' scenario-set--active' : '') + '" data-group-index="' + gi + '" tabindex="0" role="group" aria-current="' + isActive + '" aria-label="第 ' + setNumber + ' 組條件">' +
-      head + settings + '<div class="scenario-flat__list">' +
-      (rows || '<p class="filter-group-empty">在條件總覽選擇條件，加入這一組。</p>') + '</div></div>';
+    var wellKey = groupMotionKey(group);
+    var settings = combinator
+      ? '<div class="filter-group-settings" data-motion-key="settings-' + wellKey + '" role="group" aria-label="第 ' + setNumber + ' 組設定">' +
+        combinator + '</div>' : '';
+    return '<div class="scenario-flat scenario-set' + (isActive ? ' scenario-set--active' : '') + '" data-motion-key="' + wellKey + '" data-group-index="' + gi + '" tabindex="0" role="group" aria-current="' + isActive + '" aria-label="第 ' + setNumber + ' 組條件">' +
+      head + settings + '<div class="scenario-flat__list" data-motion-list="rules">' +
+      (rows || '<p class="filter-group-empty" data-motion-key="empty-' + wellKey + '">在條件總覽選擇條件，加入這一組。</p>') + '</div></div>';
   }
 
   // 條件組之間的連接器：做成一條水平軌道（spine），藍色段控置中跨在線上——父／情境層運算子，與組內中性
   // 段控明顯分層。data-set-join 設「所有可編輯群組」的 join 為一致值（單一組間運算子）。name 以 gi 唯一，
   // 避免 3 組以上時多個連接器共用 name 互相撞群（各連接器顯示同一致值即可）。
-  function interSetConnectorHtml(joinValue, gi) {
+  function interSetConnectorHtml(joinValue, gi, motion) {
     return (
-      '<div class="set-rail">' +
+      '<div class="set-rail" data-motion-key="rail-' + motion + '">' +
         '<span class="set-rail__lead">組與組之間</span>' +
         '<select class="inline-select inline-select--scenario" data-set-join data-set-join-index="' + gi + '" aria-label="組與組之間的關係">' +
           '<option value="AND"' + (joinValue === 'AND' ? ' selected' : '') + '>AND（所有組）</option>' +
@@ -923,7 +1095,7 @@
     var interJoin = scenarioJoin(draft); // 與 read-back、新組繼承、wire normalize 同一推導點
     var wells = editable.map(function (e, idx) {
       var isFirst = idx === 0;
-      var connector = isFirst ? '' : interSetConnectorHtml(draft.__preserveJoins ? effectiveRuleJoin(e.group) : interJoin, e.gi);
+      var connector = isFirst ? '' : interSetConnectorHtml(draft.__preserveJoins ? effectiveRuleJoin(e.group) : interJoin, e.gi, groupMotionKey(e.group));
       return connector + setWellHtml(e.group, e.gi, idx + 1, multi, e.group === active);
     }).join('');
     return wells;
@@ -1034,23 +1206,23 @@
     var statusClass = needsResave
       ? 'population-scope__status population-scope__status--pending'
       : 'population-scope__status';
-    var committedText = committed ? '查核期間' : '尚無可用版本';
-    var statusText = '篩選本次查核期間內的分錄。已儲存版本：' + committedText + '。';
+    // 「尚無可用版本」改說已儲存的情境尚未套用目前規則（使用者 2026-10-14 第三輪勾選頁確認 R3-24）。
+    var statusText = committed ? '在 GL 中篩選分錄。已儲存版本：查核期間內的分錄。' : '已儲存的篩選情境尚未套用目前規則。';
 
 
     return (
       '<section class="population-scope" aria-labelledby="population-scope-heading">' +
         '<div class="population-scope__head">' +
           '<div>' +
-            '<h3 class="population-scope__title" id="population-scope-heading">分錄測試範圍：查核期間</h3>' +
+            '<h3 class="population-scope__title" id="population-scope-heading">GL：查核期間內的分錄</h3>' +
           '</div>' +
         '</div>' +
-        '<p class="population-scope__definition">依本案過帳狀態設定，納入總帳入帳日落在查核期間內的分錄；日期空白或期間外的分錄不列入。</p>' +
+        '<p class="population-scope__definition">依本案過帳狀態設定，總帳日期落在查核期間內的分錄列入 GL；日期空白或期間外的分錄列入 GL(未納入測試)。</p>' +
         '<div class="' + statusClass + '"' + (needsResave ? '' : ' hidden') + '>' +
           '<span>' + Ui.esc(statusText) + '</span>' +
           (needsResave
             ? Ui.filterScenarioProblemsHtml(state) +
-              '<p class="population-scope__notice">修改並儲存後，才會顯示矩陣、完整命中和報告。</p>' +
+              '<p class="population-scope__notice">上列情境全部修改並儲存或移除後，才會顯示高風險條件矩陣與全部符合條件的分錄，也才能產生條件篩選報告與工作底稿。</p>' +
               '<button type="button" class="btn btn--ghost btn--tiny" data-action="resave-scenarios">' +
                 '重新檢查並儲存情境</button>'
             : '') +
@@ -1105,7 +1277,7 @@
       if (nameInput) { nameInput.value = draft.name || ''; }
       if (rationaleInput) { rationaleInput.value = draft.rationale || ''; }
       var heading = container.querySelector('[data-bind="editing-scenario-name"]');
-      if (heading) { heading.textContent = '情境：' + (draft.name || ''); }
+      if (heading) { heading.textContent = '編輯情境：' + (draft.name || ''); }
     }
   }
 
@@ -1116,31 +1288,30 @@
     var groupCount = Math.max(1, draft.groups.length);
     var metadataMark = requiresScenarioMetadata(draft) ? '<em class="form__req">*</em>' : '<span class="form__optional">（KCT 條件可選填）</span>';
     return '<section class="rule-card scenario-builder" data-builder-title tabindex="-1" aria-label="條件組合">' +
-      (editing ? '<div class="filter-builder-heading"><h3 class="rule-card__title" data-bind="editing-scenario-name">情境：' + Ui.esc(draft.name) + '</h3>' +
-        (viewState.savedDraftKey ? '<button type="button" class="btn btn--ghost" data-action="new-scenario">新增情境</button>' :
-          '<button type="button" class="btn btn--ghost" data-action="cancel-edit-scenario">取消編輯</button>') + '</div>' : '') +
-      (draft.__legacyKctSource ? '<p class="form-notice">舊情境未儲存個別 KCT 卡片來源，無法還原卡片勾選；原條件與 KCT 來源保留，仍可直接編輯。</p>' : '') +
-      '<div class="filter-builder-heading filter-builder-heading--composition"><div><h3 class="filter-entry-title">條件組合</h3>' +
+      (editing ? '<div class="filter-builder-heading" data-motion-key="editing-heading"><h3 class="rule-card__title" data-bind="editing-scenario-name">編輯情境：' + Ui.esc(draft.name) + '</h3></div>' : '') +
+      (draft.__legacyKctSource ? '<p class="form-notice form-notice--info" data-motion-key="legacy-note">此情境以舊版儲存，無法對應當時勾選的 KCT 卡片；條件已全部保留，可以直接編輯。</p>' : '') +
+      // 編輯情境時「編輯情境：名稱」是工作面標題，「條件組合」降一層。
+      '<div class="filter-builder-heading filter-builder-heading--composition"><div>' +
+        (editing ? '<h4 class="filter-entry-title">條件組合</h4>' : '<h3 class="filter-entry-title">條件組合</h3>') +
         '<span class="filter-builder-count">' + groupCount + ' 個條件組</span></div>' +
-        '<div class="filter-group-tools" aria-label="新增條件組"><button type="button" class="btn btn--ghost" data-action="add-set">新增條件組</button></div></div>' +
+        '<div class="filter-group-tools" role="group" aria-label="條件組合操作"><button type="button" class="btn btn--ghost" data-action="add-set">新增條件組</button></div></div>' +
       setsHtml(draft) +
-      (totalRules > 1 ? '<section class="filter-readback" aria-label="完整篩選條件">' + readBackHtml(draft) + '</section>' : '') +
-      '<p class="form-notice" data-bind="scenario-notice" role="alert" hidden></p>' +
-      '<p class="filter-save-feedback" data-bind="save-feedback" role="status"' + (savedFeedbackText(draft) ? '' : ' hidden') + '>' + savedFeedbackText(draft) + '</p>' +
-      '<div class="panel__actions filter-primary-actions"' + (viewState.saveOpen ? ' hidden' : '') + '>' +
-        '<button type="button" class="btn btn--ghost" data-action="preview-scenario">查看符合的傳票</button>' +
-        '<button type="button" class="btn" data-action="open-save" aria-expanded="' + viewState.saveOpen + '">' + (editing ? '儲存變更' : '儲存情境') + '</button>' +
-      '</div>' +
-      '<section class="filter-save-panel" data-save-panel' + (viewState.saveOpen ? '' : ' hidden') + ' aria-label="儲存篩選情境">' +
-        '<h4>儲存情境</h4><p>儲存所有條件組，供高風險條件矩陣與工作底稿使用。</p>' +
+      (totalRules > 1 ? '<section class="filter-readback" data-motion-key="readback" aria-label="完整篩選條件">' + readBackHtml(draft) + '</section>' : '') +
+      '<section class="filter-save-panel" data-save-panel data-motion-key="save-panel" aria-label="情境名稱與篩選動機">' +
         '<label class="form__row"><span class="form__label">情境名稱 ' + metadataMark + '</span>' +
           '<input class="form__input" type="text" data-bind="scenario-name" placeholder="例：摘要異常且金額偏高" value="' + Ui.esc(draft.name) + '"></label>' +
         '<label class="form__row"><span class="form__label">篩選動機說明 ' + metadataMark + '</span>' +
           '<textarea class="form__input" rows="2" data-bind="scenario-rationale" placeholder="說明保留這組條件的審計理由">' + Ui.esc(draft.rationale) + '</textarea></label>' +
-        '<div class="panel__actions"><button type="button" class="btn" data-action="save-scenario">' + (editing ? '更新此情境' : '儲存為篩選情境') + '</button>' +
-          (editing ? '<button type="button" class="btn btn--ghost" data-action="save-scenario-copy">另存副本</button>' : '') +
-          '<button type="button" class="btn btn--ghost" data-action="close-save">繼續調整條件</button></div>' +
-      '</section></section>';
+      '</section>' +
+      '<p class="form-notice" data-bind="scenario-notice" data-collapsible role="alert" hidden></p>' +
+      '<p class="filter-save-feedback" data-motion-key="save-feedback" data-bind="save-feedback" data-collapsible role="status"' + (savedFeedbackText(draft) ? '' : ' hidden') + '>' + savedFeedbackText(draft) + '</p>' +
+      '<div class="panel__actions filter-primary-actions" data-motion-key="primary-actions">' +
+        '<button type="button" class="btn btn--ghost panel__action--start" data-action="preview-scenario">查看符合的傳票</button>' +
+        // 取消緊鄰主要按鈕左邊，和全站按鈕列相同（使用者 2026-10-14 選擇「另存、取消、儲存」）。
+        (editing ? '<button type="button" class="btn btn--ghost" data-action="save-scenario-copy">另存為新情境</button>' +
+          '<button type="button" class="btn btn--ghost" data-action="cancel-edit-scenario">取消編輯</button>' : '') +
+        '<button type="button" class="btn" data-action="save-scenario">' + (editing ? '儲存變更' : '儲存情境') + '</button>' +
+      '</div></section>';
   }
 
   // JSON 物件屬性順序不是內容；清單或規則的陣列順序則仍有意義。
@@ -1154,15 +1325,143 @@
   }
 
   function savedFeedbackText(draft) {
+    if (viewState.lastSavedName && draftIsBlank(draft)) {
+      return '已儲存「' + Ui.esc(viewState.lastSavedName) + '」。可在「已儲存情境與矩陣」查看或修改。';
+    }
     if (!viewState.savedDraftKey || typeof draft.__editingIndex !== 'number') { return ''; }
     return scenarioContentKey(toWireDraft(draft)) === viewState.savedDraftKey
       ? '已儲存「' + Ui.esc(draft.name) + '」。' : '條件或說明已變更，尚未儲存。';
+  }
+
+  // 草稿內容的比較鍵：和儲存時送出的是同一個投影，只看條件、名稱與動機，不看畫面狀態。
+  function draftContentKey(draft) {
+    return scenarioContentKey(toWireDraft(draft));
+  }
+
+  // 還沒存成情境的草稿，沒有條件、也沒有手寫的名稱或動機時，換掉不會少任何東西。
+  function draftIsBlank(draft) {
+    function written(text, dirty) { return !!dirty && !!String(text || '').trim(); }
+    return (draft.groups || []).every(function (group) { return !(group.rules || []).length; }) &&
+      !written(draft.name, draft.__nameDirty) && !written(draft.rationale, draft.__rationaleDirty);
+  }
+
+  function editedSavedScenario(state) {
+    var draft = state.filter.draft;
+    if (typeof draft.__editingIndex !== 'number' || draft.__editingSavedRef !== state.filter.savedScenarios) { return null; }
+    return state.filter.savedScenarios[draft.__editingIndex] || null;
+  }
+
+  // 有沒有還沒存的修改：剛儲存過的情境和儲存的內容比，與「已儲存」提示同一個比較；
+  // 其他草稿和換成它之後第一次畫好時的內容比。
+  function hasUnsavedScenarioChanges() {
+    var state = Store.getState(), draft = state.filter.draft;
+    var edited = editedSavedScenario(state);
+    if (!edited && draftIsBlank(draft)) { return false; }
+    var key = draftContentKey(draft);
+    if (edited && viewState.savedDraftKey) { return key !== viewState.savedDraftKey; }
+    return viewState.cleanDraftKey !== null && key !== viewState.cleanDraftKey;
+  }
+
+  function replacementWording(kind, name) {
+    if (kind === 'template') { return { effect: '套用範例「' + name + '」會換掉', verb: '套用' }; }
+    var verb = kind === 'copy' ? '複製' : '開啟';
+    return { effect: verb + '「' + name + '」會換掉', verb: verb };
+  }
+
+  var replacementDialogOpen = false;
+  var saveDraftForReplacement = null; // bind 時接上目前畫面的儲存動作，回傳 Promise。
+
+  // 使用者 2026-10-11 裁定：目前的情境有修改還沒儲存時，開啟或複製已存情境與套用範例都先詢問，
+  // 按鈕比照第四步科目分類；沒有修改時直接換。取消編輯是明確放棄修改，不經過這裡。
+  // 不儲存時修改會被換掉，所以第二顆按鈕寫「不儲存，直接…」，和科目分類結束 JET 時的寫法相同。
+  // 同一時間只開一個對話框；已經開著時，新的要求當成「留在這裡」。
+  function guardDraftReplacement(kind, name, proceed) {
+    if (!hasUnsavedScenarioChanges()) { proceed(); return; }
+    if (replacementDialogOpen) { return; }
+    replacementDialogOpen = true;
+    var edited = editedSavedScenario(Store.getState());
+    var wording = replacementWording(kind, name);
+    var body = edited
+      ? '情境「' + edited.name + '」的修改尚未儲存。' + wording.effect + '這些修改。'
+      : '目前的條件尚未儲存為情境。' + wording.effect + '這些條件。';
+    var previousFocus = document.activeElement;
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.setAttribute('data-bind', 'filter-pending-modal');
+    modal.innerHTML =
+      '<div class="modal__backdrop" data-pending-choice="stay"></div>' +
+      '<div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="filter-pending-title" aria-describedby="filter-pending-body">' +
+        '<h3 class="modal__title" id="filter-pending-title">篩選情境尚未儲存</h3>' +
+        '<p class="modal__body" id="filter-pending-body">' + Ui.esc(body) + '</p>' +
+        '<div class="modal__actions">' +
+          '<button type="button" class="btn btn--ghost" data-pending-choice="stay">留在這裡</button>' +
+          '<button type="button" class="btn btn--ghost" data-pending-choice="continue">不儲存，直接' + wording.verb + '</button>' +
+          '<button type="button" class="btn" data-pending-choice="save">儲存並' + wording.verb + '</button>' +
+        '</div>' +
+      '</div>';
+    function detach() {
+      document.removeEventListener('keydown', onKey, true);
+      // 對話框淡出後才移除（見 app.js 的 JetMotion.dismiss），不一瞬間消失。
+      if (global.JetMotion) { global.JetMotion.dismiss(modal); } else { modal.remove(); }
+      replacementDialogOpen = false;
+    }
+    function returnFocus() {
+      if (previousFocus && previousFocus.isConnected && previousFocus.focus) { previousFocus.focus(); }
+    }
+    function onKey(event) {
+      if (event.key === 'Escape') { event.preventDefault(); detach(); returnFocus(); return; }
+      var card = modal.querySelector('.modal__card');
+      if (global.JetFocus && global.JetFocus.trapDialogTab && card) { global.JetFocus.trapDialogTab(card, event); }
+    }
+    modal.addEventListener('click', function (event) {
+      var target = event.target.closest('[data-pending-choice]');
+      if (!target) { return; }
+      var choice = target.getAttribute('data-pending-choice');
+      detach();
+      if (choice === 'stay') { returnFocus(); return; }
+      if (choice === 'continue') { proceed(); return; }
+      // 儲存失敗或被擋下時留在原情境，原因照舊寫在儲存按鈕上方與訊息紀錄，焦點回到原本的按鈕。
+      Promise.resolve(saveDraftForReplacement ? saveDraftForReplacement() : null).then(function () {
+        if (hasUnsavedScenarioChanges()) { returnFocus(); return; }
+        proceed();
+      });
+    });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(modal);
+    // 儲存情境不會清掉其他結果，預設停在儲存，比照科目分類沒有東西會被清除時的做法。
+    var primary = modal.querySelector('[data-pending-choice="save"]');
+    if (primary) { primary.focus(); }
   }
 
   // 保存只改變目前編輯器的狀態，不切換到其他工作。
   // 保留預覽，並讓之後的保存寫回同一個位置，避免重複新增。
   function draftMetadataKey(draft) {
     return JSON.stringify([draft.name, draft.rationale, !!draft.__nameDirty, !!draft.__rationaleDirty]);
+  }
+
+  // 錯誤細節帶 scenarioPosition 時，只有屬於這次儲存的那個情境才標在目前草稿上；沒帶位置的照舊視為目前草稿。
+  function belongsToTarget(detail, targetPosition) {
+    return typeof targetPosition !== 'number' || typeof detail.scenarioPosition !== 'number' ||
+      detail.scenarioPosition === targetPosition;
+  }
+
+  // 儲存按鈕上方的失敗說明。錯誤屬於別的情境時寫出是哪一個情境（2026-10-13 暫定句，之後的文字批次統一改字）。
+  function saveFailureText(error, targetPosition) {
+    var details = error && Array.isArray(error.details) ? error.details : [];
+    var other = details.filter(function (detail) { return detail && !belongsToTarget(detail, targetPosition); })[0];
+    var reason = (error && error.message) || '請稍後再試。';
+    return other
+      ? '儲存失敗：情境 ' + other.scenarioPosition + '「' + (other.scenarioName || '') + '」：' + reason
+      : '儲存失敗：' + reason;
+  }
+
+  // 「重新檢查並儲存情境」的結果（使用者 2026-10-13 勾選頁確認 54）。還有要修改的情境不算失敗。
+  function scenarioRecheckSentence(data) {
+    var check = data && data.filterScenarioCheck;
+    var remaining = check && Array.isArray(check.problems) ? check.problems.length : 0;
+    if (!remaining) { return '已依目前規則重新檢查 ' + data.savedCount + ' 個情境，全部已更新。'; }
+    return '已依目前規則重新檢查情境：' + (data.savedCount - remaining) + ' 個已更新，' + remaining +
+      ' 個仍需修改，請見上方清單。';
   }
 
   function filterCommitSnapshot(state) {
@@ -1186,7 +1485,7 @@
     var patch = linked && !clear ? { __editingSavedRef: data.scenarios,
       __editingIndex: draft.__editingIndex - (draft.__editingIndex > removedIndex ? 1 : 0) } : null;
     if (clear) {
-      viewState.saveOpen = false; viewState.savedDraftKey = null; viewState.disclosures = {}; selectedRule = null;
+      viewState.lastSavedName = null; viewState.savedDraftKey = null; viewState.disclosures = {}; selectedRule = null;
     }
     viewState.pendingRemovalIndex = null;
     Store.applyFilterCommit(data, patch, clear);
@@ -1202,13 +1501,12 @@
     var patch = null;
     if (sameDraft) {
       var saved = data.scenarios[index] || authored;
-      // 存成已儲存情境後，範例帶入的文字就和重開時一樣依命名來源處理，不再因條件增減改回自動。
+      // 請求期間繼續編輯時保留新修改，並接上本次儲存的版本；原草稿未變才清空。
       patch = { __editingIndex: index, __editingSavedRef: data.scenarios, __templateName: false, __templateRationale: false };
       if (unchanged) {
-        viewState.saveOpen = false;
-        Object.assign(patch, { name: saved.name, rationale: saved.rationale,
-          __nameDirty: !(authored.editorOrigins && authored.editorOrigins.nameIsAutomatic),
-          __rationaleDirty: !(authored.editorOrigins && authored.editorOrigins.rationaleIsAutomatic) });
+        viewState.lastSavedName = saved.name;
+        viewState.disclosures = {};
+        selectedRule = null;
       }
       viewState.savedDraftKey = scenarioContentKey(toWireScenario(saved));
     }
@@ -1216,43 +1514,130 @@
     if (!sameDraft && latest.filter.draft.__editingSavedRef === snapshot.savedRef) {
       patch = { __editingSavedRef: data.scenarios };
     }
-    Store.applyFilterCommit(data, patch, false);
-    Store.addMessage('已儲存篩選情境（' + data.savedCount + ' / 10）。', 'info');
+    Store.applyFilterCommit(data, patch, unchanged);
     if (unchanged && viewState.workspacePane === 'filter' && global.JetFocus) {
-      global.JetFocus.defer(function () { return document.querySelector('.filter-workspace [data-action="open-save"]'); });
+      global.JetFocus.defer(function () { return document.querySelector('.filter-workspace [data-builder-title]'); });
     }
     return true;
   }
 
-  // 常用情境範本（FILTER_SCENARIO_TEMPLATES）：一鍵把草稿換成常見的審計問題，名稱與動機預填、可改。
-  // 需要科目配對的範本在未匯入時停用並說原因；套用後仍走一般的預覽與保存流程。
-  function templatePickerHtml(imp) {
-    var state = Store.getState();
-    var cards = Ui.FILTER_SCENARIO_TEMPLATES.map(function (template) {
-      var note = '';
-      if (template.requires === 'accountMapping' && !(imp.accountMapping && imp.accountMapping.hasAnyCategory)) { note = '需先完成科目配對'; }
-      if (template.requires === 'periodEnd' && !(state.project && state.project.periodEnd)) { note = '案件沒有查核截止日'; }
-      var cls = 'picker-card picker-card--template' + (note ? ' picker-card--disabled' : '');
-      return '<button type="button" class="' + cls + '" data-template-key="' + template.key + '"' +
-          (note ? ' disabled aria-disabled="true"' : ' data-action="apply-template"') + ' title="' + Ui.esc(template.rationale) + '">' +
-        '<span class="picker-card__label">' + Ui.esc(template.label) + '</span>' +
-        (note ? '<span class="picker-card__note">' + Ui.esc(note) + '</span>' : '') +
-      '</button>';
-    }).join('');
-    return '<details class="filter-examples"' + disclosureAttributes('examples') + '><summary>常用範例</summary>' +
-      '<p>選取範例會替換本次條件，可再調整。</p>' +
-      '<div class="condition-picker__grid condition-picker__grid--custom">' + cards + '</div></details>';
+  // 「從範例開始」：範例清單只列名稱，動機放在 title。前置條件不足時停用並寫一句原因。
+  function textRdeFields() {
+    return Ui.FilterValues.fields(Store.getState()).filter(function (field) { return field.extra && field.type === 'text'; });
   }
 
-  // 把範本落地成草稿：規則深拷貝、名稱與動機預填並標為手改（避免 KCT 自動命名覆蓋）；
-  // 帶 kct 字母的範本先用 addKctToDraft 帶入該卡，範本第一組的條件接在同一組 KCT 條件之後
-  //（例如「非營業日且排除指定日期」是第 1 組第 1 條非營業日、第 2 條排除日期），其餘組另開；
-  // 期末 N 天由查核截止日算起迄。套用後若有條件還要填值，焦點移到第一個要填的欄位，但不代填任何值。
-  function applyTemplate(key) {
+  function templateRequirementNote(template) {
+    var note = conditionRequirementNote(template.requires);
+    if (!note && template.pickField === 'text' && textRdeFields().length === 0) { note = '需要先在欄位配對加入部門等文字欄位'; }
+    return note;
+  }
+
+  function exampleListHtml() {
+    var fields = Ui.FilterValues.fields(Store.getState());
+    var items = Ui.FILTER_SCENARIO_TEMPLATES.map(function (template) {
+      var note = templateRequirementNote(template);
+      var noteId = 'filter-example-note-' + template.key;
+      var picking = !note && viewState.examplePick === template.key;
+      var pick = picking
+        ? '<div class="filter-example__pick" role="group" data-example-pick="' + template.key + '" data-motion-key="example-pick-' + template.key + '" aria-label="' + Ui.esc('選擇「' + template.label + '」要用的欄位') + '">' +
+            '<span>選擇欄位：</span>' + textRdeFields().map(function (field) {
+              return fieldButtonHtml(field, fields, 'data-example-field', '使用欄位：');
+            }).join('') +
+            '<button type="button" class="btn btn--ghost btn--tiny" data-action="cancel-example-pick">取消</button></div>'
+        : '';
+      return '<li class="filter-example" data-motion-key="example-' + template.key + '">' +
+        '<button type="button" class="filter-example__apply" data-template-key="' + template.key + '" title="' + Ui.esc(template.rationale) + '"' +
+          (note ? ' disabled aria-describedby="' + noteId + '"' : ' data-action="apply-template"') + (picking ? ' aria-expanded="true"' : '') + '>' +
+          Ui.esc(template.label) + '</button>' +
+        (note ? '<p class="filter-example__note" id="' + noteId + '">' + Ui.esc(note) + '</p>' : '') + pick + '</li>';
+    }).join('');
+    return '<p class="filter-example-list__hint">套用後會替換目前的條件，已儲存的情境不受影響。</p><ul class="filter-example-list__items">' + items + '</ul>';
+  }
+
+  // 範例要用文字型攸關資料元素欄位時：只有一個就直接帶入，兩個以上先就地列出欄位讓審計員選。
+  // 停用或還沒選欄位時不改動草稿。
+  function chooseTemplate(container, key) {
+    var template = Ui.FILTER_SCENARIO_TEMPLATES.filter(function (item) { return item.key === key; })[0];
+    if (!template || templateRequirementNote(template)) { return; }
+    if (template.pickField === 'text') {
+      var choices = textRdeFields();
+      if (choices.length > 1) {
+        viewState.examplePick = key;
+        redrawExampleList(container);
+        if (global.JetFocus) { global.JetFocus.defer(function () { return container.querySelector('[data-example-pick] [data-example-field]'); }); }
+        return;
+      }
+      requestTemplate(key, choices[0].id);
+      return;
+    }
+    requestTemplate(key);
+  }
+
+  // 範例會換掉整份草稿；要選欄位的範例在選好欄位、真的要換掉時才詢問。
+  function requestTemplate(key, fieldId) {
     var template = Ui.FILTER_SCENARIO_TEMPLATES.filter(function (item) { return item.key === key; })[0];
     if (!template) { return; }
-    var state = Store.getState();
-    // 範例名稱與動機先當固定文字；之後增減條件才改回自動（__templateName／__templateRationale）。
+    guardDraftReplacement('template', template.label, function () { applyTemplate(key, fieldId); });
+  }
+
+  function cancelExamplePick(container) {
+    var key = viewState.examplePick;
+    viewState.examplePick = null;
+    redrawExampleList(container);
+    if (global.JetFocus) { global.JetFocus.defer(function () { return container.querySelector('[data-template-key="' + key + '"]'); }); }
+  }
+
+  // 選欄位的那一列從範例下面長出來、取消時收回去（使用者 2026-10-13 要求展開與收合一致）。
+  function redrawExampleList(container) {
+    var list = Ui.findLive(container, '[data-example-list]');
+    if (!list) { return; }
+    fillSmoothly(list, function () { list.innerHTML = exampleListHtml(); });
+    bindExampleItems(container);
+  }
+
+  function bindExampleItems(container) {
+    container.querySelectorAll('[data-action="apply-template"]').forEach(function (button) {
+      button.addEventListener('click', function () { chooseTemplate(container, button.getAttribute('data-template-key')); });
+    });
+    container.querySelectorAll('[data-example-field]').forEach(function (button) {
+      button.addEventListener('click', function () { requestTemplate(viewState.examplePick, button.getAttribute('data-example-field')); });
+    });
+    var cancel = container.querySelector('[data-action="cancel-example-pick"]');
+    if (cancel) { cancel.addEventListener('click', function () { cancelExamplePick(container); }); }
+  }
+
+  function bindExampleList(container) {
+    var toggle = container.querySelector('[data-action="toggle-examples"]');
+    var list = container.querySelector('[data-example-list]');
+    if (!toggle || !list) { return; }
+    function setOpen(open) {
+      var picking = !!viewState.examplePick;
+      viewState.examplesOpen = open;
+      if (!open) { viewState.examplePick = null; }
+      list.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+      // 收起時正在選欄位的那一列也拿掉，下次打開不會留著按了沒有作用的欄位按鈕。
+      if (!open && picking) { redrawExampleList(container); }
+    }
+    toggle.addEventListener('click', function () { setOpen(!viewState.examplesOpen); });
+    // Esc 先取消正在選的欄位；沒有在選欄位時收起清單，焦點回到「從範例開始」。草稿都不動。
+    list.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape') { return; }
+      if (viewState.examplePick) { cancelExamplePick(container); return; }
+      setOpen(false);
+      toggle.focus();
+    });
+    bindExampleItems(container);
+  }
+
+  // 把範例落地成草稿：規則深拷貝，名稱與動機先當固定文字，條件增減後才改回自動。
+  // 帶 kct 字母的範例先用 addKctToDraft 帶入該卡，範例第一組的條件接在同一組 KCT 條件之後
+  //（例如「非營業日且排除指定日期」是第 1 組第 1 條非營業日、第 2 條排除日期），其餘組另開；
+  // 期末 N 天由查核截止日算起訖。fieldId 空白的條件換成 fieldId（審計員選的文字型攸關資料元素欄位）。
+  // 套用後若有條件還要填值，焦點移到第一個要填的欄位，但不代填任何值。
+  function applyTemplate(key, fieldId) {
+    var template = Ui.FILTER_SCENARIO_TEMPLATES.filter(function (item) { return item.key === key; })[0];
+    if (!template) { return; }
     var draft = { name: template.label, rationale: template.rationale, groups: [], __nameDirty: true, __rationaleDirty: true,
       __templateName: true, __templateRationale: true };
     draft.name = uniqueAutomaticName(draft, draft.name);
@@ -1260,18 +1645,20 @@
       var card = Ui.FILTER_KCT_CHECKLIST.filter(function (item) { return item.letter === template.kct; })[0];
       if (card) { addKctToDraft(draft, card); }
     }
+    function prepare(rule) {
+      if (rule.__periodEndDays) {
+        var range = periodEndRange(rule.__periodEndDays);
+        rule.from = range.from; rule.to = range.to;
+      }
+      delete rule.__periodEndDays;
+      if (rule.type === 'fieldValue' && rule.fieldId === '' && fieldId) { rule.fieldId = fieldId; delete rule.field; }
+      if (Array.isArray(rule.rules)) { rule.rules.forEach(prepare); }
+      return rule;
+    }
     var kctGroup = template.kct ? activeEditableGroup(draft) : null;
     template.groups.forEach(function (group, index) {
       var copy = { join: group.join || 'AND', matchScope: group.matchScope || 'row', rules: group.rules.map(function (rule) {
-        var fresh = JSON.parse(JSON.stringify(rule));
-        if (fresh.__periodEndDays && state.project && state.project.periodEnd) {
-          var parts = state.project.periodEnd.split('-').map(Number);
-          var end = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-          var start = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] - (fresh.__periodEndDays - 1)));
-          fresh.from = start.toISOString().slice(0, 10); fresh.to = end.toISOString().slice(0, 10);
-        }
-        delete fresh.__periodEndDays;
-        return fresh;
+        return prepare(JSON.parse(JSON.stringify(rule)));
       }) };
       // 併進 KCT 那一組只在語意不變時做：範例這一組原本以「且」接在 KCT 組之後，組內只有一條或全部以「且」連接。
       // 組內有「或」時併進去會把「I 且 (a 或 b)」變成「(I 且 a) 或 b」，所以照原樣另開一組。
@@ -1287,9 +1674,11 @@
       draft.groups.push(copy);
       setActiveGroup(draft, copy);
     });
-    viewState.saveOpen = false;
+    viewState.lastSavedName = null;
+    viewState.examplesOpen = false;
+    viewState.examplePick = null;
+    // 畫面上馬上看得到結果，不另記訊息（使用者 2026-10-13 勾選頁確認刪除 53）。
     Store.setFilterDraft(draft);
-    Store.addMessage('已帶入範本「' + template.label + '」，可再調整條件後預覽。', 'info');
     var pending = draftRuleProblems(draft)[0];
     if (global.JetFocus) { global.JetFocus.defer(function () {
       return (pending && ruleValueControl(pending.gi, pending.path)) ||
@@ -1302,34 +1691,26 @@
   function ruleRowHtml(rule, group, gi, ri, insideVoucher) {
     if (rule.type === 'group' || rule.type === 'voucher') { return compoundRuleHtml(rule, gi, ri, insideVoucher, group); }
     var family = ruleFamily(rule);
-    var sameVoucher = groupMatchScope(group) === 'sameVoucher';
-    var scopeLabel = sameVoucher
-      ? (ri === 0
-          ? '<span class="rule-row__field-label">' + Ui.esc(OUTPUT_ANCHOR_LABEL) + '</span>'
-          : '<span class="rule-row__field-label">同傳票佐證（第 ' + (ri + 1) + ' 條）</span>')
-      : '';
-    var describedBy = sameVoucher ? ' aria-describedby="match-scope-help-' + gi + '"' : '';
     var patternHeading = family === 'pattern'
       ? (rule.type === 'prescreen' ? '預篩選條件' :
-          ((PATTERN_PARAM_TYPES.find(function (item) { return item.value === rule.type; }) ||
+          ((patternTypeOptions(rule).find(function (item) { return item.value === rule.type; }) ||
             Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === rule.type; }) || {}).label || '分錄特徵'))
       : '';
 
+    // data-join 只給畫面在條件之間標出「且」「或」，送出的條件仍以 rule.join 為準。
     return (
-      '<div class="rule-row rule-row--' + family + (selectedRule === rule ? ' rule-row--selected' : '') + '" data-gi="' + gi + '" data-ri="' + ri + '"' + describedBy + '>' +
+      '<div class="rule-row rule-row--' + family + (selectedRule === rule ? ' rule-row--selected' : '') + '" data-motion-key="' + motionKey(rule, 'rule') + '" data-gi="' + gi + '" data-ri="' + ri + '" data-join="' + effectiveRuleJoin(rule) + '">' +
         '<div class="filter-rule-heading">' +
-          (selectedRule === rule ? '<span class="filter-rule-selected">選取中</span>' : '') +
+          (selectedRule === rule ? '<span class="filter-rule-selected" data-motion="inline">選取中</span>' : '') +
           (rule.type === 'drCrOnly' ? '<strong>借貸別</strong>' : rule.type === 'manualAuto' ? '<strong>人工或自動分錄</strong>' : '') +
           (rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair' ? '<strong>借貸科目組合</strong>' : '') +
-          (rule.type === 'accountSide' ? '<strong>借方或貸方分類</strong>' : '') +
-          (rule.type === 'fieldValue' ? '<strong>' + Ui.esc((Ui.FilterValues.field(rule, Store.getState()) || {}).label || rule.fieldId || rule.field) + '</strong>' : '') +
+          (rule.type === 'accountSide' ? '<strong>科目分類</strong>' : '') +
+          (rule.type === 'fieldValue' ? '<strong>' + Ui.esc(Ui.FilterValues.fieldTitle(rule, Store.getState())) + '</strong>' : '') +
           (patternHeading ? '<strong>' + Ui.esc(patternHeading) + '</strong>' : '') +
           (family === 'legacy' ? '<strong>' + Ui.esc((Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === rule.type; }) || {}).label || '既有篩選條件') + '</strong>' : '') +
           '<button type="button" class="rule-row__remove" data-action="remove-rule" aria-label="移除這條條件" title="移除這條條件">移除</button></div>' +
         '<div class="rule-row__controls">' +
-          scopeLabel +
-          (sameVoucher ? '<button type="button" class="btn btn--ghost btn--tiny" data-action="make-primary"' + (ri === 0 ? ' disabled' : '') + '>' + (ri === 0 ? '主要條件' : '設為主要條件') + '</button>' : '') +
-          ruleSubjectHtml(rule, family) + ((rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') ? categorySelectionHtml(rule) : '') + ruleControlsHtml(rule, gi, ri, String(ri).indexOf('.') >= 0) + kctDescriptionHtml(rule) + legacyRulePolicyHtml(rule) +
+          ruleSubjectHtml(rule, family) + ((rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') ? categorySelectionHtml(rule) : '') + ruleControlsHtml(rule, gi, ri, String(ri).indexOf('.') >= 0) + ((rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') ? '' : kctDescriptionHtml(rule) + legacyRulePolicyHtml(rule)) +
         '</div>' +
       '</div>'
     );
@@ -1348,12 +1729,11 @@
         return '<option value="' + o[0] + '"' + (current === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
       }).join('') + '</select>';
     }
-    var config = rule.type === 'voucher' ? select('side', [['all','整張傳票'],['debit','借方'],['credit','貸方']], rule.side) +
-      select('quantifier', [['any','至少一筆符合'],['all','全部符合'],['none','不存在符合']], rule.quantifier) +
-      '<p>以下條件由同一筆分錄判斷。全部符合須至少有一筆；沒有該側分錄時，只有不存在符合成立。</p>' :
-      '<p>括號內的欄位條件綁定同一筆分錄。可再加入括號，組合「且」與「或」。</p>';
+    var config = rule.type === 'voucher' ? select('quantifier', [['any','至少一筆符合'],['all','全部符合'],['none','不存在符合']], rule.quantifier) +
+      '<p class="rule-field__hint">以下條件由同一筆分錄判斷，再檢查整張傳票。需要限定方向時，加入「借貸別」子條件。</p>' :
+      '<p class="rule-field__hint">把下面的條件一起判斷，比對同一筆分錄；用 AND 或 OR 連接。</p>';
     var children = (rule.rules || []).map(function (child, i) {
-      var join = i ? '<select data-child-join="' + i + '" aria-label="子條件連接方式"><option value="AND"' + (child.join !== 'OR' ? ' selected' : '') + '>且</option><option value="OR"' + (child.join === 'OR' ? ' selected' : '') + '>或</option></select>' : '';
+      var join = i ? '<select data-child-join="' + i + '" aria-label="子條件連接方式"><option value="AND"' + (child.join !== 'OR' ? ' selected' : '') + '>AND</option><option value="OR"' + (child.join === 'OR' ? ' selected' : '') + '>OR</option></select>' : '';
       return join + ruleRowHtml(child, { matchScope: 'row' }, gi, path + '.' + i, insideVoucher || rule.type === 'voucher');
     }).join('');
     var choices = Ui.FilterValues.groupedFields(Store.getState()).map(function (group) {
@@ -1361,48 +1741,36 @@
     }).join('');
     var accountSideNote = accountMappingRequirementNote('accountSide');
     choices += '<option value="type:accountSide"' + (accountSideNote ? ' disabled' : '') + '>' +
-      Ui.esc('借方或貸方分類' + (accountSideNote ? '（' + accountSideNote + '）' : '')) + '</option>' +
-      '<option value="type:manualAuto">人工或自動</option><option value="type:group">條件括號</option>';
-    if (rule.type === 'group' && !insideVoucher) { choices += '<option value="type:voucher">傳票分錄條件</option>'; }
-    if (groupMatchScope(outerGroup) === 'sameVoucher') {
-      config = '<p>' + (Number(path) === 0 ? '主要條件，決定符合條件的分錄' : '同傳票佐證，括號內欄位必須由同一筆分錄滿足') + '</p>' + config;
-    }
-    return '<div class="rule-row rule-row--compound' + (selectedRule === rule ? ' rule-row--selected' : '') + '" data-gi="' + gi + '" data-ri="' + path + '"><div class="filter-rule-heading">' +
-      (selectedRule === rule ? '<span class="filter-rule-selected">選取中</span>' : '') + '<strong>' +
-      (rule.type === 'voucher' ? '傳票條件' : '條件括號') + '</strong><button type="button" class="rule-row__remove" data-compound-remove>移除</button></div>' + config + children +
+      Ui.esc('科目分類' + (accountSideNote ? '（' + accountSideNote + '）' : '')) + '</option>' +
+      '<option value="type:drCrOnly">借貸別</option><option value="type:manualAuto">人工或自動</option><option value="type:group">子條件組</option>';
+    if (rule.type === 'group' && !insideVoucher) { choices += '<option value="type:voucher">整張傳票條件</option>'; }
+    return '<div class="rule-row rule-row--compound' + (selectedRule === rule ? ' rule-row--selected' : '') + '" data-motion-key="' + motionKey(rule, 'rule') + '" data-gi="' + gi + '" data-ri="' + path + '" data-join="' + effectiveRuleJoin(rule) + '"><div class="filter-rule-heading">' +
+      (selectedRule === rule ? '<span class="filter-rule-selected" data-motion="inline">選取中</span>' : '') + '<strong>' +
+      (rule.type === 'voucher' ? '整張傳票條件' : '子條件組') + '</strong><button type="button" class="rule-row__remove" data-compound-remove>移除</button></div>' + config + children +
       '<label>加入子條件<select data-child-kind>' + choices + '</select></label><button type="button" class="btn btn--ghost btn--tiny" data-child-add>加入</button></div>';
   }
 
-  // 每個家族的「對象」下拉：欄位（含借貸別、人工／自動）、科目看哪一側、風險樣態是哪一種。
-  // fieldValue 的欄位下拉由 FilterValues 自己畫（帶同一組分錄性質選項），這裡不重複。
+  // 每個家族的「對象」下拉：科目看哪一側、風險樣態是哪一種。
   function ruleSubjectHtml(rule, family) {
     var state = Store.getState();
     if (family === 'field' && rule.type !== 'fieldValue') {
       return '';
     }
-    if (family === 'account') {
-      if (rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') { return ''; }
-      var current = rule.type === 'accountSide' ? (rule.drCr === 'any' ? 'any' : rule.drCr === 'credit' ? 'credit' : 'debit') : 'pair';
-      return '<label>看<select data-account-subject>' + [
-        { value: 'any', label: '不限借貸' }, { value: 'debit', label: '借方科目' }, { value: 'credit', label: '貸方科目' }, { value: 'pair', label: '借貸組合' }
-      ].map(function (item) {
-        return '<option value="' + item.value + '"' + (item.value === current ? ' selected' : '') + '>' + item.label + '</option>';
-      }).join('') + '</select></label>';
-    }
+    if (family === 'account') { return ''; }
     if (family === 'pattern') {
       var available = availableRuleTypes();
       var selected = rule.type === 'prescreen' ? 'prescreen:' + rule.prescreenKey : rule.type;
       function option(value, label) { return '<option value="' + value + '"' + (value === selected ? ' selected' : '') + '>' + Ui.esc(label) + '</option>'; }
-      var kct = available.filter(function (t) { return t.group === 'kct'; });
+      var kct = available.filter(function (t) { return t.group === 'kct' && t.value !== 'trailingDigits'; });
       var known = availablePrescreenKeys().some(function (o) { return 'prescreen:' + o.value === selected; }) ||
-        PATTERN_PARAM_TYPES.concat(kct).some(function (item) { return item.value === selected; });
+        patternTypeOptions(rule).concat(kct).some(function (item) { return item.value === selected; });
       var reason = rule.type === 'prescreen' ? prescreenRequirementNote(rule.prescreenKey) : accountMappingRequirementNote(rule.type);
       var placeholder = !known ? '<option value="' + Ui.esc(selected) + '" selected disabled>' +
-        Ui.esc(reason || '這個條件目前無法使用，請重新選擇') + '</option>' : '';
+        Ui.esc(reason || RETIRED_TYPE_NOTE) + '</option>' : '';
       // 左邊的家族小標已經寫「樣態」，下拉不再重複一次標題。
       return '<select data-pattern-subject aria-label="樣態">' + placeholder +
         '<optgroup label="預篩選條件">' + availablePrescreenKeys().map(function (o) { return option('prescreen:' + o.value, o.label); }).join('') + '</optgroup>' +
-        '<optgroup label="自訂條件">' + PATTERN_PARAM_TYPES.map(function (t) { return option(t.value, t.label); }).join('') + '</optgroup>' +
+        '<optgroup label="自訂條件">' + patternTypeOptions(rule).map(function (t) { return option(t.value, t.label); }).join('') + '</optgroup>' +
         (kct.length ? '<optgroup label="KCT 專屬">' + kct.map(function (t) { return option(t.value, t.label); }).join('') + '</optgroup>' : '') +
       '</select>';
     }
@@ -1423,6 +1791,22 @@
     });
   }
 
+  // 移除一條條件後，焦點交給接替的條件的「移除」：下一條，沒有就上一條；這一層沒有條件了，
+  // 交給所在子條件組的「加入子條件」，再沒有就交給所在的那一組（使用者 2026-10-13 交接：原本焦點落到整個頁面）。
+  // 要在移除之前呼叫，才找得到前後的條件。
+  function focusAfterRuleRemoval(siblings, index, gi, row) {
+    if (!global.JetFocus || !global.JetFocus.deferFirst) { return; }
+    var selectors = [siblings[index + 1], siblings[index - 1]].filter(Boolean).map(function (rule) {
+      return '.filter-workspace .rule-row[data-motion-key="' + motionKey(rule, 'rule') + '"] > .filter-rule-heading > .rule-row__remove';
+    });
+    var parentRow = row.parentElement && row.parentElement.closest('.rule-row');
+    if (parentRow) {
+      selectors.push('.filter-workspace .rule-row[data-motion-key="' + parentRow.getAttribute('data-motion-key') + '"] > label > [data-child-kind]');
+    }
+    selectors.push('.filter-workspace .scenario-set[data-motion-key="' + groupMotionKey(Store.getState().filter.draft.groups[gi]) + '"]');
+    global.JetFocus.deferFirst(selectors);
+  }
+
   function bindCompoundRule(row, siblings, index, gi) {
     var rule = siblings[index];
     function own(selector) { return Array.from(row.querySelectorAll(selector)).filter(function (el) { return el.closest('.rule-row') === row; }); }
@@ -1435,6 +1819,7 @@
     own('[data-compound-key]').forEach(function (select) { select.addEventListener('change', function () { rule[select.getAttribute('data-compound-key')] = select.value; changed(); }); });
     own('[data-child-join]').forEach(function (select) { select.addEventListener('change', function () { rule.rules[Number(select.getAttribute('data-child-join'))].join = select.value; changed(); }); });
     own('[data-compound-remove]')[0].addEventListener('click', function () {
+      focusAfterRuleRemoval(siblings, index, gi, row);
       siblings.splice(index, 1);
       changed(true);
     });
@@ -1450,15 +1835,6 @@
         fresh[f.extra ? 'fieldId' : 'field'] = f.id;
         if (!f.extra && ['createBy', 'approveBy', 'accNum'].indexOf(f.id) >= 0) { fresh.operator = 'in'; }
         if (f.extra && f.type === 'money') { fresh.amountBasis = 'signed'; }
-      }
-      if (fresh.type === 'accountSide') {
-        var side = rule.type === 'voucher' ? rule.side : null;
-        if (!side && row.getAttribute) {
-          var path = String(row.getAttribute('data-ri') || '').split('.').map(Number);
-          var current = Store.getState().filter.draft.groups[gi];
-          path.forEach(function (at) { current = current && current.rules && current.rules[at]; if (current && current.type === 'voucher') { side = current.side; } });
-        }
-        if (side) { fresh.drCr = side === 'all' ? 'any' : side; }
       }
       fresh.join = 'AND'; rule.rules.push(fresh); changed(true);
     });
@@ -1546,22 +1922,20 @@
 
     switch (rule.type) {
       case 'fieldValue':
-        return Ui.FilterValues.render(rule, Store.getState(), 'value-' + gi + '-' + ri, PSEUDO_FIELDS);
+        return Ui.FilterValues.render(rule, Store.getState(), 'value-' + gi + '-' + ri);
       case 'accountSide':
         return categorySelectionHtml(rule) + '<select data-rule-bind="categoryMode" aria-label="科目條件">' +
-          (sameRowChild && rule.categoryMode === 'absent' ? '<option value="absent" selected disabled>此傳票層條件不能放在同一分錄括號內，請移到外層或重新選擇</option>' : '') +
-          Ui.ACCOUNT_SIDE_MODE_OPTIONS.filter(function (item) { return !sameRowChild || item.value !== 'absent'; }).map(function (item) {
+          (rule.categoryMode === 'absent' ? '<option value="absent" selected disabled>此模式已停用，請改用整張傳票條件的「不存在符合」</option>' : '') +
+          Ui.ACCOUNT_SIDE_MODE_OPTIONS.map(function (item) {
             return '<option value="' + item.value + '"' + (rule.categoryMode === item.value ? ' selected' : '') + '>' + item.label + '</option>';
           }).join('') + '</select>' +
           categoryMultiSelect('categoryIds', '指定分類') +
-          '<p class="rule-field__hint">範本分類留白的科目視為 Others；未在配對檔的科目不屬於任何分類。' +
-            (sameRowChild ? '此分類子條件只判斷同一筆分錄，不會單獨改變外層條件的結果範圍。' :
-              '「整張傳票的這一側都不屬於」會判斷整張傳票，成立時列入該傳票的分錄；其餘模式只判斷符合的那一筆分錄。') + '</p>';
+          '<p class="rule-field__hint">此條件只判斷同一筆分錄的分類。範本分類留白的科目視為 Others；未在配對檔的科目不屬於任何分類。</p>';
       case 'prescreen': {
         var explanation = Ui.prescreenConditionDescription(rule.prescreenKey);
         var explanationHtml = explanation ? '<p class="rule-field__hint">' + Ui.esc(explanation) + '</p>' : '';
         if (rule.prescreenKey === 'postPeriodApproval' && !(Store.getState().project || {}).lastPeriodStart) {
-          return explanationHtml + '<p class="rule-field__hint">尚未設定期末財報準備日。請到「建立案件」按「修改案件資料」補上日期後，再計算這個條件。</p>';
+          return explanationHtml + '<p class="rule-field__hint">' + PREPARATION_DATE_MISSING_NOTE + '</p>';
         }
         if (rule.prescreenKey === 'postPeriodApproval') {
           explanationHtml += '<p class="rule-field__hint">' + Ui.esc(ruleSummaryLabel(rule, 0)) + '</p>';
@@ -1600,9 +1974,9 @@
 
       case 'dateRange':
         return fieldSelect(Ui.FILTER_DATE_FIELDS) +
-          '<input type="date" data-rule-bind="from" value="' + Ui.esc(rule.from) + '">' +
+          Ui.dateInputHtml({ 'data-rule-bind': 'from', value: rule.from, 'aria-label': '起日' }) +
           '<span class="rule-row__sep">～</span>' +
-          '<input type="date" data-rule-bind="to" value="' + Ui.esc(rule.to) + '">';
+          Ui.dateInputHtml({ 'data-rule-bind': 'to', value: rule.to, 'aria-label': '迄日' });
 
       case 'numRange':
         return '<span class="rule-row__field-label" title="不分借貸，以金額大小比較（取絕對值）">金額（絕對值）</span>' +
@@ -1640,8 +2014,8 @@
         return pairSelect +
           (showDebit ? categoryMultiSelect('debitCategoryIds', rule.pairMode === 'notDrCr' ? '整張傳票不得有這些借方分類' : '借方分類') : '') +
           (showCredit ? categoryMultiSelect('creditCategoryIds', rule.pairMode === 'drNotCr' ? '整張傳票不得有這些貸方分類' : '貸方分類') : '') +
-          '<p class="filter-pair-result">' + (rule.pairMode === 'drNotCr' ? '結果列出符合的借方分錄。' : rule.pairMode === 'notDrCr' ? '結果列出符合的貸方分錄。' :
-            rule.pairMode === 'debitAnchor' ? '結果列出符合的借方分錄及同傳票全部貸方分錄。' : rule.pairMode === 'creditAnchor' ? '結果列出符合的貸方分錄及同傳票全部借方分錄。' : '結果列出同傳票符合分類的借方與貸方分錄。') + '</p></div>';
+          '<details class="filter-rule-help" data-rule-help' + disclosureAttributes('rule-help-' + motionKey(rule, 'rule')) + '><summary>查找說明</summary><p class="filter-pair-result">' + (rule.pairMode === 'drNotCr' ? '結果列出符合的借方分錄。' : rule.pairMode === 'notDrCr' ? '結果列出符合的貸方分錄。' :
+            rule.pairMode === 'debitAnchor' ? '結果列出符合的借方分錄及同傳票全部貸方分錄。' : rule.pairMode === 'creditAnchor' ? '結果列出符合的貸方分錄及同傳票全部借方分錄。' : '結果列出同傳票符合分類的借方與貸方分錄。') + '</p>' + kctDescriptionHtml(rule) + legacyRulePolicyHtml(rule) + '</details></div>';
       }
 
       case 'typed': {
@@ -1660,7 +2034,9 @@
         var typedHtml = '<select data-rule-bind="fieldId">' + fieldOptions + '</select>';
 
         if (!valueType) {
-          return typedHtml + '<span class="rule-row__field-label">請先選擇欄位</span>';
+          // 原本選的欄位已不在欄位配對中，和後端 V12 同一句（使用者 2026-10-14 第三輪勾選頁確認 R3-20）。
+          return typedHtml + '<span class="rule-row__field-label">' + (rule.fieldId
+            ? '所用的攸關資料元素欄位已不在欄位配對中，請重新選擇欄位或刪除此條件' : '請先選擇欄位') + '</span>';
         }
 
         typedHtml += '<select data-rule-bind="operator">' +
@@ -1671,13 +2047,16 @@
           }).join('') + '</select>';
 
         var inputType = valueType === 'date' ? 'date' : (valueType === 'money' ? 'number' : 'text');
+        function typedInput(key) {
+          return inputType === 'date' ? Ui.dateInputHtml({ 'data-rule-bind': key, value: rule[key], 'aria-label': key === 'from' ? '起日' : key === 'to' ? '迄日' : '日期' }) :
+            '<input type="' + inputType + '" data-rule-bind="' + key + '" value="' + Ui.esc(rule[key]) + '">';
+        }
         if (carrier === 'value' && rule.operator) {
-          typedHtml += '<input type="' + inputType + '" data-rule-bind="value" value="' +
-            Ui.esc(rule.value) + '">';
+          typedHtml += typedInput('value');
         } else if (carrier === 'range') {
-          typedHtml += '<input type="' + inputType + '" data-rule-bind="from" value="' + Ui.esc(rule.from) + '">' +
+          typedHtml += typedInput('from') +
             '<span class="rule-row__sep">～</span>' +
-            '<input type="' + inputType + '" data-rule-bind="to" value="' + Ui.esc(rule.to) + '">';
+            typedInput('to');
         } else if (carrier === 'set') {
           var typedValues = Array.isArray(rule.values) ? rule.values : [];
           typedHtml += '<span class="rule-field rule-field--values">' +
@@ -1727,12 +2106,12 @@
             ['lessThanOrEqual', '小於或等於'], ['greaterThanOrEqual', '大於或等於']]) +
           '<input type="number" data-rule-bind="countFrom" min="0" step="1" aria-label="統計次數或區間下限" value="' + Ui.esc(rule.countFrom) + '">' +
           (rule.countOperator === 'between' ? '<span>至</span><input type="number" data-rule-bind="countTo" min="0" step="1" aria-label="統計區間上限" value="' + Ui.esc(rule.countTo) + '"><span>含兩個端點</span>' : '') +
-          '<p class="rule-explanation">在本情境的分錄測試範圍內，依匯入後的科目或人員分組；空白欄位不列入。' +
+          '<p class="rule-explanation">在 GL 中依匯入後的科目或人員分組；空白欄位不列入。' +
           (rule.countUnit === 'vouchers' ? '同案件相同傳票號碼算一張，空白號碼不計張；符合該科目或人員的分錄仍會列出。' : '同張傳票有多列時，每列各計一筆。') + '</p>';
       }
 
       case 'revenueDebitNearQuarterEnd':
-        return '<span class="rule-row__field-label" title="總帳入帳日落在曆年季底或查核期末前指定天數內的收入借方分錄">季底或查核期末前</span>' +
+        return '<span class="rule-row__field-label" title="總帳日期落在曆年季底或查核期末前指定天數內的收入借方分錄">季底或查核期末前</span>' +
           '<input type="number" data-rule-bind="windowDays" min="1" max="92" step="1" placeholder="天數" value="' +
             Ui.esc(rule.windowDays) + '">' +
           '<span class="rule-row__sep">天內借記收入</span>';
@@ -1805,7 +2184,7 @@
           var atom = ruleSummaryLabel(child, 0, compact);
           expr = expr ? '（' + expr + (effectiveRuleJoin(child) === 'OR' ? ' 或 ' : ' 且 ') + atom + '）' : atom;
         });
-        var head = rule.type === 'voucher' ? ({ all: '整張傳票', debit: '借方', credit: '貸方' }[rule.side] || '') +
+        var head = rule.type === 'voucher' ? ({ all: '整張傳票', debit: '借方', credit: '貸方' }[rule.side] || '整張傳票') +
           ({ any: '至少一筆符合', all: '全部符合（至少有一筆）', none: '不存在符合' }[rule.quantifier] || '') + '：' : '';
         if (rule.type === 'voucher') { return prefix + head + (rule.rules.length === 1 ? expr : '同一分錄（' + expr + '）'); }
         var scope = rule.rules.length > 0 && rule.rules.every(isExplicitVoucherCondition) ? '同張傳票'
@@ -1815,7 +2194,7 @@
       case 'fieldValue':
         return prefix + Ui.FilterValues.summary(rule, Store.getState(), compact);
       case 'accountSide': {
-        var side = rule.drCr === 'any' ? '不限借貸' : rule.drCr === 'credit' ? '貸方' : '借方';
+        var side = rule.drCr === 'any' ? '不限借貸' : rule.drCr === 'credit' ? '貸方' : rule.drCr === 'debit' ? '借方' : '';
         var categories = categoryIdsLabel(Store.getState(), rule.categoryIds);
         var text = side + '尚未選擇分類條件';
         if (rule.categoryMode === 'is') { text = side + '科目屬於「' + categories + '」'; }
@@ -1828,12 +2207,12 @@
       case 'prescreen': {
         var hit = Ui.PRESCREEN_KEY_OPTIONS.filter(function (o) { return o.value === rule.prescreenKey; })[0];
         var preparationDate = (Store.getState().project || {}).lastPeriodStart;
-        return prefix + '預篩選：' + (hit ? hit.label : rule.prescreenKey) +
+        return prefix + '預篩選：' + (hit ? hit.label : Ui.RETIRED_CONDITION_LABEL) +
           (rule.prescreenKey === 'postPeriodApproval' && preparationDate ? '（' + preparationDate + ' 起，含當日）' : '');
       }
       case 'text': {
         var mode = Ui.TEXT_MODE_OPTIONS.filter(function (o) { return o.value === rule.mode; })[0];
-        return prefix + Ui.glFieldLabel(rule.field) + ' ' + (mode ? mode.label : rule.mode) +
+        return prefix + Ui.glFieldReadback(Store.getState(), rule.field) + ' ' + (mode ? mode.label : Ui.RETIRED_CONDITION_LABEL) +
           '「' + Ui.FilterValues.splitDelimited(rule.keywords).join(',') + '」';
       }
       case 'textSet': {
@@ -1842,13 +2221,13 @@
           return o.value === rule.normalization;
         })[0];
         var textSetValues = Array.isArray(rule.values) ? rule.values : [];
-        return prefix + Ui.glFieldLabel(rule.field) + ' ' +
+        return prefix + Ui.glFieldReadback(Store.getState(), rule.field) + ' ' +
           (textSetMode ? textSetMode.label : Ui.TEXT_SET_MODE_OPTIONS[0].label) +
           '「' + textSetValues.join('、') + '」（' +
           (textSetNormalization ? textSetNormalization.label : Ui.TEXT_SET_NORMALIZATION_OPTIONS[0].label) + '）';
       }
       case 'dateRange':
-        return prefix + Ui.glFieldLabel(rule.field) + ' ' + (rule.from || '…') + '～' + (rule.to || '…');
+        return prefix + Ui.glFieldReadback(Store.getState(), rule.field) + ' ' + (rule.from || '…') + '～' + (rule.to || '…');
       case 'numRange':
         return prefix + '金額（絕對值） ' + (rule.from ? '≥ ' + rule.from : '') +
           (rule.from && rule.to ? '、' : '') + (rule.to ? '≤ ' + rule.to : '');
@@ -1866,19 +2245,19 @@
           : (rule.pairMode === 'creditAnchor'
             ? '貸方 ' + pairCredit
             : '借方 ' + pairDebit + '，貸方 ' + pairCredit);
-        return prefix + '借貸科目組合：' + (pairMode ? pairMode.label : rule.pairMode) + '（' + pairDetail + '）' + pairActualCategories(rule);
+        return prefix + '借貸科目組合：' + (pairMode ? pairMode.label : Ui.RETIRED_CONDITION_LABEL) + '（' + pairDetail + '）' + pairActualCategories(rule);
       }
       case 'specialAccountCategoryPair': {
         var specialMode = Ui.SPECIAL_PAIR_MODE_OPTIONS.filter(function (o) { return o.value === rule.pairMode; })[0];
         var specialState = Store.getState();
-        return prefix + '借貸科目組合：' + (specialMode ? specialMode.label : rule.pairMode) + '（借方 ' +
+        return prefix + '借貸科目組合：' + (specialMode ? specialMode.label : Ui.RETIRED_CONDITION_LABEL) + '（借方 ' +
           categoryIdsLabel(specialState, ruleCategoryIds(rule, 'debitCategoryIds')) +
           '，貸方 ' +
           categoryIdsLabel(specialState, ruleCategoryIds(rule, 'creditCategoryIds')) + '）' + pairActualCategories(rule);
       }
       case 'typed': {
-        // 讀回逐字對齊系統端 renderer：欄位以目前顯示名稱呈現（欄位已移除時退回原識別字），
-        // operand 依 carrier 呈現原始輸入值，金額條件附比較基準。
+        // 讀回逐字對齊系統端 renderer：欄位以目前顯示名稱呈現；欄位已不在配對中時寫「已不在欄位配對中的攸關資料元素欄位」，
+        // 不接比較基準（使用者 2026-10-14 第三輪勾選頁確認 R3-03）。operand 依 carrier 呈現原始輸入值，金額條件附比較基準。
         var typedLabel = Ui.rdeFieldLabel(Store.getState(), rule.fieldId);
         var typedOp = Ui.typedOperatorLabel(rule.operator);
         var typedCarrier = Ui.typedOperatorCarrier(rule.operator);
@@ -1905,11 +2284,11 @@
       case 'customTrailingZeros':
         return prefix + '金額尾數連續 ' + rule.digits + ' 個 0';
       case 'customPreparerEntryCount':
-        return prefix + '分錄測試範圍內編製人員分錄筆數 ≤ ' + rule.maxEntries;
+        return prefix + 'GL 中編製人員分錄筆數 ≤ ' + rule.maxEntries;
       case 'customAccountEntryCount':
-        return prefix + '分錄測試範圍內科目分錄筆數 ≤ ' + rule.maxEntries;
+        return prefix + 'GL 中科目分錄筆數 ≤ ' + rule.maxEntries;
       case 'entityFrequency':
-        return prefix + '分錄測試範圍內「' + Ui.glFieldLabel(rule.field) + '」' +
+        return prefix + 'GL 中「' + Ui.glFieldLabel(rule.field) + '」' +
           (rule.countUnit === 'vouchers' ? '傳票張數（同號只算一張）' : '分錄筆數') + ' ' +
           ({ equals: '等於', lessThan: '小於', greaterThan: '大於', between: '介於', lessThanOrEqual: '小於或等於', greaterThanOrEqual: '大於或等於' }[rule.countOperator] || '') +
           ' ' + rule.countFrom + (rule.countOperator === 'between' ? '～' + rule.countTo + '（含端點）' : '');
@@ -1933,7 +2312,7 @@
       case 'preparerEqualsApprover':
         return prefix + '編製＝核准同一人';
       default:
-        return prefix + rule.type;
+        return prefix + Ui.RETIRED_CONDITION_LABEL;
     }
   }
 
@@ -1955,8 +2334,8 @@
       body =
         '<p class="rule-card__sub">符合條件：' + Number(preview.count).toLocaleString() + ' 筆分錄，' +
           Number(preview.voucherCount).toLocaleString() + ' 張傳票；以下為前 ' +
-          preview.previewRows.length + ' 筆預覽。分錄測試範圍：' +
-          Ui.esc(populationScopeLabel(preview.populationScope)) + '。</p>' +
+          preview.previewRows.length + ' 筆預覽。GL：' +
+          Ui.esc(populationScopeLabel(preview.populationScope)) + '內的分錄。</p>' +
         '<div class="preview-table__wrap">' + Ui.previewTableHtml(preview.previewRows) + '</div>';
     }
 
@@ -1964,7 +2343,7 @@
     return (
       '<section class="rule-card">' +
         '<h3 class="rule-card__title" data-preview-title tabindex="-1">預覽結果</h3>' +
-        '<div data-bind="preview-pane-body"' + (preview ? '' : ' data-empty="1"') + '>' + body + '</div>' +
+        '<div data-bind="preview-pane-body" data-motion-key="preview-pane-body"' + (preview ? '' : ' data-empty="1"') + '>' + body + '</div>' +
       '</section>'
     );
   }
@@ -1973,17 +2352,17 @@
     var saved = state.filter.savedScenarios;
     var committed = committedPopulationScope(state);
     var items = saved.length === 0
-      ? '<p class="empty-state">尚未儲存情境。請到「篩選與檢視」設定條件並儲存。</p>'
+      ? '<p class="empty-state" data-motion-key="saved-empty">尚未儲存情境。請到「篩選與檢視」設定條件並儲存。</p>'
       : saved.map(function (s, i) {
           // 展開狀態取自 viewState：草稿編輯的 bump 重繪不得把已展開的詳情收回（內容由
           // restoreViewState 以快取回填，不重抓）。
           var open = !!viewState.openScenarios[i];
           var confirmingRemoval = viewState.pendingRemovalIndex === i;
           return (
-            '<article class="saved-scenario">' +
+            '<article class="saved-scenario" data-motion-key="' + Ui.esc('saved-' + s.name) + '">' +
               '<div class="saved-scenario__head">' +
                 '<span class="saved-scenario__name">' + (i + 1) + '. ' + Ui.esc(s.name) + '</span>' +
-                '<button type="button" class="btn btn--ghost" data-action="toggle-scenario" data-index="' + i +
+                '<button type="button" class="btn btn--ghost btn--tiny" data-action="toggle-scenario" data-index="' + i +
                   '">' + (open ? '收起結果' : '查看結果') + '</button>' +
                 '<details class="filter-saved-actions"><summary aria-label="操作：' + Ui.esc(s.name) + '">操作</summary><div>' +
                 '<button type="button" class="btn btn--ghost" data-action="edit-scenario" data-index="' + i + '">編輯</button>' +
@@ -1992,8 +2371,8 @@
                   '"' + (confirmingRemoval ? ' hidden' : '') + '>移除</button></div></details>' +
               '</div>' +
               (confirmingRemoval
-                ? '<div class="saved-scenario__confirm" role="group" aria-label="確認移除篩選情境">' +
-                    '<p>移除已儲存情境；若正在編輯此情境，也會清空本次條件。已匯出的底稿不變。</p>' +
+                ? '<div class="saved-scenario__confirm" data-motion-key="' + Ui.esc('confirm-' + s.name) + '" role="group" aria-label="確認移除篩選情境">' +
+                    '<p class="form-notice form-notice--warning">移除這個情境；若正在編輯它，目前的條件也會清空。</p>' +
                     '<div class="saved-scenario__confirm-actions">' +
                       '<button type="button" class="btn btn--ghost" data-action="cancel-remove-scenario" ' +
                         'data-index="' + i + '">取消</button>' +
@@ -2002,24 +2381,24 @@
                     '</div>' +
                   '</div>'
                 : '') +
-              '<div class="saved-scenario__body" data-bind="scenario-body-' + i + '"' + (open ? '' : ' hidden') + '>' +
+              '<div class="saved-scenario__body" data-bind="scenario-body-' + i + '" data-collapsible' + (open ? '' : ' hidden') + '>' +
                 '<p class="rule-card__sub">' + Ui.esc(s.rationale) + '</p>' +
                 '<div class="scenario-pills">' + scenarioPillsHtml(s.groups) + '</div>' +
-                '<div class="saved-scenario__preview" data-bind="scenario-preview-' + i + '"></div>' +
+                '<div class="saved-scenario__preview" data-bind="scenario-preview-' + i + '" data-motion-key="' + Ui.esc('saved-preview-' + s.name) + '"></div>' +
               '</div>' +
             '</article>'
           );
         }).join('');
 
     return (
-      '<section class="rule-card">' +
+      '<section class="rule-card" data-motion-list="saved">' +
         '<h3 class="rule-card__title" data-bind="saved-scenarios-title" tabindex="-1">已儲存篩選情境' +
           '<span class="check-item__count">' + saved.length + ' / 10</span></h3>' +
+        // 有情境無法套用目前規則時，原因、下一步與「重新檢查並儲存情境」只在上方「GL：查核期間內的分錄」說一次；
+        // 這裡和下面的矩陣、報告只寫目前狀態（使用者 2026-10-13 選擇處理同一畫面重複的說明）。
         (committed
-          ? '<p class="rule-card__sub">已儲存版本的分錄測試範圍：' + Ui.esc(populationScopeLabel(committed)) + '。</p>'
-          : (saved.length > 0
-            ? '<p class="form-notice">有已儲存的情境無法套用目前的篩選規則。請依上方「分錄測試範圍」列出的說明修改後儲存；儲存後才會顯示矩陣、完整命中和報告。</p>'
-            : '')) +
+          ? '<p class="rule-card__sub">已儲存版本的 GL：' + Ui.esc(populationScopeLabel(committed)) + '內的分錄。</p>'
+          : '') +
         items +
       '</section>'
     );
@@ -2048,7 +2427,7 @@
             '<h3 class="report-output__title">條件篩選報告</h3>' +
             '<p class="report-output__hint">報告採用已儲存的情境。條件或資料變更後，請重新產生。</p>' +
           '</div>' +
-          '<button type="button" class="btn" data-action="export-criteria-report"' +
+          '<button type="button" class="btn btn--ghost" data-action="export-criteria-report"' +
             (canExport ? '' : ' disabled') + '>' +
             (regenerate ? '重新產生條件篩選報告' : '產生條件篩選報告') +
           '</button>' +
@@ -2056,8 +2435,8 @@
         Ui.reportArtifactListHtml(artifact ? [artifact] : [],
           canExport ? '尚未產生目前版本的報告。' :
             (state.filter.savedScenarios.length > 0 && !committedPopulationScope(state)
-              ? '有已儲存的情境無法套用目前的篩選規則。請依上方「分錄測試範圍」列出的說明修改後儲存，再產生報告。'
-              : '請先完成目前版本的資料驗證並儲存至少一個篩選情境。'), { reveal: true }) +
+              ? '已儲存的篩選情境尚未套用目前規則，暫時無法產生報告。'
+              : '請先完成目前版本的資料驗證並儲存至少一個篩選情境。'), { reveal: true, motion: 'criteria' }) +
       '</section>'
     );
   }
@@ -2082,7 +2461,7 @@
       return (
         '<section class="rule-card">' +
           '<h3 class="rule-card__title">高風險條件矩陣</h3>' +
-          '<p class="form-notice">有已儲存的情境無法套用目前的篩選規則。請依上方「分錄測試範圍」列出的說明修改後儲存，矩陣才會顯示。</p>' +
+          '<p class="empty-state">已儲存的篩選情境尚未套用目前規則，矩陣暫不顯示。</p>' +
         '</section>'
       );
     }
@@ -2096,12 +2475,12 @@
           '<button type="button" class="btn btn--ghost" data-action="toggle-matrix">' +
             (open ? '收合矩陣' : '展開矩陣') + '</button>' +
         '</div>' +
-        '<div class="saved-scenario__body" data-bind="matrix-body"' + (open ? '' : ' hidden') + '>' +
+        '<div class="saved-scenario__body" data-bind="matrix-body" data-motion-key="matrix-body" data-collapsible' + (open ? '' : ' hidden') + '>' +
           '<nav class="filter-matrix-tabs" aria-label="矩陣檢視">' +
             matrixViewButton('scenarios', '符合條件摘要') + matrixViewButton('vouchers', '傳票交叉表') + matrixViewButton('rows', '分錄明細') + '</nav>' +
-          '<div data-bind="matrix-scenarios"></div>' +
-          '<div data-bind="matrix-vouchers"></div>' +
-          '<div data-bind="matrix-rows"></div>' +
+          '<div data-bind="matrix-scenarios" data-motion-pane></div>' +
+          '<div data-bind="matrix-vouchers" data-motion-pane></div>' +
+          '<div data-bind="matrix-rows" data-motion-pane></div>' +
         '</div>' +
       '</section>'
     );
@@ -2175,7 +2554,7 @@
     var groups = draft.groups.map(function (group, index) { return { group: group, index: index }; });
     if (groups.length < 2) { return ''; }
     var active = activeEditableGroup(draft);
-    return '<label class="filter-target">新增條件到<select class="form__input" data-condition-target>' +
+    return '<label class="filter-target" data-motion-key="target">新增條件到<select class="form__input" data-condition-target>' +
       groups.map(function (item, position) { return '<option value="' + item.index + '"' +
         (item.group === active ? ' selected' : '') + '>第 ' + (position + 1) + ' 組</option>'; }).join('') + '</select></label>';
   }
@@ -2191,23 +2570,23 @@
     var draft = state.filter.draft;
     var saved = state.filter.savedScenarios;
     container.innerHTML =
-      '<div class="panel panel--wide filter-workspace">' +
+      '<div class="panel panel--wide filter-workspace" data-motion-key="filter-panel">' +
         '<h2 class="panel__title">進階條件篩選</h2>' +
         populationScopeHtml(state) +
         '<nav class="filter-work-tabs" aria-label="篩選工作區">' +
           paneButton('filter', '篩選與檢視') + paneButton('saved', '已儲存情境與矩陣（' + saved.length + '）') + '</nav>' +
-        '<section data-filter-pane="filter"' + (viewState.workspacePane === 'filter' ? '' : ' hidden') + '>' +
+        '<section data-filter-pane="filter" data-motion-pane data-motion-key="filter-pane-filter"' + (viewState.workspacePane === 'filter' ? '' : ' hidden') + '>' +
           '<div class="filter-workbench"><aside class="filter-entry" tabindex="-1" aria-label="加入篩選條件">' +
-            '<div class="filter-entry-heading"><h3 class="filter-entry-title">條件總覽</h3></div>' + conditionTargetHtml(draft) +
-            '<div class="filter-source-tabs" aria-label="條件來源">' + sourceButton('kct', 'KCT 條件 A 到 J') + sourceButton('custom', '自訂篩選條件') + '</div>' +
+            '<div class="filter-entry-heading"><h3 class="filter-entry-title">條件總覽</h3>' +
+              '<button type="button" class="btn btn--ghost" data-action="toggle-examples" aria-expanded="' + viewState.examplesOpen + '" aria-controls="filter-example-list">從範例開始</button></div>' + conditionTargetHtml(draft) +
+            '<div class="filter-source-tabs" aria-label="條件來源">' + sourceButton('kct', 'KCT 條件') + sourceButton('custom', '自訂篩選條件') + '</div>' +
             '<div class="filter-entry-scroll" data-preserve-scroll="filter-condition-catalog">' +
-            '<div data-condition-pane="kct"' + (viewState.conditionSource === 'kct' ? '' : ' hidden') + '>' + kctPickerHtml(draft) + '</div>' +
-            '<div data-condition-pane="custom"' + (viewState.conditionSource === 'custom' ? '' : ' hidden') + '>' + customPickerHtml() + '</div>' +
-            '<button type="button" class="btn btn--ghost filter-data-reference" data-action="preview-population">查看全部分錄</button>' +
-            templatePickerHtml(state.importState) +
+            '<div class="filter-example-list" id="filter-example-list" data-example-list data-motion-key="examples" data-collapsible' + (viewState.examplesOpen ? '' : ' hidden') + '>' + exampleListHtml() + '</div>' +
+            '<div data-condition-pane="kct" data-motion-pane' + (viewState.conditionSource === 'kct' ? '' : ' hidden') + '>' + kctPickerHtml(draft) + '</div>' +
+            '<div data-condition-pane="custom" data-motion-pane' + (viewState.conditionSource === 'custom' ? '' : ' hidden') + '>' + customPickerHtml() + '</div>' +
           '</div></aside><div class="filter-current">' + scenarioBuilderHtml(draft) + previewPaneHtml(state.filter.preview) + '</div></div>' +
         '</section>' +
-        '<section data-filter-pane="saved"' + (viewState.workspacePane === 'saved' ? '' : ' hidden') + '>' +
+        '<section data-filter-pane="saved" data-motion-pane data-motion-key="filter-pane-saved"' + (viewState.workspacePane === 'saved' ? '' : ' hidden') + '>' +
           savedScenariosHtml(state) + tagMatrixHtml(state) + criteriaReportHtml(state) + '</section>' +
         Ui.stepFooterHtml(state) + '</div>';
 
@@ -2292,7 +2671,7 @@
   }
 
   // 單一條件在畫面上就能看出的缺值或錯誤（權威驗證仍在後端）。回傳條件名稱與原因，沒有問題回 null。
-  // 原因若以條件名稱開頭就去掉重複的名稱，讓訊息讀成「第 1 組第 2 條「總帳入帳日」請填入……」。
+  // 原因若以條件名稱開頭就去掉重複的名稱，讓訊息讀成「第 1 組第 2 條「總帳日期」請填入……」。
   function ruleProblem(rule) {
     var label = '', message = '';
     if (rule.type === 'fieldValue') {
@@ -2300,19 +2679,26 @@
       label = (Ui.FilterValues.field(rule, Store.getState()) || {}).label || '';
     } else if (rule.type === 'specialAccountCategoryPair') {
       label = '借貸科目組合';
-      if (!(rule.debitCategoryIds || []).length) { message = '借方分類至少需選擇一項'; }
-      else if (!(rule.creditCategoryIds || []).length) { message = '貸方分類至少需選擇一項'; }
+      if (!(rule.debitCategoryIds || []).length) { message = '尚未選擇借方分類'; }
+      else if (!(rule.creditCategoryIds || []).length) { message = '尚未選擇貸方分類'; }
     } else if (rule.type === 'prescreen') {
       message = prescreenRequirementNote(rule.prescreenKey);
     } else if (rule.type === 'entityFrequency') {
       label = '科目與人員統計';
       function countIsValid(value) { return /^\+?\d+$/.test(String(value == null ? '' : value).trim()) && Number(value) <= 2147483647; }
-      if (!countIsValid(rule.countFrom)) { message = '次數門檻請填大於或等於 0 的整數'; }
-      else if (rule.countOperator === 'between' && !countIsValid(rule.countTo)) { message = '區間上限請填大於或等於 0 的整數'; }
-      else if (rule.countOperator === 'between' && Number(rule.countTo) < Number(rule.countFrom)) { message = '區間上限不能小於下限'; }
+      if (!countIsValid(rule.countFrom)) { message = '次數須為 0 以上的整數'; }
+      else if (rule.countOperator === 'between' && !countIsValid(rule.countTo)) { message = '上限須為 0 以上的整數'; }
+      else if (rule.countOperator === 'between' && Number(rule.countTo) < Number(rule.countFrom)) { message = '上限小於下限'; }
     } else if (rule.type === 'dateRange' && rule.from && rule.to && rule.from > rule.to) {
       label = (Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === 'dateRange'; }) || {}).label || '';
-      message = label + '的起點晚於終點，請先修正';
+      message = '起日晚於迄日';
+    } else if (rule.type === 'textSet' && Array.isArray(rule.values) && rule.values.length > Ui.TEXT_SET_MAX_VALUES) {
+      // 清單超過上限時逐條寫出是哪一條條件，和欄位條件同一句（使用者 2026-10-14 第三輪勾選頁確認 R3-08）。
+      label = (Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === 'textSet'; }) || {}).label || '';
+      message = '請填 1 到 ' + Ui.TEXT_SET_MAX_VALUES + ' 個值';
+    } else if (rule.type === 'typed' && Array.isArray(rule.values) && rule.values.length > Ui.TYPED_SET_MAX_VALUES) {
+      label = rule.fieldId && rdeFieldValueType(rule.fieldId) ? Ui.rdeFieldLabel(Store.getState(), rule.fieldId) : '';
+      message = '請填 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值';
     }
     if (!message) { return null; }
     if (label && message.indexOf(label) === 0) { message = message.slice(label.length); }
@@ -2337,12 +2723,12 @@
     return found;
   }
 
-  // 某條條件要填值的輸入欄：先找值的輸入欄或「選日期」，找不到再退回該列第一個可用控制項。
+  // 某條條件要填值的輸入欄：先找值或日期的輸入欄，找不到再退回該列第一個可用控制項。
   function ruleValueControl(gi, path) {
     var row = document.querySelector('.filter-workspace .rule-row[data-gi="' + gi + '"][data-ri="' + path.join('.') + '"]');
     if (!row || !row.getClientRects().length) { return null; }
     var visible = function (control) { return control.getClientRects().length > 0; };
-    var value = Array.from(row.querySelectorAll('[data-calendar-open], [data-value-key="values"], [data-value-key="daysOfMonth"], ' +
+    var value = Array.from(row.querySelectorAll('[data-date-input], [data-value-key="values"], [data-value-key="daysOfMonth"], ' +
       '[data-value-key="value"], [data-value-key="from"], [data-value-key="to"], [data-rule-bind="from"], [data-rule-bind="to"]'))
       .filter(function (control) { return !control.disabled && control.closest('.rule-row') === row; }).find(visible);
     if (value) { return value; }
@@ -2359,29 +2745,21 @@
     var rationaleInput = container.querySelector('[data-bind="scenario-rationale"]');
     var notice = container.querySelector('[data-bind="scenario-notice"]');
 
-    clearFieldError(nameInput);
-    clearFieldError(rationaleInput);
+    var nameError = '';
+    var rationaleError = '';
 
     var nameEmpty = !draft.name || !draft.name.trim();
     var rationaleEmpty = !draft.rationale || !draft.rationale.trim();
     var metadataRequired = includeSavedScenarios && requiresScenarioMetadata(draft);
     var noCondition = (draft.groups.length === 0 ||
       draft.groups.every(function (g) { return g.rules.length === 0; }));
-    var oversizedTextSet = hasOversizedTextSet(draft);
-    var oversizedTypedSet = hasOversizedTypedSet(draft);
     var incompleteTyped = hasIncompleteTypedRule(draft);
 
     // 每條缺值都寫出第幾組第幾條與條件名稱（W20），審計員不必逐條找。
     var problems = draftRuleProblems(draft).map(function (item) { return item.text; });
-    if (metadataRequired && nameEmpty) { setFieldError(nameInput, '請先填寫情境名稱'); problems.push('情境名稱'); }
-    if (metadataRequired && rationaleEmpty) { setFieldError(rationaleInput, '請先填寫篩選動機說明'); problems.push('篩選動機'); }
+    if (metadataRequired && nameEmpty) { nameError = '請先填寫情境名稱'; problems.push('情境名稱'); }
+    if (metadataRequired && rationaleEmpty) { rationaleError = '請先填寫篩選動機說明'; problems.push('篩選動機'); }
     if (noCondition) { problems.push('至少一條篩選條件'); }
-    if (oversizedTextSet) {
-      problems.push('文字值清單每組最多 ' + Ui.TEXT_SET_MAX_VALUES + ' 個值');
-    }
-    if (oversizedTypedSet) {
-      problems.push('攸關資料元素欄位的值清單每組最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值');
-    }
     if (incompleteTyped) {
       problems.push('攸關資料元素欄位條件需選定欄位與比較方式');
     }
@@ -2390,14 +2768,20 @@
     // 另存副本時名稱會另附「（副本）」，不在這裡比對。
     var duplicate = includeSavedScenarios && !skipDuplicateName ? duplicateScenarioName(draft) : '';
     var duplicateText = duplicate ? '已有同名情境「' + duplicate + '」，請改用其他名稱。' : '';
-    if (duplicate) { setFieldError(nameInput, duplicateText); }
+    if (duplicate) { nameError = duplicateText; }
+    // 已經顯示的錯誤說明直接換字，不先收起再長出來；補齊的才收回去。
+    if (nameError) { setFieldError(nameInput, nameError); } else { clearFieldError(nameInput); }
+    if (rationaleError) { setFieldError(rationaleInput, rationaleError); } else { clearFieldError(rationaleInput); }
 
+    // 提示收起時字留著，跟著一起收回去，不會先變成一個空框。
     if (problems.length === 0 && !duplicate) {
-      if (notice) { notice.hidden = true; notice.textContent = ''; }
+      if (notice) { notice.hidden = true; }
       return true;
     }
     if (notice) {
       notice.textContent = (problems.length ? '尚需補齊：' + problems.join('、') + (duplicate ? '。' : '') : '') + duplicateText;
+      // 同一個提示框也用來寫琥珀色的提醒（見 showSaveNotice）；尚需補齊維持原本的紅色。
+      notice.classList.remove('form-notice--warning');
       notice.hidden = false;
     }
     // 聚焦第一個有問題的欄位（名稱 → 動機）；只缺條件時不搶焦點。
@@ -2421,13 +2805,15 @@
   function softRefreshGate(container) {
     var draft = Store.getState().filter.draft;
     var feedback = container.querySelector('[data-bind="save-feedback"]');
-    if (feedback) { feedback.innerHTML = savedFeedbackText(draft); feedback.hidden = !savedFeedbackText(draft); }
+    var feedbackText = savedFeedbackText(draft);
+    if (feedback && feedbackText) { feedback.innerHTML = feedbackText; feedback.hidden = false; }
+    else if (feedback) { feedback.hidden = true; }
     var nameInput = container.querySelector('[data-bind="scenario-name"]');
     var rationaleInput = container.querySelector('[data-bind="scenario-rationale"]');
     var notice = container.querySelector('[data-bind="scenario-notice"]');
     var metadataRequired = requiresScenarioMetadata(draft);
 
-    var duplicate = viewState.saveOpen && duplicateScenarioName(draft);
+    var duplicate = duplicateScenarioName(draft);
     if (draft.name && draft.name.trim() && !duplicate) { clearFieldError(nameInput); }
     if (draft.rationale && draft.rationale.trim()) { clearFieldError(rationaleInput); }
 
@@ -2437,7 +2823,7 @@
     var stillMissing = (metadataRequired && (!draft.name || !draft.name.trim())) ||
       (metadataRequired && (!draft.rationale || !draft.rationale.trim())) ||
       noCondition || oversizedTextSet || hasOversizedTypedSet(draft) || hasIncompleteTypedRule(draft) || !!duplicate;
-    if (!stillMissing && notice) { notice.hidden = true; notice.textContent = ''; }
+    if (!stillMissing && notice) { notice.hidden = true; }
   }
 
   // 規則「值編輯」後即時刷新藍色 read-back：值編輯走 patchFilterRule（只 notify、不重建面板以保住輸入
@@ -2445,20 +2831,22 @@
   // 任何輸入框，焦點不受影響（read-back 是條件清單之後的獨立節點）。
   function softRefreshReadback(container) {
     syncSuggestedMetadata(container);
-    var el = container.querySelector('.filter-readback .scenario-readback');
+    var el = Ui.findLive(container, '.filter-readback .scenario-readback');
     if (!el) { return; }
     var html = readBackHtml(Store.getState().filter.draft);
-    if (html) { el.outerHTML = html; }
-    else if (el.parentNode) { el.parentNode.removeChild(el); }
+    fillSmoothly(el.closest('.filter-readback'), function () {
+      if (html) { el.outerHTML = html; }
+      else if (el.parentNode) { el.parentNode.removeChild(el); }
+    });
   }
 
   // 值編輯後把預覽面板軟更新為「已失效」空狀態：patchFilterRule 已把 Store 的預覽清掉（值編輯改變
   // 命中集合），但它只 notify 不重繪（保住輸入焦點），畫面上的舊命中數不會自己消失——這裡只抽換
   // 預覽面板的內容區，不碰任何輸入框。已是空狀態時直接返回（冪等，連續打字不重複動 DOM、不抖動）。
   function softExpirePreviewPane(container) {
-    var body = container.querySelector('[data-bind="preview-pane-body"]');
+    var body = Ui.findLive(container, '[data-bind="preview-pane-body"]');
     if (!body || body.getAttribute('data-empty') === '1') { return; }
-    body.innerHTML = '<p class="empty-state">條件已變更。按「查看符合的傳票」更新結果。</p>';
+    fillSmoothly(body, function () { body.innerHTML = '<p class="empty-state">條件已變更。按「查看符合的傳票」更新結果。</p>'; });
     body.setAttribute('data-empty', '1');
   }
 
@@ -2476,11 +2864,11 @@
     previewEl.innerHTML =
       '<p class="rule-card__sub">符合條件：' + Number(s.count).toLocaleString() + ' 筆分錄，' +
         Number(s.voucherCount).toLocaleString() + ' 張傳票，以下為前 ' + rows.length +
-        ' 筆。分錄測試範圍：' + Ui.esc(populationScopeLabel(s.populationScope)) + '。</p>' +
+        ' 筆。GL：' + Ui.esc(populationScopeLabel(s.populationScope)) + '內的分錄。</p>' +
       '<div class="preview-table__wrap">' + Ui.previewTableHtml(rows) + '</div>' +
       (allowLoadMore
         ? '<button type="button" class="btn btn--ghost btn--tiny rule-detail__load-more" data-action="hits-load-more">載入更多</button>'
-        : '<p class="form-notice">這裡只先列出前幾筆。儲存情境後，才能載入全部符合條件的分錄。</p>');
+        : '<p class="form-notice form-notice--info">這裡只先列出前幾筆。儲存情境後，才能載入全部符合條件的分錄。</p>');
     previewEl.setAttribute('data-loaded', '1');
 
     if (!allowLoadMore) { return; }
@@ -2522,7 +2910,7 @@
   // commit 時變，跨草稿編輯保留快取是安全的），沒有快取才發 filter.preview 並寫入快取。
   // data-loaded 旗標防同一份 DOM 生命週期內重複載入（重複展開/收合不重抓，行為同改版前）。
   function ensureScenarioPreview(container, index) {
-    var previewEl = container.querySelector('[data-bind="scenario-preview-' + index + '"]');
+    var previewEl = Ui.findLive(container, '[data-bind="scenario-preview-' + index + '"]');
     if (!previewEl || previewEl.getAttribute('data-loaded') === '1') { return; }
 
     var currentState = Store.getState();
@@ -2571,14 +2959,16 @@
         // 不寫入剛被 syncViewState 重置的快取（防止舊定義的預覽掛到新清單的同一序位上）。
         if (!acceptResponse()) { return; }
         if (allowLoadMore) { viewState.scenarioPreviews[index] = data.scenario; }
-        renderScenarioHitPreview(previewEl, data.scenario, scenarioPosition, allowLoadMore);
+        fillSmoothly(previewEl, function () { renderScenarioHitPreview(previewEl, data.scenario, scenarioPosition, allowLoadMore); });
       }).catch(function (error) {
         // 舊案件／舊 revision 的失敗不可污染目前案件訊息；當前失敗則留可重試提示並交給共用訊息區。
         if (!acceptResponse()) { return; }
         // 會讓已存情境失效的上游修改都會清掉情境（使用者 2026-10-07 裁定），這裡只剩暫時性的讀取失敗，提供重試即可。
-        previewEl.innerHTML = '<p role="status">載入失敗：' + Ui.esc(error && error.message ? error.message : '請稍後重試。') + '</p>' +
-          '<p>可以直接重試讀取結果。</p>' +
-          '<button type="button" class="btn btn--ghost" data-scenario-retry>重試讀取結果</button>';
+        fillSmoothly(previewEl, function () {
+          previewEl.innerHTML = '<p role="status">載入失敗：' + Ui.esc(error && error.message ? error.message : '請稍後重試。') + '</p>' +
+            '<p>可以直接重試讀取結果。</p>' +
+            '<button type="button" class="btn btn--ghost" data-scenario-retry>重試讀取結果</button>';
+        });
         previewEl.querySelector('[data-scenario-retry]').addEventListener('click', function () {
           ensureScenarioPreview(container, index);
         });
@@ -2590,103 +2980,77 @@
   // 會改變同一列可見控制項組合的規則鍵：改動後必須重繪，否則畫面會停在舊的輸入形狀。
   var STRUCTURAL_RULE_KEYS = ['fieldId', 'operator', 'pairMode', 'categoryMode', 'countUnit', 'countOperator'];
 
-  function bindLegacyPicker(container) {
-    container.querySelector('[data-filter-disclosure=legacy-form]').addEventListener('toggle', function (event) { viewState.disclosures['legacy-form'] = event.target.open; });
-    container.querySelector('[data-legacy-letter]').addEventListener('change', function (event) {
-      viewState.legacyLetter = event.target.value; viewState.legacyField = '';
-      viewState.disclosures['legacy-form'] = true;
-      container.querySelector('[data-legacy-host]').innerHTML = legacyPickerHtml();
-      bindLegacyPicker(container);
-      container.querySelector('[data-legacy-letter]').focus({ preventScroll: true });
-    });
-    var legacyField = container.querySelector('[data-legacy-field]');
-    if (legacyField) { legacyField.addEventListener('change', function () { viewState.legacyField = legacyField.value; }); }
-    container.querySelector('[data-action="add-legacy-rule"]').addEventListener('click', function () {
-      var item = global.JetLegacyFilters.catalogue.conditions.find(function (entry) { return entry.letter === viewState.legacyLetter; });
-      if (item.letter === 'C' && prescreenRequirementNote('unexpectedAccountPair')) { return; }
-      var state = Store.getState(), draft = state.filter.draft;
-      var field = legacyField && Ui.FilterValues.fields(state).find(function (entry) { return entry.id === legacyField.value; });
-      var rules = global.JetLegacyFilters.rules(item, field);
-      var account = container.querySelector('[data-legacy-account]');
-      if (account && account.value === 'categories') { rules = global.JetLegacyFilters.rules({ rules: item.categoryRules }); }
-      var person = container.querySelector('[data-legacy-person]');
-      if (person && person.value !== 'frequency') { rules = [{ type: 'fieldValue', field: person.value, operator: 'in', values: [], includeBlank: false }]; }
-      var group = activeEditableGroup(draft);
-      if (!group) { group = { join: 'AND', matchScope: 'row', rules: [] }; draft.groups.push(group); setActiveGroup(draft, group); }
-      rules.forEach(function (rule) { rule.join = groupCombinator(group); group.rules.push(rule); });
-      viewState.disclosures['legacy-form'] = true;
-      refreshAutomaticMetadata(draft, true);
-      Store.setFilterDraft(draft); revealAddedRule(rules[rules.length - 1]);
-    });
-    container.querySelectorAll('[data-legacy-example]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        var example = global.JetLegacyFilters.catalogue.examples.find(function (entry) { return entry.key === button.dataset.legacyExample; });
-        var rules = global.JetLegacyFilters.rules(example);
-        if (example.key === 'example2') {
-          var chosen = container.querySelector('[data-legacy-example-field]').value;
-          if (!chosen) { container.querySelector('[data-legacy-notice]').textContent = '範例 2 需要部門等文字型攸關資料元素欄位。請先選取；沒有選項時，回欄位配對加入來源。'; return; }
-          rules[1].fieldId = chosen;
-        }
-        // 名稱前加「舊表」：情境名稱會寫進工作底稿，讀者才不會把舊表字母當成 KCT A 到 J。
-        // 和常用範例一樣：先當固定文字，增減條件後改回自動；名稱遇到已儲存的同名情境時附數字。
-        var draft = { name: '舊表 ' + example.combination + ' ' + example.label, rationale: example.rationale,
-          groups: [{ join: 'AND', matchScope: 'row', rules: rules }], __nameDirty: true, __rationaleDirty: true,
-          __templateName: true, __templateRationale: true };
-        draft.name = uniqueAutomaticName(draft, draft.name);
-        viewState.saveOpen = false; viewState.disclosures['legacy-form'] = true;
-        Store.setFilterDraft(draft); revealAddedRule(rules[0]);
-      });
-    });
-  }
-
   function bind(container) {
     Ui.bindReportArtifacts(container);
     syncSuggestedMetadata(container);
+    // 自動名稱與 KCT 身分在上一行收斂後，才記下換成這份草稿時沒有修改的內容。
+    if (viewState.cleanDraftKey === null) { viewState.cleanDraftKey = draftContentKey(Store.getState().filter.draft); }
     Ui.bindStepFooter(container);
-    container.querySelectorAll('.filter-saved-actions').forEach(function (menu) {
+    container.querySelectorAll('.filter-saved-actions, .filter-group-menu').forEach(function (menu) {
       menu.addEventListener('keydown', function (event) { if (event.key === 'Escape') { menu.open = false; menu.querySelector('summary').focus(); } });
     });
     container.querySelectorAll('[data-filter-pane-select]').forEach(function (button) {
       button.addEventListener('click', function () {
         viewState.workspacePane = button.dataset.filterPaneSelect;
-        container.querySelectorAll('[data-filter-pane]').forEach(function (pane) { pane.hidden = pane.dataset.filterPane !== viewState.workspacePane; });
         container.querySelectorAll('[data-filter-pane-select]').forEach(function (tab) { tab.setAttribute('aria-pressed', tab === button ? 'true' : 'false'); });
-        if (viewState.workspacePane === 'saved') { restoreSavedViews(container); }
+        showOnly(container.querySelectorAll('[data-filter-pane]'), function (pane) { return pane.dataset.filterPane === viewState.workspacePane; },
+          function () { if (viewState.workspacePane === 'saved') { restoreSavedViews(container); } });
       });
     });
     container.querySelectorAll('[data-condition-source]').forEach(function (button) {
       button.addEventListener('click', function () {
         viewState.conditionSource = button.dataset.conditionSource;
-        container.querySelectorAll('[data-condition-pane]').forEach(function (pane) { pane.hidden = pane.dataset.conditionPane !== viewState.conditionSource; });
+        showOnly(container.querySelectorAll('[data-condition-pane]'), function (pane) { return pane.dataset.conditionPane === viewState.conditionSource; });
         container.querySelectorAll('[data-condition-source]').forEach(function (tab) { tab.setAttribute('aria-pressed', tab === button ? 'true' : 'false'); });
       });
     });
     container.querySelectorAll('[data-filter-disclosure]').forEach(function (details) {
       details.addEventListener('toggle', function () { viewState.disclosures[details.dataset.filterDisclosure] = details.open; });
     });
-    var customSubject = container.querySelector('[data-custom-subject]');
-    bindLegacyPicker(container);
-    customSubject.addEventListener('change', function () {
-      viewState.customSubject = customSubject.value;
-      container.querySelector('[data-action="add-rule"]').disabled = !customSubject.value || !!accountMappingRequirementNote(customSubject.value.slice(5));
+    // 自訂篩選條件：欄位按鈕與常用查核條件都加入目前作用中的組。
+    container.querySelectorAll('[data-add-field]').forEach(function (button) {
+      button.addEventListener('click', function () { addFieldCondition(button.getAttribute('data-add-field')); });
     });
+    container.querySelectorAll('[data-add-check]').forEach(function (button) {
+      button.addEventListener('click', function () { addCommonCheck(button.getAttribute('data-add-check')); });
+    });
+    // 常用查核條件的分類一次只展開一類；只切換畫面，不重繪也不改草稿。
+    container.querySelectorAll('[data-check-category]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var key = button.getAttribute('data-check-category');
+        viewState.checkCategory = viewState.checkCategory === key ? null : key;
+        container.querySelectorAll('[data-check-category]').forEach(function (toggle) {
+          var open = toggle.getAttribute('data-check-category') === viewState.checkCategory;
+          toggle.setAttribute('aria-expanded', String(open));
+          var list = container.querySelector('#' + toggle.getAttribute('aria-controls'));
+          if (list) { list.hidden = !open; }
+        });
+      });
+    });
+    // 「⋯」選單：在這一組加入條件括號或整張傳票條件；新草稿畫面上的空白第 1 組在這時才建立。
+    container.querySelectorAll('[data-add-compound]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var draft = Store.getState().filter.draft;
+        var group = draft.groups[Number(button.getAttribute('data-gi'))];
+        if (!group) {
+          group = { join: 'AND', matchScope: 'row', rules: [] };
+          if (draft.groups.length === 0) { keepMotionKey(EMPTY_FIRST_GROUP, group); }
+          draft.groups.push(group);
+        }
+        setActiveGroup(draft, group);
+        var menu = button.closest('.filter-group-menu');
+        addConditions([Ui.newFilterRule(button.getAttribute('data-add-compound'))]);
+        // 重繪時還開著的選單由 app.js 的 JetMotion 在原處淡出（使用者 2026-10-13 要求展開與收合一致），所以重繪之後才關；
+        // 沒有重繪時這裡關掉，由 app.css 的轉場淡出。
+        if (menu) { menu.open = false; }
+      });
+    });
+    bindExampleList(container);
     var conditionTarget = container.querySelector('[data-condition-target]');
     if (conditionTarget) {
       conditionTarget.addEventListener('change', function () { chooseTargetGroup(Number(conditionTarget.value), true); });
     }
     bindGroupSelection(container, chooseTargetGroup);
-    function setSaveOpen(open) {
-      viewState.saveOpen = open;
-      syncSuggestedMetadata(container);
-      softRefreshGate(container);
-      container.querySelector('[data-save-panel]').hidden = !open;
-      container.querySelector('.filter-primary-actions').hidden = open;
-      container.querySelector('[data-action="open-save"]').setAttribute('aria-expanded', String(open));
-      var target = container.querySelector(open ? '[data-bind="scenario-name"]' : '[data-action="open-save"]');
-      target.focus();
-    }
-    container.querySelector('[data-action="open-save"]').addEventListener('click', function () { setSaveOpen(true); });
-    container.querySelector('[data-action="close-save"]').addEventListener('click', function () { setSaveOpen(false); });
     // 只同步加入目標及其呈現，不重建正在輸入的條件，也不移動焦點或捲軸。
     function chooseTargetGroup(gi, clearSelection) {
       var draft = Store.getState().filter.draft;
@@ -2694,7 +3058,7 @@
       if (clearSelection) {
         selectedRule = null;
         container.querySelectorAll('.rule-row--selected').forEach(function (row) { row.classList.remove('rule-row--selected'); });
-        container.querySelectorAll('.filter-rule-selected').forEach(function (badge) { badge.remove(); });
+        container.querySelectorAll('.filter-rule-selected:not([data-motion-folding])').forEach(dropRuleBadge);
       }
       if (conditionTarget) { conditionTarget.value = String(gi); }
       container.querySelectorAll('[data-group-index]').forEach(function (well) {
@@ -2714,9 +3078,6 @@
       });
       container.querySelector('.condition-picker__count').textContent = template.content.querySelector('.condition-picker__count').textContent;
     }
-    container.querySelectorAll('[data-action="apply-template"]').forEach(function (button) {
-      button.addEventListener('click', function () { applyTemplate(button.getAttribute('data-template-key')); });
-    });
     function editScenario(index, copy) {
       var state = Store.getState(), saved = state.filter.savedScenarios[index];
       if (!saved) { return; }
@@ -2743,27 +3104,26 @@
         while ((Store.getState().filter.savedScenarios || []).some(function (item) { return item.name === draft.name; }));
       }
       // 改去編輯或複製情境時，收起先前按「移除」打開的確認區。
-      viewState.workspacePane = 'filter'; viewState.saveOpen = false; viewState.savedDraftKey = null;
+      viewState.workspacePane = 'filter'; viewState.lastSavedName = null; viewState.savedDraftKey = null;
       viewState.pendingRemovalIndex = null;
       selectedRule = null;
       Store.setFilterDraft(draft);
       if (global.JetFocus) { global.JetFocus.defer(function () { return document.querySelector('.filter-workspace [data-builder-title]'); }); }
     }
     container.querySelectorAll('[data-action="edit-scenario"], [data-action="copy-scenario"]').forEach(function (button) {
-      button.addEventListener('click', function () { editScenario(Number(button.dataset.index), button.dataset.action === 'copy-scenario'); });
+      button.addEventListener('click', function () {
+        var index = Number(button.dataset.index), copy = button.dataset.action === 'copy-scenario';
+        var target = Store.getState().filter.savedScenarios[index];
+        if (!target) { return; }
+        guardDraftReplacement(copy ? 'copy' : 'edit', target.name, function () { editScenario(index, copy); });
+      });
     });
     var cancelEdit = container.querySelector('[data-action="cancel-edit-scenario"]');
     if (cancelEdit) { cancelEdit.addEventListener('click', function () {
-      viewState.saveOpen = false; viewState.disclosures = {}; viewState.savedDraftKey = null;
+      viewState.lastSavedName = null; viewState.disclosures = {}; viewState.savedDraftKey = null;
       selectedRule = null;
+      announceClearedComposition();
       Store.setFilterDraft({ name: '', rationale: '', groups: [] });
-    }); }
-    var newScenario = container.querySelector('[data-action="new-scenario"]');
-    if (newScenario) { newScenario.addEventListener('click', function () {
-      viewState.saveOpen = false; viewState.disclosures = {}; viewState.savedDraftKey = null;
-      selectedRule = null;
-      Store.setFilterDraft({ name: '', rationale: '', groups: [] });
-      if (global.JetFocus) { global.JetFocus.defer(function () { return document.querySelector('.filter-workspace .filter-entry'); }); }
     }); }
     var copyEdit = container.querySelector('[data-action="save-scenario-copy"]');
     if (copyEdit) { copyEdit.addEventListener('click', function () {
@@ -2775,20 +3135,17 @@
       resaveButton.addEventListener('click', function () {
         Ui.run('重新檢查並儲存情境', function () {
           var state = Store.getState();
-          var populationScope = selectedPopulationScope(state);
-          var scenarios = state.filter.savedScenarios.map(toWireScenario);
-          if (scenarios.length === 0) { return Promise.resolve(); }
+          if (state.filter.savedScenarios.length === 0) { return Promise.resolve(); }
           var snapshot = filterCommitSnapshot(state);
-          return global.JetApi.filterCommit({
-            populationScope: populationScope,
-            scenarios: scenarios
+          // 不送清單：後端從資料庫讀出全部情境，能套用目前規則的就更新，其餘列在回應的待修正清單，不整批失敗。
+          return global.JetApi.filterScenarioRecheck({
+            populationScope: selectedPopulationScope(state)
           }).then(function (data) {
-            var canonicalScope = data.resultRef.populationScope;
             if (!completeScenarioListChange(snapshot, data)) { return; }
-            Store.addMessage('已用目前規則重新檢查並儲存 ' + data.savedCount + ' 個篩選情境，分錄測試範圍為「' +
-              populationScopeLabel(canonicalScope) + '」。', 'info');
+            // 完成句由 Ui.run 接上耗時後記一則（使用者 2026-10-13 裁定成功時只留一則）。
+            return scenarioRecheckSentence(data);
           });
-        }, { logCompletion: true });
+        }, { completionMessage: function (sentence) { return sentence || ''; } });
       });
     }
 
@@ -2808,10 +3165,9 @@
           })
             .then(function (data) {
               Store.applyReportExport(data);
-              Store.addMessage('已在案件資料夾產生條件篩選報告。', 'info');
               return data;
             });
-        }, { logCompletion: true });
+        }, { completionMessage: function (data) { return data ? '已在案件資料夾產生條件篩選報告。' : ''; } });
       });
     }
 
@@ -2829,34 +3185,9 @@
       softRefreshGate(container);
     });
 
-    // 組內的「＋」：新增一條該家族的條件到按鈕所在的那一組（data-gi）；那一組還不存在（新草稿的空第 1 組）
-    // 就先建組。新規則 join 取該組現有組合器以維持群組內一致；被加的組同時成為 KCT 卡的落點。
-    container.querySelectorAll('[data-action="add-rule"]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var draft = Store.getState().filter.draft;
-        var newRule = customSubjectRule();
-        if (!newRule) { return; }
-        var gi = btn.hasAttribute('data-gi') ? Number(btn.getAttribute('data-gi')) : NaN;
-        var target = draft.groups[gi] || activeEditableGroup(draft);
-        if (!target) {
-          target = { join: 'AND', matchScope: 'row', rules: [] };
-          draft.groups.push(target);
-        }
-        setActiveGroup(draft, target);
-        var rule = newRule;
-        rule.join = groupMatchScope(target) === 'sameVoucher'
-          ? 'AND'
-          : (target.rules.length ? groupCombinator(target) : 'AND');
-        target.rules.push(rule);
-        revealAddedRule(rule);
-        viewState.customSubject = '';
-        refreshAutomaticMetadata(draft, true);
-        Store.setFilterDraft(draft);
-      });
-    });
-
-    // KCT條件卡（A–J）：可複選 toggle —— 已選則移除、未選則加入；累積成同一情境。
+    // KCT 條件卡可複選 toggle —— 已選則移除、未選則加入；累積成同一情境。
     // 停用卡（B/未匯入科目配對）不綁事件。加入/移除/已選偵測全收斂於上方少數深函式。
+    // 畫面上馬上看得到結果，不另記加入或移除的訊息（使用者 2026-10-13 勾選頁確認刪除 56、57）。
     container.querySelectorAll('.picker-card--kct').forEach(function (btn) {
       if (btn.disabled) { return; }
       btn.addEventListener('click', function () {
@@ -2870,7 +3201,6 @@
           removeKctFromActiveGroup(draft, item);
           refreshAutomaticMetadata(draft, true);
           Store.setFilterDraft(draft);
-          Store.addMessage('已移除 KCT 條件「' + item.label + '」。', 'info');
         } else {
           addKctToDraft(draft, item); // 每張卡（含 I 的條件括號）都加入作用中組
           var targetGroup = activeEditableGroup(draft);
@@ -2878,7 +3208,6 @@
           if (addedRule) { revealAddedRule(addedRule); }
           refreshAutomaticMetadata(draft, true);
           Store.setFilterDraft(draft);
-          Store.addMessage('已加入 KCT 條件「' + item.label + '」。', 'info');
         }
       });
     });
@@ -2893,7 +3222,9 @@
         var draft = Store.getState().filter.draft;
         // 把編輯器上已顯示的空白第一組實際建立到草稿裡。
         if (draft.groups.length === 0) {
-          draft.groups.unshift({ join: 'AND', matchScope: 'row', rules: [] });
+          var first = { join: 'AND', matchScope: 'row', rules: [] };
+          keepMotionKey(EMPTY_FIRST_GROUP, first);
+          draft.groups.unshift(first);
         }
         var fresh = { join: scenarioJoin(draft), matchScope: 'row', rules: [] };
         draft.groups.push(fresh);
@@ -2911,13 +3242,26 @@
       });
     }
 
-    // 換位到 GL 標準化資料預覽：只供設定條件時參考，不把全投影預覽冒充目前 scope 的命中集合。
-    var populationBtn = container.querySelector('[data-action="preview-population"]');
-    if (populationBtn && Ui.openDataPreview) {
-      populationBtn.addEventListener('click', function () {
-        Ui.openDataPreview('glEntries');
+    // 清空只影響這一組草稿；保留組間關係、其他組及使用者手寫的情境資訊。
+    container.querySelectorAll('[data-action="clear-set"]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var draft = Store.getState().filter.draft;
+        var gi = Number(button.getAttribute('data-gi'));
+        var group = draft.groups[gi];
+        if (!group || !group.rules.length) { return; }
+        var fresh = { join: group.join, matchScope: 'row', rules: [] };
+        keepMotionKey(group, fresh);
+        draft.groups[gi] = fresh;
+        setActiveGroup(draft, fresh);
+        selectedRule = null;
+        refreshAutomaticMetadata(draft, true);
+        Store.setFilterDraft(draft);
+        // 清除後這一組的「清除」不能按，焦點交給這一組（使用者 2026-10-13 交接）。
+        if (global.JetFocus && global.JetFocus.deferFirst) {
+          global.JetFocus.deferFirst(['.filter-workspace .scenario-set[data-motion-key="' + groupMotionKey(fresh) + '"]']);
+        }
       });
-    }
+    });
 
     // 「移除這組」：splice 該可編輯群組（一個 set）。移到只剩一組會自動回乾淨單 well（無模式）。
     // 移除作用中組時重新標記作用中（回退到最後一組），確保恆有一個有效落點。
@@ -2925,46 +3269,22 @@
       btn.addEventListener('click', function () {
         var draft = Store.getState().filter.draft;
         var gi = Number(btn.getAttribute('data-gi'));
+        // 焦點交給下一組，沒有就上一組，都沒有時交給「新增條件組」（使用者 2026-10-13 交接）。
+        var successors = [draft.groups[gi + 1], draft.groups[gi - 1]].filter(Boolean).map(function (group) {
+          return '.filter-workspace .scenario-set[data-motion-key="' + groupMotionKey(group) + '"]';
+        }).concat(['.filter-workspace [data-action="add-set"]']);
         draft.groups.splice(gi, 1);
         setActiveGroup(draft, activeEditableGroup(draft));
         refreshAutomaticMetadata(draft, true);
         Store.setFilterDraft(draft);
+        if (global.JetFocus && global.JetFocus.deferFirst) { global.JetFocus.deferFirst(successors); }
       });
     });
 
-    // 自訂篩選條件區塊折疊：切換 body 的 hidden 與 caret（同 toggle-matrix/toggle-scenario 模式，不重建面板）。
-    // 狀態同步進 viewState，讓下一次 bump 重繪照原樣還原（customPickerHtml 讀它）。
-    var customToggle = container.querySelector('[data-action="toggle-custom-picker"]');
-    if (customToggle) {
-      customToggle.addEventListener('click', function () {
-        var body = container.querySelector('[data-bind="custom-picker-body"]');
-        if (!body) { return; }
-        body.hidden = !body.hidden;
-        viewState.customPickerOpen = !body.hidden;
-        customToggle.setAttribute('aria-expanded', body.hidden ? 'false' : 'true');
-        var caret = customToggle.querySelector('.condition-picker__toggle-caret');
-        if (caret) { caret.textContent = body.hidden ? '▸' : '▾'; }
-      });
-    }
-
-    // 群組比對範圍：row 維持既有逐列語意；切到 sameVoucher 時立即把所有 rule.join 收斂為 AND，
-    // 與停用的 OR 段控及後端 validator 保持一致。這裡只改 AST，不在前端評估條件。
-    container.querySelectorAll('[data-group-bind], [data-set-combinator], [data-set-join]').forEach(function (control) {
-      var kind = control.hasAttribute('data-set-join') ? 'join' : control.hasAttribute('data-set-combinator') ? 'combinator' : control.dataset.groupBind;
+    container.querySelectorAll('[data-set-combinator], [data-set-join]').forEach(function (control) {
+      var kind = control.hasAttribute('data-set-join') ? 'join' : 'combinator';
       var groupIndex = control.hasAttribute('data-set-join') ? control.dataset.setJoinIndex : control.dataset.gi;
       control.setAttribute('data-focus-key', 'filter-group-' + groupIndex + '-' + kind);
-    });
-    container.querySelectorAll('[data-group-bind="matchScope"]').forEach(function (control) {
-      control.addEventListener('change', function () {
-        var draft = Store.getState().filter.draft;
-        var group = draft.groups[Number(control.getAttribute('data-gi'))];
-        if (!group) { return; }
-        group.matchScope = control.value;
-        if (group.matchScope === 'sameVoucher') {
-          group.rules.forEach(function (rule) { rule.join = 'AND'; });
-        }
-        Store.setFilterDraft(draft);
-      });
     });
 
     // 條件組組合器（組標頭的「全部／任一」下拉，每組一個）：設「該群組(data-gi)」各 rule 的 join。
@@ -2975,7 +3295,6 @@
         var draft = Store.getState().filter.draft;
         var group = draft.groups[Number(radio.getAttribute('data-gi'))];
         if (!group) { return; }
-        if (groupMatchScope(group) === 'sameVoucher' && value === 'OR') { return; }
         group.rules.forEach(function (r) { r.join = value; });
         Store.setFilterDraft(draft);
       });
@@ -3010,11 +3329,14 @@
         if (activeEditableGroup(draft) !== draft.groups[gi]) { chooseTargetGroup(gi, false); }
         selectedRule = currentRule;
         container.querySelectorAll('.rule-row--selected').forEach(function (item) { item.classList.remove('rule-row--selected'); });
-        container.querySelectorAll('.filter-rule-selected').forEach(function (badge) { badge.remove(); });
+        container.querySelectorAll('.filter-rule-selected:not([data-motion-folding])').forEach(dropRuleBadge);
         row.classList.add('rule-row--selected');
         var badge = document.createElement('span');
         badge.className = 'filter-rule-selected'; badge.textContent = '選取中';
+        badge.setAttribute('data-motion', 'inline');
         row.querySelector('.filter-rule-heading').prepend(badge);
+        // 「選取中」從左邊打開、換到別條時收回去（使用者 2026-10-13 要求出現與消失都有動態）。
+        if (global.JetMotion && typeof global.JetMotion.enter === 'function') { global.JetMotion.enter(badge); }
       }
       row.addEventListener('click', selectCurrentRule);
       row.addEventListener('focusin', selectCurrentRule);
@@ -3041,30 +3363,14 @@
             ['accountSide','accountPair','specialAccountCategoryPair'].indexOf(fresh.type) >= 0) {
           fresh.categorySelection = old.categorySelection || 'role';
         }
+        keepMotionKey(old, fresh);
         currentRules[ri] = fresh;
         if (selectedRule === old) { selectedRule = fresh; }
         refreshAutomaticMetadata(draft, true);
         Store.setFilterDraft(draft);
       }
-      // 欄位下拉選到「分錄性質」或一般欄位時，換成對應的規則型別。
-      function switchFieldSubject(id) {
-        if (id === '__drCr') { replaceRule(function () { return Ui.newFilterRule('drCrOnly'); }); return; }
-        if (id === '__isManual') { replaceRule(function () { return Ui.newFilterRule('manualAuto'); }); return; }
-        var selected = Ui.FilterValues.fields(Store.getState()).find(function (item) { return item.id === id; });
-        if (!selected) { return; }
-        replaceRule(function () {
-          var fresh = Ui.FilterValues.create(selected.type);
-          delete fresh.field; delete fresh.fieldId;
-          fresh[selected.extra ? 'fieldId' : 'field'] = selected.id;
-          if (!selected.extra && ['createBy', 'approveBy', 'accNum'].indexOf(selected.id) >= 0) { fresh.operator = 'in'; }
-          if (selected.extra && selected.type === 'money') { fresh.amountBasis = 'signed'; }
-          return fresh;
-        });
-      }
-
-      Ui.FilterValues.bind(row.querySelector('.value-editor'), currentRule, Store.getState(), function (structural, pseudoId) {
-        if (structural === 'pseudo') { switchFieldSubject(pseudoId); }
-        else if (structural) {
+      Ui.FilterValues.bind(row.querySelector('.value-editor'), currentRule, Store.getState(), function (structural) {
+        if (structural) {
           // 比較方式改變可能讓 KCT 卡帶入的條件變成別的條件，例如 I 括號內改成週末。
           var structuralDraft = Store.getState().filter.draft;
           refreshAutomaticMetadata(structuralDraft, false);
@@ -3072,35 +3378,6 @@
         }
         else { patchCurrent({}); softRefreshReadback(container); softExpirePreviewPane(container); softRefreshGate(container); }
       });
-      var fieldSubject = row.querySelector('[data-field-subject]');
-      if (fieldSubject) { fieldSubject.addEventListener('change', function () { switchFieldSubject(fieldSubject.value); }); }
-
-      // 科目：借方／貸方是單邊條件（accountSide），借貸組合是配對條件；換邊時把已選分類帶過去。
-      var accountSubject = row.querySelector('[data-account-subject]');
-      if (accountSubject) {
-        accountSubject.addEventListener('change', function () {
-          var value = accountSubject.value;
-          var old = currentRules[ri];
-          if (value === 'pair') {
-            if (old.type !== 'accountSide') { return; }
-            replaceRule(function () {
-              var fresh = Ui.newFilterRule('specialAccountCategoryPair');
-              var ids = (old.categoryIds || []).slice();
-              if (ids.length) { fresh[old.drCr === 'credit' ? 'creditCategoryIds' : 'debitCategoryIds'] = ids; }
-              return fresh;
-            });
-            return;
-          }
-          if (old.type === 'accountSide') { patchCurrent({ drCr: value }); Store.touch(); return; }
-          replaceRule(function () {
-            var fresh = Ui.newFilterRule('accountSide');
-            fresh.drCr = value;
-            var ids = ruleCategoryIds(old, value === 'credit' ? 'creditCategoryIds' : 'debitCategoryIds');
-            if (ids.length) { fresh.categoryIds = ids.slice(); }
-            return fresh;
-          });
-        });
-      }
 
       // 風險樣態：預篩選條件只換 key；換成尾數、張數或 KCT 專屬條件則重建那一列。
       var patternSubject = row.querySelector('[data-pattern-subject]');
@@ -3124,16 +3401,9 @@
           replaceRule(function () { return Ui.newFilterRule(value); });
         });
       }
-      var primary = row.querySelector('[data-action="make-primary"]');
-      if (primary) { primary.addEventListener('click', function () {
-        var draft = Store.getState().filter.draft, rules = draft.groups[gi].rules;
-        rules.unshift(rules.splice(ri, 1)[0]);
-        refreshAutomaticMetadata(draft, false);
-        Store.setFilterDraft(draft);
-      }); }
-
       row.querySelector('[data-action="remove-rule"]').addEventListener('click', function () {
         var draft = Store.getState().filter.draft;
+        focusAfterRuleRemoval(currentRules, ri, gi, row);
         currentRules.splice(ri, 1);
         // 手改的名稱與動機由旗標保留；自動文字隨剩下的條件重算。
         refreshAutomaticMetadata(draft, true);
@@ -3172,6 +3442,7 @@
             fresh.join = old.join; fresh.pairMode = parts[1]; fresh.categorySelection = old.categorySelection;
             fresh.debitCategoryIds = (old.debitCategoryIds || []).slice(); fresh.creditCategoryIds = (old.creditCategoryIds || []).slice();
             if (old[KCT_LETTER_KEY]) { fresh[KCT_LETTER_KEY] = old[KCT_LETTER_KEY]; }
+            keepMotionKey(old, fresh);
             currentRules[ri] = fresh;
             if (selectedRule === old) { selectedRule = fresh; }
             refreshAutomaticMetadata(draft, false);
@@ -3209,7 +3480,10 @@
 
     container.querySelector('[data-action="preview-scenario"]').addEventListener('click', function () {
       if (!scenarioGate(container, false)) { return; }
+      // 預覽失敗時，只有把原因標到條件列才算就地顯示；沒有標到時在步驟上方顯示提示框。
+      var previewMarked = 0;
       Ui.run('預覽篩選情境', function () {
+        previewMarked = 0;
         var previewState = Store.getState();
         var draft = previewState.filter.draft;
         var populationScope = selectedPopulationScope(previewState);
@@ -3238,19 +3512,24 @@
           if (!acceptResponse() || data.scenario.populationScope !== populationScope) { return; }
           Store.setFilterPreview(data.scenario);
           if (global.JetFocus) { global.JetFocus.defer(function () { return document.querySelector('.filter-workspace [data-preview-title]'); }); }
-          Store.addMessage('情境預覽：符合條件 ' + data.scenario.count + ' 筆分錄，' +
-            data.scenario.voucherCount + ' 張傳票。', 'info');
-        }).catch(function (error) { if (!acceptResponse()) { return; } markRuleErrors(container, error); throw error; });
-      }, { logCompletion: true });
+          return data.scenario;
+        }).catch(function (error) { if (!acceptResponse()) { return; } previewMarked = markRuleErrors(container, error); throw error; });
+      }, { inlineError: function () { return previewMarked > 0; }, completionMessage: function (scenario) {
+        return scenario ? '情境預覽：符合條件 ' + scenario.count + ' 筆分錄，' + scenario.voucherCount + ' 張傳票。' : '';
+      } });
     });
 
     // 後端 invalid_scenario 帶 details（第幾組、第幾條、原因）時，把該列標紅、就地寫原因並捲到第一列；
     // 沒有 details 的錯誤維持 Ui.run 的整段訊息。這只是呈現，判定權威仍在後端。回傳標紅的列數。
     // 後端的組號是送出後的順序；送出時略過空組，所以先換回畫面上的組位置。
-    function markRuleErrors(root, error) {
+    // targetPosition 是這次儲存的情境在清單上的位置；細節標明屬於別的情境時不標在目前草稿上。
+    function markRuleErrors(root, error, targetPosition) {
       root.querySelectorAll('.rule-row--invalid').forEach(function (row) {
         row.classList.remove('rule-row--invalid');
-        var old = row.querySelector('[data-rule-error]'); if (old) { old.remove(); }
+        var old = row.querySelector('[data-rule-error]:not([data-motion-folding])');
+        if (!old) { return; }
+        // 舊的說明收回去再拿掉，新的從條件下面長出來（使用者 2026-10-13 要求出現與消失都有動態）。
+        if (global.JetMotion && typeof global.JetMotion.fold === 'function') { global.JetMotion.fold(old, function () { old.remove(); }); } else { old.remove(); }
       });
       if (!error || !Array.isArray(error.details)) { return 0; }
       var sentGroups = [];
@@ -3258,6 +3537,7 @@
       var first = null, marked = 0;
       error.details.forEach(function (detail) {
         if (!detail || typeof detail.group !== 'number' || typeof detail.rule !== 'number') { return; }
+        if (!belongsToTarget(detail, targetPosition)) { return; }
         var draftGi = sentGroups[detail.group - 1];
         if (typeof draftGi !== 'number') { return; }
         var row = root.querySelector('.rule-row[data-gi="' + draftGi + '"][data-ri="' + (detail.rule - 1) + '"]');
@@ -3268,72 +3548,88 @@
         note.className = 'rule-row__error'; note.setAttribute('data-rule-error', ''); note.setAttribute('role', 'alert');
         note.textContent = detail.message;
         row.appendChild(note);
+        if (global.JetMotion && typeof global.JetMotion.enter === 'function') { global.JetMotion.enter(note); }
         if (!first) { first = row; }
       });
-      if (first) { first.scrollIntoView({ block: 'center' }); }
+      if (first) { first.scrollIntoView({ block: 'center', behavior: smoothScroll() }); }
       return marked;
     }
 
     // 儲存沒有送出或失敗時，原因寫在儲存按鈕上方，不只留在訊息紀錄。
-    function showSaveNotice(text) {
+    // 清單已變更與已滿 10 個只是需要注意，用琥珀色；儲存失敗用紅色（使用者 2026-10-13 裁定訊息分三級）。
+    function showSaveNotice(text, warning) {
       var notice = container.querySelector('[data-bind="scenario-notice"]');
       if (!notice) { return; }
-      notice.textContent = text || '';
+      if (text) { notice.textContent = text; notice.classList.toggle('form-notice--warning', !!warning); }
       notice.hidden = !text;
     }
     // 前端擋下、沒有送出的儲存不記「儲存篩選情境完成」。
     var SAVE_NOT_SENT = { notSent: true };
 
+    // 回傳儲存作業的 Promise，讓「儲存並開啟」這類對話框等儲存結束再決定要不要繼續。
+    // 只送這一個情境（使用者 2026-10-13 對「情境卡住」選「本計畫內修好」）：其他已存情境由後端照資料庫原樣保留，
+    // 開案時無法套用目前規則的情境不會擋住這次儲存。
     function saveScenario(asCopy) {
       syncSuggestedMetadata(container);
-      if (!scenarioGate(container, true, asCopy)) { return; }
-      Ui.run('儲存篩選情境', function () {
+      if (!scenarioGate(container, true, asCopy)) { return Promise.resolve(SAVE_NOT_SENT); }
+      return Ui.run('儲存篩選情境', function () {
         var commitState = Store.getState();
         var current = commitState.filter;
         var populationScope = selectedPopulationScope(commitState);
 
-        // 已存情境 + 當前草稿都過同一投影（深拷貝剝除 __kctLetter，並保留 canonical source:'kct'）。
-        // 存入 savedScenarios 的也是這份剝乾淨的形狀，故後續惰性預覽其 groups 不含任何 UI-only 標記。
-        var scenarios = current.savedScenarios.map(toWireScenario);
+        // 草稿過同一投影（深拷貝剝除 __kctLetter，並保留 canonical source:'kct'）。
         var editingIndex = asCopy ? null : current.draft.__editingIndex;
         var authored = toWireDraft(current.draft);
         if (asCopy) {
           var suffix = 1, originalName = authored.name;
           do { authored.name = originalName + '（副本' + (suffix === 1 ? '' : ' ' + suffix) + '）'; suffix++; }
-          while (scenarios.some(function (scenario) { return scenario.name === authored.name; }));
+          while (current.savedScenarios.some(function (scenario) { return scenario.name === authored.name; }));
           if (authored.editorOrigins) { authored.editorOrigins.nameIsAutomatic = false; }
         }
+        // 存完後的清單只用來檢查上限；送出時只帶這一個情境。
+        var scenarios = current.savedScenarios.slice();
+        var position = null;
         if (typeof editingIndex === 'number') {
           if (current.draft.__editingSavedRef !== current.savedScenarios) {
-            var staleText = '已儲存清單已變更，請重新選擇要編輯的情境；目前草稿仍保留。';
-            Store.addMessage(staleText, 'warn'); showSaveNotice(staleText);
+            // 訊息面板與儲存鈕上方的提示用同一句（使用者 2026-10-13 勾選頁確認 59、60）。
+            var staleText = '已儲存的情境清單已變更，請重新選擇要編輯的情境；目前的草稿仍保留。';
+            Store.addMessage(staleText, 'warn'); showSaveNotice(staleText, true);
             return Promise.resolve(SAVE_NOT_SENT);
           }
           scenarios[editingIndex] = authored;
+          position = editingIndex + 1;
         } else { scenarios.push(authored); }
         if (scenarios.length > Ui.FILTER_MAX_SAVED_SCENARIOS) {
-          var limitText = '最多儲存 ' + Ui.FILTER_MAX_SAVED_SCENARIOS + ' 個篩選情境；請先移除既有情境。';
-          Store.addMessage(limitText, 'warn'); showSaveNotice(limitText);
+          var limitText = '最多可儲存 ' + Ui.FILTER_MAX_SAVED_SCENARIOS + ' 個篩選情境，請先移除不需要的情境。';
+          Store.addMessage(limitText, 'warn'); showSaveNotice(limitText, true);
           return Promise.resolve(SAVE_NOT_SENT);
         }
+        // 新增或另存時加在最後，和後端的算法相同；修改時後端用 expectedName 確認畫面清單和資料庫是同一個情境。
+        var targetPosition = position === null ? current.savedScenarios.length + 1 : position;
+        var payload = { populationScope: populationScope, position: position, scenario: authored };
+        if (position !== null) { payload.expectedName = current.savedScenarios[editingIndex].name; }
         var saveSnapshot = filterCommitSnapshot(commitState);
-        return global.JetApi.filterCommit({
-          populationScope: populationScope,
-          scenarios: scenarios
-        }).then(function (data) {
-          completeScenarioSave(saveSnapshot, data,
-            typeof editingIndex === 'number' ? editingIndex : scenarios.length - 1, authored);
+        return global.JetApi.filterScenarioSave(payload).then(function (data) {
+          // 完成句由 Ui.run 接上耗時後記一則（使用者 2026-10-13 裁定成功時只留一則）；回應已過時就不記。
+          return completeScenarioSave(saveSnapshot, data, data.position - 1, authored) ? data : null;
         }).catch(function (error) {
           if (!acceptsFilterCommit(saveSnapshot)) { return; }
           if (Store.getState().filter.draft === saveSnapshot.draft && Store.getFilterDraftRev() === saveSnapshot.revision) {
             // 能對到條件列的錯誤就地標紅；重名這類沒有位置的錯誤寫在儲存按鈕上方。
-            if (!markRuleErrors(container, error)) { showSaveNotice('儲存失敗：' + ((error && error.message) || '請稍後再試。')); }
+            if (!markRuleErrors(container, error, targetPosition)) { showSaveNotice(saveFailureText(error, targetPosition)); }
           }
           throw error;
         });
-      }, { logCompletion: true, logCompletionWhen: function (value) { return value !== SAVE_NOT_SENT; } });
+      }, {
+        // 儲存失敗時，原因已經就地寫在條件列或儲存按鈕上方，不再另外在步驟上方顯示。
+        inlineError: true,
+        completionMessage: function (data) {
+          return data && data !== SAVE_NOT_SENT ? '已儲存篩選情境（' + data.savedCount + ' / 10）。' : '';
+        }
+      });
     }
     container.querySelector('[data-action="save-scenario"]').addEventListener('click', function () { saveScenario(false); });
+    saveDraftForReplacement = function () { return saveScenario(false); };
 
     container.querySelectorAll('[data-action="toggle-scenario"]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -3352,11 +3648,17 @@
       });
     });
 
+    // 確認區直接在這一步裡重繪；經過 JetMotion，確認區長出來與收起來。
+    function redrawStep() {
+      if (global.JetMotion) { global.JetMotion.morph(container, function () { render(container, Store.getState()); }); }
+      else { render(container, Store.getState()); }
+    }
+
     container.querySelectorAll('[data-action="remove-scenario"]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var index = Number(btn.getAttribute('data-index'));
         viewState.pendingRemovalIndex = index;
-        render(container, Store.getState());
+        redrawStep();
         if (global.JetFocus) {
           global.JetFocus.defer(function () {
             return container.querySelector(
@@ -3370,7 +3672,7 @@
       btn.addEventListener('click', function () {
         var index = Number(btn.getAttribute('data-index'));
         viewState.pendingRemovalIndex = null;
-        render(container, Store.getState());
+        redrawStep();
         restoreScenarioRemovalFocus(container, index);
       });
     });
@@ -3381,18 +3683,17 @@
         var removalSucceeded = false;
         Ui.run('移除篩選情境', function () {
           var removeState = Store.getState();
-          if (!removeState.filter.savedScenarios[index]) { return Promise.resolve(); }
+          var target = removeState.filter.savedScenarios[index];
+          if (!target) { return Promise.resolve(); }
           var snapshot = filterCommitSnapshot(removeState);
-          var remaining = removeState.filter.savedScenarios
-            .filter(function (_, i) { return i !== index; })
-            .map(toWireScenario);
-          var populationScope = selectedPopulationScope(removeState);
-          return global.JetApi.filterCommit({
-            populationScope: populationScope,
-            scenarios: remaining
+          // 只送要移除的那一個；其他情境由後端照資料庫原樣保留，不重新檢查。
+          return global.JetApi.filterScenarioRemove({
+            populationScope: selectedPopulationScope(removeState),
+            position: index + 1,
+            expectedName: target.name
           }).then(function (data) {
             if (!completeScenarioListChange(snapshot, data, index)) { return; }
-            Store.addMessage('已移除情境（剩餘 ' + remaining.length + ' / 10）。', 'info');
+            Store.addMessage('已移除情境（剩餘 ' + data.savedCount + ' / 10）。', 'info');
             removalSucceeded = true;
           });
         }, {
@@ -3420,10 +3721,12 @@
   }
 
   function showMatrixView(body) {
-    ['scenarios', 'vouchers', 'rows'].forEach(function (key) {
+    var boxes = ['scenarios', 'vouchers', 'rows'].map(function (key) { return body.querySelector('[data-bind="matrix-' + key + '"]'); });
+    // 換檢視時新的表格原地交叉淡化、高度平順改變；還沒畫過的表格在顯示之後、量高度之前先畫好。
+    showOnly(boxes, function (box) { return box.getAttribute('data-bind') === 'matrix-' + viewState.matrixView; }, function () {
+      var key = viewState.matrixView;
       var box = body.querySelector('[data-bind="matrix-' + key + '"]');
-      box.hidden = key !== viewState.matrixView;
-      if (box.hidden || !body._matrixColumns || box.dataset.rendered) { return; }
+      if (!box || !body._matrixColumns || box.dataset.rendered) { return; }
       if (key === 'scenarios') { box.innerHTML = scenarioSummaryTableHtml(body._matrixColumns); }
       else if (key === 'vouchers') { renderVoucherMatrix(box, body._matrixColumns); }
       else { renderRowMatrix(box, body._matrixColumns); }
@@ -3484,10 +3787,10 @@
   // 確保展開中的矩陣有內容：優先用 viewState 摘要快取（草稿編輯不影響已存情境命中，跨重繪保留安全；
   // savedScenarios 替換時由 syncViewState 重置），沒有快取才發 queryTagMatrixScenarios 並寫入。
   function ensureMatrixContent(container) {
-    var body = container.querySelector('[data-bind="matrix-body"]');
+    var body = Ui.findLive(container, '[data-bind="matrix-body"]');
     if (!body || body.getAttribute('data-loaded') === '1') { return; }
     if (!committedPopulationScope(Store.getState())) {
-      body.innerHTML = '<p class="form-notice">有已儲存的情境無法套用目前的篩選規則。請依上方「分錄測試範圍」列出的說明修改後儲存，矩陣才會顯示。</p>';
+      body.innerHTML = '<p class="empty-state">已儲存的篩選情境尚未套用目前規則，矩陣暫不顯示。</p>';
       body.setAttribute('data-loaded', '1');
       return;
     }
@@ -3515,7 +3818,7 @@
       return global.JetApi.queryTagMatrixScenarios({}).then(function (data) {
         if (!acceptResponse()) { return; }
         viewState.matrixData = data.scenarios || [];
-        renderMatrixContent(body, viewState.matrixData);
+        fillSmoothly(body, function () { renderMatrixContent(body, viewState.matrixData); });
       }).catch(function (error) {
         // 舊案件／舊 revision 的失敗安靜作廢；當前失敗保持未載入狀態，讓使用者可重新展開重試。
         if (!acceptResponse()) { return; }
@@ -3534,7 +3837,7 @@
       '<div class="preview-table__wrap">' +
         '<table class="preview-table">' +
           '<thead><tr>' + Ui.sortableHeadCellsHtml('query.tagMatrixVoucherPage', [
-            { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '總帳入帳日' },
+            { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '總帳日期' },
             { key: 'createdBy', label: '編製人員' }, { key: 'voucherTotal', label: '傳票總額' }]) +
             tagColumnHeadHtml(columns) + '</tr></thead>' +
           '<tbody></tbody>' +
@@ -3576,7 +3879,7 @@
       '<div class="preview-table__wrap">' +
         '<table class="preview-table">' +
           '<thead><tr>' + Ui.sortableHeadCellsHtml('query.tagMatrixRowPage', [
-            { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳入帳日' },
+            { key: 'documentNumber', label: '傳票號碼' }, { key: 'lineItem', label: '項次' }, { key: 'postDate', label: '總帳日期' },
             { key: 'accountCode', label: '科目' }, { key: 'amount', label: '金額' }, { key: 'description', label: '摘要' }]) +
             tagColumnHeadHtml(columns) + '</tr></thead>' +
           '<tbody></tbody>' +

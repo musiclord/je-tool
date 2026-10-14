@@ -43,7 +43,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
         var tbMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Tb, cancellationToken);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var runId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
@@ -55,17 +55,14 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
             document.SampleSeedVersion);
         if (sampleSeedResolution.IsLegacyProject)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidProjectSchema,
-                InfSamplingSeedResolution.LegacyProjectMessage($"案件『{projectId}』", sampleSeedResolution.Error));
+            // 開案時已擋下舊版案件，畫面照正常操作走不到這裡（使用者 2026-10-14 第三輪勾選頁確認 R3-65）。
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidProjectSchema, "inf_seed_legacy_after_load");
         }
 
         if (!sampleSeedResolution.IsValid)
         {
-            throw new JetActionException(
-                JetErrorCodes.FileReadError,
-                $"案件『{projectId}』的 INF 抽樣種子設定損壞：{sampleSeedResolution.Error}；"
-                + "為避免改變查核樣本，系統不會重新產生 seed，請從已知良好的 project.json 或備份復原。");
+            // 開案時已擋下抽樣設定損壞的案件，畫面照正常操作走不到這裡（R3-65）。
+            throw JetPayloadRejection.Create(JetErrorCodes.FileReadError, "inf_seed_corrupt_after_load");
         }
         var sampleSeed = sampleSeedResolution.Seed;
 

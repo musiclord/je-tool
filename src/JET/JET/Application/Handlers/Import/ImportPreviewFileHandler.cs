@@ -24,14 +24,14 @@ public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IAppli
 
         if (!File.Exists(filePath))
         {
-            throw new JetActionException(JetErrorCodes.FileNotFound, $"找不到檔案 '{Path.GetFileName(filePath)}'，請確認檔案還在原位置後重新選檔。");
+            throw new JetActionException(JetErrorCodes.FileNotFound, $"找不到檔案「{Path.GetFileName(filePath)}」，請確認檔案還在原位置後重新選檔。");
         }
 
         if (!reader.Supports(filePath))
         {
             throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                $"不支援的檔案類型 '{Path.GetExtension(filePath)}'，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
+                $"不支援的檔案類型「{Path.GetExtension(filePath)}」，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
         }
 
         var request = TabularSourcePayload.Parse(payload, filePath);

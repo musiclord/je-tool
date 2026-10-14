@@ -56,8 +56,12 @@ public sealed class GuiScenarioCoverageTests
         var frontend = File.ReadAllText(Path.Combine(directory.FullName, "tools/tests/frontend-workflow.test.cjs"));
         Assert.Contains("F1 an automatic KCT name already used by a saved scenario gets a number and saves", frontend);
         Assert.Contains("copying identical conditions and removing the copy resets and reloads matrix columns", frontend);
-        Assert.Equal(98, scenario.GetProperty("actionBudget").GetInt32());
-        Assert.Equal(98, scenario.GetProperty("expectedActionCount").GetInt32());
+        // 使用者 2026-10-08 要求重新設計自訂篩選條件：加條件改點欄位按鈕與常用查核條件，操作從 98 次減為 93 次。
+        // 首次失敗：Public 20261008-065804895-15c22e99fade4191aea38be9769c0523。93 由情境腳本逐步推算，待 Gui 實跑確認。
+        // 2026-10-14 Gui 實跑為 94 次：開啟已存情境時草稿還有未儲存的內容，JET 先詢問，情境選「不儲存，直接開啟」多點一次。
+        // 實跑收據 20261014-065005278-01f5c7c0fe31483b88e91d5a518a03f2。
+        Assert.Equal(94, scenario.GetProperty("actionBudget").GetInt32());
+        Assert.Equal(94, scenario.GetProperty("expectedActionCount").GetInt32());
     }
 
     private static JsonElement FindKct(JsonElement value)

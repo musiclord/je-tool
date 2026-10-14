@@ -92,7 +92,7 @@ public sealed class PrescreenProceduresTests
         // 2026-10-04 第 8 批 Q8：兩個不同用途的原因都保留，只同步確認配對說法。
         // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         Assert.Equal("請先確認 GL「傳票核准日」欄位配對。", PrescreenProcedures.MissingApprovalDateMappingReason);
-        Assert.Equal("尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳入帳日。", PrescreenProcedures.MissingApprovalDateForActivityReason);
+        Assert.Equal("尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。", PrescreenProcedures.MissingApprovalDateForActivityReason);
 
         var plan = Plan(Snapshot(hasApprovalDate: false, lastPeriodStart: null));
 
@@ -129,7 +129,8 @@ public sealed class PrescreenProceduresTests
     {
         var plan = Plan(Snapshot());
 
-        Assert.Equal(15, plan.Procedures.Count);
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
+        Assert.Equal(14, plan.Procedures.Count);
         Assert.All(plan.Procedures, verdict =>
         {
             Assert.True(verdict.IsApplicable);
@@ -155,7 +156,6 @@ public sealed class PrescreenProceduresTests
             HolidayPostingCount: 0,
             HolidayApprovalCount: 0,
             BlankDescriptionCount: 0,
-            BackdatedPostingCount: 0,
             NonAuthorizedPreparerCount: 0,
             LowFrequencyPreparerCount: 0,
             LowFrequencyAccountCount: 0);
@@ -164,7 +164,8 @@ public sealed class PrescreenProceduresTests
             plan,
             new AuditOutcome(Prescreen: result));
 
-        Assert.Equal(15, manifest.Procedures.Count);
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
+        Assert.Equal(14, manifest.Procedures.Count);
         Assert.All(manifest.Procedures, verdict =>
         {
             Assert.True(verdict.IsApplicable);

@@ -26,6 +26,39 @@ RDE 全選，也涵蓋分類草稿的輸入、取消與保存重試，以及雙�
 Public 在 .NET 測試通過後，依序執行這項檢查與 FrontendPreview。任何一項失敗都會讓 Public 失敗；
 兩項各自保存輸出、管理子程序及清除私人案件環境變數。可以單獨選用 Contract 快速檢查，不必每次重跑全部 .NET 測試。
 
+這項檢查會自動收集 `tools/tests/` 第一層所有 `frontend-*.test.cjs`，只有 `frontend-preview.test.cjs` 留給 FrontendPreview。
+新增前端行為測試時照這個名稱命名，不必修改執行腳本。`tools/tests/` 底下如果有其他 `*.test.cjs`、`*.test.js`
+或 `*.test.mjs` 沒有被任何路線執行，檢查會直接失敗。
+
+依審計員使用情境寫的測試放在 `frontend-journey-<情境>.test.cjs`，例如 `frontend-journey-picker.test.cjs` 是案件清單，
+`frontend-journey-export.test.cjs` 是第六步匯出。每個檔開頭的註解寫出審計員的操作步驟、使用的夾具，以及它取代的舊字串測試。
+新的情境檔只要放在 `tools/tests/` 第一層並照這個名稱命名，下一次執行就會被自動收集。
+兩個以上測試檔共用的夾具放在支援模組 `tools/tests/support/frontend-fixtures.cjs`，舊的 `frontend-workflow.test.cjs`
+與 `frontend-mapping.test.cjs` 也使用同一份。只服務一個測試檔的夾具留在那個檔裡。夾具本身的測試是 `frontend-support.test.cjs`，
+改了支援模組要在這裡補對應的測試。支援模組的檔名不含 `.test.`，Node 不會把它當成測試執行。
+
+每個前端測試程序都要載入 `tools/tests/support/resource-guard.cjs`，直接載入或經由共用夾具載入都可以，
+FrontendMapping 會檢查每個前端測試檔都有載入。它在背景每 100 毫秒檢查一次整個程序的記憶體與執行時間，
+預設超過 2048 MB 或 900 秒就結束程序，並在錯誤輸出寫一行以 `JET test resource guard:` 開頭的說明。
+上限可以用環境變數 `JET_TEST_MAX_RSS_MB` 與 `JET_TEST_MAX_SECONDS` 調整。2026-10-13 曾有測試失敗時，
+報表沿著假 DOM 元件的父子連結不停展開，單一測試程序占用數十 GB 記憶體，整台電腦因此停擺。
+共用夾具已把這些連結改成不可列舉，這個上限則讓同類問題不再拖垮整台電腦。
+
+這個上限只管單一程序。`node --test` 預設依 CPU 核心數同時執行很多個測試檔，合計記憶體會跟著核心數放大，
+所以 FrontendMapping 與改壞檢查工具一次最多執行 4 個測試檔，數值寫在 `tools/tests/support/resource-guard-marker.cjs`。
+這樣合計最多 4 × 2048 MB，不超過驗證框架給整個步驟的 8192 MB。自己用 `node --test` 一次跑多個測試檔診斷時，
+也加上 `--test-concurrency=4`；只跑一個測試檔時不必加。
+
+要確認新寫的前端測試真的抓得到錯，可以執行 `node tools/tests/support/mutate-frontend.cjs --spec <改壞清單.json>`。
+它把正式前端複製到 `artifacts/frontend-mutation/<批次>/<編號>/`，在副本上做一處文字替換，再對副本執行指定的測試。
+同一個測試在工作樹上要通過，改壞後要有原本通過的測試失敗，才算抓到。還在撰寫、尚未收進正式路線的 `*.wip.cjs`
+也可以用這支工具檢查。同一時間只會跑一個改壞檢查，後來的會排隊等候。每次執行測試預設最多 300 秒，
+逾時就連同它開出的子程序一起結束。工具本身不載入上面的資源上限，整份清單跑得再久也不會在中途被停掉；
+它開出的每個測試程序仍各自受上限保護。任何一次執行碰到時間、輸出量或記憶體上限，結果都是 `inconclusive-resource-limit`；
+這時要查出是產品還是測試停不下來，不能重跑了事。改壞檢查一律使用這支工具，不另寫腳本。
+這支工具不改工作樹裡的產品檔，不是正式驗證命令，輸出只是診斷紀錄。改壞清單的格式寫在工具檔開頭。
+它和下面用 Stryker 改壞 C# 規則的 `Mutation` 是兩回事。
+
 - `tools/` 第一層只分成 `harness/` 與 `tests/`。新增的驗證框架子目錄一律使用小寫英文，單字之間以連字號分隔。
 - JSON 設定檔、公開入口、測試與一次性 probe 使用小寫與連字號。可重用的 PowerShell 模組與內部 verifier
   使用 `Jet` 開頭的 PascalCase；C# 專案、原始碼檔、型別、namespace 和組件名稱也依 .NET 慣例使用
@@ -186,13 +219,17 @@ stderr 與 TRX 也會在保存前遮蔽。
   檔案選擇 action 由封閉的合成來源替代，不代表操作了原生檔案選擇視窗。
 - `extended-conditions`：人工與自動補集的取消及保存、統計張數、日曆、金額尾數、人員清單與文字否定，再
   保存五個情境、匯出及重開；精確條件和保存值都要相符。
-- `side-month-workflow`：在窄視窗操作欄位內的借貸方向及每月月初、月底天數，核對錯誤值修正、保存、取消
+- `side-month-workflow`：在窄視窗用子條件組與整張傳票條件組合借貸別和科目編號，並操作每月月初、月底天數，核對錯誤值修正、保存、取消
   編輯、返回、重開、條件報告及底稿匯出，並讀回 Step 4-1 的人工旗標，確認「人工」「自動」都以文字輸出。
-- `nested-voucher-workflow`：操作分類上層設定、巢狀條件、傳票分錄條件及分類選取方式，核對空條件失敗後
+- `nested-voucher-workflow`：操作分類上層設定、巢狀條件、整張傳票條件及分類選取方式，核對空條件失敗後
   重試、保存、取消編輯、返回、案件重開及兩種篩選報表匯出。
-- `legacy-form-workflow`：套用原工作簿的五個組合，核對缺來源選取後重試、預覽、保存、取消修改、返回、兩種
-  報表及重開；只切換條件目錄不應清除已有預覽。
-- `legacy-form-catalog`：逐一加入及移除 A 到 U，另驗證 P 可切換科目分類。
+- `legacy-form-workflow`：從「從範例開始」套用由原工作簿轉入的四個範例，再加入常用查核條件「金額尾數連續多個 0」，
+  核對固定筆數、預覽、保存、取消修改、返回、兩種報表及重開。夾具只有一個文字型攸關資料元素欄位，
+  所以部門範例核對自動帶入該欄位；切換常用查核條件的分類不應清除已有預覽。
+- `legacy-form-catalog`：逐一加入及移除每一項常用查核條件，核對名稱、所屬分類一次只展開一類及加入的條件型別，
+  另確認分類組合預設包含下層分類。
+- 其他情境加入自訂條件時，改點欄位按鈕（`data-add-field`）、常用查核條件的「加入」（`data-add-check`）或
+  每組「⋯」選單的項目（`data-add-compound`），共用 `GuiDataRecoveryScenarios.cs` 的 `AddCustomConditionAsync`。
 
 `null-details-recovery`、`kct-remap-recovery`、`authorized-list-recovery` 與 `extended-conditions` 全部沿
 正式前端及 action 操作，CDP 評估只讀取畫面與狀態。中文組字透過 WebView2 的
@@ -253,6 +290,12 @@ Restore、Build 和 Documentation 不使用共享鎖；其餘正式命令都會�
 `Contract` 只檢查驗證框架本身的鎖、子程序、逾時、輸出大小、JSON 紀錄及安全清理；它通過不代表產品測試
 已通過。
 
+2026-10-13 起，建置、發布、.NET 測試與前端測試都在本次專屬的 Windows Job 裡以較低優先權執行。整個程序樹合計的
+已認可記憶體超過 `lanes.json` 的 `limits.maximumProcessTreeMemoryMegabytes`（目前 8192 MB）時，框架立刻結束整個程序樹，
+該步驟判定為 `failed`，原因碼是 `memory_limit_reached`。收據的 `process` 另外記下上限、尖峰記憶體與是否碰到上限。
+建置與發布另加 `--disable-build-servers`，編譯伺服器與重複使用的 MSBuild 節點不會留在背景。
+Restore、Gui 與 Excel 驅動程式自己管理的程序，以及 `Mutation` 的程序樹，不在這個上限內。
+
 `Documentation` 會檢查目前仍有效的文件與 AI Agent 轉接檔。缺檔、必要指向缺漏及已確認過時的事實會
 失敗；不自然用語只列為 warning。`documentation-check.json` 的 `styleWarnings` 比對固定片語，
 `stylePatterns` 用正規表示式抓符號代句與工作用語，命中時附一句修正提示，程式碼區塊與行內程式碼不檢查。
@@ -276,6 +319,12 @@ Restore 因 `NU1301` 無法讀取 NuGet 來源時，會回報 `blocked`，因為
 大小的子程序輸出，會放在 `artifacts/harness/` 下的獨立資料夾；這些資料受 `.gitignore` 排除。
 保存子程序輸出前，框架會將儲存庫根目錄與使用者目錄換成 `[repository]` 和 `[user-profile]`。Provider
 另會把連線字串及可辨識的連線欄位換成 `[sensitive]`，並在讀取 TRX 前做相同處理。
+
+每次命令寫好收據後，框架會整理 `artifacts/harness/runs/` 的舊執行。同一種檢查只完整保留最新 10 次執行；
+命令相同時，只跑單一情境或篩選的執行另外計算。更舊的執行只留下 `receipt.json`、各步驟的 `*.receipt.json` 與擁有者標記，
+TRX、記錄檔、截圖與暫存都會刪掉，所以文件或測試註解引用的舊收據仍讀得到結論與第一個失敗。
+還沒寫好收據的執行不會被碰到，整理失敗也不影響這次的結果。這是使用者 2026-10-14 裁定的保留期限，
+當時本機累積 3,226 次執行、2.9 GB，整理後約 225 MB。改壞檢查放在 `artifacts/harness/mutation/` 的快取不在這個範圍。
 
 除了明示執行的 `PrivateCase`，其他命令都不得讀取舊專案、舊執行輸出或私人案件資料夾，其執行紀錄必須
 顯示 `privateData.pathInspected=false`。`PrivateCase` 只記錄是否確實讀取，不保存私人路徑，並固定記錄

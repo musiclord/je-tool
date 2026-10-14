@@ -14,6 +14,8 @@ using static JET.Tests.Infrastructure.WorkpaperWriterTestSupport;
 
 namespace JET.Tests.Infrastructure;
 
+// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose input; keep independent hit, amount, and report assertions.
+
 /// <summary>底稿寫出器：step3 條件表、step4 傳票矩陣與 step4-1 傳票明細。</summary>
 public sealed class WorkpaperWriterStep3Step4Tests
 {
@@ -35,8 +37,8 @@ public sealed class WorkpaperWriterStep3Step4Tests
 
         // C1 列:C 條件描述==情境 name、D 原因==rationale、E 符合傳票數==voucherHitCount recount。
         var c1Row = FindRowByColumnValue(sheet, "B", "C1", 19);
-        Assert.Equal("提前過帳", sheet.Cell($"C{c1Row}").GetString());
-        Assert.Equal("過帳日期早於傳票日期,可能顯示回溯日期", sheet.Cell($"D{c1Row}").GetString());
+        Assert.Equal("非授權編製人員", sheet.Cell($"C{c1Row}").GetString());
+        Assert.Equal("編製人員不在授權清單內", sheet.Cell($"D{c1Row}").GetString());
 
         var c1Vouchers = await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
             "SELECT COUNT(DISTINCT g.document_number) FROM result_filter_run r " +
@@ -378,8 +380,7 @@ public sealed class WorkpaperWriterStep3Step4Tests
                                     new
                                     {
                                         join = "and",
-                                        type = "customKeywords",
-                                        keywords = "命中"
+                                        type = "fieldValue", field = "description", @operator = "contains", values = new[] { "命中" }
                                     }
                                 }
                             }

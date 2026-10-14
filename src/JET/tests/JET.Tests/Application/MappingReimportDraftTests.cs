@@ -113,19 +113,20 @@ public sealed class MappingReimportDraftTests
             })));
 
         Assert.Equal(JET.Domain.JetErrorCodes.ProjectionFailed, error.Code);
-        Assert.StartsWith("3 列無法轉換，系統沒有儲存這次配對結果。", error.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.StartsWith("有 3 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("「」", error.Message, StringComparison.Ordinal);
         Assert.Collection(
             error.Details!,
             unlisted =>
             {
                 Assert.Equal("Flag", unlisted.SourceColumn);
-                Assert.StartsWith("欄位「Flag」有 2 列未歸類為人工或自動：「Adjust」在第 2、3 列。", unlisted.Message, StringComparison.Ordinal);
+                Assert.StartsWith("來源欄「Flag」有 2 列未歸類為人工或自動：「Adjust」在第 2、3 列。", unlisted.Message, StringComparison.Ordinal);
             },
             blank =>
             {
                 Assert.Equal("Flag", blank.SourceColumn);
-                Assert.StartsWith("欄位「Flag」有 1 列是空白：第 4 列。", blank.Message, StringComparison.Ordinal);
+                Assert.StartsWith("來源欄「Flag」有 1 列是空白：第 4 列。", blank.Message, StringComparison.Ordinal);
             });
     }
 

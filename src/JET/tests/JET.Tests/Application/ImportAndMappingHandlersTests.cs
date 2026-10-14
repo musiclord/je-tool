@@ -450,7 +450,8 @@ public sealed class ImportAndMappingHandlersTests
                     }
                     """));
             Assert.Equal(JetErrorCodes.MissingRequiredMapping, missing.Code);
-            Assert.Contains("description", missing.Message);
+            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            Assert.Contains("傳票摘要", missing.Message);
 
             // commit GL（dual）
             var glCommit = await host.DispatchAsync("mapping.commit.gl", GlCommitPayload);

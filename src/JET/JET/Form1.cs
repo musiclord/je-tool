@@ -21,9 +21,9 @@ namespace JET
         private bool _webViewUnusable;
         private bool _webViewUnresponsiveNoticeShown;
         internal const string WebViewInitializationFailureMessage =
-            "JET 畫面無法啟動。請關閉後重新開啟 JET；若仍無法開啟，請修復或安裝 Microsoft Edge WebView2 Runtime，再試一次。";
+            "JET 畫面無法啟動。請關閉後重新開啟 JET。";
         internal const string WebViewProcessFailureMessage =
-            "JET 顯示畫面的程序已中止。將取消進行中的作業並關閉視窗，請重新開啟 JET，再確認最近一次操作的結果；未儲存的畫面輸入可能已遺失。";
+            "JET 畫面的程序已中止，進行中的作業會取消，視窗將關閉。請重新開啟 JET，並確認最近一次操作的結果；尚未儲存的畫面輸入不會保留。";
 
         internal static bool BrowserAcceleratorsEnabled
         {
@@ -416,7 +416,8 @@ namespace JET
 
         private async void NotifyBusyNativeExitAsync()
         {
-            const string fallbackMessage = "目前作業尚未結束。請在作業完成或取消後再重試關閉視窗。";
+            // 和忙碌畫面注入的提示同一句（已確認的 23，使用者 2026-10-14 第三輪勾選頁確認 R3-58）。
+            const string fallbackMessage = "作業還在進行，請等它完成後再試一次。";
             try
             {
                 if (_webView?.CoreWebView2 is null)
@@ -425,7 +426,7 @@ namespace JET
                 }
 
                 var notified = await _webView.CoreWebView2.ExecuteScriptAsync(
-                    "(function () { if (!window.JetStore) { return false; } var state = window.JetStore.getState(); var message = state.activeRequestId ? '目前作業尚未結束。請按「取消作業」，待取消完成後再重試關閉視窗。' : '目前作業尚未結束。請等待作業完成後再重試關閉視窗。'; if (state.busy) { window.JetStore.setBusyDetail(message); } window.JetStore.addMessage(message, 'warn'); return true; })();");
+                    "(function () { if (!window.JetStore) { return false; } var state = window.JetStore.getState(); var message = state.activeRequestId ? '作業還在進行。請先按「取消作業」，等取消完成後再試一次。' : '作業還在進行，請等它完成後再試一次。'; if (state.busy) { window.JetStore.setBusyDetail(message); } window.JetStore.addMessage(message, 'warn'); return true; })();");
                 if (!string.Equals(notified, "true", StringComparison.Ordinal))
                 {
                     throw new InvalidOperationException("JET store is unavailable.");

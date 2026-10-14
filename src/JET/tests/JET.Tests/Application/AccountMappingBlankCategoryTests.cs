@@ -46,10 +46,11 @@ public sealed class AccountMappingBlankCategoryTests
         Assert.Equal(JsonValueKind.Null, next.GetProperty("nextCursor").ValueKind);
 
         // 留白視為 Others：貸方「不屬於 Cash」兩張都命中，沒有待判定。
+        // 第九節 G1、G3：明示借貸方向與傳票佐證，保留原固定答案；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
         var scenario = JsonDocument.Parse("""
-          {"name":"Blank as others","rationale":"Synthetic","groups":[{"matchScope":"sameVoucher","rules":[
-            {"type":"accountSide","drCr":"debit","categoryMode":"is","categoryIds":["builtin.cash"]},
-            {"type":"accountSide","drCr":"credit","categoryMode":"isNot","categoryIds":["builtin.cash"]}]}]}
+          {"name":"Blank as others","rationale":"Synthetic","groups":[{"rules":[
+            {"type":"group","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},
+            {"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"isNot","categoryIds":["builtin.cash"]}]}]}]}
           """).RootElement;
         var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
         Assert.Equal(2, preview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());

@@ -24,7 +24,7 @@ internal readonly record struct GlEffectivePopulationClassification(
         _ => throw new ArgumentOutOfRangeException(
             nameof(Disposition),
             Disposition,
-            "未知的 GL 有效母體分類。")
+            "未知的 GL 分類：每一列只能列入 GL 或 GL(未納入測試)。")
     };
 }
 
@@ -136,7 +136,7 @@ internal static class GlEffectivePopulation
     {
         if (periodStart > periodEnd)
         {
-            throw new ArgumentException("GL 有效母體期間起日不得晚於迄日。", nameof(periodStart));
+            throw new ArgumentException("GL 的查核期間起日不得晚於迄日。", nameof(periodStart));
         }
 
         var normalizedPolicy = NormalizePolicy(postingStatusMapped, policy);
@@ -177,7 +177,7 @@ internal static class GlEffectivePopulation
     {
         if (periodStart > periodEnd)
         {
-            throw new ArgumentException("GL 有效母體期間起日不得晚於迄日。", nameof(periodStart));
+            throw new ArgumentException("GL 的查核期間起日不得晚於迄日。", nameof(periodStart));
         }
 
         if (postingStatusMapped && matcher is null)

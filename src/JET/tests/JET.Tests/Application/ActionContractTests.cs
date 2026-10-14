@@ -215,10 +215,11 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.HasExactKeys(data,
             "postPeriodApproval", "suspiciousKeywords", "unexpectedAccountPair", "trailingZeros",
             "creatorSummary", "rareAccounts", "weekendActivity", "holidayActivity", "blankDescription",
-            "backdatedPosting", "nonAuthorizedPreparer", "lowFrequencyPreparer", "lowFrequencyAccount",
+            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，回應不再有 backdatedPosting。
+            "nonAuthorizedPreparer", "lowFrequencyPreparer", "lowFrequencyAccount",
             "rulePeriod", "concentration", "positioning", "resultRef");
 
-        foreach (var key in new[] { "postPeriodApproval", "unexpectedAccountPair", "nonAuthorizedPreparer", "backdatedPosting", "lowFrequencyPreparer" })
+        foreach (var key in new[] { "postPeriodApproval", "unexpectedAccountPair", "nonAuthorizedPreparer", "lowFrequencyPreparer" })
         {
             var rule = JsonShape.Obj(data, key);
             JsonShape.HasExactKeys(rule, "status", "naReason", "count");
@@ -357,8 +358,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(
             "預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。",
             positioning.GetProperty("exportDefaultGuidance").GetString());
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-40（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
-            "尚無預篩選結果，匯出時會先執行預篩選。大型案件可能需要數分鐘到十餘分鐘。",
+            "尚無預篩選結果，匯出時會先執行預篩選；資料量大時需要數分鐘到十餘分鐘。",
             positioning.GetProperty("exportPendingRunGuidance").GetString());
 
         var resultRef = JsonShape.Obj(data, "resultRef");
@@ -466,8 +468,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task QueryDataPreview_ResponseShape_IsLocked()
     {
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
         var data = await fixture.Host.DispatchAsync(
-            "query.dataPreview", JsonSerializer.Serialize(new { dataset = "glEntries" }));
+            "query.dataPreview", JsonSerializer.Serialize(new { dataset = "gl" }));
 
         JsonShape.HasExactKeys(data, "dataset", "columns", "rows", "totalCount", "stats");
         JsonShape.Str(data, "dataset");
@@ -475,7 +478,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Element(JsonShape.Arr(data, "columns"), c => Assert.Equal(JsonValueKind.String, c.ValueKind));
         JsonShape.Element(JsonShape.Arr(data, "rows"), r => Assert.Equal(JsonValueKind.Array, r.ValueKind));
 
-        // glEntries 一律帶 stats(非 null)。
+        // gl（GL）一律帶 stats(非 null)。
         var stats = JsonShape.Obj(data, "stats");
         JsonShape.HasExactKeys(stats, "amountAbsMin", "amountAbsMax", "postDateMin", "postDateMax", "voucherCount");
         JsonShape.Number(stats, "amountAbsMin");
@@ -486,10 +489,10 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task QueryDataPreview_GlExcludedEntriesResponseShape_IsLocked()
+    public async Task QueryDataPreview_GlExcludedResponseShape_IsLocked()
     {
         var data = await fixture.Host.DispatchAsync(
-            "query.dataPreview", JsonSerializer.Serialize(new { dataset = "glExcludedEntries", limit = 1 }));
+            "query.dataPreview", JsonSerializer.Serialize(new { dataset = "glExcluded", limit = 1 }));
 
         JsonShape.HasExactKeys(data, "dataset", "columns", "rows", "totalCount", "stats");
         Assert.Equal(
@@ -556,10 +559,15 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         // 舊版配對確認旗標與每側 formatVersion 已隨舊案件相容程式移除，回應不再帶這些欄位。
         // 2026-10-03 O3：新增 previousMapping，重新匯入後還沒重新確認時帶回上次確認的配對當草稿
         // （第一次失敗：收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89）。
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-03（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 新增 retiredGlFieldLabels，
+        // 帶已移除的 GL 欄位與畫面名稱，第五步舊情境的條件標題與讀回用它寫出名稱。
         JsonShape.HasExactKeys(data,
             "project", "mapping", "previousMapping", "taxonomy", "staleState",
             "importState", "latestRuns", "filterScenarios",
-            "filterResultRef", "filterScenarioCheck", "reportArtifacts", "heartbeatSeconds");
+            "filterResultRef", "filterScenarioCheck", "reportArtifacts", "retiredGlFieldLabels", "heartbeatSeconds");
+        var retiredGlFieldLabels = JsonShape.Obj(data, "retiredGlFieldLabels");
+        JsonShape.HasExactKeys(retiredGlFieldLabels, "voucherDate");
+        Assert.Equal("傳票日期", retiredGlFieldLabels.GetProperty("voucherDate").GetString());
         JsonShape.Obj(data, "project");
         // 兩側都有有效配對時不帶上次的配對。
         var previousMapping = JsonShape.Obj(data, "previousMapping");
@@ -723,13 +731,14 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task QueryFilterHitsPage_ResponseShape_IsLocked()
     {
-        // 先 commit 一個 demo 母體確有命中的情境(backdatedPosting),保證 rows 非空、元素鍵集合確實鎖到。
+        // 先 commit 一個 demo 母體確有命中的情境(nonAuthorizedPreparer),保證 rows 非空、元素鍵集合確實鎖到。
         await fixture.Host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
-                name = "提前過帳", rationale = "contract",
+                name = "非授權編製人員", rationale = "contract",
                 groups = new[] { new { join = "and", rules = new[] {
-                    new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } } }
+                    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         }));
 
         var data = await fixture.Host.DispatchAsync("query.filterHitsPage",
@@ -758,13 +767,14 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task QueryTagMatrixScenarios_ResponseShape_IsLocked()
     {
-        // 先 commit 一個 demo 母體確有命中的情境(backdatedPosting),保證 scenarios 非空、元素鍵集合確實鎖到。
+        // 先 commit 一個 demo 母體確有命中的情境(nonAuthorizedPreparer),保證 scenarios 非空、元素鍵集合確實鎖到。
         await fixture.Host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
-                name = "提前過帳", rationale = "contract",
+                name = "非授權編製人員", rationale = "contract",
                 groups = new[] { new { join = "and", rules = new[] {
-                    new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } } }
+                    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         }));
 
         var data = await fixture.Host.DispatchAsync("query.tagMatrixScenarios");
@@ -784,13 +794,14 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task QueryTagMatrixVoucherPage_ResponseShape_IsLocked()
     {
-        // 先 commit 一個 demo 母體確有命中的情境(backdatedPosting),保證 rows 非空、元素鍵集合確實鎖到。
+        // 先 commit 一個 demo 母體確有命中的情境(nonAuthorizedPreparer),保證 rows 非空、元素鍵集合確實鎖到。
         await fixture.Host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
-                name = "提前過帳", rationale = "contract",
+                name = "非授權編製人員", rationale = "contract",
                 groups = new[] { new { join = "and", rules = new[] {
-                    new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } } }
+                    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         }));
 
         var data = await fixture.Host.DispatchAsync("query.tagMatrixVoucherPage",
@@ -986,14 +997,15 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task QueryTagMatrixRowPage_ResponseShape_IsLocked()
     {
-        // 先 commit 一個 demo 母體確有命中的情境(backdatedPosting),保證命中傳票存在、
+        // 先 commit 一個 demo 母體確有命中的情境(nonAuthorizedPreparer),保證命中傳票存在、
         // 其所有行被列出、元素鍵集合(含 matchedPositions)確實鎖到。
         await fixture.Host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
-                name = "提前過帳", rationale = "contract",
+                name = "非授權編製人員", rationale = "contract",
                 groups = new[] { new { join = "and", rules = new[] {
-                    new { join = "and", type = "prescreen", prescreenKey = "backdatedPosting" } } } } } }
+                    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         }));
 
         var data = await fixture.Host.DispatchAsync("query.tagMatrixRowPage",

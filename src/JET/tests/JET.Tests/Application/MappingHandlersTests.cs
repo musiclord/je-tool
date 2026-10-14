@@ -269,7 +269,8 @@ public sealed class MappingHandlersTests
             """{ "mapping": {}, "amountMode": "bogus" }"""));
 
         Assert.Equal(JetErrorCodes.UnsupportedMode, ex.Code);
-        Assert.Contains("amountMode 'bogus' 無效", ex.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("發生非預期的錯誤，此操作未完成。請再試一次。", ex.Message);
     }
 
     [Fact]
@@ -283,7 +284,8 @@ public sealed class MappingHandlersTests
             """{ "mapping": {}, "changeMode": "bogus" }"""));
 
         Assert.Equal(JetErrorCodes.UnsupportedMode, ex.Code);
-        Assert.Contains("changeMode 'bogus' 無效", ex.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("發生非預期的錯誤，此操作未完成。請再試一次。", ex.Message);
     }
 
     [Fact]

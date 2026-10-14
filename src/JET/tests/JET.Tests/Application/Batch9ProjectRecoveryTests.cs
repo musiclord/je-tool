@@ -25,7 +25,9 @@ public sealed class Batch9ProjectRecoveryTests
         Assert.Equal(JsonValueKind.Null, broken.GetProperty("databaseProvider").ValueKind);
         Assert.Equal(JetErrorCodes.FileReadError, broken.GetProperty("loadError").GetProperty("code").GetString());
         var message = broken.GetProperty("loadError").GetProperty("message").GetString()!;
-        Assert.Contains("project.json", message);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-50（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 句子不寫檔名，改寫「設定檔」。
+        Assert.Contains("設定檔無法讀取", message);
+        Assert.DoesNotContain("project.json", message);
         Assert.Contains("備份", message);
         Assert.DoesNotContain(host.ProjectsRoot, message);
         Assert.DoesNotContain(corrupt, message);

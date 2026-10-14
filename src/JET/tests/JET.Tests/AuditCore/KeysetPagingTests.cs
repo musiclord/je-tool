@@ -115,13 +115,17 @@ public sealed class KeysetPagingTests
     }
 
     [Fact]
-    public void UnknownSortKey_ListsTheAllowedKeys()
+    public void UnknownSortKey_IsRejectedAsUnexpected()
     {
         var error = Assert.Throws<JetActionException>(() =>
             KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(null, 10, new PageSort("entry_id; DROP TABLE x", PageSortDirection.Ascending)), Catalog));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
-        Assert.Contains("amount、approvedBy", error.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面只送表頭上的排序鍵，
+        // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現，檢查代號記進支援日誌。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, error.Message);
+        Assert.Equal("sort_key_invalid", JetPayloadRejection.CheckOf(error));
+        Assert.DoesNotContain("DROP TABLE", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

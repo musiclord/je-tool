@@ -244,10 +244,11 @@ public sealed class ProjectFolderPortabilityTests
 
     private static async Task AssertPortableQuerySurfacesAsync(HandlerTestHost host)
     {
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
         var preview = await host.DispatchAsync(
             "query.dataPreview",
-            """{ "dataset": "glEntries", "limit": 5 }""");
-        Assert.Equal("glEntries", preview.GetProperty("dataset").GetString());
+            """{ "dataset": "gl", "limit": 5 }""");
+        Assert.Equal("gl", preview.GetProperty("dataset").GetString());
         Assert.True(preview.GetProperty("totalCount").GetInt64() > 0);
         Assert.NotEmpty(preview.GetProperty("rows").EnumerateArray());
 

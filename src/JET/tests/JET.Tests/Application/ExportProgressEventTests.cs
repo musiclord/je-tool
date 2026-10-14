@@ -6,6 +6,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 /// <summary>master spec「匯出進度契約」：五個正式 action 的 event wire 與單調生命週期。</summary>
 public sealed class ExportProgressEventTests
 {
@@ -113,7 +115,7 @@ public sealed class ExportProgressEventTests
                                 join = "AND",
                                 rules = new[]
                                 {
-                                    new { join = "AND", type = "customKeywords", keywords = "調整" }
+                                    new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } }
                                 }
                             }
                         }

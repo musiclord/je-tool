@@ -254,7 +254,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         Assert.Equal(
             // 2026-10-04 第 8 批 Q8：確認配對用語統一；複合狀態與優先序斷言不變。
             // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
-            "尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳入帳日。",
+            "尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。",
             weekendActivity.GetProperty("naReason").GetString());
         Assert.Equal(0, weekendActivity.GetProperty("postingCount").GetInt64());
         Assert.Equal(JsonValueKind.Null, weekendActivity.GetProperty("approvalCount").ValueKind);
@@ -356,21 +356,6 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
 
         // descNull 種子:每張借方行摘要空白共 BlankDescriptionVouchers 列;baseline 摘要皆非空。
         Assert.Equal(DemoDataFactory.BlankDescriptionVouchers, data.GetProperty("blankDescription").GetProperty("count").GetInt64());
-    }
-
-    [Fact]
-    public async Task PrescreenRun_BackdatedPosting_CountMatchesIndependentRecount()
-    {
-        var data = await fixture.Host.DispatchAsync("prescreen.run");
-
-        var recount = await DemoProjectPipeline.QueryScalarAsync(
-            fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry g WHERE g.voucher_date IS NOT NULL AND g.post_date < g.voucher_date;");
-
-        Assert.True(recount > 0, "demo fixture 應埋至少一筆回溯命中");
-        Assert.Equal(
-            recount,
-            data.GetProperty("backdatedPosting").GetProperty("count").GetInt64());
     }
 
     [Fact]

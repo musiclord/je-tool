@@ -2,6 +2,8 @@ using System.Diagnostics;
 
 namespace Jet.GuiDriver;
 
+// Section 9: align selectors with the verified frontend contracts. Gui is not executed per the user request.
+
 internal static partial class GuiScenarios
 {
     // 使用者 2026-10-07 要求自動化測試依完整使用情境設計。這條旅程從已經匯出過底稿的案件開始，
@@ -22,11 +24,10 @@ internal static partial class GuiScenarios
         {
             await Click("[data-condition-source=kct]");
             await Click($"[data-kct-letter={letter}]");
-            await Click("[data-action=open-save]");
-            await Click("[data-action=save-scenario]");
+                await Click("[data-action=save-scenario]");
         }
         const string notice = "!!document.querySelector('[data-bind=downstream-reset-notice]')";
-        const string clearedOnce = "state.messages.filter(m=>m.text==='前面的資料已更改，請重新設定篩選情境。').length";
+        const string clearedOnce = "state.messages.filter(m=>m.text==='前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。').length";
         const string currentPaperForFirst = "!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]})";
 
         ResizeFilterWindow(process, 1250, 950);
@@ -83,7 +84,7 @@ internal static partial class GuiScenarios
         await Click("[data-filter-pane-select=filter]");
         await SaveKct("G");
         await Check("saved.length===1 && saved[0].name==='G'");
-        await Click("[data-action=new-scenario]");
+        await Check("draft.groups.every(g=>g.rules.length===0) && !preview");
         await SaveKct("I");
         await Check("saved.length===2 && saved[1].name==='I'");
         await Click("[data-bind=step-nav] [data-step-index='5']");

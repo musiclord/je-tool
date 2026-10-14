@@ -47,10 +47,27 @@ public sealed class MessageLogHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
+        // 使用者 2026-10-13 裁定訊息分三級，error 成為合法等級；不合法的例子改用不在清單裡的 warning。
+        // 第一次失敗收據 20261013-095524347-4880ee59c1384a9b8c9539922d680c35。
         var ex = await Assert.ThrowsAsync<JetActionException>(
-            () => host.DispatchAsync("log.append", """{ "level": "error", "text": "x" }"""));
+            () => host.DispatchAsync("log.append", """{ "level": "warning", "text": "x" }"""));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
+    }
+
+    // 使用者 2026-10-13 裁定訊息分三級：操作失敗寫成 error，存進案件後重開仍讀得回來。
+    [Fact]
+    public async Task Append_ErrorLevel_IsSavedAndReadBack()
+    {
+        using var host = new HandlerTestHost();
+        await host.DispatchAsync("project.create", CreatePayload);
+
+        await host.DispatchAsync("log.append", """{ "level": "ERROR", "text": "產生工作底稿失敗：合成原因。" }""");
+
+        var data = await host.DispatchAsync("log.recent", "{}");
+        var message = Assert.Single(data.GetProperty("messages").EnumerateArray());
+        Assert.Equal("error", message.GetProperty("level").GetString());
+        Assert.Equal("產生工作底稿失敗：合成原因。", message.GetProperty("text").GetString());
     }
 
     [Fact]

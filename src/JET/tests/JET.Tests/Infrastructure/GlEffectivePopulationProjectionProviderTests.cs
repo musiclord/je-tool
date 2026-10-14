@@ -209,7 +209,8 @@ public sealed class GlEffectivePopulationProjectionProviderTests
         var error = Assert.Single(result.Errors);
         Assert.Equal(3, error.SourceRowNumber);
         Assert.Equal("amount", error.Field);
-        Assert.Equal("金額加總後超過系統可保存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("加總後的金額超出可儲存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
         Assert.Null(result.EffectivePopulation);
 
         await using (connection)

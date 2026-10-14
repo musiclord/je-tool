@@ -26,7 +26,10 @@ public sealed class ProjectLoadServerLookupTests
             handler.HandleAsync(payload.RootElement, CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ProjectNotFound, exception.Code);
-        Assert.Contains("案件資料夾可能已被移動或刪除", exception.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-33（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 不寫「可能」，寫出案件名稱與能做的事。
+        Assert.Equal(
+            "案件「missing-project」的資料夾已不在 JET 的案件位置，無法開啟。請重新整理案件清單，並確認案件資料夾仍在原來的位置。",
+            exception.Message);
         Assert.Equal(0, registry.FindVisibleCalls);
         Assert.Equal(0, registry.OtherCalls);
     }
@@ -43,7 +46,10 @@ public sealed class ProjectLoadServerLookupTests
             handler.HandleAsync(payload.RootElement, CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ProjectNotFound, exception.Code);
-        Assert.Contains("案件資料夾可能已被移動或刪除", exception.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-33（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 不寫「可能」，寫出案件名稱與能做的事。
+        Assert.Equal(
+            "案件「missing-project」的資料夾已不在 JET 的案件位置，無法開啟。請重新整理案件清單，並確認案件資料夾仍在原來的位置。",
+            exception.Message);
         Assert.Equal(1, registry.FindVisibleCalls);
         Assert.Equal(0, registry.OtherCalls);
     }

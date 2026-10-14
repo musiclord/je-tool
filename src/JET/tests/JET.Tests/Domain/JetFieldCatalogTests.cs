@@ -59,12 +59,11 @@ public sealed class JetFieldCatalogTests
                 "docNum", JetFieldValueKind.Text, "document_number", true, "傳票號碼_JE", true),
             Slot("lineID", "傳票文件項次", 1, false, [], false, true,
                 "lineID", JetFieldValueKind.Text, "line_item", true, "傳票文件項次_JE_S", true),
-            Slot("postDate", "總帳入帳日", 2, true, [], false, true,
+            Slot("postDate", "總帳日期", 2, true, [], false, true,
                 "postDate", JetFieldValueKind.Date, "post_date", true, "總帳日期_JE", true),
             Slot("docDate", "傳票核准日", 3, false, [], false, true,
                 "docDate", JetFieldValueKind.Date, "approval_date", true, null, true),
-            Slot("voucherDate", "傳票日期", 4, false, [], false, true,
-                "voucherDate", JetFieldValueKind.Date, "voucher_date", true, null, true),
+            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，原本 order 4 的 voucherDate 拿掉，其餘順序值不重排。
             Slot("accNum", "會計科目編號", 5, true, [], false, true,
                 "accNum", JetFieldValueKind.Text, "account_code", true, "會計科目編號_JE", true),
             Slot("accName", "會計科目名稱", 6, true, [], false, true,
@@ -79,13 +78,14 @@ public sealed class JetFieldCatalogTests
                 "approveBy", JetFieldValueKind.Text, "approved_by", true, "傳票核准人員_JE", true),
             Slot("manual", "人工/自動分錄", 11, false, [], false, false,
                 "manual", JetFieldValueKind.Boolean, "is_manual", true, null, false),
-            Slot("amount", "分錄金額（單欄）", 12, false, ["signed", "side", "flag"], false, true,
+            // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
+            Slot("amount", "金額", 12, false, ["signed", "side", "flag"], false, true,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             Slot("debitAmount", "借方金額", 13, false, ["dual"], false, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             Slot("creditAmount", "貸方金額", 14, false, ["dual"], false, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            Slot("dcField", "借貸別欄位", 15, false, ["side", "flag"], false, false,
+            Slot("dcField", "借貸別", 15, false, ["side", "flag"], false, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             // 2026-10-02 使用者裁定 W5：欄位配對名稱「借方標識代碼」改成「借方代碼」。
             Slot("dcDebitCode", "借方代碼", 16, false, ["side", "flag"], true, false,
@@ -143,7 +143,7 @@ public sealed class JetFieldCatalogTests
 
         Assert.Equal(
             [
-                "docNum", "lineID", "postDate", "docDate", "voucherDate", "accNum", "accName",
+                "docNum", "lineID", "postDate", "docDate", "accNum", "accName",
                 "description", "jeSource", "createBy", "approveBy", "manual", "amount",
                 "debitAmount", "creditAmount", "dcField", "dcDebitCode", "dcCreditCode", "postingStatus"
             ],
@@ -243,7 +243,7 @@ public sealed class JetFieldCatalogTests
 
         Assert.Equal(
             [
-                "docNum", "lineID", "postDate", "docDate", "voucherDate", "accNum", "accName",
+                "docNum", "lineID", "postDate", "docDate", "accNum", "accName",
                 "description", "jeSource", "createBy", "approveBy", "amount"
             ],
             JetFieldCatalog.GlMappingSlots

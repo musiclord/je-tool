@@ -26,10 +26,11 @@ public sealed class FilterSideAndMonthWorkflowTests
             .AddRow("V4", "2", "2025-02-28", "2025-03-01", "B", "合成 B", "Synthetic", 8, 0)
             .AddRow("V4", "3", "2025-02-28", "2025-03-01", "X", "合成 X", "Synthetic", 2, 0),
             databaseProvider: provider, validateForDownstream: true);
+        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Keep fixed hits and report coverage; wording follows the approved explicit conditions.
         var pair = JsonElement.Parse("""
-            {"name":"指定借貸科目","rationale":"固定答案","groups":[{"matchScope":"sameVoucher","rules":[
-            {"type":"fieldValue","field":"accNum","operator":"in","values":["A"],"drCr":"debit"},
-            {"type":"fieldValue","field":"accNum","operator":"in","values":["B"],"drCr":"credit"}]}]}
+            {"name":"指定借貸科目","rationale":"固定答案","groups":[{"rules":[
+            {"type":"group","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"fieldValue","field":"accNum","operator":"in","values":["A"]}]},
+            {"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"fieldValue","field":"accNum","operator":"in","values":["B"]}]}]}]}
             """);
         var dates = JsonElement.Parse("""
             {"name":"月底排除核准月初","rationale":"兩個日期各自判斷","groups":[{"rules":[
@@ -47,8 +48,8 @@ public sealed class FilterSideAndMonthWorkflowTests
         var rows = detail.GetProperty("rows").EnumerateArray().ToArray();
         Assert.Equal(3, rows.Length);
         Assert.Single(rows, row => row.GetProperty("isHit").GetBoolean());
-        Assert.Contains("借方分錄", page.GetProperty("conditionText").GetString());
-        Assert.Contains("貸方分錄", page.GetProperty("conditionText").GetString());
+        Assert.Contains("僅借方", page.GetProperty("conditionText").GetString());
+        Assert.Contains("僅貸方", page.GetProperty("conditionText").GetString());
         var committed = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { pair, dates } }));
         var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString();
         // A failed replacement must not publish a partial definition or erase the saved result.
@@ -59,8 +60,8 @@ public sealed class FilterSideAndMonthWorkflowTests
         await host.DispatchAsync("project.releaseLock");
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
         var saved = loaded.GetProperty("filterScenarios");
-        Assert.Equal("debit", saved[0].GetProperty("groups")[0].GetProperty("rules")[0].GetProperty("drCr").GetString());
-        Assert.Equal("credit", saved[0].GetProperty("groups")[0].GetProperty("rules")[1].GetProperty("drCr").GetString());
+        Assert.Equal("debit", saved[0].GetProperty("groups")[0].GetProperty("rules")[0].GetProperty("rules")[0].GetProperty("drCr").GetString());
+        Assert.Equal("credit", saved[0].GetProperty("groups")[0].GetProperty("rules")[1].GetProperty("rules")[0].GetProperty("drCr").GetString());
         Assert.Equal("notMonthStartDays", saved[1].GetProperty("groups")[0].GetProperty("rules")[1].GetProperty("operator").GetString());
         Assert.Equal("2", saved[1].GetProperty("groups")[0].GetProperty("rules")[0].GetProperty("value").GetString());
         foreach (var item in new[] { (Position: 1, Expected: new[] { "V2|1", "V4|1" }), (Position: 2, Expected: new[] { "V3|1", "V3|2" }) })
@@ -82,8 +83,8 @@ public sealed class FilterSideAndMonthWorkflowTests
             using var workbook = new XLWorkbook(path);
             var text = string.Join("\n", workbook.Worksheets.Where(sheet => sheet.Visibility == XLWorksheetVisibility.Visible)
                 .SelectMany(sheet => sheet.CellsUsed()).Select(cell => cell.GetString()));
-            Assert.Contains("借方分錄：", text);
-            Assert.Contains("貸方分錄：", text);
+            Assert.Contains("僅借方", text);
+            Assert.Contains("僅貸方", text);
             Assert.Contains("每月月底天數「2」 天", text);
             Assert.Contains("排除每月月初天數「2」 天", text);
         }

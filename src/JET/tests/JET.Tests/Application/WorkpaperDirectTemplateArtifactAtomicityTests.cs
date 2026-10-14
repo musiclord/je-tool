@@ -6,6 +6,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 public sealed class WorkpaperDirectTemplateArtifactAtomicityTests
 {
     [Fact]
@@ -264,8 +266,7 @@ public sealed class WorkpaperDirectTemplateArtifactAtomicityTests
                                         new
                                         {
                                             join = "AND",
-                                            type = "customKeywords",
-                                            keywords = "調整"
+                                            type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" }
                                         }
                                     }
                                 }
@@ -370,8 +371,7 @@ public sealed class WorkpaperDirectTemplateArtifactAtomicityTests
                 new LocalCompletenessDiffPageRepository(database),
                 new LocalDocBalancePageRepository(database),
                 new LocalTagMatrixScenariosRepository(database),
-                new LocalFieldDefinitionFactsPort(database),
-                new LocalMappingStateStore(database))
+                new LocalFieldDefinitionFactsPort(database))
             .ExecuteAsync(initial, CancellationToken.None);
         return JetAuditProgram.Finalize(initial, facts);
     }

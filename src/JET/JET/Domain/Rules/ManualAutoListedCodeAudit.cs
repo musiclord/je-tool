@@ -63,11 +63,12 @@ internal sealed class ManualAutoListedCodeAudit
         var codes = string.Join("、", _listedCodes);
         return
         [
+            // 使用者 2026-10-13 勾選頁確認的句子。
             _listsManual
-                ? $"人工分錄代碼「{codes}」在來源欄「{_sourceColumn}」裡找不到。其他非空白的值都算成自動分錄，"
-                  + "用到人工分錄的條件可能會是 0 筆。如果代碼不對，請修改代碼後再確認一次欄位配對。"
-                : $"自動分錄代碼「{codes}」在來源欄「{_sourceColumn}」裡找不到。其他非空白的值都算成人工分錄，"
-                  + "用到人工分錄的條件可能會列出幾乎全部分錄。如果代碼不對，請修改代碼後再確認一次欄位配對。"
+                ? $"來源欄「{_sourceColumn}」中沒有人工分錄代碼「{codes}」，有值的列都將視為自動分錄。"
+                  + "代碼有誤時，請修改後重新確認配對。"
+                : $"來源欄「{_sourceColumn}」中沒有自動分錄代碼「{codes}」，有值的列都將視為人工分錄。"
+                  + "代碼有誤時，請修改後重新確認配對。"
         ];
     }
 }

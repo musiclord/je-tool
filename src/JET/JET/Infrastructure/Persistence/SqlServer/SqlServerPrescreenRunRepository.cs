@@ -136,9 +136,6 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
             connection, projectId, input, cancellationToken,
             _ => Predicates.BlankDescription());
 
-        var backdatedPosting = await CountWhereAsync(
-            connection, projectId, input, cancellationToken,
-            _ => Predicates.Backdated());
 
         // 非授權編製人員：授權清單未匯入時不執行（計 0、handler 標 na）。
         (long HitLines, long HitVouchers) nonAuthorizedPreparer = (0L, 0L);
@@ -176,7 +173,6 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
             holidayPosting.HitLines,
             holidayApproval.HitLines,
             blankDescription.HitLines,
-            backdatedPosting.HitLines,
             nonAuthorizedPreparer.HitLines,
             lowFrequencyPreparer.HitLines,
             lowFrequencyAccount.HitLines,
@@ -191,7 +187,6 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
                 [PrescreenRuleKeys.HolidayPosting] = holidayPosting.HitVouchers,
                 [PrescreenRuleKeys.HolidayApproval] = holidayApproval.HitVouchers,
                 [PrescreenRuleKeys.BlankDescription] = blankDescription.HitVouchers,
-                [PrescreenRuleKeys.BackdatedPosting] = backdatedPosting.HitVouchers,
                 [PrescreenRuleKeys.NonAuthorizedPreparer] = nonAuthorizedPreparer.HitVouchers,
                 [PrescreenRuleKeys.LowFrequencyPreparer] = lowFrequencyPreparer.HitVouchers,
                 [PrescreenRuleKeys.LowFrequencyAccount] = lowFrequencyAccount.HitVouchers
@@ -221,7 +216,6 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
             facts.HolidayPostingCount,
             input.HasHolidays && input.HasApprovalDate ? facts.HolidayApprovalCount : null,
             facts.BlankDescriptionCount,
-            facts.BackdatedPostingCount,
             facts.NonAuthorizedPreparerCount,
             facts.LowFrequencyPreparerCount,
             facts.LowFrequencyAccountCount)

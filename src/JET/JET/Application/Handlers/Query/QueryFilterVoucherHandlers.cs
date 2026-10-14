@@ -42,7 +42,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
     {
         var revision = await repository.ReadRevisionAsync(projectId, ct);
         var project = await projectStore.FindAsync(projectId, ct)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, "案件已離開，請重新載入。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, "尚未開啟案件。");
         var mapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, ct)
             ?? throw new JetActionException(JetErrorCodes.NoTargetData, "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
         var position = PayloadReader.GetOptionalInt(payload, "scenarioPosition");

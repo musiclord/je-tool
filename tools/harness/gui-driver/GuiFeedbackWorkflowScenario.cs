@@ -3,6 +3,8 @@ using System.Text.Json;
 
 namespace Jet.GuiDriver;
 
+// Section 9: align selectors with the verified frontend contracts. Gui is not executed per the user request.
+
 internal static partial class GuiScenarios
 {
     private static async Task ExecuteFeedbackWorkflowAsync(CdpSession cdp, OwnedGuiRun ownedRun, Process process,
@@ -13,13 +15,25 @@ internal static partial class GuiScenarios
             outcome.LastFilterProbe = await cdp.EvaluateAsync("({view:window.JetStore.getState().view,busy:window.JetStore.getState().busy,step:window.JetStore.getState().currentStepIndex,viewport:[innerWidth,innerHeight]})", ct);
             await ClickControlAsync(cdp, process, selector, outcome, ct);
         }
+        // 條件最多等 5 秒成立。忙碌狀態解除後，畫面在下一個畫面週期才重畫，改版後重畫還有動畫的轉換；
+        // 只看一次會搶在重畫前判定失敗（2026-10-14 實跑「科目分類已儲存」三次有兩次如此）。判斷的條件不變。
         async Task Check(string phase, string expression)
         {
             outcome.RecordStage(phase);
+            var waited = Stopwatch.StartNew();
+            while (true)
+            {
+                if (await CheckOnce(expression)) return;
+                if (waited.Elapsed > TimeSpan.FromSeconds(5)) throw new GuiCheckException(phase);
+                await Task.Delay(100, ct);
+            }
+        }
+        async Task<bool> CheckOnce(string expression)
+        {
             var value = await cdp.EvaluateAsync("(()=>{var state=window.JetStore.getState();return {ok:!!(" +
                 expression + "),busy:state.busy,selectedAccounts:Array.from(document.querySelectorAll('[data-account-select]:checked')).map(e=>e.getAttribute('data-account-select')),selectionCount:document.querySelector('[data-account-selection-count]')?.textContent,saveDisabled:document.querySelector('[data-account-save]')?.disabled,tableScroll:document.querySelector('.account-editor__table')?.scrollTop,selecting:!!document.querySelector('.account-editor__table--selecting')};})()", ct);
             outcome.LastFilterProbe = value.Clone();
-            if (!ReadBoolean(value, "ok")) throw new GuiCheckException(phase);
+            return ReadBoolean(value, "ok");
         }
         Task Idle() => WaitForProbeAsync(cdp, process,
             "({idle:!window.JetStore.getState().busy})", value => value,
@@ -46,7 +60,24 @@ internal static partial class GuiScenarios
         foreach (var offset in new[] { 20, 30 })
         {
             var selector = $".value-assign:nth-child({offset}) [data-manual-assign][value=manual]";
-            var point = await FindControlPointAsync(cdp, process, selector, ct);
+            // 失敗時記下蓋住這一列的是什麼、GL 與 TB 兩區的位置、還在播的動畫與視窗是否在前景
+            // （2026-10-14 四次實跑有兩次被下面的 TB 區蓋住，無頭 Edge 重現不出來）。
+            // 讀取來源值後焦點掉到頁面本身，外層有時會把整份清單捲出畫面；先把清單捲回畫面，再找清單裡的這一列。
+            await FindControlPointAsync(cdp, process, ".value-assign-list", ct);
+            JsonElement point;
+            try
+            {
+                point = await FindControlPointAsync(cdp, process, selector, ct, value => outcome.LastFilterProbe = value.Clone());
+            }
+            catch (GuiCheckException error) when (error.Code == "control_occluded")
+            {
+                var layout = await cdp.EvaluateAsync("(()=>{var r=e=>{if(!e)return null;var b=e.getBoundingClientRect();return [Math.round(b.top),Math.round(b.bottom),e.style.height||'',getComputedStyle(e).overflowY];};" +
+                    "var gl=document.querySelector('[data-bind=mapping-gl]'),tb=document.querySelector('[data-bind=mapping-tb]'),list=document.querySelector('.value-assign-list');" +
+                    "var running=document.getAnimations().filter(a=>a.playState==='running'||a.playState==='paused').map(a=>((a.effect&&a.effect.target&&(a.effect.target.getAttribute('data-motion-key')||a.effect.target.className))||'?')+':'+a.playState+':'+Math.round(a.currentTime||0));" +
+                    "return {gl:r(gl),tb:r(tb),list:r(list),running:running.slice(0,12),leaving:document.querySelectorAll('[data-motion-leaving]').length,visibility:document.visibilityState,focus:document.hasFocus()};})()", ct);
+                outcome.LastFilterProbe = JsonSerializer.SerializeToElement(new { probe = outcome.LastFilterProbe, layout = layout.Clone() });
+                throw;
+            }
             var oldScroll = await cdp.EvaluateAsync("document.querySelector('.value-assign-list').scrollTop", ct);
             outcome.RecordAction();
             await cdp.ScrollAsync(ReadDouble(point, "x"), ReadDouble(point, "y"), 0, 50, ct);
@@ -65,7 +96,11 @@ internal static partial class GuiScenarios
         await WaitForProbeAsync(cdp, process,
             "({ready:!!document.querySelector('[data-account-current]')})", value => value,
             value => ReadBoolean(value, "ready"), "feedback_account_list_missing", ct);
-        const string account = "[data-account-bulk-category]";
+        async Task ChooseCategory(string category)
+        {
+            await Click("[data-account-category-tree] summary");
+            await Click("[data-account-bulk-category][value=" + JsonSerializer.Serialize(category) + "]");
+        }
         var originalCategory = (await cdp.EvaluateAsync("document.querySelector('[data-account-current]').getAttribute('data-category-id')", ct)).GetString()!;
         await Check("feedback_account_default_view", "!document.querySelector('[data-taxonomy-label]') && !!document.querySelector('[data-account-save]')");
         await Check("feedback_account_header_alignment", "(()=>{var l=document.querySelector('.account-editor__select-all'),a=l.querySelector('input').getBoundingClientRect(),b=l.querySelector('span').getBoundingClientRect();return b.left>=a.right+4 && Math.abs((a.top+a.bottom)/2-(b.top+b.bottom)/2)<2;})()");
@@ -76,17 +111,28 @@ internal static partial class GuiScenarios
         outcome.RecordAction();
         await cdp.DragAsync(ReadDouble(dragStart, "x"), ReadDouble(dragStart, "y"), ReadDouble(dragEnd, "x"), ReadDouble(dragEnd, "y"), ct);
         await Check("feedback_account_drag_select", "document.querySelector('[data-account-select=\"0\"]').checked && document.querySelector('[data-account-select=\"1\"]').checked && document.querySelector('[data-account-selection-count]').textContent==='已選 2 個科目' && document.querySelector('[data-account-save]').disabled");
+        // 放開後「清除勾選」展開，表格位置會變；每次拖曳前重新量起點與終點（2026-10-14 實跑查到舊座標落在別列）。
+        dragEnd = await FindControlPointAsync(cdp, process, "[data-account-select='1']", ct);
+        dragStart = await FindControlPointAsync(cdp, process, "[data-account-select='0']", ct);
         outcome.RecordAction();
         await cdp.DragAsync(ReadDouble(dragEnd, "x"), ReadDouble(dragEnd, "y"), ReadDouble(dragStart, "x"), ReadDouble(dragStart, "y"), ct);
         await Check("feedback_account_drag_deselect", "!document.querySelector('[data-account-select]:checked') && document.querySelector('[data-account-selection-count]').textContent==='已選 0 個科目'");
+        dragStart = await FindControlPointAsync(cdp, process, "[data-account-select='0']", ct);
         var scrollProbe = await cdp.EvaluateAsync("(()=>{var t=document.querySelector('.account-editor__table'),r=t.getBoundingClientRect();return {y:Math.min(r.bottom,innerHeight-30)-5,scroll:t.scrollTop};})()", ct);
         outcome.RecordAction();
         await cdp.DragAsync(ReadDouble(dragStart, "x"), ReadDouble(dragStart, "y"), ReadDouble(dragStart, "x"), ReadDouble(scrollProbe, "y"), ct, holdMilliseconds: 600);
-        await Check("feedback_account_drag_scroll", $"document.querySelector('.account-editor__table').scrollTop>{ReadDouble(scrollProbe, "scroll")}+10 && document.querySelectorAll('[data-account-select]:checked').length>2 && document.querySelectorAll('[data-account-select]').length<=100 && document.querySelector('[data-account-select-page]').indeterminate && document.querySelector('[data-account-save]').disabled");
+        // 使用者 2026-10-09 裁定科目清單每頁 50 個。按住 0.6 秒能捲多遠看畫面更新的速度，可能捲到底、整頁都選了，
+        // 所以「全選本頁」要和實際選取一致：整頁都選是全選，否則是部分選取（2026-10-14 實跑整頁全選，
+        // 收據 20261014-071836346-5f284f26ccaa4447a4e019c23e1b53e4）。
+        await Check("feedback_account_drag_scroll", $"(()=>{{var rows=document.querySelectorAll('[data-account-select]').length,on=document.querySelectorAll('[data-account-select]:checked').length,page=document.querySelector('[data-account-select-page]');return document.querySelector('.account-editor__table').scrollTop>{ReadDouble(scrollProbe, "scroll")}+10 && on>2 && rows<=50 && (on===rows ? page.checked && !page.indeterminate : page.indeterminate) && document.querySelector('[data-account-save]').disabled;}})()");
+        // 先清除，再單選一列，讓下面連點兩下「全選本頁」每次都是部分選取、全選、全不選。
+        await Click("[data-account-clear-selection]");
+        await Click("[data-account-select='1']");
+        await Check("feedback_account_page_partial", "document.querySelectorAll('[data-account-select]:checked').length===1 && document.querySelector('[data-account-select-page]').indeterminate");
         await Click("[data-account-select-page]");
         await Click("[data-account-select-page]");
         await Click("[data-account-select='0']");
-        await ChooseOptionAsync(cdp, process, account, "builtin.others", outcome, ct);
+        await ChooseCategory("builtin.others");
         await Click("[data-account-apply]");
         await Click("[data-action=toggle-account-excel]");
         await Check("feedback_excel_exclusive", "!!document.querySelector('[data-bind=account-mapping-card]') && !document.querySelector('[data-bind=account-editor]')");
@@ -99,7 +145,7 @@ internal static partial class GuiScenarios
         await Click("[data-account-cancel]");
         await Check("feedback_account_cancel", "document.querySelector('[data-account-current]').getAttribute('data-category-id')===" + JsonSerializer.Serialize(originalCategory));
         await Click("[data-account-select='0']");
-        await ChooseOptionAsync(cdp, process, account, "builtin.others", outcome, ct);
+        await ChooseCategory("builtin.others");
         await Click("[data-account-apply]");
         await Click("[data-account-save]");
         await Idle();
@@ -138,7 +184,7 @@ internal static partial class GuiScenarios
             value => ReadBoolean(value, "ready"), "feedback_account_reopen_missing", ct);
         await Check("feedback_account_reopened", "document.querySelector('[data-account-current]').getAttribute('data-category-id')==='builtin.others'");
         await Click("[data-account-select='0']");
-        await ChooseOptionAsync(cdp, process, account, originalCategory, outcome, ct);
+        await ChooseCategory(originalCategory);
         await Click("[data-account-apply]");
         await Click("[data-account-save]");
         await Idle();
@@ -175,9 +221,14 @@ internal static partial class GuiScenarios
         await Idle();
         await Click("[data-bind=step-nav] [data-step-index='4']");
         // 這個 seed 只有已驗證資料，沒有已保存情境；先透過畫面真正建立情境再匯出。
-        await Click("[data-filter-disclosure=examples] > summary");
-        await Click("[data-action=apply-template][data-template-key=cashDebitNonCashCredit]");
-        await Click("[data-action=open-save]");
+        // 使用者 2026-10-08 要求重新設計自訂篩選條件：範例改在右側「從範例開始」。
+        // 前面重新確認了 TB 欄位配對，依使用者 2026-10-08 裁定科目配對跟著清除，需要科目分類的「借現金、貸非現金」範例因此停用
+        // （2026-10-14 實跑查到）。這裡只需要一個能存的情境，改用不依賴任何配對的「金額大於 100」。
+        await AddCustomConditionAsync(cdp, "field:amount", Click, ct);
+        await ChooseOptionAsync(cdp, process, ".rule-row [data-value-kind]", "above", outcome, ct);
+        await Click(".rule-row [data-value-key=\"value\"]");
+        outcome.RecordAction(); await cdp.TypeTextAsync("100", ct);
+        await Check("feedback_difference_scenario_ready", "state.filter.draft.groups[0].rules[0].operator==='greaterThan' && state.filter.draft.groups[0].rules[0].value==='100'");
         await Click("[data-action=save-scenario]");
         await Idle();
         // 9/23：先直接匯出底稿，證明不必先產生條件篩選報告，再獨立補產該報告。

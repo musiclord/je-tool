@@ -55,7 +55,7 @@ public sealed class FilterRunMaterializeService(
         if (selected is not null && (selected.Count == 0 || selected.Count != selectedPositions!.Count
             || selected.Any(position => !scenarios.Any(scenario => scenario.Position == position))))
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "請選擇目前已儲存且不重複的情境位置。");
+            throw new JetActionException(JetErrorCodes.InvalidPayload, ReportExportSupport.ScenarioListOutOfDate);
         }
         var replaceAll = selected is null || selected.Count == scenarios.Count;
 
@@ -64,7 +64,26 @@ public sealed class FilterRunMaterializeService(
         {
             if (selected is not null && !selected.Contains(saved.Position)) { continue; }
             using var doc = JsonDocument.Parse(saved.DefinitionJson);
-            var spec = FilterScenarioPayloadParser.Parse(doc.RootElement, document.MoneyScale);
+            FilterScenarioSpec spec;
+            try
+            {
+                spec = FilterScenarioPayloadParser.Parse(doc.RootElement, document.MoneyScale);
+            }
+            catch (JetActionException exception) when (exception.Code == JetErrorCodes.InvalidScenario)
+            {
+                var corrupt = FilterScenarioCorruption.ReasonsOf(exception);
+                throw FilterScenarioCorruption.Attach(
+                    FilterScenarioErrorDetails.InvalidScenario(
+                    [
+                        FilterScenarioRuleMessages.CannotRecalculate(
+                            saved.Position,
+                            corrupt.Count > 0
+                                ? [FilterScenarioRuleUpgrade.UnreadableDefinitionMessage]
+                                : [exception.Message])
+                    ]),
+                    corrupt);
+            }
+
             materializable.Add(new MaterializableScenario(saved.Position, spec));
         }
 
@@ -86,8 +105,11 @@ public sealed class FilterRunMaterializeService(
         {
             var errors = FilterScenarioValidator.Validate(scenario.Spec, validationContext, forSave: false);
             if (errors.Count == 0) { continue; }
-            throw FilterScenarioErrorDetails.InvalidScenario(
-                [$"已儲存的情境 {scenario.Position} 暫時無法重新計算。情境設定仍保留；請回到「欄位配對」補回所需欄位，或到「進階條件篩選」修改該情境後重新儲存。", .. errors]);
+            // 使用者 2026-10-13 勾選頁確認：一句寫完情境、原因與下一步；損毀的條件照待修正清單只寫一次「條件內容無法讀取」。
+            throw FilterScenarioCorruption.Attach(
+                FilterScenarioErrorDetails.InvalidScenario(
+                    [FilterScenarioRuleMessages.CannotRecalculate(scenario.Position, FilterScenarioRuleUpgrade.ListReasons(errors))]),
+                FilterScenarioCorruption.ReasonsOf(errors));
         }
 
         await materializer.MaterializeAsync(
@@ -138,7 +160,7 @@ public sealed class FilterRunMaterializeService(
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                $"找不到專案 '{projectId}'。");
+                ProjectFolderMessages.ActiveProjectMissing);
         var scenarios = await scenarioStore.ListAsync(projectId, cancellationToken);
         _ = FilterPopulationScopeParser.RequireCurrentRevision(scenarios);
 

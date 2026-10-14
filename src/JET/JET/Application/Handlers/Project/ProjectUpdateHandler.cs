@@ -16,7 +16,7 @@ public sealed class ProjectUpdateHandler(
     {
         var (projectId, repositories) = session.RequireActive();
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到案件『{projectId}』。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
         var entityName = ReadText(payload, "entityName", "客戶名稱", document.EntityName) ?? string.Empty;
         var projectCode = ReadText(payload, "projectCode", "案件編號", document.ProjectCode) ?? string.Empty;
         var lastPeriodStart = document.LastAccountingPeriodDate;

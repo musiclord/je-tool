@@ -7,6 +7,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 /// <summary>
 /// filter.preview / filter.commit 黑箱測試。
 /// preview 計數一律與獨立參數化 SQL recount 比對；prescreen 條件與
@@ -678,7 +680,11 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             () => fixture.Host.DispatchAsync("filter.preview", payload));
 
         Assert.Equal("invalid_scenario", ex.Code);
-        Assert.Contains($"join 結合方式「{badJoin}」無效", ex.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", ex.Message);
+        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "rule_join_invalid"), FilterScenarioCorruption.ReasonsOf(ex));
+        Assert.DoesNotContain(badJoin, ex.Message, StringComparison.Ordinal);
     }
 
     // fail-loud（group 層）：第一個群組的 join 在左折疊時被忽略，但未知值仍須擋下。
@@ -701,7 +707,11 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             () => fixture.Host.DispatchAsync("filter.preview", payload));
 
         Assert.Equal("invalid_scenario", ex.Code);
-        Assert.Contains($"join 結合方式「{badJoin}」無效", ex.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Equal("第 1 組：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", ex.Message);
+        Assert.Contains(new FilterScenarioCorruptReason(1, null, "group_join_invalid"), FilterScenarioCorruption.ReasonsOf(ex));
+        Assert.DoesNotContain(badJoin, ex.Message, StringComparison.Ordinal);
     }
 
     // 向後相容（manifest 結合律段）：join 缺欄 / null / 空白 → 維持預設 AND，不報錯。
@@ -1231,7 +1241,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // demo R2 種子的借方行摘要含「調整」(KeywordDescription = 調整分錄);以此關鍵字
         // 保證母體非空,filter 命中數須等於同述詞的獨立 description recount。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "customKeywords", keywords = "調整" })));
+            new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } })));
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
@@ -1250,7 +1260,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     {
         // 固定 4 位；先取主單位整數，再對 10^4 取模。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "customTrailingZeros", digits = "4" })));
+            ZeroRule(4))));
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
@@ -1278,7 +1288,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             .AddRow("ROUND-2", "2025-03-07", "4101", "收入", "小數尾零", "2000000.99", 0));
 
         var preview = await host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "customTrailingZeros", digits = "6" })));
+            ZeroRule(6))));
 
         Assert.Equal(4, preview.GetProperty("scenario").GetProperty("count").GetInt64());
         var docs = preview.GetProperty("scenario").GetProperty("previewRows")
@@ -1309,7 +1319,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
                         join = "AND",
                         rules = new object[]
                         {
-                            new { join = "AND", type = "customTrailingZeros", digits = "6" },
+                            ZeroRule(6),
                             new { join = "AND", type = "numRange", field = "amount", from = "5000000", to = "" }
                         }
                     }
@@ -1334,7 +1344,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     {
         var ex = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
-                new { join = "AND", type = "customTrailingZeros", digits = "13" }))));
+                ZeroRule(13)))));
 
         Assert.Equal("invalid_scenario", ex.Code);
     }
@@ -1510,7 +1520,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             .AddRow("JV-2", "2025-03-06", "1101", "現金", "一般金額", "500.00", 0));
 
         var preview = await host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "trailingDigits", keywords = "999999" })));
+            TailRule("999999"))));
 
         var scenario = preview.GetProperty("scenario");
         Assert.Equal(2, scenario.GetProperty("count").GetInt64());        // JV-1 兩列（借/貸絕對值皆 1,999,999）
@@ -1562,7 +1572,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     {
         var ex = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
-                new { join = "AND", type = "trailingDigits", keywords = "12ab" }))));
+                TailRule("12ab")))));
 
         Assert.Equal("invalid_scenario", ex.Code);
     }
@@ -1577,6 +1587,21 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         name = "",
         rationale = "",
         groups = new object[] { new { join = "AND", rules } }
+    };
+
+    // 第九節 G2、G5 的現行輸入。只組測試請求；預期命中與獨立 SQL 重算不變。
+    // 首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+    private static object TailRule(string value) => new
+    {
+        join = "AND", type = "fieldValue", field = "amount", @operator = "endsWithDigits", value, amountBasis = "absolute"
+    };
+    private static object ZeroRule(int digits) => new
+    {
+        join = "AND", type = "group", rules = new object[]
+        {
+            TailRule(new string('0', digits)),
+            new { type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "1", amountBasis = "absolute" }
+        }
     };
 
     private async Task<(string Scenarios, string ResultRef)> LoadFilterStateAsync()
@@ -1596,7 +1621,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // source:"kct" 豁免名稱/動機必填——即便兩者皆空也不應擲 invalid_scenario。
         // trailingDigits 不需額外 mapping 前置，能把本測試焦點收斂在 source metadata。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(KctScenario(
-            new { join = "AND", type = "trailingDigits", keywords = "000000" })));
+            TailRule("000000"))));
 
         // 第 9 批中低 13：原 count >= 0 永遠成立。Demo 只有 15 張金額 2,000,000 的傳票
         // 符合六位零尾數，借貸兩列都命中；其餘金額不足六位，固定為 30 列、15 張。
@@ -1614,7 +1639,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             rationale = "",
             groups = new object[]
             {
-                new { join = "AND", rules = new object[] { new { join = "AND", type = "trailingDigits", keywords = "000000" } } }
+                new { join = "AND", rules = new object[] { TailRule("000000") } }
             }
         });
 
@@ -1636,7 +1661,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
         {
-            scenarios = new object[] { KctScenario(new { join = "AND", type = "trailingDigits", keywords = "000000" }) }
+            scenarios = new object[] { KctScenario(TailRule("000000")) }
         }));
 
         var loaded = await host.DispatchAsync(
@@ -1688,7 +1713,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
                     join = "AND",
                     rules = new object[]
                     {
-                        new { join = "AND", type = "trailingDigits", keywords = "000000" }
+                        TailRule("000000")
                     }
                 }
             }
@@ -1719,8 +1744,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         {
             scenarios = new object[]
             {
-                KctScenario(new { join = "AND", type = "trailingDigits", keywords = "999999" }),
-                KctScenario(new { join = "AND", type = "trailingDigits", keywords = "000000" })
+                KctScenario(TailRule("999999")),
+                KctScenario(TailRule("000000"))
             }
         }));
 

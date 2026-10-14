@@ -21,9 +21,10 @@ public sealed class SystemDatabaseInfoHandlerTests
     ];
 
     [Fact]
-    public async Task DatabaseInfo_NotConfigured_ReportsBothLocalProviders()
+    public async Task DatabaseInfo_NotConfigured_ReturnsEmptySummary()
     {
-        // 等價分割：未設定 SQL Server 時不代表只有 SQLite；兩個正式本機 provider 都仍可使用。
+        // 等價分割：未設定 SQL Server 時摘要是空字串，畫面不加訊息；本機兩種資料庫照常可用由 configured=false 表達。
+        // 方法名稱依批次 A 改過的內容更名（文字批次 C，2026-10-13），斷言不變。
         var handler = new SystemDatabaseInfoHandler(new StubBackendProbe(SqlServerBackendInfo.NotConfigured));
 
         using var payload = JsonDocument.Parse("{}");
@@ -32,9 +33,9 @@ public sealed class SystemDatabaseInfoHandlerTests
 
         Assert.False(sql.GetProperty("configured").GetBoolean());
         Assert.False(sql.GetProperty("reachable").GetBoolean());
-        var summary = sql.GetProperty("summary").GetString();
-        Assert.Contains("SQLite", summary);
-        Assert.Contains("DuckDB", summary);
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                // 9a-a 刪除：沒有設定 SQL Server 時後端回空摘要，畫面不加訊息；本機兩種資料庫照常可用由 configured=false 表達。
+        Assert.Equal(string.Empty, sql.GetProperty("summary").GetString());
     }
 
     [Fact]
@@ -67,9 +68,10 @@ public sealed class SystemDatabaseInfoHandlerTests
     }
 
     [Fact]
-    public async Task Summary_OnExpressEngine_FlagsUnsupportedAndPointsTo2022()
+    public async Task Summary_OnExpressEngine_IsSameSentenceAsOrdinaryConnection()
     {
-        // Express 引擎（isExpress=true）→ 摘要應明確標示已淘汰並指向 SQL Server 2022。
+        // Express 引擎（isExpress=true）的摘要和一般連線成功同一句。
+        // 方法名稱依批次 A 改過的內容更名（文字批次 C，2026-10-13），斷言不變。
         var express = new SqlServerBackendInfo(
             Configured: true, Reachable: true, Server: "localhost", Database: "JET",
             Edition: "Express Edition (64-bit)", ProductName: "Microsoft SQL Server 2022",
@@ -81,8 +83,9 @@ public sealed class SystemDatabaseInfoHandlerTests
         var summary = JsonDocument.Parse(JsonSerializer.Serialize(result))
             .RootElement.GetProperty("sqlServer").GetProperty("summary").GetString();
 
-        Assert.Contains("Express", summary);
-        Assert.Contains("2022", summary);
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                // 9b-b：拿掉 Express 那段後和一般連線成功同一句。
+        Assert.Equal("已連上 SQL Server（伺服器 localhost，資料庫 JET），可以使用線上案件。", summary);
     }
 
     [Theory]

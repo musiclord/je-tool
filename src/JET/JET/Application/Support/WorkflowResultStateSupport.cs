@@ -10,7 +10,7 @@ internal static class WorkflowResultStateSupport
     /// 本次修改依失效政策作廢的結果。FilterScenarios 表示已存篩選情境也一併清除
     /// （使用者 2026-10-07 裁定上游修改清除下游），JSON 名稱為 filterScenarios。
     /// </summary>
-    internal sealed record Invalidation(bool Validation, bool Prescreen, bool Filter, bool FilterScenarios);
+    internal sealed record Invalidation(bool Validation, bool Prescreen, bool Filter, bool FilterScenarios, bool AccountMapping);
 
     internal sealed record CurrentSnapshot(
         AuditResultStaleState StaleState,
@@ -26,8 +26,9 @@ internal static class WorkflowResultStateSupport
         object[]? ReportArtifacts,
         string? ReportArtifactWarning);
 
+    // 使用者 2026-10-13 勾選頁確認的句子。
     private const string MutationCatalogWarning =
-        "變更已儲存，報告清單暫時無法更新。請稍後重新開啟案件查看，無須重做變更。";
+        "變更已儲存，但報告清單沒有更新；重新開啟案件就會更新，不必重做變更。";
 
     internal static CurrentSnapshot Resolve(
         AuditResultStaleState stored,
@@ -81,7 +82,8 @@ internal static class WorkflowResultStateSupport
             unavailableMessage: MutationCatalogWarning);
         return new MutationState(
             new Invalidation(effects?.InvalidateValidation ?? false, effects?.InvalidatePrescreen ?? false,
-                effects?.InvalidateFilterHits ?? false, effects?.InvalidateFilterScenarioDefinitions ?? false),
+                effects?.InvalidateFilterHits ?? false, effects?.InvalidateFilterScenarioDefinitions ?? false,
+                effects?.ClearAccountMapping ?? false),
             current.StaleState, catalog.Artifacts, catalog.Warning);
     }
 

@@ -258,18 +258,17 @@ internal sealed partial class GlRulePredicates(
     {
         if (string.IsNullOrEmpty(rule.FieldId))
         {
-            throw Invalid("這個攸關資料元素欄位條件尚未選擇欄位，請選擇欄位後再儲存。");
+            throw Invalid("typed_field_unselected");
         }
 
         var field = context.RdeFields.FirstOrDefault(candidate =>
                 string.Equals(candidate.FieldId, rule.FieldId, StringComparison.Ordinal))
-            ?? throw Invalid("這個條件使用的攸關資料元素欄位已不在目前案件的欄位配對中。請在這個條件重新選擇欄位，或刪除這個條件。");
+            ?? throw Invalid("typed_field_not_mapped");
         var op = rule.TypedOperator
-            ?? throw Invalid($"攸關資料元素欄位「{field.Label}」的條件尚未選擇比較方式，請選擇比較方式後再儲存。");
+            ?? throw Invalid("typed_operator_unselected");
         if (!TypedFieldOperatorSets.ForValueType(field.ValueType).Contains(op, StringComparer.Ordinal))
         {
-            throw Invalid($"比較方式「{FilterConditionLabels.TypedOperatorLabel(op)}」與攸關資料元素欄位「{field.Label}」目前的型別不相容。"
-                + "請回第三步欄位配對確認該欄位的型別，或重新選擇比較方式。");
+            throw Invalid("typed_operator_type_mismatch");
         }
 
         var fieldParam = NextParam(command, field.FieldId);
@@ -286,7 +285,7 @@ internal sealed partial class GlRulePredicates(
             RdeFieldValueTypeNames.Text => TypedTextPredicate(command, rule, op),
             RdeFieldValueTypeNames.Date => TypedDatePredicate(command, rule, op, context.DateParseOptions),
             RdeFieldValueTypeNames.Money => TypedMoneyPredicate(command, rule, op, context.MoneyScale),
-            _ => throw Invalid($"攸關資料元素欄位「{field.Label}」的型別無法用於篩選。請回第三步欄位配對確認該欄位的型別，或刪除這個條件。")
+            _ => throw Invalid("typed_value_type_unsupported")
         };
 
         return $"EXISTS (SELECT 1 FROM {schemaPrefix}target_gl_rde_value v "
@@ -320,21 +319,21 @@ internal sealed partial class GlRulePredicates(
                     rule,
                     raw => TypedFieldOperandRules.TryNormalizeText(raw, out var normalized)
                         ? TypedFieldOperandRules.TextComparisonKey(normalized)
-                        : throw Invalid("typed 文字值 trim 後不可為空。"));
+                        : throw Invalid("typed_text_value_blank"));
                 var parameters = string.Join(", ", keys.Select(key => NextParam(command, key)));
                 var membership = op == TypedFieldOperatorSets.In ? "IN" : "NOT IN";
                 return $"{upperExpr} {membership} ({parameters})";
             }
 
             default:
-                throw Invalid($"文字型攸關資料元素欄位不支援比較方式「{FilterConditionLabels.TypedOperatorLabel(op)}」，請重新選擇比較方式。");
+                throw Invalid("typed_text_operator_unsupported");
         }
     }
 
     private string TypedTextKey(string? raw) =>
         TypedFieldOperandRules.TryNormalizeText(raw, out var normalized)
             ? TypedFieldOperandRules.TextComparisonKey(normalized)
-            : throw Invalid("typed 文字值 trim 後不可為空。");
+            : throw Invalid("typed_text_value_blank");
 
     private string TypedDatePredicate(
         FilterSqlParameterPlanBuilder command,
@@ -347,7 +346,7 @@ internal sealed partial class GlRulePredicates(
         string DateParam(string? raw) =>
             TypedFieldOperandRules.TryNormalizeDate(raw, dateOptions, out var iso)
                 ? NextParam(command, iso)
-                : throw Invalid($"typed 日期「{raw}」格式須為 yyyy-MM-dd。");
+                : throw Invalid("typed_date_value_invalid");
 
         return op switch
         {
@@ -358,7 +357,7 @@ internal sealed partial class GlRulePredicates(
             "onOrAfter" => $"{columnExpr} >= {DateParam(rule.TypedValue)}",
             TypedFieldOperatorSets.Between =>
                 $"({columnExpr} >= {DateParam(rule.TypedFrom)} AND {columnExpr} <= {DateParam(rule.TypedTo)})",
-            _ => throw Invalid($"日期型攸關資料元素欄位不支援比較方式「{FilterConditionLabels.TypedOperatorLabel(op)}」，請重新選擇比較方式。")
+            _ => throw Invalid("typed_date_operator_unsupported")
         };
     }
 
@@ -373,12 +372,12 @@ internal sealed partial class GlRulePredicates(
         {
             TypedAmountBasisNames.Signed => "v.amount_scaled",
             TypedAmountBasisNames.Absolute => "ABS(v.amount_scaled)",
-            _ => throw Invalid("typed money 條件必須明示 amountBasis（signed 或 absolute）。")
+            _ => throw Invalid("typed_amount_basis_missing")
         };
         long MoneyScaled(string? raw) =>
             TypedFieldOperandRules.TryNormalizeMoney(raw, moneyScale, out var scaled)
                 ? scaled
-                : throw Invalid($"typed 金額「{raw}」格式無效。");
+                : throw Invalid("typed_amount_value_invalid");
         string MoneyParam(string? raw) => NextParam(command, MoneyScaled(raw));
 
         return op switch
@@ -391,7 +390,7 @@ internal sealed partial class GlRulePredicates(
             "lessThanOrEqual" => $"{columnExpr} <= {MoneyParam(rule.TypedValue)}",
             TypedFieldOperatorSets.Between =>
                 $"({columnExpr} >= {MoneyParam(rule.TypedFrom)} AND {columnExpr} <= {MoneyParam(rule.TypedTo)})",
-            _ => throw Invalid($"金額型攸關資料元素欄位不支援比較方式「{FilterConditionLabels.TypedOperatorLabel(op)}」，請重新選擇比較方式。")
+            _ => throw Invalid("typed_amount_operator_unsupported")
         };
     }
 
@@ -426,15 +425,15 @@ internal sealed partial class GlRulePredicates(
         if (values is null || values.Count == 0
             || values.Count > FilterScenarioLimits.MaxTypedInValuesPerRule)
         {
-            throw Invalid($"typed 條件的 values 必須是 1–"
-                + $"{FilterScenarioLimits.MaxTypedInValuesPerRule} 個字串的陣列。");
+            throw Invalid("typed_set_value_count_invalid");
         }
 
         return TypedSetOperandDistinct(values, normalize);
     }
 
-    private static JetActionException Invalid(string message) =>
-        new(JetErrorCodes.InvalidScenario, message);
+    // 驗證器已先檢查過同樣的條件；走到這裡是驗證器與執行時檢查不一致的程式錯誤。畫面只顯示非預期錯誤那一句，
+    // 檢查代號記進支援日誌（使用者 2026-10-14 第三輪勾選頁確認 R3-62）。check 只能是程式寫死的代號。
+    private static JetActionException Invalid(string check) => FilterCompileCheck.Create(check);
 
     /// <summary>週末過帳/核准（weekend_*）：依設定的星期判斷，補班日仍納入。dateColumn 僅接受本層常數。</summary>
     public string Weekend(string dateColumn, IReadOnlyList<int>? nonWorkingDays, string schemaPrefix = "")
@@ -459,11 +458,6 @@ internal sealed partial class GlRulePredicates(
     {
         return $"(g.document_description IS NULL OR {dialect.Trim("g.document_description")} = '')";
     }
-
-    /// <summary>回溯過帳:過帳日早於傳票日。voucher_date 為 NULL 不命中;
-    /// post_date 為 NULL 時 &lt; 為未知亦不命中。純 ANSI 欄位比較,雙 provider 相同。</summary>
-    public string Backdated() =>
-        "(g.voucher_date IS NOT NULL AND g.post_date < g.voucher_date)";
 
     /// <summary>非授權編製人員（non_authorized_preparer）：created_by 非空白且不在授權清單。
     /// 人員識別值的比對去頭尾空白、不分大小寫，和人員清單、編製等於核准同一規則（2026-10-04 裁定 C3）。

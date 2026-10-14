@@ -7,6 +7,8 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
+// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose input; keep independent hit, amount, and report assertions.
+
 public sealed class LegacyAuditParityJourneyTests
 {
     private static IReadOnlyList<string> FullActionOrder =>
@@ -278,7 +280,7 @@ public sealed class LegacyAuditParityJourneyTests
                             join = "AND",
                             rules = new object[]
                             {
-                                new { join = "AND", type = "customKeywords", keywords = "合成調整" },
+                                new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "合成調整" } },
                             },
                         },
                     },

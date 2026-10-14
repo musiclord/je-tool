@@ -8,13 +8,19 @@ public sealed class Batch9CreditCodeProjectionTests
     [Theory]
     [InlineData(GlAmountMode.AmountWithSide)]
     [InlineData(GlAmountMode.AmountWithFlag)]
-    public void SideAndFlag_MustExplicitlyRequireCreditCode(GlAmountMode mode)
+    public void SideAndFlag_RequireAtLeastOneExplicitDirectionCode(GlAmountMode mode)
     {
         var mapping = Mapping();
         mapping.Remove("dcCreditCode");
         var result = MappingValidator.ValidateGl(new GlMappingSpec(mapping, mode), Columns);
-        Assert.Equal(new[] { "dcCreditCode" }, result.MissingRequiredKeys);
+        // 2026-10-08 第 6 則取代雙邊必填；首次失敗 d38bbe8932664c579123f90e6d61fef7。
+        Assert.Empty(result.MissingRequiredKeys);
+        Assert.True(result.IsValid);
         Assert.Empty(result.UnknownColumns);
+        mapping.Remove("dcDebitCode");
+        result = MappingValidator.ValidateGl(new GlMappingSpec(mapping, mode), Columns);
+        Assert.Equal(new[] { "dcDebitCode", "dcCreditCode" }, result.MissingRequiredKeys);
+        Assert.False(result.IsValid);
     }
 
     [Theory]

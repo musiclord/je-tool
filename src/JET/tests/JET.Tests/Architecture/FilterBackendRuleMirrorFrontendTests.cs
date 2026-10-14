@@ -41,6 +41,28 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Contains("TYPED_SET_MAX_VALUES: TYPED_SET_MAX_VALUES", core, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 文字值清單（舊式條件 textSet）每條的值數上限，前端副本必須等於後端 <c>FilterScenarioLimits.MaxTextSetValuesPerRule</c>。
+    /// 2026-10-14 原樣搬自 <c>FilterAstFrontendContractTests.TextSet_UsesLineDelimitedTextareaAndClosedModeOptions</c>
+    /// （收尾四項第一項第二、三波整併）。前端行為測試讀不到後端常數，只能在這裡比對原始碼；
+    /// 101 個值時預覽與儲存都擋下的行為，由 <c>tools/tests/frontend-journey-filter-saved.test.cjs</c> 的 journey 15 核對。
+    /// </summary>
+    [Fact]
+    public void TextSetMaxValues_MatchesBackendTextSetLimit()
+    {
+        var core = ReadFrontend("js", "ui-core.js");
+
+        var limitMatch = Regex.Match(
+            core,
+            @"var\s+TEXT_SET_MAX_VALUES\s*=\s*(?<value>\d+)\s*;",
+            RegexOptions.CultureInvariant);
+        Assert.True(limitMatch.Success, "ui-core.js 內找不到 TEXT_SET_MAX_VALUES。 ");
+        Assert.Equal(
+            FilterScenarioLimits.MaxTextSetValuesPerRule,
+            int.Parse(limitMatch.Groups["value"].Value));
+        Assert.Contains("TEXT_SET_MAX_VALUES: TEXT_SET_MAX_VALUES", core, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void FilterValues_UsesSharedListLimitInsteadOfHardcodedNumbers()
     {
@@ -54,7 +76,9 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.DoesNotContain("TEXT_SET_MAX_VALUES", values, StringComparison.Ordinal);
 
         Assert.Contains("最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同值，空行不列入。'", values, StringComparison.Ordinal);
-        Assert.Contains("selected.length < Ui.TYPED_SET_MAX_VALUES", values, StringComparison.Ordinal);
+        // 第九節 E 移除自製月曆，改在加入日期前擋下已滿清單，仍引用同一上限。
+        // 首次失敗：20261014-130014323-112f3ca2d352414ba9de606d2b6e0e09；100 筆與重複日期由 frontend-shared-controls.test.cjs 操作驗證。
+        Assert.Contains("!duplicate && selected.length >= Ui.TYPED_SET_MAX_VALUES", values, StringComparison.Ordinal);
         Assert.Contains("'最多選取 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同日期，請先移除不需要的日期。'", values, StringComparison.Ordinal);
         // L81 counts the exact distinct strings that wire() sends, not a second uppercase-derived set.
         // First failure: 20261004-084834579-2436b90e840c4c53bec70aa81bf5a84b.
@@ -62,9 +86,11 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         var problem = ExtractFunctionBody(values, "problem(rule, state)");
         Assert.Contains("var value = wire(rule, state), mode = carrier(rule.operator, selected.type);", problem, StringComparison.Ordinal);
         Assert.Contains("var inputs = mode === 'set' ? value.values", problem, StringComparison.Ordinal);
-        Assert.Contains("inputs.length > Ui.TYPED_SET_MAX_VALUES", problem, StringComparison.Ordinal);
+        // 第九節 G2 讓尾數與一般清單共用超限指引，計數仍用 wire 的值；首次失敗：20261014-133317716-754ea282ab3842268400b7daca79b593。
+        Assert.Contains("count > Ui.TYPED_SET_MAX_VALUES", problem, StringComparison.Ordinal);
         Assert.DoesNotContain("toUpperCase", problem, StringComparison.Ordinal);
-        Assert.Contains("'請填入 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同值'", values, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-08（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        Assert.Contains("'請填 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值'", values, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -78,7 +104,8 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Contains("scenarios.length > Ui.FILTER_MAX_SAVED_SCENARIOS", filter, StringComparison.Ordinal);
         // 2026-10-03 用語統一 W10：前後端訊息一起改成「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         Assert.Contains(
-            "'最多儲存 ' + Ui.FILTER_MAX_SAVED_SCENARIOS + ' 個篩選情境；請先移除既有情境。'",
+            // 使用者 2026-10-13 勾選頁確認 60（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
+            "'最多可儲存 ' + Ui.FILTER_MAX_SAVED_SCENARIOS + ' 個篩選情境，請先移除不需要的情境。'",
             filter,
             StringComparison.Ordinal);
         Assert.DoesNotMatch(new Regex(@"scenarios\.length\s*>\s*\d", RegexOptions.CultureInvariant), filter);
@@ -195,8 +222,11 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Contains("if (key === 'unexpectedAccountPair')", note, StringComparison.Ordinal);
         Assert.Contains("if (!mapping || !mapping.hasRevenue)", note, StringComparison.Ordinal);
         Assert.Contains("if (!mapping.hasCounterpart)", note, StringComparison.Ordinal);
-        Assert.Contains("return '科目配對缺少收入（Revenue）分類';", note, StringComparison.Ordinal);
-        Assert.Contains("return '科目配對缺少對方分類（應收、現金或預收）';", note, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-15（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 前端和後端 V8、V9 同一句，
+        // 分類名稱取第四步分類設定裡目前的名稱。
+        Assert.Contains("if (!mapping || !mapping.hasRevenue) { return revenueMissingNote(); }", note, StringComparison.Ordinal);
+        Assert.Contains("if (!mapping.hasCounterpart) { return counterpartMissingNote(); }", note, StringComparison.Ordinal);
+        Assert.Contains("'科目配對中尚無歸類為「' + roleCategoryLabel('revenue') + '」的科目，請先在第四步設定'", filter, StringComparison.Ordinal);
         Assert.Contains("return '';", note, StringComparison.Ordinal);
         // A newly introduced special-case key cannot silently evade the complete matrix above.
         Assert.Equal(["unexpectedAccountPair"], Regex.Matches(note, @"if \(key === '(?<key>\w+)'\)")
@@ -297,7 +327,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         "accountSide" => new()
         {
             ["type"] = type,
-            ["drCr"] = "debit",
+            // 第九節 G1、G5：科目分類只判斷分類；首次失敗：20261014-135448833-0915d3416a0e48208774011f8499f528。
             ["categoryMode"] = "is",
             ["categorySelection"] = "node",
             ["categoryIds"] = new[] { AccountTaxonomyBuiltIns.CashId }

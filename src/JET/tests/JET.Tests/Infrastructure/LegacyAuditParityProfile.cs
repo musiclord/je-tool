@@ -2285,7 +2285,6 @@ internal static partial class LegacyAuditParityProfileBuilder
         {
             JetFieldCatalog.GlLineId => "gl-line-id-mapping",
             JetFieldCatalog.GlDocDate => "gl-doc-date-mapping",
-            JetFieldCatalog.GlVoucherDate => "gl-voucher-date-mapping",
             JetFieldCatalog.GlJeSource => "gl-je-source-mapping",
             JetFieldCatalog.GlCreateBy => "gl-create-by-mapping",
             JetFieldCatalog.GlApproveBy => "gl-approve-by-mapping",
@@ -2980,11 +2979,12 @@ internal static partial class LegacyCriteriaLogParser
         var group = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["join"] = "AND",
-            ["rules"] = rules,
+            ["rules"] = rules.Select((rule, index) => policy.MatchScope == "sameVoucher" && index > 0
+                ? Rule("voucher", ("quantifier", "any"), ("rules", new[] { rule })) : rule).ToArray(),
         };
         if (policy.MatchScope is not null)
         {
-            group["matchScope"] = policy.MatchScope;
+            group["matchScope"] = "row";
         }
 
         var scenario = JsonSerializer.SerializeToElement(new
@@ -3114,7 +3114,7 @@ internal static partial class LegacyCriteriaLogParser
             if (policy.TextRuleShape == LegacyTextRuleShape.LegacyKeywords
                 && TryLegacyKeywordList(rawValues, out var customKeywords))
             {
-                return Rule("customKeywords", ("keywords", customKeywords));
+                return Rule("fieldValue", ("field", GlMappingKeys.Description), ("operator", "contains"), ("values", customKeywords.Split(',')));
             }
         }
 
@@ -3122,7 +3122,7 @@ internal static partial class LegacyCriteriaLogParser
         if (body.StartsWith(trailingDigitsPrefix, StringComparison.Ordinal)
             && TryDigitList(body[trailingDigitsPrefix.Length..], out var digits))
         {
-            return Rule("trailingDigits", ("keywords", digits));
+            return Rule("fieldValue", ("field", GlMappingKeys.Amount), ("operator", "endsWithDigits"), ("value", digits), ("amountBasis", "absolute"));
         }
 
         var numeric = Regex.Match(
@@ -3391,7 +3391,13 @@ internal static partial class LegacyCriteriaLogParser
                 }
             }
 
-            var textRuleTypes = rules.EnumerateArray()
+            var logicalRules = rules.EnumerateArray().ToArray();
+            if (logicalRules.Length > 1 && logicalRules.Skip(1).All(IsSingleVoucherWitness))
+            {
+                matchScope = "sameVoucher";
+                logicalRules = logicalRules.Take(1).Concat(logicalRules.Skip(1).Select(rule => rule.GetProperty("rules")[0])).ToArray();
+            }
+            var textRuleTypes = logicalRules
                 .Where(static rule => rule.ValueKind == JsonValueKind.Object
                     && rule.TryGetProperty("type", out var type)
                     && type.ValueKind == JsonValueKind.String)
@@ -3407,7 +3413,7 @@ internal static partial class LegacyCriteriaLogParser
             var textShape = LegacyTextRuleShape.LegacyKeywords;
             if (textRuleTypes is ["textSet"])
             {
-                var normalizations = rules.EnumerateArray()
+                var normalizations = logicalRules
                     .Where(static rule => rule.ValueKind == JsonValueKind.Object
                         && rule.TryGetProperty("type", out var type)
                         && type.ValueKind == JsonValueKind.String
@@ -3438,6 +3444,12 @@ internal static partial class LegacyCriteriaLogParser
             policy = new LegacyCriteriaAstPolicy(matchScope, textShape);
             return true;
         }
+
+        private static bool IsSingleVoucherWitness(JsonElement rule) => rule.ValueKind == JsonValueKind.Object
+            && rule.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "voucher"
+            && rule.TryGetProperty("quantifier", out var quantifier) && quantifier.ValueKind == JsonValueKind.String && quantifier.GetString() == "any"
+            && !rule.TryGetProperty("side", out _)
+            && rule.TryGetProperty("rules", out var children) && children.ValueKind == JsonValueKind.Array && children.GetArrayLength() == 1;
     }
 }
 

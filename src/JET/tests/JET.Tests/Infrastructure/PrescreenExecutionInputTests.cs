@@ -43,7 +43,7 @@ public sealed class PrescreenExecutionInputTests
             HasRevenue: true,
             HasCounterpart: true,
             HasAuthorizedPreparers: true,
-            NonWorkingDays: [0, 6], HasVoucherDate: true);
+            NonWorkingDays: [0, 6]);
         var reviewPlan = JetAuditProgram.Plan(
             new AuditCaseSnapshot(
                 ProjectId: "p1",
@@ -185,7 +185,7 @@ public sealed class PrescreenExecutionInputTests
             HasRevenue: false,
             HasCounterpart: false,
             HasAuthorizedPreparers: false,
-            NonWorkingDays: [0, 6], HasVoucherDate: true)) with
+            NonWorkingDays: [0, 6])) with
         {
             ZerosThreshold = 3
         };

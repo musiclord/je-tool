@@ -83,7 +83,9 @@ internal static class NativeAccessImportAcceptance
             }
             var filtered = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
             {
-                scenario = new { groups = new[] { new { rules = new[] { new { type = "customKeywords", keywords = "合成" } } } } }
+                // G5 retires the legacy keyword input. Keep the fixed hit count and source-integrity assertions below.
+                // First failure: 20261014-144025150-94d84d333b3044e793ee67915326944a.
+                scenario = new { groups = new[] { new { rules = new[] { new { type = "fieldValue", field = "description", @operator = "contains", values = new[] { "合成" } } } } } }
             }));
             Assert.Equal(2, filtered.GetProperty("scenario").GetProperty("count").GetInt64());
             await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));

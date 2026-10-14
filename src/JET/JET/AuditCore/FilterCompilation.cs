@@ -28,9 +28,10 @@ internal sealed partial class GlFilterWhereBuilder(
             GlPopulationScopeSql.AddParameters(parameters, context);
         }
         string? combined = null;
-        foreach (var group in scenario.Groups)
+        for (var groupIndex = 0; groupIndex < scenario.Groups.Count; groupIndex++)
         {
-            var groupSql = BuildGroup(parameters, group, context, zeroModulus, schemaPrefix);
+            var group = scenario.Groups[groupIndex];
+            var groupSql = BuildGroup(parameters, group, groupIndex + 1, context, zeroModulus, schemaPrefix);
             combined = combined is null
                 ? groupSql
                 : $"({combined} {Op(group.Join)} {groupSql})";
@@ -62,19 +63,21 @@ internal sealed partial class GlFilterWhereBuilder(
     private string BuildGroup(
         FilterSqlParameterPlanBuilder parameters,
         FilterGroupSpec group,
+        int groupNo,
         FilterRuleContext context,
         long zeroModulus,
         string schemaPrefix)
     {
         if (group.MatchScope == FilterGroupMatchScope.SameVoucher)
         {
-            return BuildSameVoucherGroup(parameters, group, context, zeroModulus, schemaPrefix);
+            return BuildSameVoucherGroup(parameters, group, groupNo, context, zeroModulus, schemaPrefix);
         }
 
         string? combined = null;
-        foreach (var rule in group.Rules)
+        for (var ruleIndex = 0; ruleIndex < group.Rules.Count; ruleIndex++)
         {
-            var ruleSql = BuildRule(parameters, rule, context, zeroModulus, schemaPrefix);
+            var rule = group.Rules[ruleIndex];
+            var ruleSql = BuildLocatedRule(parameters, rule, groupNo, ruleIndex + 1, context, zeroModulus, schemaPrefix);
             combined = combined is null
                 ? ruleSql
                 : $"({combined} {Op(rule.Join)} {ruleSql})";
@@ -92,6 +95,7 @@ internal sealed partial class GlFilterWhereBuilder(
     private string BuildSameVoucherGroup(
         FilterSqlParameterPlanBuilder parameters,
         FilterGroupSpec group,
+        int groupNo,
         FilterRuleContext context,
         long zeroModulus,
         string schemaPrefix)
@@ -101,12 +105,14 @@ internal sealed partial class GlFilterWhereBuilder(
             return "(1 = 0)";
         }
 
-        var combined = BuildRule(parameters, group.Rules[0], context, zeroModulus, schemaPrefix);
+        var combined = BuildLocatedRule(parameters, group.Rules[0], groupNo, 1, context, zeroModulus, schemaPrefix);
         for (var index = 1; index < group.Rules.Count; index++)
         {
-            var evidence = BuildRule(
+            var evidence = BuildLocatedRule(
                 parameters,
                 group.Rules[index],
+                groupNo,
+                index + 1,
                 context,
                 zeroModulus,
                 schemaPrefix);
@@ -117,6 +123,29 @@ internal sealed partial class GlFilterWhereBuilder(
         }
 
         return $"({combined})";
+    }
+
+    /// <summary>
+    /// 第 N 組第 M 條的條件；編譯時的檢查沒過時把組號、條號記在例外上，供支援日誌使用
+    /// （使用者 2026-10-14 第三輪勾選頁確認 R3-62）。例外過濾器只記位置、不攔下例外。
+    /// </summary>
+    private string BuildLocatedRule(
+        FilterSqlParameterPlanBuilder parameters,
+        FilterRuleSpec rule,
+        int groupNo,
+        int ruleNo,
+        FilterRuleContext context,
+        long zeroModulus,
+        string schemaPrefix)
+    {
+        try
+        {
+            return BuildRule(parameters, rule, context, zeroModulus, schemaPrefix);
+        }
+        catch (JetActionException exception) when (FilterCompileCheck.Locate(exception, groupNo, ruleNo))
+        {
+            throw;
+        }
     }
 
     private string BuildRule(
@@ -140,7 +169,7 @@ internal sealed partial class GlFilterWhereBuilder(
                 return BuildChildren(parameters, rule.Rules, context, zeroModulus, schemaPrefix);
             case FilterRuleType.Voucher:
                 var body = BuildChildren(parameters, rule.Rules, context, zeroModulus, schemaPrefix);
-                var side = rule.Side switch { "debit" => "g.amount_scaled >= 0", "credit" => "g.amount_scaled < 0", "all" => "1 = 1", _ => throw new InvalidOperationException("傳票判斷範圍無效。") };
+                var side = rule.Side switch { "debit" => "g.amount_scaled >= 0", "credit" => "g.amount_scaled < 0", null or "all" => "1 = 1", _ => throw new InvalidOperationException("傳票判斷範圍無效。") };
                 var population = $"{GlPopulationScopeSql.Predicate(context, "g")} AND {side}";
                 string Set(string predicate) => $"SELECT g.document_number FROM {schemaPrefix}target_gl_entry g WHERE g.document_number IS NOT NULL AND {population} AND ({predicate})";
                 // CASE is portable to SQL Server, whose predicates are not scalar booleans.
@@ -293,7 +322,6 @@ internal sealed partial class GlFilterWhereBuilder(
             PrescreenRuleKeys.HolidayPosting => predicates.Holiday("post_date", schemaPrefix),
             PrescreenRuleKeys.HolidayApproval => predicates.Holiday("approval_date", schemaPrefix),
             PrescreenRuleKeys.BlankDescription => predicates.BlankDescription(),
-            PrescreenRuleKeys.BackdatedPosting => predicates.Backdated(),
             PrescreenRuleKeys.NonAuthorizedPreparer => predicates.NonAuthorizedPreparer(schemaPrefix),
             PrescreenRuleKeys.LowFrequencyPreparer =>
                 predicates.LowFrequencyPreparer(

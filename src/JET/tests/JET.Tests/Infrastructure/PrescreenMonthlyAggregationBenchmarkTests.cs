@@ -63,9 +63,11 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
     private const long FirstStageRows = 5_000_000;
     private const long FullScaleRows = 20_000_000;
     private const int MeasurementRuns = 3;
-    private const int ExpectedTargetColumnCount = 23;
+    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，target_gl_entry 少了 voucher_date 欄。
+    private const int ExpectedTargetColumnCount = 22;
     private const int ExpectedMonthCount = 12;
-    private const int ExpectedRuleCount = 13;
+    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，列層規則由 13 條減為 12 條。
+    private const int ExpectedRuleCount = 12;
     private const int MoneyScale = 10_000;
     private const string ProjectId = "prescreen-monthly-benchmark";
     private const string PeriodStart = "2025-01-01";
@@ -449,7 +451,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             [PrescreenRuleKeys.HolidayApproval] =
                 Count(result, "holidayActivity", "approvalCount"),
             [PrescreenRuleKeys.BlankDescription] = Count(result, "blankDescription"),
-            [PrescreenRuleKeys.BackdatedPosting] = Count(result, "backdatedPosting"),
             [PrescreenRuleKeys.NonAuthorizedPreparer] =
                 Count(result, "nonAuthorizedPreparer"),
             [PrescreenRuleKeys.LowFrequencyPreparer] =
@@ -580,7 +581,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 [GlMappingKeys.DocDate] = "approval_date",
-                [GlMappingKeys.VoucherDate] = "voucher_date",
                 [GlMappingKeys.CreateBy] = "created_by"
             },
             GlAmountModeNames.Signed,
@@ -1169,7 +1169,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
 
         INSERT INTO target_gl_entry
             (batch_id, source_row_number, document_number, line_item,
-             line_item_numeric_sort_key, post_date, approval_date, voucher_date,
+             line_item_numeric_sort_key, post_date, approval_date,
              account_code, account_name, document_description, source_module,
              created_by, approved_by, is_manual, is_effective, amount_scaled,
              debit_amount_scaled, credit_amount_scaled, dr_cr)
@@ -1182,11 +1182,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             strftime(DATE '2025-01-01' + CAST((i - 1) % 365 AS INTEGER), '%Y-%m-%d'),
             CASE
                 WHEN i % 17 = 0 THEN '2025-12-31'
-                ELSE strftime(DATE '2025-01-01' + CAST((i - 1) % 365 AS INTEGER), '%Y-%m-%d')
-            END,
-            CASE
-                WHEN i % 19 = 0
-                    THEN strftime(DATE '2025-01-01' + CAST(((i - 1) % 364) + 1 AS INTEGER), '%Y-%m-%d')
                 ELSE strftime(DATE '2025-01-01' + CAST((i - 1) % 365 AS INTEGER), '%Y-%m-%d')
             END,
             CASE ((i - 1) % 4)
@@ -1272,7 +1267,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         )
         INSERT INTO target_gl_entry
             (batch_id, source_row_number, document_number, line_item,
-             line_item_numeric_sort_key, post_date, approval_date, voucher_date,
+             line_item_numeric_sort_key, post_date, approval_date,
              account_code, account_name, document_description, source_module,
              created_by, approved_by, is_manual, is_effective, amount_scaled,
              debit_amount_scaled, credit_amount_scaled, dr_cr)
@@ -1285,11 +1280,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             date('2025-01-01', printf('+%d days', (i - 1) % 365)),
             CASE
                 WHEN i % 17 = 0 THEN '2025-12-31'
-                ELSE date('2025-01-01', printf('+%d days', (i - 1) % 365))
-            END,
-            CASE
-                WHEN i % 19 = 0
-                    THEN date('2025-01-01', printf('+%d days', ((i - 1) % 364) + 1))
                 ELSE date('2025-01-01', printf('+%d days', (i - 1) % 365))
             END,
             CASE ((i - 1) % 4)
@@ -1376,7 +1366,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         )
         INSERT INTO {schemaPrefix}target_gl_entry
             (batch_id, source_row_number, document_number, line_item,
-             line_item_numeric_sort_key, post_date, approval_date, voucher_date,
+             line_item_numeric_sort_key, post_date, approval_date,
              account_code, account_name, document_description, source_module,
              created_by, approved_by, is_manual, is_effective, amount_scaled,
              debit_amount_scaled, credit_amount_scaled, dr_cr)
@@ -1389,11 +1379,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             CONVERT(nvarchar(10), DATEADD(day, (i - 1) % 365, CONVERT(date, '20250101')), 23),
             CASE
                 WHEN i % 17 = 0 THEN N'2025-12-31'
-                ELSE CONVERT(nvarchar(10), DATEADD(day, (i - 1) % 365, CONVERT(date, '20250101')), 23)
-            END,
-            CASE
-                WHEN i % 19 = 0
-                    THEN CONVERT(nvarchar(10), DATEADD(day, ((i - 1) % 364) + 1, CONVERT(date, '20250101')), 23)
                 ELSE CONVERT(nvarchar(10), DATEADD(day, (i - 1) % 365, CONVERT(date, '20250101')), 23)
             END,
             CASE ((i - 1) % 4)

@@ -5,6 +5,13 @@ namespace JET.Application;
 
 internal static class ReportExportSupport
 {
+    /// <summary>
+    /// 畫面持有的情境清單和已儲存的不一致（使用者 2026-10-14 第三輪勾選頁確認 R3-35，句型同已確認的 N3）。
+    /// 產生報告、底稿與重新計算選錯情境位置時共用。
+    /// </summary>
+    internal const string ScenarioListOutOfDate =
+        "畫面上的情境清單與已儲存的內容不一致，本次未產生。請重新開啟案件後再操作。";
+
     internal sealed record PublishedArtifactCatalog(object[]? Artifacts, string? Warning);
 
     public static async Task<PublishedArtifactCatalog> ReadArtifactCatalogAfterPublicationAsync(
@@ -46,7 +53,7 @@ internal static class ReportExportSupport
     }
 
     private static PublishedArtifactCatalog CatalogUnavailable(string? message) => new(null, message ??
-        "檔案已產生，報告清單暫時無法更新。可開啟案件資料夾查看，無須重新產生。");
+        "檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。");
 
     public static void RequireRequestedValidationRun(
         RuleRunRecord current,
@@ -56,7 +63,7 @@ internal static class ReportExportSupport
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "指定的 validate 執行結果已不是目前版本，請重新執行並使用最新結果。");
+                "這份報告依據的資料驗證結果已不是目前的結果，請重新執行資料驗證後再產生。");
         }
     }
 
@@ -106,7 +113,7 @@ internal static class ReportExportSupport
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "畫面上的情境版本和已儲存的不一致。請重新載入這個案件，再用目前已儲存的情境產生一次。");
+                ScenarioListOutOfDate);
         }
 
         return current;
@@ -119,9 +126,7 @@ internal static class ReportExportSupport
         if (!payload.TryGetProperty("scenarioPositions", out var property)
             || property.ValueKind != JsonValueKind.Array)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "payload 缺少必填陣列 'scenarioPositions'。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "scenario_positions_missing");
         }
 
         var valid = scenarios.Select(item => item.Position).ToHashSet();
@@ -136,7 +141,7 @@ internal static class ReportExportSupport
             {
                 throw new JetActionException(
                     JetErrorCodes.InvalidPayload,
-                    "scenarioPositions 必須是目前已儲存且不重複的情境位置。");
+                    ScenarioListOutOfDate);
             }
 
             selected.Add(position);
@@ -144,9 +149,7 @@ internal static class ReportExportSupport
 
         if (selected.Count == 0)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "scenarioPositions 至少要選擇一個情境。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "scenario_positions_empty");
         }
 
         selected.Sort();

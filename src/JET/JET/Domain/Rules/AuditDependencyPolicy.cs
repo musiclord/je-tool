@@ -28,7 +28,8 @@ internal sealed record AuditDependencyImpact(
     bool InvalidatePrescreen,
     bool InvalidateFilterHits,
     bool InvalidateFilterScenarioDefinitions,
-    bool ClearGlControlTotal);
+    bool ClearGlControlTotal,
+    bool ClearAccountMapping);
 
 /// <summary>
 /// Validation／prescreen／filter 失效矩陣的唯一 Domain 政策來源。
@@ -39,7 +40,7 @@ internal static class AuditDependencyPolicy
     internal static AuditDependencyImpact For(AuditMutation mutation) => mutation switch
     {
         AuditMutation.GlImport or AuditMutation.GlProjection or AuditMutation.TbImport or AuditMutation.TbProjection =>
-            Impact(validation: true, prescreen: true, filterHits: true),
+            Impact(validation: true, prescreen: true, filterHits: true, clearAccountMapping: true),
         AuditMutation.Calendar or AuditMutation.AccountMapping or AuditMutation.AuthorizedPreparer or AuditMutation.PreparationDate =>
             Impact(validation: false, prescreen: true, filterHits: true),
         AuditMutation.SchemaV7Migration =>
@@ -52,12 +53,14 @@ internal static class AuditDependencyPolicy
     private static AuditDependencyImpact Impact(
         bool validation,
         bool prescreen,
-        bool filterHits) =>
+        bool filterHits,
+        bool clearAccountMapping = false) =>
         new(
             validation,
             prescreen,
             filterHits,
             // 情境定義與命中同進退；總帳與試算表使用同一條資料修改規則。
             InvalidateFilterScenarioDefinitions: filterHits,
-            ClearGlControlTotal: false);
+            ClearGlControlTotal: false,
+            ClearAccountMapping: clearAccountMapping);
 }

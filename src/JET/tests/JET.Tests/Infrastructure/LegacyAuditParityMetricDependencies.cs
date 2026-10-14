@@ -208,12 +208,6 @@ internal static class LegacyAuditParityMetricDependencies
                     LegacyMappingSlot.GlPostingDate,
                     LegacyMappingSlot.GlDescription,
                 ]),
-                LegacyPrescreenRuleId.BackdatedPosting => Set(
-                [
-                    LegacyMappingSlot.GlDocumentNumber,
-                    LegacyMappingSlot.GlPostingDate,
-                    LegacyMappingSlot.GlVoucherDate,
-                ]),
                 LegacyPrescreenRuleId.NonAuthorizedPreparer
                     or LegacyPrescreenRuleId.LowFrequencyPreparer => Set(
                 [
@@ -418,7 +412,6 @@ internal static class LegacyAuditParityMetricDependencies
         LegacyMappingSlot.GlLineIdentifier,
         LegacyMappingSlot.GlPostingDate,
         LegacyMappingSlot.GlApprovalDate,
-        LegacyMappingSlot.GlVoucherDate,
         LegacyMappingSlot.GlAccountNumber,
         LegacyMappingSlot.GlAccountName,
         LegacyMappingSlot.GlDescription,

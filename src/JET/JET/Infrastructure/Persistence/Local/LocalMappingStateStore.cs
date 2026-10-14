@@ -172,6 +172,7 @@ internal static class MappingStateSerialization
         GlMappingOptions? options = null;
         if (kind == DatasetKind.Gl)
         {
+            mapping = WithoutRetiredGlKeys(mapping);
             options = !string.IsNullOrWhiteSpace(optionsJson)
                 ? GlMappingOptionsJsonCodec.Decode(optionsJson, mapping)
                 : throw new InvalidOperationException("mapping v2 GL 狀態缺少 options_json。");
@@ -186,6 +187,13 @@ internal static class MappingStateSerialization
             formatVersion,
             options);
     }
+
+    private static IReadOnlyDictionary<string, string> WithoutRetiredGlKeys(IReadOnlyDictionary<string, string> mapping) =>
+        mapping.Keys.Any(GlMappingKeys.Retired.Contains)
+            ? mapping
+                .Where(pair => !GlMappingKeys.Retired.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
+            : mapping;
 
     // 目前版本只寫入第 2 版；其他版本是舊版 JET 保存的配對，不能沿用舊語意讀取。
     private static void EnsureReadableVersion(int formatVersion)

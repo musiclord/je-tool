@@ -21,9 +21,11 @@ public sealed class SqlServerSchemaMigrationTests
     public void Batch9_PreviousMappingTable_RequiresVersionTwelveForExistingV11Cases()
     {
         // Pure SQL-plan guard; no SQL Server connection is opened by this test.
-        Assert.Equal("12", SqlServerProjectDatabase.SchemaVersion);
-        Assert.Contains("'schema_version', '12')", SqlServerProjectDatabase.SchemaSql);
-        Assert.Contains("SET [value] = '12'", SqlServerProjectDatabase.BumpSchemaVersionSql);
+        // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 13 版加上 error；第 11 版案件仍會補上這張表。
+        // 第一次失敗收據 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
+        Assert.Equal("13", SqlServerProjectDatabase.SchemaVersion);
+        Assert.Contains("'schema_version', '13')", SqlServerProjectDatabase.SchemaSql);
+        Assert.Contains("SET [value] = '13'", SqlServerProjectDatabase.BumpSchemaVersionSql);
         Assert.Contains("config_field_mapping_previous", SqlServerProjectDatabase.SchemaSql);
     }
 
@@ -44,7 +46,9 @@ public sealed class SqlServerSchemaMigrationTests
             Assert.Equal("11", await VersionAsync(connection, q));
             Assert.Equal(0, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-            Assert.Equal("12", await VersionAsync(connection, q));
+            // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
+            // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
+            Assert.Equal("13", await VersionAsync(connection, q));
             Assert.Equal(1, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
             Assert.Equal(1, await ScalarLongAsync(connection, $"SELECT COUNT(*) FROM {q}schema_info WHERE [key] = 'batch9-sentinel' AND [value] = 'preserved';"));
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -82,9 +86,10 @@ public sealed class SqlServerSchemaMigrationTests
         {
             // 建現行 v8 schema，塞一列可辨識的資料（證遷移保留既有列）。
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
+            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，現行 schema 沒有 voucher_date，改寫入 approval_date。
             await ExecuteAsync(baseConn,
                 $"INSERT INTO {q}target_gl_entry " +
-                "(batch_id, source_row_number, document_number, line_item, account_code, voucher_date, " +
+                "(batch_id, source_row_number, document_number, line_item, account_code, approval_date, " +
                 " amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr) " +
                 "VALUES ('batch-mig-1', 2, 'DOC-MIG', '7', 'ACC-9', '2025-01-03', 1000000, 1000000, 0, 'DEBIT');");
 
@@ -166,7 +171,9 @@ public sealed class SqlServerSchemaMigrationTests
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
 
             // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
-            Assert.Equal("12", await VersionAsync(baseConn, q));
+            // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
+            // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
+            Assert.Equal("13", await VersionAsync(baseConn, q));
             Assert.Equal(1, await TablePresentAsync(baseConn, q, "audit_event_log"));
             Assert.Equal(1, await ScalarLongAsync(
                 baseConn,
@@ -198,7 +205,9 @@ public sealed class SqlServerSchemaMigrationTests
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
 
             // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
-            Assert.Equal("12", await VersionAsync(baseConn, q));
+            // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
+            // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
+            Assert.Equal("13", await VersionAsync(baseConn, q));
             foreach (var column in new[] { "posting_status", "is_effective", "exclusion_reason" })
             {
                 Assert.Equal(1, await ColumnPresentAsync(baseConn, q, "target_gl_entry", column));
@@ -271,7 +280,9 @@ public sealed class SqlServerSchemaMigrationTests
             var reopened = new SqlServerProjectDatabase(options);
             await reopened.EnsureCreatedAsync(projectId, CancellationToken.None);
             // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
-            Assert.Equal("12", await VersionAsync(baseConn, q));
+            // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
+            // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
+            Assert.Equal("13", await VersionAsync(baseConn, q));
             Assert.Equal(1, await ScalarLongAsync(baseConn,
                 $"SELECT COUNT(*) FROM {q}target_gl_entry WHERE document_number='DOC-V6';"));
             Assert.Equal(1, await ScalarLongAsync(baseConn,

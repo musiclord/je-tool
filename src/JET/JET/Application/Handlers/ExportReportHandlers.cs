@@ -14,7 +14,7 @@ public sealed class ExportValidationArtifactsHandler(
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var runId = PayloadReader.GetOptionalString(payload, "runId")
-            ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'runId'。");
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "run_id_missing");
         var (projectId, repositories) = session.RequireActive();
         var validationWriter = repositories.ValidationReportWriter;
         var infWriter = repositories.InfReportWriter;
@@ -36,7 +36,7 @@ public sealed class ExportValidationArtifactsHandler(
         var run = await ReportExportSupport.RequireCurrentRunAsync(
             runStore, projectId, RuleRunKinds.Validate, runId, cancellationToken);
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
         var requiresFormalMetadata = validationWriter is IFormalPlannedValidationReportWriter
             || infWriter is IFormalInfReportWriter;
         if (requiresFormalMetadata
@@ -231,7 +231,7 @@ public sealed class ExportPrescreenReportHandler(
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var runId = PayloadReader.GetOptionalString(payload, "runId")
-            ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'runId'。");
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "run_id_missing");
         var (projectId, repositories) = session.RequireActive();
         var writer = repositories.PrescreenReportWriter;
         var runStore = repositories.RuleRuns;
@@ -251,7 +251,7 @@ public sealed class ExportPrescreenReportHandler(
         var run = await ReportExportSupport.RequireCurrentRunAsync(
             runStore, projectId, RuleRunKinds.Prescreen, runId, cancellationToken);
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
         var formalWriter = writer as IFormalPlannedPrescreenReportWriter;
         if (formalWriter is not null
             && (mappingStateStore is null || accountTaxonomyStore is null))
@@ -391,9 +391,9 @@ public sealed class ExportCriteriaSelectionReportHandler(
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var validationRunId = PayloadReader.GetOptionalString(payload, "validationRunId")
-            ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'validationRunId'。");
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "validation_run_id_missing");
         var revision = PayloadReader.GetOptionalString(payload, "revision")
-            ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少必填欄位 'revision'。");
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "revision_missing");
         var (projectId, repositories) = session.RequireActive();
         var writer = repositories.CriteriaSelectionReportWriter;
         var scenarioStore = repositories.FilterScenarios;
@@ -413,7 +413,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
         var filterRevision = ReportExportSupport.RequireRevisionState(scenarios, revision);
         revision = filterRevision.Revision;
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         // filter.commit 會在同一交易清除上一版命中。正式 Criteria 報告必須先以
         // 目前 revision 的全部情境重新物化，writer 才能輸出可追溯的明細母體。

@@ -6,11 +6,11 @@ namespace JET.Domain;
 /// </summary>
 public enum DataPreviewDataset
 {
-    GlStaging,
-    TbStaging,
-    GlEntries,
-    GlExcludedEntries,
-    TbBalances,
+    PbcGl,
+    PbcTb,
+    Gl,
+    GlExcluded,
+    Tb,
     AccountMappings,
     AuthorizedPreparers,
 
@@ -27,20 +27,20 @@ public static class DataPreviewDatasetNames
     {
         switch (wireName)
         {
-            case "glStaging":
-                dataset = DataPreviewDataset.GlStaging;
+            case "pbcGl":
+                dataset = DataPreviewDataset.PbcGl;
                 return true;
-            case "tbStaging":
-                dataset = DataPreviewDataset.TbStaging;
+            case "pbcTb":
+                dataset = DataPreviewDataset.PbcTb;
                 return true;
-            case "glEntries":
-                dataset = DataPreviewDataset.GlEntries;
+            case "gl":
+                dataset = DataPreviewDataset.Gl;
                 return true;
-            case "glExcludedEntries":
-                dataset = DataPreviewDataset.GlExcludedEntries;
+            case "glExcluded":
+                dataset = DataPreviewDataset.GlExcluded;
                 return true;
-            case "tbBalances":
-                dataset = DataPreviewDataset.TbBalances;
+            case "tb":
+                dataset = DataPreviewDataset.Tb;
                 return true;
             case "accountMappings":
                 dataset = DataPreviewDataset.AccountMappings;
@@ -65,10 +65,10 @@ public static class DataPreviewDatasetNames
 public abstract record DataPreviewStats;
 
 /// <summary>
-/// glEntries 的概況統計（進階篩選的把關資訊）。
+/// gl（GL）的概況統計（進階篩選的把關資訊）。
 /// 金額為 ABS(amount_scaled) 的顯示值——篩選的數值區間比較的就是絕對值。
 /// </summary>
-public sealed record GlEntriesPreviewStats(
+public sealed record GlPreviewStats(
     decimal AmountAbsMin,
     decimal AmountAbsMax,
     string? PostDateMin,
@@ -76,16 +76,16 @@ public sealed record GlEntriesPreviewStats(
     long VoucherCount) : DataPreviewStats;
 
 /// <summary>
-/// glExcludedEntries 的互斥排除原因總數。兩值在空 dataset 時仍明示為 0。
+/// glExcluded（GL(未納入測試)）的互斥排除原因總數。兩值在空 dataset 時仍明示為 0。
 /// </summary>
-public sealed record GlExcludedEntriesPreviewStats(
+public sealed record GlExcludedPreviewStats(
     long ExcludedByPeriodCount,
     long ExcludedByPostingStatusCount) : DataPreviewStats;
 
 /// <summary>
 /// 有界預覽結果：rows ≤ limit、cell 一律字串（NULL → null）。
 /// 一般資料集無資料 = 空 Columns/Rows + TotalCount 0（不是錯誤）；
-/// glExcludedEntries 仍保留固定 Columns 與非 null 的零值 Stats。
+/// glExcluded 仍保留固定 Columns 與非 null 的零值 Stats。
 /// </summary>
 public sealed record DataPreviewResult(
     IReadOnlyList<string> Columns,

@@ -113,6 +113,7 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 | `data/` 工作簿、`legacy/` 與來源專案 | `docs/data-and-legacy.md` |
 | 文件寫作規範與收尾檢查 | `docs/README.md` |
 | 面向人的文字怎麼改寫 | `.agents/skills/jet-readable-docs/SKILL.md` |
+| 前端外觀的設計方向與 AI 預設樣式禁止清單 | `.agents/skills/jet-frontend-design/SKILL.md` |
 
 **動工前先讀**（依這次要碰的東西）：
 

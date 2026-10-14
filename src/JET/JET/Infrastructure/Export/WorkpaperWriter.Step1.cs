@@ -121,7 +121,7 @@ public sealed partial class WorkpaperWriter
     /// <summary>
     /// 「step1-1 借貸不平測試」:A1-A4 共同表頭 + Step1-1 程序固定文字 + 依結果二選一的結論。
     /// 有不平傳票時照 legacy 版面（idea-tool.bas:10468-10483）：B14 說明、第 16 列五欄表頭、
-    /// 第 17 列起依傳票號碼與總帳入帳日彙總的明細，最後一欄留給審計員填寫理由。
+    /// 第 17 列起依傳票號碼與總帳日期彙總的明細，最後一欄留給審計員填寫理由。
     /// </summary>
     private async Task EmitStep11Async(
         WorkpaperWriteSession session, List<SheetStat> stats,

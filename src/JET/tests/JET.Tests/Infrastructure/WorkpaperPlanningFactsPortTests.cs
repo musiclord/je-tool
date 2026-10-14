@@ -101,9 +101,10 @@ public sealed class WorkpaperPlanningFactsPortTests
         // 2026-10-02 整體複審 T4：「確認並提交」改成「完成」，斷言改鎖新句子。
         // 2026-10-04 第 8 批 Q8 再統一為「確認配對」；兩種 dataset 的完整步驟與錯誤碼不變。
         // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-56（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
-            $"{datasetName} 還沒有在最近一次匯入後確認欄位配對，缺少底稿需要的欄位定義，無法匯出底稿。"
-            + $"請回第三步確認 {datasetName} 欄位配對；如果還沒有匯入 {datasetName}，請先回第二步匯入。",
+            $"{datasetName} 在最近一次匯入後尚未確認欄位配對，無法匯出底稿。"
+            + $"請回第三步確認 {datasetName} 欄位配對；尚未匯入 {datasetName} 時，請先回第二步匯入。",
             exception.Message);
     }
 

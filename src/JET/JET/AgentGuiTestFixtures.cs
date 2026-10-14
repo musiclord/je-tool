@@ -263,17 +263,6 @@ internal sealed class AgentGuiTestFixtures
                 return;
             }
 
-            var accountMappingFile = await DispatchAsync(
-                dispatcher,
-                "demo.exportAccountMappingFile",
-                new { },
-                cancellationToken).ConfigureAwait(false);
-            await DispatchAsync(dispatcher, "import.accountMapping.fromFile", new
-            {
-                filePath = accountMappingFile.GetProperty("filePath").GetString(),
-                fileName = accountMappingFile.GetProperty("fileName").GetString(),
-            }, cancellationToken).ConfigureAwait(false);
-
             var preparerFile = await DispatchAsync(
                 dispatcher,
                 "demo.exportAuthorizedPreparerFile",
@@ -311,6 +300,18 @@ internal sealed class AgentGuiTestFixtures
             }, cancellationToken).ConfigureAwait(false);
 
             await CommitMappingsAsync(dispatcher, activeDemo, cancellationToken).ConfigureAwait(false);
+
+            var accountMappingFile = await DispatchAsync(
+                dispatcher,
+                "demo.exportAccountMappingFile",
+                new { },
+                cancellationToken).ConfigureAwait(false);
+            await DispatchAsync(dispatcher, "import.accountMapping.fromFile", new
+            {
+                filePath = accountMappingFile.GetProperty("filePath").GetString(),
+                fileName = accountMappingFile.GetProperty("fileName").GetString(),
+            }, cancellationToken).ConfigureAwait(false);
+
             var validation = await DispatchAsync(
                 dispatcher, "validate.run", new { }, cancellationToken).ConfigureAwait(false);
             if (IsEnabled(LegacyKctScenarioId))
@@ -705,11 +706,13 @@ internal sealed class AgentGuiTestFixtures
         public string Action => inner.Action;
         public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
         {
+            // 標題照第一步匯入卡片的資料名稱（import-step.js 的 bindDatasetCard）。2026-10-08 資料名稱統一後是 PBC-GL、PBC-TB；
+            // 舊標題對不上時會打開真的 Windows 選檔視窗，Gui 情境停在那裡等到逾時（2026-10-14 實跑查到）。
             var title = payload.TryGetProperty("title", out var value) ? value.GetString() : null;
-            if (title is not "選擇 GL 來源檔（可多選）" and not "選擇 TB 來源檔（可多選）")
+            if (title is not "選擇 PBC-GL 來源檔（可多選）" and not "選擇 PBC-TB 來源檔（可多選）")
                 return inner.HandleAsync(payload, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            var gl = title == "選擇 GL 來源檔（可多選）";
+            var gl = title == "選擇 PBC-GL 來源檔（可多選）";
             Directory.CreateDirectory(fixtures.DemoWorkbookRootPath);
             var path = Path.Combine(fixtures.DemoWorkbookRootPath, gl ? "synthetic-gl.xlsx" : "synthetic-tb.xlsx");
             using var workbook = new XLWorkbook();
@@ -1167,7 +1170,7 @@ internal sealed class AgentGuiTestFixtures
     private sealed class DataPreviewFixtureHandler : IApplicationActionHandler
     {
         private const string DataPreviewAction = "query.dataPreview";
-        private const string GlEntriesDataset = "glEntries";
+        private const string GlDataset = "gl";
         private readonly IApplicationActionHandler _inner;
         private readonly ProjectSession _session;
         private readonly AgentGuiTestFixtures _fixtures;
@@ -1198,7 +1201,7 @@ internal sealed class AgentGuiTestFixtures
             var isFrontendUsabilityProject = projectId.Equals(
                 "agent-gui-export-ready",
                 StringComparison.Ordinal);
-            if (!IsGlEntries(payload)
+            if (!IsGlDataset(payload)
                 || (!projectId.EndsWith("-a", StringComparison.Ordinal)
                     && !isFrontendUsabilityProject))
             {
@@ -1285,13 +1288,13 @@ internal sealed class AgentGuiTestFixtures
             return result;
         }
 
-        private static bool IsGlEntries(JsonElement payload) =>
+        private static bool IsGlDataset(JsonElement payload) =>
             payload.ValueKind == JsonValueKind.Object
             && payload.TryGetProperty("dataset", out var dataset)
             && dataset.ValueKind == JsonValueKind.String
             && string.Equals(
                 dataset.GetString(),
-                GlEntriesDataset,
+                GlDataset,
                 StringComparison.Ordinal);
     }
 

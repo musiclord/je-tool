@@ -86,8 +86,14 @@ dotnet run --project tools/harness/browser-host/BrowserHost.csproj -c Debug --no
 ```
 
 加上 `-- --reset` 會清掉舊的合成案件後重建。改 CSS 或 JS 後重新整理頁面即可；改 C# 後要停止並重新啟動。
-Claude Desktop 的 Code 可由 Preview 啟動 `.claude/launch.json` 裡的 `JET browser host`，網址是 `http://127.0.0.1:4244`。
+`.claude/launch.json` 裡的 `JET browser host` 使用 `http://127.0.0.1:4244`，是使用者在 Codex 檢查畫面用的主機。
 需要中斷點時，用 VS Code 的「JET (attach)」附加到 `Jet.BrowserHost` 程序。
+
+Claude Desktop 的 Code 另用 `JET browser host (Claude)`，網址是 `http://127.0.0.1:4245`。它建立台灣中小企業的合成案件：
+一整年的製造業總帳（一萬一千多張傳票）與 200 個科目的試算表，SQLite 案件存 KCT 十個情境，DuckDB 案件存十個自訂情境，
+都走完六個步驟；另一個案件只匯入檔案，停在欄位配對。`JET browser host (Claude QA)` 在 4246，給自動交錯操作檢查使用。
+兩台的案件與建置輸出各自放在 `artifacts/browser-host-claude/` 與 `artifacts/browser-host-claude-qa/`，
+環境變數與重建方式見 [`frontend-design-mode.md`](../.agents/harness/frontend-design-mode.md#台灣中小企業合成案件與交錯操作檢查)。
 
 瀏覽器主機不能取代真正的 WebView2 驗證。關窗流程、WebView2 本身的行為與桌面視窗尺寸，仍要用 `verify.ps1 -Command Gui`
 確認。

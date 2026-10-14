@@ -13,10 +13,12 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose input; keep independent hit, amount, and report assertions.
+
 /// <summary>
 /// Step4-1 最終 Legacy 語意的 provider golden：
 /// fixture 刻意讓 source entry 順序不同於 Legacy 文件／項次排序，並同時涵蓋
-/// voucherDate suffix 排除、priority 12、remaining ordinal、native Time／Boolean／large Number、
+/// priority 12、remaining ordinal、native Time／Boolean／large Number、
 /// compact TAG 與 signed amount。
 /// 指紋只包含 Step4-1 的 logical cells／欄寬／BestFit，不納入 package timestamp 等揮發值。
 /// </summary>
@@ -291,8 +293,7 @@ public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
                                     new
                                     {
                                         join = "AND",
-                                        type = "customKeywords",
-                                        keywords = "命中"
+                                        type = "fieldValue", field = "description", @operator = "contains", values = new[] { "命中" }
                                     }
                                 }
                             }
@@ -312,8 +313,7 @@ public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
                                     new
                                     {
                                         join = "AND",
-                                        type = "customKeywords",
-                                        keywords = "絕不出現"
+                                        type = "fieldValue", field = "description", @operator = "contains", values = new[] { "絕不出現" }
                                     }
                                 }
                             }
@@ -420,7 +420,6 @@ public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
         builder
             .WithColumns(
                 "ROW_TOKEN_JE",
-                "傳票日期_僅條件_JE",
                 "過帳碼_JE",
                 "兩位小數_JE",
                 "核准時間_JE",
@@ -441,31 +440,31 @@ public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
                 "借方旗標")
             // source entry 順序刻意不同於最終 doc／line／entry_id 排序。
             .AddRow(
-                "B-02", new DateTime(2025, 2, 1), 40, 40.12m, new TimeSpan(6, 0, 0), true, 1E+100, "DOC-B", "02",
+                "B-02", 40, 40.12m, new TimeSpan(6, 0, 0), true, 1E+100, "DOC-B", "02",
                 new DateTime(2025, 2, 1), new DateTime(2025, 2, 2), "建立乙", "核准乙",
                 "1101", "現金", "命中 B-02", "GL", 1, "100.0000", 1)
             .AddRow(
-                "A-01a", new DateTime(2025, 1, 1), 30, 30.34m, new TimeSpan(12, 0, 0), false, 1E+100, "DOC-A", "01a",
+                "A-01a", 30, 30.34m, new TimeSpan(12, 0, 0), false, 1E+100, "DOC-A", "01a",
                 new DateTime(2025, 1, 1), new DateTime(2025, 1, 2), "建立甲", "核准甲",
                 "5101", "費用", "命中 A-01a", "MANUAL", 0, "30.0000", 1)
             .AddRow(
-                "A-01A", new DateTime(2025, 1, 1), 20, null, null, true, 1E+100, "DOC-A", "01A",
+                "A-01A", 20, null, null, true, 1E+100, "DOC-A", "01A",
                 new DateTime(2025, 1, 1), new DateTime(2025, 1, 2), "建立甲", "核准甲",
                 "4101", "收入", "命中 A-01A", "MANUAL", 1, "30.0000", 0)
             .AddRow(
-                "A-01-FIRST", new DateTime(2025, 1, 1), 10, 10.56m, new TimeSpan(18, 0, 0), false, 1E+100, "DOC-A", "01",
+                "A-01-FIRST", 10, 10.56m, new TimeSpan(18, 0, 0), false, 1E+100, "DOC-A", "01",
                 new DateTime(2025, 1, 1), new DateTime(2025, 1, 2), "建立甲", "核准甲",
                 "1101", "現金", "命中 A-01 first", "GL", 1, "20.0000", 1)
             .AddRow(
-                "A-01-SECOND", new DateTime(2025, 1, 1), 11, 11.78m, new TimeSpan(6, 0, 0), true, 1E+100, "DOC-A", "01",
+                "A-01-SECOND", 11, 11.78m, new TimeSpan(6, 0, 0), true, 1E+100, "DOC-A", "01",
                 new DateTime(2025, 1, 1), new DateTime(2025, 1, 2), "建立甲", "核准甲",
                 "4101", "收入", "命中 A-01 second", "GL", 0, "20.0000", 0)
             .AddRow(
-                "A-NULL", new DateTime(2025, 1, 1), 0, 0.25m, new TimeSpan(12, 0, 0), false, 1E+100, "DOC-A", null,
+                "A-NULL", 0, 0.25m, new TimeSpan(12, 0, 0), false, 1E+100, "DOC-A", null,
                 new DateTime(2025, 1, 1), new DateTime(2025, 1, 2), "建立甲", "核准甲",
                 "1101", "現金", "命中 A-null", "GL", 1, "0.0000", 1)
             .AddRow(
-                "B-03", new DateTime(2025, 2, 1), 50, 50.90m, new TimeSpan(18, 0, 0), true, 1E+100, "DOC-B", "03",
+                "B-03", 50, 50.90m, new TimeSpan(18, 0, 0), true, 1E+100, "DOC-B", "03",
                 new DateTime(2025, 2, 1), new DateTime(2025, 2, 2), "建立乙", "核准乙",
                 "4101", "收入", "命中 B-03", "GL", 0, "100.0000", 0);
 
@@ -473,7 +472,6 @@ public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
     {
         builder.WithColumns(
             "ROW_TOKEN_JE",
-            "傳票日期_僅條件_JE",
             "過帳碼_JE",
             "兩位小數_JE",
             "核准時間_JE",
@@ -514,7 +512,6 @@ public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
             };
             builder.AddRow(
                 $"N-{sourceOrdinal:D3}",
-                new DateTime(2025, 3, 1),
                 sourceOrdinal,
                 sourceOrdinal % 100 / 100m,
                 new TimeSpan(6, 0, 0),
@@ -542,10 +539,7 @@ public sealed class WorkpaperStep41ProviderParityTests(ITestOutputHelper output)
         Assert.Equal(ExpectedHeaders, snapshot.Headers);
         Assert.Equal(ExpectedTokens, snapshot.Rows.Select(row => row[12]).ToArray());
         Assert.All(snapshot.Rows, row => Assert.Equal("Y", row[18]));
-        Assert.DoesNotContain(
-            "傳票日期_僅條件_JE",
-            snapshot.Headers,
-            StringComparer.Ordinal);
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：fixture 不再有「傳票日期_僅條件_JE」來源欄，也不再檢查它被 step4-1 排除。
         Assert.DoesNotContain("C2_TAG", snapshot.Headers, StringComparer.Ordinal);
         Assert.Equal(7, snapshot.Rows.Count);
         Assert.Equal("-30", snapshot.Rows[3][8]);

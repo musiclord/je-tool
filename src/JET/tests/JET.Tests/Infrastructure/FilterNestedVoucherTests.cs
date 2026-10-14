@@ -5,6 +5,8 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
+// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose input; keep independent hit, amount, and report assertions.
+
 public sealed class FilterNestedVoucherTests
 {
     [Theory]
@@ -103,15 +105,15 @@ public sealed class FilterNestedVoucherTests
         const string text = """{"type":"fieldValue","field":"description","operator":"contains","value":"X"}""";
         var cases = new (string Rule, string[] Expected)[]
         {
-            ($$"""{"type":"voucher","side":"credit","quantifier":"any","rules":[{{account}},{{text}}]}""", ["EMPTY|1", "MATCH|1", "MATCH|2", "MIX|1", "MIX|2", "MIX|3"]),
-            ($$"""{"type":"voucher","side":"credit","quantifier":"all","rules":[{{account}},{{text}}]}""", ["EMPTY|1", "MATCH|1", "MATCH|2"]),
-            ($$"""{"type":"voucher","side":"credit","quantifier":"none","rules":[{{account}},{{text}}]}""", ["NULL|1", "SPLIT|1", "SPLIT|2", "SPLIT|3", "ZERO|1"]),
-            ($$"""{"type":"voucher","side":"debit","quantifier":"all","rules":[{{text}}]}""", ["MATCH|1", "MATCH|2", "MIX|1", "MIX|2", "MIX|3", "SPLIT|1", "SPLIT|2", "SPLIT|3", "ZERO|1"]),
-            ($$"""{"type":"voucher","side":"debit","quantifier":"any","rules":[{{text}}]}""", ["MATCH|1", "MATCH|2", "MIX|1", "MIX|2", "MIX|3", "SPLIT|1", "SPLIT|2", "SPLIT|3", "ZERO|1"]),
-            ($$"""{"type":"voucher","side":"debit","quantifier":"none","rules":[{{text}}]}""", ["EMPTY|1", "NULL|1"]),
-            ($$"""{"type":"voucher","side":"all","quantifier":"any","rules":[{{text}}]}""", ["EMPTY|1", "MATCH|1", "MATCH|2", "MIX|1", "MIX|2", "MIX|3", "SPLIT|1", "SPLIT|2", "SPLIT|3", "ZERO|1"]),
-            ($$"""{"type":"voucher","side":"all","quantifier":"none","rules":[{{text}}]}""", ["NULL|1"]),
-            ($$"""{"type":"voucher","side":"all","quantifier":"all","rules":[{{text}}]}""", ["EMPTY|1", "MATCH|1", "MATCH|2", "ZERO|1"]),
+            ($$"""{"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"},{{account}},{{text}}]}""", ["EMPTY|1", "MATCH|1", "MATCH|2", "MIX|1", "MIX|2", "MIX|3"]),
+            ($$"""{"type":"group","rules":[{"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"}]},{"type":"voucher","quantifier":"all","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"group","join":"OR","rules":[{{account}},{{text}}]}]}]}""", ["EMPTY|1", "MATCH|1", "MATCH|2"]),
+            ($$"""{"type":"voucher","quantifier":"none","rules":[{"type":"drCrOnly","drCr":"credit"},{{account}},{{text}}]}""", ["NULL|1", "SPLIT|1", "SPLIT|2", "SPLIT|3", "ZERO|1"]),
+            ($$"""{"type":"group","rules":[{"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"debit"}]},{"type":"voucher","quantifier":"all","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"group","join":"OR","rules":[{{text}}]}]}]}""", ["MATCH|1", "MATCH|2", "MIX|1", "MIX|2", "MIX|3", "SPLIT|1", "SPLIT|2", "SPLIT|3", "ZERO|1"]),
+            ($$"""{"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"debit"},{{text}}]}""", ["MATCH|1", "MATCH|2", "MIX|1", "MIX|2", "MIX|3", "SPLIT|1", "SPLIT|2", "SPLIT|3", "ZERO|1"]),
+            ($$"""{"type":"voucher","quantifier":"none","rules":[{"type":"drCrOnly","drCr":"debit"},{{text}}]}""", ["EMPTY|1", "NULL|1"]),
+            ($$"""{"type":"voucher","quantifier":"any","rules":[{{text}}]}""", ["EMPTY|1", "MATCH|1", "MATCH|2", "MIX|1", "MIX|2", "MIX|3", "SPLIT|1", "SPLIT|2", "SPLIT|3", "ZERO|1"]),
+            ($$"""{"type":"voucher","quantifier":"none","rules":[{{text}}]}""", ["NULL|1"]),
+            ($$"""{"type":"voucher","quantifier":"all","rules":[{{text}}]}""", ["EMPTY|1", "MATCH|1", "MATCH|2", "ZERO|1"]),
             ($$"""{"type":"group","rules":[{"type":"fieldValue","field":"accNum","operator":"equals","value":"A"},{"type":"group","rules":[{{text}},{"join":"OR","type":"fieldValue","field":"description","operator":"isBlank"}]}]}""", ["MATCH|1", "MIX|1", "NULL|1", "SPLIT|1", "ZERO|1"])
         };
         foreach (var (rule, expected) in cases)

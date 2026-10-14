@@ -40,7 +40,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         JetAuditProgram.RequireGlMapping(glMapping is not null);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var approvalMode = glMapping.GlOptions?.ApprovalDateMode
                            ?? GlMappingOptions.NormalizeLegacy(glMapping.Mapping).ApprovalDateMode;
@@ -72,9 +72,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 HasRevenue: accountMappingState?.HasRevenue ?? false,
                 HasCounterpart: accountMappingState?.HasCounterpart ?? false,
                 HasAuthorizedPreparers: hasAuthorizedPreparers,
-                NonWorkingDays: document.NonWorkingDays,
-                HasVoucherDate: glMapping.Mapping.TryGetValue(GlMappingKeys.VoucherDate, out var voucherSource)
-                    && !string.IsNullOrWhiteSpace(voucherSource)));
+                NonWorkingDays: document.NonWorkingDays));
         var facts = await repositories.PrescreenFacts.ExecuteAsync(plan, cancellationToken);
         var prescreen = JetAuditProgram.Finalize(plan, facts);
         var positioning = JetAuditProgram.RenderPrescreenPositioning();
@@ -154,7 +152,6 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 status = Verdict(runManifest, "blank_description").Status!,
                 count = result.BlankDescriptionCount
             },
-            backdatedPosting = RuleStatus(result.BackdatedPostingCount, Verdict(runManifest, "backdated_posting")),
             nonAuthorizedPreparer = RuleStatus(result.NonAuthorizedPreparerCount, nonAuthorizedPreparer),
             lowFrequencyPreparer = RuleStatus(result.LowFrequencyPreparerCount, Verdict(runManifest, "low_frequency_preparer")),
             lowFrequencyAccount = new

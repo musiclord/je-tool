@@ -6,6 +6,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose input; keep independent hit, amount, and report assertions.
+
 public sealed class Batch8PreparationDateReadbackTests
 {
     [Theory]
@@ -82,7 +84,7 @@ public sealed class Batch8PreparationDateReadbackTests
             lastPeriodStart: "2025-06-15", databaseProvider: provider);
         var scenario = JsonElement.Parse("""
             {"name":"合成巢狀日期","rationale":"固定全文","groups":[{"rules":[
-                {"type":"voucher","side":"all","quantifier":"any","rules":[
+                {"type":"voucher","quantifier":"any","rules":[
                     {"type":"group","rules":[{"type":"prescreen","prescreenKey":"postPeriodApproval"}]}
                 ]}
             ]}]}

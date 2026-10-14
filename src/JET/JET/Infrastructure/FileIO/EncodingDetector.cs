@@ -28,9 +28,7 @@ public static class EncodingDetector
             "utf-8" => StrictUtf8(),
             "big5" => StrictBig5(),
             "utf-16" => Encoding.Unicode,
-            _ => throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"encoding '{encodingName}' 無效，允許值：utf-8、big5、utf-16。")
+            _ => throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "encoding_invalid")
         };
     }
 

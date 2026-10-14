@@ -52,7 +52,7 @@ public sealed class HostOpenFolderHandler(
         {
             throw new JetActionException(
                 JetErrorCodes.ArtifactNotFound,
-                "找不到這份報告的檔案，可能已被移動或刪除；重新匯出即可。");
+                ReportArtifactMessages.FileMissing);
         }
 
         await hostShell.RevealInExplorerAsync(path, cancellationToken);
@@ -60,7 +60,5 @@ public sealed class HostOpenFolderHandler(
     }
 
     private static JetActionException InvalidTarget()
-        => new(
-            JetErrorCodes.InvalidPayload,
-            "payload 必須且只能提供 'artifactId' 或 target='projectFolder'，且不得包含路徑或其他欄位。");
+        => JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "open_folder_target_shape");
 }

@@ -28,8 +28,9 @@ public sealed class Batch9ParsingWorkflowTests
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, "signed", rde));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        Assert.StartsWith("65 列無法轉換", error.Message, StringComparison.Ordinal);
-        Assert.Contains("以下只列出部分來源與列號，未列出的錯誤仍計入總數。", error.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
+        Assert.Contains("以下僅列出部分的值與列號。", error.Message, StringComparison.Ordinal);
         var detail = Assert.Single(error.Details!);
         Assert.Equal(source, detail.SourceColumn);
         if (source == "BadAmount") Assert.Contains("second.xlsx 第 2、3、4、5、6 列", detail.Message, StringComparison.Ordinal);

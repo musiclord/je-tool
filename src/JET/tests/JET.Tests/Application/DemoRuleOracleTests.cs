@@ -74,8 +74,8 @@ public sealed class DemoRuleOracleTests
 
         // descNull 摘要空白:僅借方行空白(張數 = 列數)。
         Assert.Equal((long)DemoDataFactory.BlankDescriptionVouchers, Count(p, "blankDescription"));
-        // R9 回溯過帳:兩行皆命中(同傳票日期)。
-        Assert.Equal(Lines(DemoDataFactory.BackdatedVouchers), Count(p, "backdatedPosting"));
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：預篩選結果不再有 backdatedPosting。
+        Assert.False(p.TryGetProperty("backdatedPosting", out _));
         // R10 非授權編製人員:兩行同 created_by 皆命中。
         Assert.Equal(Lines(DemoDataFactory.NonAuthorizedVouchers), Count(p, "nonAuthorizedPreparer"));
         // R11 低頻編製者:兩行同 created_by 皆命中。
@@ -95,7 +95,7 @@ public sealed class DemoRuleOracleTests
         foreach (var key in new[]
         {
             "postPeriodApproval", "suspiciousKeywords", "unexpectedAccountPair", "trailingZeros",
-            "blankDescription", "backdatedPosting", "nonAuthorizedPreparer",
+            "blankDescription", "nonAuthorizedPreparer",
             "lowFrequencyPreparer", "lowFrequencyAccount"
         })
         {
@@ -131,23 +131,6 @@ public sealed class DemoRuleOracleTests
 
         Assert.Equal(recount, Count(p, "trailingZeros"));
         Assert.Equal(Lines(DemoDataFactory.TrailingZerosVouchers), recount);
-    }
-
-    [Fact]
-    public async Task Prescreen_Backdated_IndependentRecountMatches()
-    {
-        using var host = new HandlerTestHost();
-        var (p, ctx) = await RunPrescreenAsync(host);
-
-        // 述詞用「post_date < voucher_date」;此處改以 julianday 日差 > 0 表達「傳票日期晚於總帳入帳日」,
-        // 語意同義、寫法獨立(seed 為過帳日 +3 天)。
-        var recount = await DemoProjectPipeline.QueryScalarAsync(
-            host, ctx.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry " +
-            "WHERE voucher_date IS NOT NULL AND julianday(voucher_date) - julianday(post_date) > 0;");
-
-        Assert.Equal(recount, Count(p, "backdatedPosting"));
-        Assert.Equal(Lines(DemoDataFactory.BackdatedVouchers), recount);
     }
 
     [Fact]
@@ -309,7 +292,7 @@ public sealed class DemoRuleOracleTests
             Assert.Equal((long)DemoDataFactory.SuspiciousKeywordVouchers, Count(p, "suspiciousKeywords"));
             Assert.Equal((long)DemoDataFactory.UnexpectedPairVouchers, Count(p, "unexpectedAccountPair"));
             Assert.Equal(Lines(DemoDataFactory.TrailingZerosVouchers), Count(p, "trailingZeros"));
-            Assert.Equal(Lines(DemoDataFactory.BackdatedVouchers), Count(p, "backdatedPosting"));
+            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，此處不再檢查 backdatedPosting。
             Assert.Equal(Lines(DemoDataFactory.NonAuthorizedVouchers), Count(p, "nonAuthorizedPreparer"));
             Assert.Equal(Lines(DemoDataFactory.LowFrequencyPreparerVouchers), Count(p, "lowFrequencyPreparer"));
             Assert.Equal(
@@ -392,7 +375,7 @@ public sealed class DemoRuleOracleTests
         Assert.Equal((long)DemoDataFactory.SuspiciousKeywordVouchers, Count(p, "suspiciousKeywords"));
         Assert.Equal((long)DemoDataFactory.UnexpectedPairVouchers, Count(p, "unexpectedAccountPair"));
         Assert.Equal(Lines(DemoDataFactory.TrailingZerosVouchers), Count(p, "trailingZeros"));
-        Assert.Equal(Lines(DemoDataFactory.BackdatedVouchers), Count(p, "backdatedPosting"));
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，此處不再檢查 backdatedPosting。
         Assert.Equal(Lines(DemoDataFactory.NonAuthorizedVouchers), Count(p, "nonAuthorizedPreparer"));
         Assert.Equal(Lines(DemoDataFactory.LowFrequencyPreparerVouchers), Count(p, "lowFrequencyPreparer"));
         Assert.Equal(

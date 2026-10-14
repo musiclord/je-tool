@@ -123,7 +123,6 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             line_item_numeric_sort_key TEXT NULL,
             post_date             TEXT NULL,
             approval_date         TEXT NULL,
-            voucher_date          TEXT NULL,
             account_code          TEXT NULL,
             account_name          TEXT NULL,
             document_description  TEXT NULL,
@@ -219,10 +218,11 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
 
         -- 前端「狀態與訊息」的保存處，由 log.append 寫入、log.recent 讀取。
         -- 只是操作輔助紀錄，不是審計留痕；用 IF NOT EXISTS 新增，不需升 schema 版本，既有資料庫開啟時自動補上。
+        -- 等級限制在第 12 版加上 error（訊息分三級），既有資料庫由 MessageLogLevelMigration 重建這張表。
         CREATE TABLE IF NOT EXISTS app_message_log (
             message_id   INTEGER PRIMARY KEY AUTOINCREMENT,
             occurred_utc TEXT NOT NULL,
-            level        TEXT NOT NULL CHECK (level IN ('info','warn')),
+            level        TEXT NOT NULL CHECK (level IN ('info','warn','error')),
             text         TEXT NOT NULL
         );
 
@@ -503,8 +503,24 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             version = "10";
         }
         if (version == "10")
+        {
             await AccountTaxonomyHierarchy.UpgradeLocalAsync(connection, cancellationToken);
+            version = "11";
+        }
+        if (version == "11")
+            await MessageLogLevelMigration.UpgradeLocalAsync(connection, MessageLogTableSql, cancellationToken);
     }
+
+    /// <summary>第 12 版的訊息紀錄表；和 <see cref="SchemaSql"/> 的建表語句相同，升版時用來重建舊表。</summary>
+    private const string MessageLogTableSql =
+        """
+        CREATE TABLE app_message_log (
+            message_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+            occurred_utc TEXT NOT NULL,
+            level        TEXT NOT NULL CHECK (level IN ('info','warn','error')),
+            text         TEXT NOT NULL
+        )
+        """;
 
     private static async Task MigrateV8ToV9Async(
         DbConnection connection,

@@ -20,7 +20,7 @@ public static class ProjectMetadataRules
         var preparation = DateOnly.ParseExact(lastPeriodStart, "yyyy-MM-dd", CultureInfo.InvariantCulture);
         // DateOnly.AddYears 保留月日，閏日落在非閏年時用二月最後一天；最大年份不再加一年。
         if (preparation < start || (end.Year < 9999 && preparation > end.AddYears(1)))
-            return ["期末財報準備日明顯偏離查核期間，請確認年份是否正確。此提醒不影響儲存或後續操作。"];
+            return ["期末財報準備日與查核期間不相符，請確認年份；不影響後續操作。"]; // 使用者 2026-10-13 勾選頁確認
         return [];
     }
 }

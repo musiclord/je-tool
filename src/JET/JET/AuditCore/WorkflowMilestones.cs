@@ -15,6 +15,9 @@ internal static class WorkflowMilestones
         "validate.run" => 4,
         "prescreen.run" => 4,
         "filter.commit" => 5,
+        "filter.scenario.save" => 5,
+        "filter.scenario.remove" => 5,
+        "filter.scenario.recheck" => 5,
         _ => throw new InvalidOperationException(
             $"動作 '{actionName}' 沒有登錄自動推進的步驟。")
     };

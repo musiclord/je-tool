@@ -194,7 +194,9 @@ public sealed class DualSourceProjectTests
                     "project.load", $$"""{ "projectId": "{{name}}", "databaseProvider": "sqlServer" }"""));
 
             Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-            Assert.Contains("INF 抽樣種子", exception.Message, StringComparison.Ordinal);
+            // 使用者 2026-10-14 第三輪勾選頁確認 R3-51。SQL Server 只經編譯，這個測試在 Provider 路線，這一批沒有執行。
+            Assert.Contains("設定檔中的抽樣設定已損壞", exception.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("INF 抽樣種子", exception.Message, StringComparison.Ordinal);
             Assert.Contains("不會重新產生", exception.Message, StringComparison.Ordinal);
             Assert.False(Directory.Exists(Path.Combine(host.ProjectsRoot, name)));
         }

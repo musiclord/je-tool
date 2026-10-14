@@ -16,7 +16,7 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
 
-    private static readonly string[] GlExcludedEntryColumns =
+    private static readonly string[] GlExcludedColumns =
     [
         "documentNumber", "lineItem", "postDate", "postingStatus", "accountCode", "accountName",
         "documentDescription", "amount", "drCr", "exclusionReason"
@@ -52,11 +52,11 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
 
         return dataset switch
         {
-            DataPreviewDataset.GlStaging => await StagingPreviewAsync(connection, projectId, "gl", "staging_gl_raw_row", limit, cancellationToken),
-            DataPreviewDataset.TbStaging => await StagingPreviewAsync(connection, projectId, "tb", "staging_tb_raw_row", limit, cancellationToken),
-            DataPreviewDataset.GlEntries => await GlEntriesPreviewAsync(connection, projectId, moneyScale, limit, cancellationToken),
-            DataPreviewDataset.GlExcludedEntries => await GlExcludedEntriesPreviewAsync(connection, projectId, moneyScale, limit, cancellationToken),
-            DataPreviewDataset.TbBalances => await TbBalancesPreviewAsync(connection, projectId, moneyScale, limit, cancellationToken),
+            DataPreviewDataset.PbcGl => await StagingPreviewAsync(connection, projectId, "gl", "staging_gl_raw_row", limit, cancellationToken),
+            DataPreviewDataset.PbcTb => await StagingPreviewAsync(connection, projectId, "tb", "staging_tb_raw_row", limit, cancellationToken),
+            DataPreviewDataset.Gl => await GlPreviewAsync(connection, projectId, moneyScale, limit, cancellationToken),
+            DataPreviewDataset.GlExcluded => await GlExcludedPreviewAsync(connection, projectId, moneyScale, limit, cancellationToken),
+            DataPreviewDataset.Tb => await TbPreviewAsync(connection, projectId, moneyScale, limit, cancellationToken),
             DataPreviewDataset.AccountMappings => await AccountMappingsPreviewAsync(connection, projectId, limit, cancellationToken),
             DataPreviewDataset.AuthorizedPreparers => await AuthorizedPreparersPreviewAsync(connection, projectId, limit, cancellationToken),
             DataPreviewDataset.DateDimension => await DateDimensionPreviewAsync(connection, projectId, limit, cancellationToken),
@@ -202,11 +202,11 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
         return new DataPreviewResult(columns, rows, totalCount, null);
     }
 
-    private async Task<DataPreviewResult> GlEntriesPreviewAsync(
+    private async Task<DataPreviewResult> GlPreviewAsync(
         SqlConnection connection, string projectId, int moneyScale, int limit, CancellationToken cancellationToken)
     {
         long totalCount;
-        GlEntriesPreviewStats? stats = null;
+        GlPreviewStats? stats = null;
 
         await using (var statsQuery = database.CreateCommand(connection, projectId,
             $$"""
@@ -226,7 +226,7 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
 
             if (totalCount > 0)
             {
-                stats = new GlEntriesPreviewStats(
+                stats = new GlPreviewStats(
                     ToDisplayAmount(reader.GetInt64(2), moneyScale),
                     ToDisplayAmount(reader.GetInt64(3), moneyScale),
                     reader.IsDBNull(4) ? null : reader.GetString(4),
@@ -271,10 +271,10 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
             }
         }
 
-        return new DataPreviewResult(DataPreviewColumns.GlEntries, rows, totalCount, stats);
+        return new DataPreviewResult(DataPreviewColumns.Gl, rows, totalCount, stats);
     }
 
-    private async Task<DataPreviewResult> GlExcludedEntriesPreviewAsync(
+    private async Task<DataPreviewResult> GlExcludedPreviewAsync(
         SqlConnection connection,
         string projectId,
         int moneyScale,
@@ -304,7 +304,7 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
             excludedByPostingStatusCount = reader.GetInt64(2);
         }
 
-        var stats = new GlExcludedEntriesPreviewStats(
+        var stats = new GlExcludedPreviewStats(
             excludedByPeriodCount,
             excludedByPostingStatusCount);
         var rows = new List<IReadOnlyList<string?>>();
@@ -340,10 +340,10 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
             }
         }
 
-        return new DataPreviewResult(GlExcludedEntryColumns, rows, totalCount, stats);
+        return new DataPreviewResult(GlExcludedColumns, rows, totalCount, stats);
     }
 
-    private async Task<DataPreviewResult> TbBalancesPreviewAsync(
+    private async Task<DataPreviewResult> TbPreviewAsync(
         SqlConnection connection, string projectId, int moneyScale, int limit, CancellationToken cancellationToken)
     {
         long totalCount;

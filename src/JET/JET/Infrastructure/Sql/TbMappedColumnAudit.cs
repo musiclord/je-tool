@@ -30,10 +30,7 @@ internal static class TbMappedColumnAudit
         {
             if (Convert.ToInt64(reader.GetValue(index)) != 0) continue;
             var (fieldKey, _, friendly) = RequiredTextColumns[index];
-            warnings.Add(spec.Mapping.TryGetValue(fieldKey, out var source) && !string.IsNullOrWhiteSpace(source)
-                ? $"必填欄「{friendly}」配對到的來源欄「{source}」整欄空白，疑似配錯欄位"
-                  + "（例如來源有重複標頭、其中一欄為空），請回欄位配對確認。"
-                : $"必填欄「{friendly}」整欄空白，請回欄位配對確認是否配錯欄位。");
+            warnings.Add(GlMappedColumnAudit.BlankColumnWarning(friendly, spec.Mapping.GetValueOrDefault(fieldKey)));
         }
         return warnings;
     }

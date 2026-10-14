@@ -8,7 +8,8 @@ internal sealed record AuditMutationEffects(
     bool InvalidatePrescreen,
     bool InvalidateFilterHits,
     bool InvalidateFilterScenarioDefinitions,
-    bool ClearGlControlTotal)
+    bool ClearGlControlTotal,
+    bool ClearAccountMapping)
 {
     internal static AuditMutationEffects For(AuditMutation mutation)
     {
@@ -18,7 +19,8 @@ internal sealed record AuditMutationEffects(
             impact.InvalidatePrescreen,
             impact.InvalidateFilterHits,
             impact.InvalidateFilterScenarioDefinitions,
-            impact.ClearGlControlTotal);
+            impact.ClearGlControlTotal,
+            impact.ClearAccountMapping);
     }
 }
 
@@ -259,15 +261,15 @@ internal sealed class AccountMappingProjection
         {
             throw new JetActionException(
                 JetErrorCodes.EmptyWorkbook,
-                $"檔案 '{fileName}' 沒有任何資料列。");
+                $"檔案「{fileName}」沒有任何資料列。");
         }
 
         if (errorCount > 0)
         {
-            var message = failureStyle == AccountMappingFailureStyle.SqlServer
-                ? $"科目配對檔有 {errorCount} 列無法轉換(整批已還原):{string.Join(" ", firstErrors)}"
-                : $"科目配對檔有 {errorCount} 列無法轉換（整批已還原）：{string.Join(" ", firstErrors)}";
-            throw new JetActionException(JetErrorCodes.ProjectionFailed, message);
+            // 使用者 2026-10-13 勾選頁確認：SQL Server 與本機用同一句全形標點的句子，failureStyle 不再影響文字。
+            throw new JetActionException(
+                JetErrorCodes.ProjectionFailed,
+                $"科目配對檔有 {errorCount} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
         }
 
         return projected.Values.ToArray();
@@ -300,8 +302,9 @@ internal sealed record AccountMappingResult(
             var columns = AccountMappingColumnMatcher.ResolveDetailed(Import.Columns);
             var positional = new[] { (columns.Code, "科目編號"), (columns.Name, "科目名稱"), (columns.Category, "科目分類") }
                 .Where(item => item.Item1.Method == AccountMappingColumnResolver.MatchMethod.Position)
-                .Select(item => $"「{item.Item1.Column}」當成{item.Item2}").ToArray();
-            return positional.Length == 0 ? null : "部分欄名無法辨識，這次依欄位順序將" + string.Join("、", positional) + "。請確認科目配對預覽。";
+                .Select(item => $"「{item.Item1.Column}」為{item.Item2}").ToArray();
+            // 使用者 2026-10-13 勾選頁確認的句子。
+            return positional.Length == 0 ? null : "部分欄名無法辨識，已依欄位順序對應：" + string.Join("、", positional) + "。請確認科目配對預覽。";
         }
     }
 }
@@ -374,7 +377,7 @@ internal sealed class AuthorizedPreparerProjection
         {
             throw new JetActionException(
                 JetErrorCodes.EmptyWorkbook,
-                $"檔案 '{fileName}' 沒有任何資料列。");
+                $"檔案「{fileName}」沒有任何資料列。");
         }
 
         if (names.Count == 0)
@@ -577,9 +580,7 @@ public static partial class JetAuditProgram
             ? IntakeOperation.Append
             : request.Mode.Equals("replace", StringComparison.OrdinalIgnoreCase)
                 ? IntakeOperation.Replace
-                : throw new JetActionException(
-                    JetErrorCodes.UnsupportedMode,
-                    $"匯入 mode '{request.Mode}' 無效，允許值：replace、append。");
+                : throw JetPayloadRejection.Create(JetErrorCodes.UnsupportedMode, "import_mode_invalid");
 
         if (request.Sources is null || request.Sources.Count == 0)
         {
@@ -594,14 +595,14 @@ public static partial class JetAuditProgram
             {
                 throw new JetActionException(
                     JetErrorCodes.FileNotFound,
-                    $"找不到檔案 '{Path.GetFileName(source.FilePath)}'。");
+                    $"找不到檔案「{Path.GetFileName(source.FilePath)}」。");
             }
 
             if (!source.ReaderSupports)
             {
                 throw new JetActionException(
                     JetErrorCodes.UnsupportedFileType,
-                    $"不支援檔案 '{Path.GetFileName(source.FilePath)}' 的類型 '{ExtensionOf(source.FilePath)}'，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
+                    $"不支援檔案「{Path.GetFileName(source.FilePath)}」的類型「{ExtensionOf(source.FilePath)}」，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
             }
         }
 
@@ -637,9 +638,8 @@ public static partial class JetAuditProgram
             return amountMode;
         }
 
-        throw new JetActionException(
-            JetErrorCodes.UnsupportedMode,
-            $"amountMode '{amountModeName}' 無效，允許值：signed、side、flag、dual。");
+        // 允許值：signed、side、flag、dual。畫面送不出其他值，所以只記檢查代號（使用者 2026-10-13 裁定）。
+        throw JetPayloadRejection.Create(JetErrorCodes.UnsupportedMode, "amount_mode_unknown");
     }
 
     internal static TbChangeMode ParseTbChangeMode(string changeModeName)
@@ -649,9 +649,8 @@ public static partial class JetAuditProgram
             return changeMode;
         }
 
-        throw new JetActionException(
-            JetErrorCodes.UnsupportedMode,
-            $"changeMode '{changeModeName}' 無效，允許值：direct、debitCredit、openClose、openCloseBySide。");
+        // 允許值：direct、debitCredit、openClose、openCloseBySide。畫面送不出其他值，所以只記檢查代號（使用者 2026-10-13 裁定）。
+        throw JetPayloadRejection.Create(JetErrorCodes.UnsupportedMode, "change_mode_unknown");
     }
 
     internal static GlMappingPlan Plan(GlMappingRequest request)
@@ -662,17 +661,18 @@ public static partial class JetAuditProgram
         if (validation.MissingRequiredKeys.Any(key => key is GlMappingKeys.DcDebitCode or GlMappingKeys.DcCreditCode))
         {
             throw new JetActionException(JetErrorCodes.MissingRequiredMapping,
-                "借方代碼與貸方代碼都必須填寫。請回到第三步，填齊兩個代碼後再確認配對。",
+                "借方代碼或貸方代碼至少填寫一個。",
                 field: validation.MissingRequiredKeys.Contains(GlMappingKeys.DcCreditCode)
                     ? GlMappingKeys.DcCreditCode : GlMappingKeys.DcDebitCode);
         }
-        EnsureMappingValid(validation);
+        EnsureMappingValid(validation, JetFieldCatalog.GlMappingSlots);
         if (request.AmountMode is GlAmountMode.AmountWithSide or GlAmountMode.AmountWithFlag
-            && string.Equals(request.Mapping[GlMappingKeys.DcDebitCode].Trim(),
-                request.Mapping[GlMappingKeys.DcCreditCode].Trim(), StringComparison.OrdinalIgnoreCase))
+            && request.Mapping.TryGetValue(GlMappingKeys.DcDebitCode, out var debitCode) && !string.IsNullOrWhiteSpace(debitCode)
+            && request.Mapping.TryGetValue(GlMappingKeys.DcCreditCode, out var creditCode) && !string.IsNullOrWhiteSpace(creditCode)
+            && string.Equals(debitCode.Trim(), creditCode.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             throw new JetActionException(JetErrorCodes.InvalidPayload,
-                "借方代碼與貸方代碼不能相同。請回到第三步，分別填寫來源資料的兩種代碼後再確認配對。",
+                "借方與貸方代碼必須不同。",
                 field: GlMappingKeys.DcCreditCode);
         }
         var postingStatusMapped = request.Mapping.TryGetValue(
@@ -690,7 +690,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
-                "過帳狀態的設定與欄位配對不一致，這次欄位配對沒有儲存。請回第三步欄位配對重新選擇過帳狀態欄位與納入值。",
+                "過帳狀態欄位與要納入的值不一致，請重新選擇。",
                 innerException: exception);
         }
 
@@ -708,7 +708,7 @@ public static partial class JetAuditProgram
         catch (ArgumentException exception) when (exception.Data[ManualAutoPolicyErrors.OverlapValueKey] is string)
         {
             var overlap = (string)exception.Data[ManualAutoPolicyErrors.OverlapValueKey]!;
-            var message = $"值「{overlap}」同時列在人工與自動。請回到欄位配對，讓這個值只屬於其中一側，再重新確認。";
+            var message = $"「{overlap}」同時列在人工和自動，請只留在其中一邊。";
             throw new JetActionException(JetErrorCodes.InvalidPayload, message, innerException: exception)
             {
                 Details = [new JetErrorDetail(null, null, message)
@@ -722,7 +722,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
-                "欄位配對的進階設定有不一致的地方，這次欄位配對沒有儲存。請回第三步欄位配對檢查核准日期、人工與自動分錄，以及攸關資料元素欄位的設定。",
+                "傳票核准日、人工與自動分錄或攸關資料元素欄位的設定互相衝突，請檢查這幾項。",
                 innerException: exception);
         }
 
@@ -743,7 +743,7 @@ public static partial class JetAuditProgram
     {
         ArgumentNullException.ThrowIfNull(request);
         var spec = new TbMappingSpec(request.Mapping, request.ChangeMode);
-        EnsureMappingValid(MappingValidator.ValidateTb(spec, request.SourceColumns));
+        EnsureMappingValid(MappingValidator.ValidateTb(spec, request.SourceColumns), JetFieldCatalog.TbMappingSlots);
         return new TbMappingPlan(
             request,
             spec,
@@ -771,9 +771,7 @@ public static partial class JetAuditProgram
     internal static AccountMappingPlan Plan(AccountMappingRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RequireReplaceOnly(
-            request.Mode,
-            $"科目配對匯入 mode '{request.Mode}' 無效，僅允許 replace（整份替換的設定檔，不做多來源合併）。");
+        RequireReplaceOnly(request.Mode, "account_mapping_mode_not_replace");
         RequireFile(request.FilePath, request.FileExists);
         if (request.Extension is not (".xlsx" or ".csv"))
         {
@@ -799,9 +797,7 @@ public static partial class JetAuditProgram
     internal static AuthorizedPreparerPlan Plan(AuthorizedPreparerRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RequireReplaceOnly(
-            request.Mode,
-            $"授權編製人員清單匯入 mode '{request.Mode}' 無效，僅允許 replace（整份替換的設定檔，不做多來源合併）。");
+        RequireReplaceOnly(request.Mode, "authorized_preparer_mode_not_replace");
         RequireFile(request.FilePath, request.FileExists);
         if (request.Extension != ".xlsx")
         {
@@ -833,9 +829,7 @@ public static partial class JetAuditProgram
                     DateTimeStyles.None,
                     out _))
             {
-                throw new JetActionException(
-                    JetErrorCodes.InvalidPayload,
-                    $"dates 內含無效日期 '{date}'，必須是 yyyy-MM-dd 格式。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "calendar_date_invalid");
             }
 
             if (seen.Add(date))
@@ -908,7 +902,7 @@ public static partial class JetAuditProgram
         var dateColumn = FindColumn(columns, dateKey)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
-                $"行事曆檔需含「{dateKey}」欄。");
+                $"檔案缺少「{dateKey}」欄，請確認所選檔案。");
         var nameColumn = FindColumn(columns, nameKey);
         var flagColumn = flagKey is null ? null : FindColumn(columns, flagKey);
 
@@ -921,7 +915,7 @@ public static partial class JetAuditProgram
             var date = rawDate?.Trim();
             if (string.IsNullOrEmpty(date))
             {
-                errors.Add($"第 {row.SourceRowNumber} 列:日期空白。");
+                errors.Add($"第 {row.SourceRowNumber} 列：日期空白");
                 continue;
             }
 
@@ -933,7 +927,7 @@ public static partial class JetAuditProgram
                     out _))
             {
                 errors.Add(
-                    $"第 {row.SourceRowNumber} 列:日期「{date}」非 yyyy-MM-dd 格式。");
+                    $"第 {row.SourceRowNumber} 列：日期「{date}」不是 2026-12-31 這種格式");
                 continue;
             }
 
@@ -967,7 +961,7 @@ public static partial class JetAuditProgram
             var detail = string.Join("；", errors.Take(10));
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
-                $"行事曆檔有 {errors.Count} 列無法解析:{detail}");
+                $"檔案有 {errors.Count} 列無法讀取：{detail}");
         }
 
         return collected;
@@ -1019,20 +1013,23 @@ public static partial class JetAuditProgram
         return new CaseCreateResult(facts.Document);
     }
 
-    private static void EnsureMappingValid(MappingValidationResult validation)
+    // 使用者 2026-10-13 勾選頁確認：缺少的必填欄寫畫面上的欄位名稱，不寫程式代號。
+    private static void EnsureMappingValid(MappingValidationResult validation, IReadOnlyList<JetMappingSlot> slots)
     {
         if (validation.MissingRequiredKeys.Count > 0)
         {
+            var labels = validation.MissingRequiredKeys.Select(key =>
+                slots.FirstOrDefault(slot => string.Equals(slot.Key, key, StringComparison.Ordinal))?.Label ?? key);
             throw new JetActionException(
                 JetErrorCodes.MissingRequiredMapping,
-                $"欄位配對缺少必填欄位：{string.Join("、", validation.MissingRequiredKeys)}。請回第三步欄位配對重新選擇。");
+                $"尚有必填欄位未選擇來源欄：{string.Join("、", labels)}。");
         }
 
         if (validation.UnknownColumns.Count > 0)
         {
             throw new JetActionException(
                 JetErrorCodes.MappingColumnNotFound,
-                $"欄位配對選到的來源欄位已不在匯入的資料中：{string.Join("、", validation.UnknownColumns)}。請回第三步欄位配對重新選擇。");
+                $"所選來源欄已不在本次匯入的資料中：{string.Join("、", validation.UnknownColumns)}，請重新選擇。");
         }
     }
 
@@ -1073,13 +1070,14 @@ public static partial class JetAuditProgram
             AuditMutationEffects.For(AuditMutation.Calendar));
     }
 
+    // 畫面只送 replace；其他值只有程式送錯資料才會出現（使用者 2026-10-14 第三輪勾選頁確認 R3-65）。
     private static void RequireReplaceOnly(
         string mode,
-        string errorMessage)
+        string check)
     {
         if (!mode.Equals("replace", StringComparison.OrdinalIgnoreCase))
         {
-            throw new JetActionException(JetErrorCodes.UnsupportedMode, errorMessage);
+            throw JetPayloadRejection.Create(JetErrorCodes.UnsupportedMode, check);
         }
     }
 
@@ -1089,7 +1087,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.FileNotFound,
-                $"找不到檔案 '{Path.GetFileName(filePath)}'。");
+                $"找不到檔案「{Path.GetFileName(filePath)}」。");
         }
     }
 

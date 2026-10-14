@@ -13,13 +13,6 @@ public sealed class GlFieldWhitelistTests
     }
 
     [Fact]
-    public void TryResolve_VoucherDate_MapsToVoucherDateColumn()
-    {
-        Assert.True(GlFieldWhitelist.TryResolve("voucherDate", out var column));
-        Assert.Equal(new GlFieldColumn("voucher_date", GlFieldKind.Date), column);
-    }
-
-    [Fact]
     public void TryResolve_Amount_IsAmountKind()
     {
         Assert.True(GlFieldWhitelist.TryResolve("amount", out var column));
@@ -49,7 +42,6 @@ public sealed class GlFieldWhitelistTests
             ["lineID"] = new("line_item", GlFieldKind.Text),
             ["postDate"] = new("post_date", GlFieldKind.Date),
             ["docDate"] = new("approval_date", GlFieldKind.Date),
-            ["voucherDate"] = new("voucher_date", GlFieldKind.Date),
             ["accNum"] = new("account_code", GlFieldKind.Text),
             ["accName"] = new("account_name", GlFieldKind.Text),
             ["description"] = new("document_description", GlFieldKind.Text),

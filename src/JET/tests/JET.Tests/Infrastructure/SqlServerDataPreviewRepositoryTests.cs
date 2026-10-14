@@ -13,16 +13,17 @@ namespace JET.Tests.Infrastructure;
 public sealed class SqlServerDataPreviewRepositoryTests
 {
     [SqlServerFact]
-    public async Task GetPreviewAsync_GlStaging_ReturnsLatestBatchColumnsRowsAndTotalCount()
+    public async Task GetPreviewAsync_PbcGl_ReturnsLatestBatchColumnsRowsAndTotalCount()
     {
         await using var project = await TempSqlServerProject.TryCreateAsync();
         Assert.NotNull(project);
         await SeedPreviewDataAsync(project.Database, project.ProjectId);
         var repository = new SqlServerDataPreviewRepository(project.Database);
 
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
         var result = await repository.GetPreviewAsync(
             project.ProjectId,
-            DataPreviewDataset.GlStaging,
+            DataPreviewDataset.PbcGl,
             moneyScale: 10_000,
             limit: 1,
             CancellationToken.None);
@@ -36,7 +37,7 @@ public sealed class SqlServerDataPreviewRepositoryTests
 
 
     [SqlServerFact]
-    public async Task GetPreviewAsync_TbStaging_ReturnsLatestBatchColumnsRowsAndTotalCount()
+    public async Task GetPreviewAsync_PbcTb_ReturnsLatestBatchColumnsRowsAndTotalCount()
     {
         await using var project = await TempSqlServerProject.TryCreateAsync();
         Assert.NotNull(project);
@@ -45,7 +46,7 @@ public sealed class SqlServerDataPreviewRepositoryTests
 
         var result = await repository.GetPreviewAsync(
             project.ProjectId,
-            DataPreviewDataset.TbStaging,
+            DataPreviewDataset.PbcTb,
             moneyScale: 10_000,
             limit: 2,
             CancellationToken.None);
@@ -58,7 +59,7 @@ public sealed class SqlServerDataPreviewRepositoryTests
     }
 
     [SqlServerFact]
-    public async Task GetPreviewAsync_GlEntries_ReturnsScaledRowsAndStats()
+    public async Task GetPreviewAsync_Gl_ReturnsScaledRowsAndStats()
     {
         await using var project = await TempSqlServerProject.TryCreateAsync();
         Assert.NotNull(project);
@@ -67,7 +68,7 @@ public sealed class SqlServerDataPreviewRepositoryTests
 
         var result = await repository.GetPreviewAsync(
             project.ProjectId,
-            DataPreviewDataset.GlEntries,
+            DataPreviewDataset.Gl,
             moneyScale: 100,
             limit: 1,
             CancellationToken.None);
@@ -78,9 +79,9 @@ public sealed class SqlServerDataPreviewRepositoryTests
         Assert.Equal(2, result.TotalCount);
         var row = Assert.Single(result.Rows);
         Assert.Equal(["JV-100", "1", "2024-01-01", "1101", "現金", "借方", "1234.56", "DEBIT", "manual"], row);
-        var both = await repository.GetPreviewAsync(project.ProjectId, DataPreviewDataset.GlEntries, 100, 2, CancellationToken.None);
+        var both = await repository.GetPreviewAsync(project.ProjectId, DataPreviewDataset.Gl, 100, 2, CancellationToken.None);
         Assert.Equal("automatic", both.Rows[1][8]);
-        var stats = Assert.IsType<GlEntriesPreviewStats>(result.Stats);
+        var stats = Assert.IsType<GlPreviewStats>(result.Stats);
         Assert.Equal(25m, stats.AmountAbsMin);
         Assert.Equal(1234.56m, stats.AmountAbsMax);
         Assert.Equal("2024-01-01", stats.PostDateMin);
@@ -89,7 +90,7 @@ public sealed class SqlServerDataPreviewRepositoryTests
     }
 
     [SqlServerFact]
-    public async Task GetPreviewAsync_GlExcludedEntries_IsBoundedAndReturnsWireReasonsAndStats()
+    public async Task GetPreviewAsync_GlExcluded_IsBoundedAndReturnsWireReasonsAndStats()
     {
         await using var project = await TempSqlServerProject.TryCreateAsync();
         Assert.NotNull(project);
@@ -98,7 +99,7 @@ public sealed class SqlServerDataPreviewRepositoryTests
 
         var result = await repository.GetPreviewAsync(
             project.ProjectId,
-            DataPreviewDataset.GlExcludedEntries,
+            DataPreviewDataset.GlExcluded,
             moneyScale: 100,
             limit: 1,
             CancellationToken.None);
@@ -114,13 +115,13 @@ public sealed class SqlServerDataPreviewRepositoryTests
         Assert.Equal(
             ["JV-300", "1", null, "POSTED", "5200", "一般費用", "期外", "10", "DEBIT", "period"],
             row);
-        var stats = Assert.IsType<GlExcludedEntriesPreviewStats>(result.Stats);
+        var stats = Assert.IsType<GlExcludedPreviewStats>(result.Stats);
         Assert.Equal(1, stats.ExcludedByPeriodCount);
         Assert.Equal(1, stats.ExcludedByPostingStatusCount);
     }
 
     [SqlServerFact]
-    public async Task GetPreviewAsync_GlExcludedEntries_EmptyStillReturnsFixedColumnsAndZeroStats()
+    public async Task GetPreviewAsync_GlExcluded_EmptyStillReturnsFixedColumnsAndZeroStats()
     {
         await using var project = await TempSqlServerProject.TryCreateAsync();
         Assert.NotNull(project);
@@ -128,7 +129,7 @@ public sealed class SqlServerDataPreviewRepositoryTests
 
         var result = await repository.GetPreviewAsync(
             project.ProjectId,
-            DataPreviewDataset.GlExcludedEntries,
+            DataPreviewDataset.GlExcluded,
             moneyScale: 100,
             limit: 1,
             CancellationToken.None);
@@ -136,13 +137,13 @@ public sealed class SqlServerDataPreviewRepositoryTests
         Assert.Equal(10, result.Columns.Count);
         Assert.Empty(result.Rows);
         Assert.Equal(0, result.TotalCount);
-        var stats = Assert.IsType<GlExcludedEntriesPreviewStats>(result.Stats);
+        var stats = Assert.IsType<GlExcludedPreviewStats>(result.Stats);
         Assert.Equal(0, stats.ExcludedByPeriodCount);
         Assert.Equal(0, stats.ExcludedByPostingStatusCount);
     }
 
     [SqlServerFact]
-    public async Task GetPreviewAsync_TbBalances_ReturnsScaledRowsAndTotalCount()
+    public async Task GetPreviewAsync_Tb_ReturnsScaledRowsAndTotalCount()
     {
         await using var project = await TempSqlServerProject.TryCreateAsync();
         Assert.NotNull(project);
@@ -151,7 +152,7 @@ public sealed class SqlServerDataPreviewRepositoryTests
 
         var result = await repository.GetPreviewAsync(
             project.ProjectId,
-            DataPreviewDataset.TbBalances,
+            DataPreviewDataset.Tb,
             moneyScale: 100,
             limit: 1,
             CancellationToken.None);

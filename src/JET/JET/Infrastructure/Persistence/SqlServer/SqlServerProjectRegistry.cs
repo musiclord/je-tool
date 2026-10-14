@@ -89,7 +89,7 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                $"找不到線上專案 '{document.ProjectId}' 的登記資料。");
+                ProjectFolderMessages.ActiveProjectMissing);
         }
     }
 
@@ -221,12 +221,10 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
         }
         catch (JsonException ex) when (ProjectDocumentSeedIntegrity.IsSeedJsonPath(ex.Path))
         {
-            throw ProjectDocumentSeedIntegrity.Corruption(
-                "SQL Server registry 的 project_json",
-                "sampleSeed 或 sampleSeedVersion 的 JSON 格式不合法");
+            throw ProjectDocumentSeedIntegrity.Corruption(null);
         }
 
-        ProjectDocumentSeedIntegrity.Validate(document, "SQL Server registry 的 project_json");
+        ProjectDocumentSeedIntegrity.Validate(document, document.ProjectId);
         var createdUtc = new DateTimeOffset(reader.GetDateTime(1), TimeSpan.Zero);
         DateTimeOffset? lastOpenedUtc =
             reader.IsDBNull(2) ? null : new DateTimeOffset(reader.GetDateTime(2), TimeSpan.Zero);
@@ -301,7 +299,7 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
         {
             throw new JetActionException(
                 JetErrorCodes.SqlServerNotConfigured,
-                "未設定 SQL Server 連線。線上專案登記簿需要環境變數 JET_SQLSERVER_CONNECTION。");
+                SqlServerMessages.NotConfigured);
         }
 
         return new SqlConnectionStringBuilder(options.BaseConnectionString)

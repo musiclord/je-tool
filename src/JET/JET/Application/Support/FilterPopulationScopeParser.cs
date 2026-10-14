@@ -75,9 +75,7 @@ internal static class FilterPopulationScopeParser
     {
         if (scenarios.Count == 0)
         {
-            throw new JetActionException(
-                JetErrorCodes.StaleResult,
-                "目前沒有已儲存的篩選情境，請先到第五步儲存情境。");
+            throw NoSavedScenario();
         }
 
         GlPopulationScope? resolved = null;
@@ -115,9 +113,14 @@ internal static class FilterPopulationScopeParser
         return RequireCurrentRevision(scenarios).PopulationScope;
     }
 
-    /// <summary>沒有任何已存情境時的下一步說明；上游修改清除全部情境後最常遇到。</summary>
+    /// <summary>
+    /// 沒有任何已存情境時的原因；上游修改清除全部情境後最常遇到。畫面把錯誤代碼 no_saved_scenario 當成前置條件不足，
+    /// 寫成「〈作業名稱〉尚無法執行：〈原因〉。」（使用者 2026-10-14 第三輪勾選頁確認 R3-34，照已確認的 18）。
+    /// </summary>
     internal const string NoSavedScenarios =
-        "目前沒有已儲存的篩選情境。請到「進階條件篩選」設定並儲存情境，再執行這個動作。";
+        "尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境";
+
+    internal static JetActionException NoSavedScenario() => new(JetErrorCodes.NoSavedScenario, NoSavedScenarios);
 
     public static CurrentFilterRevision RequireCurrentRevision(
         IReadOnlyList<SavedFilterScenario> scenarios)
@@ -125,7 +128,7 @@ internal static class FilterPopulationScopeParser
         if (scenarios.Count == 0)
         {
             // 使用者 2026-10-07 裁定上游修改清除下游後，沒有情境是常見狀態，不能誤導成「尚未套用目前規則」。
-            throw new JetActionException(JetErrorCodes.StaleResult, NoSavedScenarios);
+            throw NoSavedScenario();
         }
 
         if (!RuleLogicVersions.AreCurrent(scenarios))
@@ -158,9 +161,7 @@ internal static class FilterPopulationScopeParser
             positions);
     }
 
-    private static JetActionException InvalidPayload() => new(
-        JetErrorCodes.InvalidPayload,
-        "populationScope 只接受 'auditPeriod'；省略、null 或空白時預設為 auditPeriod。");
+    private static JetActionException InvalidPayload() => JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "population_scope_invalid");
 
     private static JetActionException StaleDefinition() => new(
         JetErrorCodes.StaleResult,

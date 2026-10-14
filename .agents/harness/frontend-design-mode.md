@@ -4,6 +4,10 @@
 怎麼把設計工具的結果交回正式前端。人類開發者只需要知道兩個預覽工具怎麼啟動，寫在 `docs/development-guide.md` 的「開發用的預覽工具」。
 畫面的已接受設計以 `docs/jet-frontend-description.md` 為準，審計規則以 `docs/jet-guide.md` 為準；本文件不另立第二套。
 
+顏色、字級、間距、元件樣式與要避開的 AI 預設樣式，依 `.agents/skills/jet-frontend-design/SKILL.md` 判斷。
+該 skill 也說明怎麼用無頭瀏覽器對下方的合成預覽截圖，讓 Agent 自己檢查畫面，不在使用者桌面開視窗。
+使用者 2026-10-08 裁定，畫面的獨立檢查在交給使用者確認版本前做一次即可，不必每輪都做。
+
 ## 合成預覽
 
 需要微調第五步時，可在 Codex 內建瀏覽器或 Claude Desktop 的 Code 預覽查看正式前端的合成情境。
@@ -50,13 +54,17 @@ node tools/harness/frontend-preview/server.cjs
 - 畫面直接讀取 `src/JET/JET/wwwroot/` 原檔。前端送出的 action 經同源 HTTP 交給正式 `ActionDispatcher`，
   資料庫、審計運算和報表都是正式程式碼；後端推給前端的事件改用 Server-Sent Events 傳送。
 - 服務只綁定 `127.0.0.1`，只接受同源的 JSON 請求。它不讀 `JET_SQLSERVER_CONNECTION`，也不連 SQL Server。
-- 案件、診斷日誌和使用者快取都放在 Git 忽略的 `artifacts/browser-host/`。案件目錄是空的時，主機會經正式
+- 案件、診斷日誌和使用者快取預設放在 Git 忽略的 `artifacts/browser-host/`。案件目錄是空的時，主機會經正式
   action 建立兩個合成案件。「合成示範-篩選就緒」完成匯入、配對、驗證和預篩選，保存在第五步；
   「合成示範-待配對」只匯入總帳和試算表，保存在第三步。資料來自 `DemoDataFactory`，不使用私人案件。
-- 主機以 Debug 組建執行，所以開發面板和 `demo.*` action 都能用。選檔和存檔對話框會在這台電腦的桌面彈出。
+- 主機以 Debug 組建執行，所以開發面板和 `demo.*` action 都能用。選檔和存檔對話框會在這台電腦的桌面彈出，
+  自動檢查不要按會開選檔視窗或檔案總管的按鈕。
+- 環境變數 `JET_BROWSER_HOST_DATA` 指定 `artifacts` 底下的資料夾名稱，只接受單一層名稱；`JET_BROWSER_HOST_SEED`
+  選 `demo`（預設）或 `taiwan-sme`。參數 `--seed-only` 只建立案件與比對報告，不啟動網站。
 
-Claude Desktop 在 Code 的本機 session，由 Preview 啟動 `.claude/launch.json` 的 `JET browser host`，
-網址是 `http://127.0.0.1:4244`。其他工具在終端機執行下列命令；加上 `-- --reset` 會清掉舊的合成案件後重建。
+使用者在 Codex 檢查畫面時用 `127.0.0.1:4244` 的主機，Claude 不連線、不重啟也不清除它。
+Claude Desktop 在 Code 的本機 session 改用 Preview 啟動 `.claude/launch.json` 的 `JET browser host (Claude)`，
+網址是 `http://127.0.0.1:4245`。其他工具在終端機執行下列命令；加上 `-- --reset` 會清掉舊的合成案件後重建。
 
 ```powershell
 dotnet run --project tools/harness/browser-host/BrowserHost.csproj -c Debug --no-launch-profile
@@ -68,6 +76,34 @@ Preview 停止服務時只會結束外層的 `dotnet run`，所以主機會監�
 `artifacts/browser-host/logs/` 的 Debug 診斷日誌。需要中斷點時，可用 VS Code 的「JET (attach)」附加到
 `Jet.BrowserHost` 程序。
 
+#### 台灣中小企業合成案件與交錯操作檢查
+
+`JET browser host (Claude)` 使用 `JET_BROWSER_HOST_SEED=taiwan-sme`，案件放在 `artifacts/browser-host-claude/`。
+產生器在 `tools/harness/browser-host/TaiwanSme/`，建立一整年的合成製造業總帳（查核期間內一萬一千多張傳票）與 200 個科目的試算表，
+經正式 action 建立三個案件：SQLite 案件存 KCT A 到 J 共十個情境，DuckDB 案件存十個自訂情境，兩者都走完六個步驟並匯出報告；
+第三個案件只匯入檔案，停在欄位配對。建案時把 JET 的驗證摘要、預篩選與情境命中，和產生器依規則文字獨立算出的答案逐筆比對，
+結果寫在 `artifacts/browser-host-claude/seed-report/summary.txt`。同一份產生器也由正式測試 `TaiwanSmeLargeCaseTests` 使用。
+
+建置輸出用 `--artifacts-path` 另放，不和 4244 主機或測試建置搶檔案。重建檢查案件時先從 Preview 停止服務，再執行：
+
+```powershell
+$env:PORT = '4245'; $env:JET_BROWSER_HOST_DATA = 'browser-host-claude'; $env:JET_BROWSER_HOST_SEED = 'taiwan-sme'
+dotnet run --project tools/harness/browser-host/BrowserHost.csproj -c Debug --no-launch-profile --artifacts-path artifacts/browser-host-claude/build -- --reset --seed-only
+Remove-Item Env:PORT, Env:JET_BROWSER_HOST_DATA, Env:JET_BROWSER_HOST_SEED
+```
+
+交錯操作檢查使用 `JET browser host (Claude QA)`：`127.0.0.1:4246`，資料在 `artifacts/browser-host-claude-qa/`，
+建置輸出在同一資料夾的 `build`。腳本會改動案件，所以每次執行前先用上面的命令把資料夾、連接埠換成 QA 那一組重建案件，
+再從 Preview 啟動 QA 主機並關掉它開的分頁，避免兩個前端同時操作同一台主機。接著執行：
+
+```powershell
+node tools/harness/browser-host/interleaving-check.cjs
+```
+
+腳本用無頭 Edge 依序做十五段交錯操作，例如預篩選執行中切頁、快速連點、驗證中切換案件、匯出中重新整理、
+未儲存就離開與重新確認配對後直接跳步。它拒絕連到 4244 與 4245，需要的 `playwright-core` 取得方式和設計 skill 的截圖腳本相同。
+截圖與明細寫在 `artifacts/browser-host-claude-qa/interleaving/`。它是開發時的操作檢查，不是 `verify.ps1` 的命令，也不能取代 Gui。
+
 瀏覽器主機不能取代真正的 WebView2 驗證。關窗流程、WebView2 本身的行為和桌面視窗尺寸，
 仍要用 `verify.ps1 -Command Gui` 或 AgentGuiTest 確認；正式整合的命令順序見下方「設計迭代與正式整合」。
 `Gui` 會在使用者桌面開啟並搶走前景，所以日常改動先用瀏覽器主機與 `FrontendMapping` 檢查，`Gui` 依 `AGENTS.md`「測試」的時機執行。
@@ -77,8 +113,8 @@ Preview 停止服務時只會結束外層的 `dotnet run`，所以主機會監�
 1. 先讀 `AGENTS.md`、開發現況及其唯一現行計畫，核對實際工作目錄、branch、HEAD 與既有未提交變更。
    換用 Agent 不另建預設分支，不把另一個 worktree 當成目前未提交成果；同一批前端同時只由一個 Agent 寫入。
 2. 讀本節、`docs/jet-frontend-description.md` 的目前設計、相關 action 與處理器，以及 `docs/jet-guide.md` 的相關業務規則。
-   計畫保存需求原話和修改經過；現行前端說明保存已接受的結果。歷史截圖、舊 memory 或新設計包不覆蓋它們。
-3. 在現行計畫記錄本批允許改動的路徑與開始時已有的變更。先保存本批相關檔案的差異或雜湊於 ignored
+   計畫保存需求原話與裁定；現行前端說明保存已接受的結果。修改經過不寫進計畫，見 `development-workflow.md`。歷史截圖、舊 memory 或新設計包不覆蓋它們。
+3. 本批允許改動的範圍在現行計畫寫一句即可。開始時已有的變更，先保存本批相關檔案的差異或雜湊於 ignored
    `artifacts/frontend-preview/`，包含未追蹤的相關檔；結束時據此區分本批修改與上一輪成果，不拿 HEAD 的全部差異冒充本批。
 4. 確認現有服務屬於這個工作目錄、`fixtures.json` 可用且來源檢查通過後才沿用；否則依上方正式命令重新產生並啟動。
    不硬用上一輪連接埠。關閉瀏覽器不代表服務已停止；一小時到期後需重啟，刷新會丟棄預覽草稿。

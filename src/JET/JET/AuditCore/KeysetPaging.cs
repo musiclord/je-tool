@@ -125,9 +125,7 @@ internal static class KeysetPaging
         }
         else
         {
-            sort = catalog.Find(request.Sort.Key) ?? throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"排序鍵「{request.Sort.Key}」無效，允許：{string.Join("、", catalog.Keys)}。");
+            sort = catalog.Find(request.Sort.Key) ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "sort_key_invalid");
             direction = request.Sort.Direction;
             var descending = direction == PageSortDirection.Descending;
             var op = descending ? "<" : ">";

@@ -9,7 +9,7 @@ namespace JET.Tests.Architecture;
 /// <see cref="FilterConditionLabels"/> 為正本，前端 <c>ui-core.js</c> 的標籤常數必須與之逐鍵相等。
 /// 前端沒有自動測試——標籤只改一邊時，Criteria summary 與前端藍色 read-back
 /// 會漂移；這條守衛把該缺口升級為 CI 可擋。<c>PRESCREEN_KEY_OPTIONS</c> 為雙向比對，故新增 row-tag 鍵卻
-/// 漏接前端（如 <c>backdatedPosting</c>）會立即紅燈。
+/// 漏接前端（如 <c>nonAuthorizedPreparer</c>）會立即紅燈。
 /// </summary>
 public sealed class FilterConditionLabelMirrorTests
 {
@@ -116,12 +116,18 @@ public sealed class FilterConditionLabelMirrorTests
     }
 
     [Fact]
-    public void NonBusinessDayAtom_MirrorsDomainLabel()
+    public void RuleFamilies_CoverEveryBackendRuleType()
     {
-        var source = ReadUiCore();
-        var match = Regex.Match(source, @"kctNonBusinessDay:\s*'(?<label>[^']+)'");
-        Assert.True(match.Success, "ui-core.js 找不到 FILTER_KCT_ATOM_LABELS.kctNonBusinessDay");
-        Assert.Equal(FilterConditionLabels.NonBusinessDayAtom, match.Groups["label"].Value);
+        // 2026-10-14 從 FilterBuilderFrontendTests.EveryRuleRow_IsOneSentenceWithoutATypeDropdown 原樣搬來。
+        // 家族只是畫面分類：三個家族合起來正好涵蓋後端認得的全部型別，wire 型別鍵不變。
+        // 前端行為測試讀不到後端的 FilterConditionLabels.RuleTypes，後端新增型別而前端漏接時只有這裡看得出來。
+        var filter = File.ReadAllText(Path.Combine(RepoRoot(), "JET", "wwwroot", "js", "steps", "filter-step.js"));
+        var families = Regex.Match(filter, @"var RULE_FAMILIES = \{(?<body>.*?)\n  \};", RegexOptions.Singleline).Groups["body"].Value;
+        var covered = Regex.Matches(families, @"'(?<type>[A-Za-z]+)'").Select(m => m.Groups["type"].Value).ToHashSet(StringComparer.Ordinal);
+        foreach (var type in JET.Domain.FilterConditionLabels.RuleTypes.Keys)
+        {
+            Assert.True(covered.Contains(type), $"型別 {type} 沒有歸到任何家族");
+        }
     }
 
     /// <summary>抽 <c>var NAME = [ { value: 'x', label: 'y' ... }, ... ]</c> 的 value→label 映射。</summary>

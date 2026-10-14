@@ -13,18 +13,18 @@ public static class EntityFrequencyConditions
     internal static void Validate(FilterRuleSpec rule, FilterValidationContext context, string label, List<string> errors)
     {
         if (rule.Field is null || !Fields.Contains(rule.Field))
-            errors.Add($"{label}：統計欄位只能選科目編號、傳票建立人員或傳票核准人員。");
+            FilterScenarioCorruption.Add(errors, label, "entity_frequency_field_invalid");
         else if (context.AvailableGlFields is { } available && !available.Contains(rule.Field, StringComparer.Ordinal))
-            errors.Add($"{label}：{JetFieldCatalog.GlSemanticFieldMappingLabel(rule.Field)}尚未配對，請返回欄位配對修正。");
-        if (rule.CountUnit is not ("entries" or "vouchers")) errors.Add($"{label}：請選擇分錄筆數或傳票張數（同號只算一張）。");
-        if (rule.CountOperator is null || !Operators.ContainsKey(rule.CountOperator)) errors.Add($"{label}：統計比較方式不正確。");
-        if (rule.CountFrom is not (>= 0)) errors.Add($"{label}：統計次數必須是大於或等於 0 的整數。");
+            errors.Add($"{label}：{FilterScenarioValidator.UnmappedFieldReason(rule.Field)}");
+        if (rule.CountUnit is not ("entries" or "vouchers")) FilterScenarioCorruption.Add(errors, label, "entity_frequency_unit_invalid");
+        if (rule.CountOperator is null || !Operators.ContainsKey(rule.CountOperator)) FilterScenarioCorruption.Add(errors, label, "entity_frequency_operator_invalid");
+        if (rule.CountFrom is not (>= 0)) errors.Add($"{label}：次數須為 0 以上的整數");
         if (rule.CountOperator == "between")
         {
             if (rule.CountTo is not (>= 0))
-                errors.Add($"{label}：統計區間上限必須是大於或等於 0 的整數。");
+                errors.Add($"{label}：上限須為 0 以上的整數");
             else if (rule.CountFrom is >= 0 && rule.CountTo < rule.CountFrom)
-                errors.Add($"{label}：統計區間上限不得小於下限；區間包含兩個端點。");
+                errors.Add($"{label}：上限小於下限");
         }
     }
 }

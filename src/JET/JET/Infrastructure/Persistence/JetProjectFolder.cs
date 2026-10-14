@@ -23,9 +23,7 @@ public sealed class JetProjectFolder(string rootPath) : IProjectExportLocator
         if (!IsValidProjectId(projectId))
         {
             // 同時阻擋 path traversal（"..\.." 等）與格式錯誤的 id
-            throw new JetActionException(
-                JetErrorCodes.ProjectNotFound,
-                $"專案識別碼 '{projectId}' 無效。");
+            throw JetPayloadRejection.Create(JetErrorCodes.ProjectNotFound, "project_id_invalid");
         }
 
         return Path.Combine(RootPath, projectId);
@@ -37,6 +35,10 @@ public sealed class JetProjectFolder(string rootPath) : IProjectExportLocator
     public string GetProjectJsonPath(string projectId)
         => Path.Combine(GetProjectDirectory(projectId), ProjectJsonFileName);
 
+    /// <summary>
+    /// 列出名稱合法的案件資料夾。資料夾裡有沒有 project.json，由 <see cref="JsonFileProjectStore"/> 在讀寫共用的鎖裡判斷：
+    /// 儲存換檔的一瞬間正式檔名會暫時不存在，在這裡判斷會讓正在儲存的案件從案件清單上消失。
+    /// </summary>
     public IEnumerable<string> EnumerateProjectIds()
     {
         if (!Directory.Exists(RootPath))
@@ -47,7 +49,7 @@ public sealed class JetProjectFolder(string rootPath) : IProjectExportLocator
         foreach (var directory in Directory.EnumerateDirectories(RootPath))
         {
             var id = Path.GetFileName(directory);
-            if (IsValidProjectId(id) && File.Exists(Path.Combine(directory, ProjectJsonFileName)))
+            if (IsValidProjectId(id))
             {
                 yield return id;
             }

@@ -43,7 +43,7 @@ public sealed class SupportLogUnavailableProjectTests
             JsonSerializer.Serialize(new { projectId = id }), correlationId: selectedCorrelation));
         await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load",
             """{"projectId":"Different missing case"}""", correlationId: "unrelated-load-error"));
-        var noActive = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("export.calendarTemplates"));
+        var noActive = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.nullRecordsPage"));
         Assert.Equal(JetErrorCodes.NoActiveProject, noActive.Code);
 
         var exported = await host.DispatchAsync(action, JsonSerializer.Serialize(new { projectId = id, correlationId = selectedCorrelation }));
@@ -75,7 +75,7 @@ public sealed class SupportLogUnavailableProjectTests
         if (metadataBefore is null) Assert.False(File.Exists(metadata));
         else Assert.Equal(metadataBefore, await File.ReadAllBytesAsync(metadata));
         Assert.Empty(Directory.GetFiles(folder, ".JET-*.tmp"));
-        var stillNoActive = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("export.calendarTemplates"));
+        var stillNoActive = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.nullRecordsPage"));
         Assert.Equal(JetErrorCodes.NoActiveProject, stillNoActive.Code);
     }
 

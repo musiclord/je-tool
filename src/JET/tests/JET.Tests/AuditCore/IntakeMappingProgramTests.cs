@@ -33,9 +33,10 @@ public sealed class IntakeMappingProgramTests
                 Mode: "merge")));
 
         Assert.Equal(JetErrorCodes.UnsupportedMode, error.Code);
-        Assert.Equal(
-            "匯入 mode 'merge' 無效，允許值：replace、append。",
-            error.Message);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面只送 replace 或 append，
+        // 其他值只有程式送錯資料才會出現；錯誤代碼與先後順序不變，訊息改成非預期錯誤那一句。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, error.Message);
+        Assert.Equal("import_mode_invalid", JetPayloadRejection.CheckOf(error));
     }
 
     [Theory]
@@ -78,7 +79,8 @@ public sealed class IntakeMappingProgramTests
                 DateParseOptions.Default)));
 
         Assert.Equal(JetErrorCodes.MissingRequiredMapping, error.Code);
-        Assert.StartsWith("欄位配對缺少必填欄位：", error.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal("尚有必填欄位未選擇來源欄：傳票號碼、總帳日期、會計科目編號、會計科目名稱、傳票摘要、金額。", error.Message);
     }
 
     [Fact]
@@ -113,10 +115,11 @@ public sealed class IntakeMappingProgramTests
         // 2026-10-03 O1、O2：同一欄同一種問題只寫一次，再依值列出列號，不再每列一整句；
         // 每組另放進 details 並帶來源欄（第一次失敗：收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89）。
         Assert.Equal(
-            "1 列無法轉換，系統沒有儲存這次配對結果。欄位「amount」有 1 列不是有效金額：「bad」在 JE.csv 第 7 列。",
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        "有 1 列的值無法讀取，本次配對未儲存。來源欄「amount」有 1 列不是有效金額：「bad」在 JE.csv 第 7 列。",
             error.Message);
         var detail = Assert.Single(error.Details!);
-        Assert.Equal("欄位「amount」有 1 列不是有效金額：「bad」在 JE.csv 第 7 列。", detail.Message);
+        Assert.Equal("來源欄「amount」有 1 列不是有效金額：「bad」在 JE.csv 第 7 列。", detail.Message);
         Assert.Equal("amount", detail.SourceColumn);
         Assert.Null(detail.Group);
         Assert.Null(detail.Rule);
@@ -204,7 +207,8 @@ public sealed class IntakeMappingProgramTests
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
         Assert.Equal(
-            "行事曆檔有 2 列無法解析:第 3 列:日期「2025/01/01」非 yyyy-MM-dd 格式。；第 4 列:日期空白。",
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        "檔案有 2 列無法讀取：第 3 列：日期「2025/01/01」不是 2026-12-31 這種格式；第 4 列：日期空白",
             error.Message);
     }
 
@@ -259,12 +263,15 @@ public sealed class IntakeMappingProgramTests
     }
 
     [Theory]
+    // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+    // SQL Server 與本機改用同一句全形標點的句子，兩種 style 的預期值因此相同。
+    // 使用者 2026-10-14 第三輪勾選頁確認 R3-60（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
     [InlineData(
         AccountMappingFailureStyle.Local,
-        "科目配對檔有 1 列無法轉換（整批已還原）：第 7 列：分類「bad」不存在於目前專案的科目分類（Revenue、Receivables、Cash、Receipt in advance、Others）。")]
+        "科目配對檔有 1 列無法讀取，本次匯入未儲存：第 7 列：分類「bad」不在本案件的科目分類中（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。")]
     [InlineData(
         AccountMappingFailureStyle.SqlServer,
-        "科目配對檔有 1 列無法轉換(整批已還原):第 7 列：分類「bad」不存在於目前專案的科目分類（Revenue、Receivables、Cash、Receipt in advance、Others）。")]
+        "科目配對檔有 1 列無法讀取，本次匯入未儲存：第 7 列：分類「bad」不在本案件的科目分類中（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。")]
     internal void AccountMappingProjection_PreservesProviderSpecificFailureText(
         AccountMappingFailureStyle style,
         string expected)

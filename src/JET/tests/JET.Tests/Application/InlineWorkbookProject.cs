@@ -17,7 +17,7 @@ internal sealed class InlineGlWorkbookBuilder
             ["傳票號碼"] = "docNum",
             ["傳票項次"] = "lineID",
             ["傳票日期"] = "postDate",
-            ["傳票日期_僅條件_JE"] = "voucherDate",
+            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，不再有「傳票日期_僅條件_JE」對 voucherDate 的慣例。
             ["核准日期"] = "docDate",
             ["科目代號"] = "accNum",
             ["科目名稱"] = "accName",

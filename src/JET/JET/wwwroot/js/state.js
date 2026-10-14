@@ -31,6 +31,7 @@
     sqlServerConfigured: null,
     caseId: null,
     caseClient: null,
+    accountMappingGeneration: 0, // 後端清除科目配對時，連尚未儲存的編輯草稿一併作廢。
     messages: [],
     messagesPanelOpen: false,  // 「狀態與訊息」預設收合為右側窄欄
     messagesUnseen: 0,         // 收合期間新增的訊息數（展開時歸零）
@@ -44,7 +45,15 @@
     cancellationRequested: false,
     projects: [],              // picker 最近接受的 snapshot：本機清單，或使用者手動同步後的本機＋線上清單
     pickerFeedback: null,      // picker 就地錯誤（訊息面板在 workflow app-body 內，picker 期間不可見）
-    pickerFeedbackContext: null, // { projectId, errorCode, correlationId, exportedPath, devExportedPath }；只供複製、支援日誌與 DEV 診斷日誌匯出
+    pickerFeedbackContext: null, // { projectId, errorCode, correlationId, devExportedPath }；只供 Debug 組建的 DEV 診斷日誌匯出
+    // 案件清單操作列「輸出支援日誌」最近一次輸出的檔案位置（純 picker 呈現；不持久化、不進後端 payload）。
+    pickerSupportLogPath: null,
+    // 'error' 或 'warning'：刪除案件成功但資料夾沒刪乾淨時，案件清單用琥珀色提示，不寫「無法完成操作」（使用者 2026-10-13 裁定訊息分三級）。
+    pickerFeedbackLevel: 'error',
+    // 審計員自己按的操作失敗或被阻擋、而且那個操作沒有自己的就地錯誤框時，在目前步驟標題下方顯示一次
+    // { id, label, message, level: 'error' | 'warn', stepIndex }（使用者 2026-10-13 裁定）。純畫面狀態：
+    // 不持久化、不進後端 payload；任何 Ui.run 開始、換步驟、開案、換案與回案件清單時清掉。
+    operationFailure: null,
     // project.list 的頂層 online 區塊 { reachable, principal, message? }（僅手動線上同步後存在）。
     // null 表示目前是 project.listLocal snapshot、尚未手動同步；picker 不得把它誤稱為「線上無案件」。
     online: null,
@@ -71,6 +80,9 @@
     },
     // 專案科目分類（project.load.taxonomy）：{ revision, categories }；尚未載入時為 null。
     taxonomy: null,
+    // 已移除的 GL 欄位與畫面名稱，由 project.load 帶來（正本是後端 JetFieldCatalog.RetiredGlFieldLabels），
+    // 只用來在舊情境的條件標題與讀回寫出名稱，不印程式代號（使用者 2026-10-14 第三輪勾選頁確認 R3-03）。
+    retiredGlFieldLabels: {},
     // 後端判定的結果失效狀態（project.load.staleState）：三個獨立布林，
     // 不得以 latestRuns === null 或 artifact stale 代算。
     staleState: { validation: false, prescreen: false, filter: false },
@@ -166,6 +178,27 @@
     }
   }
 
+  // 整份換掉配對草稿，並讓核准日、人工／自動與過帳狀態的設定跟著來源欄。只改狀態，由呼叫的一方 bump。
+  function applyMappingDraft(kind, draft) {
+    var previousManualSource = kind === 'gl' ? state.mapping.gl.draft.manual : null;
+    var previousPostingSource = kind === 'gl' ? state.mapping.gl.draft.postingStatus : null;
+    state.mapping[kind].draft = Object.assign({}, draft || {});
+    if (kind === 'gl') {
+      syncApprovalSource();
+      resetManualAutoPolicyIfSourceChanged(previousManualSource);
+      resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
+      removeCoreMappedRdeFields();
+    }
+  }
+
+  function applyMappingMode(kind, mode) {
+    if (kind === 'gl') {
+      state.mapping.gl.amountMode = mode;
+    } else {
+      state.mapping.tb.changeMode = mode;
+    }
+  }
+
   // 來源資料換過之後，草稿只留新資料仍有的來源欄；拿掉的記在 droppedFields，配對畫面據此請審計員重新選。
   // 借方與貸方代碼都是字面值，不受來源欄改變影響。人工/自動與過帳狀態的來源欄被拿掉時，
   // 它們的代碼設定跟著清掉，和審計員自己取消那個欄位的結果一樣（D16）。
@@ -199,6 +232,12 @@
 
   // 訊息流水號：供前端做增量渲染，辨識哪些訊息是新加入的。
   var messageSeq = 0;
+
+  // 訊息的三個等級，和後端 log.append 的允許值一致（MessageLogHandlers.cs 的 AllowedLevels）。
+  var MESSAGE_LEVELS = ['info', 'warn', 'error'];
+
+  // 步驟失敗提示的流水號：同一句失敗再發生一次時，畫面仍當成新的提示（重新捲到看得見的位置）。
+  var operationFailureSeq = 0;
 
   // 篩選草稿版本號：草稿內容每變動一次就遞增。預覽請求送出前擷取當時版本，
   // 回應抵達時比對版本；母體固定為 auditPeriod（filter-step 的預覽回呼守衛）。
@@ -235,6 +274,10 @@
 
   // 後端明示本次修改影響哪些畫面快取；此處不保存另一份審計依賴表或推算報告過期狀態。
   function invalidateDerivedResults(options) {
+    if (options && options.accountMapping) {
+      state.importState.accountMapping = null;
+      state.accountMappingGeneration++;
+    }
     var clearValidation = !!(options && options.validation);
     var clearPrescreen = !!(options && options.prescreen);
     var clearFilter = !!(options && options.filter);
@@ -257,7 +300,9 @@
       state.filterResultRef = null;
       state.filterScenarioCheck = null;
       filterDraftRev++;
-      if (hadScenarios) { Store.addMessage('前面的資料已更改，請重新設定篩選情境。', 'info'); }
+      // 審計員要回第五步重做，屬於「需要注意」（使用者 2026-10-13 裁定訊息分三級）。
+      // 句子照使用者 2026-10-13 勾選頁確認 12。
+      if (hadScenarios) { Store.addMessage('前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。', 'warn'); }
     }
   }
 
@@ -278,7 +323,26 @@
       if (index < 0 || index >= STEPS.length) {
         return;
       }
+      if (index !== state.currentStepIndex) { state.operationFailure = null; }
       state.currentStepIndex = index;
+      notify();
+    },
+
+    // 操作失敗的步驟提示（見 state.operationFailure）。由 Ui.run 寫入；level 只有 error 與 warn。
+    setOperationFailure: function (failure) {
+      state.operationFailure = failure ? {
+        id: ++operationFailureSeq,
+        label: failure.label || '',
+        message: failure.message || '',
+        level: failure.level === 'warn' ? 'warn' : 'error',
+        stepIndex: failure.stepIndex
+      } : null;
+      notify();
+    },
+
+    clearOperationFailure: function () {
+      if (!state.operationFailure) { return; }
+      state.operationFailure = null;
       notify();
     },
 
@@ -309,6 +373,7 @@
     },
 
     setView: function (view) {
+      if (view !== state.view) { state.operationFailure = null; }
       state.view = view;
       bump();
     },
@@ -347,16 +412,23 @@
       bump();
     },
 
-    setPickerFeedback: function (message, context) {
+    // level 省略時是錯誤；'warning' 只用在操作已成功、但留下要審計員自己處理的事（例如刪除案件後資料夾沒刪乾淨）。
+    setPickerFeedback: function (message, context, level) {
       state.pickerFeedback = message || null;
+      state.pickerFeedbackLevel = message && level === 'warning' ? 'warning' : 'error';
       state.pickerFeedbackContext = message && context ? {
         projectId: context.projectId || null,
         errorCode: context.errorCode || null,
         correlationId: context.correlationId || null,
-        exportedPath: context.exportedPath || null,
         devExportedPath: context.devExportedPath || null
       } : null;
       // 純 picker 呈現狀態；renderPicker 的 memo key 直接納入此值，不需 bump workflow contentVersion。
+      notify();
+    },
+
+    // 案件清單「輸出支援日誌」完成後的檔案位置；比照 pickerFeedback 只 notify。
+    setPickerSupportLogPath: function (filePath) {
+      state.pickerSupportLogPath = filePath || null;
       notify();
     },
 
@@ -417,6 +489,7 @@
         tb: { draft: {}, changeMode: 'debitCredit', committed: null, invalidatedByImport: false, reimportDraftOrigin: null, droppedFields: [] }
       };
       state.taxonomy = null;
+      state.retiredGlFieldLabels = {};
       state.staleState = { validation: false, prescreen: false, filter: false };
       state.lastRuns = { validate: null, prescreen: null };
       state.filterResultRef = null;
@@ -431,6 +504,7 @@
       };
       filterDraftRev++; // 草稿被整份重置，在途的預覽回應一併作廢
       state.currentStepIndex = 0;
+      state.operationFailure = null;
       bump();
     },
 
@@ -451,7 +525,7 @@
       } else {
         state.mapping[kind].droppedFields = [];
       }
-      bumpData(); // 匯入落地：staging 預覽（原貌）內容已變
+      bumpData(); // 匯入落地：PBC-GL、PBC-TB 預覽內容已變
     },
 
     // 模組區域狀態（如匯入精靈的待匯入清單）變動時觸發面板重建。
@@ -508,14 +582,6 @@
       bump();
     },
 
-    // project.load 專用：舊 scope 不回灌成可執行狀態；唯一母體仍是查核期間。
-    restoreFilterPopulationScope: function () {
-      state.filter.populationScope = 'auditPeriod';
-      state.filter.preview = null;
-      filterDraftRev++;
-      bump();
-    },
-
     setReportArtifacts: function (artifacts) {
       state.reportArtifacts = (artifacts || []).slice();
       bump();
@@ -542,7 +608,7 @@
           Store.setReportArtifacts(data.reportArtifacts);
         } else {
           var warning = data.reportArtifactWarning || (Array.isArray(data.reportArtifacts)
-            ? '檔案已產生，報告清單暫時無法更新。可開啟案件資料夾查看，無須重新產生。' : '');
+            ? '檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。' : '');
           Store.upsertReportArtifacts(published.map(function (artifact, index) {
             return index === 0 && warning
               ? Object.assign({}, artifact, { catalogWarning: warning }) : artifact;
@@ -622,9 +688,10 @@
     applyFilterCommit: function (data, draftPatch, clearDraft) {
       state.filter.savedScenarios = data.scenarios || [];
       state.filterResultRef = state.filter.savedScenarios.length ? data.resultRef || null : null;
-      // 儲存成功表示整批已通過目前規則的檢查，開案時列出的問題不再適用。
-      state.filterScenarioCheck = null;
-      state.staleState.filter = false;
+      // 一次只存或刪一個情境時，後端回傳寫入後的待修正清單與結果狀態；還有情境要修改時 resultRef 是 null，
+      // 矩陣、報告與第六步照樣鎖住。舊的整批儲存回應沒有這兩項，視為全部已通過。
+      state.filterScenarioCheck = data.filterScenarioCheck || null;
+      state.staleState.filter = data.staleState ? !!data.staleState.filter : false;
       if (clearDraft) {
         state.filter.draft = { name: '', rationale: '', groups: [] };
         state.filter.preview = null;
@@ -664,6 +731,11 @@
     },
 
     // project.load.taxonomy 的鏡像；科目分類 mutation 只使 prescreen 與 filter 命中失效。
+    setRetiredGlFieldLabels: function (labels) {
+      state.retiredGlFieldLabels = labels && typeof labels === 'object' ? Object.assign({}, labels) : {};
+      bump();
+    },
+
     setTaxonomy: function (snapshot) {
       state.taxonomy = snapshot || null;
       bump();
@@ -737,15 +809,7 @@
     },
 
     replaceMappingDraft: function (kind, draft) {
-      var previousManualSource = kind === 'gl' ? state.mapping.gl.draft.manual : null;
-      var previousPostingSource = kind === 'gl' ? state.mapping.gl.draft.postingStatus : null;
-      state.mapping[kind].draft = Object.assign({}, draft || {});
-      if (kind === 'gl') {
-        syncApprovalSource();
-        resetManualAutoPolicyIfSourceChanged(previousManualSource);
-        resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
-        removeCoreMappedRdeFields();
-      }
+      applyMappingDraft(kind, draft);
       bump();
     },
 
@@ -786,11 +850,15 @@
     },
 
     setMappingMode: function (kind, mode) {
-      if (kind === 'gl') {
-        state.mapping.gl.amountMode = mode;
-      } else {
-        state.mapping.tb.changeMode = mode;
-      }
+      applyMappingMode(kind, mode);
+      bump();
+    },
+
+    // 換金額欄位格式：清掉不適用新格式的欄位指派與換格式是同一個操作，只 bump 一次。
+    // 分成兩次寫入時，同一次點擊會整段重繪兩次，主執行緒多卡一倍，切換的動態也晚一拍才開始（使用者 2026-10-12）。
+    changeMappingMode: function (kind, draft, mode) {
+      applyMappingDraft(kind, draft);
+      applyMappingMode(kind, mode);
       bump();
     },
 
@@ -826,12 +894,14 @@
       state.mapping[kind].invalidatedByImport = false;
       state.mapping[kind].reimportDraftOrigin = null;
       state.mapping[kind].droppedFields = [];
-      bumpData(); // 配對提交（或載入還原）：target 標準化預覽（glEntries／tbBalances）內容已變
+      bumpData(); // 配對提交（或載入還原）：GL 與 TB 預覽（gl、tb）內容已變
     },
 
+    // 訊息分三級（使用者 2026-10-13 裁定）：error 是操作失敗，warn 是需要注意，info 是一般說明與完成紀錄。
+    // 其他值與空白文字照舊不加入。
     addMessage: function (text, level) {
       if (level === undefined) { level = 'info'; }
-      if ((level !== 'info' && level !== 'warn') || typeof text !== 'string' || !text.trim()) { return; }
+      if (MESSAGE_LEVELS.indexOf(level) < 0 || typeof text !== 'string' || !text.trim()) { return; }
       state.messages.unshift({
         id: ++messageSeq,
         text: text,
@@ -885,7 +955,8 @@
         mapped[i] = {
           id: ++messageSeq,
           text: source[i].text,
-          level: source[i].level || 'info',
+          // 讀回舊案件或格式不明的紀錄時，不認得的等級一律當一般說明，不把未知字串拼進 class。
+          level: MESSAGE_LEVELS.indexOf(source[i].level) >= 0 ? source[i].level : 'info',
           time: new Date(source[i].occurredUtc).toLocaleTimeString('zh-Hant', { hour12: false }),
           fromLog: true
         };

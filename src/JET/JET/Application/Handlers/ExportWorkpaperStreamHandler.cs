@@ -30,20 +30,18 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
     {
         if (payload.ValueKind != JsonValueKind.Object)
         {
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "export.workpaperStream 的 payload 必須是物件。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "workpaper_payload_not_object");
         }
 
         if (payload.TryGetProperty("sheets", out _) || payload.TryGetProperty("outputPath", out _))
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "正式底稿不接受 'sheets' 或 'outputPath'；工作表固定且產物只能位於專案目錄。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "workpaper_sheets_or_output_path");
         }
 
         var validationRunId = PayloadReader.GetOptionalString(payload, "validationRunId")
-            ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少 'validationRunId'。");
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "validation_run_id_missing");
         var scenarioRevision = PayloadReader.GetOptionalString(payload, "scenarioRevision")
-            ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "payload 缺少 'scenarioRevision'。");
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "scenario_revision_missing");
         var (projectId, repositories) = session.RequireActive();
         var planWriter = repositories.WorkpaperPlanWriter;
         var planningFactsPort = repositories.WorkpaperPlanningFacts;
@@ -88,7 +86,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             cancellationToken,
             filterDataRevision);
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         // 本次只重算使用者選定的情境；未選情境仍保存，且不因此取得「全案已更新」狀態。
         await materializeService.MaterializeSelectedAsync(projectId, document, scenarios, selectedPositions, cancellationToken);

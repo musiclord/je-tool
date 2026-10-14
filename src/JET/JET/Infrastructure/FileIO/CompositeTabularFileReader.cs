@@ -34,6 +34,6 @@ public sealed class CompositeTabularFileReader(params ITabularFileReader[] reade
         return readers.FirstOrDefault(r => r.Supports(filePath))
             ?? throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                $"不支援的檔案類型 '{Path.GetExtension(filePath)}'，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
+                $"不支援的檔案類型「{Path.GetExtension(filePath)}」，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
     }
 }

@@ -11,6 +11,42 @@ public sealed class AccountMappingEditorTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
+    public async Task FiftyAccountPages_HaveRealNextCursors_AndDoNotSaveClassifications(string provider)
+    {
+        using var host = new HandlerTestHost();
+        await InlineWorkbookProject.SetupAsync(host, builder =>
+        {
+            builder.WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標");
+            for (var i = 0; i < 150; i++)
+                builder.AddRow($"V-{i:000}", "2025-01-01", $"A{i:000}", $"Synthetic {i:000}", "Synthetic", 100, i % 2);
+        }, databaseProvider: provider);
+        var previousSize = await host.DispatchAsync("query.accountMappingPage", "{\"pageSize\":200}");
+        Assert.Equal(150, previousSize.GetProperty("rows").GetArrayLength());
+        Assert.Equal(JsonValueKind.Null, previousSize.GetProperty("nextCursor").ValueKind);
+        string? cursor = null;
+        var all = new List<string>();
+        var expected = new[] { ("A000", "A049"), ("A050", "A099"), ("A100", "A149") };
+        for (var index = 0; index < 3; index++)
+        {
+            var page = await host.DispatchAsync("query.accountMappingPage", JsonSerializer.Serialize(new { cursor, pageSize = 50 }));
+            var rows = page.GetProperty("rows").EnumerateArray().ToArray();
+            Assert.Equal(50, rows.Length);
+            Assert.Equal(expected[index].Item1, rows[0].GetProperty("accountCode").GetString());
+            Assert.Equal(expected[index].Item2, rows[^1].GetProperty("accountCode").GetString());
+            Assert.All(rows, row => Assert.Equal(JsonValueKind.Null, row.GetProperty("categoryId").ValueKind));
+            all.AddRange(rows.Select(row => row.GetProperty("accountCode").GetString()!));
+            cursor = page.GetProperty("nextCursor").GetString();
+            if (index < 2) Assert.False(string.IsNullOrEmpty(cursor)); else Assert.Null(cursor);
+        }
+        Assert.Equal(150, all.Distinct(StringComparer.Ordinal).Count());
+        var repeated = await host.DispatchAsync("query.accountMappingPage", "{\"pageSize\":50}");
+        Assert.Equal("A000", repeated.GetProperty("rows")[0].GetProperty("accountCode").GetString());
+        Assert.Equal(JsonValueKind.Null, repeated.GetProperty("rows")[0].GetProperty("categoryId").ValueKind);
+    }
+
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
     public async Task BulkAssignments_CommitTogetherAndKeepUnselectedCategory(string provider)
     {
         using var host = new HandlerTestHost();
@@ -85,10 +121,11 @@ public sealed class AccountMappingEditorTests
             """));
         await Assert.ThrowsAsync<JetActionException>(() => Save(host, "c", "unknown"));
 
+        // 第九節 G1、G3：明示借貸方向與傳票佐證，保留原固定答案；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
         var scenario = JsonDocument.Parse("""
-          {"name":"Direct assignment","rationale":"Synthetic","groups":[{"matchScope":"sameVoucher","rules":[
-            {"type":"accountSide","drCr":"debit","categoryMode":"is","categoryIds":["builtin.cash"]},
-            {"type":"accountSide","drCr":"credit","categoryMode":"is","categoryIds":["builtin.revenue"]}]}]}
+          {"name":"Direct assignment","rationale":"Synthetic","groups":[{"rules":[
+            {"type":"group","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},
+            {"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.revenue"]}]}]}]}
           """).RootElement;
         var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
         Assert.Equal(1, preview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());

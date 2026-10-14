@@ -58,16 +58,15 @@ public sealed class MappingRestoreDraftHandlerTests
             static pair => pair.Key,
             static pair => pair.Value,
             StringComparer.Ordinal);
-        mapping.Remove(GlMappingKeys.VoucherDate);
-
-        // 2026-10-04 第 8 批 L21：示範來源的「傳票登錄日」改稱「傳票日期」。
-        // 仍移除 core voucherDate 配對，避免同一來源重複指派；stable ID 與 round-trip 斷言全部保留。
-        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：示範資料不再有「傳票日期」欄。
+        // 改用「傳票核准日」當自訂日期欄，先移除 core docDate 配對並把核准日設為未配對，避免同一來源重複指派；
+        // stable ID 與 round-trip 斷言全部保留。
+        mapping.Remove(GlMappingKeys.DocDate);
         var committed = await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
             mapping,
             amountMode = originalGl.ModeName,
-            approvalDateMode = ApprovalDateModeNames.Mapped,
+            approvalDateMode = ApprovalDateModeNames.Unmapped,
             manualAutoPolicy = new
             {
                 manualValues = new[] { "1" },
@@ -77,8 +76,8 @@ public sealed class MappingRestoreDraftHandlerTests
             {
                 new
                 {
-                    sourceColumn = "傳票日期",
-                    label = "傳票日期",
+                    sourceColumn = "傳票核准日",
+                    label = "傳票核准日",
                     valueType = RdeFieldValueTypeNames.Date
                 }
             }
@@ -92,15 +91,14 @@ public sealed class MappingRestoreDraftHandlerTests
             DateTimeOffset.UnixEpoch)
         {
             GlOptions = new GlMappingOptions(
-                ApprovalDateModeNames.Mapped,
+                ApprovalDateModeNames.Unmapped,
                 null,
                 new GlManualAutoPolicy(["1"], ["0"]),
                 [
                     new GlRdeFieldMetadata(
                         stableId,
-                        // 同一 L21 改名同步寫入回存 metadata，不更換欄位身分。
-                        "傳票日期",
-                        "傳票日期",
+                        "傳票核准日",
+                        "傳票核准日",
                         RdeFieldValueTypeNames.Date)
                 ])
         };

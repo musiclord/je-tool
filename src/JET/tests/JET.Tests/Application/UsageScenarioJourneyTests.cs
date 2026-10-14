@@ -135,8 +135,9 @@ public sealed class UsageScenarioJourneyTests
             var validation = await host.DispatchAsync("validate.run");
             prepared = prepared with { ValidationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString()! };
             var noScenario = await Assert.ThrowsAsync<JetActionException>(() => ExportPaperAsync(host, prepared));
-            Assert.Equal("stale_result", noScenario.Code);
-            Assert.Contains("目前沒有已儲存的篩選情境。", noScenario.Message, StringComparison.Ordinal);
+            // 使用者 2026-10-14 第三輪勾選頁確認 R3-34（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面寫「尚無法執行」，錯誤代碼改成 no_saved_scenario。
+            Assert.Equal("no_saved_scenario", noScenario.Code);
+            Assert.Equal("尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境", noScenario.Message);
             var saved = await host.DispatchAsync("filter.commit", "{\"scenarios\":[" + Scenario + "]}");
             prepared = prepared with { Revision = saved.GetProperty("resultRef").GetProperty("revision").GetString()! };
             var exported = await ExportPaperAsync(host, prepared);
@@ -172,7 +173,8 @@ public sealed class UsageScenarioJourneyTests
         var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
         await host.DispatchAsync("filter.commit", """{"scenarios":[]}""");
         var error = await Assert.ThrowsAsync<JetActionException>(() => ExportPaperAsync(host, prepared));
-        Assert.Equal("stale_result", error.Code); Assert.Contains("目前沒有已儲存的篩選情境。", error.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-34（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        Assert.Equal("no_saved_scenario", error.Code); Assert.Equal("尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境", error.Message);
         Assert.Empty(WorkpaperExportTestSupport.FindWorkpapers(host.ProjectsRoot));
     }
 

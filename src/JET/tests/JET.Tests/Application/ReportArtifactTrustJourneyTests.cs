@@ -6,6 +6,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 /// <summary>
 /// 「預設審計員可信」的旅程驗收：審計員照設計流程操作，或在 JET 之外動了報告檔，案件都要能繼續。
 /// 起因是 2026-09-02 公司測試環境的 artifact_recovery_conflict；第一個測試就是那條事故路徑。
@@ -399,7 +401,7 @@ public sealed class ReportArtifactTrustJourneyTests
                                 join = "AND",
                                 rules = new[]
                                 {
-                                    new { join = "AND", type = "customKeywords", keywords = "調整" }
+                                    new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } }
                                 }
                             }
                         }

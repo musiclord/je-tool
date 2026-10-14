@@ -54,7 +54,7 @@ function Assert-Contract {
 
 $childPath = Join-Path $suiteRoot 'child.ps1'
 @'
-param([string] $EvidencePath)
+param([string] $EvidencePath, [string] $Behaviour = '')
 $ErrorActionPreference = 'Stop'
 $process = [Diagnostics.Process]::GetCurrentProcess()
 [Console]::Out.WriteLine('child-holds-stdout')
@@ -65,6 +65,15 @@ $process = [Diagnostics.Process]::GetCurrentProcess()
     priority = [string]$process.PriorityClass
 } | ConvertTo-Json -Compress | Set-Content -LiteralPath "$EvidencePath.tmp" -Encoding utf8
 [IO.File]::Move("$EvidencePath.tmp", $EvidencePath)
+if ($Behaviour -eq 'allocate') {
+    # 記憶體上限情境：每次多佔 64 MB，自己最多到 1536 MB，保護失效也不會失控。
+    $keep = [Collections.Generic.List[byte[]]]::new()
+    for ($index = 0; $index -lt 24; $index++) {
+        $block = [byte[]]::new(64MB)
+        [Array]::Fill($block, [byte]1)
+        $keep.Add($block)
+    }
+}
 Start-Sleep -Seconds 60
 '@ | Set-Content -LiteralPath $childPath -Encoding utf8
 
@@ -107,7 +116,7 @@ if ($Mode -ne 'simple') {
     $startInfo.CreateNoWindow = $true
     # 指定 stdin 重導向，讓 .NET 同時把父程序的 stdout 和 stderr handles 傳給沒有視窗的子程序。
     $startInfo.RedirectStandardInput = $true
-    foreach ($argument in @('-NoProfile', '-File', $ChildPath, $childEvidencePath)) {
+    foreach ($argument in @('-NoProfile', '-File', $ChildPath, $childEvidencePath, $(if ($Mode -eq 'memory') { 'allocate' } else { '' }))) {
         $startInfo.ArgumentList.Add($argument)
     }
     $child = [Diagnostics.Process]::Start($startInfo)
@@ -119,7 +128,7 @@ if ($Mode -ne 'simple') {
             Start-Sleep -Milliseconds 20
         }
         [IO.File]::WriteAllText((Join-Path $EvidenceRoot 'ready'), 'ready')
-        if ($Mode -in @('timeout', 'cancel')) { Start-Sleep -Seconds 60 }
+        if ($Mode -in @('timeout', 'cancel', 'memory')) { Start-Sleep -Seconds 60 }
     }
     finally { $child.Dispose() }
 }
@@ -156,7 +165,9 @@ try {
     }
     $sibling = [Diagnostics.Process]::Start($siblingInfo)
     $probeArguments = [string[]]@('', 'with spaces', 'quote"inside', 'trailing\', 'slash\"quote', '中文 & $() ;')
-    foreach ($mode in @('simple', 'normal', 'flood', 'timeout', 'cancel')) {
+    # 2026-10-13：normal 帶 2 GB 記憶體上限照常結束；memory 的子程序一直佔記憶體，整個程序樹要在超過 512 MB 時一起結束。
+    $memoryLimits = @{ normal = 2GB; memory = 512MB }
+    foreach ($mode in @('simple', 'normal', 'flood', 'timeout', 'cancel', 'memory')) {
         $scenarioRoot = Join-Path $suiteRoot "$mode with spaces"
         [IO.Directory]::CreateDirectory($scenarioRoot) | Out-Null
         $stdoutPath = Join-Path $scenarioRoot 'stdout.log'
@@ -176,6 +187,13 @@ try {
                     $pwshPath, $arguments, $scenarioRoot, $null, $stdoutPath, $stderrPath,
                     4096, [TimeSpan]::FromSeconds(20), [string[]]@('JET_PROCESS_REMOVE'),
                     $overrides, [string[]]@('synthetic-redaction-token'), 65001)
+            }
+            elseif ($memoryLimits.ContainsKey($mode)) {
+                [Jet.Harness.BoundedProcessRunner]::Run(
+                    $pwshPath, $arguments, $scenarioRoot, $null, $stdoutPath, $stderrPath,
+                    4096, [TimeSpan]::FromSeconds(20),
+                    [string[]]@('JET_PROCESS_REMOVE'), $overrides, [string[]]@('synthetic-redaction-token'),
+                    65001, $true, $cancellation.Token, [long]$memoryLimits[$mode])
             }
             else {
                 [Jet.Harness.BoundedProcessRunner]::Run(
@@ -237,8 +255,39 @@ try {
         if ($mode -in @('simple', 'normal', 'flood')) {
             Assert-Contract ($result.ExitCode -eq 17) "$mode changed the parent's original exit code."
         }
+        if ($mode -eq 'simple') {
+            Assert-Contract ($null -eq $result.ProcessTreeMemoryLimitBytes -and $null -eq $result.PeakProcessTreeMemoryBytes -and -not $result.MemoryLimitReached) 'Default calls must not claim a process-tree memory limit or peak.'
+        }
+        elseif ($mode -eq 'memory') {
+            Assert-Contract ($result.MemoryLimitReached) 'A process tree that keeps allocating must stop at its memory limit.'
+            Assert-Contract ($result.ExitCode -eq -1073741801) 'A process tree stopped at its memory limit must exit with STATUS_NO_MEMORY.'
+            Assert-Contract ($result.ProcessTreeMemoryLimitBytes -eq 512MB) 'The memory scenario must report its limit.'
+            Assert-Contract ($result.PeakProcessTreeMemoryBytes -ge 512MB -and $result.PeakProcessTreeMemoryBytes -lt 1536MB) 'The memory scenario must report a peak just past its limit.'
+        }
+        else {
+            Assert-Contract (-not $result.MemoryLimitReached) "$mode must not report a memory limit."
+            Assert-Contract ($result.PeakProcessTreeMemoryBytes -gt 0) "$mode must report the owned tree's peak memory."
+            $expectedLimit = if ($memoryLimits.ContainsKey($mode)) { [long]$memoryLimits[$mode] } else { $null }
+            Assert-Contract ($result.ProcessTreeMemoryLimitBytes -eq $expectedLimit) "$mode reported the wrong memory limit."
+        }
         $scenarioNames.Add($mode)
     }
+
+    $unownedLimitRoot = Join-Path $suiteRoot 'unowned memory limit'
+    [IO.Directory]::CreateDirectory($unownedLimitRoot) | Out-Null
+    $unownedFailure = $null
+    try {
+        [Jet.Harness.BoundedProcessRunner]::Run(
+            $pwshPath, [string[]]@('-NoProfile', '-File', $parentPath, 'simple', $unownedLimitRoot, $pwshPath, $childPath),
+            $unownedLimitRoot, $null, (Join-Path $unownedLimitRoot 'stdout.log'), (Join-Path $unownedLimitRoot 'stderr.log'),
+            4096, [TimeSpan]::FromSeconds(20), [string[]]::new(0),
+            [Collections.Generic.Dictionary[string, string]]::new(), [string[]]::new(0),
+            65001, $false, [Threading.CancellationToken]::None, [long]512MB) | Out-Null
+    }
+    catch { $unownedFailure = $_.Exception.GetBaseException() }
+    Assert-Contract ($unownedFailure -is [ArgumentException]) 'A memory limit without an owned process tree must be rejected.'
+    Assert-Contract (-not [IO.File]::Exists((Join-Path $unownedLimitRoot 'parent.json'))) 'A rejected memory limit must not start the target.'
+    $scenarioNames.Add('unowned-memory-limit-rejected')
 
     $cancelledRoot = Join-Path $suiteRoot 'cancelled before start'
     [IO.Directory]::CreateDirectory($cancelledRoot) | Out-Null

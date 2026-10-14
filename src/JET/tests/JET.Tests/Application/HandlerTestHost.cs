@@ -49,6 +49,7 @@ internal sealed class HandlerTestHost : IDisposable
             // 使用者編號快取釘到本 host 的 temp 根之下，測試絕不碰真 %LOCALAPPDATA%\JET（比照 DiagnosticLogDirectory 作法）。
             userProfileDirectory: Path.Combine(_root.Path, "user-profile"));
         Dispatcher = _runtime.Dispatcher;
+        SupportLogDirectory = Path.Combine(_root.Path, "user-profile", "logs");
     }
 
     public ActionDispatcher Dispatcher { get; }
@@ -63,6 +64,9 @@ internal sealed class HandlerTestHost : IDisposable
     public IDiagnosticLogStore? DiagnosticLog => _diagnostic;
 
     public string ProjectsRoot => _projectsRoot;
+
+    /// <summary>support.log.export 省略 projectId 時的輸出位置（正式程式是 %LOCALAPPDATA%\JET\logs\）。</summary>
+    public string SupportLogDirectory { get; }
 
     public IReadOnlyList<(string EventName, object Payload)> PublishedEvents => _events.Published;
 

@@ -5,6 +5,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 /// <summary>
 /// 驗證結果可用性的 provider integration matrix。四個 action 都走真 dispatcher、
 /// 真 validation persistence 與各 provider 的資料庫；缺少目前結果時必須在任何
@@ -459,8 +461,7 @@ public sealed class CompletenessBackendGateProviderTests
                                 new
                                 {
                                     join = "AND",
-                                    type = "customKeywords",
-                                    keywords = "完整性閘門"
+                                    type = "fieldValue", field = "description", @operator = "contains", values = new[] { "完整性閘門" }
                                 }
                             }
                         }

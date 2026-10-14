@@ -15,13 +15,15 @@
     return (
       '<label class="form__row">' +
         '<span class="form__label">' + label + (required ? ' <em class="form__req">*</em>' : '') + '</span>' +
-        '<input class="form__input" type="' + type + '" name="' + name + '"' + (required ? ' required' : '') +
-          (value == null ? '' : ' value="' + Ui.esc(value) + '"') + '>' +
+        (type === 'date' ? Ui.dateInputHtml({ name: name, required: required, value: value }) :
+          '<input class="form__input" type="' + type + '" name="' + name + '"' + (required ? ' required' : '') +
+          (value == null ? '' : ' value="' + Ui.esc(value) + '"') + '>') +
       '</label>'
     );
   }
 
-  function formSelect(name, label, options, hint) {
+  // note：固定顯示在下拉選單下方的一句說明；hint：依狀態出現的提示（hidden 切換）。
+  function formSelect(name, label, options, hint, note) {
     var opts = options.map(function (option) {
       return (
         '<option value="' + option.value + '"' + (option.selected ? ' selected' : '') +
@@ -35,7 +37,9 @@
         '<span class="form__label">' + label + '</span>' +
         '<select class="form__input" name="' + name + '">' + opts + '</select>' +
       '</label>' +
-      '<p class="rule-card__sub" data-bind="' + name + '-hint" role="status"' + (hint ? '' : ' hidden') + '>' +
+      (note ? '<p class="rule-card__sub">' + Ui.esc(note) + '</p>' : '') +
+      // 提示原地展開與收起；使用者 2026-10-13 要求展開與收合一致，所以和其他提示共用 data-collapsible。
+      '<p class="rule-card__sub" data-bind="' + name + '-hint" data-collapsible role="status"' + (hint ? '' : ' hidden') + '>' +
         Ui.esc(hint || '') + '</p>'
     );
   }
@@ -57,7 +61,8 @@
     var hint = container.querySelector('[data-bind="create-form"] [data-bind="databaseProvider-hint"]');
     if (option) { option.disabled = unavailable; }
     if (hint) {
-      hint.textContent = unavailable ? SQL_SERVER_NOT_CONFIGURED_HINT : '';
+      // 收起時只設 hidden、留下原文字，提示才會帶著內容收合，不會先變成空框再消失。
+      if (unavailable) { hint.textContent = SQL_SERVER_NOT_CONFIGURED_HINT; }
       hint.hidden = !unavailable;
     }
   };
@@ -81,23 +86,21 @@
   function operatorNoticeHtml(state) {
     var user = state.currentUser;
     var name = user && user.shortName ? user.shortName : '目前 Windows 帳號';
-    return '<p class="form-notice create-form__operator" data-bind="create-operator">目前帳號：<strong>' + Ui.esc(name) +
+    return '<p class="form-notice form-notice--info create-form__operator" data-bind="create-operator">目前帳號：<strong>' + Ui.esc(name) +
       '</strong>。建立案件時由系統取得，不能自行更改。</p>';
   }
 
   // whoAmI 可能晚於使用者開始填表；只更新身分這一行，不重建未儲存的案件表單。
   Ui.refreshCreateIdentity = function (container, state) {
     if (state.project) { return; }
-    var notice = container.querySelector('[data-bind="create-operator"]');
+    var notice = Ui.findLive(container, '[data-bind="create-operator"]');
     if (notice) { notice.outerHTML = operatorNoticeHtml(state); }
   };
 
   function clearCreateError(form, updating) {
     var summary = form.querySelector('[data-bind="' + (updating ? 'project-update-error' : 'create-error') + '"]');
-    if (summary) {
-      summary.hidden = true;
-      summary.textContent = '';
-    }
+    // 只收起不清空：錯誤訊息要帶著原文字收合；下次顯示時 showCreateError 會先寫入新訊息。
+    if (summary) { summary.hidden = true; }
     var invalidFields = form.querySelectorAll('[aria-invalid="true"]');
     Array.prototype.forEach.call(invalidFields, function (field) {
       field.removeAttribute('aria-invalid');
@@ -147,33 +150,40 @@
     var validDate = /^\d{4}-\d{2}-\d{2}$/;
     var unusual = validDate.test(value) && ((validDate.test(start) && value < start) ||
       (validDate.test(end) && value > oneYearAfter(end)));
-    warning.textContent = unusual
-      ? '期末財報準備日早於查核起始日，或晚於查核截止日超過一年，請確認年份。仍可照目前日期儲存。' : '';
+    // 早於查核起始日，或晚於查核截止日超過一年時提醒；只顯示狀態，不在提示裡解釋判斷規則。
+    // 顯示時先寫文字再展開；收起時保留原文字，讓提示帶著內容收合。
+    if (unusual) { warning.textContent = '期末財報準備日與查核期間不符，請確認年份。'; }
     warning.hidden = !unusual;
   }
 
   function preparationWarningHtml() {
-    return '<p class="form-notice" data-bind="preparation-date-warning" role="status" hidden></p>';
+    return '<p class="form-notice form-notice--warning" data-bind="preparation-date-warning" data-collapsible role="status" hidden></p>';
   }
 
   function metadataEditorHtml() {
     if (!metadataDraft) {
-      return '<div class="panel__actions"><button type="button" class="btn btn--ghost" ' +
+      return '<div class="panel__actions" data-motion-key="metadata-actions"><button type="button" class="btn btn--ghost" ' +
         'data-action="edit-project-metadata">修改案件資料</button></div>';
     }
     var values = metadataDraft.values;
-    return '<form class="form" data-bind="project-update-form">' +
+    return '<form class="form" data-bind="project-update-form" data-motion-key="metadata-form">' +
       '<h3>修改案件資料</h3>' +
       '<p>案件名稱與查核期間不能修改。已匯出的報告與工作底稿不會改寫；之後匯出時使用新資料。</p>' +
-      formRow('entityName', '客戶名稱（選填）', 'text', false, values.entityName) +
-      formRow('projectCode', '案件編號（選填）', 'text', false, values.projectCode) +
+      formRow('entityName', '客戶名稱', 'text', false, values.entityName) +
+      formRow('projectCode', '案件編號', 'text', false, values.projectCode) +
       formRow('lastPeriodStart', '期末財報準備日', 'date', false, values.lastPeriodStart) +
       '<p class="rule-card__sub">修改期末財報準備日後，預篩選需要重新計算。</p>' +
       Ui.downstreamResetNoticeHtml(Store.getState()) +
       preparationWarningHtml() +
-      '<div id="project-update-error" class="form-notice" data-bind="project-update-error" role="alert" tabindex="-1" hidden></div>' +
-      '<div class="panel__actions"><button type="submit" class="btn">儲存案件資料</button>' +
-      '<button type="button" class="btn btn--ghost" data-action="cancel-project-metadata">取消</button></div></form>';
+      '<div id="project-update-error" class="form-notice" data-bind="project-update-error" data-collapsible role="alert" tabindex="-1" hidden></div>' +
+      '<div class="panel__actions"><button type="button" class="btn btn--ghost" data-action="cancel-project-metadata">取消</button>' +
+      '<button type="submit" class="btn">儲存案件資料</button></div></form>';
+  }
+
+  // 按鈕和表單互換，按下的那一個跟著不見：打開表單時焦點交給第一個欄位，收起時交回「修改案件資料」
+  //（使用者 2026-10-13 交接：原本焦點落到整個頁面）。
+  function focusMetadata(selector) {
+    if (global.JetFocus && global.JetFocus.deferFirst) { global.JetFocus.deferFirst([selector]); }
   }
 
   function bindMetadataEditor(container, project) {
@@ -183,9 +193,14 @@
         entityName: project.entityName || '', projectCode: project.projectCode || '', lastPeriodStart: project.lastPeriodStart || ''
       } };
       Store.touch();
+      focusMetadata('[data-bind="project-update-form"] [name="entityName"]');
     }); }
     var cancel = container.querySelector('[data-action="cancel-project-metadata"]');
-    if (cancel) { cancel.addEventListener('click', function () { metadataDraft = null; Store.touch(); }); }
+    if (cancel) { cancel.addEventListener('click', function () {
+      metadataDraft = null;
+      Store.touch();
+      focusMetadata('[data-action="edit-project-metadata"]');
+    }); }
     var form = container.querySelector('[data-bind="project-update-form"]');
     if (!form) { return; }
     var draft = metadataDraft;
@@ -213,12 +228,13 @@
           if (!isCurrent()) { return; }
           metadataDraft = null;
           Store.updateProjectMetadata(data);
-          Store.addMessage('案件資料已更新。既有匯出檔保持原樣；之後匯出會使用新資料。', 'info');
+          focusMetadata('[data-action="edit-project-metadata"]');
+          Store.addMessage('案件資料已更新。', 'info');
           (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
         }).catch(function (error) {
           if (isCurrent()) { throw error; }
         });
-      }, { onError: function (_, error) {
+      }, { inlineError: true, onError: function (_, error) {
         if (!isCurrent()) { return; }
         draft.error = error;
         showCreateError(form, error, true);
@@ -232,22 +248,25 @@
       Number.isInteger(summary.documentNumberCount) && summary.documentNumberCount >= 0 &&
       Number.isInteger(summary.entryCount) && summary.entryCount >= 0;
     var text;
+    // 尚未確認與未發現只是說明，用中性樣式；有發現時需要注意但不擋人，用注意色。紅色只留給錯誤。
+    var variant = 'form-notice--info';
     if (!known) {
-      text = '傳票號碼是否用於不同總帳入帳日尚未確認。請在第四步執行資料驗證後查看；仍可繼續目前作業。';
+      text = '傳票號碼是否用於不同總帳日期尚未確認。請在第四步執行資料驗證後查看；仍可繼續目前作業。';
     } else if (summary.documentNumberCount === 0) {
-      text = '目前有效總帳未發現同一傳票號碼出現在不同總帳入帳日。';
+      text = '目前 GL 中未發現同一傳票號碼出現在不同總帳日期。';
     } else {
-      text = '有效總帳有 ' + summary.documentNumberCount.toLocaleString() + ' 個傳票號碼出現在不同總帳入帳日，' +
-        '共影響 ' + summary.entryCount.toLocaleString() + ' 列分錄。請確認來源系統是否重複使用號碼；JET 不會因此更改傳票比對鍵。';
+      variant = 'form-notice--warning';
+      text = 'GL 有 ' + summary.documentNumberCount.toLocaleString() + ' 個傳票號碼出現在不同總帳日期（共 ' +
+        summary.entryCount.toLocaleString() + ' 列），請確認來源系統是否重複使用號碼。';
     }
-    return '<p class="form-notice" data-bind="document-date-reuse" role="status">' + Ui.esc(text) + '</p>';
+    return '<p class="form-notice ' + variant + '" data-bind="document-date-reuse" role="status">' + Ui.esc(text) + '</p>';
   }
 
   function render(container, state) {
     if (metadataDraft && metadataDraft.project !== state.project) { metadataDraft = null; }
     if (state.project) {
       container.innerHTML =
-        '<div class="panel">' +
+        '<div class="panel" data-motion-key="create-summary-panel">' +
           '<h2 class="panel__title">建立案件</h2>' +
           '<dl class="kv-list">' +
             kv('案件名稱', state.project.projectId) +
@@ -269,24 +288,24 @@
     }
 
     container.innerHTML =
-      '<div class="panel">' +
+      '<div class="panel" data-motion-key="create-form-panel">' +
         '<h2 class="panel__title">建立案件</h2>' +
         '<form class="form" data-bind="create-form">' +
           formRow('caseName', '案件名稱', 'text', true) +
-          formRow('projectCode', '案件編號（選填）', 'text', false) +
-          formRow('entityName', '客戶名稱（選填）', 'text', false) +
+          formRow('projectCode', '案件編號', 'text', false) +
+          formRow('entityName', '客戶名稱', 'text', false) +
           operatorNoticeHtml(state) +
           formRow('periodStart', '查核起始日', 'date', true) +
           formRow('periodEnd', '查核截止日', 'date', true) +
           formRow('lastPeriodStart', '期末財報準備日', 'date', false) +
           preparationWarningHtml() +
           '<p class="rule-card__sub">查核期間決定本次分析的總帳範圍；期末財報準備日供「財報準備日起核准」條件使用，不會延長查核期間。</p>' +
-          formSelect('databaseProvider', '資料儲存方式（建立後不可變更）', [
+          formSelect('databaseProvider', '資料儲存方式', [
             { value: 'sqlite', text: 'SQLite（本機檔案）', selected: true },
             { value: 'duckdb', text: 'DuckDB（本機分析資料庫）' },
             { value: 'sqlServer', text: 'SQL Server（共用實例）', disabled: sqlServerUnavailable(state) }
-          ], sqlServerUnavailable(state) ? SQL_SERVER_NOT_CONFIGURED_HINT : '') +
-          '<div id="create-form-error" class="form-notice create-form__error" data-bind="create-error" role="alert" tabindex="-1" hidden></div>' +
+          ], sqlServerUnavailable(state) ? SQL_SERVER_NOT_CONFIGURED_HINT : '', '建立案件後不能變更。') +
+          '<div id="create-form-error" class="form-notice create-form__error" data-bind="create-error" data-collapsible role="alert" tabindex="-1" hidden></div>' +
           '<div class="panel__actions">' +
             '<button type="submit" class="btn">建立案件</button>' +
           '</div>' +
@@ -328,6 +347,8 @@
           Ui.applyLoadedProject(loaded);
         });
       }, {
+        // 原因寫在表單上方的錯誤框，不另外在步驟上方顯示。
+        inlineError: true,
         onError: function (_, error) { showCreateError(form, error); }
       });
     });

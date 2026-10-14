@@ -298,7 +298,7 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
                     {
                         throw new JetActionException(
                             JetErrorCodes.ProjectNotFound,
-                            "找不到指定的案件資料夾。案件資料夾可能已被移動或刪除，請確認案件資料夾仍在 JET 的案件位置。");
+                            ProjectFolderMessages.ActiveProjectMissing);
                     }
 
                     throw new IOException("本地案件鎖路徑祖先不存在。");

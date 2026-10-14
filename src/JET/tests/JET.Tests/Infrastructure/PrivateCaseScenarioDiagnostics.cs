@@ -290,11 +290,7 @@ internal static class PrivateCaseScenarioDiagnostics
             return false;
         }
 
-        var candidates = groups.EnumerateArray()
-            .Where(static group => group.ValueKind == JsonValueKind.Object
-                && group.TryGetProperty("rules", out var rules)
-                && rules.ValueKind == JsonValueKind.Array)
-            .SelectMany(static group => group.GetProperty("rules").EnumerateArray())
+        var candidates = DiagnosticRules(groups)
             .Where(static rule => rule.ValueKind == JsonValueKind.Object
                 && rule.TryGetProperty("type", out var type)
                 && type.ValueKind == JsonValueKind.String
@@ -385,6 +381,21 @@ internal static class PrivateCaseScenarioDiagnostics
                 groupObject["matchScope"] = "row";
                 changed = true;
             }
+            else if (groupObject["rules"] is JsonArray rules && rules.Count > 1
+                && rules.Skip(1).All(rule => rule is JsonObject witness && witness["type"]?.GetValue<string>() == "voucher"
+                    && witness["quantifier"]?.GetValue<string>() == "any" && !witness.ContainsKey("side")
+                    && witness["rules"] is JsonArray { Count: 1 }))
+            {
+                // 新寫法把每個佐證放進獨立的整張傳票條件；此診斷把它們展回同列，保留原本的對照問題。
+                for (var index = 1; index < rules.Count; index++)
+                {
+                    var witness = rules[index]!.AsObject();
+                    var child = witness["rules"]![0]!.DeepClone();
+                    child["join"] = witness["join"]?.DeepClone() ?? JsonValue.Create("AND");
+                    rules[index] = child;
+                }
+                changed = true;
+            }
         }
 
         if (changed)
@@ -464,11 +475,27 @@ internal static class PrivateCaseScenarioDiagnostics
         {
             return false;
         }
-        return groups.EnumerateArray().Any(group =>
-            group.ValueKind == JsonValueKind.Object
-            && group.TryGetProperty("rules", out var rules)
-            && rules.ValueKind == JsonValueKind.Array
-            && rules.EnumerateArray().Any(rule => IsPrescreenRule(rule, expected)));
+        return DiagnosticRules(groups).Any(rule => IsPrescreenRule(rule, expected));
+    }
+
+    // First failure: 20261014-141711404-ba7f6967b4d243638a85f11994adac28. Explicit single-rule witnesses retain the original diagnostic subject.
+    private static IEnumerable<JsonElement> DiagnosticRules(JsonElement groups)
+    {
+        foreach (var group in groups.EnumerateArray())
+        {
+            if (group.ValueKind != JsonValueKind.Object || !group.TryGetProperty("rules", out var rules)
+                || rules.ValueKind != JsonValueKind.Array) continue;
+            foreach (var rule in rules.EnumerateArray())
+            {
+                if (rule.ValueKind == JsonValueKind.Object
+                    && rule.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "voucher"
+                    && rule.TryGetProperty("quantifier", out var quantifier) && quantifier.ValueKind == JsonValueKind.String && quantifier.GetString() == "any"
+                    && !rule.TryGetProperty("side", out _)
+                    && rule.TryGetProperty("rules", out var children) && children.ValueKind == JsonValueKind.Array && children.GetArrayLength() == 1)
+                    yield return children[0];
+                else yield return rule;
+            }
+        }
     }
 
     private static bool IsSinglePrescreenRule(JsonElement scenario, string expected)

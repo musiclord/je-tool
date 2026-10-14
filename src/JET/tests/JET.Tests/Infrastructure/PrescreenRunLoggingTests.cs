@@ -35,8 +35,12 @@ public sealed class PrescreenRunLoggingTests
     // 首次失敗：Public 20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
     // 由該收據 TRX 的完整命令逆向移除上述 guard 與第 18 條後，兩個 digest 均精確回到原值；其餘命令與參數未變。
     // SQL Server 未執行，保留舊 digest，不從本地 SQL 推算它的結果。
-    private const string SqliteSnapshotDigest = "CBA27CFF23206BC75F43D16B8C261567B56B57D7A5F35BB63ED33C684C13EB05";
-    private const string DuckDbSnapshotDigest = "A89E11E7871AE96C7087FCF4B809ECBCE6FB949532EEF0E4719D3F8025F54F76";
+    // 2026-10-08 使用者裁定移除傳票日期與回溯過帳：SQLite、DuckDB 各少一條回溯過帳的計數查詢（原第 14 條）。
+    // 首次失敗：Public 20261008-055710957-f16e3981f37d4c25957debd27340b1d9。把這條查詢依空白摘要同一樣板、
+    // 換成 `(g.voucher_date IS NOT NULL AND g.post_date < g.voucher_date)` 插回實際命令序列後，兩個 digest 都精確回到原值，
+    // 其餘 17 條命令與參數未變。SQL Server 同樣未執行，維持原值待核對。
+    private const string SqliteSnapshotDigest = "847BAFE0A6F3930C007CC233A7CC16CCDD9CD6CC2FD3F3E51D62F29070BCBFB5";
+    private const string DuckDbSnapshotDigest = "AF944C136750118DE969727193752237EF2EC8FCAC5424AB5046AC8F2677FAE3";
     private const string SqlServerSnapshotDigest = "F2274C9B66E03AAB184715287E158F5081F8F2011F7E1FDE210A1E234937434C";
 
     private const string PeriodStart = "2025-09-30"; // 可辨識的期末日，後期核准述詞綁定後應現身於 parameters

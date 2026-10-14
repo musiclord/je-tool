@@ -27,6 +27,8 @@ internal static class ConcentrationWireKeys
 /// 集中度分析前端邊界的守衛。此區塊的所有審計數字（累積占比、「其他」彙總、前五佔比、
 /// 分母）一律由後端算好，前端只鏡射與格式化；「不適用」與「舊執行結果沒有此統計」都必須
 /// 以文字降級，不得以 0 冒充統計。圖表 option 只交給本地 vendored ECharts 的 SVG renderer。
+/// 這裡留下 wire key 鏡射、不在前端重算、中性用語與圖表設定來源的原始碼檢查；降級說明、檢視分頁的鍵盤操作與
+/// 只在統計就緒時顯示，2026-10-14 起改由 <c>tools/tests/frontend-journey-overview.test.cjs</c> 的情境 19 行為測試核對。
 /// </summary>
 public sealed class OverviewConcentrationFrontendTests
 {
@@ -63,24 +65,11 @@ public sealed class OverviewConcentrationFrontendTests
         // 只鏡射既有欄位；不得自行呼叫後端或改寫任何狀態。
         Assert.DoesNotContain("JetApi", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JetStore", source, StringComparison.Ordinal);
-    }
 
-    [Fact]
-    public void ConcentrationRenderer_DegradesHonestlyInsteadOfShowingZero()
-    {
-        var source = ReadFrontend("js", "overview-bi.js");
-
-        // 三種降級各有明確文字：未執行、舊結果缺欄位、後端裁定不適用。
-        Assert.Contains("尚未執行預篩選（選用）", source, StringComparison.Ordinal);
-        Assert.Contains("需重新執行預篩選以產生此統計", source, StringComparison.Ordinal);
-        Assert.Contains("不適用", source, StringComparison.Ordinal);
-
-        // 不適用一律取自後端裁定，前端不自行判斷是否適用。
-        Assert.Contains("concentration.status !== 'V'", source, StringComparison.Ordinal);
-        Assert.Contains("concentration.naReason", source, StringComparison.Ordinal);
-
-        // 分母為 null 時顯示「—」，不畫 0%。
-        Assert.Contains("(pct == null) ? '—'", source, StringComparison.Ordinal);
+        // 總數、累積筆數與排序也照後端給的值：原本只查金額級距與圖表設定函式，併入後改查整個檔。
+        Assert.DoesNotContain("totalCount", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("cumulativeCount", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".sort(", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -143,48 +132,5 @@ public sealed class OverviewConcentrationFrontendTests
         Assert.True(moduleIndex > 0, "index.html 未載入 overview-bi.js。");
         Assert.True(echartsIndex < moduleIndex, "ECharts 必須先於 overview-bi.js 載入。");
         Assert.True(moduleIndex < appIndex, "overview-bi.js 必須先於 app.js 載入。");
-    }
-
-    [Fact]
-    public void ConcentrationTabs_PreserveFocusAndImplementTheAriaTabsKeyboardContract()
-    {
-        var renderer = ReadFrontend("js", "overview-bi.js");
-        var app = ReadFrontend("js", "app.js");
-
-        Assert.Contains("id=\"overview-concentration-tab-", renderer, StringComparison.Ordinal);
-        Assert.Contains("aria-controls=\"overview-concentration-panel\"", renderer, StringComparison.Ordinal);
-        Assert.Contains("tabindex=\"", renderer, StringComparison.Ordinal);
-        Assert.Contains("id=\"overview-concentration-panel\" role=\"tabpanel\"", renderer, StringComparison.Ordinal);
-        Assert.Contains("aria-labelledby=\"overview-concentration-tab-", renderer, StringComparison.Ordinal);
-
-        Assert.Contains("function bindOverviewConcentrationTabs(", app, StringComparison.Ordinal);
-        Assert.Contains("ArrowLeft", app, StringComparison.Ordinal);
-        Assert.Contains("ArrowRight", app, StringComparison.Ordinal);
-        Assert.Contains("Home", app, StringComparison.Ordinal);
-        Assert.Contains("End", app, StringComparison.Ordinal);
-        Assert.Contains("nextTab.focus()", app, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Overview_RendersConcentrationOnlyWhenPopulationIsReady()
-    {
-        var source = ReadFrontend("js", "app.js");
-
-        // 總覽組裝時納入本區塊，資料來源為既有 prescreen 執行結果。
-        Assert.Contains("overviewConcentrationHtml(state)", source, StringComparison.Ordinal);
-        Assert.Contains(
-            "JetOverviewBi.concentrationHtml(state.lastRuns.prescreen",
-            source,
-            StringComparison.Ordinal);
-
-        // 母體未就緒時沿用上方單一空狀態（不另外冒出第二個空區塊）；就緒後 renderer
-        // 必須以預設收合的 analysis details 提供預篩選。
-        Assert.Contains("if (!validate || !validate.stats) { return ''; }", source, StringComparison.Ordinal);
-        var overviewBi = ReadFrontend("js", "overview-bi.js");
-        Assert.Contains(
-            "<details class=\"overview__bi overview__analysis\"",
-            overviewBi,
-            StringComparison.Ordinal);
-        Assert.Contains("<span>預篩選</span>", overviewBi, StringComparison.Ordinal);
     }
 }

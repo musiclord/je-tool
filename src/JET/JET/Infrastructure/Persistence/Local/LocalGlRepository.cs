@@ -30,7 +30,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
     private static readonly string[] TargetColumns =
     [
         "batch_id", "source_row_number",
-        "document_number", "line_item", "post_date", "approval_date", "voucher_date",
+        "document_number", "line_item", "post_date", "approval_date",
         "account_code", "account_name", "document_description",
         "source_module", "created_by", "approved_by", "is_manual",
         "amount_scaled", "debit_amount_scaled", "credit_amount_scaled", "dr_cr",
@@ -188,20 +188,19 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 targetValues[3] = projected.LineItem;
                 targetValues[4] = projected.PostDate;
                 targetValues[5] = projected.ApprovalDate;
-                targetValues[6] = projected.VoucherDate;
-                targetValues[7] = projected.AccountCode;
-                targetValues[8] = projected.AccountName;
-                targetValues[9] = projected.DocumentDescription;
-                targetValues[10] = projected.SourceModule;
-                targetValues[11] = projected.CreatedBy;
-                targetValues[12] = projected.ApprovedBy;
-                targetValues[13] = projected.IsManual is null ? null : projected.IsManual.Value ? 1 : 0;
-                targetValues[14] = projected.AmountScaled;
-                targetValues[15] = projected.DebitAmountScaled;
-                targetValues[16] = projected.CreditAmountScaled;
-                targetValues[17] = projected.DrCr;
-                targetValues[18] = LineItemNumericSortKey.CreateOrNull(projected.LineItem);
-                targetValues[19] = projected.PostingStatus;
+                targetValues[6] = projected.AccountCode;
+                targetValues[7] = projected.AccountName;
+                targetValues[8] = projected.DocumentDescription;
+                targetValues[9] = projected.SourceModule;
+                targetValues[10] = projected.CreatedBy;
+                targetValues[11] = projected.ApprovedBy;
+                targetValues[12] = projected.IsManual is null ? null : projected.IsManual.Value ? 1 : 0;
+                targetValues[13] = projected.AmountScaled;
+                targetValues[14] = projected.DebitAmountScaled;
+                targetValues[15] = projected.CreditAmountScaled;
+                targetValues[16] = projected.DrCr;
+                targetValues[17] = LineItemNumericSortKey.CreateOrNull(projected.LineItem);
+                targetValues[18] = projected.PostingStatus;
                 var postDate = projected.PostDate is null
                     ? (DateOnly?)null
                     : DateOnly.ParseExact(
@@ -243,8 +242,8 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                     continue;
                 }
 
-                targetValues[20] = classification.IsEffective ? 1 : 0;
-                targetValues[21] = classification.StorageReason;
+                targetValues[19] = classification.IsEffective ? 1 : 0;
+                targetValues[20] = classification.StorageReason;
                 await insert.AppendAsync(targetValues, cancellationToken);
                 insertedCount++;
                 targetDebit = nextTargetDebit;
@@ -263,7 +262,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                         excludedByPostingStatusCount++;
                         break;
                     default:
-                        throw new InvalidOperationException("未知的 GL 有效母體分類。");
+                        throw new InvalidOperationException("未知的 GL 分類：每一列只能列入 GL 或 GL(未納入測試)。");
                 }
             }
         }
@@ -290,7 +289,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             txLog.RolledBack();
             throw new JetActionException(
                 JetErrorCodes.EmptyEffectivePopulation,
-                "依案件的查核期間與過帳狀態設定篩選後，GL 沒有任何有效分錄，這次欄位配對沒有儲存。請檢查案件的查核期間，或過帳狀態的納入值。");
+                GlProjectionGuard.EmptyEffectivePopulationMessage);
         }
 
         // 退化母體守門:投影無列級錯誤、母體非空,但借貸總額皆為 0(金額欄誤配到傳票總額或空欄)。

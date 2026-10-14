@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -13,6 +14,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
     private readonly CurrentPrincipal principal;
     private readonly ProjectSession session;
     private readonly IProjectDatabaseRetention? databaseRetention;
+    private readonly ILogger? logger;
 
     internal ProjectLoadHandler(
         IProjectStore projectStore,
@@ -21,8 +23,10 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         IAppConfigStore appConfig,
         CurrentPrincipal principal,
         ProjectSession session,
-        IProjectDatabaseRetention? databaseRetention = null)
+        IProjectDatabaseRetention? databaseRetention = null,
+        ILogger<ProjectLoadHandler>? logger = null)
     {
+        this.logger = logger;
         this.projectStore = projectStore;
         this.repositoryCatalog = repositoryCatalog;
         this.registry = registry;
@@ -48,7 +52,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             var providerHint = PayloadReader.GetOptionalString(payload, "databaseProvider");
             var notFound = new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                $"找不到專案 '{projectId}'。案件資料夾可能已被移動或刪除，請確認案件資料夾仍在 JET 的案件位置。");
+                ProjectFolderMessages.CannotOpen(projectId));
             if (providerHint != ProjectDocument.SqlServerDatabaseProvider)
             {
                 throw notFound;
@@ -123,6 +127,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             // 改版寫在戳記上次開啟時間之前；之後載入失敗時改版仍保留，重做的結果相同。
             var scenarioUpgrade = await EvaluateScenarioUpgradeAsync(
                 document, repositories, savedScenarios, glMapping, accountMappingState, taxonomy, cancellationToken);
+            // 損毀的條件在清單上只寫「條件內容無法讀取」，哪一條、哪一種記進支援日誌。
+            FilterScenarioDiagnostics.LogProblems(logger, Action, scenarioUpgrade.Problems);
             if (scenarioUpgrade.Status == FilterScenarioUpgradeStatus.Upgraded)
             {
                 await repositories.FilterScenarios.ReplaceAllAsync(
@@ -137,6 +143,13 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             latestValidate = currentResults.ValidationRun;
             latestPrescreen = currentResults.PrescreenRun;
             var currentFilterRevision = currentResults.FilterRevision;
+            // 使用者 2026-10-13 裁定「開案也逐一檢查」：已是目前版本、但因其他資料改變而不合格的情境，版本檢查會通過，
+            // 這裡照待修正的規則把篩選結果視為不可用，畫面維持鎖住並列出要修改的情境，報告依此標成過期。
+            if (scenarioUpgrade.Status == FilterScenarioUpgradeStatus.NeedsEdit && currentFilterRevision is not null)
+            {
+                currentFilterRevision = null;
+                staleState = staleState with { Filter = true };
+            }
             var filterPositions = currentResults.ScenarioPositions;
 
             await reportArtifactStore.MarkStaleAsync(
@@ -279,6 +292,9 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                     }).ToArray()
                 },
                 reportArtifacts = reportArtifacts.Select(ReportExportSupport.ArtifactWire).ToArray(),
+                // 已移除的 GL 欄位與畫面名稱，第五步舊情境的條件標題與讀回用它寫出名稱、不印程式代號
+                // （使用者 2026-10-14 第三輪勾選頁確認 R3-03）；正本只在 JetFieldCatalog。
+                retiredGlFieldLabels = JetFieldCatalog.RetiredGlFieldLabels,
                 heartbeatSeconds
             };
 
@@ -425,7 +441,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         }
 
         // Remote documents have not passed the local file reader; reject invalid periods before creating a cache or taking a lock.
-        ProjectDocumentPeriodIntegrity.Validate(registered.Document, $"線上案件『{projectId}』的登錄資料");
+        ProjectDocumentPeriodIntegrity.Validate(registered.Document, projectId);
 
         // 物化快取:寫 projects/{id}/project.json。目標資料夾已被(其他 provider 的)同名案件占用 → invalid_payload。
         try
@@ -436,7 +452,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         {
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
-                $"本地已有同名案件『{projectId}』,無法物化此線上(僅伺服器)案件的快取。");
+                SqlServerMessages.LocalCaseWithSameName(projectId));
         }
 
         return registered.Document;
@@ -477,7 +493,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             // schema 不在 → 幽靈快取:擋下,避免無聲復活成新空 schema。
             throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                "此線上案件已不在伺服器上（可能已被刪除）。");
+                SqlServerMessages.ProjectMissingOnServer);
         }
     }
 

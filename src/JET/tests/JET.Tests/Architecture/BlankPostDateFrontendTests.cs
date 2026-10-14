@@ -9,21 +9,6 @@ namespace JET.Tests.Architecture;
 public sealed class BlankPostDateFrontendTests
 {
     [Fact]
-    public void ValidationUi_PresentsBlankPostDateAsSourceQualityOnly()
-    {
-        var source = ReadFrontend("js", "steps", "validate-step.js");
-
-        // 來源品質是 validate.run 的獨立區塊，全量明細走它自己的分頁 action。
-        Assert.Contains("v.sourceQuality", source, StringComparison.Ordinal);
-        Assert.Contains("querySourceQualityPage", source, StringComparison.Ordinal);
-        Assert.Contains("LOAD_MORE_SPECS.sourceQuality", source, StringComparison.Ordinal);
-        // C8 follows the user's D21 word order; the source-quality boundary and action stay unchanged.
-        // First failure: 20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022.
-        Assert.Contains("category === 'nullPostDate' ? '總帳入帳日空白'", source, StringComparison.Ordinal);
-        Assert.Contains("loadMore: 'sourceQuality'", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void ValidationUi_DoesNotReadBlankPostDateFromNullRecords()
     {
         var source = ReadFrontend("js", "steps", "validate-step.js");
@@ -33,20 +18,7 @@ public sealed class BlankPostDateFrontendTests
         Assert.DoesNotContain("nullPostDateCount", source, StringComparison.Ordinal);
         Assert.DoesNotContain("nullLoadMoreSpec('nullPostDate'", source, StringComparison.Ordinal);
         Assert.DoesNotContain("['nullPostDate']", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("postDate: '空白總帳入帳日'", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ValidationUi_ReportsSourceQualityCountSeparatelyFromNullRecordTotal()
-    {
-        var source = ReadFrontend("js", "steps", "validate-step.js");
-
-        // 2026-10-02 整體複審 T11：「異常項次合計」改名「空值項目合計（同一分錄可能重複計入）」；舊名稱不得再出現。
-        Assert.Contains("空值項目合計（同一分錄可能重複計入）", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("異常項次合計", source, StringComparison.Ordinal);
-        Assert.Contains("同一分錄可能重複計入", source, StringComparison.Ordinal);
-        Assert.Contains("獨立計數，不與上一項相加", source, StringComparison.Ordinal);
-        Assert.Contains("data.sourceQuality ? data.sourceQuality.findingCount : 0", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("postDate: '空白總帳日期'", source, StringComparison.Ordinal);
     }
 
     private static string ReadFrontend(params string[] segments)

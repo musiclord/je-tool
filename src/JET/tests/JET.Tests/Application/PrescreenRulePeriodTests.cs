@@ -26,7 +26,7 @@ public sealed class PrescreenRulePeriodTests
         "holidayPosting",
         "holidayApproval",
         "blankDescription",
-        "backdatedPosting",
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，規則清單不再有 backdatedPosting。
         "nonAuthorizedPreparer",
         "lowFrequencyPreparer",
         "lowFrequencyAccount"
@@ -43,7 +43,6 @@ public sealed class PrescreenRulePeriodTests
             ["holidayPosting"] = new(2, 1, 50.0m),
             ["holidayApproval"] = new(4, 2, 100.0m),
             ["blankDescription"] = new(1, 1, 25.0m),
-            ["backdatedPosting"] = new(2, 1, 50.0m),
             ["lowFrequencyPreparer"] = new(4, 2, 100.0m),
             ["lowFrequencyAccount"] = new(4, 2, 100.0m)
         };
@@ -115,7 +114,8 @@ public sealed class PrescreenRulePeriodTests
 
         Assert.Equal(JetErrorCodes.EmptyEffectivePopulation, exception.Code);
         // 2026-10-03 用語統一 W10：審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        Assert.Contains("這次欄位配對沒有儲存", exception.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Contains("本次配對未儲存", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -188,7 +188,8 @@ public sealed class PrescreenRulePeriodTests
 
     /// <summary>
     /// 手算母體共四列、兩張傳票：
-    /// A 兩列同時命中期末後核准、關鍵字、六位連續零、週末／假日過帳及回溯過帳；
+    /// A 兩列同時命中期末後核准、關鍵字、六位連續零、週末／假日過帳；
+    /// （使用者 2026-10-08 裁定移除傳票日期與回溯過帳，原本的「傳票日期_僅條件_JE」欄隨之拿掉。）
     /// B 兩列命中週末核准，且只有第一列摘要空白；兩張傳票的核准日都是假日。
     /// 所有建立人與科目使用次數都不超過 11，故兩個低頻規則命中四列。
     /// </summary>
@@ -199,7 +200,6 @@ public sealed class PrescreenRulePeriodTests
                 "傳票號碼",
                 "傳票項次",
                 "傳票日期",
-                "傳票日期_僅條件_JE",
                 "核准日期",
                 "科目代號",
                 "科目名稱",
@@ -208,16 +208,16 @@ public sealed class PrescreenRulePeriodTests
                 "金額",
                 "借方旗標")
             .AddRow(
-                "JV-A", "1", "2025-03-08", "2025-03-10", "2025-12-31",
+                "JV-A", "1", "2025-03-08", "2025-12-31",
                 "A100", "科目 A100", "調整分錄", "C01", "1000000.00", 1)
             .AddRow(
-                "JV-A", "2", "2025-03-08", "2025-03-10", "2025-12-31",
+                "JV-A", "2", "2025-03-08", "2025-12-31",
                 "A200", "科目 A200", "調整分錄", "C01", "1000000.00", 0)
             .AddRow(
-                "JV-B", "1", "2025-03-10", "2025-03-10", "2025-03-09",
+                "JV-B", "1", "2025-03-10", "2025-03-09",
                 "A300", "科目 A300", null, "C02", "12.34", 1)
             .AddRow(
-                "JV-B", "2", "2025-03-10", "2025-03-10", "2025-03-09",
+                "JV-B", "2", "2025-03-10", "2025-03-09",
                 "A400", "科目 A400", "一般分錄", "C02", "12.34", 0);
     }
 
@@ -228,7 +228,6 @@ public sealed class PrescreenRulePeriodTests
                 "傳票號碼",
                 "傳票項次",
                 "傳票日期",
-                "傳票日期_僅條件_JE",
                 "核准日期",
                 "科目代號",
                 "科目名稱",
@@ -237,16 +236,16 @@ public sealed class PrescreenRulePeriodTests
                 "金額",
                 "借方旗標")
             .AddRow(
-                "JV-BEFORE", "1", "2024-12-30", "2024-12-31", "2025-01-02",
+                "JV-BEFORE", "1", "2024-12-30", "2025-01-02",
                 "X100", "界外前", null, "X01", "12.34", 1)
             .AddRow(
-                "JV-START", "1", "2024-12-31", "2024-12-31", "2024-12-31",
+                "JV-START", "1", "2024-12-31", "2024-12-31",
                 "X200", "期初邊界", null, "X02", "12.34", 1)
             .AddRow(
-                "JV-END", "1", "2025-01-01", "2025-01-01", "2025-01-01",
+                "JV-END", "1", "2025-01-01", "2025-01-01",
                 "X300", "期末邊界", "一般分錄", "X03", "12.34", 1)
             .AddRow(
-                "JV-AFTER", "1", "2025-01-02", "2025-01-02", "2025-01-02",
+                "JV-AFTER", "1", "2025-01-02", "2025-01-02",
                 "X400", "界外後", null, "X04", "12.34", 1);
     }
 

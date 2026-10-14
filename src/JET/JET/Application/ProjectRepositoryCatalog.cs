@@ -28,8 +28,7 @@ internal sealed class ProjectRepositoryCatalog
         ProjectDocument.DefaultDatabaseProvider => sqlite,
         ProjectDocument.SqlServerDatabaseProvider => sqlServer,
         ProjectDocument.DuckDbDatabaseProvider => duckDb,
-        _ => throw new JetActionException(
-            JetErrorCodes.UnsupportedProvider, $"未支援的資料庫 provider '{provider}'。")
+        _ => throw JetPayloadRejection.Create(JetErrorCodes.UnsupportedProvider, "database_provider_unsupported")
     };
 
     private static ProjectRepositories RequireProvider(

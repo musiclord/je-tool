@@ -52,7 +52,7 @@ public static partial class ProjectNameRules
 
         if (ReservedNames.Contains(name))
         {
-            return $"案件名稱『{name}』為系統保留名稱,請換一個。";
+            return $"「{name}」是系統保留名稱，請改用其他案件名稱。";
         }
 
         return null;

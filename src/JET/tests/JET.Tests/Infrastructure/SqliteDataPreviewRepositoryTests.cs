@@ -104,23 +104,24 @@ public sealed class SqliteDataPreviewRepositoryTests
         using var fixture = new Fixture(provider);
         await SeedGlPopulationAsync(fixture);
 
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
         var effective = await fixture.Repository.GetPreviewAsync(
             fixture.ProjectId,
-            DataPreviewDataset.GlEntries,
+            DataPreviewDataset.Gl,
             moneyScale: 100,
             limit: 100,
             CancellationToken.None);
 
         Assert.Equal(1, effective.TotalCount);
         Assert.Equal("JV-100", Assert.Single(effective.Rows)[0]);
-        var effectiveStats = Assert.IsType<GlEntriesPreviewStats>(effective.Stats);
+        var effectiveStats = Assert.IsType<GlPreviewStats>(effective.Stats);
         Assert.Equal(123.45m, effectiveStats.AmountAbsMin);
         Assert.Equal(123.45m, effectiveStats.AmountAbsMax);
         Assert.Equal(1, effectiveStats.VoucherCount);
 
         var excluded = await fixture.Repository.GetPreviewAsync(
             fixture.ProjectId,
-            DataPreviewDataset.GlExcludedEntries,
+            DataPreviewDataset.GlExcluded,
             moneyScale: 100,
             limit: 1,
             CancellationToken.None);
@@ -136,7 +137,7 @@ public sealed class SqliteDataPreviewRepositoryTests
         Assert.Equal(
             ["JV-200", "1", null, "POSTED", "5200", "一般費用", "期外", "10", "DEBIT", "period"],
             row);
-        var excludedStats = Assert.IsType<GlExcludedEntriesPreviewStats>(excluded.Stats);
+        var excludedStats = Assert.IsType<GlExcludedPreviewStats>(excluded.Stats);
         Assert.Equal(1, excludedStats.ExcludedByPeriodCount);
         Assert.Equal(2, excludedStats.ExcludedByPostingStatusCount);
     }
@@ -144,14 +145,14 @@ public sealed class SqliteDataPreviewRepositoryTests
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
     [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
-    public async Task GetPreviewAsync_GlExcludedEntries_EmptyReturnsFixedContract(string provider)
+    public async Task GetPreviewAsync_GlExcluded_EmptyReturnsFixedContract(string provider)
     {
         using var fixture = new Fixture(provider);
         await fixture.Database.EnsureCreatedAsync(fixture.ProjectId, CancellationToken.None);
 
         var result = await fixture.Repository.GetPreviewAsync(
             fixture.ProjectId,
-            DataPreviewDataset.GlExcludedEntries,
+            DataPreviewDataset.GlExcluded,
             moneyScale: 100,
             limit: 1,
             CancellationToken.None);
@@ -159,7 +160,7 @@ public sealed class SqliteDataPreviewRepositoryTests
         Assert.Equal(10, result.Columns.Count);
         Assert.Empty(result.Rows);
         Assert.Equal(0, result.TotalCount);
-        var stats = Assert.IsType<GlExcludedEntriesPreviewStats>(result.Stats);
+        var stats = Assert.IsType<GlExcludedPreviewStats>(result.Stats);
         Assert.Equal(0, stats.ExcludedByPeriodCount);
         Assert.Equal(0, stats.ExcludedByPostingStatusCount);
     }
@@ -190,7 +191,9 @@ public sealed class SqliteDataPreviewRepositoryTests
         Assert.Equal(expectedCanonical.Count, result.TotalCount);
 
         // 正向：曝光表確實在（含一張 DataView、一張 StructureOnly）。
-        Assert.Contains("JE_PBC", actualCanonical);
+        // 使用者 2026-10-08 裁定資料名稱全系統統一。
+        // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
+        Assert.Contains("PBC-GL", actualCanonical);
         Assert.Contains("VALIDATION_OVERVIEW", actualCanonical);
 
         // 負向：Hidden 一張都不得出現（gl_control_total / app_message_log / schema_info / *_raw_row 暫存）。
@@ -214,7 +217,7 @@ public sealed class SqliteDataPreviewRepositoryTests
     }
 
     [Fact]
-    public async Task GetPreviewAsync_SchemaOverview_RowForJeIsCanonicalMetadata()
+    public async Task GetPreviewAsync_SchemaOverview_RowForGlIsCanonicalMetadata()
     {
         using var fixture = new Fixture();
 
@@ -225,9 +228,10 @@ public sealed class SqliteDataPreviewRepositoryTests
             limit: 50,
             CancellationToken.None);
 
-        // JE 列：正準名 / 實體名 / 層 / 用途 / 可瀏覽（逐欄身分，對齊 catalog 宣告）。
-        var je = result.Rows.Single(r => r[0] == "JE");
-        Assert.Equal(["JE", "target_gl_entry", "Staging", "DataView", "是"], je);
+        // GL 列：正準名 / 實體名 / 層 / 用途 / 可瀏覽（逐欄身分，對齊 catalog 宣告）。
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：JE 改為 GL，同一張表也承載 GL(未納入測試)。
+        var gl = result.Rows.Single(r => r[0] == "GL、GL(未納入測試)");
+        Assert.Equal(["GL、GL(未納入測試)", "target_gl_entry", "Staging", "DataView", "是"], gl);
 
         // StructureOnly 列：可瀏覽為「—」。
         var overview = result.Rows.Single(r => r[0] == "VALIDATION_OVERVIEW");

@@ -136,7 +136,6 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             line_item_numeric_sort_key TEXT NULL,
             post_date             TEXT NULL,
             approval_date         TEXT NULL,
-            voucher_date          TEXT NULL,
             account_code          TEXT NULL,
             account_name          TEXT NULL,
             document_description  TEXT NULL,
@@ -235,7 +234,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
         CREATE TABLE IF NOT EXISTS app_message_log (
             message_id   BIGINT PRIMARY KEY DEFAULT nextval('seq_app_message_log'),
             occurred_utc TEXT NOT NULL,
-            level        TEXT NOT NULL CHECK (level IN ('info','warn')),
+            level        TEXT NOT NULL CHECK (level IN ('info','warn','error')),
             text         TEXT NOT NULL
         );
 
@@ -571,8 +570,27 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             parsedVersion = 10;
         }
         if (parsedVersion == 10)
+        {
             await AccountTaxonomyHierarchy.UpgradeLocalAsync(connection, cancellationToken);
+            parsedVersion = 11;
+        }
+        if (parsedVersion == 11)
+            await MessageLogLevelMigration.UpgradeLocalAsync(connection, MessageLogTableSql, cancellationToken);
     }
+
+    /// <summary>
+    /// 第 12 版的訊息紀錄表；和 <see cref="SchemaSql"/> 的建表語句相同，升版時用來重建舊表。
+    /// 流水號沿用同一個 sequence，舊紀錄帶著原本的編號搬回來，之後的新紀錄不會撞號。
+    /// </summary>
+    private const string MessageLogTableSql =
+        """
+        CREATE TABLE app_message_log (
+            message_id   BIGINT PRIMARY KEY DEFAULT nextval('seq_app_message_log'),
+            occurred_utc TEXT NOT NULL,
+            level        TEXT NOT NULL CHECK (level IN ('info','warn','error')),
+            text         TEXT NOT NULL
+        )
+        """;
 
     /// <summary>
     /// 第 8 版 → 第 9 版：SQLite 與 SQL Server 在這一版把 <c>audit_event_log</c> 的 append-only

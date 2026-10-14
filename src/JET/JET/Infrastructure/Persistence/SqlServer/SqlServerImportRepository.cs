@@ -145,7 +145,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                     {
                         throw new JetActionException(
                             JetErrorCodes.EmptyWorkbook,
-                            $"檔案 '{input.Source.FileName}' 沒有任何資料列。");
+                            $"檔案「{input.Source.FileName}」沒有任何資料列。");
                     }
 
                     DiagnosticDbLog.ImportMilestone(
@@ -393,7 +393,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                     {
                         throw new JetActionException(
                             JetErrorCodes.EmptyWorkbook,
-                            $"檔案 '{input.Source.FileName}' 沒有任何資料列,未附加(既有批次不受影響)。");
+                            ImportMessages.EmptyAppend(input.Source.FileName));
                     }
 
                     DiagnosticDbLog.ImportMilestone(

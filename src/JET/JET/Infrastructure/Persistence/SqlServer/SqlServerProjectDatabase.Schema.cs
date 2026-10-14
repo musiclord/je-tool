@@ -8,10 +8,35 @@ public sealed partial class SqlServerProjectDatabase
 {
     // 目前 schema 版本。Fresh schema 由 SchemaSql 直接寫現行版；既有 schema 的版本則只在
     // MigrateExistingSchemaToCurrentAsync 完成 shape、data rewrite 與結果失效後最後寫回。
-    internal const string SchemaVersion = "12";
+    internal const string SchemaVersion = "13";
 
     internal const string BumpSchemaVersionSql =
-        "UPDATE {s}.schema_info SET [value] = '12' WHERE [key] = 'schema_version';";
+        "UPDATE {s}.schema_info SET [value] = '13' WHERE [key] = 'schema_version';";
+
+    /// <summary>
+    /// 第 12 版到第 13 版：<c>app_message_log.level</c> 的限制加上 <c>error</c>（使用者 2026-10-13 裁定訊息分三級）。
+    /// 舊表的 CHECK 是建表時未命名的欄位限制，名稱由 SQL Server 產生，所以先從系統目錄找出還不允許 <c>error</c>
+    /// 的那一條再換掉；新建的 schema 由 <see cref="SchemaSql"/> 直接建出新限制，這段不做事。舊紀錄不動。
+    /// 和 <see cref="BackfillAccountMappingCategoryIdsSql"/> 一樣在 SchemaSql 之後另外執行，仍在同一個遷移交易內。
+    /// SQL Server 開發暫緩，這段只經編譯，沒有連線執行過。
+    /// </summary>
+    internal const string WidenMessageLogLevelCheckSql =
+        """
+        DECLARE @levelCheck sysname = (
+            SELECT TOP (1) cc.name
+            FROM sys.check_constraints cc
+            JOIN sys.columns c ON c.object_id = cc.parent_object_id AND c.column_id = cc.parent_column_id
+            WHERE cc.parent_object_id = OBJECT_ID(N'{s}.app_message_log') AND c.name = N'level'
+              AND cc.definition NOT LIKE N'%''error''%');
+        IF @levelCheck IS NOT NULL
+        BEGIN
+            DECLARE @dropLevelCheck nvarchar(400) =
+                N'ALTER TABLE {s}.app_message_log DROP CONSTRAINT ' + QUOTENAME(@levelCheck) + N';';
+            EXEC sys.sp_executesql @dropLevelCheck;
+            ALTER TABLE {s}.app_message_log
+                ADD CONSTRAINT ck_app_message_log_level CHECK (level IN ('info','warn','error'));
+        END;
+        """;
 
     // SQL Server compiles a batch before executing its ALTER TABLE statements, so the v6 backfill must run
     // as a separate command after SchemaSql has added category_id. It remains inside the migration transaction.
@@ -133,6 +158,13 @@ public sealed partial class SqlServerProjectDatabase
                 await AccountClassificationMigration.BackfillAsync(connection, tx,
                     SqlServerProjectSchema.QualifierFor(projectId), cancellationToken);
 
+            if (parsedExisting < 13)
+            {
+                await using var widen = CreateCommand(connection, projectId, WidenMessageLogLevelCheckSql);
+                widen.Transaction = tx;
+                await widen.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await using (var bump = CreateCommand(connection, projectId, BumpSchemaVersionSql))
             {
                 bump.Transaction = tx;
@@ -193,7 +225,7 @@ public sealed partial class SqlServerProjectDatabase
         IF OBJECT_ID(N'{s}.schema_info','U') IS NULL
             CREATE TABLE {s}.schema_info ([key] NVARCHAR(450) COLLATE Latin1_General_BIN2 PRIMARY KEY, [value] NVARCHAR(MAX) NOT NULL);
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'schema_version')
-            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '12');
+            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '13');
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'filter_data_revision')
             INSERT INTO {s}.schema_info ([key], [value]) VALUES ('filter_data_revision', '0');
 
@@ -306,7 +338,6 @@ public sealed partial class SqlServerProjectDatabase
                 line_item_numeric_sort_key NVARCHAR(40) COLLATE Latin1_General_BIN2 NULL,
                 post_date             NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
                 approval_date         NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
-                voucher_date          NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
                 account_code          NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
                 account_name          NVARCHAR(400) NULL,
                 document_description  NVARCHAR(MAX) NULL,
@@ -322,8 +353,6 @@ public sealed partial class SqlServerProjectDatabase
                 credit_amount_scaled  BIGINT NOT NULL,
                 dr_cr                 NVARCHAR(10) COLLATE Latin1_General_BIN2 NOT NULL CHECK (dr_cr IN ('DEBIT','CREDIT'))
             );
-        IF COL_LENGTH('{s}.target_gl_entry','voucher_date') IS NULL
-            ALTER TABLE {s}.target_gl_entry ADD voucher_date NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL;
         IF COL_LENGTH('{s}.target_gl_entry','line_item_numeric_sort_key') IS NULL
             ALTER TABLE {s}.target_gl_entry ADD line_item_numeric_sort_key NVARCHAR(40) COLLATE Latin1_General_BIN2 NULL;
         IF COL_LENGTH('{s}.target_gl_entry','posting_status') IS NULL
@@ -507,7 +536,7 @@ public sealed partial class SqlServerProjectDatabase
             CREATE TABLE {s}.app_message_log (
                 message_id   BIGINT IDENTITY(1,1) PRIMARY KEY,
                 occurred_utc NVARCHAR(40) NOT NULL,
-                level        NVARCHAR(10) NOT NULL CHECK (level IN ('info','warn')),
+                level        NVARCHAR(10) NOT NULL CHECK (level IN ('info','warn','error')),
                 text         NVARCHAR(MAX) NOT NULL
             );
 

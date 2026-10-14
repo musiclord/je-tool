@@ -21,6 +21,41 @@ public static partial class FilterScenarioErrorDetails
             return new JetErrorDetail(int.Parse(match.Groups["group"].Value), rule, match.Groups["message"].Value.Trim());
         }).ToArray();
 
+    /// <summary>驗證器回的清單帶有損毀條件的原因代號時一併附上，支援日誌才記得到（訊息只有通用句）。</summary>
     public static JetActionException InvalidScenario(IReadOnlyList<string> errors) =>
-        new(JetErrorCodes.InvalidScenario, string.Join("；", errors)) { Details = Parse(errors) };
+        FilterScenarioCorruption.Attach(
+            new(JetErrorCodes.InvalidScenario, string.Join("；", errors)) { Details = Parse(errors) },
+            FilterScenarioCorruption.ReasonsOf(errors));
+
+    /// <summary>
+    /// 同 <see cref="InvalidScenario(IReadOnlyList{string})"/>，每一項另外標上錯誤屬於清單上第幾個情境與它的名稱，
+    /// 前端才不會把別的情境的組號條號對到目前草稿的條件列。訊息文字不變。
+    /// </summary>
+    public static JetActionException InvalidScenario(
+        IReadOnlyList<string> errors, int scenarioPosition, string? scenarioName) =>
+        FilterScenarioCorruption.Attach(
+            new(JetErrorCodes.InvalidScenario, string.Join("；", errors))
+            {
+                Details = Tag(Parse(errors), scenarioPosition, scenarioName)
+            },
+            FilterScenarioCorruption.ReasonsOf(errors));
+
+    /// <summary>
+    /// 情境形狀錯誤（例如已移除的排除區域）原本沒有細節；補成一筆沒有組號條號、帶情境位置的項目，訊息與錯誤碼不變。
+    /// 已有細節的就把每一項標上同一個情境。
+    /// </summary>
+    public static JetActionException ForScenario(
+        JetActionException exception, int scenarioPosition, string? scenarioName)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        var details = exception.Details ?? [new JetErrorDetail(null, null, exception.Message)];
+        return new JetActionException(exception.Code, exception.Message, exception.Field, exception)
+        {
+            Details = Tag(details, scenarioPosition, scenarioName)
+        };
+    }
+
+    private static IReadOnlyList<JetErrorDetail> Tag(
+        IReadOnlyList<JetErrorDetail> details, int scenarioPosition, string? scenarioName) =>
+        details.Select(detail => detail with { ScenarioPosition = scenarioPosition, ScenarioName = scenarioName }).ToArray();
 }

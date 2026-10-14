@@ -24,9 +24,7 @@ public sealed class QueryDataPreviewHandler(
         var datasetName = PayloadReader.GetRequiredString(payload, "dataset");
         if (!DataPreviewDatasetNames.TryParse(datasetName, out var dataset))
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"dataset '{datasetName}' 無效，允許值：glStaging、tbStaging、glEntries、glExcludedEntries、tbBalances、accountMappings、authorizedPreparers、dateDimension、schemaOverview。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "preview_dataset_invalid");
         }
 
         var limit = Math.Clamp(PayloadReader.GetOptionalInt(payload, "limit") ?? DefaultLimit, 1, MaxLimit);
@@ -34,7 +32,7 @@ public sealed class QueryDataPreviewHandler(
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                $"找不到專案 '{projectId}'。");
+                ProjectFolderMessages.ActiveProjectMissing);
 
         var preview = await Task.Run(
             () => repositories.DataPreview.GetPreviewAsync(projectId, dataset, document.MoneyScale, limit, cancellationToken),
@@ -53,15 +51,15 @@ public sealed class QueryDataPreviewHandler(
     private static object? ToWireStats(DataPreviewStats? stats) => stats switch
     {
         null => null,
-        GlEntriesPreviewStats glEntries => new
+        GlPreviewStats gl => new
         {
-            amountAbsMin = glEntries.AmountAbsMin,
-            amountAbsMax = glEntries.AmountAbsMax,
-            postDateMin = glEntries.PostDateMin,
-            postDateMax = glEntries.PostDateMax,
-            voucherCount = glEntries.VoucherCount
+            amountAbsMin = gl.AmountAbsMin,
+            amountAbsMax = gl.AmountAbsMax,
+            postDateMin = gl.PostDateMin,
+            postDateMax = gl.PostDateMax,
+            voucherCount = gl.VoucherCount
         },
-        GlExcludedEntriesPreviewStats excluded => new
+        GlExcludedPreviewStats excluded => new
         {
             excludedByPeriodCount = excluded.ExcludedByPeriodCount,
             excludedByPostingStatusCount = excluded.ExcludedByPostingStatusCount

@@ -8,7 +8,6 @@ public sealed record GlProjectedRow(
     string? LineItem,
     string? PostDate,
     string? ApprovalDate,
-    string? VoucherDate,
     string? AccountCode,
     string? AccountName,
     string? DocumentDescription,
@@ -112,7 +111,6 @@ public static class GlRowProjector
 
         if (!TryProjectDate(row, spec, GlMappingKeys.PostDate, dateOptions, out var postDate, out error)
             || !TryProjectApprovalDate(row, spec, postDate, dateOptions, out var approvalDate, out error)
-            || !TryProjectDate(row, spec, GlMappingKeys.VoucherDate, dateOptions, out var voucherDate, out error)
             || !TryProjectManual(row, spec, out var isManual, out error)
             || !TryProjectRdeValues(
                 row,
@@ -139,7 +137,6 @@ public static class GlRowProjector
             GetMappedValue(row, spec, GlMappingKeys.LineId),
             postDate,
             approvalDate,
-            voucherDate,
             GetMappedValue(row, spec, GlMappingKeys.AccNum),
             GetMappedValue(row, spec, GlMappingKeys.AccName),
             GetMappedValue(row, spec, GlMappingKeys.Description),
@@ -186,8 +183,10 @@ public static class GlRowProjector
                 var dcValue = GetMappedValue(row, spec, GlMappingKeys.DcField);
                 spec.Mapping.TryGetValue(GlMappingKeys.DcDebitCode, out var debitCode);
                 spec.Mapping.TryGetValue(GlMappingKeys.DcCreditCode, out var creditCode);
+                var hasDebitCode = !string.IsNullOrWhiteSpace(debitCode);
+                var hasCreditCode = !string.IsNullOrWhiteSpace(creditCode);
 
-                if (string.IsNullOrWhiteSpace(dcValue))
+                if (string.IsNullOrWhiteSpace(dcValue) && hasDebitCode == hasCreditCode)
                 {
                     error = new RowProjectionError(row.SourceRowNumber,
                         MappedColumnOrKey(spec, GlMappingKeys.DcField), dcValue ?? string.Empty,
@@ -195,11 +194,14 @@ public static class GlRowProjector
                     return false;
                 }
 
-                var isDebit = string.Equals(
+                var isDebit = hasDebitCode && string.Equals(
                     dcValue?.Trim(),
                     debitCode?.Trim(),
                     StringComparison.OrdinalIgnoreCase);
-                var isCredit = string.Equals(dcValue.Trim(), creditCode?.Trim(), StringComparison.OrdinalIgnoreCase);
+                var isCredit = hasCreditCode && string.Equals(dcValue?.Trim(), creditCode?.Trim(), StringComparison.OrdinalIgnoreCase);
+                // 單邊代碼依使用者裁定取補集，包含空白；雙邊代碼仍拒絕未定義值。
+                if (hasDebitCode && !hasCreditCode) { isCredit = !isDebit; }
+                if (hasCreditCode && !hasDebitCode) { isDebit = !isCredit; }
                 if (!isDebit && !isCredit)
                 {
                     error = new RowProjectionError(row.SourceRowNumber,

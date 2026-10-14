@@ -79,7 +79,7 @@ public static class CalendarImportColumnResolver
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
-                $"行事曆檔需含「{dateKey}」欄。");
+                $"檔案缺少「{dateKey}」欄，請確認所選檔案。");
         }
 
         var name = FindByKeyword(columns, nameKey);
@@ -121,14 +121,14 @@ public static class CalendarDayProjector
         var date = rawDate?.Trim();
         if (string.IsNullOrEmpty(date))
         {
-            error = new CalendarImportRowError(row.SourceRowNumber, $"第 {row.SourceRowNumber} 列:日期空白。");
+            error = new CalendarImportRowError(row.SourceRowNumber, $"第 {row.SourceRowNumber} 列：日期空白");
             return CalendarRowOutcome.Failed;
         }
 
         if (!DateTime.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
         {
             error = new CalendarImportRowError(
-                row.SourceRowNumber, $"第 {row.SourceRowNumber} 列:日期「{date}」非 yyyy-MM-dd 格式。");
+                row.SourceRowNumber, $"第 {row.SourceRowNumber} 列：日期「{date}」不是 2026-12-31 這種格式");
             return CalendarRowOutcome.Failed;
         }
 

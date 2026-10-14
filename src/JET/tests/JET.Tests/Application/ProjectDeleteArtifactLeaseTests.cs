@@ -75,7 +75,8 @@ public sealed class ProjectDeleteArtifactLeaseTests
         var message = response.GetProperty("message").GetString()!;
         Assert.Contains("案件資料夾", message);
         Assert.DoesNotContain("快取", message);
-        Assert.Contains("手動移除", message);
+        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Contains("刪除剩餘的檔案", message);
         Assert.True(response.GetProperty("ok").GetBoolean());
         Assert.Null(session.CurrentProjectId);
     }
@@ -222,7 +223,8 @@ public sealed class ProjectDeleteArtifactLeaseTests
         // R8刪除整個案件資料夾，報告與底稿不是快取；保留session離開與刪除lease完成的原斷言。
         // 首次失敗：20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
         Assert.Equal(
-            "案件資料庫已刪除；案件資料夾清理失敗，其中的報告、工作底稿與其他檔案可能仍在，請確認後手動移除。",
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。",
             responseJson.GetProperty("message").GetString());
         Assert.DoesNotContain("reconcile", responseJson.GetRawText(), StringComparison.OrdinalIgnoreCase);
         Assert.Null(session.CurrentProjectId);

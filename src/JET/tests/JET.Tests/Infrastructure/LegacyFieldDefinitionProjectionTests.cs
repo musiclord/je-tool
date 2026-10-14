@@ -127,7 +127,7 @@ public sealed class LegacyFieldDefinitionProjectionTests
         AssertRenamed(definitions[9], "建立人", LegacyFieldKind.Text);
         AssertRenamed(definitions[10], "核准人", LegacyFieldKind.Text);
 
-        // Legacy 沒有 voucherDate 標準輸出；即使參與 mapping，也不加 _JE 或虛構 description。
+        // 未配對的「傳票日期」來源欄維持原名，不加 _JE 或虛構 description。
         Assert.Equal("傳票日期", definitions[4].FieldName);
         Assert.True(string.IsNullOrEmpty(definitions[4].Description));
         Assert.Equal(LegacyFieldKind.Date, definitions[4].Kind);
@@ -378,7 +378,7 @@ public sealed class LegacyFieldDefinitionProjectionTests
             [GlMappingKeys.LineId] = "項次",
             [GlMappingKeys.PostDate] = "過帳日",
             [GlMappingKeys.DocDate] = "核准日",
-            [GlMappingKeys.VoucherDate] = "傳票日期",
+            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：來源的「傳票日期」欄不再配對，留作未配對來源欄。
             [GlMappingKeys.AccNum] = "科目代碼",
             [GlMappingKeys.AccName] = "科目名稱",
             [GlMappingKeys.Description] = "摘要",

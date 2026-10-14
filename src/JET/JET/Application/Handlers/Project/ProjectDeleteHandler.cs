@@ -39,7 +39,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                $"找不到專案 '{projectId}'。案件資料夾可能已被移動或刪除，請確認案件資料夾仍在 JET 的案件位置。");
+                ProjectFolderMessages.CannotDelete(projectId));
 
         // Windows 本地路徑大小寫不敏感；FindAsync 命中後，後續只用文件內的 canonical id。
         // 否則 session Leave 會把同一案件的大小寫變體當成兩個身分。
@@ -109,7 +109,8 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
             }
             catch (Exception)
             {
-                cleanupMessage = "案件資料庫已刪除；案件資料夾清理失敗，其中的報告、工作底稿與其他檔案可能仍在，請確認後手動移除。";
+                // 使用者 2026-10-13 勾選頁確認的句子。
+                cleanupMessage = "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。";
             }
         }
         finally

@@ -1,17 +1,47 @@
 'use strict';
+// 第九節 D 改為名稱與動機常駐、單次儲存後清空草稿；移除舊表單開關操作並改驗證新流程。
+// 原測試首次失敗：20261014-123035603-d123badefd7941119a02c58b1b431fae；保留請求、錯誤、失效與並行修改斷言。
+// 測試程序的記憶體與時間上限，見 support/resource-guard.cjs（2026-10-13）。
+require('./support/resource-guard.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const root = path.resolve(__dirname, '../../src/JET/JET/wwwroot/js');
-const settle = () => new Promise(resolve => setImmediate(resolve));
+// 共用夾具（假 DOM、usageJourneyFixture、第四步與第五步的夾具與合成資料）在 support/frontend-fixtures.cjs。
+// 第 11 批（2026-10-14）刪掉本檔的副本改用模組；remapAppFixture 的根節點結構和模組不同，本檔保留自己那一份。
+const { root, settle, plain, batch9TreeDom, batch7Dom, batch7ControlDom, validationFixture, batch8Fixture, batch8ValidationData, batch8Artifacts,
+  savedG, usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, overviewDialogFixture, remapPaper, remapPrescreen } = require('./support/frontend-fixtures.cjs');
+// 上游修改清除篩選情境時的訊息。使用者 2026-10-13 勾選頁確認 12，原本是「前面的資料已更改，請重新設定篩選情境。」
+// （第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+const UPSTREAM_RESET_MESSAGE = '前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。';
+// 已存滿 10 個情境時的提醒。使用者 2026-10-13 勾選頁確認 60，原本是「最多儲存 10 個篩選情境；請先移除既有情境。」（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+const SCENARIO_LIMIT_MESSAGE = '最多可儲存 10 個篩選情境，請先移除不需要的情境。';
+
+// 第九節 F 改用分類樹與共用搜尋框。舊夾具首次失敗：20261014-125419175-08e0cec4d9cf4360ac4af81713f531b3。
+// 解析正式標記取代手寫控制項，保留原有分頁、失效、未儲存提醒與儲存 payload 斷言。
+function accountEditorControls(ui, store) {
+  const html = ui.accountMappingEditor.html(store.getState(), true), dom = batch9TreeDom();
+  dom.content.innerHTML = html;
+  ui.accountMappingEditor.bind(dom.content);
+  for (const node of dom.content.querySelectorAll('button, input, form')) {
+    const fire = node.fire.bind(node); node.fire = (name = 'click') => fire(name);
+  }
+  return { html, control(selector) {
+    const node = dom.content.querySelector(selector === 'selection' ? '[data-account-select="0"]' : selector);
+    assert.ok(node, selector + ' rendered'); return node;
+  } };
+}
+
+function chooseAccountCategory(f, category) {
+  f.change('[data-account-bulk-category][value="' + category + '"]', true);
+}
 
 function scenarioLifecycleFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-legacy.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
     "  window.workflow = { completeScenarioSave, savedFeedbackText, filterCommitSnapshot, syncViewState, toWireDraft, addKctToDraft, removeKctFromActiveGroup, refreshAutomaticMetadata, kctPickerHtml, draftRuleProblems, ruleSummaryLabel, kctDescriptionHtml, bind, view: () => viewState };"), context);
@@ -25,7 +55,9 @@ function scenarioLifecycleFixture() {
   }
   function bindRemoval(index, action = 'confirm-remove-scenario') {
     const pending = [], nodes = new Map(), actions = [];
-    window.JetApi = Object.fromEntries(['filterCommit', 'filterPreview', 'queryFilterVoucherPage'].map(method =>
+    // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境；
+    // 移除改送 filterScenarioRemove，假物件補上這個方法，四支移除測試的斷言不變。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
+    window.JetApi = Object.fromEntries(['filterCommit', 'filterScenarioRemove', 'filterPreview', 'queryFilterVoucherPage'].map(method =>
       [method, payload => new Promise((resolve, reject) => pending.push({method, payload, resolve, reject}))]));
     window.JetUi.run = (label, fn, options) => {
       const promise = Promise.resolve().then(fn).catch(error => { if (options?.onError) options.onError(error); });
@@ -61,18 +93,20 @@ test('removing the saved scenario clears its linked editor and preview only afte
   assert.equal(f.store.getState().filter.preview, null);
 });
 
-test('automatic KCT names follow the latest G H selection even after saving', () => {
+test('automatic KCT names follow the next draft after saving without changing the saved G', () => {
   const f = scenarioLifecycleFixture();
   f.toggle('G');
-  const draft = f.store.getState().filter.draft;
-  const saved = f.api.toWireDraft(draft);
+  const saved = f.api.toWireDraft(f.store.getState().filter.draft);
   f.api.completeScenarioSave(f.api.filterCommitSnapshot(f.store.getState()),
     { scenarios: [saved], resultRef: { revision: 'r1' }, savedCount: 1 }, 0, saved);
-  f.toggle('H'); assert.equal(draft.name, 'G+H');
+  const draft = f.store.getState().filter.draft;
+  assert.equal(draft.name, '');
+  f.toggle('H'); assert.equal(draft.name, 'H');
   f.toggle('G', true); assert.equal(draft.name, 'H');
   f.toggle('G'); assert.equal(draft.name, 'G+H');
-  f.toggle('H', true); assert.equal(draft.name, 'G');
+  f.toggle('H', true); assert.equal(draft.name, 'G 2', 'the next draft avoids the saved name');
   f.toggle('G', true); assert.equal(draft.name, '');
+  assert.equal(f.store.getState().filter.savedScenarios[0].name, 'G');
 });
 
 test('late save does not overwrite a later name or rationale edit', () => {
@@ -101,8 +135,8 @@ test('saved feedback compares JSON content rather than backend property order', 
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value));
   f.api.completeScenarioSave(snapshot, { scenarios: [saved], resultRef: { revision: 'r1' }, savedCount: 1 }, 0, authored);
   // 2026-10-03 用語統一 W10：使用者裁定以「已儲存」為準（第一次失敗：收據 20261003-024908090-6beccb9968d64a549df8acb53f0c5ff6）。
-  assert.match(f.api.savedFeedbackText(snapshot.draft), /已儲存/);
-  assert.doesNotMatch(f.api.savedFeedbackText(snapshot.draft), /尚未儲存|保存/);
+  assert.match(f.api.savedFeedbackText(f.store.getState().filter.draft), /已儲存/);
+  assert.doesNotMatch(f.api.savedFeedbackText(f.store.getState().filter.draft), /尚未儲存|保存/);
 });
 
 for (const removed of [0, 2]) test('removing another scenario rebases the linked editor: ' + removed, async () => {
@@ -165,13 +199,16 @@ test('copying a saved scenario preserves its copy name without linking the origi
   assert.equal(f.api.toWireDraft(draft).editorOrigins.nameIsAutomatic, false);
 });
 
-test('manual names survive repeated G H toggles and saving', () => {
+test('manual names survive repeated G H toggles before saving and remain in the saved scenario', () => {
   const f = scenarioLifecycleFixture(); f.toggle('G');
   f.store.patchFilterDraftMeta({ name: '人工命名', rationale: '人工動機', __nameDirty: true, __rationaleDirty: true });
-  const snapshot = f.api.filterCommitSnapshot(f.store.getState()), saved = f.api.toWireDraft(snapshot.draft);
-  f.api.completeScenarioSave(snapshot, { scenarios: [saved], resultRef: { revision: 'r1' }, savedCount: 1 }, 0, saved);
   f.toggle('H'); f.toggle('G', true); f.toggle('H', true); f.toggle('G');
+  const snapshot = f.api.filterCommitSnapshot(f.store.getState()), saved = f.api.toWireDraft(snapshot.draft);
   assert.equal(snapshot.draft.name, '人工命名'); assert.equal(snapshot.draft.rationale, '人工動機');
+  f.api.completeScenarioSave(snapshot, { scenarios: [saved], resultRef: { revision: 'r1' }, savedCount: 1 }, 0, saved);
+  assert.equal(f.store.getState().filter.savedScenarios[0].name, '人工命名');
+  assert.equal(f.store.getState().filter.savedScenarios[0].rationale, '人工動機');
+  assert.equal(f.store.getState().filter.draft.name, '');
 });
 
 test('late save binds but does not replace newer conditions or their automatic name', () => {
@@ -197,15 +234,16 @@ for (const mutation of ['same-project-reopen', 'source', 'taxonomy', 'saved-list
   assert.equal(f.store.getState().filter.savedScenarios, before);
 });
 
-test('commit observers see the new list and linked draft in the same notification', () => {
+test('commit observers see the new list and cleared draft in the same notification', () => {
   const f = scenarioLifecycleFixture(); f.toggle('G');
   const snapshot = f.api.filterCommitSnapshot(f.store.getState()), saved = f.api.toWireDraft(snapshot.draft), list = [saved];
   let committed = 0;
   f.store.subscribe(state => {
     if (state.filter.savedScenarios === list) {
       committed++;
-      assert.equal(state.filter.draft.__editingSavedRef, list);
-      assert.equal(state.filter.draft.__editingIndex, 0);
+      assert.equal(state.filter.draft.__editingSavedRef, undefined);
+      assert.equal(state.filter.draft.__editingIndex, undefined);
+      assert.equal(state.filter.draft.groups.length, 0);
       assert.equal(state.filterResultRef.revision, 'one');
     }
   });
@@ -257,7 +295,8 @@ test('a published report survives unavailable catalog refresh without losing oth
   store.applyReportExport({ artifact: second, reportArtifacts: [], filterResultsCurrent: false });
   assert.deepEqual(Array.from(store.getState().reportArtifacts, a => a.artifactId), ['selected-paper', 'second-paper'],
     'an incomplete catalog cannot erase a confirmed publication or the retained list');
-  assert.match(store.getState().reportArtifacts[1].catalogWarning, /無須重新產生/);
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-30（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.equal(store.getState().reportArtifacts[1].catalogWarning, '檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。');
 });
 
 test('successful operations clear only their own stale state and workpaper does not require a criteria file', () => {
@@ -265,6 +304,8 @@ test('successful operations clear only their own stale state and workpaper does 
   for (const file of ['state.js', 'ui-core.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const store = window.JetStore;
   store.setProject({ projectId: 'synthetic-stale-review' });
+  assert.deepEqual(JSON.parse(JSON.stringify(store.getState().staleState)), { validation: false, prescreen: false, filter: false },
+    'a new case starts with nothing stale');
   store.setStaleState({ validation: true, prescreen: true, filter: true });
   store.setLastRun('validate', { resultRef: { runId: 'validation-new' }, completenessTest: { eligibility: { isEligible: true } } });
   assert.deepEqual(JSON.parse(JSON.stringify(store.getState().staleState)), { validation: false, prescreen: true, filter: true });
@@ -304,6 +345,10 @@ test('successful operations clear only their own stale state and workpaper does 
     staleState: { validation: true, prescreen: true, filter: true } }, { stayOnCurrentStep: true });
   assert.deepEqual(JSON.parse(JSON.stringify(store.getState().staleState)), { validation: true, prescreen: true, filter: true },
     'loading historical summaries must preserve the authoritative backend stale flags');
+  window.JetUi.applyLoadedProject({ project: { projectId: 'synthetic-no-stale' } }, { stayOnCurrentStep: true });
+  assert.deepEqual(JSON.parse(JSON.stringify(store.getState().staleState)), { validation: false, prescreen: false, filter: false },
+    'a load without stale flags announces nothing as stale');
+  assert.equal(window.JetUi.staleNoticeHtml, undefined, 'no page-wide stale notice is offered');
   store.resetWorkflow(); store.setProject({ projectId: 'required-tb' });
   // 2026-10-03 用語統一 W10：使用者裁定以「已儲存」為準（第一次失敗：收據 20261003-024908090-6beccb9968d64a549df8acb53f0c5ff6）。
   assert.deepEqual(JSON.parse(JSON.stringify(window.JetUi.stepGate(store.getState(), 5).missing)),
@@ -346,7 +391,8 @@ test('account range selection drags both ways, reverses, cancels and keeps chang
   }
   const m = { rows: Array.from({ length: 8 }, (_, i) => ({ accountCode: i === 0 ? '__proto__' : 'A' + i })),
     selected: Object.create(null), changes: Object.create(null), category: 'cash', anchor: null, loading: false };
-  const table = element(), page = element(), count = element(), apply = element();
+  const table = element(), page = element(), count = element(), apply = element(), clear = element();
+  clear.hidden = true;
   table.getBoundingClientRect = () => ({ top: 0, bottom: 200, left: 0, right: 500 });
   const boxes = m.rows.map((r, i) => {
     const box = element({ 'data-account-select': String(i) });
@@ -356,7 +402,8 @@ test('account range selection drags both ways, reverses, cancels and keeps chang
   });
   table.querySelector = s => s === 'thead' ? { getBoundingClientRect: () => ({ bottom: 30 }) } : null;
   const card = { querySelectorAll: () => boxes, querySelector: s => ({ '.account-editor__table': table,
-    '[data-account-select-page]': page, '[data-account-selection-count]': count, '[data-account-apply]': apply })[s] };
+    '[data-account-select-page]': page, '[data-account-selection-count]': count, '[data-account-apply]': apply,
+    '[data-account-clear-selection]': clear })[s] };
   const window = { JetUi: {}, JetStore: { touch() { touches++; } },
     requestAnimationFrame(fn) { const id = ++frameId; frames.set(id, fn); return id; }, cancelAnimationFrame(id) { frames.delete(id); } };
   const source = fs.readFileSync(path.join(root, 'account-mapping-editor.js'), 'utf8');
@@ -367,8 +414,13 @@ test('account range selection drags both ways, reverses, cancels and keeps chang
   function start(i, shiftKey = false) { table.fire('pointerdown', { target: boxes[i], pointerId: 1, pointerType: 'mouse', button: 0, isPrimary: true, clientX: 20, clientY: 45 + i * 30, shiftKey }); }
   function move(i) { table.fire('pointermove', { pointerId: 1, buttons: 1, clientX: 200, clientY: 45 + i * 30 }); }
   function end() { table.fire('pointerup', { pointerId: 1 }); table.fire('click', { detail: 1 }); }
-  start(1); move(4); assert.deepEqual(selected(), [1,2,3,4]);
+  start(1);
+  // 2026-10-14 Gui：「清除勾選」在拖曳途中展開會把表格往下推，游標下的列跟著跑掉。拖曳中先不出現，放開後才展開。
+  assert.equal(clear.hidden, true, 'the clear button stays hidden while dragging');
+  move(4); assert.deepEqual(selected(), [1,2,3,4]);
+  assert.equal(clear.hidden, true, 'the clear button stays hidden while dragging');
   move(2); assert.deepEqual(selected(), [1,2], 'shrinking a drag restores rows outside the current range'); end();
+  assert.equal(clear.hidden, false, 'the clear button appears once the drag is released');
   assert.equal(page.indeterminate, true); assert.equal(count.textContent, '已選 2 個科目'); assert.equal(apply.disabled, false);
   start(4); move(3); end(); assert.deepEqual(selected(), [1,2,3,4], 'reverse drag preserves prior selection');
   start(2); move(3); end(); assert.deepEqual(selected(), [1,4], 'starting on a checked row clears that range');
@@ -412,9 +464,14 @@ test('condition group selection handles the outer group but not nested rule even
 
 test('auditor wording identifies the actual workbook field and the result being viewed', () => {
   const validate = fs.readFileSync(path.join(root, 'steps/validate-step.js'), 'utf8');
-  assert.match(validate, /「Standardized Account Name\*」欄選擇科目分類/);
+  // 2026-10-10 使用者選擇精簡 Excel 配對說明：仍寫實際欄名，不再舉 Cash、Revenue 為例。
+  assert.match(validate, /「Standardized Account Name\*」欄填入分類後存檔/);
   assert.match(validate, /<span>篩選結果<\/span>/);
-  assert.match(fs.readFileSync(path.join(root, '../index.html'), 'utf8'), /<h1 class="app-header__title">JE Tool<\/h1>/);
+  // 2026-10-11 第三次調整把名稱裡的 JE 放進字標方框，標記多了一層，畫面與報讀的名稱仍是「JE Tool」。
+  // 原本比對整段標記的斷言首敗：20261011-141858880-ac28cf188b664288a5663fe76a40dd84；改比對標題的文字，名稱本身照舊鎖住。
+  const title = fs.readFileSync(path.join(root, '../index.html'), 'utf8').match(/<h1 class="app-header__title">([\s\S]*?)<\/h1>/);
+  assert.ok(title, 'index.html 缺少頂部標題');
+  assert.equal(title[1].replace(/<[^>]*>/g, ''), 'JE Tool');
   for (const file of ['ui-core.js', 'overview-bi.js', 'steps/validate-step.js']) {
     assert.doesNotMatch(fs.readFileSync(path.join(root, file), 'utf8'), /低頻/, file);
   }
@@ -456,7 +513,7 @@ test('step navigation focus and selected filter conditions have different visual
   assert.match(css, /\.filter-builder-heading--composition/);
 });
 
-test('saving keeps the current scenario and preview, binds repeat saves to the saved slot, and ignores other projects', () => {
+test('saving clears the submitted draft and preview, preserves later drafts, and ignores other projects', () => {
   const window = { setTimeout: () => 0, clearTimeout() {} };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
@@ -482,14 +539,11 @@ test('saving keeps the current scenario and preview, binds repeat saves to the s
   const response = { resultRef: { revision: 1 }, scenarios: [saved], savedCount: 1 };
   window.testSave.completeScenarioSave(snapshot, response, 0, saved);
   assert.equal(window.testSave.pane(), 'filter');
-  assert.equal(store.getState().filter.draft, draft, 'do not destroy the current editor');
-  assert.equal(store.getState().filter.preview, preview, 'saving the same definition does not invalidate its preview');
-  assert.equal(draft.__editingIndex, 0, 'a repeated save updates instead of appending a duplicate');
-  assert.equal(draft.__editingSavedRef, store.getState().filter.savedScenarios);
-  assert.equal(store.getFilterDraftRev(), snapshot.revision, 'metadata only, no changed predicate');
-  snapshot = window.testSave.filterCommitSnapshot(store.getState());
-  window.testSave.completeScenarioSave(snapshot, { ...response, scenarios: [saved], resultRef: { revision: 2 } }, 0, saved);
-  assert.equal(draft.__editingSavedRef, store.getState().filter.savedScenarios);
+  assert.notEqual(store.getState().filter.draft, draft);
+  assert.deepEqual(plain(store.getState().filter.draft), { name: '', rationale: '', groups: [] });
+  assert.equal(store.getState().filter.preview, null);
+  assert.equal(store.getState().filter.savedScenarios[0], saved);
+  assert.equal(store.getFilterDraftRev(), snapshot.revision + 1, 'clearing invalidates the submitted conditions');
   snapshot = window.testSave.filterCommitSnapshot(store.getState());
   const changedDraft = { name: '另一草稿', rationale: '', groups: [] };
   store.setFilterDraft(changedDraft);
@@ -519,24 +573,10 @@ test('account editor keeps drafts on failure, saves only changed accounts, pages
     { categoryId: 'builtin.revenue', label: 'Revenue' }
   ] });
   ui.run = (name, work) => Promise.resolve().then(work).catch(error => messages.push(error.message));
-  function render() {
-    const html = ui.accountMappingEditor.html(store.getState(), true), controls = new Map();
-    function control(selector) {
-      if (!controls.has(selector)) controls.set(selector, { value: '', handlers: {},
-        getAttribute: () => '0', addEventListener(name, fn) { this.handlers[name] = fn; },
-        fire(name) { return this.handlers[name]({ preventDefault() {}, currentTarget: this }); },
-        querySelector: () => ({ value: '' }) });
-      return controls.get(selector);
-    }
-    const card = { querySelector: selector => selector === '.account-editor__table' ? null : control(selector),
-      querySelectorAll: () => html.includes('data-account-select="') ? [control('selection')] : [] };
-    control('selection').closest = () => ({ classList: { toggle() {} } });
-    ui.accountMappingEditor.bind({ querySelector: () => card });
-    return { html, control };
-  }
+  function render() { return accountEditorControls(ui, store); }
   render();
   assert.equal(reads.length, 1);
-  assert.equal(reads[0].payload.pageSize, 100);
+  assert.equal(reads[0].payload.pageSize, 50); // 2026-10-09 續修第 7 則選項裁定；其餘斷言保留。
   reads[0].reject(new Error('load failed')); await settle();
   assert.match(render().html, /load failed/);
   render().control('[data-account-retry]').fire('click');
@@ -545,8 +585,8 @@ test('account editor keeps drafts on failure, saves only changed accounts, pages
   await settle();
   function applyCategory(category) {
     let page = render(); page.control('selection').checked = true; page.control('selection').fire('change');
-    page = render(); page.control('[data-account-bulk-category]').value = category;
-    page.control('[data-account-bulk-category]').fire('change');
+    page = render(); page.control('[data-account-bulk-category][value="' + category + '"]').checked = true;
+    page.control('[data-account-bulk-category][value="' + category + '"]').fire('change');
     render().control('[data-account-apply]').fire('click');
   }
   let page = render();
@@ -564,8 +604,8 @@ test('account editor keeps drafts on failure, saves only changed accounts, pages
   // All-page selection is explicit and applies once, not a dropdown per account.
   page = render(); page.control('[data-account-select-page]').checked = true;
   page.control('[data-account-select-page]').fire('change');
-  page = render(); page.control('[data-account-bulk-category]').value = 'builtin.others';
-  page.control('[data-account-bulk-category]').fire('change');
+  page = render(); page.control('[data-account-bulk-category][value="' + 'builtin.others' + '"]').checked = true;
+    page.control('[data-account-bulk-category][value="' + 'builtin.others' + '"]').fire('change');
   render().control('[data-account-apply]').fire('click');
   assert.match(render().html, /2 個科目待儲存/);
   assert.equal((render().html.match(/data-category-id="builtin.others"/g) || []).length, 2);
@@ -590,6 +630,242 @@ test('account editor keeps drafts on failure, saves only changed accounts, pages
   store.setProject({ projectId: 'another' }); render();
   assert.equal(reads.length, 5);
   assert.equal(reads[4].payload.cursor, null);
+});
+
+// 使用者 2026-10-08 裁定「跨頁保留，一次儲存」：勾選與已套用的分類在換頁後都保留，最後按一次儲存；
+// 超過 500 筆時分批送出，失敗的那一批之後仍待儲存。
+test('account editor keeps selections and pending categories across pages and saves them together', async () => {
+  const reads = [], writes = [], messages = [];
+  const window = { setTimeout, clearTimeout, JetApi: {
+    queryAccountMappingPage: payload => new Promise((resolve, reject) => reads.push({ payload, resolve, reject })),
+    accountMappingSave: payload => new Promise((resolve, reject) => writes.push({ payload, resolve, reject }))
+  } };
+  const document = { createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
+  const context = vm.createContext({ window, document });
+  for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js'])
+    vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
+  const store = window.JetStore, ui = window.JetUi;
+  store.setProject({ projectId: 'synthetic' });
+  store.setTaxonomy({ revision: 1, categories: [
+    { categoryId: 'builtin.cash', label: 'Cash' }, { categoryId: 'builtin.revenue', label: 'Revenue' }
+  ] });
+  ui.run = (name, work) => Promise.resolve().then(work).catch(error => messages.push(error.message));
+  function render() { return accountEditorControls(ui, store); }
+  function selectFirstRow() { const page = render(); page.control('selection').checked = true; page.control('selection').fire('change'); }
+  render();
+  reads[0].resolve({ rows: [{ accountCode: 'A1', accountName: 'One', categoryId: null },
+    { accountCode: 'A2', accountName: 'Two', categoryId: 'builtin.cash' }], nextCursor: 'page-2' });
+  await settle();
+  selectFirstRow();
+  render().control('[data-account-next]').fire('click');
+  reads[1].resolve({ rows: [{ accountCode: 'B1', accountName: 'Three', categoryId: 'builtin.cash' }], nextCursor: null });
+  await settle();
+  assert.match(render().html, /已選 1 個科目（其中 1 個在其他頁）/);
+  selectFirstRow();
+  let page = render(); page.control('[data-account-bulk-category][value="' + 'builtin.revenue' + '"]').checked = true;
+    page.control('[data-account-bulk-category][value="' + 'builtin.revenue' + '"]').fire('change');
+  render().control('[data-account-apply]').fire('click');
+  assert.match(render().html, /共 2 個科目待儲存/);
+  assert.doesNotMatch(render().html, /data-account-prev disabled/, 'pending categories do not block paging');
+  render().control('[data-account-prev]').fire('click');
+  assert.equal(reads[2].payload.cursor, null);
+  reads[2].resolve({ rows: [{ accountCode: 'A1', accountName: 'One', categoryId: null },
+    { accountCode: 'A2', accountName: 'Two', categoryId: 'builtin.cash' }], nextCursor: 'page-2' });
+  await settle();
+  assert.match(render().html, /data-account-current="0" data-category-id="builtin.revenue">Revenue<span class="account-editor__pending">/);
+  assert.equal(ui.accountMappingEditor.pendingCount(), 2);
+  render().control('[data-account-save]').fire('click'); await settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(writes[0].payload.changes)).sort((a, b) => a.accountCode.localeCompare(b.accountCode)),
+    [{ accountCode: 'A1', categoryId: 'builtin.revenue' }, { accountCode: 'B1', categoryId: 'builtin.revenue' }]);
+  writes[0].resolve({ batchId: 'saved-1', rowCount: 3, hasAnyCategory: true }); await settle();
+  assert.match(render().html, /科目分類已儲存/);
+  assert.equal(ui.accountMappingEditor.pendingCount(), 0);
+
+  // 501 個改動分成 500 與 1 兩批；第二批失敗時只剩那 1 筆待儲存。
+  render().control('[data-account-search]').fire('submit');
+  reads[3].resolve({ rows: Array.from({ length: 501 }, (_, i) => ({ accountCode: 'C' + i, accountName: 'Bulk', categoryId: null })), nextCursor: null });
+  await settle();
+  page = render(); page.control('[data-account-select-page]').checked = true; page.control('[data-account-select-page]').fire('change');
+  page = render(); page.control('[data-account-bulk-category][value="' + 'builtin.cash' + '"]').checked = true;
+    page.control('[data-account-bulk-category][value="' + 'builtin.cash' + '"]').fire('change');
+  render().control('[data-account-apply]').fire('click');
+  render().control('[data-account-save]').fire('click'); await settle();
+  assert.equal(writes[1].payload.changes.length, 500);
+  writes[1].resolve({ batchId: 'saved-2', rowCount: 501, hasAnyCategory: true }); await settle();
+  assert.equal(writes[2].payload.changes.length, 1);
+  writes[2].reject(new Error('second batch failed')); await settle();
+  assert.deepEqual(messages, ['second batch failed']);
+  assert.equal(ui.accountMappingEditor.pendingCount(), 1);
+  assert.match(render().html, /共 1 個科目待儲存/);
+});
+
+// 使用者 2026-10-08 裁定「跨頁保留，一次儲存」：離開第四步前，如果還有沒儲存的科目分類就先詢問；
+// 留在這裡、先不儲存仍可離開、儲存並繼續三種選擇都要照字面發生。帳務配對儲存只清除預篩選與篩選，不清除驗證。
+test('pending account categories ask before leaving the validation step and honour each choice', async () => {
+  const f = usageJourneyFixture('validate'), eligibleValidation = f.state.lastRuns.validate;
+  f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
+  // 前面幾步都完成，第五步才可以進入。匯入或配對改變會讓科目清單重新載入，所以先準備好再改分類。
+  f.store.setImportResult('gl', { batchId: 'g', columns: ['Doc'], rowCount: 1 });
+  f.store.setImportResult('tb', { batchId: 't', columns: ['Acc'], rowCount: 1 });
+  f.store.setMappingCommitted('tb', { mapping: {}, mode: 'closing' });
+  f.state.lastRuns.validate = null; f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' }); f.store.setStepIndex(3); f.draw();
+  f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: '1000', accountName: '合成科目', categoryId: 'builtin.cash' }], nextCursor: null });
+  await settle(); f.draw();
+  f.change('[data-account-select-page]', true); chooseAccountCategory(f, 'builtin.revenue'); f.draw();
+  f.click('[data-account-apply]'); f.draw();
+  f.state.lastRuns.validate = eligibleValidation;
+  assert.equal(f.window.JetUi.stepGate(f.state, 4).ok, true);
+  const editor = f.window.JetUi.accountMappingEditor;
+  const modal = () => f.dom.document.body.querySelector('[data-bind="account-pending-modal"]');
+  function choose(choice) {
+    const dialog = modal(); assert.ok(dialog, 'the confirmation is shown');
+    dialog.fire('click', { target: dialog.querySelector('[data-pending-choice="' + choice + '"]') });
+  }
+  assert.equal(editor.pendingCount(), 1);
+  f.window.JetUi.gotoStep(4);
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-41（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.match(modal().textContent, /^科目分類尚未儲存有 1 個科目的分類尚未儲存。後續步驟只會使用已儲存的分類/);
+  assert.equal(f.state.currentStepIndex, 3, 'nothing moves before the auditor chooses');
+  choose('stay'); await settle();
+  assert.equal(modal(), null); assert.equal(f.state.currentStepIndex, 3);
+  f.window.JetUi.gotoStep(4); choose('continue'); await settle();
+  assert.equal(f.state.currentStepIndex, 4, 'continuing without saving still leaves the step');
+  assert.equal(editor.pendingCount(), 1, 'the unsaved categories stay on the screen for later');
+  assert.equal(f.requests.some(r => r.action === 'accountMappingSave'), false);
+  f.window.JetUi.gotoStep(3);
+  assert.equal(f.state.currentStepIndex, 3, 'returning to the validation step does not ask');
+  f.window.JetUi.gotoStep(4); choose('save');
+  assert.deepEqual(plain(f.request('accountMappingSave').payload.changes), [{ accountCode: '1000', categoryId: 'builtin.revenue' }]);
+  assert.equal(f.state.currentStepIndex, 3, 'the step changes only after the save succeeds');
+  f.request('accountMappingSave').resolve({ batchId: 'saved', rowCount: 1, hasAnyCategory: true,
+    invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true },
+    staleState: { validation: false, prescreen: true, filter: false }, reportArtifacts: [] });
+  await settle(); await settle();
+  assert.equal(editor.pendingCount(), 0);
+  assert.equal(f.state.currentStepIndex, 4);
+  assert.equal(f.state.filter.savedScenarios.length, 0, 'saving categories clears saved scenarios as ruled on 2026-10-07');
+});
+
+// 回首頁或結束時選「不儲存」，只詢問一次就繼續離開；改動不保留是對話框寫明的結果。
+test('leaving the case with unsaved account categories asks once and then departs', async () => {
+  const f = usageJourneyFixture('validate');
+  f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
+  f.state.lastRuns.validate = null; f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' }); f.store.setStepIndex(3); f.draw();
+  f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: '1000', accountName: '合成科目', categoryId: 'builtin.cash' }], nextCursor: null });
+  await settle(); f.draw();
+  f.change('[data-account-select-page]', true); chooseAccountCategory(f, 'builtin.revenue'); f.draw();
+  f.click('[data-account-apply]'); f.draw();
+  const modals = () => f.dom.document.body.querySelectorAll('[data-bind="account-pending-modal"]');
+  f.window.JetUi.backToPickerFromHeader();
+  assert.equal(modals().length, 1);
+  assert.match(modals()[0].textContent, /離開案件後，這些改動不會保留。/);
+  const dialog = modals()[0];
+  dialog.fire('click', { target: dialog.querySelector('[data-pending-choice="continue"]') }); await settle();
+  assert.equal(modals().length, 0, 'choosing not to save does not ask again');
+  assert.ok(f.requests.some(r => r.action === 'projectReleaseLock' || r.action === 'projectSaveProgress'), 'departure continues');
+  assert.equal(f.requests.some(r => r.action === 'accountMappingSave'), false);
+});
+
+// 在第四步留下一個未儲存的科目分類；前面幾步都完成，旅程夾具原本就有 3 個已存情境，第五、六步都可以進入。
+async function pendingCategoryJourney() {
+  const f = usageJourneyFixture('validate'), eligibleValidation = f.state.lastRuns.validate;
+  f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
+  f.store.setImportResult('gl', { batchId: 'g', columns: ['Doc'], rowCount: 1 });
+  f.store.setImportResult('tb', { batchId: 't', columns: ['Acc'], rowCount: 1 });
+  f.store.setMappingCommitted('tb', { mapping: {}, mode: 'closing' });
+  f.state.lastRuns.validate = null; f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' }); f.store.setStepIndex(3); f.draw();
+  f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: '1000', accountName: '合成科目', categoryId: 'builtin.cash' }], nextCursor: null });
+  await settle(); f.draw();
+  applyPendingCategory(f, 'builtin.revenue');
+  f.state.lastRuns.validate = eligibleValidation;
+  return f;
+}
+
+function applyPendingCategory(f, category) {
+  f.change('[data-account-select-page]', true); chooseAccountCategory(f, category); f.draw();
+  f.click('[data-account-apply]'); f.draw();
+  assert.equal(f.window.JetUi.accountMappingEditor.pendingCount(), 1);
+}
+
+function resolveCategorySave(f) {
+  f.request('accountMappingSave').resolve({ batchId: 'saved-' + f.requests.length, rowCount: 1, hasAnyCategory: true,
+    invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true },
+    staleState: { validation: false, prescreen: true, filter: false }, reportArtifacts: [] });
+}
+
+// 儲存科目分類會清除預篩選結果與篩選情境（2026-10-07 裁定），對話框要先寫明；會清掉情境時預設停在「留在這裡」。
+// 存完後原本要去的第六步因為沒有情境而不能進入，改到最遠還能進入的第五步。
+test('the pending-categories dialog says what saving clears and lands on the furthest open step', async () => {
+  const f = await pendingCategoryJourney();
+  f.store.setLastRun('prescreen', { resultRef: { runId: 'p1' } });
+  assert.equal(f.window.JetUi.stepGate(f.state, 5).ok, true, 'saved scenarios make the export step reachable');
+  const modal = () => f.dom.document.body.querySelector('[data-bind="account-pending-modal"]');
+  f.window.JetUi.gotoStep(5);
+  assert.match(modal().textContent, /後續步驟只會使用已儲存的分類；改動會留在這個畫面，回來仍可儲存。儲存會清除預篩選結果和第五步的篩選情境。/);
+  assert.equal(f.dom.document.activeElement.getAttribute('data-pending-choice'), 'stay', 'Enter does not clear the saved scenarios');
+  modal().fire('click', { target: modal().querySelector('.modal__actions [data-pending-choice="save"]') });
+  resolveCategorySave(f); await settle(); await settle();
+  assert.equal(f.state.filter.savedScenarios.length, 0);
+  assert.equal(f.window.JetUi.stepGate(f.state, 5).ok, false);
+  assert.equal(f.state.currentStepIndex, 4, 'the save moves on to the filter step instead of staying behind');
+  assert.ok(f.state.messages.some(m => m.text === UPSTREAM_RESET_MESSAGE));
+
+  // 沒有情境、沒有預篩選結果時，對話框不提清除，預設按鈕回到「儲存並繼續」。
+  // 夾具的驗證摘要只有放行需要的欄位，和 pendingCategoryJourney 一樣先拿掉再畫第四步。
+  // 存完後科目清單沿用原本那一頁，這一列已是 builtin.revenue，改回 builtin.cash 才有未儲存的改動。
+  f.window.JetUi.gotoStep(3);
+  const validation = f.state.lastRuns.validate; f.state.lastRuns.validate = null; f.draw('validate');
+  applyPendingCategory(f, 'builtin.cash');
+  f.state.lastRuns.validate = validation;
+  f.window.JetUi.gotoStep(4);
+  assert.doesNotMatch(modal().textContent, /儲存會清除/);
+  assert.equal(f.dom.document.activeElement.getAttribute('data-pending-choice'), 'save');
+});
+
+// 原生視窗每按一次關閉就呼叫一次 exitApp；對話框開著時不再疊第二個。結束時的三種選擇都照字面發生。
+for (const finalChoice of ['continue', 'save']) test('closing twice with unsaved categories opens one dialog, staying stays and "' + finalChoice + '" leaves', async () => {
+  const f = await pendingCategoryJourney();
+  f.store.setView('workflow');
+  const modals = () => f.dom.document.body.querySelectorAll('[data-bind="account-pending-modal"]');
+  const choose = choice => { const dialog = modals()[0]; dialog.fire('click', { target: dialog.querySelector('.modal__actions [data-pending-choice="' + choice + '"]') }); };
+  const leaving = () => f.requests.some(r => r.action === 'projectSaveProgress');
+  f.window.JetUi.exitApp(); f.window.JetUi.exitApp();
+  assert.equal(modals().length, 1, 'a second close request does not stack another dialog');
+  assert.match(modals()[0].textContent, /結束後，這些改動不會保留。儲存會清除第五步的篩選情境。/);
+  choose('stay'); await settle();
+  assert.equal(modals().length, 0);
+  assert.equal(leaving(), false, 'staying does not start leaving');
+  f.window.JetUi.exitApp();
+  assert.equal(modals().length, 1, 'closing again asks again');
+  choose(finalChoice);
+  if (finalChoice === 'save') {
+    assert.equal(leaving(), false, 'leaving waits for the save');
+    resolveCategorySave(f);
+  }
+  await settle(); await settle();
+  assert.equal(modals().length, 0, 'the dialog is not asked a second time');
+  assert.ok(leaving(), 'leaving continues');
+  assert.equal(f.state.busyLabel, '儲存並結束');
+  assert.equal(f.requests.some(r => r.action === 'accountMappingSave'), finalChoice === 'save');
+  assert.equal(f.window.JetUi.accountMappingEditor.pendingCount(), finalChoice === 'save' ? 0 : 1);
+});
+
+test('running prescreen asks first only when account categories are unsaved', async () => {
+  const f = batch8Fixture(); f.store.setLastRun('validate', batch8ValidationData('v-guard'));
+  const calls = []; let answer = false;
+  f.ui.accountMappingEditor.pendingCount = () => 2;
+  f.ui.accountMappingEditor.confirmPending = (consequence, label) => { calls.push([consequence, label]); return Promise.resolve(answer); };
+  f.controls().click('[data-action="run-prescreen"]'); await settle();
+  assert.deepEqual(calls, [['預篩選只會使用已儲存的分類。', '先不儲存，直接執行']]);
+  assert.equal(f.requests.filter(r => r.action === 'prescreenRun').length, 0, 'staying keeps prescreen from running');
+  answer = true;
+  f.controls().click('[data-action="run-prescreen"]'); await settle();
+  assert.equal(f.requests.filter(r => r.action === 'prescreenRun').length, 1);
+  f.requests.filter(r => r.action === 'prescreenRun').at(-1).resolve({ resultRef: { runId: 'p-guard' } }); await settle();
+  f.ui.accountMappingEditor.pendingCount = () => 0;
+  f.controls().click('[data-action="run-prescreen"]');
+  assert.equal(f.requests.filter(r => r.action === 'prescreenRun').length, 2, 'without pending categories the request is sent at once');
+  assert.equal(calls.length, 2);
 });
 
 // Execute the complete production renderer and its event handlers. Only DOM plumbing and
@@ -624,7 +900,8 @@ function fixture() {
     postPeriodApproval: { count: 0 }, suspiciousKeywords: { count: 0 },
     unexpectedAccountPair: { count: 0 }, trailingZeros: { count: 0, zerosThreshold: 6 },
     weekendActivity: { postingCount: 1, approvalCount: 1 }, holidayActivity: { postingCount: 0, approvalCount: 0 },
-    backdatedPosting: { count: 0 }, blankDescription: { count: 0 }, nonAuthorizedPreparer: { count: 0 },
+    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，合成結果不再帶 backdatedPosting。
+    blankDescription: { count: 0 }, nonAuthorizedPreparer: { count: 0 },
     lowFrequencyPreparer: { count: 0 }, lowFrequencyAccount: { count: 0 }
   };
   function element(attributes = {}) {
@@ -690,21 +967,6 @@ function fixture() {
       toggle: () => toggle.fire('click') };
   }
   return { store, requests, saves, render, window };
-}
-
-function validationFixture() {
-  return {
-    completenessTest: { diffAccountCount: 1, diffAccounts: [],
-      partA: { rowCountMatch: true, amountMatch: true }, naReason: null,
-      eligibility: { isEligible: true, reason: null, warning: 'GL 與 TB 有 1 個科目差異，可說明原因並繼續。' } },
-    docBalanceTest: { unbalancedDocumentCount: 0 }, infSamplingTest: { sampleSize: 0 },
-    nullRecordsTest: { nullDocumentCount: 2, nullAccountCount: 2, nullDescriptionCount: 0, outOfRangeDateCount: 0,
-      nullRows: [
-        { documentNumber: '', accountCode: '1101', description: 'document only', issues: ['document'] },
-        { documentNumber: 'JV-2', accountCode: '', description: 'account only', issues: ['account'] },
-        { documentNumber: '', accountCode: '', description: 'both missing', issues: ['document', 'account'] }
-      ] }
-  };
 }
 
 test('account work has exclusive JET and Excel views; settings return to the chosen method', () => {
@@ -782,9 +1044,11 @@ test('left-side examples and actions use normal page flow without sticky overlay
   }
   assert.match(css, /\.filter-entry \.picker-card:not\(\.picker-card--kct\)[^{]*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
-  assert.match(source, /example\.key === 'example2'/);
+  // 使用者 2026-10-08 要求重新設計自訂篩選條件：範例移到右側「從範例開始」，需要部門欄位的範例就地選欄位，不再有範例專用下拉。
+  assert.match(source, /template\.pickField === 'text'/);
+  assert.doesNotMatch(source, /data-legacy-example-field/);
   // 2026-10-03 用語統一 W10：使用者裁定以「已儲存」為準（第一次失敗：收據 20261003-024908090-6beccb9968d64a549df8acb53f0c5ff6）。
-  assert.match(source, /套用範例會替換目前條件，已儲存情境不變/);
+  assert.match(source, /套用後會替換目前的條件，已儲存的情境不受影響。/);
   assert.doesNotMatch(source, /沿用 2024 JE 篩選表的代號/);
 });
 
@@ -914,7 +1178,8 @@ function pagedReadFixture(options = {}) {
   const wrapper = el(), table = el(), more = el(), form = el(), input = el(), clear = el(), sort = el(), requests = [], rows = ['existing'];
   sort.setAttribute('data-sort-key', 'amount'); sort.closest = selector => selector === '.th-sort' ? sort : null;
   table.contains = node => node === sort;
-  form.querySelector = selector => selector === '[data-page-search-input]' ? input : selector === '[data-page-search-clear]' ? clear : null;
+  form.querySelector = selector => ['[data-page-search-input]', '[data-search-input]'].includes(selector) ? input :
+    ['[data-page-search-clear]', '[data-search-clear]'].includes(selector) ? clear : null;
   wrapper.appendChild(table); wrapper.appendChild(more);
   window.JetUi.bindPagedTable(wrapper, { sourceKind: 'validate', table, search: form, loadMore: more,
     fetchPage(cursor, sort, search) {
@@ -1094,7 +1359,7 @@ test('explanations stay visible and shared typography and focus rules cover the 
   assert.doesNotMatch(vouchers, /<details/);
   assert.match(vouchers, /標示為參考的分錄不計入上方筆數/);
   const css = read('../css/app.css');
-  for (const selector of ['stat-card__value', 'population-cell__value', 'overview-pop__kpi-value']) {
+  for (const selector of ['stat-card__value', 'overview-pop__kpi-value']) {
     const rule = css.match(new RegExp('\\.' + selector + ' \\{([^}]+)\\}'))[1];
     assert.match(rule, /font-size: var\(--font-stat-size\)/);
     assert.match(rule, /font-weight: var\(--font-stat-weight\)/);
@@ -1266,19 +1531,25 @@ test('authorized list explains counted rows and preserves all counts after proje
   f.openCard(); assertCounts(f.render().html());
 });
 
+// 2026-10-09 使用者要求提示避免專業術語、不得過長：「可能選錯識別欄」改成「可能選錯了名單的欄位」，
+// 並依分類改成需要注意（琥珀）。第一次失敗收據 20261008-173522118-1569597102f24a35ab54a3cc800403e0。
 test('authorized list zero matches warn without rejecting the successful import and unknown GL mapping is not zero', async () => {
   const f = authorizedPreparerReviewFixture(); f.openCard();
   await f.importList({ rowCount: 35, sourceColumn: 'Employee ID', matchedPreparerCount: 0 });
   assert.equal(f.store.getState().importState.authorizedPreparer.rowCount, 35);
   assert.equal(f.store.getState().busy, false);
   assert.match(f.render().html(), /有效名單 35 位中，有 0 位出現在 GL 傳票建立人員/);
-  assert.match(f.render().html(), /可能選錯識別欄/);
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-38（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）。
+  assert.ok(f.render().html().includes('class="form-notice form-notice--warning">清單中的人員都不在 GL 的傳票建立人員裡，' +
+    '請確認所選欄位是人員代號或姓名。</p>'),
+    'the zero-match reminder does not block, so it is amber rather than red');
   f.store.setAuthorizedPreparerState({ rowCount: 35, sourceColumn: 'Employee ID', matchedPreparerCount: null });
   assert.match(f.render().html(), /確認.*傳票建立人員.*配對後.*比對/);
-  assert.doesNotMatch(f.render().html(), /有 0 位|可能選錯識別欄/);
+  assert.doesNotMatch(f.render().html(), /有 0 位|請確認所選的清單欄位/);
   f.store.setAuthorizedPreparerState({ rowCount: 35, sourceColumn: 'Employee ID', matchedPreparerCount: 1 });
   assert.match(f.render().html(), /有 1 位出現在 GL/);
-  assert.doesNotMatch(f.render().html(), /可能選錯識別欄/, 'one match is enough; no unapproved ratio threshold');
+  assert.doesNotMatch(f.render().html(), /請確認所選的清單欄位/, 'one match is enough; no unapproved ratio threshold');
 });
 
 test('authorized list old metadata is unknown and GL replacement invalidates only the comparison', () => {
@@ -1405,12 +1676,11 @@ test('authorized list selects an identifier, keeps the draft on failure, cancels
 
 // 2026-10-02 使用者裁定移除「情境層級」（W12）：KCT I 是加入目前條件組的一條條件括號，內含週末或假日。
 // 2026-10-02 範例缺值時要說明第幾組第幾條（W20）。以下直接執行正式前端腳本核對草稿形狀、送出形狀、舊情境重開與提示文字。
-const plain = value => JSON.parse(JSON.stringify(value));
 function kctFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer(fn) { window.deferred = fn; } } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-legacy.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
     "  window.kct = { addKctToDraft, removeKctFromActiveGroup, refreshAutomaticMetadata, toWireDraft, kctCardState, readBackHtml, applyTemplate, scenarioGate, setActiveGroup, syncViewState, bind, kctPickerHtml };"), context);
@@ -1463,10 +1733,25 @@ test('KCT I joins the active group as one condition bracket of nonbusiness days 
   assert.equal(f.api.kctCardState(draft, f.item('I')), 'selected');
   assert.equal(draft.name, 'G+I');
   assert.equal(draft.rationale, 'G：' + f.item('G').label + '\nI：' + f.item('I').label);
-  assert.match(f.text(f.api.readBackHtml(draft)), /預篩選：空白摘要 且 非營業日（排除補班日）/);
+  // 第九節 G2 的 G 卡使用欄位文字；首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+  assert.match(f.text(f.api.readBackHtml(draft)), /傳票摘要 空白 且 非營業日（排除補班日）/);
   const picker = f.api.kctPickerHtml(draft);
   assert.doesNotMatch(picker, /情境層級|適用整個情境|picker-card--preset/);
   assert.match(picker, /作用中組已選 2 項/);
+});
+
+// 2026-10-02 使用者裁定移除「情境層級」：整個第五步畫面與樣式表都不再有這個區塊。
+test('KCT I leaves no scenario-level block on the rendered filter step or in the stylesheet', () => {
+  const f = filterOperationFixture();
+  f.click('[data-kct-letter="G"]'); f.click('[data-kct-letter="I"]');
+  assert.equal(f.draft().groups.length, 1);
+  assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => rule.__kctLetter)), ['G', 'I']);
+  assert.ok(f.draft().groups.every(group => !('__kctPresetGroup' in group)));
+  assert.ok(f.window.JetUi.FILTER_KCT_PRESETS.every(preset => !('newGroup' in preset)), 'no preset opens a separate group');
+  assert.doesNotMatch(f.dom.content.innerHTML, /情境層級|適用整個情境|remove-preset-group|scenario-preset|picker-card--preset/);
+  const css = fs.readFileSync(path.join(root, '../css/app.css'), 'utf8');
+  for (const removed of ['情境層級', '適用整個情境', '__kctPresetGroup', 'remove-preset-group', 'scenario-preset', 'picker-card--preset', 'isPresetNewGroup'])
+    assert.equal(css.includes(removed), false, removed);
 });
 
 test('adding KCT I twice never shares the bracket, its children or the preset definition', () => {
@@ -1510,7 +1795,8 @@ test('the wire keeps the group order, strips UI keys and records no new preset g
   const wire = f.api.toWireDraft(draft);
   assert.equal(wire.source, 'kct');
   assert.equal(wire.groups.length, 1);
-  assert.deepEqual(plain(wire.groups[0].rules.map(rule => rule.type)), ['group', 'prescreen']);
+  // 第九節 G2 保留身分與順序，只改 G 的型別。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+  assert.deepEqual(plain(wire.groups[0].rules.map(rule => rule.type)), ['group', 'fieldValue']);
   assert.equal(JSON.stringify(wire).includes('__'), false);
   assert.deepEqual(plain(wire.groups[0].rules[0].rules), [{ type: 'fieldValue', join: 'AND', field: 'postDate', operator: 'isNonBusinessDay', includeBlank: false }]);
   assert.deepEqual(plain(wire.editorOrigins.groups), [{ letters: ['I', 'G'] }]);
@@ -1552,7 +1838,8 @@ test('the non-business-day example puts both conditions in group 1 and names the
   assert.equal(draft.groups[0].rules[1].join, 'AND');
   assert.deepEqual(plain(draft.groups[0].rules[1].values), [], 'the example never fills dates for the auditor');
   assert.equal(typeof f.window.deferred, 'function', 'focus moves to the value that still needs input');
-  assert.deepEqual(plain(f.gate()), { ok: false, notice: '尚需補齊：第 1 組第 2 條「總帳入帳日」請填入 1 到 100 個不同值' });
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-08（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。 位置字首照 R3-01 不變，只換原因。
+  assert.deepEqual(plain(f.gate()), { ok: false, notice: '尚需補齊：第 1 組第 2 條「總帳日期」請填 1 到 100 個值' });
   draft.groups[0].rules[1].values = ['2025-01-01'];
   assert.equal(f.gate().ok, true);
 });
@@ -1565,8 +1852,9 @@ test('missing values inside a condition bracket name the item within the conditi
     { type: 'fieldValue', join: 'OR', field: 'createBy', operator: 'in', values: [], includeBlank: false }] });
   draft.groups.push({ join: 'AND', matchScope: 'row', rules: [{ type: 'dateRange', field: 'postDate', from: '2025-02-01', to: '2025-01-01' }] });
   f.store.setFilterDraft(draft);
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-08、R3-12（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。 位置字首照 R3-01 不變，只換原因。
   assert.deepEqual(plain(f.gate()), { ok: false, notice: '尚需補齊：第 1 組第 2 條的第 2 項「' +
-    f.window.JetUi.glFieldLabel('createBy') + '」請填入 1 到 100 個不同值、第 2 組第 1 條「日期區間」的起點晚於終點，請先修正' });
+    f.window.JetUi.glFieldLabel('createBy') + '」請填 1 到 100 個值、第 2 組第 1 條「日期區間」起日晚於迄日' });
 });
 
 // 2026-10-03 主線審查加的防護：範例併進 KCT 組只在語意不變時做。組內有「或」時併進去會把「I 且 (a 或 b)」
@@ -1690,6 +1978,7 @@ test('a workbook with several sheets becomes one pending source per sheet and ea
     { filePath: 'book.xlsx', fileName: 'book.xlsx', sheetName: '上半年' },
     { filePath: 'book.xlsx', fileName: 'book.xlsx', sheetName: '下半年' }] });
   calls[0].resolve({ batchId: 'n', rowCount: 4, addedRowCount: 4, columns: ['a', 'b'], sources: [] }); await settle();
+  assert.equal(calls.length, 1, 'every source goes in one request, without a follow-up per source');
   assert.equal(w.f.store.getState().importState.gl.batchId, 'n');
 });
 
@@ -1882,7 +2171,7 @@ test('metadata impact clears an unsaved preview even when no persisted result ca
   // 使用者 2026-10-07 裁定上游修改清除下游：沒儲存的條件也回到預設，不另外提示（第一次失敗紀錄 artifacts/review/kct-filter-ops/frontend-workflow-before-assertion-update-upstream-shape.txt）。
   assert.notEqual(f.store.getState().filter.draft, draft);
   assert.deepEqual(plain(f.store.getState().filter.draft), { name: '', rationale: '', groups: [] });
-  assert.equal(f.store.getState().messages.some(m => m.text === '前面的資料已更改，請重新設定篩選情境。'), false,
+  assert.equal(f.store.getState().messages.some(m => m.text === UPSTREAM_RESET_MESSAGE), false,
     'an empty draft with no saved scenario has nothing to report');
   assert.ok(f.store.getState().dataGeneration > generation, 'dependent read caches must reload');
   assert.ok(f.store.getFilterDraftRev() > draftRevision, 'pending previews cannot restore the old result');
@@ -1912,7 +2201,8 @@ test('project update has a JetApi method and missing preparation dates point to 
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);", '  window.reviewMetadataRule = ruleControlsHtml;'), context);
   const rule = { type: 'prescreen', prescreenKey: 'postPeriodApproval' };
   const html = f.window.reviewMetadataRule(rule, 0, 0);
-  assert.match(html, /期末財報準備日.*建立案件.*修改案件資料/);
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-17（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.match(html, /<p class="rule-field__hint">尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫<\/p>/);
   assert.doesNotMatch(html, /lastPeriodStart|重新建立案件/);
   f.store.setProject({ projectId: 'synthetic', lastPeriodStart: '2024-02-01' });
   assert.doesNotMatch(f.window.reviewMetadataRule(rule, 0, 0), /修改案件資料/);
@@ -1920,7 +2210,7 @@ test('project update has a JetApi method and missing preparation dates point to 
 
 function taxonomyReviewDom(html) {
   const nodes = [];
-  for (const tag of html.matchAll(/<(input|select|button|p|div|li|section|details|summary)\b([^>]*)>/g)) {
+  for (const tag of html.matchAll(/<(input|select|button|p|div|li|section|details|summary|form)\b([^>]*)>/g)) {
     const attributes = {};
     for (const attr of tag[2].matchAll(/([\w-]+)(?:="([^"]*)")?/g)) attributes[attr[1]] = attr[2] ?? '';
     const node = { attributes, tagName: tag[1].toUpperCase(), type: attributes.type || '', isConnected: true,
@@ -1951,7 +2241,7 @@ function taxonomyReviewFixture() {
   const source = fs.readFileSync(path.join(root, 'steps/validate-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('validate', render);",
     '  window.taxonomyReview = { html: taxonomyCardHtml, rows: taxonomyRows, bind: bindTaxonomyCard, bindAll: bind };'), context);
-  for (const name of ['filter-values.js', 'filter-legacy.js']) vm.runInContext(fs.readFileSync(path.join(root, name), 'utf8'), context);
+  for (const name of ['filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, name), 'utf8'), context);
   const filter = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(filter.replace("  Ui.registerStep('filter', render);",
     '  window.taxonomyFilterReview = { summary: ruleSummaryLabel, controls: ruleControlsHtml, subject: ruleSubjectHtml, wire: toWireDraft };'), context);
@@ -2005,7 +2295,7 @@ test('scenario-used taxonomy can be removed, cancelled, retried and saved withou
   await settle();
   assert.equal(f.store.getState().filter.savedScenarios.length, 0);
   assert.equal(f.store.getState().taxonomy.categories.some(row => row.categoryId === 'bank'), false);
-  assert.equal(f.store.getState().messages.filter(m => m.text === '前面的資料已更改，請重新設定篩選情境。').length, 1);
+  assert.equal(f.store.getState().messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, 1);
 });
 
 test('taxonomy can submit a new parent and child together and inherits purpose only until manually changed', async () => {
@@ -2053,24 +2343,30 @@ test('taxonomy parent removal names direct children, waits for confirmation, rep
   assert.equal(f.api.rows(f.store.getState()).find(row => row.categoryId === 'c').parentCategoryId, 'p');
 });
 
-test('taxonomy editor and apply dropdown show hierarchy and newly added labels receive focus', () => {
+test('taxonomy editor and apply tree show hierarchy and newly added labels receive focus', () => {
   const f = taxonomyReviewFixture(); f.store.setTaxonomy({ revision: 2, categories: classificationTree() });
   const html = f.render().html;
   assert.match(html, /data-taxonomy-depth="1"/);
   assert.match(html, /toggle-taxonomy-advanced"[^>]*data-focus-key=/);
   assert.match(html, /add-taxonomy-category"[^>]*data-focus-key=/);
   const dropdown = f.window.JetUi.accountMappingEditor.html(f.store.getState(), true);
-  assert.match(dropdown, /option value="bank"[^>]*>[^<]*└[^<]*銀行存款/);
+  assert.match(dropdown, /data-category-node="bank"[^>]*margin-inline-start:1em[^>]*><label[^>]*><input[^>]*value="bank"[^>]*><span>銀行存款/);
   f.render().click('[data-action="add-taxonomy-category"]');
   const page = f.render(); f.focusNow();
   assert.equal(page.dom.querySelector('[data-taxonomy-label="draft-1"]').focused, true);
 });
 
-test('new classification cards and legacy P default to subtree while older saved rules remain role based', () => {
+test('new classification cards and the category pair check default to subtree while older saved rules remain role based', () => {
   const f = taxonomyReviewFixture(), ui = f.window.JetUi;
   for (const type of ['accountSide', 'accountPair', 'specialAccountCategoryPair']) assert.equal(ui.newFilterRule(type).categorySelection, 'subtree');
-  const presets = f.window.JetLegacyFilters.catalogue.conditions;
-  assert.equal(presets.find(item => item.letter === 'P').categoryRules[0].categorySelection, 'subtree');
+  // 使用者 2026-10-08 要求重新設計自訂篩選條件：原本由目錄 P 帶入的分類組合，改由常用查核條件「借方與貸方分類組合」加入，同樣包含下層分類。
+  const checks = ui.FILTER_COMMON_CHECK_GROUPS.flatMap(group => group.checks);
+  for (const key of ['categoryPair', 'accountCategory']) {
+    // 第九節 G1 把借方與分類分為兩條，仍核對分類預設包含下層。首次失敗：20261014-132501058-ef503fecc9824f3b9e6f009a7b154327。
+    const root = checks.find(check => check.key === key).rules[0];
+    const spec = key === 'accountCategory' ? root.rules[1] : root;
+    assert.equal(spec.categorySelection ?? ui.newFilterRule(spec.type).categorySelection, 'subtree', key);
+  }
   f.store.setTaxonomy({ revision: 2, categories: classificationTree() });
   const old = { type: 'accountSide', drCr: 'debit', categoryMode: 'is', categoryIds: ['builtin.cash'] };
   const wire = f.filterApi.wire({ name: 'Old rule', rationale: 'Synthetic', groups: [{ rules: [old] }] });
@@ -2088,7 +2384,8 @@ test('classification summaries show actual expanded categories, any direction an
     const actual = summary.split('實際納入分類：')[1];
     includes.forEach(label => assert.ok(actual.includes(label), mode + ' includes ' + label));
     excludes.forEach(label => assert.ok(!actual.includes(label), mode + ' excludes ' + label));
-    assert.match(f.filterApi.subject(rule, 'account'), /value="any" selected/);
+    // 第九節 G1 移除方向選單；分類展開與舊條件文字仍照原斷言檢查。首次失敗：20261014-132501058-ef503fecc9824f3b9e6f009a7b154327。
+    assert.equal(f.filterApi.subject(rule, 'account'), '');
   }
   const removed = { type: 'accountSide', drCr: 'any', categoryMode: 'absent', categorySelection: 'subtree', categoryIds: ['custom.deleted-id'] };
   const summary = f.filterApi.summary(removed, 0);
@@ -2096,7 +2393,7 @@ test('classification summaries show actual expanded categories, any direction an
   assert.match(f.filterApi.controls(removed, 0, 0), /已刪除的分類.*重新選擇/);
 });
 
-test('classification tree searches in place and restores collapsed branches after clearing search', () => {
+test('classification tree has no search and preserves explicit collapsed branches', () => {
   const f = taxonomyReviewFixture(), ui = f.window.JetUi;
   f.store.setTaxonomy({ revision: 2, categories: classificationTree() });
   const view = { search: '', collapsed: {} };
@@ -2109,10 +2406,12 @@ test('classification tree searches in place and restores collapsed branches afte
   }
   let dom = render(); dom.querySelector('[data-category-toggle="builtin.cash"]').fire();
   assert.equal(dom.querySelector('[data-category-node="bank"]').hidden, true);
-  const search = dom.querySelector('[data-category-search]'); search.value = '銀行'; search.fire('input');
+  // 第 13 則移除搜尋；收合、展開與重繪後狀態仍由真實事件驗證。
+  assert.equal(!!dom.querySelector('[data-category-search]'), false);
+  dom.querySelector('[data-category-toggle="builtin.cash"]').fire();
   assert.equal(dom.querySelector('[data-category-node="bank"]').hidden, false);
-  assert.equal(dom.querySelector('[data-category-node="unrelated"]').hidden, true);
-  search.value = ''; search.fire('input');
+  assert.equal(dom.querySelector('[data-category-node="unrelated"]').hidden, false);
+  dom.querySelector('[data-category-toggle="builtin.cash"]').fire();
   assert.equal(dom.querySelector('[data-category-node="bank"]').hidden, true);
   dom = render(); assert.equal(dom.querySelector('[data-category-node="bank"]').hidden, true);
 });
@@ -2130,7 +2429,8 @@ function accountTreeReviewFixture(initialValues = ['0099']) {
     f.window.JetUi.FilterValues.bind(dom, rule, f.store.getState(), () => f.store.setFilterDraft(f.store.getState().filter.draft));
     return { html, dom, click(selector) { const control = dom.querySelector(selector); assert.ok(control, selector + ' rendered'); control.fire(); },
       check(selector, checked = true) { const control = dom.querySelector(selector); assert.ok(control, selector + ' rendered'); control.checked = checked; control.fire('change'); },
-      search(value) { const input = dom.querySelector('[data-account-tree-search]'); assert.ok(input); input.value = value; input.fire('input'); } };
+      search(value) { const input = dom.querySelector('[data-account-tree-search]'); assert.ok(input); input.value = value; input.fire('input');
+        dom.querySelector('[data-account-tree-search-form]').fire('submit'); } };
   }
   return { ...f, rule, requests, render };
 }
@@ -2196,9 +2496,9 @@ function batch7Fixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-legacy.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    '  window.batch7 = { bind, bindLegacyPicker, legacyPickerHtml, bindCompoundRule, compoundRuleHtml, ruleRowHtml, ruleSubjectHtml, ruleProblem, readBackHtml, toWireDraft, syncViewState, getView: () => viewState };'), context);
+    '  window.batch7 = { bind, customPickerHtml, addFieldCondition, addCommonCheck, conditionFromSpec, findCommonCheck, bindCompoundRule, compoundRuleHtml, ruleRowHtml, ruleSubjectHtml, ruleProblem, readBackHtml, toWireDraft, syncViewState, getView: () => viewState };'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'filter-vouchers.js'), 'utf8').replace('Ui.FilterVouchers = { summary: summary, mount: mount };',
     'Ui.FilterVouchers = { summary: summary, mount: mount, matchStatusHtml: matchStatusHtml };'), context);
   const store = window.JetStore, ui = window.JetUi, api = window.batch7;
@@ -2211,29 +2511,6 @@ function batch7Fixture() {
     return { html, dom, input(key, value) { const node = dom.querySelector('[data-value-key="' + key + '"]'); assert.ok(node, key + ' rendered'); node.value = value; node.fire(node.tagName === 'SELECT' || node.type === 'checkbox' ? 'change' : 'input'); }, changes: () => changes };
   }
   return { window, store, ui, api, editor, text: html => html.replace(/<[^>]+>/g, '') };
-}
-
-function batch7Dom(html) {
-  const nodes = [];
-  for (const tag of html.matchAll(/<(input|textarea|select|button|p|div|details|summary)\b([^>]*)>/g)) {
-    const attrs = {};
-    for (const attr of tag[2].matchAll(/([\w-]+)(?:="([^"]*)")?/g)) attrs[attr[1]] = attr[2] ?? '';
-    const node = { tagName: tag[1].toUpperCase(), type: attrs.type || '', value: attrs.value || '', checked: Object.hasOwn(attrs, 'checked'),
-      disabled: Object.hasOwn(attrs, 'disabled'), isConnected: true, hidden: false, innerHTML: '', textContent: '', dataset: {}, events: {},
-      getAttribute: key => attrs[key] ?? null, hasAttribute: key => Object.hasOwn(attrs, key), setAttribute(key, val) { attrs[key] = val; }, removeAttribute(key) { delete attrs[key]; },
-      addEventListener(name, fn) { this.events[name] = fn; }, fire(name = 'click') { assert.ok(this.events[name], JSON.stringify(attrs) + ' ' + name + ' bound'); this.events[name]({ target: this, currentTarget: this, preventDefault() {} }); },
-      classList: { add() {}, remove() {}, toggle() {} }, focus() {}, getClientRects: () => [], style: {}, closest: () => dom };
-    for (const [key, val] of Object.entries(attrs)) if (key.startsWith('data-')) node.dataset[key.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = val;
-    nodes.push(node);
-  }
-  function match(node, selector) {
-    const attribute = /^\[([^=\]]+)(?:="?([^"\]]+)"?)?\]$/.exec(selector);
-    return attribute ? node.hasAttribute(attribute[1]) && (attribute[2] === undefined || node.getAttribute(attribute[1]) === attribute[2]) : false;
-  }
-  const dom = { querySelector: selector => nodes.find(node => match(node, selector)) || null, querySelectorAll: selector => nodes.filter(node => match(node, selector)), innerHTML: html };
-  // These parsed controls start with no element children; selected-date chips are populated after bind.
-  nodes.forEach(node => { node.querySelector = () => null; node.querySelectorAll = () => []; });
-  return dom;
 }
 
 test('batch7 list editors split the approved separators without splitting literal text lists or money grouping commas', () => {
@@ -2298,9 +2575,10 @@ test('batch7 filter dates use GL formats and the project ROC setting without cha
   assert.match(f.editor({ ...rule, values: [] }).html, /yyyy\/M\/d|2025\/8\/1/);
 });
 
-test('batch7 credit voucher children inherit credit and personnel/account bracket fields default to exact lists', () => {
+// 第九節 G1 的分類子條件不再繼承方向。首次失敗：20261014-132501058-ef503fecc9824f3b9e6f009a7b154327。
+test('batch7 classification children have no hidden direction and personnel/account bracket fields default to exact lists', () => {
   const f = batch7Fixture();
-  for (const [type, choice, expected] of [['voucher', 'type:accountSide', { drCr: 'credit' }], ['group', 'field:approveBy', { operator: 'in', field: 'approveBy' }], ['group', 'field:createBy', { operator: 'in', field: 'createBy' }], ['group', 'field:accNum', { operator: 'in', field: 'accNum' }]]) {
+  for (const [type, choice, expected] of [['voucher', 'type:accountSide', { drCr: undefined }], ['group', 'field:approveBy', { operator: 'in', field: 'approveBy' }], ['group', 'field:createBy', { operator: 'in', field: 'createBy' }], ['group', 'field:accNum', { operator: 'in', field: 'accNum' }]]) {
     const rule = { type, side: 'credit', quantifier: 'any', rules: [] }, draft = { groups: [{ rules: [rule] }] };
     f.store.setFilterDraft(draft);
     const dom = batch7Dom(f.api.compoundRuleHtml(rule, 0, 0, false, draft.groups[0]));
@@ -2316,14 +2594,17 @@ test('batch7 same-row bracket and voucher child menus do not offer voucher-wide 
     const rule = { type, side: 'credit', quantifier: 'any', rules: [child] };
     assert.doesNotMatch(f.api.compoundRuleHtml(rule, 0, 0, false, { rules: [rule] }), /option value="absent"/);
   }
-  assert.match(f.api.ruleRowHtml(child, { rules: [child] }, 0, 0, false), /option value="absent"/);
+  // 第九節 G1 連外層也不再提供 absent，舊模式保留為停用提示。首次失敗：20261014-132501058-ef503fecc9824f3b9e6f009a7b154327。
+  assert.doesNotMatch(f.api.ruleRowHtml(child, { rules: [child] }, 0, 0, false), /option value="absent"/);
+  assert.match(f.api.ruleRowHtml({ ...child, categoryMode: 'absent' }, { rules: [child] }, 0, 0, false), /option value="absent" selected disabled/);
 });
 
 test('batch7 unavailable saved risk and deleted-field selections show selected explanatory placeholders', () => {
   const f = batch7Fixture();
   for (const key of ['nonAuthorizedPreparer', 'unexpectedAccountPair']) {
     const html = f.api.ruleSubjectHtml({ type: 'prescreen', prescreenKey: key }, 'pattern');
-    assert.match(html, new RegExp('<option[^>]*value="prescreen:' + key + '"[^>]*selected[^>]*>[^<]*(?:名單|科目配對)'));
+    // 使用者 2026-10-14 第三輪勾選頁確認 R3-15（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。 授權編製人員改稱「清單」。
+    assert.match(html, new RegExp('<option[^>]*value="prescreen:' + key + '"[^>]*selected[^>]*>[^<]*(?:清單|科目配對)'));
   }
   assert.match(f.ui.FilterValues.fieldOptionsHtml(f.store.getState(), 'deleted-rde', []), /<option[^>]*value="deleted-rde"[^>]*selected[^>]*>[^<]*(?:未配對|重新選擇)/);
 });
@@ -2390,24 +2671,16 @@ test('batch7 saved readback uses the surviving group join when an empty middle g
   assert.doesNotMatch(f.text(f.api.readBackHtml(draft)), / 或 /);
 });
 
-function batch7ControlDom(lists = {}) {
-  const nodes = new Map();
-  function node(selector) {
-    if (!nodes.has(selector)) nodes.set(selector, { value: '', dataset: {}, hidden: true, innerHTML: '', textContent: '', open: false, events: {}, parentNode: null,
-      getAttribute(name) { return name === 'data-gi' ? this.dataset.gi : null; }, setAttribute() {}, removeAttribute() {}, classList: { add() {}, remove() {}, toggle() {} }, focus() {},
-      addEventListener(name, fn) { this.events[name] = fn; }, fire(name = 'change') { assert.ok(this.events[name], selector + ' ' + name + ' bound'); this.events[name]({ target: this, currentTarget: this, preventDefault() {} }); },
-      querySelector: node, querySelectorAll: () => [] });
-    return nodes.get(selector);
-  }
-  return { node, querySelector: node, querySelectorAll: selector => lists[selector] || [] };
-}
-
-test('batch7 legacy U personnel choice is applied by the real picker and approver values reach the wire unchanged', () => {
-  const f = batch7Fixture(); f.api.getView().legacyLetter = 'U';
-  const dom = batch7ControlDom(); f.api.bindLegacyPicker(dom);
+test('batch7 personnel field buttons are applied by the real picker and approver values reach the wire unchanged', () => {
+  // 使用者 2026-10-08 要求重新設計自訂篩選條件：原本目錄 U 的「指定建立或核准人員」改由「文字」列的人員欄位按鈕加入。
+  const f = batch7Fixture(), dom = batch7ControlDom();
+  const chips = Object.fromEntries(['createBy', 'approveBy'].map(id => {
+    const node = dom.node('chip-' + id); node.getAttribute = name => name === 'data-add-field' ? id : null; return [id, node];
+  }));
+  dom.querySelectorAll = selector => selector === '[data-add-field]' ? Object.values(chips) : [];
+  f.api.bind(dom);
   for (const field of ['createBy', 'approveBy']) {
-    dom.node('[data-legacy-person]').value = field;
-    dom.node('[data-action="add-legacy-rule"]').fire('click');
+    chips[field].fire('click');
     const draft = f.store.getState().filter.draft, rule = draft.groups[0].rules.at(-1);
     assert.equal(rule.field, field); assert.equal(rule.operator, 'in');
     f.editor(rule).input('values', 'PERSON-01，PERSON-02');
@@ -2438,18 +2711,21 @@ test('batch7 group and between-group dropdown changes update only the intended s
 test('batch7 unexpected account pair uses the same revenue and any-counterpart prerequisites as step four', () => {
   const f = batch7Fixture(), rule = { type: 'prescreen', prescreenKey: 'unexpectedAccountPair' };
   for (const [mapping, reason] of [
-    [{ hasRevenue: false, hasCounterpart: true }, /收入|Revenue/],
-    [{ hasRevenue: true, hasCounterpart: false }, /應收.*現金.*預收/] ]) {
+    // 使用者 2026-10-14 第三輪勾選頁確認 R3-15（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。 原因寫出缺的分類名稱；
+    // 同一個樣式也套進常用查核條件的說明，所以不加行首行尾錨點。
+    [{ hasRevenue: false, hasCounterpart: true }, /科目配對中尚無歸類為「Revenue」的科目，請先在第四步設定/],
+    [{ hasRevenue: true, hasCounterpart: false }, /科目配對中尚無歸類為「Receivables」「Cash」或「Receipt in advance」的科目，請先在第四步設定/] ]) {
     f.store.setAccountMappingState(mapping);
     assert.match(f.api.ruleProblem(rule)?.message || '', reason);
     assert.match(f.api.ruleSubjectHtml(rule, 'pattern'), /<option[^>]*value="prescreen:unexpectedAccountPair"[^>]*selected/);
-    f.api.getView().legacyLetter = 'C';
-    assert.match(f.api.legacyPickerHtml(), /data-action="add-legacy-rule"[^>]*disabled/);
+    // 使用者 2026-10-08 要求重新設計自訂篩選條件：停用改看常用查核條件「未預期的借貸組合」，原因寫在該項下方。
+    assert.match(f.api.customPickerHtml(), /data-add-check="unexpectedAccountPair"[^>]*disabled/);
+    assert.match(f.api.customPickerHtml(), new RegExp('id="filter-check-note-unexpectedAccountPair">[^<]*(?:' + reason.source + ')'));
   }
   // One of the three counterpart roles is sufficient; no new all-three rule is invented.
   f.store.setAccountMappingState({ hasRevenue: true, hasCounterpart: true });
   assert.equal(f.api.ruleProblem(rule), null);
-  assert.doesNotMatch(f.api.legacyPickerHtml(), /data-action="add-legacy-rule"[^>]*disabled/);
+  assert.doesNotMatch(f.api.customPickerHtml(), /data-add-check="unexpectedAccountPair"[^>]*disabled/);
 });
 
 // The backend consumes this same hand-written JSON; neither side derives expected text from the other renderer.
@@ -2457,64 +2733,11 @@ for (const entry of JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/ba
   test('batch7 shared full condition readback: ' + entry.id, () => {
     const f = batch7Fixture(), scenario = { name: entry.id, rationale: 'Synthetic shared readback', __preserveJoins: true, ...plain(entry.scenario) };
     f.store.getState().mapping.gl.committed = { options: { rdeFields: plain(entry.rdeFields) } };
+    // 使用者 2026-10-14 第三輪勾選頁確認 R3-03：已移除的 GL 欄位名稱由 project.load 帶回；夾具寫出同一份名稱。
+    f.store.setRetiredGlFieldLabels(entry.retiredGlFieldLabels || null);
     f.store.setSavedScenarios([scenario]);
     assert.equal(f.text(f.api.readBackHtml(f.store.getState().filter.savedScenarios[0], false)).replace(/^篩選條件：/, ''), entry.expected);
   });
-}
-
-function batch8Fixture() {
-  const requests = [], elements = new Map();
-  const document = { readyState: 'loading', addEventListener() {}, querySelector: selector => elements.get(selector) || null,
-    createElement() { return { textContent: '', get innerHTML() { return String(this.textContent).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } }; } };
-  const window = { setTimeout, clearTimeout, addEventListener() {}, JetFocus: { defer() {} }, JetApi: {} };
-  for (const action of ['validateRun', 'exportValidationArtifacts', 'exportAccountMappingTemplate', 'exportPrescreenReport', 'hostOpenFolder', 'queryDataPreview', 'querySourceQualityPage', 'prescreenRun']) {
-    window.JetApi[action] = payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject }));
-  }
-  const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js', 'filter-values.js', 'filter-legacy.js', 'overview-bi.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
-  const modules = [
-    ['validate', 'window.batch8Validation = { bind, detailView, VALIDATION_ITEMS, PRESCREEN_ITEMS, NULL_PRESCREEN_ITEMS, LOAD_MORE_SPECS, detailHtml, validationCardHtml, validationArtifactsHtml, validationOutputStatusHtml, prescreenArtifactHtml, prescreenCardHtml, populationSummaryHtml, statsBarHtml, pairCountStatus, hitCountStatus };'],
-    ['filter', 'window.batch8Filter = { addRuleBarHtml, legacyPickerHtml, viewState, ruleControlsHtml, ruleSummaryLabel, readBackHtml, toWireDraft, compoundRuleHtml, scenarioBuilderHtml };'],
-    ['mapping', 'window.batch8Mapping = { classicEditSection, summarySection, mappingPreflightHtml };'],
-    ['import', 'window.batch8Import = { emptyFaceHtml, wizardBannerHtml, previewTableHtml, datasetCard, getWizard: () => wizard };'],
-    ['create', 'window.batch8Create = { render, operatorNoticeHtml };']
-  ];
-  for (const [step, exposure] of modules) {
-    const source = fs.readFileSync(path.join(root, 'steps/' + step + '-step.js'), 'utf8');
-    const marker = "  Ui.registerStep('" + step + "', render);";
-    assert.ok(source.includes(marker), step + ' registration seam');
-    vm.runInContext(source.replace(marker, '  ' + exposure + '\n' + marker), context);
-  }
-  vm.runInContext(fs.readFileSync(path.join(root, 'app.js'), 'utf8').replace("  if (document.readyState === 'loading') {",
-    "  window.batch8App = { flushMessageWrites, persistNewMessages, stepSummary, renderIdentityBadge, overviewStepFactsHtml, overviewPopulationHtml, overviewHtml, renderStepNav };\n  if (document.readyState === 'loading') {"), context);
-  vm.runInContext(fs.readFileSync(path.join(root, 'data-preview.js'), 'utf8').replace('  Ui.initDataPreview = initDataPreview;',
-    '  window.batch8Preview = { displayCell, renderNote, setup: function (aside, body, note) { elAside = aside; elBody = body; elNote = note; } };\n  Ui.initDataPreview = initDataPreview;'), context);
-  const store = window.JetStore, ui = window.JetUi;
-  store.setProject({ projectId: 'batch8-synthetic', entityName: 'Synthetic', operatorId: 'CREATOR', lastPeriodStart: '2025-12-31', periodStart: '2025-01-01', periodEnd: '2025-12-31' });
-  store.getState().view = 'workflow';
-  const previewDom = batch7ControlDom();
-  window.batch8Preview.setup(previewDom.node('aside'), previewDom.node('body'), previewDom.node('note'));
-  function controls(html = '') {
-    const dom = batch7Dom(html + '<button data-action="run-validate"></button><button data-action="run-prescreen"></button>');
-    window.batch8Validation.bind(dom, true);
-    return { dom, click(selector) { const control = dom.querySelector(selector); assert.ok(control, selector + ' rendered'); control.fire(); } };
-  }
-  return { store, ui, window, requests, elements, controls, previewDom, v: window.batch8Validation, filter: window.batch8Filter,
-    mapping: window.batch8Mapping, importer: window.batch8Import, app: window.batch8App, text: html => html.replace(/<[^>]+>/g, '') };
-}
-
-function batch8ValidationData(runId = 'v8') {
-  const data = validationFixture();
-  data.resultRef = { runId, generatedUtc: '2026-01-01T00:00:00Z' };
-  data.stats = { glRowCount: 80, voucherCount: 12, totalDebit: 1250, totalCredit: 1250, net: 0, periodStart: '2025-01-01', periodEnd: '2025-12-31' };
-  data.populationSummary = { raw: { rowCount: 100 }, effective: { rowCount: 80 }, excluded: { byPeriodCount: 15, byPostingStatusCount: 5 } };
-  data.sourceQuality = { findingCount: 2, sampleRows: [{ category: 'nullPostDate', sourceLabel: 'Synthetic', sourceRowNumber: 7, documentNumber: 'JV-7', accountCode: '1001', description: 'Synthetic row' }] };
-  return data;
-}
-
-function batch8Artifacts(runId = 'v8', stamp = '') {
-  return ['validationReport', 'infReport'].map((kind, i) => ({ artifactId: 'b8-' + kind + stamp, kind, fileName: kind + '.xlsx', fileState: 'present', stale: false,
-    generatedUtc: '2026-01-01T00:00:00Z', sizeBytes: 2000 + i, sourceRef: { validationRunId: runId } }));
 }
 
 test('batch8 validation interpretation restores the two user sentences and RDE guidance does not add an execution gate', async () => {
@@ -2538,8 +2761,10 @@ test('batch8 completeness detail displays both authoritative control totals even
   const item = f.v.VALIDATION_ITEMS.find(entry => entry.title === '完整性測試');
   const html = f.v.detailHtml(item.detail(data));
   // 2026-10-05 V2 裁定：照實說明兩欄都是 JET 算的數字，不比對來源檔本身；欄名逐字核對。
+  // 使用者 2026-10-13 選擇讓第四步明細表的筆數與金額欄連同表頭靠右，這兩欄表頭多了 preview-table__amount；
+  // 原本鎖住沒有 class 的 <th>，改字前的失敗收據：20261013-033220756-0bcbdbb6d2ad4869a5beedc5647669b9。欄名仍逐字核對。
   assert.match(html, /確認 JET 存下的分錄沒有少，也沒有重複。/); assert.match(html, /這一項不和來源檔自己的合計比對。/);
-  assert.match(html, /<th>確認配對時算出<\/th>/); assert.match(html, /<th>存下後重新計算<\/th>/);
+  assert.match(html, /<th class="preview-table__amount">確認配對時算出<\/th>/); assert.match(html, /<th class="preview-table__amount">存下後重新計算<\/th>/);
   assert.ok((html.match(/123/g) || []).length >= 2); assert.ok((html.match(/4,567\.89/g) || []).length >= 4);
   data.completenessTest.partA = { eligibleSource: null, effectiveTarget: null, rowCountMatch: null, amountMatch: null };
   const missing = f.v.detailHtml(item.detail(data));
@@ -2572,9 +2797,14 @@ test('batch8 tiny nonzero differences stay visible on summaries, first pages and
     assert.match(html, /不足 0\.01/); assert.match(html, /完整.*驗證報告|驗證報告.*完整/);
   }
   assert.match(f.v.statsBarHtml(data), /不足 0\.01/);
-  assert.equal(f.v.LOAD_MORE_SPECS.completeness.columns[4]({ diff: 0.003 }), '不足 0.01');
-  assert.equal(f.v.LOAD_MORE_SPECS.docBalance.columns[3]({ diff: -0.003 }), '負值，不足 0.01');
-  assert.equal(f.v.LOAD_MORE_SPECS.docBalance.columns[3]({ diff: 0 }), '0.00');
+  // 使用者 2026-10-13 選擇讓金額欄靠右，載入更多的金額欄改成 { cell, className } 欄位設定，和第五步的欄位設定同一種寫法；
+  // 原本直接呼叫欄位函式，改寫前的失敗收據：20261013-033220756-0bcbdbb6d2ad4869a5beedc5647669b9。顯示的字仍逐字核對。
+  for (const column of [f.v.LOAD_MORE_SPECS.completeness.columns[4], f.v.LOAD_MORE_SPECS.docBalance.columns[3]]) {
+    assert.equal(column.className, 'preview-table__amount');
+  }
+  assert.equal(f.v.LOAD_MORE_SPECS.completeness.columns[4].cell({ diff: 0.003 }), '不足 0.01');
+  assert.equal(f.v.LOAD_MORE_SPECS.docBalance.columns[3].cell({ diff: -0.003 }), '負值，不足 0.01');
+  assert.equal(f.v.LOAD_MORE_SPECS.docBalance.columns[3].cell({ diff: 0 }), '0.00');
 });
 
 test('batch8 overview uses the same tiny net display while ordinary debit and credit totals retain two decimals', () => {
@@ -2591,9 +2821,9 @@ test('batch8 empty remedies are omitted and all blank-source category labels are
   const f = batch8Fixture();
   assert.doesNotMatch(f.v.detailHtml({ kind: 'reason', text: 'Synthetic reason', remedy: null }), /rule-detail__remedy/);
   assert.match(f.v.detailHtml({ kind: 'reason', text: 'Synthetic reason', remedy: 'Synthetic next step' }), /Synthetic next step/);
-  const data = batch8ValidationData(), item = f.v.VALIDATION_ITEMS.find(item => item.title === '總帳入帳日空白');
-  assert.equal(item.detail(data).rows[0][0], '總帳入帳日空白');
-  assert.equal(f.v.LOAD_MORE_SPECS.sourceQuality.columns[0]({ category: 'nullPostDate' }), '總帳入帳日空白');
+  const data = batch8ValidationData(), item = f.v.VALIDATION_ITEMS.find(item => item.title === '總帳日期空白');
+  assert.equal(item.detail(data).rows[0][0], '總帳日期空白');
+  assert.equal(f.v.LOAD_MORE_SPECS.sourceQuality.columns[0]({ category: 'nullPostDate' }), '總帳日期空白');
   for (const [key, label] of [['nullDescription', '空白摘要'], ['nullDocument', '空白傳票號碼'], ['nullAccount', '空白科目編號']]) {
     assert.equal(f.v.LOAD_MORE_SPECS['null-' + key].columns[4]({}), label);
   }
@@ -2636,16 +2866,15 @@ test('batch8 null posting and hit counts never claim a measured zero or an all-c
   assert.equal(f.v.hitCountStatus({ count: 0 }).text, '未發現');
 });
 
-test('batch8 population summary keeps the backend counts and the real excluded button sends the bounded query action', async () => {
-  const f = batch8Fixture(), data = batch8ValidationData();
-  const html = f.v.populationSummaryHtml(data), page = f.controls(html);
-  for (const count of [100, 80, 15, 5]) assert.match(html, new RegExp('>' + count + '<'));
-  assert.match(html, /不在查核期間|日期不符/); assert.match(html, /過帳狀態不符/);
-  page.click('[data-action="preview-excluded-entries"]');
-  assert.deepEqual(plain(f.requests[0].payload), { dataset: 'glExcludedEntries' });
+// 第 11、12 則移除摘要與捷徑；改由仍存在的右側預覽入口驗證相同查詢與排除原因。
+test('excluded data stays available through the sidebar without a duplicate population summary', async () => {
+  const f = batch8Fixture();
+  assert.doesNotMatch(fs.readFileSync(path.join(root, 'steps/validate-step.js'), 'utf8'), /populationSummaryHtml|preview-excluded-entries/);
+  f.ui.openDataPreview('glExcluded');
+  assert.deepEqual(plain(f.requests[0].payload), { dataset: 'glExcluded' }); // 使用者 2026-10-08 裁定資料名稱全系統統一
   f.requests[0].resolve({ columns: [], rows: [], totalCount: 0, stats: { excludedByPeriodCount: 15, excludedByPostingStatusCount: 5 } }); await settle();
   assert.match(f.previewDom.node('note').innerHTML, /過帳狀態不符/);
-  assert.equal(f.window.batch8Preview.displayCell('glExcludedEntries', 'exclusionReason', 'postingStatus'), '過帳狀態不符');
+  assert.equal(f.window.batch8Preview.displayCell('glExcluded', 'exclusionReason', 'postingStatus'), '過帳狀態不符');
   const request = f.v.LOAD_MORE_SPECS.sourceQuality.fetchPage('cursor-2', { key: 'sourceRowNumber', direction: 'asc' }, 'JV');
   assert.deepEqual(plain(f.requests[1].payload), { cursor: 'cursor-2', pageSize: 200, sort: { key: 'sourceRowNumber', direction: 'asc' }, search: 'JV' });
   f.requests[1].resolve({ rows: [], nextCursor: null }); await request;
@@ -2711,6 +2940,20 @@ test('batch8 sidebar reports GL and TB confirmation independently and uses the s
   assert.doesNotMatch(f.app.stepSummary(state, 2, 'done'), /已確認來源欄位的用途/);
 });
 
+test('acceptance feedback overview labels legacy flag like side without changing the saved mode or adding a choice', () => {
+  const f = batch8Fixture(), state = f.store.getState();
+  f.store.setMappingCommitted('tb', { mapping: {}, mode: 'direct', projectedRowCount: 3 });
+  for (const mode of ['flag', 'side']) {
+    f.store.setMappingCommitted('gl', { mapping: {}, mode, projectedRowCount: 5 });
+    const html = f.app.overviewStepFactsHtml(state, 2);
+    assert.match(html, /金額與借貸別/);
+    assert.match(html, /直接變動金額欄/);
+    assert.doesNotMatch(html, /尚未設定|尚未完成/);
+    assert.equal(state.mapping.gl.committed.mode, mode);
+  }
+  assert.deepEqual(plain(f.ui.GL_MODES.map(mode => mode.value)), ['dual', 'signed', 'side']);
+});
+
 test('batch8 operator labels distinguish the current account from the project creator', () => {
   const f = batch8Fixture(), badge = batch7ControlDom().node('badge'); f.elements.set('[data-bind="user-identity"]', badge);
   f.store.setCurrentUser({ shortName: 'CURRENT', principalName: 'SYNTHETIC\\CURRENT' }); f.app.renderIdentityBadge(f.store.getState());
@@ -2730,13 +2973,16 @@ test('batch8 source preview states its ten-row boundary and TB merge guidance do
   assert.doesNotMatch(f.importer.wizardBannerHtml(null), /可合併工作表或資料表/);
 });
 
-test('batch8 mapping date fields explain their separate purposes and approval-source warnings reuse the selectable label', () => {
+test('mapping date fields omit permanent explanations while invalid approval settings still show a warning', () => {
   const f = batch8Fixture(), state = f.store.getState();
   f.store.setImportResult('gl', { batchId: 'g', columns: ['Post', 'Voucher', 'Approval'], rowCount: 1 });
   const html = f.mapping.classicEditSection('gl', 'GL', f.ui.GL_FIELDS, f.ui.GL_MODES, state.importState.gl, state.mapping.gl, 'dual', null, false);
-  assert.match(html, /總帳入帳日[\s\S]*決定查核期間/);
-  assert.match(html, /傳票日期[\s\S]*回溯過帳/);
-  assert.match(html, /傳票核准日[\s\S]*財報準備日起核准/);
+  assert.match(html, /總帳日期/);
+  assert.doesNotMatch(html, /用來決定查核期間內/);
+  // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：配對畫面不再列出傳票日期或回溯過帳。
+  assert.doesNotMatch(html, /回溯過帳/);
+  assert.match(html, /傳票核准日/);
+  assert.doesNotMatch(html, /用於核准日期條件/);
   f.store.setMappingDraft('gl', 'docDate', 'Approval'); f.store.patchGlMappingOptions({ approvalDateMode: 'unmapped' });
   assert.equal(state.mapping.gl.draft.docDate, undefined, 'the ordinary mode switch correctly clears the conflicting source');
   // Simulate an older inconsistent draft loaded from storage; ordinary setters deliberately prevent creating it.
@@ -2888,16 +3134,17 @@ test('batch9 metadata updates prefer reportArtifacts and preserve a null catalog
   assert.equal(state.lastRuns.validate?.id, 'v9'); assert.equal(state.filter.preview?.count, 7);
 });
 
-for (const mode of ['side', 'flag']) test('batch9 GL ' + mode + ' requires and renders both literal codes without inventing a legacy credit value', () => {
+for (const mode of ['side', 'flag']) test('batch9 GL ' + mode + ' accepts one literal code without inventing a legacy opposite value', () => {
   const f = batch9Fixture(), state = f.store.getState(), info = { batchId: 'g', columns: ['Amount', 'Side'], rowCount: 2 };
   f.store.setImportResult('gl', info); f.store.setMappingMode('gl', mode);
   const credit = f.ui.GL_FIELDS.find(field => field.key === 'dcCreditCode');
-  assert.ok(credit && credit.literal && credit.req.includes(mode), 'credit code is a required literal');
+  assert.ok(credit && credit.literal && credit.req.includes(mode), 'credit code remains an applicable literal');
   assert.equal(f.ui.TB_FIELDS.some(field => field.key === 'dcCreditCode'), false);
-  for (const field of f.ui.GL_FIELDS.filter(field => field.req.includes(mode))) f.store.setMappingDraft('gl', field.key, field.literal ? (field.key === 'dcDebitCode' ? 'D' : '') : 'Amount');
+  for (const field of f.ui.GL_FIELDS.filter(field => f.ui.isRequired(field, mode))) f.store.setMappingDraft('gl', field.key, field.literal ? (field.key === 'dcDebitCode' ? 'D' : '') : 'Amount');
   const eligibility = f.mapping.mappingCommitEligibility(f.ui.GL_FIELDS, mode, state.mapping.gl, 'gl');
-  assert.equal(eligibility.canCommit, false);
-  assert.ok(eligibility.missing.some(field => field.key === 'dcCreditCode'));
+  // 第 6 則允許單側，兩個都沒填時仍不可確認。
+  assert.equal(eligibility.canCommit, true);
+  assert.equal(eligibility.missing.length, 0);
   const grid = f.mapping.gridEditSection('gl', 'GL', f.ui.GL_FIELDS, f.ui.GL_MODES, info, state.mapping.gl, mode, null, false);
   const classic = f.mapping.classicEditSection('gl', 'GL', f.ui.GL_FIELDS, f.ui.GL_MODES, info, state.mapping.gl, mode, null, false);
   for (const html of [grid, classic]) { assert.match(html, /dcDebitCode/); assert.match(html, /dcCreditCode/); assert.match(html, /貸方代碼/); }
@@ -3013,8 +3260,9 @@ test('batch9 first step shows distinct reused document numbers separately from a
   const before = plain(state.project), dom = batch7Dom(''); f.window.batch8Create.render(dom, state);
   assert.match(dom.innerHTML, /role="status"/);
   assert.match(dom.innerHTML, /3\s*個傳票號碼/); assert.match(dom.innerHTML, /17\s*列/);
-  assert.match(dom.innerHTML, /不同總帳入帳日/);
-  assert.match(dom.innerHTML, /不會.*(?:更改|改變).*比對鍵/);
+  assert.match(dom.innerHTML, /不同總帳日期/);
+  // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）；提示不再說明比對鍵，傳票比對鍵沒有被改由下面的 project 比對核對。
+  assert.ok(dom.innerHTML.includes('GL 有 3 個傳票號碼出現在不同總帳日期（共 17 列），請確認來源系統是否重複使用號碼。'));
   assert.doesNotMatch(dom.innerHTML, /跨月.*3\s*張傳票/);
   assert.deepEqual(plain(state.project), before);
   assert.equal(f.ui.stepGate(state, 1).ok, true, 'this is a review reminder, not a new blocking gate');
@@ -3024,11 +3272,11 @@ test('batch9 first step distinguishes a measured zero from unavailable legacy or
   const f = batch8Fixture(), state = f.store.getState();
   function html() { const dom = batch7Dom(''); f.window.batch8Create.render(dom, state); return dom.innerHTML; }
   f.store.setLastRun('validate', { documentDateReuse: { documentNumberCount: 0, entryCount: 0 } });
-  assert.match(html(), /未發現.*不同總帳入帳日/);
+  assert.match(html(), /未發現.*不同總帳日期/);
   for (const summary of [null, {}, { documentDateReuse: null }]) {
     f.store.setLastRun('validate', summary);
     assert.match(html(), /尚未確認/); assert.match(html(), /資料驗證/);
-    assert.doesNotMatch(html(), /0\s*個傳票號碼|未發現.*不同總帳入帳日/);
+    assert.doesNotMatch(html(), /0\s*個傳票號碼|未發現.*不同總帳日期/);
   }
   f.store.setLastRun('validate', { documentDateReuse: { documentNumberCount: 3, entryCount: 17 } });
   f.store.setStaleState({ validation: true });
@@ -3045,92 +3293,6 @@ test('batch9 reopening uses persisted date-reuse summary without an extra source
   assert.match(dom.innerHTML, /1\s*個傳票號碼/); assert.match(dom.innerHTML, /4\s*列/);
   assert.equal(f.requests.length, 0, 'summary rendering does not fetch GL rows');
 });
-
-// Minimal tree DOM for real rule-list render/bind and app renderContent lifecycles (not a second pager implementation).
-function batch9TreeDom() {
-  const escape = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const decode = value => value.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-  let document;
-  function element(tag = 'div', attrs = {}) {
-    const node = { tagName: tag.toUpperCase(), attrs: { ...attrs }, children: [], parentElement: null, handlers: {}, isConnected: true,
-      style: {}, scrollHeight: 36, scrollTop: 0, scrollLeft: 0, disabled: Object.hasOwn(attrs, 'disabled'), hidden: Object.hasOwn(attrs, 'hidden'), value: attrs.value || '',
-      checked: Object.hasOwn(attrs, 'checked'),
-      getAttribute(name) { return Object.hasOwn(this.attrs, name) ? this.attrs[name] : null; },
-      hasAttribute(name) { return Object.hasOwn(this.attrs, name); },
-      setAttribute(name, value) { this.attrs[name] = String(value); }, removeAttribute(name) { delete this.attrs[name]; },
-      addEventListener(name, fn) { (this.handlers[name] ||= []).push(fn); },
-      fire(name, extra = {}) { for (const fn of this.handlers[name] || []) fn({ target: this, currentTarget: this, preventDefault() {}, stopPropagation() {}, ...extra }); },
-      appendChild(child) { this._text = ''; this.children.push(child); child.parentElement = this; child.isConnected = this.isConnected; return child; },
-      contains(child) { for (let p = child; p; p = p.parentElement) if (p === this) return true; return false; },
-      matches(selector) {
-        if (selector.includes(',')) return selector.split(',').some(part => this.matches(part.trim()));
-        const attributes = [...selector.matchAll(/\[([^\]=]+)(?:="([^"]*)")?\]/g)];
-        if (attributes.some(match => this.getAttribute(match[1]) === null || match[2] !== undefined && this.getAttribute(match[1]) !== match[2])) return false;
-        const base = selector.replace(/\[[^\]]+\]/g, ''), tagMatch = base.match(/^[a-z][\w-]*/i);
-        if (tagMatch && this.tagName !== tagMatch[0].toUpperCase()) return false;
-        for (const part of base.matchAll(/\.([\w-]+)/g)) if (!(this.attrs.class || '').split(/\s+/).includes(part[1])) return false;
-        const id = base.match(/#([\w-]+)/); return !id || this.attrs.id === id[1];
-      },
-      closest(selector) { for (let node = this; node; node = node.parentElement) if (node.matches(selector)) return node; return null; },
-      querySelectorAll(selector) {
-        const selectors = selector.split(',').map(part => part.trim()), found = [];
-        function matchesPath(node, parts) { if (!node.matches(parts.at(-1))) return false; let p = node.parentElement;
-          for (let i = parts.length - 2; i >= 0; i--) { while (p && !p.matches(parts[i])) p = p.parentElement; if (!p) return false; p = p.parentElement; } return true; }
-        function walk(parent) { for (const child of parent.children) { if (selectors.some(sel => matchesPath(child, sel.split(/\s+(?=(?:[^"]*"[^"]*")*[^"]*$)/)))) found.push(child); walk(child); } }
-        walk(this); return found;
-      },
-      querySelector(selector) { return this.querySelectorAll(selector)[0] || null; },
-      insertAdjacentHTML(position, html) { const fragment = element(); fragment.innerHTML = html;
-        if (position === 'beforeend') for (const child of fragment.children.slice()) this.appendChild(child);
-        else if (['beforebegin', 'afterend'].includes(position)) { const parent = this.parentElement; assert.ok(parent); const index = parent.children.indexOf(this) + (position === 'afterend' ? 1 : 0);
-          parent.children.splice(index, 0, ...fragment.children); fragment.children.forEach(child => { child.parentElement = parent; }); }
-        else throw new Error('Unsupported synthetic DOM insertion: ' + position); },
-      focus() { if (document) document.activeElement = this; }, scrollIntoView() {},
-      getClientRects() { return this.hidden ? [] : [{ width: 400, height: 30 }]; },
-      remove() { if (!this.parentElement) return; const parent = this.parentElement; parent.children.splice(parent.children.indexOf(this), 1); this.parentElement = null; this.isConnected = false; },
-      set outerHTML(html) { const parent = this.parentElement; if (!parent) return; const index = parent.children.indexOf(this), fragment = element(); fragment.innerHTML = html;
-        parent.children.splice(index, 1, ...fragment.children); fragment.children.forEach(child => { child.parentElement = parent; }); this.isConnected = false; },
-      get rows() { return this.querySelectorAll('tr'); },
-      get innerHTML() { return this._text ? escape(this._text) : this.children.map(child => '<' + child.tagName.toLowerCase() + Object.entries(child.attrs).map(([k, v]) => ' ' + k + '="' + escape(v) + '"').join('') + '>' + child.innerHTML + '</' + child.tagName.toLowerCase() + '>').join(''); },
-      set innerHTML(html) {
-        function detach(node) { node.isConnected = false; node.children.forEach(detach); } this.children.forEach(detach); this.children = []; this._text = '';
-        const stack = [this], voids = new Set(['input', 'br', 'hr', 'img', 'meta', 'link']);
-        for (const token of String(html).matchAll(/<\/?([a-z][\w-]*)\b([^>]*?)>|([^<]+)/gi)) {
-          if (token[3]) { const text = element('jet-text'); text._text = decode(token[3]); stack.at(-1).appendChild(text); continue; }
-          const name = token[1].toLowerCase(); if (token[0].startsWith('</')) { while (stack.length > 1) { if (stack.pop().tagName === name.toUpperCase()) break; } continue; }
-          const attributes = {}; for (const attr of token[2].matchAll(/([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g)) attributes[attr[1]] = decode(attr[2] ?? attr[3] ?? attr[4] ?? '');
-          const child = element(name, attributes); stack.at(-1).appendChild(child); if (!voids.has(name) && !token[0].endsWith('/>')) stack.push(child);
-        }
-        for (const select of this.querySelectorAll('select')) {
-          const options = select.querySelectorAll('option');
-          const selected = options.find(option => option.hasAttribute('selected')) || options[0];
-          select.value = selected ? selected.getAttribute('value') ?? selected.textContent : '';
-        }
-        for (const textarea of this.querySelectorAll('textarea')) textarea.value = textarea.textContent;
-      },
-      get content() { return this; },
-      get elements() { const entries = this.querySelectorAll('input,select,textarea,button');
-        for (const node of entries) { const name = node.getAttribute('name'); if (name) entries[name] = node; } return entries; },
-      get textContent() { return this._text || this.children.map(child => child.textContent).join(''); },
-      set textContent(value) { this.children = []; this._text = String(value); },
-      get className() { return this.attrs.class || ''; }, set className(value) { this.attrs.class = value; },
-      // data-* 屬性的 dataset 讀寫，供第五步多條件組的綁定使用。
-      get dataset() {
-        const owner = this, attr = key => 'data-' + String(key).replace(/[A-Z]/g, c => '-' + c.toLowerCase());
-        return new Proxy({}, { get: (_, key) => owner.getAttribute(attr(key)) ?? undefined,
-          set: (_, key, value) => { owner.setAttribute(attr(key), value); return true; } });
-      }
-    };
-    node.classList = { add(name) { const values = new Set(node.className.split(/\s+/).filter(Boolean)); values.add(name); node.className = [...values].join(' '); },
-      remove(name) { node.className = node.className.split(/\s+/).filter(value => value !== name).join(' '); },
-      contains(name) { return node.className.split(/\s+/).includes(name); }, toggle(name, force) { const on = force ?? !this.contains(name); this[on ? 'add' : 'remove'](name); } };
-    return node;
-  }
-  const content = element('main', { 'data-bind': 'content' });
-  document = { readyState: 'loading', activeElement: null, createElement: element, addEventListener() {},
-    querySelector: selector => content.matches(selector) ? content : content.querySelector(selector), querySelectorAll: selector => content.querySelectorAll(selector) };
-  return { element, content, document };
-}
 
 function batch9PagerLifecycleFixture(kind) {
   const dom = batch9TreeDom(), requests = [], window = { setTimeout: fn => { fn(); return 0; }, clearTimeout() {}, CSS: { escape: value => value },
@@ -3369,6 +3531,8 @@ function batch9CreateStartupFixture(configured = null) {
     appSource.slice(databaseBegin, databaseEnd).trim() +
     " } };\n  if (document.readyState === 'loading') {"), context);
   const store = window.JetStore, app = window.batch9CreateStartup;
+  assert.equal(store.getState().sqlServerConfigured, null, 'availability is unknown until system.databaseInfo answers');
+  assert.equal((appSource.match(/systemDatabaseInfo\(/g) || []).length, 1, 'startup reuses the single system.databaseInfo call');
   store.setSqlServerConfigured(configured); store.setView('workflow');
   function draw() {
     const state = store.getState();
@@ -3427,6 +3591,8 @@ test('batch9 late unconfigured SQL disables its option and explains it without r
   assert.equal(f.form.querySelector('option[value="sqlServer"]').disabled, true, 'configuration absence remains visible, not suppressed to preserve the draft');
   const hint = f.form.querySelector('[data-bind="databaseProvider-hint"]');
   assert.ok(hint && !hint.hidden); assert.match(hint.textContent, /沒有設定線上資料庫.*SQLite.*DuckDB/);
+  assert.equal(hint.textContent, '這台電腦沒有設定線上資料庫，請改選 SQLite 或 DuckDB。');
+  assert.equal(f.form.querySelector('option[value="sqlServer"]').textContent, 'SQL Server（共用實例）');
 });
 
 test('batch9 a later configured SQL response refreshes only option and hint while preserving the create form', async () => {
@@ -3452,17 +3618,23 @@ test('batch9 a failed SQL configuration query leaves unknown availability and th
   assert.equal(f.form.querySelector('option[value="sqlServer"]').disabled, false);
 });
 
+// 2026-10-09 使用者要求提示只顯示系統狀態、不重複也不列系統日誌：失聯提示改用前端自己的一句，
+// 不再接上後端同義的 message，所以改用提示本身確認線上狀態已更新。
+// 第一次失敗收據 20261008-173522118-1569597102f24a35ab54a3cc800403e0。
 test('batch9 project picker still refreshes both project rows and online status after startup-only notifications', () => {
   const f = batch9CreateStartupFixture(), state = f.store.getState();
   f.app.renderPicker(state); assert.match(f.picker.textContent, /尚無本地案件/);
   f.store.subscribe(current => f.app.renderPicker(current));
   f.store.setProjects([{ projectId: 'picker-new-local', databaseProvider: 'duckdb' }], { reachable: false, message: 'Synthetic offline' });
-  assert.match(f.picker.textContent, /picker-new-local/); assert.match(f.picker.textContent, /Synthetic offline/);
+  assert.match(f.picker.textContent, /picker-new-local/); assert.match(f.picker.textContent, /目前連不上線上案件。/);
+  assert.doesNotMatch(f.picker.textContent, /Synthetic offline/, 'the backend message repeats the notice and is not appended');
   f.store.setProjects([{ projectId: 'picker-next-online', databaseProvider: 'sqlServer' }], { reachable: true, principal: 'SYNTHETIC-ONLINE' });
   assert.match(f.picker.textContent, /picker-next-online/); assert.match(f.picker.textContent, /SYNTHETIC-ONLINE/);
-  assert.doesNotMatch(f.picker.textContent, /picker-new-local|Synthetic offline/);
+  assert.doesNotMatch(f.picker.textContent, /picker-new-local|目前連不上線上案件/);
   f.store.setProjects(state.projects, { reachable: false, message: 'Synthetic disconnected' });
-  assert.match(f.picker.textContent, /picker-next-online/); assert.match(f.picker.textContent, /Synthetic disconnected/);
+  assert.match(f.picker.textContent, /picker-next-online/);
+  assert.match(f.picker.textContent, /目前連不上線上案件，下面先列出這台電腦上次記下的清單。/);
+  assert.match(f.picker.innerHTML, /class="form-notice form-notice--warning picker-section__alert"/, 'offline is a non-blocking amber notice');
 });
 
 // 2026-10-05 最後獨立複審 V9：人數用後端的完整人數，不用最多 50 列的清單長度；表格只列一部分時說清楚。
@@ -3479,7 +3651,8 @@ test('V9 preparer count uses the full backend total, explains a partial table an
   const few = { creatorSummary: { creators: fifty.slice(0, 3), totalPreparerCount: 3 } };
   assert.equal(item.status(few).text, '3 位人員');
   assert.ok(!item.detail(few).prefix);
-  assert.equal(item.status({ creatorSummary: { creators: fifty } }).text, '人員數未知，請重新執行預篩選');
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-48（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.equal(item.status({ creatorSummary: { creators: fifty } }).text, '預篩選結果未包含人員數，請重新執行預篩選');
 });
 
 // 2026-10-05 最後獨立複審 V7：修改案件資料只更新原本的 project 物件。各步驟以物件身分判斷「是否換了案件」，
@@ -3568,7 +3741,8 @@ test('K2 B card creates empty subtree selections and blocks preview with positio
   assert.match(f.api.draftRuleProblems(draft)[0].text, /第 1 組第 1 條.*借方分類/);
   assert.match(f.api.kctPickerHtml(draft), /尚不可用/);
   f.store.getState().importState.accountMapping = { hasAnyCategory: false };
-  assert.match(f.api.kctPickerHtml(draft), /科目配對需至少一筆非空白分類/);
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-15（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.match(f.api.kctPickerHtml(draft), /科目配對中尚無任何科目設定分類，請先在第四步設定/);
   f.store.getState().importState.accountMapping = { hasAnyCategory: true };
   const b = f.api.kctPickerHtml(draft).match(/<button[^>]*data-kct-letter="B"[^>]*>/)[0];
   assert.doesNotMatch(b, /disabled/);
@@ -3620,75 +3794,15 @@ test('K9 list counts use the submitted distinct values and update without replac
 
 test('K5 only effective-entry manual status is displayed in Chinese', () => {
  const f=batch8Fixture(), show=f.window.batch8Preview.displayCell;
- assert.equal(show('glEntries','manualAuto','manual'),'人工');
- assert.equal(show('glEntries','manualAuto','automatic'),'自動');
- assert.equal(show('glEntries','manualAuto',null),null);
- assert.equal(show('glStaging','manualAuto','manual'),'manual');
+ assert.equal(show('gl','manualAuto','manual'),'人工');
+ assert.equal(show('gl','manualAuto','automatic'),'自動');
+ assert.equal(show('gl','manualAuto',null),null);
+ assert.equal(show('pbcGl','manualAuto','manual'),'manual');
 });
 
 
-test('K11 calendar year and month selects navigate while keyboard year jumps still work', () => {
- let parsed, markup='', focused;
- const dialog={set innerHTML(html){markup=html;parsed=batch7Dom(html);
-  for(const selector of ['[data-calendar-year]','[data-calendar-month]','[data-month]','[data-calendar-date]'])
-   parsed.querySelectorAll(selector).forEach(node=>node.focus=()=>{focused=node;});
- },get innerHTML(){return markup;},
-  querySelector:s=>parsed.querySelector(s),querySelectorAll:s=>parsed.querySelectorAll(s),setAttribute(){},addEventListener(){},showModal(){},close(){},remove(){}};
- const document={body:{appendChild(){}},createElement(tag){return tag==='dialog'?dialog:{textContent:'',get innerHTML(){return this.textContent;}};}};
- const window={}, context=vm.createContext({window,document});
- for(const file of ['ui-core.js','filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root,file),'utf8').replace('  Ui.FilterValues = {','  window.openCalendar = calendar; Ui.FilterValues = {'),context);
- const state={project:{periodStart:'2025-01-01',periodEnd:'2026-11-30'},mapping:{gl:{committed:null}}};
- const rule={type:'fieldValue',field:'postDate',operator:'in',values:['2042-02-10']};
- window.openCalendar({getAttribute(){return 'date';},isConnected:true,focus(){}},rule,state,()=>{});
- const year=dialog.querySelector('[data-calendar-year]');assert.ok(year);
- assert.match(markup,/value="2020"/);assert.match(markup,/value="2031"/);assert.match(markup,/value="2042"/);
- year.value='2023';year.onchange();
- assert.equal(focused,dialog.querySelector('[data-calendar-year]'));
- dialog.querySelector('[data-calendar-year]').value='2024';dialog.querySelector('[data-calendar-year]').onchange();
- assert.equal(focused,dialog.querySelector('[data-calendar-year]'));
- dialog.querySelector('[data-calendar-year]').value='2023';dialog.querySelector('[data-calendar-year]').onchange();
- const month=dialog.querySelector('[data-calendar-month]');month.value='2';month.onchange();
- assert.equal(focused,dialog.querySelector('[data-calendar-month]'));
- dialog.querySelector('[data-month="1"]').onclick();
- assert.equal(focused,dialog.querySelector('[data-month="1"]'));
- dialog.querySelector('[data-month="-1"]').onclick();
- assert.equal(focused,dialog.querySelector('[data-month="-1"]'));
- assert.ok(dialog.querySelector('[data-calendar-date="2023-02-01"]'));
- assert.equal(dialog.querySelector('[data-calendar-date="2023-02-29"]'),null);
- dialog.querySelector('[data-calendar-date="2023-02-01"]').onkeydown({key:'PageUp',shiftKey:true,preventDefault(){}});
- assert.ok(dialog.querySelector('[data-calendar-date="2022-02-01"]'));
- assert.equal(focused,dialog.querySelector('[data-calendar-date="2022-02-01"]'));
- dialog.querySelector('[data-calendar-date="2022-02-10"]').onclick();
- dialog.querySelector('[data-calendar-done]').onclick();
- assert.deepEqual(Array.from(rule.values),['2022-02-10','2042-02-10']);
-});
-
-test('K11 calendar arrow keys move the focused date by day and week across month edges without selecting', () => {
- let parsed, focused;
- const dialog={set innerHTML(html){parsed=batch7Dom(html);
-  parsed.querySelectorAll('[data-calendar-date]').forEach(node=>node.focus=()=>{focused=node;});
- },querySelector:s=>parsed.querySelector(s),querySelectorAll:s=>parsed.querySelectorAll(s),setAttribute(){},addEventListener(){},showModal(){},close(){},remove(){}};
- const document={body:{appendChild(){}},createElement(tag){return tag==='dialog'?dialog:{textContent:'',get innerHTML(){return this.textContent;}};}};
- const window={}, context=vm.createContext({window,document});
- for(const file of ['ui-core.js','filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root,file),'utf8').replace('  Ui.FilterValues = {','  window.openCalendar = calendar; Ui.FilterValues = {'),context);
- const rule={type:'fieldValue',field:'postDate',operator:'in',values:[]};
- window.openCalendar({getAttribute(){return 'date';},isConnected:true,focus(){}},rule,{project:{periodStart:'2023-01-31',periodEnd:'2023-12-31'},mapping:{gl:{committed:null}}},()=>{});
- function press(key){let prevented=false;focused.onkeydown({key,shiftKey:false,preventDefault(){prevented=true;}});return prevented;}
- assert.equal(focused.dataset.calendarDate,'2023-01-31','opens on the case start date');
- for(const [key,expected] of [['ArrowRight','2023-02-01'],['ArrowLeft','2023-01-31'],['ArrowDown','2023-02-07'],['ArrowUp','2023-01-31'],
-  ['Home','2023-01-29'],['End','2023-02-04']]){
-  assert.equal(press(key),true,key+' is handled by the calendar');
-  assert.equal(focused.dataset.calendarDate,expected,key+' moves to '+expected);
-  assert.equal(focused.getAttribute('tabindex'),'0','only the focused date stays in the tab order');
-  assert.deepEqual(dialog.querySelectorAll('[data-calendar-date]').filter(node=>node.getAttribute('tabindex')==='0'), [focused], 'exactly the focused date is in the tab order');
- }
- assert.equal(press('a'),false,'other keys keep their default behaviour');
- assert.equal(focused.dataset.calendarDate,'2023-02-04');
- assert.equal(parsed.querySelectorAll('[aria-selected="true"]').length,0,'moving never selects a date');
- dialog.querySelector('[data-calendar-done]').onclick();
- assert.deepEqual(Array.from(rule.values),[]);
-});
-
+// 使用者 2026-10-14 要求拋棄第五步的日期選擇器樣式；移除自製月曆的年月與方向鍵案例。
+// 首次失敗：20261014-124620770-eb3019eaf3104b769e0a7e040903dd65；原生日期、Enter、去重與上限改由 frontend-shared-controls.test.cjs 驗證。
 
 test('step five field lists show the source column of each relevant data element field and keep its id', () => {
   const f = batch8Fixture();
@@ -3696,11 +3810,12 @@ test('step five field lists show the source column of each relevant data element
     { fieldId: 'rde.created-a', sourceColumn: 'CreateDate', label: '傳票建立日', valueType: 'date' },
     { fieldId: 'rde.created-b', sourceColumn: 'EntryDate', label: '傳票建立日', valueType: 'date' }] } });
   const general = f.ui.FilterValues.fieldOptionsHtml(f.store.getState(), 'rde.created-b', []);
-  assert.match(general, /<option value="rde\.created-a">傳票建立日（攸關資料元素欄位，來源欄：CreateDate）<\/option>/);
-  assert.match(general, /<option value="rde\.created-b" selected>傳票建立日（攸關資料元素欄位，來源欄：EntryDate）<\/option>/);
+  // 第五步選單不再寫「攸關資料元素欄位」，只加註來源欄。使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；同批改名的 C# 測試第一次失敗收據是 20261013-092449164-3847782f6c50488b86a0ac3856e606ca，那次在 C# 測試步驟停止，Node 前端測試尚未執行。
+  assert.match(general, /<option value="rde\.created-a">傳票建立日（來源欄：CreateDate）<\/option>/);
+  assert.match(general, /<option value="rde\.created-b" selected>傳票建立日（來源欄：EntryDate）<\/option>/);
   const typed = f.filter.ruleControlsHtml({ type: 'typed', fieldId: 'rde.created-a', operator: 'between', from: '', to: '' }, 0, 0);
-  assert.match(typed, /<option value="rde\.created-a" selected>傳票建立日（攸關資料元素欄位，來源欄：CreateDate）<\/option>/);
-  assert.match(typed, /<option value="rde\.created-b">傳票建立日（攸關資料元素欄位，來源欄：EntryDate）<\/option>/);
+  assert.match(typed, /<option value="rde\.created-a" selected>傳票建立日（來源欄：CreateDate）<\/option>/);
+  assert.match(typed, /<option value="rde\.created-b">傳票建立日（來源欄：EntryDate）<\/option>/);
 });
 
 test('all five field picker forms share source-aware labels without changing saved field ids', () => {
@@ -3720,28 +3835,37 @@ test('all five field picker forms share source-aware labels without changing sav
  };
  const dates=[['rde.a','Create&lt;Date&gt;'],['rde.b','EntryDate']];
  const texts=[['rde.t1','Dept&amp;A'],['rde.t2','DeptB']];
- check(f.filter.addRuleBarHtml(),'[data-custom-subject]',dates,'field:');
  check(f.filter.compoundRuleHtml({type:'group',rules:[]},0,0,false,{matchScope:'row'}),'[data-child-kind]',dates,'field:');
  check(f.ui.FilterValues.fieldOptionsHtml(f.store.getState(),'rde.b',[]),null,dates);
  check(f.filter.ruleControlsHtml({type:'typed',fieldId:'rde.a',operator:'between'},0,0),'[data-rule-bind="fieldId"]',dates);
- for(const letter of ['O','R']){
-  f.filter.viewState.legacyLetter=letter;
-  const html=f.filter.legacyPickerHtml();
-  check(html,'[data-legacy-field]',letter==='R'?dates:texts);
-  check(html,'[data-legacy-example-field]',texts);
- }
+ // 使用者 2026-10-08 要求重新設計自訂篩選條件：欄位下拉改成欄位按鈕與範例的就地選欄位。按鈕只寫欄位名稱，
+ // 和別的欄位同名時才加來源欄；完整說明（含「來源欄：」）放在 title，保存的仍是欄位識別。
+ const buttons=(html,attribute,ids)=>{
+  for(const [id,source] of ids){
+   const button=[...html.matchAll(/<button\b([^>]*)>([^<]*)<\/button>/g)].find(m=>m[1].includes(attribute+'="'+id+'"'));
+   assert.ok(button,id); assert.match(button[1],/title="[^"]*來源欄：/); assert.ok(button[1].includes(source),source);
+   assert.ok(button[2].includes('（'+source+'）'),'duplicate names show the source column');
+  }
+ };
+ buttons(f.filter.customPickerHtml(),'data-add-field',dates);
+ buttons(f.filter.customPickerHtml(),'data-add-field',texts);
+ f.filter.viewState.examplePick='manualDepartment';
+ buttons(f.filter.exampleListHtml(),'data-example-field',texts);
+ f.filter.viewState.examplePick=null;
  const rule={type:'fieldValue',fieldId:'rde.b',operator:'on',value:'2025-01-01'};
  assert.equal(f.ui.FilterValues.wire(rule,f.store.getState()).fieldId,'rde.b');
  assert.doesNotMatch(f.ui.FilterValues.summary(rule,f.store.getState()),/來源欄/,'read-back wording is unchanged');
 });
 
-test('message entry accepts only info and warn and ignores blank or non-text messages',()=>{
+// 使用者 2026-10-13 裁定訊息分三級：error 成為合法等級，其他值照舊不加入。
+// 第一次失敗收據 20261013-095454658-c6425ce2422c45fb8480a7ac4834522e（舊斷言把 error 當成不合法）。
+test('message entry accepts only info, warn and error and ignores blank or non-text messages',()=>{
  const f=batch8Fixture(),before=f.store.getState().messages.length;
- for(const level of ['error','warning','WARN','',null,12])f.store.addMessage('invalid level',level);
+ for(const level of ['ERROR','warning','WARN','',null,12])f.store.addMessage('invalid level',level);
  for(const text of ['', '  \t\n',null,{},12])f.store.addMessage(text,'info');
  assert.equal(f.store.getState().messages.length,before);
- f.store.addMessage('default');f.store.addMessage('reminder','warn');
- assert.deepEqual(plain(f.store.getState().messages.slice(0,2).map(m=>[m.text,m.level])),[['reminder','warn'],['default','info']]);
+ f.store.addMessage('default');f.store.addMessage('reminder','warn');f.store.addMessage('failure','error');
+ assert.deepEqual(plain(f.store.getState().messages.slice(0,3).map(m=>[m.text,m.level])),[['failure','error'],['reminder','warn'],['default','info']]);
 });
 
 test('message persistence skips a rejected payload, keeps transient failures for retry, and never writes old-project messages',async()=>{
@@ -3766,23 +3890,24 @@ test('message persistence skips a rejected payload, keeps transient failures for
  assert.equal(calls.at(-1),'new-project');
 });
 
-test('K15 calendar template entry reports created and kept files without importing or opening a folder', async () => {
- const f=scenarioLifecycleFixture(), calls=[], pending=[];
- f.window.JetApi={exportCalendarTemplates(){calls.push('templates');return new Promise(resolve=>pending.push(resolve));},hostOpenFolder(){calls.push('folder');return Promise.resolve();}};
- f.window.JetUi.run=(label,fn)=>fn();
+// 改動原因：使用者 2026-10-08 畫面註解要求移除假日與補班日卡片的範本入口與資料夾按鈕，
+// 原本測範本與資料夾按鈕的 K15 測試，改成確認卡片不再有這兩顆按鈕且保留上傳入口。
+test('calendar card has no template or folder button and keeps the upload buttons', () => {
+ const f=scenarioLifecycleFixture();
  const context=vm.createContext({window:f.window,document:{querySelector:()=>null},setTimeout:()=>0,clearTimeout(){}});
  vm.runInContext(fs.readFileSync(path.join(root,'steps/import-step.js'),'utf8').replace("  Ui.registerStep('import', render);",'  window.calendarTest={calendarCard,bindCalendarCard,resetWizard};'),context);
  const api=f.window.calendarTest;
- let dom=batch7Dom(api.calendarCard(null));api.bindCalendarCard(dom);
- dom.querySelector('[data-action="export-calendar-templates"]').fire();
- pending[0]({files:[{fileName:'Holiday2025TW.xlsx',disposition:'kept'},{fileName:'MakeUpDay2025TW.xlsx',disposition:'created'}]});await settle();
- assert.deepEqual(calls,['templates']);
- const html=api.calendarCard(null);assert.match(html,/已存在，保留原檔/);assert.match(html,/已複製/);assert.match(html,/2025 年資料/);assert.match(html,/Date_of_MakeUpday/);
- dom=batch7Dom(html);api.bindCalendarCard(dom);dom.querySelector('[data-action="open-calendar-folder"]').fire();
- assert.deepEqual(calls,['templates','folder']);
- dom.querySelector('[data-action="export-calendar-templates"]').fire();
- f.store.setProject({projectId:'other'});api.resetWizard();pending[1]({files:[{fileName:'old-project',disposition:'created'}]});await settle();
- assert.doesNotMatch(api.calendarCard(null),/old-project/);
+ const html=api.calendarCard(null);
+ assert.doesNotMatch(html,/export-calendar-templates/);
+ assert.doesNotMatch(html,/open-calendar-folder/);
+ assert.match(html,/data-action="import-holiday"/);
+ assert.match(html,/data-action="import-makeup"/);
+ // 使用者 2026-10-14 第三輪勾選頁確認 R3-43（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+ assert.match(html,/假日檔讀 Date_of_Holiday 欄，補班檔讀 Date_of_MakeUpday 欄，日期寫成 2026-12-31 的格式。/);
+ assert.match(html,/未調整時預設週六、週日/);
+ assert.doesNotMatch(html,/2025 年資料/);
+ const dom=batch7Dom(html);api.bindCalendarCard(dom);
+ assert.ok(dom.querySelector('[data-action="import-holiday"]'));
 });
 
 
@@ -3796,7 +3921,10 @@ function k6MappingDifferenceFixture() {
  for(const file of ['state.js','ui-core.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context);
  vm.runInContext(fs.readFileSync(path.join(root,'steps/validate-step.js'),'utf8').replace("  Ui.registerStep('validate', render);",'  window.k6={accountMappingCardHtml,bindAccountMappingCard};'),context);
  const store=window.JetStore;store.setProject({projectId:'k6'});store.setAccountMappingState({batchId:'b1',rowCount:1});
- window.JetUi.run=(label,fn)=>{const promise=Promise.resolve().then(fn);actions.push(promise);return promise;};
+ // 使用者 2026-10-13 裁定成功時只留一則完成訊息，由 Ui.run 接上耗時記下；替身改成包住正式的 Ui.run，只多記下每次作業。
+ // 第一次失敗收據 20261013-095454658-c6425ce2422c45fb8480a7ac4834522e（舊替身不經 Ui.run，完成句因此沒有記下）。
+ const realRun=window.JetUi.run;
+ window.JetUi.run=(label,fn,options)=>{const promise=realRun(label,fn,options);actions.push(promise);return promise;};
  function render(){dom.content.innerHTML=window.k6.accountMappingCardHtml(store.getState().importState.accountMapping,true);window.k6.bindAccountMappingCard(dom.content);return dom.content;}
  return{window,store,dom,pending,actions,render};
 }
@@ -3807,7 +3935,12 @@ test('K6 mapping differences load only on demand, preserve paging and retry, and
  assert.equal(f.pending.length,0,'rendering does not scan GL');
  page.querySelector('[data-action="import-account-mapping"]').fire('click');await settle();await Promise.all(f.actions);
  page=f.render();assert.match(page.textContent,/本案沒有的科目.*2/);assert.match(page.textContent,/配對檔未列的科目.*3/);
- assert.match(page.textContent,/不會出現在篩選結果/);assert.match(f.store.getState().messages.at(-1).text,/沿用前一個案件/);
+ // 2026-10-10 使用者選擇兩份清單只留名稱與筆數，不再附說明句。
+ // 使用者 2026-10-13 勾選頁確認 33：完成訊息只留第一行，「也可匯入前一個案件的配對檔」移到「1. 取得配對檔」的說明
+ // （第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+ assert.doesNotMatch(page.textContent,/不會出現在篩選結果/);assert.match(f.store.getState().messages.at(-1).text,/^科目配對匯入完成，共 4 個科目，耗時(?: \d+\.\d 秒|不到 0\.1 秒)。$/);
+ // 使用者 2026-10-14 第三輪勾選頁確認 R3-26（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。 很快完成時寫「耗時不到 0.1 秒」。
+ assert.match(page.textContent,/在「Standardized Account Name\*」欄填入分類後存檔；也可匯入前一個案件的配對檔。/);
  page.querySelector('[data-mapping-difference="mappingOnly"]').fire('click');assert.equal(f.pending.length,1);
  assert.deepEqual(plain(f.pending[0].payload),{kind:'mappingOnly',cursor:null,pageSize:200});
  f.pending[0].resolve({rows:[{accountCode:'E',accountName:'Extra'}],nextCursor:'next',totalCount:2});await settle();
@@ -3886,14 +4019,16 @@ test('every Store.addMessage level literal is one the message log accepts',()=>{
  assert.deepEqual(offenders,[],'message levels outside '+allowed.join(', '));
 });
 
-for (const [letter, expectedType, input, expected] of [
-  ['E', 'text', ' A，B、A\nC\t B ', 'A,B,C'],
-  ['F', 'customKeywords', ' Alpha，Beta、Alpha\nGamma\t Beta ', 'Alpha,Beta,Gamma'],
-  ['H', 'trailingDigits', ' 001，002、001\n003\t002 ', '001,002,003']
+// 第九節 G2 改用共用欄位條件，沿用清單去重、即時數量及焦點斷言；使用者同意每條 100 值上限。
+// 首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+for (const [letter, input, expected] of [
+  ['E', ' A，B、A\nC\t B ', 'A,B,C'],
+  ['F', ' Alpha，Beta、Alpha\nGamma\t Beta ', 'Alpha,Beta,Gamma'],
+  ['H', ' 001，002、001\n003\t002 ', '001,002,003']
 ]) test('K9 KCT ' + letter + ' displays and updates the actual keyword list count in place', () => {
   const dom = batch9TreeDom(), window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const context = vm.createContext({ window, document: dom.document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-legacy.js'])
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js'])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
     '  window.k9 = { addKctToDraft, syncViewState, ruleControlsHtml, render, toWireDraft };'), context);
@@ -3901,96 +4036,87 @@ for (const [letter, expectedType, input, expected] of [
   store.setProject({ projectId: 'k9-entry-synthetic' }); api.syncViewState(store.getState());
   const draft = store.getState().filter.draft;
   api.addKctToDraft(draft, window.JetUi.FILTER_KCT_CHECKLIST.find(card => card.letter === letter));
-  const rule = draft.groups[0].rules[0]; assert.equal(rule.type, expectedType);
-  assert.match(api.ruleControlsHtml(rule, 0, 0), /data-keyword-count/, 'KCT entry must render its count');
+  const rule = draft.groups[0].rules[0]; assert.equal(rule.type, 'fieldValue');
+  assert.match(api.ruleControlsHtml(rule, 0, 0), /data-value-count/, 'KCT entry must render its count');
   api.render(dom.content, store.getState());
-  const control = dom.content.querySelector('[data-rule-bind="keywords"]');
-  const counter = dom.content.querySelector('[data-keyword-count]');
-  const initial = api.toWireDraft(draft).groups[0].rules[0].keywords;
-  assert.equal(counter.textContent, '已輸入 ' + (initial ? initial.split(',').length : 0) + ' 個值');
+  const selector = '[data-value-key="' + (letter === 'H' ? 'value' : 'values') + '"]';
+  const control = dom.content.querySelector(selector);
+  const counter = dom.content.querySelector('[data-value-count]');
+  const submitted = () => { const wire = api.toWireDraft(draft).groups[0].rules[0]; return letter === 'H' ? wire.value : wire.values.join(','); };
+  const initial = submitted();
+  assert.equal(counter.textContent, '已輸入 ' + (initial ? initial.split(',').length : 0) + ' 個值，上限 100');
   control.focus(); control.value = input; control.fire('input');
-  assert.equal(api.toWireDraft(draft).groups[0].rules[0].keywords, expected);
-  assert.equal(rule.keywords, input, 'keep the raw text while normalizing only the submitted values');
-  assert.equal(counter.textContent, '已輸入 3 個值');
-  assert.equal(dom.content.querySelector('[data-rule-bind="keywords"]'), control);
-  assert.equal(dom.content.querySelector('[data-keyword-count]'), counter);
+  assert.equal(submitted(), expected);
+  assert.equal(control.value, input, 'keep the raw editor text while submitting distinct values');
+  assert.equal(counter.textContent, '已輸入 3 個值，上限 100');
+  assert.equal(dom.content.querySelector(selector), control);
+  assert.equal(dom.content.querySelector('[data-value-count]'), counter);
   assert.equal(dom.document.activeElement, control);
   control.value = Array.from({length:101}, (_, i) => String(i).padStart(3,'0')).join('\n'); control.fire('input');
-  assert.equal(counter.textContent, '已輸入 101 個值');
-  assert.equal(api.toWireDraft(draft).groups[0].rules[0].keywords.split(',').length, 101);
+  assert.equal(counter.textContent, '已輸入 101 個值，上限 100');
+  assert.equal(submitted().split(',').length, 101);
+  assert.match(window.JetUi.FilterValues.problem(rule, store.getState()), /100.*拆.*任一符合.*子條件組/);
   control.value = '  \n\t '; control.fire('input');
-  assert.equal(counter.textContent, '已輸入 0 個值');
-  assert.equal(api.toWireDraft(draft).groups[0].rules[0].keywords, '');
+  assert.equal(counter.textContent, '已輸入 0 個值，上限 100');
+  assert.equal(submitted(), '');
   if (letter !== 'H') {
     control.value = 'Alpha,alpha,Alpha'; control.fire('input');
-    assert.equal(counter.textContent, '已輸入 2 個值');
-    assert.equal(api.toWireDraft(draft).groups[0].rules[0].keywords, 'Alpha,alpha');
+    assert.equal(counter.textContent, '已輸入 2 個值，上限 100');
+    assert.equal(submitted(), 'Alpha,alpha');
   }
 });
 
-// 2026-10-07 進階篩選操作測試（計畫第八節「操作測試找到的問題」F1 到 F9）。前半用合成 DOM 繪出正式第五步並以真實點擊操作；
-// 後半直接呼叫正式函式核對命名、送出形狀與預覽提示。名稱與動機的預期值逐字寫死，不由被測程式算出。
-function filterOperationFixture({ saved = [] } = {}) {
-  const dom = batch9TreeDom(), commits = [];
-  const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
-  const context = vm.createContext({ window, document: dom.document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-legacy.js'])
-    vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
-  vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    '  window.ops = { syncViewState, render, view: () => viewState };'), context);
-  const store = window.JetStore, api = window.ops;
-  window.JetApi = { filterCommit: payload => new Promise((resolve, reject) => commits.push({ payload, resolve, reject })) };
-  store.setProject({ projectId: 'filter-operation-synthetic' });
-  store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
-  store.setSavedScenarios(saved);
-  let version = -1;
-  function draw() {
-    const state = store.getState();
-    if (state.contentVersion === version) return;
-    version = state.contentVersion; api.syncViewState(state); api.render(dom.content, state);
-  }
-  store.subscribe(draw); draw();
-  const $ = selector => dom.content.querySelector(selector);
-  function click(selector) { const node = $(selector); assert.ok(node, 'missing ' + selector); node.fire('click'); }
-  function choose(selector, value) { const node = $(selector); assert.ok(node, 'missing ' + selector); node.value = value; node.fire('change'); }
-  function type(selector, value) { const node = $(selector); assert.ok(node, 'missing ' + selector); node.value = value; node.fire('input'); }
-  const pressed = letter => $('[data-kct-letter="' + letter + '"]').getAttribute('aria-pressed') === 'true';
-  const messages = () => store.getState().messages.map(m => m.text);
-  const notice = () => { const node = $('[data-bind="scenario-notice"]'); return node && !node.hidden ? node.textContent : ''; };
-  return { window, store, dom, context, commits, $, click, choose, type, pressed, messages, notice, draft: () => store.getState().filter.draft };
-}
-
 const KCT_A_RATIONALE = 'A：期末前 X天內收入科目有迴轉分錄，表示收入認列過程中可能存在不適當的調整或更正(案件團隊須提供天數)';
 const KCT_B_RATIONALE = 'B：借記固定資產科目(如不動產、廠房和設備(PPE))但貸記營業費用或維修費用等費用科目之分錄組合不符合公司營業流程的瞭解，因此屬於為非預期的過帳，可能為舞弊類型分錄及其他調整的特質。';
-const savedG = (name = 'G') => ({ name, rationale: 'G：空白摘要', source: 'kct',
-  groups: [{ join: 'AND', matchScope: 'row', rules: [{ type: 'prescreen', join: 'AND', prescreenKey: 'blankDescription' }] }],
-  editorOrigins: { version: 1, legacyKctSource: false, nameIsAutomatic: true, rationaleIsAutomatic: true, groups: [{ letters: ['G'] }] } });
+test('acceptance comments remove duplicate period and population cards but preserve validation results', () => {
+  const f = usageJourneyFixture('validate'), data = batch8ValidationData();
+  f.store.setLastRun('validate', data); f.draw();
+  assert.equal(!!f.$('.stat-card--period'), false);
+  assert.equal(!!f.$('.population-summary'), false);
+  assert.equal(!!f.$('[data-action="preview-excluded-entries"]'), false);
+  assert.match(f.dom.content.textContent, /GL 分錄數|借貸淨額/);
+  assert.equal(f.state.lastRuns.validate, data);
+  f.draw('filter');
+  assert.equal(!!f.$('[data-action="preview-population"]'), false);
+  assert.match(f.dom.content.textContent, /GL：查核期間內的分錄/);
+  f.draw('import');
+  assert.match(f.dom.content.textContent, /GL \(總帳明細\)/);
+  assert.match(f.dom.content.textContent, /TB \(試算表\)/);
+  const preview = fs.readFileSync(path.join(root, 'data-preview.js'), 'utf8');
+  assert.match(preview, /label: 'PBC-GL'/); assert.match(preview, /label: 'PBC-TB'/);
+});
 
-// 合成回應只控制邊界；步驟繪製、事件處理與 Store 均執行正式腳本。
-function usageJourneyFixture(step = 'export') {
-  const dom = batch9TreeDom(), requests = [];
-  const window = { setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
-    JetFocus: { defer() {} }, JetApi: new Proxy({ on() {}, off() {} }, { get(target, action) {
-      return target[action] || (payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject })));
-    } }) };
-  const context = vm.createContext({ window, document: dom.document, setTimeout: () => 0, clearTimeout() {} });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-legacy.js', 'filter-vouchers.js',
-    'steps/create-step.js', 'steps/import-step.js', 'steps/mapping-step.js', 'steps/validate-step.js',
-    'account-mapping-editor.js', 'steps/filter-step.js', 'steps/export-step.js'])
-    vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
-  const store = window.JetStore, state = store.getState();
-  store.setProject({ projectId: 'usage-synthetic', periodStart: '2025-01-01', periodEnd: '2025-11-30', lastPeriodStart: '2025-11-20' });
-  store.setLastRun('validate', { resultRef: { runId: 'v1' }, completenessTest: { eligibility: { isEligible: true } } });
-  store.setSavedScenarios([savedG('第一個'), savedG('第二個'), savedG('第三個')]);
-  store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' });
-  const $ = selector => dom.content.querySelector(selector);
-  function draw(next = step) { step = next; window.JetUi.renderStep(step, dom.content, store.getState()); return dom.content; }
-  function click(selector) { const node = $(selector); assert.ok(node, selector + ' rendered'); assert.equal(node.disabled, false, selector + ' enabled'); node.fire('click'); }
-  function change(selector, value) { const node = $(selector); assert.ok(node, selector + ' rendered');
-    if (typeof value === 'boolean') node.checked = value; else node.value = value; node.fire('change'); }
-  function request(action) { const found = requests.filter(r => r.action === action); assert.ok(found.length, action + ' requested'); return found.at(-1); }
-  return { window, store, state, dom, context, requests, $, draw, click, change, request };
-}
+test('acceptance category choices keep their checkboxes and hierarchy without a search input', () => {
+  const f = usageJourneyFixture('filter');
+  f.store.setTaxonomy({ revision: 1, categories: [
+    { categoryId: 'parent', label: 'Parent', semanticRole: 'Cash' },
+    { categoryId: 'child', label: 'Child', parentCategoryId: 'parent', semanticRole: 'Cash' }
+  ] });
+  const html = f.window.JetUi.taxonomyPickerHtml(f.state, ['child'], 'debit', '借方分類', {});
+  assert.doesNotMatch(html, /搜尋分類|data-category-search/);
+  assert.match(html, /value="child" checked/);
+  assert.match(html, /data-category-toggle="parent"/);
+});
+
+test('acceptance account editor uses 50 rows and drops pending classifications on backend source invalidation', async () => {
+  const f = usageJourneyFixture('validate'); f.state.lastRuns.validate = null;
+  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' });
+  f.store.setAccountMappingState({ batchId: 'old-categories', hasAnyCategory: true });
+  f.draw();
+  assert.equal(f.request('queryAccountMappingPage').payload.pageSize, 50);
+  f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: 'OLD', accountName: 'Old account', categoryId: 'builtin.cash' }], nextCursor: null });
+  await settle(); f.draw();
+  f.change('[data-account-select-page]', true); chooseAccountCategory(f, 'builtin.revenue');
+  f.draw(); f.click('[data-account-apply]'); f.draw();
+  assert.match(f.dom.content.textContent, /1 個科目待儲存/);
+  f.store.applyMutationEffects({ invalidatedResults: { accountMapping: true, validation: true, prescreen: true, filter: true, filterScenarios: true } });
+  assert.equal(f.state.importState.accountMapping, null);
+  f.draw(); assert.doesNotMatch(f.dom.content.textContent, /Old account|1 個科目待儲存/);
+  f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: 'NEW', accountName: 'New account', categoryId: null }], nextCursor: null });
+  await settle(); f.draw();
+  assert.match(f.dom.content.textContent, /New account/);
+  assert.doesNotMatch(f.dom.content.textContent, /Old account|1 個科目待儲存/);
+});
 
 test('export selection follows actual checked controls, subset, clear, all and a new saved revision', async () => {
   const f = usageJourneyFixture(); f.draw();
@@ -4022,8 +4148,23 @@ for (const invalid of [false, true]) test('export history remains viewable but c
   f.store.setReportArtifacts([{ artifactId: 'prior-paper', kind: 'workingPaper', stale: true, fileName: 'Synthetic.xlsx' }]);
   assert.equal(f.window.JetUi.stepGate(f.state, 5).ok, true); f.draw();
   assert.equal(f.$('[data-action="export-workpaper"]').disabled, true);
-  assert.match(f.dom.content.textContent, invalid ? /第一個.*合成欄位已移除/ : /目前沒有已儲存的篩選情境，無法匯出工作底稿。請到「進階條件篩選」儲存至少一個篩選情境，再匯出工作底稿。/);
+  // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）。
+  assert.match(f.dom.content.textContent, invalid ? /第一個.*合成欄位已移除/ : /還沒有已儲存的篩選情境，請先到「進階條件篩選」儲存，再匯出工作底稿。/);
   assert.match(f.dom.content.textContent, /Synthetic.xlsx/);
+});
+
+// 2026-10-09 使用者要求提示避免專業術語、不得過長：先說狀態，逐筆列出情境與原因，下一步只在清單後說一次。
+test('scenario problems name each scenario with its reasons and give the next step once', () => {
+  const f = usageJourneyFixture();
+  const html = f.window.JetUi.filterScenarioProblemsHtml({ filterScenarioCheck: { status: 'needsEdit', problems: [
+    { position: 1, name: '第一個', messages: ['合成欄位已移除。'] },
+    { position: 2, name: '第二個', messages: ['合成條件無效；', '合成分類已刪除'] }] } });
+  // 2026-10-11 使用者裁定前置條件還沒完成的提示一律用琥珀色；舊斷言（紅色）第一次失敗：20261010-171353992-339f59bf533749bea822e143c14c1c0f。
+  assert.match(html, /^<div class="form-notice form-notice--warning filter-scenario-problems"><strong>下列情境無法套用目前規則：<\/strong><ul>/);
+  assert.match(html, /<li>情境 1「第一個」：合成欄位已移除。<\/li><li>情境 2「第二個」：合成條件無效；合成分類已刪除。<\/li><\/ul>/);
+  // 使用者 2026-10-13 勾選頁確認 N1（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+  // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）。
+  assert.equal((html.match(/請到「進階條件篩選」修改後儲存，或移除不需要的情境。/g) || []).length, 1, 'the next step is said once, after the list');
 });
 
 for (const [action, method, countKey] of [['import-holiday', 'importHolidayFromFile', 'holidayCount'], ['import-makeup', 'importMakeupDayFromFile', 'makeupDayCount']]) {
@@ -4044,7 +4185,7 @@ for (const [action, method, countKey] of [['import-holiday', 'importHolidayFromF
       assert.equal(f.state.filter.savedScenarios.length, 0); assert.equal(f.state.importState.calendar[countKey], 2);
       assert.deepEqual(plain(f.state.filter.draft), { name: '', rationale: '', groups: [] });
     } else { assert.equal(f.state.filter.savedScenarios, saved); if (outcome === 'cancel') assert.equal(f.requests.length, 1); }
-    assert.equal(f.state.messages.filter(m => m.text === '前面的資料已更改，請重新設定篩選情境。').length, outcome === 'success' ? 1 : 0);
+    assert.equal(f.state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, outcome === 'success' ? 1 : 0);
   });
 }
 
@@ -4073,8 +4214,10 @@ test('rule upgrade lists each affected scenario and rechecks the current saved l
     { position: 1, name: '第一個', messages: ['合成欄位已移除'] }, { position: 2, name: '第二個', messages: ['合成分類已移除'] }] };
   f.draw(); assert.match(f.dom.content.textContent, /第一個.*合成欄位已移除/); assert.match(f.dom.content.textContent, /第二個.*合成分類已移除/);
   f.click('[data-action="resave-scenarios"]'); await settle();
-  assert.deepEqual(plain(f.request('filterCommit').payload.scenarios.map(s => s.name)), ['第一個', '第二個', '第三個']);
-  assert.deepEqual(plain(f.request('filterCommit').payload.scenarios.map(s => s.groups)), plain(f.state.filter.savedScenarios.map(s => s.groups)));
+  // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境：重新檢查不再送出清單，
+  // 由後端從資料庫讀出全部情境。原斷言要求送出全部情境的名稱與條件；第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
+  assert.deepEqual(plain(f.request('filterScenarioRecheck').payload), { populationScope: 'auditPeriod' });
+  assert.equal(f.requests.some(r => r.action === 'filterCommit'), false);
 });
 
 function prepareUsageMapping(f, kind) {
@@ -4116,7 +4259,7 @@ test(kind + ' mapping journey ' + outcome + ' keeps saved scenarios until a succ
   }
   const clears = outcome === 'success';
   assert.equal(clears ? f.state.filter.savedScenarios.length : f.state.filter.savedScenarios, clears ? 0 : saved);
-  assert.equal(f.state.messages.filter(m => m.text === '前面的資料已更改，請重新設定篩選情境。').length, clears ? 1 : 0);
+  assert.equal(f.state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, clears ? 1 : 0);
 });
 
 for (const kind of ['gl', 'tb']) for (const outcome of ['success', 'failure', 'cancel'])
@@ -4160,7 +4303,7 @@ test('account editor cancel keeps scenarios; save clears them only after success
   const f = usageJourneyFixture('validate'), saved = f.state.filter.savedScenarios;
   f.state.lastRuns.validate = null; f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' }); f.draw();
   f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: '1000', accountName: '合成科目', categoryId: 'builtin.cash' }], nextCursor: null }); await settle(); f.draw();
-  function apply() { f.change('[data-account-select-page]', true); f.change('[data-account-bulk-category]', 'builtin.revenue'); f.draw(); f.click('[data-account-apply]'); f.draw(); }
+  function apply() { f.change('[data-account-select-page]', true); chooseAccountCategory(f, 'builtin.revenue'); f.draw(); f.click('[data-account-apply]'); f.draw(); }
   apply(); f.click('[data-account-cancel]'); f.draw();
   assert.equal(f.state.filter.savedScenarios, saved); assert.equal(f.requests.some(r => r.action === 'accountMappingSave'), false);
   apply(); f.click('[data-account-save]');
@@ -4180,18 +4323,21 @@ test('cancelling project metadata editing sends no write and preserves saved sce
   assert.equal(f.requests.some(r => r.action === 'projectUpdate'), false);
 });
 
-test('editing then applying an example creates a new scenario, closes save and preserves the original', async () => {
+test('editing then applying an example creates a new scenario, keeps metadata visible and preserves the original', async () => {
   const f = filterOperationFixture({ saved: [savedG()] });
   f.click('[data-action="edit-scenario"][data-index="0"]');
   assert.equal(f.draft().__editingIndex, 0);
-  f.click('[data-action="open-save"]');
+  assert.equal(f.$('[data-save-panel]').hidden, false, 'metadata is always visible');
   f.click('[data-action="apply-template"]');
   assert.equal(f.draft().__editingIndex, undefined);
-  assert.equal(f.$('[data-save-panel]').hidden, true);
-  f.click('[data-action="open-save"]'); f.click('[data-action="save-scenario"]'); await settle();
-  assert.equal(f.commits.length, 1); assert.equal(f.commits[0].payload.scenarios.length, 2);
-  assert.equal(f.commits[0].payload.scenarios[0].name, 'G');
-  assert.deepEqual(plain(f.commits[0].payload.scenarios[0].groups), plain(savedG().groups));
+  assert.equal(f.$('[data-save-panel]').hidden, false);
+  f.click('[data-action="save-scenario"]'); await settle();
+  // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。原本看整批第 1 個仍是原情境；
+  // 現在看這次是新增（position 為 null）、請求不帶原情境，原情境在畫面清單裡不變。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
+  assert.equal(f.commits.length, 1); assert.equal(f.commits[0].method, 'filterScenarioSave');
+  assert.equal(f.commits[0].payload.position, null); assert.equal('scenarios' in f.commits[0].payload, false);
+  assert.equal(f.store.getState().filter.savedScenarios[0].name, 'G');
+  assert.deepEqual(plain(f.store.getState().filter.savedScenarios[0].groups), plain(savedG().groups));
 });
 
 test('copying identical conditions and removing the copy resets and reloads matrix columns without changing the original', async () => {
@@ -4204,10 +4350,14 @@ test('copying identical conditions and removing the copy resets and reloads matr
   const answer = async names => { matrix.at(-1).resolve({ scenarios: names.map((name, i) => ({ position: i + 1, name, voucherHitCount: 1, rowHitCount: 2 })) }); await settle(); };
   f.click('[data-action="toggle-matrix"]'); await answer(['G']);
   assert.equal(f.$('[data-bind="matrix-body"]').getAttribute('data-loaded'), '1');
-  f.click('[data-action="copy-scenario"][data-index="0"]'); f.click('[data-action="open-save"]'); f.click('[data-action="save-scenario"]'); await settle();
-  assert.deepEqual(plain(f.commits[0].payload.scenarios.map(s => s.name)), ['G', 'G（副本）']);
-  assert.deepEqual(plain(f.commits[0].payload.scenarios[0].groups), plain(f.commits[0].payload.scenarios[1].groups));
-  f.commits[0].resolve({ scenarios: f.commits[0].payload.scenarios, resultRef: { revision: 'r2', populationScope: 'auditPeriod' } }); await settle();
+  f.click('[data-action="copy-scenario"][data-index="0"]'); f.click('[data-action="save-scenario"]'); await settle();
+  // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。原本看整批的名稱與條件；
+  // 現在看另存只送副本（加在最後），條件和原情境相同；合成回應照後端的形狀帶回整批。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
+  assert.equal(f.commits[0].method, 'filterScenarioSave'); assert.equal(f.commits[0].payload.position, null);
+  assert.equal(f.commits[0].payload.scenario.name, 'G（副本）');
+  assert.deepEqual(plain(f.commits[0].payload.scenario.groups), plain(savedG().groups));
+  f.commits[0].resolve({ position: 2, savedCount: 2, scenarios: [savedG(), f.commits[0].payload.scenario],
+    resultRef: { revision: 'r2', populationScope: 'auditPeriod' } }); await settle();
   assert.equal(f.$('[data-bind="matrix-body"]').hidden, true);
   assert.equal(f.$('[data-bind="matrix-body"]').getAttribute('data-loaded'), null);
   assert.match(f.dom.content.textContent, /尚未產生目前版本的報告/);
@@ -4215,7 +4365,8 @@ test('copying identical conditions and removing the copy resets and reloads matr
   f.click('[data-matrix-view="vouchers"]'); await settle();
   assert.equal(f.dom.content.querySelectorAll('[data-bind="matrix-vouchers"] .filter-matrix-name').length, 2);
   f.click('[data-action="remove-scenario"][data-index="1"]'); f.click('[data-action="confirm-remove-scenario"][data-index="1"]'); await settle();
-  f.commits[1].resolve({ scenarios: f.commits[1].payload.scenarios, resultRef: { revision: 'r3', populationScope: 'auditPeriod' } }); await settle();
+  assert.equal(f.commits[1].method, 'filterScenarioRemove'); assert.equal(f.commits[1].payload.position, 2);
+  f.commits[1].resolve({ position: null, savedCount: 1, scenarios: [savedG()], resultRef: { revision: 'r3', populationScope: 'auditPeriod' } }); await settle();
   assert.equal(f.$('[data-bind="matrix-body"]').hidden, true);
   assert.equal(f.$('[data-bind="matrix-body"]').getAttribute('data-loaded'), null);
   f.click('[data-action="toggle-matrix"]'); await answer(['G']);
@@ -4230,14 +4381,16 @@ test('removing the active condition group keeps the other group and leaves saved
   f.click('[data-kct-letter="G"]'); f.click('[data-action="add-set"]'); f.click('[data-kct-letter="H"]');
   assert.equal(f.draft().groups.length, 2);
   f.click('[data-action="remove-set"][data-gi="1"]');
-  assert.equal(f.draft().groups.length, 1); assert.equal(f.draft().groups[0].rules[0].prescreenKey, 'blankDescription');
+  // 第九節 G2：用欄位與比較方式辨識 G。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+  assert.equal(f.draft().groups.length, 1); assert.equal(f.draft().groups[0].rules[0].field, 'description');
+  assert.equal(f.draft().groups[0].rules[0].operator, 'isBlank');
   assert.equal(f.dom.content.querySelectorAll('[data-action="remove-set"]').length, 0);
   assert.equal(f.store.getState().filter.savedScenarios.length, 1); assert.equal(f.commits.length, 0);
 });
 
 test('clicking A off, B on, B off and A on keeps the card, name and rationale inputs in step', () => {
   const f = filterOperationFixture();
-  f.click('[data-kct-letter="A"]'); f.click('[data-action="open-save"]');
+  f.click('[data-kct-letter="A"]'); 
   // 合成 DOM 的文字區塊以內文呈現，重繪後尚未被程式改寫時讀內文。
   const shown = node => node.value || node.textContent;
   const read = () => [f.pressed('A'), f.pressed('B'), f.$('[data-bind="scenario-name"]').value, shown(f.$('[data-bind="scenario-rationale"]'))];
@@ -4251,16 +4404,19 @@ test('clicking A off, B on, B off and A on keeps the card, name and rationale in
 
 test('F1 an automatic KCT name already used by a saved scenario gets a number and saves', async () => {
   const f = filterOperationFixture({ saved: [savedG()] });
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="open-save"]');
+  f.click('[data-kct-letter="G"]'); 
   assert.equal(f.$('[data-bind="scenario-name"]').value, 'G 2');
   f.click('[data-action="save-scenario"]'); await settle();
   assert.equal(f.commits.length, 1);
-  assert.deepEqual(f.commits[0].payload.scenarios.map(s => s.name), ['G', 'G 2']);
+  // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。原本看整批名稱是 G 與 G 2；
+  // 現在看新增的這一個叫 G 2、加在最後。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
+  assert.equal(f.commits[0].method, 'filterScenarioSave'); assert.equal(f.commits[0].payload.position, null);
+  assert.equal(f.commits[0].payload.scenario.name, 'G 2');
 });
 
 test('F2 a duplicate name is explained beside the save button and nothing is sent', async () => {
   const f = filterOperationFixture({ saved: [savedG('季底檢查')] });
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="open-save"]');
+  f.click('[data-kct-letter="G"]'); 
   f.type('[data-bind="scenario-name"]', ' 季底檢查 ');
   f.click('[data-action="save-scenario"]'); await settle();
   assert.equal(f.commits.length, 0);
@@ -4269,26 +4425,27 @@ test('F2 a duplicate name is explained beside the save button and nothing is sen
 
 test('F2 the ten-scenario limit is shown beside the save button without a completed message', async () => {
   const f = filterOperationFixture({ saved: Array.from({ length: 10 }, (_, i) => savedG('S' + (i + 1))) });
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="open-save"]');
+  f.click('[data-kct-letter="G"]'); 
   f.click('[data-action="save-scenario"]'); await settle(); await settle();
   assert.equal(f.commits.length, 0);
-  assert.equal(f.notice(), '最多儲存 10 個篩選情境；請先移除既有情境。');
+  assert.equal(f.notice(), SCENARIO_LIMIT_MESSAGE);
   assert.ok(!f.messages().some(text => text.startsWith('儲存篩選情境完成')), f.messages().join(' / '));
 });
 
 test('F2 a backend failure without a row position is shown beside the save button', async () => {
   const f = filterOperationFixture();
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="open-save"]');
+  f.click('[data-kct-letter="G"]'); 
   f.click('[data-action="save-scenario"]'); await settle();
   f.commits[0].reject(Object.assign(new Error('情境名稱重複：「G」。'), { code: 'invalid_scenario', details: null }));
   await settle(); await settle();
   assert.equal(f.notice(), '儲存失敗：情境名稱重複：「G」。');
 });
 
-test('F3 changing the G row to another prescreen condition stops counting it as card G', () => {
+// 第九節 G2：換比較方式後撤銷 G 身分，原本的身分與命名斷言不變。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+test('F3 changing the G row to another field comparison stops counting it as card G', () => {
   const f = filterOperationFixture();
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="open-save"]');
-  f.choose('.rule-row[data-gi="0"][data-ri="0"] [data-pattern-subject]', 'prescreen:weekendPosting');
+  f.click('[data-kct-letter="G"]'); 
+  f.choose('.rule-row[data-gi="0"][data-ri="0"] [data-value-kind]', 'contains');
   assert.equal(f.pressed('G'), false);
   assert.equal(f.draft().groups[0].rules[0].__kctLetter, undefined);
   assert.notEqual(f.$('[data-bind="scenario-name"]').value, 'G');
@@ -4301,7 +4458,7 @@ test('F6 a backend error after an empty group is marked on the row the auditor s
   f.click('[data-action="add-set"]');
   f.click('[data-kct-letter="G"]');
   assert.equal(f.draft().groups.length, 2); assert.equal(f.draft().groups[0].rules.length, 0);
-  f.click('[data-action="open-save"]'); f.click('[data-action="save-scenario"]'); await settle();
+  f.click('[data-action="save-scenario"]'); await settle();
   f.commits[0].reject(Object.assign(new Error('第 1 組第 1 條：合成錯誤。'), { code: 'invalid_scenario',
     details: [{ group: 1, rule: 1, message: '合成錯誤。' }] }));
   await settle(); await settle();
@@ -4311,11 +4468,295 @@ test('F6 a backend error after an empty group is marked on the row the auditor s
   assert.equal(f.notice(), '');
 });
 
+// 2026-10-13 第五步一次只存或刪一個情境（使用者對「情境卡住」選「本計畫內修好」）：儲存、移除與重新檢查只送正在處理的
+// 那一個情境，其他情境由後端照資料庫原樣保留；錯誤只標在它所屬的情境。這幾支記錄每個送出的請求與方法名稱。
+function oneAtATimeFixture() {
+  const f = filterOperationFixture({ saved: [savedG('情境甲'), savedG('情境乙'), savedG('情境丙')] });
+  const sent = [];
+  f.window.JetApi = new Proxy({}, { get: (_, method) => payload =>
+    new Promise((resolve, reject) => sent.push({ method, payload, resolve, reject })) });
+  f.store.getState().filterScenarioCheck = { status: 'needsEdit', problems: [
+    { position: 1, name: '情境甲', messages: ['合成原因一'] }, { position: 2, name: '情境乙', messages: ['合成原因二'] }] };
+  f.store.setFilterDraft({ name: '', rationale: '', groups: [] });
+  const scenarioRequests = () => sent.filter(request => /^filter/.test(request.method));
+  return { ...f, sent, scenarioRequests };
+}
+
+test('one at a time: saving an edited scenario sends only that scenario with its position and shown name', async () => {
+  const f = oneAtATimeFixture();
+  f.click('[data-action="edit-scenario"][data-index="0"]'); 
+  f.type('[data-bind="scenario-name"]', '情境甲（改名）');
+  f.click('[data-action="save-scenario"]'); await settle();
+  const requests = f.scenarioRequests();
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].method, 'filterScenarioSave');
+  const payload = requests[0].payload;
+  assert.equal(payload.position, 1);
+  assert.equal(payload.expectedName, '情境甲');
+  assert.equal(payload.scenario.name, '情境甲（改名）');
+  assert.equal(payload.populationScope, 'auditPeriod');
+  assert.equal('scenarios' in payload, false);
+  assert.equal(JSON.stringify(payload).includes('"__'), false);
+});
+
+test('one at a time: rechecking sends no scenario list', async () => {
+  const f = oneAtATimeFixture();
+  f.click('[data-action="resave-scenarios"]'); await settle();
+  const requests = f.scenarioRequests();
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].method, 'filterScenarioRecheck');
+  assert.equal('scenarios' in requests[0].payload, false);
+  assert.equal(requests[0].payload.populationScope, 'auditPeriod');
+});
+
+test('one at a time: confirming a removal sends only that position and shown name', async () => {
+  const f = oneAtATimeFixture();
+  f.click('[data-action="remove-scenario"][data-index="1"]'); f.click('[data-action="confirm-remove-scenario"][data-index="1"]'); await settle();
+  const requests = f.scenarioRequests();
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].method, 'filterScenarioRemove');
+  assert.equal(requests[0].payload.position, 2);
+  assert.equal(requests[0].payload.expectedName, '情境乙');
+  assert.equal('scenarios' in requests[0].payload, false);
+  assert.equal(requests[0].payload.populationScope, 'auditPeriod');
+});
+
+test('one at a time: an error that belongs to another scenario is not marked on the draft and names that scenario', async () => {
+  const f = oneAtATimeFixture();
+  f.click('[data-action="edit-scenario"][data-index="0"]'); 
+  f.click('[data-action="save-scenario"]'); await settle();
+  f.scenarioRequests().at(-1).reject(Object.assign(new Error('第 1 組第 1 條：合成錯誤。'), { code: 'invalid_scenario',
+    details: [{ group: 1, rule: 1, message: '合成錯誤。', scenarioPosition: 2, scenarioName: '情境乙' }] }));
+  await settle(); await settle();
+  assert.equal(f.dom.content.querySelectorAll('.rule-row--invalid').length, 0);
+  assert.equal(f.$('.rule-row[data-gi="0"][data-ri="0"]').querySelector('[data-rule-error]'), null);
+  assert.match(f.notice(), /情境 2「情境乙」/);
+  assert.match(f.notice(), /合成錯誤/);
+});
+
+test('one at a time: an error for the scenario being saved is still marked on its rule row', async () => {
+  const f = oneAtATimeFixture();
+  f.click('[data-action="edit-scenario"][data-index="0"]'); 
+  f.click('[data-action="save-scenario"]'); await settle();
+  f.scenarioRequests().at(-1).reject(Object.assign(new Error('第 1 組第 1 條：合成錯誤。'), { code: 'invalid_scenario',
+    details: [{ group: 1, rule: 1, message: '合成錯誤。', scenarioPosition: 1, scenarioName: '情境甲' }] }));
+  await settle(); await settle();
+  const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
+  assert.ok(row.classList.contains('rule-row--invalid'));
+  assert.equal(row.querySelector('[data-rule-error]').textContent, '合成錯誤。');
+  assert.equal(f.notice(), '');
+});
+
+test('one at a time: a save that leaves other scenarios to fix shows the new list and keeps results locked', async () => {
+  const f = oneAtATimeFixture();
+  f.click('[data-action="edit-scenario"][data-index="0"]'); 
+  f.click('[data-action="save-scenario"]'); await settle();
+  const request = f.scenarioRequests()[0], saved = f.store.getState().filter.savedScenarios;
+  request.resolve({ ok: true, position: 1, savedCount: 3, scenarios: [request.payload.scenario, saved[1], saved[2]], resultRef: null,
+    filterScenarioCheck: { status: 'needsEdit', recalculatedCount: 0, problems: [{ position: 2, name: '情境乙', messages: ['合成原因二'] }] },
+    staleState: { validation: false, prescreen: false, filter: true } });
+  await settle(); await settle();
+  const state = f.store.getState();
+  assert.equal(state.filterResultRef, null);
+  assert.equal(state.staleState.filter, true);
+  assert.deepEqual(plain(state.filterScenarioCheck.problems.map(problem => problem.name)), ['情境乙']);
+  const list = f.$('.filter-scenario-problems');
+  assert.ok(list, 'the list of scenarios to fix stays on screen');
+  assert.equal(list.querySelectorAll('li').length, 1);
+  assert.match(list.textContent, /情境 2「情境乙」/);
+  assert.doesNotMatch(list.textContent, /情境甲/);
+  assert.ok(f.$('[data-action="resave-scenarios"]'));
+  assert.equal(f.window.JetUi.filterScenarioMissing(state), '修改無法套用目前規則的篩選情境');
+  assert.equal(f.draft().__editingIndex, undefined);
+  assert.equal(f.draft().groups.length, 0);
+});
+
+test('one at a time: the save that fixes the last scenario unlocks the report and step six', async () => {
+  const f = oneAtATimeFixture();
+  f.store.setLastRun('validate', { resultRef: { runId: 'v1' }, completenessTest: { eligibility: { isEligible: true } } });
+  f.click('[data-action="edit-scenario"][data-index="1"]'); 
+  assert.ok(f.$('.filter-scenario-problems'));
+  assert.equal(f.$('[data-action="export-criteria-report"]').disabled, true);
+  f.click('[data-action="save-scenario"]'); await settle();
+  const request = f.scenarioRequests()[0], saved = f.store.getState().filter.savedScenarios;
+  request.resolve({ ok: true, position: 2, savedCount: 3, scenarios: [saved[0], request.payload.scenario, saved[2]],
+    resultRef: { revision: 'r-fixed', generatedUtc: 'r-fixed', populationScope: 'auditPeriod' },
+    filterScenarioCheck: { status: 'current', recalculatedCount: 2, problems: [] },
+    staleState: { validation: false, prescreen: false, filter: false } });
+  await settle(); await settle();
+  const state = f.store.getState();
+  assert.equal(state.filterResultRef.revision, 'r-fixed');
+  assert.equal(state.staleState.filter, false);
+  assert.equal(f.$('.filter-scenario-problems'), null);
+  assert.equal(f.$('[data-action="resave-scenarios"]'), null);
+  assert.equal(f.window.JetUi.filterScenarioMissing(state), null);
+  assert.equal(f.$('[data-action="export-criteria-report"]').disabled, false);
+  assert.equal(f.draft().__editingIndex, undefined);
+  assert.equal(f.draft().groups.length, 0);
+});
+
+test('one at a time: saving a copy appends it and clears the submitted draft', async () => {
+  const f = oneAtATimeFixture();
+  f.click('[data-action="copy-scenario"][data-index="0"]'); 
+  f.click('[data-action="save-scenario"]'); await settle();
+  const request = f.scenarioRequests()[0], saved = f.store.getState().filter.savedScenarios;
+  assert.equal(request.method, 'filterScenarioSave');
+  assert.equal(request.payload.position, null);
+  assert.equal('expectedName' in request.payload, false);
+  assert.equal(request.payload.scenario.name, '情境甲（副本）');
+  request.resolve({ ok: true, position: 4, savedCount: 4, scenarios: [...saved, request.payload.scenario], resultRef: null,
+    filterScenarioCheck: { status: 'needsEdit', recalculatedCount: 0, problems: [{ position: 1, name: '情境甲', messages: ['合成原因一'] }] },
+    staleState: { validation: false, prescreen: false, filter: true } });
+  await settle(); await settle();
+  assert.equal(f.draft().__editingIndex, undefined);
+  assert.equal(f.draft().__editingSavedRef, undefined);
+  assert.equal(f.draft().groups.length, 0);
+  assert.equal(f.store.getState().filter.savedScenarios.length, 4);
+});
+
+test('one at a time: a screen list that no longer matches is explained beside the save button and changes nothing', async () => {
+  const f = oneAtATimeFixture(), before = f.store.getState().filter.savedScenarios;
+  f.click('[data-action="edit-scenario"][data-index="0"]'); 
+  f.click('[data-action="save-scenario"]'); await settle();
+  f.scenarioRequests()[0].reject(Object.assign(new Error('合成清單不一致。'), { code: 'stale_result' }));
+  await settle(); await settle();
+  assert.equal(f.notice(), '儲存失敗：合成清單不一致。');
+  assert.equal(f.store.getState().filter.savedScenarios, before);
+});
+
+// 以下取代 2026-10-13 刪除的四個原始碼比對測試（依第一項測試計畫第 3.2 節：產品改動弄壞已排定行為化的字串測試時，
+// 當場寫行為測試再刪除）：FilterAstFrontendContractTests.SharedWireProjection_PreservesMatchScopeAndValuesArrayWhileRemovingUiMetadata、
+// FilterKctMetadataFrontendTests.PreviewCommitResaveAndRemove_AllUseTheSharedScenarioProjection、
+// FilterPopulationScopeMirrorTests.FilterActions_AlwaysSendAuditScopeAndRejectLatePreviewAcrossDraftChanges、
+// FilterTemplatesFrontendTests.InvalidScenarioDetails_AreMarkedOnTheRuleRow。四個方法的第一次失敗：Public 收據
+// 20261013-103826650-632ded11dde247d0b97d4e5ea6dd63bf。儲存、移除與重新檢查的送出形狀見上面幾支 one at a time 測試。
+function projectionDraft(values) {
+  return { name: '投影檢查', rationale: '合成動機', __nameDirty: true, __rationaleDirty: true,
+    groups: [{ join: 'AND', matchScope: 'sameVoucher', rules: [
+      { type: 'fieldValue', join: 'AND', field: 'description', operator: 'contains', values, __probe: 'screen only' }] }] };
+}
+
+test('shared projection: draft preview, saving and saved-scenario preview keep match scope and value arrays, drop screen-only keys and send the audit period', async () => {
+  const f = oneAtATimeFixture(), values = ['Alpha', 'Beta'];
+  f.store.setFilterDraft(projectionDraft(values));
+  f.click('[data-action="preview-scenario"]'); await settle();
+  const preview = f.sent.find(request => request.method === 'filterPreview');
+  assert.ok(preview, 'the draft preview is sent');
+  preview.reject(new Error('合成預覽失敗。')); await settle(); await settle();
+  f.click('[data-action="save-scenario"]'); await settle();
+  const save = f.sent.find(request => request.method === 'filterScenarioSave');
+  assert.ok(save, 'the save is sent');
+  for (const request of [preview, save]) {
+    const group = request.payload.scenario.groups[0], rule = group.rules[0];
+    assert.equal(request.payload.populationScope, 'auditPeriod');
+    assert.equal(group.matchScope, 'sameVoucher');
+    assert.deepEqual(plain(rule.values), ['Alpha', 'Beta']);
+    assert.notEqual(rule.values, values, 'the request carries a copy, not the draft array');
+    assert.equal(JSON.stringify(request.payload).includes('"__'), false);
+    assert.equal(JSON.stringify(request.payload).includes('allProjected'), false);
+  }
+  save.reject(new Error('合成儲存失敗。')); await settle(); await settle();
+  f.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
+  const savedPreview = f.sent.filter(request => request.method === 'filterPreview').at(-1);
+  assert.notEqual(savedPreview, preview, 'opening a saved scenario previews it');
+  assert.equal(savedPreview.payload.populationScope, 'auditPeriod');
+  assert.equal(savedPreview.payload.scenario.name, '情境甲');
+  assert.equal(savedPreview.payload.scenario.source, 'kct');
+  assert.deepEqual(plain(savedPreview.payload.scenario.groups), plain(savedG().groups));
+  assert.equal(JSON.stringify(savedPreview.payload).includes('"__'), false);
+});
+
+test('late preview: a preview answered after the conditions changed is not shown', async () => {
+  const f = oneAtATimeFixture();
+  f.store.setFilterDraft(projectionDraft(['Alpha']));
+  f.click('[data-action="preview-scenario"]'); await settle();
+  const draft = f.draft(); draft.groups[0].rules[0].values = ['Alpha', 'Gamma']; f.store.setFilterDraft(draft);
+  f.sent.find(request => request.method === 'filterPreview').resolve({ scenario: { name: '投影檢查', populationScope: 'auditPeriod',
+    count: 9, voucherCount: 3, previewRows: [] } });
+  await settle(); await settle();
+  assert.equal(f.sent.some(request => request.method === 'queryFilterVoucherPage'), false);
+  assert.equal(f.store.getState().filter.preview, null);
+});
+
+test('late preview: a preview whose population differs from the request is not shown', async () => {
+  const f = oneAtATimeFixture();
+  f.store.setFilterDraft(projectionDraft(['Alpha']));
+  f.click('[data-action="preview-scenario"]'); await settle();
+  f.sent.find(request => request.method === 'filterPreview').resolve({ scenario: { name: '投影檢查', populationScope: 'allProjected',
+    count: 9, voucherCount: 3, previewRows: [] } });
+  await settle(); await settle();
+  const page = f.sent.find(request => request.method === 'queryFilterVoucherPage');
+  if (page) { page.resolve({ rows: [], nextCursor: null }); await settle(); await settle(); }
+  assert.equal(f.store.getState().filter.preview, null);
+});
+
+test('rule errors: the bridge keeps error details, a current preview error is marked and late errors are not', async () => {
+  // 連線層把 details（含情境位置）原樣交給畫面。
+  const posted = [], listeners = [];
+  const apiWindow = { chrome: { webview: { postMessage: message => posted.push(message), addEventListener: (_, fn) => listeners.push(fn) } } };
+  vm.runInContext(fs.readFileSync(path.join(root, 'jet-api.js'), 'utf8'), vm.createContext({ window: apiWindow }));
+  const pending = apiWindow.JetApi.filterScenarioSave({ populationScope: 'auditPeriod', position: null, scenario: { name: 'x' } });
+  assert.equal(posted[0].action, 'filter.scenario.save');
+  const details = [{ group: 1, rule: 1, message: '合成錯誤。', scenarioPosition: 2, scenarioName: '情境乙' }];
+  listeners.forEach(fn => fn({ data: { requestId: posted[0].requestId, ok: false,
+    error: { code: 'invalid_scenario', message: '第 1 組第 1 條：合成錯誤。', details } } }));
+  const error = await pending.then(() => null, rejected => rejected);
+  assert.equal(error.code, 'invalid_scenario');
+  assert.deepEqual(plain(error.details), details);
+
+  // 目前的預覽錯誤標在條件列；條件改過之後才回來的錯誤不標。
+  const f = oneAtATimeFixture();
+  f.store.setFilterDraft(projectionDraft(['Alpha']));
+  f.click('[data-action="preview-scenario"]'); await settle();
+  f.sent.find(request => request.method === 'filterPreview').reject(Object.assign(new Error('第 1 組第 1 條：合成錯誤。'),
+    { code: 'invalid_scenario', details: [{ group: 1, rule: 1, message: '合成錯誤。' }] }));
+  await settle(); await settle();
+  assert.ok(f.$('.rule-row[data-gi="0"][data-ri="0"]').classList.contains('rule-row--invalid'));
+  f.click('[data-action="preview-scenario"]'); await settle();
+  const draft = f.draft(); draft.groups[0].rules[0].values = ['Alpha', 'Gamma']; f.store.setFilterDraft(draft);
+  f.sent.filter(request => request.method === 'filterPreview').at(-1).reject(Object.assign(new Error('第 1 組第 1 條：另一個錯誤。'),
+    { code: 'invalid_scenario', details: [{ group: 1, rule: 1, message: '另一個錯誤。' }] }));
+  await settle(); await settle();
+  assert.equal(f.dom.content.textContent.includes('另一個錯誤。'), false);
+});
+
+test('rule errors: a save error that returns after the conditions changed is neither marked nor shown beside the save button', async () => {
+  const f = oneAtATimeFixture();
+  f.store.setFilterDraft(projectionDraft(['Alpha']));
+  f.click('[data-action="save-scenario"]'); await settle();
+  const draft = f.draft(); draft.groups[0].rules[0].values = ['Alpha', 'Gamma']; f.store.setFilterDraft(draft);
+  f.scenarioRequests().at(-1).reject(Object.assign(new Error('第 1 組第 1 條：合成錯誤。'), { code: 'invalid_scenario',
+    details: [{ group: 1, rule: 1, message: '合成錯誤。', scenarioPosition: 4, scenarioName: '投影檢查' }] }));
+  await settle(); await settle();
+  assert.equal(f.dom.content.querySelectorAll('.rule-row--invalid').length, 0);
+  assert.equal(f.notice(), '');
+});
+
+for (const remaining of [2, 0]) test('one at a time: rechecking reports the result without failing when ' + remaining + ' scenarios still need edits', async () => {
+  const f = oneAtATimeFixture();
+  f.click('[data-action="resave-scenarios"]'); await settle();
+  const saved = f.store.getState().filter.savedScenarios;
+  const problems = remaining ? [{ position: 1, name: '情境甲', messages: ['合成原因一'] }, { position: 2, name: '情境乙', messages: ['合成原因二'] }] : [];
+  f.scenarioRequests()[0].resolve({ ok: true, position: null, savedCount: 3, scenarios: saved.slice(),
+    resultRef: remaining ? null : { revision: 'r-recheck', populationScope: 'auditPeriod' },
+    filterScenarioCheck: { status: remaining ? 'needsEdit' : 'current', recalculatedCount: remaining ? 1 : 3, problems },
+    staleState: { validation: false, prescreen: false, filter: !!remaining } });
+  await settle(); await settle();
+  const messages = f.store.getState().messages.filter(message => /重新檢查/.test(message.text));
+  assert.equal(messages.length, 1, f.messages().join(' / '));
+  assert.equal(messages[0].level, 'info');
+  assert.doesNotMatch(messages[0].text, /失敗/);
+  // 句子是 2026-10-13 的暫定文字，只比對意思：更新與仍需修改的數目。
+  if (remaining) { assert.match(messages[0].text, /1 個已更新/); assert.match(messages[0].text, /2 個仍需修改/); }
+  else assert.match(messages[0].text, /3 個情境/);
+  assert.equal(!!f.$('.filter-scenario-problems'), !!remaining);
+});
+
 function namingFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-legacy.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
     '  window.naming = { refreshAutomaticMetadata, addKctToDraft, removeKctFromActiveGroup, applyTemplate, toWireScenario, toWireDraft, syncViewState };'), context);
   const store = window.JetStore, api = window.naming;
@@ -4412,9 +4853,10 @@ test('an upstream change that clears filter scenarios resets step 5 and logs one
   assert.equal(state.filter.draft.name, '');
   assert.equal(state.filter.preview, null);
   assert.equal(state.filterResultRef, null);
-  assert.deepEqual(plain(state.messages.filter(m => m.text === '前面的資料已更改，請重新設定篩選情境。').map(m => m.level)), ['info']);
+  // 使用者 2026-10-13 裁定訊息分三級：要回第五步重做，屬於需要注意。第一次失敗收據 20261013-095454658-c6425ce2422c45fb8480a7ac4834522e。
+  assert.deepEqual(plain(state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).map(m => m.level)), ['warn']);
   f.store.applyMutationEffects({ invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true } });
-  assert.equal(f.store.getState().messages.filter(m => m.text === '前面的資料已更改，請重新設定篩選情境。').length, 1,
+  assert.equal(f.store.getState().messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, 1,
     'nothing left to clear, so no second message');
 });
 
@@ -4453,12 +4895,12 @@ for (const kind of ['gl', 'tb']) test('remap S3-02 ' + kind + ' confirmation sho
   assert.equal(f.state.mapping[kind].committed.projectedRowCount, 2);
   assert.equal(f.state.filter.savedScenarios.length, 0); assert.equal(f.state.filter.draft.groups.length, 0); assert.equal(f.state.filter.draft.name, '');
   for (const warning of warnings) assert.equal(f.state.messages.filter(m => m.level === 'warn' && m.text.includes(warning)).length, 1);
-  assert.equal(f.state.messages.filter(m => m.text === '前面的資料已更改，請重新設定篩選情境。').length, 1);
+  assert.equal(f.state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, 1);
   assert.ok(f.state.messages.some(m => m.level === 'info' && /配對/.test(m.text)));
   f.draw(); f.click('[data-action="remap-' + kind + '"]'); f.draw(); f.click('[data-action="commit-' + kind + '"]');
   f.request(kind === 'gl' ? 'mappingCommitGl' : 'mappingCommitTb').resolve({ projectedRowCount: 2, approvalDateMode: 'unmapped', manualAutoPolicy: { manualValues: ['1'], automaticValues: ['0'] }, ...usageEffects(true) }); await settle();
   assert.equal(f.state.messages.filter(m => m.level === 'warn' && warnings.some(w => m.text.includes(w))).length, 2);
-  assert.equal(f.state.messages.filter(m => m.text === '前面的資料已更改，請重新設定篩選情境。').length, 1);
+  assert.equal(f.state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, 1);
 });
 
 test('remap S2-02 TB card and both import modes explain the same-period boundary positively', async () => {
@@ -4483,7 +4925,7 @@ test('remap X-05 mutation handlers do not duplicate the reset message or log one
     f.draw(); if (f.$('[data-action="remap-tb"]')) { f.click('[data-action="remap-tb"]'); f.draw(); }
     f.click('[data-action="commit-tb"]'); f.request('mappingCommitTb').resolve({ projectedRowCount: 2, ...usageEffects(true) }); await settle();
     assert.equal(f.state.filter.savedScenarios.length, 0); assert.equal(f.state.filter.draft.groups.length, 0);
-    assert.equal(f.state.messages.filter(m => m.text === '前面的資料已更改，請重新設定篩選情境。').length, pass === 0 ? 0 : 1);
+    assert.equal(f.state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, pass === 0 ? 0 : 1);
   }
 });
 
@@ -4494,7 +4936,7 @@ test('remap X-06 preparation date form consumes the authoritative clearing respo
   assert.equal(f.updates[0].payload.lastPeriodStart, '2024-02-20');
   f.updates[0].resolve({ project: { ...syntheticMetadata(), lastPeriodStart: '2024-02-20' }, ...usageEffects(true) }); await settle();
   const state = f.store.getState(); assert.equal(state.filter.savedScenarios.length, 0); assert.equal(state.filter.draft.groups.length, 0);
-  assert.equal(state.messages.filter(m => m.text === '前面的資料已更改，請重新設定篩選情境。').length, 1);
+  assert.equal(state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, 1);
   assert.doesNotMatch(f.render().html(), /更改已設定好的資料，會清除後面步驟的設定/);
 });
 
@@ -4516,7 +4958,7 @@ for (const catalog of [null, []]) test('remap S4-06 successful reports survive a
   f.controls(f.v.validationArtifactsHtml(f.store.getState(), data)).click('[data-action="export-validation-artifacts"]');
   const artifacts = batch8Artifacts(); f.requests[0].resolve({ artifacts, reportArtifacts: catalog, ...(catalog === null ? { reportArtifactWarning: '合成清單無法更新' } : {}) }); await settle();
   assert.deepEqual(plain(f.store.getState().reportArtifacts.map(a => a.artifactId).sort()), [old, ...artifacts].map(a => a.artifactId).sort());
-  const html = f.v.validationArtifactsHtml(f.store.getState(), data); assert.match(html, /role="status"/); assert.match(html, catalog === null ? /合成清單無法更新/ : /無須重新產生/);
+  const html = f.v.validationArtifactsHtml(f.store.getState(), data); assert.match(html, /role="status"/); assert.match(html, catalog === null ? /合成清單無法更新/ : /重新開啟案件就會更新，不必重新產生/);
   assert.doesNotMatch(f.v.validationOutputStatusHtml('reports'), /失敗|重試/);
 });
 
@@ -4548,9 +4990,6 @@ for (const kind of ['validate', 'prescreen']) test('remap X-16 ' + kind + ' fail
   assert.equal(f.store.getState().busy, false); assert.equal(f.store.getState().lastRuns[kind].resultRef.runId, kind === 'validate' ? 'retry' : 'p-retry');
 });
 
-function remapPaper(id, stale = false) { return { artifactId: id, kind: 'workingPaper', fileName: id + '.xlsx', fileState: 'asPublished', stale,
-  generatedUtc: '2026-01-01T00:00:00Z', sourceRef: { validationRunId: 'v1', scenarioRevision: 'r1', scenarioPositions: [1, 2, 3] } }; }
-
 test('remap X-16 workpaper failure retains history and retries the same selected scenarios', async () => {
   const f = usageJourneyFixture(), old = remapPaper('prior', true); f.store.setReportArtifacts([old]); f.draw(); f.change('[data-bind="include-prescreen-report"]', false); f.click('[data-action="export-workpaper"]');
   const first = f.request('exportWorkpaperStream'); first.reject(new Error('synthetic output failure')); await settle(); f.draw();
@@ -4574,7 +5013,7 @@ function remapAppFixture() {
   f.dom.content.innerHTML = '<section data-bind="project-picker"></section><nav data-bind="step-nav"></nav><button data-action="app-exit"></button><button data-action="app-back-picker"></button><button data-action="cancel-operation"></button>';
   const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   vm.runInContext(source.replace("  if (document.readyState === 'loading') {",
-    '  window.remapApp = { renderPicker, overviewHtml, renderStepNav };\n  if (document.readyState === \'loading\') {'), f.context);
+    '  window.remapApp = { renderPicker, overviewHtml, renderStepNav, renderContent, renderMessagesPanel, buildMessage, formatExportProgress };\n  if (document.readyState === \'loading\') {'), f.context);
   function slice(start, end) { const a = source.indexOf(start), b = source.indexOf(end, a + start.length); assert.ok(a >= 0 && b > a); return source.slice(a, b); }
   vm.runInContext('var Ui = window.JetUi;\n' + slice('    var exitBtn = ', '    var openProjectFolderBtn = '), f.context);
   const started = []; f.window.JetApi.onRequestStarted = fn => started.push(fn);
@@ -4591,9 +5030,13 @@ test('remap S1-15 failed project loading exports the same error correlation from
   f.request('projectLoad').reject({ code: 'file_read_error', message: '合成載入失敗', correlationId: 'picker-load-x' }); await opening;
   f.app.renderPicker(f.state);
   assert.equal(f.state.project, null); assert.equal(f.state.pickerFeedbackContext.projectId, 'failed-synthetic'); assert.equal(f.state.pickerFeedbackContext.correlationId, 'picker-load-x');
-  assert.match(f.dom.content.textContent, /合成載入失敗/); assert.ok(f.$('[data-action="picker-copy-error"]')); assert.ok(f.$('[data-action="picker-support-export"]'));
+  // 使用者 2026-10-13 選「從錯誤框拿掉，改成一般工具」：錯誤框不再有「複製錯誤」，「輸出支援日誌」移到操作列、不帶 projectId，
+  // 匯出全部紀錄。原本斷言錯誤框有兩個按鈕、payload 帶這次的 projectId 與 correlationId
+  // （第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。這次的 correlation 仍留給 Debug 組建的 DEV 按鈕。
+  assert.match(f.dom.content.textContent, /合成載入失敗/); assert.ok(f.$('[data-action="picker-copy-error"]') === null, 'no copy button');
+  assert.ok(f.$('.picker-panel__actions [data-action="picker-support-export"]') !== null, 'support log button in the action row');
   f.click('[data-action="picker-support-export"]');
-  assert.deepEqual(plain(f.request('supportLogExport').payload), { projectId: 'failed-synthetic', correlationId: 'picker-load-x' });
+  assert.deepEqual(plain(f.request('supportLogExport').payload), {});
   f.request('supportLogExport').resolve({ filePath: 'synthetic/support.ndjson' }); await settle(); f.app.renderPicker(f.state);
   assert.match(f.dom.content.textContent, /support.ndjson/); assert.match(f.dom.content.textContent, /合成載入失敗/); assert.equal(f.state.project, null);
 });
@@ -4616,7 +5059,8 @@ for (const action of ['app-back-picker', 'app-exit']) {
     f.store.setBusy(false); f.click('[data-action="' + action + '"]'); await settle(); f.request('projectSaveProgress').resolve({}); await settle();
     f.request('projectReleaseLock').reject(new Error('synthetic lock failure')); await settle();
     assert.equal(f.state.project, project); assert.equal(f.state.view, 'workflow'); assert.equal(f.state.busy, false); assert.equal(f.requests.some(r => r.action === 'hostExitApp'), false);
-    assert.ok(f.state.messages.some(m => m.level === 'warn' && m.text.includes('synthetic lock failure')));
+    // 使用者 2026-10-13 裁定訊息分三級：離開案件失敗是錯誤。第一次失敗收據 20261013-095454658-c6425ce2422c45fb8480a7ac4834522e。
+    assert.ok(f.state.messages.some(m => m.level === 'error' && m.text.includes('synthetic lock failure')));
   });
 }
 
@@ -4624,8 +5068,10 @@ for (const status of ['recalculated', 'current']) test('remap S5-35 project load
   const f = usageJourneyFixture(), opening = f.window.JetUi.openProject('recalculated-synthetic');
   f.request('projectLoad').resolve({ project: { projectId: 'recalculated-synthetic' }, filterScenarioCheck: { status, recalculatedCount: 2, problems: [] } }); await settle();
   f.request('logRecent').resolve({ messages: [] }); await opening;
-  const messages = f.state.messages.filter(m => /新規則/.test(m.text)); assert.equal(messages.length, status === 'recalculated' ? 1 : 0);
-  if (messages.length) { assert.equal(messages[0].level, 'info'); assert.match(messages[0].text, /2.*情境/); assert.match(messages[0].text, /條件篩選報告.*底稿.*過期/); }
+  // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）；句子不再有「新規則」與「過期」，改用開頭與「需要重新產生」辨認。
+  const messages = f.state.messages.filter(m => /篩選規則已更新/.test(m.text)); assert.equal(messages.length, status === 'recalculated' ? 1 : 0);
+  // 使用者 2026-10-13 裁定訊息分三級：報告已過期、需要時要重新產生，屬於需要注意。第一次失敗收據 20261013-095454658-c6425ce2422c45fb8480a7ac4834522e。
+  if (messages.length) { assert.equal(messages[0].level, 'warn'); assert.match(messages[0].text, /2.*情境/); assert.match(messages[0].text, /條件篩選報告.*底稿.*需要重新產生/); }
 });
 
 test('remap overview uses the same completed progress as the sidebar and does not repeat a fallback case title', () => {
@@ -4642,6 +5088,102 @@ test('remap overview uses the same completed progress as the sidebar and does no
   }
 });
 
+test('overview opened from the header button takes keyboard focus on its close button, closes on Escape and returns focus', () => {
+  const f = overviewDialogFixture(), opener = f.$('[data-action="overview-open"]'), modal = f.$('.overview-modal');
+  for (const round of ['first open', 'reopen']) {
+    opener.focus(); opener.fire('click');
+    assert.equal(f.state.overviewOpen, true, round); assert.equal(modal.hidden, false, round);
+    const active = f.dom.document.activeElement;
+    assert.ok(modal.contains(active), round + ': focus moves into the overview');
+    assert.equal(active.tagName, 'BUTTON', round + ': focus lands on a button, not the backdrop');
+    assert.ok(active.classList.contains('overview__close'), round + ': focus lands on the card close button');
+    // 2026-10-13 修改既有測試的原因：使用者選定總覽改用共用的焦點圈限，Escape 改由 document 捕獲階段的監聽處理，
+    // 直接對 modal 送 keydown 不再經過它而依預期失敗，第一次失敗收據 20261013-072254030-1d559fa4970d468eb505a5e111b2ce01。
+    // 斷言不變，只改成照瀏覽器的順序送鍵。
+    f.key('Escape');
+    assert.equal(f.state.overviewOpen, false, round); assert.equal(modal.hidden, true, round);
+    assert.equal(f.dom.document.activeElement, opener, round + ': focus returns to the overview button');
+  }
+});
+
+// 總覽開著時背景資料更新會整張重畫卡片：審計員正在用的頁籤或分析區標題要留住焦點，Escape 才接得住。
+test('overview keeps keyboard focus on the same control when its data redraws while open', () => {
+  const f = overviewDialogFixture(); const opener = f.$('[data-action="overview-open"]');
+  f.store.setLastRun('validate', { resultRef: { runId: 'v1' }, stats: { glRowCount: 4, voucherCount: 2, totalDebit: 100, totalCredit: 100 },
+    completenessTest: { eligibility: { isEligible: true } } });
+  opener.focus(); opener.fire('click');
+  const oldTab = f.$('#overview-stage-tab-2'); oldTab.focus(); oldTab.fire('click');
+  f.store.touch();
+  const tab = f.$('#overview-stage-tab-2');
+  assert.ok(tab !== oldTab, 'the card was rebuilt');
+  assert.ok(f.dom.document.activeElement === tab, 'focus stays on the same stage tab');
+  assert.equal(tab.getAttribute('aria-selected'), 'true', 'the chosen stage stays selected');
+  const summaryOf = pattern => f.dom.content.querySelectorAll('.overview-modal__card summary').find(s => pattern.test(s.textContent));
+  const oldSummary = summaryOf(/預篩選結果分布/); assert.ok(oldSummary, 'the distribution section is shown'); oldSummary.focus(); f.store.touch();
+  assert.ok(summaryOf(/預篩選結果分布/) !== oldSummary, 'the section heading was rebuilt');
+  assert.ok(f.dom.document.activeElement === summaryOf(/預篩選結果分布/), 'focus stays on the same section heading');
+  f.store.setLastRun('validate', { resultRef: { runId: 'v2' }, completenessTest: { eligibility: { isEligible: true } } });
+  assert.ok(summaryOf(/預篩選結果分布/) === undefined, 'the section disappears without statistics');
+  assert.ok(f.dom.document.activeElement === f.$('.overview-modal__card button[data-action="overview-close"]'), 'falls back to the close button');
+  f.dom.document.activeElement = f.dom.document.body; f.store.touch();
+  assert.ok(f.dom.document.activeElement === f.dom.document.body, 'a redraw does not grab focus that was outside the overview');
+});
+
+// 焦點跑到總覽外面時 Tab 拉回、Escape 照樣關；作業進行中鍵盤留給作業遮罩；點背景照樣關閉，背景本身不是控制項。
+test('overview Escape and Tab use the shared document trap while open and yield while busy', () => {
+  const f = overviewDialogFixture(), opener = f.$('[data-action="overview-open"]'), before = f.keyListeners();
+  opener.focus(); opener.fire('click');
+  assert.equal(f.keyListeners(), before + 1, 'listens on the document while open');
+  const close = f.$('.overview-modal__card button[data-action="overview-close"]');
+  f.dom.document.activeElement = f.dom.document.body;
+  const tab = f.key('Tab'); assert.equal(tab.defaultPrevented, true, 'Tab is handled by the overview'); assert.ok(f.dom.document.activeElement === close, 'Tab pulls escaped focus back');
+  f.store.setBusy(true, '儲存並結束'); f.dom.document.activeElement = f.dom.document.body;
+  const busyTab = f.key('Tab'); assert.equal(busyTab.defaultPrevented, false, 'Tab is left to the operation overlay');
+  assert.ok(f.dom.document.activeElement === f.dom.document.body, 'focus is not moved into the inert overview');
+  f.key('Escape'); assert.equal(f.state.overviewOpen, true, 'Escape does not close the overview during an operation');
+  f.store.setBusy(false);
+  // 原生對話框（第五步的日期多選用 showModal 開在最上層）開著時，Escape 與 Tab 交給它。
+  const nativeDialog = f.dom.document.body.appendChild(f.dom.element('dialog', { open: '' }));
+  const dialogTab = f.key('Tab', { target: nativeDialog }); assert.equal(dialogTab.defaultPrevented, false, 'Tab is left to the native dialog on top');
+  f.key('Escape', { target: nativeDialog }); assert.equal(f.state.overviewOpen, true, 'Escape is left to the native dialog on top');
+  nativeDialog.removeAttribute('open');
+  f.key('Escape'); assert.equal(f.state.overviewOpen, false, 'Escape closes even when focus left the overview');
+  assert.ok(f.dom.document.activeElement === opener, 'focus returns to the overview button');
+  assert.equal(f.keyListeners(), before, 'stops listening once closed');
+  const backdrop = f.$('.overview-modal__backdrop');
+  assert.equal(backdrop.hasAttribute('data-action'), false, 'the backdrop is not a control');
+  opener.focus(); opener.fire('click'); backdrop.fire('click');
+  assert.equal(f.state.overviewOpen, false, 'a backdrop click still closes the overview');
+  assert.ok(f.dom.document.activeElement === opener, 'backdrop click returns focus'); assert.equal(f.keyListeners(), before, 'backdrop close stops listening');
+});
+
+// 第四步有沒儲存的分類時按視窗的關閉鈕，待確認對話框疊在總覽上面：第一次 Escape 只關它，第二次才關總覽。
+test('overview yields Escape to the unsaved-category dialog that the window close button opens above it', async () => {
+  const f = overviewDialogFixture(), opener = f.$('[data-action="overview-open"]');
+  const host = f.dom.content.appendChild(f.dom.element('section'));
+  const draw = () => f.window.JetUi.renderStep('validate', host, f.store.getState());
+  f.state.lastRuns.validate = null;
+  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' });
+  f.store.setAccountMappingState({ batchId: 'categories', hasAnyCategory: true });
+  draw();
+  f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: 'A1', accountName: 'Synthetic account', categoryId: 'builtin.cash' }], nextCursor: null });
+  await settle(); draw();
+  f.change('[data-account-select-page]', true); chooseAccountCategory(f, 'builtin.revenue');
+  draw(); f.click('[data-account-apply]'); draw();
+  assert.equal(f.window.JetUi.accountMappingEditor.pendingCount(), 1, 'one category change is unsaved');
+  opener.focus(); opener.fire('click');
+  const close = f.$('.overview-modal__card button[data-action="overview-close"]'); assert.ok(f.dom.document.activeElement === close, 'the overview has focus');
+  f.window.JetUi.exitApp();
+  const dialog = f.$('[data-bind="account-pending-modal"]'); assert.ok(dialog, 'the unsaved-category dialog opens');
+  assert.ok(dialog.contains(f.dom.document.activeElement), 'focus moves into the dialog on top');
+  f.key('Escape'); await settle();
+  assert.ok(f.$('[data-bind="account-pending-modal"]') === null, 'Escape closes the dialog on top');
+  assert.equal(f.state.overviewOpen, true, 'the overview below stays open');
+  assert.ok(f.dom.document.activeElement === close, 'focus returns to the overview');
+  f.key('Escape'); assert.equal(f.state.overviewOpen, false, 'the second Escape closes the overview');
+  assert.ok(f.dom.document.activeElement === opener, 'focus returns to the overview button');
+});
+
 test('remap S6-06 cancellation through the actual export button retains a completed prescreen report and stops the workpaper', async () => {
   const f = remapAppFixture(), cancel = f.$('[data-action="cancel-operation"]');
   f.store.setLastRun('prescreen', { resultRef: { runId: 'p1' } }); f.draw();
@@ -4656,39 +5198,48 @@ test('remap S6-06 cancellation through the actual export button retains a comple
 
 test('remap S5-18 applying an example replaces all existing conditions and focuses the first missing value', () => {
   const f = filterOperationFixture(), deferred = []; f.window.JetFocus.defer = fn => deferred.push(fn);
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="add-set"]'); f.click('[data-kct-letter="H"]'); assert.equal(f.draft().groups.length, 2); f.click('[data-action="open-save"]'); const oldRationale = f.draft().rationale;
+  f.click('[data-kct-letter="G"]'); f.click('[data-action="add-set"]'); f.click('[data-kct-letter="H"]'); assert.equal(f.draft().groups.length, 2); const oldRationale = f.draft().rationale;
+  // 使用者 2026-10-11 裁定：還沒儲存的條件被範例換掉前先詢問。這裡選「不儲存，直接套用」，其餘核對不變。
+  // 第一次失敗：20261011-032026332-6d4b2b2cebce4d8eaf343a490c8b8c46。
+  f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
   f.click('[data-action="apply-template"][data-template-key="nonBusinessDayExcludingDates"]');
+  const dialog = f.dom.document.body.querySelector('[data-bind="filter-pending-modal"]');
+  dialog.fire('click', { target: dialog.querySelector('.modal__actions [data-pending-choice="continue"]') });
   assert.equal(f.draft().groups.length, 1); assert.deepEqual(plain(f.draft().groups[0].rules.map(r => r.type)), ['group', 'fieldValue']);
   assert.doesNotMatch(JSON.stringify(f.draft().groups), /blankDescription|roundAmount/); assert.equal(f.draft().name, '非營業日且排除指定日期');
-  assert.ok(f.draft().rationale); assert.notEqual(f.draft().rationale, oldRationale); assert.equal(f.$('[data-save-panel]').hidden, true);
+  assert.ok(f.draft().rationale); assert.notEqual(f.draft().rationale, oldRationale); assert.equal(f.$('[data-save-panel]').hidden, false);
   assert.deepEqual(plain(f.draft().groups[0].rules[1].values), []);
   const target = deferred.at(-1)(); assert.ok(target); assert.ok(f.$('.rule-row[data-gi="0"][data-ri="1"]').contains(target));
-  assert.ok(target.matches('[data-calendar-open], [data-value-key="values"]'));
+  // 第九節 E 改用原生日期框；首次失敗：20261014-124620770-eb3019eaf3104b769e0a7e040903dd65。
+  assert.ok(target.matches('[data-date-input], [data-value-key="values"]'));
 });
 
-test('remap S5-22 an unavailable legacy example preserves a populated draft and explains the missing field locally', () => {
+test('remap S5-22 an unavailable department example preserves a populated draft and explains the missing field locally', () => {
+  // 使用者 2026-10-08 要求重新設計自訂篩選條件：範例移到「從範例開始」；沒有文字型攸關資料元素欄位時直接停用並在該項下方寫原因。
   const f = filterOperationFixture(); f.click('[data-kct-letter="G"]'); const before = f.draft(), json = JSON.stringify(before);
-  f.click('[data-condition-source="custom"]'); f.click('[data-legacy-example="example2"]');
+  f.click('[data-action="toggle-examples"]');
+  const example = f.$('[data-template-key="manualDepartment"]');
+  assert.equal(example.disabled, true); assert.equal(example.getAttribute('data-action'), null);
+  example.fire('click');
   assert.equal(f.draft(), before); assert.equal(JSON.stringify(f.draft()), json); assert.equal(f.commits.length, 0);
-  assert.ok(f.$('[data-legacy-notice]').textContent.trim());
+  assert.equal(f.$('#filter-example-note-manualDepartment').textContent, '需要先在欄位配對加入部門等文字欄位');
 });
 
 for (const action of ['copy-scenario', 'edit-scenario']) test('remap S5-27 ten saved scenarios ' + (action === 'copy-scenario' ? 'block a copy locally' : 'still allow updating one existing scenario'), async () => {
   const f = filterOperationFixture({ saved: Array.from({ length: 10 }, (_, i) => savedG('S' + (i + 1))) });
-  f.click('[data-action="' + action + '"][data-index="0"]'); f.click('[data-action="open-save"]');
+  f.click('[data-action="' + action + '"][data-index="0"]'); 
   if (action === 'edit-scenario') f.type('[data-bind="scenario-name"]', 'Renamed existing');
   f.click('[data-action="save-scenario"]'); await settle();
   if (action === 'copy-scenario') { assert.equal(f.commits.length, 0); assert.ok(f.notice().trim()); assert.ok(!f.messages().some(m => /儲存.*完成|已儲存/.test(m))); }
-  else { assert.equal(f.commits.length, 1); assert.equal(f.commits[0].payload.scenarios.length, 10); assert.equal(f.commits[0].payload.scenarios[0].name, 'Renamed existing'); }
+  // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。原本看整批仍是 10 個、第 1 個改了名；
+  // 現在看只送第 1 個（position 1、原名 S1）並帶新名稱。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
+  else {
+    assert.equal(f.commits.length, 1); assert.equal(f.commits[0].method, 'filterScenarioSave');
+    assert.equal(f.commits[0].payload.position, 1); assert.equal(f.commits[0].payload.expectedName, 'S1');
+    assert.equal(f.commits[0].payload.scenario.name, 'Renamed existing');
+  }
 });
 
-function remapFilterPreviewFixture() {
-  const f = filterOperationFixture(), requests = [];
-  for (const action of ['filterPreview', 'queryFilterVoucherPage', 'queryFilterVoucherRowsPage'])
-    f.window.JetApi[action] = payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject }));
-  vm.runInContext(fs.readFileSync(path.join(root, 'filter-vouchers.js'), 'utf8'), f.context);
-  return { ...f, requests, request(action) { const result = requests.filter(r => r.action === action).at(-1); assert.ok(result, action + ' requested'); return result; } };
-}
 async function remapSuccessfulPreview(f) {
   f.click('[data-kct-letter="G"]'); f.click('[data-action="preview-scenario"]');
   f.request('filterPreview').resolve({ scenario: { count: 123, voucherCount: 1, populationScope: 'auditPeriod' } }); await settle();
@@ -4718,7 +5269,12 @@ test('remap S5-23 expanding a voucher requests fifty rows and labels hits separa
 test('remap S5-36 switching between filter and saved panes preserves the existing preview and draft without requests', async () => {
   const f = remapFilterPreviewFixture(); await remapSuccessfulPreview(f);
   const state = f.store.getState(), draft = state.filter.draft, preview = state.filter.preview, requests = f.requests.length;
-  f.click('[data-filter-pane-select="saved"]'); f.click('[data-filter-pane-select="filter"]');
+  const shown = () => [f.$('[data-filter-pane="filter"]').hidden, f.$('[data-filter-pane="saved"]').hidden];
+  assert.deepEqual(shown(), [false, true], 'only the filter pane is shown at first');
+  f.click('[data-filter-pane-select="saved"]');
+  assert.deepEqual(shown(), [true, false], 'the saved pane replaces the filter pane');
+  f.click('[data-filter-pane-select="filter"]');
+  assert.deepEqual(shown(), [false, true]);
   assert.equal(state.filter.draft, draft); assert.equal(state.filter.preview, preview); assert.equal(state.filter.previewExpired, false); assert.equal(f.requests.length, requests);
   assert.doesNotMatch(f.dom.content.textContent, /條件已變更/); assert.match(f.dom.content.textContent, /123/);
 });
@@ -4726,10 +5282,11 @@ test('remap S5-36 switching between filter and saved panes preserves the existin
 test('remap S5-24 long custom metadata respects the documented limits and a cleared name can be regenerated', () => {
   const f = filterOperationFixture(); f.click('[data-condition-source="custom"]');
   for (const [subject, value] of [['description', '合成摘要'.repeat(80)], ['accName', '合成科目名稱'.repeat(80)], ['docNum', '合成傳票號碼'.repeat(80)]]) {
-    f.choose('[data-custom-subject]', 'field:' + subject); f.click('[data-action="add-rule"]');
+    // 使用者 2026-10-08 要求重新設計自訂篩選條件：欄位改由欄位按鈕直接加入。
+    f.click('[data-add-field="' + subject + '"]');
     const last = f.dom.content.querySelectorAll('[data-value-key="values"]').at(-1); assert.ok(last); last.value = value; last.fire('input');
   }
-  f.click('[data-action="open-save"]'); const name = f.$('[data-bind="scenario-name"]').value, rationale = f.$('[data-bind="scenario-rationale"]').value;
+  const name = f.$('[data-bind="scenario-name"]').value, rationale = f.$('[data-bind="scenario-rationale"]').value;
   assert.ok(name.length <= 64); assert.match(name, /摘要/); assert.match(name, /科目名稱/); assert.match(name, /3/); assert.doesNotMatch(name, /傳票號碼/);
   assert.ok(rationale.length <= 180); assert.match(rationale, /摘要/); assert.match(rationale, /科目名稱/); assert.match(rationale, /傳票號碼/);
   f.type('[data-bind="scenario-name"]', ''); const input = f.dom.content.querySelectorAll('[data-value-key="values"]')[0]; input.value = '合成新摘要'; input.fire('input');
@@ -4743,9 +5300,14 @@ for (const key of ['dcDebitCode', 'dcCreditCode']) test('remap S3-13 ' + key + '
   f.store.setMappingCommitted('gl', { mapping: { ...mapping, dcField: 'Side', dcDebitCode: 'D', dcCreditCode: 'C' }, mode: 'side', options: plain(f.state.mapping.gl.options) });
   f.draw(); f.click('[data-action="remap-gl"]'); f.draw();
   const input = f.$('[data-mapping-key="' + key + '"]'), commit = f.$('[data-action="commit-gl"]'); assert.ok(input); assert.equal(commit.disabled, false);
-  input.value = ''; input.fire('input'); assert.equal(commit.disabled, true); assert.match(f.$('.map-rail').textContent, key === 'dcDebitCode' ? /借方代碼/ : /貸方代碼/);
-  assert.equal(f.$('[data-focus-mapping-field="' + key + '"]').closest('li').classList.contains('is-done'), false);
-  input.value = 'X'; input.fire('input'); assert.equal(commit.disabled, false); assert.equal(f.$('[data-focus-mapping-field="' + key + '"]').closest('li').classList.contains('is-done'), true); assert.match(f.$('.map-rail__title').textContent, /全部指派/); assert.equal(f.$('[data-mapping-key="' + key + '"]'), input); assert.equal(f.$('[data-action="commit-gl"]'), commit);
+  // 第 6 則：刪除一側仍可確認，刪除最後一側才提示；編輯中的 DOM 與焦點不重建。
+  input.value = ''; input.fire('input'); assert.equal(commit.disabled, false);
+  const other = f.$('[data-mapping-key="' + (key === 'dcDebitCode' ? 'dcCreditCode' : 'dcDebitCode') + '"]');
+  other.value = ''; other.fire('input'); assert.equal(commit.disabled, true);
+  assert.match(f.$('[data-bind="mapping-option-problems"]').textContent, /至少填寫一個/);
+  input.value = 'X'; input.fire('input'); assert.equal(commit.disabled, false);
+  assert.equal(!!f.$('[data-bind="mapping-option-problems"]'), false);
+  assert.equal(f.$('[data-mapping-key="' + key + '"]'), input); assert.equal(f.$('[data-action="commit-gl"]'), commit);
   assert.match(f.$('[data-bind="mapping-banner-gl"]').textContent, /修改|變更/); f.click('[data-action="commit-gl"]');
   assert.equal(f.requests.filter(r => r.action === 'mappingCommitGl').length, 1); assert.equal(f.request('mappingCommitGl').payload.mapping[key], 'X');
 });
@@ -4767,20 +5329,1119 @@ for (const catalog of [null, []]) test('remap S4-06 prescreen export preserves i
   const artifact = { artifactId: 'new-prescreen', kind: 'prescreenReport', fileName: 'prescreen.xlsx', stale: false, fileState: 'asPublished', sourceRef: { prescreenRunId: 'p1' } };
   f.requests[0].resolve({ artifact, reportArtifacts: catalog, ...(catalog === null ? { reportArtifactWarning: '合成清單無法更新' } : {}) }); await settle();
   assert.deepEqual(plain(f.store.getState().reportArtifacts.map(a => a.artifactId).sort()), [old.artifactId, artifact.artifactId].sort());
-  const html = f.v.prescreenArtifactHtml(f.store.getState(), run, f.ui.prescreenPositioningCopy(run)); assert.match(html, /role="status"/); assert.match(html, catalog === null ? /合成清單無法更新/ : /無須重新產生/);
+  const html = f.v.prescreenArtifactHtml(f.store.getState(), run, f.ui.prescreenPositioningCopy(run)); assert.match(html, /role="status"/); assert.match(html, catalog === null ? /合成清單無法更新/ : /重新開啟案件就會更新，不必重新產生/);
   assert.ok(f.store.getState().messages.some(m => m.level === 'info' && /已.*產生預篩選報告/.test(m.text)));
 });
-
-function remapPrescreen(runId) {
-  return { resultRef: { runId }, creatorSummary: { creators: [], totalPreparerCount: 0 }, rareAccounts: { distinctAccountCount: 0, lowFrequencyAccountCount: 0, accounts: [] },
-    postPeriodApproval: { count: 0 }, suspiciousKeywords: { count: 0 }, unexpectedAccountPair: { count: 0 }, trailingZeros: { count: 0, zerosThreshold: 6 },
-    weekendActivity: { postingCount: 0, approvalCount: 0 }, holidayActivity: { postingCount: 0, approvalCount: 0 },
-    backdatedPosting: { count: 0 }, blankDescription: { count: 0 }, nonAuthorizedPreparer: { count: 0 }, lowFrequencyPreparer: { count: 0 }, lowFrequencyAccount: { count: 0 } };
-}
 
 for (const action of ['app-back-picker', 'app-exit']) test('remap S1-16 X-17 ' + action + ' retains the case when release is rejected for an in-flight operation', async () => {
   const f = remapAppFixture(), project = f.state.project; f.store.setView('workflow'); f.click('[data-action="' + action + '"]'); await settle();
   f.request('projectSaveProgress').resolve({}); await settle(); f.request('projectReleaseLock').reject({ code: 'operation_in_progress' }); await settle();
   assert.equal(f.state.project, project); assert.equal(f.state.view, 'workflow'); assert.equal(f.state.busy, false); assert.equal(f.requests.some(r => r.action === 'hostExitApp'), false);
-  assert.ok(f.state.messages.some(m => m.level === 'warn' && /等待.*完成.*重試/.test(m.text)));
+  // 使用者 2026-10-13 勾選頁確認 23：句子不再寫按鈕名稱，原本比對「等待…完成…重試」（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+  assert.ok(f.state.messages.some(m => m.level === 'warn' && m.text === '作業還在進行，請等它完成後再試一次。'));
+});
+
+// 使用者 2026-10-08 要求重新設計自訂篩選條件：左欄只剩「依欄位設定」與「常用查核條件」，範例移到右側「從範例開始」，
+// 每組多一個「⋯」選單。以下以正式第五步畫面與函式操作；名稱、規則與原因逐字寫死，不由被測程式算出。
+const CUSTOM_CHECK_LABELS = {
+  '日期與時點': ['總帳日期在週末', '總帳日期在國定假日', '總帳日期在非營業日', '傳票核准日在非營業日', '財報準備日起核准的分錄', '指定日期區間', '查核期末最後幾天'],
+  '金額': ['大額分錄', '金額尾數連續多個 0'],
+  '摘要': ['摘要含特定字詞', '空白摘要'],
+  '科目與借貸': ['只看借方或貸方', '科目屬於指定分類', '借方與貸方分類組合', '借方與貸方科目編號組合', '未預期的借貸組合', '較少使用的科目'],
+  '人員與分錄性質': ['人工分錄', '編製分錄較少的人員'],
+  '預篩選結果': ['沿用第四步預篩選規則']
+};
+const CUSTOM_EXAMPLE_NAMES = ['借現金、貸非現金', '貸現金、借非現金', '非營業日且排除指定日期', '期末最後 7 天的人工分錄', '空白摘要或空白核准人員',
+  '特定人員的大額分錄', '週末人工分錄的特定摘要', '人工分錄的特定部門', '指定借貸科目組合的大額分錄', '財報準備期間的人工假日分錄'];
+const DEFAULT_KEYWORDS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG', '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外', '帳外',
+  '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外'];
+
+// 只取預期值裡寫到的鍵比較；陣列逐項比較。
+function pickShape(actual, expected) {
+  if (Array.isArray(expected)) return expected.map((item, i) => pickShape((actual || [])[i], item));
+  if (expected && typeof expected === 'object') return Object.fromEntries(Object.keys(expected).map(key => [key, pickShape((actual || {})[key], expected[key])]));
+  return actual;
+}
+
+function customPaneFixture({ rdeFields = [], mapping = {} } = {}) {
+  const f = filterOperationFixture();
+  f.store.setMappingCommitted('gl', { mapping, mode: 'signed', options: { rdeFields } });
+  f.click('[data-condition-source="custom"]');
+  return f;
+}
+
+test('custom pane lists every core field by type, marks relevant data element fields and adds the default rule to the active group', () => {
+  const f = customPaneFixture({ rdeFields: [{ fieldId: 'rde.d', sourceColumn: 'DocDay', label: '單據日', valueType: 'date' },
+    { fieldId: 'rde.m', sourceColumn: 'Tax', label: '稅額', valueType: 'money' }, { fieldId: 'rde.t', sourceColumn: 'Dept', label: '部門', valueType: 'text' }] });
+  const pane = f.$('[data-condition-pane="custom"]');
+  assert.deepEqual(pane.querySelectorAll('.filter-custom-block__title').map(node => node.textContent), ['依欄位設定', '常用查核條件']);
+  assert.doesNotMatch(pane.innerHTML, /<h3|data-custom-subject|data-legacy|data-template-key|舊表|範例/);
+  const rows = pane.querySelectorAll('.filter-chip-row');
+  assert.deepEqual(rows.map(row => row.querySelector('.filter-chip-row__label').textContent), ['日期', '數字', '文字']);
+  // 核心欄位不依配對狀態篩選（此案件沒有配對任何核心欄位，仍全部列出）。
+  assert.deepEqual(rows.map(row => row.querySelectorAll('[data-add-field]').map(button => button.textContent)), [
+    ['總帳日期', '傳票核准日', '單據日'], ['金額', '稅額'],
+    ['傳票摘要', '會計科目編號', '會計科目名稱', '傳票建立人員', '傳票核准人員', '傳票號碼', '分錄來源模組', '傳票文件項次', '部門']]);
+  assert.equal(f.$('[data-add-field="rde.t"]').classList.contains('filter-chip--extra'), true);
+  assert.equal(f.$('[data-add-field="postDate"]').classList.contains('filter-chip--extra'), false);
+  // 同上，欄位按鈕的提示與報讀名稱只加註來源欄。使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；同批改名的 C# 測試第一次失敗收據是 20261013-092449164-3847782f6c50488b86a0ac3856e606ca，那次在 C# 測試步驟停止，Node 前端測試尚未執行。
+  assert.equal(f.$('[data-add-field="rde.t"]').getAttribute('title'), '部門（來源欄：Dept）');
+  assert.equal(f.$('[data-add-field="rde.t"]').getAttribute('aria-label'), '加入條件：部門（來源欄：Dept）');
+
+  const deferred = []; f.window.JetFocus.defer = fn => deferred.push(fn);
+  f.click('[data-add-field="createBy"]'); f.click('[data-action="add-set"]'); f.click('[data-add-field="amount"]');
+  const groups = f.draft().groups;
+  assert.deepEqual(plain(groups.map(group => group.rules.map(rule => [rule.type, rule.field, rule.operator]))),
+    [[['fieldValue', 'createBy', 'in']], [['fieldValue', 'amount', 'equals']]]);
+  assert.equal(f.$('.rule-row[data-gi="1"][data-ri="0"]').classList.contains('rule-row--selected'), true, 'the new condition is selected');
+  f.click('[data-check-category="amounts"]'); f.click('[data-add-check="largeAmount"]');
+  assert.equal(deferred.at(-1)(), f.$('.rule-row[data-gi="1"][data-ri="1"]').querySelector('[data-value-key="value"]'), 'an empty threshold receives focus');
+  f.click('[data-add-field="rde.t"]');
+  assert.deepEqual(plain([groups[1].rules[2].fieldId, groups[1].rules[2].field ?? null, groups[1].rules[2].operator]), ['rde.t', null, 'contains']);
+  assert.doesNotMatch(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8'), /[✦★]/, 'no decorative star markers');
+});
+
+test('field buttons follow the active group join rules: same voucher always AND, row groups keep their combinator', () => {
+  const f = customPaneFixture();
+  f.click('[data-add-field="description"]'); f.click('[data-add-field="accName"]');
+  assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => rule.join)), ['AND', 'AND'], 'a new row group starts with AND');
+  const draft = f.draft(); draft.groups[0].rules.forEach(rule => { rule.join = 'OR'; }); f.store.setFilterDraft(draft);
+  f.click('[data-add-field="docNum"]');
+  assert.equal(f.draft().groups[0].rules[2].join, 'OR');
+  const same = f.draft(); same.groups[0].matchScope = 'sameVoucher'; same.groups[0].rules.forEach(rule => { rule.join = 'AND'; }); f.store.setFilterDraft(same);
+  f.click('[data-add-field="jeSource"]');
+  assert.equal(f.draft().groups[0].rules[3].join, 'AND');
+});
+
+test('common checks open one category at a time, start with the first, remember the choice and show only a name and an add button', () => {
+  const f = customPaneFixture();
+  const open = () => f.dom.content.querySelectorAll('[data-check-category]').filter(button => button.getAttribute('aria-expanded') === 'true').map(button => button.textContent);
+  assert.deepEqual(open(), ['日期與時點']);
+  assert.equal(f.$('#filter-checks-dates').hidden, false); assert.equal(f.$('#filter-checks-amounts').hidden, true);
+  f.click('[data-check-category="amounts"]');
+  assert.deepEqual(open(), ['金額']); assert.equal(f.$('#filter-checks-dates').hidden, true); assert.equal(f.$('#filter-checks-amounts').hidden, false);
+  f.store.touch();
+  assert.deepEqual(open(), ['金額'], 'redrawing keeps the open category');
+  f.click('[data-check-category="amounts"]');
+  assert.deepEqual(open(), [], 'the open category can be closed');
+  const labels = Object.fromEntries(f.dom.content.querySelectorAll('[data-check-category]').map(button =>
+    [button.textContent, f.$('#' + button.getAttribute('aria-controls')).querySelectorAll('.filter-check__label').map(node => node.textContent)]));
+  assert.deepEqual(labels, CUSTOM_CHECK_LABELS);
+  for (const item of f.dom.content.querySelectorAll('.filter-check')) {
+    assert.equal(item.querySelector('[data-add-check]').textContent, '加入');
+    const extra = item.children.filter(child => !child.matches('.filter-check__label') && !child.matches('[data-add-check]') && !child.matches('.filter-check__note'));
+    assert.deepEqual(extra, [], 'no extra explanation beside a check');
+  }
+});
+
+test('every common check adds its fixed rule shape to the active group', () => {
+  const f = batch7Fixture();
+  f.store.getState().project.lastPeriodStart = '2025-12-01';
+  f.store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
+  f.store.setMappingCommitted('gl', { mapping: { createBy: 'Maker', approveBy: 'Checker' }, mode: 'signed', options: {} });
+  const expected = {
+    postDateWeekend: { type: 'fieldValue', field: 'postDate', operator: 'isWeekend' },
+    postDateHoliday: { type: 'fieldValue', field: 'postDate', operator: 'isHoliday' },
+    postDateNonBusinessDay: { type: 'fieldValue', field: 'postDate', operator: 'isNonBusinessDay' },
+    docDateNonBusinessDay: { type: 'fieldValue', field: 'docDate', operator: 'isNonBusinessDay' },
+    postPeriodApproval: { type: 'prescreen', prescreenKey: 'postPeriodApproval' },
+    postDateRange: { type: 'fieldValue', field: 'postDate', operator: 'between', from: '', to: '' },
+    periodEndDays: { type: 'fieldValue', field: 'postDate', operator: 'between', from: '2025-12-25', to: '2025-12-31' },
+    largeAmount: { type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '', amountBasis: 'absolute' },
+    // 第九節 G2 改用欄位條件；首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+    trailingZeros: { type: 'group', rules: [{ type: 'fieldValue', field: 'amount', operator: 'endsWithDigits', value: '000000', amountBasis: 'absolute' },
+      { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '1', amountBasis: 'absolute' }] },
+    descriptionKeywords: { type: 'fieldValue', field: 'description', operator: 'contains', values: DEFAULT_KEYWORDS },
+    blankDescription: { type: 'fieldValue', field: 'description', operator: 'isBlank' },
+    debitOrCreditOnly: { type: 'drCrOnly', drCr: 'debit' },
+    // 第九節 G1 保留借方預設，方向改放明示子條件。首次失敗：20261014-132501058-ef503fecc9824f3b9e6f009a7b154327。
+    accountCategory: { type: 'group', rules: [{ type: 'drCrOnly', drCr: 'debit' }, { type: 'accountSide', categoryMode: 'is', categorySelection: 'subtree' }] },
+    categoryPair: { type: 'specialAccountCategoryPair', pairMode: 'drAndCr', categorySelection: 'subtree' },
+    accountCodePair: { type: 'group', rules: [
+      { type: 'voucher', quantifier: 'any', rules: [{ type: 'drCrOnly', drCr: 'debit' }, { type: 'fieldValue', field: 'accNum', operator: 'in', values: [] }] },
+      { type: 'voucher', quantifier: 'any', rules: [{ type: 'drCrOnly', drCr: 'credit' }, { type: 'fieldValue', field: 'accNum', operator: 'in', values: [] }] }] },
+    unexpectedAccountPair: { type: 'prescreen', prescreenKey: 'unexpectedAccountPair' },
+    rareAccounts: { type: 'entityFrequency', field: 'accNum', countUnit: 'entries', countOperator: 'lessThanOrEqual', countFrom: '11' },
+    manualEntries: { type: 'manualAuto', isManual: 'true' },
+    rarePreparers: { type: 'entityFrequency', field: 'createBy', countUnit: 'entries', countOperator: 'lessThanOrEqual', countFrom: '11' },
+    prescreenResult: { type: 'prescreen', prescreenKey: 'postPeriodApproval' }
+  };
+  const keys = f.ui.FILTER_COMMON_CHECK_GROUPS.flatMap(group => group.checks.map(check => check.key));
+  assert.deepEqual(plain(keys), Object.keys(expected));
+  for (const [key, shape] of Object.entries(expected)) {
+    f.store.setFilterDraft({ name: '', rationale: '', groups: [] });
+    f.api.addCommonCheck(key);
+    const rules = f.store.getState().filter.draft.groups[0].rules;
+    assert.equal(rules.length, 1, key);
+    assert.deepEqual(plain(pickShape(rules[0], shape)), shape, key);
+    assert.ok(f.api.toWireDraft(f.store.getState().filter.draft).groups[0].rules[0].type, key);
+  }
+  // 沒有期末財報準備日時，「沿用第四步預篩選規則」改用下一個可用的規則，避免帶入後端一定會擋的條件。
+  f.store.getState().project.lastPeriodStart = null;
+  f.store.setFilterDraft({ name: '', rationale: '', groups: [] });
+  f.api.addCommonCheck('prescreenResult');
+  assert.equal(f.store.getState().filter.draft.groups[0].rules[0].prescreenKey, 'suspiciousKeywords');
+});
+
+test('common checks are disabled only when the backend would reject them and say why under the item', () => {
+  const f = batch7Fixture();
+  const state = () => {
+    const html = f.api.customPickerHtml(), result = {};
+    for (const match of html.matchAll(/data-add-check="([^"]+)"([^>]*)>/g)) result[match[1]] = /\bdisabled\b/.test(match[2]);
+    return { html, disabled: Object.keys(result).filter(key => result[key]) };
+  };
+  const note = (html, key) => (new RegExp('id="filter-check-note-' + key + '">([^<]*)<').exec(html) || [])[1];
+  let page = state();
+  assert.deepEqual(page.disabled, ['postPeriodApproval', 'accountCategory', 'categoryPair', 'unexpectedAccountPair', 'rarePreparers']);
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-15、R3-17（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.equal(note(page.html, 'postPeriodApproval'), '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫');
+  assert.equal(note(page.html, 'accountCategory'), '科目配對中尚無任何科目設定分類，請先在第四步設定');
+  assert.equal(note(page.html, 'categoryPair'), '科目配對中尚無任何科目設定分類，請先在第四步設定');
+  assert.equal(note(page.html, 'unexpectedAccountPair'), '科目配對中尚無任何科目設定分類，請先在第四步設定');
+  assert.equal(note(page.html, 'rarePreparers'), '「傳票建立人員」尚未選擇來源欄');
+  assert.equal(note(page.html, 'postDateHoliday'), undefined, 'a missing holiday list does not disable the check');
+  const before = JSON.stringify(f.store.getState().filter.draft);
+  f.api.addCommonCheck('rarePreparers');
+  assert.equal(JSON.stringify(f.store.getState().filter.draft), before, 'a disabled check never changes the draft');
+  // 使用者 2026-10-14 第三輪勾選頁同意刪除「案件沒有查核截止日」這個停用分支：建立案件必填查核截止日
+  // （create-step.js），畫面走不到這個狀態。原本「沒有截止日就停用」的核對改成鎖住刪除後的行為：
+  // 不再因截止日停用，也不再寫這句（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4，
+  // 本測試先在上面 R3-17 的句子失敗）。
+  f.store.getState().project.periodEnd = null;
+  page = state();
+  assert.ok(!page.disabled.includes('periodEndDays'));
+  assert.equal(note(page.html, 'periodEndDays'), undefined);
+  assert.doesNotMatch(page.html, /案件沒有查核截止日/);
+  f.store.getState().project.periodEnd = '2025-12-31'; f.store.getState().project.lastPeriodStart = '2025-12-01';
+  f.store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
+  f.store.setMappingCommitted('gl', { mapping: { createBy: 'Maker' }, mode: 'signed', options: {} });
+  assert.deepEqual(state().disabled, []);
+});
+
+// 第九節 G4 將組合按鈕移出選單；首次失敗：20261014-131029712-8f2df24aa4ae432f9ea153f221584af6。
+// 保留加入指定組、預設量詞與不影響其他組的斷言。
+test('the group heading adds a bracket or a voucher condition to its own group even when there is only one group', () => {
+  const f = filterOperationFixture();
+  assert.equal(f.$('.filter-group-menu'), null);
+  assert.deepEqual(f.dom.content.querySelectorAll('[data-add-compound]').map(button => button.textContent), ['加入子條件組', '加入整張傳票條件']);
+  f.click('[data-add-compound="group"]');
+  assert.deepEqual(plain(f.draft().groups.map(group => group.rules.map(rule => rule.type))), [['group']]);
+  f.click('[data-action="add-set"]');
+  assert.equal(f.dom.content.querySelectorAll('.filter-group-heading [data-add-compound="group"]').length, 2);
+  f.click('[data-add-compound="voucher"][data-gi="0"]');
+  const groups = f.draft().groups;
+  assert.deepEqual(plain(groups.map(group => group.rules.map(rule => rule.type))), [['group', 'voucher'], []]);
+  // 第九節 G1 的傳票條件不再攜帶 side。首次失敗：20261014-132501058-ef503fecc9824f3b9e6f009a7b154327。
+  assert.deepEqual(plain([groups[0].rules[1].side, groups[0].rules[1].quantifier]), [null, 'any']);
+});
+
+test('examples start hidden, list ten plain names with a one-line notice and apply under the example name', () => {
+  const f = filterOperationFixture(), list = () => f.$('[data-example-list]');
+  assert.equal(list().hidden, true);
+  f.click('[data-action="toggle-examples"]');
+  assert.equal(list().hidden, false); assert.equal(f.$('[data-action="toggle-examples"]').getAttribute('aria-expanded'), 'true');
+  assert.equal(f.$('.filter-example-list__hint').textContent, '套用後會替換目前的條件，已儲存的情境不受影響。');
+  const buttons = list().querySelectorAll('[data-template-key]');
+  assert.deepEqual(buttons.map(button => button.textContent), CUSTOM_EXAMPLE_NAMES);
+  for (const button of buttons) {
+    assert.ok(button.getAttribute('title').length > 0, 'the audit purpose is in the title');
+    assert.doesNotMatch(button.getAttribute('title'), /工作簿範例|請依案件修改理由/);
+  }
+  // 原本以目錄代號、範例編號命名的情境，現在直接用範例名稱。
+  assert.doesNotMatch(list().textContent, /舊表|A 到 U|範例 \d|[A-U](?:\+[A-U])+/);
+  f.click('[data-action="apply-template"][data-template-key="weekendManualDescription"]');
+  assert.equal(f.draft().name, '週末人工分錄的特定摘要');
+  assert.equal(list().hidden, true, 'applying closes the example list');
+  assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => [rule.type, rule.field, rule.operator, rule.values])), [
+    ['manualAuto', null, null, null], ['fieldValue', 'postDate', 'isWeekend', []], ['fieldValue', 'description', 'contains', ['迴轉']]]);
+  f.click('[data-add-field="docNum"]');
+  assert.notEqual(f.draft().name, '週末人工分錄的特定摘要', 'adding a condition returns to the automatic name');
+});
+
+test('examples disable for missing approver mapping, preparation date or period end and leave the draft untouched', () => {
+  const f = filterOperationFixture();
+  f.store.setProject({ projectId: 'example-requirements', periodEnd: '' });
+  f.click('[data-action="toggle-examples"]');
+  const note = key => f.$('#filter-example-note-' + key)?.textContent;
+  assert.equal(f.$('[data-template-key="blankDescriptionOrApprover"]').disabled, true);
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-17（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.equal(note('blankDescriptionOrApprover'), '「傳票核准人員」尚未選擇來源欄');
+  assert.equal(note('preparationManualHoliday'), '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫');
+  // 使用者 2026-10-14 第三輪勾選頁同意刪除「案件沒有查核截止日」分支：建立案件必填查核截止日，範例不再因此停用。
+  assert.equal(note('periodEndManual'), undefined);
+  assert.equal(f.$('[data-template-key="periodEndManual"]').disabled, false);
+  assert.equal(note('weekendManualDescription'), undefined);
+  f.store.setMappingCommitted('gl', { mapping: { approveBy: 'Checker' }, mode: 'signed', options: {} });
+  assert.equal(f.$('[data-template-key="blankDescriptionOrApprover"]').disabled, false);
+});
+
+for (const count of [1, 2]) test('the department example with ' + count + ' text field(s) ' + (count === 1 ? 'fills it automatically' : 'asks in place and cancelling or Esc keeps the draft'), () => {
+  const rdeFields = [{ fieldId: 'rde.dept', sourceColumn: 'Dept', label: '部門', valueType: 'text' },
+    { fieldId: 'rde.unit', sourceColumn: 'Unit', label: '部門', valueType: 'text' }].slice(0, count);
+  const f = customPaneFixture({ rdeFields });
+  f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
+  f.click('[data-add-field="description"]');
+  const before = f.draft(), json = JSON.stringify(before);
+  f.click('[data-action="toggle-examples"]');
+  f.click('[data-action="apply-template"][data-template-key="manualDepartment"]');
+  if (count === 2) {
+    const pick = f.$('[data-example-pick="manualDepartment"]');
+    assert.ok(pick, 'field choices appear in place');
+    assert.deepEqual(pick.querySelectorAll('[data-example-field]').map(button => button.textContent), ['部門（Dept）', '部門（Unit）']);
+    assert.equal(f.draft(), before); assert.equal(JSON.stringify(f.draft()), json);
+    f.click('[data-action="cancel-example-pick"]');
+    assert.equal(f.$('[data-example-pick]'), null); assert.equal(JSON.stringify(f.draft()), json);
+    f.click('[data-action="apply-template"][data-template-key="manualDepartment"]');
+    f.$('[data-example-list]').fire('keydown', { key: 'Escape' });
+    assert.equal(f.$('[data-example-pick]'), null); assert.equal(f.$('[data-example-list]').hidden, false, 'the first Esc only cancels the field choice');
+    assert.equal(JSON.stringify(f.draft()), json);
+    f.click('[data-action="apply-template"][data-template-key="manualDepartment"]');
+    f.click('[data-example-field="rde.unit"]');
+  }
+  // 使用者 2026-10-11 裁定：草稿已有條件，範例真的要換掉它時先詢問。這裡選「不儲存，直接套用」，其餘核對不變。
+  // 第一次失敗：20261011-032026332-6d4b2b2cebce4d8eaf343a490c8b8c46。
+  const dialog = f.dom.document.body.querySelector('[data-bind="filter-pending-modal"]');
+  dialog.fire('click', { target: dialog.querySelector('.modal__actions [data-pending-choice="continue"]') });
+  const rules = f.draft().groups[0].rules;
+  assert.equal(f.draft().name, '人工分錄的特定部門');
+  assert.deepEqual(plain(rules.map(rule => [rule.type, rule.fieldId, rule.operator, rule.values])), [
+    ['manualAuto', null, null, null], ['fieldValue', count === 1 ? 'rde.dept' : 'rde.unit', 'contains', ['總經理室']]]);
+  assert.equal(rules[1].field, undefined);
+});
+
+test('saved scenarios with retired count rule types still display their label, value and readback', () => {
+  const f = batch7Fixture();
+  for (const [type, label] of [['customPreparerEntryCount', 'GL 中編製人員分錄筆數 ≤'], ['customAccountEntryCount', 'GL 中科目分錄筆數 ≤']]) {
+    const rule = { type, maxEntries: '11', join: 'AND' };
+    const subject = f.api.ruleSubjectHtml(rule, 'pattern');
+    assert.ok(subject.includes('<option value="' + type + '" selected>' + label + '</option>'), type);
+    assert.doesNotMatch(subject, /無法使用/);
+    const row = f.api.ruleRowHtml(rule, { rules: [rule] }, 0, 0);
+    assert.ok(row.includes('<strong>' + label + '</strong>'), type);
+    assert.match(row, /data-rule-bind="maxEntries"[^>]*value="11"/);
+    assert.equal(f.text(f.api.readBackHtml({ groups: [{ rules: [rule] }] })).replace(/^篩選條件：/, ''), label + ' 11');
+  }
+  // 新條件不再提供這兩種型別。
+  assert.doesNotMatch(f.api.ruleSubjectHtml({ type: 'customTrailingZeros', digits: '6' }, 'pattern'), /customPreparerEntryCount|customAccountEntryCount/);
+  assert.doesNotMatch(f.api.customPickerHtml(), /customPreparerEntryCount|customAccountEntryCount/);
+});
+
+// 舊目錄（只留在測試夾具）代號與新選單的對照。keys 列出比較的鍵；null 表示整條規則結構相同（只比較舊目錄寫到的鍵）。
+// equivalence 表示有意改用別的規則，等價案例寫在 LegacyFormWorkflowTests，以既有固定答案的集合運算驗證。
+const LEGACY_MENU_MAP = [
+  { code: 'A', kind: 'check', key: 'postPeriodApproval', keys: null },
+  { code: 'B', kind: 'check', key: 'descriptionKeywords', equivalence: 'B_customKeywords' },
+  { code: 'C', kind: 'check', key: 'unexpectedAccountPair', keys: null },
+  { code: 'D', kind: 'check', key: 'trailingZeros', equivalence: 'D_customTrailingZeros' },
+  { code: 'E', kind: 'check', key: 'manualEntries', keys: null },
+  { code: 'F', kind: 'check', key: 'blankDescription', equivalence: 'F_fieldBlank' },
+  { code: 'G', kind: 'check', key: 'postDateWeekend', keys: null },
+  { code: 'H', kind: 'check', key: 'postDateHoliday', keys: null },
+  { code: 'I', kind: 'check', key: 'postDateNonBusinessDay', equivalence: 'GH_nonBusinessDay' },
+  { code: 'J', kind: 'field', key: 'docDate', keys: ['type', 'field'] },
+  { code: 'K', kind: 'field', key: 'docDate', keys: ['type', 'field'] },
+  { code: 'L', kind: 'check', key: 'docDateNonBusinessDay', equivalence: 'JK_nonBusinessDay' },
+  { code: 'M', kind: 'check', key: 'debitOrCreditOnly', keys: null },
+  { code: 'N', kind: 'check', key: 'debitOrCreditOnly', keys: ['type'] },
+  { code: 'O', kind: 'field', key: 'description', keys: ['type', 'field', 'operator'] },
+  { code: 'P', kind: 'check', key: 'accountCodePair', equivalence: 'P_explicitSides' },
+  { code: 'P', kind: 'check', key: 'categoryPair', keys: ['type', 'pairMode', 'categorySelection'], source: 'categoryRules' },
+  { code: 'Q', kind: 'field', key: 'amount', keys: ['type', 'field'] },
+  { code: 'R', kind: 'check', key: 'postDateRange', keys: null },
+  { code: 'S', kind: 'check', key: 'largeAmount', keys: ['type', 'field', 'operator', 'amountBasis'] },
+  { code: 'T', kind: 'check', key: 'rareAccounts', keys: ['type', 'field', 'countUnit'] },
+  { code: 'U', kind: 'check', key: 'rarePreparers', keys: ['type', 'field'] },
+  { code: 'example1', kind: 'template', key: 'weekendManualDescription', keys: null },
+  { code: 'example2', kind: 'template', key: 'manualDepartment', keys: null },
+  { code: 'example3', kind: 'template', key: 'accountPairLargeAmount', equivalence: 'example3_explicitSides' },
+  { code: 'example5', kind: 'template', key: 'preparationManualHoliday', keys: null }
+];
+
+test('common checks and examples keep the rule structure of the matching retired catalogue entries', () => {
+  const f = batch7Fixture(), ui = f.ui;
+  const catalogue = JSON.parse(fs.readFileSync(path.join(__dirname, '../../src/JET/tests/JET.Tests/Fixtures/legacy-form-2024-1210.json'), 'utf8'));
+  const workflowTests = fs.readFileSync(path.join(__dirname, '../../src/JET/tests/JET.Tests/Application/LegacyFormWorkflowTests.cs'), 'utf8');
+  const checks = ui.FILTER_COMMON_CHECK_GROUPS.flatMap(group => group.checks);
+  function legacyRules(entry) {
+    const item = catalogue.conditions.find(c => c.letter === entry.code) || catalogue.examples.find(e => e.key === entry.code);
+    assert.ok(item, entry.code); return item[entry.source || 'rules'];
+  }
+  function menuRules(entry) {
+    if (entry.kind === 'check') return checks.find(c => c.key === entry.key).rules.map(spec => f.api.conditionFromSpec(spec));
+    if (entry.kind === 'template') return ui.FILTER_SCENARIO_TEMPLATES.find(t => t.key === entry.key).groups[0].rules;
+    f.api.addFieldCondition(entry.key); const draft = f.store.getState().filter.draft; return [draft.groups.at(-1).rules.at(-1)];
+  }
+  const strip = rule => JSON.parse(JSON.stringify(rule, (key, value) => key === 'join' ? undefined : value));
+  for (const entry of LEGACY_MENU_MAP) {
+    const legacy = legacyRules(entry), current = menuRules(entry).map(strip);
+    if (entry.equivalence) { assert.ok(workflowTests.includes('"' + entry.equivalence + '"'), entry.code + ' needs an equivalence case'); continue; }
+    assert.equal(current.length, legacy.length, entry.code);
+    legacy.forEach((rule, i) => {
+      const expected = entry.keys ? Object.fromEntries(entry.keys.map(key => [key, rule[key]])) : rule;
+      assert.deepEqual(plain(pickShape(current[i], expected)), expected, entry.code + ' → ' + entry.key);
+    });
+  }
+  // 範例 4 和「金額尾數連續多個 0」重複，不另列範例。
+  assert.equal(ui.FILTER_SCENARIO_TEMPLATES.some(t => t.groups.some(g => g.rules.some(r => r.prescreenKey === 'trailingZeros'))), false);
+});
+
+test('common checks and examples use only rule types, operators and requirements the screen already knows', () => {
+  const f = batch7Fixture(), ui = f.ui;
+  const types = new Set(ui.FILTER_RULE_TYPES.map(type => type.value));
+  const operators = new Set(['in', 'notIn', 'contains', 'between', 'greaterThan', 'greaterThanOrEqual', 'isBlank', 'isWeekend', 'isHoliday', 'isNonBusinessDay', 'isNotMakeupDay', 'dayOfMonthNotIn', 'endsWithDigits']);
+  const prescreenKeys = new Set(ui.PRESCREEN_KEY_OPTIONS.map(option => option.value));
+  function visit(rule, where) {
+    assert.ok(types.has(rule.type), where + ' type ' + rule.type);
+    if (rule.operator) assert.ok(operators.has(rule.operator), where + ' operator ' + rule.operator);
+    if (rule.prescreenKey) assert.ok(prescreenKeys.has(rule.prescreenKey), where + ' prescreen ' + rule.prescreenKey);
+    (rule.rules || []).forEach(child => visit(child, where));
+  }
+  const requirements = new Set(ui.FILTER_CONDITION_REQUIREMENTS);
+  for (const check of ui.FILTER_COMMON_CHECK_GROUPS.flatMap(group => group.checks)) {
+    if (check.requires) assert.ok(requirements.has(check.requires), check.key);
+    check.rules.forEach(rule => visit(rule, check.key));
+  }
+  assert.equal(ui.FILTER_SCENARIO_TEMPLATES.length, 10);
+  for (const template of ui.FILTER_SCENARIO_TEMPLATES) {
+    if (template.requires) assert.ok(requirements.has(template.requires), template.key);
+    if (template.pickField) assert.equal(template.pickField, 'text', template.key);
+    template.groups.forEach(group => group.rules.forEach(rule => visit(rule, template.key)));
+  }
+});
+
+
+test('oct9 examples belong to the condition catalog and still replace only the draft', () => {
+  const f = filterOperationFixture({ saved: [savedG()] });
+  assert.ok(f.$('.filter-entry [data-action="toggle-examples"]'));
+  assert.equal(!!f.$('.scenario-builder [data-action="toggle-examples"]'), false);
+  f.click('[data-action="toggle-examples"]');
+  assert.equal(f.$('.filter-entry [data-example-list]').hidden, false);
+  f.click('[data-action="apply-template"][data-template-key="weekendManualDescription"]');
+  assert.equal(f.draft().name, '週末人工分錄的特定摘要');
+  assert.deepEqual(plain(f.store.getState().filter.savedScenarios), [savedG()]);
+  assert.equal(f.commits.length, 0);
+});
+
+// 第九節 G3 移除比對範圍；首次失敗：20261014-135637069-066eb7e965824f89bf2b8671156595f1。
+test('oct9 group actions stay visible without a scope menu and allow either join', () => {
+  const f = filterOperationFixture(); f.click('[data-kct-letter="G"]'); f.click('[data-kct-letter="H"]');
+  assert.equal(!!f.$('.filter-relations'), false);
+  assert.equal(f.$('.filter-group-menu'), null);
+  f.choose('[data-set-combinator]', 'OR');
+  assert.equal(f.draft().groups[0].matchScope, 'row');
+  assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => rule.join)), ['OR', 'OR']);
+  assert.equal(f.$('[data-set-combinator]').disabled, false);
+  assert.doesNotMatch(f.$('.filter-group-heading').textContent, /同一傳票/);
+});
+
+test('oct9 clear group leaves an empty reusable group, preserves other groups and never changes saved scenarios', () => {
+  const f = filterOperationFixture({ saved: [savedG()] });
+  f.click('[data-kct-letter="G"]'); f.click('[data-action="add-set"]'); f.click('[data-kct-letter="H"]');
+  f.store.patchFilterDraftMeta({ name: '手寫情境', rationale: '手寫動機', __nameDirty: true, __rationaleDirty: true });
+  const first = plain(f.draft().groups[0]);
+  f.click('[data-action="clear-set"][data-gi="1"]');
+  assert.equal(f.draft().groups.length, 2);
+  assert.deepEqual(plain(f.draft().groups[0]), first);
+  assert.equal(f.draft().groups[1].rules.length, 0);
+  assert.equal(f.draft().groups[1].matchScope, 'row');
+  assert.equal(f.draft().name, '手寫情境'); assert.equal(f.draft().rationale, '手寫動機');
+  f.click('[data-kct-letter="H"]');
+  // 第九節 G2 的 H 卡改用欄位尾數；首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+  assert.equal(f.draft().groups[1].rules[0].type, 'fieldValue');
+  assert.equal(f.draft().groups[1].rules[0].operator, 'endsWithDigits');
+  assert.equal(f.draft().groups[1].rules[0].value, '000000');
+  f.click('[data-action="remove-set"][data-gi="0"]');
+  assert.equal(!!f.$('[data-action="remove-set"]'), false);
+  f.click('[data-action="clear-set"][data-gi="0"]');
+  assert.equal(f.draft().groups.length, 1); assert.equal(f.draft().groups[0].rules.length, 0);
+  assert.equal(f.$('[data-action="clear-set"]').disabled, true);
+  assert.deepEqual(plain(f.store.getState().filter.savedScenarios), [savedG()]);
+  assert.equal(f.commits.length, 0);
+});
+
+test('oct9 account-pair notes are available on demand and nested conditions have a purpose-based title', () => {
+  const f = filterOperationFixture(); f.click('[data-kct-letter="B"]');
+  const help = f.$('.rule-row--account [data-rule-help]');
+  assert.ok(help); assert.equal(help.hasAttribute('open'), false);
+  assert.match(help.textContent, /結果列出同傳票/); assert.match(help.textContent, /未在配對檔/);
+  assert.equal(!!f.$('.rule-row--account > .rule-row__controls > .rule-explanation'), false);
+  f.click('[data-add-compound="group"][data-gi="0"]');
+  assert.match(f.$('.rule-row--compound').textContent, /子條件組/);
+  assert.match(f.$('.rule-row--compound').textContent, /同一筆分錄/);
+  assert.equal(f.draft().groups[0].rules[1].type, 'group');
+});
+
+test('oct9 account paging across 201 accounts never saves implicitly and identifies the last page', async () => {
+  const reads = [], writes = [];
+  const window = { setTimeout, clearTimeout, JetApi: {
+    queryAccountMappingPage: payload => new Promise(resolve => reads.push({ payload, resolve })),
+    accountMappingSave: payload => { writes.push(plain(payload)); return Promise.resolve({ batchId: 'saved', rowCount: 201 }); }
+  } };
+  const document = { createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
+  const context = vm.createContext({ window, document });
+  for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  const store = window.JetStore, ui = window.JetUi;
+  store.setProject({ projectId: 'paging-201' }); store.setTaxonomy({ revision: 1, categories: [{ categoryId: 'cash', label: 'Cash' }] });
+  ui.run = (_, work) => work();
+  function render() { return accountEditorControls(ui, store); }
+  const all = Array.from({ length: 200 }, (_, i) => ({ accountCode: 'A' + String(i).padStart(3, '0'), accountName: 'Synthetic', categoryId: null }))
+    .concat([{ accountCode: 'B001', accountName: 'Synthetic', categoryId: null }]);
+  async function reply(index) {
+    const request = reads[index]; assert.equal(request.payload.pageSize, 50);
+    const offset = request.payload.cursor ? Number(request.payload.cursor) : 0;
+    request.resolve({ rows: all.slice(offset, offset + 50), nextCursor: offset + 50 < all.length ? String(offset + 50) : null });
+    await settle();
+  }
+  render(); await reply(0);
+  for (let index = 0; index < 5; index++) {
+    const page = render(); page.control('[data-account-select-page]').checked = true; page.control('[data-account-select-page]').fire('change');
+    if (index < 4) { assert.doesNotMatch(page.html, /data-account-next disabled/); page.control('[data-account-next]').fire(); await reply(index + 1); }
+  }
+  assert.match(render().html, /已選 201 個科目/);
+  let page = render(); page.control('[data-account-bulk-category][value="' + 'cash' + '"]').checked = true;
+    page.control('[data-account-bulk-category][value="' + 'cash' + '"]').fire('change');
+  render().control('[data-account-apply]').fire(); assert.equal(ui.accountMappingEditor.pendingCount(), 201);
+  render().control('[data-account-prev]').fire(); await reply(5);
+  assert.doesNotMatch(render().html, /data-account-next disabled/);
+  render().control('[data-account-next]').fire(); await reply(6);
+  assert.equal(writes.length, 0, 'paging has not sent a save request');
+  assert.equal(render().html.includes('最後一頁'), true, 'the pager identifies the last page');
+  assert.match(render().html, /本頁第 201–201 個/);
+  render().control('[data-account-save]').fire(); await settle();
+  assert.equal(writes.length, 1); assert.equal(writes[0].changes.length, 201);
+  assert.deepEqual(writes[0].changes[0], { accountCode: 'A000', categoryId: 'cash' });
+  assert.deepEqual(writes[0].changes[200], { accountCode: 'B001', categoryId: 'cash' });
+});
+
+
+// Run the existing GUI readback JavaScript against production-rendered mapping UI without opening a desktop window.
+function oct9GuiMappingFixture() {
+  const dom = batch9TreeDom();
+  const window = { setTimeout: () => 0, clearTimeout() {}, JetApi: {
+    queryDataPreview: async () => ({ columns: ['Approval', 'Manual'], rows: [['2025-01-02', '1']] }),
+    mappingValueProfile: async () => ({ blankCount: 0, values: [], comparisonGroups: [], missingComparisonValues: [] })
+  } };
+  const context = vm.createContext({ window, document: dom.document });
+  for (const file of ['state.js', 'ui-core.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(root, 'steps/mapping-step.js'), 'utf8').replace("  Ui.registerStep('mapping', render);", '  window.drawMapping = render;'), context);
+  const store = window.JetStore;
+  store.setProject({ projectId: 'gui-selector-synthetic' });
+  store.setImportResult('gl', { batchId: 'gui-selectors', columns: ['Approval', 'Manual'], rowCount: 1 });
+  store.setMappingDraft('gl', 'manual', 'Manual');
+  const source = fs.readFileSync(path.join(__dirname, '../harness/gui-driver/GuiScenarios.cs'), 'utf8');
+  const script = source.match(/MappingPolicyProbeScript = Probe\("""([\s\S]*?)"""\);/)[1]
+    .replace('/* shared GUI helpers */', 'function visible(el) { return !!el && !el.hidden; }');
+  function draw() {
+    window.drawMapping(dom.content, store.getState());
+    // The lightweight DOM parser does not implement native select.value initialization.
+    for (const select of dom.content.querySelectorAll('select')) {
+      const selected = select.querySelectorAll('option').find(option => option.hasAttribute('selected')) || select.querySelector('option');
+      select.value = selected ? selected.getAttribute('value') : '';
+    }
+  }
+  return { source, store, dom, draw, read: () => vm.runInContext(script, context) };
+}
+
+test('oct9 GUI approval readback inspects the actual classic and grid controls in all three states', () => {
+  const f = oct9GuiMappingFixture();
+  for (const view of ['classic', 'grid']) {
+    f.store.setMappingUiMode(view);
+    for (const [mode, source, choice] of [['mapped', 'Approval', 'column:Approval'], ['unmapped', '', 'mode:unmapped'], ['sameAsPostDate', '', 'mode:sameAsPostDate']]) {
+      f.store.setMappingDraft('gl', 'docDate', source);
+      f.store.patchGlMappingOptions({ approvalDateMode: mode }); f.draw();
+      const probe = f.read();
+      assert.equal(probe.approvalChoice, choice, view + ' ' + mode);
+      assert.equal(probe.approvalFieldPresent, true, view + ' ' + mode);
+      assert.equal(probe.mode, mode); assert.equal(probe.source, source);
+    }
+  }
+});
+
+test('oct9 GUI options-only edit targets a rendered editable code and preserves mapping fields', () => {
+  const f = oct9GuiMappingFixture(); f.draw();
+  const match = f.source.match(/RecordStage\("options-only-dirty-warning"\);[\s\S]*?ClickControlAsync\(cdp, process, GlSection \+ "((?:\\.|[^"\\])*)"/);
+  assert.ok(match);
+  const selector = JSON.parse('"' + match[1] + '"');
+  const input = f.dom.content.querySelector(selector);
+  assert.equal(!!input, true, selector + ' must exist');
+  assert.equal(input.tagName, 'INPUT');
+  const before = plain(f.store.getState().mapping.gl.draft);
+  input.value = ''; input.fire('input');
+  assert.deepEqual(plain(f.store.getState().mapping.gl.options.manualAutoPolicy.manualValues), []);
+  assert.deepEqual(plain(f.store.getState().mapping.gl.options.manualAutoPolicy.automaticValues), ['0']);
+  assert.deepEqual(plain(f.store.getState().mapping.gl.draft), before);
+});
+
+// 第九節 G3 更新腳本的入口，但本輪依使用者指示不執行 Gui。
+// 舊選單斷言首次失敗：20261014-135637069-066eb7e965824f89bf2b8671156595f1。
+test('oct9 GUI fixture uses visible compound actions instead of a retired scope selector', () => {
+  const f = filterOperationFixture(); f.click('[data-kct-letter="G"]'); f.click('[data-kct-letter="H"]');
+  const source = fs.readFileSync(path.join(__dirname, '../harness/gui-driver/GuiSideMonthWorkflow.cs'), 'utf8');
+  assert.doesNotMatch(source, /data-group-bind=matchScope|data-value-key=drCr|data-action=open-save|data-action=new-scenario/);
+  assert.match(source, /data-add-compound/);
+  assert.equal(!!f.$('[data-add-compound="voucher"]'), true);
+  f.click('[data-add-compound="voucher"]');
+  assert.equal(f.draft().groups[0].matchScope, 'row');
+  assert.equal(f.draft().groups[0].rules.length, 3);
+  assert.equal(f.draft().groups[0].rules[2].type, 'voucher');
+});
+
+
+test('oct9 followup group buttons use short visible names and distinguish their targets for assistive reading', () => {
+  const f = filterOperationFixture(); f.click('[data-kct-letter="G"]'); f.click('[data-action="add-set"]');
+  for (const [action, text, label] of [['clear-set', '清除', '清除第 1 組的條件'], ['remove-set', '移除', '移除第 1 組']]) {
+    const button = f.$('[data-action="' + action + '"][data-gi="0"]');
+    assert.equal(button.textContent, text); assert.equal(button.getAttribute('aria-label'), label);
+  }
+  f.click('[data-action="clear-set"][data-gi="0"]');
+  assert.equal(f.draft().groups.length, 2); assert.equal(f.draft().groups[0].rules.length, 0);
+});
+
+test('oct9 followup case summary retains separated case details without repeating the navigation position', () => {
+  const dom = batch9TreeDom();
+  const index = fs.readFileSync(path.join(root, '../index.html'), 'utf8');
+  dom.content.innerHTML = index.match(/<section class="case-summary"[\s\S]*?<\/section>/)[0];
+  const info = dom.content.querySelector('.case-summary__details');
+  const position = dom.content.querySelector('.case-summary__position');
+  assert.equal(!!info, true); assert.equal(!!position, false);
+  for (const name of ['case-id', 'case-client', 'case-period']) assert.equal(!!info.querySelector('[data-bind="' + name + '"]'), true);
+  assert.deepEqual(info.querySelectorAll('.case-summary__label').map(el => el.textContent), ['案件名稱', '客戶名稱', '查核期間']);
+  for (const name of ['case-step', 'case-progress']) assert.equal(!!dom.content.querySelector('[data-bind="' + name + '"]'), false);
+});
+
+test('oct9 layout followup keeps the visible current step in the navigation and GUI readback', () => {
+  const f = remapAppFixture();
+  f.store.resetWorkflow(); f.store.setProject({ projectId: 'created-synthetic', caseName: '合成建案' });
+  f.store.setStepIndex(1);
+  f.dom.content.innerHTML += '<span data-bind="case-id">合成建案</span>';
+  f.app.renderStepNav(f.state, f.store.STEPS);
+  const nav = f.$('[data-bind="step-nav"]'), active = nav.querySelector('[aria-current="step"]');
+  assert.equal(active.getAttribute('data-step-index'), '1');
+  assert.equal(active.querySelector('[data-bind="case-step"]')?.textContent, '匯入資料');
+  assert.match(nav.querySelector('.toc-progress').textContent, /進度 1\/6/);
+  const source = fs.readFileSync(path.join(__dirname, '../harness/gui-driver/GuiScenarios.cs'), 'utf8');
+  const script = source.match(/CreatedProjectProbeScript = Probe\("""([\s\S]*?)"""\);/)[1]
+    .replace('/* shared GUI helpers */', 'function visible(el) { return !!el && !el.hidden; }');
+  f.$('[data-action="app-exit"]').getBoundingClientRect = () => ({ left: 0, top: 0, width: 36, height: 36 });
+  const probe = vm.runInContext(script, f.context);
+  assert.equal(probe.caseStepVisible, true); assert.equal(probe.caseStepText, '匯入資料');
+  assert.equal(probe.importStepVisible, true); assert.equal(probe.caseIdText, '合成建案');
+  assert.equal(probe.formAbsent, true);
+  // Going back changes the current position, not the completed-step count.
+  f.store.setStepIndex(0); f.app.renderStepNav(f.state, f.store.STEPS);
+  assert.equal(nav.querySelectorAll('[data-bind="case-step"]').length, 1);
+  assert.equal(nav.querySelector('[data-bind="case-step"]').textContent, '建立案件');
+  assert.match(nav.querySelector('.toc-progress').textContent, /進度 1\/6/);
+});
+
+// 使用者 2026-10-11 裁定：第五步目前的情境有修改還沒儲存時，編輯或複製已存情境、新增情境與套用範例都先詢問，
+// 按鈕比照第四步科目分類；沒有修改時照舊直接換，取消編輯不問。對話框文字與按鈕逐字寫死，不由被測程式算出。
+const savedManual = name => ({ ...savedG(name), rationale: name + '：合成動機',
+  editorOrigins: { ...savedG(name).editorOrigins, nameIsAutomatic: false, rationaleIsAutomatic: false } });
+
+function pendingScenarioFixture(saved = [savedManual('甲情境'), savedManual('乙情境')], fixture = filterOperationFixture) {
+  const f = fixture({ saved });
+  f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
+  const modals = () => f.dom.document.body.querySelectorAll('[data-bind="filter-pending-modal"]');
+  const modal = () => modals()[0] || null;
+  function choose(choice) {
+    const dialog = modal(); assert.ok(dialog, 'the confirmation is shown');
+    dialog.fire('click', { target: dialog.querySelector('.modal__actions [data-pending-choice="' + choice + '"]') });
+  }
+  const body = () => modal().querySelector('.modal__body').textContent;
+  const buttons = () => modal().querySelectorAll('.modal__actions button').map(button => button.textContent);
+  // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境；合成回應照後端的形狀，
+  // 把這一個放進畫面清單的位置（新增時加在最後）再帶回整批。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
+  const resolveCommit = index => {
+    const { payload } = f.commits[index], scenarios = f.store.getState().filter.savedScenarios.slice();
+    const position = payload.position === null ? scenarios.length + 1 : payload.position;
+    scenarios[position - 1] = payload.scenario;
+    f.commits[index].resolve({ position, scenarios, savedCount: scenarios.length,
+      resultRef: { revision: 'oct11-' + index, populationScope: 'auditPeriod' } });
+  };
+  return { ...f, modals, modal, choose, body, buttons, resolveCommit };
+}
+
+test('oct11 drafts without changes switch at once from every entry point', () => {
+  const f = pendingScenarioFixture();
+  f.click('[data-action="edit-scenario"][data-index="0"]');
+  assert.equal(f.modal(), null); assert.equal(f.draft().__editingIndex, 0); assert.equal(f.draft().name, '甲情境');
+  
+  f.click('[data-action="edit-scenario"][data-index="1"]');
+  assert.equal(f.modal(), null, 'opening and closing the save panel is not a change');
+  assert.equal(f.draft().__editingIndex, 1); assert.equal(f.draft().name, '乙情境');
+  f.click('[data-action="copy-scenario"][data-index="0"]');
+  assert.equal(f.modal(), null); assert.equal(f.draft().name, '甲情境（副本）'); assert.equal(f.draft().__editingIndex, undefined);
+  f.click('[data-action="apply-template"][data-template-key="weekendManualDescription"]');
+  assert.equal(f.modal(), null); assert.equal(f.draft().name, '週末人工分錄的特定摘要');
+  f.click('[data-action="apply-template"][data-template-key="nonBusinessDayExcludingDates"]');
+  assert.equal(f.modal(), null, 'an example that was only applied is not a change'); assert.equal(f.draft().name, '非營業日且排除指定日期');
+  assert.equal(f.commits.length, 0);
+});
+
+test('oct11 opening a saved scenario over unsaved conditions asks first and staying keeps everything', () => {
+  const f = pendingScenarioFixture();
+  f.click('[data-kct-letter="G"]');
+  const draft = f.draft(), json = JSON.stringify(draft);
+  f.click('[data-action="edit-scenario"][data-index="1"]');
+  assert.equal(f.modals().length, 1);
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-41（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.equal(f.modal().querySelector('.modal__title').textContent, '篩選情境尚未儲存');
+  assert.equal(f.body(), '目前的條件尚未儲存為情境。開啟「乙情境」會換掉這些條件。');
+  assert.deepEqual(f.buttons(), ['留在這裡', '不儲存，直接開啟', '儲存並開啟']);
+  assert.equal(f.dom.document.activeElement.getAttribute('data-pending-choice'), 'save', 'saving a scenario clears nothing, so it is the default');
+  assert.equal(f.draft(), draft, 'nothing changes before the auditor chooses');
+  f.click('[data-action="edit-scenario"][data-index="0"]');
+  assert.equal(f.modals().length, 1, 'a second request does not stack another dialog');
+  f.choose('stay');
+  assert.equal(f.modal(), null); assert.equal(f.draft(), draft); assert.equal(JSON.stringify(f.draft()), json);
+  f.click('[data-action="edit-scenario"][data-index="1"]');
+  f.modal().fire('click', { target: f.modal().querySelector('.modal__backdrop') });
+  assert.equal(f.modal(), null, 'clicking outside the dialog also stays'); assert.equal(JSON.stringify(f.draft()), json);
+  f.click('[data-action="edit-scenario"][data-index="1"]'); f.choose('continue');
+  assert.equal(f.modal(), null); assert.equal(f.draft().__editingIndex, 1); assert.equal(f.draft().name, '乙情境');
+  assert.equal(f.commits.length, 0, 'not saving sends nothing');
+});
+
+test('oct11 save and open updates the edited scenario first and opens the next one only after the save succeeds', async () => {
+  const f = pendingScenarioFixture();
+  f.click('[data-action="edit-scenario"][data-index="0"]');
+  f.type('[data-bind="scenario-name"]', '甲情境（修改）');
+  f.click('[data-action="edit-scenario"][data-index="1"]');
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-41（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.equal(f.body(), '情境「甲情境」的修改尚未儲存。開啟「乙情境」會換掉這些修改。');
+  f.choose('save');
+  assert.equal(f.modal(), null, 'the dialog closes while saving');
+  assert.equal(f.commits.length, 1);
+  // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。原本看整批名稱；
+  // 現在看只送第 1 個（原名甲情境）並帶新名稱。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
+  assert.equal(f.commits[0].method, 'filterScenarioSave'); assert.equal(f.commits[0].payload.position, 1);
+  assert.equal(f.commits[0].payload.expectedName, '甲情境'); assert.equal(f.commits[0].payload.scenario.name, '甲情境（修改）');
+  assert.equal(f.draft().__editingIndex, 0, 'the next scenario waits for the save');
+  f.commits[0].reject(new Error('合成儲存失敗')); await settle(); await settle();
+  assert.equal(f.modal(), null); assert.equal(f.draft().__editingIndex, 0); assert.equal(f.draft().name, '甲情境（修改）');
+  assert.ok(f.messages().some(m => m.startsWith('儲存篩選情境失敗：合成儲存失敗')));
+  f.click('[data-action="edit-scenario"][data-index="1"]'); f.choose('save');
+  assert.equal(f.commits.length, 2);
+  f.resolveCommit(1); await settle(); await settle();
+  assert.equal(f.draft().__editingIndex, 1); assert.equal(f.draft().name, '乙情境');
+  assert.deepEqual(plain(f.store.getState().filter.savedScenarios.map(s => s.name)), ['甲情境（修改）', '乙情境']);
+});
+
+test('oct11 save and open stays when the save is blocked by the ten scenario limit', async () => {
+  const f = pendingScenarioFixture(Array.from({ length: 10 }, (_, i) => savedManual('情境' + (i + 1))));
+  f.click('[data-kct-letter="G"]');
+  f.click('[data-action="edit-scenario"][data-index="0"]'); f.choose('save'); await settle(); await settle();
+  assert.equal(f.commits.length, 0); assert.equal(f.modal(), null);
+  assert.equal(f.draft().__editingIndex, undefined, 'the new draft stays on screen');
+  assert.ok(f.messages().includes(SCENARIO_LIMIT_MESSAGE));
+});
+
+test('oct11 copy and examples ask with their own wording; saving clears the draft', async () => {
+  const f = pendingScenarioFixture();
+  f.click('[data-action="edit-scenario"][data-index="0"]');
+  f.type('[data-bind="scenario-name"]', '甲情境（修改）');
+  f.click('[data-action="copy-scenario"][data-index="1"]');
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-41（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.equal(f.body(), '情境「甲情境」的修改尚未儲存。複製「乙情境」會換掉這些修改。');
+  assert.deepEqual(f.buttons(), ['留在這裡', '不儲存，直接複製', '儲存並複製']);
+  f.choose('stay');
+  f.click('[data-action="apply-template"][data-template-key="weekendManualDescription"]');
+  assert.equal(f.body(), '情境「甲情境」的修改尚未儲存。套用範例「週末人工分錄的特定摘要」會換掉這些修改。');
+  assert.deepEqual(f.buttons(), ['留在這裡', '不儲存，直接套用', '儲存並套用']);
+  f.choose('stay'); assert.equal(f.draft().name, '甲情境（修改）');
+  // 第九節 D：存好就清空，後續不再提供「新增情境」入口。
+  f.click('[data-action="save-scenario"]'); f.resolveCommit(0); await settle(); await settle();
+  assert.equal(f.$('[data-action="new-scenario"]'), null);
+  assert.equal(f.modal(), null); assert.equal(f.draft().groups.length, 0); assert.equal(f.draft().name, '');
+  assert.equal(f.commits.length, 1, 'clearing the saved draft sends nothing more');
+});
+
+test('oct11 a saved scenario starts a new one at once until it changes again', async () => {
+  const f = pendingScenarioFixture([]);
+  f.click('[data-kct-letter="G"]'); f.click('[data-action="save-scenario"]');
+  f.resolveCommit(0); await settle(); await settle();
+  assert.equal(f.$('[data-action="new-scenario"]'), null);
+  assert.equal(f.modal(), null); assert.equal(f.draft().groups.length, 0);
+});
+
+test('oct11 cancelling an edit discards the change without asking', () => {
+  const f = pendingScenarioFixture();
+  f.click('[data-action="edit-scenario"][data-index="0"]');
+  f.type('[data-bind="scenario-name"]', '甲情境（修改）');
+  f.click('[data-action="cancel-edit-scenario"]');
+  assert.equal(f.modal(), null); assert.equal(f.draft().groups.length, 0); assert.equal(f.draft().__editingIndex, undefined);
+  assert.deepEqual(plain(f.store.getState().filter.savedScenarios.map(s => s.name)), ['甲情境', '乙情境']);
+});
+
+test('oct11 an example that needs a field asks only when the chosen field is about to replace the draft', () => {
+  const rdeFields = [{ fieldId: 'rde.dept', sourceColumn: 'Dept', label: '部門', valueType: 'text' },
+    { fieldId: 'rde.unit', sourceColumn: 'Unit', label: '部門', valueType: 'text' }];
+  const f = pendingScenarioFixture([], () => customPaneFixture({ rdeFields }));
+  f.click('[data-add-field="description"]');
+  const before = f.draft(), json = JSON.stringify(before);
+  f.click('[data-action="toggle-examples"]');
+  f.click('[data-action="apply-template"][data-template-key="manualDepartment"]');
+  assert.ok(f.$('[data-example-pick="manualDepartment"]')); assert.equal(f.modal(), null, 'choosing the field comes first');
+  f.click('[data-example-field="rde.unit"]');
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-41（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.equal(f.body(), '目前的條件尚未儲存為情境。套用範例「人工分錄的特定部門」會換掉這些條件。');
+  f.choose('stay'); assert.equal(f.draft(), before); assert.equal(JSON.stringify(f.draft()), json);
+  f.click('[data-example-field="rde.unit"]'); f.choose('continue');
+  assert.equal(f.draft().name, '人工分錄的特定部門');
+  assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => [rule.type, rule.fieldId])), [['manualAuto', null], ['fieldValue', 'rde.unit']]);
+});
+
+// 使用者 2026-10-13 裁定訊息分三級（錯誤、需要注意、一般），操作失敗時在目前步驟顯示提示框，耗時改成秒並合併。
+// 以下從審計員的操作寫：用正式的 app.js 畫出流程畫面與訊息區，按正式步驟的按鈕，後端回應用合成資料。
+// 字句只比對這次裁定定下的結構（動作、原因、等級文字與耗時寫法）；其他訊息的字等勾選頁確認後另外改。
+function stepFailureFixture(stepIndex = 5) {
+  const f = remapAppFixture();
+  f.window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
+  f.store.setView('workflow'); f.store.setStepIndex(stepIndex);
+  const show = () => { f.app.renderContent(f.state, f.store.STEPS[f.state.currentStepIndex]); return f.dom.content; };
+  const failureNotice = () => f.dom.content.querySelector('.stepflow-item__failure');
+  // 訊息區用正式 index.html 的標記，只換掉中欄內容來檢查開關上的數量標示。
+  const html = fs.readFileSync(path.join(root, '..', 'index.html'), 'utf8');
+  const asideStart = html.indexOf('<aside class="messages'), asideEnd = html.indexOf('</aside>', asideStart) + '</aside>'.length;
+  assert.ok(asideStart >= 0 && asideEnd > asideStart, 'messages markup seam');
+  function badge() {
+    const holder = f.dom.element(); holder.innerHTML = html.slice(asideStart, asideEnd);
+    const saved = f.dom.content.children; f.dom.content.children = [holder]; holder.parentElement = f.dom.content;
+    try { f.app.renderMessagesPanel(f.state); return f.dom.content.querySelector('[data-bind="message-badge"]'); }
+    finally { f.dom.content.children = saved; }
+  }
+  function messageItem(message) { const holder = f.dom.element('ul'); holder.appendChild(f.app.buildMessage(message)); return holder.children[0]; }
+  function exportOnce(outcome) {
+    show(); f.click('[data-action="export-workpaper"]');
+    const request = f.requests.filter(r => r.action === 'exportWorkpaperStream').at(-1); assert.ok(request, 'exportWorkpaperStream requested');
+    if (outcome instanceof Error || (outcome && outcome.code)) request.reject(outcome); else request.resolve(outcome);
+  }
+  return { ...f, show, failureNotice, badge, messageItem, exportOnce };
+}
+
+test('items2 a failed workpaper export shows a red notice under the step title until the auditor acts again', async () => {
+  const f = stepFailureFixture(); f.show(); f.change('[data-bind="include-prescreen-report"]', false);
+  f.exportOnce(new Error('合成輸出失敗。')); await settle();
+  const notice = f.show() && f.failureNotice();
+  assert.ok(notice, 'the current step shows the failure');
+  assert.equal(notice.textContent, '產生工作底稿失敗：合成輸出失敗。');
+  assert.match(notice.className, /\bform-notice\b/); assert.doesNotMatch(notice.className, /form-notice--warning/);
+  assert.equal(notice.getAttribute('role'), 'alert');
+  const current = notice.parentElement, order = current.children.map(child => child.className);
+  assert.ok(order.indexOf('stepflow-item__head') < order.indexOf(notice.className) && order.indexOf(notice.className) < order.indexOf('stepflow-item__body'),
+    'the notice sits between the step title and its content');
+  // 訊息面板留一則錯誤：有符號、讀屏軟體念「錯誤：」，耗時與最後進度只在這裡。
+  const logged = f.state.messages[0];
+  // 使用者 2026-10-13 勾選頁確認 19：耗時收進括號（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-26、R3-27（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。 括號後加句號。
+  assert.equal(logged.level, 'error'); assert.match(logged.text, /^產生工作底稿失敗：合成輸出失敗（耗時(?: \d+\.\d 秒|不到 0\.1 秒)）。$/);
+  const item = f.messageItem(logged);
+  assert.match(item.className, /messages__item--error/);
+  assert.equal(item.querySelector('.messages__mark').getAttribute('aria-hidden'), 'true');
+  assert.equal(item.querySelector('.visually-hidden').textContent, '錯誤：');
+  assert.equal(item.querySelector('.messages__text').textContent, logged.text);
+  const closed = f.badge();
+  assert.equal(closed.hidden, false); assert.match(closed.className, /messages__badge--error/);
+  assert.equal(closed.getAttribute('aria-label'), f.state.messagesUnseen + ' 則新訊息，含錯誤');
+  // 再按一次就拿掉；這次成功，不再出現。
+  f.exportOnce({ sheetStats: [], reportArtifacts: [] }); await settle();
+  assert.equal(f.state.operationFailure, null); f.show(); assert.ok(f.failureNotice() === null, 'no step notice');
+  // 再失敗一次後換到別的步驟，也拿掉。
+  f.exportOnce(new Error('合成輸出失敗。')); await settle(); f.show(); assert.ok(f.failureNotice());
+  f.store.setStepIndex(4); assert.equal(f.state.operationFailure, null);
+  f.store.setStepIndex(5); f.show(); assert.ok(f.failureNotice() === null, 'no step notice');
+});
+
+test('items2 an operation with its own error box does not add a step notice', async () => {
+  // 確認欄位配對失敗時，原因已寫在配對區的錯誤框。
+  const f = stepFailureFixture(2); prepareUsageMapping(f, 'gl'); f.show();
+  f.click('[data-action="commit-gl"]'); f.request('mappingCommitGl').reject(new Error('合成配對失敗。')); await settle();
+  assert.equal(f.state.messages[0].level, 'error'); assert.equal(f.state.operationFailure, null);
+  f.show(); assert.ok(f.failureNotice() === null, 'no step notice');
+  // 儲存情境失敗時，原因寫在儲存按鈕上方。
+  const g = filterOperationFixture(); g.store.setView('workflow'); g.store.setStepIndex(4);
+  g.click('[data-kct-letter="G"]'); g.click('[data-action="save-scenario"]'); await settle();
+  g.commits[0].reject(new Error('合成儲存失敗。')); await settle(); await settle();
+  assert.equal(g.notice(), '儲存失敗：合成儲存失敗。');
+  assert.equal(g.store.getState().messages[0].level, 'error'); assert.equal(g.store.getState().operationFailure, null);
+});
+
+// 文字批次 B（使用者 2026-10-13 裁定「已經有就地錯誤框的操作維持原樣」）：步驟提示框只看操作是否真的把錯誤寫在畫面上。
+// 只做焦點的「移除篩選情境」失敗時要有提示框；預覽只有把原因標到條件列時才算就地顯示。
+test('text-b removing a saved scenario that fails shows the step notice', async () => {
+  const f = oneAtATimeFixture(); f.store.setView('workflow'); f.store.setStepIndex(4);
+  f.click('[data-action="remove-scenario"][data-index="1"]'); f.click('[data-action="confirm-remove-scenario"][data-index="1"]'); await settle();
+  f.scenarioRequests().at(-1).reject(new Error('合成移除失敗。')); await settle(); await settle();
+  const failure = f.store.getState().operationFailure;
+  assert.ok(failure !== null, 'the remove failure is shown in the step');
+  assert.equal(failure.message, '移除篩選情境失敗：合成移除失敗。');
+  assert.equal(failure.level, 'error');
+});
+
+for (const marked of [true, false]) test('text-b a failed preview ' + (marked ? 'marked on its rule row has no step notice' : 'without rule reasons shows the step notice'), async () => {
+  const f = oneAtATimeFixture(); f.store.setView('workflow'); f.store.setStepIndex(4);
+  f.store.setFilterDraft(projectionDraft(['Alpha']));
+  f.click('[data-action="preview-scenario"]'); await settle();
+  const error = marked
+    ? Object.assign(new Error('第 1 組第 1 條：合成錯誤。'), { code: 'invalid_scenario', details: [{ group: 1, rule: 1, message: '合成錯誤。' }] })
+    : new Error('合成預覽失敗。');
+  f.sent.find(request => request.method === 'filterPreview').reject(error); await settle(); await settle();
+  const failure = f.store.getState().operationFailure;
+  if (marked) {
+    assert.ok(f.$('.rule-row[data-gi="0"][data-ri="0"]').classList.contains('rule-row--invalid'), 'the reason is on the rule row');
+    assert.ok(failure === null, 'no step notice when the rule row already shows the reason');
+  } else {
+    assert.ok(failure !== null, 'the preview failure is shown in the step');
+    assert.equal(failure.message, '預覽篩選情境失敗：合成預覽失敗。');
+  }
+});
+
+test('text-b a failed or cancelled operation puts elapsed time and the last progress in brackets without repeating the elapsed time', async () => {
+  const f = stepFailureFixture(); f.show(); f.change('[data-bind="include-prescreen-report"]', false);
+  f.show(); f.click('[data-action="export-workpaper"]');
+  f.store.setBusyDetail('工作底稿：正在寫入「合成表」，已完成 1 張工作表、寫入 10 列，經過 3.0 秒');
+  f.request('exportWorkpaperStream').reject(new Error('合成輸出失敗。')); await settle();
+  const failed = f.state.messages[0].text;
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-26、R3-27、R3-28（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。 括號裡的進度不再有第二個冒號，括號後加句號。
+  assert.match(failed, /^產生工作底稿失敗：合成輸出失敗（耗時(?: \d+\.\d 秒|不到 0\.1 秒)，最後進度：工作底稿正在寫入「合成表」，已完成 1 張工作表、寫入 10 列）。$/);
+  assert.equal(failed.includes('經過'), false);
+  f.show(); assert.equal(f.failureNotice().textContent, '產生工作底稿失敗：合成輸出失敗。');
+  f.exportOnce(new Error('合成輸出失敗。')); await settle();
+  assert.match(f.state.messages[0].text, /^產生工作底稿失敗：合成輸出失敗（耗時(?: \d+\.\d 秒|不到 0\.1 秒)）。$/);
+  f.exportOnce({ code: 'operation_cancelled', message: '合成取消' }); await settle();
+  assert.match(f.state.messages[0].text, /^產生工作底稿已取消（耗時(?: \d+\.\d 秒|不到 0\.1 秒)）。$/);
+  f.exportOnce({ code: 'operation_cancelled', message: '合成取消', completedResultsPreserved: true }); await settle();
+  assert.match(f.state.messages[0].text, /^產生工作底稿已取消，已完成的部分仍保留（耗時(?: \d+\.\d 秒|不到 0\.1 秒)）。$/);
+  f.exportOnce({ code: 'completeness_prerequisite_failed', message: '合成完整性檢查未通過。' }); await settle();
+  assert.equal(f.state.messages[0].text, '產生工作底稿尚無法執行：合成完整性檢查未通過。');
+  f.show(); assert.equal(f.failureNotice().textContent, '產生工作底稿尚無法執行：合成完整性檢查未通過。');
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-34：沒有已儲存的情境和前置條件不足同一種寫法，不附耗時，屬提醒而非錯誤。
+  f.exportOnce({ code: 'no_saved_scenario', message: '尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境' }); await settle();
+  assert.equal(f.state.messages[0].text, '產生工作底稿尚無法執行：尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境。');
+  assert.equal(f.state.messages[0].level, 'warn');
+  assert.equal(f.state.messages[0].text.includes('耗時'), false);
+  f.exportOnce({ code: 'operation_in_progress', message: '合成忙碌' }); await settle();
+  assert.equal(f.state.messages[0].text, '另一項作業還在進行，請等它完成後再試。');
+  f.store.setBusy(true, '產生工作底稿'); f.window.JetUi.run('匯入 PBC-GL', () => Promise.resolve()); f.store.setBusy(false);
+  assert.equal(f.state.messages[0].text, '「產生工作底稿」還在進行，請等它完成後再試。');
+});
+
+test('text-b report progress reads as one sentence per phase with the elapsed time', () => {
+  const f = remapAppFixture(), format = f.app.formatExportProgress;
+  const progress = (phase, sheetName, sheetsCompleted, rowsWritten) => ({ artifactKind: 'workingPaper', phase, sheetName,
+    sheetsCompleted, rowsWritten, elapsedMilliseconds: 4200 });
+  assert.equal(format(progress('preparingData', null, 0, 0)), '工作底稿：正在準備資料，經過 4.2 秒');
+  assert.equal(format(progress('writingSheet', '合成表', 2, 1500)), '工作底稿：正在寫入「合成表」，已完成 2 張工作表、寫入 1,500 列，經過 4.2 秒');
+  assert.equal(format(progress('finalizingWorkbook', null, 3, 1500)), '工作底稿：正在完成檔案，已完成 3 張工作表、寫入 1,500 列，經過 4.2 秒');
+  assert.equal(format(progress('publishingArtifact', null, 3, 1500)), '工作底稿：正在存進案件資料夾，已完成 3 張工作表、寫入 1,500 列，經過 4.2 秒');
+  assert.equal(format({ ...progress('preparingData', null, 0, 0), artifactKind: 'prescreenReport' }), '預篩選報告：正在準備資料，經過 4.2 秒');
+});
+
+for (const devTools of [false, true]) test('text-b the case list error box has no buttons and the support log is a general tool in the action row' + (devTools ? ' (debug build)' : ''), async () => {
+  const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker'); f.store.setDevToolsEnabled(devTools);
+  const opening = f.window.JetUi.openProject('failed-synthetic');
+  f.request('projectLoad').reject({ code: 'file_read_error', message: '合成載入失敗', correlationId: 'picker-load-x' }); await opening;
+  f.app.renderPicker(f.state);
+  const box = f.$('.picker-feedback');
+  assert.ok(box !== null, 'the error box is shown');
+  assert.match(box.textContent, /合成載入失敗/);
+  assert.ok(box.querySelector('button') === null, 'the error box has no buttons');
+  const actions = f.$('.picker-panel__actions');
+  assert.ok(actions !== null, 'the action row is shown');
+  const exportButton = actions.querySelector('[data-action="picker-support-export"]');
+  assert.ok(exportButton !== null, 'the support log button is in the action row');
+  assert.equal(exportButton.textContent, '輸出支援日誌');
+  assert.equal(actions.children.at(-1 - (devTools ? 1 : 0)), exportButton, 'the support log button follows the refresh and sync buttons');
+  assert.equal(actions.querySelector('[data-action="picker-dev-log-export"]') !== null, devTools);
+  f.click('[data-action="picker-support-export"]');
+  const sent = f.request('supportLogExport');
+  assert.equal('projectId' in sent.payload, false); assert.equal('correlationId' in sent.payload, false);
+  sent.resolve({ filePath: 'synthetic/logs/JET-support.txt', lineCount: 3, scope: 'all' }); await settle(); f.app.renderPicker(f.state);
+  const status = f.$('.picker-panel__actions [role="status"]');
+  assert.ok(status !== null, 'the result is announced beside the button');
+  assert.equal(status.textContent, '支援日誌已輸出：synthetic/logs/JET-support.txt');
+  assert.match(f.$('.picker-feedback').textContent, /合成載入失敗/);
+});
+
+for (const [name, error, level, notice] of [
+  // 使用者 2026-10-13 勾選頁確認 18、16：「已阻擋」改「尚無法執行」，「請稍候，另一項作業進行中」改成統一的句子（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+  ['blocked', { code: 'completeness_prerequisite_failed', message: '合成完整性檢查未通過。' }, 'warn', '產生工作底稿尚無法執行：合成完整性檢查未通過。'],
+  ['another operation in progress', { code: 'operation_in_progress', message: '合成忙碌' }, 'warn', null],
+  ['cancelled by the auditor', { code: 'operation_cancelled', message: '合成取消' }, 'info', null]
+]) test('items2 a workpaper export that is ' + name + ' is shown as ' + (notice ? 'an amber step notice' : 'a message only'), async () => {
+  const f = stepFailureFixture(); f.show(); f.change('[data-bind="include-prescreen-report"]', false);
+  f.exportOnce(error); await settle(); f.show();
+  assert.equal(f.state.messages[0].level, level);
+  if (notice) {
+    assert.equal(f.failureNotice().textContent, notice);
+    assert.match(f.failureNotice().className, /form-notice form-notice--warning/);
+  } else assert.ok(f.failureNotice() === null, 'no step notice');
+  // 另一項作業進行中時這次操作沒有開始，不寫耗時。
+  if (error.code === 'operation_in_progress') assert.equal(f.state.messages[0].text, '另一項作業還在進行，請等它完成後再試。');
+});
+
+test('items2 message levels show an amber mark for attention, none for general notes, and the switch takes the worst unseen level', () => {
+  const f = stepFailureFixture();
+  f.store.addMessage('合成一般說明。', 'info');
+  let item = f.messageItem(f.state.messages[0]);
+  assert.match(item.className, /messages__item--info/); assert.equal(item.querySelector('.messages__mark'), null); assert.equal(item.querySelector('.visually-hidden'), null);
+  assert.doesNotMatch(f.badge().className, /messages__badge--(error|warn)/);
+  assert.equal(f.badge().getAttribute('aria-label'), f.state.messagesUnseen + ' 則新訊息');
+  f.store.addMessage('合成需要注意。', 'warn');
+  item = f.messageItem(f.state.messages[0]);
+  assert.match(item.className, /messages__item--warn/); assert.ok(item.querySelector('.messages__mark'));
+  assert.equal(item.querySelector('.visually-hidden').textContent, '需要注意：');
+  assert.match(f.badge().className, /messages__badge--warn/);
+  assert.equal(f.badge().getAttribute('aria-label'), f.state.messagesUnseen + ' 則新訊息，含需要注意');
+  f.store.addMessage('合成失敗。', 'error'); f.store.addMessage('合成之後的一般說明。', 'info');
+  const badge = f.badge();
+  assert.match(badge.className, /messages__badge--error/); assert.doesNotMatch(badge.className, /messages__badge--warn/);
+  assert.equal(badge.getAttribute('aria-label'), '4 則新訊息，含錯誤');
+  f.store.toggleMessagesPanel(); assert.equal(f.badge().hidden, true, 'opening the panel clears the unseen count');
+});
+
+test('items2 a successful long operation leaves one completion message with seconds, or minutes after a minute', async () => {
+  const f = stepFailureFixture(); let clock = 0;
+  f.window.performance = { now: () => clock };
+  f.show(); f.change('[data-bind="include-prescreen-report"]', false);
+  f.show(); f.click('[data-action="export-workpaper"]'); clock = 4200;
+  f.request('exportWorkpaperStream').resolve({ sheetStats: [{}, {}], reportArtifacts: [] }); await settle();
+  const workpaper = f.state.messages.filter(m => /工作底稿/.test(m.text));
+  assert.deepEqual(plain(workpaper.map(m => [m.level, m.text])), [['info', '已在案件資料夾產生工作底稿（2 張工作表），耗時 4.2 秒。']]);
+  assert.equal(f.state.messages.some(m => /完成，耗時|毫秒/.test(m.text)), false);
+  clock = 0; f.show(); f.click('[data-action="export-workpaper"]'); clock = 171000;
+  f.request('exportWorkpaperStream').resolve({ sheetStats: [{}], reportArtifacts: [] }); await settle();
+  assert.equal(f.state.messages[0].text, '已在案件資料夾產生工作底稿（1 張工作表），耗時 2 分 51 秒。');
+  assert.equal(f.window.JetUi.formatElapsed(3780000), '1 小時 3 分');
+  assert.equal(f.window.JetUi.formatElapsed(59940), '59.9 秒');
+  assert.equal(f.window.JetUi.formatElapsed(59960), '1 分 0 秒');
+});
+
+test('items2 the save-button reminders for a changed saved list and the ten-scenario limit are amber', async () => {
+  const saved = Array.from({ length: 10 }, (_, i) => savedG('合成情境' + (i + 1)));
+  const f = filterOperationFixture({ saved });
+  f.click('[data-kct-letter="G"]'); f.click('[data-action="save-scenario"]'); await settle();
+  assert.equal(f.notice(), SCENARIO_LIMIT_MESSAGE);
+  assert.match(f.$('[data-bind="scenario-notice"]').className, /form-notice--warning/);
+  assert.equal(f.store.getState().messages[0].level, 'warn');
+  assert.equal(f.commits.length, 0);
+});
+
+test('items2 deleting a case whose folder could not be removed shows an amber reminder on the case list', async () => {
+  const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker');
+  f.store.setProjects([{ projectId: '合成案件', databaseProvider: 'sqlite' }]); f.app.renderPicker(f.state);
+  f.click('[data-action="picker-delete"]');
+  f.request('projectDeletePreview').resolve({ projectId: '合成案件', reportCount: 0, workpaperCount: 0 }); await settle();
+  f.click('[data-action="modal-confirm"]');
+  f.request('projectDelete').resolve({ ok: true, message: '合成資料夾沒有刪乾淨。' }); await settle();
+  f.request('projectListLocal').resolve({ projects: [] }); await settle(); await settle();
+  f.app.renderPicker(f.state);
+  const reminder = f.$('.picker-feedback--warning');
+  assert.ok(reminder, 'the case list shows the reminder');
+  assert.equal(reminder.textContent, '合成資料夾沒有刪乾淨。');
+  assert.match(reminder.className, /form-notice form-notice--warning/);
+  assert.doesNotMatch(f.dom.content.textContent, /無法完成操作/);
+  assert.ok(f.state.messages.some(m => m.level === 'warn' && m.text === '合成資料夾沒有刪乾淨。'));
+});
+
+test('items2 reopening an older case shows unknown or missing message levels as general notes', async () => {
+  const f = stepFailureFixture(), opening = f.window.JetUi.openProject('older-synthetic');
+  f.request('projectLoad').resolve({ project: { projectId: 'older-synthetic' } }); await settle();
+  f.request('logRecent').resolve({ messages: [
+    { text: '合成未知等級。', level: 'critical', occurredUtc: '2026-10-01T01:03:00Z' },
+    { text: '合成缺少等級。', occurredUtc: '2026-10-01T01:02:00Z' },
+    { text: '合成舊提醒。', level: 'warn', occurredUtc: '2026-10-01T01:01:00Z' }] }); await opening;
+  const restored = f.state.messages.filter(m => /^合成/.test(m.text));
+  assert.deepEqual(plain(restored.map(m => [m.text, m.level])), [['合成未知等級。', 'info'], ['合成缺少等級。', 'info'], ['合成舊提醒。', 'warn']]);
+  const unknown = f.messageItem(restored[0]);
+  assert.equal(unknown.className, 'messages__item messages__item--info'); assert.equal(unknown.querySelector('.messages__mark'), null);
+});
+
+// 使用者 2026-10-14 第三輪勾選頁確認 R3-03：條件標題與讀回不印程式代號。已移除的 GL 欄位寫出原名並標明已移除，
+// 名稱由 project.load 的 retiredGlFieldLabels 帶回；認不得的欄位與不在欄位配對中的攸關資料元素欄位各有固定寫法。
+test('text-d a removed GL field, an unknown field and a field no longer in the mapping are titled without program codes', () => {
+  const f = batch7Fixture();
+  const retired = { type: 'fieldValue', field: 'voucherDate', operator: 'isNonBusinessDay', values: [] };
+  const unknown = { type: 'fieldValue', field: 'syntheticGoneField', operator: 'in', values: ['X1'] };
+  const rdeGone = { type: 'fieldValue', fieldId: 'rde.text-d-gone', operator: 'equals', value: 'Alpha' };
+  assert.equal(f.ui.FilterValues.fieldTitle(retired, f.store.getState()), '欄位已不存在', 'without the catalog name the field is only known to be gone');
+  f.store.setRetiredGlFieldLabels({ voucherDate: '傳票日期' });
+  const state = f.store.getState();
+  assert.equal(f.ui.FilterValues.fieldTitle(retired, state), '傳票日期（已移除）');
+  assert.equal(f.ui.FilterValues.fieldTitle(unknown, state), '欄位已不存在');
+  assert.equal(f.ui.FilterValues.fieldTitle(rdeGone, state), '已不在欄位配對中的攸關資料元素欄位');
+  for (const [rule, title, code] of [[retired, '傳票日期（已移除）', 'voucherDate'], [unknown, '欄位已不存在', 'syntheticGoneField'],
+    [rdeGone, '已不在欄位配對中的攸關資料元素欄位', 'rde.text-d-gone']]) {
+    const text = f.text(f.api.ruleRowHtml(rule, { rules: [rule] }, 0, 0));
+    assert.ok(text.includes(title), title);
+    assert.ok(!text.includes(code), code + ' is not shown as text');
+  }
+  assert.equal(f.ui.glFieldReadback(state, 'voucherDate'), '已移除的「傳票日期」');
+  assert.equal(f.ui.glFieldReadback(state, 'syntheticGoneField'), '已不存在的欄位');
+  assert.equal(f.ui.glFieldReadback(state, 'postDate'), '總帳日期');
+});
+
+// 使用者 2026-10-14 第三輪勾選頁確認 R3-03：retiredGlFieldLabels 隨開案存進畫面狀態，換開沒有帶名稱的案件時清空。
+// 同一批刪除了開案時還原篩選母體範圍的呼叫：母體只有查核期間一種，開案後仍是 auditPeriod。
+test('text-d opening a case keeps the removed field names from project.load and the audit-period population', () => {
+  const f = batch8Fixture(); f.store.resetWorkflow();
+  f.window.setInterval = () => 0; f.window.clearInterval = () => {};
+  const stale = { validation: false, prescreen: false, filter: false };
+  f.ui.applyLoadedProject({ project: { projectId: 'text-d-retired' }, retiredGlFieldLabels: { voucherDate: '傳票日期' }, staleState: stale },
+    { stayOnCurrentStep: true });
+  assert.deepEqual(plain(f.store.getState().retiredGlFieldLabels), { voucherDate: '傳票日期' });
+  assert.equal(f.store.getState().filter.populationScope, 'auditPeriod');
+  assert.equal(typeof f.store.restoreFilterPopulationScope, 'undefined', 'the unused restore entry point stays deleted');
+  f.ui.applyLoadedProject({ project: { projectId: 'text-d-other' }, staleState: stale }, { stayOnCurrentStep: true });
+  assert.deepEqual(plain(f.store.getState().retiredGlFieldLabels), {});
+  assert.equal(f.store.getState().filter.populationScope, 'auditPeriod');
+});
+
+// 使用者 2026-10-14 第三輪勾選頁確認 R3-08：清單超過上限時提示框逐條寫出位置，原因和欄位條件同一句，
+// 不再另列「文字值清單每組最多…」「攸關資料元素欄位的值清單每組最多…」。
+test('text-d an oversized value list is named at its own position with the shared reason', () => {
+  const f = kctFixture();
+  const draft = f.store.getState().filter.draft;
+  const many = Array.from({ length: 101 }, (_, i) => 'V' + i);
+  draft.groups = [{ join: 'AND', matchScope: 'row', rules: [{ type: 'fieldValue', field: 'description', operator: 'in', values: ['A'] }] },
+    { join: 'AND', matchScope: 'row', rules: [{ type: 'fieldValue', field: 'description', operator: 'in', values: ['A'] },
+      { type: 'textSet', join: 'AND', field: 'description', mode: 'contains', values: many }] }];
+  f.store.setFilterDraft(draft);
+  const result = plain(f.gate());
+  assert.deepEqual(result, { ok: false, notice: '尚需補齊：第 2 組第 2 條「文字值清單」請填 1 到 100 個值' });
+  assert.doesNotMatch(result.notice, /每組最多/);
+});
+
+// 使用者 2026-10-14 第三輪勾選頁確認 R3-26：四捨五入是 0.0 秒時寫「不到 0.1 秒」，接在「耗時」「經過」後面不空格。
+test('text-d elapsed time under a tenth of a second reads as less than 0.1 seconds', () => {
+  const f = batch7Fixture();
+  assert.equal(f.ui.elapsedPhrase('耗時', 0), '耗時不到 0.1 秒');
+  assert.equal(f.ui.elapsedPhrase('耗時', 49), '耗時不到 0.1 秒');
+  assert.equal(f.ui.elapsedPhrase('經過', 0), '經過不到 0.1 秒');
+  assert.equal(f.ui.elapsedPhrase('耗時', 50), '耗時 0.1 秒');
+  assert.equal(f.ui.elapsedPhrase('耗時', 4200), '耗時 4.2 秒');
+  assert.equal(f.ui.formatElapsed(0), '不到 0.1 秒');
+});
+
+// 使用者 2026-10-14 第三輪勾選頁同意刪除欄位條件裡的「分錄性質」選項與切換程式：畫面早已不提供，
+// 欄位條件的標題只寫欄位名稱。
+test('text-d field conditions no longer offer the entry-nature pseudo fields', () => {
+  const f = batch7Fixture();
+  const rule = { type: 'fieldValue', field: 'description', operator: 'in', values: ['A'] };
+  assert.equal(f.api.ruleSubjectHtml(rule, 'field'), '');
+  const row = f.api.ruleRowHtml(rule, { rules: [rule] }, 0, 0);
+  assert.doesNotMatch(row, /分錄性質|data-field-subject/);
+  assert.doesNotMatch(f.ui.FilterValues.render(rule, f.store.getState(), 'text-d'), /分錄性質/);
+});
+
+// 使用者 2026-10-14 第三輪勾選頁確認 R3-28：進度接進訊息時拿掉「工作底稿：」的冒號，一句只留一個冒號；
+// 取消時「當時進度」用同一個寫法（app.js），忙碌畫面上的進度照舊。
+test('text-d progress quoted inside a message drops the second colon', () => {
+  const f = batch7Fixture();
+  assert.equal(f.ui.progressInMessage('工作底稿：正在寫入「合成表」，已完成 1 張工作表、寫入 10 列，經過 3.0 秒'),
+    '工作底稿正在寫入「合成表」，已完成 1 張工作表、寫入 10 列，經過 3.0 秒');
+  assert.equal(f.ui.progressInMessage('已讀取 1,000 列'), '已讀取 1,000 列');
+  const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  assert.ok(app.includes("'，當時進度：' + Ui.progressInMessage(latest.busyDetail)"), 'the cancel snapshot uses the same wording');
 });

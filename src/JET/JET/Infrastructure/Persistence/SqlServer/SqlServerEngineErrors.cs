@@ -105,30 +105,29 @@ public static class SqlServerEngineErrors
         {
             return new JetActionException(
                 JetErrorCodes.SqlServerDeadlock,
-                "SQL Server 死鎖：本操作被引擎選為死鎖犧牲者且自動重試仍失敗（或該操作未包重試）。請稍後重試。");
+                SqlServerMessages.Deadlock);
         }
 
         if (HasNumber(sql, LoginFailedNumber))
         {
             return new JetActionException(
                 JetErrorCodes.SqlServerLoginFailed,
-                "SQL Server 登入失敗：請檢查環境變數 JET_SQLSERVER_CONNECTION 中的帳號與密碼；" +
-                "若剛啟用混合驗證模式，需重啟 SQL Server 服務後登入才生效。");
+                SqlServerMessages.LoginFailed);
         }
 
         if (HasNumber(sql, DuplicateKeyIndexNumber) || HasNumber(sql, DuplicateKeyConstraintNumber))
         {
-            // 保留引擎原文：內含索引/資料表名與重複鍵值，是辨識衝突來源的關鍵資訊。
+            // 引擎原文含資料表名與重複的鍵值，不送到畫面（使用者 2026-10-14 第三輪勾選頁確認 R3-66）。
             return new JetActionException(
                 JetErrorCodes.DuplicateKey,
-                $"唯一鍵衝突：{sql.Message}");
+                SqlServerMessages.DuplicateKey);
         }
 
         if (HasNumber(sql, ClientTimeoutNumber) || HasNumber(sql, Win32WaitTimeoutNumber))
         {
             return new JetActionException(
                 JetErrorCodes.SqlServerTimeout,
-                "SQL Server 執行逾時：伺服器暫時過載或不可達。請確認伺服器狀態後重試。");
+                SqlServerMessages.Timeout);
         }
 
         return null;

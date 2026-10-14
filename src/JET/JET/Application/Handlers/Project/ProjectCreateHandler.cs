@@ -34,9 +34,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             && databaseProvider != ProjectDocument.SqlServerDatabaseProvider
             && databaseProvider != ProjectDocument.DuckDbDatabaseProvider)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"未支援的 databaseProvider '{databaseProvider}'(僅接受 sqlite / sqlServer / duckdb)。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "database_provider_unsupported");
         }
 
         // 案件的資料庫組在建案時就選定：建案過程與成功後的 session 都用這一組，不另外回頭讀 project.json。
@@ -69,7 +67,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             {
                 throw new JetActionException(
                     JetErrorCodes.InvalidPayload,
-                    $"案件名稱『{caseName}』已存在，請換一個。",
+                    $"案件名稱「{caseName}」已存在，請改用其他名稱。",
                     JetErrorFields.CaseName);
             }
 
@@ -143,7 +141,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectLocked,
-                "案件已有目前工作階段持有的工作鎖，無法重新建立同名案件。");
+                "同名案件目前已在 JET 中開啟，無法重新建立。");
         }
 
         try

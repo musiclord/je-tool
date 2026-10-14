@@ -3,8 +3,10 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 前端工作流整合新增控制項的可用性守衛：每個輸入都有可讀名稱、狀態不只靠顏色、
+/// 前端工作流整合新增控制項的可用性守衛：每個輸入都有可讀名稱、群組選項用 fieldset 與 legend、
 /// 新區塊在窄視窗可收縮或自行捲動。實際縮放與 Windows DPI 仍由人工驗收。
+/// 停用的控制項要說明原因，2026-10-14 起改由 <c>tools/tests/frontend-journey-mapping.test.cjs</c>
+/// 與 <c>frontend-journey-step4.test.cjs</c> 在畫面上核對。
 /// </summary>
 public sealed class WorkflowControlsAccessibilityFrontendTests
 {
@@ -73,26 +75,18 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         var picker = core[pickerStart..pickerEnd];
         Assert.Contains("<fieldset class=\"category-select\" data-category-picker=", picker, StringComparison.Ordinal);
         Assert.Contains("<legend class=\"category-select__legend\">' + esc(legend) + '</legend>", picker, StringComparison.Ordinal);
-        Assert.Contains("<label>搜尋分類<input", picker, StringComparison.Ordinal);
+        // 2026-10-08 第 13 則移除搜尋，不移除有名稱的分類勾選與展開控制。
+        Assert.DoesNotContain("data-category-search", picker, StringComparison.Ordinal);
         Assert.Contains("<label class=\"category-option\"><input type=\"checkbox\"", picker, StringComparison.Ordinal);
         Assert.Contains("<span>' + esc(category.label) + '</span></label>", picker, StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"展開或收合", picker, StringComparison.Ordinal);
-        Assert.Contains("aria-expanded=\"' + open + '\"", picker, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void DisabledControlsExplainWhyInsteadOfSilentlyLocking()
-    {
-        var validate = ReadFrontend("js", "steps", "validate-step.js");
-        var mapping = ReadFrontend("js", "steps", "mapping-step.js");
-
-        // 2026-10-07：引用情境不再阻擋自訂分類刪除；首次失敗 16649cbb7e60449ca9bbdd2e532e22bc。
-        // 仍被擋下的分類儲存與配對提交，在按鈕上方列出缺什麼。
-        Assert.Contains("data-taxonomy-remove=", validate, StringComparison.Ordinal);
-        Assert.DoesNotContain("已被篩選情境使用，不可刪除", validate, StringComparison.Ordinal);
-        Assert.Contains("data-bind=\"taxonomy-problems\"", validate, StringComparison.Ordinal);
-        Assert.Contains("data-bind=\"mapping-option-problems\"", mapping, StringComparison.Ordinal);
-        Assert.Contains("尚需補齊：", mapping, StringComparison.Ordinal);
+        // 第九節 F 把展開按鈕移到三處共用的樹函式，fieldset 與勾選語意仍留在選取器。
+        // 首次失敗：20261014-130014323-112f3ca2d352414ba9de606d2b6e0e09；仍檢查名稱及展開狀態。
+        Assert.Contains("taxonomyTreeHtml(state, view, function (category)", picker, StringComparison.Ordinal);
+        var treeStart = core.IndexOf("function taxonomyTreeHtml(", StringComparison.Ordinal);
+        Assert.True(treeStart >= 0 && treeStart < pickerStart);
+        var tree = core[treeStart..pickerStart];
+        Assert.Contains("aria-label=\"展開或收合", tree, StringComparison.Ordinal);
+        Assert.Contains("aria-expanded=\"' + open + '\"", tree, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -107,7 +101,6 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
             ".value-option {",
             ".rde-field {",
             ".taxonomy-row {",
-            ".population-summary {",
             ".category-select {"
         })
         {
@@ -117,10 +110,11 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
             Assert.Contains("min-width: 0", block, StringComparison.Ordinal);
         }
 
-        // 長清單自行捲動，不把整頁撐長；母體分區在窄視窗自動換行。
+        // 第 11 則移除分錄摘要；剩下的長清單仍自行捲動，不把整頁撐長。
         var lists = css[css.IndexOf(".value-option-list,", StringComparison.Ordinal)..];
         Assert.Contains("overflow-y: auto", lists, StringComparison.Ordinal);
-        Assert.Contains("grid-template-columns: repeat(auto-fit, minmax(148px, 1fr))", css, StringComparison.Ordinal);
+        Assert.DoesNotContain(".population-summary {", css, StringComparison.Ordinal);
+        Assert.Contains(".stats-bar--validation { grid-template-columns: repeat(3, minmax(0, 1fr)); }", css, StringComparison.Ordinal);
 
         // 來源欄名與分類名稱可能很長：允許在任意位置換行，不撐破容器。
         Assert.Contains("overflow-wrap: anywhere", css, StringComparison.Ordinal);

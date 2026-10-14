@@ -1,49 +1,19 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
-using JET.Application;
 using JET.Domain;
 using Xunit;
 
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// Phase 6 完成後的前後端呈現鏡像守衛。Domain/Application 是 backend 正本；
-/// runtime frontend 只保留顯示鏡像，結構片語與欄位集合不得再漂移。
+/// 日期欄位的前後端鏡像守衛。Domain 的 GL 欄位白名單是正本；前端 <c>ui-core.js</c> 的 <c>GL_FIELDS</c> 與
+/// <c>FILTER_DATE_FIELDS</c> 只做顯示鏡像，日期欄位集合不得漂移。
+/// 組內 AND 與 OR 混用的讀回句子改由 <c>tools/tests/frontend-journey-readback.test.cjs</c> 與共用夾具
+/// <c>tools/tests/fixtures/batch7-filter-readback.json</c> 以行為核對（2026-10-14 刪除原本的字串比對方法）。
 /// </summary>
 public sealed class FilterFrontendParityTests
 {
     [Fact]
-    public void FrequencyReadbackPhrases_MirrorBackendExactly()
-    {
-        var frontendPhrases = ExtractFrontendFrequencyPhrases();
-        var frontendControlPhrases = ExtractFrontendFrequencyControlPhrases();
-        var actual = frontendPhrases
-            .Select(pair =>
-                $"{pair.Key}|{pair.Value}N")
-            .OrderBy(static value => value, StringComparer.Ordinal)
-            .ToArray();
-        // 2026-10-03 用語統一 T1：「所選母體」改為「分錄測試範圍」，前後端一起改（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        var expected = new[]
-        {
-            "customAccountEntryCount|分錄測試範圍內科目分錄筆數 ≤ N",
-            "customPreparerEntryCount|分錄測試範圍內編製人員分錄筆數 ≤ N"
-        };
-
-        Assert.Equal(expected, actual);
-        Assert.All(
-            frontendPhrases,
-            pair => Assert.Equal(
-                RenderBackendFrequencyPhrase(pair.Key),
-                pair.Value + "N"));
-        Assert.All(
-            frontendControlPhrases,
-            pair => Assert.Equal(
-                RenderBackendFrequencyPhrase(pair.Key),
-                pair.Value + " N"));
-    }
-
-    [Fact]
-    public void VoucherDate_MirrorsBackendFilterAndMappingCatalogs()
+    public void DateFields_MirrorBackendFilterAndMappingCatalogs()
     {
         var backendDateFields = GlMappingKeys.All
             .Where(key => GlFieldWhitelist.TryResolve(key, out var column)
@@ -57,109 +27,10 @@ public sealed class FilterFrontendParityTests
         Assert.Empty(MissingFrom(backendDateFields, FilterConditionLabels.GlFields.Keys));
         Assert.Empty(MissingFrom(backendDateFields, frontendGlFields));
         Assert.Equal(backendDateFields, frontendDateFields.OrderBy(static key => key, StringComparer.Ordinal));
-        Assert.Equal("傳票日期", FilterConditionLabels.GlFields[GlMappingKeys.VoucherDate]);
-    }
-
-    [Fact]
-    public void MixedRuleJoinReadback_MirrorsNonMutatingExactLeftFoldBoundary()
-    {
-        var source = ReadFrontend("js", "steps", "filter-step.js");
-        var effectiveJoin = ExtractFunction(
-            source,
-            "effectiveRuleJoin",
-            "hasMixedEffectiveRuleJoins");
-        var detection = ExtractFunction(
-            source,
-            "hasMixedEffectiveRuleJoins",
-            "groupReadBackExpressionHtml");
-        var rendering = ExtractFunction(
-            source,
-            "groupReadBackExpressionHtml",
-            "readBackHtml");
-
-        Assert.Contains(
-            "rule.join.trim().toUpperCase()",
-            effectiveJoin,
-            StringComparison.Ordinal);
-        Assert.Contains("raw === 'OR' ? 'OR' : 'AND'", effectiveJoin, StringComparison.Ordinal);
-        Assert.Contains("group.rules.slice(1)", detection, StringComparison.Ordinal);
-        Assert.Contains(
-            "joins.indexOf('AND') >= 0 && joins.indexOf('OR') >= 0",
-            detection,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "exprJoin(labels, groupCombinator(group) === 'OR' ? 'OR' : 'AND'",
-            rendering,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "expression = '（' + expression + opHtml + Ui.esc(labels[i]) + '）'",
-            rendering,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "effectiveRuleJoin(group.rules[i])",
-            rendering,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(".join =", detection + rendering, StringComparison.Ordinal);
-    }
-
-    private static string RenderBackendFrequencyPhrase(string type)
-    {
-        using var document = JsonDocument.Parse(
-            "{\"groups\":[{\"join\":\"OR\",\"rules\":[{\"type\":\""
-            + type
-            + "\",\"maxEntries\":\"N\",\"join\":\"AND\"}]}]}");
-        return FilterConditionRenderer.Render(document.RootElement);
-    }
-
-    private static Dictionary<string, string> ExtractFrontendFrequencyPhrases()
-    {
-        var source = ReadFrontend("js", "steps", "filter-step.js");
-        var start = source.IndexOf("function ruleSummaryLabel", StringComparison.Ordinal);
-        var end = source.IndexOf("function scenarioPillsHtml", start, StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start, "找不到 filter-step.js 的 ruleSummaryLabel 邊界。");
-
-        var body = source[start..end];
-        var matches = Regex.Matches(
-            body,
-            @"case '(?<type>custom(?:Preparer|Account)EntryCount)':\s*"
-            + @"return prefix \+ '(?<phrase>[^']*)' \+ rule\.maxEntries;",
-            RegexOptions.Singleline);
-        var result = matches
-            .Cast<Match>()
-            .ToDictionary(
-                match => match.Groups["type"].Value,
-                match => match.Groups["phrase"].Value,
-                StringComparer.Ordinal);
-
-        Assert.Equal(2, result.Count);
-        return result;
-    }
-
-    // 2026-09-07 自訂篩選條件改版：張數條件列的可見片語從 ruleControlsHtml 的固定標籤移到「樣態」
-    // 對象下拉的選項文字（PATTERN_PARAM_TYPES），輸入框後面只剩單位「張」。守衛的意圖不變：
-    // 使用者在列上看到的片語要逐字等於後端讀回句去掉數字的部分。
-    // 第一次失敗的證據：收據 20260907-135727110（ruleControlsHtml 找不到兩個片語，Expected 2 Actual 0）。
-    private static Dictionary<string, string> ExtractFrontendFrequencyControlPhrases()
-    {
-        var source = ReadFrontend("js", "steps", "filter-step.js");
-        var start = source.IndexOf("var PATTERN_PARAM_TYPES = [", StringComparison.Ordinal);
-        var end = source.IndexOf("];", start, StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start, "找不到 filter-step.js 的 PATTERN_PARAM_TYPES 邊界。");
-
-        var body = source[start..end];
-        var matches = Regex.Matches(
-            body,
-            @"\{ value: '(?<type>custom(?:Preparer|Account)EntryCount)', label: '(?<phrase>[^']*)' \}",
-            RegexOptions.Singleline);
-        var result = matches
-            .Cast<Match>()
-            .ToDictionary(
-                match => match.Groups["type"].Value,
-                match => match.Groups["phrase"].Value,
-                StringComparer.Ordinal);
-
-        Assert.Equal(2, result.Count);
-        return result;
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：日期欄只剩總帳日期與傳票核准日，前後端都不再有 voucherDate。
+        Assert.Equal(["docDate", "postDate"], backendDateFields);
+        Assert.DoesNotContain("voucherDate", frontendGlFields);
+        Assert.False(FilterConditionLabels.GlFields.ContainsKey("voucherDate"));
     }
 
     private static IReadOnlyCollection<string> ExtractObjectArrayKeys(
@@ -186,24 +57,6 @@ public sealed class FilterFrontendParityTests
             .ToHashSet(StringComparer.Ordinal);
         Assert.NotEmpty(result);
         return result;
-    }
-
-    private static string ExtractFunction(
-        string source,
-        string functionName,
-        string nextFunctionName)
-    {
-        var start = source.IndexOf(
-            "function " + functionName,
-            StringComparison.Ordinal);
-        var end = source.IndexOf(
-            "function " + nextFunctionName,
-            start,
-            StringComparison.Ordinal);
-        Assert.True(
-            start >= 0 && end > start,
-            $"找不到 filter-step.js 的 {functionName} 邊界。");
-        return source[start..end];
     }
 
     private static string ExtractArrayBody(string source, string arrayName)

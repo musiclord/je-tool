@@ -34,7 +34,7 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
                 "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("scenario", out var scenarioElement))
         {
@@ -142,7 +142,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             cancellationToken);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var glMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
@@ -160,7 +160,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
         {
             throw new JetActionException(
                 JetErrorCodes.ScenarioLimitReached,
-                $"最多儲存 {MaxScenarios} 個篩選情境。");
+                $"最多可儲存 {MaxScenarios} 個篩選情境，請先移除不需要的情境。");
         }
 
         var populationScope = FilterPopulationScopeParser.ReadPayload(payload);
@@ -319,6 +319,20 @@ internal static class FilterValidationContextFactory
                 : taxonomy.Categories.Select(static category => category.CategoryId).ToArray(),
             RdeFields = glMapping.GlOptions?.RdeFields ?? [],
             MoneyScale = document.MoneyScale,
-            DateParseOptions = document.DateParseOptions
+            DateParseOptions = document.DateParseOptions,
+            RevenueCategoryLabel = CategoryLabel(taxonomy, AccountTaxonomyBuiltIns.RevenueRole),
+            ReceivablesCategoryLabel = CategoryLabel(taxonomy, AccountTaxonomyBuiltIns.ReceivablesRole),
+            CashCategoryLabel = CategoryLabel(taxonomy, AccountTaxonomyBuiltIns.CashRole),
+            ReceiptInAdvanceCategoryLabel = CategoryLabel(taxonomy, AccountTaxonomyBuiltIns.ReceiptInAdvanceRole)
         };
+
+    /// <summary>
+    /// 第四步分類設定裡這個用途的內建分類目前叫什麼；審計員改過名稱時第五步原因寫新名稱（使用者 2026-10-13 裁定）。
+    /// 內建分類不可刪除，沒有帶分類設定時用內建名稱。
+    /// </summary>
+    private static string CategoryLabel(AccountTaxonomySnapshot? taxonomy, string semanticRole) =>
+        taxonomy?.Categories.FirstOrDefault(category =>
+                category.IsBuiltIn && string.Equals(category.SemanticRole, semanticRole, StringComparison.Ordinal))?.Label
+        ?? AccountTaxonomyBuiltIns.All.Single(category =>
+            string.Equals(category.SemanticRole, semanticRole, StringComparison.Ordinal)).Label;
 }

@@ -20,7 +20,9 @@ internal sealed class FilterFactsPort(
         return plan.Request.ActionName switch
         {
             "filter.preview" => await PreviewAsync(plan, cancellationToken),
-            "filter.commit" => await CommitAsync(plan, cancellationToken),
+            // 一次處理一個情境的三個動作也是整批發布定義與命中，執行方式與 filter.commit 相同。
+            "filter.commit" or "filter.scenario.save" or "filter.scenario.remove" or "filter.scenario.recheck"
+                => await CommitAsync(plan, cancellationToken),
             _ => throw new InvalidOperationException(
                 $"FilterFactsPort 不支援 action '{plan.Request.ActionName}'。")
         };

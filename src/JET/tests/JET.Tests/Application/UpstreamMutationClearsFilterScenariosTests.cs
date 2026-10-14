@@ -61,10 +61,13 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
 
         var invalidated = response.GetProperty("invalidatedResults");
         Assert.Equal(
-            new[] { "filter", "filterScenarios", "prescreen", "validation" },
+            new[] { "accountMapping", "filter", "filterScenarios", "prescreen", "validation" },
             invalidated.EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
         Assert.True(invalidated.GetProperty("filter").GetBoolean());
         Assert.True(invalidated.GetProperty("filterScenarios").GetBoolean());
+        // 第 7 則只擴充 GL/TB 來源與投影的配對清除，不擴大其他上游事件的影響。
+        Assert.Equal(action is "import.gl.fromFile" or "import.tb.fromFile" or "mapping.commit.gl" or "mapping.commit.tb",
+            invalidated.GetProperty("accountMapping").GetBoolean());
         // 情境已清掉，沒有可以重跑的篩選；第五步回到從未執行的預設狀態。
         Assert.False(response.GetProperty("staleState").GetProperty("filter").GetBoolean());
         Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "config_filter_scenario"));

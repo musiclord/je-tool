@@ -192,7 +192,11 @@ public sealed class FilterCompletenessTests
                     {"type":"fieldValue","{{(isExtra ? "fieldId" : "field")}}":"{{(isExtra ? extra : core)}}","operator":"{{c.Op}}","includeBlank":{{includeBlank.ToString().ToLowerInvariant()}}{{(basis is null ? "" : $",\"amountBasis\":\"{basis}\"")}}{{(c.Operand.Length==0 ? "" : ","+c.Operand)}}}
                     """;
                 var scenario = Scenario(rule);
-                Assert.Empty(FilterScenarioValidator.Validate(scenario, new(false,true,false) { MoneyScale=100, RdeFields=context.RdeFields }));
+                var errors = FilterScenarioValidator.Validate(scenario, new(false,true,false) { MoneyScale=100, RdeFields=context.RdeFields });
+                // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Core signed amounts are retired; keep compiler answers for historical definitions and validate the rejection exactly.
+                if (basis == "signed" && !isExtra)
+                    Assert.Equal("第 1 組第 1 條：" + FilterSinglePurposeRules.SignedAmount, Assert.Single(errors));
+                else Assert.Empty(errors);
                 var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, scenario, context, CancellationToken.None);
                 var ids = expected.Distinct().Order().Select(i=>"R"+i).ToArray();
                 Assert.True(ids.SequenceEqual(result.PreviewRows.Select(r=>r.DocumentNumber).Order()), $"{provider}/{type}/{basis}/{isExtra}/{includeBlank}/{c.Op}");
@@ -228,9 +232,10 @@ public sealed class FilterCompletenessTests
           ('f',12,'E','1','2025-01-01','2025-01-01','003','literal',0,0,0,'DEBIT',1);
         """;
     private static readonly FilterRuleContext Context = new(100, null, "2025-01-01", "2025-12-31");
-    private const string CashDebit = """{"type":"accountSide","drCr":"debit","categoryMode":"is","categoryIds":["builtin.cash"]}""";
-    private const string OtherCredit = """{"type":"accountSide","drCr":"credit","categoryMode":"isNot","categoryIds":["builtin.cash"]}""";
-    private const string NoCashCredit = """{"type":"accountSide","drCr":"credit","categoryMode":"absent","categoryIds":["builtin.cash"]}""";
+    private const string CashDebit = """{"type":"group","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]}""";
+    private const string OtherCredit = """{"type":"group","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"isNot","categoryIds":["builtin.cash"]}]}""";
+    private const string NoCashCredit = """{"type":"voucher","quantifier":"none","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]}""";
+    private static string Witness(string rule) => $$"""{"type":"voucher","quantifier":"any","rules":[{{rule}}]}""";
 
     internal static FilterScenarioSpec Scenario(string rules, string scope = "row", string? secondGroupRules = null) =>
         FilterScenarioPayloadParser.Parse(JsonDocument.Parse($$"""
@@ -253,22 +258,22 @@ public sealed class FilterCompletenessTests
             Assert.Equal(rows.Select(row => row.Split('|')[0]).Distinct().Count(), result.VoucherCount);
         }
         // 借 Cash 且同傳票有貸方不屬於 Cash：未配對科目 999 也算不屬於 Cash，E 沒有貸方所以不命中。
-        await Check(Scenario(CashDebit + "," + OtherCredit, "sameVoucher"), ["A|1", "B|1", "C|1", "D|1"]);
+        await Check(Scenario(CashDebit + "," + Witness(OtherCredit)), ["A|1", "B|1", "C|1", "D|1"]);
         // 借 Cash 且整張傳票的貸方都不屬於 Cash：B、D 各有一列 Cash 貸方。
-        await Check(Scenario(CashDebit + "," + NoCashCredit, "sameVoucher"), ["A|1", "C|1", "E|1"]);
+        await Check(Scenario(CashDebit + "," + NoCashCredit), ["A|1", "C|1", "E|1"]);
         // 傳票層條件單獨使用時輸出整張傳票的分錄。
         await Check(Scenario(NoCashCredit), ["A|1", "A|2", "C|1", "C|2", "E|1"]);
         await Check(Scenario(OtherCredit), ["A|2", "B|2", "C|2", "D|3"]);
         await Check(Scenario("""{"join":"OR","type":"drCrOnly","drCr":"debit"},{"join":"AND","type":"drCrOnly","drCr":"credit"}"""), []);
         await Check(Scenario("""{"join":"or","type":"drCrOnly","drCr":"debit"},{"join":"or","type":"drCrOnly","drCr":"credit"}"""),
             ["A|1", "A|2", "B|1", "B|2", "B|3", "B|4", "C|1", "C|2", "D|1", "D|2", "D|3", "E|1"]);
-        var four = CashDebit + "," + OtherCredit + "," +
-            """{"type":"accountSide","drCr":"debit","categoryMode":"isNot","categoryIds":["builtin.cash"]},{"type":"accountSide","drCr":"credit","categoryMode":"is","categoryIds":["builtin.cash"]}""";
-        await Check(Scenario(four, "sameVoucher"), ["B|1"]);
-        await Check(Scenario(OtherCredit + "," + CashDebit, "sameVoucher"), ["A|2", "B|2", "C|2", "D|3"]);
+        var four = CashDebit + "," + Witness(OtherCredit) + "," +
+            """{"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"isNot","categoryIds":["builtin.cash"]}]},{"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]}""";
+        await Check(Scenario(four), ["B|1"]);
+        await Check(Scenario(OtherCredit + "," + Witness(CashDebit)), ["A|2", "B|2", "C|2", "D|3"]);
         // 排除日期用一般條件的「不在清單中」放在另一組（列層級 AND），傳票層判斷不受影響。
         const string notMarch = """{"type":"fieldValue","field":"postDate","operator":"notIn","values":["2025-03-01"]}""";
-        await Check(Scenario(CashDebit + "," + NoCashCredit, "sameVoucher", notMarch), ["A|1", "C|1", "E|1"]);
+        await Check(Scenario(CashDebit + "," + NoCashCredit, secondGroupRules: notMarch), ["A|1", "C|1", "E|1"]);
         const string notFebruary = """{"type":"fieldValue","field":"postDate","operator":"notIn","values":["2025-02-01"]}""";
         await Check(Scenario("""{"type":"drCrOnly","drCr":"debit"}""", secondGroupRules: notFebruary), ["A|1", "B|1", "C|1", "D|1", "E|1"]);
         var onlyA = """{"type":"fieldValue","field":"docNum","operator":"equals","value":"A"}""";

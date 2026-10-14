@@ -27,12 +27,12 @@ public sealed class MappingRestoreDraftHandler(
             projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
-                "目前案件尚未匯入 GL，不能驗證還原草稿的來源欄位。");
+                "目前案件尚未匯入 PBC-GL，不能驗證還原草稿的來源欄位。");
         var tbBatch = await repositories.Imports.GetLatestBatchAsync(
             projectId, DatasetKind.Tb, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
-                "目前案件尚未匯入 TB，不能驗證還原草稿的來源欄位。");
+                "目前案件尚未匯入 PBC-TB，不能驗證還原草稿的來源欄位。");
 
         if (!GlAmountModeNames.TryParse(metadata.Gl.AmountMode, out var glMode)
             || !TbChangeModeNames.TryParse(metadata.Tb.ChangeMode, out var tbMode))
@@ -56,7 +56,7 @@ public sealed class MappingRestoreDraftHandler(
             {
                 throw new JetActionException(
                     JetErrorCodes.MappingMetadataInvalid,
-                    "報告裡的欄位配對未完整記錄借方代碼與貸方代碼，無法還原。請回第三步手動指定兩個代碼後再確認配對。");
+                    "報告裡的欄位配對沒有借貸代碼，無法還原。請回第三步至少指定一側代碼後再確認配對。");
             }
             throw new JetActionException(
                 JetErrorCodes.MappingMetadataInvalid,
@@ -145,7 +145,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         var batch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
-                "尚未匯入 GL 資料，請先在第二步匯入總帳。");
+                "尚未匯入 PBC-GL，請先在第二步匯入總帳。");
         var existingMapping = await repositories.MappingStates.FindAsync(
             projectId,
             DatasetKind.Gl,
@@ -169,7 +169,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             postingStatusPolicy,
             permittedRdeIds);
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var plan = JetAuditProgram.Plan(
             new GlMappingRequest(
@@ -283,7 +283,7 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
         var batch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
-                "尚未匯入 TB 資料，請先在第二步匯入試算表。");
+                "尚未匯入 PBC-TB，請先在第二步匯入試算表。");
         var existingMapping = await repositories.MappingStates.FindAsync(
             projectId,
             DatasetKind.Tb,
@@ -292,7 +292,7 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
             || await repositories.ProjectAuditLog.RequiresMappingRecommitAuditAsync(projectId, "tb", cancellationToken);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var plan = JetAuditProgram.Plan(
             new TbMappingRequest(
@@ -454,9 +454,8 @@ public sealed class MappingRestoreDraftAuthorizationStore
                     || !canonicalFields.TryGetValue(fieldId, out var field)
                     || authorized != field)
                 {
-                    throw new JetActionException(
-                        JetErrorCodes.InvalidPayload,
-                        "rdeFields[].fieldId 只能沿用目前案件既有 definition，或目前匯入批次已驗證的 restoreDraft definition；新欄位請省略 fieldId。");
+                    // 只能沿用目前案件既有 definition，或目前匯入批次已驗證的 restoreDraft definition；新欄位應省略 fieldId。
+                    throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "rde_field_id_not_authorized");
                 }
             }
         }
@@ -497,7 +496,7 @@ internal static class MappingV2CommitPayloadPrerequisite
             if (approvalElement.ValueKind != JsonValueKind.String
                 || string.IsNullOrWhiteSpace(approvalElement.GetString()))
             {
-                throw Invalid("approvalDateMode 必須是非空白字串。");
+                throw Invalid("approval_date_mode_not_string");
             }
 
             approvalDateMode = approvalElement.GetString()!;
@@ -510,8 +509,7 @@ internal static class MappingV2CommitPayloadPrerequisite
                 || !manualElement.TryGetProperty("manualValues", out var manualValues)
                 || !manualElement.TryGetProperty("automaticValues", out var automaticValues))
             {
-                throw Invalid(
-                    "manualAutoPolicy 必須包含 manualValues 與 automaticValues 字串陣列。");
+                throw Invalid("manual_auto_policy_missing_value_lists");
             }
 
             manualPolicy = new GlManualAutoPolicy(
@@ -530,7 +528,7 @@ internal static class MappingV2CommitPayloadPrerequisite
         {
             if (rdeElement.ValueKind != JsonValueKind.Array)
             {
-                throw Invalid("rdeFields 必須是 array。");
+                throw Invalid("rde_fields_not_array");
             }
 
             var fields = new List<GlRdeFieldMetadata>();
@@ -538,7 +536,7 @@ internal static class MappingV2CommitPayloadPrerequisite
             {
                 if (item.ValueKind != JsonValueKind.Object)
                 {
-                    throw Invalid("rdeFields 的每個項目都必須是 object。");
+                    throw Invalid("rde_field_not_object");
                 }
 
                 var sourceColumn = RequireString(item, "sourceColumn", "rdeFields[].sourceColumn");
@@ -556,13 +554,13 @@ internal static class MappingV2CommitPayloadPrerequisite
                     fieldId = fieldIdElement.GetString()!;
                     if (!existingRdeIds.Contains(fieldId))
                     {
-                        throw Invalid(
-                            "rdeFields[].fieldId 只能沿用目前案件既有的後端 stable ID；新欄位請省略 fieldId。");
+                        // 只能沿用目前案件既有的後端 stable ID；新欄位應省略 fieldId。
+                        throw Invalid("rde_field_id_not_existing");
                     }
                 }
                 else
                 {
-                    throw Invalid("rdeFields[].fieldId 必須省略、為 null，或是非空白字串。");
+                    throw Invalid("rde_field_id_invalid");
                 }
 
                 fields.Add(new GlRdeFieldMetadata(fieldId, sourceColumn, label, valueType));
@@ -587,9 +585,7 @@ internal static class MappingV2CommitPayloadPrerequisite
             && (rawPostingStatus.ValueKind != JsonValueKind.String
                 || string.IsNullOrWhiteSpace(rawPostingStatus.GetString())))
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "mapping.postingStatus 必須是非空白來源欄名。");
+            throw Invalid("posting_status_column_blank");
         }
 
         if (!payload.TryGetProperty("postingStatusPolicy", out var policyElement)
@@ -604,9 +600,7 @@ internal static class MappingV2CommitPayloadPrerequisite
             || !policyElement.TryGetProperty("includeBlank", out var includeBlankElement)
             || includeBlankElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "postingStatusPolicy 必須包含 acceptedValues 字串陣列與 includeBlank 布林值。");
+            throw Invalid("posting_status_policy_shape");
         }
 
         var acceptedValues = new List<string>();
@@ -614,9 +608,7 @@ internal static class MappingV2CommitPayloadPrerequisite
         {
             if (item.ValueKind != JsonValueKind.String)
             {
-                throw new JetActionException(
-                    JetErrorCodes.InvalidPayload,
-                    "postingStatusPolicy.acceptedValues 必須是字串陣列。");
+                throw Invalid("posting_status_accepted_values_not_strings");
             }
 
             acceptedValues.Add(item.GetString() ?? string.Empty);
@@ -631,7 +623,7 @@ internal static class MappingV2CommitPayloadPrerequisite
     {
         if (element.ValueKind != JsonValueKind.Array)
         {
-            throw Invalid($"{path} 必須是字串陣列。");
+            throw Invalid($"string_array_expected:{path}");
         }
 
         var result = new List<string>();
@@ -639,7 +631,7 @@ internal static class MappingV2CommitPayloadPrerequisite
         {
             if (item.ValueKind != JsonValueKind.String)
             {
-                throw Invalid($"{path} 必須是字串陣列。");
+                throw Invalid($"string_array_expected:{path}");
             }
 
             result.Add(item.GetString() ?? string.Empty);
@@ -653,12 +645,14 @@ internal static class MappingV2CommitPayloadPrerequisite
         if (!item.TryGetProperty(property, out var element)
             || element.ValueKind != JsonValueKind.String)
         {
-            throw Invalid($"{path} 必須是字串。");
+            throw Invalid($"string_expected:{path}");
         }
 
         return element.GetString() ?? string.Empty;
     }
 
-    private static JetActionException Invalid(string message) =>
-        new(JetErrorCodes.InvalidPayload, message);
+    // 畫面照正常操作送不出這些資料；畫面只顯示非預期錯誤那一句，檢查代號記進支援日誌（使用者 2026-10-13 裁定）。
+    // path 是程式寫死的 payload 位置，不是使用者資料。
+    private static JetActionException Invalid(string check) =>
+        JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, check);
 }

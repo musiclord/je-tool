@@ -1,4 +1,6 @@
 'use strict';
+// 測試程序的記憶體與時間上限，見 support/resource-guard.cjs（2026-10-13）。
+require('./support/resource-guard.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

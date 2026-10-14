@@ -135,9 +135,6 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
             connection, input, cancellationToken,
             _ => Predicates.BlankDescription());
 
-        var backdatedPosting = await CountWhereAsync(
-            connection, input, cancellationToken,
-            _ => Predicates.Backdated());
 
         // 非授權編製人員：授權清單未匯入時不執行（計 0、handler 標 na）。
         (long HitLines, long HitVouchers) nonAuthorizedPreparer = (0L, 0L);
@@ -174,7 +171,6 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
             holidayPosting.HitLines,
             holidayApproval.HitLines,
             blankDescription.HitLines,
-            backdatedPosting.HitLines,
             nonAuthorizedPreparer.HitLines,
             lowFrequencyPreparer.HitLines,
             lowFrequencyAccount.HitLines,
@@ -189,7 +185,6 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
                 [PrescreenRuleKeys.HolidayPosting] = holidayPosting.HitVouchers,
                 [PrescreenRuleKeys.HolidayApproval] = holidayApproval.HitVouchers,
                 [PrescreenRuleKeys.BlankDescription] = blankDescription.HitVouchers,
-                [PrescreenRuleKeys.BackdatedPosting] = backdatedPosting.HitVouchers,
                 [PrescreenRuleKeys.NonAuthorizedPreparer] = nonAuthorizedPreparer.HitVouchers,
                 [PrescreenRuleKeys.LowFrequencyPreparer] = lowFrequencyPreparer.HitVouchers,
                 [PrescreenRuleKeys.LowFrequencyAccount] = lowFrequencyAccount.HitVouchers
@@ -219,7 +214,6 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
             facts.HolidayPostingCount,
             input.HasHolidays && input.HasApprovalDate ? facts.HolidayApprovalCount : null,
             facts.BlankDescriptionCount,
-            facts.BackdatedPostingCount,
             facts.NonAuthorizedPreparerCount,
             facts.LowFrequencyPreparerCount,
             facts.LowFrequencyAccountCount)

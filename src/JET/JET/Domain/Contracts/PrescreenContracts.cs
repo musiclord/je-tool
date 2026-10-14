@@ -51,7 +51,6 @@ public sealed record PrescreenRunResult(
     long HolidayPostingCount,
     long? HolidayApprovalCount,
     long BlankDescriptionCount,
-    long BackdatedPostingCount,
     long NonAuthorizedPreparerCount,
     long LowFrequencyPreparerCount,
     long LowFrequencyAccountCount)

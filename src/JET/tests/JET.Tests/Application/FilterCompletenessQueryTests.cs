@@ -4,6 +4,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose input; keep independent hit, amount, and report assertions.
+
 public sealed class FilterCompletenessQueryTests
 {
     private static readonly JsonElement Scenario = JsonDocument.Parse("""
@@ -63,9 +65,9 @@ public sealed class FilterCompletenessQueryTests
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host);
         var scenario = JsonDocument.Parse("""
-          {"name":"Cash pair","rationale":"Synthetic","groups":[{"matchScope":"sameVoucher","rules":[
-            {"type":"accountSide","drCr":"credit","categoryMode":"is","categoryIds":["builtin.cash"]},
-            {"type":"accountSide","drCr":"debit","categoryMode":"isNot","categoryIds":["builtin.cash"]}]}]}
+          {"name":"Cash pair","rationale":"Synthetic","groups":[{"rules":[
+            {"type":"group","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},
+            {"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"isNot","categoryIds":["builtin.cash"]}]}]}]}
           """).RootElement;
         var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
         Assert.True(preview.GetProperty("scenario").GetProperty("count").GetInt64() > 0);

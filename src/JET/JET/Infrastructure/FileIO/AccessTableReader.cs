@@ -2,7 +2,6 @@ using System.Data;
 using System.Data.Common;
 using System.Data.OleDb;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using JET.Domain;
 
 namespace JET.Infrastructure;
@@ -183,8 +182,7 @@ public sealed class AccessTableReader : ITabularFileReader
         Enumerable.Range(0, reader.FieldCount).Select(i => (i + 1, (string?)reader.GetName(i))).ToArray());
 
     private static JetActionException Failure(Exception exception) => new(JetErrorCodes.FileReadError,
-        "無法讀取 Access 資料表。請確認檔案可開啟、未加密且未被獨占；關檔後重試。" +
-        $"若 Access 可開啟但 JET 仍失敗，請匯出支援日誌，請 IT 確認既有 ACE 16 能供 {RuntimeInformation.ProcessArchitecture} 程式使用。" +
-        "也可將資料表另存為 CSV 或 .xlsx 後匯入。",
+        // 使用者 2026-10-13 勾選頁確認：不再請 IT 確認元件；元件問題由支援日誌的 failure_cause 分辨。
+        "無法讀取 Access 資料表。請確認檔案可以開啟、未加密且未被其他程式使用，關閉檔案後重試；或將資料表另存為 CSV 或 .xlsx 後匯入。",
         innerException: exception);
 }

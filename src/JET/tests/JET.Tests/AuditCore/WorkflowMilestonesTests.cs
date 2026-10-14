@@ -14,6 +14,10 @@ public sealed class WorkflowMilestonesTests
     [InlineData("validate.run", 4)]
     [InlineData("prescreen.run", 4)]
     [InlineData("filter.commit", 5)]
+    // 2026-10-13 新增案例（既有案例不變）：一次只存、刪或重新檢查一個情境的三個動作，和 filter.commit 一樣推進到第五步。
+    [InlineData("filter.scenario.save", 5)]
+    [InlineData("filter.scenario.remove", 5)]
+    [InlineData("filter.scenario.recheck", 5)]
     public void For_MatchesExistingAutomaticProgress(string action, int expectedMilestone)
     {
         Assert.Equal(expectedMilestone, WorkflowMilestones.For(action));

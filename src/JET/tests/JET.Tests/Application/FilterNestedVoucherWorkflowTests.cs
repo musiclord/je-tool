@@ -58,7 +58,8 @@ public sealed class FilterNestedVoucherWorkflowTests
         finally { TestWorkbookBuilder.Delete(path); }
         JsonElement Scenario(string mode) => JsonElement.Parse($$"""
             {"name":"分類 {{mode}}","rationale":"獨立固定答案","groups":[{"rules":[
-             {"type":"accountSide","drCr":"debit","categoryMode":"is","categorySelection":"{{mode}}","categoryIds":["{{child}}"]}]}]}
+             {"type":"drCrOnly","drCr":"debit"},
+             {"type":"accountSide","categoryMode":"is","categorySelection":"{{mode}}","categoryIds":["{{child}}"]}]}]}
             """);
         var node = Scenario("node"); var subtree = Scenario("subtree"); var role = Scenario("role");
         foreach (var item in new[] { (node, new[] { "V2" }), (subtree, new[] { "V2", "V3" }), (role, new[] { "V1", "V2", "V4" }) })
@@ -79,12 +80,17 @@ public sealed class FilterNestedVoucherWorkflowTests
         }
         var legacyPreview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = legacy }));
         Assert.Equal(3, legacyPreview.GetProperty("scenario").GetProperty("count").GetInt64());
+        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. All debit rows means at least one debit and every row is credit or a matching debit.
         var nested = JsonElement.Parse($$"""
             {"name":"子分類傳票","rationale":"分類及摘要綁定同一筆","groups":[{"rules":[
-              {"type":"voucher","side":"debit","quantifier":"all","rules":[
-                {"type":"accountSide","drCr":"debit","categoryMode":"is","categorySelection":"subtree","categoryIds":["{{child}}"]},
-                {"type":"group","rules":[{"type":"fieldValue","field":"description","operator":"equals","value":"X"},
-                  {"join":"OR","type":"fieldValue","field":"description","operator":"equals","value":"Z"}]}]}]}]}
+              {"type":"group","rules":[
+                {"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"debit"}]},
+                {"type":"voucher","quantifier":"all","rules":[
+                  {"type":"drCrOnly","drCr":"credit"},
+                  {"type":"group","join":"OR","rules":[
+                    {"type":"accountSide","categoryMode":"is","categorySelection":"subtree","categoryIds":["{{child}}"]},
+                    {"type":"group","rules":[{"type":"fieldValue","field":"description","operator":"equals","value":"X"},
+                      {"join":"OR","type":"fieldValue","field":"description","operator":"equals","value":"Z"}]}]}]}]}]}]}
             """);
         var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = nested }));
         Assert.Equal(4, preview.GetProperty("scenario").GetProperty("count").GetInt64());
@@ -106,7 +112,7 @@ public sealed class FilterNestedVoucherWorkflowTests
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
         Assert.Equal(child, loaded.GetProperty("taxonomy").GetProperty("categories")[6].GetProperty("parentCategoryId").GetString());
         var saved = loaded.GetProperty("filterScenarios"); Assert.Equal(4, saved.GetArrayLength());
-        Assert.Equal("all", saved[3].GetProperty("groups")[0].GetProperty("rules")[0].GetProperty("quantifier").GetString());
+        Assert.Equal("all", saved[3].GetProperty("groups")[0].GetProperty("rules")[0].GetProperty("rules")[1].GetProperty("quantifier").GetString());
         var hits = await host.DispatchAsync("query.filterHitsPage", JsonSerializer.Serialize(new { scenarioPosition = 4, scenarioRevision = revision, pageSize = 50 }));
         Assert.Equal(new[] { "V2|1", "V2|2", "V3|1", "V3|2" }, hits.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("documentNumber").GetString() + "|" + r.GetProperty("lineItem").GetString()).Order());
         committed = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = definitions }));

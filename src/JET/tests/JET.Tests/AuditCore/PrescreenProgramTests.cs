@@ -23,7 +23,8 @@ public sealed class PrescreenProgramTests
         Assert.Equal(request.GeneratedUtc, plan.ReviewPlan.UserParameters.GeneratedUtc);
         Assert.Equal("prescreen.run", plan.ReviewPlan.UserParameters.ActionName);
         Assert.Equal(TrailingZeroThreshold.DefaultZerosThreshold, plan.ZerosThreshold);
-        Assert.Equal(15, plan.ReviewPlan.Procedures.Count);
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
+        Assert.Equal(14, plan.ReviewPlan.Procedures.Count);
         Assert.All(plan.ReviewPlan.Procedures, verdict => Assert.True(verdict.IsApplicable));
     }
 
@@ -96,7 +97,8 @@ public sealed class PrescreenProgramTests
             JetAuditProgram.Plan(Request()),
             Facts());
 
-        Assert.Equal(15, result.Manifest.Procedures.Count);
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
+        Assert.Equal(14, result.Manifest.Procedures.Count);
         Assert.All(result.Manifest.Procedures, verdict =>
         {
             Assert.True(verdict.IsApplicable);
@@ -271,7 +273,7 @@ public sealed class PrescreenProgramTests
             HasRevenue: hasRevenue,
             HasCounterpart: hasCounterpart,
             HasAuthorizedPreparers: hasAuthorizedPreparers,
-            NonWorkingDays: [0, 6], HasVoucherDate: true);
+            NonWorkingDays: [0, 6]);
 
     private static PrescreenFacts Facts(bool nonZero = false)
     {
@@ -293,7 +295,6 @@ public sealed class PrescreenProgramTests
             HolidayPostingCount: count,
             HolidayApprovalCount: count,
             BlankDescriptionCount: count,
-            BackdatedPostingCount: count,
             NonAuthorizedPreparerCount: count,
             LowFrequencyPreparerCount: count,
             LowFrequencyAccountCount: count,

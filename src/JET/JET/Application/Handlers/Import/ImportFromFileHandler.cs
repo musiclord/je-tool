@@ -216,11 +216,12 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             }
 
             var rows = string.Join("、", tally.FirstRows);
-            var where = tally.Count > tally.FirstRows.Count ? $"，例如第 {rows} 列" : $"：第 {rows} 列";
+            // 使用者 2026-10-13 確認的句子只有「，例如第…列」一種寫法，列號全部列出時也一樣。
+            var where = $"，例如第 {rows} 列";
             warnings.Add(
-                $"「{sources[index].Payload.FileName}」有 {tally.Count.ToString("N0", CultureInfo.InvariantCulture)} 筆資料的欄位內含換行{where}。"
-                + "欄位用引號包住時可以換行，不一定是錯誤。但如果引號放錯位置，後面幾列會被併進同一格，匯入的筆數會變少。"
-                + "請用 Excel 打開原檔，核對這幾列。");
+                // 使用者 2026-10-13 勾選頁確認的句子。
+                $"「{sources[index].Payload.FileName}」有 {tally.Count.ToString("N0", CultureInfo.InvariantCulture)} 列的欄位內含換行{where}。"
+                + "引號位置錯誤時，後續資料會併入同一格而使筆數減少，請以 Excel 開啟原檔核對。");
             if (logger is not null)
             {
                 ImportSourceDiagnostics.QuotedLineBreaks(logger, index + 1, tally.Count, string.Join(",", tally.FirstRows));
@@ -265,7 +266,8 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             .Select(source =>
             {
                 var label = source.SheetName is null ? $"「{source.FileName}」" : $"「{source.FileName}」的工作表「{source.SheetName}」";
-                return $"{label}與既有來源的檔名、工作表及筆數相同，可能已匯入過。本次仍已加入，請確認來源是否重複。";
+                // 使用者 2026-10-13 勾選頁確認：寫實際比對的結果，不寫「可能」。
+                return $"{label}與已匯入的來源檔名、工作表及筆數皆相同，已照常加入；請確認是否重複匯入。";
             }).ToArray();
     }
 
@@ -292,7 +294,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                     ImportFailureDiagnostics.Attach(error, new ImportFailureContext(ImportFailureStage.Progress,
                         LastCompletedRow: row.SourceRowNumber));
                     throw new JetActionException(JetErrorCodes.ImportProgressFailed,
-                        "匯入進度通知失敗，資料尚未完成匯入。請重試；若仍失敗，匯出支援日誌。", innerException: error);
+                        "匯入過程發生錯誤，本次匯入未完成，請重新匯入。", innerException: error);
                 }
             }
         }
@@ -364,7 +366,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                 : "讀取失敗，請確認檔案可讀及編碼設定後重試。";
         return new(
             JetErrorCodes.FileReadError,
-            $"{SourceContext(source, sourceNo, sourceCount)}：{guidance}匯入尚未完成；仍失敗時可匯出支援日誌。", innerException: error);
+            $"{SourceContext(source, sourceNo, sourceCount)}：{guidance}本次匯入未完成。", innerException: error);
     }
 
     private static ImportFailureContext Context(ImportFailureStage stage, int sourceNo, int sourceCount,
@@ -378,8 +380,8 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
 
     private static string SourceContext(ImportFileSourcePayload source, int sourceNo, int sourceCount) =>
         source.SheetName is null
-            ? $"來源 {sourceNo}/{sourceCount}，檔案 '{source.FileName}'"
-            : $"來源 {sourceNo}/{sourceCount}，檔案 '{source.FileName}'，工作表 '{source.SheetName}'";
+            ? $"來源 {sourceNo}/{sourceCount}，檔案「{source.FileName}」"
+            : $"來源 {sourceNo}/{sourceCount}，檔案「{source.FileName}」，工作表「{source.SheetName}」";
 
     private async Task AdvanceStepAsync(string projectId, int minimumStep, CancellationToken cancellationToken)
     {
@@ -417,9 +419,7 @@ internal sealed record ImportFromFilePayload(
 
         if (hasFilePath == hasSources || (hasSources && hasRootSourceOptions))
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "payload 必須且只能提供根層 'filePath' 或非空 'sources' 陣列其中一種。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "import_file_path_or_sources");
         }
 
         var mode = PayloadReader.GetOptionalString(payload, "mode") ?? "replace";
@@ -430,9 +430,7 @@ internal sealed record ImportFromFilePayload(
 
         if (sourcesElement.ValueKind != JsonValueKind.Array || sourcesElement.GetArrayLength() == 0)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                "欄位 'sources' 必須是非空陣列。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "import_sources_empty");
         }
 
         var sources = new List<ImportFileSourcePayload>(sourcesElement.GetArrayLength());
@@ -440,9 +438,7 @@ internal sealed record ImportFromFilePayload(
         {
             if (source.ValueKind != JsonValueKind.Object)
             {
-                throw new JetActionException(
-                    JetErrorCodes.InvalidPayload,
-                    "欄位 'sources' 的每個元素都必須是 object。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "import_source_not_object");
             }
 
             sources.Add(ParseSource(source));

@@ -49,8 +49,8 @@ Git tree 相同，所以是同一條開發線，不是需要合併的兩套產�
 |:---|:---|
 | `AccountMapping.xlsx` | 同名打包 |
 | `CriteriaSelectionReport.xlsx` | 同名打包 |
-| `Holiday2025TW.xlsx` | 同名打包；第二步可複製到案件資料夾，日期與年份須自行更新 |
-| `MakeUpDay2025TW.xlsx` | 同名打包；第二步可複製到案件資料夾，同名檔保留，不自動匯入 |
+| `Holiday2025TW.xlsx` | 同名打包，放在程式的 Templates 資料夾；第二步畫面不再提供取得範本的按鈕 |
+| `MakeUpDay2025TW.xlsx` | 同名打包，放在程式的 Templates 資料夾；第二步畫面不再提供取得範本的按鈕 |
 | `INFReport.xlsx` | 同名打包；程式隨附內容不以 `data/` 版本覆蓋 |
 | `PrescreeningReport.xlsx` | 同名打包 |
 | `ValidationReport.xlsx` | 同名打包 |

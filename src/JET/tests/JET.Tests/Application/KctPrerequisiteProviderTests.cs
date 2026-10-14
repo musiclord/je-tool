@@ -177,6 +177,8 @@ public sealed class KctPrerequisiteProviderTests
             await host.DispatchAsync("validate.run");
             loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
             Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
+            // 第 7 則重新配對已清除分類。重建本測試的分類前提後，仍驗證缺少建立人員的原訊息。
+            await ImportAccountMappingAsync(host);
             var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
                 "filter.commit",
                 CommitPayload(ReadyCases.Select(static testCase => testCase.Scenario).ToArray())));
@@ -184,6 +186,7 @@ public sealed class KctPrerequisiteProviderTests
             Assert.Contains("傳票建立人員", missing.Message);
             await host.DispatchAsync("mapping.commit.gl", RemapPayload(completeMapping.Mapping));
             await host.DispatchAsync("validate.run");
+            await ImportAccountMappingAsync(host);
             loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
             Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
             await host.DispatchAsync(
@@ -226,7 +229,8 @@ public sealed class KctPrerequisiteProviderTests
     private static void AssertMissingField(JetActionException exception, KctMissingCase testCase)
     {
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        Assert.Contains("缺少前置資料", exception.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains("尚未選擇來源欄", exception.Message, StringComparison.Ordinal);
         foreach (var label in testCase.MissingFieldLabels)
         {
             Assert.Contains(label, exception.Message, StringComparison.Ordinal);

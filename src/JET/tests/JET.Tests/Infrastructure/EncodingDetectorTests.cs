@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
@@ -36,7 +36,11 @@ public sealed class EncodingDetectorTests
             () => EncodingDetector.Resolve("shift-jis", filePath: "unused.csv"));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        Assert.Contains("shift-jis", ex.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面只送三種編碼，
+        // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，檢查代號記進支援日誌，送出的值不出現。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
+        Assert.Equal("encoding_invalid", JetPayloadRejection.CheckOf(ex));
+        Assert.DoesNotContain("shift-jis", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

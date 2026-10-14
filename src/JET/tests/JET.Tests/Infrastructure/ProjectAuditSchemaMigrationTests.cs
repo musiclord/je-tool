@@ -43,7 +43,8 @@ public sealed class ProjectAuditSchemaMigrationTests
             "(SELECT COUNT(*) FROM result_rule_run WHERE run_id='v7-run');";
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
-        Assert.Equal("11", reader.GetString(0));
+        // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 12 版加上 error。第一次失敗收據 20261013-095713643-9c52f788741d4920aa5b157e72d61847。
+        Assert.Equal("12", reader.GetString(0));
         Assert.Equal(0, reader.GetInt64(1));
         Assert.Equal(1, reader.GetInt64(2));
     }

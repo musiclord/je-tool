@@ -26,7 +26,7 @@ public sealed partial class SqlServerProjectDatabase
         {
             throw new JetActionException(
                 JetErrorCodes.SqlServerNotConfigured,
-                "SQL Server 單一資料庫名未設定(SqlServerConnectionOptions.SingleDatabaseName)。選用 sqlServer provider 的專案需要它。");
+                SqlServerMessages.NotConfigured);
         }
 
         // master 探測至多一次/process/目標:AssumeDatabaseExists=true 或此目標已確認就緒 → 跳過整個 master 區塊
@@ -49,8 +49,7 @@ public sealed partial class SqlServerProjectDatabase
                 {
                     throw new JetActionException(
                         JetErrorCodes.SqlServerExpressUnsupported,
-                        "偵測到 SQL Server Express：單庫模型下所有專案共用一個資料庫，會撞 Express 的 10 GB 上限。" +
-                        "Express 已淘汰，請改用 SQL Server 2022（Developer／Standard）。");
+                        SqlServerMessages.ExpressUnsupported);
                 }
 
                 _engineVerified = true;

@@ -11,14 +11,8 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed partial class HandlerRepositoryScopeTests
 {
-    [Fact]
-    public void K15_CalendarTemplates_DoesNotAcquireDatabaseRepositories()
-    {
-        var source = File.ReadAllText(Path.Combine(ProductRoot(), "Application", "Handlers", "ExportCalendarTemplatesHandler.cs"));
-        Assert.Contains("session.RequireProjectId()", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("RequireActive", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("Repositories", source, StringComparison.Ordinal);
-    }
+    // 改動原因：使用者 2026-10-08 畫面註解要求移除假日範本入口，K15 的 ExportCalendarTemplatesHandler 隨之刪除，
+    // 原本只檢查該 handler 的測試一併移除。
 
     /// <summary>handler 類別、所在檔案（Application/Handlers 之下）與它可用的資料庫組屬性（以逗號分隔）。</summary>
     // 2026-10-04 第9批高3；Public 首敗 100911120-57efb95a0cae44beb892ec3c2d058592。
@@ -91,6 +85,21 @@ public sealed partial class HandlerRepositoryScopeTests
         (
             "FilterCommitHandler", "FilterHandlers.cs",
             "AccountMappings,AccountTaxonomy,AuthorizedPreparers,FilterFacts,MappingStates,RuleRuns"
+        ),
+        // 2026-10-13 第五步一次只存或刪一個情境：新增三個 handler，各自列出用到的資料庫組屬性；既有列不變。
+        // 第一次失敗（未登錄新 handler）：Focused 收據 20261013-103223974-21ad5d61409a4678b759c656d07a3fbc。
+        // 比 filter.commit 多出的 FilterScenarios、ResultStaleStates 用來讀出整批與寫入後的結果狀態。
+        (
+            "FilterScenarioSaveHandler", "FilterScenarioHandlers.cs",
+            "AccountMappings,AccountTaxonomy,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,RuleRuns"
+        ),
+        (
+            "FilterScenarioRemoveHandler", "FilterScenarioHandlers.cs",
+            "AccountMappings,AccountTaxonomy,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,RuleRuns"
+        ),
+        (
+            "FilterScenarioRecheckHandler", "FilterScenarioHandlers.cs",
+            "AccountMappings,AccountTaxonomy,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,RuleRuns"
         ),
         (
             "ExportWorkpaperStreamHandler", "ExportWorkpaperStreamHandler.cs",

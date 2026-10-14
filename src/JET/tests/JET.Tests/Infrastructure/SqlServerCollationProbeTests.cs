@@ -50,7 +50,7 @@ public sealed class SqlServerCollationProbeTests
         ("target_gl_entry", "document_number"),
         ("target_gl_entry", "post_date"),
         ("target_gl_entry", "approval_date"),
-        ("target_gl_entry", "voucher_date"),
+        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，現行 schema 不再有 voucher_date。
         ("target_gl_entry", "account_code"),
         ("target_gl_entry", "created_by"),
         ("target_gl_entry", "approved_by"),

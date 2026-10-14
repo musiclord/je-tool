@@ -51,8 +51,6 @@ internal static class DemoSeeder
             if (throughValidation)
             {
                 await ImportDemoFileAsync(
-                    dispatcher, "demo.exportAccountMappingFile", "import.accountMapping.fromFile").ConfigureAwait(false);
-                await ImportDemoFileAsync(
                     dispatcher, "demo.exportAuthorizedPreparerFile", "import.authorizedPreparer.fromFile",
                     sourceColumn: "姓名").ConfigureAwait(false);
                 await DispatchAsync(dispatcher, "import.holiday", new { dates = demo.Holidays }).ConfigureAwait(false);
@@ -68,6 +66,8 @@ internal static class DemoSeeder
                     mapping = demo.TbMapping,
                     changeMode = demo.TbChangeMode,
                 }).ConfigureAwait(false);
+                await ImportDemoFileAsync(
+                    dispatcher, "demo.exportAccountMappingFile", "import.accountMapping.fromFile").ConfigureAwait(false);
                 var validation = await DispatchAsync(dispatcher, "validate.run", new { }).ConfigureAwait(false);
                 await DispatchAsync(dispatcher, "export.validationArtifacts", new
                 {

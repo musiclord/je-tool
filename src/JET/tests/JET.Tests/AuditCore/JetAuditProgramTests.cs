@@ -54,7 +54,10 @@ public sealed class JetAuditProgramTests
         var exception = Assert.Throws<JetActionException>(() => JetAuditProgram.Plan(snapshot, parameters));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        Assert.Contains("舊版 JET 建立的案件", exception.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 開案時已擋下舊版案件，
+        // 驗證計畫照正常操作走不到這裡：訊息改成非預期錯誤那一句，檢查代號記進支援日誌；錯誤代碼不變，仍拒絕執行。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
+        Assert.Equal("inf_algorithm_version_legacy", JetPayloadRejection.CheckOf(exception));
     }
 
     [Fact]

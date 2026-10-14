@@ -184,7 +184,7 @@ public sealed class SqlServerUserDirectory(SqlServerConnectionOptions options) :
         {
             throw new JetActionException(
                 JetErrorCodes.SqlServerNotConfigured,
-                "未設定 SQL Server 連線。使用者目錄需要環境變數 JET_SQLSERVER_CONNECTION。");
+                SqlServerMessages.NotConfigured);
         }
 
         return new SqlConnectionStringBuilder(options.BaseConnectionString)

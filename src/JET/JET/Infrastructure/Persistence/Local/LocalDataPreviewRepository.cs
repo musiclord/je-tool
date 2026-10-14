@@ -14,7 +14,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 {
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
-    private static readonly string[] GlExcludedEntryColumns =
+    private static readonly string[] GlExcludedColumns =
     [
         "documentNumber", "lineItem", "postDate", "postingStatus", "accountCode", "accountName",
         "documentDescription", "amount", "drCr", "exclusionReason"
@@ -50,11 +50,11 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 
         return dataset switch
         {
-            DataPreviewDataset.GlStaging => await StagingPreviewAsync(connection, "gl", "staging_gl_raw_row", limit, cancellationToken),
-            DataPreviewDataset.TbStaging => await StagingPreviewAsync(connection, "tb", "staging_tb_raw_row", limit, cancellationToken),
-            DataPreviewDataset.GlEntries => await GlEntriesPreviewAsync(connection, moneyScale, limit, cancellationToken),
-            DataPreviewDataset.GlExcludedEntries => await GlExcludedEntriesPreviewAsync(connection, moneyScale, limit, cancellationToken),
-            DataPreviewDataset.TbBalances => await TbBalancesPreviewAsync(connection, moneyScale, limit, cancellationToken),
+            DataPreviewDataset.PbcGl => await StagingPreviewAsync(connection, "gl", "staging_gl_raw_row", limit, cancellationToken),
+            DataPreviewDataset.PbcTb => await StagingPreviewAsync(connection, "tb", "staging_tb_raw_row", limit, cancellationToken),
+            DataPreviewDataset.Gl => await GlPreviewAsync(connection, moneyScale, limit, cancellationToken),
+            DataPreviewDataset.GlExcluded => await GlExcludedPreviewAsync(connection, moneyScale, limit, cancellationToken),
+            DataPreviewDataset.Tb => await TbPreviewAsync(connection, moneyScale, limit, cancellationToken),
             DataPreviewDataset.AccountMappings => await AccountMappingsPreviewAsync(connection, limit, cancellationToken),
             DataPreviewDataset.AuthorizedPreparers => await AuthorizedPreparersPreviewAsync(connection, limit, cancellationToken),
             DataPreviewDataset.DateDimension => await DateDimensionPreviewAsync(connection, limit, cancellationToken),
@@ -154,7 +154,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
     }
 
     /// <summary>
-    /// 來源原貌：columns = 該 dataset 最新批次的正規化欄名（與欄位配對下拉一字不差），
+    /// PBC-GL、PBC-TB：columns = 該 dataset 最新批次的正規化欄名（與欄位配對下拉一字不差），
     /// rows = staging row_json 依批次排序鍵取前 N 列（cell 缺漏 → null）。
     /// </summary>
     private static async Task<DataPreviewResult> StagingPreviewAsync(
@@ -226,14 +226,14 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         return new DataPreviewResult(columns, rows, totalCount, null);
     }
 
-    private static async Task<DataPreviewResult> GlEntriesPreviewAsync(
+    private static async Task<DataPreviewResult> GlPreviewAsync(
         DbConnection connection,
         int moneyScale,
         int limit,
         CancellationToken cancellationToken)
     {
         long totalCount;
-        GlEntriesPreviewStats? stats = null;
+        GlPreviewStats? stats = null;
 
         // 總數與概況統計一次取得（set-based；空表時 MIN/MAX 為 NULL → stats 維持 null）
         await using (var statsQuery = connection.CreateCommand())
@@ -256,7 +256,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 
             if (totalCount > 0)
             {
-                stats = new GlEntriesPreviewStats(
+                stats = new GlPreviewStats(
                     ToDisplayAmount(reader.GetInt64(2), moneyScale),
                     ToDisplayAmount(reader.GetInt64(3), moneyScale),
                     reader.IsDBNull(4) ? null : reader.GetString(4),
@@ -302,10 +302,10 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             }
         }
 
-        return new DataPreviewResult(DataPreviewColumns.GlEntries, rows, totalCount, stats);
+        return new DataPreviewResult(DataPreviewColumns.Gl, rows, totalCount, stats);
     }
 
-    private static async Task<DataPreviewResult> GlExcludedEntriesPreviewAsync(
+    private static async Task<DataPreviewResult> GlExcludedPreviewAsync(
         DbConnection connection,
         int moneyScale,
         int limit,
@@ -335,7 +335,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             excludedByPostingStatusCount = reader.GetInt64(2);
         }
 
-        var stats = new GlExcludedEntriesPreviewStats(
+        var stats = new GlExcludedPreviewStats(
             excludedByPeriodCount,
             excludedByPostingStatusCount);
         var rows = new List<IReadOnlyList<string?>>();
@@ -372,10 +372,10 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             }
         }
 
-        return new DataPreviewResult(GlExcludedEntryColumns, rows, totalCount, stats);
+        return new DataPreviewResult(GlExcludedColumns, rows, totalCount, stats);
     }
 
-    private static async Task<DataPreviewResult> TbBalancesPreviewAsync(
+    private static async Task<DataPreviewResult> TbPreviewAsync(
         DbConnection connection,
         int moneyScale,
         int limit,

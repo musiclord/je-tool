@@ -62,8 +62,9 @@ public sealed class DevToolsGatingTests
         using var host = new HandlerTestHost(enableDevTools: false);
 
         // 正式版的使用者預覽仍註冊：丟出的是業務錯誤（無 active project），不是 unknown action
+        // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
         var ex = await Assert.ThrowsAsync<JetActionException>(
-            () => host.DispatchAsync("query.dataPreview", """{ "dataset": "glStaging" }"""));
+            () => host.DispatchAsync("query.dataPreview", """{ "dataset": "pbcGl" }"""));
 
         Assert.Equal(JetErrorCodes.NoActiveProject, ex.Code);
     }

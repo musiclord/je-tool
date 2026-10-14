@@ -25,7 +25,7 @@ public sealed class QueryNullRecordsPageHandler(
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                $"找不到專案 '{projectId}'。");
+                ProjectFolderMessages.ActiveProjectMissing);
 
         var page = await Task.Run(
             () => repositories.NullRecordsPages.GetPageAsync(
@@ -53,8 +53,6 @@ public sealed class QueryNullRecordsPageHandler(
         "nullDocument" => NullRecordCategory.NullDocument,
         "nullDescription" => NullRecordCategory.NullDescription,
         "outOfRangeDate" => NullRecordCategory.OutOfRangeDate,
-        _ => throw new JetActionException(
-            JetErrorCodes.InvalidPayload,
-            $"category '{category}' 非白名單值(nullAccount|nullDocument|nullDescription|outOfRangeDate)。")
+        _ => throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "null_records_category_invalid")
     };
 }

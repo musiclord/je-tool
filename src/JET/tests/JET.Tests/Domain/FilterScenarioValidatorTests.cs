@@ -102,8 +102,11 @@ public sealed class FilterScenarioValidatorTests
 
         // 2026-10-04 第 7 批 L72：只改位置說法，保留未知 join 與完整訊息斷言。
         // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11。
-        Assert.Contains(
-            "第 1 組：join 結合方式「XOR」無效，允許值：AND、OR。", errors);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains("第 1 組：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
+        Assert.Contains(new FilterScenarioCorruptReason(1, null, "group_join_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
+        Assert.DoesNotContain(errors, e => e.Contains("XOR", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -115,8 +118,11 @@ public sealed class FilterScenarioValidatorTests
 
         // 2026-10-04 第 7 批 L72：完整訊息仍須指出第幾組、第幾條與原輸入。
         // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11。
-        Assert.Contains(
-            "第 1 組第 1 條：join 結合方式「ANDD」無效，允許值：AND、OR。", errors);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
+        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "rule_join_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
+        Assert.DoesNotContain(errors, e => e.Contains("ANDD", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -130,8 +136,12 @@ public sealed class FilterScenarioValidatorTests
         var errors = FilterScenarioValidator.Validate(scenario, Ready);
 
         Assert.Contains(NameRequiredError, errors);
-        Assert.Contains(errors, e => e.Contains("「XOR」無效", StringComparison.Ordinal));
-        Assert.Contains(errors, e => e.Contains("「聯集」無效", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains("第 1 組：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
+        Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
+        Assert.Contains(new FilterScenarioCorruptReason(1, null, "group_join_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
+        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "rule_join_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
     }
 
     [Fact]
@@ -333,7 +343,8 @@ public sealed class FilterScenarioValidatorTests
 
     /* ---- 考量特殊科目類別配對（specialAccountCategoryPair）---------------- */
 
-    private const string SpecialPairMappingError = "特殊科目類別配對需要科目配對中至少有一個科目設定了分類。請先在科目配對設定科目分類。";
+    // 使用者 2026-10-13 勾選頁確認（文字批次 C）：四種科目配對條件缺分類時同一句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+    private const string SpecialPairMappingError = "科目配對中尚無任何科目設定分類，請先在第四步設定";
 
     private static FilterRuleSpec SpecialPairRule(
         string? pairMode, string? debitCategory, string? creditCategory) =>
@@ -390,7 +401,8 @@ public sealed class FilterScenarioValidatorTests
         var errors = ValidateSpecialPair(pairMode, debit, credit, hasMapping);
 
         Assert.Equal(expectMappingError, HasError(errors, SpecialPairMappingError));
-        Assert.Equal(expectModeError, HasError(errors, "允許值：drAndCr、drNotCr、notDrCr"));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：配對模式無效只會是內容損毀，改鎖原因代號。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Equal(expectModeError, FilterScenarioCorruption.ReasonsOf(errors).Any(r => r.Code == "special_pair_mode_invalid"));
         // 分類錯誤有兩種形態：未選（空集合）與不存在於目前專案 taxonomy；兩者都以側別前綴鎖定。
         Assert.Equal(expectDebitError, HasError(errors, "借方分類"));
         Assert.Equal(expectCreditError, HasError(errors, "貸方分類"));
@@ -406,7 +418,10 @@ public sealed class FilterScenarioValidatorTests
         // 鎖早退語意：模式非法時，即便雙分類都非白名單，也只報模式錯誤、不報分類錯誤。
         var errors = ValidateSpecialPair("notAMode", "NotACategory", "AlsoBad", hasMapping: true);
 
-        Assert.Contains(errors, e => e.Contains("允許值：drAndCr、drNotCr、notDrCr", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "special_pair_mode_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
+        Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
         Assert.DoesNotContain(errors, e => e.Contains("借方分類", StringComparison.Ordinal));
         Assert.DoesNotContain(errors, e => e.Contains("貸方分類", StringComparison.Ordinal));
     }
@@ -480,7 +495,8 @@ public sealed class FilterScenarioValidatorTests
 
         var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping());
 
-        Assert.Contains(errors, e => e.Contains("借方分類至少需選擇一項", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains("第 1 組第 1 條：尚未選擇借方分類", errors);
     }
 
     [Fact]
@@ -498,9 +514,8 @@ public sealed class FilterScenarioValidatorTests
         // （第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         // 2026-10-03 主線審查再改：同一側缺幾項都只報一則，「有一項」在缺兩項以上時不正確，改成不寫數量的說法
         // （第一次失敗：收據 20261003-025601604-276084fa725a4007a4587e23efcf3f08）。
-        Assert.Contains(
-            errors,
-            e => e.Contains("借方分類包含目前專案沒有的科目分類，請重新選擇借方分類，或刪除這個條件", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：原因只寫原因，改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains("第 1 組第 1 條：所選借方分類中含有已刪除的分類", errors);
         Assert.DoesNotContain(errors, e => e.Contains(CustomPettyCashId, StringComparison.Ordinal));
     }
 
@@ -535,9 +550,10 @@ public sealed class FilterScenarioValidatorTests
             Scenario(rules: rule),
             ReadyWithMapping(tooMany));
 
-        Assert.Contains(
-            errors,
-            e => e.Contains($"借方分類最多 {FilterScenarioLimits.MaxCategoryIdsPerSide} 項", StringComparison.Ordinal));
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
+        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "category_selection_too_many"), FilterScenarioCorruption.ReasonsOf(errors));
     }
 
     [Fact]
@@ -562,10 +578,15 @@ public sealed class FilterScenarioValidatorTests
     [InlineData(null, false)]
     public void Validate_CustomTrailingZerosDigitsBoundaries(int? digits, bool expectValid)
     {
-        var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.CustomTrailingZeros, null, null,
-            [], TextMatchMode.Contains, null, null, null, null, null, null, Digits: digits);
-
-        var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), Ready);
+        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. The replacement keeps the original 1..12 digit boundary.
+        var scenario = JET.Application.FilterScenarioPayloadParser.Parse(System.Text.Json.JsonSerializer.SerializeToElement(new
+        {
+            name = "Synthetic zeros", rationale = "Fixed boundary table", groups = new[] { new { rules = new object[] {
+                new { type = "fieldValue", field = "amount", @operator = "endsWithDigits", value = new string('0', Math.Max(0, digits ?? 0)), amountBasis = "absolute" },
+                new { type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "1", amountBasis = "absolute" }
+            } } }
+        }), 100);
+        var errors = FilterScenarioValidator.Validate(scenario, Ready);
 
         Assert.Equal(expectValid, errors.Count == 0);
     }
@@ -687,7 +708,8 @@ public sealed class FilterScenarioValidatorTests
         var errors = FilterScenarioValidator.Validate(KctMappingScenario(letter), context);
         var combined = string.Join("；", errors);
 
-        Assert.Contains("缺少前置資料", combined, StringComparison.Ordinal);
+        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        Assert.Contains($"「{expectedField}」尚未選擇來源欄", combined, StringComparison.Ordinal);
         Assert.Contains(expectedField, combined, StringComparison.Ordinal);
         if (secondExpectedField is not null)
         {
@@ -838,8 +860,14 @@ public sealed class FilterScenarioValidatorTests
     [InlineData(false)]
     public void Validate_TrailingDigits_PatternRules(bool expectValid, params string[] patterns)
     {
-        var errors = FilterScenarioValidator.Validate(
-            Scenario(rules: KctRule(FilterRuleType.TrailingDigits, keywords: patterns)), Ready);
+        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Keep the tail-pattern boundary table on the current field condition.
+        var rule = JET.Application.FilterScenarioPayloadParser.Parse(System.Text.Json.JsonSerializer.SerializeToElement(new
+        {
+            name = "Synthetic tail", rationale = "Fixed boundary table", groups = new[] { new { rules = new[] {
+                new { type = "fieldValue", field = "amount", @operator = "endsWithDigits", value = string.Join(",", patterns), amountBasis = "absolute" }
+            } } }
+        }), 100);
+        var errors = FilterScenarioValidator.Validate(rule, Ready);
 
         Assert.Equal(expectValid, errors.Count == 0);
     }

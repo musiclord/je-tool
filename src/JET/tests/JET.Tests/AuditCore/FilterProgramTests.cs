@@ -75,6 +75,96 @@ public sealed class FilterProgramTests
         Assert.Equal(2, result.MaterializedScenarioCount);
     }
 
+    // ── 2026-10-13 一次只存、刪或重新檢查一個情境的三個動作（新增測試）──
+
+    [Theory]
+    [InlineData("filter.scenario.save")]
+    [InlineData("filter.scenario.remove")]
+    [InlineData("filter.scenario.recheck")]
+    public void Plan_OneScenarioChange_UsesSafetyCheckWithoutSaveRulesAndPairsDefinitions(string action)
+    {
+        // 名稱空白只在儲存規則下算錯；其他情境照資料庫原樣保留，不套儲存規則。
+        var unnamed = Scenario() with { Name = string.Empty, Rationale = string.Empty };
+        var definitions = new[]
+        {
+            new SavedFilterScenario(1, "情境1", "動機1", "{}", DateTimeOffset.UnixEpoch),
+            new SavedFilterScenario(2, "情境2", "動機2", "{}", DateTimeOffset.UnixEpoch)
+        };
+
+        var plan = JetAuditProgram.Plan(
+            Request(action, [new CanonicalFilterDocument(1, "{}", unnamed), new CanonicalFilterDocument(2, "{}", Scenario())]),
+            definitions);
+
+        Assert.Equal([1, 2], plan.CommitItems.Select(item => item.Definition.Position));
+        Assert.Same(unnamed, plan.CommitItems[0].Spec);
+    }
+
+    [Theory]
+    [InlineData("filter.scenario.save")]
+    [InlineData("filter.scenario.remove")]
+    [InlineData("filter.scenario.recheck")]
+    public void Plan_OneScenarioChange_RequiresDefinitions(string action)
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            JetAuditProgram.Plan(Request(action, [new CanonicalFilterDocument(1, "{}", Scenario())])));
+    }
+
+    [Fact]
+    public void Plan_Commit_StillAppliesSaveRules()
+    {
+        var unnamed = Scenario() with { Name = string.Empty };
+
+        var exception = Assert.Throws<JetActionException>(() =>
+            JetAuditProgram.Plan(Request("filter.commit", [new CanonicalFilterDocument(1, "{}", unnamed)])));
+
+        Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
+    }
+
+    [Fact]
+    public void Plan_CommitError_NamesTheScenarioItBelongsTo()
+    {
+        var invalid = Scenario("第二個") with { Rationale = string.Empty };
+
+        var exception = Assert.Throws<JetActionException>(() =>
+            JetAuditProgram.Plan(Request(
+                "filter.commit",
+                [new CanonicalFilterDocument(1, "{}", Scenario("第一個")), new CanonicalFilterDocument(2, "{}", invalid)])));
+
+        var detail = Assert.Single(exception.Details!);
+        Assert.Equal(2, detail.ScenarioPosition);
+        Assert.Equal("第二個", detail.ScenarioName);
+    }
+
+    [Fact]
+    public void Plan_PreviewError_DoesNotNameAScenario()
+    {
+        var invalid = Scenario() with { Groups = [] };
+
+        var exception = Assert.Throws<JetActionException>(() =>
+            JetAuditProgram.Plan(Request("filter.preview", [new CanonicalFilterDocument(1, "{}", invalid)])));
+
+        Assert.All(exception.Details!, detail =>
+        {
+            Assert.Null(detail.ScenarioPosition);
+            Assert.Null(detail.ScenarioName);
+        });
+    }
+
+    [Fact]
+    public async Task ExecuteAndFinalize_OneScenarioChange_PreserveMaterializedCount()
+    {
+        var definitions = new[] { new SavedFilterScenario(1, "情境1", "動機1", "{}", DateTimeOffset.UnixEpoch) };
+        var plan = JetAuditProgram.Plan(
+            Request("filter.scenario.save", [new CanonicalFilterDocument(1, "{}", Scenario())]),
+            definitions);
+        var port = new RecordingPort(new FilterFacts(null, 1));
+
+        var result = JetAuditProgram.Finalize(plan, await port.ExecuteAsync(plan, CancellationToken.None));
+
+        Assert.Equal(1, result.MaterializedScenarioCount);
+        Assert.Throws<InvalidOperationException>(() => JetAuditProgram.Finalize(plan, new FilterFacts(null, 0)));
+    }
+
     private static FilterRequest Request(
         string action,
         IReadOnlyList<CanonicalFilterDocument> documents) =>

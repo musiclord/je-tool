@@ -17,6 +17,24 @@
       "url": "http://127.0.0.1:4244",
       "env": { "PORT": "4244" },
       "autoPort": false
+    },
+    {
+      "name": "JET browser host (Claude)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "tools/harness/browser-host/BrowserHost.csproj", "-c", "Debug", "--no-launch-profile", "--artifacts-path", "artifacts/browser-host-claude/build"],
+      "port": 4245,
+      "url": "http://127.0.0.1:4245",
+      "env": { "PORT": "4245", "JET_BROWSER_HOST_DATA": "browser-host-claude", "JET_BROWSER_HOST_SEED": "taiwan-sme" },
+      "autoPort": false
+    },
+    {
+      "name": "JET browser host (Claude QA)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "tools/harness/browser-host/BrowserHost.csproj", "-c", "Debug", "--no-launch-profile", "--artifacts-path", "artifacts/browser-host-claude-qa/build"],
+      "port": 4246,
+      "url": "http://127.0.0.1:4246",
+      "env": { "PORT": "4246", "JET_BROWSER_HOST_DATA": "browser-host-claude-qa", "JET_BROWSER_HOST_SEED": "taiwan-sme" },
+      "autoPort": false
     }
   ]
 }

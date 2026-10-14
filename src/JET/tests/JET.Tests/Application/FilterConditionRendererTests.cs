@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 ///
 /// oracle 策略（規格 oracle）：預期值以前端 <c>filter-step.js</c> 的 <c>readBackHtml</c> ＋
 /// <c>ruleSummaryLabel(rule, 0)</c> 為權威，逐一手算成字面斷言——渲染器必須與前端藍色 read-back
-/// 的 <c>.scenario-readback__expr</c> 文字內容同構。標籤（回溯過帳/週末過帳…）來自 Domain
+/// 的 <c>.scenario-readback__expr</c> 文字內容同構。標籤（週末過帳、假日過帳…）來自 Domain
 /// FilterConditionLabels（前端鏡像，另有 FilterConditionLabelMirrorTests 守衛），此處不重測標籤內容，
 /// 只鎖布林式的結構：組內組合器、組間運算子、內層括號、非營業日括號的讀回、空組過濾。
 ///
@@ -18,6 +18,19 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class FilterConditionRendererTests
 {
+    // 第九節 G1：省略方向時仍寫借方的首次失敗：20261014-132814590-06c3b8e640d0499aa09a159dc379e8ce。
+    [Fact]
+    public void ClassificationWithoutDirection_DoesNotDescribeItAsDebit()
+    {
+        var scenario = JsonElement.Parse("""
+            {"groups":[{"rules":[{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"],"categorySelection":"subtree"}]}]}
+            """);
+        var text = FilterConditionRenderer.Render(scenario);
+        Assert.Contains("科目屬於「", text);
+        Assert.DoesNotContain("借方", text);
+        Assert.DoesNotContain("貸方", text);
+    }
+
     // 2026-10-04 C4：省略 categorySelection 的舊條件仍比對相同分類用途，讀回現在明說這個範圍。
     // 十項固定預期只補此模式前綴；保留完整等值比較。第一次失敗收據：20261004-075513821-fc05ce3f66ae4f50bc2291ee57350ac9。
     [Fact]
@@ -61,16 +74,16 @@ public sealed class FilterConditionRendererTests
     [Fact]
     public void SingleGroup_SinglePrescreen_RendersAtomWithoutOperators()
     {
-        // 回溯過帳前端接上後的代表原子；單組單規則＝無組合器、無括號。
+        // 單組單規則＝無組合器、無括號。使用者 2026-10-08 裁定移除傳票日期與回溯過帳，代表原子改用週末過帳。
         var result = Render(new
         {
             groups = new[] { new { join = "AND", rules = new object[]
             {
-                new { join = "AND", type = "prescreen", prescreenKey = "backdatedPosting" }
+                new { join = "AND", type = "prescreen", prescreenKey = "weekendPosting" }
             } } }
         });
 
-        Assert.Equal("預篩選：回溯過帳", result);
+        Assert.Equal("預篩選：週末過帳", result);
     }
 
     [Fact]
@@ -210,7 +223,7 @@ public sealed class FilterConditionRendererTests
             } } }
         });
 
-        Assert.Equal("總帳入帳日 2024-01-01～…", result);
+        Assert.Equal("總帳日期 2024-01-01～…", result);
     }
 
     // ---- 多組（ne≥2）：組間運算子 + 內層括號 ----
@@ -516,8 +529,9 @@ public sealed class FilterConditionRendererTests
     // 2026-10-04 第 8 批 L59：自訂尾數讀回補「金額」，原 AST、6 位參數與全文等值斷言保留。
     // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
     [InlineData("""{"join":"AND","type":"customTrailingZeros","digits":"6"}""", "金額尾數連續 6 個 0")]
-    [InlineData("""{"join":"AND","type":"customPreparerEntryCount","maxEntries":"11"}""", "分錄測試範圍內編製人員分錄筆數 ≤ 11")]
-    [InlineData("""{"join":"AND","type":"customAccountEntryCount","maxEntries":"11"}""", "分錄測試範圍內科目分錄筆數 ≤ 11")]
+    // 使用者 2026-10-08 裁定資料名稱全系統統一：「分錄測試範圍內」改為「GL 中」。
+    [InlineData("""{"join":"AND","type":"customPreparerEntryCount","maxEntries":"11"}""", "GL 中編製人員分錄筆數 ≤ 11")]
+    [InlineData("""{"join":"AND","type":"customAccountEntryCount","maxEntries":"11"}""", "GL 中科目分錄筆數 ≤ 11")]
     [InlineData("""{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":"5"}""", "季底或查核期末前 5 天借記收入")]
     [InlineData("""{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":""}""", "季底或查核期末前 … 天借記收入")]
     [InlineData("""{"join":"AND","type":"revenueWithoutNormalCounterpart"}""", "貸方為收入，借方非應收或預收")]
@@ -607,7 +621,7 @@ public sealed class FilterConditionRendererTests
     }
 
     [Fact]
-    public void TypedAtom_UnknownField_FallsBackToFieldId()
+    public void TypedAtom_UnknownField_NamesTheMissingFieldWithoutItsId()
     {
         const string fieldId = "rde.dddd0000dddd0000dddd0000dddd0000";
         var json = $$"""
@@ -617,9 +631,10 @@ public sealed class FilterConditionRendererTests
             """;
         using var document = JsonDocument.Parse(json);
 
-        Assert.Equal(
-            fieldId + " 為空白",
-            FilterConditionRenderer.Render(document.RootElement));
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-03（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 不印程式代號。
+        var rendered = FilterConditionRenderer.Render(document.RootElement);
+        Assert.Equal("已不在欄位配對中的攸關資料元素欄位 為空白", rendered);
+        Assert.DoesNotContain(fieldId, rendered, StringComparison.Ordinal);
     }
 
     [Fact]

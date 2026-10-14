@@ -12,8 +12,7 @@ internal sealed class WorkpaperPlanningFactsPort(
     ICompletenessDiffPageRepository completenessDiffs,
     IDocBalancePageRepository docBalances,
     ITagMatrixScenariosRepository scenarioCounts,
-    ILegacyFieldDefinitionFactsPort fieldDefinitions,
-    IMappingStateStore? mappings = null) : IWorkpaperPlanningFactsPort
+    ILegacyFieldDefinitionFactsPort fieldDefinitions) : IWorkpaperPlanningFactsPort
 {
     public async Task<WorkpaperPlanningFacts> ExecuteAsync(
         WorkpaperPlan plan,
@@ -52,26 +51,12 @@ internal sealed class WorkpaperPlanningFactsPort(
             cancellationToken);
         RequireTargetDefinitions(targetGlDefinitions, "GL");
         RequireTargetDefinitions(targetTbDefinitions, "TB");
-        var glMapping = mappings is null
-            ? null
-            : await mappings.FindAsync(
-                request.ProjectId,
-                DatasetKind.Gl,
-                cancellationToken);
-        var voucherDateSourceField = glMapping is not null
-                                     && glMapping.Mapping.TryGetValue(
-                                         GlMappingKeys.VoucherDate,
-                                         out var voucherDateSource)
-            ? voucherDateSource
-            : null;
-
         return new WorkpaperPlanningFacts(
             completeness.Rows.Count > 0,
             unbalanced.Rows.Count > 0,
             counts,
             targetTbDefinitions,
-            targetGlDefinitions,
-            voucherDateSourceField);
+            targetGlDefinitions);
     }
 
     private static void RequireTargetDefinitions(
@@ -84,8 +69,8 @@ internal sealed class WorkpaperPlanningFactsPort(
         {
             throw new JetActionException(
                 JetErrorCodes.InvalidProjectSchema,
-                $"{datasetName} 還沒有在最近一次匯入後確認欄位配對，缺少底稿需要的欄位定義，無法匯出底稿。"
-                + $"請回第三步確認 {datasetName} 欄位配對；如果還沒有匯入 {datasetName}，請先回第二步匯入。");
+                $"{datasetName} 在最近一次匯入後尚未確認欄位配對，無法匯出底稿。"
+                + $"請回第三步確認 {datasetName} 欄位配對；尚未匯入 {datasetName} 時，請先回第二步匯入。");
         }
     }
 }

@@ -5,6 +5,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+
 /// <summary>第 4 批：合成案件的報告公司表頭、案件資料修改與既有輸出保留。</summary>
 public sealed class Batch4ReportMetadataTests
 {
@@ -116,7 +118,7 @@ public sealed class Batch4ReportMetadataTests
         var prescreen = await host.DispatchAsync("prescreen.run");
         var committed = await host.DispatchAsync("filter.commit", """
             {"scenarios":[{"name":"合成表頭檢查","rationale":"只核對報告中繼資料","groups":[{"rules":[
-                {"type":"customKeywords","keywords":"調整"}
+                {"type":"fieldValue","field":"description","operator":"contains","values":["調整"]}
             ]}]}]}
             """);
         return new Prepared(

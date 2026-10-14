@@ -16,7 +16,7 @@ internal static class PageRequestReader
         var cursor = PayloadReader.GetOptionalString(payload, "cursor");
         if (PageCursor.IsMalformed(cursor))
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "cursor 格式不符(無法解碼)。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "cursor_invalid");
         }
 
         var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
@@ -33,16 +33,14 @@ internal static class PageRequestReader
 
         if (sort.ValueKind != JsonValueKind.Object)
         {
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "sort 必須是 { key, direction } 物件。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "sort_not_object");
         }
 
         var key = PayloadReader.GetOptionalString(sort, "key")
-            ?? throw new JetActionException(JetErrorCodes.InvalidPayload, "sort.key 必填。");
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "sort_key_missing");
         if (catalog.Find(key) is null)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"排序鍵「{key}」無效，允許：{string.Join("、", catalog.Keys)}。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "sort_key_invalid");
         }
 
         var direction = PayloadReader.GetOptionalString(sort, "direction") ?? "asc";
@@ -50,7 +48,7 @@ internal static class PageRequestReader
         {
             "asc" => new PageSort(key, PageSortDirection.Ascending),
             "desc" => new PageSort(key, PageSortDirection.Descending),
-            _ => throw new JetActionException(JetErrorCodes.InvalidPayload, "sort.direction 只能是 asc 或 desc。")
+            _ => throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "sort_direction_invalid")
         };
     }
 
@@ -69,9 +67,7 @@ internal static class PageRequestReader
 
         if (search.Length > PageRequest.MaxSearchLength)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"search 最多 {PageRequest.MaxSearchLength} 個字。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "search_too_long");
         }
 
         return search;

@@ -87,8 +87,10 @@ public sealed class TextFileReadingDiagnosticsTests
         // 第 4 列的欄位一路讀到下一個引號，JV-4 那一行併進同一格，所以只剩 4 筆。
         Assert.Equal(4, imported.GetProperty("rowCount").GetInt32());
         Assert.Equal(
-            ["「multiline.csv」有 2 筆資料的欄位內含換行：第 2、4 列。欄位用引號包住時可以換行，不一定是錯誤。"
-             + "但如果引號放錯位置，後面幾列會被併進同一格，匯入的筆數會變少。請用 Excel 打開原檔，核對這幾列。"],
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        // 47a 使用者 2026-10-13 確認的句子只有「，例如第…列」一種寫法（文字批次 C；第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666）。
+                        ["「multiline.csv」有 2 列的欄位內含換行，例如第 2、4 列。"
+             + "引號位置錯誤時，後續資料會併入同一格而使筆數減少，請以 Excel 開啟原檔核對。"],
             imported.GetProperty("warnings").EnumerateArray().Select(static item => item.GetString()!).ToArray());
 
         var entries = await SupportEntriesAsync(host, projectId, "multiline-import");
@@ -125,8 +127,9 @@ public sealed class TextFileReadingDiagnosticsTests
 
         Assert.Equal(16, imported.GetProperty("rowCount").GetInt32());
         Assert.Equal(
-            ["「many.csv」有 7 筆資料的欄位內含換行，例如第 2、4、6、8、10 列。欄位用引號包住時可以換行，不一定是錯誤。"
-             + "但如果引號放錯位置，後面幾列會被併進同一格，匯入的筆數會變少。請用 Excel 打開原檔，核對這幾列。"],
+// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        ["「many.csv」有 7 列的欄位內含換行，例如第 2、4、6、8、10 列。"
+             + "引號位置錯誤時，後續資料會併入同一格而使筆數減少，請以 Excel 開啟原檔核對。"],
             imported.GetProperty("warnings").EnumerateArray().Select(static item => item.GetString()!).ToArray());
     }
 }

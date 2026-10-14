@@ -98,13 +98,13 @@ public static class LocalEngineErrors
 
     private static JetActionException DatabaseLocked() => new(
         JetErrorCodes.DatabaseLocked,
-        "案件資料庫正由另一個程序鎖定。請先關閉使用同一案件的其他 JET 執行個體，再重試。");
+        "案件資料庫正被其他程式使用。請先關閉開啟同一案件的其他 JET 視窗，再試一次。");
 
     private static JetActionException DatabaseStorageFull() => new(
         JetErrorCodes.DatabaseStorageFull,
-        "專案所在磁碟的儲存空間不足，資料庫無法繼續寫入。請釋放空間後重試。");
+        "案件所在磁碟的空間不足，資料庫無法繼續寫入。請釋放空間後再試一次。");
 
     private static JetActionException DatabaseCorrupt() => new(
         JetErrorCodes.DatabaseCorrupt,
-        "案件資料庫已損壞或不是有效的資料庫檔案。請停止寫入，並從已知良好的備份復原或交由維護人員處理。");
+        "案件資料庫已損壞，無法繼續使用。請從備份還原案件資料夾，或重新建立案件並匯入資料。");
 }

@@ -43,13 +43,23 @@ internal static partial class GuiScenarios
         Task Click(string selector) => ClickControlAsync(cdp, process, selector, outcome, ct);
         Task Choose(string selector, string value) => ChooseOptionAsync(cdp, process, selector, value, outcome, ct);
         Task Check(string expression) => WaitForProbeAsync(cdp, process,
-            "(function(){ var state=window.JetStore.getState(), draft=state.filter.draft, saved=state.filter.savedScenarios, preview=state.filter.preview; return {viewport:[innerWidth,innerHeight],pixelRatio:devicePixelRatio,busyLabel:state.busyLabel,idle:!state.busy, ok:!!(" + expression + "), matrixVoucherRows:document.querySelectorAll('[data-bind=matrix-vouchers] tbody tr').length, matrixRowRows:document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length, matrixReady:!!document.querySelector('[data-bind=matrix-body][data-loaded]'), pairWidths:Array.from(document.querySelectorAll('.filter-account-pair .category-select')).map(e=>[e.clientWidth,e.scrollWidth]), dateOperator:draft.groups.flatMap(g=>g.rules).find(r=>r.type==='fieldValue')?.operator, matrixHasNames:!!document.querySelector('[data-bind=matrix-vouchers] .filter-matrix-name'), active:{tag:document.activeElement?.tagName,cls:document.activeElement?.className,inControls:!!document.activeElement?.closest('.rule-row__controls')}, selectedRows:Array.from(document.querySelectorAll('.rule-row--selected')).map(e=>({text:e.querySelector('.filter-rule-selected')?.textContent,containsActive:e.contains(document.activeElement),top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom})),workbenchColumns:document.querySelector('.filter-workbench')?getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns:null,draftRules:draft.groups.map(g=>g.rules.map(r=>({type:r.type,field:r.field,operator:r.operator}))),customSubject:document.querySelector('[data-custom-subject]')?.value,addDisabled:document.querySelector('[data-action=add-rule]')?.disabled}; })()",
+            "(function(){ var state=window.JetStore.getState(), draft=state.filter.draft, saved=state.filter.savedScenarios, preview=state.filter.preview; return {viewport:[innerWidth,innerHeight],pixelRatio:devicePixelRatio,busyLabel:state.busyLabel,idle:!state.busy, ok:!!(" + expression + "), matrixVoucherRows:document.querySelectorAll('[data-bind=matrix-vouchers] tbody tr').length, matrixRowRows:document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length, matrixReady:!!document.querySelector('[data-bind=matrix-body][data-loaded]'), pairWidths:Array.from(document.querySelectorAll('.filter-account-pair .category-select')).map(e=>[e.clientWidth,e.scrollWidth]), dateOperator:draft.groups.flatMap(g=>g.rules).find(r=>r.type==='fieldValue')?.operator, matrixHasNames:!!document.querySelector('[data-bind=matrix-vouchers] .filter-matrix-name'), active:{tag:document.activeElement?.tagName,cls:document.activeElement?.className,inControls:!!document.activeElement?.closest('.rule-row__controls')}, selectedRows:Array.from(document.querySelectorAll('.rule-row--selected')).map(e=>({text:e.querySelector('.filter-rule-selected')?.textContent,containsActive:e.contains(document.activeElement),top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom})),workbenchColumns:document.querySelector('.filter-workbench')?getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns:null,draftRules:draft.groups.map(g=>g.rules.map(r=>({type:r.type,field:r.field,operator:r.operator}))),openCheckCategory:document.querySelector('[data-check-category][aria-expanded=true]')?.dataset.checkCategory}; })()",
             value => value, value => ReadBoolean(value,"idle") && ReadBoolean(value,"ok"), "filter_workflow_failed", ct,
             value => outcome.LastFilterProbe = value.Clone());
         async Task Fill(string selector, string value)
         {
             outcome.LastFilterProbe = await cdp.EvaluateAsync("(()=>{var e=document.querySelector(" + JsonSerializer.Serialize(selector) + ");var r=e?.getBoundingClientRect();var h=r?document.elementFromPoint(r.left+r.width/2,r.top+r.height/2):null;return {phase:'fill-control',exists:!!e,rect:r?{x:r.x,y:r.y,width:r.width,height:r.height}:null,viewport:[innerWidth,innerHeight],hit:h?.className};})()", ct);
             await Click(selector); outcome.RecordAction(); await cdp.TypeTextAsync(value,ct);
+        }
+        async Task AddDate(string row, string value)
+        {
+            var selector = row + " [data-date-input]";
+            await FindControlPointAsync(cdp, process, selector, ct);
+            var point = await cdp.EvaluateAsync("(()=>{var r=document.querySelector(" + JsonSerializer.Serialize(selector) + ").getBoundingClientRect();return {x:r.left+12,y:r.top+r.height/2};})()", ct);
+            await ClickAsync(cdp, point.GetProperty("x").GetDouble(), point.GetProperty("y").GetDouble(), outcome, ct);
+            outcome.RecordAction(); await cdp.TypeDateAsync(value, ct);
+            await Check("document.querySelector(" + JsonSerializer.Serialize(selector) + ").value===" + JsonSerializer.Serialize(value));
+            await Click(row + " [data-date-add]");
         }
         async Task Open()
         {
@@ -61,27 +71,22 @@ internal static partial class GuiScenarios
         }
         async Task Save(bool expectSuccess = true)
         {
-            var before = await cdp.EvaluateAsync("JSON.stringify({groups:window.JetStore.getState().filter.draft.groups,preview:window.JetStore.getState().filter.preview})", ct);
-            await Click("[data-action=\"open-save\"]");
-            await Check("!document.querySelector('[data-save-panel]').hidden && document.querySelector('.filter-primary-actions').hidden");
+            // 第九節 D：名稱與動機常駐，儲存成功後清空草稿與預覽；舊流程的失敗證據見 FrontendMapping 20261014-123035603-d123badefd7941119a02c58b1b431fae。
+            var name = await cdp.EvaluateAsync("window.JetStore.getState().filter.draft.name", ct);
+            await Check("!document.querySelector('[data-save-panel]').hidden && !document.querySelector('.filter-primary-actions').hidden");
             await Check("document.querySelector('[data-action=save-scenario]').getBoundingClientRect().top-document.querySelector('[data-bind=scenario-rationale]').getBoundingClientRect().bottom>=8");
             await Click("[data-action=\"save-scenario\"]");
             if (!expectSuccess) return;
             await Check("!state.busy");
             var saveProbe = await cdp.EvaluateAsync("(()=>{var s=window.JetStore.getState();return {filterVisible:!document.querySelector('[data-filter-pane=filter]').hidden,saveHidden:document.querySelector('[data-save-panel]').hidden,feedback:document.querySelector('[data-bind=save-feedback]').textContent,index:s.filter.draft.__editingIndex,count:s.filter.savedScenarios.length,message:s.messages.slice(-1)[0]?.text};})()", ct);
             outcome.LastFilterProbe = saveProbe.Clone();
-            if (!ReadBoolean(saveProbe, "filterVisible") || !ReadBoolean(saveProbe, "saveHidden") ||
+            if (!ReadBoolean(saveProbe, "filterVisible") || ReadBoolean(saveProbe, "saveHidden") ||
                 !saveProbe.GetProperty("feedback").GetString()!.Contains("已儲存", StringComparison.Ordinal))
-                throw new GuiCheckException("save_did_not_preserve_editor");
-            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && document.querySelector('[data-save-panel]').hidden && document.querySelector('[data-bind=save-feedback]').textContent.includes('已儲存')");
-            var after = await cdp.EvaluateAsync("JSON.stringify({groups:window.JetStore.getState().filter.draft.groups,preview:window.JetStore.getState().filter.preview})", ct);
-            if (after.GetString() != before.GetString())
-            {
-                outcome.LastFilterProbe = JsonSerializer.SerializeToElement(new { before = before.GetString(), after = after.GetString() });
-                throw new GuiCheckException("save_changed_editor_or_preview");
-            }
-            await Check($"JSON.stringify({{groups:draft.groups,preview:preview}})==={before.GetRawText()}");
-            await Check("draft.__editingSavedRef===saved && typeof draft.__editingIndex==='number'");
+                throw new GuiCheckException("save_did_not_clear_editor");
+            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && !document.querySelector('[data-save-panel]').hidden && document.querySelector('[data-bind=save-feedback]').textContent.includes('已儲存')");
+            await Check("draft.groups.every(g=>g.rules.length===0) && draft.name==='' && draft.rationale==='' && !preview && draft.__editingIndex===undefined");
+            await Check($"saved.some(s=>s.name==={name.GetRawText()}) && document.querySelector('[data-bind=save-feedback]').textContent==='已儲存「'+{name.GetRawText()}+'」。可在「已儲存情境與矩陣」查看或修改。'");
+            await Check("document.activeElement===document.querySelector('[data-builder-title]')");
             // Saving does not navigate. Viewing the saved collection is now an explicit action.
             await Click("[data-filter-pane-select=\"saved\"]");
         }
@@ -92,18 +97,13 @@ internal static partial class GuiScenarios
             await Click($".saved-scenario:nth-of-type({index + 1}) .filter-saved-actions summary");
             await Check($"Math.abs(document.querySelector('.saved-scenario:nth-of-type({index + 1})').getBoundingClientRect().height-{beforeHeight.GetRawText()})<0.5");
             await Click($"[data-action=\"edit-scenario\"][data-index=\"{index}\"]");
+            await ContinueWithoutSavingIfAskedAsync(cdp, Click, ct);
         }
         async Task AddCustom(string subject)
         {
-            await Click("[data-condition-source=\"custom\"]");
-            await Choose("[data-custom-subject]", subject);
-            await Click("[data-action=\"add-rule\"]");
+            // 使用者 2026-10-08 要求重新設計自訂篩選條件：改點欄位按鈕或常用查核條件，加入後同樣選取新條件並把焦點放進去。
+            await AddCustomConditionAsync(cdp, subject, Click, ct);
             await Check("(()=>{var rows=document.querySelectorAll('.rule-row--selected'),r=rows[0];return rows.length===1 && r.querySelector('.filter-rule-selected').textContent==='選取中' && r.contains(document.activeElement) && document.activeElement.closest('.rule-row__controls') && r.getBoundingClientRect().bottom>0 && r.getBoundingClientRect().top<window.innerHeight;})()");
-        }
-        async Task OpenDetails(string key)
-        {
-            var open = await cdp.EvaluateAsync($"document.querySelector('[data-filter-disclosure=\"{key}\"]').open", ct);
-            if (!open.GetBoolean()) await Click($"[data-filter-disclosure=\"{key}\"] > summary");
         }
         outcome.RecordStage(outcome.Scenario.Name);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
@@ -111,11 +111,12 @@ internal static partial class GuiScenarios
         if (outcome.Scenario.Name == GuiScenarioCatalog.FilterKctEditing)
         {
             await Edit(0);
-            await Check("draft.__legacyKctSource && document.querySelector('[data-kct-letter=G]').getAttribute('aria-pressed')==='false' && document.querySelector('.scenario-builder').textContent.includes('無法還原卡片勾選')");
+            // 舊版情境的說明照使用者 2026-10-14 第三輪確認的句子：「此情境以舊版儲存，無法對應當時勾選的 KCT 卡片；…」。
+            await Check("draft.__legacyKctSource && document.querySelector('[data-kct-letter=G]').getAttribute('aria-pressed')==='false' && document.querySelector('.scenario-builder').textContent.includes('無法對應當時勾選的 KCT 卡片')");
             await Save();
             await Check("saved.length===1 && saved[0].source==='kct' && !saved[0].editorOrigins");
             await Click("[data-filter-pane-select=\"filter\"]");
-            await Click("[data-action=\"new-scenario\"]");
+            
             await Click("[data-condition-source=\"kct\"]");
             outcome.RecordStage("kct_a_to_e_default_rationales");
             var rationales = new (string Letter, string Text)[]
@@ -143,7 +144,7 @@ internal static partial class GuiScenarios
             await Edit(1);
             await Check("document.querySelector('[data-kct-letter=G]').getAttribute('aria-pressed')==='true'");
             // 9/23：保存、重開後，自動命名仍跟隨實際勾選，保存面板開著時也要更新。
-            await Click("[data-action=open-save]");
+            
             await Click("[data-kct-letter=H]");
             await Check("draft.name==='G+H' && document.querySelector('[data-bind=scenario-name]').value==='G+H'");
             await Click("[data-kct-letter=G]");
@@ -151,8 +152,8 @@ internal static partial class GuiScenarios
             await Click("[data-kct-letter=G]");
             await Click("[data-kct-letter=H]");
             await Check("draft.name==='G' && document.querySelector('[data-bind=scenario-name]').value==='G'");
-            await Click("[data-action=close-save]");
-            await AddCustom("type:prescreen");
+            
+            await AddCustom("check:prescreenResult");
             await Choose(".rule-row[data-gi=\"0\"][data-ri=\"1\"] [data-pattern-subject]", "prescreen:blankDescription");
             await Click("[data-filter-pane-select=\"filter\"]");
             await Click("[data-condition-source=\"kct\"]");
@@ -198,7 +199,10 @@ internal static partial class GuiScenarios
             await Click(".rule-row [data-action=\"remove-rule\"]");
             await AddCustom("field:description");
             await Fill(".rule-row [data-value-key=\"values\"]", "SYNTHETIC");
-            await Check("(()=>{var t=document.querySelector('textarea.value-editor__list').getBoundingClientRect(),s=document.querySelector('[data-value-kind]').getBoundingClientRect();return Math.abs((t.top+t.bottom-s.top-s.bottom)/2)<1 && t.height<=40;})()");
+            // 介面改版後控制項變大，最小視窗（125% 縮放約 806×481）排不下同一行，文字框換到選單下一行（2026-10-14 實測，
+            // 第一次失敗收據 20261014-062933505-e5cb6897255c4899a5d30c44559f2a41）。同一行時仍要和選單垂直置中，
+            // 換行時要從條件控制項的同一條左緣開始；兩種排法都只有一行高。
+            await Check("(()=>{var area=document.querySelector('textarea.value-editor__list'),t=area.getBoundingClientRect(),s=document.querySelector('[data-value-kind]').getBoundingClientRect(),c=area.closest('.rule-row').querySelector('.rule-row__controls').getBoundingClientRect();var sameLine=Math.abs((t.top+t.bottom-s.top-s.bottom)/2)<1,below=t.top>=s.bottom && Math.abs(t.left-c.left)<1;return (sameLine||below) && t.height<=40;})()");
             await Choose(".rule-row [data-value-polarity]", "exclude");
             await Check("draft.groups[0].rules[0].operator==='notContains' && draft.groups[0].rules[0].values[0]==='SYNTHETIC'");
             await Choose(".rule-row [data-value-kind]", "exact");
@@ -211,35 +215,35 @@ internal static partial class GuiScenarios
             await Click("[data-action=confirm-remove-scenario][data-index='0']");
             await Check("saved.length===0 && draft.groups.length===0 && draft.name==='' && !preview && draft.__editingIndex===undefined");
             await Click("[data-filter-pane-select=filter]");
-            await Check("!document.querySelector('.rule-row') && !document.querySelector('.rule-row--selected') && document.querySelector('[data-save-panel]').hidden");
+            await Check("!document.querySelector('.rule-row') && !document.querySelector('.rule-row--selected') && !document.querySelector('[data-save-panel]').hidden");
         }
         else
         {
             // filter-auditor-journey（2026-09-07）：審計員從範本開始，補一條「每月幾日不屬於 28、31」，切換作用中組，
             // 預覽後對命中傳票排序，保存後核對讀回文字與情境數。自訂面板預設展開，不需要先點開。
-            await Check("document.querySelector('[data-save-panel]').hidden && !document.querySelector('[data-filter-pane=filter]').hidden");
+            await Check("!document.querySelector('[data-save-panel]').hidden && !document.querySelector('[data-filter-pane=filter]').hidden");
             await AddCustom("field:docNum");
-            await Check("draft.groups[0].rules[0].field==='docNum' && document.querySelector('[data-custom-subject]').value==='' && document.querySelector('[data-action=add-rule]').disabled && !document.querySelector('.rule-row [data-value-key=field]') && !document.querySelector('[data-set-combinator]') && !document.querySelector('.filter-draft-note') && document.querySelector('[data-action=remove-rule]').textContent==='移除'");
+            await Check("draft.groups[0].rules[0].field==='docNum' && !document.querySelector('[data-custom-subject]') && !document.querySelector('[data-add-field][aria-pressed=true]') && !document.querySelector('.rule-row [data-value-key=field]') && !document.querySelector('[data-set-combinator]') && !document.querySelector('.filter-draft-note') && document.querySelector('[data-action=remove-rule]').textContent==='移除'");
             await Check("!document.querySelector('[data-action=add-set]').closest('details')");
             await Task.Delay(TimeSpan.FromSeconds(7), ct);
             await Check("document.querySelectorAll('.rule-row--selected').length===1 && document.querySelector('.filter-rule-selected').textContent==='選取中'");
             await Fill(".rule-row [data-value-key=\"values\"]", "SYNTHETIC");
-            await Click("[data-action=\"open-save\"]");
+            
             await Check("draft.name.includes('SYNTHETIC') && draft.name.length<=64 && draft.rationale.includes('SYNTHETIC') && draft.rationale.length<=180");
             await Fill("[data-bind=\"scenario-name\"]", "MANUAL");
             await Fill(".rule-row [data-value-key=\"values\"]", "X");
             await Check("draft.name.includes('MANUAL') && draft.rationale.includes('X')");
-            await Click("[data-action=\"close-save\"]");
-            await Click("[data-action=\"open-save\"]");
+            
+            
             await Check("draft.name.includes('MANUAL') && document.querySelector('[data-bind=scenario-name]').value===draft.name");
-            await Click("[data-action=\"close-save\"]");
+            
             await Click("[data-action=\"remove-rule\"]");
             await Check("draft.groups.every(g=>g.rules.length===0)");
-            await AddCustom("type:drCrOnly");
+            await AddCustom("check:debitOrCreditOnly");
             await Check("document.querySelector('.filter-rule-heading strong').textContent==='借貸別' && !document.querySelector('.rule-row__controls').textContent.includes('是') && document.querySelector('[data-rule-bind=drCr]').getBoundingClientRect().top>=document.querySelector('.filter-rule-heading').getBoundingClientRect().bottom+7");
             await Click("[data-action=\"remove-rule\"]");
-            await OpenDetails("examples");
-            await Click("[data-action=\"apply-template\"][data-template-key=\"cashDebitNonCashCredit\"]");
+            await OpenExampleListAsync(cdp, Click, ct);
+            await ApplyExampleAsync(cdp, "cashDebitNonCashCredit", Click, ct);
             await Check("document.querySelector('[data-template-key=cashDebitNonCashCredit]').title==='借方為現金，而整張傳票沒有貸方現金的分錄。' && draft.rationale==='借方為現金，而整張傳票沒有貸方現金的分錄。' && document.querySelector('[data-template-key=cashCreditNonCashDebit]').title==='貸方為現金，而整張傳票沒有借方現金的分錄。'");
             await Check("draft.name==='借現金、貸非現金' && draft.groups.length===1 && draft.groups[0].rules[0].type==='specialAccountCategoryPair' && draft.groups[0].rules[0].pairMode==='drNotCr'");
             outcome.RecordStage("pair-layout");
@@ -248,12 +252,10 @@ internal static partial class GuiScenarios
             // 2026-09-07 改版：「＋」在每一組裡，直接指定加到第 2 組（data-gi=1）。
             await AddCustom("field:postDate");
             await Check("draft.groups.length===2 && draft.groups[1].rules[0].type==='fieldValue' && draft.groups[1].rules[0].field==='postDate'");
-            // 人工驗收第 3、5 項：以真實點擊確認日曆多選和期末七天，不能只檢查 JavaScript 原始碼。
-            await Click(".rule-row[data-gi=\"1\"][data-ri=\"0\"] [data-calendar-open]");
-            await Click("[data-calendar-date=\"2025-01-01\"]");
-            await Click("[data-calendar-date=\"2025-01-02\"]");
-            await Click("[data-calendar-date=\"2025-01-03\"]");
-            await Click("[data-calendar-done]");
+            // 第九節 E：使用者要求改成共用原生日期框，沿用建立案件的鍵盤輸入方式，逐日加入。
+            await AddDate(".rule-row[data-gi=\"1\"][data-ri=\"0\"]", "2025-01-01");
+            await AddDate(".rule-row[data-gi=\"1\"][data-ri=\"0\"]", "2025-01-02");
+            await AddDate(".rule-row[data-gi=\"1\"][data-ri=\"0\"]", "2025-01-03");
             await Check("JSON.stringify(draft.groups[1].rules[0].values)==='[\"2025-01-01\",\"2025-01-02\",\"2025-01-03\"]'");
             await Choose(".rule-row[data-gi=\"1\"][data-ri=\"0\"] [data-value-kind]", "range");
             // Keyboard focus has an inset ring; pointer focus is not another selected condition.
@@ -285,9 +287,9 @@ internal static partial class GuiScenarios
             await Check($"JSON.stringify({{rev:window.JetStore.getFilterDraftRev(),rules:draft.groups.map(g=>g.rules),preview:preview}})==={selectionBaseline.GetRawText()}");
             await Click("[data-filter-pane-select=\"saved\"]");
             await Click("[data-filter-pane-select=\"filter\"]");
-            await Click("[data-action=\"open-save\"]");
-            await Click("[data-action=\"close-save\"]");
-            await Check("document.querySelector('[data-save-panel]').hidden && draft.groups.length===2 && draft.groups[1].rules[0].values.join(',')==='28,31' && draft.groups[0].rules[0].pairMode==='drNotCr'");
+            
+            
+            await Check("!document.querySelector('[data-save-panel]').hidden && draft.groups.length===2 && draft.groups[1].rules[0].values.join(',')==='28,31' && draft.groups[0].rules[0].pairMode==='drNotCr'");
             await Click("[data-action=\"preview-scenario\"]");
             await Check("preview && preview.voucherPage && preview.count>0 && preview.voucherPage.rows.length>0");
             // Hints must occupy normal flow at the real minimum window and 125% WebView zoom.
@@ -302,7 +304,7 @@ internal static partial class GuiScenarios
             await Save();
             // 使用者 2026-10-07 裁定範例文字在增減條件後改回自動：套用範例後又加了第二組，名稱與動機依目前條件重算，
             // 不再是範例的「借現金、貸非現金」（第一次失敗收據 20261007-041440189-2762d661a1654592b1318cbe1b439b0d）。
-            await Check("saved.length===1 && saved[0].name!=='借現金、貸非現金' && saved[0].name.includes('借貸科目組合') && saved[0].name.includes('總帳入帳日') && saved[0].rationale!=='借方為現金，而整張傳票沒有貸方現金的分錄。' && saved[0].groups.length===2 && document.body.textContent.includes('每月幾日不屬於「28、31」') && document.body.textContent.includes('借貸科目組合')");
+            await Check("saved.length===1 && saved[0].name!=='借現金、貸非現金' && saved[0].name.includes('借貸科目組合') && saved[0].name.includes('總帳日期') && saved[0].rationale!=='借方為現金，而整張傳票沒有貸方現金的分錄。' && saved[0].groups.length===2 && document.body.textContent.includes('每月幾日不屬於「28、31」') && document.body.textContent.includes('借貸科目組合')");
             var savedReadback = await cdp.EvaluateAsync("document.querySelector('.saved-scenario .scenario-readback').textContent", ct);
             await Check("!document.querySelector('[data-filter-pane=saved]').hidden");
             await Click("[data-action=\"toggle-matrix\"]");
@@ -318,7 +320,7 @@ internal static partial class GuiScenarios
             await Check("document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length>0 && !document.querySelector('[data-bind=matrix-rows]').hidden");
             // 人工驗收第 6 項：讓後端拒絕缺少分類的條件，原保存情境必須仍在。
             await Edit(0);
-            await AddCustom("type:accountSide");
+            await AddCustom("check:accountCategory");
             await Click("input[data-category-bind=\"categoryIds\"][value=\"builtin.cash\"]");
             await Save(false);
             await Check("saved.length===1 && saved[0].groups[0].rules.length===1 && document.querySelectorAll('.rule-row--invalid').length===1 && document.querySelector('.rule-row--invalid [data-rule-error]').textContent.includes('分類')");
@@ -330,20 +332,20 @@ internal static partial class GuiScenarios
             await Check("window.innerWidth>=1200 && window.innerWidth<=1260");
             await Click("[data-action=\"cancel-edit-scenario\"]");
             await Click("[data-condition-source=\"kct\"]");
-            await Check("window.innerWidth>=1200 && window.innerWidth<=1260 && getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns.split(' ').length===2 && getComputedStyle(document.querySelector('.filter-workspace .rule-card')).backgroundColor==='rgb(250, 248, 242)'");
-            await Check("document.querySelector('[data-save-panel]').hidden");
+            // 條件卡片用主題的工作面顏色（--color-surface）。原本寫死 2026-10-08 主題的 #fdfcf8，之後配色調整改成 #fffefb，
+            // 所以改成和主題變數比對（第一次失敗收據 20261014-063958820-b984bcfa564a4f1aa8dc0a653a28d278）。
+            await Check("window.innerWidth>=1200 && window.innerWidth<=1260 && getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns.split(' ').length===2 && (()=>{var probe=document.createElement('div');probe.style.backgroundColor='var(--color-surface)';document.body.appendChild(probe);var surface=getComputedStyle(probe).backgroundColor;probe.remove();return getComputedStyle(document.querySelector('.filter-workspace .rule-card')).backgroundColor===surface;})()");
+            await Check("!document.querySelector('[data-save-panel]').hidden");
             await Check("!document.querySelector('[data-bind=matrix-body]').hasAttribute('data-loaded') && document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length===0");
             await Click("[data-filter-pane-select=\"saved\"]");
             await Check("document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length>0");
             await Click("[data-filter-pane-select=\"filter\"]");
             await AddCustom("field:postDate");
             await Choose(".rule-row [data-value-polarity]", "exclude");
-            await Click(".rule-row [data-calendar-open]");
-            await Click("[data-calendar-date=\"2025-01-01\"]");
-            await Click("[data-calendar-done]");
+            await AddDate(".rule-row", "2025-01-01");
             await Check("draft.groups[0].rules[0].operator==='notIn' && draft.groups[0].rules[0].values.join(',')==='2025-01-01' && !document.querySelector('[data-value-options]').open && !document.querySelector('[data-set-combinator]')");
-            await OpenDetails("examples");
-            await Click("[data-action=\"apply-template\"][data-template-key=\"cashCreditNonCashDebit\"]");
+            await OpenExampleListAsync(cdp, Click, ct);
+            await ApplyExampleAsync(cdp, "cashCreditNonCashDebit", Click, ct);
             await Check("draft.groups[0].rules[0].pairMode==='notDrCr' && document.querySelector('.filter-account-pair').textContent.includes('整張傳票不得有這些借方分類')");
             await Click("[data-action=\"remove-rule\"]");
             await AddCustom("field:postDate");
@@ -355,9 +357,13 @@ internal static partial class GuiScenarios
             // 保持視窗大於 900px，但讓預覽佔去寬度，實際走過工作區不足 660px 的單欄分支。
             outcome.RecordAction();
             ResizeFilterWindow(process, 1400, 1100);
-            await Check("(()=>{var w=document.querySelector('.filter-workbench'),r=w.querySelector('.rule-row');return innerWidth>900 && w.clientWidth<660 && getComputedStyle(w).gridTemplateColumns.split(' ').length===1 && r.clientWidth>=300;})()");
+            // 這裡要防的是資料預覽打開時編輯器被擠窄（2026-09-09 補上）。當時用「條件列至少 300px」代表；改版後條件列左邊留了
+            // 「選取中」的位置，同樣情況只剩約 250px，但控制項都上下排好、沒有被切掉（2026-10-14 實測，第一次失敗收據
+            // 20261014-064557973-d32c49a1530e46e883733a7bbac914c1）。所以改成直接檢查：單欄排列，而且條件列的控制項都在列內、沒有橫向溢出。
+            await Check("(()=>{var w=document.querySelector('.filter-workbench'),r=w.querySelector('.rule-row'),box=r.getBoundingClientRect();var fits=Array.from(r.querySelectorAll('input,select,textarea,button')).filter(e=>e.getClientRects().length).every(e=>{var b=e.getBoundingClientRect();return b.left>=box.left-1 && b.right<=box.right+1;});return innerWidth>900 && w.clientWidth<660 && getComputedStyle(w).gridTemplateColumns.split(' ').length===1 && r.scrollWidth<=r.clientWidth+1 && fits;})()");
             await Check("(()=>{var p=document.querySelector('.data-preview').getBoundingClientRect(),m=document.querySelector('.data-preview__menu').getBoundingClientRect();return m.left>=p.left && m.right<=p.right;})()");
-            await Check("(()=>{var p=document.querySelector('.data-preview'),labels=Array.from(p.querySelectorAll('.data-preview__tab,.data-preview__menu-item')).map(e=>e.textContent.trim()),elements=p.querySelectorAll('.data-preview__eyebrow,.data-preview__tab,.data-preview__menu-item,.data-preview__hint,.data-preview__table th,.data-preview__table td,.data-preview__count');return p.querySelector('.data-preview__eyebrow').textContent==='資料預覽' && labels.includes('納入測試的分錄') && labels.includes('未納入測試的分錄') && labels.every(s=>!s.includes('JE')) && Array.from(elements).every(e=>getComputedStyle(e).fontFamily===getComputedStyle(p).fontFamily && getComputedStyle(e).fontSize==='12px');})()");
+            // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽頁籤與選單改用 PBC-GL、GL、GL(未納入測試)。
+            await Check("(()=>{var p=document.querySelector('.data-preview'),labels=Array.from(p.querySelectorAll('.data-preview__tab,.data-preview__menu-item')).map(e=>e.textContent.trim()),elements=p.querySelectorAll('.data-preview__eyebrow,.data-preview__tab,.data-preview__menu-item,.data-preview__hint,.data-preview__table th,.data-preview__table td,.data-preview__count');return p.querySelector('.data-preview__eyebrow').textContent==='資料預覽' && labels.includes('GL') && labels.includes('GL(未納入測試)') && labels.includes('PBC-GL') && labels.every(s=>!s.includes('JE')) && Array.from(elements).every(e=>getComputedStyle(e).fontFamily===getComputedStyle(p).fontFamily && getComputedStyle(e).fontSize==='12px');})()");
             await FindControlPointAsync(cdp,process,"[data-action=\"remove-rule\"]",ct);
             await CaptureScreenshotAsync(cdp,outcome,ct);
         }
