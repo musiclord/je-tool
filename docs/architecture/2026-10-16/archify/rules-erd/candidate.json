@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "SQLite：分類、情境與命中",
+    "locale": "zh-TW",
+    "output": "output/rules-erd/rules-erd.html",
+    "quality_profile": "standard",
+    "subtitle": "實體欄位完整列出；關聯線為應用程式邏輯，不是資料庫外鍵"
+  },
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "結構與限制",
+      "items": [
+        "四張 ERD 合計涵蓋目錄登錄的 27 張 SQLite 表，包含程式宣告的升版新增欄位；不是只抄初始建表。",
+        "這批 SQLite 建表定義沒有宣告外鍵。虛線只表達選取的應用邏輯，多對一也不表示資料庫會強制保護；其餘沒有畫線的欄位不能推定互不相關。",
+        "PK 表示主鍵；UK 表示唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異須另看來源及完整欄位頁。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "閱讀方式",
+      "items": [
+        "這是來源快照的靜態整理，沒有執行 JET 業務流程。",
+        "完整來源、檔案雜湊及選取的呼叫，可從本輪離線入口的證據頁查閱。"
+      ]
+    }
+  ],
+  "layout": {
+    "mode": "grid",
+    "gapX": 110,
+    "gapY": 70,
+    "entityW": 340
+  },
+  "entities": [
+    {
+      "id": "config_account_taxonomy",
+      "label": "config_account_taxonomy",
+      "row": 0,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "category_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "label",
+          "type": "TEXT"
+        },
+        {
+          "name": "ordinal",
+          "type": "INTEGER",
+          "key": "uk"
+        },
+        {
+          "name": "semantic_role",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_builtin",
+          "type": "INTEGER"
+        },
+        {
+          "name": "revision",
+          "type": "INTEGER"
+        },
+        {
+          "name": "parent_category_id",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "科目分類"
+    },
+    {
+      "id": "config_account_taxonomy_path",
+      "label": "config_account_taxonomy_path",
+      "row": 1,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "ancestor_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "descendant_id",
+          "type": "TEXT",
+          "key": "pk"
+        }
+      ],
+      "tag": "科目分類"
+    },
+    {
+      "id": "target_account_mapping",
+      "label": "target_account_mapping",
+      "row": 2,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "mapping_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_row_number",
+          "type": "INTEGER"
+        },
+        {
+          "name": "account_code",
+          "type": "TEXT",
+          "key": "uk"
+        },
+        {
+          "name": "account_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "standardized_category",
+          "type": "TEXT"
+        },
+        {
+          "name": "category_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "classification_explicit",
+          "type": "INTEGER"
+        }
+      ],
+      "tag": "科目分類"
+    },
+    {
+      "id": "config_filter_scenario",
+      "label": "config_filter_scenario",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "position",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "rationale",
+          "type": "TEXT"
+        },
+        {
+          "name": "definition_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "saved_utc",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "篩選與抽樣"
+    },
+    {
+      "id": "result_filter_run",
+      "label": "result_filter_run",
+      "row": 1,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "scenario_position",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        }
+      ],
+      "tag": "篩選與抽樣"
+    },
+    {
+      "id": "result_inf_sampling_test_sample",
+      "label": "result_inf_sampling_test_sample",
+      "row": 2,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "run_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "document_number",
+          "type": "TEXT"
+        },
+        {
+          "name": "line_item",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "篩選與抽樣"
+    },
+    {
+      "id": "target_authorized_preparer",
+      "label": "target_authorized_preparer",
+      "row": 0,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "name",
+          "type": "TEXT",
+          "key": "pk"
+        }
+      ],
+      "tag": "參考清單"
+    },
+    {
+      "id": "staging_calendar_raw_day",
+      "label": "staging_calendar_raw_day",
+      "row": 1,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "day_type",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "date",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "day_name",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "參考清單"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "logical1",
+      "from": "result_filter_run",
+      "to": "config_filter_scenario",
+      "label": "情境位置",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    }
+  ]
+}

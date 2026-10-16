@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "現有本機部署：程式、依賴與案件資料",
+    "locale": "zh-TW",
+    "output": "output/deployment/deployment.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "backend": {
+          "label": "桌面程式"
+        },
+        "frontend": {
+          "label": "呈現元件"
+        },
+        "database": {
+          "label": "引擎與案件儲存"
+        },
+        "external": {
+          "label": "檔案資源"
+        }
+      }
+    }
+  },
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "現況與待驗收",
+      "items": [
+        "本圖的連線是本機資源使用，不是七個獨立部署的服務。單一 JET.exe 仍須連同完整發布資料夾交付。",
+        "正式環境不能假設管理員權限、可增裝軟體或外部 AI 服務。RepoWise、Roslyn、LikeC4、Archify 都是開發文件工具，不隨 JET 成為執行依賴。",
+        "公司設備的 WebView2、ACE 位元版本、發布權限與完整流程仍需在正式環境確認；SQL Server 企業部署不在本圖範圍。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "閱讀方式",
+      "items": [
+        "這是來源快照的靜態整理，沒有執行 JET 業務流程。",
+        "完整來源、檔案雜湊及選取的呼叫，可從本輪離線入口的證據頁查閱。"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "package",
+      "label": "發布資料夾",
+      "type": "external",
+      "sublabel": "JET.exe、設定、8 個範本、wwwroot",
+      "pos": [
+        40,
+        40
+      ],
+      "size": [
+        300,
+        78
+      ]
+    },
+    {
+      "id": "host",
+      "label": "JET 桌面程序",
+      "type": "backend",
+      "sublabel": "WinForms；.NET 10 自含式",
+      "pos": [
+        450,
+        40
+      ],
+      "size": [
+        300,
+        78
+      ]
+    },
+    {
+      "id": "webview",
+      "label": "WebView2 執行階段",
+      "type": "frontend",
+      "sublabel": "環境須具備；呈現隨附前端",
+      "pos": [
+        860,
+        40
+      ],
+      "size": [
+        300,
+        78
+      ]
+    },
+    {
+      "id": "inputs",
+      "label": "來源檔案",
+      "type": "external",
+      "sublabel": "Access 讀取另需可用的 x64 ACE 16",
+      "pos": [
+        40,
+        245
+      ],
+      "size": [
+        300,
+        78
+      ]
+    },
+    {
+      "id": "local",
+      "label": "內嵌資料庫引擎",
+      "type": "database",
+      "sublabel": "案件選 SQLite 或 DuckDB",
+      "pos": [
+        450,
+        245
+      ],
+      "size": [
+        300,
+        78
+      ]
+    },
+    {
+      "id": "case",
+      "label": "完整案件資料夾",
+      "type": "database",
+      "sublabel": "project.json、資料庫、報告及索引",
+      "pos": [
+        860,
+        245
+      ],
+      "size": [
+        300,
+        78
+      ]
+    },
+    {
+      "id": "support",
+      "label": "支援日誌",
+      "type": "external",
+      "sublabel": "JET 日誌目錄或所選案件",
+      "pos": [
+        450,
+        450
+      ],
+      "size": [
+        300,
+        78
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "dep1",
+      "from": "package",
+      "to": "host",
+      "label": "載入"
+    },
+    {
+      "id": "dep2",
+      "from": "host",
+      "to": "webview",
+      "label": "WebMessage"
+    },
+    {
+      "id": "dep3",
+      "from": "inputs",
+      "to": "host",
+      "label": "讀取"
+    },
+    {
+      "id": "dep4",
+      "from": "host",
+      "to": "local",
+      "label": "資料庫操作"
+    },
+    {
+      "id": "dep5",
+      "from": "local",
+      "to": "case",
+      "label": "讀寫資料庫"
+    },
+    {
+      "id": "dep6",
+      "from": "host",
+      "to": "case",
+      "label": "設定與報告"
+    },
+    {
+      "id": "dep7",
+      "from": "host",
+      "to": "support",
+      "label": "匯出支援紀錄"
+    }
+  ]
+}

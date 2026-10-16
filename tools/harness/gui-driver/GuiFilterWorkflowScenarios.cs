@@ -140,7 +140,8 @@ internal static partial class GuiScenarios
             await Click("[data-kct-letter=H]");
             await Check("draft.name==='G' && document.querySelector('[data-bind=scenario-name]').value==='G'");
             
-            await AddCustom("check:prescreenResult");
+            // 2026-10-16 起從「預篩選」分頁加入（取代「沿用第四步預篩選規則」），仍在條件卡片的下拉改選一次，結果同樣是空白摘要。
+            await AddCustom("prescreen:suspiciousKeywords");
             await Choose(".rule-row[data-gi=\"0\"][data-ri=\"1\"] [data-pattern-subject]", "prescreen:blankDescription");
             await Click("[data-filter-pane-select=\"filter\"]");
             await Click("[data-condition-source=\"kct\"]");

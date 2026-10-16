@@ -38,6 +38,17 @@ internal sealed class FilterFactsPort(
             document.Spec,
             plan.Request.RuleContext,
             cancellationToken);
+        if (plan.PreviewCountsWholeVoucherRows)
+        {
+            preview = preview with
+            {
+                WholeVoucherRowCount = await previewRepository.CountWholeVoucherRowsAsync(
+                    plan.Request.ProjectId,
+                    document.Spec,
+                    plan.Request.RuleContext,
+                    cancellationToken)
+            };
+        }
         return new FilterFacts(preview, MaterializedScenarioCount: 0);
     }
 

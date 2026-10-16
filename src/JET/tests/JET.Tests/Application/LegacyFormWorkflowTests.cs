@@ -79,6 +79,11 @@ public sealed class LegacyFormWorkflowTests
 
     private static string[] ExpectedKeys(string key) => Derived.TryGetValue(key, out var keys) ? keys : Keys(Expected[key]);
 
+    // 使用者 2026-10-16 要求畫面的分錄筆數和條件篩選報告同一個口徑。只用一條「未預期借貸組合」的 C，展開傳票時整張傳票的
+    // 每一列都標為符合，和報告摘要及底稿 Step 4-1 相同；直接命中的列（count 與 filterHitsPage）仍是 Expected["C"]。
+    // 第一次失敗：Public 收據 20261016-051726257-ff7a19590e9c4c30a7f61b5bec0bc527，V03 的第 1 列也標為符合。
+    private static readonly Dictionary<string, string> WholeVoucherExpected = new() { ["C"] = "V03:1,2;V08:1" };
+
     private const string DefaultKeywords = "ADJ,REV,RECLASS,SUSPENSE,ERROR,WRONG,調整,迴轉,沖銷,重分類,避險,重編,錯誤,計畫外,預算外,帳外,"
         + "调整,回转,冲销,重分类,避险,重编,错误,计画外,预算外";
 
@@ -201,17 +206,22 @@ public sealed class LegacyFormWorkflowTests
             foreach (var (key, scenario) in batch)
             {
                 var expected = ExpectedKeys(key);
+                var wholeVoucher = WholeVoucherExpected.TryGetValue(key, out var whole) ? Keys(whole) : null;
+                var shownAsHit = wholeVoucher ?? expected;
                 var preview = await host.DispatchAsync("filter.preview", new JsonObject { ["scenario"] = scenario.DeepClone() }.ToJsonString());
                 var count = preview.GetProperty("scenario").GetProperty("count").GetInt64();
                 Assert.True(expected.Length == count, $"{key}: expected {expected.Length} rows, got {count}.");
+                Assert.True(shownAsHit.Length == preview.GetProperty("scenario").GetProperty("summaryRowCount").GetInt64(), $"{key}: summaryRowCount");
+                Assert.Equal(wholeVoucher is not null, preview.GetProperty("scenario").GetProperty("countsWholeVoucherRows").GetBoolean());
                 var page = await host.DispatchAsync("query.filterVoucherPage", new JsonObject { ["scenario"] = scenario.DeepClone() }.ToJsonString());
                 Assert.Equal(expected.Select(x => x.Split('|')[0]).Distinct().Order(), page.GetProperty("rows").EnumerateArray().Select(x => x.GetProperty("documentNumber").GetString()).Order());
                 foreach (var voucher in page.GetProperty("rows").EnumerateArray())
                 {
                     var doc = voucher.GetProperty("documentNumber").GetString();
+                    Assert.True(shownAsHit.Count(x => x.StartsWith(doc + "|", StringComparison.Ordinal)) == voucher.GetProperty("hitRowCount").GetInt64(), $"{key} {doc}: hitRowCount");
                     var detail = await host.DispatchAsync("query.filterVoucherRowsPage", new JsonObject { ["scenario"] = scenario.DeepClone(), ["documentNumber"] = doc, ["queryRevision"] = page.GetProperty("queryRevision").GetString() }.ToJsonString());
                     var hitKeys = detail.GetProperty("rows").EnumerateArray().Where(r => r.GetProperty("isHit").GetBoolean()).Select(r => doc + "|" + r.GetProperty("lineItem").GetString()).Order();
-                    Assert.Equal(expected.Where(x => x.StartsWith(doc + "|", StringComparison.Ordinal)), hitKeys);
+                    Assert.Equal(shownAsHit.Where(x => x.StartsWith(doc + "|", StringComparison.Ordinal)), hitKeys);
                 }
             }
             string Payload() => new JsonObject { ["scenarios"] = new JsonArray(batch.Select(c => (JsonNode)c.Scenario.DeepClone()).ToArray()) }.ToJsonString();

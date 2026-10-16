@@ -116,6 +116,57 @@ public sealed class TagMatrixScenariosTests
         Assert.True(PositionOf(scenarios, 1) > 0, "惰性補算後 nonAuthorizedPreparer 應仍命中");
     }
 
+    // 使用者 2026-10-16 要求第五步的分錄筆數和過往底稿相同。只用「未預期借貸組合」一個條件時，預覽、
+    // 已存情境摘要與傳票清單都用整張命中傳票的分錄數（和 Criteria Selection 摘要同一個判斷）；其他情境維持直接符合的分錄數。
+    // 獨立答案：傳票清單逐張列出的期間內全部分錄加總，走的是另一條 GROUP BY 查詢。
+    [Fact]
+    public async Task UnexpectedAccountPairAlone_ScreensCountWholeVoucherRows_OtherScenariosKeepDirectRows()
+    {
+        using var host = new HandlerTestHost();
+        await DemoProjectPipeline.SetupAsync(host);
+        var pair = new
+        {
+            name = "未預期借貸組合", rationale = "整張傳票計數",
+            groups = new[] { new { join = "and", rules = new object[] {
+                new { join = "and", type = "prescreen", prescreenKey = "unexpectedAccountPair" } } } }
+        };
+        var preparer = new
+        {
+            name = "非授權編製人員", rationale = "直接符合計數",
+            groups = new[] { new { join = "and", rules = new object[] {
+                new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } }
+        };
+
+        var preview = (await host.DispatchAsync("filter.preview",
+            JsonSerializer.Serialize(new { populationScope = "auditPeriod", scenario = pair }))).GetProperty("scenario");
+        long wholeRows = 0, totalRows = 0;
+        string? cursor = null;
+        do
+        {
+            var page = await host.DispatchAsync("query.filterVoucherPage",
+                JsonSerializer.Serialize(new { populationScope = "auditPeriod", scenario = pair, pageSize = 500, cursor }));
+            foreach (var voucher in page.GetProperty("rows").EnumerateArray())
+            {
+                wholeRows += voucher.GetProperty("hitRowCount").GetInt64();
+                totalRows += voucher.GetProperty("totalRowCount").GetInt64();
+            }
+            cursor = page.GetProperty("nextCursor").ValueKind == JsonValueKind.Null ? null : page.GetProperty("nextCursor").GetString();
+        } while (cursor is not null);
+
+        Assert.True(preview.GetProperty("countsWholeVoucherRows").GetBoolean());
+        Assert.Equal(totalRows, wholeRows);
+        Assert.Equal(totalRows, preview.GetProperty("summaryRowCount").GetInt64());
+        Assert.True(totalRows > preview.GetProperty("count").GetInt64(), "示範資料每張傳票還有一列借方，整張傳票的分錄數應多於直接符合的列");
+
+        await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new object[] { pair, preparer } }));
+        var scenarios = (await host.DispatchAsync("query.tagMatrixScenarios")).GetProperty("scenarios");
+        Assert.True(scenarios[0].GetProperty("countsWholeVoucherRows").GetBoolean());
+        Assert.Equal(totalRows, scenarios[0].GetProperty("summaryRowCount").GetInt64());
+        Assert.Equal(preview.GetProperty("count").GetInt64(), scenarios[0].GetProperty("rowHitCount").GetInt64());
+        Assert.False(scenarios[1].GetProperty("countsWholeVoucherRows").GetBoolean());
+        Assert.Equal(scenarios[1].GetProperty("rowHitCount").GetInt64(), scenarios[1].GetProperty("summaryRowCount").GetInt64());
+    }
+
     [Fact]
     public async Task NoScenarios_ReturnsEmptyList()
     {

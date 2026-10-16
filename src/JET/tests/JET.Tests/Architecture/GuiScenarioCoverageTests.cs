@@ -70,8 +70,11 @@ public sealed class GuiScenarioCoverageTests
         // 首次失敗：Focused 20261015-044801837-e00e67a1be2e42aaa9258bb069133c4d。
         // 完整 Gui 實跑收據 20261015-043313016-282c137bcba34a44870540029ef333c0。
         // 2026-10-15 S5 刪掉逐張點 A 到 E 的 10 次操作，減為 76 次（首次失敗收據同上方註解），待完整 Gui 實跑確認。
-        Assert.Equal(76, scenario.GetProperty("actionBudget").GetInt32());
-        Assert.Equal(76, scenario.GetProperty("expectedActionCount").GetInt32());
+        // 2026-10-16 使用者要求縮短套用預篩選條件的操作：預篩選條件改從條件總覽的「預篩選」分頁直接加入，
+        // 不再先展開常用查核條件的「預篩選結果」分類，這一步從點三次變成點兩次，減為 75 次。
+        // 首次失敗：完整 Gui 20261016-054955308-2f29806b7e5b48d3a7f332ac7c4ddad8，實跑 75 次，情境本身的檢查都通過。
+        Assert.Equal(75, scenario.GetProperty("actionBudget").GetInt32());
+        Assert.Equal(75, scenario.GetProperty("expectedActionCount").GetInt32());
     }
 
     private static JsonElement FindKct(JsonElement value)

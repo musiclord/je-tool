@@ -321,7 +321,8 @@ GL 的 `side` 與 `flag` 金額模式共用判定，畫面合併為「金額與�
 只填借方碼時，其餘全部值包含空白都算貸方；只填貸方碼時方向相反。兩側都有填時，兩碼不得相同，來源空白或不符合任一碼仍以 `projection_failed` 列出來源列號，零金額也相同。
 這是使用者 2026-10-08 第 6 則的裁定。金額或日期解析失敗時，GL、TB 投影都保留原有資料；TB 不新增貸方代碼欄。
 舊案已投影資料不自動重寫。重新確認 GL 配對才按目前設定投影；還原草稿接受有效的單邊代碼，但不猜另一側代碼，也不改寫已確認配對。
-千分位逗號只接受每組三位；括號可表示負數，不可再疊加正負號。GL、TB、RDE 金額與篩選運算值共用相同解析。
+千分位逗號只接受每組三位；括號可表示負數，不可再疊加正負號。正負號放在尾端時，前面可以有空白，有沒有千分位都讀成同一個值。
+GL、TB、RDE 金額與篩選運算值共用相同解析。
 Excel 序列值只接受 1900 到 2100 年，原生日期儲存格及 1904 日期制同樣檢查；明確西元或民國文字日期的原範圍不變，Access 原生日期不套 Excel 限制。
 年份在後的數字三段式日期不猜月日順序，帶時間也一樣拒絕。
 
@@ -488,7 +489,10 @@ KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 `hitRowCount`、`totalRowCount` 與 `voucherTotal`（該傳票期間內全部分錄的借方總額顯示值），可用上表的
 `sort` 與 `search`；展開分錄時另帶 `documentNumber` 及上次
 回應的 `queryRevision`，分錄頁固定依分錄順序，不接受排序與搜尋。
-明細提供日期、科目、金額、摘要、`isHit` 與 `matchDescription`。另有 `primaryConditions`、
+明細提供日期、科目、金額、摘要、`isHit` 與 `matchDescription`。
+情境只有一組，而且這組只有一條預篩選條件「未預期借貸組合」時，判斷與 Criteria Selection 摘要相同：
+`hitRowCount` 是整張傳票的分錄數，分錄頁每列的 `isHit` 都是 true，不是直接命中的列，`matchDescription` 為
+「同一張傳票的其他分錄，整張傳票列入結果」（使用者 2026-10-16 要求畫面與報告同一個口徑）。另有 `primaryConditions`、
 `evidenceConditions` 和 `voucherConditions`，分別對應主要、佐證與傳票層條件的位置；位置由 `group` 和
 `rule` 組成，皆從 1 起算。
 回應另有欄位 metadata `columns`，明細的攸關資料元素欄位值在 `customValues`。展開必須帶 `queryRevision`。
@@ -527,6 +531,11 @@ KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 
 情境根層不再接受 `exclusions`；舊情境帶這個欄位時回 `invalid_scenario`，訊息說改用條件的否定模式重新
 儲存。`filter.preview` 回 `count`、`voucherCount` 與 `previewRows`，沒有待判定計數。
+`count` 是直接符合條件的分錄筆數。2026-10-16 起另回 `summaryRowCount` 與 `countsWholeVoucherRows`，
+畫面的「符合條件的分錄筆數」用 `summaryRowCount`。情境只有一組，而且這組只有一條預篩選條件「未預期借貸組合」時，
+`countsWholeVoucherRows` 為 true，`summaryRowCount` 是命中傳票在查核期間內的全部分錄數，和 Criteria Selection 摘要的列數及
+Working Paper Step 4-1 的整張傳票標記相同；其他情境為 false，`summaryRowCount` 等於 `count`。
+`query.tagMatrixScenarios` 的每個情境也回這兩個欄位，判斷相同；`voucherHitCount` 與 `rowHitCount` 的意思不變，`rowHitCount` 仍是直接命中列。
 
 `fieldValue` 的 `isBlank`、`isNotBlank` 若選到沒有來源配對的核心欄位，回 `invalid_scenario` 與條件列
 `details`，引導回「欄位配對」指派或改選欄位；已配對欄位的空白資料仍可正常篩選。

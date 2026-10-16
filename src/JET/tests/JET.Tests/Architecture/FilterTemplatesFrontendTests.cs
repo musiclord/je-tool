@@ -62,7 +62,9 @@ public sealed class FilterTemplatesFrontendTests
         {
             Assert.True(FilterConditionLabels.PrescreenKeys.ContainsKey(key.Groups["key"].Value), key.Groups["key"].Value);
         }
-        Assert.Equal(new[] { "日期與時點", "金額", "摘要", "科目與借貸", "人員與分錄性質", "預篩選結果" },
+        // 最後一類「預篩選結果」只有「沿用第四步預篩選規則」，使用者 2026-10-16 要求縮短套用預篩選條件的操作後，
+        // 改成條件總覽的「預篩選」分頁直接列出每一條規則（第一次失敗：收據 20261016-050025227-3ad1807939a146e6b55712279046deb1）。
+        Assert.Equal(new[] { "日期與時點", "金額", "摘要", "科目與借貸", "人員與分錄性質" },
             Regex.Matches(body, @"\{ key: '[a-z]+', label: '(?<label>[^']+)', checks:").Select(m => m.Groups["label"].Value).ToArray());
     }
 

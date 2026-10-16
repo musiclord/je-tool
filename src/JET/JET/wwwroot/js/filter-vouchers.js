@@ -11,11 +11,22 @@
       ? '<div class="filter-match-reason"><strong>' + label + '</strong><p>' + Ui.esc(row.matchDescription) + '</p></div>'
       : label;
   }
+  // 使用者 2026-10-16 依過往底稿要求分開顯示「符合條件的傳票數量」與「符合條件的分錄筆數」。分錄筆數用後端的
+  // summaryRowCount，口徑與條件篩選報告的摘要相同：只用「未預期借貸組合」一個條件時是整張傳票的分錄數，畫面不自己換算。
+  function countText(preview) {
+    return '符合條件的傳票數量 ' + count(preview.voucherCount) + ' 張，符合條件的分錄筆數 ' + count(preview.summaryRowCount) + ' 筆';
+  }
   function summary(preview) {
-    return '<p class="rule-card__sub">符合條件：' + count(preview.count) + ' 筆分錄（' + count(preview.voucherCount) +
-      ' 張傳票）</p>' +
-      (Number(preview.voucherCount) > 0 ? '<p class="rule-card__sub">' +
-      '展開傳票可查看查核期間內的全部分錄。標示為參考的分錄不計入上方筆數。</p>' : '') +
+    function stat(label, value) {
+      return '<div class="stat-card"><span class="stat-card__value">' + count(value) + '</span>' +
+        '<span class="stat-card__label">' + label + '</span></div>';
+    }
+    var note = preview.countsWholeVoucherRows
+      ? '只用「未預期借貸組合」一個條件時，整張傳票的分錄都計入分錄筆數，與條件篩選報告及工作底稿相同。'
+      : '標示為參考的分錄不計入分錄筆數。';
+    return '<div class="stats-bar stats-bar--flush">' + stat('符合條件的傳票數量', preview.voucherCount) +
+      stat('符合條件的分錄筆數', preview.summaryRowCount) + '</div>' +
+      (Number(preview.voucherCount) > 0 ? '<p class="rule-card__sub">展開傳票可查看查核期間內的全部分錄。' + note + '</p>' : '') +
       '<div class="filter-voucher-host"></div>';
   }
   // app.js 的 JetMotion 比對用的識別：跟著同一份預覽結果，不用位置；草稿預覽與各個已存情境的清單可能同時在畫面上，各自一組。
@@ -164,5 +175,5 @@
     }
     draw();
   }
-  Ui.FilterVouchers = { summary: summary, mount: mount };
+  Ui.FilterVouchers = { summary: summary, countText: countText, mount: mount };
 })(window);

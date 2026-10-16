@@ -369,24 +369,24 @@ public sealed class FilterCompletenessTests
         }
         var repository = new LocalFilterVoucherRepository(db);
         var scenario = Scenario(CashDebit);
-        var first = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(null, 1), CancellationToken.None);
+        var first = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(null, 1), countWholeVoucherRows: false, CancellationToken.None);
         Assert.Equal(new FilterVoucherSummary("A", "2025-01-01", 1, 2, 10000), Assert.Single(first.Vouchers));
         // 2026-09-07 工作包 G：傳票摘要頁改走共用 keyset 分頁，下一頁鍵成為 opaque 游標，內容仍是末列的傳票號碼。
         Assert.True(PageCursor.TryDecode(first.NextKey, out var firstKey));
         Assert.Equal("A", firstKey);
-        var second = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(first.NextKey, 1), CancellationToken.None);
+        var second = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(first.NextKey, 1), countWholeVoucherRows: false, CancellationToken.None);
         Assert.Equal(new FilterVoucherSummary("B", "2025-01-01", 1, 4, 15000), Assert.Single(second.Vouchers));
-        var detail = await repository.ReadAsync(id, scenario, Context, "A", new PageRequest(null, 1), CancellationToken.None);
+        var detail = await repository.ReadAsync(id, scenario, Context, "A", new PageRequest(null, 1), countWholeVoucherRows: false, CancellationToken.None);
         var hit = Assert.Single(detail.Details);
         Assert.True(hit.IsHit);
         Assert.Equal([new FilterConditionPosition(1, 1)], hit.PrimaryConditions);
-        var nextDetail = await repository.ReadAsync(id, scenario, Context, "A", new PageRequest(detail.NextKey, 1), CancellationToken.None);
+        var nextDetail = await repository.ReadAsync(id, scenario, Context, "A", new PageRequest(detail.NextKey, 1), countWholeVoucherRows: false, CancellationToken.None);
         var reference = Assert.Single(nextDetail.Details);
         Assert.Equal("2", reference.LineItem);
         Assert.False(reference.IsHit);
         Assert.Empty(reference.PrimaryConditions);
         Assert.Null(nextDetail.NextKey);
-        var noMatch = await repository.ReadAsync(id, Scenario(OtherCredit), Context, "E", new PageRequest(null, 10), CancellationToken.None);
+        var noMatch = await repository.ReadAsync(id, Scenario(OtherCredit), Context, "E", new PageRequest(null, 10), countWholeVoucherRows: false, CancellationToken.None);
         Assert.Empty(noMatch.Details);
         // 排序與搜尋：借方 Cash 命中 A(2 列)、B(4 列)、C(2 列)、D(3 列)、E(1 列)。依期間內全部分錄降冪、每頁一張走到底，
         // 固定答案 B、D、C、A、E（A 與 C 同值時穩定鍵也降冪）；搜尋 a 不分大小寫只留 A。
@@ -395,16 +395,16 @@ public sealed class FilterCompletenessTests
         do
         {
             var sortedPage = await repository.ReadAsync(id, scenario, Context, null,
-                new PageRequest(sortCursor, 1, new PageSort("totalRowCount", PageSortDirection.Descending)), CancellationToken.None);
+                new PageRequest(sortCursor, 1, new PageSort("totalRowCount", PageSortDirection.Descending)), countWholeVoucherRows: false, CancellationToken.None);
             order.Add(Assert.Single(sortedPage.Vouchers).DocumentNumber);
             sortCursor = sortedPage.NextKey;
         } while (sortCursor is not null);
         Assert.Equal(["B", "D", "C", "A", "E"], order);
-        var searched = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(null, 10, null, "a"), CancellationToken.None);
+        var searched = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(null, 10, null, "a"), countWholeVoucherRows: false, CancellationToken.None);
         Assert.Equal("A", Assert.Single(searched.Vouchers).DocumentNumber);
         // 傳票總額（借方總額）升冪：E 0、A 10000、C 10000、D 10000、B 15000；同值時穩定鍵升冪。
         var byTotal = await repository.ReadAsync(id, scenario, Context, null,
-            new PageRequest(null, 10, new PageSort("voucherTotal", PageSortDirection.Ascending)), CancellationToken.None);
+            new PageRequest(null, 10, new PageSort("voucherTotal", PageSortDirection.Ascending)), countWholeVoucherRows: false, CancellationToken.None);
         Assert.Equal(["E", "A", "C", "D", "B"], byTotal.Vouchers.Select(row => row.DocumentNumber).ToArray());
         Assert.Equal([0L, 10000L, 10000L, 10000L, 15000L], byTotal.Vouchers.Select(row => row.VoucherTotalScaled).ToArray());
     }

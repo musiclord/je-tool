@@ -250,8 +250,9 @@
     { value: 'holidayPosting', label: '假日過帳' },
     { value: 'holidayApproval', label: '假日核准' },
     { value: 'blankDescription', label: '空白摘要' },
-    { value: 'nonAuthorizedPreparer', label: '非授權編製人員', requiresAuthorizedPreparers: true },
-    { value: 'lowFrequencyPreparer', label: '編製分錄較少的人員（' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下）' },
+    // requiresCreateBy：後端要求「傳票建立人員」已配對來源欄（FilterScenario 的欄位前置檢查）。
+    { value: 'nonAuthorizedPreparer', label: '非授權編製人員', requiresAuthorizedPreparers: true, requiresCreateBy: true },
+    { value: 'lowFrequencyPreparer', label: '編製分錄較少的人員（' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下）', requiresCreateBy: true },
     { value: 'lowFrequencyAccount', label: '使用較少的科目（' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下）' }
   ];
 
@@ -394,7 +395,6 @@
 
   // 第五步「常用查核條件」：依審計目的分類，按「加入」把 rules 加入目前作用中的條件組。
   // 型別與比較方式都是後端既有的；requires 同上，只有後端一定會擋的情況才標。
-  // prescreen 沒寫 prescreenKey 時，加入當下改用第一個可用的預篩選規則，審計員再在條件卡片上改選。
   // __periodEndDays 與範例相同，加入時由查核截止日往前算出起訖日期。
   var FILTER_COMMON_CHECK_GROUPS = [
     { key: 'dates', label: '日期與時點', checks: [
@@ -432,10 +432,9 @@
       { key: 'manualEntries', label: '人工分錄', rules: [{ type: 'manualAuto', isManual: 'true' }] },
       { key: 'rarePreparers', label: '編製分錄較少的人員', requires: 'createByMapped', rules: [{ type: 'entityFrequency', field: 'createBy', countUnit: 'entries',
         countOperator: 'lessThanOrEqual', countFrom: String(PRESCREEN_DEFAULTS.preparerMaxEntries) }] }
-    ] },
-    { key: 'prescreen', label: '預篩選結果', checks: [
-      { key: 'prescreenResult', label: '沿用第四步預篩選規則', rules: [{ type: 'prescreen' }] }
     ] }
+    // 原本最後一類「預篩選結果」只有「沿用第四步預篩選規則」，加入後要到條件卡片改選；2026-10-16 改成條件總覽的
+    // 「預篩選」分頁，直接列出每一條預篩選規則（見 filter-step.js 的 prescreenPickerHtml）。
   ];
 
   // 特殊科目類別配對三模式（specialAccountCategoryPair；A=借方類別、B=貸方類別）。

@@ -486,7 +486,7 @@ test('step 5 messages: a preview logs the confirmed count line with the elapsed 
   let f = filterStepFixture();
   f.click('[data-kct-letter="G"]');
   f.click('[data-action="preview-scenario"]'); await settle();
-  f.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, populationScope: 'auditPeriod' } }); await settle();
+  f.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, summaryRowCount: 3, populationScope: 'auditPeriod' } }); await settle();
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [], nextCursor: null }); await settle(); await settle();
   // 使用者 2026-10-13 勾選頁確認 58（final-wording.json，維持原句），句尾接上耗時（同日確認 15）。
   const previews = panelMessages(f).filter(m => m.text.startsWith('情境預覽'));

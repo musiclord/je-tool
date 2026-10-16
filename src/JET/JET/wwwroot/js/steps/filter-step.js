@@ -358,6 +358,9 @@
     var imp = Store.getState().importState, mapping = imp.accountMapping;
     if (option.requiresAuthorizedPreparers && !imp.authorizedPreparer) { return '尚未匯入授權編製人員清單，請先在第二步匯入'; }
     if (option.requiresAccountMapping && !mapping) { return NO_ACCOUNT_CATEGORY_NOTE; }
+    // 傳票建立人員沒有來源欄時，後端擋下這兩條；和常用查核條件的「編製分錄較少的人員」同一句（2026-10-16 複審找到）。
+    var createByNote = option.requiresCreateBy ? conditionRequirementNote('createByMapped') : '';
+    if (createByNote) { return createByNote; }
     if (key === 'unexpectedAccountPair') {
       if (!mapping || !mapping.hasRevenue) { return revenueMissingNote(); }
       if (!mapping.hasCounterpart) { return counterpartMissingNote(); }
@@ -827,6 +830,32 @@
   // 自訂篩選條件分頁只有兩區：上面依欄位型別列出欄位按鈕，下面是依審計目的分類的常用查核條件。
   function customPickerHtml() {
     return '<section class="condition-picker condition-picker--custom">' + fieldChipsHtml() + commonChecksHtml() + '</section>';
+  }
+
+  // 使用者 2026-10-16 指出審計員習慣直接套用預篩選條件，原本要先加入「沿用第四步預篩選規則」，再到條件卡片的下拉改選，
+  // 路徑太長。預篩選條件改成條件總覽的一個分頁，條列每一條規則，按「加入」就帶入那一條；列的樣式沿用常用查核條件。
+  function prescreenPickerHtml() {
+    var items = Ui.PRESCREEN_KEY_OPTIONS.map(function (option) {
+      var note = prescreenAvailabilityNote(option.value);
+      var noteId = 'filter-prescreen-note-' + option.value;
+      return '<li class="filter-check"><span class="filter-check__label">' + Ui.esc(option.label) + '</span>' +
+        '<button type="button" class="btn btn--ghost btn--tiny btn--add" data-action="add-rule" data-add-prescreen="' + option.value + '"' +
+          ' aria-label="' + Ui.esc('加入「' + option.label + '」') + '"' + (note ? ' disabled aria-describedby="' + noteId + '"' : '') + '>加入</button>' +
+        (note ? '<p class="filter-check__note" id="' + noteId + '">' + Ui.esc(note) + '</p>' : '') + '</li>';
+    }).join('');
+    return '<section class="condition-picker condition-picker--prescreen">' +
+      '<p class="condition-picker__intro">規則與第四步預篩選相同。按「加入」放進目前的條件組，可再和其他條件組合。</p>' +
+      '<ul class="filter-check-group__items filter-prescreen-list">' + items + '</ul></section>';
+  }
+
+  // 條件卡片已有的前置檢查之外，「財報準備日起核准」還需要期末財報準備日，否則後端會擋。
+  function prescreenAvailabilityNote(key) {
+    return prescreenRequirementNote(key) || (key === 'postPeriodApproval' ? conditionRequirementNote('preparationDate') : '');
+  }
+
+  function addPrescreenCondition(key) {
+    if (prescreenAvailabilityNote(key)) { return; }
+    addConditions([conditionFromSpec({ type: 'prescreen', prescreenKey: key })]);
   }
 
   // 欄位按鈕的三列。核心欄位全部列出，不依配對狀態篩選；攸關資料元素欄位依型別接在核心欄位後面。
@@ -2340,8 +2369,7 @@
       body = Ui.FilterVouchers.summary(preview);
     } else {
       body =
-        '<p class="rule-card__sub">符合條件：' + Number(preview.count).toLocaleString() + ' 筆分錄，' +
-          Number(preview.voucherCount).toLocaleString() + ' 張傳票；以下為前 ' +
+        '<p class="rule-card__sub">' + Ui.FilterVouchers.countText(preview) + '；以下為前 ' +
           preview.previewRows.length + ' 筆預覽。GL：' +
           Ui.esc(populationScopeLabel(preview.populationScope)) + '內的分錄。</p>' +
         '<div class="preview-table__wrap">' + Ui.previewTableHtml(preview.previewRows) + '</div>';
@@ -2505,7 +2533,8 @@
       });
   }
 
-  // 情境摘要表(step3 交叉參考)：位置/條件名稱(=C 欄)/傳票命中數/行命中數。
+  // 情境摘要表(step3 交叉參考)：位置/條件名稱(=C 欄)/傳票命中數/分錄筆數。分錄筆數用後端的 summaryRowCount，
+  // 和條件篩選報告摘要同一個口徑（只用「未預期借貸組合」一個條件時是整張傳票的分錄數）。
   function scenarioSummaryTableHtml(columns) {
     var rows = columns.map(function (c) {
       var s = c.summary;
@@ -2514,7 +2543,7 @@
           '<td>' + Ui.esc(c.label) + '</td>' +
           '<td>' + Ui.esc(s.name) + '</td>' +
           '<td class="preview-table__amount">' + Number(s.voucherHitCount).toLocaleString() + '</td>' +
-          '<td class="preview-table__amount">' + Number(s.rowHitCount).toLocaleString() + '</td>' +
+          '<td class="preview-table__amount">' + Number(s.summaryRowCount).toLocaleString() + '</td>' +
         '</tr>'
       );
     }).join('');
@@ -2523,7 +2552,7 @@
       '<h4 class="rule-card__title">情境摘要</h4>' +
       '<div class="preview-table__wrap">' +
         '<table class="preview-table">' +
-          '<thead><tr><th>欄</th><th>高風險條件（情境名稱）</th><th>符合條件的傳票數</th><th>符合條件的分錄筆數</th></tr></thead>' +
+          '<thead><tr><th>欄</th><th>高風險條件（情境名稱）</th><th>符合條件的傳票數量</th><th>符合條件的分錄筆數</th></tr></thead>' +
           '<tbody>' + rows + '</tbody>' +
         '</table>' +
       '</div>'
@@ -2587,10 +2616,12 @@
           '<div class="filter-workbench"><aside class="filter-entry" tabindex="-1" aria-label="加入篩選條件">' +
             '<div class="filter-entry-heading"><h3 class="filter-entry-title">條件總覽</h3>' +
               '<button type="button" class="btn btn--ghost" data-action="toggle-examples" aria-expanded="' + viewState.examplesOpen + '" aria-controls="filter-example-list">從範例開始</button></div>' + conditionTargetHtml(draft) +
-            '<div class="filter-source-tabs" aria-label="條件來源">' + sourceButton('kct', 'KCT 條件') + sourceButton('custom', '自訂篩選條件') + '</div>' +
+            '<div class="filter-source-tabs" aria-label="條件來源">' + sourceButton('kct', 'KCT 條件') + sourceButton('prescreen', '預篩選') +
+              sourceButton('custom', '自訂篩選條件') + '</div>' +
             '<div class="filter-entry-scroll" data-preserve-scroll="filter-condition-catalog">' +
             '<div class="filter-example-list" id="filter-example-list" data-example-list data-motion-key="examples" data-collapsible' + (viewState.examplesOpen ? '' : ' hidden') + '>' + exampleListHtml() + '</div>' +
             '<div data-condition-pane="kct" data-motion-pane' + (viewState.conditionSource === 'kct' ? '' : ' hidden') + '>' + kctPickerHtml(draft) + '</div>' +
+            '<div data-condition-pane="prescreen" data-motion-pane' + (viewState.conditionSource === 'prescreen' ? '' : ' hidden') + '>' + prescreenPickerHtml() + '</div>' +
             '<div data-condition-pane="custom" data-motion-pane' + (viewState.conditionSource === 'custom' ? '' : ' hidden') + '>' + customPickerHtml() + '</div>' +
           '</div></aside><div class="filter-current">' + scenarioBuilderHtml(draft) + previewPaneHtml(state.filter.preview) + '</div></div>' +
         '</section>' +
@@ -2870,8 +2901,7 @@
     }
     var rows = s.previewRows.slice(0, 10);
     previewEl.innerHTML =
-      '<p class="rule-card__sub">符合條件：' + Number(s.count).toLocaleString() + ' 筆分錄，' +
-        Number(s.voucherCount).toLocaleString() + ' 張傳票，以下為前 ' + rows.length +
+      '<p class="rule-card__sub">' + Ui.FilterVouchers.countText(s) + '，以下為前 ' + rows.length +
         ' 筆。GL：' + Ui.esc(populationScopeLabel(s.populationScope)) + '內的分錄。</p>' +
       '<div class="preview-table__wrap">' + Ui.previewTableHtml(rows) + '</div>' +
       (allowLoadMore
@@ -3021,6 +3051,9 @@
     });
     container.querySelectorAll('[data-add-check]').forEach(function (button) {
       button.addEventListener('click', function () { addCommonCheck(button.getAttribute('data-add-check')); });
+    });
+    container.querySelectorAll('[data-add-prescreen]').forEach(function (button) {
+      button.addEventListener('click', function () { addPrescreenCondition(button.getAttribute('data-add-prescreen')); });
     });
     // 常用查核條件的分類一次只展開一類；只切換畫面，不重繪也不改草稿。
     container.querySelectorAll('[data-check-category]').forEach(function (button) {
@@ -3523,7 +3556,8 @@
           return data.scenario;
         }).catch(function (error) { if (!acceptResponse()) { return; } previewMarked = markRuleErrors(container, error); throw error; });
       }, { inlineError: function () { return previewMarked > 0; }, completionMessage: function (scenario) {
-        return scenario ? '情境預覽：符合條件 ' + scenario.count + ' 筆分錄，' + scenario.voucherCount + ' 張傳票。' : '';
+        // 訊息句子是使用者 2026-10-13 勾選頁確認維持的原句；分錄數用和預覽摘要同一個 summaryRowCount。
+        return scenario ? '情境預覽：符合條件 ' + scenario.summaryRowCount + ' 筆分錄，' + scenario.voucherCount + ' 張傳票。' : '';
       } });
     });
 

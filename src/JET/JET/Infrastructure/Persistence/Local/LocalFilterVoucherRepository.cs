@@ -12,11 +12,12 @@ public sealed class LocalFilterVoucherRepository(ILocalProjectDatabase database)
         return await FilterVoucherPageReader.ReadRevisionAsync(connection, "", ct);
     }
     public async Task<FilterVoucherPage> ReadAsync(string projectId, FilterScenarioSpec scenario, FilterRuleContext context,
-        string? documentNumber, PageRequest request, CancellationToken ct)
+        string? documentNumber, PageRequest request, bool countWholeVoucherRows, CancellationToken ct)
     {
         await database.EnsureReadyAsync(projectId, ct);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(ct);
-        return await FilterVoucherPageReader.ReadAsync(connection, database.Dialect, "", scenario, context, documentNumber, request, ct);
+        return await FilterVoucherPageReader.ReadAsync(connection, database.Dialect, "", scenario, context, documentNumber, request,
+            countWholeVoucherRows, ct);
     }
 }

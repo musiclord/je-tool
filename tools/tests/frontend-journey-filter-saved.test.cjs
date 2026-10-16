@@ -122,7 +122,7 @@ for (const operation of ['new', 'edit', 'copy']) test('section 9 D: successful '
   if (operation === 'new') f.click('[data-kct-letter="G"]');
   else f.click('[data-action="edit-scenario"][data-index="0"]');
   f.type('[data-bind="scenario-name"]', '新情境');
-  f.store.setFilterPreview({ count: 0, voucherCount: 0, previewRows: [], populationScope: 'auditPeriod' });
+  f.store.setFilterPreview({ count: 0, voucherCount: 0, summaryRowCount: 0, previewRows: [], populationScope: 'auditPeriod' });
   f.click(operation === 'copy' ? '[data-action="save-scenario-copy"]' : '[data-action="save-scenario"]');
   await settle();
   const savedName = operation === 'copy' ? '新情境（副本）' : '新情境';
@@ -147,7 +147,7 @@ test('the saved notice disappears when an upstream change clears the saved scena
   const f = savedFixture();
   f.click('[data-kct-letter="G"]');
   f.type('[data-bind="scenario-name"]', '新情境');
-  f.store.setFilterPreview({ count: 0, voucherCount: 0, previewRows: [], populationScope: 'auditPeriod' });
+  f.store.setFilterPreview({ count: 0, voucherCount: 0, summaryRowCount: 0, previewRows: [], populationScope: 'auditPeriod' });
   f.click('[data-action="save-scenario"]'); await settle();
   f.request('filterScenarioSave').resolve(saveResponse([savedGNamed('新情境')], 1));
   await settle(); await settle();
@@ -169,7 +169,7 @@ test('a save answered with only the fields each condition uses still counts an u
   f.click('[data-add-check="manualEntries"]');
   f.type('[data-bind="scenario-name"]', '合成人工分錄');
   f.type('[data-bind="scenario-rationale"]', '合成動機');
-  f.store.setFilterPreview({ count: 0, voucherCount: 0, previewRows: [], populationScope: 'auditPeriod' });
+  f.store.setFilterPreview({ count: 0, voucherCount: 0, summaryRowCount: 0, previewRows: [], populationScope: 'auditPeriod' });
   f.click('[data-action="save-scenario"]'); await settle();
   const sent = plain(f.request('filterScenarioSave').payload.scenario);
   // 前提：送出的人工分錄條件確實帶著用不到的欄位。
@@ -311,7 +311,7 @@ test('journey 12: preview and save send the audit period and detached explicit v
   const preview = f.request('filterPreview');
   
   // 預覽回來後再存。
-  preview.resolve({ scenario: { count: 2, voucherCount: 1, populationScope: 'auditPeriod' } }); await settle();
+  preview.resolve({ scenario: { count: 2, voucherCount: 1, summaryRowCount: 2, populationScope: 'auditPeriod' } }); await settle();
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [], nextCursor: null }); await settle(); await settle();
   f.click('[data-action="save-scenario"]'); await settle();
   const save = f.request('filterScenarioSave');
@@ -341,34 +341,36 @@ test('journey 12: a late preview never replaces "conditions changed", and a prev
   const f = savedFixture();
   f.click('[data-kct-letter="G"]');
   f.click('[data-action="preview-scenario"]'); await settle();
-  f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, populationScope: 'auditPeriod' } }); await settle();
+  f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, summaryRowCount: 2, populationScope: 'auditPeriod' } }); await settle();
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [], nextCursor: null }); await settle(); await settle();
   const pane = () => f.$('[data-bind="preview-pane-body"]').textContent;
-  assert.match(pane(), /2 筆分錄/);
+  // 使用者 2026-10-16 要求預覽分開顯示傳票數量與分錄筆數，舊句式不再出現；第一次失敗：輸入不符 /2 筆分錄/。
+  assert.match(pane(), /1符合條件的傳票數量2符合條件的分錄筆數/);
 
   // 再按一次預覽，回來之前改了條件：畫面說條件已變更，晚到的舊數字不採用，也不再讀傳票清單。
   f.click('[data-action="preview-scenario"]'); await settle();
   const late = f.request('filterPreview');
   f.click('[data-kct-letter="H"]');
   assert.match(pane(), /條件已變更/);
-  late.resolve({ scenario: { count: 9, voucherCount: 9, populationScope: 'auditPeriod' } }); await settle(); await settle();
+  late.resolve({ scenario: { count: 9, voucherCount: 9, summaryRowCount: 9, populationScope: 'auditPeriod' } }); await settle(); await settle();
   assert.equal(f.sent('queryFilterVoucherPage').length, 1, 'no voucher list is read for a late preview');
   assert.match(pane(), /條件已變更/);
-  assert.doesNotMatch(pane(), /9 筆/);
+  // 改成統計列後不會再出現「9 筆」，原本的斷言永遠成立（2026-10-16 複審找到）；改成比對統計列的寫法，數字緊接著標籤。
+  assert.doesNotMatch(pane(), /9符合條件的傳票數量|9符合條件的分錄筆數/);
   assert.ok(f.store.getState().filter.preview === null, 'the late preview is not stored');
 
   // 回應的範圍和請求不同：不採用。
   f.click('[data-action="preview-scenario"]'); await settle();
-  f.request('filterPreview').resolve({ scenario: { count: 7, voucherCount: 7, populationScope: 'allProjected' } }); await settle();
+  f.request('filterPreview').resolve({ scenario: { count: 7, voucherCount: 7, summaryRowCount: 7, populationScope: 'allProjected' } }); await settle();
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q2', rows: [], nextCursor: null }); await settle(); await settle();
   assert.ok(f.store.getState().filter.preview === null, 'a preview for another population is not stored');
-  assert.doesNotMatch(pane(), /7 筆/);
+  assert.doesNotMatch(pane(), /7符合條件的傳票數量|7符合條件的分錄筆數/);
 
   // 預覽在途時換開另一個案件：回應不採用，也不再讀傳票清單。
   f.click('[data-action="preview-scenario"]'); await settle();
   const before = f.sent('queryFilterVoucherPage').length;
   f.store.setProject({ projectId: 'another-synthetic-case' });
-  f.request('filterPreview').resolve({ scenario: { count: 5, voucherCount: 5, populationScope: 'auditPeriod' } }); await settle(); await settle();
+  f.request('filterPreview').resolve({ scenario: { count: 5, voucherCount: 5, summaryRowCount: 5, populationScope: 'auditPeriod' } }); await settle(); await settle();
   assert.equal(f.sent('queryFilterVoucherPage').length, before);
   assert.ok(f.store.getState().filter.preview === null);
 });
@@ -429,10 +431,10 @@ test('journey 12: saving is the primary action and looking at matching vouchers 
 // ================================================================================================
 
 // 每次回應都是新物件：正式程式會把傳票清單與畫面狀態掛在回應物件上。
-const scenarioPreview = () => ({ scenario: { count: 3, voucherCount: 2, populationScope: 'auditPeriod' } });
+const scenarioPreview = () => ({ scenario: { count: 3, voucherCount: 2, summaryRowCount: 3, populationScope: 'auditPeriod' } });
 const voucherPage = (documentNumber, queryRevision = 'q1') => ({ queryRevision, nextCursor: null,
   rows: [{ documentNumber, postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 2, voucherTotal: 10 }] });
-const MATRIX = { scenarios: [{ position: 1, name: '甲', voucherHitCount: 2, rowHitCount: 3 }, { position: 2, name: '乙', voucherHitCount: 0, rowHitCount: 0 }] };
+const MATRIX = { scenarios: [{ position: 1, name: '甲', voucherHitCount: 2, rowHitCount: 3, summaryRowCount: 3 }, { position: 2, name: '乙', voucherHitCount: 0, rowHitCount: 0, summaryRowCount: 0 }] };
 
 // 取代 FrontendHardeningContractTests.FilterBackgroundReaders_GuardErrorsBeforeSharedFeedbackAndRemainRetryable，
 // 以及 LatestResponseGuard_… 的已存情境預覽與矩陣部分。
@@ -460,7 +462,8 @@ test('journey 13: a saved scenario and the matrix fail in place and can be retri
   assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload),
     { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod', pageSize: 50 });
   f.request('queryFilterVoucherPage').resolve(voucherPage('JV-1')); await settle(); await settle();
-  assert.match(body().textContent, /3 筆分錄/);
+  // 使用者 2026-10-16 要求分開顯示傳票數量與分錄筆數；第一次失敗：輸入不符 /3 筆分錄/。
+  assert.match(body().textContent, /2符合條件的傳票數量3符合條件的分錄筆數/);
   assert.match(body().textContent, /JV-1/);
 
   // 矩陣讀取失敗：就地說明，收合後再展開會重新讀取。
@@ -485,7 +488,7 @@ test('journey 13: answers that arrive after the case, the saved list or the vers
   const before = f.messages().length;
   f.store.setProject({ projectId: 'another-synthetic-case' });
   oldPreview.reject(new Error('舊案件的讀取失敗')); await settle(); await settle();
-  oldMatrix.resolve({ scenarios: [{ position: 1, name: '舊案件的矩陣', voucherHitCount: 9, rowHitCount: 9 }] }); await settle(); await settle();
+  oldMatrix.resolve({ scenarios: [{ position: 1, name: '舊案件的矩陣', voucherHitCount: 9, rowHitCount: 9, summaryRowCount: 9 }] }); await settle(); await settle();
   assert.equal(f.messages().length, before, 'a failure from the previous case leaves no message');
   assert.ok(!f.text().includes('舊案件的讀取失敗'));
   // 新案件裡展開：重新讀取，不沿用舊案件晚到的結果。
@@ -500,17 +503,18 @@ test('journey 13: answers that arrive after the case, the saved list or the vers
   // 回應前已存清單被換掉（例如另一個情境剛存好）：舊回應不再讀傳票清單，畫面不顯示舊數字。
   const pendingForOldList = f.request('filterPreview');
   f.store.setSavedScenarios([savedGNamed('甲'), savedGNamed('乙'), savedGNamed('丙')]);
-  pendingForOldList.resolve({ scenario: { count: 8, voucherCount: 8, populationScope: 'auditPeriod' } }); await settle(); await settle();
+  pendingForOldList.resolve({ scenario: { count: 8, voucherCount: 8, summaryRowCount: 8, populationScope: 'auditPeriod' } }); await settle(); await settle();
   assert.equal(f.sent('queryFilterVoucherPage').length, 0);
-  assert.ok(!f.text().includes('8 筆分錄'));
+  // 同上，比對統計列的寫法；原本的「8 筆分錄」在改成統計列後不會再出現。
+  assert.doesNotMatch(f.text(), /8符合條件的傳票數量|8符合條件的分錄筆數/);
 
   // 回應前已存情境的版本換了：同樣不採用。
   f.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
   const pendingForOldVersion = f.request('filterPreview');
   f.store.setFilterResultRef({ revision: 'r2', populationScope: 'auditPeriod' });
-  pendingForOldVersion.resolve({ scenario: { count: 6, voucherCount: 6, populationScope: 'auditPeriod' } }); await settle(); await settle();
+  pendingForOldVersion.resolve({ scenario: { count: 6, voucherCount: 6, summaryRowCount: 6, populationScope: 'auditPeriod' } }); await settle(); await settle();
   assert.equal(f.sent('queryFilterVoucherPage').length, 0);
-  assert.ok(!f.text().includes('6 筆分錄'));
+  assert.doesNotMatch(f.text(), /6符合條件的傳票數量|6符合條件的分錄筆數/);
 
   // 同一個情境收起再展開時又送了一次：先回來的新結果留著，晚到的舊結果不蓋掉它。
   const g = savedFixture({ saved: [savedGNamed('甲')], pane: 'saved' });
@@ -519,11 +523,12 @@ test('journey 13: answers that arrive after the case, the saved list or the vers
   g.click('[data-action="toggle-scenario"][data-index="0"]');
   g.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
   assert.equal(g.sent('filterPreview').length, 2);
-  g.request('filterPreview').resolve({ scenario: { count: 4, voucherCount: 4, populationScope: 'auditPeriod' } }); await settle();
+  g.request('filterPreview').resolve({ scenario: { count: 4, voucherCount: 4, summaryRowCount: 4, populationScope: 'auditPeriod' } }); await settle();
   g.request('queryFilterVoucherPage').resolve(voucherPage('NEW-1')); await settle(); await settle();
-  first.resolve({ scenario: { count: 1, voucherCount: 1, populationScope: 'auditPeriod' } }); await settle(); await settle();
+  first.resolve({ scenario: { count: 1, voucherCount: 1, summaryRowCount: 1, populationScope: 'auditPeriod' } }); await settle(); await settle();
   assert.equal(g.sent('queryFilterVoucherPage').length, 1, 'the superseded answer reads no voucher list');
-  assert.match(g.$('[data-bind="scenario-preview-0"]').textContent, /4 筆分錄/);
+  // 使用者 2026-10-16 要求分開顯示傳票數量與分錄筆數；第一次失敗：輸入不符 /4 筆分錄/。
+  assert.match(g.$('[data-bind="scenario-preview-0"]').textContent, /4符合條件的傳票數量4符合條件的分錄筆數/);
   assert.match(g.$('[data-bind="scenario-preview-0"]').textContent, /NEW-1/);
 
   // 矩陣在途時換開另一個案件，舊矩陣讀取失敗：不留訊息，新案件的畫面也不寫失敗。
@@ -606,7 +611,7 @@ test('journey 13: without a usable version the matrix, the criteria report and f
   const wire = { name: '甲', rationale: 'G：空白摘要', groups: [{ join: 'AND', matchScope: 'row', rules: [{ type: 'fieldValue', join: 'AND', field: 'description', operator: 'isBlank', includeBlank: false }] }],
     editorOrigins: { version: 1, legacyKctSource: false, nameIsAutomatic: true, rationaleIsAutomatic: true, groups: [{ letters: ['G'] }] }, source: 'kct' };
   assert.deepEqual(plain(f.request('filterPreview').payload), { populationScope: 'auditPeriod', scenario: wire });
-  f.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, populationScope: 'auditPeriod',
+  f.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, summaryRowCount: 3, populationScope: 'auditPeriod',
     previewRows: [{ documentNumber: 'JV-P', postDate: '2025-01-01', accountCode: '1001', amount: 5 }] } }); await settle();
   assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload), { scenario: wire, populationScope: 'auditPeriod', pageSize: 50 });
   // 後端沒有回傳傳票清單時（見 impl-item1-batch9.md：正式後端一定回傳），只列前幾筆並說明儲存後才能載入全部，沒有「載入更多」。
@@ -910,7 +915,7 @@ test('journey 13: hit details show the backend RDE amount column with values fro
   // 後端沒有回傳傳票清單時的「完整命中分錄」表（正式後端一定回傳傳票清單，見 impl-item1-batch9.md）：同樣照後端欄位定義。
   const g = savedFixture({ saved: [savedGNamed('甲')], pane: 'saved' });
   g.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
-  g.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, populationScope: 'auditPeriod',
+  g.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, summaryRowCount: 3, populationScope: 'auditPeriod',
     previewRows: [{ documentNumber: 'JV-P', postDate: '2025-01-01', accountCode: '1001', amount: 5 }] } }); await settle();
   g.request('queryFilterVoucherPage').resolve(unchecked('正式後端一定回傳傳票清單；這裡刻意回 null，確認畫面改列完整命中分錄', null)); await settle(); await settle();
   g.click('[data-action="hits-load-more"]'); await settle();
@@ -1293,10 +1298,18 @@ test('journey 15: no entry for adding a condition offers an old-style condition 
     }
   }
 
+  // 預篩選分頁：逐一按下其中可用的條件（使用者 2026-10-16 要求改成直接列出每一條預篩選規則）。
+  f.click('[data-condition-source="prescreen"]');
+  for (const key of f.$$('[data-add-prescreen]').filter(node => !node.disabled).map(node => node.getAttribute('data-add-prescreen'))) {
+    f.click('[data-add-prescreen="' + key + '"]');
+    assertCurrentTypes(ruleTypes(f.draft()), 'prescreen condition ' + key);
+    reset();
+  }
+
   // 樣態下拉的每個選項。
   // 第九節 G2：改從預篩選卡檢查樣態選單。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
-  f.click('[data-check-category="prescreen"]');
-  f.click('[data-add-check="prescreenResult"]');
+  // 2026-10-16 改從預篩選分頁加入一條；第一次失敗：缺少 [data-check-category="prescreen"]。
+  f.click('[data-add-prescreen="suspiciousKeywords"]');
   const patternValues = f.$('[data-pattern-subject]').querySelectorAll('option').map(option => option.getAttribute('value'));
   assert.ok(patternValues.length > 5);
   for (const value of patternValues) assert.ok(!LEGACY_TYPES.includes(value), 'the pattern menu offers no ' + value);

@@ -11,6 +11,7 @@
 | JET 為什麼存在、目前先服務什麼、正式環境有何限制 | [`project-context.md`](project-context.md) |
 | KCT 小組怎麼整理總帳與試算表、用舊版 JE tool 設定哪些條件 | [`kct-gl-workflow.md`](kct-gl-workflow.md) |
 | JET 是什麼、資料怎麼流動、各層怎麼分工 | [`jet-guide.md`](jet-guide.md) |
+| 用圖表查看架構、資料流程、類別介面與部署 | [架構圖表](architecture/README.md) |
 | 畫面結構、六個操作步驟與畫面用語 | [`jet-frontend-description.md`](jet-frontend-description.md) |
 | 前端與 C# 之間的 action 通道 | [`action-contract-manifest.md`](action-contract-manifest.md) |
 | 現在做到哪裡、哪些事已裁定不做或延後 | [`development-status.md`](development-status.md) |
@@ -24,7 +25,9 @@
 
 ## 計畫
 
-`specs/` 只放進行中的大型計畫，目前沒有。[介面動態與驗證循環整理計畫](history/specs/2026-10-15-motion-and-verification-plan.md)2026-10-16 結案，移回歷史文件。
+`specs/` 只放進行中的大型計畫，目前是[架構文件與圖表維護](specs/2026-10-16-architecture-documentation-plan.md)。
+本輪先收錄既有圖表、共用分析流程與關係檢查，下一階段由 Claude 重繪。
+[介面動態與驗證循環整理計畫](history/specs/2026-10-15-motion-and-verification-plan.md)2026-10-16 結案，移回歷史文件。
 [KCT 總帳資料整理需求與新版 JET 對照](history/specs/2026-10-06-kct-gl-requirements-plan.md)已完成第九節的驗收回饋修正與獨立複審，移回歷史文件，成果待使用者驗收。
 原定的下一階段工作計畫中，Gui、驗證框架瘦身與前後端契合度測試已在 2026-10-15 併入介面動態與驗證循環整理計畫並完成，其餘等使用者指示才開始。
 試用重點見[測試環境交付說明](test-environment-notes.md)。

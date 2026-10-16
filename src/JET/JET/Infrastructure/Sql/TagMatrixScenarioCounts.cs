@@ -1,4 +1,6 @@
 using System.Data.Common;
+using System.Globalization;
+using JET.AuditCore;
 
 namespace JET.Infrastructure;
 
@@ -26,6 +28,48 @@ internal static class TagMatrixScenarioCounts
         }
 
         return merged;
+    }
+
+    /// <summary>
+    /// 指定情境的整張命中傳票分錄數。集合與 <see cref="TagMatrixRowPageReader"/> 查詢 1 相同：命中列所屬
+    /// 具名傳票（排除空白傳票號碼）在有效母體內的全部分錄。兩 provider 只差 COUNT 與 COUNT_BIG 及 schema 前綴。
+    /// </summary>
+    public static async Task<IReadOnlyDictionary<int, long>> ReadWholeVoucherRowCountsAsync(
+        DbConnection connection, string schemaPrefix, string countExpression,
+        IReadOnlyList<int> scenarioPositions, CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<int, long>();
+        if (scenarioPositions.Count == 0)
+        {
+            return result;
+        }
+
+        await using var command = connection.CreateCommand();
+        var names = new string[scenarioPositions.Count];
+        for (var index = 0; index < names.Length; index++)
+        {
+            names[index] = "@position" + index.ToString(CultureInfo.InvariantCulture);
+            command.AddWithValue(names[index], scenarioPositions[index]);
+        }
+        command.CommandText =
+            $"SELECT hit.scenario_position, {countExpression} " +
+            "FROM (SELECT DISTINCT r.scenario_position, g2.document_number " +
+            $"FROM {schemaPrefix}result_filter_run r " +
+            $"JOIN {schemaPrefix}target_gl_entry g2 ON g2.entry_id = r.entry_id " +
+            $"WHERE g2.document_number IS NOT NULL AND {GlEffectivePopulation.SqlPredicate("g2")} " +
+            $"AND r.scenario_position IN ({string.Join(", ", names)})) hit " +
+            $"JOIN {schemaPrefix}target_gl_entry g ON g.document_number = hit.document_number " +
+            $"WHERE {GlEffectivePopulation.SqlPredicate("g")} " +
+            "GROUP BY hit.scenario_position;";
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result[Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture)] =
+                Convert.ToInt64(reader.GetValue(1), CultureInfo.InvariantCulture);
+        }
+
+        return result;
     }
 
     private static async Task<Dictionary<int, long>> ReadPositionCountsAsync(

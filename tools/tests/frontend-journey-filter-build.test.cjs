@@ -3,7 +3,8 @@ require('./support/resource-guard.cjs');
 // 第五步組條件的情境測試（收尾四項第一項第 5 批，2026-10-13）。
 //
 // 情境 10「第五步 KCT 卡片與範例」：審計員在四種科目配對狀態下看 KCT 卡片與常用查核條件，加入 C 卡看說明，
-// 展開「從範例開始」並套用每一個範例。
+// 展開「從範例開始」並套用每一個範例。2026-10-16 起另在「預篩選」分頁逐一加入每一條預篩選規則，
+// 看前置不足的停用原因，並從分頁加入「未預期借貸組合」後查看傳票數量與分錄筆數。
 // 情境 11「第五步自訂條件與條件組」：審計員在自訂分頁從各家族各加一條、組成兩組，看組內條件的組合方式，
 // 移除一條，用「新增條件到」換加入的組，改成 OR 再改成同一傳票，加借貸科目組合並切換五種查找方式，
 // 在分類清單勾選分類，最後預覽，預覽的錯誤標在條件列上。
@@ -137,8 +138,10 @@ test('KCT cards A to D follow the account mapping content and explain whether ma
 test('the pattern menu offers revenue-only KCT conditions only when the mapping has revenue and counterpart content', () => {
   // 第九節 G2：尾數不再是樣態型別，以預篩選卡檢查同一選單與收入資格。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
   const kctOptions = mapping => {
-    const f = customPane({ accountMapping: mapping });
-    f.click('[data-check-category="prescreen"]'); f.click('[data-add-check="prescreenResult"]');
+    const f = buildFixture({ accountMapping: mapping });
+    // 2026-10-16 預篩選條件改成條件總覽的分頁（使用者要求縮短套用預篩選條件的操作），改從分頁加入一條；
+    // 第一次失敗：缺少 [data-check-category="prescreen"]。
+    f.click('[data-condition-source="prescreen"]'); f.click('[data-add-prescreen="suspiciousKeywords"]');
     const select = f.$('.rule-row [data-pattern-subject]');
     assert.ok(select, 'the pattern row offers a pattern menu');
     const group = select.querySelectorAll('optgroup').find(node => node.getAttribute('label') === 'KCT 專屬');
@@ -589,8 +592,9 @@ test('every common check is added by its own button with the exact type, opens o
     ['accounts', 'unexpectedAccountPair', '未預期的借貸組合', 'prescreen'],
     ['accounts', 'rareAccounts', '較少使用的科目', 'entityFrequency'],
     ['people', 'manualEntries', '人工分錄', 'manualAuto'],
-    ['people', 'rarePreparers', '編製分錄較少的人員', 'entityFrequency'],
-    ['prescreen', 'prescreenResult', '沿用第四步預篩選規則', 'prescreen']
+    ['people', 'rarePreparers', '編製分錄較少的人員', 'entityFrequency']
+    // 原本最後一列是「預篩選結果」的「沿用第四步預篩選規則」。使用者 2026-10-16 要求縮短套用預篩選條件的操作，
+    // 這一類改成條件總覽的「預篩選」分頁，由下面的分頁測試逐一加入；第一次失敗：讀不到 prescreen 分類的按鈕。
   ];
   const f = customPane({ glMapping: { createBy: 'Maker', approveBy: 'Checker', manual: 'Manual' } });
   const allRules = () => f.draft().groups.flatMap(group => group.rules);
@@ -614,4 +618,88 @@ test('every common check is added by its own button with the exact type, opens o
     remove.fire('click');
     assert.equal(allRules().length, 0, key + ' is removed');
   }
+});
+
+// ------------------------------------------------------------------------------------------------
+// 預篩選分頁
+// ------------------------------------------------------------------------------------------------
+
+// 使用者 2026-10-16 指出審計員習慣直接套用預篩選條件，原本要先加入「沿用第四步預篩選規則」，再到條件卡片的下拉改選。
+// 條件總覽改成「KCT 條件、預篩選、自訂篩選條件」三個分頁，預篩選分頁條列每一條規則，按「加入」直接帶入那一條。
+// 名稱逐字照預篩選規則的畫面名稱（ui-core.js 的 PRESCREEN_KEY_OPTIONS，鏡像 Domain 標籤表），不從畫面推導。
+const PRESCREEN_RULES = [
+  ['postPeriodApproval', '財報準備日起核准'], ['suspiciousKeywords', '摘要特定描述'], ['unexpectedAccountPair', '未預期借貸組合'],
+  ['trailingZeros', '金額尾數連續 6 個 0'], ['weekendPosting', '週末過帳'], ['weekendApproval', '週末核准'],
+  ['holidayPosting', '假日過帳'], ['holidayApproval', '假日核准'], ['blankDescription', '空白摘要'],
+  ['nonAuthorizedPreparer', '非授權編製人員'], ['lowFrequencyPreparer', '編製分錄較少的人員（11 筆以下）'],
+  ['lowFrequencyAccount', '使用較少的科目（11 筆以下）']
+];
+const prescreenWire = f => f.wire().groups.map(group => group.rules.map(rule => [rule.type, rule.prescreenKey]));
+
+test('the prescreen tab lists every prescreen rule and each add button brings in exactly that rule', () => {
+  // 「編製分錄較少的人員」與「非授權編製人員」要用傳票建立人員，這裡配好欄位，十二條都能加入。
+  const f = buildFixture({ glMapping: { createBy: 'Maker' } });
+  f.store.setAuthorizedPreparerState({ rowCount: 2 });
+  assert.deepEqual(f.$$('[data-condition-source]').map(button => button.textContent), ['KCT 條件', '預篩選', '自訂篩選條件']);
+  f.click('[data-condition-source="prescreen"]');
+  assert.equal(f.$('[data-condition-pane="prescreen"]').hidden, false);
+  assert.deepEqual(f.$$('[data-add-prescreen]').map(button =>
+    [button.getAttribute('data-add-prescreen'), button.closest('.filter-check').querySelector('.filter-check__label').textContent]), PRESCREEN_RULES);
+  // 和常用查核條件一樣，每一列只有名稱與「加入」，不另加說明。
+  for (const item of f.$('[data-condition-pane="prescreen"]').querySelectorAll('.filter-check')) {
+    assert.equal(item.querySelector('[data-add-prescreen]').textContent, '加入');
+    assert.deepEqual(item.children.filter(child => !child.matches('.filter-check__label') && !child.matches('[data-add-prescreen]')), []);
+  }
+  for (const [key] of PRESCREEN_RULES) {
+    assert.equal(f.$('[data-add-prescreen="' + key + '"]').disabled, false, key + ' can be added');
+    f.click('[data-add-prescreen="' + key + '"]');
+    assert.deepEqual(prescreenWire(f), [[['prescreen', key]]], key + ' is added as itself, with no menu change needed');
+    f.$('.rule-row[data-ri="0"] [data-action="remove-rule"]').fire('click');
+    assert.equal(f.draft().groups.flatMap(group => group.rules).length, 0, key + ' is removed');
+  }
+});
+
+// 前置不足時按鈕停用，原因寫在該項下方並由 aria-describedby 連到按鈕，和常用查核條件同一種做法；後端一定會擋的條件不會被帶入。
+test('a prescreen rule the backend would reject is disabled with its reason and adds nothing when pressed', () => {
+  const f = buildFixture({ accountMapping: { hasAnyCategory: true, hasRevenue: false, hasCounterpart: true },
+    project: { projectId: 'filter-build-synthetic', periodStart: '2025-01-01', periodEnd: '2025-12-31', lastPeriodStart: null } });
+  f.click('[data-condition-source="prescreen"]');
+  // 這個夾具沒有配對傳票建立人員，後端會擋「編製分錄較少的人員」與「非授權編製人員」（2026-10-16 複審找到原本沒有停用）。
+  assert.deepEqual(f.$$('[data-add-prescreen]').filter(button => button.disabled).map(button => button.getAttribute('data-add-prescreen')),
+    ['postPeriodApproval', 'unexpectedAccountPair', 'nonAuthorizedPreparer', 'lowFrequencyPreparer']);
+  const reason = key => f.$('#' + f.$('[data-add-prescreen="' + key + '"]').getAttribute('aria-describedby')).textContent;
+  // 使用者 2026-10-14 第三輪勾選頁確認 R3-17。
+  assert.equal(reason('postPeriodApproval'), '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫');
+  assert.match(reason('unexpectedAccountPair'), /Revenue.*第四步/);
+  assert.match(reason('nonAuthorizedPreparer'), /授權編製人員清單/);
+  assert.equal(reason('lowFrequencyPreparer'), '「傳票建立人員」尚未選擇來源欄');
+  f.$('[data-add-prescreen="unexpectedAccountPair"]').fire('click');
+  f.$('[data-add-prescreen="lowFrequencyPreparer"]').fire('click');
+  assert.equal(f.draft().groups.flatMap(group => group.rules).length, 0, 'a disabled rule adds nothing');
+  // 授權清單匯入後，「非授權編製人員」仍缺傳票建立人員，原因改寫這一項。
+  f.store.setAuthorizedPreparerState({ rowCount: 2 });
+  assert.equal(f.$('[data-add-prescreen="nonAuthorizedPreparer"]').disabled, true);
+  assert.equal(reason('nonAuthorizedPreparer'), '「傳票建立人員」尚未選擇來源欄');
+});
+
+// 使用者 2026-10-16 的兩項要求一起走一遍：從預篩選分頁一次加入「未預期借貸組合」，再查看符合的傳票。
+// 摘要分開寫傳票數量與分錄筆數；分錄筆數照後端的 summaryRowCount，只用這一個條件時是整張傳票的分錄數，
+// 例如直接符合 3 列、整張傳票 7 列時寫 7，和條件篩選報告的摘要相同，畫面不自己換算。
+test('an auditor adds the unexpected account pair from the prescreen tab and sees the voucher count and the whole-voucher entry count', async () => {
+  const f = buildFixture();
+  f.click('[data-condition-source="prescreen"]');
+  f.click('[data-add-prescreen="unexpectedAccountPair"]');
+  assert.deepEqual(prescreenWire(f), [[['prescreen', 'unexpectedAccountPair']]]);
+  f.click('[data-action="preview-scenario"]'); await settle();
+  f.requests.find(request => request.action === 'filterPreview').resolve({ scenario: {
+    name: '未預期借貸組合', populationScope: 'auditPeriod', count: 3, voucherCount: 1, summaryRowCount: 7, countsWholeVoucherRows: true, previewRows: [] } });
+  await settle();
+  f.requests.find(request => request.action === 'queryFilterVoucherPage').resolve({ queryRevision: 'q1', nextCursor: null,
+    rows: [{ documentNumber: 'SYN-1', postDate: '2025-03-05', hitRowCount: 7, totalRowCount: 7, voucherTotal: 1000 }] });
+  await settle(); await settle();
+  const pane = f.$('[data-bind="preview-pane-body"]').textContent;
+  assert.match(pane, /1符合條件的傳票數量7符合條件的分錄筆數/);
+  assert.match(pane, /整張傳票的分錄都計入分錄筆數/);
+  assert.doesNotMatch(pane, /標示為參考的分錄不計入/);
+  assert.match(pane, /SYN-1/);
 });

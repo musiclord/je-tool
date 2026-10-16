@@ -102,7 +102,10 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         var catalog = ResultPageSorting.FilterVoucher;
         var pageRequest = new PageRequest(key, PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize,
             detail ? null : PageRequestReader.ReadSort(payload, catalog), detail ? null : PageRequestReader.ReadSearch(payload, catalog));
-        var page = await repository.ReadAsync(projectId, spec, context, documentNumber, pageRequest, ct);
+        // 只用「未預期借貸組合」一個條件時，Criteria Selection 摘要與工作底稿都以整張傳票計算；
+        // 這裡的符合分錄數與展開分錄用同一個判斷，畫面才不會和報告不同。
+        var wholeVoucher = JetAuditProgram.UsesLegacyWholeVoucherRows(spec);
+        var page = await repository.ReadAsync(projectId, spec, context, documentNumber, pageRequest, wholeVoucher, ct);
         var columnPlan = ResultPageColumnRegistry.ForFilter(new SavedFilterScenario(1, spec.Name, spec.Rationale,
             scenarioJson.GetRawText(), DateTimeOffset.MinValue), mapping, project.MoneyScale);
         var entryIds = page.Details.Select(row => row.EntryId).ToArray();
@@ -129,7 +132,8 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
             if (row.PrimaryConditions.Count > 0) descriptions.Add("符合主要條件：" + string.Join("；", row.PrimaryConditions.Select(Condition)));
             if (row.EvidenceConditions.Count > 0) descriptions.Add("提供佐證：" + string.Join("；", row.EvidenceConditions.Select(Condition)));
             if (row.VoucherConditions.Count > 0) descriptions.Add("傳票條件成立：" + string.Join("；", row.VoucherConditions.Select(Condition)));
-            return descriptions.Count == 0 ? "同傳票的參考分錄" : string.Join("；", descriptions);
+            if (descriptions.Count > 0) return string.Join("；", descriptions);
+            return wholeVoucher ? "同一張傳票的其他分錄，整張傳票列入結果" : "同傳票的參考分錄";
         }
         var rows = detail
             ? page.Details.Select(row => (object)new
@@ -137,7 +141,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
                 documentNumber = row.DocumentNumber, lineItem = row.LineItem, postDate = row.PostDate,
                 approvalDate = row.ApprovalDate, accountCode = row.AccountCode, accountName = row.AccountName,
                 description = row.Description, amount = (decimal)row.AmountScaled / project.MoneyScale, drCr = row.DrCr,
-                isHit = row.IsHit,
+                isHit = row.IsHit || wholeVoucher,
                 primaryConditions = row.PrimaryConditions, evidenceConditions = row.EvidenceConditions,
                 voucherConditions = row.VoucherConditions,
                 customValues = customValues[row.EntryId],

@@ -20,7 +20,8 @@ internal static class FilterVoucherPageReader
     }
 
     internal static async Task<FilterVoucherPage> ReadAsync(DbConnection connection, ISqlDialect dialect, string prefix,
-        FilterScenarioSpec scenario, FilterRuleContext context, string? documentNumber, PageRequest request, CancellationToken ct)
+        FilterScenarioSpec scenario, FilterRuleContext context, string? documentNumber, PageRequest request,
+        bool countWholeVoucherRows, CancellationToken ct)
     {
         var builder = new GlFilterWhereBuilder(dialect, new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate));
         var modulus = TrailingZeroThreshold.UnitModulus(TrailingZeroThreshold.DefaultZerosThreshold);
@@ -38,10 +39,12 @@ internal static class FilterVoucherPageReader
         if (documentNumber is null)
         {
             // 傳票摘要：彙總包成子查詢，排序、搜尋與游標述詞才能用彙總欄（first_post_date、hit_rows、total_rows）。
+            // 整張傳票計數的情境，符合分錄數就是整張傳票的分錄數，排序與游標也用這個值。
             var paging = KeysetPaging.Plan(dialect, request, ResultPageSorting.FilterVoucher);
             foreach (var parameter in paging.Parameters) command.AddWithValue(parameter.Key, parameter.Value);
+            var hitRows = countWholeVoucherRows ? "COUNT(*)" : "CAST(SUM(CAST(is_hit AS BIGINT)) AS BIGINT)";
             command.CommandText = cte + "SELECT document_number, first_post_date, hit_rows, total_rows, voucher_total" + paging.SelectSuffix + " FROM ("
-                + "SELECT document_number, MIN(post_date) AS first_post_date, CAST(SUM(CAST(is_hit AS BIGINT)) AS BIGINT) AS hit_rows, COUNT(*) AS total_rows, "
+                + "SELECT document_number, MIN(post_date) AS first_post_date, " + hitRows + " AS hit_rows, COUNT(*) AS total_rows, "
                 + "CAST(COALESCE(SUM(debit_amount_scaled), 0) AS BIGINT) AS voucher_total "
                 + "FROM evaluated WHERE document_number IS NOT NULL GROUP BY document_number HAVING MAX(is_hit) = 1) v "
                 + "WHERE 1 = 1" + paging.Predicate + " " + paging.OrderBy + " " + dialect.LimitClause("@pageSize");

@@ -94,6 +94,9 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
                 populationScope = GlPopulationScopeValues.ToValue(populationScope),
                 count = preview.Count,
                 voucherCount = preview.VoucherCount,
+                // 畫面上的「符合條件的分錄筆數」，口徑與 Criteria Selection 摘要相同。
+                summaryRowCount = result.PreviewSummaryRowCount,
+                countsWholeVoucherRows = plan.PreviewCountsWholeVoucherRows,
                 previewRows = preview.PreviewRows.Select(r => new
                 {
                     documentNumber = r.DocumentNumber,

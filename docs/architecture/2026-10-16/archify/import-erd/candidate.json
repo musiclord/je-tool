@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "SQLite：匯入批次與原始資料",
+    "locale": "zh-TW",
+    "output": "output/import-erd/import-erd.html",
+    "quality_profile": "standard",
+    "subtitle": "實體欄位完整列出；關聯線為應用程式邏輯，不是資料庫外鍵"
+  },
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "結構與限制",
+      "items": [
+        "四張 ERD 合計涵蓋目錄登錄的 27 張 SQLite 表，包含程式宣告的升版新增欄位；不是只抄初始建表。",
+        "這批 SQLite 建表定義沒有宣告外鍵。虛線只表達選取的應用邏輯，多對一也不表示資料庫會強制保護；其餘沒有畫線的欄位不能推定互不相關。",
+        "PK 表示主鍵；UK 表示唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異須另看來源及完整欄位頁。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "閱讀方式",
+      "items": [
+        "這是來源快照的靜態整理，沒有執行 JET 業務流程。",
+        "完整來源、檔案雜湊及選取的呼叫，可從本輪離線入口的證據頁查閱。"
+      ]
+    }
+  ],
+  "layout": {
+    "mode": "grid",
+    "gapX": 110,
+    "gapY": 70,
+    "entityW": 340
+  },
+  "entities": [
+    {
+      "id": "import_batch",
+      "label": "import_batch",
+      "row": 0,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "batch_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "dataset_kind",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_file_path",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_file_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "imported_utc",
+          "type": "TEXT"
+        },
+        {
+          "name": "row_count",
+          "type": "INTEGER"
+        },
+        {
+          "name": "columns_json",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "批次中繼資料"
+    },
+    {
+      "id": "import_batch_source",
+      "label": "import_batch_source",
+      "row": 1,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "batch_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "source_no",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "source_file_path",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_file_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "sheet_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "encoding",
+          "type": "TEXT"
+        },
+        {
+          "name": "delimiter",
+          "type": "TEXT"
+        },
+        {
+          "name": "row_count",
+          "type": "INTEGER"
+        },
+        {
+          "name": "imported_utc",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "批次中繼資料"
+    },
+    {
+      "id": "import_field_definition",
+      "label": "import_field_definition",
+      "row": 2,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "batch_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "definition_scope",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "ordinal",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "field_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "field_kind",
+          "type": "TEXT"
+        },
+        {
+          "name": "text_length",
+          "type": "INTEGER"
+        },
+        {
+          "name": "decimal_places",
+          "type": "INTEGER"
+        },
+        {
+          "name": "max_rendered_length",
+          "type": "INTEGER"
+        },
+        {
+          "name": "has_observation",
+          "type": "INTEGER"
+        }
+      ],
+      "tag": "批次中繼資料"
+    },
+    {
+      "id": "staging_gl_raw_row",
+      "label": "staging_gl_raw_row",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "batch_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "row_number",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "source_no",
+          "type": "INTEGER"
+        },
+        {
+          "name": "source_row_number",
+          "type": "INTEGER"
+        },
+        {
+          "name": "row_json",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "審計來源"
+    },
+    {
+      "id": "staging_tb_raw_row",
+      "label": "staging_tb_raw_row",
+      "row": 1,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "batch_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "row_number",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "source_no",
+          "type": "INTEGER"
+        },
+        {
+          "name": "source_row_number",
+          "type": "INTEGER"
+        },
+        {
+          "name": "row_json",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "審計來源"
+    },
+    {
+      "id": "staging_account_mapping_raw_row",
+      "label": "staging_account_mapping_raw_row",
+      "row": 0,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "batch_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "row_number",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "source_no",
+          "type": "INTEGER"
+        },
+        {
+          "name": "source_row_number",
+          "type": "INTEGER"
+        },
+        {
+          "name": "row_json",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "參考資料來源"
+    },
+    {
+      "id": "staging_authorized_preparer_raw_row",
+      "label": "staging_authorized_preparer_raw_row",
+      "row": 1,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "batch_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "row_number",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "source_no",
+          "type": "INTEGER"
+        },
+        {
+          "name": "source_row_number",
+          "type": "INTEGER"
+        },
+        {
+          "name": "row_json",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "參考資料來源"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "logical1",
+      "from": "import_batch_source",
+      "to": "import_batch",
+      "label": "批次識別",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "logical2",
+      "from": "import_field_definition",
+      "to": "import_batch",
+      "label": "欄位定義",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    }
+  ]
+}

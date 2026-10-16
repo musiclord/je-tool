@@ -54,6 +54,32 @@ public sealed class LocalFilterRunRepository(ILocalProjectDatabase database, ILo
         return new FilterPreviewResult(count, voucherCount, previewRows);
     }
 
+    public async Task<long> CountWholeVoucherRowsAsync(
+        string projectId,
+        FilterScenarioSpec scenario,
+        FilterRuleContext context,
+        CancellationToken cancellationToken)
+    {
+        await database.EnsureReadyAsync(projectId, cancellationToken);
+
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+
+        var zeroModulus = TrailingZeroThreshold.UnitModulus(
+            TrailingZeroThreshold.DefaultZerosThreshold);
+        await using var command = connection.CreateCommand();
+        var plan = WhereBuilder.BuildPlan(scenario, context, zeroModulus);
+        plan.BindParametersTo(command);
+        // 條件的 WHERE plan 只引用子查詢的 g；外層用另一個別名列出同傳票的全部分錄。
+        command.CommandText = "SELECT COUNT(*) FROM target_gl_entry whole_row "
+            + $"WHERE {GlPopulationScopeSql.Predicate(context, "whole_row")} AND whole_row.document_number IN ("
+            + "SELECT g.document_number FROM target_gl_entry g "
+            + $"WHERE g.document_number IS NOT NULL AND {GlPopulationScopeSql.Predicate(context, "g")} AND ({plan.Sql}));";
+
+        var result = await command.ExecuteScalarLoggedAsync(_log, _provider, cancellationToken);
+        return result is null or DBNull ? 0L : Convert.ToInt64(result);
+    }
+
     private async Task<long> ExecuteScalarAsync(
         DbConnection connection,
         FilterScenarioSpec scenario,

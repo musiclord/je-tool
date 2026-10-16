@@ -1879,6 +1879,12 @@ public sealed class ValidationDirectTemplatePackageTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<IReadOnlyDictionary<int, long>> GetWholeVoucherRowCountsAsync(
+            string projectId,
+            IReadOnlyList<int> scenarioPositions,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         Task<IReadOnlyList<LegacyFieldDefinition>> ILegacyFieldDefinitionFactsPort.ReadAsync(
             string projectId,
             DatasetKind kind,

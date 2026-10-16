@@ -20,6 +20,8 @@ internal static partial class GuiScenarios
     // 使用者 2026-10-08 要求重新設計自訂篩選條件。各情境加入自訂條件時共用這裡：
     // 「field:欄位識別」點「依欄位設定」的欄位按鈕；「check:項目」先展開所屬分類再按「加入」；
     // 「compound:group」或「compound:voucher」從第一組的「⋯」選單加入。分類對照照 ui-core.js 的常用查核條件逐字寫死。
+    // 「prescreen:規則」在條件總覽的「預篩選」分頁直接按「加入」（使用者 2026-10-16 要求縮短套用預篩選條件的操作，
+    // 取代原本的「預篩選結果：沿用第四步預篩選規則」）。
     private static readonly IReadOnlyDictionary<string, string> CommonCheckCategories = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["postDateWeekend"] = "dates", ["postDateHoliday"] = "dates", ["postDateNonBusinessDay"] = "dates",
@@ -28,21 +30,23 @@ internal static partial class GuiScenarios
         ["descriptionKeywords"] = "description", ["blankDescription"] = "description",
         ["debitOrCreditOnly"] = "accounts", ["accountCategory"] = "accounts", ["categoryPair"] = "accounts",
         ["accountCodePair"] = "accounts", ["unexpectedAccountPair"] = "accounts", ["rareAccounts"] = "accounts",
-        ["manualEntries"] = "people", ["rarePreparers"] = "people",
-        ["prescreenResult"] = "prescreen"
+        ["manualEntries"] = "people", ["rarePreparers"] = "people"
     };
 
     private static async Task AddCustomConditionAsync(CdpSession cdp, string subject, Func<string, Task> click, CancellationToken ct)
     {
-        await click("[data-condition-source=\"custom\"]");
         var separator = subject.IndexOf(':', StringComparison.Ordinal);
         if (separator < 1) throw new GuiCheckException("custom_condition_subject_invalid");
         var kind = subject[..separator];
         var key = subject[(separator + 1)..];
+        await click(kind == "prescreen" ? "[data-condition-source=\"prescreen\"]" : "[data-condition-source=\"custom\"]");
         switch (kind)
         {
             case "field":
                 await click($"[data-add-field=\"{key}\"]");
+                return;
+            case "prescreen":
+                await click($"[data-add-prescreen=\"{key}\"]");
                 return;
             case "check":
                 if (!CommonCheckCategories.TryGetValue(key, out var category)) throw new GuiCheckException("custom_check_unknown");
@@ -275,7 +279,9 @@ internal static partial class GuiScenarios
             await Check("!!state.lastRuns.validate");
             await Click("[data-bind=step-nav] [data-step-index='4']");
         }
-        const string hit = "document.querySelector('[data-bind=scenario-preview-0][data-loaded]')?.textContent.includes('符合條件：1 筆分錄')";
+        // 使用者 2026-10-16 要求預覽分開顯示傳票數量與分錄筆數，舊句式「符合條件：1 筆分錄」已移除（前端測試的第一次失敗見計畫紀錄）；
+        // 改讀「符合條件的分錄筆數」那一格，數字仍是 1。
+        const string hit = "Array.from(document.querySelectorAll('[data-bind=scenario-preview-0][data-loaded] .stat-card')).some(card=>card.querySelector('.stat-card__label')?.textContent==='符合條件的分錄筆數' && card.querySelector('.stat-card__value')?.textContent==='1')";
         const string cleared = "state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.some(m=>m.text==='前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。')";
         const string missingApprover = "state.filter.savedScenarios.length===0 && ((document.querySelector('[data-rule-error]')?.textContent||'') + (document.querySelector('[data-bind=scenario-notice]')?.textContent||'')).includes('核准人員')";
         async Task SaveJ()

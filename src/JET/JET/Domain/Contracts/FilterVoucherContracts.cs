@@ -24,6 +24,10 @@ public sealed record FilterVoucherPage(IReadOnlyList<FilterVoucherSummary> Vouch
 public interface IFilterVoucherRepository
 {
     Task<string> ReadRevisionAsync(string projectId, CancellationToken ct);
+
+    /// <param name="countWholeVoucherRows">
+    /// 為真時，傳票摘要的符合分錄數改用整張傳票的分錄數（排序與搜尋同一個值），口徑與 Criteria Selection 摘要相同。
+    /// </param>
     Task<FilterVoucherPage> ReadAsync(string projectId, FilterScenarioSpec scenario, FilterRuleContext context,
-        string? documentNumber, PageRequest request, CancellationToken ct);
+        string? documentNumber, PageRequest request, bool countWholeVoucherRows, CancellationToken ct);
 }

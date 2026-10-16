@@ -91,7 +91,7 @@ function filterJourney({ saved = [] } = {}) {
 async function draftVoucherList(f, rows = [{ documentNumber: 'SYN-B', postDate: '2025-01-02', hitRowCount: 1, totalRowCount: 2, voucherTotal: 1234.5 },
   { documentNumber: 'SYN-A', postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 1, voucherTotal: -10 }]) {
   f.click('[data-kct-letter="G"]'); f.click('[data-action="preview-scenario"]');
-  f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 2, populationScope: 'auditPeriod' } }); await settle();
+  f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 2, summaryRowCount: 2, populationScope: 'auditPeriod' } }); await settle();
   const first = f.request('queryFilterVoucherPage');
   first.resolve({ queryRevision: 'q1', rows, nextCursor: 'v-next' }); await settle();
   return first;
@@ -236,7 +236,7 @@ test('step five voucher list sorts, searches and clears on the backend from the 
 test('step five saved scenario lists read fifty vouchers and fifty entries per page', async () => {
   const f = filterJourney({ saved: [F.savedG()] });
   f.click('[data-action="toggle-scenario"][data-index="0"]');
-  f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, populationScope: 'auditPeriod' } }); await settle();
+  f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, summaryRowCount: 2, populationScope: 'auditPeriod' } }); await settle();
   // 已儲存情境的傳票清單一頁 50 張（字面值），帶情境位置與版本。
   assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload), { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod', pageSize: 50 });
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [{ documentNumber: 'SAVED-1', postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 2, voucherTotal: 5 }], nextCursor: null });
@@ -252,7 +252,7 @@ test('step five full hit list and risk matrix tables sort and search on the back
 
   // 完整命中分錄：後端沒有回傳傳票清單時改列命中分錄，按「載入更多」後表頭換成後端的欄位定義並可排序。
   f.click('[data-action="toggle-scenario"][data-index="0"]');
-  f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, populationScope: 'auditPeriod', previewRows: [
+  f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, summaryRowCount: 2, populationScope: 'auditPeriod', previewRows: [
     { documentNumber: 'PRE-1', lineItem: '1', postDate: '2025-01-01', accountCode: '1001', amount: 1, drCr: 'DEBIT' }] } });
   await settle();
   f.request('queryFilterVoucherPage').resolve(unchecked('正式後端一定回傳傳票清單；這裡刻意回 null，確認畫面改列完整命中分錄', null)); await settle();
@@ -268,7 +268,7 @@ test('step five full hit list and risk matrix tables sort and search on the back
 
   // 高風險條件矩陣的傳票表與分錄表：一打開就讀第一頁，排序與查看都從第一頁重讀。
   f.click('[data-action="toggle-matrix"]');
-  f.request('queryTagMatrixScenarios').resolve({ scenarios: [{ position: 1, name: 'G', voucherHitCount: 1, rowHitCount: 2 }] }); await settle();
+  f.request('queryTagMatrixScenarios').resolve({ scenarios: [{ position: 1, name: 'G', voucherHitCount: 1, rowHitCount: 2, summaryRowCount: 2 }] }); await settle();
   for (const [view, action, key] of [['vouchers', 'queryTagMatrixVoucherPage', 'voucherTotal'], ['rows', 'queryTagMatrixRowPage', 'amount']]) {
     f.click('[data-matrix-view="' + view + '"]'); await settle();
     assert.deepEqual(plain(f.requestsOf(action)[0].payload), { cursor: null, pageSize: 200, sort: null, search: null }, view);
@@ -427,7 +427,7 @@ test('money shows two decimals on step five voucher lists, entry details and ris
   const readback = g.dom.content.textContent;
   assert.match(readback, /≥ 1234\.5/); assert.doesNotMatch(readback, /1,234\.5/);
   g.click('[data-action="toggle-matrix"]');
-  g.request('queryTagMatrixScenarios').resolve({ scenarios: [{ position: 1, name: '合成金額', voucherHitCount: 1, rowHitCount: 1 }] }); await settle();
+  g.request('queryTagMatrixScenarios').resolve({ scenarios: [{ position: 1, name: '合成金額', voucherHitCount: 1, rowHitCount: 1, summaryRowCount: 1 }] }); await settle();
   g.click('[data-matrix-view="vouchers"]'); await settle();
   g.request('queryTagMatrixVoucherPage').resolve({ rows: [{ documentNumber: 'M-1', postDate: '2025-01-01', createdBy: 'U', voucherTotal: 1234.5 }], nextCursor: null }); await settle();
   assert.match(g.$('[data-bind="matrix-vouchers"] tbody').textContent, /1,234\.50/);

@@ -23,7 +23,14 @@ internal sealed record FilterRequest(
 /// <summary>AuditCore-owned filter plan shared by preview and materialization.</summary>
 internal sealed record FilterPlan(
     FilterRequest Request,
-    IReadOnlyList<FilterCommitItem> CommitItems);
+    IReadOnlyList<FilterCommitItem> CommitItems)
+{
+    /// <summary>
+    /// 預覽的「符合條件的分錄筆數」改用整張命中傳票的分錄數。判斷與 Criteria Selection 摘要、
+    /// 工作底稿逐列標記相同（<see cref="JetAuditProgram.UsesLegacyWholeVoucherRows"/>），畫面才不會和報告不同。
+    /// </summary>
+    internal bool PreviewCountsWholeVoucherRows { get; init; }
+}
 
 /// <summary>Raw execution facts returned by the Infrastructure filter port.</summary>
 internal sealed record FilterFacts(
@@ -34,7 +41,13 @@ internal sealed record FilterFacts(
 internal sealed record FilterResult(
     FilterPlan Plan,
     FilterPreviewResult? Preview,
-    int MaterializedScenarioCount);
+    int MaterializedScenarioCount)
+{
+    /// <summary>預覽的「符合條件的分錄筆數」：整張傳票計數的情境用整張命中傳票的分錄數，其他用直接符合的分錄數。</summary>
+    internal long? PreviewSummaryRowCount => Preview is null
+        ? null
+        : Plan.PreviewCountsWholeVoucherRows ? Preview.WholeVoucherRowCount : Preview.Count;
+}
 
 /// <summary>
 /// Typed filter execution port. Infrastructure performs provider-specific command binding,
@@ -170,7 +183,10 @@ public static partial class JetAuditProgram
             commitItems = [];
         }
 
-        return new FilterPlan(request, commitItems);
+        return new FilterPlan(request, commitItems)
+        {
+            PreviewCountsWholeVoucherRows = isPreview && UsesLegacyWholeVoucherRows(request.Documents[0].Spec)
+        };
     }
 
     /// <summary>Finalizes raw facts without changing preview or hit-set semantics.</summary>
@@ -185,6 +201,11 @@ public static partial class JetAuditProgram
             && facts.Preview is null)
         {
             throw new InvalidOperationException("filter.preview 未收到 preview facts。");
+        }
+
+        if (plan.PreviewCountsWholeVoucherRows && facts.Preview?.WholeVoucherRowCount is null)
+        {
+            throw new InvalidOperationException("filter.preview 未收到整張命中傳票的分錄數。");
         }
 
         if (PublishesBatch(plan.Request.ActionName)

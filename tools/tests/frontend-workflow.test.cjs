@@ -259,7 +259,7 @@ for (const phase of ['summary', 'vouchers']) test('preview ignores taxonomy chan
   op.clickSelector('[data-action="preview-scenario"]'); await settle();
   assert.equal(op.pending[0].method, 'filterPreview');
   if (phase === 'vouchers') {
-    op.pending[0].resolve({ scenario: { count: 1, voucherCount: 1, populationScope: 'auditPeriod' } });
+    op.pending[0].resolve({ scenario: { count: 1, voucherCount: 1, summaryRowCount: 1, populationScope: 'auditPeriod' } });
     await settle(); assert.equal(op.pending[1].method, 'queryFilterVoucherPage');
   }
   f.store.setTaxonomyAfterSave({ revision: 2, categories: [] });
@@ -534,7 +534,7 @@ test('saving clears the submitted draft and preview, preserves later drafts, and
   assert.equal(wire.groups[0].join, 'OR', 'the existing wire normalization stays unchanged');
   assert.equal(JSON.stringify(draft), definitionBefore, 'wire normalization must not rewrite visible editor state');
   store.setFilterDraft(draft);
-  const preview = { count: 2, voucherCount: 1, previewRows: [] };
+  const preview = { count: 2, voucherCount: 1, summaryRowCount: 2, previewRows: [] };
   store.setFilterPreview(preview);
   let snapshot = window.testSave.filterCommitSnapshot(store.getState());
   const saved = { name: '月底分錄', rationale: '查核期末', groups: draft.groups };
@@ -1463,7 +1463,9 @@ test('explanations stay visible and shared typography and focus rules cover the 
   const filter = read('steps/filter-step.js'), vouchers = read('filter-vouchers.js');
   assert.doesNotMatch(filter, /<details class="filter-(readback|rule-notes)"/);
   assert.doesNotMatch(vouchers, /<details/);
-  assert.match(vouchers, /標示為參考的分錄不計入上方筆數/);
+  // 上方改成兩個數字後，「上方筆數」指不清楚，改寫成「分錄筆數」（使用者 2026-10-16 要求分開顯示）；
+  // 第一次失敗：原始碼不符 /標示為參考的分錄不計入上方筆數/。
+  assert.match(vouchers, /標示為參考的分錄不計入分錄筆數/);
   const css = read('../css/app.css');
   for (const selector of ['stat-card__value', 'overview-pop__kpi-value']) {
     const rule = css.match(new RegExp('\\.' + selector + ' \\{([^}]+)\\}'))[1];
@@ -2607,8 +2609,9 @@ function batch7Fixture() {
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
     '  window.batch7 = { bind, customPickerHtml, addFieldCondition, addCommonCheck, conditionFromSpec, findCommonCheck, bindCompoundRule, compoundRuleHtml, ruleRowHtml, ruleSubjectHtml, ruleProblem, readBackHtml, toWireDraft, syncViewState, getView: () => viewState };'), context);
-  vm.runInContext(fs.readFileSync(path.join(root, 'filter-vouchers.js'), 'utf8').replace('Ui.FilterVouchers = { summary: summary, mount: mount };',
-    'Ui.FilterVouchers = { summary: summary, mount: mount, matchStatusHtml: matchStatusHtml };'), context);
+  // 2026-10-16 正式匯出加了 countText，替換字串跟著改；只多匯出 matchStatusHtml 供下面的測試使用。
+  vm.runInContext(fs.readFileSync(path.join(root, 'filter-vouchers.js'), 'utf8').replace('Ui.FilterVouchers = { summary: summary, countText: countText, mount: mount };',
+    'Ui.FilterVouchers = { summary: summary, countText: countText, mount: mount, matchStatusHtml: matchStatusHtml };'), context);
   const store = window.JetStore, ui = window.JetUi, api = window.batch7;
   store.setProject({ projectId: 'batch7-synthetic', rocDateEnabled: true, periodStart: '2025-01-01', periodEnd: '2025-12-31' });
   api.syncViewState(store.getState());
@@ -2752,7 +2755,12 @@ test('batch7 voucher match label changes without altering hit flags, hit count o
   assert.match(ui.matchStatusHtml(row), /<strong>傳票條件成立<\/strong>/); assert.deepEqual(plain(row), before);
   assert.match(ui.matchStatusHtml({ isHit: true, matchDescription: '第 1 組第 1 條：符合欄位條件' }), /<strong>符合條件的分錄<\/strong>/);
   assert.match(ui.matchStatusHtml({ isHit: false, matchDescription: '同張傳票的其他分錄' }), /<strong>參考分錄<\/strong>/);
-  assert.match(ui.summary({ count: 3, voucherCount: 1 }), /符合條件：3 筆分錄（1 張傳票）/);
+  // 使用者 2026-10-16 依過往底稿要求分開顯示「符合條件的傳票數量」與「符合條件的分錄筆數」，舊句式不再使用。
+  // 第一次失敗：輸入不符 /符合條件：3 筆分錄（1 張傳票）/。分錄筆數照後端的 summaryRowCount，命中旗標與參考標籤不變。
+  const counts = ui.summary({ count: 3, voucherCount: 1, summaryRowCount: 3 });
+  assert.match(counts, /<span class="stat-card__value">1<\/span><span class="stat-card__label">符合條件的傳票數量<\/span>/);
+  assert.match(counts, /<span class="stat-card__value">3<\/span><span class="stat-card__label">符合條件的分錄筆數<\/span>/);
+  assert.match(counts, /標示為參考的分錄不計入分錄筆數/);
 });
 
 test('batch7 KCT I adds the shared nonbusiness predicate while old weekend-or-holiday AST remains untouched and honestly named', () => {
@@ -4468,7 +4476,7 @@ test('copying identical conditions and removing the copy resets and reloads matr
   f.window.JetApi.queryTagMatrixScenarios = payload => new Promise(resolve => matrix.push({ payload, resolve }));
   f.window.JetApi.queryTagMatrixVoucherPage = async () => ({ rows: [], nextCursor: null });
   f.window.JetApi.queryTagMatrixRowPage = async () => ({ rows: [], nextCursor: null });
-  const answer = async names => { matrix.at(-1).resolve({ scenarios: names.map((name, i) => ({ position: i + 1, name, voucherHitCount: 1, rowHitCount: 2 })) }); await settle(); };
+  const answer = async names => { matrix.at(-1).resolve({ scenarios: names.map((name, i) => ({ position: i + 1, name, voucherHitCount: 1, rowHitCount: 2, summaryRowCount: 2 })) }); await settle(); };
   f.click('[data-action="toggle-matrix"]'); await answer(['G']);
   assert.equal(f.$('[data-bind="matrix-body"]').getAttribute('data-loaded'), '1');
   f.click('[data-action="copy-scenario"][data-index="0"]'); f.click('[data-action="save-scenario"]'); await settle();
@@ -4812,7 +4820,7 @@ test('late preview: a preview answered after the conditions changed is not shown
   f.click('[data-action="preview-scenario"]'); await settle();
   const draft = f.draft(); draft.groups[0].rules[0].values = ['Alpha', 'Gamma']; f.store.setFilterDraft(draft);
   f.sent.find(request => request.method === 'filterPreview').resolve({ scenario: { name: '投影檢查', populationScope: 'auditPeriod',
-    count: 9, voucherCount: 3, previewRows: [] } });
+    count: 9, voucherCount: 3, summaryRowCount: 9, previewRows: [] } });
   await settle(); await settle();
   assert.equal(f.sent.some(request => request.method === 'queryFilterVoucherPage'), false);
   assert.equal(f.store.getState().filter.preview, null);
@@ -4823,7 +4831,7 @@ test('late preview: a preview whose population differs from the request is not s
   f.store.setFilterDraft(projectionDraft(['Alpha']));
   f.click('[data-action="preview-scenario"]'); await settle();
   f.sent.find(request => request.method === 'filterPreview').resolve({ scenario: { name: '投影檢查', populationScope: 'allProjected',
-    count: 9, voucherCount: 3, previewRows: [] } });
+    count: 9, voucherCount: 3, summaryRowCount: 9, previewRows: [] } });
   await settle(); await settle();
   const page = f.sent.find(request => request.method === 'queryFilterVoucherPage');
   if (page) { page.resolve({ rows: [], nextCursor: null }); await settle(); await settle(); }
@@ -5405,7 +5413,7 @@ for (const action of ['copy-scenario', 'edit-scenario']) test('remap S5-27 ten s
 
 async function remapSuccessfulPreview(f) {
   f.click('[data-kct-letter="G"]'); f.click('[data-action="preview-scenario"]');
-  f.request('filterPreview').resolve({ scenario: { count: 123, voucherCount: 1, populationScope: 'auditPeriod' } }); await settle();
+  f.request('filterPreview').resolve({ scenario: { count: 123, voucherCount: 1, summaryRowCount: 123, populationScope: 'auditPeriod' } }); await settle();
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [{ documentNumber: 'SYNTHETIC-JV', postDate: '2025-01-01', hitRowCount: 123, totalRowCount: 124, voucherTotal: 0 }], nextCursor: null }); await settle();
 }
 
@@ -5511,8 +5519,9 @@ const CUSTOM_CHECK_LABELS = {
   '金額': ['大額分錄', '金額尾數連續多個 0'],
   '摘要': ['摘要含特定字詞', '空白摘要'],
   '科目與借貸': ['只看借方或貸方', '科目屬於指定分類', '借方與貸方分類組合', '借方與貸方科目編號組合', '未預期的借貸組合', '較少使用的科目'],
-  '人員與分錄性質': ['人工分錄', '編製分錄較少的人員'],
-  '預篩選結果': ['沿用第四步預篩選規則']
+  '人員與分錄性質': ['人工分錄', '編製分錄較少的人員']
+  // 「預篩選結果：沿用第四步預篩選規則」在使用者 2026-10-16 要求縮短套用預篩選條件的操作後，改成條件總覽的「預篩選」分頁，
+  // 由 frontend-journey-filter-build.test.cjs 的分頁測試涵蓋；第一次失敗：常用查核條件少了「預篩選結果」一類。
 };
 const CUSTOM_EXAMPLE_NAMES = ['借現金、貸非現金', '貸現金、借非現金', '非營業日且排除指定日期', '期末最後 7 天的人工分錄', '空白摘要或空白核准人員',
   '特定人員的大額分錄', '週末人工分錄的特定摘要', '人工分錄的特定部門', '指定借貸科目組合的大額分錄', '財報準備期間的人工假日分錄'];
@@ -5590,7 +5599,9 @@ test('common checks open one category at a time, start with the first, remember 
   const labels = Object.fromEntries(f.dom.content.querySelectorAll('[data-check-category]').map(button =>
     [button.textContent, f.$('#' + button.getAttribute('aria-controls')).querySelectorAll('.filter-check__label').map(node => node.textContent)]));
   assert.deepEqual(labels, CUSTOM_CHECK_LABELS);
-  for (const item of f.dom.content.querySelectorAll('.filter-check')) {
+  // 2026-10-16 新增的「預篩選」分頁沿用同一種列樣式，這裡只檢查常用查核條件裡的列；第一次失敗：TypeError，
+  // 預篩選分頁的列沒有 [data-add-check]。分頁的列由 frontend-journey-filter-build.test.cjs 檢查。
+  for (const item of f.dom.content.querySelectorAll('.filter-check').filter(node => node.closest('.filter-check-group'))) {
     assert.equal(item.querySelector('[data-add-check]').textContent, '加入');
     const extra = item.children.filter(child => !child.matches('.filter-check__label') && !child.matches('[data-add-check]') && !child.matches('.filter-check__note'));
     assert.deepEqual(extra, [], 'no extra explanation beside a check');
@@ -5626,8 +5637,8 @@ test('every common check adds its fixed rule shape to the active group', () => {
     unexpectedAccountPair: { type: 'prescreen', prescreenKey: 'unexpectedAccountPair' },
     rareAccounts: { type: 'entityFrequency', field: 'accNum', countUnit: 'entries', countOperator: 'lessThanOrEqual', countFrom: '11' },
     manualEntries: { type: 'manualAuto', isManual: 'true' },
-    rarePreparers: { type: 'entityFrequency', field: 'createBy', countUnit: 'entries', countOperator: 'lessThanOrEqual', countFrom: '11' },
-    prescreenResult: { type: 'prescreen', prescreenKey: 'postPeriodApproval' }
+    rarePreparers: { type: 'entityFrequency', field: 'createBy', countUnit: 'entries', countOperator: 'lessThanOrEqual', countFrom: '11' }
+    // prescreenResult 已由「預篩選」分頁取代（使用者 2026-10-16 要求）；第一次失敗：常用查核條件的鍵少了 prescreenResult。
   };
   const keys = f.ui.FILTER_COMMON_CHECK_GROUPS.flatMap(group => group.checks.map(check => check.key));
   assert.deepEqual(plain(keys), Object.keys(expected));
@@ -5639,11 +5650,9 @@ test('every common check adds its fixed rule shape to the active group', () => {
     assert.deepEqual(plain(pickShape(rules[0], shape)), shape, key);
     assert.ok(f.api.toWireDraft(f.store.getState().filter.draft).groups[0].rules[0].type, key);
   }
-  // 沒有期末財報準備日時，「沿用第四步預篩選規則」改用下一個可用的規則，避免帶入後端一定會擋的條件。
-  f.store.getState().project.lastPeriodStart = null;
-  f.store.setFilterDraft({ name: '', rationale: '', groups: [] });
-  f.api.addCommonCheck('prescreenResult');
-  assert.equal(f.store.getState().filter.draft.groups[0].rules[0].prescreenKey, 'suspiciousKeywords');
+  // 原本這裡檢查沒有期末財報準備日時，「沿用第四步預篩選規則」改帶下一個可用的規則。這個入口已由「預篩選」分頁取代，
+  // 分頁直接停用「財報準備日起核准」並寫出原因，同樣不會帶入後端一定會擋的條件；改由 frontend-journey-filter-build.test.cjs
+  // 的停用測試涵蓋（使用者 2026-10-16 要求）。
 });
 
 test('common checks are disabled only when the backend would reject them and say why under the item', () => {

@@ -1,0 +1,235 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "正式工作底稿：規劃、發布與還原",
+    "locale": "zh-TW",
+    "output": "output/archify/workpaper/workpaper.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "backend": {
+          "label": "應用程式處理"
+        },
+        "frontend": {
+          "label": "操作與回應"
+        },
+        "database": {
+          "label": "資料庫操作"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "application",
+      "label": "匯出規劃"
+    },
+    {
+      "id": "files",
+      "label": "檔案發布"
+    },
+    {
+      "id": "failure",
+      "label": "失敗處理"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "request",
+      "lane": "application",
+      "col": 0,
+      "label": "匯出正式底稿",
+      "type": "frontend",
+      "sublabel": "export.workpaperStream"
+    },
+    {
+      "id": "versions",
+      "lane": "application",
+      "col": 1,
+      "label": "核對目前版本",
+      "type": "backend",
+      "sublabel": "驗證與情境參考"
+    },
+    {
+      "id": "selected",
+      "lane": "application",
+      "col": 2,
+      "label": "重算所選情境",
+      "type": "backend",
+      "sublabel": "不把未選情境當作更新"
+    },
+    {
+      "id": "plan",
+      "lane": "application",
+      "col": 3,
+      "label": "建立底稿計畫",
+      "type": "backend",
+      "sublabel": "Plan、facts 與 Finalize"
+    },
+    {
+      "id": "stage",
+      "lane": "files",
+      "col": 3,
+      "label": "完整寫入暫存檔",
+      "type": "backend",
+      "sublabel": "IWorkpaperPlanWriter"
+    },
+    {
+      "id": "rename",
+      "lane": "files",
+      "col": 4,
+      "label": "發布新版本檔名",
+      "type": "backend",
+      "sublabel": "同名檔不得覆寫"
+    },
+    {
+      "id": "manifest",
+      "lane": "files",
+      "col": 5,
+      "label": "發布檔案索引",
+      "type": "backend",
+      "sublabel": "完成後回傳產物"
+    },
+    {
+      "id": "reject",
+      "lane": "failure",
+      "col": 1,
+      "label": "回報版本或輸入錯誤",
+      "type": "frontend",
+      "sublabel": "尚未寫出新底稿"
+    },
+    {
+      "id": "cleanup",
+      "lane": "failure",
+      "col": 3,
+      "label": "清理本次暫存檔",
+      "type": "backend",
+      "sublabel": "寫入失敗或取消"
+    },
+    {
+      "id": "restore",
+      "lane": "failure",
+      "col": 4,
+      "label": "嘗試還原本次發布",
+      "type": "backend",
+      "sublabel": "保留還原失敗資訊"
+    },
+    {
+      "id": "report",
+      "lane": "failure",
+      "col": 5,
+      "label": "回報可處理的原因",
+      "type": "frontend",
+      "sublabel": "既有正式底稿不覆寫"
+    }
+  ],
+  "edges": [
+    {
+      "id": "request_versions",
+      "from": "request",
+      "to": "versions"
+    },
+    {
+      "id": "versions_selected",
+      "from": "versions",
+      "to": "selected"
+    },
+    {
+      "id": "selected_plan",
+      "from": "selected",
+      "to": "plan"
+    },
+    {
+      "id": "plan_stage",
+      "from": "plan",
+      "to": "stage"
+    },
+    {
+      "id": "stage_rename",
+      "from": "stage",
+      "to": "rename"
+    },
+    {
+      "id": "rename_manifest",
+      "from": "rename",
+      "to": "manifest"
+    },
+    {
+      "id": "versions_reject",
+      "from": "versions",
+      "to": "reject",
+      "label": "不符合",
+      "role": "error"
+    },
+    {
+      "id": "stage_cleanup",
+      "from": "stage",
+      "to": "cleanup",
+      "label": "失敗或取消",
+      "role": "error"
+    },
+    {
+      "id": "cleanup_report",
+      "from": "cleanup",
+      "to": "report"
+    },
+    {
+      "id": "rename_restore",
+      "from": "rename",
+      "to": "restore",
+      "label": "發布失敗",
+      "role": "error"
+    },
+    {
+      "id": "manifest_restore",
+      "from": "manifest",
+      "to": "restore",
+      "label": "索引失敗",
+      "role": "error"
+    },
+    {
+      "id": "restore_report",
+      "from": "restore",
+      "to": "report"
+    }
+  ],
+  "mainPath": [
+    "request",
+    "versions",
+    "selected",
+    "plan",
+    "stage",
+    "rename",
+    "manifest"
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "輸出內容的依據",
+      "items": [
+        "handler 要求 validationRunId、scenarioRevision 與所選情境。使用者不能指定任意輸出路徑或工作表。",
+        "只重算選取的情境，並讀取報告中繼資料，交給 WorkpaperPlan 與 writer。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "檔案與索引的邊界",
+      "items": [
+        "完整暫存檔寫好後，在正式改名前最後檢查取消；發布階段不再接受取消。",
+        "檔名碰撞時拒絕覆寫。發布或索引失敗會嘗試還原；若還原失敗，回報仍保留的本次新檔。",
+        "這份圖解釋程式路徑，不宣稱已驗證斷電恢復、Office 相容性或正式部署。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "來源核對",
+      "items": [
+        "ExportWorkpaperStreamHandler.cs 第 29–96、149–190 行。",
+        "ProjectReportArtifactStore.cs 第 237–345、355–361 行。",
+        "完整相對路徑與 SHA-256 見證據頁 workpaper。本次未啟動 Excel，未產生真實案件底稿。"
+      ]
+    }
+  ]
+}

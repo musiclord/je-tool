@@ -803,6 +803,7 @@
             "kind": "object",
             "fields": {
               "count": "number",
+              "countsWholeVoucherRows": "boolean",
               "name": "string",
               "populationScope": "string",
               "previewRows": {
@@ -821,6 +822,7 @@
                   }
                 }
               },
+              "summaryRowCount": "number",
               "voucherCount": "number"
             }
           }
@@ -5156,9 +5158,11 @@
             "items": {
               "kind": "object",
               "fields": {
+                "countsWholeVoucherRows": "boolean",
                 "name": "string",
                 "position": "number",
                 "rowHitCount": "number",
+                "summaryRowCount": "number",
                 "voucherHitCount": "number"
               }
             }

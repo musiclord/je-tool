@@ -81,11 +81,25 @@ public sealed record FilterPreviewRow(
 public sealed record FilterPreviewResult(
     long Count,
     long VoucherCount,
-    IReadOnlyList<FilterPreviewRow> PreviewRows);
+    IReadOnlyList<FilterPreviewRow> PreviewRows)
+{
+    /// <summary>命中列所屬具名傳票在有效母體內的全部分錄數；只有整張傳票計數的情境才有值。</summary>
+    public long? WholeVoucherRowCount { get; init; }
+}
 
 public interface IFilterRunRepository
 {
     Task<FilterPreviewResult> PreviewAsync(
+        string projectId,
+        FilterScenarioSpec scenario,
+        FilterRuleContext context,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 命中列所屬具名傳票在有效母體內的全部分錄數，集合與 Criteria Selection 工作表寫出的列相同。
+    /// 空白傳票號碼的命中列不屬於任何傳票，不計入。
+    /// </summary>
+    Task<long> CountWholeVoucherRowsAsync(
         string projectId,
         FilterScenarioSpec scenario,
         FilterRuleContext context,

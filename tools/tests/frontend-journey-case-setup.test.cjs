@@ -303,6 +303,26 @@ test('journey 4: choosing GL and TB source files offers exactly the seven suppor
   assert.equal(f.requests.filter(r => r.action === 'hostSelectFiles').length, 2);
 });
 
+// 使用者 2026-10-16 指出第二步只有「授權編製人員清單」的「操作」有外框，展開後內容下緣還多一條淡線。
+// 四列的「操作」是同一種每列重複的動作，要長得一樣；展開中的那一列標出 aria-expanded，樣式由它保留淡藍底。
+// 嵌進列裡的匯入卡不再帶獨立卡片的陰影與圓角。
+test('journey 4: every import task uses the same action button and an opened task shows no card edge', () => {
+  const f = importFixture();
+  const actions = ['gl', 'tb', 'authorizedPreparer', 'calendar'].map(kind => f.$('[data-task-toggle="' + kind + '"]'));
+  assert.ok(actions.every(action => action !== null), 'all four tasks are listed');
+  assert.deepEqual(actions.map(action => action.getAttribute('class')), Array(4).fill('import-task__action'));
+  f.click('[data-task-toggle="tb"]');
+  assert.equal(f.$('[data-task-toggle="tb"]').getAttribute('aria-expanded'), 'true');
+  assert.equal(f.$('[data-task-toggle="gl"]').getAttribute('aria-expanded'), 'false');
+  const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '../../src/JET/JET/wwwroot/css/app.css'), 'utf8');
+  assert.doesNotMatch(css, /import-task__action--primary/, 'no row action is styled apart from the others');
+  const panelCard = css.match(/\.import-task__panel \.import-card \{([^}]*)\}/);
+  assert.ok(panelCard !== null, 'the opened card has its own rule');
+  assert.match(panelCard[1], /box-shadow: none;/);
+  assert.match(panelCard[1], /border-radius: 0;/);
+  assert.match(css, /\.import-task__action\[aria-expanded="true"\],/);
+});
+
 test('journey 4: a holiday file and a make-up day file with zero rows still complete the calendar task', async () => {
   const f = importFixture();
   assert.equal(calendarDone(f), false, 'nothing imported yet');

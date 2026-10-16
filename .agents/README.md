@@ -11,6 +11,7 @@
 | `harness/agent-compatibility.md` | 各平台讀哪些檔、權限攔截與 hook 怎麼註冊、怎麼確認已載入 |
 | `harness/frontend-design-mode.md` | 用內建瀏覽器或 Preview 調整前端時的工作方式與正式整合順序 |
 | `harness/convergence-and-memory.md` | 多個 session 的觀點與待辦如何收斂，什麼算專案記憶 |
+| [harness/architecture-documentation.md](harness/architecture-documentation.md) | RepoWise、Roslyn、LikeC4 與 Archify 的分工、來源證據及重繪方式 |
 | `skills/jet-converge/` | 使用者明確呼叫 `$jet-converge` 時的收斂訪談 |
 | `skills/jet-readable-docs/` | 把面向人的文字改成台灣日常中文的檢查表與範例 |
 | `skills/jet-frontend-design/` | 前端外觀的設計簡報、已裁定方向、AI 預設樣式禁止清單與無頭截圖檢查 |

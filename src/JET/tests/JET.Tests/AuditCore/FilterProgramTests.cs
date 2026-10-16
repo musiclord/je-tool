@@ -55,6 +55,27 @@ public sealed class FilterProgramTests
         Assert.Equal(0, result.MaterializedScenarioCount);
     }
 
+    // 使用者 2026-10-16 要求第五步的分錄筆數和過往底稿相同：只用「未預期借貸組合」一個條件時用整張傳票的分錄數，
+    // 判斷與 Criteria Selection 摘要相同；其他情境仍用直接符合的分錄數。
+    [Fact]
+    public void Finalize_Preview_UsesWholeVoucherRowsOnlyForTheUnexpectedAccountPairAlone()
+    {
+        var counted = new FilterPreviewResult(5, 1, []) { WholeVoucherRowCount = 10 };
+        var wholeVoucherPlan = JetAuditProgram.Plan(Request(
+            "filter.preview",
+            [new CanonicalFilterDocument(1, "{}", UnexpectedAccountPairScenario())]));
+        Assert.True(wholeVoucherPlan.PreviewCountsWholeVoucherRows);
+        Assert.Equal(10, JetAuditProgram.Finalize(wholeVoucherPlan, new FilterFacts(counted, 0)).PreviewSummaryRowCount);
+        Assert.Throws<InvalidOperationException>(() =>
+            JetAuditProgram.Finalize(wholeVoucherPlan, new FilterFacts(new FilterPreviewResult(5, 1, []), 0)));
+
+        var directPlan = JetAuditProgram.Plan(Request(
+            "filter.preview",
+            [new CanonicalFilterDocument(1, "{}", Scenario())]));
+        Assert.False(directPlan.PreviewCountsWholeVoucherRows);
+        Assert.Equal(5, JetAuditProgram.Finalize(directPlan, new FilterFacts(counted, 0)).PreviewSummaryRowCount);
+    }
+
     [Fact]
     public async Task ExecuteAndFinalize_Commit_PreserveMaterializedCount()
     {
@@ -208,6 +229,30 @@ public sealed class FilterProgramTests
                             null,
                             null,
                             "debit",
+                            null)
+                    ])
+            ]);
+
+    private static FilterScenarioSpec UnexpectedAccountPairScenario() =>
+        new(
+            "未預期借貸組合",
+            "rationale",
+            [
+                new FilterGroupSpec(
+                    FilterJoin.And,
+                    [
+                        new FilterRuleSpec(
+                            FilterJoin.And,
+                            FilterRuleType.Prescreen,
+                            PrescreenRuleKeys.UnexpectedAccountPair,
+                            null,
+                            [],
+                            TextMatchMode.Contains,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
                             null)
                     ])
             ]);

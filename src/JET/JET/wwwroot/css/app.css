@@ -2407,7 +2407,8 @@ dl.kv-list .kv-list__row:last-child {
 
 /* ---- 匯入任務清單（步驟展開時的四列：GL／TB／授權清單／日期維度）------------
    逐列＝狀態符號＋名稱(＋必要/選用標)＋單一關鍵數字＋單一動作鈕；點動作鈕就地
-   展開該列既有匯入卡完整 UI（.import-task__panel）。列與列以細線分隔，名稱欄固定 210px，動作鈕是緊湊的細框按鈕。
+   展開該列既有匯入卡完整 UI（.import-task__panel）。列與列以細線分隔，名稱欄固定 210px，動作鈕是每列相同的低調按鈕
+   （見下方 M10），展開中的那一列保留淡藍底。
    清單和上方說明對齊同一條左緣，不再另外縮排。 */
 .import-tasklist {
   margin: 0;
@@ -2482,7 +2483,7 @@ dl.kv-list .kv-list__row:last-child {
   font-variant-numeric: tabular-nums;
 }
 
-/* 行尾單一動作鈕：和 .btn--tiny 同規格的緊湊次要鈕，28px 高。 */
+/* 行尾單一動作鈕：和 .btn--tiny 同規格，28px 高；平時沒有外框，顏色與滑鼠移上的樣子由下方 M10 的低調按鈕規則決定。 */
 .import-task__action {
   flex: none;
   min-height: var(--control-height-sm);
@@ -2509,13 +2510,9 @@ dl.kv-list .kv-list__row:last-child {
   background: var(--color-surface-sunken);
 }
 
-/* 主要下一步動作（如未匯入授權清單的「匯入」）：文字與外框改用重點色。 */
-.import-task__action--primary {
-  color: var(--color-accent);
-}
-
-/* 就地展開面板：嵌入既有匯入卡完整 UI。卡片外框／內距／底色在此中性化，
-   讓它讀作該列的就地延伸，而非重複的方框卡片（DOM 不變，純樣式收斂）。 */
+/* 就地展開面板：嵌入既有匯入卡完整 UI。卡片的外框、內距、底色、圓角與陰影在此一併中性化，
+   讓它讀作該列的就地延伸，而非重複的方框卡片（DOM 不變，純樣式收斂）。原本漏了陰影，
+   展開後內容下緣多出一條淡線與圓角邊（使用者 2026-10-16 指出）。 */
 .import-task__panel {
   padding: 0 0 var(--space-4) 26px;
 }
@@ -2531,6 +2528,8 @@ dl.kv-list .kv-list__row:last-child {
   padding: 0;
   background: transparent;
   border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* 名稱已在任務列呈現，隱藏卡片內重複標題（比照 stepflow 對 panel__title 的處理）。 */
@@ -3023,6 +3022,21 @@ dl.kv-list .kv-list__row:last-child {
 .stat-card__label {
   font-size: var(--text-xs);
   color: var(--color-muted);
+}
+
+/* 工作面裡的統計列：工作面已經有框，只留上下與格子之間的細線，不再包第二層框；第一格不內縮，
+   數字和工作面裡的文字同一條左緣。第五步預覽用它分開顯示符合條件的傳票數量與分錄筆數（使用者 2026-10-16 要求）。 */
+.stats-bar--flush {
+  margin-bottom: var(--space-3);
+  background: transparent;
+  border-width: 1px 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.stats-bar--flush > .stat-card:first-child,
+.stats-bar--flush:is(.stat-fit--stacked, .stat-fit--single) > .stat-card {
+  padding-left: 0;
 }
 
 /* 工作面：白底、淡框加極淡落影、12px 圓角、24px 內距；工作面之間留 24px。 */
@@ -6795,9 +6809,12 @@ body.is-resizing-preview .data-preview {
 .filter-work-tabs button { margin-bottom: -1px; padding: var(--space-2) 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--color-muted); cursor: pointer; font: inherit; font-weight: 500; line-height: 20px; }
 .filter-work-tabs button:hover { color: var(--color-ink); }
 .filter-work-tabs button[aria-pressed="true"] { color: var(--filter-accent); border-bottom-color: var(--color-accent); font-weight: 600; }
-/* KCT 條件與自訂篩選條件撐滿左欄寬度；外觀見共用的「分段切換」。 */
+/* KCT 條件、預篩選與自訂篩選條件撐滿左欄寬度；外觀見共用的「分段切換」。2026-10-16 加入「預篩選」成為三格，
+   三格等寬會把「自訂篩選條件」擠成兩行，所以依字數分配寬度、不換行。三格的完整名稱排成一列約需 228px，
+   1100px 以下改用小一階的字約需 191px；左欄寬度依此訂，名稱不省略。
+   選中的白色按鍵由 app.js 的 bindGlide 量實際寬度移動。 */
 .filter-source-tabs { display: flex; }
-.filter-source-tabs button { flex: 1; padding: 4px var(--space-2); }
+.filter-source-tabs button { flex: 1 1 auto; padding: 4px var(--space-2); white-space: nowrap; }
 .filter-matrix-tabs { display: flex; }
 .filter-workspace button:focus-visible, .filter-workspace summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 .filter-workbench { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; align-items: start; }
@@ -6914,8 +6931,9 @@ body.is-resizing-preview .data-preview {
 @media (min-width: 901px) and (min-height: 600px) {
   .filter-workspace .filter-entry { position: static; max-height: none; }
 }
+/* 左欄 220px 扣掉左右內距後剩 196px，放得下條件來源三格的完整名稱（2026-10-16 量到需要 190.4px；原本 208px 只剩 184px）。 */
 @media (min-width: 901px) and (max-width: 1100px) {
-  .filter-workbench { grid-template-columns: 208px minmax(0, 1fr); gap: var(--space-4); }
+  .filter-workbench { grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-4); }
   .filter-workspace .rule-card { padding: var(--space-4); }
   .filter-source-tabs button { padding: 4px var(--space-1); font-size: var(--text-xs); }
 }
@@ -7168,17 +7186,21 @@ body.is-resizing-preview .data-preview {
 }
 .filter-workspace .scenario-set--active { background: var(--color-surface-sunken); box-shadow: 0 0 0 2px var(--color-accent), var(--recess); }
 .filter-workspace .scenario-set > .filter-group-heading { display: contents; }
-/* 標題、組內條件設定與操作按鈕排成一列；條件組合的外框窄於 600px 時，組內條件設定移到第二行。 */
+/* 標題、組內條件設定與操作按鈕排成一列；條件組合的內容寬度在 520px 以下時，組內條件設定移到第二行。 */
 .filter-workspace .filter-current > .rule-card { container: composer / inline-size; }
 .filter-workspace .scenario-set > .filter-group-heading > strong { grid-column: 1; grid-row: 1; white-space: nowrap; font-size: var(--text-md); font-weight: 600; color: var(--color-heading); }
 .filter-workspace .scenario-set > .filter-group-settings { grid-column: 2; grid-row: 1; margin: 0; padding: 0; border: 0; }
 .filter-workspace .scenario-set > .filter-group-settings .filter-combinator { white-space: nowrap; }
 .filter-workspace .scenario-set > .filter-group-heading > .filter-group-actions { grid-column: 3; grid-row: 1; }
 .filter-workspace .scenario-set > :not(.filter-group-heading):not(.filter-group-settings) { grid-column: 1 / -1; min-width: 0; }
+/* 窄的時候標題列固定排成兩行：「第 N 組」一行，操作按鈕在下一行靠右，高度不隨選取改變。
+   原本按鈕欄先取滿寬度，標題欄被壓到約 44px，1440px 寬時「已選取」壓在「加入子條件組」上（2026-10-16 量到）。
+   改成放不下才換行也不行：809px 寬時只有選取中的組多了「已選取」而換成兩行，換選取的組時下面的條件跟著上下跳。 */
 @container composer (max-width: 520px) {
-  .filter-workspace .scenario-set { grid-template-columns: minmax(0, 1fr) auto; }
-  .filter-workspace .scenario-set > .filter-group-heading > .filter-group-actions { grid-column: 2; }
-  .filter-workspace .scenario-set > .filter-group-settings { grid-column: 1 / -1; grid-row: 2; margin-top: var(--space-2); }
+  .filter-workspace .scenario-set { grid-template-columns: minmax(0, 1fr); }
+  .filter-workspace .scenario-set > .filter-group-heading { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: var(--space-2); grid-column: 1; grid-row: 1; margin: 0; }
+  .filter-workspace .scenario-set > .filter-group-heading > .filter-group-actions { grid-column: 1; grid-row: 2; justify-self: end; justify-content: flex-end; margin-left: 0; }
+  .filter-workspace .scenario-set > .filter-group-settings { grid-column: 1; grid-row: 2; margin-top: var(--space-2); }
 }
 .filter-workspace .scenario-set > .scenario-flat__list { display: block; margin-top: var(--space-3); }
 .filter-workspace .scenario-flat__list > .rule-row {
@@ -7294,7 +7316,7 @@ body.is-resizing-preview .data-preview {
 .btn--tiny,
 .btn--ghost.btn--tiny,
 .filter-workspace .rule-row__remove,
-.import-task__action:not(.import-task__action--primary),
+.import-task__action,
 .filter-saved-actions > summary {
   color: var(--color-accent);
   background: transparent;
@@ -7305,7 +7327,8 @@ body.is-resizing-preview .data-preview {
 .btn--tiny:hover,
 .btn--ghost.btn--tiny:hover,
 .filter-workspace .rule-row__remove:hover,
-.import-task__action:not(.import-task__action--primary):hover,
+.import-task__action:hover,
+.import-task__action[aria-expanded="true"],
 .filter-saved-actions > summary:hover,
 .filter-saved-actions[open] > summary {
   color: var(--color-accent-hover);

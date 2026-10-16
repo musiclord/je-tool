@@ -4455,7 +4455,9 @@
   var ARRIVAL_SOURCES = [
     { trigger: '.filter-entry [data-kct-letter]', label: '.picker-card__label' },
     { trigger: '.filter-entry [data-add-field]' },
-    { trigger: '.filter-entry [data-add-check]', within: '.filter-check', label: '.filter-check__label' }
+    { trigger: '.filter-entry [data-add-check]', within: '.filter-check', label: '.filter-check__label' },
+    // 2026-10-16 加入的「預篩選」分頁沿用常用查核條件的列，按「加入」時同樣看得到標籤移進條件組。
+    { trigger: '.filter-entry [data-add-prescreen]', within: '.filter-check', label: '.filter-check__label' }
   ];
   var ARRIVAL_ROWS = '.filter-workspace .scenario-flat__list > .rule-row';
   var ARRIVAL_TITLE = '.filter-rule-heading > strong';

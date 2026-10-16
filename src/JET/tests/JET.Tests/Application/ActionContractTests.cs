@@ -391,12 +391,18 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
 
         JsonShape.HasExactKeys(data, "scenario");
         var scenario = JsonShape.Obj(data, "scenario");
-        JsonShape.HasExactKeys(scenario, "name", "populationScope", "count", "voucherCount", "previewRows");
+        // 使用者 2026-10-16 要求畫面分開顯示傳票數量與分錄筆數，並和條件篩選報告同一個口徑，所以每個情境另回
+        // summaryRowCount 與 countsWholeVoucherRows（第一次失敗：Public 收據 20261016-051726257-ff7a19590e9c4c30a7f61b5bec0bc527）。
+        JsonShape.HasExactKeys(scenario, "name", "populationScope", "count", "voucherCount", "summaryRowCount", "countsWholeVoucherRows", "previewRows");
         JsonShape.Str(scenario, "name");
         JsonShape.Str(scenario, "populationScope");
         Assert.Equal(GlPopulationScopeValues.AuditPeriod, scenario.GetProperty("populationScope").GetString());
         JsonShape.Number(scenario, "count");
         JsonShape.Number(scenario, "voucherCount");
+        JsonShape.Number(scenario, "summaryRowCount");
+        // 這個情境不是只用「未預期借貸組合」，分錄筆數就是直接符合條件的列數。
+        Assert.Equal(JsonValueKind.False, scenario.GetProperty("countsWholeVoucherRows").ValueKind);
+        Assert.Equal(scenario.GetProperty("count").GetInt64(), scenario.GetProperty("summaryRowCount").GetInt64());
         var previewRows = JsonShape.Arr(scenario, "previewRows");
         Assert.True(previewRows.GetArrayLength() >= 1, "廣域條件應命中至少一列");
         JsonShape.Element(previewRows, e =>
@@ -783,11 +789,17 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.True(scenarios.GetArrayLength() >= 1, "已 commit 情境,scenarios 應非空");
         JsonShape.Element(scenarios, e =>
         {
-            JsonShape.HasExactKeys(e, "position", "name", "voucherHitCount", "rowHitCount");
+            // 每個情境另回 summaryRowCount 與 countsWholeVoucherRows，原因同 filter.preview
+            // （第一次失敗：Public 收據 20261016-051726257-ff7a19590e9c4c30a7f61b5bec0bc527）。
+            JsonShape.HasExactKeys(e, "position", "name", "voucherHitCount", "rowHitCount", "summaryRowCount", "countsWholeVoucherRows");
             JsonShape.Number(e, "position");
             JsonShape.Str(e, "name");
             JsonShape.Number(e, "voucherHitCount");
             JsonShape.Number(e, "rowHitCount");
+            JsonShape.Number(e, "summaryRowCount");
+            // 非授權編製人員不是只用「未預期借貸組合」的情境，分錄筆數就是直接命中列數。
+            Assert.Equal(JsonValueKind.False, e.GetProperty("countsWholeVoucherRows").ValueKind);
+            Assert.Equal(e.GetProperty("rowHitCount").GetInt64(), e.GetProperty("summaryRowCount").GetInt64());
         });
     }
 

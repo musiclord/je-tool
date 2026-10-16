@@ -213,6 +213,37 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.True(mismatches.Count == 0, "預篩選鍵的科目配對需求不一致：\n" + string.Join("\n", mismatches));
     }
 
+    /// <summary>
+    /// 預篩選鍵的「傳票建立人員已配對」需求：前端 <c>requiresCreateBy</c> 與後端的欄位前置檢查一致。
+    /// 2026-10-16 複審找到第五步「預篩選」分頁在沒有這個欄位時沒有停用「編製分錄較少的人員」與「非授權編製人員」，
+    /// 按下後一預覽就被後端擋下；這裡逐一核對每個鍵，之後新增的鍵也不會漏掉。
+    /// </summary>
+    [Fact]
+    public void PrescreenKeyCreatedByRequirements_AgreeWithBackendValidator()
+    {
+        var core = ReadFrontend("js", "ui-core.js");
+        var note = ExtractFunctionBody(ReadFrontend("js", "steps", "filter-step.js"), "prescreenRequirementNote(key)");
+        Assert.Contains("var createByNote = option.requiresCreateBy ? conditionRequirementNote('createByMapped') : '';", note, StringComparison.Ordinal);
+        var keys = Regex.Matches(ExtractArrayBody(core, "PRESCREEN_KEY_OPTIONS"), @"\{\s*value:\s*'(?<key>\w+)'(?<rest>[^{}]*)\}")
+            .ToDictionary(
+                item => item.Groups["key"].Value,
+                item => Regex.IsMatch(item.Groups["rest"].Value, @"requiresCreateBy:\s*true"));
+        Assert.NotEmpty(keys);
+
+        var allFields = JetFieldCatalog.GlFields.Select(field => field.SemanticIdentity).ToArray();
+        var withoutCreateBy = allFields.Where(field => field != JetFieldCatalog.GlCreateBy).ToArray();
+        var mismatches = new List<string>();
+        foreach (var (key, requiresCreateBy) in keys)
+        {
+            var rule = new Dictionary<string, object?> { ["type"] = "prescreen", ["prescreenKey"] = key };
+            var backendBlocks = Validate(rule, FullFacts, withoutCreateBy)
+                .Except(Validate(rule, FullFacts, allFields), StringComparer.Ordinal).Any();
+            if (backendBlocks != requiresCreateBy) mismatches.Add(key);
+        }
+
+        Assert.True(mismatches.Count == 0, "預篩選鍵的傳票建立人員需求不一致：" + string.Join("、", mismatches));
+    }
+
     private static void AssertFrontendPrescreenEligibilityExpression(string filter)
     {
         var available = ExtractFunctionBody(filter, "availablePrescreenKeys()");
@@ -296,7 +327,8 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         return withFacts.Except(withFullFacts, StringComparer.Ordinal).Any();
     }
 
-    private static IReadOnlyList<string> Validate(Dictionary<string, object?> rule, MappingFacts facts)
+    private static IReadOnlyList<string> Validate(Dictionary<string, object?> rule, MappingFacts facts,
+        IReadOnlyList<string>? availableGlFields = null)
     {
         var scenario = new
         {
@@ -317,7 +349,8 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             HasManualFlag = true,
             HasCreatedBy = true,
             HasApprovedBy = true,
-            HasDescription = true
+            HasDescription = true,
+            AvailableGlFields = availableGlFields
         };
         return FilterScenarioValidator.Validate(spec, context);
     }

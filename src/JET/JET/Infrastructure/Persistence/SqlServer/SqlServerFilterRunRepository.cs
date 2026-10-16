@@ -50,6 +50,40 @@ public sealed class SqlServerFilterRunRepository(SqlServerProjectDatabase databa
         return new FilterPreviewResult(count, voucherCount, previewRows);
     }
 
+    public async Task<long> CountWholeVoucherRowsAsync(
+        string projectId,
+        FilterScenarioSpec scenario,
+        FilterRuleContext context,
+        CancellationToken cancellationToken)
+    {
+        await database.EnsureCreatedAsync(projectId, cancellationToken);
+
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+
+        var zeroModulus = TrailingZeroThreshold.UnitModulus(
+            TrailingZeroThreshold.DefaultZerosThreshold);
+        await using var command = connection.CreateCommand();
+        var plan = WhereBuilder.BuildPlan(
+            scenario,
+            context,
+            zeroModulus,
+            SqlServerProjectSchema.QualifierFor(projectId));
+        plan.BindParametersTo(command);
+        // 條件的 WHERE plan 只引用子查詢的 g；外層用另一個別名列出同傳票的全部分錄。
+        await using (var expand = database.CreateCommand(connection, projectId,
+            "SELECT COUNT_BIG(*) FROM {s}.target_gl_entry whole_row "
+            + $"WHERE {GlPopulationScopeSql.Predicate(context, "whole_row")} AND whole_row.document_number IN ("
+            + "SELECT g.document_number FROM {s}.target_gl_entry g "
+            + $"WHERE g.document_number IS NOT NULL AND {GlPopulationScopeSql.Predicate(context, "g")} AND ({plan.Sql}));"))
+        {
+            command.CommandText = expand.CommandText;
+        }
+
+        var result = await command.ExecuteScalarLoggedAsync(_log, Provider, cancellationToken);
+        return result is null or DBNull ? 0L : Convert.ToInt64(result);
+    }
+
     private async Task<long> ExecuteScalarAsync(
         SqlConnection connection,
         string projectId,

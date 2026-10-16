@@ -1,0 +1,242 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "儲存篩選情境：業務分支",
+    "locale": "zh-TW",
+    "output": "output/archify/filter-save/filter-save.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "backend": {
+          "label": "應用程式處理"
+        },
+        "frontend": {
+          "label": "操作與回應"
+        },
+        "database": {
+          "label": "資料庫操作"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "request",
+      "label": "操作與檢查"
+    },
+    {
+      "id": "valid",
+      "label": "整批合格"
+    },
+    {
+      "id": "invalid",
+      "label": "仍需修改"
+    },
+    {
+      "id": "result",
+      "label": "回應"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "request",
+      "lane": "request",
+      "col": 0,
+      "label": "儲存情境",
+      "type": "frontend",
+      "sublabel": "filter.scenario.save"
+    },
+    {
+      "id": "load",
+      "lane": "request",
+      "col": 1,
+      "label": "讀取前置資料",
+      "type": "backend",
+      "sublabel": "有效驗證與 GL 配對"
+    },
+    {
+      "id": "save",
+      "lane": "request",
+      "col": 2,
+      "label": "檢查本次情境",
+      "type": "backend",
+      "sublabel": "位置、名稱與規則"
+    },
+    {
+      "id": "check",
+      "lane": "request",
+      "col": 3,
+      "label": "整批都合格？",
+      "type": "backend",
+      "sublabel": "PlanWrite",
+      "icon": "decision"
+    },
+    {
+      "id": "plan",
+      "lane": "valid",
+      "col": 3,
+      "label": "建立篩選計畫",
+      "type": "backend",
+      "sublabel": "FilterRequest"
+    },
+    {
+      "id": "commit",
+      "lane": "valid",
+      "col": 4,
+      "label": "發布定義與命中",
+      "type": "database",
+      "sublabel": "同一資料庫交易"
+    },
+    {
+      "id": "advance",
+      "lane": "valid",
+      "col": 5,
+      "label": "更新流程步驟",
+      "type": "backend",
+      "sublabel": "提交後不受取消影響"
+    },
+    {
+      "id": "defs",
+      "lane": "invalid",
+      "col": 4,
+      "label": "只保存定義",
+      "type": "database",
+      "sublabel": "同一交易清除命中"
+    },
+    {
+      "id": "needs",
+      "lane": "invalid",
+      "col": 5,
+      "label": "列出待修情境",
+      "type": "backend",
+      "sublabel": "needsEdit"
+    },
+    {
+      "id": "reject",
+      "lane": "result",
+      "col": 2,
+      "label": "回報檢查錯誤",
+      "type": "backend",
+      "sublabel": "本次修改未發布",
+      "icon": "stop"
+    },
+    {
+      "id": "reply",
+      "lane": "result",
+      "col": 5,
+      "label": "讀取權威狀態",
+      "type": "frontend",
+      "sublabel": "回傳情境與失效狀態"
+    }
+  ],
+  "edges": [
+    {
+      "id": "request_load",
+      "from": "request",
+      "to": "load"
+    },
+    {
+      "id": "load_save",
+      "from": "load",
+      "to": "save"
+    },
+    {
+      "id": "save_check",
+      "from": "save",
+      "to": "check"
+    },
+    {
+      "id": "load_reject",
+      "from": "load",
+      "to": "reject",
+      "label": "前置不符",
+      "role": "error"
+    },
+    {
+      "id": "save_reject",
+      "from": "save",
+      "to": "reject",
+      "label": "本次不合格",
+      "role": "error"
+    },
+    {
+      "id": "check_plan",
+      "from": "check",
+      "to": "plan",
+      "label": "是",
+      "role": "branch"
+    },
+    {
+      "id": "check_defs",
+      "from": "check",
+      "to": "defs",
+      "label": "否",
+      "role": "branch"
+    },
+    {
+      "id": "plan_commit",
+      "from": "plan",
+      "to": "commit"
+    },
+    {
+      "id": "commit_advance",
+      "from": "commit",
+      "to": "advance"
+    },
+    {
+      "id": "advance_reply",
+      "from": "advance",
+      "to": "reply"
+    },
+    {
+      "id": "defs_needs",
+      "from": "defs",
+      "to": "needs"
+    },
+    {
+      "id": "needs_reply",
+      "from": "needs",
+      "to": "reply"
+    }
+  ],
+  "mainPath": [
+    "request",
+    "load",
+    "save",
+    "check",
+    "plan",
+    "commit",
+    "advance",
+    "reply"
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "單一情境與整批發布",
+      "items": [
+        "本次儲存先檢查正在編輯的情境，其他情境保持原內容。",
+        "PlanWrite 判斷整批能否一起重算；仍有不合格情境時，定義可保存，命中會清除。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "取消與失敗",
+      "items": [
+        "資料庫提交前檢查取消；尚未提交的交易由取消或例外結束。",
+        "提交後更新步驟及讀取權威狀態使用 CancellationToken.None。",
+        "本圖省略共用通道的例外轉譯，不省略兩條發布分支。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "來源核對",
+      "items": [
+        "FilterScenarioHandlers.cs 第 25–44 行；FilterScenarioBatchWriter.cs 第 47–180 與 197–256 行。",
+        "LocalFilterCommitRepository.cs 第 26–74 行；LocalFilterScenarioStore.cs 第 8–66 行。",
+        "完整相對路徑與 SHA-256 見證據頁 filter-save、filter-preconditions、filter-commit、filter-invalid。本次未執行業務測試。"
+      ]
+    }
+  ]
+}

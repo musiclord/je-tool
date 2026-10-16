@@ -103,6 +103,7 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 |:---|:---|
 | 專案目的、服務順序與正式環境限制 | `docs/project-context.md` |
 | 系統規格與資料流（單一事實來源） | `docs/jet-guide.md` |
+| 架構圖表與 agent 分析流程 | [圖表入口](docs/architecture/README.md)、[繪圖流程](.agents/harness/architecture-documentation.md) |
 | 前端與 C# 的 action 契約 | `docs/action-contract-manifest.md` |
 | 畫面結構、操作步驟與畫面用語 | `docs/jet-frontend-description.md` |
 | 驗證命令、結束碼與各路線 | `tools/README.md` |

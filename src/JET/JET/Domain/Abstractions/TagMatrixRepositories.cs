@@ -56,4 +56,11 @@ public interface ITagMatrixScenariosRepository
 {
     Task<IReadOnlyDictionary<int, (long VoucherHitCount, long RowHitCount)>> GetCountsAsync(
         string projectId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 指定情境的整張命中傳票分錄數：命中列所屬具名傳票在有效母體內的全部分錄，集合與 Criteria Selection
+    /// 工作表寫出的列相同。只傳以整張傳票計數的情境位置；沒有命中的位置不在回傳 dict。
+    /// </summary>
+    Task<IReadOnlyDictionary<int, long>> GetWholeVoucherRowCountsAsync(
+        string projectId, IReadOnlyList<int> scenarioPositions, CancellationToken cancellationToken);
 }

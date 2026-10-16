@@ -171,8 +171,8 @@
       {
         "name": "filter-kct-editing",
         "timeoutSeconds": 240,
-        "actionBudget": 76,
-        "expectedActionCount": 76,
+        "actionBudget": 75,
+        "expectedActionCount": 75,
         "screenshotBudget": 1
       },
       {

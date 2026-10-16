@@ -1,8 +1,8 @@
 # JET 歷史開發紀錄
 
 依日期排列，新的在上。這份紀錄由兩個來源專案的開發日誌合併而成，涵蓋 2026-06-04 到 2026-08-26；
-`je-tool` 建立之後的開發不寫在這裡，改由 [`../development-status.md`](../development-status.md) 的現行計畫
-與 [`../specs/`](../specs/) 承接。
+`je-tool` 建立之後的開發不寫在這裡，改由 [`../development-status.md`](../development-status.md) 指向的現行計畫，
+以及 [`specs/`](specs/) 裡已結束的計畫承接。
 
 本檔只解釋當時做了什麼、為什麼那樣決定、驗證到什麼程度。它**不描述 `je-tool` 現在的行為**；精確規則一律
 以 `src/`、仍有效的測試與 [`../jet-guide.md`](../jet-guide.md)、[`../action-contract-manifest.md`](../action-contract-manifest.md)、

@@ -27,14 +27,9 @@ public static class MoneyScaling
             return true;
         }
 
-        var digits = trimmed;
-        if (digits.StartsWith('(') && digits.EndsWith(')'))
-        {
-            digits = digits[1..^1].Trim();
-            // 括號已代表負號，不能再疊加另一個正負號。
-            if (digits.IndexOfAny(['+', '-']) >= 0) return false;
-        }
-        if (!HasValidThousandsGroups(digits)) return false;
+        // 正負號、括號、空白與小數點的語法交給 decimal.TryParse：它拒絕括號內再帶正負號、括號不成對，
+        // 以及小數部分出現逗號。它不檢查千分位的位置（"12,34" 會讀成 1234），所以千分位分組另外檢查。
+        if (!HasValidThousandsGroups(trimmed)) return false;
 
         return decimal.TryParse(
             trimmed,
@@ -43,24 +38,17 @@ public static class MoneyScaling
             out value);
     }
 
+    // 第一段由數字與逗號組成的連續字元就是整數部分；逗號出現在其他位置的寫法，decimal.TryParse 會拒絕。
     private static bool HasValidThousandsGroups(string text)
     {
         if (!text.Contains(',')) return true;
-        var unsigned = text.Trim();
-        if (unsigned.Length > 0 && unsigned[0] is '+' or '-') unsigned = unsigned[1..];
-        if (unsigned.Length > 0 && unsigned[^1] is '+' or '-') unsigned = unsigned[..^1];
-        var decimalPoint = unsigned.IndexOf('.');
-        var integer = decimalPoint >= 0 ? unsigned[..decimalPoint] : unsigned;
-        if (decimalPoint >= 0 && unsigned[(decimalPoint + 1)..].Contains(',')) return false;
-        var groups = integer.Split(',');
+        var integerPart = new string(text.SkipWhile(character => !IsDigitOrComma(character)).TakeWhile(IsDigitOrComma).ToArray());
+        var groups = integerPart.Split(',');
         if (groups[0].Length is < 1 or > 3) return false;
-        for (var index = 0; index < groups.Length; index++)
-        {
-            if (index > 0 && groups[index].Length != 3) return false;
-            if (groups[index].Any(character => !char.IsAsciiDigit(character))) return false;
-        }
-        return true;
+        return groups.Skip(1).All(group => group.Length == 3);
     }
+
+    private static bool IsDigitOrComma(char character) => char.IsAsciiDigit(character) || character == ',';
 
     public static bool TryToScaled(decimal value, int moneyScale, out long scaled)
     {

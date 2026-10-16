@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "審計計算、畫面查詢與報告資料",
+    "locale": "zh-TW",
+    "output": "output/audit-dataflow/audit-dataflow.html",
+    "quality_profile": "showcase"
+  },
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "資料範圍",
+      "items": [
+        "正式底稿還讀取來源欄位定義、配對及範本；圖只聚焦主要審計資料。",
+        "WorkpaperPlanningFactsPort 讀取有界存在性及計數，writer 另行串流取得完整明細。",
+        "圖上連線代表資料依賴；執行先後與例外請看循序圖及第一輪業務流程圖。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "閱讀方式",
+      "items": [
+        "這是來源快照的靜態整理，沒有執行 JET 業務流程。",
+        "完整來源、檔案雜湊及選取的呼叫，可從本輪離線入口的證據頁查閱。"
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "label": "資料庫輸入"
+    },
+    {
+      "label": "集合式計算"
+    },
+    {
+      "label": "已保存結果"
+    },
+    {
+      "label": "使用方式"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "population",
+      "label": "GL 與 TB",
+      "type": "database",
+      "stage": 0,
+      "row": 0,
+      "sublabel": "標準化資料"
+    },
+    {
+      "id": "conditions",
+      "label": "情境定義",
+      "type": "database",
+      "stage": 0,
+      "row": 2,
+      "sublabel": "config_filter_scenario"
+    },
+    {
+      "id": "validation",
+      "label": "驗證與預篩選",
+      "type": "backend",
+      "stage": 1,
+      "row": 0,
+      "sublabel": "共用規則與 SQL"
+    },
+    {
+      "id": "filter",
+      "label": "進階篩選",
+      "type": "backend",
+      "stage": 1,
+      "row": 2,
+      "sublabel": "條件樹轉 SQL"
+    },
+    {
+      "id": "summary",
+      "label": "執行摘要",
+      "type": "database",
+      "stage": 2,
+      "row": 0,
+      "sublabel": "result_rule_run"
+    },
+    {
+      "id": "hits",
+      "label": "命中分錄",
+      "type": "database",
+      "stage": 2,
+      "row": 2,
+      "sublabel": "result_filter_run"
+    },
+    {
+      "id": "screen",
+      "label": "畫面查詢",
+      "type": "frontend",
+      "stage": 3,
+      "row": 0,
+      "sublabel": "摘要與有界分頁"
+    },
+    {
+      "id": "workbook",
+      "label": "工作底稿",
+      "type": "external",
+      "stage": 3,
+      "row": 2,
+      "sublabel": "writer 串流輸出"
+    }
+  ],
+  "flows": [
+    {
+      "id": "flow1",
+      "from": "population",
+      "to": "validation",
+      "label": "標準化資料"
+    },
+    {
+      "id": "flow2",
+      "from": "conditions",
+      "to": "filter",
+      "label": "條件定義"
+    },
+    {
+      "id": "flow3",
+      "from": "population",
+      "to": "filter",
+      "label": "測試母體"
+    },
+    {
+      "id": "flow4",
+      "from": "validation",
+      "to": "summary",
+      "label": "摘要與版本"
+    },
+    {
+      "id": "flow5",
+      "from": "filter",
+      "to": "hits",
+      "label": "情境及列 ID"
+    },
+    {
+      "id": "flow6",
+      "from": "summary",
+      "to": "screen",
+      "label": "結果摘要"
+    },
+    {
+      "id": "flow7",
+      "from": "hits",
+      "to": "screen",
+      "label": "命中分頁"
+    },
+    {
+      "id": "flow8",
+      "from": "hits",
+      "to": "workbook",
+      "label": "選取的命中"
+    },
+    {
+      "id": "flow9",
+      "from": "summary",
+      "to": "workbook",
+      "label": "驗證事實"
+    },
+    {
+      "id": "flow10",
+      "from": "population",
+      "to": "workbook",
+      "label": "母體明細"
+    }
+  ]
+}

@@ -12,12 +12,12 @@ public sealed class SqlServerFilterVoucherRepository(SqlServerProjectDatabase da
         return await FilterVoucherPageReader.ReadRevisionAsync(connection, SqlServerProjectSchema.QualifierFor(projectId), ct);
     }
     public async Task<FilterVoucherPage> ReadAsync(string projectId, FilterScenarioSpec scenario, FilterRuleContext context,
-        string? documentNumber, PageRequest request, CancellationToken ct)
+        string? documentNumber, PageRequest request, bool countWholeVoucherRows, CancellationToken ct)
     {
         await database.EnsureCreatedAsync(projectId, ct);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(ct);
         return await FilterVoucherPageReader.ReadAsync(connection, SqlServerDialect.Instance, SqlServerProjectSchema.QualifierFor(projectId),
-            scenario, context, documentNumber, request, ct);
+            scenario, context, documentNumber, request, countWholeVoucherRows, ct);
     }
 }

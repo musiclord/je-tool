@@ -46,4 +46,15 @@ public sealed class SqlServerTagMatrixScenariosRepository(SqlServerProjectDataba
         return await TagMatrixScenarioCounts.ReadAsync(
             connection, voucherSql, rowSql, cancellationToken);
     }
+
+    public async Task<IReadOnlyDictionary<int, long>> GetWholeVoucherRowCountsAsync(
+        string projectId, IReadOnlyList<int> scenarioPositions, CancellationToken cancellationToken)
+    {
+        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+
+        return await TagMatrixScenarioCounts.ReadWholeVoucherRowCountsAsync(
+            connection, SqlServerProjectSchema.QualifierFor(projectId), "COUNT_BIG(*)", scenarioPositions, cancellationToken);
+    }
 }

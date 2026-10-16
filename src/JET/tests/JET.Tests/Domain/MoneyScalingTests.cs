@@ -1,3 +1,4 @@
+using System.Globalization;
 using FsCheck.Xunit;
 using JET.Domain;
 using Xunit;
@@ -95,6 +96,42 @@ public sealed class MoneyScalingTests
     [InlineData("－")]  // 全形連字號
     [InlineData("- 0")]
     public void TryParseAmount_RejectsHyphenLookalikes(string text)
+    {
+        Assert.False(MoneyScaling.TryParseAmount(text, out _));
+    }
+
+    // 千分位、會計括號與尾端正負號的合法格式。預期值以不含千分位的純數字文字寫死，
+    // 涵蓋首組 1 到 3 位、其後每組 3 位、有無小數點、前後正負號，以及正負號前有空白。
+    // 尾端正負號前有空白時，有無千分位都要讀成同一個值（"1234 -" 本來就接受）。
+    [Theory]
+    [InlineData("(123)", "-123")]
+    [InlineData("(1,234.50)", "-1234.50")]
+    [InlineData("-1,234.50", "-1234.50")]
+    [InlineData("1,234-", "-1234")]
+    [InlineData("1,234 -", "-1234")]
+    [InlineData("1,234 +", "1234")]
+    [InlineData("1,234.50 -", "-1234.50")]
+    [InlineData("1,234,567", "1234567")]
+    [InlineData("12,345", "12345")]
+    [InlineData("123,456", "123456")]
+    public void TryParseAmount_AcceptsGroupedParenthesizedAndTrailingSignAmounts(string text, string expected)
+    {
+        Assert.True(MoneyScaling.TryParseAmount(text, out var value));
+        Assert.Equal(decimal.Parse(expected, CultureInfo.InvariantCulture), value);
+    }
+
+    // 千分位位置錯誤、括號再疊正負號、小數部分出現逗號，一律回傳 false，不丟例外。
+    // 其中千分位位置要靠 MoneyScaling 自己擋：decimal.TryParse 會把 "12,34" 讀成 1234。
+    [Theory]
+    [InlineData("12,34")]      // 第二組不足 3 位
+    [InlineData("1,23,456")]   // 中間一組不足 3 位
+    [InlineData("1234,567")]   // 第一組超過 3 位
+    [InlineData("1,23 -")]     // 尾端負號前有空白，第二組仍不足 3 位
+    [InlineData(".1,5")]       // 逗號出現在小數部分
+    [InlineData("(-123)")]     // 括號已是負號，不能再疊正負號
+    [InlineData("(+123)")]
+    [InlineData("(-1,234)")]
+    public void TryParseAmount_RejectsMisplacedGroupsAndSignsWithoutThrowing(string text)
     {
         Assert.False(MoneyScaling.TryParseAmount(text, out _));
     }

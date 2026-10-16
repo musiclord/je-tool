@@ -1,0 +1,444 @@
+{
+  "schemaVersion": 1,
+  "scope": "frozen-research-not-current-product",
+  "snapshotDates": [
+    "2026-10-15",
+    "2026-10-16"
+  ],
+  "versions": {
+    "repowise": "0.56.0",
+    "roslyn": "5.9.0.0",
+    "likec4": "1.59.4",
+    "archify": "3.1.0"
+  },
+  "diagrams": [
+    {
+      "id": "filter-types",
+      "title": "篩選儲存的類別與介面",
+      "type": "class",
+      "round": 1,
+      "original": "output/archify/filter-types",
+      "candidate": "archify/filter-types/candidate.json",
+      "html": "archify/filter-types/filter-types.html",
+      "candidateSha256": "a587e4393de2498591c8055594b1b40dbff22b153119fc216eeb324bedd444c3",
+      "htmlSha256": "c1e14bf4d18a6423c1a9f3502ad0e0d4ce818f34fe4519411be7d88a243e7426"
+    },
+    {
+      "id": "filter-save",
+      "title": "篩選情境儲存的業務分支",
+      "type": "workflow",
+      "round": 1,
+      "original": "output/archify/filter-save",
+      "candidate": "archify/filter-save/candidate.json",
+      "html": "archify/filter-save/filter-save.html",
+      "candidateSha256": "719deecc1d3e24b329630da18768fb2175810e7bad7b117e092ad421ff3f44d1",
+      "htmlSha256": "7afdf94600196ad5847a9912158217400efc37dcc7296a40ad4d956cf2ae4489"
+    },
+    {
+      "id": "tb-import",
+      "title": "TB 重新匯入與下游資料",
+      "type": "workflow",
+      "round": 1,
+      "original": "output/archify/tb-import",
+      "candidate": "archify/tb-import/candidate.json",
+      "html": "archify/tb-import/tb-import.html",
+      "candidateSha256": "f3c1f1ed57de324461cc625439f48a8a6f0cdec37b4c3ceb28a579db3d2eecb8",
+      "htmlSha256": "145f7e946b94ca65e006eb0767953236695672b90a88d604124e5bd4a9ff9a95"
+    },
+    {
+      "id": "workpaper",
+      "title": "正式底稿產生與發布",
+      "type": "workflow",
+      "round": 1,
+      "original": "output/archify/workpaper",
+      "candidate": "archify/workpaper/candidate.json",
+      "html": "archify/workpaper/workpaper.html",
+      "candidateSha256": "830812668b671150b50cbd116179e0919f148253b2cabb17c732cd40fd81c4d0",
+      "htmlSha256": "60d283d646bf8976aaa173dc231680a04dfcfc35bac7f6f0df9a52a0c5b533f3"
+    },
+    {
+      "id": "action-sequence",
+      "title": "篩選儲存：前端 action 到資料庫",
+      "type": "sequence",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/action-sequence",
+      "candidate": "archify/action-sequence/candidate.json",
+      "html": "archify/action-sequence/action-sequence.html",
+      "candidateSha256": "c6687ed3a252dbde2bbcce3a6c8d3762d414f06d571a73ae5c75071cd2e43702",
+      "htmlSha256": "77623b9e4215040692b1a306a542f34372b6371ca05d7d368f170aa5e293ee38"
+    },
+    {
+      "id": "import-sequence",
+      "title": "TB 取代匯入：串流、交易與步驟更新",
+      "type": "sequence",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/import-sequence",
+      "candidate": "archify/import-sequence/candidate.json",
+      "html": "archify/import-sequence/import-sequence.html",
+      "candidateSha256": "2ebdf4b3e90c081a18b5e70d9d8f305e572e3ec0c65ca06726f3fd36f668651b",
+      "htmlSha256": "34341595f07ea2ac00bc14dc13d5293673938df84ac2a98609c8db35e4a091ad"
+    },
+    {
+      "id": "workpaper-sequence",
+      "title": "正式底稿：規劃、寫檔與發布",
+      "type": "sequence",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/workpaper-sequence",
+      "candidate": "archify/workpaper-sequence/candidate.json",
+      "html": "archify/workpaper-sequence/workpaper-sequence.html",
+      "candidateSha256": "89923e8b22a55bc8869e71bd6baa459531e90ed4fdc40cf0182424b49b359cb3",
+      "htmlSha256": "c9a43c14b8b1f879e98b798808f16cc923a0eac8b930e80f7fe5edf089793ecf"
+    },
+    {
+      "id": "intake-dataflow",
+      "title": "匯入資料如何成為審計母體",
+      "type": "dataflow",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/intake-dataflow",
+      "candidate": "archify/intake-dataflow/candidate.json",
+      "html": "archify/intake-dataflow/intake-dataflow.html",
+      "candidateSha256": "cb4bda82d784f2e756a88376155d7f76f89aa8868782e1e4f4b6561f127be006",
+      "htmlSha256": "bb47734836cd6ba5cc043d2ff046d657b08effc38997c5d5972af6a3d2989b8b"
+    },
+    {
+      "id": "audit-dataflow",
+      "title": "審計計算、畫面查詢與報告資料",
+      "type": "dataflow",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/audit-dataflow",
+      "candidate": "archify/audit-dataflow/candidate.json",
+      "html": "archify/audit-dataflow/audit-dataflow.html",
+      "candidateSha256": "a8194ed4da68006c5e00616b4e7f7bcbca5d459644ff83edf6bd8d6438225be2",
+      "htmlSha256": "531d7b482f2539437fe930c9d1795af97528f6450bfe218afba63c050dead94a"
+    },
+    {
+      "id": "bridge-classes",
+      "title": "Action 通道的類別與介面",
+      "type": "class",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/bridge-classes",
+      "candidate": "archify/bridge-classes/candidate.json",
+      "html": "archify/bridge-classes/bridge-classes.html",
+      "candidateSha256": "c2ff18cc565e0dc9427671a52c8bc1b558c7e0b15046e4fa55a94de991cf613e",
+      "htmlSha256": "911d29647a3b18ea53b85e435c3ef6bbd4d72a9b9a630285cbeb8ec365f88a8e"
+    },
+    {
+      "id": "import-classes",
+      "title": "TB 匯入的類別與介面",
+      "type": "class",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/import-classes",
+      "candidate": "archify/import-classes/candidate.json",
+      "html": "archify/import-classes/import-classes.html",
+      "candidateSha256": "bd2741a86d93c101ae368f12973a2344fab99cc7ba49022ad4038b3f722af1b6",
+      "htmlSha256": "78cfe5efb88015592788b1e18fa2be727e4e81596c0e154df59f26c5881dd25d"
+    },
+    {
+      "id": "export-classes",
+      "title": "底稿規劃與發布的類別介面",
+      "type": "class",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/export-classes",
+      "candidate": "archify/export-classes/candidate.json",
+      "html": "archify/export-classes/export-classes.html",
+      "candidateSha256": "4cba1889d18f517315769b2e73134023201559c9ad21dea5729d560e096b3428",
+      "htmlSha256": "f9d6c9a4c2aeddf57a8685a61898a098b724a9ea5375eed3cf0764b4729bb00c"
+    },
+    {
+      "id": "import-erd",
+      "title": "SQLite：匯入批次與原始資料",
+      "type": "erd",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/import-erd",
+      "candidate": "archify/import-erd/candidate.json",
+      "html": "archify/import-erd/import-erd.html",
+      "candidateSha256": "cfd76613547021a9646bb0f9f06d518be8c73d62c7ee435ecd2395d479c127a9",
+      "htmlSha256": "6a181ad83e681a73b85e4791862e6d94eaf6a5f0d27121eaf449502262522db9"
+    },
+    {
+      "id": "projection-erd",
+      "title": "SQLite：配對與標準化資料",
+      "type": "erd",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/projection-erd",
+      "candidate": "archify/projection-erd/candidate.json",
+      "html": "archify/projection-erd/projection-erd.html",
+      "candidateSha256": "0ca73e4fb7020a6bcc79198b6076abca7315014654ac9280c2cd9abe26aae21a",
+      "htmlSha256": "d646a6457effdb76a6de19e161dbcc85cc2954312014e4d756d33f30e7b7cf68"
+    },
+    {
+      "id": "rules-erd",
+      "title": "SQLite：分類、情境與命中",
+      "type": "erd",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/rules-erd",
+      "candidate": "archify/rules-erd/candidate.json",
+      "html": "archify/rules-erd/rules-erd.html",
+      "candidateSha256": "1c56baa6608445f3817168324f13853693507b1aa5fa84b6762ab572894365a5",
+      "htmlSha256": "822bda53897b926bf981fb888f4695468837c7cb69d0fcd7b74c4c9f7afd9dbe"
+    },
+    {
+      "id": "system-erd",
+      "title": "SQLite：結果版本與操作紀錄",
+      "type": "erd",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/system-erd",
+      "candidate": "archify/system-erd/candidate.json",
+      "html": "archify/system-erd/system-erd.html",
+      "candidateSha256": "a610d8c76cd077155d5716c30a4e219f8941405b087123faf3baac27b1a25b3e",
+      "htmlSha256": "c0f0f3eaa50384df86765adba641d318f4d444e57d5fe424614ce3eff9312fb5"
+    },
+    {
+      "id": "deployment",
+      "title": "現有本機部署：程式、依賴與案件資料",
+      "type": "architecture",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/deployment",
+      "candidate": "archify/deployment/candidate.json",
+      "html": "archify/deployment/deployment.html",
+      "candidateSha256": "beb25f9584fd1b0842f5b3e2978d814b58d2103f05e3570961561b3a191c95f7",
+      "htmlSha256": "e50be9f80953a33dee1727244dfb770c6f8dea3f4bcee11bce97a7ccfa250fe5"
+    },
+    {
+      "id": "maintenance",
+      "title": "部署與維護程序草案",
+      "type": "workflow",
+      "round": 2,
+      "original": "runs/2026-10-16-all-diagrams/output/maintenance",
+      "candidate": "archify/maintenance/candidate.json",
+      "html": "archify/maintenance/maintenance.html",
+      "candidateSha256": "1bc62a0ee74284b46d75cde4837f6d25cd3d8bd8aa0c136e631158447beab405",
+      "htmlSha256": "5e24d3d2b34b78208f2f1d982e475852c162ccdd3f69260554d49c13144300f5"
+    }
+  ],
+  "likec4Views": 6,
+  "bindings": "evidence/diagram-bindings.json",
+  "checkedClassRelations": 17,
+  "sourceExcerpts": "evidence/source-excerpts.json",
+  "files": [
+    {
+      "path": "archify/action-sequence/action-sequence.html",
+      "sha256": "77623b9e4215040692b1a306a542f34372b6371ca05d7d368f170aa5e293ee38"
+    },
+    {
+      "path": "archify/action-sequence/candidate.json",
+      "sha256": "c6687ed3a252dbde2bbcce3a6c8d3762d414f06d571a73ae5c75071cd2e43702"
+    },
+    {
+      "path": "archify/audit-dataflow/audit-dataflow.html",
+      "sha256": "531d7b482f2539437fe930c9d1795af97528f6450bfe218afba63c050dead94a"
+    },
+    {
+      "path": "archify/audit-dataflow/candidate.json",
+      "sha256": "a8194ed4da68006c5e00616b4e7f7bcbca5d459644ff83edf6bd8d6438225be2"
+    },
+    {
+      "path": "archify/bridge-classes/bridge-classes.html",
+      "sha256": "911d29647a3b18ea53b85e435c3ef6bbd4d72a9b9a630285cbeb8ec365f88a8e"
+    },
+    {
+      "path": "archify/bridge-classes/candidate.json",
+      "sha256": "c2ff18cc565e0dc9427671a52c8bc1b558c7e0b15046e4fa55a94de991cf613e"
+    },
+    {
+      "path": "archify/deployment/candidate.json",
+      "sha256": "beb25f9584fd1b0842f5b3e2978d814b58d2103f05e3570961561b3a191c95f7"
+    },
+    {
+      "path": "archify/deployment/deployment.html",
+      "sha256": "e50be9f80953a33dee1727244dfb770c6f8dea3f4bcee11bce97a7ccfa250fe5"
+    },
+    {
+      "path": "archify/export-classes/candidate.json",
+      "sha256": "4cba1889d18f517315769b2e73134023201559c9ad21dea5729d560e096b3428"
+    },
+    {
+      "path": "archify/export-classes/export-classes.html",
+      "sha256": "f9d6c9a4c2aeddf57a8685a61898a098b724a9ea5375eed3cf0764b4729bb00c"
+    },
+    {
+      "path": "archify/filter-save/candidate.json",
+      "sha256": "719deecc1d3e24b329630da18768fb2175810e7bad7b117e092ad421ff3f44d1"
+    },
+    {
+      "path": "archify/filter-save/filter-save.html",
+      "sha256": "7afdf94600196ad5847a9912158217400efc37dcc7296a40ad4d956cf2ae4489"
+    },
+    {
+      "path": "archify/filter-types/candidate.json",
+      "sha256": "a587e4393de2498591c8055594b1b40dbff22b153119fc216eeb324bedd444c3"
+    },
+    {
+      "path": "archify/filter-types/filter-types.html",
+      "sha256": "c1e14bf4d18a6423c1a9f3502ad0e0d4ce818f34fe4519411be7d88a243e7426"
+    },
+    {
+      "path": "archify/import-classes/candidate.json",
+      "sha256": "bd2741a86d93c101ae368f12973a2344fab99cc7ba49022ad4038b3f722af1b6"
+    },
+    {
+      "path": "archify/import-classes/import-classes.html",
+      "sha256": "78cfe5efb88015592788b1e18fa2be727e4e81596c0e154df59f26c5881dd25d"
+    },
+    {
+      "path": "archify/import-erd/candidate.json",
+      "sha256": "cfd76613547021a9646bb0f9f06d518be8c73d62c7ee435ecd2395d479c127a9"
+    },
+    {
+      "path": "archify/import-erd/import-erd.html",
+      "sha256": "6a181ad83e681a73b85e4791862e6d94eaf6a5f0d27121eaf449502262522db9"
+    },
+    {
+      "path": "archify/import-sequence/candidate.json",
+      "sha256": "2ebdf4b3e90c081a18b5e70d9d8f305e572e3ec0c65ca06726f3fd36f668651b"
+    },
+    {
+      "path": "archify/import-sequence/import-sequence.html",
+      "sha256": "34341595f07ea2ac00bc14dc13d5293673938df84ac2a98609c8db35e4a091ad"
+    },
+    {
+      "path": "archify/intake-dataflow/candidate.json",
+      "sha256": "cb4bda82d784f2e756a88376155d7f76f89aa8868782e1e4f4b6561f127be006"
+    },
+    {
+      "path": "archify/intake-dataflow/intake-dataflow.html",
+      "sha256": "bb47734836cd6ba5cc043d2ff046d657b08effc38997c5d5972af6a3d2989b8b"
+    },
+    {
+      "path": "archify/maintenance/candidate.json",
+      "sha256": "1bc62a0ee74284b46d75cde4837f6d25cd3d8bd8aa0c136e631158447beab405"
+    },
+    {
+      "path": "archify/maintenance/maintenance.html",
+      "sha256": "5e24d3d2b34b78208f2f1d982e475852c162ccdd3f69260554d49c13144300f5"
+    },
+    {
+      "path": "archify/projection-erd/candidate.json",
+      "sha256": "0ca73e4fb7020a6bcc79198b6076abca7315014654ac9280c2cd9abe26aae21a"
+    },
+    {
+      "path": "archify/projection-erd/projection-erd.html",
+      "sha256": "d646a6457effdb76a6de19e161dbcc85cc2954312014e4d756d33f30e7b7cf68"
+    },
+    {
+      "path": "archify/rules-erd/candidate.json",
+      "sha256": "1c56baa6608445f3817168324f13853693507b1aa5fa84b6762ab572894365a5"
+    },
+    {
+      "path": "archify/rules-erd/rules-erd.html",
+      "sha256": "822bda53897b926bf981fb888f4695468837c7cb69d0fcd7b74c4c9f7afd9dbe"
+    },
+    {
+      "path": "archify/system-erd/candidate.json",
+      "sha256": "a610d8c76cd077155d5716c30a4e219f8941405b087123faf3baac27b1a25b3e"
+    },
+    {
+      "path": "archify/system-erd/system-erd.html",
+      "sha256": "c0f0f3eaa50384df86765adba641d318f4d444e57d5fe424614ce3eff9312fb5"
+    },
+    {
+      "path": "archify/tb-import/candidate.json",
+      "sha256": "f3c1f1ed57de324461cc625439f48a8a6f0cdec37b4c3ceb28a579db3d2eecb8"
+    },
+    {
+      "path": "archify/tb-import/tb-import.html",
+      "sha256": "145f7e946b94ca65e006eb0767953236695672b90a88d604124e5bd4a9ff9a95"
+    },
+    {
+      "path": "archify/workpaper/candidate.json",
+      "sha256": "830812668b671150b50cbd116179e0919f148253b2cabb17c732cd40fd81c4d0"
+    },
+    {
+      "path": "archify/workpaper/workpaper.html",
+      "sha256": "60d283d646bf8976aaa173dc231680a04dfcfc35bac7f6f0df9a52a0c5b533f3"
+    },
+    {
+      "path": "archify/workpaper-sequence/candidate.json",
+      "sha256": "89923e8b22a55bc8869e71bd6baa459531e90ed4fdc40cf0182424b49b359cb3"
+    },
+    {
+      "path": "archify/workpaper-sequence/workpaper-sequence.html",
+      "sha256": "c9a43c14b8b1f879e98b798808f16cc923a0eac8b930e80f7fe5edf089793ecf"
+    },
+    {
+      "path": "evidence/class-relations.json",
+      "sha256": "76aa110e6b076aef3363a8a7639e1500d28f555a1306348658689864e82fdc17"
+    },
+    {
+      "path": "evidence/class-signatures.json",
+      "sha256": "71a124766197647d251a4d63a540dc032196b6658f9f0fea28ac35eccf4953e6"
+    },
+    {
+      "path": "evidence/diagram-bindings.json",
+      "sha256": "8aa24fdc53f889c955d93fc3dfe0c30ef99618d37a8ad8b531c74a6fda4f0267"
+    },
+    {
+      "path": "evidence/normalized-relations.json",
+      "sha256": "6bd34dfaaf1a3fc534c28b4eb354d1dbe8d5fd3b4dc45966d0039ac6d9406a22"
+    },
+    {
+      "path": "evidence/source-excerpts.json",
+      "sha256": "e2bb5d385f0e9f57ef29fb2a4687a915e2a38cde09a7c216e43dc638e801d63a"
+    },
+    {
+      "path": "evidence/source-manifest.json",
+      "sha256": "b97db37a7edacb7983f7b39f299e1108e2307cc90abae91a7107686ec23d22c7"
+    },
+    {
+      "path": "evidence/sqlite-schema.json",
+      "sha256": "c98317a0527c921eef80163d418b330a149a607df7371122f37438a16738b55f"
+    },
+    {
+      "path": "evidence/verified-facts.json",
+      "sha256": "41898b9dd5207ee35731148e86597cab2455b2c9d3d5c87f0cb88a5e13d250e3"
+    },
+    {
+      "path": "evidence.html",
+      "sha256": "0d077ba39404f837dc0a3b41cb37616178422a034d93f4a743e0ac368eb46093"
+    },
+    {
+      "path": "index.html",
+      "sha256": "96f12f1f576377cbcbe7c8b6e240b6d227deeca9d6bc46cd530676027b1cab8b"
+    },
+    {
+      "path": "licenses/archify-LICENSE.txt",
+      "sha256": "b799ab081703e7821ae5096d2c1abdf14bbdc75e8ea1c4045998c36ed6db9706"
+    },
+    {
+      "path": "licenses/likec4-LICENSE.txt",
+      "sha256": "536b1e1c961552038f0bda5c755fff467883f914c21535c5d20a7f08c2a5ead2"
+    },
+    {
+      "path": "likec4/index.html",
+      "sha256": "58f84a121e9e2e44f6378accc403dced10ba23fdd1de06176c054d5d075c9776"
+    },
+    {
+      "path": "likec4/jet.c4",
+      "sha256": "3c58fa69753b6071b66a11a36e7cbddb339bb48a39230ab31985e0745faa8742"
+    },
+    {
+      "path": "README.md",
+      "sha256": "7090395c128e15dc3d8b69bfdd95d4244eb8109eea53e09874ad9b70596de0cb"
+    },
+    {
+      "path": "schema.html",
+      "sha256": "77de98b87e6a11e281d745e3e43da4128e75e7900f59c9c386d7019d64adc39a"
+    },
+    {
+      "path": "types.html",
+      "sha256": "c03276c464b6cb8c844ea8d989af23bdb9c3ab51e821e2bbf4131dec5a7ca7ab"
+    }
+  ],
+  "limitations": [
+    "No runtime observation.",
+    "No complete cross-diagram semantic verifier.",
+    "Source excerpts and declarations belong to the frozen snapshot."
+  ],
+  "likec4Export": {
+    "html": "likec4/index.html",
+    "sourceSha256": "d6e2d9a3bab0e283e51e0394f76cff26b5ec4dd56c0a3e9debabafd40b4521e1",
+    "portableSha256": "58f84a121e9e2e44f6378accc403dced10ba23fdd1de06176c054d5d075c9776",
+    "rewrittenLocalLinks": 34,
+    "transformation": "Rebase local source links to package-relative links; preserve the model and diagram."
+  }
+}

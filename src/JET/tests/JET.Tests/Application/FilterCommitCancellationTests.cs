@@ -141,6 +141,13 @@ public sealed class FilterCommitCancellationTests
             FilterRuleContext context,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<long> CountWholeVoucherRowsAsync(
+            string projectId,
+            FilterScenarioSpec scenario,
+            FilterRuleContext context,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class EligibleValidationRunStore : IRuleRunStore

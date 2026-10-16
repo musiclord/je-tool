@@ -229,6 +229,11 @@ public sealed class FilterRunMaterializeServiceGateTests
             return Task.FromResult<IReadOnlyDictionary<int, (long VoucherHitCount, long RowHitCount)>>(
                 new Dictionary<int, (long, long)> { [1] = (3, 5) });
         }
+
+        // 這裡的情境不是整張傳票計數，處理程式傳入空的位置清單。
+        public Task<IReadOnlyDictionary<int, long>> GetWholeVoucherRowCountsAsync(
+            string projectId, IReadOnlyList<int> scenarioPositions, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<int, long>>(new Dictionary<int, long>());
     }
 
     private sealed class MutableStaleStore : IResultStaleStateStore

@@ -230,6 +230,11 @@ public sealed class WorkpaperPlanningFactsPortTests
             CancellationToken = cancellationToken;
             return Task.FromResult(result);
         }
+
+        // 底稿規劃不讀整張傳票的分錄數；整張傳票的列由 Step 4-1 的分頁查詢直接寫出。
+        public Task<IReadOnlyDictionary<int, long>> GetWholeVoucherRowCountsAsync(
+            string projectId, IReadOnlyList<int> scenarioPositions, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingFieldDefinitionFactsPort(

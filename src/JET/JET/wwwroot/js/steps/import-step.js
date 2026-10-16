@@ -94,7 +94,8 @@
   /* ---- 任務清單（呈現層：把四張卡收斂成四列，展開才嵌入完整卡片）------------- */
 
   // 任務列外框：狀態符號 + 名稱(+必要/選用標) + 單一關鍵數字 + 單一動作鈕。
-  // opts.done 決定符號與名稱色（✓ 已備／○ 未匯入）；opts.actionPrimary＝主要下一步動作（動作鈕文字改用重點色、外框不變）。
+  // opts.done 決定符號與名稱色（✓ 已備／○ 未匯入）。四列的「操作」是同一種每列重複的動作，一律用同一種低調按鈕；
+  // 原本未匯入的授權清單另標成主要動作而多一圈外框，看起來像樣式漏掉，而且它是選用項目（使用者 2026-10-16 指出不一致）。
   // 展開（opts.open）時在列下方嵌入 cardHtml（既有卡片完整 UI，DOM 未改）。
   function taskItemHtml(key, opts, cardHtml) {
     var open = opts.open;
@@ -104,7 +105,6 @@
     var tag = opts.required
       ? '<span class="import-task__tag import-task__tag--req">必要</span>'
       : '<span class="import-task__tag import-task__tag--opt">選用</span>';
-    var actionClass = opts.actionPrimary ? ' import-task__action--primary' : '';
 
     return (
       '<div class="import-task' + (open ? ' import-task--open' : '') + '">' +
@@ -112,7 +112,7 @@
           '<span class="import-task__mark' + markClass + '" aria-hidden="true">' + mark + '</span>' +
           '<span class="import-task__name' + nameClass + '">' + opts.name + tag + '</span>' +
           '<span class="import-task__meta">' + opts.meta + '</span>' +
-          '<button type="button" class="import-task__action' + actionClass + '" ' +
+          '<button type="button" class="import-task__action" ' +
             'data-task-toggle="' + key + '" aria-label="操作：' + Ui.esc(opts.name) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
             '操作</button>' +
         '</div>' +
@@ -134,8 +134,7 @@
       done: !!info,
       required: true,
       name: name,
-      meta: meta,
-      actionPrimary: false
+      meta: meta
     }, datasetCard(kind, name, info));
   }
 
@@ -150,8 +149,7 @@
       done: !!info,
       required: false,
       name: '授權編製人員清單',
-      meta: meta,
-      actionPrimary: !info
+      meta: meta
     }, authorizedPreparerCard(info));
   }
 
@@ -175,8 +173,7 @@
       done: completed,
       required: false,
       name: '假日與補班日',
-      meta: meta,
-      actionPrimary: false
+      meta: meta
     }, calendarCard(calendar));
   }
 

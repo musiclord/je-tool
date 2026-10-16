@@ -35,10 +35,10 @@ public sealed class FilterSinglePurposeVoucherEquivalenceTests
             var preview = await fixture.Repository.PreviewAsync(fixture.ProjectId, scenario, context, CancellationToken.None);
             Assert.Equal(["MATCH|1", "SPLIT|1"], preview.PreviewRows.Select(row => row.DocumentNumber + "|" + row.LineItem).Order());
             Assert.False(JetAuditProgram.UsesLegacyWholeVoucherRows(scenario));
-            var page = await fixture.Vouchers!.ReadAsync(fixture.ProjectId, scenario, context, null, new PageRequest(null, 50), CancellationToken.None);
+            var page = await fixture.Vouchers!.ReadAsync(fixture.ProjectId, scenario, context, null, new PageRequest(null, 50), countWholeVoucherRows: false, CancellationToken.None);
             Assert.Equal([new FilterVoucherSummary("MATCH", "2025-01-01", 1, 2, 10000),
                 new FilterVoucherSummary("SPLIT", "2025-01-01", 1, 3, 10000)], page.Vouchers);
-            var detail = await fixture.Vouchers.ReadAsync(fixture.ProjectId, scenario, context, "SPLIT", new PageRequest(null, 50), CancellationToken.None);
+            var detail = await fixture.Vouchers.ReadAsync(fixture.ProjectId, scenario, context, "SPLIT", new PageRequest(null, 50), countWholeVoucherRows: false, CancellationToken.None);
             Assert.Equal([("1", 10000L, true), ("2", -5000L, false), ("3", -5000L, false)],
                 detail.Details.Select(row => (row.LineItem, row.AmountScaled, row.IsHit)));
             Assert.Equal([new FilterConditionPosition(1, 1)], detail.Details[0].PrimaryConditions);

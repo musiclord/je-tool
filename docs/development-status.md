@@ -12,13 +12,16 @@
 
 ## 目前大型計畫
 
-無。
+[架構文件與圖表維護計畫](specs/2026-10-16-architecture-documentation-plan.md)。本輪依使用者指示先收錄既有圖表、
+可編輯模型、來源證據與共用分析流程，加入選定類別關係的檢查。圖表仍以固定快照為準，下一階段交由 Claude 重繪。
 
 [介面動態與驗證循環整理計畫](history/specs/2026-10-15-motion-and-verification-plan.md)2026-10-16 結案，移回歷史文件。
 動態依 Apple 現行的 Liquid Glass 重新校準，使用者試用後確認沒有問題。Gui 全部改在另一個 Windows 桌面執行，不再干擾使用電腦。
 前端測試的假後端改用正式後端的資料形狀核對，每條審計規則都在 SQLite 與 DuckDB 比對固定答案，測試時間也照使用者的裁定縮短。
 結案前依使用者要求補跑 `Excel`、`Package`、`PrivateCase` 與 `Mutation`，都通過；其中 `PrivateCase` 與 `Mutation` 先修正了各自既有、讓路線無法通過的問題。
 `Provider` 等使用者設定 SQL Server 連線字串後再執行；`ReleaseCandidate` 要在提交之後執行。是否提交與推送由使用者決定。
+提交 `7b4f4c6` 之後，使用者同日提出第二步「操作」按鈕、第五步分錄筆數與預篩選入口三項修正，金額文字解析也補了改壞檢查；
+原話與處理記在同一份計畫文末「結案後的修正（2026-10-16）」。使用者裁定這些修改與本輪架構圖表合併成單一提交。ReleaseCandidate 發現歷史文件連結失效後，使用者改為只補文件修正與檢查，再由 Codex 推送，不重跑完整驗證。
 
 [KCT 總帳資料整理需求與新版 JET 對照](history/specs/2026-10-06-kct-gl-requirements-plan.md)已完成第九節的驗收回饋修正，移回歷史文件，成果待使用者驗收。
 篩選條件改成每條只表達一件事，借貸方向用獨立條件組合；儲存流程、日期輸入與共用元件已調整，三個畫面問題也已修正。
@@ -78,7 +81,8 @@ KCT 需求計畫結案，並由使用者指示開始後才執行。KCT 需求計
 - 依專案現況產生更詳細的架構圖與規格文件：至少要有 C4 的系統情境與容器圖、資料流程圖第 0 與第 1 層、UML 部署圖與元件圖、
   ERD，並呈現模組、類別與介面之間的呼叫關係；除了標準格式，也希望用 HTML 呈現。使用者 2026-10-07 在 Codex 對話提出，
   同日選「架構圖需求」，裁定列入下一階段；原話記在 KCT 需求計畫第八節「提交前的唯讀核對與文件修正」。
-  目前的架構圖只反映 2026-08-30 的程式，見下方「已知技術債」。
+  使用者 2026-10-16 授權先收錄 Codex 已完成的研究圖表與分析流程，另由現行架構文件計畫接手；
+  其他原定下一階段項目沒有因此一併啟動。
 
 SQL Server 相關事項（實機驗證、企業多人環境與只經編譯的修改）使用者 2026-10-07 裁定近期不處理，不納入現行與下一階段計畫。
 總帳日期在期末之後的分錄同日裁定延後處理。
@@ -90,7 +94,6 @@ SQL Server 相關事項（實機驗證、企業多人環境與只經編譯的修
 
 | 事項 | 背景與目前邊界 | 何時重啟 |
 |:---|:---|:---|
-| 金額文字解析的改壞檢查有未抓到的變異 | 2026-10-16 結案前依使用者要求補跑 `Mutation`，這是 2026-09-05 之後第一次執行。`GlProjectionGuard` 的 6 個變異都被抓到。`MoneyScaling` 的變異從 25 個增加到 82 個，有 18 個沒被抓到、9 個沒有測試執行到，集中在 `MoneyScaling.cs` 第 31 到 60 行檢查金額文字的部分：正負號與括號的位置，以及千分位每組的位數。這段程式在 2026-09-09 與 2026-10-05 擴充，不是介面動態與驗證循環整理計畫改的；判讀與補測試還沒做。 | 使用者決定處理時，逐項判讀這些變異，替 `MoneyScalingTests` 補上會失敗的案例，再重跑 `Mutation -MutationScope MoneyScaling`。 |
 | 驗證報告的「完整性測試出現差異時之指引」工作表改寫 | 使用者 2026-09-12 原話：「ValidationReport.xlsx的"完整性測試出現差異時之指引"工作表，內容整份要大改 (這個要跟DPP討論，以後再說)」。目前由 `LegacyReportWriter.Validation.cs` 依 legacy 範本輸出；內容屬審計指引，不由 Agent 自行改寫。 | 使用者 2026-10-07 裁定併入下一階段工作計畫。新內容仍要等使用者與 DPP 討論出來；改寫時同步更新外觀比對夾具與 `ReportArtifactExportTests`。 |
 | SQL Server 實機驗證 | 使用者 2026-09-02 確認 SQL Server 開發暫緩，日常測試集中在 SQLite 與 DuckDB。既有相容性保留；一般 `ReleaseCandidate` 不要求連線，也不能代表 SQL Server 已通過。本機服務平時關閉，使用後依 [`../tools/README.md`](../tools/README.md#日常資料庫測試與服務收尾) 收尾。之後改過、只經編譯的 SQL Server 程式，以及兩項尚未實作的功能，列在下方「SQL Server 只經編譯的修改」。 | 使用者 2026-10-07 裁定近期不處理，不納入現行與下一階段計畫。重啟時須使用者當次明示要驗證，且已準備專用的 `JET_Test` 資料庫、最低必要權限與只存在於當次程序的連線資訊，再完整執行 `Provider`，並先核對下方清單。 |
 | SQL Server 企業多人環境 | 四個已確認的多人安全缺口與多人共用案件、使用鎖、容量資訊的驗收範圍，記在 [`sqlserver-enterprise-deferred.md`](sqlserver-enterprise-deferred.md)。只記錄，不推測實作。 | 使用者 2026-10-07 裁定近期不處理，不納入現行與下一階段計畫。之後公司能提供 SQL Server 2022、至少兩個真實帳號、DBA 支援與已核定的授權政策時，另立短期驗收計畫。 |
@@ -197,6 +200,9 @@ Agent 開發框架相關的項目（Claude Design 交接、內建瀏覽器的調
   `SqlServerProjectDatabase.CreateRollback` 的 `BeginCreateProjectOnceAsync`，`SqlServerProjectRegistry` 的 `UpdateDocumentOnceAsync` 與
   `ReadRegistered`，`SqlServerImportRepository.AppendToBatchAsync`，以及會走到 SQL Server 的 `ProjectLoadHandler` 與 `CaseCreateFactsPort`。
   `DualSourceProjectTests` 只經編譯，沒有執行。全部未連線驗證。
+- 2026-10-16 第五步分錄筆數改成和條件篩選報告同一口徑：`SqlServerFilterRunRepository.CountWholeVoucherRowsAsync`、
+  `SqlServerTagMatrixScenariosRepository.GetWholeVoucherRowCountsAsync`（共用 `TagMatrixScenarioCounts`，用 `COUNT_BIG(*)`），
+  以及 `SqlServerFilterVoucherRepository` 轉給共用 `FilterVoucherPageReader` 的整張傳票計數參數。只經編譯，未連線驗證。
 
 另有兩項尚未實作，不只是未驗證：SQL Server 的值概況仍區分大小寫，清單代碼的完整來源存在性核對也未支援。前端會明示尚未核對；
 重啟這個資料庫時，須先補齊 L32 與 Q5 的 Unicode 等價查詢，再跑固定答案。`ValidationRunLoggingTests` 與 `PrescreenRunLoggingTests`
@@ -211,8 +217,9 @@ Agent 開發框架相關的項目（Claude Design 交接、內建瀏覽器的調
   [KCT 需求計畫](history/specs/2026-10-06-kct-gl-requirements-plan.md)第八節。新的分頁總數不要用這種視窗寫法；升級 DuckDB 時可依計畫紀錄重測。
   第三步完整性科目表的查詢形狀相近，目前沒有證據顯示會出同樣的錯；升級時一併重測，不據此宣稱已有故障。
 
-- 架構圖只反映 2026-08-30 的程式，已移到 [`history/architecture-2026-08-30/`](history/architecture-2026-08-30/README.md)。
-  需要呈現最新模組時，先核對來源再重畫；系統分層的文字說明在 `jet-guide.md` 第 9 節。
+- [架構圖表](architecture/README.md)已收錄 2026-10-15 與 2026-10-16 的研究快照，尚未反映之後的產品修改。
+  重繪與補齊標準圖種由現行架構文件計畫追蹤。2026-08-30 舊圖仍留在
+  [`history/architecture-2026-08-30/`](history/architecture-2026-08-30/README.md)；系統分層文字見 `jet-guide.md` 第 9 節。
 - `history/specs/2026-06-21-low-frequency-account-escalation-design.md` 開頭有疑似真實案件識別內容；依規則停止擴大讀取，
   未複製也未清理。使用者 2026-10-03 裁定不處理。
 - 預篩選報告的欄位來源忠實性裁決只涵蓋 R2 明細家族與 R6；R5 的彙總頁標題維持既有輸出名稱，要延伸同樣規則需另行裁決。
@@ -240,4 +247,5 @@ Agent 開發框架相關的項目（Claude Design 交接、內建瀏覽器的調
 
 - 是否暫存、提交或推送由使用者另外明示；人工驗收通過或計畫完成都不是授權。
 - 使用者 2026-09-07 確認 `.vscode/settings.json` 不同步到儲存庫；來源儲存庫的封存與舊本機目錄由使用者自己處理。
-- 最近一次授權的提交與推送是 2026-10-14，內容是 KCT 需求計畫的實作、第九節的驗收回饋修正與複核後補修；推送後由使用者在測試環境驗收。
+- 最近一次授權的提交與推送是 2026-10-16 的 `7b4f4c6`，內容是介面動態與驗證循環整理計畫。再前一次是 2026-10-14，
+  內容是 KCT 需求計畫的實作、第九節的驗收回饋修正與複核後補修；推送後由使用者在測試環境驗收。

@@ -394,6 +394,19 @@ try {
         }
     }
 
+    $architectureReport = $null
+    if ($policy.ContainsKey('architectureManifest')) {
+        $architectureChecker = Join-Path $repositoryFull 'tools/harness/architecture/Check-Architecture.ps1'
+        $architectureTests = Join-Path $repositoryFull 'tools/tests/architecture-evidence.tests.ps1'
+        Assert-NoReparsePoint -Root $repositoryFull -Candidate $architectureChecker
+        Assert-NoReparsePoint -Root $repositoryFull -Candidate $architectureTests
+        . $architectureChecker
+        . $architectureTests
+        $architectureReport = Invoke-JetArchitectureCheck -RepositoryRoot $repositoryFull -ManifestPath ([string]$policy.architectureManifest)
+        $architectureReport['syntheticCases'] = Test-JetArchitectureRules
+        foreach ($problem in $architectureReport.errors) { $errors.Add($problem) }
+    }
+
     $completedUtc = [DateTime]::UtcNow
     $status = if ($errors.Count -eq 0) { 'passed' } else { 'failed' }
     $report = [ordered]@{
@@ -417,6 +430,7 @@ try {
         }
         privateData = [ordered]@{ pathInspected = $false }
     }
+    if ($null -ne $architectureReport) { $report['architecture'] = $architectureReport }
     Write-Report -Value $report
     if ($status -ceq 'passed') { exit 0 } else { exit 1 }
 }

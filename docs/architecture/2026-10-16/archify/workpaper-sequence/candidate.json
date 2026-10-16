@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "正式底稿：規劃、寫檔與發布",
+    "locale": "zh-TW",
+    "output": "output/workpaper-sequence/workpaper-sequence.html",
+    "quality_profile": "showcase"
+  },
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "流程與界線",
+      "items": [
+        "圖中由 ArtifactStore 呼叫 writer 的線是委派回呼，參數在 handler 組裝；不宣稱是 store 直接參考 writer 類別。",
+        "檔案發布與索引保存的錯誤有還原處理，但不是跨程序崩潰下的完整檔案系統交易。",
+        "正式底稿保留既有版本；其他輔助報告的覆寫規則不同。",
+        "ExportHandler 的完整類別名稱是 ExportWorkpaperStreamHandler。",
+        "ArtifactStore 的完整類別名稱是 ProjectReportArtifactStore。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "閱讀方式",
+      "items": [
+        "這是來源快照的靜態整理，沒有執行 JET 業務流程。",
+        "完整來源、檔案雜湊及選取的呼叫，可從本輪離線入口的證據頁查閱。"
+      ]
+    }
+  ],
+  "participants": [
+    {
+      "id": "ui",
+      "label": "JetApi",
+      "type": "frontend",
+      "sublabel": "exportWorkpaperStream"
+    },
+    {
+      "id": "handler",
+      "label": "ExportHandler",
+      "type": "backend",
+      "sublabel": "正式底稿處理器"
+    },
+    {
+      "id": "materialize",
+      "label": "Materialize",
+      "type": "backend",
+      "sublabel": "選取的篩選情境"
+    },
+    {
+      "id": "facts",
+      "label": "PlanningFacts",
+      "type": "backend",
+      "sublabel": "有界事實"
+    },
+    {
+      "id": "store",
+      "label": "ArtifactStore",
+      "type": "database",
+      "sublabel": "本機產物發布"
+    },
+    {
+      "id": "writer",
+      "label": "WorkpaperWriter",
+      "type": "backend",
+      "sublabel": "IWorkpaperPlanWriter"
+    },
+    {
+      "id": "files",
+      "label": "案件檔案",
+      "type": "external",
+      "sublabel": "暫存檔、底稿與索引"
+    }
+  ],
+  "messages": [
+    {
+      "id": "message1",
+      "from": "ui",
+      "to": "handler",
+      "y": 168,
+      "label": "export.workpaperStream",
+      "note": "共用 Bridge 通道省略；核對驗證與情境版本"
+    },
+    {
+      "id": "message2",
+      "from": "handler",
+      "to": "materialize",
+      "y": 233,
+      "label": "MaterializeSelectedAsync",
+      "note": "只重算這次選取的情境"
+    },
+    {
+      "id": "message3",
+      "from": "materialize",
+      "to": "handler",
+      "y": 298,
+      "label": "重算結果",
+      "variant": "return"
+    },
+    {
+      "id": "message4",
+      "from": "handler",
+      "to": "facts",
+      "y": 338,
+      "label": "ExecuteAsync",
+      "note": "WorkpaperPlan；讀首列存在性與情境計數"
+    },
+    {
+      "id": "message5",
+      "from": "facts",
+      "to": "handler",
+      "y": 403,
+      "label": "WorkpaperPlanningFacts",
+      "note": "完整母體資料不回到 AuditCore",
+      "variant": "return"
+    },
+    {
+      "id": "message6",
+      "from": "handler",
+      "to": "store",
+      "y": 468,
+      "label": "WriteWithPublishingAsync",
+      "note": "攜帶 writer 回呼與來源版本"
+    },
+    {
+      "id": "message7",
+      "from": "store",
+      "to": "writer",
+      "y": 533,
+      "label": "呼叫 WriteContentAsync",
+      "note": "writer.WriteAsync 寫入發布用串流"
+    },
+    {
+      "id": "message8",
+      "from": "writer",
+      "to": "files",
+      "y": 598,
+      "label": "寫入暫存工作簿",
+      "note": "資料列由 writer 按既有分頁路徑串流讀取"
+    },
+    {
+      "id": "message9",
+      "from": "writer",
+      "to": "store",
+      "y": 663,
+      "label": "寫入完成",
+      "variant": "return"
+    },
+    {
+      "id": "message10",
+      "from": "store",
+      "to": "files",
+      "y": 703,
+      "label": "發布新版本底稿",
+      "note": "改名前最後檢查取消；WorkingPaper 不覆寫同名檔"
+    },
+    {
+      "id": "message11",
+      "from": "store",
+      "to": "files",
+      "y": 768,
+      "label": "發布索引",
+      "note": "發布階段不再接受取消；失敗時嘗試還原"
+    },
+    {
+      "id": "message12",
+      "from": "store",
+      "to": "handler",
+      "y": 833,
+      "label": "ReportArtifact",
+      "variant": "return"
+    },
+    {
+      "id": "message13",
+      "from": "handler",
+      "to": "ui",
+      "y": 873,
+      "label": "產物與各表列數",
+      "note": "讀回最新產物清單；共用回應通道省略",
+      "variant": "return"
+    }
+  ]
+}

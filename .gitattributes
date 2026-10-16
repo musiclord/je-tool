@@ -45,6 +45,9 @@ legacy/**/*.frm -text -whitespace
 *.zip binary
 *.frx binary
 
+# Preserve reviewed diagram bytes and their SHA-256 evidence across Git checkouts.
+docs/architecture/2026-10-16/** -text -eol -whitespace
+
 # Preserve pinned upstream license files byte-for-byte.
 src/JET/JET/wwwroot/assets/fonts/**/OFL.txt -text -eol -whitespace
 

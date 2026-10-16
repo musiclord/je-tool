@@ -1,0 +1,196 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "部署與維護程序草案",
+    "locale": "zh-TW",
+    "output": "output/maintenance/maintenance.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "backend": {
+          "label": "人工作業步驟"
+        }
+      }
+    }
+  },
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "尚未完成的部署決策",
+      "items": [
+        "三列是可各自啟動的程序，沒有暗示程式會自動備份、更新或復原。",
+        "冷複製必須在正常離開 JET 後進行。Teams、OneDrive 或網路磁碟可以傳檔，不代表允許同步中直接共用開啟資料庫。",
+        "公司審查範本、版本發布人、備份位置與保留期限、復原目標及更新相容性尚待確認。本輪只寫文件，沒有執行部署或復原演練。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "閱讀方式",
+      "items": [
+        "這是來源快照的靜態整理，沒有執行 JET 業務流程。",
+        "完整來源、檔案雜湊及選取的呼叫，可從本輪離線入口的證據頁查閱。"
+      ]
+    }
+  ],
+  "lanes": [
+    {
+      "id": "prepare",
+      "label": "部署準備（建議，待公司確認）"
+    },
+    {
+      "id": "transfer",
+      "label": "案件移轉（現行前提）"
+    },
+    {
+      "id": "incident",
+      "label": "問題處理（建議，待驗證）"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "inventory",
+      "lane": "prepare",
+      "col": 0,
+      "label": "確認環境",
+      "sublabel": "一般權限、WebView2、ACE",
+      "type": "backend"
+    },
+    {
+      "id": "package",
+      "lane": "prepare",
+      "col": 1,
+      "label": "核對發布內容",
+      "sublabel": "完整資料夾及版本",
+      "type": "backend"
+    },
+    {
+      "id": "smoke",
+      "lane": "prepare",
+      "col": 2,
+      "label": "合成資料試跑",
+      "sublabel": "匯入、篩選、匯出",
+      "type": "backend"
+    },
+    {
+      "id": "approve",
+      "lane": "prepare",
+      "col": 3,
+      "label": "確認部署安排",
+      "sublabel": "負責人與審查內容待定",
+      "type": "backend"
+    },
+    {
+      "id": "exit",
+      "lane": "transfer",
+      "col": 0,
+      "label": "正常離開 JET",
+      "sublabel": "確認資料庫不再使用",
+      "type": "backend"
+    },
+    {
+      "id": "copy",
+      "lane": "transfer",
+      "col": 1,
+      "label": "冷複製完整案件",
+      "sublabel": "保留資料庫與報告",
+      "type": "backend"
+    },
+    {
+      "id": "open",
+      "lane": "transfer",
+      "col": 2,
+      "label": "在目的地重開",
+      "sublabel": "先以副本核對",
+      "type": "backend"
+    },
+    {
+      "id": "check",
+      "lane": "transfer",
+      "col": 3,
+      "label": "比對案件結果",
+      "sublabel": "確認範圍由公司決定",
+      "type": "backend"
+    },
+    {
+      "id": "record",
+      "lane": "incident",
+      "col": 0,
+      "label": "記錄錯誤與版本",
+      "sublabel": "使用支援日誌",
+      "type": "backend"
+    },
+    {
+      "id": "triage",
+      "lane": "incident",
+      "col": 1,
+      "label": "區分問題來源",
+      "sublabel": "環境、檔案或程式",
+      "type": "backend"
+    },
+    {
+      "id": "restore",
+      "lane": "incident",
+      "col": 2,
+      "label": "以副本演練復原",
+      "sublabel": "不可假設舊版能讀新結構",
+      "type": "backend"
+    },
+    {
+      "id": "verify",
+      "lane": "incident",
+      "col": 3,
+      "label": "核對後恢復作業",
+      "sublabel": "保留期限與責任待定",
+      "type": "backend"
+    }
+  ],
+  "edges": [
+    {
+      "id": "inventory_package",
+      "from": "inventory",
+      "to": "package"
+    },
+    {
+      "id": "package_smoke",
+      "from": "package",
+      "to": "smoke"
+    },
+    {
+      "id": "smoke_approve",
+      "from": "smoke",
+      "to": "approve"
+    },
+    {
+      "id": "exit_copy",
+      "from": "exit",
+      "to": "copy"
+    },
+    {
+      "id": "copy_open",
+      "from": "copy",
+      "to": "open"
+    },
+    {
+      "id": "open_check",
+      "from": "open",
+      "to": "check"
+    },
+    {
+      "id": "record_triage",
+      "from": "record",
+      "to": "triage"
+    },
+    {
+      "id": "triage_restore",
+      "from": "triage",
+      "to": "restore"
+    },
+    {
+      "id": "restore_verify",
+      "from": "restore",
+      "to": "verify"
+    }
+  ]
+}

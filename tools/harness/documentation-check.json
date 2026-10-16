@@ -1,6 +1,13 @@
 {
   "schemaVersion": 2,
+  "architectureManifest": "docs/architecture/2026-10-16/manifest.json",
   "files": [
+    ".agents/harness/architecture-documentation.md",
+    "docs/architecture/README.md",
+    "docs/architecture/2026-10-16/README.md",
+    "docs/specs/2026-10-16-architecture-documentation-plan.md",
+    "tools/harness/architecture/README.md",
+
     ".agents/README.md",
     ".agents/harness/harness.md",
     ".agents/harness/development-workflow.md",
