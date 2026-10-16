@@ -48,6 +48,47 @@ for (const [display, direction, frozen] of [['flex', 'row', false], ['flex', 'co
   });
 }
 
+// 換步驟時，原本那一步的內容收回它的那一列（JetMotion.leave）。那一列是可換行的橫排，展開箭頭用 order 排在最右邊。
+// 收回的內容要排在箭頭之後；否則箭頭被擠到下一行，收完拿掉的那一格，下面各列一次往上跳約 40 像素
+// （使用者 2026-10-15 錄影指出切換尾段的抖動）。收的期間這一列不用列距、由內容的上外距帶著同樣的距離，
+// 是 app.css 的規則，假 DOM 算不出版面，改在瀏覽器主機逐格量；這裡只核對外距與高度都收到 0。
+// 第一次失敗：FrontendMapping 20261015-152203001-148afcf80d8241d993b54efb23313c6c，收回的內容排在箭頭前面。
+test('step body folding back into its row ends flush with the row', () => {
+  const f = usageJourneyFixture();
+  f.window.addEventListener = () => {};
+  f.window.requestAnimationFrame = () => 0;
+  f.window.Element = function Element() {};
+  f.window.Element.prototype.animate = () => ({});
+  const styles = new Map();
+  f.window.getComputedStyle = node => styles.get(node) || { position: 'static', order: '0' };
+  vm.runInContext(exposeAt(readWwwroot('js/app.js'), '    return {\n      findLive: findLiveElement,',
+    '    global.testMotionLeave = leave;\n'), f.context);
+  const row = { children: [], getClientRects: () => [1],
+    get firstElementChild() { return this.children[0] || null; },
+    appendChild(child) { this.children = this.children.filter(node => node !== child).concat(child); child.parentElement = this; return child; } };
+  styles.set(row, { display: 'flex', flexDirection: 'row', flexWrap: 'wrap', rowGap: '12px', columnGap: '12px', position: 'static', order: '0' });
+  function child(style, extra = {}) {
+    const node = Object.assign({ style: {}, getClientRects: () => [1] }, extra);
+    Object.defineProperty(node, 'nextElementSibling', { get() { return row.children[row.children.indexOf(node) + 1] || null; } });
+    styles.set(node, Object.assign({ position: 'static', order: '0' }, style));
+    return node;
+  }
+  row.appendChild(child({ position: 'absolute' }));   // 軸線上的節點
+  row.appendChild(child({}));                         // 步驟名稱
+  row.appendChild(child({ order: '9' }));             // 展開箭頭
+  let frames = null;
+  const body = child({ flexBasis: '100%', marginTop: '32px' }, {
+    attributes: [], hasAttribute: () => false, setAttribute() {}, removeAttribute() {}, getAttribute: () => null,
+    querySelectorAll: () => [], getBoundingClientRect: () => ({ height: 300, width: 900 }),
+    animate(value) { frames = value; return {}; } });
+  assert.equal(f.window.testMotionLeave(body, row, null), true, 'the old body folds back into its row');
+  assert.equal(row.children.at(-1), body, 'the folding body is the last child of the row');
+  assert.ok(Number(body.style.order) > 9, 'the folding body is ordered after the caret, so the caret stays on the heading line');
+  assert.equal(frames[0].marginTop, '32.00px', 'the fold starts from the body margin');
+  assert.equal(frames.at(-1).marginTop, '0.00px', 'the fold takes the margin above the body back to zero');
+  assert.equal(frames.at(-1).height, '0.00px', 'the fold ends at zero height');
+});
+
 // 第九節 C：直接呈現三個有設定的小區塊，不再顯示沒有獨立設定的總標題。
 // 第一次失敗：FrontendMapping 20261014-121504367-4ac5f55c567347ad96ee86204d7e37d7。
 test('mapping options show their three sections without an empty overall heading', () => {

@@ -45,6 +45,45 @@ public sealed class PrivateCaseManifestTests
     }
 
     [Fact]
+    public void Load_OldSameVoucherGroup_IsReadInTheCurrentShape()
+    {
+        using var root = new TemporaryManifestRoot();
+        var document = root.CompleteManifestDocument();
+        document["scenarios"] = new JsonArray
+        {
+            new JsonObject
+            {
+                ["name"] = "synthetic",
+                ["groups"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["join"] = "AND",
+                        ["matchScope"] = "sameVoucher",
+                        ["rules"] = new JsonArray
+                        {
+                            new JsonObject { ["join"] = "AND", ["type"] = "drCrOnly", ["drCr"] = "credit" },
+                            new JsonObject { ["join"] = "AND", ["type"] = "prescreen", ["prescreenKey"] = PrescreenRuleKeys.BlankDescription },
+                        },
+                    },
+                },
+            },
+        };
+        root.WriteManifest(document);
+
+        var manifest = PrivateCaseManifestLoader.Load(root.Path, "private-case.json");
+
+        var expected = JsonDocument.Parse(
+            $$"""
+            [{"join":"AND","matchScope":"row","rules":[
+              {"join":"AND","type":"drCrOnly","drCr":"credit"},
+              {"join":"AND","type":"voucher","quantifier":"any","rules":[{"join":"AND","type":"prescreen","prescreenKey":"{{PrescreenRuleKeys.BlankDescription}}"}]}]}]
+            """).RootElement;
+        Assert.True(JsonElement.DeepEquals(expected, manifest.Scenarios[0].GetProperty("groups")));
+        Assert.Equal("synthetic", manifest.Scenarios[0].GetProperty("name").GetString());
+    }
+
+    [Fact]
     public void Load_UnknownManifestProperty_FailsClosed()
     {
         using var root = new TemporaryManifestRoot();

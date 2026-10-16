@@ -827,8 +827,12 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             loaded.GetProperty("filterResultRef").GetProperty("populationScope").GetString());
     }
 
+    // 原名 FilterCommit_PreservesUnknownPropertiesAndNumberLexemesInPersistenceAndResumeAst，原本也斷言條件層的未知屬性
+    // unknownRule 會存下並在開案讀回。使用者 2026-10-15 在待決事項勾選頁裁定 B1：「後端儲存時只保留該條件類型用得到的欄位」，
+    // 所以條件層改成斷言 unknownRule 不再存下；情境層與條件組層的未知屬性和數字原文照舊保留。
+    // 首次失敗：Focused 20261015-081453588-5485c4afbf664ef4919b9fbc7f54398f。
     [Fact]
-    public async Task FilterCommit_PreservesUnknownPropertiesAndNumberLexemesInPersistenceAndResumeAst()
+    public async Task FilterCommit_KeepsScenarioAndGroupPropertiesAndNumberLexemes_AndRulesKeepOnlyUsedFields()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -871,7 +875,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var storedRule = storedGroup.GetProperty("rules")[0];
         Assert.Equal("1e2", storedScenario.GetProperty("unknownTop").GetRawText());
         Assert.Equal("1.2300", storedGroup.GetProperty("unknownGroup").GetRawText());
-        Assert.Equal("1E+02", storedRule.GetProperty("unknownRule").GetRawText());
+        Assert.Equal(["join", "type", "drCr"], storedRule.EnumerateObject().Select(property => property.Name));
 
         var loaded = await host.DispatchAsync(
             "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
@@ -880,7 +884,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var group = scenario.GetProperty("groups")[0];
         var rule = group.GetProperty("rules")[0];
         Assert.Equal("1.2300", group.GetProperty("unknownGroup").GetRawText());
-        Assert.Equal("1E+02", rule.GetProperty("unknownRule").GetRawText());
+        Assert.False(rule.TryGetProperty("unknownRule", out _));
+        Assert.Equal("debit", rule.GetProperty("drCr").GetString());
         Assert.False(scenario.TryGetProperty("unknownTop", out _));
     }
 

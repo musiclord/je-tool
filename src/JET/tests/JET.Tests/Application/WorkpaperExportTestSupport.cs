@@ -125,9 +125,22 @@ internal static class WorkpaperExportTestSupport
         }
     });
 
+    /// <summary>在一個測試程序裡只建一次，之後每個測試複製一份（<see cref="CaseTemplates"/>）。</summary>
     internal static async Task<Prepared> PrepareAsync(
         HandlerTestHost host,
         bool publishCriteria = true)
+    {
+        var copied = await CaseTemplates.CopyIntoAsync(host, $"workpaper-export:{publishCriteria}", async templateHost =>
+        {
+            var prepared = await BuildPreparedAsync(templateHost, publishCriteria);
+            return (prepared.ProjectId, prepared);
+        });
+        return copied.State with { Positions = [.. copied.State.Positions] };
+    }
+
+    private static async Task<Prepared> BuildPreparedAsync(
+        HandlerTestHost host,
+        bool publishCriteria)
     {
         var project = await DemoProjectPipeline.SetupAsync(host);
         var validation = await host.DispatchAsync("validate.run");

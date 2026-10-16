@@ -1,7 +1,7 @@
 <Project>
-	<Target Name="RemoveUnusedWebView2WpfReference" BeforeTargets="ResolveAssemblyReferences">
-	<ItemGroup>
-	  <Reference Remove="@(Reference)" Condition="'%(Reference.FileName)' == 'Microsoft.Web.WebView2.Wpf'" />
-	</ItemGroup>
-  </Target>
+  <!-- WebView2 套件也會加入 WPF 參考。未使用 WPF 的專案在載入時就排除它，
+       讓 Visual Studio 的相依性清單與建置使用相同的參考。 -->
+  <ItemGroup Condition="'$(UseWPF)' != 'true'">
+    <Reference Remove="@(Reference->WithMetadataValue('Filename', 'Microsoft.Web.WebView2.Wpf'))" />
+  </ItemGroup>
 </Project>

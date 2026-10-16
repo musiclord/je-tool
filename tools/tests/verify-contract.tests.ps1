@@ -1228,6 +1228,64 @@ try {
             -Message 'Recent runs, other checks and runs without a receipt stay whole.'
     }
 
+    # 改壞檢查的保留期限（使用者 2026-10-15 選照建議 S8）：同一個範圍只完整保留最新幾次，更舊的只留最上層摘要檔；
+    # 別的範圍各自計算，還沒寫 pipeline.json 的執行不碰。t/ 只留最新一次執行（包括中斷的）用的那份，c/http 刪掉，
+    # c/packages 與認不得的資料夾不動；第二次整理不再刪任何東西。
+    $mutationRetentionRoot = Join-Path $suiteRoot 'mutation-retention'
+    function New-MutationRetentionRun([string] $Key, [string] $Scope, [int] $Second, [string] $ToolKey, [bool] $Finished) {
+        $directory = Join-Path $mutationRetentionRoot ('r/' + $Key)
+        foreach ($child in @('s/src', 'tmp', 'report')) { [void][IO.Directory]::CreateDirectory((Join-Path $directory $child)) }
+        [IO.File]::WriteAllText((Join-Path $directory 's/src/Copy.cs'), '// copy', $utf8)
+        [IO.File]::SetAttributes((Join-Path $directory 's/src/Copy.cs'), [IO.FileAttributes]::ReadOnly)
+        [IO.File]::WriteAllText((Join-Path $directory 'report/mutation-report.html'), '<html />', $utf8)
+        [IO.File]::WriteAllText((Join-Path $directory 'owner.json'),
+            (ConvertTo-Json @{ runDirectory = 'artifacts/harness/runs/synthetic'; createdUtc = ('2026-01-01T00:00:{0:D2}.0000000Z' -f $Second) }), $utf8)
+        [IO.File]::WriteAllText((Join-Path $directory 'result.json'), '{}', $utf8)
+        if ($ToolKey) {
+            $revision = $ToolKey.Substring(0, 8) + ('0' * 32)
+            $patch = $ToolKey.Substring(9, 8) + ('0' * 56)
+            [IO.File]::WriteAllText((Join-Path $directory 'tool-identity.json'),
+                (ConvertTo-Json -Depth 4 ([ordered]@{ pin = [ordered]@{ revision = $revision }; patch = [ordered]@{ sha256 = $patch } })), $utf8)
+        }
+        if ($Finished) {
+            [IO.File]::WriteAllText((Join-Path $directory 'pipeline.json'),
+                (ConvertTo-Json -Depth 4 ([ordered]@{ scope = [ordered]@{ name = $Scope; testClass = 'Synthetic' }; steps = @() })), $utf8)
+        }
+        return $directory
+    }
+    $oldGuard = New-MutationRetentionRun 'aaaaaaaaaaaa' 'GlProjectionGuard' 1 '11111111-22222222' $true
+    $keptGuard = @((New-MutationRetentionRun 'bbbbbbbbbbbb' 'GlProjectionGuard' 2 '11111111-22222222' $true),
+        (New-MutationRetentionRun 'cccccccccccc' 'GlProjectionGuard' 3 '11111111-33333333' $true))
+    $blockedMoney = New-MutationRetentionRun 'dddddddddddd' 'MoneyScaling' 4 '' $true
+    $interrupted = New-MutationRetentionRun 'eeeeeeeeeeee' 'GlProjectionGuard' 5 '11111111-44444444' $false
+    foreach ($child in @('t/11111111-22222222/s', 't/11111111-33333333/s', 't/11111111-44444444/s', 't/not-a-tool', 'c/http/v3', 'c/packages/synthetic')) {
+        [void][IO.Directory]::CreateDirectory((Join-Path $mutationRetentionRoot $child))
+    }
+    $mutationRetention = & $harnessModule {
+        param($root)
+        @((Invoke-JetMutationRetention -MutationRoot $root -KeepPerScope 2), (Invoke-JetMutationRetention -MutationRoot $root -KeepPerScope 2))
+    } $mutationRetentionRoot
+    $scenarioNames.Add('MutationRetention')
+    Assert-Contract -Condition ($mutationRetention[0].prunedRuns -eq 1 -and $mutationRetention[0].prunedToolSources -eq 2 -and
+        $mutationRetention[0].removedHttpCache -and $mutationRetention[0].skipped -eq 0 -and
+        $mutationRetention[1].prunedRuns -eq 0 -and $mutationRetention[1].prunedToolSources -eq 0 -and
+        -not $mutationRetention[1].removedHttpCache) `
+        -Message 'Mutation retention must prune only runs and tool sources beyond the newest, once.'
+    $leftInOldGuard = @([IO.Directory]::GetFileSystemEntries($oldGuard) | ForEach-Object { [IO.Path]::GetFileName($_) } | Sort-Object)
+    Assert-Contract -Condition (($leftInOldGuard -join ',') -ceq 'owner.json,pipeline.json,result.json,tool-identity.json') `
+        -Message 'An old mutation run keeps only its top-level summaries.'
+    foreach ($directory in @($keptGuard + $blockedMoney + $interrupted)) {
+        Assert-Contract -Condition ([IO.File]::Exists((Join-Path $directory 's/src/Copy.cs')) -and
+            [IO.File]::Exists((Join-Path $directory 'report/mutation-report.html'))) `
+            -Message 'Recent mutation runs, other scopes and interrupted runs stay whole.'
+    }
+    $toolsLeft = @([IO.Directory]::GetDirectories((Join-Path $mutationRetentionRoot 't')) | ForEach-Object { [IO.Path]::GetFileName($_) } | Sort-Object)
+    Assert-Contract -Condition (($toolsLeft -join ',') -ceq '11111111-44444444,not-a-tool') `
+        -Message 'Only the tool source of the newest run with a tool identity stays, even when that run was interrupted.'
+    Assert-Contract -Condition (-not [IO.Directory]::Exists((Join-Path $mutationRetentionRoot 'c/http')) -and
+        [IO.Directory]::Exists((Join-Path $mutationRetentionRoot 'c/packages/synthetic'))) `
+        -Message 'The NuGet download cache goes; restored packages stay.'
+
     # 失敗收據要能直接看出哪個測試為何失敗；訊息一行、遮蔽儲存庫根目錄，私人案件只留名稱。
     $firstFailureRoot = Join-Path $suiteRoot 'first-failure-evidence'
     [void][IO.Directory]::CreateDirectory($firstFailureRoot)

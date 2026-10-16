@@ -26,7 +26,6 @@ internal static class GuiScenarioCatalog
     internal const string SideMonthWorkflow = "side-month-workflow";
     internal const string NestedVoucherWorkflow = "nested-voucher-workflow";
     internal const string LegacyFormWorkflow = "legacy-form-workflow";
-    internal const string LegacyFormCatalog = "legacy-form-catalog";
     internal const string AuthorizedListRecovery = "authorized-list-recovery";
     internal const string UpstreamChangeAfterExport = "upstream-change-after-export";
     internal const string CaseToWorkpaper = "case-to-workpaper";
@@ -51,7 +50,6 @@ internal static class GuiScenarioCatalog
         [SideMonthWorkflow] = ["seed-export-ready-project"],
         [NestedVoucherWorkflow] = ["seed-export-ready-project"],
         [LegacyFormWorkflow] = ["seed-export-ready-project", "legacy-form-source"],
-        [LegacyFormCatalog] = ["seed-export-ready-project", "legacy-form-source"],
         [UpstreamChangeAfterExport] = ["seed-six-stage-complete-project"],
         [CaseToWorkpaper] = ["case-import-source"],
     };
@@ -224,7 +222,6 @@ internal sealed class GuiAssertions
     internal bool SideMonthWorkflowVerified { get; set; }
     internal bool NestedVoucherWorkflowVerified { get; set; }
     internal bool LegacyFormWorkflowVerified { get; set; }
-    internal bool LegacyFormCatalogVerified { get; set; }
     internal bool AuthorizedListRecoveryVerified { get; set; }
     internal bool UpstreamChangeAfterExportVerified { get; set; }
     internal bool CaseToWorkpaperVerified { get; set; }
@@ -400,7 +397,6 @@ internal static class ManifestWriter
                 sideMonthWorkflowVerified = outcome.Assertions.SideMonthWorkflowVerified,
                 nestedVoucherWorkflowVerified = outcome.Assertions.NestedVoucherWorkflowVerified,
                 legacyFormWorkflowVerified = outcome.Assertions.LegacyFormWorkflowVerified,
-                legacyFormCatalogVerified = outcome.Assertions.LegacyFormCatalogVerified,
                 authorizedListRecoveryVerified = outcome.Assertions.AuthorizedListRecoveryVerified,
                 upstreamChangeAfterExportVerified = outcome.Assertions.UpstreamChangeAfterExportVerified,
                 caseToWorkpaperVerified = outcome.Assertions.CaseToWorkpaperVerified,

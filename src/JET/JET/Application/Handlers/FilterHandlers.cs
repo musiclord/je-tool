@@ -229,7 +229,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
                 position,
                 persistName,
                 persistRationale,
-                RuleLogicVersions.StampFilterDefinition(rawDocument.RootElement),
+                RuleLogicVersions.StampSavedFilterDefinition(rawDocument.RootElement),
                 savedUtc));
         }
 

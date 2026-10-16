@@ -207,23 +207,28 @@
      所以 duration 比 Apple 預設的 0.5 秒短一點。數值和 app.js 的 SPRINGS 是同一組參數算出來的，兩邊要一起改。
      CSS 轉場被打斷時會從零速重來，所以會被連續操作打斷的動態由 app.js 用同一組彈簧接著原本的速度播。按下時的變化不用轉場，立刻出現。
      使用者 2026-10-13 認為淡入淡出太慢：長出來與收起來縮短一點，單純的淡入淡出改用 --motion-fade 與 --motion-fade-out，
-     不再跟著彈簧拖到最後；大小與位置的變化仍走彈簧。 */
+     不再跟著彈簧拖到最後；大小與位置的變化仍走彈簧。
+     使用者 2026-10-15 認為進階條件篩選的動態拖累操作：選取、長出來、收起來與選單同比例縮短約兩成，曲線形狀不變。
+     同一天依 Apple 的 Liquid Glass 重新整理，動態分成兩種性格（使用者選「直接照建議改」）：內容層的版面改變用不回彈的 --ease-spring；
+     玻璃層被操作的東西，也就是選單與對話框浮現、按鍵放開，用 bounce 0.15 的 --ease-glass，接近 Apple 的 snappy，
+     早一點到、收尾俐落，看不出在彈。bounce 0.15 的彈簧停下來的時間約是 duration 的 1.41 倍。 */
   --ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: linear(0, 0.004 1%, 0.0201 2.33%, 0.0459 3.67%, 0.0789 5%, 0.117 6.33%, 0.1586 7.67%, 0.3707 14%,
     0.4654 17%, 0.5142 18.67%, 0.56 20.33%, 0.6344 23.33%, 0.6712 25%, 0.705 26.67%, 0.7639 30%, 0.8166 33.67%,
     0.8619 37.67%, 0.8992 42%, 0.9304 47%, 0.9536 52.33%, 0.9715 58.67%, 0.9832 65.33%, 0.9913 73.67%, 0.9959 83%, 1);
-  --motion-glide: 500ms;    /* 選取滑到新的位置：duration 0.34 秒 */
-  --motion-open: 500ms;     /* 長出來、展開、原地換掉：duration 0.34 秒 */
-  --motion-close: 400ms;    /* 收起來：duration 0.27 秒 */
-  --motion-pop: 441ms;      /* 選單從按鈕長出來、對話框浮現：duration 0.30 秒 */
+  --motion-glide: 412ms;    /* 選取滑到新的位置：duration 0.28 秒 */
+  --motion-open: 412ms;     /* 長出來、展開、原地換掉：duration 0.28 秒 */
+  --motion-close: 324ms;    /* 收起來：duration 0.22 秒 */
+  --motion-pop: 368ms;      /* 箭頭轉過去、卡片拿起時的影子：duration 0.25 秒 */
   --motion-fade: 150ms;     /* 淡入：出現的字、窗格、選單與對話框 */
   --motion-fade-out: 120ms; /* 淡出：比淡入再快一點，要拿掉的東西不拖 */
   --ease-press: cubic-bezier(0.2, 0.9, 0.3, 1);   /* 按下時鼓起：很快到位，不回彈 */
-  /* 放開時回到原本的大小：duration 0.28 秒、bounce 0.15，帶一點點回彈（macOS 27 的按下回彈，Apple 說一點點就夠）。 */
-  --ease-release: linear(0, 0.0017 0.67%, 0.0066 1.33%, 0.0245 2.67%, 0.0516 4%, 0.0953 5.67%, 0.1359 7%, 0.1916 8.67%,
+  /* 玻璃的彈簧：bounce 0.15。放開時按鍵帶一點點回彈回到原本的大小（macOS 27 的按下回彈，Apple 說一點點就夠）。 */
+  --ease-glass: linear(0, 0.0017 0.67%, 0.0066 1.33%, 0.0245 2.67%, 0.0516 4%, 0.0953 5.67%, 0.1359 7%, 0.1916 8.67%,
     0.4185 15%, 0.5199 18%, 0.5722 19.67%, 0.6211 21.33%, 0.7002 24.33%, 0.7675 27.33%, 0.7999 29%, 0.829 30.67%,
     0.8779 34%, 0.9158 37.33%, 0.9469 41%, 0.9723 45.33%, 0.9894 50%, 1.0001 55.33%, 1.0049 60.67%, 1.0063 67%, 1);
-  --motion-release: 396ms;
+  --motion-glass: 356ms;    /* 選單從按鈕長出來、對話框浮現：duration 0.25 秒、bounce 0.15 */
+  --motion-release: 396ms;  /* 按鍵放開：duration 0.28 秒、bounce 0.15 */
 }
 
 * {
@@ -829,7 +834,7 @@ button, input, select, textarea {
 .filter-check-group__toggle::before,
 .filter-workspace details:not(.filter-group-menu):not(.filter-saved-actions) > summary::before,
 .data-preview details > summary::before,
-.btn[data-action="pending-preview"]::after,
+.btn.pending-row__preview::after,
 .data-preview__tab--more::after,
 .data-preview__collapse::after,
 .data-preview__rail::before {
@@ -853,7 +858,7 @@ button, input, select, textarea {
 .filter-check-group__toggle[aria-expanded="true"]::before,
 .filter-workspace details[open]:not(.filter-group-menu):not(.filter-saved-actions) > summary::before,
 .data-preview details[open] > summary::before,
-.btn[data-action="pending-preview"][aria-expanded="true"]::after,
+.btn.pending-row__preview[aria-expanded="true"]::after,
 .data-preview__tab--more::after {
   transform: translateY(-2px) rotate(45deg);
 }
@@ -1057,6 +1062,12 @@ button, input, select, textarea {
   min-width: 0;
   max-width: 100%;
 }
+
+/* 換步驟時，原本那一步的內容收回它的那一列（JetMotion.leave），在可換行的列裡自己一行。flex 的一行不會因為負的外距
+   變得比 0 矮，列距收不掉，收完拿掉的那一格下面各列會往上跳（使用者 2026-10-15 錄影指出切換尾段的抖動）。
+   所以收的期間這一列不用列距，改由內容的上外距帶著同樣的距離，一起收到 0。 */
+.stepflow-item:has(> .stepflow-item__body[data-motion-leaving]) { row-gap: 0; }
+.stepflow-item > .stepflow-item__body[data-motion-leaving] { margin-top: calc(var(--space-5) + var(--space-3)); }
 
 /* 步驟名已在文件流標題列呈現，隱藏渲染器內重複的 panel 標題，
    避免同名雙標題；其餘既有 panel 內容（hint／卡片／頁尾）照常顯示。 */
@@ -4912,7 +4923,7 @@ body.is-resizing-preview {
 
 /* 「其他資料」和第二步待匯入清單的「預覽」：字後面接同一種細箭頭，取代原本的「▾」「▸」。 */
 .data-preview__tab--more,
-.btn[data-action="pending-preview"] {
+.btn.pending-row__preview {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -6634,9 +6645,6 @@ body.is-resizing-preview .data-preview {
 .account-editor__footer, .account-tools {
   display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-3);
 }
-.account-editor__categories { flex: 1 1 16em; min-width: 0; }
-.account-editor__categories > summary { cursor: pointer; padding-block: var(--space-2); }
-.account-editor__categories > .category-tree { max-height: 18rem; overflow: auto; }
 .category-tree { flex: 1 1 100%; min-width: 0; }
 .category-tree__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding-block: var(--space-1); }
 .category-tree__row[hidden] { display: none; }
@@ -6768,7 +6776,7 @@ body.is-resizing-preview .data-preview {
 .selected-dates:empty { display: none; }
 .selected-dates .scenario-pill { cursor: pointer; color: var(--color-ink); }
 .value-editor :focus-visible, .filter-voucher-host button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.value-editor [data-date-error] { flex-basis: 100%; }
+.value-editor .value-editor__date-error { flex-basis: 100%; }
 .filter-hit-row { background: var(--color-accent-subtle); }
 .voucher-details { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--color-border-strong); }
 /* 第五步：條件選單、本次篩選與已保存結果各有固定位置。 */
@@ -7027,14 +7035,13 @@ body.is-resizing-preview .data-preview {
 .toc-col__eyebrow { display: flex; align-items: center; gap: var(--space-2); color: var(--color-muted); font-size: var(--text-xs); font-weight: 600; padding: 0 var(--space-3); }
 .flow-heading__track { display: none; }
 .account-editor__batch { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
-.account-editor__batch:has([data-account-category-tree][open]) { align-items: flex-start; }
 .account-editor__batch > label { display: grid; gap: var(--space-2); flex: 1 1 180px; max-width: 320px; }
 .account-editor__batch select { width: 100%; }
 .account-editor__batch > span { align-self: center; font-variant-numeric: tabular-nums; }
 .account-editor__table th:first-child { width: 88px; min-width: 88px; box-sizing: border-box; }
 .account-editor__select-all { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; margin: 0; cursor: pointer; }
 .account-editor__table input[type="checkbox"] { display: block; flex: 0 0 18px; width: 18px; height: 18px; margin: 0; padding: 0; vertical-align: middle; accent-color: var(--color-accent); }
-.account-editor__table [data-account-select-cell] { cursor: cell; user-select: none; }
+.account-editor__table .account-editor__select-cell { cursor: cell; user-select: none; }
 .account-editor__table--selecting { user-select: none; cursor: cell; }
 .account-editor__table .account-editor__row--selected td { background: var(--color-accent-subtle); }
 .account-editor__selection-hint { color: var(--color-muted); font-size: var(--text-xs); margin: 0; }
@@ -7122,7 +7129,7 @@ body.is-resizing-preview .data-preview {
 
 /* 第四、五步：選取工具對齊，較少用的設定與說明按需展開。 */
 .account-editor__selection { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: var(--control-height); font-size: var(--text-sm); }
-.account-editor__selection [data-account-clear-selection] { margin: 0; }
+.account-editor__selection .account-editor__clear { margin: 0; }
 .filter-entry .filter-example-list { margin: 0 0 var(--space-4); }
 .filter-workspace .filter-group-actions { flex-wrap: wrap; }
 .filter-workspace .filter-group-scope { display: inline-block; margin-left: var(--space-2); color: var(--color-muted); font-size: var(--text-sm); font-weight: 400; }
@@ -7585,7 +7592,7 @@ body.is-resizing-preview .data-preview {
   transition:
     background-color 150ms var(--ease-soft),
     border-color 150ms var(--ease-soft),
-    transform var(--motion-release) var(--ease-release);
+    transform var(--motion-release) var(--ease-glass);
 }
 
 .btn:not(.btn--tiny):not(:disabled):active {
@@ -7676,7 +7683,9 @@ body.is-resizing-preview .data-preview {
    邊緣左上最亮、右下淡一點，外面一圈很細的暗邊和底下的內容分開，影子最長，因為它們浮得最高。
    選單從打開它的按鈕長出來，原點對準按鈕；關閉時很快淡掉、稍微縮回按鈕（使用者 2026-10-13 要求展開與收合都有動態，
    原本關閉時一瞬間消失）。四角和裡面的項目同心：選單 10px、內距 4px、項目 6px。
-   外觀寫在不分開關的選擇器上：關閉的那一段仍是同一個玻璃選單，只有透明度與大小在變。 */
+   外觀寫在不分開關的選擇器上：關閉的那一段仍是同一個玻璃選單，只有透明度與大小在變。
+   2026-10-15 起，選單和對話框用同一種浮現：大小走玻璃的彈簧（--ease-glass），同時從稍霧變清楚；
+   原本選單只有淡入和放大，和對話框不一致。模糊不能超過目標變成負值，所以清晰度另外走不回彈的彈簧。 */
 .filter-group-menu > .filter-group-menu__items,
 .filter-workspace .filter-saved-actions > div,
 .data-preview__menu {
@@ -7690,7 +7699,8 @@ body.is-resizing-preview .data-preview {
   transform-origin: top right;
   transition:
     opacity var(--motion-fade) var(--ease-soft),
-    transform var(--motion-pop) var(--ease-spring),
+    transform var(--motion-glass) var(--ease-glass),
+    filter var(--motion-pop) var(--ease-spring),
     display var(--motion-fade-out) allow-discrete;
 }
 
@@ -7723,6 +7733,7 @@ body.is-resizing-preview .data-preview {
   .data-preview__menu {
     opacity: 0;
     transform: scale(0.94);
+    filter: blur(4px);
   }
 }
 
@@ -7765,7 +7776,8 @@ body.is-resizing-preview .data-preview {
 .modal__card,
 .overview-modal__card,
 .busy-overlay__box {
-  animation: jet-materialize var(--motion-pop) var(--ease-spring) both, jet-dim var(--motion-fade) var(--ease-soft) both;
+  animation: jet-materialize var(--motion-glass) var(--ease-glass) both, jet-focus var(--motion-pop) var(--ease-spring) both,
+    jet-dim var(--motion-fade) var(--ease-soft) both;
 }
 
 .modal__backdrop,
@@ -7797,16 +7809,16 @@ body.is-resizing-preview .data-preview {
 }
 
 
-/* 浮現：不是單純淡入，而是從稍小、稍霧變成清楚，像玻璃聚焦成形。大小與清晰度走彈簧，透明度另外用 jet-dim 很快淡入。 */
+/* 浮現：不是單純淡入，而是從稍小、稍霧變成清楚，像玻璃聚焦成形。大小走玻璃的彈簧（--ease-glass）；
+   清晰度走不回彈的彈簧，模糊才不會超過目標變成負值；透明度另外用 jet-dim 很快淡入。選單用同樣的做法。 */
 @keyframes jet-materialize {
-  from {
-    transform: scale(0.97);
-    filter: blur(4px);
-  }
-  to {
-    transform: none;
-    filter: none;
-  }
+  from { transform: scale(0.97); }
+  to { transform: none; }
+}
+
+@keyframes jet-focus {
+  from { filter: blur(4px); }
+  to { filter: none; }
 }
 
 @keyframes jet-dim {
@@ -8023,13 +8035,13 @@ body.is-resizing-preview .data-preview {
 }
 
 /* 「進階設定」是展開與收起，用展開箭頭表示，看得出是可以按的開關。 */
-[data-action="toggle-taxonomy-advanced"] {
+.account-classification__advanced {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-[data-action="toggle-taxonomy-advanced"]::before {
+.account-classification__advanced::before {
   content: "";
   width: 5px;
   height: 5px;
@@ -8040,14 +8052,16 @@ body.is-resizing-preview .data-preview {
   transition: transform var(--motion-pop) var(--ease-spring);
 }
 
-[data-action="toggle-taxonomy-advanced"][aria-expanded="true"]::before {
+.account-classification__advanced[aria-expanded="true"]::before {
   transform: rotate(45deg);
 }
 
 /* ---- 會新增東西的按鈕 ---------------------------------------------------------------------------
    「加入」「新增條件組」「新增分類」：淡藍底、藍字，前面一個加號（Apple 的 tinted 按鈕）。
-   看得出是按鈕，又比實心藍色的主要按鈕低一階；一個區塊仍只有一個實心主要按鈕。 */
-.btn:is([data-add-check], [data-action="add-set"], [data-action="add-taxonomy-category"]) {
+   看得出是按鈕，又比實心藍色的主要按鈕低一階；一個區塊仍只有一個實心主要按鈕。
+   樣式掛在 .btn--add 上，不掛在 data-action：JetMotion 收起或淡掉的舊複本會拿掉 data-action，
+   掛在屬性上時複本會變回白底（使用者 2026-10-15 指出切換第五步頁籤時「新增條件組」露出原形）。 */
+.btn.btn--add {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -8059,23 +8073,23 @@ body.is-resizing-preview .data-preview {
   font-weight: 600;
 }
 
-.btn:is([data-add-check], [data-action="add-set"], [data-action="add-taxonomy-category"]):not(:disabled),
+.btn.btn--add:not(:disabled),
 .project-row--new {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 0 0 0.5px rgba(31, 108, 159, 0.24), 0 1px 2px rgba(31, 108, 159, 0.14);
 }
 
-.btn:is([data-add-check], [data-action="add-set"], [data-action="add-taxonomy-category"]):not(:disabled):hover {
+.btn.btn--add:not(:disabled):hover {
   color: var(--color-accent-hover);
   background: var(--color-accent-tint);
   border-color: transparent;
   border-bottom-color: transparent;
 }
 
-.btn:is([data-add-check], [data-action="add-set"], [data-action="add-taxonomy-category"]):not(:disabled):active {
+.btn.btn--add:not(:disabled):active {
   background: var(--color-accent-tint-pressed);
 }
 
-.btn:is([data-add-check], [data-action="add-set"], [data-action="add-taxonomy-category"])::before {
+.btn.btn--add::before {
   content: "";
   flex: none;
   width: 16px;
@@ -8086,7 +8100,7 @@ body.is-resizing-preview .data-preview {
   mask: url("../assets/icons/fluent/add_20_regular.svg") center / contain no-repeat;
 }
 
-.btn:is([data-add-check], [data-action="add-set"], [data-action="add-taxonomy-category"]):disabled {
+.btn.btn--add:disabled {
   color: var(--color-disabled);
   background: var(--color-surface-sunken);
 }
@@ -8220,7 +8234,7 @@ body.is-resizing-preview .data-preview {
   border-top: 1px solid var(--color-border-row);
 }
 
-.filter-workspace .filter-check .btn[data-add-check] {
+.filter-workspace .filter-check .btn.btn--add {
   min-height: var(--control-height-sm);
   padding: 3px var(--space-2) 3px 6px;
   font-size: var(--text-xs);
@@ -8436,6 +8450,13 @@ body.is-resizing-preview .data-preview {
     display var(--motion-open) allow-discrete;
 }
 
+/* 寬度要真的從 0 長出來。flex 子項預設的最小寬度（min-width: auto）會把按鈕撐在字的寬度，上層卻照 0 算寬度，
+   「全部取消」因此在展開途中擠到第二行，整排先變高再變回來（2026-10-15 在第四步科目清單量到）。
+   用 :where() 不加權重，徽章這類自己設了最小寬度的元素照舊。 */
+:where([data-collapsible-inline]) {
+  min-width: 0;
+}
+
 [data-collapsible-inline][hidden] {
   width: 0 !important;
   min-width: 0 !important;
@@ -8547,6 +8568,26 @@ body.is-resizing-preview .data-preview {
   }
 }
 
+/* 視窗不在前景時（使用者切到 Excel 等其他程式），玻璃退到後面：標題列、表頭、選單與對話框改成不透明，也不模糊背景。
+   Apple 人機介面指引 Windows：不在作用中的視窗不使用 vibrancy，看起來比較收斂、離得比較遠。
+   app.js 的 bindWindowFocus 依視窗的 blur 與 focus 加上或拿掉這個 class。模糊一拿掉就沒了，
+   所以變成不透明時背景色也直接換，不沿 240ms 轉場，免得背景還半透明時先露出一下清楚的內容；回到前景時照原本的轉場恢復。 */
+html.window-inactive {
+  --glass-bar: var(--color-surface);
+  --glass-bar-blur: none;
+  --glass-bar-under: var(--color-surface);
+  --glass-bar-under-blur: none;
+  --glass-head: var(--color-surface-sunken);
+  --glass-head-blur: none;
+  --glass-fill: var(--color-surface-raised);
+  --glass-blur: none;
+}
+
+html.window-inactive .app-shell::before,
+html.window-inactive .messages {
+  transition: none;
+}
+
 /* 要求高對比時，玻璃同樣改成不透明，邊線加深，按下時也不亮。 */
 @media (prefers-contrast: more) {
   :root {
@@ -8583,7 +8624,7 @@ body.is-resizing-preview .data-preview {
   }
 
   /* 「預覽」後面的展開箭頭不是按下時的光，要留著。 */
-  .btn[data-action="pending-preview"]::after {
+  .btn.pending-row__preview::after {
     display: inline-block;
   }
 
@@ -8622,7 +8663,7 @@ body.is-resizing-preview .data-preview {
   .report-output__title::before,
   .report-output .report-artifact::before,
   .completion__tag::before,
-  .btn:is([data-add-check], [data-action="add-set"], [data-action="add-taxonomy-category"])::before,
+  .btn.btn--add::before,
   .filter-chip::before,
   .taxonomy-row__tree > :is(.is-through, .is-branch)::before,
   .taxonomy-row__tree > .is-branch::after {

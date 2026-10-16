@@ -416,7 +416,7 @@
       if (type === 'date') {
         main += Ui.dateInputHtml({ 'data-date-input': true, 'data-focus-key': focusKey + '-date', 'aria-label': '加入日期' }) +
           '<button type="button" class="btn btn--ghost" data-date-add>加入</button>' +
-          '<p class="form-notice" data-date-error data-collapsible role="alert" hidden></p>' +
+          '<p class="form-notice value-editor__date-error" data-date-error data-collapsible role="alert" hidden></p>' +
           '<div class="selected-dates" data-selected-dates data-motion-key="' + Ui.esc('dates-' + motionId(rule)) + '" data-motion-list="selected-dates" aria-label="已選日期">' +
           dateChipsHtml(rule, state) + '</div>';
         extra.push('<label>貼上日期清單' + list + '</label>');

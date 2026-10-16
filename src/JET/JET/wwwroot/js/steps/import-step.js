@@ -673,7 +673,7 @@
             (failed
               ? '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-retry" ' +
                   'data-index="' + index + '">重新檢視</button>'
-              : '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-preview" ' +
+              : '<button type="button" class="btn btn--ghost btn--tiny pending-row__preview" data-action="pending-preview" ' +
                   'data-index="' + index + '" aria-expanded="' + (item.previewOpen ? 'true' : 'false') + '">預覽</button>') +
             '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-remove" ' +
               'data-index="' + index + '" title="從清單移除這個來源">移除</button>' +
@@ -831,7 +831,12 @@
 
     var confirmBtn = card.querySelector('[data-action="wizard-confirm"]');
     if (confirmBtn) {
-      confirmBtn.addEventListener('click', function () { confirmWizard(kind, label); });
+      confirmBtn.addEventListener('click', function () {
+        // 匯入會清除第四步已儲存和未儲存的科目分類；還有沒儲存的分類時先問，沒有時照舊直接匯入。
+        if (!Ui.pendingAccountCategoryCount() || !includedWizardItems().length) { confirmWizard(kind, label); return; }
+        Ui.confirmPendingAccountCategories('匯入後，第四步已儲存和未儲存的科目分類都會清除。', '繼續匯入', { saveable: false })
+          .then(function (proceed) { if (proceed) { confirmWizard(kind, label); } });
+      });
     }
 
     var cancelBtn = card.querySelector('[data-action="wizard-cancel"]');
@@ -1110,8 +1115,12 @@
 
   // 勾選來源以單一 action 整批送出；root mode 套用整批，任一來源失敗由後端 transaction 全部 rollback。
   // 失敗時保留完整待匯入清單，讓使用者修正後直接重試同一批。
+  function includedWizardItems() {
+    return wizard.pending.filter(function (i) { return i.include && !i.inspectError; });
+  }
+
   function confirmWizard(kind, label) {
-    var items = wizard.pending.filter(function (i) { return i.include && !i.inspectError; });
+    var items = includedWizardItems();
     if (items.length === 0) { return; }
 
     var invoke = kind === 'gl' ? global.JetApi.importGlFromFile : global.JetApi.importTbFromFile;

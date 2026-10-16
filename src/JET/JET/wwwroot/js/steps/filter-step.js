@@ -259,6 +259,10 @@
       viewState.matrixOpen = false;
       viewState.matrixData = null;
       viewState.pendingRemovalIndex = null;
+      // 「已儲存「A」」只在 A 仍是已存情境時顯示；上游修改清掉情境或 A 被刪除後就收起（使用者 2026-10-15 裁定）。
+      if (viewState.lastSavedName && !state.filter.savedScenarios.some(function (scenario) { return scenario.name === viewState.lastSavedName; })) {
+        viewState.lastSavedName = null;
+      }
     }
     var nextResultKey = resultKey(state);
     if (nextResultKey !== viewResultKey) {
@@ -548,7 +552,8 @@
             var clean = {};
             Object.keys(r).forEach(function (k) {
               // 剝除所有 __ 前綴鍵（UI-only 慣例，如 __kctLetter）——按前綴而非逐鍵點名，未來新增
-              // UI 鍵不會漏剝而洩進 wire（後端會把原始 JSON 全文持久化，洩漏即永久留存）。
+              // UI 鍵不會漏剝而洩進 wire。後端儲存時雖只留各條件類型用得到的欄位（FilterRuleWireFields.cs），
+              // 預覽、查詢與草稿是否已儲存的比對也都用這份資料，畫面標記一律不送出。
               if (k.indexOf('__') !== 0) {
                 clean[k] = Array.isArray(r[k]) ? r[k].slice() : r[k];
               }
@@ -882,7 +887,7 @@
         var note = conditionRequirementNote(check.requires);
         var noteId = 'filter-check-note-' + check.key;
         return '<li class="filter-check"><span class="filter-check__label">' + Ui.esc(check.label) + '</span>' +
-          '<button type="button" class="btn btn--ghost btn--tiny" data-action="add-rule" data-add-check="' + check.key + '"' +
+          '<button type="button" class="btn btn--ghost btn--tiny btn--add" data-action="add-rule" data-add-check="' + check.key + '"' +
             ' aria-label="' + Ui.esc('加入「' + check.label + '」') + '"' + (note ? ' disabled aria-describedby="' + noteId + '"' : '') + '>加入</button>' +
           (note ? '<p class="filter-check__note" id="' + noteId + '">' + Ui.esc(note) + '</p>' : '') + '</li>';
       }).join('');
@@ -1294,7 +1299,7 @@
       '<div class="filter-builder-heading filter-builder-heading--composition"><div>' +
         (editing ? '<h4 class="filter-entry-title">條件組合</h4>' : '<h3 class="filter-entry-title">條件組合</h3>') +
         '<span class="filter-builder-count">' + groupCount + ' 個條件組</span></div>' +
-        '<div class="filter-group-tools" role="group" aria-label="條件組合操作"><button type="button" class="btn btn--ghost" data-action="add-set">新增條件組</button></div></div>' +
+        '<div class="filter-group-tools" role="group" aria-label="條件組合操作"><button type="button" class="btn btn--ghost btn--add" data-action="add-set">新增條件組</button></div></div>' +
       setsHtml(draft) +
       (totalRules > 1 ? '<section class="filter-readback" data-motion-key="readback" aria-label="完整篩選條件">' + readBackHtml(draft) + '</section>' : '') +
       '<section class="filter-save-panel" data-save-panel data-motion-key="save-panel" aria-label="情境名稱與篩選動機">' +
@@ -1508,7 +1513,10 @@
         viewState.disclosures = {};
         selectedRule = null;
       }
-      viewState.savedDraftKey = scenarioContentKey(toWireScenario(saved));
+      // 比對基準的條件用送出時的內容：後端存檔時只保留每種條件用得到的欄位（使用者 2026-10-15 裁定），回應裡的條件
+      // 比草稿精簡，直接拿來比會一直判成尚未儲存。名稱與動機仍用回應，KCT 名稱留白時後端會補上預設名稱。
+      viewState.savedDraftKey = scenarioContentKey(toWireScenario(
+        Object.assign({}, authored, { name: saved.name, rationale: saved.rationale })));
     }
     // 請求執行期間，使用者可能已開啟另一個已保存的情境。
     if (!sameDraft && latest.filter.draft.__editingSavedRef === snapshot.savedRef) {

@@ -795,6 +795,140 @@ function Invoke-JetReceiptRetention {
     return $result
 }
 
+# 改壞檢查的保留期限（使用者 2026-10-15 在待決事項勾選頁選照建議 S8：「三個命令都保留；替 Mutation 的快取加上保留上限，
+# 做法比照收據的保留期限。」）。當時 artifacts/harness/mutation/ 約 7 GB，沒有上限。
+# r/ 底下每次執行一個資料夾，完整的約 1 GB，大部分是工作樹副本。同一個範圍（GlProjectionGuard、MoneyScaling）只完整保留
+# 最新的幾次；更舊的只留最上層的摘要檔，result.json 已逐項記下每個變異的結果，工作樹副本、暫存與報告資料夾都刪掉。
+# t/ 底下每個 Stryker 修補版本各有一份工具來源，只留最新一次執行（包括中斷的）用的那份。c/http 是 NuGet 的下載快取，套件已解壓在
+# c/packages，整個刪掉；c/packages 保留，讓還原不必連網，只在套件版本改變時增加。
+# 改壞檢查也要拿共享鎖，所以只在拿著鎖時呼叫，不會碰到進行中的執行；還沒寫 pipeline.json 的中斷執行也不碰。
+# 這段程式不放在 mutation/JetMutation.psm1：那個檔的雜湊是 t/ 工具版本的一部分，改了會讓下次執行重新下載工具來源。
+$script:MutationRetentionKeepPerScope = 2
+
+function Test-JetPlainDirectory {
+    param([Parameter(Mandatory = $true)] [string] $Path)
+    return [IO.Directory]::Exists($Path) -and
+        ([IO.File]::GetAttributes($Path) -band [IO.FileAttributes]::ReparsePoint) -eq 0
+}
+
+function Invoke-JetMutationRetention {
+    param(
+        [Parameter(Mandatory = $true)] [string] $MutationRoot,
+        [int] $KeepPerScope = $script:MutationRetentionKeepPerScope
+    )
+
+    $result = [ordered]@{ prunedRuns = 0; prunedToolSources = 0; removedHttpCache = $false; skipped = 0 }
+    $rootFull = [IO.Path]::GetFullPath($MutationRoot)
+    if (-not (Test-JetPlainDirectory $rootFull)) { return $result }
+
+    $runs = [Collections.Generic.List[object]]::new()
+    $runsRoot = [IO.Path]::Combine($rootFull, 'r')
+    if (Test-JetPlainDirectory $runsRoot) {
+        foreach ($directory in [IO.Directory]::GetDirectories($runsRoot)) {
+            try {
+                if ([IO.Path]::GetFileName($directory) -cnotmatch '^[a-f0-9]{12}$' -or -not (Test-JetPlainDirectory $directory)) {
+                    $result.skipped++
+                    continue
+                }
+                $ownerPath = [IO.Path]::Combine($directory, 'owner.json')
+                if (-not [IO.File]::Exists($ownerPath)) { continue }
+                # createdUtc 是固定寬度的 ISO 8601，字串順序就是時間順序。用規則運算式取值，
+                # 避免 ConvertFrom-Json 把它轉成依地區格式輸出的日期。
+                $created = [regex]::Match([IO.File]::ReadAllText($ownerPath), '"createdUtc"\s*:\s*"([^"]+)"')
+                if (-not $created.Success) {
+                    $result.skipped++
+                    continue
+                }
+                # 執行結束才寫 pipeline.json，scope 是它的第一個欄位。沒有 pipeline.json 的中斷執行只用來決定工具來源，不整理。
+                $scopeName = $null
+                $pipelinePath = [IO.Path]::Combine($directory, 'pipeline.json')
+                if ([IO.File]::Exists($pipelinePath)) {
+                    $scope = [regex]::Match([IO.File]::ReadAllText($pipelinePath), '"scope"\s*:\s*\{\s*"name"\s*:\s*"([^"]+)"')
+                    if (-not $scope.Success) {
+                        $result.skipped++
+                        continue
+                    }
+                    $scopeName = $scope.Groups[1].Value
+                }
+                $runs.Add([pscustomobject]@{ Directory = $directory; Created = $created.Groups[1].Value; Scope = $scopeName })
+            }
+            catch {
+                $result.skipped++
+            }
+        }
+    }
+    $runs.Sort([Comparison[object]] { param($left, $right) [string]::CompareOrdinal($right.Created, $left.Created) })
+
+    $kept = @{}
+    $toolKey = $null
+    foreach ($run in $runs) {
+        # 工具版本檔讀不出來時只跳過它，這次執行照樣計入保留名額。
+        if ($null -eq $toolKey) {
+            try {
+                $identityPath = [IO.Path]::Combine($run.Directory, 'tool-identity.json')
+                if ([IO.File]::Exists($identityPath)) {
+                    $identity = [IO.File]::ReadAllText($identityPath) | ConvertFrom-Json
+                    # 和 JetMutation.psm1 的 Initialize-JetMutationToolSource 用同一種名稱。
+                    $toolKey = ([string]$identity.pin.revision).Substring(0, 8) + '-' + ([string]$identity.patch.sha256).Substring(0, 8)
+                }
+            }
+            catch {
+                $result.skipped++
+            }
+        }
+        try {
+            if ($null -eq $run.Scope) { continue }
+            $count = if ($kept.ContainsKey($run.Scope)) { [int]$kept[$run.Scope] } else { 0 }
+            $kept[$run.Scope] = $count + 1
+            if ($count -lt $KeepPerScope) { continue }
+
+            $removable = [IO.Directory]::GetDirectories($run.Directory)
+            if ($removable.Length -eq 0) { continue }
+            # 底下有連結點時整個執行跳過，不跟著連結刪到別處。
+            Clear-JetOwnedReadOnlyAttributes -Root $run.Directory
+            foreach ($entry in $removable) { [IO.Directory]::Delete($entry, $true) }
+            $result.prunedRuns++
+        }
+        catch {
+            $result.skipped++
+        }
+    }
+
+    $toolsRoot = [IO.Path]::Combine($rootFull, 't')
+    if ($null -ne $toolKey -and (Test-JetPlainDirectory $toolsRoot)) {
+        foreach ($directory in [IO.Directory]::GetDirectories($toolsRoot)) {
+            try {
+                $name = [IO.Path]::GetFileName($directory)
+                if ($name -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{8}$' -or $name -ceq $toolKey) { continue }
+                if (-not (Test-JetPlainDirectory $directory)) {
+                    $result.skipped++
+                    continue
+                }
+                Clear-JetOwnedReadOnlyAttributes -Root $directory
+                [IO.Directory]::Delete($directory, $true)
+                $result.prunedToolSources++
+            }
+            catch {
+                $result.skipped++
+            }
+        }
+    }
+
+    try {
+        $cacheRoot = [IO.Path]::Combine($rootFull, 'c')
+        $httpCache = [IO.Path]::Combine($cacheRoot, 'http')
+        if ((Test-JetPlainDirectory $cacheRoot) -and (Test-JetPlainDirectory $httpCache)) {
+            Clear-JetOwnedReadOnlyAttributes -Root $httpCache
+            [IO.Directory]::Delete($httpCache, $true)
+            $result.removedHttpCache = $true
+        }
+    }
+    catch {
+        $result.skipped++
+    }
+    return $result
+}
+
 function Remove-JetReleaseCandidateWorkspace {
     param(
         [Parameter(Mandatory = $true)] [string] $RepositoryRoot,
@@ -2725,7 +2859,7 @@ function Invoke-JetGuiScenarioStep {
             }
             'case-to-workpaper' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
-                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.caseToWorkpaperVerified
+                    [int]$manifest.budget.screenshotCount -eq [int]$Scenario.screenshotBudget -and [bool]$manifest.assertions.caseToWorkpaperVerified
             }
             'null-details-recovery' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
@@ -2738,10 +2872,6 @@ function Invoke-JetGuiScenarioStep {
             'legacy-form-workflow' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq 2 -and [bool]$manifest.assertions.legacyFormWorkflowVerified
-            }
-            'legacy-form-catalog' {
-                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
-                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.legacyFormCatalogVerified
             }
             'feedback-workflow' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
@@ -4560,6 +4690,8 @@ function Invoke-JetHarness {
         }
 
         if ($null -ne $lock -and $lock.Acquired) {
+            # 拿著共享鎖時才整理改壞檢查的舊執行，這時不會有進行中的改壞檢查；整理失敗不影響這次的結果。
+            try { $null = Invoke-JetMutationRetention -MutationRoot (Join-Path $repositoryFull 'artifacts/harness/mutation') } catch { }
             $lockCleanup = Exit-JetExclusiveLock -Lock $lock -RunId $context.RunId
             if ($lockCleanup.status -cne 'passed') {
                 $status = 'infrastructure_error'

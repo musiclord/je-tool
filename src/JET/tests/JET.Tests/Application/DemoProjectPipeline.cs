@@ -13,6 +13,7 @@ namespace JET.Tests.Application;
 /// loadDemo → create → export xlsx → import.*.fromFile → calendar → mapping commit → validate）。
 /// Debug-only demo actions 由本測試專用 dispatcher 提供；正式 workflow actions 仍走 production composition。
 /// 測試以此為 deterministic 母體，並以 QueryScalarAsync 做獨立 SQL recount。
+/// SQLite 與 DuckDB 的同一組參數在一個測試程序裡只建一次，之後每個測試複製一份（<see cref="CaseTemplates"/>）。
 /// </summary>
 internal static class DemoProjectPipeline
 {
@@ -37,6 +38,9 @@ internal static class DemoProjectPipeline
         return JsonSerializer.SerializeToElement(data, WireJson);
     }
 
+    /// <param name="fromScratch">
+    /// true 時在這個 host 上照順序送出每個 action；要檢查建案過程本身（進度事件、稽核紀錄、日誌）的測試才需要。
+    /// </param>
     public static async Task<Context> SetupAsync(
         HandlerTestHost host,
         bool commitGl = true,
@@ -45,7 +49,34 @@ internal static class DemoProjectPipeline
         bool importAccountMapping = true,
         bool importAuthorizedPreparer = true,
         bool runValidation = true,
-        string databaseProvider = "sqlite")
+        string databaseProvider = "sqlite",
+        bool fromScratch = false)
+    {
+        if (fromScratch || !CaseTemplates.CanCopy(databaseProvider))
+        {
+            return await BuildAsync(
+                host, commitGl, commitTb, importCalendar, importAccountMapping, importAuthorizedPreparer, runValidation, databaseProvider);
+        }
+
+        var key = $"demo:{commitGl}:{commitTb}:{importCalendar}:{importAccountMapping}:{importAuthorizedPreparer}:{runValidation}:{databaseProvider}";
+        var copied = await CaseTemplates.CopyIntoAsync(host, key, async templateHost =>
+        {
+            var built = await BuildAsync(
+                templateHost, commitGl, commitTb, importCalendar, importAccountMapping, importAuthorizedPreparer, runValidation, databaseProvider);
+            return (built.ProjectId, built.Demo);
+        });
+        return new Context(copied.ProjectId, copied.State);
+    }
+
+    private static async Task<Context> BuildAsync(
+        HandlerTestHost host,
+        bool commitGl,
+        bool commitTb,
+        bool importCalendar,
+        bool importAccountMapping,
+        bool importAuthorizedPreparer,
+        bool runValidation,
+        string databaseProvider)
     {
         var demo = await DispatchDemoFixtureAsync("project.loadDemo");
         var project = demo.GetProperty("project");

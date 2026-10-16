@@ -186,11 +186,29 @@ function New-JetMutationSnapshot {
     $root = [IO.Path]::GetFullPath($RepositoryRoot)
     $files = [Collections.Generic.List[object]]::new()
     $paths = [Collections.Generic.List[string]]::new()
-    # 使用已確認的來源清單，不遞迴掃入未列出的本機設定、案件或測試輸出。
-    $inventoryPath = Assert-JetMutationPath $root (Join-Path $root 'docs/first-root-commit-candidate.txt')
-    if ((Get-Item -LiteralPath $inventoryPath).Length -gt 1MB) { throw 'Mutation source inventory exceeds its bounded budget.' }
-    $entries = @([IO.File]::ReadAllLines($inventoryPath) | Where-Object { $_ -ceq 'global.json' -or $_.StartsWith('src/JET/', [StringComparison]::Ordinal) })
-    if ($entries -cnotcontains 'global.json' -or ($entries | Sort-Object -Unique).Count -ne $entries.Count) { throw 'Mutation source inventory is missing global.json or contains duplicates.' }
+    # 來源清單取自 Git：已追蹤的檔案加上未追蹤、未被忽略的新檔，所以包含工作樹的修改；已追蹤但在工作樹刪掉的檔案不放進來。
+    # 不遞迴掃目錄，本機設定、案件與測試輸出由 .gitignore 與下面的禁止路徑擋住。原本讀手寫的候選清單，
+    # 那份清單在 2026-09-17 計畫刪掉、ReleaseCandidate 改用 Git 時這裡沒有跟著改，Mutation 因此無法執行，2026-10-16 改正。
+    # src/JET 的專案用 <Compile Include="..\..\..\..\tools\..."> 連結的原始碼也要放進來，否則副本建置不起來
+    # （2026-10-07 起 JET.Tests 連結 tools/harness 底下的檔案）。只收 tools/ 底下的連結，其餘範圍不變。
+    $linked = [Collections.Generic.List[string]]::new()
+    foreach ($project in [IO.Directory]::EnumerateFiles((Join-Path $root 'src/JET'), '*.csproj', [IO.SearchOption]::AllDirectories)) {
+        if ($project -match '[\\/](bin|obj)[\\/]') { continue }
+        foreach ($match in [regex]::Matches([IO.File]::ReadAllText($project), '<Compile\s+Include="([^"]+)"')) {
+            $relativeLink = [IO.Path]::GetRelativePath($root, [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($project)) $match.Groups[1].Value))).Replace('\', '/')
+            if ($relativeLink.StartsWith('tools/', [StringComparison]::Ordinal)) { $linked.Add($relativeLink) }
+        }
+    }
+    $git = Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1 -ExpandProperty Source
+    $gitArguments = @('-c', ('safe.directory=' + $root.Replace('\', '/')), '-c', 'core.excludesFile=', '-c', 'core.quotepath=false', '-C', $root,
+        'ls-files', '--cached', '--others', '--exclude-standard', '--', 'global.json', 'src/JET') + $linked.ToArray()
+    $listed = @(& $git @gitArguments 2>$null)
+    if ($LASTEXITCODE -ne 0) { throw 'Mutation source inventory could not be read from Git.' }
+    $entries = @($listed | ForEach-Object { [string]$_ } | Sort-Object -Unique -CaseSensitive | Where-Object {
+        ($_ -ceq 'global.json' -or $_.StartsWith('src/JET/', [StringComparison]::Ordinal) -or $_.StartsWith('tools/', [StringComparison]::Ordinal)) -and
+            [IO.File]::Exists((Join-Path $root $_))
+    })
+    if ($entries -cnotcontains 'global.json') { throw 'Mutation source inventory is missing global.json.' }
     foreach ($relative in $entries) {
         $CancellationToken.ThrowIfCancellationRequested()
         if ($relative -match '(^|/)(bin|obj|artifacts|TestResults|StrykerOutput|\.codex|\.git|data|projects|\.\.?)(/|$)' -or $relative.Contains('\') -or $relative.Contains(':')) {

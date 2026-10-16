@@ -272,6 +272,12 @@
     bump();
   }
 
+  // 第五步有沒有會被上游修改清掉的設定：已存情境，或已加入條件的草稿。上游畫面的提醒、清除後的訊息與
+  // 科目分類對話框都用這一個判斷（使用者 2026-10-15 裁定只有草稿時也要提醒）。
+  function hasFilterWork(filter) {
+    return !!filter && ((filter.savedScenarios || []).length > 0 || ((filter.draft && filter.draft.groups) || []).length > 0);
+  }
+
   // 後端明示本次修改影響哪些畫面快取；此處不保存另一份審計依賴表或推算報告過期狀態。
   function invalidateDerivedResults(options) {
     if (options && options.accountMapping) {
@@ -281,7 +287,11 @@
     var clearValidation = !!(options && options.validation);
     var clearPrescreen = !!(options && options.prescreen);
     var clearFilter = !!(options && options.filter);
-    if (clearValidation) { state.lastRuns.validate = null; }
+    if (clearValidation) {
+      state.lastRuns.validate = null;
+      // 科目配對檔的狀態描述的是上一次驗證準備的檔案，驗證清掉後一起收起（使用者 2026-10-15 裁定）。
+      state.validationOutput = { reports: null, template: null };
+    }
     if (clearPrescreen) { state.lastRuns.prescreen = null; }
     // 只有命中失效時清掉預覽；已存情境是否一起清除，由後端的 filterScenarios 決定。
     // 新 WorkingPaper 還記錄 filterDataRevision，因此部分情境重算不必偽造全案已更新。
@@ -292,7 +302,7 @@
     }
     // 使用者 2026-10-07 裁定：上游修改會清除後面步驟的篩選情境，第五步回到預設狀態。
     if (options && options.filterScenarios) {
-      var hadScenarios = state.filter.savedScenarios.length > 0 || state.filter.draft.groups.length > 0;
+      var hadScenarios = hasFilterWork(state.filter);
       state.filter.savedScenarios = [];
       state.filter.draft = { name: '', rationale: '', groups: [] };
       state.filter.preview = null;
@@ -308,6 +318,7 @@
 
   var Store = {
     STEPS: STEPS,
+    hasFilterWork: hasFilterWork,
 
     getState: function () {
       return state;

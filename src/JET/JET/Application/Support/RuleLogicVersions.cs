@@ -78,6 +78,17 @@ internal static class RuleLogicVersions
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
+    /// <summary>
+    /// 儲存一個情境時用：條件先只保留各類型用得到的屬性（<see cref="FilterRuleWireFields"/>），再蓋版本。
+    /// 呼叫前必須已通過解析與驗證，已停用或損毀的寫法才不會被默默改成合格。照原樣寫回的其他情境、
+    /// 移除、重新檢查與開案升級仍用 <see cref="StampFilterDefinition"/>，舊情境在下次儲存時才整理（使用者 2026-10-15 裁定）。
+    /// </summary>
+    public static string StampSavedFilterDefinition(JsonElement scenario)
+    {
+        using var kept = JsonDocument.Parse(FilterRuleWireFields.KeepUsedRuleFields(scenario));
+        return StampFilterDefinition(kept.RootElement);
+    }
+
     public static bool IsCurrent(SavedFilterScenario scenario)
     {
         try

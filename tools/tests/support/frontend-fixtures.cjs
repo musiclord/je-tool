@@ -27,6 +27,8 @@
 //
 // 載入夾具的測試程序都受 resource-guard.cjs 的記憶體與時間上限保護（2026-10-13）。
 require('./resource-guard.cjs');
+// 假後端都經過 action-contract.cjs：假回應與送出的資料要符合正式後端記下的形狀（2026-10-15 前後端契合）。
+const { contractJetApi, checkRequest, checkResponse, unwrap } = require('./action-contract.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -261,7 +263,7 @@ function batch9TreeDom(options = {}) {
         else if (['beforebegin', 'afterend'].includes(position)) { const parent = this.parentElement; assert.ok(parent); const index = parent.children.indexOf(this) + (position === 'afterend' ? 1 : 0);
           parent.children.splice(index, 0, ...fragment.children); fragment.children.forEach(child => { child.parentElement = parent; }); }
         else throw new Error('Unsupported synthetic DOM insertion: ' + position); },
-      focus() { if (document) document.activeElement = this; }, scrollIntoView() {},
+      focus(focusOptions) { this.lastFocusOptions = focusOptions || null; if (document) document.activeElement = this; }, scrollIntoView() {},
       getClientRects() { return this.hidden ? [] : [{ width: 400, height: 30 }]; },
       remove() { if (!this.parentElement) return; const parent = this.parentElement; parent.children.splice(parent.children.indexOf(this), 1); this.parentElement = null; this.isConnected = false; },
       set outerHTML(html) { const parent = this.parentElement; if (!parent) return; const index = parent.children.indexOf(this), fragment = element(); fragment.innerHTML = html;
@@ -331,6 +333,8 @@ function batch9TreeDom(options = {}) {
     // 從目前焦點（沒有就從畫面根節點）送出事件，例如鍵盤事件；extra.target 可指定目標。
     dispatch(type, extra = {}) { return dispatchEvent(extra.target || document.activeElement || content, type, extra); },
     querySelector: selector => content.matches(selector) ? content : content.querySelector(selector), querySelectorAll: selector => content.querySelectorAll(selector) };
+  // 2026-10-15：app.js 的 bindWindowFocus 在 <html> 上加減 window-inactive，所以補一個不在畫面樹裡的根元素。
+  document.documentElement = element('html', {});
   return { element, content, document };
 }
 
@@ -355,9 +359,7 @@ function usageJourneyFixture(step = 'export', fixtureOptions = {}) {
   const window = { setTimeout: setTimer, clearTimeout: clearTimer,
     setInterval(fn, ms) { intervals.push({ id: intervals.length + 1, fn, ms, cleared: false }); return intervals.length; },
     clearInterval(id) { const entry = intervals.find(item => item.id === id); if (entry) entry.cleared = true; },
-    JetFocus: { defer() {} }, JetApi: new Proxy({ on() {}, off() {} }, { get(target, action) {
-      return target[action] || (payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject })));
-    } }) };
+    JetFocus: { defer() {} }, JetApi: recordingJetApi(requests) };
   if (clock) window.performance = clock.performance;
   const context = vm.createContext({ window, document: dom.document, setTimeout: setTimer, clearTimeout: clearTimer });
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-vouchers.js',
@@ -398,8 +400,8 @@ function filterOperationFixture({ saved = [] } = {}) {
   // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。
   // 三個新方法和舊的 filterCommit 都記進 commits 並帶方法名稱。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
   // 第 11 批：wf 在第 0 批複製之後改成這個寫法，這裡照 wf 同步，wf 改用本模組。
-  window.JetApi = Object.fromEntries(['filterCommit', 'filterScenarioSave', 'filterScenarioRemove', 'filterScenarioRecheck'].map(method =>
-    [method, payload => new Promise((resolve, reject) => commits.push({ method, payload, resolve, reject }))]));
+  window.JetApi = contractJetApi(Object.fromEntries(['filterCommit', 'filterScenarioSave', 'filterScenarioRemove', 'filterScenarioRecheck'].map(method =>
+    [method, payload => new Promise((resolve, reject) => commits.push({ method, payload, resolve, reject }))])));
   store.setProject({ projectId: 'filter-operation-synthetic' });
   store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
   store.setSavedScenarios(saved);
@@ -564,7 +566,7 @@ function batch8Fixture() {
   const requests = [], elements = new Map();
   const document = { readyState: 'loading', addEventListener() {}, querySelector: selector => elements.get(selector) || null,
     createElement() { return { textContent: '', get innerHTML() { return String(this.textContent).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } }; } };
-  const window = { setTimeout, clearTimeout, addEventListener() {}, JetFocus: { defer() {} }, JetApi: {} };
+  const window = { setTimeout, clearTimeout, addEventListener() {}, JetFocus: { defer() {} }, JetApi: contractJetApi({}) };
   for (const action of ['validateRun', 'exportValidationArtifacts', 'exportAccountMappingTemplate', 'exportPrescreenReport', 'hostOpenFolder', 'queryDataPreview', 'querySourceQualityPage', 'prescreenRun']) {
     window.JetApi[action] = payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject }));
   }
@@ -612,9 +614,10 @@ function batch8ValidationData(runId = 'v8') {
 }
 
 // ---- copied from tools/tests/frontend-workflow.test.cjs:2808 (batch8Artifacts) ----
+// 2026-10-15 前後端契合：正式後端的檔案大小欄位叫 bytes，畫面也只讀 bytes；原本的 sizeBytes 沒有人讀，拿掉後畫面不變。
 function batch8Artifacts(runId = 'v8', stamp = '') {
-  return ['validationReport', 'infReport'].map((kind, i) => ({ artifactId: 'b8-' + kind + stamp, kind, fileName: kind + '.xlsx', fileState: 'present', stale: false,
-    generatedUtc: '2026-01-01T00:00:00Z', sizeBytes: 2000 + i, sourceRef: { validationRunId: runId } }));
+  return ['validationReport', 'infReport'].map(kind => ({ artifactId: 'b8-' + kind + stamp, kind, fileName: kind + '.xlsx', fileState: 'present', stale: false,
+    generatedUtc: '2026-01-01T00:00:00Z', sourceRef: { validationRunId: runId } }));
 }
 
 // ---- copied from tools/tests/frontend-workflow.test.cjs:4960 (remapPaper) ----
@@ -635,7 +638,7 @@ function remapPrescreen(runId) {
 // rendering, event binding, cache lifetime and state transitions all execute production code.
 function mappingFixture() {
   const pending = [];
-  const window = { setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {}, JetApi: {
+  const window = { setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {}, JetApi: contractJetApi({
     queryDataPreview() { return Promise.resolve({ columns: [], rows: [] }); },
     mappingValueProfile(payload) {
       return new Promise((resolve, reject) => pending.push({ payload, reject, resolve(data) {
@@ -647,7 +650,7 @@ function mappingFixture() {
         resolve(data);
       } }));
     }
-  } };
+  }) };
   const document = { querySelector: () => null, createElement() {
     return { textContent: '', get innerHTML() {
       return String(this.textContent).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -801,10 +804,9 @@ function indexMarkup(start, end) {
   return sliceBetween(readWwwroot('index.html'), start, end).replace(/<!--[\s\S]*?-->/g, '');
 }
 
+// isReady 永遠回 true：接上核對以前，任何名稱都會變成記錄請求的函式，isReady() 因此碰巧是真值；這裡明確寫出來。
 function recordingJetApi(requests, extra = {}) {
-  return new Proxy({ on() {}, off() {}, ...extra }, { get(target, action) {
-    return target[action] || (payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject })));
-  } });
+  return contractJetApi({ on() {}, off() {}, isReady: () => true, ...extra }, requests);
 }
 
 // 右側資料預覽（情境 21，第 2 批）：切出 index.html 的 aside.data-preview，載入 state、ui-core、data-preview，
@@ -902,6 +904,7 @@ const noDunderKeys = payload => !JSON.stringify(payload).includes('"__');
 // remapAppFixture 把 app.js 切成幾段載入、不跑 init()，看不到這些，所以第 10 批改用整個畫面。
 // 送出的請求記在 f.posted（{ requestId, action, payload }），由測試用 f.reply 或 f.fail 回應，
 // 回應走 jet-api.js 正式的 receive。autoReply 列出的 action 由夾具自動回成功（預設只有寫入訊息紀錄的 log.append）。
+// 送出的資料、f.reply 與 autoReply 的回應都經過 action-contract.cjs 核對，要和正式後端的資料形狀一致。
 // 計時器：setTimeout 收進 f.timers；setInterval 記在 f.intervals；performance.now 是 f.clock，advance(ms) 才會前進。
 function fullAppFixture({ autoReply = { 'log.append': {} } } = {}) {
   const dom = batch9TreeDom({ bubbles: true, serialization: 'browser', dialogFocus: true, rootAttributes: { 'data-test-body': '' } });
@@ -920,9 +923,11 @@ function fullAppFixture({ autoReply = { 'log.append': {} } } = {}) {
     crypto: { randomUUID: () => 'request-' + (++nextRequest) },
     chrome: { webview: {
       postMessage(request) {
+        checkRequest(request.action, request.payload);
         posted.push(request);
         if (Object.hasOwn(autoReply, request.action)) {
-          Promise.resolve().then(() => deliver({ requestId: request.requestId, ok: true, data: autoReply[request.action] }));
+          checkResponse(request.action, autoReply[request.action]);
+          Promise.resolve().then(() => deliver({ requestId: request.requestId, ok: true, data: unwrap(autoReply[request.action]) }));
         }
       },
       addEventListener(type, fn) { if (type === 'message') hostListeners.push(fn); }
@@ -962,7 +967,11 @@ function fullAppFixture({ autoReply = { 'log.append': {} } } = {}) {
   function sent(action) { return posted.filter(request => request.action === action); }
   function request(action) { const found = sent(action); assert.ok(found.length > 0, action + ' was sent'); return found.at(-1); }
   function target(requestOrAction) { return typeof requestOrAction === 'string' ? request(requestOrAction) : requestOrAction; }
-  function reply(requestOrAction, data = {}) { deliver({ requestId: target(requestOrAction).requestId, ok: true, data }); }
+  function reply(requestOrAction, data = {}) {
+    const request = target(requestOrAction);
+    checkResponse(request.action, data);
+    deliver({ requestId: request.requestId, ok: true, data: unwrap(data) });
+  }
   function fail(requestOrAction, error = {}, correlationId) { deliver({ requestId: target(requestOrAction).requestId, ok: false, error, correlationId }); }
   function emit(event, data) { deliver({ event, data }); }
   function click(selector) { const node = $(selector); assert.ok(node !== null, selector + ' rendered'); assert.equal(node.disabled, false, selector + ' enabled'); node.dispatch('click'); }
@@ -984,7 +993,8 @@ async function bootFullApp(projects = [], options) {
   const f = fullAppFixture(options);
   f.reply('system.ping', { devToolsEnabled: false }); await flush();
   f.reply('system.databaseInfo', { sqlServer: { configured: false, reachable: false, summary: '' } });
-  f.reply('system.whoAmI', null);
+  // 正式後端一定回身分物件；本機案件沒有線上使用者目錄時編號是 null（2026-10-15 前後端契合前這裡回 null）。
+  f.reply('system.whoAmI', { principal: 'synthetic.auditor', shortName: '合成審計員', userNumber: null, numberSource: 'unavailable' });
   f.reply('project.listLocal', { projects }); await flush();
   return f;
 }

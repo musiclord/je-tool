@@ -1314,7 +1314,7 @@
     return (
       '<section class="account-classification' + (taxonomyAdvanced ? ' is-advanced' : '') + '" data-bind="account-taxonomy-card" data-motion-key="account-taxonomy">' +
         '<div class="rule-card__head"><h4 class="rule-card__title">分類設定</h4>' +
-        '<button class="btn btn--ghost btn--tiny" data-action="toggle-taxonomy-advanced" data-focus-key="taxonomy-advanced" aria-expanded="' + taxonomyAdvanced + '">進階設定</button></div>' +
+        '<button class="btn btn--ghost btn--tiny account-classification__advanced" data-action="toggle-taxonomy-advanced" data-focus-key="taxonomy-advanced" aria-expanded="' + taxonomyAdvanced + '">進階設定</button></div>' +
         '<dl class="taxonomy-guide" data-motion-key="taxonomy-guide"' + (taxonomyAdvanced ? '' : ' hidden') + '>' +
           '<div><dt>分類名稱</dt><dd id="taxonomy-name-help">用於配對檔與篩選條件，可依案件命名。</dd></div>' +
           '<div><dt>分類用途</dt><dd id="taxonomy-role-help">自訂分類需要參與收入與現金等借貸組合檢查時才設定。Cash 已對應現金，無須另設。</dd></div>' +
@@ -1325,7 +1325,7 @@
         '<p class="form-notice" data-bind="taxonomy-problems" data-collapsible' + (problems.length ? '' : ' hidden') + '>' +
           (problems.length ? '尚需補齊：' + problems.map(Ui.esc).join('、') : '') + '</p>' +
         '<div class="import-card__actions">' +
-          '<button type="button" class="btn btn--ghost" data-action="add-taxonomy-category" data-focus-key="taxonomy-add">新增分類</button>' +
+          '<button type="button" class="btn btn--ghost btn--add" data-action="add-taxonomy-category" data-focus-key="taxonomy-add">新增分類</button>' +
           '<button type="button" class="btn" data-action="save-taxonomy"' +
             (dirty && problems.length === 0 ? '' : ' disabled') + '>儲存分類設定</button>' +
           '<button type="button" class="btn btn--ghost" data-action="reset-taxonomy" data-collapsible-inline' +
@@ -1715,6 +1715,13 @@
     if (!btn) { return; }
 
     btn.addEventListener('click', function () {
+      // 匯入科目配對檔會取代第四步的科目分類；還有沒儲存的分類時，選檔前先問，沒有時照舊直接選檔。
+      if (!Ui.pendingAccountCategoryCount()) { importAccountMappingFile(); return; }
+      Ui.confirmPendingAccountCategories('匯入科目配對檔後，檔案內容會取代第四步的科目分類，這些改動不會保留。', '繼續匯入', { saveable: false })
+        .then(function (proceed) { if (proceed) { importAccountMappingFile(); } });
+    });
+
+    function importAccountMappingFile() {
       Ui.run('匯入科目配對檔', function () {
         return global.JetApi.hostSelectFile({
           title: '選擇科目配對檔（科目編號、科目名稱、科目分類）',
@@ -1750,7 +1757,7 @@
           return data ? '科目配對匯入完成，共 ' + data.rowCount + ' 個科目。' : '';
         }
       });
-    });
+    }
   }
 
   // p = prescreen.run 結果（驅動 PRESCREEN_ITEMS）；v = validate.run 結果（驅動移入的空值兩子項）。

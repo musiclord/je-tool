@@ -136,8 +136,8 @@
       {
         "name": "mapping-required-sync",
         "timeoutSeconds": 180,
-        "actionBudget": 76,
-        "expectedActionCount": 74,
+        "actionBudget": 28,
+        "expectedActionCount": 26,
         "screenshotBudget": 0
       },
       {
@@ -164,22 +164,22 @@
       {
         "name": "filter-auditor-journey",
         "timeoutSeconds": 240,
-        "actionBudget": 91,
-        "expectedActionCount": 91,
+        "actionBudget": 87,
+        "expectedActionCount": 87,
         "screenshotBudget": 2
       },
       {
         "name": "filter-kct-editing",
         "timeoutSeconds": 240,
-        "actionBudget": 94,
-        "expectedActionCount": 94,
+        "actionBudget": 76,
+        "expectedActionCount": 76,
         "screenshotBudget": 1
       },
       {
         "name": "feedback-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 88,
-        "expectedActionCount": 88,
+        "actionBudget": 87,
+        "expectedActionCount": 87,
         "screenshotBudget": 2
       },
       {
@@ -192,65 +192,58 @@
       {
         "name": "kct-remap-recovery",
         "timeoutSeconds": 240,
-        "actionBudget": 52,
-        "expectedActionCount": 52,
+        "actionBudget": 49,
+        "expectedActionCount": 49,
         "screenshotBudget": 1
       },
       {
         "name": "upstream-change-after-export",
         "timeoutSeconds": 240,
-        "actionBudget": 45,
-        "expectedActionCount": 45,
+        "actionBudget": 41,
+        "expectedActionCount": 41,
         "screenshotBudget": 1
       },
       {
         "name": "case-to-workpaper",
         "timeoutSeconds": 240,
-        "actionBudget": 51,
-        "expectedActionCount": 51,
-        "screenshotBudget": 1
+        "actionBudget": 80,
+        "expectedActionCount": 80,
+        "screenshotBudget": 2
       },
       {
         "name": "authorized-list-recovery",
         "timeoutSeconds": 240,
-        "actionBudget": 38,
-        "expectedActionCount": 38,
+        "actionBudget": 37,
+        "expectedActionCount": 37,
         "screenshotBudget": 1
       },
       {
         "name": "extended-conditions",
         "timeoutSeconds": 240,
-        "actionBudget": 95,
-        "expectedActionCount": 95,
+        "actionBudget": 85,
+        "expectedActionCount": 85,
         "screenshotBudget": 2
       },
       {
         "name": "side-month-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 71,
-        "expectedActionCount": 71,
+        "actionBudget": 74,
+        "expectedActionCount": 74,
         "screenshotBudget": 2
       },
       {
         "name": "nested-voucher-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 82,
-        "expectedActionCount": 82,
+        "actionBudget": 97,
+        "expectedActionCount": 97,
         "screenshotBudget": 2
       },
       {
         "name": "legacy-form-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 56,
-        "expectedActionCount": 56,
+        "actionBudget": 47,
+        "expectedActionCount": 47,
         "screenshotBudget": 2
-      },
-      {
-        "name": "legacy-form-catalog",
-        "timeoutSeconds": 240,
-        "actionBudget": 69,
-        "expectedActionCount": 69,
-        "screenshotBudget": 1
       }
     ]
   },

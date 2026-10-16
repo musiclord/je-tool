@@ -512,7 +512,11 @@ public sealed class SqlServerGlRuleSqlEquivalenceTests
     }
 
     /// <summary>私有引擎子類（不被 xUnit 探索）：對 SQL Server 專案 schema 提供基底斷言所需的 Repository/ProjectId。</summary>
+    // xunit.v3 4.0 的分析器把這個不被探索的私有子類當成測試類別、要求公開建構子（xUnit1056），這裡不適用；
+    // 使用者 2026-10-15 在 Visual Studio 升級套件後選擇修這裡後繼續。
+#pragma warning disable xUnit1056
     private sealed class SqlServerEngine : GlRuleSqlEquivalenceTests
+#pragma warning restore xUnit1056
     {
         private SqlServerEngine(TempSqlServerProject sql)
         {

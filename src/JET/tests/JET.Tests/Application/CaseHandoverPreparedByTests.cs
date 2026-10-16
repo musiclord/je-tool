@@ -18,7 +18,9 @@ public sealed class CaseHandoverPreparedByTests
         string id;
         using (var creator = new HandlerTestHost(principalName: "creator.a", projectsRootPath: root.Path))
         {
-            var prepared = await Batch9ArtifactStateTests.PrepareAsync(creator, provider);
+            // 案件的建立者要是 creator.a，所以在這個 host 上從頭建案，不複製共用案件。
+            // 改用複製時建立者是共用案件的 host，第一次失敗的收據是 20261015-095055763-6299ea60373b40c2b96792da2286182d。
+            var prepared = await Batch9ArtifactStateTests.PrepareAsync(creator, provider, fromScratch: true);
             id = prepared.Id;
             await creator.DispatchAsync("project.releaseLock");
         }

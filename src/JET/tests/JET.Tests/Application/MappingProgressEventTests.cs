@@ -9,7 +9,9 @@ public sealed class MappingProgressEventTests
     public async Task DemoProjection_PublishesFinalProgressForGlAndTb_WithBatchTotals()
     {
         using var host = new HandlerTestHost();
-        var context = await DemoProjectPipeline.SetupAsync(host);
+        // 要看建案過程本身發出的配對進度事件，所以從頭建案。改用複製時沒有任何事件，
+        // 第一次失敗的收據是 20261015-095055763-6299ea60373b40c2b96792da2286182d。
+        var context = await DemoProjectPipeline.SetupAsync(host, fromScratch: true);
 
         var events = host.PublishedEvents
             .Where(item => item.EventName == "mapping.progress")

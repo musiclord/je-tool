@@ -70,10 +70,10 @@
     return document.activeElement === element;
   }
 
-  function deferFocus(resolveElement) {
+  function deferFocus(resolveElement, options) {
     global.setTimeout(function () {
       var element = typeof resolveElement === 'function' ? resolveElement() : resolveElement;
-      focusElement(element);
+      focusElement(element, options);
     }, 0);
   }
 
@@ -827,6 +827,31 @@
     Ui.gotoStep(index);
   }
 
+  // 換步驟在按下時就開始，和 macOS 側邊欄一樣：原本要等放開滑鼠才換，按住的那一下畫面不動
+  // （使用者 2026-10-15：「點下去的時候我會預期元素開始移動，但他會頓一下才開始移動」）。
+  // 只認滑鼠主要按鍵、沒有按著修飾鍵的按下；按下後的那一次放開（click）不再換一次。觸控與觸控筆按下時可能是要捲動，
+  // 和鍵盤的 Enter、空白鍵一樣照舊走 click。
+  // 按下就換會讓兩件原本由放開前的失焦處理的事落空，所以先做：正在編輯的欄位先失焦，只在 change 存值的欄位
+  // （例如第五步「期末前 X 天」）才不會隨中欄重建而遺失；擋下按下的預設動作，瀏覽器才不會在換步驟開出的
+  // 確認對話框之後，再把焦點移回這顆按鈕（2026-10-16 提交前複審找到）。
+  function bindStepPress(element, index) {
+    var pressed = false;
+    element.addEventListener('pointerdown', function (event) {
+      if (event.pointerType !== 'mouse' || event.button !== 0 || event.isPrimary === false
+        || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) { return; }
+      var active = document.activeElement;
+      if (active && active !== element && active !== document.body && typeof active.blur === 'function') { active.blur(); }
+      event.preventDefault();
+      pressed = true;
+      navigateToStep(index);
+    });
+    element.addEventListener('click', function (event) {
+      var released = pressed && event.detail > 0;
+      pressed = false;
+      if (!released) { navigateToStep(index); }
+    });
+  }
+
   // 左欄目錄：六步清單（狀態符號＋名稱）＋進度列。狀態全由 ui-core 的進入條件推導。
   function renderStepNav(state, steps) {
     var nav = Ui.$('step-nav');
@@ -874,8 +899,7 @@
 
     nav.querySelectorAll('.toc-item[data-step-index]').forEach(function (btn) {
       if (btn.disabled) { return; }
-      var index = parseInt(btn.getAttribute('data-step-index'), 10);
-      btn.addEventListener('click', function () { navigateToStep(index); });
+      bindStepPress(btn, parseInt(btn.getAttribute('data-step-index'), 10));
     });
   }
 
@@ -1025,10 +1049,9 @@
   function bindStepFlow(container) {
     container.querySelectorAll('[data-step-nav]').forEach(function (el) {
       var index = parseInt(el.getAttribute('data-step-index'), 10);
-      var activate = function () { navigateToStep(index); };
-      el.addEventListener('click', activate);
+      bindStepPress(el, index);
       el.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigateToStep(index); }
       });
     });
 
@@ -1049,7 +1072,7 @@
     });
   }
 
-  function focusCurrentStepHeading(container, state, announce) {
+  function focusCurrentStepHeading(container, state, announce, preventScroll) {
     var stepIndex = state.currentStepIndex;
     // 從點擊導航時，瀏覽器會在 click handler 結束後完成原觸發鈕的預設焦點處理。
     // 延後一個 task 並屆時重找當前標題，避免舊點擊或步驟內背景預覽重繪覆寫焦點。
@@ -1063,7 +1086,66 @@
         if (announcer) { announcer.textContent = '目前步驟：' + Store.STEPS[stepIndex].label; }
       }
       return heading;
-    });
+    }, preventScroll ? { preventScroll: true } : null);
+  }
+
+  // 換步驟時中欄捲回頂部的動態：和原本那一步收起來用同一條彈簧（SPRINGS.close），新步驟的標題一路朝同一個方向移到定位。
+  // 原本第一格就一下跳到頂部、移焦點時又瞬間捲到標題，接著才開始收放，看起來像頓了一下才動（使用者 2026-10-15）。
+  // 捲動期間關掉瀏覽器的捲動錨定，上方收起的內容才不會讓瀏覽器另外改捲軸；使用者自己捲了就放手。不能播動態時直接回到頂部。
+  var contentGlide = null;
+
+  function stopContentGlide() {
+    if (!contentGlide) { return; }
+    var glide = contentGlide;
+    contentGlide = null;
+    glide.stop();
+  }
+
+  function glideContentHome(container, from) {
+    stopContentGlide();
+    if (!motionAllowed() || typeof global.requestAnimationFrame !== 'function') {
+      container.scrollTop = 0;
+      return;
+    }
+    container.scrollTop = from;
+    var origin = container.scrollTop;
+    if (origin < 1) {
+      container.scrollTop = 0;
+      return;
+    }
+    var start = motionNow();
+    var settle = springSettle(SPRINGS.close, -1, 0);
+    var last = origin;
+    var frame = 0;
+    var glide = {
+      stop: function () {
+        if (frame && typeof global.cancelAnimationFrame === 'function') { global.cancelAnimationFrame(frame); }
+        frame = 0;
+        container.style.overflowAnchor = '';
+      }
+    };
+    function tick() {
+      frame = 0;
+      if (contentGlide !== glide) { return; }
+      // 內容變短時瀏覽器會把捲軸夾到新的底部，方向和捲回頂部相同，不算使用者自己捲。
+      var clamped = container.scrollTop < last && container.scrollTop >= container.scrollHeight - container.clientHeight - 1;
+      if (!container.isConnected || (Math.abs(container.scrollTop - last) > 2 && !clamped)) {
+        stopContentGlide();
+        return;
+      }
+      var elapsed = motionNow() - start;
+      var progress = elapsed >= settle ? 1 : Math.min(springProgress(SPRINGS.close, elapsed), 1);
+      container.scrollTop = Math.max(origin * (1 - progress), 0);
+      last = container.scrollTop;
+      if (progress >= 1) {
+        stopContentGlide();
+        return;
+      }
+      frame = global.requestAnimationFrame(tick);
+    }
+    container.style.overflowAnchor = 'none';
+    contentGlide = glide;
+    frame = global.requestAnimationFrame(tick);
   }
 
   // 「凡寫入即 bump 重繪」慣例（state.js）的框架層配套：重繪後把焦點放回同一個控制項。
@@ -1245,7 +1327,11 @@
 
       if (stepChanged) {
         lastStepScrollKey = stepScrollKey;
-        container.scrollTop = 0;
+        // 在流程裡換步驟時，捲回頂部交給下面的 glideContentHome，第一格先停在原位。
+        if (!switching) {
+          stopContentGlide();
+          container.scrollTop = 0;
+        }
       }
 
       // 展開的當前步驟：把 body 元素交給既有已註冊渲染器（等同過去傳 content 容器）。
@@ -1279,6 +1365,8 @@
           global.JetMotion.enter(newBody);
         }
       }
+      // 原本那一步的內容放回去之後，中欄才回到原本的捲動位置，從那裡平順捲回頂部。
+      if (switching) { glideContentHome(container, contentScrollTop); }
 
       // 同一步驟內的資料更新重繪：還原標記容器的捲動與輸入焦點；跨步切換不還原
       //（新步驟由 focusCurrentStepHeading 設定起始焦點，捲動另由上方捲頂邏輯處理）。
@@ -1298,7 +1386,8 @@
 
       bindStepFlow(container);
       if (stepChanged || preserveStepHeadingFocus) {
-        focusCurrentStepHeading(container, state, stepChanged);
+        // 換步驟時標題由收放與捲動帶到定位，移焦點不另外瞬間捲過去；捲回頂部途中同一步重繪也一樣。
+        focusCurrentStepHeading(container, state, stepChanged, switching || contentGlide !== null);
       }
       revealOperationFailure(container, failure);
     } finally {
@@ -2574,23 +2663,27 @@
     }
 
     // 每一緣各是一條彈簧，帶著自己的速度：滑到一半改去別的地方時，從此刻的位置與速度接著走（WWDC23「Animate with springs」）。
-    // 選取像一滴水移過去：朝目的地的那一緣用快一點的彈簧（SPRINGS.lead）先到，另一緣跟上，中途稍微拉長、到了收回原本的大小。
+    // 選取像一滴水移過去：朝目的地的那一緣用快一點的彈簧先到，另一緣跟上，中途稍微拉長、到了收回原本的大小。
     // 流程欄（rigid）四緣用同一條彈簧，大小相同時整片平移，不拉長也不縮放。
+    // 分段切換的選取在滑動時浮起成玻璃，用玻璃的彈簧（bounce 0.15）；流程欄與底線頁籤屬於內容層，不回彈。
     function glideMotion(from, to, carry, spec, now) {
       var forwardX = to.x + to.w / 2 >= from.x + from.w / 2;
       var forwardY = to.y + to.h / 2 >= from.y + from.h / 2;
       var starts = [from.x, from.x + from.w, from.y, from.y + from.h];
       var ends = [to.x, to.x + to.w, to.y, to.y + to.h];
       var leads = spec.rigid ? [false, false, false, false] : [!forwardX, forwardX, !forwardY, forwardY];
+      var glass = !spec.rigid && !spec.line;
+      var main = glass ? SPRINGS.glassGlide : SPRINGS.glide;
+      var quick = glass ? SPRINGS.glassLead : SPRINGS.lead;
       var edges = starts.map(function (value, index) {
         var velocity = carry.velocity ? carry.velocity[index] : 0;
-        return springSegment(leads[index] ? SPRINGS.lead : SPRINGS.glide, value, ends[index], velocity, now);
+        return springSegment(leads[index] ? quick : main, value, ends[index], velocity, now);
       });
       return {
         from: from, to: to, start: now, edges: edges, lifted: !!carry.lifted, rigid: !!spec.rigid,
         duration: Math.max.apply(null, edges.map(function (edge) { return edge.duration; }).concat([1])),
         // 看起來到了的時間：選取在這時落回原本的一片、字也換好。
-        arrive: SPRINGS.glide.duration * 1000
+        arrive: main.duration * 1000
       };
     }
 
@@ -2876,13 +2969,23 @@
      使用者 2026-10-13 認為淡入淡出太慢，所以長出來與收起來再縮短一點，字的淡入淡出也改成更早開始、更快完成。
      同一天要求移除或清除東西時，要收起的那一個先「類似蘋果那樣輕微快速地晃動」再收起來：shake 是一條會來回的彈簧，
      從原位帶著速度出發，左右晃兩下半就停（約 0.2 秒），見下面 JetMotion 的 removing。 */
+  // 使用者 2026-10-15 認為進階條件篩選的動態拖累操作，要求加快但不偏離原本的風格。不回彈的彈簧形狀都一樣、只差時間長短，
+  // 所以全部同比例縮短約兩成，各動態之間的節奏不變。選取與帶過去的標籤仍約 0.3 秒，看得出從哪裡到哪裡，
+  // 不會一閃而過；收起的字先淡出，不需要看清去向，所以可以短到 0.22 秒。
+  // 同一天使用者澄清 2026-10-13 不喜歡的是拋物線軌跡、不是回彈，並要求完整依 Apple 的 Liquid Glass 設計重新整理。
+  // Apple 的玻璃在互動時帶一點彈性，「減少動態效果」才把彈性關掉，所以動態分成兩種性格（使用者同日選「直接照建議改」）：
+  // - 玻璃層被操作的東西用 bounce 0.15，接近 Apple 的 snappy：分段切換的玻璃選取、加入時帶過去的玻璃標籤，
+  //   以及 app.css 的選單、對話框浮現與按鍵放開。看不出在彈，只是早一點到、收尾俐落，最多超過目標 0.6%。
+  // - 內容層的版面改變維持 bounce 0：長出來、收起來、原地換掉、高度改變，以及流程欄與底線頁籤的選取。
   var SPRINGS = {
-    glide: { duration: 0.34, bounce: 0 },      // 選取滑到新的位置
-    lead: { duration: 0.26, bounce: 0 },       // 選取朝目的地的那一緣，比另一緣先到一點
-    open: { duration: 0.34, bounce: 0 },       // 長出來、展開、原地換掉、高度改變
-    close: { duration: 0.27, bounce: 0 },      // 收起來
-    carry: { duration: 0.36, bounce: 0 },      // 加入時帶過去的標籤與中欄的捲動，不回彈、準時到
-    shake: { duration: 0.11, bounce: 0.75 }    // 移除前左右晃一下
+    glide: { duration: 0.28, bounce: 0 },          // 流程欄與底線頁籤的選取滑到新的位置
+    lead: { duration: 0.21, bounce: 0 },           // 底線頁籤朝目的地的那一緣，比另一緣先到一點
+    glassGlide: { duration: 0.28, bounce: 0.15 },  // 分段切換的選取浮起成玻璃，滑到新的位置
+    glassLead: { duration: 0.21, bounce: 0.15 },   // 玻璃選取朝目的地的那一緣，比另一緣先到一點
+    open: { duration: 0.28, bounce: 0 },           // 長出來、展開、原地換掉、高度改變
+    close: { duration: 0.22, bounce: 0 },          // 收起來
+    carry: { duration: 0.30, bounce: 0.15 },       // 加入時帶過去的玻璃標籤與中欄的捲動
+    shake: { duration: 0.11, bounce: 0.75 }        // 移除前左右晃一下
   };
 
   function motionAllowed() {
@@ -3016,7 +3119,9 @@
   }
 
   var Motion = (function () {
-    var KEEP_ON_LEAVING = /^data-(?:motion$|motion-key$|kct-letter$|add-check$|step-index$|child-|join$|period-end-days$)/;
+    // 舊複本只留下樣式用得到的 data- 屬性，其餘拿掉，程式與測試才找不到它。樣式要用的識別優先掛在 class 上；
+    // app.css 用到這裡沒留的屬性時，架構測試 DesignIntegrationFrontendTests 會失敗（使用者 2026-10-15 指出複本露出原形）。
+    var KEEP_ON_LEAVING = /^data-(?:motion$|motion-key$|kct-letter$|step-index$|child-|join$|period-end-days$)/;
     var DROP_ON_LEAVING = ['id', 'name', 'for', 'form', 'aria-controls', 'aria-describedby', 'aria-labelledby',
       'aria-owns', 'aria-activedescendant', 'aria-live', 'tabindex'];
     var BLOCK = ['height', 'paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth', 'marginTop', 'marginBottom'];
@@ -4207,6 +4312,13 @@
       if (element.__jetMotionRecord) { element.__jetMotionRecord.animation.cancel(); }
       retire(element);
       element.style.flex = '0 0 100%';
+      // 排在那一列所有東西之後：列裡的展開箭頭用 order 排到最右邊，收回的內容排在它前面時，箭頭會被擠到下一行，
+      // 收完拿掉的那一格，下面各列一次往上跳（使用者 2026-10-15 錄影指出切換尾段的抖動）。
+      var last = 0;
+      Array.prototype.forEach.call(holder.children, function (child) {
+        if (child !== element) { last = Math.max(last, parseFloat(global.getComputedStyle(child).order) || 0); }
+      });
+      element.style.order = String(last + 1);
       holder.appendChild(element);
       var start = from ? from : { presence: 1, velocity: 0 };
       run(holder, '__leave' + (++leave.count), element, measure(element), start.presence, 0, {
@@ -4331,10 +4443,10 @@
      看得到條件從按下的地方移進目前的條件組（Apple 的空間一致性）。使用者 2026-10-12 認為原本的做法像廉價的套版：
      一塊白板從卡片的大小一路長成整列的大小、字在半路淡掉、目的地先以霧狀出現，整個過程很突兀。所以改成拿起、帶過去、放下：
      - 按下時，一片小小的玻璃標籤在按下的名稱上浮起來，上面寫的就是新的一列的標題；
-     - 標籤大小不變，沿直線移到新的一列的標題上，用上面的 SPRINGS.carry：從靜止起步、到位前自然放慢，約 360ms 看起來到了
+     - 標籤大小不變，沿直線移到新的一列的標題上，用上面的 SPRINGS.carry：玻璃的彈簧從靜止起步，起步俐落，約 0.24 秒到標題上
        （使用者 2026-10-13 認為原本先拱起再落下的弧線像在跳，所以不再走弧線）；
        目的地同時由 JetMotion 讓出空間，下面的內容跟著平順地讓開，不會一次跳開；
-     - 快到時標籤的字剛好疊在新的一列的標題上一起淡掉，玻璃也淡掉，像標籤被放進去。
+     - 到了標題上，標籤的字剛好疊在新的一列的標題上一起淡掉，玻璃也淡掉，像標籤被放進去。
      新的一列先向 JetMotion 預約：它照一般的方式長出來、內容淡入，只有標題空著，等標籤放下才出現。
      新的一列在中欄看得到的範圍外時（例如第二條以後的條件常在畫面下方），中欄跟著標籤用同一條曲線平順捲到新的一列，
      標籤飛向捲完之後的位置，兩者同時到；原本由移焦點造成的瞬間捲動因此不再發生（見 filter-step.js 的 revealAddedRule）。
@@ -4389,8 +4501,8 @@
       return { x: frame.left + box.left - area.scrollLeft, y: frame.top + box.top - area.scrollTop, frame: frame };
     }
 
-    // 標籤移動的進度：SPRINGS.carry 的彈簧，從靜止起步、到位前自然放慢，和整個 JE Tool 的動態是同一套。
-    // 它不回彈，進度到 1 就算到了，捲動也不會多捲回來。
+    // 標籤移動的進度：SPRINGS.carry 是玻璃的彈簧（bounce 0.15），起步俐落，比不回彈的彈簧早一點到。
+    // 標籤的字要剛好疊在標題上、中欄也不能捲過頭，所以走到 1 就停在那裡，不跟著彈簧超出去，捲動也不會多捲回來。
     function travelProgress(elapsed) {
       return Math.min(springProgress(SPRINGS.carry, elapsed), 1);
     }
@@ -4550,7 +4662,8 @@
         var rise = Math.min(elapsed / ARRIVAL_LIFT, 1);
         var scale = 0.98 + 0.02 * (1 - (1 - rise) * (1 - rise));
         token.style.transform = 'translate(' + x.toFixed(1) + 'px, ' + y.toFixed(1) + 'px) scale(' + scale.toFixed(4) + ')';
-        if (!landed && elapsed - ARRIVAL_LEAVE >= ARRIVAL_TRAVEL * 0.9) { land(); }
+        // 標籤一到標題上就放下，不等彈簧的時間走完。
+        if (!landed && (eased >= 1 || elapsed - ARRIVAL_LEAVE >= ARRIVAL_TRAVEL * 0.9)) { land(); }
         if (landed && now - landed >= ARRIVAL_SETTLE) { finish(); return; }
         global.requestAnimationFrame(step);
       }
@@ -4622,6 +4735,18 @@
     }, true);
   }
 
+  /* ---- 視窗不在前景時（純呈現） -------------------------------------------------------------
+     Apple 人機介面指引 Windows：不在作用中的視窗不使用 vibrancy，看起來比較收斂、離得比較遠。
+     使用者切到 Excel 等其他程式時，標題列、表頭、選單與對話框的玻璃改成不透明、不模糊背景（app.css 的 html.window-inactive），
+     回到 JE Tool 時恢復；切換本身不另加動態。只看視窗的 blur 與 focus 事件：頁面從沒取得焦點時維持平常的樣子。
+     只改呈現，不改 state、不送 action。 */
+  function bindWindowFocus() {
+    var root = document.documentElement;
+    if (!root || !root.classList || typeof global.addEventListener !== 'function') { return; }
+    global.addEventListener('blur', function () { root.classList.add('window-inactive'); });
+    global.addEventListener('focus', function () { root.classList.remove('window-inactive'); });
+  }
+
   /* ---- 啟動 ---------------------------------------------------------------- */
 
   function init() {
@@ -4634,6 +4759,7 @@
     bindGlide();
     bindArrival();
     bindRemoval();
+    bindWindowFocus();
 
     // JetApi action 常在 Ui.run factory 內接 .then()；由真正送出 request 的邊界通知，
     // 才不會因最外層 promise 已失去 requestId 而讓取消鈕消失。

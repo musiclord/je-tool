@@ -220,7 +220,6 @@ internal static class PrivateCaseLegacyScenarioEvidenceVerifier
     private static bool TryGroups(JsonElement scenario, out JsonElement groups) =>
         scenario.TryGetProperty("groups", out groups)
         && groups.ValueKind == JsonValueKind.Array;
-
     private static PrivateCaseLegacyScenarioEvidenceException Error(
         PrivateCaseLegacyScenarioEvidenceFailure failure) => new(failure);
 }

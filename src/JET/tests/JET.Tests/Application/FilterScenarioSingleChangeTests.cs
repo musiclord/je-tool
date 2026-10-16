@@ -804,7 +804,7 @@ public sealed class FilterScenarioSingleChangeTests
     /// <summary>
     /// 存三個合法情境「情境甲」（借方）、「情境乙」（貸方）、「情境丙」（借方），三個都改成舊版本。
     /// 甲在第 1 組最後加上已停用的回溯過帳條件；乙在第 1 組最前面插一條配對裡沒有的攸關資料元素欄位條件。
-    /// 開案確認待修正清單，畫面清單取自開案回應。
+    /// 開案確認待修正清單，畫面清單取自開案回應。開案之前的狀態每種組合只建一次，每個測試複製一份再開案（<see cref="CaseTemplates"/>）。
     /// </summary>
     private static async Task<(HandlerTestHost Host, Screen Screen, string ProjectId)> PrepareAsync(
         string provider, bool invalidFirst, bool invalidSecond)
@@ -812,30 +812,38 @@ public sealed class FilterScenarioSingleChangeTests
         var host = new HandlerTestHost();
         try
         {
-            var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
-            await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
-            {
-                scenarios = new[] { Scenario("情境甲", "debit"), Scenario("情境乙", "credit"), Scenario("情境丙", "debit") }
-            }));
-            foreach (var position in new[] { 1, 2, 3 })
-            {
-                await RewriteDefinitionAsync(host, context.ProjectId, provider, position, definition =>
+            var copied = await CaseTemplates.CopyIntoAsync(
+                host,
+                $"filter-scenario-single-change:{invalidFirst}:{invalidSecond}:{provider}",
+                async templateHost =>
                 {
-                    definition["logicVersion"] = OlderVersion;
-                    var rules = definition["groups"]![0]!["rules"]!.AsArray();
-                    if (position == 1 && invalidFirst)
+                    var context = await DemoProjectPipeline.SetupAsync(templateHost, databaseProvider: provider);
+                    await templateHost.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
                     {
-                        rules.Add(JsonNode.Parse("""{"join":"AND","type":"prescreen","prescreenKey":"backdatedPosting"}"""));
-                    }
-                    else if (position == 2 && invalidSecond)
+                        scenarios = new[] { Scenario("情境甲", "debit"), Scenario("情境乙", "credit"), Scenario("情境丙", "debit") }
+                    }));
+                    foreach (var position in new[] { 1, 2, 3 })
                     {
-                        rules.Insert(0, JsonNode.Parse(
-                            "{\"join\":\"AND\",\"type\":\"typed\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}"));
+                        await RewriteDefinitionAsync(templateHost, context.ProjectId, provider, position, definition =>
+                        {
+                            definition["logicVersion"] = OlderVersion;
+                            var rules = definition["groups"]![0]!["rules"]!.AsArray();
+                            if (position == 1 && invalidFirst)
+                            {
+                                rules.Add(JsonNode.Parse("""{"join":"AND","type":"prescreen","prescreenKey":"backdatedPosting"}"""));
+                            }
+                            else if (position == 2 && invalidSecond)
+                            {
+                                rules.Insert(0, JsonNode.Parse(
+                                    "{\"join\":\"AND\",\"type\":\"typed\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}"));
+                            }
+                        });
                     }
-                });
-            }
 
-            var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
+                    return (context.ProjectId, (object?)null);
+                });
+
+            var loaded = copied.Loaded;
             var check = loaded.GetProperty("filterScenarioCheck");
             Assert.Equal("needsEdit", check.GetProperty("status").GetString());
             Assert.Equal(
@@ -843,7 +851,7 @@ public sealed class FilterScenarioSingleChangeTests
                 check.GetProperty("problems").GetArrayLength());
             var screen = new Screen();
             screen.Show(loaded.GetProperty("filterScenarios"));
-            return (host, screen, context.ProjectId);
+            return (host, screen, copied.ProjectId);
         }
         catch
         {

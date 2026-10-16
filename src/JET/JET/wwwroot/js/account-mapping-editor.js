@@ -13,10 +13,25 @@
       // 勾選與待儲存的分類都跨頁保留（使用者 2026-10-08 裁定「跨頁保留，一次儲存」）；
       // saved 記住每個載入過的科目目前已儲存的分類，套用到其他頁的勾選時才判斷得出是否真的有改。
       model = { key: key(state), rows: null, changes: Object.create(null), saved: Object.create(null), cursor: null, previous: [],
-        nextCursor: null, search: '', searchDraft: '', selected: Object.create(null), anchor: null, category: '', categoryOpen: false,
-        categoryTree: { collapsed: {}, focusKey: 'account-bulk' }, loading: false, error: '', notice: '' };
+        nextCursor: null, search: '', searchDraft: '', selected: Object.create(null), anchor: null, category: '',
+        loading: false, error: '', notice: '', taxonomyRevision: taxonomyRevision(state), droppedCount: 0 };
     }
+    dropDeletedCategories(model, state);
     return model;
+  }
+  function taxonomyRevision(state) { return state.taxonomy ? state.taxonomy.revision : null; }
+  // 分類設定刪掉分類後，要套用該分類的待儲存改動已經存不進去，拿掉並記下取消了幾個科目；其他待儲存改動保留
+  // （使用者 2026-10-15 在待決事項勾選頁裁定）。分類清單的版本沒變時不檢查。
+  function dropDeletedCategories(m, state) {
+    var revision = taxonomyRevision(state);
+    if (m.taxonomyRevision === revision) { return; }
+    m.taxonomyRevision = revision;
+    var known = Object.create(null);
+    Ui.taxonomyCategories(state).forEach(function (c) { known[c.categoryId] = true; });
+    var dropped = Object.keys(m.changes).filter(function (code) { return !known[m.changes[code]]; });
+    dropped.forEach(function (code) { delete m.changes[code]; });
+    if (m.category && !known[m.category]) { m.category = ''; }
+    m.droppedCount += dropped.length;
   }
   function dirty(m) { return Object.keys(m.changes).length > 0; }
   var PAGE_SIZE = 50; // 每頁科目數，與一次儲存上限分開。
@@ -24,7 +39,12 @@
   function load(m) {
     if (m.loading) { return Promise.resolve(); }
     // 換頁或搜尋不清掉勾選與待儲存的分類；只重設以本頁列號計算的連選起點。
-    m.loading = true; m.error = ''; m.rows = null; m.nextCursor = null; m.anchor = null; Store.touch();
+    // 第一次讀取時畫面已經寫著正在載入，不再要求整個中欄重建：進入第四步時這次重建讓換步驟多頓七、八十毫秒（使用者 2026-10-15）。
+    var showingLoading = !m.rows && !m.error;
+    m.loading = true; m.error = ''; m.rows = null; m.nextCursor = null; m.anchor = null;
+    if (!showingLoading) { Store.touch(); }
+    var requestedSearch = m.search;
+    var requestedCursor = m.cursor;
     return global.JetApi.queryAccountMappingPage({ cursor: m.cursor, pageSize: PAGE_SIZE, search: m.search })
       .then(function (data) {
         if (model !== m) { return; }
@@ -33,7 +53,9 @@
       }).catch(function (error) {
         if (model === m) { m.error = error.message || '科目清單載入失敗，請重試。'; }
       }).finally(function () {
-        if (model === m) { m.loading = false; Store.touch(); }
+        if (model !== m) { return; }
+        m.loading = false;
+        if (m.search !== requestedSearch || m.cursor !== requestedCursor) { load(m); } else { Store.touch(); }
       });
   }
   function html(state, ready) {
@@ -44,7 +66,7 @@
       var selected = Object.prototype.hasOwnProperty.call(m.changes, row.accountCode)
         ? m.changes[row.accountCode] : row.categoryId;
       var category = categories.find(function (c) { return c.categoryId === selected; });
-      return '<tr' + (m.selected[row.accountCode] ? ' class="account-editor__row--selected"' : '') + '><td data-account-select-cell><input type="checkbox" data-account-select="' + index + '" data-focus-key="account-select-' + index +
+      return '<tr' + (m.selected[row.accountCode] ? ' class="account-editor__row--selected"' : '') + '><td class="account-editor__select-cell" data-account-select-cell><input type="checkbox" data-account-select="' + index + '" data-focus-key="account-select-' + index +
         '" aria-label="選取 ' + Ui.esc(row.accountCode + ' ' + (row.accountName || '')) + '"' +
         (m.selected[row.accountCode] ? ' checked' : '') + '></td><td>' + Ui.esc(row.accountCode) +
         '</td><td>' + Ui.esc(row.accountName || '—') + '</td><td data-account-current="' + index +
@@ -57,16 +79,18 @@
       '<div class="account-editor__batch"><div class="account-editor__selection"><span role="status" data-account-selection-count>' + selectionText(m) + '</span>' +
       // 「全部取消」只在有勾選時出現；標 data-collapsible-inline，出現與消失時左右收放，旁邊的字跟著平順移動
       // （app.css，使用者 2026-10-13 要求展開與收合一致）。
-      '<button type="button" class="btn btn--ghost btn--tiny" data-account-clear-selection data-collapsible-inline' +
+      '<button type="button" class="btn btn--ghost btn--tiny account-editor__clear" data-account-clear-selection data-collapsible-inline' +
         (Object.keys(m.selected).length ? '' : ' hidden') + '>全部取消</button></div>' +
-      '<details class="account-editor__categories" data-account-category-tree' + (m.categoryOpen ? ' open' : '') + '><summary data-focus-key="account-bulk-category">套用分類：' +
-        Ui.esc(m.category ? Ui.taxonomyCategoryLabel(state, m.category) : '請選擇分類') + '</summary>' +
-        Ui.taxonomyTreeHtml(state, m.categoryTree, function (category) {
-          return '<label class="category-option"><input type="radio" name="account-bulk-category" data-account-bulk-category value="' + Ui.esc(category.categoryId) + '"' +
-            (m.category === category.categoryId ? ' checked' : '') + '><span>' + Ui.esc(category.label) + '</span></label>';
-        }) + '</details><button type="button" class="btn btn--ghost" data-account-apply' +
+      // 第四步只選一個分類，用下拉選單；上下層以全形空白與「└」縮排（使用者 2026-10-15 要求改回下拉，第五步分類樹不變）。
+      '<label><span class="visually-hidden">套用分類</span><select class="form__select" data-account-bulk-category data-focus-key="account-bulk-category">' +
+        '<option value="">請選擇分類</option>' + categories.map(function (c) {
+          return '<option value="' + Ui.esc(c.categoryId) + '"' + (m.category === c.categoryId ? ' selected' : '') + '>' +
+            Ui.esc('　'.repeat(c.depth) + (c.depth ? '└ ' : '') + c.label) + '</option>';
+        }).join('') + '</select></label><button type="button" class="btn btn--ghost" data-account-apply' +
         (!m.category || !Object.keys(m.selected).length || m.loading ? ' disabled' : '') + '>套用至已選科目</button></div>' +
       (m.error ? Ui.loadFailureHtml(m.error, { 'data-account-retry': true }) : '') +
+      (m.droppedCount ? '<p class="form-notice form-notice--warning" data-account-dropped role="status">有 ' + m.droppedCount +
+        ' 個科目要套用的分類已在分類設定中刪除，這些科目的改動已取消。</p>' : '') +
       (m.loading || !m.rows ? (m.error ? '' : '<p role="status">正在載入科目…</p>') :
         '<p class="account-editor__selection-hint">拖曳勾選欄可連選；Shift 點選可選取區間。</p>' +
         '<div class="account-editor__table" data-preserve-scroll="account-editor-table"><table class="preview-table"><thead><tr><th scope="col">' +
@@ -218,15 +242,8 @@
     if (!card) { return; }
     var m = current(Store.getState());
     var syncSelection = bindAccountSelection(card, m);
-    var categoryTree = card.querySelector('[data-account-category-tree]');
-    Ui.bindTaxonomyPicker(categoryTree, Store.getState(), m.categoryTree);
-    categoryTree.addEventListener('toggle', function () { m.categoryOpen = categoryTree.open; });
-    card.querySelectorAll('[data-account-bulk-category]').forEach(function (control) {
-      control.addEventListener('change', function (event) {
-        if (!event.currentTarget.checked) { return; }
-        m.category = event.currentTarget.value; m.categoryOpen = false; Store.touch();
-        if (global.JetFocus) { global.JetFocus.defer(function () { return document.querySelector('[data-account-category-tree] summary'); }); }
-      });
+    card.querySelector('[data-account-bulk-category]').addEventListener('change', function (event) {
+      m.category = event.currentTarget.value; Store.touch();
     });
     card.querySelector('[data-account-apply]').addEventListener('click', function () {
       if (!m.category || m.loading || !Ui.taxonomyCategories(Store.getState()).some(function (c) { return c.categoryId === m.category; })) { return; }
@@ -234,13 +251,13 @@
         if (m.category === m.saved[code]) { delete m.changes[code]; }
         else { m.changes[code] = m.category; }
       });
-      m.notice = ''; m.selected = Object.create(null); m.anchor = null; Store.touch();
+      m.notice = ''; m.droppedCount = 0; m.selected = Object.create(null); m.anchor = null; Store.touch();
     });
     card.querySelector('[data-account-save]').addEventListener('click', function () {
       if (!dirty(m)) { return; }
       Ui.run('儲存科目分類', function () { return saveChanges(m); });
     });
-    card.querySelector('[data-account-cancel]').addEventListener('click', function () { m.changes = Object.create(null); m.selected = Object.create(null); m.anchor = null; m.notice = ''; Store.touch(); });
+    card.querySelector('[data-account-cancel]').addEventListener('click', function () { m.changes = Object.create(null); m.selected = Object.create(null); m.anchor = null; m.notice = ''; m.droppedCount = 0; Store.touch(); });
     card.querySelector('[data-account-clear-selection]').addEventListener('click', function () {
       // 清除前先讓勾選的列輕微快速地晃一下，讓使用者知道哪些勾選被拿掉（使用者 2026-10-13）。
       // 勾選只在畫面上，所以就地取消勾選（和逐列勾選相同），不整段重繪；重繪會把正在晃的列換掉。
@@ -257,7 +274,7 @@
       if (!m.loading && m.nextCursor) { m.previous.push(m.cursor); m.cursor = m.nextCursor; load(m); }
     });
     Ui.bindSearchBox(card.querySelector('[data-account-search]'), function (text) {
-      if (m.loading) { return; }
+      // 第一次讀取時搜尋框沒有重畫成停用，讀取中送出的搜尋先記下，讀完再照它重讀（load 的 finally）。
       m.search = text; m.searchDraft = text; m.cursor = null; m.previous = []; load(m);
     }, function (text) { m.searchDraft = text; });
     var retry = card.querySelector('[data-account-retry]');
@@ -294,7 +311,7 @@
     }
     return saveBatch(0).then(function () {
       if (model === m && !dirty(m)) {
-        m.selected = Object.create(null); m.anchor = null; m.notice = '科目分類已儲存。'; Store.touch();
+        m.selected = Object.create(null); m.anchor = null; m.notice = '科目分類已儲存。'; m.droppedCount = 0; Store.touch();
       }
       return last;
     });
@@ -303,16 +320,16 @@
   function pendingCount() {
     var state = Store.getState();
     if (!model || !state.project || model.key !== key(state)) { return 0; }
+    dropDeletedCategories(model, state);
     return Object.keys(model.changes).length;
   }
 
   // 儲存科目分類會清除預篩選結果與第五步的篩選情境，連還沒存的條件也會清掉，對話框要先寫明。
   function workClearedBySave() {
     var state = Store.getState();
-    var filter = state.filter || {};
     return {
       prescreen: !!(state.lastRuns && state.lastRuns.prescreen),
-      scenarios: (filter.savedScenarios || []).length > 0 || ((filter.draft && filter.draft.groups) || []).length > 0
+      scenarios: Store.hasFilterWork(state.filter)
     };
   }
 
@@ -327,13 +344,16 @@
 
   // 離開第四步、執行預篩選或離開案件前，如果還有沒儲存的分類就先問。回傳 Promise<boolean>：true 表示可以繼續。
   // consequence 說明不儲存會怎樣，continueLabel 是「不儲存也繼續」那顆按鈕的文字。
+  // options.saveable 為 false 時不提供「儲存並繼續」：匯入 GL 或 TB、確認配對與匯入科目配對檔本身就會清除或取代
+  // 已儲存的分類，先存也留不住（使用者 2026-10-15 選擇「拿掉儲存，只留兩個按鈕」）。
   // 同一時間只開一個對話框；已經開著時，新的要求當成「留在這裡」。
-  function confirmPending(consequence, continueLabel) {
+  function confirmPending(consequence, continueLabel, options) {
     var count = pendingCount();
     if (!count) { return Promise.resolve(true); }
     if (confirmationOpen) { return Promise.resolve(false); }
     confirmationOpen = true;
-    var cleared = workClearedBySave();
+    var saveable = !(options && options.saveable === false);
+    var cleared = saveable ? workClearedBySave() : { prescreen: false, scenarios: false };
     return new Promise(function (resolve) {
       function finish(result) {
         confirmationOpen = false;
@@ -351,8 +371,8 @@
             Ui.esc(consequence) + Ui.esc(clearingNote(cleared)) + '</p>' +
           '<div class="modal__actions">' +
             '<button type="button" class="btn btn--ghost" data-pending-choice="stay">留在這裡</button>' +
-            '<button type="button" class="btn btn--ghost" data-pending-choice="continue">' + Ui.esc(continueLabel || '先不儲存') + '</button>' +
-            '<button type="button" class="btn" data-pending-choice="save">儲存並繼續</button>' +
+            '<button type="button" class="' + (saveable ? 'btn btn--ghost' : 'btn') + '" data-pending-choice="continue">' + Ui.esc(continueLabel || '先不儲存') + '</button>' +
+            (saveable ? '<button type="button" class="btn" data-pending-choice="save">儲存並繼續</button>' : '') +
           '</div>' +
         '</div>';
       function detach() {
@@ -387,8 +407,8 @@
       });
       document.addEventListener('keydown', onKey, true);
       document.body.appendChild(modal);
-      // 會清除篩選情境時，預設停在「留在這裡」，按 Enter 不會直接清掉。
-      var primary = modal.querySelector(cleared.scenarios ? '.modal__actions [data-pending-choice="stay"]' : '[data-pending-choice="save"]');
+      // 會清除篩選情境或已儲存的分類時，預設停在「留在這裡」，按 Enter 不會直接清掉。
+      var primary = modal.querySelector(cleared.scenarios || !saveable ? '.modal__actions [data-pending-choice="stay"]' : '[data-pending-choice="save"]');
       if (primary) { primary.focus(); }
     });
   }

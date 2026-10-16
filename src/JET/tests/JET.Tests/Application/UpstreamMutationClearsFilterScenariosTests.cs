@@ -177,6 +177,54 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
         Assert.Single(loaded.GetProperty("filterScenarios").EnumerateArray());
     }
 
+    // 上方的清除案例只用取代匯入。附加匯入走同一條規則：使用者 2026-10-07 裁定清除已存情境，2026-10-08 裁定清除科目配對。
+    // 附加要求欄名和既有資料相同，所以照 PrepareAsync 的 GL 欄名與 InlineTbWorkbookBuilder 的 TB 欄名另寫一列合成資料。
+    [Theory]
+    [InlineData("sqlite", "gl")]
+    [InlineData("sqlite", "tb")]
+    [InlineData("duckdb", "gl")]
+    [InlineData("duckdb", "tb")]
+    public async Task AppendImport_RemovesSavedScenariosHitsAndAccountMapping(string provider, string kind)
+    {
+        using var host = new HandlerTestHost();
+        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        // 先匯入科目配對；這一步本身會清掉情境，所以再跑一次預篩選並重存同一個情境。
+        await Batch9MutationStateTests.MutateAsync(host, prepared.Id, "import.accountMapping.fromFile");
+        await host.DispatchAsync("prescreen.run");
+        await host.DispatchAsync("filter.commit", """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}]}]}""");
+        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "config_filter_scenario"));
+        Assert.True(await CountAsync(host, prepared.Id, provider, "result_filter_run") > 0);
+        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "target_account_mapping"));
+
+        var path = TestWorkbookBuilder.WriteWorkbook(sheet =>
+        {
+            object[][] rows = kind == "gl"
+                ? [["傳票號碼", "傳票日期", "核准日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標"],
+                    ["V2", "2025-06-03", "2025-06-04", "1000", "合成資產", "synthetic", 5, 1]]
+                : [["科目代號", "科目名稱", "變動金額"], ["5000", "合成費用", 0]];
+            for (var row = 0; row < rows.Length; row++)
+                for (var column = 0; column < rows[row].Length; column++)
+                    sheet.Cell(row + 1, column + 1).Value = rows[row][column].ToString();
+        });
+        JsonElement response;
+        try
+        {
+            response = await host.DispatchAsync($"import.{kind}.fromFile",
+                JsonSerializer.Serialize(new { filePath = path, mode = "append" }));
+        }
+        finally { TestWorkbookBuilder.Delete(path); }
+
+        var invalidated = response.GetProperty("invalidatedResults");
+        foreach (var name in new[] { "validation", "prescreen", "filter", "filterScenarios", "accountMapping" })
+            Assert.True(invalidated.GetProperty(name).GetBoolean(), name);
+        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "config_filter_scenario"));
+        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "result_filter_run"));
+        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "target_account_mapping"));
+        var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
+        Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, loaded.GetProperty("importState").GetProperty("accountMapping").ValueKind);
+    }
+
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]

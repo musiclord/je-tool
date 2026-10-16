@@ -31,6 +31,7 @@ require('./support/resource-guard.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const F = require('./support/frontend-fixtures.cjs');
+const { unchecked } = require('./support/action-contract.cjs');
 
 const { settle, plain } = F;
 
@@ -102,6 +103,18 @@ async function draftVoucherList(f, rows = [{ documentNumber: 'SYN-B', postDate: 
 
 // 第四步七張「載入更多」明細表：點表頭排序、輸入號碼查看，都把排序與搜尋送給後端並從第一頁重讀。
 // 每一列：載入更多鈕的編號、後端 action、排序鍵（點第一個可排序表頭）、payload 固定帶的其他鍵。
+// 七張表共用同一組合成列，但每張表的後端資料列只有自己的欄位（tools/tests/fixtures/action-shapes.json）。
+// 2026-10-15 前後端契合時改成只留該表後端會送的欄位；排序鍵的值仍決定先後，斷言不變。
+const BACKEND_ROW_FIELDS = {
+  queryCompletenessDiffPage: ['accountCode'],
+  queryDocBalancePage: ['documentNumber'],
+  queryNullRecordsPage: ['accountCode', 'documentNumber', 'description'],
+  querySourceQualityPage: ['accountCode', 'documentNumber', 'sourceRowNumber', 'description']
+};
+function backendRow(action, row) {
+  return Object.fromEntries(Object.entries(row).filter(([key]) => BACKEND_ROW_FIELDS[action].includes(key)));
+}
+
 const VALIDATION_TABLES = [
   ['completeness', 'queryCompletenessDiffPage', 'accountCode', {}],
   ['docBalance', 'queryDocBalancePage', 'documentNumber', {}],
@@ -128,8 +141,8 @@ for (const [id, action, key, extra] of VALIDATION_TABLES) {
 
     // 後端回傳的順序原樣顯示，畫面不自己排序。
     f.requestsOf(action)[0].resolve({ rows: [
-      { accountCode: '2002', documentNumber: 'JV-B', sourceRowNumber: 9, description: 'later' },
-      { accountCode: '1001', documentNumber: 'JV-A', sourceRowNumber: 1, description: 'earlier' }], nextCursor: 'next-1' });
+      backendRow(action, { accountCode: '2002', documentNumber: 'JV-B', sourceRowNumber: 9, description: 'later' }),
+      backendRow(action, { accountCode: '1001', documentNumber: 'JV-A', sourceRowNumber: 1, description: 'earlier' })], nextCursor: 'next-1' });
     await settle();
     const text = detail.querySelector('[data-load-target]').textContent;
     const later = text.indexOf(key === 'accountCode' ? '2002' : key === 'sourceRowNumber' ? '9' : 'JV-B');
@@ -141,7 +154,7 @@ for (const [id, action, key, extra] of VALIDATION_TABLES) {
     submitSearch(detail, '  JV-1  ');
     assert.equal(f.requestsOf(action).length, 2);
     assert.deepEqual(plain(f.requestsOf(action)[1].payload), { ...extra, cursor: null, pageSize: 200, sort: { key, direction: 'asc' }, search: 'JV-1' });
-    f.requestsOf(action)[1].resolve({ rows: [{ accountCode: '1001', documentNumber: 'JV-1' }], nextCursor: 'next-2' }); await settle();
+    f.requestsOf(action)[1].resolve({ rows: [backendRow(action, { accountCode: '1001', documentNumber: 'JV-1' })], nextCursor: 'next-2' }); await settle();
 
     // 載入更多沿用同一個排序與搜尋，接著上一頁的游標。
     detail.querySelector('[data-load-more="' + id + '"]').fire('click');
@@ -161,16 +174,17 @@ test('step four sample details and prescreen hits sort and search on the backend
   // 資料可靠性測試的抽樣明細：展開時先讀第一頁，欄位與可否排序由後端決定。
   f.toggleFor('[data-dynamic-page="inf"]').fire('click');
   assert.deepEqual(plain(f.requestsOf('queryInfSamplePage')[0].payload), { cursor: null, pageSize: 200, sort: null, search: null });
+  // 正式後端的抽樣明細沒有「金額」欄，借方與貸方分開；2026-10-15 前後端契合時把假欄位改成借方欄，預期的排序鍵跟著改。
   f.requestsOf('queryInfSamplePage')[0].resolve({ columns: [
     { key: 'documentNumber', label: '傳票號碼', valueType: 'text', sortable: true },
-    { key: 'amount', label: '金額', valueType: 'money', sortable: true }], rows: [{ documentNumber: 'JV-S', amount: 1 }], nextCursor: 'inf-2' });
+    { key: 'debit', label: '借方金額', valueType: 'money', sortable: true }], rows: [{ documentNumber: 'JV-S', debit: 1 }], nextCursor: 'inf-2' });
   await settle();
   const sample = f.root.querySelector('[data-dynamic-page="inf"]');
-  sample.querySelector('.th-sort[data-sort-key="amount"]').fire('click');
-  assert.deepEqual(plain(f.requestsOf('queryInfSamplePage')[1].payload), { cursor: null, pageSize: 200, sort: { key: 'amount', direction: 'asc' }, search: null });
+  sample.querySelector('.th-sort[data-sort-key="debit"]').fire('click');
+  assert.deepEqual(plain(f.requestsOf('queryInfSamplePage')[1].payload), { cursor: null, pageSize: 200, sort: { key: 'debit', direction: 'asc' }, search: null });
   f.requestsOf('queryInfSamplePage')[1].resolve({ columns: [], rows: [], nextCursor: null }); await settle();
   submitSearch(sample, 'JV-S');
-  assert.deepEqual(plain(f.requestsOf('queryInfSamplePage')[2].payload), { cursor: null, pageSize: 200, sort: { key: 'amount', direction: 'asc' }, search: 'JV-S' });
+  assert.deepEqual(plain(f.requestsOf('queryInfSamplePage')[2].payload), { cursor: null, pageSize: 200, sort: { key: 'debit', direction: 'asc' }, search: 'JV-S' });
 
   // 預篩選命中：展開時讀前 50 筆（字面值），之後排序與查看由後端從第一頁重讀，一頁 200 筆。
   f.toggleFor('[data-prescreen-key="weekendPosting"]').fire('click');
@@ -241,7 +255,7 @@ test('step five full hit list and risk matrix tables sort and search on the back
   f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, populationScope: 'auditPeriod', previewRows: [
     { documentNumber: 'PRE-1', lineItem: '1', postDate: '2025-01-01', accountCode: '1001', amount: 1, drCr: 'DEBIT' }] } });
   await settle();
-  f.request('queryFilterVoucherPage').resolve(null); await settle();
+  f.request('queryFilterVoucherPage').resolve(unchecked('正式後端一定回傳傳票清單；這裡刻意回 null，確認畫面改列完整命中分錄', null)); await settle();
   f.click('[data-action="hits-load-more"]');
   assert.deepEqual(plain(f.request('queryFilterHitsPage').payload), { scenarioPosition: 1, cursor: null, pageSize: 200, sort: null, search: null });
   f.request('queryFilterHitsPage').resolve({ columns: [{ key: 'documentNumber', label: '傳票號碼', valueType: 'text', sortable: true }],
@@ -373,10 +387,11 @@ test('money shows two decimals with thousands separators on step four tables, th
 
   // 抽樣明細的金額欄與金額型額外欄位（後端欄位定義標 money）。
   f.toggleFor('[data-dynamic-page="inf"]').fire('click');
+  // 抽樣明細的金額欄是借方與貸方（正式後端的欄位；2026-10-15 前後端契合前寫成後端沒有的 amount）。
   f.requestsOf('queryInfSamplePage')[0].resolve({ columns: [
-    { key: 'documentNumber', label: 'Doc', valueType: 'text' }, { key: 'amount', label: 'Amt', valueType: 'money' },
+    { key: 'documentNumber', label: 'Doc', valueType: 'text' }, { key: 'debit', label: 'Debit', valueType: 'money' },
     { key: 'rde.extra', label: 'Extra', valueType: 'money', isCustom: true }],
-  rows: [{ documentNumber: 'JV-S', amount: 1234.5, customValues: { 'rde.extra': -10 } }], nextCursor: null });
+  rows: [{ documentNumber: 'JV-S', debit: 1234.5, customValues: { 'rde.extra': -10 } }], nextCursor: null });
   await settle();
   const sample = f.root.querySelector('[data-dynamic-page="inf"]').textContent;
   assert.match(sample, /1,234\.50/); assert.match(sample, /-10\.00/);
@@ -396,8 +411,9 @@ test('money shows two decimals on step five voucher lists, entry details and ris
   assert.match(totals, /1,234\.50/); assert.match(totals, /-10\.00/);
 
   host.querySelector('[data-voucher-open="0"]').onclick();
-  f.request('queryFilterVoucherRowsPage').resolve({ columns: [{ key: 'rde.extra', label: 'Extra', valueType: 'money', isCustom: true }],
-    rows: [{ lineItem: '1', isHit: true, amount: -10, customValues: { 'rde.extra': 1234.5 } }, { lineItem: '2', isHit: false, amount: null, customValues: { 'rde.extra': null } }], nextCursor: null });
+  // 正式後端的分錄金額一定有值；第二列刻意給 null，確認畫面寫「—」而不是 0.00，所以這筆不核對。
+  f.request('queryFilterVoucherRowsPage').resolve(unchecked('分錄金額刻意給 null，確認缺值的寫法', { columns: [{ key: 'rde.extra', label: 'Extra', valueType: 'money', isCustom: true }],
+    rows: [{ lineItem: '1', isHit: true, amount: -10, customValues: { 'rde.extra': 1234.5 } }, { lineItem: '2', isHit: false, amount: null, customValues: { 'rde.extra': null } }], nextCursor: null }));
   await settle();
   const rows = host.querySelectorAll('.voucher-details tbody tr');
   assert.match(rows[0].textContent, /-10\.00/); assert.match(rows[0].textContent, /1,234\.50/);
@@ -576,11 +592,12 @@ test('asking twice for the same dataset shows only the latest answer, and a re-i
 test('preview amounts on standardized data show two decimals while PBC source values stay as imported', async () => {
   // 金額格式出處同上：使用者 2026-10-02 裁定 P3-4。
   const f = await previewOpened();
-  f.request('queryDataPreview').resolve({ columns: ['documentNumber', 'amount'], rows: [['JV-1', 1234.5]], totalCount: 1 }); await settle();
+  // 資料預覽的每一格都是字串，和正式後端相同（2026-10-15 前後端契合前這裡給數字）；Ui.money 會先轉成數字。
+  f.request('queryDataPreview').resolve({ columns: ['documentNumber', 'amount'], rows: [['JV-1', '1234.5']], totalCount: 1 }); await settle();
   assert.match(f.body().textContent, /1234\.5/); assert.doesNotMatch(f.body().textContent, /1,234\.50/);
   for (const [dataset, column] of [['gl', 'amount'], ['glExcluded', 'amount'], ['tb', 'changeAmount']]) {
     f.ui.openDataPreview(dataset);
-    f.request('queryDataPreview').resolve({ columns: ['documentNumber', column], rows: [['JV-1', 1234.5], ['JV-2', -10]], totalCount: 2 }); await settle();
+    f.request('queryDataPreview').resolve({ columns: ['documentNumber', column], rows: [['JV-1', '1234.5'], ['JV-2', '-10']], totalCount: 2 }); await settle();
     const text = f.body().textContent;
     assert.match(text, /1,234\.50/, dataset); assert.match(text, /-10\.00/, dataset);
   }

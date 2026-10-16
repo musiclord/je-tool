@@ -486,8 +486,7 @@ async function run(page, name, body) {
     await search.press('Enter');
     await page.waitForTimeout(1000);
     await editor.locator('[data-account-select="0"]').check();
-    await editor.locator('[data-account-category-tree] summary').click();
-    await editor.getByRole('radio', { name: 'Others', exact: true }).click();
+    await editor.locator('[data-account-bulk-category]').selectOption({ label: 'Others' });
     await editor.locator('[data-account-apply]').click();
     await page.waitForTimeout(300);
     await page.click('.toc-item[data-step-index="4"]');

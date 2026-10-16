@@ -67,6 +67,49 @@ public sealed class PrivateCaseLegacyScenarioEvidenceTests
         Assert.DoesNotContain("gamma", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Verify_OldSameVoucherGroupConvertedWhenTheListIsRead_MatchesTheParsedLog()
+    {
+        var log = "#1. 僅考量貸方傳票 #2. 分錄無摘要描述(即空白摘要) "
+            + "#3. 文字欄位【傳票摘要_JE】值包含 - alpha,beta";
+
+        var result = PrivateCaseLegacyScenarioEvidenceVerifier.Verify(
+            [PrivateCaseScenarioShape.Current(OldSameVoucherScenario(["alpha", "beta"]))],
+            [new PrivateCaseScenarioCount(1, 12, 156)],
+            Summary(log, voucherCount: 12, rowCount: 156));
+        var changed = Assert.Throws<PrivateCaseLegacyScenarioEvidenceException>(() =>
+            PrivateCaseLegacyScenarioEvidenceVerifier.Verify(
+                [PrivateCaseScenarioShape.Current(OldSameVoucherScenario(["alpha", "gamma"]))],
+                [new PrivateCaseScenarioCount(1, 12, 156)],
+                Summary(log, voucherCount: 12, rowCount: 156)));
+
+        Assert.Equal(1, result.ScenarioCount);
+        Assert.Equal(PrivateCaseLegacyScenarioEvidenceFailure.ScenarioDefinitionMismatch, changed.Failure);
+    }
+
+    // 2026-10-14 以前存下的寫法：同一張傳票的佐證條件直接列在群組裡，群組標成 sameVoucher。
+    private static JsonElement OldSameVoucherScenario(string[] values) =>
+        JsonSerializer.SerializeToElement(new
+        {
+            name = "synthetic",
+            rationale = "synthetic",
+            groups = new[]
+            {
+                new
+                {
+                    join = "AND",
+                    matchScope = "sameVoucher",
+                    rules = new object[]
+                    {
+                        new { join = "AND", type = "drCrOnly", drCr = "credit" },
+                        new { join = "AND", type = "prescreen", prescreenKey = PrescreenRuleKeys.BlankDescription },
+                        new { join = "AND", type = "textSet", field = GlMappingKeys.Description,
+                            mode = "contains", normalization = "preserve", values },
+                    },
+                },
+            },
+        });
+
     private static JsonElement Scenario(string[] values) =>
         JsonSerializer.SerializeToElement(new
         {

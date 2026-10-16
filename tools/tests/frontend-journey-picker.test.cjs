@@ -2,7 +2,8 @@
 // 情境 1：案件清單（收尾四項第一項第 10 批，2026-10-14）。
 //
 // 審計員的操作：開啟 JET 看到本機案件清單；按「重新整理本機」；按「同步線上案件」，成功與失敗；刪除一個案件，失敗、成功、
-// 資料夾沒刪乾淨；開一個會失敗的案件後輸出支援日誌；清單還在讀取時想開案或新增案件；按「退出」但視窗關不掉，回到案件清單。
+// 資料夾沒刪乾淨；開一個會失敗的案件後輸出支援日誌；清單還在讀取時想開案或新增案件；按「退出」但視窗關不掉，回到案件清單；
+// 開著 JET 切到其他程式再回來。
 // 同步線上案件時按「取消作業」送出的是同一個請求，在 frontend-journey-operations 的情境 22 測試。
 //
 // 夾具：支援模組的 fullAppFixture，經 bootFullApp（本檔叫 boot）開啟 JET 停在案件清單：
@@ -262,4 +263,20 @@ test('journey 1: when the window cannot close after leaving the case, the audito
   // 回到清單時照樣讀一次本機清單。
   f.reply(f.sent('project.listLocal').at(-1), { projects: [LOCAL_A] }); await flush();
   assert.deepEqual(rowNames(f, 'local'), ['合成甲案']);
+});
+
+// 審計員開著 JET 切到 Excel 等其他程式：視窗不在前景時玻璃改成不透明（app.css 的 html.window-inactive），回到 JET 時恢復。
+// Apple 人機介面指引 Windows：不在作用中的視窗不使用 vibrancy。使用者 2026-10-15 對這項建議選「直接照建議改」。新增的測試。
+test('journey 1: switching to another program flattens the glass, coming back restores it, and nothing is sent', async () => {
+  const f = await boot([LOCAL_A]);
+  const root = f.dom.document.documentElement;
+  const fire = type => { for (const entry of f.windowListeners.filter(item => item.type === type)) entry.fn({ type }); };
+  const sentBefore = f.posted.length;
+  assert.equal(root.classList.contains('window-inactive'), false, 'JET opens with the normal glass');
+  fire('blur');
+  assert.equal(root.classList.contains('window-inactive'), true, 'another program is in front');
+  fire('focus');
+  assert.equal(root.classList.contains('window-inactive'), false, 'back in JET');
+  await flush();
+  assert.equal(f.posted.length, sentBefore, 'switching programs only changes the look and sends no action');
 });

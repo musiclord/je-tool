@@ -106,7 +106,7 @@ node tools/harness/browser-host/interleaving-check.cjs
 
 瀏覽器主機不能取代真正的 WebView2 驗證。關窗流程、WebView2 本身的行為和桌面視窗尺寸，
 仍要用 `verify.ps1 -Command Gui` 或 AgentGuiTest 確認；正式整合的命令順序見下方「設計迭代與正式整合」。
-`Gui` 會在使用者桌面開啟並搶走前景，所以日常改動先用瀏覽器主機與 `FrontendMapping` 檢查，`Gui` 依 `AGENTS.md`「測試」的時機執行。
+`Gui` 開在另一個 Windows 桌面，但完整執行需要幾分鐘，所以日常改動先用瀏覽器主機與 `FrontendMapping` 檢查，`Gui` 依 `AGENTS.md`「測試」的時機執行。
 
 ### 新 session 的讀取與啟動
 
@@ -136,7 +136,7 @@ node tools/harness/browser-host/interleaving-check.cjs
 | 下次 session 或換 Agent | 把本批需求原話、裁定、改動範圍、驗證結果與下一步寫回同一計畫；長期有效的畫面行為更新前端說明，開發現況只連到目前計畫。 | 不依賴某個聊天室仍存在，也不把上一版本通過當成本版通過。 |
 
 一般字體、間距和排版調整不反覆要求批准，也不為每次刷新跑完整桌面測試。互動改動先用瀏覽器主機與
-`FrontendMapping` 確認，原生 GUI 留到使用者確認版本要整合時，執行前先告訴使用者會跳出視窗；
+`FrontendMapping` 確認，原生 GUI 留到使用者確認版本要整合時；
 使用者確認一版後的整合仍完整執行上列命令。第一次失敗的證據保留，修正後重跑正式命令，不能放寬斷言。
 `ReleaseCandidate` 要求乾淨的已提交來源，等 Git 交付另獲授權才執行；逐項正式檢查不等同候選快照通過。
 

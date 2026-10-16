@@ -50,6 +50,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { root, settle, plain, batch9TreeDom, recordingJetApi, timerQueue, fakeMatchMedia, cssEscape, exposeAt, indexMarkup, readWwwroot,
   remapPrescreen, noDunderKeys } = require('./support/frontend-fixtures.cjs');
+const { unchecked } = require('./support/action-contract.cjs');
 
 const VALIDATE_INDEX = 3;
 
@@ -157,17 +158,92 @@ test('section 9 F: account loading failures use the shared notice without changi
   assert.equal(f.pending('queryAccountMappingPage').length, before + 1);
 });
 
-test('section 9 F: account classification uses a collapsible shared tree and a submitted search', async () => {
+// 使用者 2026-10-15 反映換步驟時「點下去的時候我會預期元素開始移動，但他會頓一下才開始移動」。進入第四步時，
+// 「在 JET 配對」第一次讀科目，畫面本來就寫著正在載入，讀取卻又要求整個中欄再重建一次，換到第四步的那一下多花七、八十毫秒。
+// 第一次讀取只送出查詢，不另外重建；讀回來時照常重建。
+// 第一次失敗：FrontendMapping 20261015-154942488-49178d0183b34fc5b37af4e987ce64ae，顯示科目清單時重建了兩次。
+test('section 9 F: showing the account list for the first time redraws once while it loads', async () => {
+  const f = step4Fixture({ mapped: false });
+  await flush();
+  const before = f.state().contentVersion;
+  f.store.setMappingCommitted('gl', { mode: 'signed', mapping: { docNum: 'Doc', amount: 'Amount' } });
+  assert.equal(f.pending('queryAccountMappingPage').length, 1, 'the first page is requested');
+  assert.match(f.text('[data-bind="account-editor"]'), /正在載入科目/);
+  assert.equal(f.state().contentVersion - before, 1, 'the page is rebuilt once, not again for the loading state');
+  f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: '1101', accountName: '合成現金', categoryId: null }], nextCursor: null });
+  await flush();
+  assert.equal(f.state().contentVersion - before, 2, 'the loaded rows are drawn');
+  assert.match(f.text('[data-bind="account-editor"]'), /合成現金/);
+});
+
+// 同一句反映的另一個原因：換步驟原本要等放開滑鼠才開始，按住的那一下畫面不動。左側目錄與中欄的步驟列改成按下就換，
+// 和 macOS 側邊欄一樣；放開時不再換一次。鍵盤的 Enter 與空白鍵照舊。
+// 第一次失敗：FrontendMapping 20261015-154942488-49178d0183b34fc5b37af4e987ce64ae，按下時步驟沒有換。
+test('section 9 F: step navigation switches on press and the release does not switch again', async () => {
+  const f = await openStep4();
+  const navItem = f.navItem(1);
+  navItem.dispatch('pointerdown', { button: 0, isPrimary: true, pointerType: 'mouse' });
+  assert.equal(f.state().currentStepIndex, 1, 'pressing a step in the list switches at once');
+  const version = f.state().contentVersion;
+  navItem.dispatch('click', { detail: 1 });
+  assert.equal(f.state().currentStepIndex, 1);
+  assert.equal(f.state().contentVersion, version, 'releasing on the same step does not redraw again');
+  const row = f.middle.querySelector('.stepflow-item[data-step-nav][data-step-index="2"]');
+  assert.ok(row !== null, 'the mapping row is shown in the middle column');
+  row.dispatch('pointerdown', { button: 0, isPrimary: true, pointerType: 'mouse' });
+  assert.equal(f.state().currentStepIndex, 2, 'pressing a step row in the middle column switches at once');
+  f.navItem(VALIDATE_INDEX).dispatch('pointerdown', { button: 2, isPrimary: true, pointerType: 'mouse' });
+  assert.equal(f.state().currentStepIndex, 2, 'a right press does not switch');
+  f.navItem(VALIDATE_INDEX).dispatch('click', { detail: 0 });
+  assert.equal(f.state().currentStepIndex, VALIDATE_INDEX, 'the keyboard still switches with a click');
+});
+
+// 2026-10-16 提交前複審找到按下就換步驟的三個漏洞：正在編輯的欄位來不及失焦，只在 change 存值的欄位會遺失；
+// 按下的預設動作會把焦點移回按下的步驟，蓋過換步驟時開出的確認對話框；觸控與觸控筆按下時可能只是要捲動。
+test('section 9 F: pressing a step lets the field being edited save first and leaves touch presses to the tap', async () => {
+  const f = await openStep4();
+  let stepWhenBlurred = null;
+  f.dom.document.activeElement = { blur() { stepWhenBlurred = f.state().currentStepIndex; f.dom.document.activeElement = null; } };
+  const before = f.state().currentStepIndex;
+  const press = f.navItem(1).dispatch('pointerdown', { button: 0, isPrimary: true, pointerType: 'mouse' });
+  assert.equal(stepWhenBlurred, before, 'the field being edited loses focus before the page is rebuilt');
+  assert.equal(press.defaultPrevented, true, 'the press does not move focus back to the pressed step');
+  assert.equal(f.state().currentStepIndex, 1);
+  f.navItem(2).dispatch('pointerdown', { button: 0, isPrimary: true, pointerType: 'touch' });
+  f.navItem(2).dispatch('pointerdown', { button: 0, isPrimary: true, pointerType: 'pen' });
+  assert.equal(f.state().currentStepIndex, 1, 'a touch or pen press may be a scroll and does not switch');
+  f.navItem(2).dispatch('click', { detail: 1 });
+  assert.equal(f.state().currentStepIndex, 2, 'the tap switches when it is released');
+});
+
+// 同一次複審：第一次讀取科目時不再重建，搜尋框沒有畫成停用。讀取中送出的搜尋原本被默默略過，讀完後畫面寫著搜尋字，清單卻沒有篩選。
+test('section 9 F: a search sent while the account list first loads is applied once it arrives', async () => {
+  const f = step4Fixture({ mapped: false });
+  await flush();
+  f.store.setMappingCommitted('gl', { mode: 'signed', mapping: { docNum: 'Doc', amount: 'Amount' } });
+  assert.equal(f.pending('queryAccountMappingPage').length, 1);
+  f.type('[data-account-search] input', '1101');
+  f.$('[data-account-search]').dispatch('submit');
+  assert.equal(f.pending('queryAccountMappingPage').length, 1, 'the first read is still running');
+  f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: '1101', accountName: '合成現金', categoryId: null }, { accountCode: '4101', accountName: '合成收入', categoryId: null }], nextCursor: null });
+  await flush();
+  assert.equal(f.pending('queryAccountMappingPage').length, 2, 'the list is read again with the search');
+  assert.deepEqual(plain(f.request('queryAccountMappingPage').payload), { cursor: null, pageSize: 50, search: '1101' });
+});
+
+// 使用者 2026-10-15 要求第四步「套用分類」改回下拉選單並保留上下層縮排，第五步分類樹不變。
+// 修改前失敗：20261015-011855792-4174f66464c84ffe990d516f57676fae，舊測試鎖住摺疊分類樹與單選鈕。
+test('section 9 F: account classification uses an indented dropdown and a submitted search', async () => {
   const f = await openStep4({ taxonomy: { revision: 1, categories: [
     { categoryId: 'root', label: '合成分類', semanticRole: 'cash', ordinal: 0 },
     { categoryId: 'child', label: '合成子分類', parentCategoryId: 'root', semanticRole: 'cash', ordinal: 1 }] } });
-  const tree = f.$('[data-account-category-tree] .category-tree'); assert.ok(tree);
-  f.click('[data-category-toggle="root"]');
-  assert.equal(f.$('[data-category-node="child"]').hidden, true);
-  f.click('[data-category-toggle="root"]');
-  const child = f.$('input[data-account-bulk-category][value="child"]');
-  assert.equal(child.getAttribute('type'), 'radio'); child.checked = true; child.dispatch('change');
-  assert.equal(f.$('input[data-account-bulk-category][value="child"]').checked, true);
+  assert.equal(f.$('[data-bind="account-editor"] .category-tree'), null);
+  const dropdown = f.$('[data-account-bulk-category]');
+  assert.equal(dropdown.tagName.toLowerCase(), 'select');
+  assert.equal(f.$('[data-account-bulk-category] option[value="root"]').textContent, '合成分類');
+  assert.equal(f.$('[data-account-bulk-category] option[value="child"]').textContent, '　└ 合成子分類');
+  dropdown.value = 'child'; dropdown.dispatch('change');
+  assert.equal(f.$('[data-account-bulk-category] option[value="child"]').hasAttribute('selected'), true);
   const search = f.$('[data-account-search]'); assert.ok(search.classList.contains('page-search'));
   f.type('[data-account-search] input', '1103');
   assert.equal(f.pending('queryAccountMappingPage').length, 0, 'typing does not query');
@@ -209,10 +285,11 @@ function validationResult({ runId = 'v-step4', eligibility = { isEligible: true,
 }
 
 // 抽樣清單的檔名故意帶標記，確認報告清單把檔名當文字顯示。
+// 2026-10-15 前後端契合：拿掉沒有人讀的 sizeBytes（正式後端與畫面都用 bytes），畫面不變。
 function reportArtifacts(runId) {
-  return ['validationReport', 'infReport'].map((kind, i) => ({ artifactId: 'step4-' + kind, kind,
+  return ['validationReport', 'infReport'].map(kind => ({ artifactId: 'step4-' + kind, kind,
     fileName: kind === 'infReport' ? '合成<img src=y>抽樣.xlsx' : kind + '.xlsx', fileState: 'present', stale: false,
-    generatedUtc: '2026-01-01T00:00:00Z', sizeBytes: 2000 + i, sourceRef: { validationRunId: runId } }));
+    generatedUtc: '2026-01-01T00:00:00Z', sourceRef: { validationRunId: runId } }));
 }
 
 // 從畫面按「執行驗證」開始：後端依序回應驗證、兩份報告與科目配對檔；templateOutcome 是科目配對檔的結果。
@@ -366,10 +443,10 @@ test('journey 7: the sampled entries table takes its columns from the backend an
   ruleItem(f, '資料可靠性測試').querySelector('[data-action="toggle-detail"]').dispatch('click');
   const page = f.request('queryInfSamplePage');
   assert.deepEqual(plain(page.payload), { cursor: null, pageSize: 200, sort: null, search: null });
-  page.resolve({ columns: [
+  page.resolve(unchecked('列的頂層刻意放一個和攸關資料元素同名的干擾值；正式後端不會送這個鍵', { columns: [
     { key: 'documentNumber', label: '傳票號碼', valueType: 'text', sortable: true },
     { key: 'rde.amount1', label: '合成攸關金額', valueType: 'money', isCustom: true }
-  ], rows: [{ documentNumber: 'JV-31', 'rde.amount1': 999, customValues: { 'rde.amount1': 1234.5 } }], nextCursor: null });
+  ], rows: [{ documentNumber: 'JV-31', 'rde.amount1': 999, customValues: { 'rde.amount1': 1234.5 } }], nextCursor: null }));
   await flush();
   const panel = ruleItem(f, '資料可靠性測試').querySelector('.rule-detail');
   assert.deepEqual(panel.querySelectorAll('thead th').map(th => th.textContent), ['傳票號碼', '合成攸關金額']);
@@ -745,7 +822,7 @@ test('journey 9 messages: saving categories logs the count and that the prescree
 test('journey 9 messages: when the backend saved the categories but could not refresh the report list, the auditor gets one attention line and the list stays', async () => {
   const f = await openStep4({ validation: validationResult() });
   const listed = [{ artifactId: 'validation-1', kind: 'validationReport', fileName: 'validation-1.xlsx', fileState: 'present', stale: false,
-    generatedUtc: '2026-01-02T03:04:05Z', sizeBytes: 1, sourceRef: { validationRunId: 'v-step4' } }];
+    generatedUtc: '2026-01-02T03:04:05Z', sourceRef: { validationRunId: 'v-step4' } }];
   f.store.setReportArtifacts(listed); await flush();
   f.click('[data-action="toggle-taxonomy"]');
   f.click('[data-action="add-taxonomy-category"]');

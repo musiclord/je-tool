@@ -38,7 +38,7 @@ function validation(runId, eligibility = { isEligible: true, reason: null, warni
 
 function artifact(artifactId, kind, sourceRef = {}) {
   return { artifactId, kind, fileName: artifactId + '.xlsx', fileState: 'present', stale: false,
-    generatedUtc: '2026-01-02T03:04:05Z', sizeBytes: 2048, sourceRef };
+    generatedUtc: '2026-01-02T03:04:05Z', sourceRef };
 }
 
 // 從案件清單開案，帶到第六步：GL、TB 已確認配對，資料驗證 v1 可以繼續，兩個已儲存情境版本 r1。
@@ -163,6 +163,45 @@ for (const situation of ['none', 'stale']) test('journey 16: with ' + (situation
   assert.deepEqual(plain(f.request('export.workpaperStream').payload), WORKPAPER_PAYLOAD);
 });
 
+// 使用者 2026-10-15 在待決事項勾選頁裁定（U8）：上游修改清掉已存情境後，第六步不再顯示上一次匯出的工作表與資料列數；
+// 重新儲存情境以後也不顯示，因為那張表描述的是舊版本的匯出。修改前這張表一直留到換案件。
+test('journey 16: the sheet table of the last export goes away once an upstream change clears the scenarios', async () => {
+  const f = await openExport();
+  toggleReport(f, false);
+  pressExport(f); await flush();
+  const paper = artifact('paper-1', 'workingPaper', { validationRunId: 'v1', scenarioRevision: 'r1', scenarioPositions: [1, 2] });
+  f.reply('export.workpaperStream', { artifact: paper, reportArtifacts: [paper], sheetStats: [{ sheetName: '合成情境表', rowsWritten: 2 }] }); await flush();
+  assert.equal(step(f).querySelectorAll('.preview-table tbody tr').length, 1);
+  f.store.applyMutationEffects({ invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true } });
+  f.store.setSavedScenarios([savedG('第一個'), savedG('第二個')]);
+  f.store.setFilterResultRef({ revision: 'r2', populationScope: 'auditPeriod' });
+  f.store.setStepIndex(EXPORT_INDEX); await flush();
+  assert.equal(step(f).querySelectorAll('.preview-table tbody tr').length, 0, 'the table belonged to the export of the older scenarios');
+});
+
+// 使用者 2026-10-15 在待決事項勾選頁裁定（U4）：第六步要先補跑預篩選時，和第四步的「執行預篩選」一樣，先詢問還沒儲存的科目分類。
+// 選「留在這裡」什麼都不送；選擇繼續才執行預篩選。選「儲存並繼續」時，儲存會清掉已存情境，這次匯出就不再送出。
+for (const choice of ['stay', 'continue', 'save']) test('journey 16: unsaved account categories are asked about before the export runs the prescreen (' + choice + ')', async () => {
+  const f = await openExport({ prescreen: null });
+  const editor = f.window.JetUi.accountMappingEditor, calls = [];
+  editor.pendingCount = () => 1;
+  editor.confirmPending = (consequence, label) => {
+    calls.push([consequence, label]);
+    if (choice === 'save') {
+      f.store.applyMutationEffects({ invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true, accountMapping: false },
+        staleState: { validation: false, prescreen: true, filter: false }, reportArtifacts: [] });
+    }
+    return Promise.resolve(choice !== 'stay');
+  };
+  const from = f.posted.length;
+  pressExport(f); await flush();
+  assert.deepEqual(calls, [['預篩選只會使用已儲存的分類。', '先不儲存，直接執行']]);
+  // 儲存清掉情境後畫面回到第五步，第五步會自己查詢資料預覽；這裡只看匯出的三個 action。
+  const exportSequence = exportActions(f, from).filter(action => ['prescreen.run', 'export.prescreenReport', 'export.workpaperStream'].includes(action));
+  assert.deepEqual(exportSequence, choice === 'continue' ? ['prescreen.run'] : [],
+    choice === 'save' ? 'saving clears the scenarios, so this export stops' : 'nothing is sent before the auditor chooses to continue');
+});
+
 test('journey 16: when validation says the data cannot continue, the step says only the workpaper would be made and export stays off', async () => {
   const reason = '合成原因：後端判定這份資料不能繼續';
   const f = await openExport({ prescreen: null, eligibility: { isEligible: false, reason, warning: null } });
@@ -251,7 +290,9 @@ test('journey 16: export progress shows each reported phase on the busy screen w
   }
   // 進度只更新忙碌畫面，不新增訊息。
   assert.equal(f.messages().length, before);
-  f.reply('export.workpaperStream', { artifact: null, reportArtifacts: [], sheetStats: [] }); await flush();
+  // 正式後端匯出成功一定帶回這份底稿（ExportWorkpaperStreamHandler）；2026-10-15 前後端契合時改掉 artifact: null。
+  const finished = artifact('paper-progress', 'workingPaper', { validationRunId: 'v1', scenarioRevision: 'r1', scenarioPositions: [1, 2] });
+  f.reply('export.workpaperStream', { artifact: finished, reportArtifacts: [finished], sheetStats: [] }); await flush();
 });
 
 test('journey 16: the scenario choice says it uses the saved conditions, exporting needs no criteria report, and the step uses no internal wording', async () => {

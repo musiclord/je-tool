@@ -49,7 +49,7 @@ internal static partial class GuiScenarios
             await Choose(account + "[data-value-polarity]", "exclude");
         }
         async Task Preview() { await Click("[data-action=preview-scenario]"); await Check("!!preview && Number.isInteger(preview.count)"); }
-        ResizeFilterWindow(process, 920, 760);
+        ResizeFilterWindow(920, 760);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");

@@ -26,7 +26,8 @@ require('./support/resource-guard.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { batch9TreeDom, readWwwroot, exposeAt, plain, settle } = require('./support/frontend-fixtures.cjs');
+const { batch9TreeDom, readWwwroot, exposeAt, plain, settle, bootFullApp, flush } = require('./support/frontend-fixtures.cjs');
+const { contractJetApi } = require('./support/action-contract.cjs');
 
 const ALL_MAPPED = { hasAnyCategory: true, hasRevenue: true, hasCounterpart: true };
 
@@ -43,7 +44,7 @@ function buildFixture(options = {}) {
     vm.runInContext(readWwwroot('js/' + file), context, { filename: file });
   vm.runInContext(exposeAt(readWwwroot('js/steps/filter-step.js'), "  Ui.registerStep('filter', render);",
     '  window.filterBuild = { syncViewState: syncViewState, render: render, toWireDraft: toWireDraft };\n'), context, { filename: 'steps/filter-step.js' });
-  window.JetApi = {};
+  window.JetApi = contractJetApi({});
   for (const action of ['filterPreview', 'queryFilterVoucherPage', 'queryFilterVoucherRowsPage'])
     window.JetApi[action] = payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject }));
   const store = window.JetStore, api = window.filterBuild;
@@ -524,4 +525,93 @@ test('preview sends the composed groups exactly and marks a rejected condition o
   assert.deepEqual(invalid.map(row => [row.getAttribute('data-gi'), row.getAttribute('data-ri')]), [['2', '1']]);
   assert.equal(invalid[0].querySelectorAll('[data-rule-error]').length, 1);
   assert.equal(invalid[0].querySelector('[data-rule-error]').getAttribute('role'), 'alert');
+});
+
+// ------------------------------------------------------------------------------------------------
+// 加入條件後，延遲的計時器不會取消選取
+// ------------------------------------------------------------------------------------------------
+
+// 使用者 2026-10-15 在待決事項勾選頁選 S2：Gui 原本在加入條件後固定等 7 秒，再核對條件仍是「選取中」。
+// 這裡改用整個畫面的夾具（setTimeout 排進佇列），加入條件後跑完所有排定的計時器、各觸發一次 setInterval，
+// 再核對同一件事；確認這個測試抓得到計時器回來取消選取後，才刪掉 Gui 的等待。
+test('a condition added from the custom pane stays selected after every pending timer has run', async () => {
+  const CASE = { projectId: '合成條件案', databaseProvider: 'sqlite' };
+  const f = await bootFullApp([CASE]);
+  f.click('[data-action="picker-open"]');
+  f.reply('project.load', { project: { ...CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 1 } }); await flush();
+  f.reply('log.recent', { messages: [] }); await flush();
+  for (const kind of ['gl', 'tb']) {
+    f.store.setImportResult(kind, { batchId: kind + '-source', columns: ['Account'], rowCount: 2 });
+    f.store.setMappingCommitted(kind, { mode: kind === 'gl' ? 'signed' : 'direct', mapping: {} });
+  }
+  f.store.setLastRun('validate', { resultRef: { runId: 'v1', generatedUtc: '2026-01-01T00:00:00Z' },
+    completenessTest: { eligibility: { isEligible: true, reason: null, warning: null } } });
+  f.store.setAccountMappingState(ALL_MAPPED);
+  f.store.setStepIndex(4); await flush();
+  f.click('[data-condition-source="custom"]'); await flush();
+  f.click('[data-add-field="docNum"]'); await flush();
+  const selected = () => {
+    const rows = f.dom.content.querySelectorAll('.rule-row--selected');
+    return rows.length === 1 && rows[0].querySelector('.filter-rule-selected').textContent === '選取中';
+  };
+  assert.equal(f.state().filter.draft.groups[0].rules[0].field, 'docNum');
+  assert.ok(selected(), 'the new condition is selected');
+  f.timers.run();
+  for (const entry of f.liveIntervals()) entry.fn();
+  f.timers.run(); await flush();
+  assert.ok(selected(), 'the condition is still selected after the timers ran');
+});
+
+// ------------------------------------------------------------------------------------------------
+// 逐一點每一項常用查核條件的「加入」
+// ------------------------------------------------------------------------------------------------
+
+// 使用者 2026-10-15 在待決事項勾選頁選 S4：Gui 的 legacy-form-catalog 情境逐一加入及移除每一項常用查核條件，
+// 核對名稱、所屬分類一次只展開一類及加入的條件型別。改在這裡用畫面上的按鈕做同一件事，之後刪掉那個 Gui 情境。
+// 分類、名稱與型別逐字照那個情境原本的清單（tools/harness/gui-driver/GuiLegacyFormWorkflow.cs），不從畫面推導。
+test('every common check is added by its own button with the exact type, opens only its category and can be removed', () => {
+  const checks = [
+    ['dates', 'postDateWeekend', '總帳日期在週末', 'fieldValue'],
+    ['dates', 'postDateHoliday', '總帳日期在國定假日', 'fieldValue'],
+    ['dates', 'postDateNonBusinessDay', '總帳日期在非營業日', 'fieldValue'],
+    ['dates', 'docDateNonBusinessDay', '傳票核准日在非營業日', 'fieldValue'],
+    ['dates', 'postPeriodApproval', '財報準備日起核准的分錄', 'prescreen'],
+    ['dates', 'postDateRange', '指定日期區間', 'fieldValue'],
+    ['dates', 'periodEndDays', '查核期末最後幾天', 'fieldValue'],
+    ['amounts', 'largeAmount', '大額分錄', 'fieldValue'],
+    ['amounts', 'trailingZeros', '金額尾數連續多個 0', 'group'],
+    ['description', 'descriptionKeywords', '摘要含特定字詞', 'fieldValue'],
+    ['description', 'blankDescription', '空白摘要', 'fieldValue'],
+    ['accounts', 'debitOrCreditOnly', '只看借方或貸方', 'drCrOnly'],
+    ['accounts', 'accountCategory', '科目屬於指定分類', 'group'],
+    ['accounts', 'categoryPair', '借方與貸方分類組合', 'specialAccountCategoryPair'],
+    ['accounts', 'accountCodePair', '借方與貸方科目編號組合', 'group'],
+    ['accounts', 'unexpectedAccountPair', '未預期的借貸組合', 'prescreen'],
+    ['accounts', 'rareAccounts', '較少使用的科目', 'entityFrequency'],
+    ['people', 'manualEntries', '人工分錄', 'manualAuto'],
+    ['people', 'rarePreparers', '編製分錄較少的人員', 'entityFrequency'],
+    ['prescreen', 'prescreenResult', '沿用第四步預篩選規則', 'prescreen']
+  ];
+  const f = customPane({ glMapping: { createBy: 'Maker', approveBy: 'Checker', manual: 'Manual' } });
+  const allRules = () => f.draft().groups.flatMap(group => group.rules);
+  for (const [category, key, label, type] of checks) {
+    if (f.$('[data-check-category="' + category + '"]').getAttribute('aria-expanded') !== 'true') f.click('[data-check-category="' + category + '"]');
+    assert.equal(f.$('[data-add-check="' + key + '"]').disabled, false, key + ' can be added');
+    f.click('[data-add-check="' + key + '"]');
+    const rules = allRules();
+    assert.equal(rules.length, 1, key);
+    assert.equal(rules[0].type, type, key);
+    assert.deepEqual(f.$$('[data-check-category][aria-expanded="true"]').map(node => node.getAttribute('data-check-category')), [category],
+      key + ' leaves only its own category open');
+    assert.equal(f.$('[data-add-check="' + key + '"]').closest('.filter-check').querySelector('.filter-check__label').textContent, label);
+    if (key === 'accountCodePair') assert.deepEqual([rules[0].rules[0].rules[0].drCr, rules[0].rules[1].rules[0].drCr], ['debit', 'credit']);
+    // 新建的分類條件預設包含下層分類。
+    if (key === 'categoryPair') assert.equal(rules[0].categorySelection, 'subtree');
+    if (key === 'trailingZeros') assert.deepEqual([rules[0].rules[0].value, rules[0].rules[1].value], ['000000', '1']);
+    const row = f.$('.rule-row[data-ri="0"]');
+    const remove = type === 'group' ? row.querySelector('.filter-rule-heading [data-compound-remove]') : row.querySelector('[data-action="remove-rule"]');
+    assert.ok(remove, key + ' offers a remove control on its row');
+    remove.fire('click');
+    assert.equal(allRules().length, 0, key + ' is removed');
+  }
 });

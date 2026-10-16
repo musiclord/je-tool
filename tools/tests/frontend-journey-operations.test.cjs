@@ -45,6 +45,7 @@ const nodeTest = require('node:test');
 const test = (name, fn) => nodeTest(name, { timeout: 30000 }, fn);
 const assert = require('node:assert/strict');
 const { settle, plain, messagePanelFixture, remapPrescreen, usageJourneyFixture, savedG, flush, bootFullApp: boot } = require('./support/frontend-fixtures.cjs');
+const { unchecked } = require('./support/action-contract.cjs');
 
 const CASE = { projectId: '合成案件', databaseProvider: 'sqlite' };
 
@@ -125,7 +126,8 @@ test('journey 22: validation and the prescreen show a monotonic elapsed time and
   assert.equal(f.overlay.guidance(), null);
 
   // 匯入不是資料驗證或預篩選：經過時間照樣顯示，但沒有那句提示。
-  f.ui.run('匯入 PBC-GL', () => f.api.importGlFromFile({}));
+  // 送出的資料照第二步實際送的格式寫（import-step.js），前後端契合的核對才收得下。
+  f.ui.run('匯入 PBC-GL', () => f.api.importGlFromFile({ mode: 'replace', sources: [{ filePath: 'synthetic.xlsx', fileName: 'synthetic.xlsx', sheetName: 'GL' }] }));
   const importing = f.request('import.gl.fromFile');
   assert.equal(f.state().activeRequestId, importing.requestId);
   assert.match(f.overlay.elapsed(), /00:00/);
@@ -227,7 +229,8 @@ test('journey 22: listing online cases and opening a case can be cancelled with 
 
 test('journey 22: cancelling records the operation and its progress at that moment, a finished step keeps its result, and a failed cancel can be pressed again', async () => {
   const f = await boot([CASE]);
-  const running = () => f.ui.run('產生工作底稿', () => f.api.exportWorkpaperStream({}));
+  // 送出的資料照第六步實際送的欄位寫（export-step.js），前後端契合的核對才收得下。
+  const running = () => f.ui.run('產生工作底稿', () => f.api.exportWorkpaperStream({ validationRunId: 'v-operations', scenarioRevision: 'r1', scenarioPositions: [1] }));
   // 取消被接受：記下作業名稱與當時進度。進度接進訊息時拿掉「工作底稿：」的冒號。
   let done = running();
   f.emit('export.progress', { artifactKind: 'workingPaper', phase: 'writingSheet', sheetName: '合成表', sheetsCompleted: 1, rowsWritten: 1500, elapsedMilliseconds: 4200 });
@@ -268,7 +271,7 @@ test('journey 22: cancelling records the operation and its progress at that mome
   f.fail(f.request('export.workpaperStream'), { code: 'operation_cancelled', message: '合成：已取消' }); await done;
 
   // 作業沒有名稱時，取消訊息仍寫出一個名稱，不留空的引號（名稱本身沒有使用者裁定，只比對意思）。
-  done = f.ui.run('', () => f.api.exportWorkpaperStream({}));
+  done = f.ui.run('', () => f.api.exportWorkpaperStream({ validationRunId: 'v-operations', scenarioRevision: 'r1', scenarioPositions: [1] }));
   f.click('[data-action="cancel-operation"]');
   f.reply(f.request('operation.cancel'), { requested: true }); await flush();
   assert.match(f.messages()[0].text, /^已要求取消「[^」]+」。$/);
@@ -294,12 +297,14 @@ test('journey 22: a long operation leaves one completion line with minutes and s
   // 使用者 2026-10-13 勾選頁確認 15（final-wording.json）與「耗時寫成 2 分 51 秒」的裁定。
   assert.deepEqual(f.messages()[0], { text: '合成作業完成，耗時 2 分 51 秒。', level: 'info' });
 
+  // 這裡借用 system.ping 當作一般作業，完成句由測試自己組，count 是測試的資料，不是 ping 的回應。
+  const pingStandIn = '借用 system.ping 測 Ui.run 的完成句；count 由測試自己的完成句讀取';
   done = f.ui.run('合成作業', () => f.api.systemPing({}), { completionMessage: data => data && data.count ? '合成完成句，共 ' + data.count + ' 筆。' : '' });
-  f.reply(f.sent('system.ping').at(-1), { count: 3 }); await done;
+  f.reply(f.sent('system.ping').at(-1), unchecked(pingStandIn, { count: 3 })); await done;
   // 有自己完成句的操作只留那一句，句尾的句號換成耗時：使用者 2026-10-13 勾選頁確認 15；不到 0.1 秒是 2026-10-14 第三輪 R3-26。
   assert.deepEqual(f.messages()[0], { text: '合成完成句，共 3 筆，耗時不到 0.1 秒。', level: 'info' });
   done = f.ui.run('合成作業', () => f.api.systemPing({}), { completionMessage: data => data && data.count ? '合成完成句。' : '' });
-  f.reply(f.sent('system.ping').at(-1), { count: 0 }); await done;
+  f.reply(f.sent('system.ping').at(-1), unchecked(pingStandIn, { count: 0 })); await done;
   assert.notEqual(f.messages()[0].text, '合成完成句，耗時不到 0.1 秒。', 'an empty completion line means nothing was done');
 
   done = f.ui.run('合成作業', () => f.api.systemPing({}));

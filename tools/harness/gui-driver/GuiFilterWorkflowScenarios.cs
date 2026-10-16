@@ -20,21 +20,24 @@ internal static partial class GuiScenarios
     [DllImport("user32.dll")]
     private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
 
-    private static void ResizeFilterWindow(Process process, int width, int height)
+    // JET 開在這次執行另建的桌面上（見 OwnedGuiRun），所以在掛到那個桌面的執行緒上找到 JET 主視窗再調整大小。
+    private static void ResizeFilterWindow(int width, int height)
     {
-        process.Refresh();
-        var window = process.MainWindowHandle;
-        var previous = SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(window));
-        if (previous == IntPtr.Zero) throw new GuiInfrastructureException("filter_window_dpi_context_unavailable");
-        try
+        var run = OwnedGuiRun.Active ?? throw new GuiInfrastructureException("filter_window_run_missing");
+        run.OnApplicationWindow(window =>
         {
-            var dpi = GetDpiForWindow(window);
-            if (dpi == 0) throw new GuiInfrastructureException("filter_window_dpi_unavailable");
-            if (!SetWindowPos(window, IntPtr.Zero, 20, 20,
-                    (int)Math.Round(width * dpi / 96d), (int)Math.Round(height * dpi / 96d), 0x0014))
-                throw new GuiInfrastructureException("filter_desktop_resize_failed");
-        }
-        finally { SetThreadDpiAwarenessContext(previous); }
+            var previous = SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(window));
+            if (previous == IntPtr.Zero) throw new GuiInfrastructureException("filter_window_dpi_context_unavailable");
+            try
+            {
+                var dpi = GetDpiForWindow(window);
+                if (dpi == 0) throw new GuiInfrastructureException("filter_window_dpi_unavailable");
+                if (!SetWindowPos(window, IntPtr.Zero, 20, 20,
+                        (int)Math.Round(width * dpi / 96d), (int)Math.Round(height * dpi / 96d), 0x0014))
+                    throw new GuiInfrastructureException("filter_desktop_resize_failed");
+            }
+            finally { SetThreadDpiAwarenessContext(previous); }
+        });
     }
 
     private static async Task ExecuteFilterWorkflowAsync(CdpSession cdp, OwnedGuiRun ownedRun,
@@ -118,24 +121,8 @@ internal static partial class GuiScenarios
             await Click("[data-filter-pane-select=\"filter\"]");
             
             await Click("[data-condition-source=\"kct\"]");
-            outcome.RecordStage("kct_a_to_e_default_rationales");
-            var rationales = new (string Letter, string Text)[]
-            {
-                ("A", "期末前 X天內收入科目有迴轉分錄，表示收入認列過程中可能存在不適當的調整或更正(案件團隊須提供天數)"),
-                ("B", "借記固定資產科目(如不動產、廠房和設備(PPE))但貸記營業費用或維修費用等費用科目之分錄組合不符合公司營業流程的瞭解，因此屬於為非預期的過帳，可能為舞弊類型分錄及其他調整的特質。"),
-                ("C", "查核團隊已發現與收入科目相關的未預期或不尋常過帳(貸方為收入，但借方科目非為應收票據/帳款、預收貨款/合約負債)"),
-                ("D", "根據查核核團隊的瞭解，收入科目的過帳一般是自動產生，如為人工分錄非屬正常營業流程的會計分錄"),
-                ("E", "執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。")
-            };
-            foreach (var (letter, rationale) in rationales)
-            {
-                outcome.RecordStage($"kct_{letter}_default_rationale");
-                await Click($"[data-kct-letter='{letter}']");
-                await Check("draft.rationale===" + JsonSerializer.Serialize(letter + "：" + rationale));
-                if (letter == "B") await Check("draft.groups[0].rules[0].__kctLetter==='B' && draft.groups[0].rules[0].type==='specialAccountCategoryPair' && document.querySelector('[data-kct-letter=B]').getAttribute('aria-pressed')==='true'");
-                await Click($"[data-kct-letter='{letter}']");
-                await Check("draft.groups[0].rules.length===0");
-            }
+            // 原本這裡逐張點 A 到 E 核對單張預設動機、B 卡另外核對加入的條件，再點一次取消（10 次操作）。
+            // 使用者 2026-10-15 在勾選頁選 S5，改由 frontend-workflow 的「clicking each KCT card A to E alone…」逐張點擊核對。
             await Click("[data-kct-letter=\"G\"]");
             await Save();
             await Check("saved.length===2 && saved[1].editorOrigins.groups[0].letters[0]==='G'");
@@ -193,9 +180,12 @@ internal static partial class GuiScenarios
             await Click(".rule-row [data-value-inclusive]");
             await Check("draft.groups[0].rules[0].operator==='greaterThanOrEqual'");
             await Click(".rule-row [data-value-options] > summary");
-            await Choose(".rule-row [data-value-key=\"amountBasis\"]", "signed");
+            // 2026-10-14 篩選條件改成每條只表達一件事後，內建「金額」的「含正負號」已停用（FilterSinglePurposeRules.SignedAmount），
+            // 畫面不再提供金額比較基準，原本選「含正負號」的那一步找不到控制項而逾時
+            // （第一次失敗收據 20261015-040206531-16972fdc1dfa43a2a82c56b3fbb7166d）。改成核對畫面不再提供這個選項、條件維持絕對值，
+            // 其餘照舊：勾選空白也列入後，選項區仍開著。
             await Click(".rule-row [data-value-key=\"includeBlank\"]");
-            await Check("draft.groups[0].rules[0].amountBasis==='signed' && draft.groups[0].rules[0].includeBlank && draft.groups[0].rules[0].operator==='greaterThanOrEqual' && document.querySelector('[data-value-options]').open");
+            await Check("draft.groups[0].rules[0].amountBasis==='absolute' && !document.querySelector('.rule-row [data-value-key=amountBasis]') && draft.groups[0].rules[0].includeBlank && draft.groups[0].rules[0].operator==='greaterThanOrEqual' && document.querySelector('[data-value-options]').open");
             await Click(".rule-row [data-action=\"remove-rule\"]");
             await AddCustom("field:description");
             await Fill(".rule-row [data-value-key=\"values\"]", "SYNTHETIC");
@@ -225,7 +215,8 @@ internal static partial class GuiScenarios
             await AddCustom("field:docNum");
             await Check("draft.groups[0].rules[0].field==='docNum' && !document.querySelector('[data-custom-subject]') && !document.querySelector('[data-add-field][aria-pressed=true]') && !document.querySelector('.rule-row [data-value-key=field]') && !document.querySelector('[data-set-combinator]') && !document.querySelector('.filter-draft-note') && document.querySelector('[data-action=remove-rule]').textContent==='移除'");
             await Check("!document.querySelector('[data-action=add-set]').closest('details')");
-            await Task.Delay(TimeSpan.FromSeconds(7), ct);
+            // 原本這裡固定等 7 秒再核對仍是選取中。使用者 2026-10-15 在勾選頁選 S2：改由前端測試跑完所有計時器後核對
+            // （frontend-journey-filter-build 的「stays selected after every pending timer has run」，已用改壞的計時器確認抓得到）。
             await Check("document.querySelectorAll('.rule-row--selected').length===1 && document.querySelector('.filter-rule-selected').textContent==='選取中'");
             await Fill(".rule-row [data-value-key=\"values\"]", "SYNTHETIC");
             
@@ -327,7 +318,7 @@ internal static partial class GuiScenarios
             // Minimum-window checks above remain unchanged. Resize only this owned synthetic window
             // after those checks to inspect the two-column desktop layout at the same 125% zoom.
             outcome.RecordAction();
-            ResizeFilterWindow(process, 1560, 1100);
+            ResizeFilterWindow(1560, 1100);
             outcome.RecordStage("desktop-sized");
             await Check("window.innerWidth>=1200 && window.innerWidth<=1260");
             await Click("[data-action=\"cancel-edit-scenario\"]");
@@ -356,7 +347,7 @@ internal static partial class GuiScenarios
             await Click(".data-preview [data-more-toggle]");
             // 保持視窗大於 900px，但讓預覽佔去寬度，實際走過工作區不足 660px 的單欄分支。
             outcome.RecordAction();
-            ResizeFilterWindow(process, 1400, 1100);
+            ResizeFilterWindow(1400, 1100);
             // 這裡要防的是資料預覽打開時編輯器被擠窄（2026-09-09 補上）。當時用「條件列至少 300px」代表；改版後條件列左邊留了
             // 「選取中」的位置，同樣情況只剩約 250px，但控制項都上下排好、沒有被切掉（2026-10-14 實測，第一次失敗收據
             // 20261014-064557973-d32c49a1530e46e883733a7bbac914c1）。所以改成直接檢查：單欄排列，而且條件列的控制項都在列內、沒有橫向溢出。

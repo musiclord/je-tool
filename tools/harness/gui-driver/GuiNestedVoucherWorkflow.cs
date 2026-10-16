@@ -42,7 +42,7 @@ internal static partial class GuiScenarios
         const string date = ".rule-row[data-ri='0.1.1.1.0']";
         const string description = ".rule-row[data-ri='0.1.1.1.1']";
         const string classification = ".rule-row[data-ri='0.1.1.2']";
-        ResizeFilterWindow(process, 1120, 860);
+        ResizeFilterWindow(1120, 860);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='3']");

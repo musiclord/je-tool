@@ -14,8 +14,10 @@ internal static partial class GuiScenarios
         Process process, GuiRunOutcome outcome, CancellationToken ct)
     {
         Task Click(string selector) => ClickRecoveryControlAsync(cdp, process, selector, outcome, ct);
+        // 探針要定義檢查式用到的 preview：「儲存後草稿與預覽都清空」的檢查是 2026-10-14 沒有執行 Gui 時加的，
+        // 原本少了這個變數，頁面拋出 ReferenceError（第一次失敗收據 20261015-041049524-501ad449c41c4ff4b34609e9567280e0）。
         Task Check(string expression) => WaitForProbeAsync(cdp, process,
-            "(()=>{var state=window.JetStore.getState();if(state.busy)return {idle:false,ok:false};var saved=state.filter.savedScenarios,draft=state.filter.draft;return {idle:true,ok:!!(" + expression +
+            "(()=>{var state=window.JetStore.getState();if(state.busy)return {idle:false,ok:false};var saved=state.filter.savedScenarios,draft=state.filter.draft,preview=state.filter.preview;return {idle:true,ok:!!(" + expression +
             "),step:state.currentStepIndex,saved:saved.length,draftGroups:draft.groups.length,papers:state.reportArtifacts.filter(a=>a.kind==='workingPaper').length,notice:!!document.querySelector('[data-bind=downstream-reset-notice]'),validated:!!state.lastRuns.validate};})()",
             value => value, value => ReadBoolean(value, "idle") && ReadBoolean(value, "ok"),
             "upstream_change_after_export_failed", ct, value => outcome.LastFilterProbe = value.Clone());
@@ -30,7 +32,7 @@ internal static partial class GuiScenarios
         const string clearedOnce = "state.messages.filter(m=>m.text==='前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。').length";
         const string currentPaperForFirst = "!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]})";
 
-        ResizeFilterWindow(process, 1250, 950);
+        ResizeFilterWindow(1250, 950);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-six-stage-complete-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-six-stage-complete]");
         await Check("state.filter.savedScenarios.length===1 && state.reportArtifacts.some(a=>a.kind==='workingPaper' && !a.stale)");

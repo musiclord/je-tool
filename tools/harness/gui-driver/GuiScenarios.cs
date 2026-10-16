@@ -291,7 +291,7 @@ internal static partial class GuiScenarios
             GuiScenarioCatalog.ExtendedConditions => ExecuteExtendedConditionsAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.SideMonthWorkflow => ExecuteSideMonthWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.NestedVoucherWorkflow => ExecuteNestedVoucherWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
-            GuiScenarioCatalog.LegacyFormWorkflow or GuiScenarioCatalog.LegacyFormCatalog => ExecuteLegacyFormWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.LegacyFormWorkflow => ExecuteLegacyFormWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.AuthorizedListRecovery => ExecuteAuthorizedListRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.KctRemapRecovery => ExecuteKctRemapRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.UpstreamChangeAfterExport => ExecuteUpstreamChangeAfterExportAsync(cdp, ownedRun, process, outcome, cancellationToken),
@@ -830,9 +830,10 @@ internal static partial class GuiScenarios
             cancellationToken, outcome).ConfigureAwait(false);
 
         const string requiredSelect = GlSection + ".mapping-table__row.is-required select[data-mapping-key]";
-        // 人工驗收第 1 項：十次清空和補回，每次核對缺漏、按鈕與焦點。
-        outcome.RecordStage("mapping-ten-roundtrips");
-        for (var cycle = 0; cycle < 10; cycle++)
+        // 人工驗收第 1 項：清空和補回兩次，每次核對缺漏、按鈕與焦點。原本十次，使用者 2026-10-15 在勾選頁選
+        // 減為兩次（S1）：全程只在前端，逐欄同步另有前端測試；這裡保留真實鍵盤與 WebView2 焦點的檢查。
+        outcome.RecordStage("mapping-two-roundtrips");
+        for (var cycle = 0; cycle < 2; cycle++)
         {
             await ClickControlAsync(cdp, process, requiredSelect, outcome, cancellationToken).ConfigureAwait(false);
             await PressKeyAsync(cdp, "Home", outcome, cancellationToken).ConfigureAwait(false);
@@ -1122,13 +1123,33 @@ internal static partial class GuiScenarios
                     }
                   }
                   if (right - left < 2 || bottom - top < 2) { continue; }
-                  // 優先使用原有中央落點；數字框會攔截滾輪時才選可見邊緣。
-                  // 邊緣也可能落在外層，因此需確認命中的元素確實屬於此捲動容器。
-                  var anchorY = (top + bottom) / 2;
-                  var anchorX = [(left + right) / 2, left + 4, right - 20].find(function (candidate) {
-                    var target = document.elementFromPoint(candidate, anchorY);
-                    return target && (target === parent || parent.contains(target)) && !target.closest('input[type=number]');
+                  // 滾輪落點要在這個捲動容器裡，而且從落點往上，第一個能往這個方向捲的就是這個容器。落在容器裡另一個
+                  // 捲動區上（例如明細表格本身）時，Chromium 會把接連送出的滾輪都交給那個內層捲動區，這個容器一直不動
+                  // （2026-10-15 第五步旅程，第一次失敗收據 20261015-034003560-86738cd5baec447c98b8d961a893f463）。
+                  // 數字框會攔截滾輪，也不當落點。從可見範圍的中央往上下每隔約 16px 試，每個高度試中間、左緣、右緣；
+                  // 都不行才退回第一個在容器裡的點。
+                  var scrollsInside = function (target) {
+                    for (var node = target; node && node !== parent; node = node.parentElement) {
+                      var nodeStyle = getComputedStyle(node);
+                      if ((vertical && /auto|scroll/.test(nodeStyle.overflowY) && node.scrollHeight > node.clientHeight)
+                        || (horizontal && /auto|scroll/.test(nodeStyle.overflowX) && node.scrollWidth > node.clientWidth)) { return true; }
+                    }
+                    return false;
+                  };
+                  var anchorX, anchorY, fallback = null, middle = (top + bottom) / 2, rows = Math.max(1, Math.floor((bottom - top) / 16));
+                  var heights = [];
+                  for (var row = 0; row <= rows; row++) { heights.push(top + 2 + (bottom - top - 4) * row / rows); }
+                  heights.sort(function (a, b) { return Math.abs(a - middle) - Math.abs(b - middle); });
+                  heights.some(function (candidateY) {
+                    return [(left + right) / 2, left + 4, right - 20].some(function (candidateX) {
+                      var target = document.elementFromPoint(candidateX, candidateY);
+                      if (!target || !(target === parent || parent.contains(target)) || target.closest('input[type=number]')) { return false; }
+                      if (scrollsInside(target)) { fallback = fallback || [candidateX, candidateY]; return false; }
+                      anchorX = candidateX; anchorY = candidateY;
+                      return true;
+                    });
                   });
+                  if (anchorX === undefined && fallback) { anchorX = fallback[0]; anchorY = fallback[1]; }
                   if (anchorX === undefined) { continue; }
                   return { exists: true, ready: false, x: anchorX, y: anchorY,
                     selector:SELECTOR, disabled:element.disabled, target:[rect.x,rect.y,rect.width,rect.height], parent:parent.className,

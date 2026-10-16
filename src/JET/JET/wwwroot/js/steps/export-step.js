@@ -151,9 +151,11 @@
     );
   }
 
-  function sheetStatsHtml() {
-    if (!lastSheetStats || lastSheetStats.length === 0) { return ''; }
-    var rows = lastSheetStats.map(function (sheet) {
+  // 工作表與資料列數描述的是某一版已存情境的匯出；上游修改清掉情境、或情境換了版本後就不再顯示
+  // （使用者 2026-10-15 裁定）。
+  function sheetStatsHtml(state) {
+    if (!lastSheetStats || lastSheetStats.sheets.length === 0 || lastSheetStats.revision !== filterRevision(state)) { return ''; }
+    var rows = lastSheetStats.sheets.map(function (sheet) {
       return '<tr><td>' + Ui.esc(sheet.sheetName) + '</td><td class="preview-table__amount">' +
         Number(sheet.rowsWritten).toLocaleString('en-US') + '</td></tr>';
     }).join('');
@@ -256,7 +258,7 @@
             '<span>第 ' + (historyPage + 1) + ' 頁，共 ' + pageCount + ' 頁（' + workpapers.length + ' 份）</span>' +
             '<button type="button" class="btn btn--ghost btn--tiny" data-history-page="1"' +
               (historyPage + 1 === pageCount ? ' disabled' : '') + '>下一頁</button></div>' : '') +
-          sheetStatsHtml() +
+          sheetStatsHtml(state) +
         '</section>' +
         Ui.stepFooterHtml(state) +
       '</div>';
@@ -353,7 +355,7 @@
   function exportWorkpaper(payload, project) {
     return global.JetApi.exportWorkpaperStream(payload).then(function (data) {
       requireExportActive(project, payload, true);
-      lastSheetStats = data.sheetStats || [];
+      lastSheetStats = { revision: payload.scenarioRevision, sheets: data.sheetStats || [] };
       Store.applyReportExport(data);
       return data;
     });
@@ -408,18 +410,31 @@
         return;
       }
 
-      Ui.run('產生工作底稿與預篩選報告', function () {
-        requireExportActive(project, payload);
-        return Promise.resolve(plan.needsRun ? runPrescreenForExport(project, payload) : plan.currentRunId)
-          .then(function (sourceRunId) {
-            requireExportActive(project, payload);
-            return exportPrescreenReportForRun(sourceRunId, project, payload);
-          })
-          .then(function () {
-            requireExportActive(project, payload);
-            return exportWorkpaper(payload, project);
-          });
-      }, { completionMessage: workpaperCompletionMessage });
+      // 要先補跑預篩選、第四步又有還沒儲存的科目分類時，和第四步的「執行預篩選」一樣先問（使用者 2026-10-15 裁定）。
+      // 選「儲存並繼續」會清掉已存情境，這次匯出就不再送出。
+      if (plan.needsRun && Ui.pendingAccountCategoryCount()) {
+        Ui.confirmPendingAccountCategories('預篩選只會使用已儲存的分類。', '先不儲存，直接執行').then(function (proceed) {
+          var latest = Store.getState();
+          if (proceed && latest.project === project && filterRevision(latest) === payload.scenarioRevision) { exportWithPrescreen(); }
+        });
+        return;
+      }
+      exportWithPrescreen();
+
+      function exportWithPrescreen() {
+        Ui.run('產生工作底稿與預篩選報告', function () {
+          requireExportActive(project, payload);
+          return Promise.resolve(plan.needsRun ? runPrescreenForExport(project, payload) : plan.currentRunId)
+            .then(function (sourceRunId) {
+              requireExportActive(project, payload);
+              return exportPrescreenReportForRun(sourceRunId, project, payload);
+            })
+            .then(function () {
+              requireExportActive(project, payload);
+              return exportWorkpaper(payload, project);
+            });
+        }, { completionMessage: workpaperCompletionMessage });
+      }
     });
   }
 

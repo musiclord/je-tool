@@ -51,8 +51,9 @@ public interface IResultStaleStateStore
 
 /// <summary>
 /// 已保存的篩選情境定義（config_filter_scenario；replace-all、上限 10）。
-/// DefinitionJson 為前端送入的完整 scenario JSON（含 name/rationale/groups），
-/// resume 時原樣回放。
+/// DefinitionJson 為 scenario JSON（含 name/rationale/groups），resume 時原樣回放。
+/// 情境儲存時，那一個情境的每條條件只留該類型用得到的欄位（FilterRuleWireFields）；情境層、條件組層，
+/// 以及尚未重新儲存的舊情境照原內容保留。
 /// </summary>
 public sealed record SavedFilterScenario(
     int Position,

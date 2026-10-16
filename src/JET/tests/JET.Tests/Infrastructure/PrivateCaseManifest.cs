@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using JET.Domain;
@@ -581,7 +582,7 @@ internal static partial class PrivateCaseManifestLoader
         {
             throw Error(PrivateCaseManifestFailure.InvalidScenario);
         }
-        return scenarios.Select(static element => element.Clone()).ToArray();
+        return scenarios.Select(static element => PrivateCaseScenarioShape.Current(element.Clone())).ToArray();
     }
 
     private static PrivateCaseLegacyEvidence ReadLegacy(
@@ -1077,5 +1078,48 @@ internal static partial class PrivateCaseManifestLoader
         public string? Dimension { get; init; }
 
         public string? Decision { get; init; }
+    }
+}
+
+// 2026-10-14 起「同一傳票」比對範圍停用，產品儲存條件時會擋下，請審計員保留第一條、其餘各條放進「整張傳票條件」並選「至少一筆符合」；
+// 舊版篩選紀錄的解析器也只產生這種寫法。私人案件清單是使用者在這之前寫的，讀清單時照同一句說明換成新寫法，
+// 送出情境與核對舊版紀錄都用換過的定義；清單檔本身不改。第一次失敗：PrivateCase
+// 20261016-021117397-692898c0b4e74d0596265996bd8d51c6（SQLite）與 20261016-021130320-79e7290e83f54e2ca3397a482bff22e6（DuckDB），
+// 使用者 2026-10-16 選「測試先換成新寫法再比對」。
+internal static class PrivateCaseScenarioShape
+{
+    internal static JsonElement Current(JsonElement scenario)
+    {
+        if (JsonNode.Parse(scenario.GetRawText()) is not JsonObject root
+            || root["groups"] is not JsonArray groups)
+        {
+            return scenario;
+        }
+
+        foreach (var group in groups.OfType<JsonObject>())
+        {
+            if (group["matchScope"] is not JsonValue scope
+                || !scope.TryGetValue<string>(out var value)
+                || value != "sameVoucher"
+                || group["rules"] is not JsonArray rules)
+            {
+                continue;
+            }
+
+            group["matchScope"] = "row";
+            for (var index = 1; index < rules.Count; index++)
+            {
+                var rule = rules[index]!.DeepClone();
+                rules[index] = new JsonObject
+                {
+                    ["join"] = "AND",
+                    ["type"] = "voucher",
+                    ["quantifier"] = "any",
+                    ["rules"] = new JsonArray(rule),
+                };
+            }
+        }
+
+        return JsonSerializer.SerializeToElement(root);
     }
 }

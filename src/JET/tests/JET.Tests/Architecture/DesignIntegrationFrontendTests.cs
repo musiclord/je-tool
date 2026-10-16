@@ -320,7 +320,11 @@ public sealed class DesignIntegrationFrontendTests
         var css = ReadFrontend("css", "app.css");
         var app = ReadFrontend("js", "app.js");
 
-        Assert.Contains(".btn:is([data-add-check], [data-action=\"add-set\"], [data-action=\"add-taxonomy-category\"]) {", css, StringComparison.Ordinal);
+        // 使用者 2026-10-15 指出切換第五步頁籤時，淡掉中的「新增條件組」變回白底。JetMotion 的舊複本會拿掉 data-action，
+        // 所以樣式改掛在 .btn--add。這條原本鎖 .btn:is([data-add-check], [data-action="add-set"], ...)，改版後依預期失敗，
+        // 首敗收據 20261015-015426320-016be01c6d8140758d9bd5ddebf012ad。意圖不變：會新增東西的按鈕是淡藍底藍字加號。
+        Assert.Contains(".btn.btn--add {", css, StringComparison.Ordinal);
+        Assert.Contains("class=\"btn btn--ghost btn--add\" data-action=\"add-set\"", ReadFrontend("js", "steps", "filter-step.js"), StringComparison.Ordinal);
         Assert.Contains("../assets/icons/fluent/add_20_regular.svg", css, StringComparison.Ordinal);
         var lowKey = css[css.IndexOf(".btn--tiny,\n.btn--ghost.btn--tiny,\n.filter-workspace .rule-row__remove,", StringComparison.Ordinal)..];
         lowKey = lowKey[..(lowKey.IndexOf('}') + 1)];
@@ -538,14 +542,16 @@ public sealed class DesignIntegrationFrontendTests
         // 使用者 2026-10-13 指出淡入淡出太緩慢、要求加快，長出來與收起改成 0.34 秒與 0.27 秒；
         // 這四條原本鎖 0.4 秒、0.32 秒、588ms 與 471ms，改版後依預期失敗，首敗收據 20261013-054600810-effc73931390437c8015d25ac3a6ebf1。
         // 意圖不變：JS 的彈簧與 CSS 的時間由同樣的參數算出來。
-        Assert.Contains("glide: { duration: 0.34, bounce: 0 },", app, StringComparison.Ordinal);
-        Assert.Contains("open: { duration: 0.34, bounce: 0 },", app, StringComparison.Ordinal);
-        Assert.Contains("close: { duration: 0.27, bounce: 0 },", app, StringComparison.Ordinal);
+        // 使用者 2026-10-15 認為進階條件篩選的動態拖累操作，bounce 維持 0、同比例縮短約兩成；這六條原本鎖 0.34、0.34、0.27 秒
+        // 與 500ms、500ms、400ms，改版後依預期失敗，首敗收據 20261015-015426320-016be01c6d8140758d9bd5ddebf012ad。
+        Assert.Contains("glide: { duration: 0.28, bounce: 0 },", app, StringComparison.Ordinal);
+        Assert.Contains("open: { duration: 0.28, bounce: 0 },", app, StringComparison.Ordinal);
+        Assert.Contains("close: { duration: 0.22, bounce: 0 },", app, StringComparison.Ordinal);
         Assert.Contains("function springSegment(preset, from, to, velocity, start) {", app, StringComparison.Ordinal);
         Assert.Contains("--ease-spring: linear(", css, StringComparison.Ordinal);
-        Assert.Contains("--motion-glide: 500ms;", css, StringComparison.Ordinal);
-        Assert.Contains("--motion-open: 500ms;", css, StringComparison.Ordinal);
-        Assert.Contains("--motion-close: 400ms;", css, StringComparison.Ordinal);
+        Assert.Contains("--motion-glide: 412ms;", css, StringComparison.Ordinal);
+        Assert.Contains("--motion-open: 412ms;", css, StringComparison.Ordinal);
+        Assert.Contains("--motion-close: 324ms;", css, StringComparison.Ordinal);
 
         // 選取依區塊識別認得重繪後的同一組；滑到一半改去別的地方時帶著此刻的速度接著走。
         Assert.Contains("var holder = group.closest('[data-motion-key]');", app, StringComparison.Ordinal);
@@ -576,6 +582,106 @@ public sealed class DesignIntegrationFrontendTests
         Assert.Contains("data-motion-key=\"validate-panel\"", validate, StringComparison.Ordinal);
         Assert.Contains("'<div class=\"account-methods-block\" data-motion-key=\"account-methods\">' +", validate, StringComparison.Ordinal);
         Assert.Contains("data-motion-key=\"filter-panel\"", filter, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Frontend_MotionCurvesMatchTheirSprings_GlassBouncesAndContentDoesNot()
+    {
+        // 使用者 2026-10-15 澄清 2026-10-13 不喜歡的是拋物線軌跡、不是回彈，並選「直接照建議改」：
+        // 玻璃層被操作的東西用 bounce 0.15，內容層的版面改變用 bounce 0。
+        // 這裡用彈簧的公式自己算出曲線與停下來的時間，核對 app.css 取樣的曲線、時間和 app.js 的參數是同一組彈簧。
+        var app = ReadFrontend("js", "app.js");
+        var css = ReadFrontend("css", "app.css");
+
+        var springs = System.Text.RegularExpressions.Regex.Matches(
+                app[app.IndexOf("var SPRINGS = {", StringComparison.Ordinal)..app.IndexOf("function motionAllowed()", StringComparison.Ordinal)],
+                @"(\w+): \{ duration: ([\d.]+), bounce: ([\d.]+) \}")
+            .ToDictionary(
+                match => match.Groups[1].Value,
+                match => (Duration: double.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture),
+                    Bounce: double.Parse(match.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture)));
+        foreach (var content in new[] { "glide", "lead", "open", "close" })
+        {
+            Assert.Equal(0d, springs[content].Bounce);
+        }
+        foreach (var glass in new[] { "glassGlide", "glassLead", "carry" })
+        {
+            Assert.Equal(0.15d, springs[glass].Bounce);
+        }
+
+        AssertCurveFollowsSpring(css, "--ease-spring", bounce: 0);
+        AssertCurveFollowsSpring(css, "--ease-glass", bounce: 0.15);
+
+        // 每個 --motion-* 是那條彈簧真正停下來的時間，和 app.js 的 springSettle 用同一個門檻：位置與速度都小於距離的千分之一。
+        Assert.Equal(SettleMilliseconds(springs["glide"].Duration, 0), CssMilliseconds(css, "--motion-glide"));
+        Assert.Equal(SettleMilliseconds(springs["open"].Duration, 0), CssMilliseconds(css, "--motion-open"));
+        Assert.Equal(SettleMilliseconds(springs["close"].Duration, 0), CssMilliseconds(css, "--motion-close"));
+        Assert.Equal(SettleMilliseconds(0.25, 0), CssMilliseconds(css, "--motion-pop"));
+        Assert.Equal(SettleMilliseconds(0.25, 0.15), CssMilliseconds(css, "--motion-glass"));
+        Assert.Equal(SettleMilliseconds(0.28, 0.15), CssMilliseconds(css, "--motion-release"));
+    }
+
+    // 從靜止出發、走完一段距離的彈簧在 t 秒時走了多少（WWDC23「Animate with springs」：stiffness 是 (2π ÷ duration)²，阻尼比是 1 − bounce）。
+    private static (double Progress, double Velocity) SpringAt(double duration, double bounce, double seconds)
+    {
+        var w0 = 2 * Math.PI / duration;
+        var zeta = 1 - bounce;
+        if (Math.Abs(1 - zeta) < 1e-6)
+        {
+            var decay = Math.Exp(-w0 * seconds);
+            var b = -w0;
+            return (1 + decay * (-1 + b * seconds), decay * (-w0 * b * seconds));
+        }
+
+        var wd = w0 * Math.Sqrt(1 - zeta * zeta);
+        var envelope = Math.Exp(-zeta * w0 * seconds);
+        var cos = Math.Cos(wd * seconds);
+        var sin = Math.Sin(wd * seconds);
+        return (1 + envelope * (-cos - zeta * w0 / wd * sin), envelope * (w0 * w0 / wd * sin));
+    }
+
+    private static int SettleMilliseconds(double duration, double bounce)
+    {
+        var w0 = 2 * Math.PI / duration;
+        var last = 0d;
+        for (var t = 0.004; t < 3; t += 0.004)
+        {
+            var (progress, velocity) = SpringAt(duration, bounce, t);
+            if (Math.Abs(progress - 1) > 0.001 || Math.Abs(velocity) / w0 > 0.001) { last = t; }
+            else if (t - last > 0.15) { break; }
+        }
+
+        return (int)Math.Round((last + 0.004) * 1000, MidpointRounding.AwayFromZero);
+    }
+
+    private static int CssMilliseconds(string css, string name)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(css, System.Text.RegularExpressions.Regex.Escape(name) + @": (\d+)ms;");
+        Assert.True(match.Success, name + " is defined in milliseconds");
+        return int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    // CSS 的 linear() 把整條彈簧依停下來的時間正規化成 0 到 1；每個取樣點都要落在同一條彈簧上。
+    private static void AssertCurveFollowsSpring(string css, string name, double bounce)
+    {
+        var start = css.IndexOf(name + ": linear(", StringComparison.Ordinal);
+        Assert.True(start >= 0, name + " is a linear() curve");
+        start += name.Length + ": linear(".Length;
+        var stops = css[start..css.IndexOf(");", start, StringComparison.Ordinal)]
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(stop => stop.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Where(parts => parts.Length == 2)
+            .Select(parts => (Value: double.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture),
+                At: double.Parse(parts[1].TrimEnd('%'), System.Globalization.CultureInfo.InvariantCulture) / 100))
+            .ToList();
+        Assert.True(stops.Count >= 20, name + " is sampled finely enough");
+        var settle = SettleMilliseconds(1, bounce) / 1000d;
+        foreach (var stop in stops)
+        {
+            var expected = SpringAt(1, bounce, stop.At * settle).Progress;
+            Assert.True(Math.Abs(expected - stop.Value) < 0.003,
+                $"{name} at {stop.At:P2} is {stop.Value}, the bounce {bounce} spring is {expected:F4}");
+        }
     }
 
     [Fact]
@@ -611,6 +717,57 @@ public sealed class DesignIntegrationFrontendTests
 
         // 重繪時打開著的選單不會一下不見，在原處淡掉。
         Assert.Contains("function fadeMenus(root, snapshot) {", app, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Frontend_StylesDoNotDependOnAttributesTheFadingCopyDrops()
+    {
+        // 使用者 2026-10-15 指出來回切換第五步頁籤時，「新增條件組」短暫變回白底，像露出原形，並要求檢查其他地方。
+        // 原因是 JetMotion 收起或淡掉的舊複本會拿掉 KEEP_ON_LEAVING 以外的 data- 屬性，程式與測試才找不到它；
+        // 樣式掛在被拿掉的屬性上時，複本在動態期間就換成另一個樣子。這裡檢查 app.css 每個 data- 屬性選擇器：
+        // 屬性要留在複本上，或是動態本身的開關，或只用在標題列這類不會被複製的地方。
+        var css = System.Text.RegularExpressions.Regex.Replace(ReadFrontend("css", "app.css"), @"/\*.*?\*/", "",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+        var app = ReadFrontend("js", "app.js");
+        var keep = new System.Text.RegularExpressions.Regex(
+            System.Text.RegularExpressions.Regex.Match(app, @"var KEEP_ON_LEAVING = /(.+?)/;").Groups[1].Value);
+        // 動態本身的開關：複本不再收放或捲動，拿掉是對的。步驟列的兩個屬性只用在 :hover 與 :focus-visible，複本不能按，不會出現這兩種狀態。
+        var motionOrInteractionOnly = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "data-motion-leaving", "data-motion-rendering", "data-motion-revealing", "data-motion-pane",
+            "data-collapsible", "data-collapsible-inline", "data-under-chrome", "data-under-messages",
+            "data-step-nav", "data-step-toggle",
+        };
+        string[] chrome = [".app-header", ".case-summary"];
+        var problems = new List<string>();
+        foreach (System.Text.RegularExpressions.Match match in
+            System.Text.RegularExpressions.Regex.Matches(css, @"\[(data-[a-z0-9-]+)(?=[\]=~^$*|])"))
+        {
+            var name = match.Groups[1].Value;
+            if (keep.IsMatch(name) || motionOrInteractionOnly.Contains(name)) { continue; }
+            var start = Math.Max(css.LastIndexOf('}', match.Index), Math.Max(css.LastIndexOf('{', match.Index), css.LastIndexOf(';', match.Index))) + 1;
+            var selectors = css[start..css.IndexOf('{', match.Index)];
+            foreach (var selector in SplitSelectorList(selectors).Where(s => s.Contains("[" + name, StringComparison.Ordinal)))
+            {
+                if (!chrome.Any(prefix => selector.StartsWith(prefix, StringComparison.Ordinal))) { problems.Add(selector); }
+            }
+        }
+
+        Assert.True(problems.Count == 0,
+            "這些樣式掛在 JetMotion 複本會拿掉的屬性上，請改掛在 class：" + Environment.NewLine + string.Join(Environment.NewLine, problems.Distinct()));
+    }
+
+    private static IEnumerable<string> SplitSelectorList(string list)
+    {
+        var depth = 0;
+        var from = 0;
+        for (var i = 0; i < list.Length; i++)
+        {
+            if (list[i] is '(' or '[') { depth++; }
+            else if (list[i] is ')' or ']') { depth--; }
+            else if (list[i] == ',' && depth == 0) { yield return list[from..i].Trim(); from = i + 1; }
+        }
+        yield return list[from..].Trim();
     }
 
     [Fact]

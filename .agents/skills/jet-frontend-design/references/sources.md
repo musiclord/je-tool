@@ -103,11 +103,46 @@ Mac 與表頭用清楚的分界；巢狀形狀同心；顏色只給主要動作�
 
 採用的原則：全部的動態用同一組 Apple 的彈簧參數，被打斷時帶著速度接著走；CSS 的 `linear()` 只能取樣固定的曲線，轉場被打斷時從零速重來，
 所以會被連續操作打斷的動態改由 `app.js` 用公式解播放。時間比 Apple 預設的 0.5 秒短一點，依據是人機介面指引說 Liquid Glass 用觸控板操作時的反應比直接觸控收斂，用滑鼠操作的 JET 跟著收斂；
-0.34、0.4 與 0.32 秒這些數字是 Claude 依此判斷，不是 Apple 給的。原地改變的東西在兩個狀態之間變形，不消失再出現（WWDC25 219）；
+0.34、0.4 與 0.32 秒這些數字是 Claude 依此判斷，不是 Apple 給的；2026-10-15 同比例縮短成 0.28、0.22 與 0.3 秒，
+也是 Claude 依「不回彈的彈簧形狀相同、只差時間長短」所做的判斷，沒有另查新的來源。同一份筆記整理的建議是選單 0.25 到 0.3 秒、
+選取與清單插入 0.3 秒、面板收合 0.3 秒；收起的 0.22 秒比收合建議短，理由是收起時字先淡出，要拿掉的東西不需要看清去向。原地改變的東西在兩個狀態之間變形，不消失再出現（WWDC25 219）；
 內容差很多的整塊先淡掉舊的、再淡入新的，是 Claude 看過逐格截圖後的判斷，Apple 文件沒有規定先後順序。降低動態時直接換。
 
 沒有採用的部分與原因：View Transitions，因為新的轉場會讓前一個直接跳到終點、不保留速度，連續操作時會跳；
 `composite: 'add'` 這類疊加的動畫，因為 Chromium 不能在合成層播放它。研究也沒有找到要推翻已裁定外觀的理由，所以這次不重做外觀。
+
+## Liquid Glass 與動態性格的重新查核
+
+查核日期是 2026-10-15。使用者同日指出 2026-10-13 的「goofy」是指拋物線軌跡、不是回彈，要求完整確認 Apple 現行的
+Liquid Glass 設計元素與理念，避免拆東牆補西牆。這次由 Claude 直接讀原文，不經研究助手轉述；筆記在本機
+`artifacts/research/2026-10-15-apple-liquid-glass-recheck.md`，不進 Git。
+
+- 人機介面指引共 44 頁，重點是 Design principles（2026-06-08 加入）、Materials、Motion、Color、Buttons、Toolbars、
+  Segmented controls、Scroll views、Accessibility、Windows 與 Designing for macOS。
+  網址是 https://developer.apple.com/design/human-interface-guidelines/ 加上頁名，例如 `motion`、`materials`、`windows`。
+- 技術文件：Liquid Glass 總覽與 Adopting Liquid Glass（https://developer.apple.com/documentation/technologyoverviews/liquid-glass ），
+  SwiftUI 的 Applying Liquid Glass to custom views、`Spring` 與 `Animation.snappy`、`smooth`、`bouncy`。
+- WWDC：2025 年 219、356、310、323、284 與 102；2026 年 250、289、278、269 與 102；2023 年 10158；2024 年 10145；2018 年 803。
+
+查到的事實：
+
+- WWDC25 219：玻璃在互動時立刻彎曲、帶著像凝膠的彈性；元件互動時可以暫時浮起成玻璃；出現與消失不是淡入淡出，
+  而是逐步調整折射與模糊。開啟「減少動態效果」會關掉玻璃的彈性；人機介面指引 Accessibility 對這個設定的做法第一條是收緊彈簧、減少回彈。
+- 人機介面指引 Motion：Liquid Glass 對觸控板的反應比直接觸控收斂；回饋要簡短精準；頻繁的互動不另加動態；不要讓人等動畫跑完。
+- WWDC26 289：macOS 27 給控制項、按鈕與互動控制項的容器加上被點擊時的輕微回彈，原文提醒「A little goes a long way」。
+- WWDC23 10158：先用 duration 定節奏，再用 bounce 定性格。bounce 約 0.15 時「doesn't feel very bouncy yet」，但收尾比較俐落；
+  約 0.3 開始明顯；0.4 以上對介面太誇張；拿不定時用 0。
+- 人機介面指引 Windows：不在作用中的視窗不使用 vibrancy，看起來比較收斂、離得比較遠。
+- WWDC26 250：Craft 包含「responsive animations」；按了按鈕要等才有反應，會讓軟體顯得脆弱。
+
+採用的原則：分層、材質與色系維持 2026-10-11、12 的裁定，和上面的事實一致。動態分成兩種性格：玻璃層被操作的東西用 bounce 0.15，
+內容層的版面改變維持 bounce 0；Claude 計算同樣的 duration 下，bounce 0.15 走完 95% 的時間從 0.755 倍提早到 0.59 倍，
+最多只超過目標 0.6%。選單和對話框用同一種浮現，從稍小、稍霧變清楚；視窗不在前景時玻璃改成不透明。使用者同日選「直接照建議改」。
+帶過去的標籤維持直線，因為使用者不喜歡的是拋物線軌跡。2026-10-15 第五步實測，從按下到第一個畫格都在 56 到 64 毫秒，
+慢的主因是動態的長度與不回彈的長尾巴，不是畫面重繪。
+
+沒有採用的部分與原因：流程欄與底線頁籤的選取不回彈，因為它們是導覽與內容層的標記，不是浮起的玻璃；
+帶過去的標籤與中欄的捲動不跟著彈簧超出目標，因為字要剛好疊在標題上，中欄也不能捲過頭。
 
 ## Skill 格式
 

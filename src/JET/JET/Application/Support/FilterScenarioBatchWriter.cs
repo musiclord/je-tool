@@ -161,7 +161,8 @@ internal static class FilterScenarioBatchWriter
             target,
             persistName,
             persistRationale,
-            RuleLogicVersions.StampFilterDefinition(raw.RootElement),
+            // 驗證通過後才整理：這個情境的條件只保留各類型用得到的屬性（使用者 2026-10-15 裁定）。
+            RuleLogicVersions.StampSavedFilterDefinition(raw.RootElement),
             nowUtc);
         var batch = saved.ToList();
         if (target <= batch.Count)

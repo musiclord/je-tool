@@ -108,7 +108,7 @@ internal static partial class GuiScenarios
         }
         async Task Preview() { await Click("[data-action=preview-scenario]"); await Check("!!preview && Number.isInteger(preview.count)"); }
         const string policy = "state.mapping.gl.committed.options.manualAutoPolicy";
-        ResizeFilterWindow(process, 1250, 950);
+        ResizeFilterWindow(1250, 950);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='2']");
@@ -126,7 +126,7 @@ internal static partial class GuiScenarios
         await Click("[data-bind=step-nav] [data-step-index='3']"); await Click("[data-action=run-validate]");
         await Check("!!state.lastRuns.validate");
         await Click("[data-bind=step-nav] [data-step-index='4']");
-        ResizeFilterWindow(process, 920, 760);
+        ResizeFilterWindow(920, 760);
         outcome.RecordStage("extended_distinct_voucher_frequency");
         // 使用者 2026-10-08 要求重新設計自訂篩選條件：統計條件改由常用查核條件「編製分錄較少的人員」加入，
         // 再改成原本驗證的傳票張數介於 1 到 100，條件內容與改版前相同。
@@ -190,7 +190,7 @@ internal static partial class GuiScenarios
             await Check("!!document.querySelector('[data-ap-column]') && document.querySelector('[data-ap-column]').value==='' && document.querySelector('[data-action=commit-authorized-preparer]').disabled");
             await ChooseOptionAsync(cdp, process, "[data-ap-column]", column, outcome, ct);
         }
-        ResizeFilterWindow(process, 1250, 950);
+        ResizeFilterWindow(1250, 950);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         // 使用者 2026-10-07 要求依完整使用情境測試：審計員通常已設定篩選情境才回頭換授權名單，
@@ -285,7 +285,7 @@ internal static partial class GuiScenarios
             
             await Click("[data-action=save-scenario]");
         }
-        ResizeFilterWindow(process, 1250, 950);
+        ResizeFilterWindow(1250, 950);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
@@ -363,7 +363,7 @@ internal static partial class GuiScenarios
         const string accountMore = account + " [data-load-more=null-nullAccount]";
         string Rows(string panel, int count) => "document.querySelectorAll(" +
             JsonSerializer.Serialize(panel + " tbody tr") + ").length===" + count;
-        ResizeFilterWindow(process, 1250, 950);
+        ResizeFilterWindow(1250, 950);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='3']");

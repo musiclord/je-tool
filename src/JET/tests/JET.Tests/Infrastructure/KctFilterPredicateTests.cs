@@ -7,12 +7,12 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// KCT 小組進階篩選述詞（清單 A/C/D/H/J）的 SQLite 正確性測試。
-/// oracle：手算固定 7 傳票 fixture（每傳票借貸兩列）；斷言鎖命中傳票身分（doc_num），非僅筆數。
-/// 述詞純 ANSI（EXISTS / NOT EXISTS / 整數 ÷ %、TRIM、UPPER、ISO 日期比較），雙 provider 等價由構造保證；
-/// SQL Server LocalDB 等價驗證列入 windows-handoff（本機無 LocalDB 時不在此跑）。
+/// KCT 小組進階篩選述詞（清單 A、C、D、H、J）的正確性測試，另有 B 的自訂分類子樹與非季末期末日兩個案例。
+/// 固定答案是手算的 9 張合成傳票（每張借貸兩列）；斷言比對命中的傳票號碼，不只比筆數。
+/// 每個案例都在 SQLite 與 DuckDB 各跑一次，SQL Server 不在這裡跑。原本另有 12 個只在 SQLite 跑、內容相同的案例，
+/// 使用者 2026-10-15 裁定刪除（docs/history/specs/2026-10-15-motion-and-verification-plan.md 的 S9）。
 /// </summary>
-public sealed class KctFilterPredicateTests : IDisposable
+public sealed class KctFilterPredicateTests
 {
     // MoneyScale=100、查核期間 2025 全年、期末財報準備日 2025-12-31。
     // 科目分類：4101 Revenue、1131 Receivables、2251 Receipt in advance、1101 Cash、5101 Others。
@@ -123,29 +123,6 @@ public sealed class KctFilterPredicateTests : IDisposable
 
     private static FilterRuleContext Context => new(MoneyScale, "2025-12-31", "2025-01-01", "2025-12-31");
 
-    private readonly TempProjectRoot _root = new();
-    private readonly IFilterRunRepository _repository;
-    private readonly string _projectId;
-
-    public KctFilterPredicateTests()
-    {
-        var folder = new JetProjectFolder(_root.Path);
-        var database = new SqliteProjectDatabase(folder);
-        _projectId = Guid.NewGuid().ToString("N");
-        Directory.CreateDirectory(folder.GetProjectDirectory(_projectId));
-        database.EnsureCreatedAsync(_projectId, CancellationToken.None).GetAwaiter().GetResult();
-
-        using (var connection = database.CreateConnection(_projectId))
-        {
-            connection.Open();
-            using var command = connection.CreateCommand();
-            command.CommandText = FixtureSql;
-            command.ExecuteNonQuery();
-        }
-
-        _repository = new LocalFilterRunRepository(database);
-    }
-
     private static FilterScenarioSpec SingleRule(FilterRuleSpec rule) =>
         new("KCT 述詞", "固定 fixture 的命中身分斷言", [new FilterGroupSpec(FilterJoin.And, [rule])]);
 
@@ -153,77 +130,6 @@ public sealed class KctFilterPredicateTests : IDisposable
         FilterRuleType type, IReadOnlyList<string>? keywords = null, int? windowDays = null) =>
         new(FilterJoin.And, type, null, null, keywords ?? [], TextMatchMode.Contains,
             null, null, null, null, null, null, WindowDays: windowDays);
-
-    private async Task<IReadOnlyList<string>> HitDocumentsAsync(FilterRuleSpec rule)
-    {
-        var result = await _repository.PreviewAsync(_projectId, SingleRule(rule), Context, CancellationToken.None);
-        return result.PreviewRows
-            .Select(r => r.DocumentNumber!)
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(d => d, StringComparer.Ordinal)
-            .ToList();
-    }
-
-    [Theory]
-    [InlineData(1, new string[0])]    // BVA：X=1（僅季底當日 03-31）→ K01(03-30) 不命中
-    [InlineData(2, new[] { "K01" })]  // 邊界：X=2（[03-30,03-31]）→ 含 K01
-    [InlineData(3, new[] { "K01" })]  // K02(05-15) 遠離任何季底 → 不命中；只剩 K01
-    public async Task RevenueDebitNearQuarterEnd_WindowBoundary_HitsExpectedDocuments(
-        int windowDays, string[] expected)
-    {
-        Assert.Equal(expected,
-            await HitDocumentsAsync(Rule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: windowDays)));
-    }
-
-    [Fact]
-    public async Task RevenueWithoutNormalCounterpart_ExcludesVouchersWithReceivableOrAdvanceDebit()
-    {
-        // K03（應收借）、K05（預收借）有一般對方科目 → 排除；K04（現金借）無 → 命中。
-        Assert.Equal(["K04"],
-            await HitDocumentsAsync(Rule(FilterRuleType.RevenueWithoutNormalCounterpart)));
-    }
-
-    [Fact]
-    public async Task ManualRevenueEntry_HitsOnlyManualRevenueRows()
-    {
-        // 唯一 is_manual=1 的 Revenue 列在 K02；其餘 4101 列 is_manual=0。
-        Assert.Equal(["K02"],
-            await HitDocumentsAsync(Rule(FilterRuleType.ManualRevenueEntry)));
-    }
-
-    // 尾數比對＝整數化金額(捨小數)末 k 位與樣態相等,等價 legacy @Right(@Str(@int(x),1,0),k)=pattern。
-    // 等價分割（整數位數 vs 樣態長度 k）：位數 ≥ k 才可能以 k 位樣態結尾；位數 < k 時字串短於樣態、長度不符不相等。
-    [Theory]
-    [InlineData("999999", new[] { "K06" })]                // 1,999,999 整數末 6 位 = 999999
-    [InlineData("000000", new[] { "K07" })]                // 3,000,000 命中；K08(整數 0) 位數 < 6、不相等
-    [InlineData("999999,000000", new[] { "K06", "K07" })]  // 多樣態任一相等即命中
-    [InlineData("000039", new string[0])]                  // K09(整數 39) 僅 2 位 < 6、不相等
-    public async Task TrailingDigits_MajorUnitTail_HitsExpectedDocuments(string patterns, string[] expected)
-    {
-        Assert.Equal(expected,
-            await HitDocumentsAsync(Rule(FilterRuleType.TrailingDigits, keywords: patterns.Split(','))));
-    }
-
-    // k=1 邊界（字尾長度 1、無長度下界，等價 @Right(@Str(@int(x),1,0),1)）：整數末位與樣態相等。
-    // K08(0.39，整數 0) 對樣態 "0" 命中（@Right("0",1)="0"）——純機械比對，不因金額小而排除；由審計員判斷是否採用。
-    [Theory]
-    [InlineData("0", new[] { "K01", "K02", "K03", "K04", "K05", "K07", "K08" })]  // 整數末位 0（含整數 0）
-    [InlineData("9", new[] { "K06", "K09" })]                                     // 整數末位 9
-    public async Task TrailingDigits_SingleDigitTail_HitsByLastDigit(string pattern, string[] expected)
-    {
-        Assert.Equal(expected,
-            await HitDocumentsAsync(Rule(FilterRuleType.TrailingDigits, keywords: [pattern])));
-    }
-
-    [Fact]
-    public async Task PreparerEqualsApprover_HitsRowsWithSameNonBlankCreatorAndApprover()
-    {
-        // K01（甲=甲）、K04（乙=乙）命中；K02（乙≠丙）、K03/K05/K06/K07（核准 NULL）不命中。
-        Assert.Equal(["K01", "K04"],
-            await HitDocumentsAsync(Rule(FilterRuleType.PreparerEqualsApprover)));
-    }
-
-    public void Dispose() => _root.Dispose();
 
     [Theory]
     [InlineData("sqlite")]
@@ -233,17 +139,27 @@ public sealed class KctFilterPredicateTests : IDisposable
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);
         (FilterRuleSpec Rule, string[] Documents)[] cases =
         [
+            // BVA：X=1（僅季底當日 03-31）→ K01(03-30) 不命中；X=2（[03-30,03-31]）→ 含 K01；
+            // X=3 時 K02(05-15) 仍遠離任何季底 → 只剩 K01。
             (Rule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 1), []),
             (Rule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 2), ["K01"]),
             (Rule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 3), ["K01"]),
+            // K03（應收借）、K05（預收借）有一般對方科目 → 排除；K04（現金借）無 → 命中。
             (Rule(FilterRuleType.RevenueWithoutNormalCounterpart), ["K04"]),
+            // 唯一 is_manual=1 的 Revenue 列在 K02；其餘 4101 列 is_manual=0。
             (Rule(FilterRuleType.ManualRevenueEntry), ["K02"]),
+            // 尾數比對＝整數化金額(捨小數)末 k 位與樣態相等,等價 legacy @Right(@Str(@int(x),1,0),k)=pattern。
+            // 位數 ≥ k 才可能以 k 位樣態結尾；位數 < k 時字串短於樣態、長度不符不相等：
+            // K08(整數 0) 不命中 000000，K09(整數 39) 僅 2 位、不命中 000039。多樣態任一相等即命中。
             (Rule(FilterRuleType.TrailingDigits, keywords: ["999999"]), ["K06"]),
             (Rule(FilterRuleType.TrailingDigits, keywords: ["000000"]), ["K07"]),
             (Rule(FilterRuleType.TrailingDigits, keywords: ["999999","000000"]), ["K06","K07"]),
             (Rule(FilterRuleType.TrailingDigits, keywords: ["000039"]), []),
+            // k=1 邊界（無長度下界，等價 @Right(@Str(@int(x),1,0),1)）：K08(0.39，整數 0) 對樣態 "0" 命中——
+            // 純機械比對，不因金額小而排除；由審計員判斷是否採用。
             (Rule(FilterRuleType.TrailingDigits, keywords: ["0"]), ["K01","K02","K03","K04","K05","K07","K08"]),
             (Rule(FilterRuleType.TrailingDigits, keywords: ["9"]), ["K06","K09"]),
+            // K01（甲=甲）、K04（乙=乙）命中；K02（乙≠丙）不命中，其他傳票沒有核准人員。
             (Rule(FilterRuleType.PreparerEqualsApprover), ["K01","K04"])
         ];
         foreach (var c in cases)

@@ -12,6 +12,8 @@ const vm = require('node:vm');
 // 第 11 批（2026-10-14）刪掉本檔的副本改用模組；remapAppFixture 的根節點結構和模組不同，本檔保留自己那一份。
 const { root, settle, plain, batch9TreeDom, batch7Dom, batch7ControlDom, validationFixture, batch8Fixture, batch8ValidationData, batch8Artifacts,
   savedG, usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, overviewDialogFixture, remapPaper, remapPrescreen } = require('./support/frontend-fixtures.cjs');
+// 本檔自己組的假後端也包進 contractJetApi，送出的資料與假回應照樣和正式後端的形狀核對（2026-10-15）。
+const { contractJetApi } = require('./support/action-contract.cjs');
 // 上游修改清除篩選情境時的訊息。使用者 2026-10-13 勾選頁確認 12，原本是「前面的資料已更改，請重新設定篩選情境。」
 // （第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
 const UPSTREAM_RESET_MESSAGE = '前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。';
@@ -34,7 +36,7 @@ function accountEditorControls(ui, store) {
 }
 
 function chooseAccountCategory(f, category) {
-  f.change('[data-account-bulk-category][value="' + category + '"]', true);
+  f.change('[data-account-bulk-category]', category);
 }
 
 function scenarioLifecycleFixture() {
@@ -57,8 +59,8 @@ function scenarioLifecycleFixture() {
     const pending = [], nodes = new Map(), actions = [];
     // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境；
     // 移除改送 filterScenarioRemove，假物件補上這個方法，四支移除測試的斷言不變。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
-    window.JetApi = Object.fromEntries(['filterCommit', 'filterScenarioRemove', 'filterPreview', 'queryFilterVoucherPage'].map(method =>
-      [method, payload => new Promise((resolve, reject) => pending.push({method, payload, resolve, reject}))]));
+    window.JetApi = contractJetApi(Object.fromEntries(['filterCommit', 'filterScenarioRemove', 'filterPreview', 'queryFilterVoucherPage'].map(method =>
+      [method, payload => new Promise((resolve, reject) => pending.push({method, payload, resolve, reject}))])));
     window.JetUi.run = (label, fn, options) => {
       const promise = Promise.resolve().then(fn).catch(error => { if (options?.onError) options.onError(error); });
       actions.push(promise); return promise;
@@ -558,10 +560,10 @@ test('saving clears the submitted draft and preview, preserves later drafts, and
 
 test('account editor keeps drafts on failure, saves only changed accounts, pages and cancels', async () => {
   const reads = [], writes = [], messages = [];
-  const window = { setTimeout, clearTimeout, JetApi: {
+  const window = { setTimeout, clearTimeout, JetApi: contractJetApi({
     queryAccountMappingPage: payload => new Promise((resolve, reject) => reads.push({ payload, resolve, reject })),
     accountMappingSave: payload => new Promise((resolve, reject) => writes.push({ payload, resolve, reject }))
-  } };
+  }) };
   const document = { createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
   for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js'])
@@ -585,8 +587,8 @@ test('account editor keeps drafts on failure, saves only changed accounts, pages
   await settle();
   function applyCategory(category) {
     let page = render(); page.control('selection').checked = true; page.control('selection').fire('change');
-    page = render(); page.control('[data-account-bulk-category][value="' + category + '"]').checked = true;
-    page.control('[data-account-bulk-category][value="' + category + '"]').fire('change');
+    page = render(); page.control('[data-account-bulk-category]').value = category;
+    page.control('[data-account-bulk-category]').fire('change');
     render().control('[data-account-apply]').fire('click');
   }
   let page = render();
@@ -604,8 +606,8 @@ test('account editor keeps drafts on failure, saves only changed accounts, pages
   // All-page selection is explicit and applies once, not a dropdown per account.
   page = render(); page.control('[data-account-select-page]').checked = true;
   page.control('[data-account-select-page]').fire('change');
-  page = render(); page.control('[data-account-bulk-category][value="' + 'builtin.others' + '"]').checked = true;
-    page.control('[data-account-bulk-category][value="' + 'builtin.others' + '"]').fire('change');
+  page = render(); page.control('[data-account-bulk-category]').value = 'builtin.others';
+    page.control('[data-account-bulk-category]').fire('change');
   render().control('[data-account-apply]').fire('click');
   assert.match(render().html, /2 個科目待儲存/);
   assert.equal((render().html.match(/data-category-id="builtin.others"/g) || []).length, 2);
@@ -636,10 +638,10 @@ test('account editor keeps drafts on failure, saves only changed accounts, pages
 // 超過 500 筆時分批送出，失敗的那一批之後仍待儲存。
 test('account editor keeps selections and pending categories across pages and saves them together', async () => {
   const reads = [], writes = [], messages = [];
-  const window = { setTimeout, clearTimeout, JetApi: {
+  const window = { setTimeout, clearTimeout, JetApi: contractJetApi({
     queryAccountMappingPage: payload => new Promise((resolve, reject) => reads.push({ payload, resolve, reject })),
     accountMappingSave: payload => new Promise((resolve, reject) => writes.push({ payload, resolve, reject }))
-  } };
+  }) };
   const document = { createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
   for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js'])
@@ -662,8 +664,8 @@ test('account editor keeps selections and pending categories across pages and sa
   await settle();
   assert.match(render().html, /已選 1 個科目（其中 1 個在其他頁）/);
   selectFirstRow();
-  let page = render(); page.control('[data-account-bulk-category][value="' + 'builtin.revenue' + '"]').checked = true;
-    page.control('[data-account-bulk-category][value="' + 'builtin.revenue' + '"]').fire('change');
+  let page = render(); page.control('[data-account-bulk-category]').value = 'builtin.revenue';
+    page.control('[data-account-bulk-category]').fire('change');
   render().control('[data-account-apply]').fire('click');
   assert.match(render().html, /共 2 個科目待儲存/);
   assert.doesNotMatch(render().html, /data-account-prev disabled/, 'pending categories do not block paging');
@@ -686,8 +688,8 @@ test('account editor keeps selections and pending categories across pages and sa
   reads[3].resolve({ rows: Array.from({ length: 501 }, (_, i) => ({ accountCode: 'C' + i, accountName: 'Bulk', categoryId: null })), nextCursor: null });
   await settle();
   page = render(); page.control('[data-account-select-page]').checked = true; page.control('[data-account-select-page]').fire('change');
-  page = render(); page.control('[data-account-bulk-category][value="' + 'builtin.cash' + '"]').checked = true;
-    page.control('[data-account-bulk-category][value="' + 'builtin.cash' + '"]').fire('change');
+  page = render(); page.control('[data-account-bulk-category]').value = 'builtin.cash';
+    page.control('[data-account-bulk-category]').fire('change');
   render().control('[data-account-apply]').fire('click');
   render().control('[data-account-save]').fire('click'); await settle();
   assert.equal(writes[1].payload.changes.length, 500);
@@ -868,18 +870,122 @@ test('running prescreen asks first only when account categories are unsaved', as
   assert.equal(calls.length, 2);
 });
 
+// 使用者 2026-10-15 在待決事項勾選頁裁定（U2）：重新匯入、確認配對或用 Excel 匯入科目配對，都會丟掉第四步還沒儲存的科目分類，
+// 送出前先用同一個「尚未儲存的分類」對話框詢問。選「留在這裡」不送出；選繼續才送出。沒有改動時照舊直接送出，
+// 由下方既有的匯入、配對與科目配對檔測試涵蓋。
+// 這幾個動作本身就會清除或取代已儲存的分類，先存也留不住，所以對話框不提供「儲存並繼續」
+// （實作時發現，使用者 2026-10-15 選擇「拿掉儲存，只留兩個按鈕」）。第三欄記錄呼叫端傳的 saveable。
+// 第一次失敗：FrontendMapping 收據 20261015-072925964-d0a95b04d18f4c7dafaebb322576c444，當時預期三個按鈕的文字；
+// 這些測試是本次新增的，依使用者的新選擇改預期。
+function stubPendingCategories(f) {
+  const editor = f.window.JetUi.accountMappingEditor, calls = [];
+  let answer = false;
+  editor.pendingCount = () => 1;
+  editor.confirmPending = (consequence, label, options) => { calls.push([consequence, label, options ? options.saveable : undefined]); return Promise.resolve(answer); };
+  return { calls, proceed() { answer = true; } };
+}
+
+for (const kind of ['gl', 'tb']) test(kind + ' import asks about unsaved account categories before sending', async () => {
+  const f = usageJourneyFixture('import');
+  const action = kind === 'gl' ? 'importGlFromFile' : 'importTbFromFile';
+  f.draw(); f.click('[data-task-toggle="' + kind + '"]'); f.draw();
+  f.click('[data-action="wizard-replace-' + kind + '"]');
+  f.request('hostSelectFiles').resolve({ files: [{ filePath: 'synthetic.csv', fileName: 'synthetic.csv' }] }); await settle();
+  f.request('importInspectFile').resolve({ fileType: 'csv', columns: ['Code', 'Amount'], encoding: 'utf-8', delimiter: ',' }); await settle();
+  f.draw();
+  const pending = stubPendingCategories(f);
+  f.click('[data-action="wizard-confirm"]'); await settle();
+  assert.deepEqual(pending.calls, [['匯入後，第四步已儲存和未儲存的科目分類都會清除。', '繼續匯入', false]]);
+  assert.equal(f.requests.some(r => r.action === action), false, 'staying keeps the import from being sent');
+  pending.proceed(); f.draw();
+  f.click('[data-action="wizard-confirm"]'); await settle();
+  assert.equal(f.requests.filter(r => r.action === action).length, 1);
+});
+
+for (const kind of ['gl', 'tb']) test(kind + ' mapping commit asks about unsaved account categories before sending', async () => {
+  const f = usageJourneyFixture('mapping');
+  const mapping = prepareUsageMapping(f, kind), mode = kind === 'gl' ? 'signed' : 'direct';
+  f.store.setMappingCommitted(kind, { mapping, mode, options: kind === 'gl' ? plain(f.state.mapping.gl.options) : null });
+  f.draw(); f.click('[data-action="remap-' + kind + '"]'); f.draw();
+  const action = kind === 'gl' ? 'mappingCommitGl' : 'mappingCommitTb';
+  const pending = stubPendingCategories(f);
+  f.click('[data-action="commit-' + kind + '"]'); await settle();
+  assert.deepEqual(pending.calls, [['確認配對後，第四步已儲存和未儲存的科目分類都會清除。', '繼續確認', false]]);
+  assert.equal(f.requests.some(r => r.action === action), false, 'staying keeps the mapping from being committed');
+  pending.proceed();
+  f.click('[data-action="commit-' + kind + '"]'); await settle();
+  assert.equal(f.requests.filter(r => r.action === action).length, 1);
+});
+
+test('importing an account mapping file asks about unsaved account categories before choosing the file', async () => {
+  const f = usageJourneyFixture('validate');
+  f.state.lastRuns.validate = null; f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' });
+  f.draw(); f.click('[data-action="toggle-account-excel"]'); f.draw(); f.click('[data-action="toggle-account-excel"]'); f.draw();
+  const pending = stubPendingCategories(f);
+  f.click('[data-action="import-account-mapping"]'); await settle();
+  assert.deepEqual(pending.calls, [['匯入科目配對檔後，檔案內容會取代第四步的科目分類，這些改動不會保留。', '繼續匯入', false]]);
+  assert.equal(f.requests.some(r => r.action === 'hostSelectFile'), false, 'staying does not open the file dialog');
+  pending.proceed();
+  f.click('[data-action="import-account-mapping"]'); await settle();
+  assert.equal(f.requests.filter(r => r.action === 'hostSelectFile').length, 1);
+});
+
+// 同一個裁定的實際對話框：只有「留在這裡」和繼續兩個按鈕，不寫儲存會清除什麼，預設停在「留在這裡」。
+test('the dialog before importing an account mapping file offers only staying or continuing', async () => {
+  const f = await pendingCategoryJourney();
+  // 夾具的驗證摘要只有放行需要的欄位，畫第四步前先拿掉（同 pendingCategoryJourney）。
+  f.state.lastRuns.validate = null;
+  f.click('[data-action="toggle-account-excel"]'); f.draw();
+  const modal = () => f.dom.document.body.querySelector('[data-bind="account-pending-modal"]');
+  f.click('[data-action="import-account-mapping"]');
+  assert.equal(modal().querySelector('.modal__body').textContent,
+    '有 1 個科目的分類尚未儲存。匯入科目配對檔後，檔案內容會取代第四步的科目分類，這些改動不會保留。');
+  assert.deepEqual(modal().querySelectorAll('.modal__actions button').map(button => button.textContent), ['留在這裡', '繼續匯入']);
+  assert.equal(f.dom.document.activeElement.getAttribute('data-pending-choice'), 'stay');
+  modal().fire('click', { target: modal().querySelector('[data-pending-choice="continue"]') }); await settle();
+  assert.equal(f.requests.filter(r => r.action === 'hostSelectFile').length, 1, 'continuing opens the file dialog');
+  assert.equal(f.requests.some(r => r.action === 'accountMappingSave'), false);
+});
+
+// 使用者 2026-10-15 在待決事項勾選頁裁定（U3）：分類設定儲存後，要套用到已刪分類的待儲存改動拿掉，
+// 在科目表上方寫出取消了幾個科目；其他待儲存改動保留，「儲存科目分類」只送留下來的改動。
+// 修改前，已刪分類的改動一直留著，每次儲存都被後端以「科目或分類已變更」拒絕。
+test('deleting a category drops only the pending account changes that used it and says how many', async () => {
+  const f = usageJourneyFixture('validate');
+  const builtIns = plain(f.window.JetUi.taxonomyCategories({}));
+  f.store.setTaxonomy({ revision: 2, categories: builtIns.concat([
+    { categoryId: 'custom.synthetic', label: '合成分類', ordinal: 99, semanticRole: 'others', isBuiltIn: false }]) });
+  f.state.lastRuns.validate = null; f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' }); f.draw();
+  f.request('queryAccountMappingPage').resolve({ rows: [
+    { accountCode: '1000', accountName: '合成科目一', categoryId: 'builtin.cash' },
+    { accountCode: '2000', accountName: '合成科目二', categoryId: 'builtin.cash' }], nextCursor: null });
+  await settle(); f.draw();
+  f.change('[data-account-select="0"]', true); chooseAccountCategory(f, 'custom.synthetic'); f.draw(); f.click('[data-account-apply]'); f.draw();
+  f.change('[data-account-select="1"]', true); chooseAccountCategory(f, 'builtin.revenue'); f.draw(); f.click('[data-account-apply]'); f.draw();
+  const editor = f.window.JetUi.accountMappingEditor;
+  assert.equal(editor.pendingCount(), 2);
+  f.store.setTaxonomyAfterSave({ revision: 3, categories: builtIns });
+  f.draw();
+  assert.equal(editor.pendingCount(), 1, 'only the change that used the deleted category is dropped');
+  assert.match(f.dom.content.textContent, /有 1 個科目要套用的分類已在分類設定中刪除，這些科目的改動已取消。/);
+  const note = f.$('[data-account-dropped]'), editorSection = note.parentElement;
+  assert.ok(editorSection.children.indexOf(note) < editorSection.children.indexOf(f.$('.account-editor__table')), 'the note sits above the account list');
+  f.click('[data-account-save]');
+  assert.deepEqual(plain(f.request('accountMappingSave').payload.changes), [{ accountCode: '2000', categoryId: 'builtin.revenue' }]);
+});
+
 // Execute the complete production renderer and its event handlers. Only DOM plumbing and
 // asynchronous action responses are doubles; WebView focus/scroll has separate GUI coverage.
 function fixture() {
   const requests = [], saves = [];
-  const window = { setTimeout, clearTimeout, JetApi: {
+  const window = { setTimeout, clearTimeout, JetApi: contractJetApi({
     queryPrescreenPage(payload) {
       return new Promise((resolve, reject) => requests.push({ payload, resolve, reject }));
     },
     accountTaxonomySave(payload) {
       return new Promise((resolve, reject) => saves.push({ payload, resolve, reject }));
     }
-  }};
+  })};
   const document = { querySelector: () => null, createElement() {
     return { textContent: '', get innerHTML() {
       return String(this.textContent).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1579,8 +1685,9 @@ test('authorized list preview explains Excel title rows and removal describes th
 
 test('GL mapping success refreshes the authorized list comparison without another invalidation', async () => {
   const f = authorizedPreparerReviewFixture();
-  f.store.setImportResult('gl', { rowCount: 1, columns: ['author'] });
-  f.store.replaceMappingDraft('gl', { createBy: 'author' });
+  // 草稿照正式畫面能確認的樣子補齊必填欄位（2026-10-15 前後端契合時補）；斷言只看建立人員。
+  f.store.setImportResult('gl', { rowCount: 1, columns: ['doc', 'date', 'acc', 'name', 'desc', 'amt', 'author'] });
+  f.store.replaceMappingDraft('gl', { docNum: 'doc', postDate: 'date', accNum: 'acc', accName: 'name', description: 'desc', amount: 'amt', createBy: 'author' });
   f.store.setAuthorizedPreparerState({ rowCount: 35, matchedPreparerCount: null });
   const refreshed = { rowCount: 35, sourceRowCount: 54, blankRowCount: 4, duplicateRowCount: 15, matchedPreparerCount: 2 };
   let committedPayload;
@@ -2343,14 +2450,15 @@ test('taxonomy parent removal names direct children, waits for confirmation, rep
   assert.equal(f.api.rows(f.store.getState()).find(row => row.categoryId === 'c').parentCategoryId, 'p');
 });
 
-test('taxonomy editor and apply tree show hierarchy and newly added labels receive focus', () => {
+// 使用者 2026-10-15 要求第四步「套用分類」改回下拉選單，改回檢查下拉的縮排。修改前失敗：20261015-011855792-4174f66464c84ffe990d516f57676fae。
+test('taxonomy editor and apply dropdown show hierarchy and newly added labels receive focus', () => {
   const f = taxonomyReviewFixture(); f.store.setTaxonomy({ revision: 2, categories: classificationTree() });
   const html = f.render().html;
   assert.match(html, /data-taxonomy-depth="1"/);
   assert.match(html, /toggle-taxonomy-advanced"[^>]*data-focus-key=/);
   assert.match(html, /add-taxonomy-category"[^>]*data-focus-key=/);
   const dropdown = f.window.JetUi.accountMappingEditor.html(f.store.getState(), true);
-  assert.match(dropdown, /data-category-node="bank"[^>]*margin-inline-start:1em[^>]*><label[^>]*><input[^>]*value="bank"[^>]*><span>銀行存款/);
+  assert.match(dropdown, /option value="bank"[^>]*>[^<]*└[^<]*銀行存款/);
   f.render().click('[data-action="add-taxonomy-category"]');
   const page = f.render(); f.focusNow();
   assert.equal(page.dom.querySelector('[data-taxonomy-label="draft-1"]').focused, true);
@@ -2897,7 +3005,8 @@ test('batch8 report buttons execute export, preserve failure, retry, show the ca
   assert.match(f.store.getState().messages.map(message => message.text).join('\n'), /案件資料夾/);
   page = f.controls(html); page.click('[data-open-artifact="b8-validationReport"]');
   assert.equal(f.requests[2].action, 'hostOpenFolder'); assert.deepEqual(plain(f.requests[2].payload), { artifactId: 'b8-validationReport' });
-  f.requests[2].resolve({ opened: true }); await settle();
+  // 正式的 host.openFolder 只回 { ok: true }（HostOpenFolderHandler）；2026-10-15 前後端契合時改掉自創的 opened。
+  f.requests[2].resolve({ ok: true }); await settle();
 });
 
 test('batch8 report callbacks cannot overwrite a reopened case or a newer validation output', async () => {
@@ -3024,7 +3133,8 @@ test('batch8 prescreen report handler sends the selected run and ignores callbac
   f.controls(html).click('[data-action="export-prescreen-report"]');
   assert.equal(f.requests[0].action, 'exportPrescreenReport'); assert.deepEqual(plain(f.requests[0].payload), { runId: 'p8' });
   f.store.setProject({ projectId: 'another-synthetic' });
-  f.requests[0].resolve({ artifacts: [{ artifactId: 'old-p8', kind: 'prescreenReport', stale: false, sourceRef: { prescreenRunId: 'p8' } }] }); await settle();
+  // 預篩選報告的回應是單一 artifact，和正式後端相同（2026-10-15 前後端契合前寫成 artifacts 陣列；畫面兩種都接受）。
+  f.requests[0].resolve({ artifact: { artifactId: 'old-p8', kind: 'prescreenReport', stale: false, sourceRef: { prescreenRunId: 'p8' } } }); await settle();
   assert.equal(f.store.getState().reportArtifacts.length, 0);
 });
 
@@ -3040,7 +3150,7 @@ for (const entry of JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/ba
 }
 
 function batch9Fixture() {
-  const requests = [], window = { setTimeout, clearTimeout, addEventListener() {}, JetFocus: { defer() {}, move() {}, trapDialogTab() {} }, JetApi: {} };
+  const requests = [], window = { setTimeout, clearTimeout, addEventListener() {}, JetFocus: { defer() {}, move() {}, trapDialogTab() {} }, JetApi: contractJetApi({}) };
   const document = { readyState: 'loading', addEventListener() {}, querySelector: () => null,
     createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   for (const action of ['projectDeletePreview', 'projectDelete', 'mappingValueProfile', 'mappingCommitGl', 'mappingCommitTb']) {
@@ -3296,7 +3406,7 @@ test('batch9 reopening uses persisted date-reuse summary without an extra source
 
 function batch9PagerLifecycleFixture(kind) {
   const dom = batch9TreeDom(), requests = [], window = { setTimeout: fn => { fn(); return 0; }, clearTimeout() {}, CSS: { escape: value => value },
-    addEventListener() {}, JetFocus: { defer() {} }, JetApi: {} };
+    addEventListener() {}, JetFocus: { defer() {} }, JetApi: contractJetApi({}) };
   for (const action of ['queryDocBalancePage', 'queryInfSamplePage', 'queryPrescreenPage']) window.JetApi[action] = payload =>
     new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject }));
   const context = vm.createContext({ window, document: dom.document });
@@ -3322,8 +3432,15 @@ function batch9PagerLifecycleFixture(kind) {
     get table() { return dom.content.querySelector('.preview-table'); }, get more() { return dom.content.querySelector('[data-load-more], [data-dynamic-load-more], [data-prescreen-load-more]'); },
     get search() { return dom.content.querySelector('[data-page-search]'); }, get input() { return dom.content.querySelector('[data-page-search-input]'); },
     get wrap() { return dom.content.querySelector('.preview-table__wrap'); }, get tbody() { return dom.content.querySelector('.preview-table tbody'); } }; }
-  function response(names, nextCursor) { return { rows: names.map(name => ({ documentNumber: name, debit: 10, credit: 0, diff: 10, accountCode: '1001', amount: 10 })), nextCursor,
-    columns: [{ key: 'documentNumber', label: '傳票號碼', valueType: 'text', sortable: true }] }; }
+  // 每種清單只放正式後端那一頁真的有的欄位（tools/tests/fixtures/action-shapes.json）；2026-10-15 前後端契合時改掉三種清單共用的假列。
+  const rowOf = { ordinary: name => ({ documentNumber: name, debit: 10, credit: 0, diff: 10 }),
+    dynamic: name => ({ documentNumber: name, accountCode: '1001', debit: 10, credit: 0 }),
+    prescreen: name => ({ documentNumber: name, accountCode: '1001', amount: 10 }) }[kind];
+  function response(names, nextCursor) {
+    const page = { rows: names.map(rowOf), nextCursor };
+    if (kind === 'dynamic') page.columns = [{ key: 'documentNumber', label: '傳票號碼', valueType: 'text', sortable: true }];
+    return page;
+  }
   async function open() { let page = draw(); page.toggle.fire('click'); if (requests.length) { requests.at(-1).resolve(response(['PREVIEW'], 'preview-next')); await settle(); } return view(); }
   return { store, ui, window, requests, draw, view, open, response, runKind };
 }
@@ -3375,8 +3492,8 @@ for (const kind of ['ordinary', 'dynamic', 'prescreen']) for (const change of ['
 }
 
 function batch9CancellationFixture() {
-  const dom = batch9TreeDom(), pending = [], requestHandlers = [], window = { setTimeout, clearTimeout, JetApi: {
-    onRequestStarted(fn) { requestHandlers.push(fn); }, operationCancel: payload => new Promise((resolve, reject) => pending.push({ payload, resolve, reject })) } };
+  const dom = batch9TreeDom(), pending = [], requestHandlers = [], window = { setTimeout, clearTimeout, JetApi: contractJetApi({
+    onRequestStarted(fn) { requestHandlers.push(fn); }, operationCancel: payload => new Promise((resolve, reject) => pending.push({ payload, resolve, reject })) }) };
   dom.content.innerHTML = '<button data-action="cancel-operation">取消作業</button>';
   const context = vm.createContext({ window, document: dom.document });
   for (const file of ['state.js', 'ui-core.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
@@ -3508,10 +3625,10 @@ test('batch9 report history uses its own fifty-file page rather than a query or 
 // rather than manually changing contentVersion or reproducing their memo logic.
 function batch9CreateStartupFixture(configured = null) {
   const dom = batch9TreeDom(), requests = [], databaseRequests = [], window = { setTimeout: fn => { fn(); return 0; }, clearTimeout() {},
-    CSS: { escape: value => value }, addEventListener() {}, JetApi: {
+    CSS: { escape: value => value }, addEventListener() {}, JetApi: contractJetApi({
       projectListLocal: payload => new Promise((resolve, reject) => requests.push({ payload, resolve, reject })),
       systemDatabaseInfo: payload => new Promise((resolve, reject) => databaseRequests.push({ payload, resolve, reject }))
-    } };
+    }) };
   dom.content.setAttribute('data-bind', 'synthetic-shell');
   const content = dom.element('main', { 'data-bind': 'content' });
   const picker = dom.element('section', { 'data-bind': 'project-picker' });
@@ -3913,10 +4030,10 @@ test('calendar card has no template or folder button and keeps the upload button
 
 function k6MappingDifferenceFixture() {
  const dom=batch9TreeDom(), pending=[], actions=[];
- const window={setTimeout,clearTimeout,JetFocus:{defer(){}},JetApi:{
+ const window={setTimeout,clearTimeout,JetFocus:{defer(){}},JetApi:contractJetApi({
   hostSelectFile:async()=>({filePath:'synthetic.csv',fileName:'synthetic.csv'}),
   importAccountMappingFromFile:async()=>({batchId:'b2',rowCount:4,hasAnyCategory:true,blankCategoryCount:1,mappingOnlyCount:2,unmappedCount:3}),
-  queryAccountMappingDifferencePage:payload=>new Promise((resolve,reject)=>pending.push({payload,resolve,reject}))}};
+  queryAccountMappingDifferencePage:payload=>new Promise((resolve,reject)=>pending.push({payload,resolve,reject}))})};
  const context=vm.createContext({window,document:dom.document});
  for(const file of ['state.js','ui-core.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context);
  vm.runInContext(fs.readFileSync(path.join(root,'steps/validate-step.js'),'utf8').replace("  Ui.registerStep('validate', render);",'  window.k6={accountMappingCardHtml,bindAccountMappingCard};'),context);
@@ -4068,6 +4185,10 @@ for (const [letter, input, expected] of [
 
 const KCT_A_RATIONALE = 'A：期末前 X天內收入科目有迴轉分錄，表示收入認列過程中可能存在不適當的調整或更正(案件團隊須提供天數)';
 const KCT_B_RATIONALE = 'B：借記固定資產科目(如不動產、廠房和設備(PPE))但貸記營業費用或維修費用等費用科目之分錄組合不符合公司營業流程的瞭解，因此屬於為非預期的過帳，可能為舞弊類型分錄及其他調整的特質。';
+// C、D、E 的動機逐字照 docs/kct-gl-workflow.md，和 Gui 的 filter-kct-editing 情境原本寫死的文字相同（2026-10-15 S5 搬到這裡）。
+const KCT_C_RATIONALE = 'C：查核團隊已發現與收入科目相關的未預期或不尋常過帳(貸方為收入，但借方科目非為應收票據/帳款、預收貨款/合約負債)';
+const KCT_D_RATIONALE = 'D：根據查核核團隊的瞭解，收入科目的過帳一般是自動產生，如為人工分錄非屬正常營業流程的會計分錄';
+const KCT_E_RATIONALE = 'E：執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。';
 test('acceptance comments remove duplicate period and population cards but preserve validation results', () => {
   const f = usageJourneyFixture('validate'), data = batch8ValidationData();
   f.store.setLastRun('validate', data); f.draw();
@@ -4402,6 +4523,25 @@ test('clicking A off, B on, B off and A on keeps the card, name and rationale in
   f.click('[data-kct-letter="B"]'); assert.deepEqual(read(), [true, true, 'A+B', KCT_A_RATIONALE + '\n' + KCT_B_RATIONALE]);
 });
 
+// 使用者 2026-10-15 在待決事項勾選頁選 S5：Gui 的 filter-kct-editing 情境原本逐張點 A 到 E 核對單張動機，B 卡另外核對加入的條件，
+// 再點一次取消，共 10 次操作。改在這裡逐張點擊核對同一件事，之後刪掉那 10 次 Gui 操作。
+test('clicking each KCT card A to E alone fills its own rationale, B adds its account category pair, and clicking again removes it', () => {
+  const f = filterOperationFixture();
+  const expected = { A: KCT_A_RATIONALE, B: KCT_B_RATIONALE, C: KCT_C_RATIONALE, D: KCT_D_RATIONALE, E: KCT_E_RATIONALE };
+  for (const letter of ['A', 'B', 'C', 'D', 'E']) {
+    f.click('[data-kct-letter="' + letter + '"]');
+    assert.equal(f.draft().rationale, expected[letter], letter);
+    assert.equal(f.pressed(letter), true, letter + ' is marked as added');
+    if (letter === 'B') {
+      const rule = f.draft().groups[0].rules[0];
+      assert.deepEqual([rule.__kctLetter, rule.type], ['B', 'specialAccountCategoryPair']);
+    }
+    f.click('[data-kct-letter="' + letter + '"]');
+    assert.equal(f.draft().groups.flatMap(group => group.rules).length, 0, letter + ' is removed by the second click');
+    assert.equal(f.pressed(letter), false, letter);
+  }
+});
+
 test('F1 an automatic KCT name already used by a saved scenario gets a number and saves', async () => {
   const f = filterOperationFixture({ saved: [savedG()] });
   f.click('[data-kct-letter="G"]'); 
@@ -4473,8 +4613,8 @@ test('F6 a backend error after an empty group is marked on the row the auditor s
 function oneAtATimeFixture() {
   const f = filterOperationFixture({ saved: [savedG('情境甲'), savedG('情境乙'), savedG('情境丙')] });
   const sent = [];
-  f.window.JetApi = new Proxy({}, { get: (_, method) => payload =>
-    new Promise((resolve, reject) => sent.push({ method, payload, resolve, reject })) });
+  f.window.JetApi = contractJetApi(new Proxy({}, { get: (_, method) => payload =>
+    new Promise((resolve, reject) => sent.push({ method, payload, resolve, reject })) }));
   f.store.getState().filterScenarioCheck = { status: 'needsEdit', problems: [
     { position: 1, name: '情境甲', messages: ['合成原因一'] }, { position: 2, name: '情境乙', messages: ['合成原因二'] }] };
   f.store.setFilterDraft({ name: '', rationale: '', groups: [] });
@@ -4878,6 +5018,27 @@ test('earlier steps show one plain sentence only while filter scenarios exist', 
     assert.match(fs.readFileSync(path.join(root, file), 'utf8'), /Ui\.downstreamResetNoticeHtml\(/, file);
 });
 
+// 使用者 2026-10-15 在待決事項勾選頁裁定（U6）：只有未儲存的第五步草稿、沒有已存情境時，上游修改一樣會清掉草稿，所以也要先提醒。
+// 判斷和清除後的訊息用同一條：有已存情境，或草稿已有條件組。修改前只看已存情境。
+test('earlier steps also show the sentence when only an unsaved filter draft exists', () => {
+  const f = namingFixture();
+  f.store.setFilterDraft({ name: '', rationale: '', groups: [{ join: 'and', rules: [{ type: 'drCrOnly', drCr: 'debit' }] }] });
+  assert.equal(f.store.getState().filter.savedScenarios.length, 0);
+  assert.match(f.window.JetUi.downstreamResetNoticeHtml(f.store.getState()), />更改已設定好的資料，會清除後面步驟的設定。</);
+});
+
+// 使用者 2026-10-15 在待決事項勾選頁裁定（U8）：GL 或 TB 重新匯入、重新確認配對讓資料驗證失效時，
+// 第四步「用 Excel 配對」不再顯示舊資料的科目配對檔狀態；下次驗證後會重新寫出這一句。修改前這一句一直留到換案件。
+test('the account mapping file status is cleared when an upstream change clears the validation', () => {
+  const f = usageJourneyFixture('validate');
+  f.store.setValidationOutput('template', { status: 'done', runId: 'v1',
+    message: '已建立 合成AccountMapping.xlsx（2 個科目）。填妥科目分類並存檔後，即可匯入。' });
+  f.store.applyMutationEffects({ invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true } });
+  assert.ok(f.store.getState().validationOutput.template, 'a change that keeps the validation keeps the status');
+  f.store.applyMutationEffects({ invalidatedResults: { validation: true, prescreen: true, filter: true, filterScenarios: true, accountMapping: true } });
+  assert.equal(f.store.getState().validationOutput.template, null);
+});
+
 // 2026-10-07 remap: expected behavior comes from docs/jet-frontend-description.md and the action contract.
 test('remap S1-01 creation renders browser-required audit dates', () => {
   const f = projectMetadataFixture(), page = f.render(validCreateValues());
@@ -4890,15 +5051,17 @@ test('remap S1-01 creation renders browser-required audit dates', () => {
 for (const kind of ['gl', 'tb']) test('remap S3-02 ' + kind + ' confirmation shows every source warning without blocking and clears scenarios', async () => {
   const f = usageJourneyFixture('mapping'); prepareUsageMapping(f, kind); f.draw();
   const warnings = ['來源欄「Code」整欄空白，請檢查配對。', '來源欄「Name」整欄空白，請檢查配對。'];
+  // 核准日與人工代碼設定只在 GL 的確認配對回應裡（MappingHandlers）；2026-10-15 前後端契合時改成依種類給。
+  const glOptions = kind === 'gl' ? { approvalDateMode: 'unmapped', manualAutoPolicy: { manualValues: ['1'], automaticValues: ['0'] } } : {};
   f.click('[data-action="commit-' + kind + '"]');
-  f.request(kind === 'gl' ? 'mappingCommitGl' : 'mappingCommitTb').resolve({ projectedRowCount: 2, approvalDateMode: 'unmapped', manualAutoPolicy: { manualValues: ['1'], automaticValues: ['0'] }, warnings, ...usageEffects(true) }); await settle();
+  f.request(kind === 'gl' ? 'mappingCommitGl' : 'mappingCommitTb').resolve({ projectedRowCount: 2, ...glOptions, warnings, ...usageEffects(true) }); await settle();
   assert.equal(f.state.mapping[kind].committed.projectedRowCount, 2);
   assert.equal(f.state.filter.savedScenarios.length, 0); assert.equal(f.state.filter.draft.groups.length, 0); assert.equal(f.state.filter.draft.name, '');
   for (const warning of warnings) assert.equal(f.state.messages.filter(m => m.level === 'warn' && m.text.includes(warning)).length, 1);
   assert.equal(f.state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, 1);
   assert.ok(f.state.messages.some(m => m.level === 'info' && /配對/.test(m.text)));
   f.draw(); f.click('[data-action="remap-' + kind + '"]'); f.draw(); f.click('[data-action="commit-' + kind + '"]');
-  f.request(kind === 'gl' ? 'mappingCommitGl' : 'mappingCommitTb').resolve({ projectedRowCount: 2, approvalDateMode: 'unmapped', manualAutoPolicy: { manualValues: ['1'], automaticValues: ['0'] }, ...usageEffects(true) }); await settle();
+  f.request(kind === 'gl' ? 'mappingCommitGl' : 'mappingCommitTb').resolve({ projectedRowCount: 2, ...glOptions, ...usageEffects(true) }); await settle();
   assert.equal(f.state.messages.filter(m => m.level === 'warn' && warnings.some(w => m.text.includes(w))).length, 2);
   assert.equal(f.state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, 1);
 });
@@ -5773,10 +5936,10 @@ test('oct9 account-pair notes are available on demand and nested conditions have
 
 test('oct9 account paging across 201 accounts never saves implicitly and identifies the last page', async () => {
   const reads = [], writes = [];
-  const window = { setTimeout, clearTimeout, JetApi: {
+  const window = { setTimeout, clearTimeout, JetApi: contractJetApi({
     queryAccountMappingPage: payload => new Promise(resolve => reads.push({ payload, resolve })),
     accountMappingSave: payload => { writes.push(plain(payload)); return Promise.resolve({ batchId: 'saved', rowCount: 201 }); }
-  } };
+  }) };
   const document = { createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
   for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
@@ -5798,8 +5961,8 @@ test('oct9 account paging across 201 accounts never saves implicitly and identif
     if (index < 4) { assert.doesNotMatch(page.html, /data-account-next disabled/); page.control('[data-account-next]').fire(); await reply(index + 1); }
   }
   assert.match(render().html, /已選 201 個科目/);
-  let page = render(); page.control('[data-account-bulk-category][value="' + 'cash' + '"]').checked = true;
-    page.control('[data-account-bulk-category][value="' + 'cash' + '"]').fire('change');
+  let page = render(); page.control('[data-account-bulk-category]').value = 'cash';
+    page.control('[data-account-bulk-category]').fire('change');
   render().control('[data-account-apply]').fire(); assert.equal(ui.accountMappingEditor.pendingCount(), 201);
   render().control('[data-account-prev]').fire(); await reply(5);
   assert.doesNotMatch(render().html, /data-account-next disabled/);
@@ -5817,10 +5980,10 @@ test('oct9 account paging across 201 accounts never saves implicitly and identif
 // Run the existing GUI readback JavaScript against production-rendered mapping UI without opening a desktop window.
 function oct9GuiMappingFixture() {
   const dom = batch9TreeDom();
-  const window = { setTimeout: () => 0, clearTimeout() {}, JetApi: {
+  const window = { setTimeout: () => 0, clearTimeout() {}, JetApi: contractJetApi({
     queryDataPreview: async () => ({ columns: ['Approval', 'Manual'], rows: [['2025-01-02', '1']] }),
     mappingValueProfile: async () => ({ blankCount: 0, values: [], comparisonGroups: [], missingComparisonValues: [] })
-  } };
+  }) };
   const context = vm.createContext({ window, document: dom.document });
   for (const file of ['state.js', 'ui-core.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/mapping-step.js'), 'utf8').replace("  Ui.registerStep('mapping', render);", '  window.drawMapping = render;'), context);

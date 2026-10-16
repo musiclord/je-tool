@@ -114,7 +114,26 @@ public sealed class Batch9ArtifactStateTests
         Assert.True(reopened.GetProperty("staleState").GetProperty("prescreen").GetBoolean());
     }
 
-    internal static async Task<Prepared> PrepareAsync(HandlerTestHost host, string provider)
+    /// <summary>
+    /// 同一種資料庫在一個測試程序裡只建一次，之後每個測試複製一份（<see cref="CaseTemplates"/>）。
+    /// <paramref name="fromScratch"/> 為 true 時在這個 host 上照順序建案，給要檢查建案者身分或建案過程的測試。
+    /// </summary>
+    internal static async Task<Prepared> PrepareAsync(HandlerTestHost host, string provider, bool fromScratch = false)
+    {
+        if (fromScratch || !CaseTemplates.CanCopy(provider))
+        {
+            return await BuildPreparedAsync(host, provider);
+        }
+
+        var copied = await CaseTemplates.CopyIntoAsync(host, $"batch9-artifact-state:{provider}", async templateHost =>
+        {
+            var prepared = await BuildPreparedAsync(templateHost, provider);
+            return (prepared.Id, prepared);
+        });
+        return copied.State;
+    }
+
+    private static async Task<Prepared> BuildPreparedAsync(HandlerTestHost host, string provider)
     {
         var id = await InlineWorkbookProject.SetupAsync(host, builder => builder
             .WithColumns("傳票號碼", "傳票日期", "核准日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")

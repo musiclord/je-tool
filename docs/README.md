@@ -24,9 +24,9 @@
 
 ## 計畫
 
-`specs/` 只放進行中的大型計畫，目前沒有。
+`specs/` 只放進行中的大型計畫，目前沒有。[介面動態與驗證循環整理計畫](history/specs/2026-10-15-motion-and-verification-plan.md)2026-10-16 結案，移回歷史文件。
 [KCT 總帳資料整理需求與新版 JET 對照](history/specs/2026-10-06-kct-gl-requirements-plan.md)已完成第九節的驗收回饋修正與獨立複審，移回歷史文件，成果待使用者驗收。
-原定的下一階段工作計畫等使用者指示才開始。
+原定的下一階段工作計畫中，Gui、驗證框架瘦身與前後端契合度測試已在 2026-10-15 併入介面動態與驗證循環整理計畫並完成，其餘等使用者指示才開始。
 試用重點見[測試環境交付說明](test-environment-notes.md)。
 [使用者回饋與操作流程一致性修正計畫](history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md)另依原安排驗收，
 2026-10-05 完成交付前修正後移到歷史文件，成果待使用者驗收。接手先讀 `development-status.md` 的「目前大型計畫」。

@@ -64,10 +64,10 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
   步驟見 [`tools/README.md`](tools/README.md#日常資料庫測試與服務收尾)。
 - 不為了讓測試通過而放寬、刪除或跳過既有斷言，也不把預期值改成由被測程式算出來；新增測試不受此限。
   要改既有測試時先寫明原因，並保留第一次失敗的證據。
-- 測試不能干擾使用者操作電腦（使用者 2026-10-05 裁定）。`Gui` 每個情境都會在使用者桌面重新開一次 JET 視窗，
-  視窗最大化並搶走前景；`ReleaseCandidate` 也會執行它。日常開發用 `Public`（含前端測試）、
-  `Contract -ContractScenario FrontendMapping` 與瀏覽器主機確認畫面。`Gui` 只在提交、交付或使用者確認版本要整合時執行，
-  執行前先告訴使用者會跳出視窗。除非使用者當次要求，不用 computer use 這類會操作實體滑鼠與鍵盤的工具。
+- 測試不能干擾使用者操作電腦（使用者 2026-10-05 裁定）。`Gui` 把 JET 開在另一個 Windows 桌面，使用者看不到視窗，
+  點擊與打字也不會落到 JET 上；完整執行需要幾分鐘並占用 CPU。`ReleaseCandidate` 也會執行它。日常開發用 `Public`（含前端測試）、
+  `Contract -ContractScenario FrontendMapping` 與瀏覽器主機確認畫面。`Gui` 只在提交、交付或使用者確認版本要整合時執行。
+  除非使用者當次要求，不用 computer use 這類會操作實體滑鼠與鍵盤的工具。
 
 **架構**（完整規格見 `docs/jet-guide.md`）
 

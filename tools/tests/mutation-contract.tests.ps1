@@ -177,13 +177,28 @@ foreach ($relative in @('src/JET/JET/Domain', 'src/JET/bin', 'src/JET/obj', 'src
 }
 [IO.File]::WriteAllText((Join-Path $syntheticRoot 'global.json'), '{}')
 [IO.File]::WriteAllText((Join-Path $syntheticRoot 'src/JET/JET/Domain/Uncommitted.cs'), '// synthetic uncommitted source')
-[IO.File]::WriteAllText((Join-Path $syntheticRoot 'src/JET/JET/Domain/Unlisted.txt'), 'unlisted synthetic marker')
-[IO.Directory]::CreateDirectory((Join-Path $syntheticRoot 'docs')) | Out-Null
-[IO.File]::WriteAllLines((Join-Path $syntheticRoot 'docs/first-root-commit-candidate.txt'), @('global.json', 'src/JET/JET/Domain/synthetic.txt', 'src/JET/JET/Domain/Uncommitted.cs'))
+[IO.File]::WriteAllText((Join-Path $syntheticRoot 'src/JET/JET/Domain/Ignored.txt'), 'ignored synthetic marker')
+[IO.File]::WriteAllText((Join-Path $syntheticRoot 'src/JET/JET/Domain/Deleted.cs'), '// synthetic source deleted from the working tree')
+[IO.Directory]::CreateDirectory((Join-Path $syntheticRoot 'tools')) | Out-Null
+[IO.File]::WriteAllText((Join-Path $syntheticRoot 'tools/outside.txt'), 'outside synthetic marker')
+[IO.Directory]::CreateDirectory((Join-Path $syntheticRoot 'tools/linked')) | Out-Null
+[IO.File]::WriteAllText((Join-Path $syntheticRoot 'tools/linked/Linked.cs'), '// synthetic source linked from a test project')
+[IO.File]::WriteAllText((Join-Path $syntheticRoot 'src/JET/JET/Domain/Synthetic.csproj'), '<Project><ItemGroup><Compile Include="..\..\..\..\tools\linked\Linked.cs" /></ItemGroup></Project>')
+[IO.File]::WriteAllLines((Join-Path $syntheticRoot '.gitignore'), @('bin/', 'obj/', 'artifacts/', '.codex/', 'data/', 'Ignored.txt'))
+# 來源清單取自 Git：已追蹤的放進索引（合成儲存庫不提交），未追蹤的新檔照樣列入，已追蹤但工作樹刪掉的不列入。
+$git = Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1 -ExpandProperty Source
+$gitPrefix = @('-c', ('safe.directory=' + $syntheticRoot.Replace('\', '/')), '-c', 'core.excludesFile=', '-C', $syntheticRoot)
+& $git @gitPrefix init --quiet 2>$null
+& $git @gitPrefix add -- global.json .gitignore src/JET/JET/Domain/synthetic.txt src/JET/JET/Domain/Deleted.cs tools/outside.txt 2>$null
+Assert-Mutation ($LASTEXITCODE -eq 0) 'synthetic repository index prepared'
+[IO.File]::Delete((Join-Path $syntheticRoot 'src/JET/JET/Domain/Deleted.cs'))
 $snapshotRoot = Join-Path $mutationTestRoot 'snapshot'
 $snapshot = & $mutationModule { param($root, $destination) New-JetMutationSnapshot $root $destination } $syntheticRoot $snapshotRoot
-Assert-Mutation ($snapshot.fileCount -eq 3) 'snapshot includes only global.json and synthetic source files'
-Assert-Mutation (![IO.File]::Exists((Join-Path $snapshotRoot 'src/JET/JET/Domain/Unlisted.txt'))) 'snapshot excludes unlisted local files'
+Assert-Mutation ($snapshot.fileCount -eq 5) 'snapshot includes only global.json, synthetic source files and linked source'
+Assert-Mutation ($snapshot.files.path -ccontains 'tools/linked/Linked.cs') 'source linked from a project outside src/JET included'
+Assert-Mutation (![IO.File]::Exists((Join-Path $snapshotRoot 'src/JET/JET/Domain/Ignored.txt'))) 'snapshot excludes ignored local files'
+Assert-Mutation (![IO.File]::Exists((Join-Path $snapshotRoot 'tools/outside.txt'))) 'snapshot excludes files outside src/JET'
+Assert-Mutation (!($snapshot.files.path -ccontains 'src/JET/JET/Domain/Deleted.cs')) 'source deleted from the working tree excluded'
 Assert-Mutation ($snapshot.files.path -ccontains 'src/JET/JET/Domain/Uncommitted.cs') 'uncommitted source included'
 Assert-Mutation (!$snapshot.privateDataInspected) 'private input remains excluded'
 foreach ($relative in @('src/JET/bin', 'src/JET/obj', 'src/JET/artifacts', 'src/JET/.codex', 'src/JET/data', 'data/test-case')) {

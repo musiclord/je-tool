@@ -1,0 +1,5498 @@
+{
+  "schemaVersion": 1,
+  "actions": {
+    "accountMapping.save": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "changes": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "categoryId": "string"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "batchId": "string",
+          "blankCategoryCount": "number",
+          "fileName": "string",
+          "hasAnyCategory": "boolean",
+          "hasCounterpart": "boolean",
+          "hasRevenue": "boolean",
+          "importedUtc": "string",
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "rowCount": "number",
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "accountTaxonomy.save": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "categories": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "categoryId": "string",
+                "label": "string",
+                "ordinal": "number",
+                "parentCategoryId": "null|string",
+                "semanticRole": "string"
+              }
+            }
+          },
+          "revision": "number"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "categories": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "categoryId": "string",
+                "isBuiltIn": "boolean",
+                "label": "string",
+                "ordinal": "number",
+                "parentCategoryId": "null|string",
+                "semanticRole": "string"
+              }
+            }
+          },
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "reportArtifactWarning": "null|string",
+          "reportArtifacts": {
+            "kind": "array|null",
+            "items": null
+          },
+          "revision": "number",
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "calendar.setNonWorkingDays": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "days": {
+            "kind": "array",
+            "items": "number"
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "nonWorkingDays": {
+            "kind": "array",
+            "items": "number"
+          },
+          "ok": "boolean",
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "demo.exportAccountMappingFile": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "fileName": "string",
+          "filePath": "string"
+        }
+      }
+    },
+    "demo.exportAuthorizedPreparerFile": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "fileName": "string",
+          "filePath": "string"
+        }
+      }
+    },
+    "demo.exportGlFile": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "fileName": "string",
+          "filePath": "string"
+        }
+      }
+    },
+    "demo.exportTbFile": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "fileName": "string",
+          "filePath": "string"
+        }
+      }
+    },
+    "dev.db.overview": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "databasePath": "string",
+          "databaseProvider": "string",
+          "engineVersion": "string",
+          "fileSizeBytes": "number",
+          "tables": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "name": "string",
+                "rowCount": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "dev.db.tableData": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "limit": "number",
+          "offset": "number",
+          "tableName": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "columns": {
+            "kind": "array",
+            "items": "string"
+          },
+          "limit": "number",
+          "offset": "number",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "array",
+              "items": "string"
+            }
+          },
+          "tableName": "string",
+          "totalCount": "number"
+        }
+      }
+    },
+    "dev.log.exportFile": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "correlationId": "null",
+          "projectId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "filePath": "string",
+          "lineCount": "number",
+          "source": "string"
+        }
+      }
+    },
+    "export.accountMappingTemplate": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "onlyIfMissing": "boolean",
+          "runId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "disposition": "string",
+          "fileName": "string",
+          "filePath": "string",
+          "ok": "boolean",
+          "rowCount": "number",
+          "validationRunId": "string"
+        }
+      }
+    },
+    "export.criteriaSelectionReport": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "revision": "string",
+          "validationRunId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "artifact": {
+            "kind": "object",
+            "fields": {
+              "artifactId": "string",
+              "bytes": "number",
+              "fileName": "string",
+              "fileState": "string",
+              "fullPath": "string",
+              "generatedUtc": "string",
+              "kind": "string",
+              "sourceRef": {
+                "kind": "object",
+                "fields": {
+                  "filterDataRevision": "string",
+                  "prescreenRunId": "null",
+                  "scenarioPositions": {
+                    "kind": "array",
+                    "items": "number"
+                  },
+                  "scenarioRevision": "string",
+                  "validationRunId": "string"
+                }
+              },
+              "stale": "boolean"
+            }
+          },
+          "ok": "boolean",
+          "reportArtifactWarning": "null|string",
+          "reportArtifacts": {
+            "kind": "array|null",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "export.prescreenReport": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "runId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "artifact": {
+            "kind": "object",
+            "fields": {
+              "artifactId": "string",
+              "bytes": "number",
+              "fileName": "string",
+              "fileState": "string",
+              "fullPath": "string",
+              "generatedUtc": "string",
+              "kind": "string",
+              "sourceRef": {
+                "kind": "object",
+                "fields": {
+                  "filterDataRevision": "null",
+                  "prescreenRunId": "string",
+                  "scenarioPositions": "null",
+                  "scenarioRevision": "null",
+                  "validationRunId": "null"
+                }
+              },
+              "stale": "boolean"
+            }
+          },
+          "ok": "boolean",
+          "reportArtifactWarning": "null|string",
+          "reportArtifacts": {
+            "kind": "array|null",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": "null",
+                    "scenarioRevision": "null",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "export.validationArtifacts": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "runId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "artifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null",
+                    "prescreenRunId": "null",
+                    "scenarioPositions": "null",
+                    "scenarioRevision": "null",
+                    "validationRunId": "string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "ok": "boolean",
+          "reportArtifactWarning": "null|string",
+          "reportArtifacts": {
+            "kind": "array|null",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null",
+                    "prescreenRunId": "null",
+                    "scenarioPositions": "null",
+                    "scenarioRevision": "null",
+                    "validationRunId": "string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "export.workpaperStream": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "scenarioPositions": {
+            "kind": "array",
+            "items": "number"
+          },
+          "scenarioRevision": "string",
+          "validationRunId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "artifact": {
+            "kind": "object",
+            "fields": {
+              "artifactId": "string",
+              "bytes": "number",
+              "fileName": "string",
+              "fileState": "string",
+              "fullPath": "string",
+              "generatedUtc": "string",
+              "kind": "string",
+              "sourceRef": {
+                "kind": "object",
+                "fields": {
+                  "filterDataRevision": "string",
+                  "prescreenRunId": "null",
+                  "scenarioPositions": {
+                    "kind": "array",
+                    "items": "number"
+                  },
+                  "scenarioRevision": "string",
+                  "validationRunId": "string"
+                }
+              },
+              "stale": "boolean"
+            }
+          },
+          "filterResultsCurrent": "boolean",
+          "ok": "boolean",
+          "reportArtifactWarning": "null|string",
+          "reportArtifacts": {
+            "kind": "array|null",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "sheetStats": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "rowsWritten": "number",
+                "sheetName": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "filter.preview": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "populationScope": "string",
+          "scenario": {
+            "kind": "object",
+            "optional": [
+              "editorOrigins",
+              "source"
+            ],
+            "fields": {
+              "editorOrigins": {
+                "kind": "object",
+                "fields": {
+                  "groups": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "letters": {
+                          "kind": "array",
+                          "items": "null|string"
+                        }
+                      }
+                    }
+                  },
+                  "legacyKctSource": "boolean",
+                  "nameIsAutomatic": "boolean",
+                  "rationaleIsAutomatic": "boolean",
+                  "version": "number"
+                }
+              },
+              "groups": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "join": "string",
+                    "matchScope": "string",
+                    "rules": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "optional": [
+                          "amountBasis",
+                          "categorySelection",
+                          "creditCategoryIds",
+                          "debitCategoryIds",
+                          "digits",
+                          "drCr",
+                          "field",
+                          "fieldId",
+                          "from",
+                          "includeBlank",
+                          "isManual",
+                          "join",
+                          "keywords",
+                          "maxEntries",
+                          "mode",
+                          "normalization",
+                          "operator",
+                          "pairMode",
+                          "prescreenKey",
+                          "quantifier",
+                          "rules",
+                          "to",
+                          "value",
+                          "values",
+                          "windowDays"
+                        ],
+                        "fields": {
+                          "amountBasis": "string",
+                          "categorySelection": "string",
+                          "creditCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "debitCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "digits": "string",
+                          "drCr": "string",
+                          "field": "string",
+                          "fieldId": "string",
+                          "from": "string",
+                          "includeBlank": "boolean",
+                          "isManual": "string",
+                          "join": "string",
+                          "keywords": "string",
+                          "maxEntries": "string",
+                          "mode": "string",
+                          "normalization": "string",
+                          "operator": "string",
+                          "pairMode": "string",
+                          "prescreenKey": "string",
+                          "quantifier": "string",
+                          "rules": {
+                            "kind": "array",
+                            "items": {
+                              "kind": "object",
+                              "optional": [
+                                "amountBasis",
+                                "drCr",
+                                "field",
+                                "fieldId",
+                                "from",
+                                "includeBlank",
+                                "operator",
+                                "to",
+                                "values"
+                              ],
+                              "fields": {
+                                "amountBasis": "string",
+                                "drCr": "string",
+                                "field": "string",
+                                "fieldId": "string",
+                                "from": "string",
+                                "includeBlank": "boolean",
+                                "join": "string",
+                                "operator": "string",
+                                "to": "string",
+                                "type": "string",
+                                "values": {
+                                  "kind": "array",
+                                  "items": "string"
+                                }
+                              }
+                            }
+                          },
+                          "to": "string",
+                          "type": "string",
+                          "value": "string",
+                          "values": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "windowDays": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "name": "string",
+              "rationale": "string",
+              "source": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "scenario": {
+            "kind": "object",
+            "fields": {
+              "count": "number",
+              "name": "string",
+              "populationScope": "string",
+              "previewRows": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "accountCode": "string",
+                    "accountName": "string",
+                    "amount": "number",
+                    "documentDescription": "string",
+                    "documentNumber": "string",
+                    "drCr": "string",
+                    "lineItem": "string",
+                    "postDate": "string"
+                  }
+                }
+              },
+              "voucherCount": "number"
+            }
+          }
+        }
+      }
+    },
+    "filter.scenario.recheck": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "populationScope": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "filterScenarioCheck": {
+            "kind": "object",
+            "fields": {
+              "problems": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "messages": {
+                      "kind": "array",
+                      "items": "string"
+                    },
+                    "name": "string",
+                    "position": "number"
+                  }
+                }
+              },
+              "recalculatedCount": "number",
+              "status": "string"
+            }
+          },
+          "ok": "boolean",
+          "position": "null",
+          "resultRef": {
+            "kind": "null|object",
+            "fields": {
+              "generatedUtc": "string",
+              "logicVersion": "string",
+              "populationScope": "string",
+              "revision": "string"
+            }
+          },
+          "savedCount": "number",
+          "scenarios": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "optional": [
+                "editorOrigins"
+              ],
+              "fields": {
+                "editorOrigins": {
+                  "kind": "object",
+                  "fields": {
+                    "groups": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "fields": {
+                          "letters": {
+                            "kind": "array",
+                            "items": "null|string"
+                          }
+                        }
+                      }
+                    },
+                    "legacyKctSource": "boolean",
+                    "nameIsAutomatic": "boolean",
+                    "rationaleIsAutomatic": "boolean",
+                    "version": "number"
+                  }
+                },
+                "groups": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "join": "string",
+                      "matchScope": "string",
+                      "rules": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "optional": [
+                            "amountBasis",
+                            "categorySelection",
+                            "creditCategoryIds",
+                            "debitCategoryIds",
+                            "drCr",
+                            "field",
+                            "fieldId",
+                            "from",
+                            "includeBlank",
+                            "isManual",
+                            "join",
+                            "mode",
+                            "normalization",
+                            "operator",
+                            "pairMode",
+                            "prescreenKey",
+                            "quantifier",
+                            "rules",
+                            "to",
+                            "value",
+                            "values"
+                          ],
+                          "fields": {
+                            "amountBasis": "string",
+                            "categorySelection": "string",
+                            "creditCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "debitCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "drCr": "string",
+                            "field": "string",
+                            "fieldId": "string",
+                            "from": "string",
+                            "includeBlank": "boolean",
+                            "isManual": "string",
+                            "join": "string",
+                            "mode": "string",
+                            "normalization": "string",
+                            "operator": "string",
+                            "pairMode": "string",
+                            "prescreenKey": "string",
+                            "quantifier": "string",
+                            "rules": {
+                              "kind": "array",
+                              "items": {
+                                "kind": "object",
+                                "optional": [
+                                  "amountBasis",
+                                  "categoryIds",
+                                  "categoryMode",
+                                  "categorySelection",
+                                  "drCr",
+                                  "field",
+                                  "fieldId",
+                                  "from",
+                                  "includeBlank",
+                                  "operator",
+                                  "to",
+                                  "values"
+                                ],
+                                "fields": {
+                                  "amountBasis": "string",
+                                  "categoryIds": {
+                                    "kind": "array",
+                                    "items": "string"
+                                  },
+                                  "categoryMode": "string",
+                                  "categorySelection": "string",
+                                  "drCr": "string",
+                                  "field": "string",
+                                  "fieldId": "string",
+                                  "from": "string",
+                                  "includeBlank": "boolean",
+                                  "join": "string",
+                                  "operator": "string",
+                                  "to": "string",
+                                  "type": "string",
+                                  "values": {
+                                    "kind": "array",
+                                    "items": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "to": "string",
+                            "type": "string",
+                            "value": "string",
+                            "values": {
+                              "kind": "array",
+                              "items": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "name": "string",
+                "populationScope": "string",
+                "rationale": "string",
+                "savedUtc": "string",
+                "source": "null|string"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "filter.scenario.remove": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "expectedName": "string",
+          "populationScope": "string",
+          "position": "number"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "filterScenarioCheck": {
+            "kind": "object",
+            "fields": {
+              "problems": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "messages": {
+                      "kind": "array",
+                      "items": "string"
+                    },
+                    "name": "string",
+                    "position": "number"
+                  }
+                }
+              },
+              "recalculatedCount": "number",
+              "status": "string"
+            }
+          },
+          "ok": "boolean",
+          "position": "null",
+          "resultRef": {
+            "kind": "null|object",
+            "fields": {
+              "generatedUtc": "string",
+              "logicVersion": "string",
+              "populationScope": "string",
+              "revision": "string"
+            }
+          },
+          "savedCount": "number",
+          "scenarios": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "editorOrigins": {
+                  "kind": "object",
+                  "fields": {
+                    "groups": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "fields": {
+                          "letters": {
+                            "kind": "array",
+                            "items": "null|string"
+                          }
+                        }
+                      }
+                    },
+                    "legacyKctSource": "boolean",
+                    "nameIsAutomatic": "boolean",
+                    "rationaleIsAutomatic": "boolean",
+                    "version": "number"
+                  }
+                },
+                "groups": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "join": "string",
+                      "matchScope": "string",
+                      "rules": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "optional": [
+                            "drCr",
+                            "field",
+                            "fieldId",
+                            "includeBlank",
+                            "operator",
+                            "values"
+                          ],
+                          "fields": {
+                            "drCr": "string",
+                            "field": "string",
+                            "fieldId": "string",
+                            "includeBlank": "boolean",
+                            "join": "string",
+                            "operator": "string",
+                            "type": "string",
+                            "values": {
+                              "kind": "array",
+                              "items": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "name": "string",
+                "populationScope": "string",
+                "rationale": "string",
+                "savedUtc": "string",
+                "source": "null|string"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "filter.scenario.save": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "expectedName"
+        ],
+        "fields": {
+          "expectedName": "string",
+          "populationScope": "string",
+          "position": "null|number",
+          "scenario": {
+            "kind": "object",
+            "optional": [
+              "editorOrigins",
+              "source"
+            ],
+            "fields": {
+              "editorOrigins": {
+                "kind": "object",
+                "fields": {
+                  "groups": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "letters": {
+                          "kind": "array",
+                          "items": "null|string"
+                        }
+                      }
+                    }
+                  },
+                  "legacyKctSource": "boolean",
+                  "nameIsAutomatic": "boolean",
+                  "rationaleIsAutomatic": "boolean",
+                  "version": "number"
+                }
+              },
+              "groups": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "join": "string",
+                    "matchScope": "string",
+                    "rules": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "optional": [
+                          "amountBasis",
+                          "categorySelection",
+                          "creditCategoryIds",
+                          "debitCategoryIds",
+                          "digits",
+                          "drCr",
+                          "field",
+                          "fieldId",
+                          "from",
+                          "includeBlank",
+                          "isManual",
+                          "join",
+                          "keywords",
+                          "maxEntries",
+                          "mode",
+                          "normalization",
+                          "operator",
+                          "pairMode",
+                          "prescreenKey",
+                          "quantifier",
+                          "rules",
+                          "to",
+                          "value",
+                          "values",
+                          "windowDays"
+                        ],
+                        "fields": {
+                          "amountBasis": "string",
+                          "categorySelection": "string",
+                          "creditCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "debitCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "digits": "string",
+                          "drCr": "string",
+                          "field": "string",
+                          "fieldId": "string",
+                          "from": "string",
+                          "includeBlank": "boolean",
+                          "isManual": "string",
+                          "join": "string",
+                          "keywords": "string",
+                          "maxEntries": "string",
+                          "mode": "string",
+                          "normalization": "string",
+                          "operator": "string",
+                          "pairMode": "string",
+                          "prescreenKey": "string",
+                          "quantifier": "string",
+                          "rules": {
+                            "kind": "array",
+                            "items": {
+                              "kind": "object",
+                              "optional": [
+                                "amountBasis",
+                                "categoryIds",
+                                "categoryMode",
+                                "categorySelection",
+                                "drCr",
+                                "field",
+                                "fieldId",
+                                "from",
+                                "includeBlank",
+                                "operator",
+                                "to",
+                                "values"
+                              ],
+                              "fields": {
+                                "amountBasis": "string",
+                                "categoryIds": {
+                                  "kind": "array",
+                                  "items": "string"
+                                },
+                                "categoryMode": "string",
+                                "categorySelection": "string",
+                                "drCr": "string",
+                                "field": "string",
+                                "fieldId": "string",
+                                "from": "string",
+                                "includeBlank": "boolean",
+                                "join": "string",
+                                "operator": "string",
+                                "to": "string",
+                                "type": "string",
+                                "values": {
+                                  "kind": "array",
+                                  "items": "string"
+                                }
+                              }
+                            }
+                          },
+                          "to": "string",
+                          "type": "string",
+                          "value": "string",
+                          "values": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "windowDays": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "name": "string",
+              "rationale": "string",
+              "source": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "filterScenarioCheck": {
+            "kind": "object",
+            "fields": {
+              "problems": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "messages": {
+                      "kind": "array",
+                      "items": "string"
+                    },
+                    "name": "string",
+                    "position": "number"
+                  }
+                }
+              },
+              "recalculatedCount": "number",
+              "status": "string"
+            }
+          },
+          "ok": "boolean",
+          "position": "number",
+          "resultRef": {
+            "kind": "null|object",
+            "fields": {
+              "generatedUtc": "string",
+              "logicVersion": "string",
+              "populationScope": "string",
+              "revision": "string"
+            }
+          },
+          "savedCount": "number",
+          "scenarios": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "optional": [
+                "editorOrigins"
+              ],
+              "fields": {
+                "editorOrigins": {
+                  "kind": "object",
+                  "fields": {
+                    "groups": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "fields": {
+                          "letters": {
+                            "kind": "array",
+                            "items": "null|string"
+                          }
+                        }
+                      }
+                    },
+                    "legacyKctSource": "boolean",
+                    "nameIsAutomatic": "boolean",
+                    "rationaleIsAutomatic": "boolean",
+                    "version": "number"
+                  }
+                },
+                "groups": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "join": "string",
+                      "matchScope": "string",
+                      "rules": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "optional": [
+                            "amountBasis",
+                            "categorySelection",
+                            "creditCategoryIds",
+                            "debitCategoryIds",
+                            "drCr",
+                            "field",
+                            "fieldId",
+                            "from",
+                            "includeBlank",
+                            "isManual",
+                            "join",
+                            "mode",
+                            "normalization",
+                            "operator",
+                            "pairMode",
+                            "prescreenKey",
+                            "quantifier",
+                            "rules",
+                            "to",
+                            "value",
+                            "values"
+                          ],
+                          "fields": {
+                            "amountBasis": "string",
+                            "categorySelection": "string",
+                            "creditCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "debitCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "drCr": "string",
+                            "field": "string",
+                            "fieldId": "string",
+                            "from": "string",
+                            "includeBlank": "boolean",
+                            "isManual": "string",
+                            "join": "string",
+                            "mode": "string",
+                            "normalization": "string",
+                            "operator": "string",
+                            "pairMode": "string",
+                            "prescreenKey": "string",
+                            "quantifier": "string",
+                            "rules": {
+                              "kind": "array",
+                              "items": {
+                                "kind": "object",
+                                "optional": [
+                                  "amountBasis",
+                                  "categoryIds",
+                                  "categoryMode",
+                                  "categorySelection",
+                                  "drCr",
+                                  "field",
+                                  "fieldId",
+                                  "from",
+                                  "includeBlank",
+                                  "operator",
+                                  "to",
+                                  "values"
+                                ],
+                                "fields": {
+                                  "amountBasis": "string",
+                                  "categoryIds": {
+                                    "kind": "array",
+                                    "items": "string"
+                                  },
+                                  "categoryMode": "string",
+                                  "categorySelection": "string",
+                                  "drCr": "string",
+                                  "field": "string",
+                                  "fieldId": "string",
+                                  "from": "string",
+                                  "includeBlank": "boolean",
+                                  "join": "string",
+                                  "operator": "string",
+                                  "to": "string",
+                                  "type": "string",
+                                  "values": {
+                                    "kind": "array",
+                                    "items": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "to": "string",
+                            "type": "string",
+                            "value": "string",
+                            "values": {
+                              "kind": "array",
+                              "items": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "name": "string",
+                "populationScope": "string",
+                "rationale": "string",
+                "savedUtc": "string",
+                "source": "null|string"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "host.exitApp": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "ok": "boolean"
+        }
+      }
+    },
+    "host.openFolder": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "artifactId",
+          "target"
+        ],
+        "fields": {
+          "artifactId": "string",
+          "target": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "ok": "boolean"
+        }
+      }
+    },
+    "host.selectFile": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "extensions": {
+            "kind": "array",
+            "items": "string"
+          },
+          "title": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "fileName": "null|string",
+          "filePath": "null|string"
+        }
+      }
+    },
+    "host.selectFiles": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "extensions": {
+            "kind": "array",
+            "items": "string"
+          },
+          "title": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "files": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "fileName": "string",
+                "filePath": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "import.accountMapping.fromFile": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "fileName": "string",
+          "filePath": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "batchId": "string",
+          "blankCategoryCount": "number",
+          "columnMappingWarning": "null|string",
+          "columns": {
+            "kind": "array",
+            "items": "string"
+          },
+          "fileName": "string",
+          "hasAnyCategory": "boolean",
+          "hasCounterpart": "boolean",
+          "hasRevenue": "boolean",
+          "importedUtc": "string",
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "mappingOnlyCount": "null|number",
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "rowCount": "number",
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "unmappedCount": "null|number"
+        }
+      }
+    },
+    "import.authorizedPreparer.clear": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "cleared": "boolean",
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "import.authorizedPreparer.fromFile": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "fileName": "string",
+          "filePath": "string",
+          "sheetName": "string",
+          "sourceColumn": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "batchId": "string",
+          "blankRowCount": "number",
+          "duplicateRowCount": "number",
+          "fileName": "string",
+          "importedUtc": "string",
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "matchedPreparerCount": "number",
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "rowCount": "number",
+          "sourceColumn": "string",
+          "sourceRowCount": "number",
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "import.gl.fromFile": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "mode": "string",
+          "sources": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "optional": [
+                "delimiter",
+                "encoding",
+                "sheetName"
+              ],
+              "fields": {
+                "delimiter": "string",
+                "encoding": "string",
+                "fileName": "string",
+                "filePath": "string",
+                "sheetName": "string"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "addedRowCount": "number",
+          "batchId": "string",
+          "columns": {
+            "kind": "array",
+            "items": "string"
+          },
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "rowCount": "number",
+          "sources": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "delimiter": "null|string",
+                "encoding": "null|string",
+                "fileName": "string",
+                "importedUtc": "string",
+                "rowCount": "number",
+                "sheetName": "null|string",
+                "sourceNo": "number"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": "string"
+          }
+        }
+      }
+    },
+    "import.holiday.fromFile": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "fileName": "string",
+          "filePath": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "count": "number",
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "import.inspectFile": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "filePath": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "columns": {
+            "kind": "array|null",
+            "items": "string"
+          },
+          "delimiter": "null|string",
+          "encoding": "null|string",
+          "fileType": "string",
+          "notices": {
+            "kind": "array|null",
+            "items": "string"
+          },
+          "worksheets": {
+            "kind": "array|null",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "columns": {
+                  "kind": "array",
+                  "items": "string"
+                },
+                "name": "string",
+                "rowCountEstimate": "null|number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "import.makeupDay.fromFile": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "fileName": "string",
+          "filePath": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "count": "number",
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "import.previewFile": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "delimiter",
+          "encoding",
+          "limit",
+          "sheetName"
+        ],
+        "fields": {
+          "delimiter": "string",
+          "encoding": "string",
+          "filePath": "string",
+          "limit": "number",
+          "sheetName": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "columns": {
+            "kind": "array",
+            "items": "string"
+          },
+          "notices": {
+            "kind": "array|null",
+            "items": "string"
+          },
+          "sampleRows": {
+            "kind": "array",
+            "items": {
+              "kind": "array",
+              "items": "null|string"
+            }
+          }
+        }
+      }
+    },
+    "import.tb.fromFile": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "mode": "string",
+          "sources": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "optional": [
+                "delimiter",
+                "encoding",
+                "sheetName"
+              ],
+              "fields": {
+                "delimiter": "string",
+                "encoding": "string",
+                "fileName": "string",
+                "filePath": "string",
+                "sheetName": "string"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "addedRowCount": "number",
+          "batchId": "string",
+          "columns": {
+            "kind": "array",
+            "items": "string"
+          },
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "rowCount": "number",
+          "sources": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "delimiter": "null|string",
+                "encoding": "null|string",
+                "fileName": "string",
+                "importedUtc": "string",
+                "rowCount": "number",
+                "sheetName": "null|string",
+                "sourceNo": "number"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": "string"
+          }
+        }
+      }
+    },
+    "log.append": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "level": "string",
+          "text": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "ok": "boolean"
+        }
+      }
+    },
+    "log.recent": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "limit"
+        ],
+        "fields": {
+          "limit": "number"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "messages": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "level": "string",
+                "occurredUtc": "string",
+                "text": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "mapping.commit.gl": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "postingStatusPolicy"
+        ],
+        "fields": {
+          "amountMode": "string",
+          "approvalDateMode": "string",
+          "manualAutoPolicy": {
+            "kind": "object",
+            "optional": [
+              "blankValueKind",
+              "unlistedValueKind"
+            ],
+            "fields": {
+              "automaticValues": {
+                "kind": "array",
+                "items": "string"
+              },
+              "blankValueKind": "string",
+              "manualValues": {
+                "kind": "array",
+                "items": "string"
+              },
+              "unlistedValueKind": "string"
+            }
+          },
+          "mapping": {
+            "kind": "object",
+            "optional": [
+              "amount",
+              "approveBy",
+              "createBy",
+              "creditAmount",
+              "dcCreditCode",
+              "dcDebitCode",
+              "dcField",
+              "debitAmount",
+              "docDate",
+              "jeSource",
+              "lineID",
+              "manual",
+              "postingStatus"
+            ],
+            "fields": {
+              "accName": "string",
+              "accNum": "string",
+              "amount": "string",
+              "approveBy": "string",
+              "createBy": "string",
+              "creditAmount": "string",
+              "dcCreditCode": "string",
+              "dcDebitCode": "string",
+              "dcField": "string",
+              "debitAmount": "string",
+              "description": "string",
+              "docDate": "string",
+              "docNum": "string",
+              "jeSource": "string",
+              "lineID": "string",
+              "manual": "string",
+              "postDate": "string",
+              "postingStatus": "string"
+            }
+          },
+          "postingStatusPolicy": {
+            "kind": "object",
+            "fields": {
+              "acceptedValues": {
+                "kind": "array",
+                "items": "string"
+              },
+              "includeBlank": "boolean"
+            }
+          },
+          "rdeFields": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "optional": [
+                "fieldId"
+              ],
+              "fields": {
+                "fieldId": "string",
+                "label": "string",
+                "sourceColumn": "string",
+                "valueType": "string"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "amountMode": "string",
+          "approvalDateMode": "string",
+          "authorizedPreparerState": {
+            "kind": "null|object",
+            "fields": {
+              "blankRowCount": "number",
+              "duplicateRowCount": "number",
+              "matchedPreparerCount": "number",
+              "rowCount": "number",
+              "sourceColumn": "string",
+              "sourceRowCount": "number"
+            }
+          },
+          "batchId": "string",
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "manualAutoPolicy": {
+            "kind": "object",
+            "optional": [
+              "blankValueKind",
+              "unlistedValueKind"
+            ],
+            "fields": {
+              "automaticValues": {
+                "kind": "array",
+                "items": "string"
+              },
+              "blankValueKind": "string",
+              "manualValues": {
+                "kind": "array",
+                "items": "string"
+              },
+              "unlistedValueKind": "string"
+            }
+          },
+          "mapping": {
+            "kind": "object",
+            "optional": [
+              "amount",
+              "approveBy",
+              "createBy",
+              "creditAmount",
+              "dcCreditCode",
+              "dcDebitCode",
+              "dcField",
+              "debitAmount",
+              "docDate",
+              "jeSource",
+              "lineID",
+              "manual",
+              "postingStatus"
+            ],
+            "fields": {
+              "accName": "string",
+              "accNum": "string",
+              "amount": "string",
+              "approveBy": "string",
+              "createBy": "string",
+              "creditAmount": "string",
+              "dcCreditCode": "string",
+              "dcDebitCode": "string",
+              "dcField": "string",
+              "debitAmount": "string",
+              "description": "string",
+              "docDate": "string",
+              "docNum": "string",
+              "jeSource": "string",
+              "lineID": "string",
+              "manual": "string",
+              "postDate": "string",
+              "postingStatus": "string"
+            }
+          },
+          "ok": "boolean",
+          "postingStatusPolicy": {
+            "kind": "null|object",
+            "fields": {
+              "acceptedValues": {
+                "kind": "array",
+                "items": "string"
+              },
+              "includeBlank": "boolean"
+            }
+          },
+          "projectedRowCount": "number",
+          "rdeFields": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "fieldId": "string",
+                "label": "string",
+                "sourceColumn": "string",
+                "valueType": "string"
+              }
+            }
+          },
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": "string"
+          }
+        }
+      }
+    },
+    "mapping.commit.tb": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "changeMode": "string",
+          "mapping": {
+            "kind": "object",
+            "optional": [
+              "amount",
+              "closingBalance",
+              "closingCredit",
+              "closingDebit",
+              "creditAmt",
+              "debitAmt",
+              "openingBalance",
+              "openingCredit",
+              "openingDebit"
+            ],
+            "fields": {
+              "accName": "string",
+              "accNum": "string",
+              "amount": "string",
+              "closingBalance": "string",
+              "closingCredit": "string",
+              "closingDebit": "string",
+              "creditAmt": "string",
+              "debitAmt": "string",
+              "openingBalance": "string",
+              "openingCredit": "string",
+              "openingDebit": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "batchId": "string",
+          "changeMode": "string",
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "mapping": {
+            "kind": "object",
+            "optional": [
+              "amount",
+              "closingBalance",
+              "closingCredit",
+              "closingDebit",
+              "creditAmt",
+              "debitAmt",
+              "openingBalance",
+              "openingCredit",
+              "openingDebit"
+            ],
+            "fields": {
+              "accName": "string",
+              "accNum": "string",
+              "amount": "string",
+              "closingBalance": "string",
+              "closingCredit": "string",
+              "closingDebit": "string",
+              "creditAmt": "string",
+              "debitAmt": "string",
+              "openingBalance": "string",
+              "openingCredit": "string",
+              "openingDebit": "string"
+            }
+          },
+          "ok": "boolean",
+          "projectedRowCount": "number",
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": "string"
+          }
+        }
+      }
+    },
+    "mapping.valueProfile": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "checkSourceValues",
+          "comparisonOnly",
+          "limit"
+        ],
+        "fields": {
+          "checkSourceValues": "boolean",
+          "comparisonOnly": "boolean",
+          "comparisonValues": {
+            "kind": "array",
+            "items": "string"
+          },
+          "dataset": "string",
+          "limit": "number",
+          "sourceColumn": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "optional": [
+          "blankCount",
+          "distinctCount",
+          "missingComparisonValues",
+          "sourceValueCheckStatus",
+          "truncated",
+          "values"
+        ],
+        "fields": {
+          "blankCount": "number",
+          "comparisonGroups": {
+            "kind": "array",
+            "items": {
+              "kind": "array",
+              "items": "string"
+            }
+          },
+          "comparisonKeys": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "key": "null|string",
+                "value": "string"
+              }
+            }
+          },
+          "distinctCount": "number",
+          "missingComparisonValues": {
+            "kind": "array|null",
+            "items": "string"
+          },
+          "sourceColumn": "string",
+          "sourceValueCheckStatus": "string",
+          "truncated": "boolean",
+          "values": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "count": "number",
+                "value": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "operation.cancel": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "requestId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "requestId": "string",
+          "requested": "boolean"
+        }
+      }
+    },
+    "prescreen.run": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "blankDescription": {
+            "kind": "object",
+            "fields": {
+              "count": "number",
+              "status": "string"
+            }
+          },
+          "concentration": {
+            "kind": "object",
+            "fields": {
+              "distinctAccountCount": "number",
+              "naReason": "null",
+              "preparers": {
+                "kind": "object",
+                "fields": {
+                  "othersEntryCount": "number",
+                  "top": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "createdBy": "string",
+                        "cumulativePct": "number",
+                        "entryCount": "number",
+                        "manualCount": "number"
+                      }
+                    }
+                  },
+                  "top5SharePct": "number",
+                  "totalEntryCount": "number",
+                  "totalPreparerCount": "number"
+                }
+              },
+              "rareAccounts": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "accountCode": "string",
+                    "accountName": "string",
+                    "entryCount": "number"
+                  }
+                }
+              },
+              "status": "string"
+            }
+          },
+          "creatorSummary": {
+            "kind": "object",
+            "fields": {
+              "creators": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "createdBy": "string",
+                    "creditTotal": "number",
+                    "debitTotal": "number",
+                    "entryCount": "number",
+                    "manualCount": "number"
+                  }
+                }
+              },
+              "naReason": "null",
+              "status": "string",
+              "totalPreparerCount": "number"
+            }
+          },
+          "holidayActivity": {
+            "kind": "object",
+            "fields": {
+              "approvalCount": "number",
+              "naReason": "null",
+              "postingCount": "number",
+              "status": "string"
+            }
+          },
+          "lowFrequencyAccount": {
+            "kind": "object",
+            "fields": {
+              "count": "number",
+              "status": "string"
+            }
+          },
+          "lowFrequencyPreparer": {
+            "kind": "object",
+            "fields": {
+              "count": "number",
+              "naReason": "null",
+              "status": "string"
+            }
+          },
+          "nonAuthorizedPreparer": {
+            "kind": "object",
+            "fields": {
+              "count": "number",
+              "naReason": "null",
+              "status": "string"
+            }
+          },
+          "positioning": {
+            "kind": "object",
+            "fields": {
+              "aggregateGuidance": "string",
+              "exportDefaultGuidance": "string",
+              "exportPendingRunGuidance": "string",
+              "overviewGuidance": "string",
+              "reportGuidance": "string",
+              "signalGuidance": "string"
+            }
+          },
+          "postPeriodApproval": {
+            "kind": "object",
+            "fields": {
+              "count": "number",
+              "naReason": "null",
+              "status": "string"
+            }
+          },
+          "rareAccounts": {
+            "kind": "object",
+            "fields": {
+              "accounts": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "accountCode": "string",
+                    "accountName": "string",
+                    "creditTotal": "number",
+                    "debitTotal": "number",
+                    "entryCount": "number"
+                  }
+                }
+              },
+              "distinctAccountCount": "number",
+              "lowFrequencyAccountCount": "number",
+              "status": "string"
+            }
+          },
+          "resultRef": {
+            "kind": "object",
+            "fields": {
+              "generatedUtc": "string",
+              "logicVersion": "string",
+              "runId": "string"
+            }
+          },
+          "rulePeriod": {
+            "kind": "object",
+            "fields": {
+              "population": "number",
+              "rules": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "hitLines": "number",
+                    "hitVouchers": "number",
+                    "key": "string",
+                    "naReason": "null",
+                    "ratePct": "number"
+                  }
+                }
+              }
+            }
+          },
+          "suspiciousKeywords": {
+            "kind": "object",
+            "fields": {
+              "count": "number",
+              "status": "string"
+            }
+          },
+          "trailingZeros": {
+            "kind": "object",
+            "fields": {
+              "count": "number",
+              "status": "string",
+              "zerosThreshold": "number"
+            }
+          },
+          "unexpectedAccountPair": {
+            "kind": "object",
+            "fields": {
+              "count": "number",
+              "naReason": "null",
+              "status": "string"
+            }
+          },
+          "weekendActivity": {
+            "kind": "object",
+            "fields": {
+              "approvalCount": "number",
+              "naReason": "null",
+              "postingCount": "number",
+              "status": "string"
+            }
+          }
+        }
+      }
+    },
+    "project.create": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "caseName": "string",
+          "databaseProvider": "string",
+          "entityName": "string",
+          "lastPeriodStart": "null|string",
+          "periodEnd": "string",
+          "periodStart": "string",
+          "projectCode": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "ok": "boolean",
+          "projectId": "string",
+          "warnings": {
+            "kind": "array",
+            "items": "string"
+          }
+        }
+      }
+    },
+    "project.delete": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "projectId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "message": "string",
+          "ok": "boolean",
+          "projectId": "string"
+        }
+      }
+    },
+    "project.deletePreview": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "projectId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "databaseProvider": "string",
+          "projectId": "string",
+          "reportCount": "number",
+          "workpaperCount": "number"
+        }
+      }
+    },
+    "project.heartbeat": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "ok": "boolean"
+        }
+      }
+    },
+    "project.list": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "online": {
+            "kind": "object",
+            "fields": {
+              "message": "string",
+              "principal": "string",
+              "reachable": "boolean"
+            }
+          },
+          "projects": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "createdUtc": "string",
+                "currentStep": "number",
+                "databaseProvider": "string",
+                "entityName": "string",
+                "lastOpenedUtc": "null|string",
+                "periodEnd": "string",
+                "periodStart": "string",
+                "projectCode": "string",
+                "projectId": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "project.listLocal": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "projects": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "createdUtc": "string",
+                "currentStep": "number",
+                "databaseProvider": "string",
+                "entityName": "string",
+                "lastOpenedUtc": "null|string",
+                "periodEnd": "string",
+                "periodStart": "string",
+                "projectCode": "string",
+                "projectId": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "project.load": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "databaseProvider"
+        ],
+        "fields": {
+          "databaseProvider": "string",
+          "projectId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "filterResultRef": {
+            "kind": "null|object",
+            "fields": {
+              "generatedUtc": "string",
+              "logicVersion": "string",
+              "populationScope": "string",
+              "revision": "string"
+            }
+          },
+          "filterScenarioCheck": {
+            "kind": "object",
+            "fields": {
+              "problems": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "messages": {
+                      "kind": "array",
+                      "items": "string"
+                    },
+                    "name": "string",
+                    "position": "number"
+                  }
+                }
+              },
+              "recalculatedCount": "number",
+              "status": "string"
+            }
+          },
+          "filterScenarios": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "optional": [
+                "editorOrigins"
+              ],
+              "fields": {
+                "editorOrigins": {
+                  "kind": "object",
+                  "fields": {
+                    "groups": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "fields": {
+                          "letters": {
+                            "kind": "array",
+                            "items": "null|string"
+                          }
+                        }
+                      }
+                    },
+                    "legacyKctSource": "boolean",
+                    "nameIsAutomatic": "boolean",
+                    "rationaleIsAutomatic": "boolean",
+                    "version": "number"
+                  }
+                },
+                "groups": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "join": "string",
+                      "matchScope": "string",
+                      "rules": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "optional": [
+                            "amountBasis",
+                            "categorySelection",
+                            "creditCategoryIds",
+                            "debitCategoryIds",
+                            "drCr",
+                            "field",
+                            "fieldId",
+                            "from",
+                            "includeBlank",
+                            "isManual",
+                            "join",
+                            "mode",
+                            "normalization",
+                            "operator",
+                            "pairMode",
+                            "prescreenKey",
+                            "quantifier",
+                            "rules",
+                            "to",
+                            "value",
+                            "values"
+                          ],
+                          "fields": {
+                            "amountBasis": "string",
+                            "categorySelection": "string",
+                            "creditCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "debitCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "drCr": "string",
+                            "field": "string",
+                            "fieldId": "string",
+                            "from": "string",
+                            "includeBlank": "boolean",
+                            "isManual": "string",
+                            "join": "string",
+                            "mode": "string",
+                            "normalization": "string",
+                            "operator": "string",
+                            "pairMode": "string",
+                            "prescreenKey": "string",
+                            "quantifier": "string",
+                            "rules": {
+                              "kind": "array",
+                              "items": {
+                                "kind": "object",
+                                "optional": [
+                                  "amountBasis",
+                                  "categoryIds",
+                                  "categoryMode",
+                                  "categorySelection",
+                                  "drCr",
+                                  "field",
+                                  "fieldId",
+                                  "from",
+                                  "includeBlank",
+                                  "operator",
+                                  "to",
+                                  "values"
+                                ],
+                                "fields": {
+                                  "amountBasis": "string",
+                                  "categoryIds": {
+                                    "kind": "array",
+                                    "items": "string"
+                                  },
+                                  "categoryMode": "string",
+                                  "categorySelection": "string",
+                                  "drCr": "string",
+                                  "field": "string",
+                                  "fieldId": "string",
+                                  "from": "string",
+                                  "includeBlank": "boolean",
+                                  "join": "string",
+                                  "operator": "string",
+                                  "to": "string",
+                                  "type": "string",
+                                  "values": {
+                                    "kind": "array",
+                                    "items": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "to": "string",
+                            "type": "string",
+                            "value": "string",
+                            "values": {
+                              "kind": "array",
+                              "items": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "name": "string",
+                "populationScope": "string",
+                "rationale": "string",
+                "savedUtc": "string",
+                "source": "null|string"
+              }
+            }
+          },
+          "heartbeatSeconds": "number",
+          "importState": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": {
+                "kind": "null|object",
+                "fields": {
+                  "batchId": "string",
+                  "blankCategoryCount": "number",
+                  "fileName": "string",
+                  "hasAnyCategory": "boolean",
+                  "hasCounterpart": "boolean",
+                  "hasRevenue": "boolean",
+                  "importedUtc": "string",
+                  "rowCount": "number"
+                }
+              },
+              "authorizedPreparer": {
+                "kind": "null|object",
+                "fields": {
+                  "blankRowCount": "number",
+                  "duplicateRowCount": "number",
+                  "matchedPreparerCount": "number",
+                  "rowCount": "number",
+                  "sourceColumn": "string",
+                  "sourceRowCount": "number"
+                }
+              },
+              "calendar": {
+                "kind": "object",
+                "fields": {
+                  "calendarImported": "boolean",
+                  "holidayCount": "number",
+                  "makeupDayCount": "number",
+                  "nonWorkingDays": {
+                    "kind": "array",
+                    "items": "number"
+                  },
+                  "nonWorkingDaysConfigured": "boolean"
+                }
+              },
+              "gl": {
+                "kind": "null|object",
+                "fields": {
+                  "batchId": "string",
+                  "columns": {
+                    "kind": "array",
+                    "items": "string"
+                  },
+                  "fileName": "string",
+                  "importedUtc": "string",
+                  "rowCount": "number",
+                  "sources": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "delimiter": "null",
+                        "encoding": "null",
+                        "fileName": "string",
+                        "importedUtc": "string",
+                        "rowCount": "number",
+                        "sheetName": "string",
+                        "sourceNo": "number"
+                      }
+                    }
+                  }
+                }
+              },
+              "tb": {
+                "kind": "null|object",
+                "fields": {
+                  "batchId": "string",
+                  "columns": {
+                    "kind": "array",
+                    "items": "string"
+                  },
+                  "fileName": "string",
+                  "importedUtc": "string",
+                  "rowCount": "number",
+                  "sources": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "delimiter": "string",
+                        "encoding": "string",
+                        "fileName": "string",
+                        "importedUtc": "string",
+                        "rowCount": "number",
+                        "sheetName": "null",
+                        "sourceNo": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "latestRuns": {
+            "kind": "object",
+            "fields": {
+              "prescreen": {
+                "kind": "null|object",
+                "fields": {
+                  "blankDescription": {
+                    "kind": "object",
+                    "fields": {
+                      "count": "number",
+                      "status": "string"
+                    }
+                  },
+                  "concentration": {
+                    "kind": "object",
+                    "fields": {
+                      "distinctAccountCount": "number",
+                      "naReason": "null",
+                      "preparers": {
+                        "kind": "object",
+                        "fields": {
+                          "othersEntryCount": "number",
+                          "top": {
+                            "kind": "array",
+                            "items": {
+                              "kind": "object",
+                              "fields": {
+                                "createdBy": "string",
+                                "cumulativePct": "number",
+                                "entryCount": "number",
+                                "manualCount": "number"
+                              }
+                            }
+                          },
+                          "top5SharePct": "number",
+                          "totalEntryCount": "number",
+                          "totalPreparerCount": "number"
+                        }
+                      },
+                      "rareAccounts": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "accountCode": "string",
+                            "accountName": "string",
+                            "entryCount": "number"
+                          }
+                        }
+                      },
+                      "status": "string"
+                    }
+                  },
+                  "creatorSummary": {
+                    "kind": "object",
+                    "fields": {
+                      "creators": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "createdBy": "string",
+                            "creditTotal": "number",
+                            "debitTotal": "number",
+                            "entryCount": "number",
+                            "manualCount": "number"
+                          }
+                        }
+                      },
+                      "naReason": "null",
+                      "status": "string",
+                      "totalPreparerCount": "number"
+                    }
+                  },
+                  "holidayActivity": {
+                    "kind": "object",
+                    "fields": {
+                      "approvalCount": "number",
+                      "naReason": "null",
+                      "postingCount": "number",
+                      "status": "string"
+                    }
+                  },
+                  "lowFrequencyAccount": {
+                    "kind": "object",
+                    "fields": {
+                      "count": "number",
+                      "status": "string"
+                    }
+                  },
+                  "lowFrequencyPreparer": {
+                    "kind": "object",
+                    "fields": {
+                      "count": "number",
+                      "naReason": "null",
+                      "status": "string"
+                    }
+                  },
+                  "nonAuthorizedPreparer": {
+                    "kind": "object",
+                    "fields": {
+                      "count": "number",
+                      "naReason": "null",
+                      "status": "string"
+                    }
+                  },
+                  "positioning": {
+                    "kind": "object",
+                    "fields": {
+                      "aggregateGuidance": "string",
+                      "exportDefaultGuidance": "string",
+                      "exportPendingRunGuidance": "string",
+                      "overviewGuidance": "string",
+                      "reportGuidance": "string",
+                      "signalGuidance": "string"
+                    }
+                  },
+                  "postPeriodApproval": {
+                    "kind": "object",
+                    "fields": {
+                      "count": "number",
+                      "naReason": "null",
+                      "status": "string"
+                    }
+                  },
+                  "rareAccounts": {
+                    "kind": "object",
+                    "fields": {
+                      "accounts": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "accountCode": "string",
+                            "accountName": "string",
+                            "creditTotal": "number",
+                            "debitTotal": "number",
+                            "entryCount": "number"
+                          }
+                        }
+                      },
+                      "distinctAccountCount": "number",
+                      "lowFrequencyAccountCount": "number",
+                      "status": "string"
+                    }
+                  },
+                  "resultRef": {
+                    "kind": "object",
+                    "fields": {
+                      "generatedUtc": "string",
+                      "logicVersion": "string",
+                      "runId": "string"
+                    }
+                  },
+                  "rulePeriod": {
+                    "kind": "object",
+                    "fields": {
+                      "population": "number",
+                      "rules": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "hitLines": "number",
+                            "hitVouchers": "number",
+                            "key": "string",
+                            "naReason": "null",
+                            "ratePct": "number"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "suspiciousKeywords": {
+                    "kind": "object",
+                    "fields": {
+                      "count": "number",
+                      "status": "string"
+                    }
+                  },
+                  "trailingZeros": {
+                    "kind": "object",
+                    "fields": {
+                      "count": "number",
+                      "status": "string",
+                      "zerosThreshold": "number"
+                    }
+                  },
+                  "unexpectedAccountPair": {
+                    "kind": "object",
+                    "fields": {
+                      "count": "number",
+                      "naReason": "null",
+                      "status": "string"
+                    }
+                  },
+                  "weekendActivity": {
+                    "kind": "object",
+                    "fields": {
+                      "approvalCount": "number",
+                      "naReason": "null",
+                      "postingCount": "number",
+                      "status": "string"
+                    }
+                  }
+                }
+              },
+              "validate": {
+                "kind": "null|object",
+                "fields": {
+                  "amountDistribution": {
+                    "kind": "object",
+                    "fields": {
+                      "bins": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "count": "number",
+                            "ecdfPct": "null|number",
+                            "key": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "completenessTest": {
+                    "kind": "object",
+                    "fields": {
+                      "diffAccountCount": "number",
+                      "diffAccounts": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "accountCode": "string",
+                            "accountName": "string",
+                            "diff": "number",
+                            "glAmount": "number",
+                            "notInTb": "boolean",
+                            "tbAmount": "number"
+                          }
+                        }
+                      },
+                      "eligibility": {
+                        "kind": "object",
+                        "fields": {
+                          "isEligible": "boolean",
+                          "reason": "null",
+                          "warning": "null|string"
+                        }
+                      },
+                      "naReason": "null",
+                      "partA": {
+                        "kind": "object",
+                        "fields": {
+                          "amountMatch": "boolean",
+                          "effectiveTarget": {
+                            "kind": "object",
+                            "fields": {
+                              "rowCount": "number",
+                              "totalCredit": "number",
+                              "totalDebit": "number"
+                            }
+                          },
+                          "eligibleSource": {
+                            "kind": "object",
+                            "fields": {
+                              "rowCount": "number",
+                              "totalCredit": "number",
+                              "totalDebit": "number"
+                            }
+                          },
+                          "rowCountMatch": "boolean"
+                        }
+                      },
+                      "status": "string"
+                    }
+                  },
+                  "docBalanceTest": {
+                    "kind": "object",
+                    "fields": {
+                      "status": "string",
+                      "unbalancedDocumentCount": "number",
+                      "unbalancedDocuments": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "credit": "number",
+                            "debit": "number",
+                            "diff": "number",
+                            "documentNumber": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "documentDateReuse": {
+                    "kind": "object",
+                    "fields": {
+                      "documentNumberCount": "number",
+                      "entryCount": "number"
+                    }
+                  },
+                  "infSamplingTest": {
+                    "kind": "object",
+                    "fields": {
+                      "sampleSize": "number",
+                      "seed": "number",
+                      "status": "string"
+                    }
+                  },
+                  "nullRecordsTest": {
+                    "kind": "object",
+                    "fields": {
+                      "nullAccountCount": "number",
+                      "nullDescriptionCount": "number",
+                      "nullDocumentCount": "number",
+                      "nullRows": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "accountCode": "string",
+                            "description": "null|string",
+                            "documentNumber": "string",
+                            "issues": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "postDate": "string"
+                          }
+                        }
+                      },
+                      "outOfRangeDateCount": "number",
+                      "status": "string"
+                    }
+                  },
+                  "populationSummary": {
+                    "kind": "object",
+                    "fields": {
+                      "effective": {
+                        "kind": "object",
+                        "fields": {
+                          "net": "number",
+                          "rowCount": "number",
+                          "totalCredit": "number",
+                          "totalDebit": "number",
+                          "voucherCount": "number"
+                        }
+                      },
+                      "excluded": {
+                        "kind": "object",
+                        "fields": {
+                          "byPeriodCount": "number",
+                          "byPostingStatusCount": "number",
+                          "rowCount": "number"
+                        }
+                      },
+                      "raw": {
+                        "kind": "object",
+                        "fields": {
+                          "rowCount": "number",
+                          "totalCredit": "number",
+                          "totalDebit": "number"
+                        }
+                      }
+                    }
+                  },
+                  "resultRef": {
+                    "kind": "object",
+                    "fields": {
+                      "generatedUtc": "string",
+                      "logicVersion": "string",
+                      "runId": "string"
+                    }
+                  },
+                  "sourceQuality": {
+                    "kind": "object",
+                    "fields": {
+                      "findingCount": "number",
+                      "sampleRows": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "accountCode": "string",
+                            "category": "string",
+                            "description": "string",
+                            "documentNumber": "string",
+                            "postDate": "null",
+                            "sourceLabel": "string",
+                            "sourceRowNumber": "number"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "stats": {
+                    "kind": "object",
+                    "fields": {
+                      "glRowCount": "number",
+                      "net": "number",
+                      "periodEnd": "string",
+                      "periodStart": "string",
+                      "totalCredit": "number",
+                      "totalDebit": "number",
+                      "voucherCount": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "mapping": {
+            "kind": "object",
+            "fields": {
+              "gl": {
+                "kind": "null|object",
+                "fields": {
+                  "amountMode": "string",
+                  "approvalDateMode": "string",
+                  "committedUtc": "string",
+                  "manualAutoPolicy": {
+                    "kind": "object",
+                    "optional": [
+                      "blankValueKind",
+                      "unlistedValueKind"
+                    ],
+                    "fields": {
+                      "automaticValues": {
+                        "kind": "array",
+                        "items": "string"
+                      },
+                      "blankValueKind": "string",
+                      "manualValues": {
+                        "kind": "array",
+                        "items": "string"
+                      },
+                      "unlistedValueKind": "string"
+                    }
+                  },
+                  "mapping": {
+                    "kind": "object",
+                    "optional": [
+                      "amount",
+                      "approveBy",
+                      "createBy",
+                      "creditAmount",
+                      "dcCreditCode",
+                      "dcDebitCode",
+                      "dcField",
+                      "debitAmount",
+                      "docDate",
+                      "jeSource",
+                      "lineID",
+                      "manual",
+                      "postingStatus"
+                    ],
+                    "fields": {
+                      "accName": "string",
+                      "accNum": "string",
+                      "amount": "string",
+                      "approveBy": "string",
+                      "createBy": "string",
+                      "creditAmount": "string",
+                      "dcCreditCode": "string",
+                      "dcDebitCode": "string",
+                      "dcField": "string",
+                      "debitAmount": "string",
+                      "description": "string",
+                      "docDate": "string",
+                      "docNum": "string",
+                      "jeSource": "string",
+                      "lineID": "string",
+                      "manual": "string",
+                      "postDate": "string",
+                      "postingStatus": "string"
+                    }
+                  },
+                  "postingStatusPolicy": {
+                    "kind": "null|object",
+                    "fields": {
+                      "acceptedValues": {
+                        "kind": "array",
+                        "items": "string"
+                      },
+                      "includeBlank": "boolean"
+                    }
+                  },
+                  "rdeFields": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "fieldId": "string",
+                        "label": "string",
+                        "sourceColumn": "string",
+                        "valueType": "string"
+                      }
+                    }
+                  },
+                  "sourceBatchId": "string"
+                }
+              },
+              "tb": {
+                "kind": "null|object",
+                "fields": {
+                  "changeMode": "string",
+                  "committedUtc": "string",
+                  "mapping": {
+                    "kind": "object",
+                    "fields": {
+                      "accName": "string",
+                      "accNum": "string",
+                      "creditAmt": "string",
+                      "debitAmt": "string"
+                    }
+                  },
+                  "sourceBatchId": "string"
+                }
+              }
+            }
+          },
+          "previousMapping": {
+            "kind": "object",
+            "fields": {
+              "gl": "null",
+              "tb": "null"
+            }
+          },
+          "project": {
+            "kind": "object",
+            "fields": {
+              "createdUtc": "string",
+              "currentStep": "number",
+              "databaseProvider": "string",
+              "entityName": "string",
+              "lastPeriodStart": "string",
+              "moneyScale": "number",
+              "operatorId": "string",
+              "periodEnd": "string",
+              "periodStart": "string",
+              "projectCode": "string",
+              "projectId": "string",
+              "rocDateEnabled": "boolean",
+              "roundingMode": "string"
+            }
+          },
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "retiredGlFieldLabels": {
+            "kind": "object",
+            "fields": {
+              "voucherDate": "string"
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "taxonomy": {
+            "kind": "object",
+            "fields": {
+              "categories": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "categoryId": "string",
+                    "isBuiltIn": "boolean",
+                    "label": "string",
+                    "ordinal": "number",
+                    "parentCategoryId": "null|string",
+                    "semanticRole": "string"
+                  }
+                }
+              },
+              "revision": "number"
+            }
+          }
+        }
+      }
+    },
+    "project.loadDemo": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "demoScenario": {
+            "kind": "object",
+            "fields": {
+              "groups": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "join": "string",
+                    "rules": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "optional": [
+                          "field",
+                          "from",
+                          "prescreenKey",
+                          "to"
+                        ],
+                        "fields": {
+                          "field": "string",
+                          "from": "string",
+                          "join": "string",
+                          "prescreenKey": "string",
+                          "to": "string",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "name": "string",
+              "rationale": "string"
+            }
+          },
+          "gl": {
+            "kind": "object",
+            "fields": {
+              "amountMode": "string",
+              "fileName": "string",
+              "mapping": {
+                "kind": "object",
+                "fields": {
+                  "accName": "string",
+                  "accNum": "string",
+                  "amount": "string",
+                  "createBy": "string",
+                  "dcCreditCode": "string",
+                  "dcDebitCode": "string",
+                  "dcField": "string",
+                  "description": "string",
+                  "docDate": "string",
+                  "docNum": "string",
+                  "lineID": "string",
+                  "manual": "string",
+                  "postDate": "string"
+                }
+              },
+              "rowCount": "number"
+            }
+          },
+          "holidays": {
+            "kind": "array",
+            "items": "string"
+          },
+          "makeupDays": {
+            "kind": "array",
+            "items": "string"
+          },
+          "project": {
+            "kind": "object",
+            "fields": {
+              "caseName": "string",
+              "entityName": "string",
+              "lastPeriodStart": "string",
+              "operatorId": "string",
+              "periodEnd": "string",
+              "periodStart": "string",
+              "projectCode": "string"
+            }
+          },
+          "tb": {
+            "kind": "object",
+            "fields": {
+              "changeMode": "string",
+              "fileName": "string",
+              "mapping": {
+                "kind": "object",
+                "fields": {
+                  "accName": "string",
+                  "accNum": "string",
+                  "creditAmt": "string",
+                  "debitAmt": "string"
+                }
+              },
+              "rowCount": "number"
+            }
+          }
+        }
+      }
+    },
+    "project.releaseLock": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "ok": "boolean"
+        }
+      }
+    },
+    "project.saveProgress": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "currentStep": "number"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "currentStep": "number",
+          "ok": "boolean"
+        }
+      }
+    },
+    "project.update": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "entityName": "string",
+          "lastPeriodStart": "null|string",
+          "projectCode": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "artifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "project": {
+            "kind": "object",
+            "fields": {
+              "createdUtc": "string",
+              "currentStep": "number",
+              "databaseProvider": "string",
+              "entityName": "string",
+              "lastPeriodStart": "null|string",
+              "moneyScale": "number",
+              "operatorId": "string",
+              "periodEnd": "string",
+              "periodStart": "string",
+              "projectCode": "string",
+              "projectId": "string",
+              "rocDateEnabled": "boolean",
+              "roundingMode": "string"
+            }
+          },
+          "reportArtifactWarning": "null",
+          "reportArtifacts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "artifactId": "string",
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenRunId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationRunId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": "string"
+          }
+        }
+      }
+    },
+    "query.accountMappingBlankPage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null",
+          "pageSize": "number"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "accountName": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.accountMappingDifferencePage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null|string",
+          "kind": "string",
+          "pageSize": "number"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "kind": "string",
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "accountName": "string"
+              }
+            }
+          },
+          "totalCount": "null|number"
+        }
+      }
+    },
+    "query.accountMappingPage": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "categoryId"
+        ],
+        "fields": {
+          "categoryId": "null|string",
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "accountName": "string",
+                "categoryId": "null|string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.completenessDiffPage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "accountName": "string",
+                "diff": "number",
+                "glAmount": "number",
+                "notInTb": "boolean",
+                "tbAmount": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.dataPreview": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "limit"
+        ],
+        "fields": {
+          "dataset": "string",
+          "limit": "number"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "columns": {
+            "kind": "array",
+            "items": "string"
+          },
+          "dataset": "string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "array",
+              "items": "null|string"
+            }
+          },
+          "stats": {
+            "kind": "null|object",
+            "optional": [
+              "amountAbsMax",
+              "amountAbsMin",
+              "excludedByPeriodCount",
+              "excludedByPostingStatusCount",
+              "postDateMax",
+              "postDateMin",
+              "voucherCount"
+            ],
+            "fields": {
+              "amountAbsMax": "number",
+              "amountAbsMin": "number",
+              "excludedByPeriodCount": "number",
+              "excludedByPostingStatusCount": "number",
+              "postDateMax": "string",
+              "postDateMin": "string",
+              "voucherCount": "number"
+            }
+          },
+          "totalCount": "number"
+        }
+      }
+    },
+    "query.docBalancePage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "credit": "number",
+                "debit": "number",
+                "diff": "number",
+                "documentNumber": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.filterHitsPage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "scenarioPosition": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "columns": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "isCustom": "boolean",
+                "key": "string",
+                "label": "string",
+                "sortable": "boolean",
+                "valueType": "string"
+              }
+            }
+          },
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "accountName": "string",
+                "amount": "number",
+                "customValues": {
+                  "kind": "object",
+                  "values": "null|number"
+                },
+                "description": "null|string",
+                "documentNumber": "string",
+                "drCr": "string",
+                "lineItem": "string",
+                "postDate": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.filterVoucherPage": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "cursor",
+          "queryRevision",
+          "scenario",
+          "scenarioPosition",
+          "scenarioRevision",
+          "search",
+          "sort"
+        ],
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "populationScope": "string",
+          "queryRevision": "string",
+          "scenario": {
+            "kind": "object",
+            "optional": [
+              "source"
+            ],
+            "fields": {
+              "editorOrigins": {
+                "kind": "object",
+                "fields": {
+                  "groups": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "letters": {
+                          "kind": "array",
+                          "items": "null|string"
+                        }
+                      }
+                    }
+                  },
+                  "legacyKctSource": "boolean",
+                  "nameIsAutomatic": "boolean",
+                  "rationaleIsAutomatic": "boolean",
+                  "version": "number"
+                }
+              },
+              "groups": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "join": "string",
+                    "matchScope": "string",
+                    "rules": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "optional": [
+                          "amountBasis",
+                          "categorySelection",
+                          "creditCategoryIds",
+                          "debitCategoryIds",
+                          "digits",
+                          "drCr",
+                          "field",
+                          "fieldId",
+                          "from",
+                          "includeBlank",
+                          "isManual",
+                          "join",
+                          "keywords",
+                          "maxEntries",
+                          "mode",
+                          "normalization",
+                          "operator",
+                          "pairMode",
+                          "prescreenKey",
+                          "quantifier",
+                          "rules",
+                          "to",
+                          "value",
+                          "values",
+                          "windowDays"
+                        ],
+                        "fields": {
+                          "amountBasis": "string",
+                          "categorySelection": "string",
+                          "creditCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "debitCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "digits": "string",
+                          "drCr": "string",
+                          "field": "string",
+                          "fieldId": "string",
+                          "from": "string",
+                          "includeBlank": "boolean",
+                          "isManual": "string",
+                          "join": "string",
+                          "keywords": "string",
+                          "maxEntries": "string",
+                          "mode": "string",
+                          "normalization": "string",
+                          "operator": "string",
+                          "pairMode": "string",
+                          "prescreenKey": "string",
+                          "quantifier": "string",
+                          "rules": {
+                            "kind": "array",
+                            "items": {
+                              "kind": "object",
+                              "optional": [
+                                "amountBasis",
+                                "drCr",
+                                "field",
+                                "fieldId",
+                                "from",
+                                "includeBlank",
+                                "operator",
+                                "to",
+                                "values"
+                              ],
+                              "fields": {
+                                "amountBasis": "string",
+                                "drCr": "string",
+                                "field": "string",
+                                "fieldId": "string",
+                                "from": "string",
+                                "includeBlank": "boolean",
+                                "join": "string",
+                                "operator": "string",
+                                "to": "string",
+                                "type": "string",
+                                "values": {
+                                  "kind": "array",
+                                  "items": "string"
+                                }
+                              }
+                            }
+                          },
+                          "to": "string",
+                          "type": "string",
+                          "value": "string",
+                          "values": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "windowDays": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "name": "string",
+              "rationale": "string",
+              "source": "string"
+            }
+          },
+          "scenarioPosition": "number",
+          "scenarioRevision": "string",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "columns": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "isCustom": "boolean",
+                "key": "string",
+                "label": "string",
+                "valueType": "string"
+              }
+            }
+          },
+          "conditionText": "string",
+          "nextCursor": "null|string",
+          "queryRevision": "string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "documentNumber": "string",
+                "hitRowCount": "number",
+                "postDate": "string",
+                "totalRowCount": "number",
+                "voucherTotal": "number"
+              }
+            }
+          },
+          "scenarioRevision": "null|string"
+        }
+      }
+    },
+    "query.filterVoucherRowsPage": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "scenario",
+          "scenarioPosition",
+          "scenarioRevision"
+        ],
+        "fields": {
+          "cursor": "null|string",
+          "documentNumber": "string",
+          "pageSize": "number",
+          "populationScope": "string",
+          "queryRevision": "string",
+          "scenario": {
+            "kind": "object",
+            "optional": [
+              "source"
+            ],
+            "fields": {
+              "editorOrigins": {
+                "kind": "object",
+                "fields": {
+                  "groups": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "letters": {
+                          "kind": "array",
+                          "items": "null|string"
+                        }
+                      }
+                    }
+                  },
+                  "legacyKctSource": "boolean",
+                  "nameIsAutomatic": "boolean",
+                  "rationaleIsAutomatic": "boolean",
+                  "version": "number"
+                }
+              },
+              "groups": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "join": "string",
+                    "matchScope": "string",
+                    "rules": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "optional": [
+                          "amountBasis",
+                          "creditCategoryIds",
+                          "debitCategoryIds",
+                          "digits",
+                          "drCr",
+                          "field",
+                          "fieldId",
+                          "from",
+                          "includeBlank",
+                          "isManual",
+                          "keywords",
+                          "maxEntries",
+                          "mode",
+                          "normalization",
+                          "operator",
+                          "pairMode",
+                          "prescreenKey",
+                          "quantifier",
+                          "rules",
+                          "to",
+                          "value",
+                          "values",
+                          "windowDays"
+                        ],
+                        "fields": {
+                          "amountBasis": "string",
+                          "creditCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "debitCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "digits": "string",
+                          "drCr": "string",
+                          "field": "string",
+                          "fieldId": "string",
+                          "from": "string",
+                          "includeBlank": "boolean",
+                          "isManual": "string",
+                          "join": "string",
+                          "keywords": "string",
+                          "maxEntries": "string",
+                          "mode": "string",
+                          "normalization": "string",
+                          "operator": "string",
+                          "pairMode": "string",
+                          "prescreenKey": "string",
+                          "quantifier": "string",
+                          "rules": {
+                            "kind": "array",
+                            "items": {
+                              "kind": "object",
+                              "optional": [
+                                "amountBasis",
+                                "drCr",
+                                "field",
+                                "fieldId",
+                                "from",
+                                "includeBlank",
+                                "operator",
+                                "to",
+                                "values"
+                              ],
+                              "fields": {
+                                "amountBasis": "string",
+                                "drCr": "string",
+                                "field": "string",
+                                "fieldId": "string",
+                                "from": "string",
+                                "includeBlank": "boolean",
+                                "join": "string",
+                                "operator": "string",
+                                "to": "string",
+                                "type": "string",
+                                "values": {
+                                  "kind": "array",
+                                  "items": "string"
+                                }
+                              }
+                            }
+                          },
+                          "to": "string",
+                          "type": "string",
+                          "value": "string",
+                          "values": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "windowDays": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "name": "string",
+              "rationale": "string",
+              "source": "string"
+            }
+          },
+          "scenarioPosition": "number",
+          "scenarioRevision": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "columns": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "isCustom": "boolean",
+                "key": "string",
+                "label": "string",
+                "valueType": "string"
+              }
+            }
+          },
+          "conditionText": "string",
+          "nextCursor": "null|string",
+          "queryRevision": "string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "accountName": "string",
+                "amount": "number",
+                "approvalDate": "string",
+                "customValues": {
+                  "kind": "object",
+                  "values": "null|number"
+                },
+                "description": "string",
+                "documentNumber": "string",
+                "drCr": "string",
+                "evidenceConditions": {
+                  "kind": "array",
+                  "items": null
+                },
+                "isHit": "boolean",
+                "lineItem": "string",
+                "matchDescription": "string",
+                "postDate": "string",
+                "primaryConditions": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "group": "number",
+                      "rule": "number"
+                    }
+                  }
+                },
+                "voucherConditions": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "group": "number",
+                      "rule": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "scenarioRevision": "null|string"
+        }
+      }
+    },
+    "query.infSamplePage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "columns": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "isCustom": "boolean",
+                "key": "string",
+                "label": "string",
+                "sortable": "boolean",
+                "valueType": "string"
+              }
+            }
+          },
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "accountName": "string",
+                "approvalDate": "string",
+                "approvedBy": "null|string",
+                "createdBy": "string",
+                "credit": "number",
+                "customValues": {
+                  "kind": "object",
+                  "values": "null|number|string"
+                },
+                "debit": "number",
+                "description": "string",
+                "documentNumber": "string",
+                "postDate": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.nullRecordsPage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "category": "string",
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "description": "null|string",
+                "documentNumber": "string",
+                "postDate": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.prescreenPage": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "cursor",
+          "search",
+          "sort"
+        ],
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "ruleKey": "string",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "accountName": "string",
+                "amount": "number",
+                "documentDescription": "null|string",
+                "documentNumber": "string",
+                "drCr": "string",
+                "entryId": "number",
+                "lineItem": "string",
+                "postDate": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.sourceQualityPage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "category": "string",
+                "description": "string",
+                "documentNumber": "string",
+                "postDate": "null",
+                "sourceLabel": "string",
+                "sourceRowNumber": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.tagMatrixRowPage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountCode": "string",
+                "accountName": "string",
+                "amount": "number",
+                "approvalDate": "string",
+                "approvedBy": "null|string",
+                "createdBy": "string",
+                "description": "string",
+                "documentNumber": "string",
+                "lineItem": "string",
+                "matchedPositions": {
+                  "kind": "array",
+                  "items": "number"
+                },
+                "postDate": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.tagMatrixScenarios": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "scenarios": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "name": "string",
+                "position": "number",
+                "rowHitCount": "number",
+                "voucherHitCount": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.tagMatrixVoucherPage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "createdBy": "string",
+                "documentNumber": "string",
+                "matchedPositions": {
+                  "kind": "array",
+                  "items": "number"
+                },
+                "postDate": "string",
+                "voucherTotal": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "support.log.export": {
+      "request": {
+        "kind": "object",
+        "optional": [
+          "projectId"
+        ],
+        "fields": {
+          "projectId": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "filePath": "string",
+          "lineCount": "number",
+          "scope": "string"
+        }
+      }
+    },
+    "system.databaseInfo": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "sqlServer": {
+            "kind": "object",
+            "fields": {
+              "configured": "boolean",
+              "database": "string",
+              "databaseSizeMb": "number",
+              "detail": "string",
+              "edition": "string",
+              "engineEdition": "number",
+              "isExpress": "boolean",
+              "productName": "string",
+              "productVersion": "string",
+              "reachable": "boolean",
+              "schemaCount": "number",
+              "server": "string",
+              "summary": "string"
+            }
+          }
+        }
+      }
+    },
+    "system.ping": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "devToolsEnabled": "boolean",
+          "message": "string",
+          "utcNow": "string"
+        }
+      }
+    },
+    "system.whoAmI": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "numberSource": "string",
+          "principal": "string",
+          "shortName": "string",
+          "userNumber": "null"
+        }
+      }
+    },
+    "validate.run": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "amountDistribution": {
+            "kind": "object",
+            "fields": {
+              "bins": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "count": "number",
+                    "ecdfPct": "null|number",
+                    "key": "string"
+                  }
+                }
+              }
+            }
+          },
+          "completenessTest": {
+            "kind": "object",
+            "fields": {
+              "diffAccountCount": "number",
+              "diffAccounts": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "accountCode": "string",
+                    "accountName": "string",
+                    "diff": "number",
+                    "glAmount": "number",
+                    "notInTb": "boolean",
+                    "tbAmount": "number"
+                  }
+                }
+              },
+              "eligibility": {
+                "kind": "object",
+                "fields": {
+                  "isEligible": "boolean",
+                  "reason": "null",
+                  "warning": "null|string"
+                }
+              },
+              "naReason": "null",
+              "partA": {
+                "kind": "object",
+                "fields": {
+                  "amountMatch": "boolean",
+                  "effectiveTarget": {
+                    "kind": "object",
+                    "fields": {
+                      "rowCount": "number",
+                      "totalCredit": "number",
+                      "totalDebit": "number"
+                    }
+                  },
+                  "eligibleSource": {
+                    "kind": "object",
+                    "fields": {
+                      "rowCount": "number",
+                      "totalCredit": "number",
+                      "totalDebit": "number"
+                    }
+                  },
+                  "rowCountMatch": "boolean"
+                }
+              },
+              "status": "string"
+            }
+          },
+          "docBalanceTest": {
+            "kind": "object",
+            "fields": {
+              "status": "string",
+              "unbalancedDocumentCount": "number",
+              "unbalancedDocuments": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "credit": "number",
+                    "debit": "number",
+                    "diff": "number",
+                    "documentNumber": "string"
+                  }
+                }
+              }
+            }
+          },
+          "documentDateReuse": {
+            "kind": "object",
+            "fields": {
+              "documentNumberCount": "number",
+              "entryCount": "number"
+            }
+          },
+          "infSamplingTest": {
+            "kind": "object",
+            "fields": {
+              "sampleSize": "number",
+              "seed": "number",
+              "status": "string"
+            }
+          },
+          "nullRecordsTest": {
+            "kind": "object",
+            "fields": {
+              "nullAccountCount": "number",
+              "nullDescriptionCount": "number",
+              "nullDocumentCount": "number",
+              "nullRows": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "accountCode": "string",
+                    "description": "null|string",
+                    "documentNumber": "string",
+                    "issues": {
+                      "kind": "array",
+                      "items": "string"
+                    },
+                    "postDate": "string"
+                  }
+                }
+              },
+              "outOfRangeDateCount": "number",
+              "status": "string"
+            }
+          },
+          "populationSummary": {
+            "kind": "object",
+            "fields": {
+              "effective": {
+                "kind": "object",
+                "fields": {
+                  "net": "number",
+                  "rowCount": "number",
+                  "totalCredit": "number",
+                  "totalDebit": "number",
+                  "voucherCount": "number"
+                }
+              },
+              "excluded": {
+                "kind": "object",
+                "fields": {
+                  "byPeriodCount": "number",
+                  "byPostingStatusCount": "number",
+                  "rowCount": "number"
+                }
+              },
+              "raw": {
+                "kind": "object",
+                "fields": {
+                  "rowCount": "number",
+                  "totalCredit": "number",
+                  "totalDebit": "number"
+                }
+              }
+            }
+          },
+          "resultRef": {
+            "kind": "object",
+            "fields": {
+              "generatedUtc": "string",
+              "logicVersion": "string",
+              "runId": "string"
+            }
+          },
+          "sourceQuality": {
+            "kind": "object",
+            "fields": {
+              "findingCount": "number",
+              "sampleRows": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "accountCode": "string",
+                    "category": "string",
+                    "description": "string",
+                    "documentNumber": "string",
+                    "postDate": "null",
+                    "sourceLabel": "string",
+                    "sourceRowNumber": "number"
+                  }
+                }
+              }
+            }
+          },
+          "stats": {
+            "kind": "object",
+            "fields": {
+              "glRowCount": "number",
+              "net": "number",
+              "periodEnd": "string",
+              "periodStart": "string",
+              "totalCredit": "number",
+              "totalDebit": "number",
+              "voucherCount": "number"
+            }
+          }
+        }
+      }
+    }
+  }
+}

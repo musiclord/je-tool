@@ -37,6 +37,7 @@ require('./support/resource-guard.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const F = require('./support/frontend-fixtures.cjs');
+const { unchecked } = require('./support/action-contract.cjs');
 const { plain, settle } = F;
 
 const REF = { revision: 'r1', populationScope: 'auditPeriod' };
@@ -89,7 +90,7 @@ function savedFixture(options = {}) {
   return { ...f, $$, press, type, sent, scenarioWrites, messages, notice, draft, text };
 }
 
-// 送出的 payload 不得帶任何 `__` 開頭的鍵（畫面專用標記，後端會把原始 JSON 全文存下）。
+// 送出的 payload 不得帶任何 `__` 開頭的鍵（畫面專用標記不屬於前後端契約，預覽、查詢與儲存都不送）。
 function assertNoScreenKeys(payload, label) {
   assert.ok(!JSON.stringify(payload).includes('"__'), label + ' carries no screen-only key');
 }
@@ -138,6 +139,54 @@ for (const operation of ['new', 'edit', 'copy']) test('section 9 D: successful '
   assert.equal(f.$('[data-bind="save-feedback"]').textContent, '已儲存「' + savedName + '」。可在「已儲存情境與矩陣」查看或修改。');
   assert.ok(f.dom.document.activeElement === f.$('[data-builder-title]'));
   assert.deepEqual(plain(f.store.getState().filter.savedScenarios.map(item => item.name)), saved.map(item => item.name));
+});
+
+// 使用者 2026-10-15 在待決事項勾選頁裁定（U8）：上游修改清掉已存情境後，第五步不再顯示剛才「已儲存」的提示。
+// 修改前，草稿被換成空白剛好符合提示的條件，清單已經空了，提示卻還寫著已儲存。
+test('the saved notice disappears when an upstream change clears the saved scenarios', async () => {
+  const f = savedFixture();
+  f.click('[data-kct-letter="G"]');
+  f.type('[data-bind="scenario-name"]', '新情境');
+  f.store.setFilterPreview({ count: 0, voucherCount: 0, previewRows: [], populationScope: 'auditPeriod' });
+  f.click('[data-action="save-scenario"]'); await settle();
+  f.request('filterScenarioSave').resolve(saveResponse([savedGNamed('新情境')], 1));
+  await settle(); await settle();
+  assert.equal(f.$('[data-bind="save-feedback"]').textContent, '已儲存「新情境」。可在「已儲存情境與矩陣」查看或修改。');
+  f.store.applyMutationEffects({ invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true } });
+  await settle();
+  assert.equal(f.store.getState().filter.savedScenarios.length, 0);
+  const feedback = f.$('[data-bind="save-feedback"]');
+  assert.ok(!feedback || feedback.hidden, 'no saved notice once the scenarios are gone: ' + (feedback && feedback.textContent));
+});
+
+// 使用者 2026-10-15 在待決事項勾選頁裁定 B1：後端存檔時只保留每種條件用得到的欄位，前端送出的格式不變。
+// 常用查核的「人工分錄」以 newFilterRule 為底，送出時帶著尾數位數、科目配對方式等用不到的欄位，回應裡的條件只剩人工或自動。
+// 儲存途中審計員加了一條條件又移除，內容和送出時相同，提示仍要寫「已儲存」；修改前拿精簡的回應和完整的草稿比，一直判成尚未儲存。
+test('a save answered with only the fields each condition uses still counts an unchanged draft as saved', async () => {
+  const f = savedFixture();
+  f.click('[data-condition-source="custom"]');
+  if (f.$('[data-check-category="people"]').getAttribute('aria-expanded') !== 'true') f.click('[data-check-category="people"]');
+  f.click('[data-add-check="manualEntries"]');
+  f.type('[data-bind="scenario-name"]', '合成人工分錄');
+  f.type('[data-bind="scenario-rationale"]', '合成動機');
+  f.store.setFilterPreview({ count: 0, voucherCount: 0, previewRows: [], populationScope: 'auditPeriod' });
+  f.click('[data-action="save-scenario"]'); await settle();
+  const sent = plain(f.request('filterScenarioSave').payload.scenario);
+  // 前提：送出的人工分錄條件確實帶著用不到的欄位。
+  assert.equal(sent.groups[0].rules[0].type, 'manualAuto');
+  assert.ok(Object.hasOwn(sent.groups[0].rules[0], 'digits'));
+  f.click('[data-add-field="docNum"]');
+  assert.equal(f.draft().groups[0].rules.length, 2);
+  f.click('.rule-row[data-ri="1"] [data-action="remove-rule"]');
+  assert.equal(f.draft().groups[0].rules.length, 1);
+  const stored = { source: null, name: '合成人工分錄', rationale: '合成動機',
+    groups: [{ join: sent.groups[0].join, matchScope: sent.groups[0].matchScope, rules: [{ join: 'AND', type: 'manualAuto', isManual: 'true' }] }],
+    populationScope: 'auditPeriod', savedUtc: '2026-01-01T00:00:00Z' };
+  if (sent.editorOrigins) stored.editorOrigins = sent.editorOrigins;
+  f.request('filterScenarioSave').resolve(saveResponse([stored], 1));
+  await settle(); await settle();
+  assert.equal(f.draft().__editingIndex, 0, 'the draft changed during the request, so it stays open on the saved scenario');
+  assert.equal(f.$('[data-bind="save-feedback"]').textContent, '已儲存「合成人工分錄」。');
 });
 
 // 原本斷言「取消編輯、另存為新情境、儲存變更」。全站按鈕列規則是取消緊鄰主要按鈕左邊，兩者矛盾；
@@ -558,10 +607,10 @@ test('journey 13: without a usable version the matrix, the criteria report and f
     editorOrigins: { version: 1, legacyKctSource: false, nameIsAutomatic: true, rationaleIsAutomatic: true, groups: [{ letters: ['G'] }] }, source: 'kct' };
   assert.deepEqual(plain(f.request('filterPreview').payload), { populationScope: 'auditPeriod', scenario: wire });
   f.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, populationScope: 'auditPeriod',
-    previewRows: [{ documentNumber: 'JV-P', postDate: '2025-01-01', accountCode: '1001', amount: 5, description: '合成' }] } }); await settle();
+    previewRows: [{ documentNumber: 'JV-P', postDate: '2025-01-01', accountCode: '1001', amount: 5 }] } }); await settle();
   assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload), { scenario: wire, populationScope: 'auditPeriod', pageSize: 50 });
   // 後端沒有回傳傳票清單時（見 impl-item1-batch9.md：正式後端一定回傳），只列前幾筆並說明儲存後才能載入全部，沒有「載入更多」。
-  f.request('queryFilterVoucherPage').resolve(null); await settle(); await settle();
+  f.request('queryFilterVoucherPage').resolve(unchecked('正式後端一定回傳傳票清單；這裡刻意回 null，確認畫面只列前幾筆', null)); await settle(); await settle();
   const body = f.$('[data-bind="scenario-preview-0"]');
   assert.match(body.textContent, /JV-P/);
   assert.ok(body.querySelector('[data-action="hits-load-more"]') === null, 'no full hit list without a version');
@@ -848,9 +897,9 @@ test('journey 13: hit details show the backend RDE amount column with values fro
   host.querySelector('[data-voucher-open="0"]').onclick(); await settle();
   assert.deepEqual(plain(f.request('queryFilterVoucherRowsPage').payload), { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod',
     documentNumber: 'JV-1', cursor: null, pageSize: 50, queryRevision: 'q1' });
-  f.request('queryFilterVoucherRowsPage').resolve({ queryRevision: 'q1', nextCursor: null,
+  f.request('queryFilterVoucherRowsPage').resolve(unchecked('列的頂層刻意放一個和攸關資料元素同名的干擾值；正式後端不會送這個鍵', { queryRevision: 'q1', nextCursor: null,
     columns: [{ key: 'documentNumber', label: '傳票號碼', valueType: 'text', isCustom: false }, RDE_COLUMN],
-    rows: [{ lineItem: '1', isHit: true, amount: -10, 'rde.amount1': 999, customValues: { 'rde.amount1': 1234.5 } }] });
+    rows: [{ lineItem: '1', isHit: true, amount: -10, 'rde.amount1': 999, customValues: { 'rde.amount1': 1234.5 } }] }));
   await settle(); await settle();
   const details = host.querySelector('.voucher-details');
   assert.ok(details.querySelectorAll('thead th').map(th => th.textContent).includes('合成金額欄'));
@@ -862,12 +911,13 @@ test('journey 13: hit details show the backend RDE amount column with values fro
   const g = savedFixture({ saved: [savedGNamed('甲')], pane: 'saved' });
   g.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
   g.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, populationScope: 'auditPeriod',
-    previewRows: [{ documentNumber: 'JV-P', postDate: '2025-01-01', accountCode: '1001', amount: 5, description: '合成' }] } }); await settle();
-  g.request('queryFilterVoucherPage').resolve(null); await settle(); await settle();
+    previewRows: [{ documentNumber: 'JV-P', postDate: '2025-01-01', accountCode: '1001', amount: 5 }] } }); await settle();
+  g.request('queryFilterVoucherPage').resolve(unchecked('正式後端一定回傳傳票清單；這裡刻意回 null，確認畫面改列完整命中分錄', null)); await settle(); await settle();
   g.click('[data-action="hits-load-more"]'); await settle();
   assert.deepEqual(plain(g.request('queryFilterHitsPage').payload), { scenarioPosition: 1, cursor: null, pageSize: 200, sort: null, search: null });
-  g.request('queryFilterHitsPage').resolve({ nextCursor: null, columns: [{ key: 'documentNumber', label: '傳票號碼', valueType: 'text', isCustom: false }, RDE_COLUMN],
-    rows: [{ documentNumber: 'JV-9', 'rde.amount1': 999, customValues: { 'rde.amount1': 1234.5 } }] });
+  g.request('queryFilterHitsPage').resolve(unchecked('列的頂層刻意放一個和攸關資料元素同名的干擾值；正式後端不會送這個鍵', { nextCursor: null,
+    columns: [{ key: 'documentNumber', label: '傳票號碼', valueType: 'text', isCustom: false }, RDE_COLUMN],
+    rows: [{ documentNumber: 'JV-9', 'rde.amount1': 999, customValues: { 'rde.amount1': 1234.5 } }] }));
   await settle(); await settle();
   const table = g.$('[data-bind="scenario-preview-0"] .preview-table');
   assert.ok(table.querySelectorAll('thead th').map(th => th.textContent).some(text => text.includes('合成金額欄')));

@@ -828,6 +828,63 @@ test('redraw: moving to the next step starts at its top and does not bring back 
   assert.ok(active !== null && active.getAttribute('data-bind') === 'current-step-title', 'the new step title takes focus');
 });
 
+// 使用者 2026-10-15 反映換步驟時「點下去的時候我會預期元素開始移動，但他會頓一下才開始移動」。
+// 原因之一是中欄在第一格就從原本的捲動位置一下跳到頂部，接著才開始收放。可以播動態時，第一格停在原位，
+// 之後每一格朝頂部捲，一路不回頭；新步驟的標題照樣拿到焦點。
+// 第一次失敗：FrontendMapping 20261015-154041325-f772787e8a3140dd8bbf251f9e2cee27，第一格就跳到 0。
+test('redraw: switching steps from a scrolled page glides back to the top instead of jumping', () => {
+  const f = mappingRenderFixture({ clock: true });
+  const frames = [];
+  f.window.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
+  f.window.cancelAnimationFrame = () => {};
+  f.window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
+  f.store.setLastRun('validate', null);
+  f.dom.content.scrollTop = 400;
+  f.store.setStepIndex(f.store.STEPS.findIndex(step => step.id === 'validate'));
+  assert.equal(f.dom.content.scrollTop, 400, 'the first frame keeps the page where it was');
+  f.timers.run();
+  const active = f.dom.document.activeElement;
+  assert.ok(active !== null && active.getAttribute('data-bind') === 'current-step-title', 'the new step title takes focus');
+  const path = [];
+  for (let i = 0; i < 60 && frames.length; i++) { f.clock.advance(16); frames.shift()(); path.push(f.dom.content.scrollTop); }
+  assert.ok(path.length > 3, 'the page scrolls over several frames');
+  assert.ok(path.every((value, i) => value <= (i ? path[i - 1] : 400)), 'the page only moves toward the top: ' + path.join(','));
+  assert.equal(path.at(-1), 0, 'the new step ends at its top');
+});
+
+// 2026-10-16 提交前複審找到捲回頂部的兩個漏洞：途中同一步重繪時，移焦點沒有帶 preventScroll，標題在下方就會瞬間捲過去；
+// 內容變短時瀏覽器把捲軸夾到新的底部，被當成使用者自己捲而停下，可能停在半途。兩種情況都要一路捲到頂部。
+test('redraw: redrawing the same step or shortening it while gliding home keeps gliding to the top', () => {
+  const f = mappingRenderFixture({ clock: true });
+  const frames = [];
+  f.window.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
+  f.window.cancelAnimationFrame = () => {};
+  f.window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
+  f.store.setLastRun('validate', null);
+  f.dom.content.scrollTop = 400;
+  f.store.setStepIndex(f.store.STEPS.findIndex(step => step.id === 'validate'));
+  f.timers.run();
+  const path = [];
+  for (let i = 0; i < 2; i++) { f.clock.advance(16); frames.shift()(); path.push(f.dom.content.scrollTop); }
+  f.store.touch();
+  f.timers.run();
+  const title = f.dom.document.activeElement;
+  assert.ok(title !== null && title.getAttribute('data-bind') === 'current-step-title', 'the title keeps focus after the redraw');
+  assert.equal(title.lastFocusOptions && title.lastFocusOptions.preventScroll, true, 'focusing the title does not scroll the page by itself');
+  // 內容變短：和瀏覽器一樣，捲動位置超過新的底部時夾到底部。
+  const content = f.dom.content;
+  let top = content.scrollTop;
+  content.clientHeight = 300;
+  content.scrollHeight = 300 + Math.floor(path.at(-1) / 2);
+  Object.defineProperty(content, 'scrollTop', { configurable: true,
+    get: () => top, set: value => { top = Math.max(0, Math.min(value, content.scrollHeight - content.clientHeight)); } });
+  content.scrollTop = top;
+  path.push(content.scrollTop);
+  for (let i = 0; i < 60 && frames.length; i++) { f.clock.advance(16); frames.shift()(); path.push(f.dom.content.scrollTop); }
+  assert.ok(path.every((value, i) => value <= (i ? path[i - 1] : 400)), 'the page only moves toward the top: ' + path.join(','));
+  assert.equal(path.at(-1), 0, 'the glide still ends at the top');
+});
+
 test('redraw: after typing replaces the required list, its jump buttons still move focus to the matching select', () => {
   const f = journey({ ui: 'grid', mode: 'side', draft: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side' } });
   const oldRail = f.need('.map-rail');

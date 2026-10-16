@@ -24,7 +24,19 @@ internal static partial class GuiScenarios
             while (true)
             {
                 if (await CheckOnce(expression)) return;
-                if (waited.Elapsed > TimeSpan.FromSeconds(5)) throw new GuiCheckException(phase);
+                if (waited.Elapsed > TimeSpan.FromSeconds(5))
+                {
+                    // 條件不成立時記下畫面當時的狀態，下一次失敗才看得出是操作沒開始、被取消，還是停在對話框。
+                    // 2026-10-16 完整 Gui 在 feedback_difference_workpaper_export 失敗一次，當時只記到 ok:false，查不出原因；
+                    // 單跑五次與再跑一次完整 Gui 都通過。只記合成案件的狀態與訊息，不讀檔案。
+                    outcome.LastFilterProbe = await cdp.EvaluateAsync("(()=>{var s=window.JetStore.getState();return {step:s.currentStepIndex,busy:s.busy," +
+                        "staleFilter:s.staleState.filter,stalePrescreen:s.staleState.prescreen,completion:!!document.querySelector('.completion')," +
+                        "artifacts:JSON.stringify(s.reportArtifacts.map(a=>[a.kind,a.validationRunId,a.scenarioRevision,a.scenarioPositions,a.stale]))," +
+                        "validateRun:s.lastRuns.validate&&s.lastRuns.validate.resultRef&&s.lastRuns.validate.resultRef.runId,revision:s.filterResultRef&&s.filterResultRef.revision," +
+                        "dialog:Array.from(document.querySelectorAll('.modal:not([hidden]) [role=dialog],dialog[open]')).map(e=>e.textContent).join(' | '),messages:Array.from(document.querySelectorAll('[data-bind=message-list] li')).slice(-4).map(e=>e.textContent).join(' | ')," +
+                        "exportButton:!!document.querySelector('[data-action=export-workpaper]'),exportDisabled:(document.querySelector('[data-action=export-workpaper]')||{}).disabled};})()", ct);
+                    throw new GuiCheckException(phase);
+                }
                 await Task.Delay(100, ct);
             }
         }
@@ -39,7 +51,7 @@ internal static partial class GuiScenarios
             "({idle:!window.JetStore.getState().busy})", value => value,
             value => ReadBoolean(value, "idle"), "feedback_operation_not_finished", ct);
 
-        ResizeFilterWindow(process, 1250, 950);
+        ResizeFilterWindow(1250, 950);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Idle();
@@ -98,8 +110,7 @@ internal static partial class GuiScenarios
             value => ReadBoolean(value, "ready"), "feedback_account_list_missing", ct);
         async Task ChooseCategory(string category)
         {
-            await Click("[data-account-category-tree] summary");
-            await Click("[data-account-bulk-category][value=" + JsonSerializer.Serialize(category) + "]");
+            await ChooseOptionAsync(cdp, process, "[data-account-bulk-category]", category, outcome, ct);
         }
         var originalCategory = (await cdp.EvaluateAsync("document.querySelector('[data-account-current]').getAttribute('data-category-id')", ct)).GetString()!;
         await Check("feedback_account_default_view", "!document.querySelector('[data-taxonomy-label]') && !!document.querySelector('[data-account-save]')");
@@ -112,6 +123,8 @@ internal static partial class GuiScenarios
         await cdp.DragAsync(ReadDouble(dragStart, "x"), ReadDouble(dragStart, "y"), ReadDouble(dragEnd, "x"), ReadDouble(dragEnd, "y"), ct);
         await Check("feedback_account_drag_select", "document.querySelector('[data-account-select=\"0\"]').checked && document.querySelector('[data-account-select=\"1\"]').checked && document.querySelector('[data-account-selection-count]').textContent==='已選 2 個科目' && document.querySelector('[data-account-save]').disabled");
         // 放開後「清除勾選」展開，表格位置會變；每次拖曳前重新量起點與終點（2026-10-14 實跑查到舊座標落在別列）。
+        // 這裡刻意不等動態結束才量：2026-10-15 這一步失敗，查到「全部取消」展開途中整排先變高再變回來，表格跟著上下跳，
+        // 是畫面本身的問題，已在共用的左右收放規則修正（第一次失敗收據 20261015-040932828-c50c827d7c324310b062000f8b13a410）。
         dragEnd = await FindControlPointAsync(cdp, process, "[data-account-select='1']", ct);
         dragStart = await FindControlPointAsync(cdp, process, "[data-account-select='0']", ct);
         outcome.RecordAction();

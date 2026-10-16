@@ -299,9 +299,6 @@ internal static partial class LegacyAuditParityJourney
                 ImportPayload(input.TbImportMode, input.TbSources));
             tbImportedRowCount = RequiredInt64(tbImport, "rowCount", "import.tb.response.rowCount");
 
-            await DispatchAsync(
-                "import.accountMapping.fromFile",
-                ReferenceFilePayload(input.AccountMappingFile!));
             if (input.AuthorizedPreparerFile is not null)
             {
                 // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；只讓既有單欄清單明確指定唯一欄位。
@@ -357,6 +354,15 @@ internal static partial class LegacyAuditParityJourney
                 tbCommit,
                 "projectedRowCount",
                 "mapping.commit.tb.response.projectedRowCount");
+
+            // 科目配對檔在確認 GL 與 TB 欄位配對之後才匯入，和審計員第三步之後才到第四步的順序相同。
+            // 使用者 2026-10-08 裁定確認配對會清除科目配對；原本排在匯入階段，確認後就被清掉，
+            // 預篩選與篩選因此看不到科目分類，「非預期科目組合」條件在 filter.commit 被擋下。
+            // 第一次失敗：PrivateCase 20261016-022256727-0eb81785cf2e4d06872346decef0c552（SQLite）與
+            // 20261016-022338940-03d1e548f9e349ffa2b665b753ebfe17（DuckDB）。
+            await DispatchAsync(
+                "import.accountMapping.fromFile",
+                ReferenceFilePayload(input.AccountMappingFile!));
 
             if (stopAfter == LegacyAuditParityCheckpoint.Mapping)
             {

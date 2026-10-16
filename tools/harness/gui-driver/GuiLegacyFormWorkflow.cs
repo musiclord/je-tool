@@ -7,7 +7,9 @@ namespace Jet.GuiDriver;
 
 internal static partial class GuiScenarios
 {
-    // 使用者 2026-10-08 要求重新設計自訂篩選條件：兩個情境保留原名稱，改成操作新的「常用查核條件」與「從範例開始」。
+    // 使用者 2026-10-08 要求重新設計自訂篩選條件：這個情境保留原名稱，改成操作新的「常用查核條件」與「從範例開始」。
+    // 原本另有 legacy-form-catalog 逐一加入每項常用查核條件；使用者 2026-10-15 在勾選頁選 S4，改由前端測試
+    // （frontend-journey-filter-build 的「every common check is added by its own button…」）涵蓋後刪除。
     // 名稱、型別與預期筆數都逐字寫在這裡，不從畫面推導。
     private static async Task ExecuteLegacyFormWorkflowAsync(CdpSession cdp, OwnedGuiRun ownedRun,
         Process process, GuiRunOutcome outcome, CancellationToken ct)
@@ -23,61 +25,11 @@ internal static partial class GuiScenarios
                 value => outcome.LastFilterProbe = value.Clone());
         }
         async Task Fill(string selector, string value) { await Click(selector); outcome.RecordAction(); await cdp.TypeTextAsync(value, ct); }
-        ResizeFilterWindow(process, 1180, 900);
+        ResizeFilterWindow(1180, 900);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-condition-source=custom]");
-        if (outcome.Scenario.Name == GuiScenarioCatalog.LegacyFormCatalog)
-        {
-            outcome.RecordStage("custom_common_checks");
-            (string Category, string Key, string Label, string Type)[] checks =
-            [
-                ("dates", "postDateWeekend", "總帳日期在週末", "fieldValue"),
-                ("dates", "postDateHoliday", "總帳日期在國定假日", "fieldValue"),
-                ("dates", "postDateNonBusinessDay", "總帳日期在非營業日", "fieldValue"),
-                ("dates", "docDateNonBusinessDay", "傳票核准日在非營業日", "fieldValue"),
-                ("dates", "postPeriodApproval", "財報準備日起核准的分錄", "prescreen"),
-                ("dates", "postDateRange", "指定日期區間", "fieldValue"),
-                ("dates", "periodEndDays", "查核期末最後幾天", "fieldValue"),
-                ("amounts", "largeAmount", "大額分錄", "fieldValue"),
-                ("amounts", "trailingZeros", "金額尾數連續多個 0", "group"),
-                ("description", "descriptionKeywords", "摘要含特定字詞", "fieldValue"),
-                ("description", "blankDescription", "空白摘要", "fieldValue"),
-                ("accounts", "debitOrCreditOnly", "只看借方或貸方", "drCrOnly"),
-                ("accounts", "accountCategory", "科目屬於指定分類", "group"),
-                ("accounts", "categoryPair", "借方與貸方分類組合", "specialAccountCategoryPair"),
-                ("accounts", "accountCodePair", "借方與貸方科目編號組合", "group"),
-                ("accounts", "unexpectedAccountPair", "未預期的借貸組合", "prescreen"),
-                ("accounts", "rareAccounts", "較少使用的科目", "entityFrequency"),
-                ("people", "manualEntries", "人工分錄", "manualAuto"),
-                ("people", "rarePreparers", "編製分錄較少的人員", "entityFrequency"),
-                ("prescreen", "prescreenResult", "沿用第四步預篩選規則", "prescreen")
-            ];
-            foreach (var (category, key, label, type) in checks)
-            {
-                await AddCustomConditionAsync(cdp, "check:" + key, Click, ct);
-                await Check("draft.groups.flatMap(g=>g.rules).length===1 && draft.groups.flatMap(g=>g.rules)[0].type===" + JsonSerializer.Serialize(type) +
-                    " && document.querySelectorAll('[data-check-category][aria-expanded=true]').length===1" +
-                    " && document.querySelector('[data-check-category=" + category + "]').getAttribute('aria-expanded')==='true'" +
-                    " && document.querySelector('[data-add-check=" + key + "]').closest('.filter-check').querySelector('.filter-check__label').textContent===" + JsonSerializer.Serialize(label));
-                if (key == "accountCodePair")
-                    await Check("draft.groups[0].rules[0].rules[0].rules[0].drCr==='debit' && draft.groups[0].rules[0].rules[1].rules[0].drCr==='credit'");
-                // 新建的分類條件預設包含下層分類；已儲存的舊分類條件不變。
-                if (key == "categoryPair")
-                    await Check("draft.groups[0].rules[0].categorySelection==='subtree'");
-                if (key == "trailingZeros")
-                    await Check("draft.groups[0].rules[0].rules[0].value==='000000' && draft.groups[0].rules[0].rules[1].value==='1'");
-                await Click(type == "group"
-                    ? ".rule-row[data-ri='0'] > .filter-rule-heading [data-compound-remove]"
-                    : ".rule-row[data-ri='0'] [data-action=remove-rule]");
-                await Check("draft.groups.flatMap(g=>g.rules).length===0");
-            }
-            await CaptureScreenshotAsync(cdp, outcome, ct);
-            outcome.Assertions.LegacyFormCatalogVerified = true;
-            await Click("[data-action=app-exit]"); outcome.Assertions.ExitRequested = true;
-            return;
-        }
         outcome.RecordStage("custom_examples_and_trailing_zeros");
         // Independent fixed answers from DemoDataFactory's synthetic population and the GUI department column:
         // weekend manual reversal descriptions: none; manual department entries: 679 baseline vouchers, one department-matching
@@ -141,7 +93,11 @@ internal static partial class GuiScenarios
         await Click("[data-bind=step-nav] [data-step-index='4']"); await Click("[data-filter-pane-select=saved]");
         await Check("saved.length===5 && saved[2].groups[0].rules[0].rules[1].quantifier==='any' && saved[3].groups[0].rules[3].rules[1].values.join(',')==='1,2,3' && saved[4].groups[0].rules[0].type==='group' && saved[4].groups[0].rules[0].rules[0].operator==='endsWithDigits'");
         await Click("[data-action=toggle-scenario][data-index='2']");
-        await Check("(()=>{var text=document.querySelector('[data-bind=scenario-body-2] .scenario-readback').textContent;return text.includes('同張傳票') && text.includes('整張傳票至少一筆符合') && text.includes('僅貸方') && !text.includes('同一分錄');})()");
+        // 2026-10-14 借貸方向改用「借貸別」條件後，「借方且科目」放進同一個子條件組，讀回時本來就有「同一分錄（（僅借方 且 …））」
+        // （前後端共用的 tools/tests/fixtures/batch7-filter-readback.json 的 explicit-direction-and-account-child-group）。
+        // 原本「不含同一分錄」要防的是最外層變成同一分錄，所以改成核對開頭是同張傳票，兩個整張傳票條件各自讀回借方與貸方
+        // （第一次失敗收據 20261015-041340236-dc48b21196bd43468c13761f7322d4b9）。
+        await Check("(()=>{var text=document.querySelector('[data-bind=scenario-body-2] .scenario-readback').textContent;return text.startsWith('篩選條件：同張傳票') && text.includes('整張傳票至少一筆符合：同一分錄（（僅借方') && text.includes('整張傳票至少一筆符合：同一分錄（（僅貸方');})()");
         await CaptureScreenshotAsync(cdp, outcome, ct);
         outcome.Assertions.LegacyFormWorkflowVerified = true;
         await Click("[data-action=app-exit]"); outcome.Assertions.ExitRequested = true;

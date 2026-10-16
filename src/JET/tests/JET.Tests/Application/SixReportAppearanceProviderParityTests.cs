@@ -90,10 +90,13 @@ public sealed class SixReportAppearanceProviderParityTests
         HandlerTestHost host,
         string databaseProvider)
     {
+        // 報告的編製人取自建案的 host；兩種資料庫都要用固定的 PinnedPrincipal 建案，所以從頭建案而不複製共用案件。
+        // 改用複製時，兩份條件報告的摘要頁不同，第一次失敗的收據是 20261015-095055763-6299ea60373b40c2b96792da2286182d。
         var context = await DemoProjectPipeline.SetupAsync(
             host,
             runValidation: false,
-            databaseProvider: databaseProvider);
+            databaseProvider: databaseProvider,
+            fromScratch: true);
         await PinSampleSeedAsync(host, context.ProjectId);
         var validation = await host.DispatchAsync("validate.run");
         var validationRunId = validation

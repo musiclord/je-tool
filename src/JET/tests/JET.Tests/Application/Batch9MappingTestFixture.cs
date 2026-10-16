@@ -13,15 +13,31 @@ internal sealed class Batch9MappingTestFixture : IDisposable
 
     private Batch9MappingTestFixture(string provider) => this.provider = provider;
 
+    /// <summary>同一組參數在一個測試程序裡只建一次，之後每個測試複製一份（<see cref="CaseTemplates"/>）。</summary>
     internal static async Task<Batch9MappingTestFixture> CreateAsync(string provider, bool manyRows = false)
     {
         var fixture = new Batch9MappingTestFixture(provider);
-        var created = await fixture.Host.DispatchAsync("project.create", JsonSerializer.Serialize(new
+        if (!CaseTemplates.CanCopy(provider))
+        {
+            fixture.ProjectId = await BuildAsync(fixture.Host, provider, manyRows);
+            return fixture;
+        }
+
+        var copied = await CaseTemplates.CopyIntoAsync(fixture.Host, $"batch9-mapping:{manyRows}:{provider}",
+            async templateHost => (await BuildAsync(templateHost, provider, manyRows), (object?)null));
+        fixture.ProjectId = copied.ProjectId;
+        return fixture;
+    }
+
+    private static async Task<string> BuildAsync(HandlerTestHost host, string provider, bool manyRows)
+    {
+        var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         { caseName = "Batch9 synthetic", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
-        fixture.ProjectId = created.GetProperty("projectId").GetString()!;
-        await fixture.ImportSourceAsync(0, manyRows ? 60 : 2, "first.xlsx", append: false);
-        if (manyRows) await fixture.ImportSourceAsync(60, 5, "second.xlsx", append: true);
-        await fixture.CommitAsync(Mapping(), "signed");
+        var projectId = created.GetProperty("projectId").GetString()!;
+        await ImportSourceAsync(host, 0, manyRows ? 60 : 2, "first.xlsx", append: false);
+        if (manyRows) await ImportSourceAsync(host, 60, 5, "second.xlsx", append: true);
+        await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
+        { mapping = Mapping(), amountMode = "signed", rdeFields = Array.Empty<object>() }));
         var tb = TestWorkbookBuilder.WriteWorkbook(sheet =>
         {
             sheet.Cell(1, 1).Value = "Account"; sheet.Cell(1, 2).Value = "Name";
@@ -31,16 +47,16 @@ internal sealed class Batch9MappingTestFixture : IDisposable
         });
         try
         {
-            await fixture.Host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = tb }));
-            await fixture.Host.DispatchAsync("mapping.commit.tb", JsonSerializer.Serialize(new
+            await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = tb }));
+            await host.DispatchAsync("mapping.commit.tb", JsonSerializer.Serialize(new
             { changeMode = "direct", mapping = new { accNum = "Account", accName = "Name", amount = "Good" } }));
         }
         finally { TestWorkbookBuilder.Delete(tb); }
-        await fixture.Host.DispatchAsync("validate.run");
-        return fixture;
+        await host.DispatchAsync("validate.run");
+        return projectId;
     }
 
-    private async Task ImportSourceAsync(int start, int count, string fileName, bool append)
+    private static async Task ImportSourceAsync(HandlerTestHost host, int start, int count, string fileName, bool append)
     {
         string[] columns = ["Document", "Date", "Account", "Name", "Description", "Amount", "BadAmount", "BadDate", "Side", "BadSide"];
         var path = TestWorkbookBuilder.WriteWorkbook(sheet =>
@@ -57,7 +73,7 @@ internal sealed class Batch9MappingTestFixture : IDisposable
         });
         try
         {
-            await Host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new
             { filePath = path, fileName, mode = append ? "append" : "replace" }));
         }
         finally { TestWorkbookBuilder.Delete(path); }

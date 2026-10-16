@@ -2063,76 +2063,83 @@
 
     if (commitBtn) {
       commitBtn.addEventListener('click', function () {
-        mappingCommitErrors[kind] = null;
-        var current = Store.getState().mapping[kind];
-        var project = Store.getState().project;
-        var importInfo = Store.getState().importState[kind];
-        var mapping = {};
-        Object.keys(current.draft).forEach(function (key) {
-          if (current.draft[key]) { mapping[key] = current.draft[key]; }
-        });
+        // 確認配對會清除第四步已儲存和未儲存的科目分類；還有沒儲存的分類時先問，沒有時照舊直接確認。
+        if (!Ui.pendingAccountCategoryCount()) { commitMapping(); return; }
+        Ui.confirmPendingAccountCategories('確認配對後，第四步已儲存和未儲存的科目分類都會清除。', '繼續確認', { saveable: false })
+          .then(function (proceed) { if (proceed) { commitMapping(); } });
+      });
+    }
 
-        var label = kind === 'gl' ? 'GL' : 'TB';
-        var mode = kind === 'gl' ? current.amountMode : current.changeMode;
-        function isCurrentSource() {
-          var latest = Store.getState();
-          return latest.project === project && latest.importState[kind] === importInfo;
-        }
+    function commitMapping() {
+      mappingCommitErrors[kind] = null;
+      var current = Store.getState().mapping[kind];
+      var project = Store.getState().project;
+      var importInfo = Store.getState().importState[kind];
+      var mapping = {};
+      Object.keys(current.draft).forEach(function (key) {
+        if (current.draft[key]) { mapping[key] = current.draft[key]; }
+      });
 
-        Ui.run('確認 ' + label + ' 欄位配對', function () {
-          var promise = kind === 'gl'
-            ? global.JetApi.mappingCommitGl(glCommitPayload(mapping, mode))
-            : global.JetApi.mappingCommitTb({ mapping: mapping, changeMode: mode });
+      var label = kind === 'gl' ? 'GL' : 'TB';
+      var mode = kind === 'gl' ? current.amountMode : current.changeMode;
+      function isCurrentSource() {
+        var latest = Store.getState();
+        return latest.project === project && latest.importState[kind] === importInfo;
+      }
 
-          return promise.then(function (data) {
-            if (!isCurrentSource()) { return; }
-            mappingCommitErrors[kind] = null;
-            editing[kind] = false;
-            if (kind === 'gl') { pendingCodeInputs = null; }
-            if (kind === 'gl') {
-              // 後端回傳全部 canonical options 與 stable ID：草稿一律以 response 取代，
-              // 讓下一次 recommit 沿用同一組欄位身分，不由畫面自行 mint。
-              Store.replaceGlMappingOptions(canonicalGlOptions(data));
-            }
-            Store.setMappingCommitted(kind, {
-              projectedRowCount: data.projectedRowCount,
-              committedUtc: new Date().toISOString(),
-              mapping: mapping,
-              mode: mode,
-              options: kind === 'gl' ? canonicalGlOptions(data) : null
-            });
-            if (kind === 'gl' && Object.prototype.hasOwnProperty.call(data, 'authorizedPreparerState')) {
-              Store.refreshAuthorizedPreparerState(data.authorizedPreparerState);
-            }
-            Store.applyMutationEffects(data);
-            // 後端非阻斷提醒（如必填欄整欄空白、疑似配錯欄）：逐則以警示色呈現，使用者立即看得到。
-            (data.warnings || []).forEach(function (w) {
-              Store.addMessage(label + ' 配對提醒：' + w, 'warn');
-            });
-            focusMapping('[data-action="remap-' + kind + '"]');
-            return data;
-          }).catch(function (error) {
-            if (!isCurrentSource()) { return; }
-            throw error;
-          });
-        }, {
-          // 完成句由 Ui.run 接上耗時（共用的秒與分秒寫法）後記一則（使用者 2026-10-13 裁定）。
-          completionMessage: function (data) {
-            return data ? label + ' 已確認配對，共 ' + Number(data.projectedRowCount).toLocaleString() + ' 筆。' : '';
-          },
-          // 原因寫在配對區的錯誤框，不另外在步驟上方顯示。
-          inlineError: true,
-          onError: function (_, error) {
-            mappingCommitErrors[kind] = {
-              project: project,
-              importInfo: importInfo,
-              // 後端沒有附原因時（使用者 2026-10-13 勾選頁確認 M1）。
-              message: error && error.message ? error.message : '確認配對未完成，請再試一次。',
-              details: error && Array.isArray(error.details) ? error.details : null
-            };
-            Store.touch();
+      Ui.run('確認 ' + label + ' 欄位配對', function () {
+        var promise = kind === 'gl'
+          ? global.JetApi.mappingCommitGl(glCommitPayload(mapping, mode))
+          : global.JetApi.mappingCommitTb({ mapping: mapping, changeMode: mode });
+
+        return promise.then(function (data) {
+          if (!isCurrentSource()) { return; }
+          mappingCommitErrors[kind] = null;
+          editing[kind] = false;
+          if (kind === 'gl') { pendingCodeInputs = null; }
+          if (kind === 'gl') {
+            // 後端回傳全部 canonical options 與 stable ID：草稿一律以 response 取代，
+            // 讓下一次 recommit 沿用同一組欄位身分，不由畫面自行 mint。
+            Store.replaceGlMappingOptions(canonicalGlOptions(data));
           }
+          Store.setMappingCommitted(kind, {
+            projectedRowCount: data.projectedRowCount,
+            committedUtc: new Date().toISOString(),
+            mapping: mapping,
+            mode: mode,
+            options: kind === 'gl' ? canonicalGlOptions(data) : null
+          });
+          if (kind === 'gl' && Object.prototype.hasOwnProperty.call(data, 'authorizedPreparerState')) {
+            Store.refreshAuthorizedPreparerState(data.authorizedPreparerState);
+          }
+          Store.applyMutationEffects(data);
+          // 後端非阻斷提醒（如必填欄整欄空白、疑似配錯欄）：逐則以警示色呈現，使用者立即看得到。
+          (data.warnings || []).forEach(function (w) {
+            Store.addMessage(label + ' 配對提醒：' + w, 'warn');
+          });
+          focusMapping('[data-action="remap-' + kind + '"]');
+          return data;
+        }).catch(function (error) {
+          if (!isCurrentSource()) { return; }
+          throw error;
         });
+      }, {
+        // 完成句由 Ui.run 接上耗時（共用的秒與分秒寫法）後記一則（使用者 2026-10-13 裁定）。
+        completionMessage: function (data) {
+          return data ? label + ' 已確認配對，共 ' + Number(data.projectedRowCount).toLocaleString() + ' 筆。' : '';
+        },
+        // 原因寫在配對區的錯誤框，不另外在步驟上方顯示。
+        inlineError: true,
+        onError: function (_, error) {
+          mappingCommitErrors[kind] = {
+            project: project,
+            importInfo: importInfo,
+            // 後端沒有附原因時（使用者 2026-10-13 勾選頁確認 M1）。
+            message: error && error.message ? error.message : '確認配對未完成，請再試一次。',
+            details: error && Array.isArray(error.details) ? error.details : null
+          };
+          Store.touch();
+        }
       });
     }
   }

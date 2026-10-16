@@ -1546,9 +1546,9 @@
     return editor && typeof editor.pendingCount === 'function' ? editor.pendingCount() : 0;
   }
 
-  function confirmPendingAccountCategories(consequence, continueLabel) {
+  function confirmPendingAccountCategories(consequence, continueLabel, options) {
     if (!pendingAccountCategoryCount()) { return Promise.resolve(true); }
-    return global.JetUi.accountMappingEditor.confirmPending(consequence, continueLabel);
+    return global.JetUi.accountMappingEditor.confirmPending(consequence, continueLabel, options);
   }
 
   // 選了「不儲存」後重新進入離場流程時，改動仍在，所以這一次不再詢問，避免對話框一直重複出現。
@@ -1834,10 +1834,10 @@
     return String(text || '').replace(/[。；\s]+$/, '');
   }
 
-  // 使用者 2026-10-07 裁定：更改前面已設定的資料，會清除後面步驟的篩選情境。已有篩選情境時才提醒一句，不列細節。
+  // 使用者 2026-10-07 裁定：更改前面已設定的資料，會清除後面步驟的篩選情境。已有篩選情境時才提醒一句，不列細節；
+  // 2026-10-15 裁定只有未儲存的第五步草稿時也提醒。
   function downstreamResetNoticeHtml(state) {
-    var saved = state && state.filter ? state.filter.savedScenarios : null;
-    return saved && saved.length
+    return state && Store.hasFilterWork(state.filter)
       ? '<p class="panel__hint panel__hint--wide" data-bind="downstream-reset-notice">更改已設定好的資料，會清除後面步驟的設定。</p>'
       : '';
   }

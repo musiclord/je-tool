@@ -17,7 +17,7 @@
     if (action === 'system.ping') return { devToolsEnabled: false };
     if (action === 'system.databaseInfo') return {};
     if (action === 'system.whoAmI') return { principal: 'PREVIEW\\auditor', shortName: 'auditor（範例）', userNumber: null, numberSource: 'unavailable' };
-    if (action === 'project.listLocal') return { projects: [], online: null };
+    if (action === 'project.listLocal') return { projects: [] };
     if (action === 'project.heartbeat') return {};
     if (action === 'mapping.valueProfile') {
       const prepared = (bundle.mappingValueProfiles || []).find(item => canonical(item.payload) === canonical(p));

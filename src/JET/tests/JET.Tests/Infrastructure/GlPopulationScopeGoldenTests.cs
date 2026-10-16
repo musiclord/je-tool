@@ -597,7 +597,11 @@ public sealed class SqlServerGlPopulationScopeGoldenTests
         }
     }
 
+    // 私有的引擎子類只由 CreateAsync 建立，xUnit 執行時不探索非公開類別。xunit.v3 4.0 的分析器仍把它當成測試類別、
+    // 要求公開建構子（xUnit1056），這裡不適用；使用者 2026-10-15 在 Visual Studio 升級套件後選擇修這裡後繼續。
+#pragma warning disable xUnit1056
     private sealed class SqlServerEngine : GlPopulationScopeGoldenTests
+#pragma warning restore xUnit1056
     {
         private SqlServerEngine(TempSqlServerProject sql)
         {

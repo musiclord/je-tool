@@ -8,6 +8,7 @@ const path = require('node:path');
 const http = require('node:http');
 const vm = require('node:vm');
 const { dispatch } = require('../harness/frontend-preview/replay.js');
+const { checkResponse } = require('./support/action-contract.cjs');
 const { createServer, previewHtml, previewPort } = require('../harness/frontend-preview/server.cjs');
 const root = path.resolve(__dirname, '../..');
 const scenario = { name: 'Synthetic', groups: [{ rules: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '200' }] }] };
@@ -26,6 +27,14 @@ test('desktop preview configuration binds the same loopback port as its browser 
     assert.throws(() => previewPort(value));
   }
 });
+// 預覽自己寫死的回應（開啟 JET 時的連線檢查、目前使用者、本機案件清單）也要是正式後端會回的形狀（2026-10-15 前後端契合）。
+// 情境資料來自 C# 用正式後端產生的 fixtures.json，不在這裡核對。
+test('the preview fixed answers have the same shape as the real backend', () => {
+  for (const action of ['system.ping', 'system.databaseInfo', 'system.whoAmI', 'project.listLocal', 'project.heartbeat']) {
+    assert.doesNotThrow(() => checkResponse(action, dispatch(bundle, action, {})), action);
+  }
+});
+
 test('prepared action matches exactly; changes never receive a fabricated answer', () => {
   const payload = { populationScope: 'auditPeriod', scenario };
   assert.equal(dispatch(bundle, 'filter.preview', payload).scenario.count, 2);
