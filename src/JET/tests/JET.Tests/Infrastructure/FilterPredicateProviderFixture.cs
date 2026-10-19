@@ -76,17 +76,7 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
                 "SqlServerTheory reported an available SQL Server, but no test project could be created.");
         try
         {
-            // Fixture SQL is shared with SQLite/DuckDB. T-SQL needs Unicode literals for Chinese
-            // fixture text and project-schema qualification for every target table.
-            var transformed = Regex.Replace(
-                    fixtureSql,
-                    "'[^']*'",
-                    match => "N" + match.Value)
-                .Replace("INSERT INTO ", "INSERT INTO {s}.", StringComparison.Ordinal)
-                .Replace("UPDATE target_gl_entry", "UPDATE {s}.target_gl_entry", StringComparison.Ordinal)
-                // INSERT..SELECT 形式的 fixture（如 typed RDE 值以 source_row_number 對應 entry）
-                // 也要 schema 限定子查詢中的 target_gl_entry。
-                .Replace("FROM target_gl_entry", "FROM {s}.target_gl_entry", StringComparison.Ordinal);
+            var transformed = ToSqlServerFixtureSql(fixtureSql);
 
             await using (var connection = sqlServer.Database.CreateConnection(sqlServer.ProjectId))
             {
@@ -101,7 +91,7 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
             return new FilterPredicateProviderFixture(
                 sqlServer.ProjectId,
                 new SqlServerFilterRunRepository(sqlServer.Database),
-                sqlServer: sqlServer);
+                sqlServer: sqlServer) { Vouchers = new SqlServerFilterVoucherRepository(sqlServer.Database) };
         }
         catch
         {
@@ -109,6 +99,21 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
             throw;
         }
     }
+
+    /// <summary>
+    /// Fixture SQL is shared with SQLite/DuckDB. T-SQL needs Unicode literals for Chinese
+    /// fixture text and project-schema qualification for every target table.
+    /// </summary>
+    internal static string ToSqlServerFixtureSql(string fixtureSql) =>
+        Regex.Replace(
+                fixtureSql,
+                "'[^']*'",
+                match => "N" + match.Value)
+            .Replace("INSERT INTO ", "INSERT INTO {s}.", StringComparison.Ordinal)
+            .Replace("UPDATE target_gl_entry", "UPDATE {s}.target_gl_entry", StringComparison.Ordinal)
+            // INSERT..SELECT 形式的 fixture（如 typed RDE 值以 source_row_number 對應 entry）
+            // 也要 schema 限定子查詢中的 target_gl_entry。
+            .Replace("FROM target_gl_entry", "FROM {s}.target_gl_entry", StringComparison.Ordinal);
 
     public async ValueTask DisposeAsync()
     {

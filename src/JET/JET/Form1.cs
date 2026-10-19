@@ -22,6 +22,7 @@ namespace JET
         private bool _webViewUnresponsiveNoticeShown;
         internal const string WebViewInitializationFailureMessage =
             "JET 畫面無法啟動。請關閉後重新開啟 JET。";
+        internal const string WebViewInitializationFailureSource = "Form1.WebViewInitialization";
         internal const string WebViewProcessFailureMessage =
             "JET 畫面的程序已中止，進行中的作業會取消，視窗將關閉。請重新開啟 JET，並確認最近一次操作的結果；尚未儲存的畫面輸入不會保留。";
 
@@ -318,8 +319,11 @@ namespace JET
             {
                 await InitializeWebViewAsync();
             }
-            catch (Exception)
+            catch (Exception exception)
             {
+                // 接住的失敗不會進到全域例外後盾，這裡寫一筆到同一個檔案，事後才查得到原因
+                // （低嚴重度事項 E4，使用者 2026-10-19 要求處理）。
+                Program.FallbackLog?.Write(WebViewInitializationFailureSource, exception);
                 MessageBox.Show(
                     this,
                     WebViewInitializationFailureMessage,

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace JET.Domain;
 
 /// <summary>
@@ -25,8 +27,8 @@ internal static class ReportWorkbookMetadataInvariant
     public static void Validate(ReportWorkbookMetadata metadata)
     {
         ArgumentNullException.ThrowIfNull(metadata);
-        if (!DateOnly.TryParseExact(metadata.PeriodStart, "yyyy-MM-dd", out var start)
-            || !DateOnly.TryParseExact(metadata.PeriodEnd, "yyyy-MM-dd", out var end)
+        if (!DateOnly.TryParseExact(metadata.PeriodStart, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start)
+            || !DateOnly.TryParseExact(metadata.PeriodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end)
             || start > end)
         {
             throw new ArgumentException("Report workbook metadata 的期間不是正準 ISO date range。", nameof(metadata));

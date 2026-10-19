@@ -15,9 +15,9 @@ public sealed class QueryAccountMappingDifferencePageHandler(ProjectSession sess
             throw new JetActionException(JetErrorCodes.InvalidPayload, "科目清單種類無效，請選擇本案沒有的科目或配對檔未列的科目。");
         var cursor = PayloadReader.GetOptionalString(payload, "cursor");
         if (PageCursor.IsMalformed(cursor))
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "游標格式無效，請重新列出科目。");
+            throw new JetActionException(JetErrorCodes.InvalidPayload, "無法接續上一頁，請重新列出科目。");
         var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
-        var page = await repositories.AccountMappingDifferences.GetPageAsync(projectId, kind, new PageRequest(cursor, pageSize), cancellationToken);
+        var page = await repositories.AccountMappingDifferences.GetPageAsync(projectId, kind, new PageRequest(cursor, Math.Clamp(pageSize <= 0 ? 200 : pageSize, 1, 200), IncludeTotalCount: string.IsNullOrEmpty(cursor)), cancellationToken);
         return new
         {
             kind,

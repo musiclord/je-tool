@@ -39,6 +39,8 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
         CancellationToken cancellationToken)
     {
         ValidateBatchSources(sources);
+        // 和本機同一規則：呼叫端給的檔名只取最後一段（2026-10-19 跨資料庫一致性第二階段）。
+        sources = LocalImportRepository.NormalizeSources(sources);
         EnsureNamedColumnsMatchFirstSource(sources);
 
         await database.EnsureCreatedAsync(projectId, cancellationToken);
@@ -96,7 +98,8 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                 insertBatch.Transaction = transaction;
                 insertBatch.Parameters.AddWithValue("@batchId", batchId);
                 insertBatch.Parameters.AddWithValue("@kind", kindName);
-                insertBatch.Parameters.AddWithValue("@filePath", first.Source.FilePath);
+                // source_file_path 是舊欄名；和本機一樣只保存檔名，不在資料庫留下本機絕對路徑（2026-10-19 跨資料庫一致性第二階段）。
+                insertBatch.Parameters.AddWithValue("@filePath", first.Source.FileName);
                 insertBatch.Parameters.AddWithValue("@fileName", first.Source.FileName);
                 insertBatch.Parameters.AddWithValue("@importedUtc", batchImportedUtc.ToString("O"));
                 insertBatch.Parameters.AddWithValue(
@@ -252,6 +255,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
         CancellationToken cancellationToken)
     {
         ValidateBatchSources(sources);
+        sources = LocalImportRepository.NormalizeSources(sources);
         await database.EnsureCreatedAsync(projectId, cancellationToken);
         var importStopwatch = Stopwatch.StartNew();
         var kindName = kind.ToStorageName();
@@ -615,7 +619,8 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
         command.Transaction = transaction;
         command.Parameters.AddWithValue("@batchId", batchId);
         command.Parameters.AddWithValue("@sourceNo", sourceNo);
-        command.Parameters.AddWithValue("@filePath", source.FilePath);
+        // source_file_path 是舊欄名；和本機一樣只保存檔名，不在資料庫留下本機絕對路徑（2026-10-19 跨資料庫一致性第二階段）。
+        command.Parameters.AddWithValue("@filePath", source.FileName);
         command.Parameters.AddWithValue("@fileName", source.FileName);
         command.Parameters.AddWithValue("@sheetName", (object?)source.SheetName ?? DBNull.Value);
         command.Parameters.AddWithValue("@encoding", (object?)source.EncodingName ?? DBNull.Value);

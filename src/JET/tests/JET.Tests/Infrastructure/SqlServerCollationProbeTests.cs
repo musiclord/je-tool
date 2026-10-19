@@ -21,8 +21,9 @@ public sealed class SqlServerCollationProbeTests
     /// 守衛範圍誠實聲明：本探針只守「已登記的欄仍釘著 BIN2」——登記後拆釘會紅燈；
     /// 但「新增鍵欄且完全忘記登記」偵測不到（allow-list 的固有限制）。
     /// 新表入 SchemaSql 時，靠 code review 紀律把鍵欄同步登記於此。
-    /// 刻意不釘（純顯示／payload）欄不在此列：line_item、account_name、document_description、
-    /// source_module、day_name、mode_name、檔名路徑、*_json、app_message_log.*、config_filter_scenario.*。
+    /// 刻意不釘（純顯示／payload）欄不在此列：day_name、mode_name、檔名路徑、*_json、app_message_log.*、
+    /// config_filter_scenario.*。line_item、account_name、document_description 與 source_module 會被文字條件、
+    /// 排序與 MAX 用到，2026-10-19 第 14 版起固定 BIN2（跨資料庫一致性計畫第三節 F），一併登記在下面。
     /// </summary>
     private static readonly (string Table, string Column)[] PinnedKeyColumns =
     [
@@ -73,6 +74,13 @@ public sealed class SqlServerCollationProbeTests
         ("target_account_mapping", "standardized_category"),
         ("target_account_mapping", "category_id"),
         ("target_authorized_preparer", "name"),
+        ("target_gl_entry", "line_item"),
+        ("target_gl_entry", "account_name"),
+        ("target_gl_entry", "document_description"),
+        ("target_gl_entry", "source_module"),
+        ("target_tb_balance", "account_name"),
+        ("target_account_mapping", "account_name"),
+        ("result_inf_sampling_test_sample", "line_item"),
     ];
 
     [SqlServerFact]

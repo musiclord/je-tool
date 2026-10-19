@@ -6,24 +6,39 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
+// SQLite 與 DuckDB 每次 Public 都執行；SQL Server 版在 2026-10-19 依跨資料庫一致性計畫補上，只在 Provider 執行。
+// 三種資料庫比對同一組固定答案。
 public sealed class FilterSinglePurposeVoucherEquivalenceTests
 {
+    private const string Seed = """
+        INSERT INTO target_gl_entry(batch_id,source_row_number,document_number,line_item,post_date,
+          account_code,document_description,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_effective) VALUES
+        ('witness',1,'SPLIT','1','2025-01-01','A','X',10000,10000,0,'DEBIT',1),
+        ('witness',2,'SPLIT','2','2025-01-01','B','Y',-5000,0,5000,'CREDIT',1),
+        ('witness',3,'SPLIT','3','2025-01-01','C','X',-5000,0,5000,'CREDIT',1),
+        ('witness',4,'MATCH','1','2025-01-01','A','X',10000,10000,0,'DEBIT',1),
+        ('witness',5,'MATCH','2','2025-01-01','B','X',-10000,0,10000,'CREDIT',1),
+        ('witness',6,'NO','1','2025-01-01','A','X',10000,10000,0,'DEBIT',1);
+        """;
+
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
     public async Task SeparateVoucherWitnesses_KeepTheFixedAnswersAndExplainTheVoucherScope(string provider)
     {
-        const string seed = """
-            INSERT INTO target_gl_entry(batch_id,source_row_number,document_number,line_item,post_date,
-              account_code,document_description,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_effective) VALUES
-            ('witness',1,'SPLIT','1','2025-01-01','A','X',10000,10000,0,'DEBIT',1),
-            ('witness',2,'SPLIT','2','2025-01-01','B','Y',-5000,0,5000,'CREDIT',1),
-            ('witness',3,'SPLIT','3','2025-01-01','C','X',-5000,0,5000,'CREDIT',1),
-            ('witness',4,'MATCH','1','2025-01-01','A','X',10000,10000,0,'DEBIT',1),
-            ('witness',5,'MATCH','2','2025-01-01','B','X',-10000,0,10000,'CREDIT',1),
-            ('witness',6,'NO','1','2025-01-01','A','X',10000,10000,0,'DEBIT',1);
-            """;
-        await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, seed);
+        await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
+        await AssertSeparateVoucherWitnessesAsync(fixture);
+    }
+
+    [SqlServerFact]
+    public async Task SeparateVoucherWitnesses_KeepTheFixedAnswersAndExplainTheVoucherScope_SqlServer()
+    {
+        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(Seed);
+        await AssertSeparateVoucherWitnessesAsync(fixture);
+    }
+
+    private static async Task AssertSeparateVoucherWitnessesAsync(FilterPredicateProviderFixture fixture)
+    {
         const string anchor = """{"type":"fieldValue","field":"accNum","operator":"equals","value":"A"}""";
         const string account = """{"type":"fieldValue","field":"accNum","operator":"equals","value":"B"}""";
         const string description = """{"type":"fieldValue","field":"description","operator":"equals","value":"X"}""";

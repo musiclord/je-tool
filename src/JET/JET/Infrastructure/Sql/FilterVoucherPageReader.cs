@@ -48,6 +48,7 @@ internal static class FilterVoucherPageReader
                 + "CAST(COALESCE(SUM(debit_amount_scaled), 0) AS BIGINT) AS voucher_total "
                 + "FROM evaluated WHERE document_number IS NOT NULL GROUP BY document_number HAVING MAX(is_hit) = 1) v "
                 + "WHERE 1 = 1" + paging.Predicate + " " + paging.OrderBy + " " + dialect.LimitClause("@pageSize");
+            var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, dialect, ct, cte);
             var buffer = new KeysetPageBuffer<FilterVoucherSummary>();
             await using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
@@ -55,12 +56,12 @@ internal static class FilterVoucherPageReader
                     Convert.ToInt64(reader.GetValue(2)), Convert.ToInt64(reader.GetValue(3)), Convert.ToInt64(reader.GetValue(4))),
                     paging.HasSort ? reader.GetValue(5) : null);
             var page = buffer.ToPage(request, paging, static row => row.DocumentNumber);
-            return new(page.Rows, [], page.NextCursor);
+            return new(page.Rows, [], page.NextCursor, totalCount);
         }
         var afterKey = request.Cursor;
         long afterId = 0;
         if (afterKey is not null && (!long.TryParse(afterKey, NumberStyles.None, CultureInfo.InvariantCulture, out afterId) || afterId < 0))
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "分錄游標無效，請重新預覽。");
+            throw new JetActionException(JetErrorCodes.InvalidPayload, "無法接續上一頁，請重新預覽。");
         command.AddWithValue("@document", documentNumber);
         command.AddWithValue("@afterId", afterId);
         command.CommandText = cte + "SELECT e.entry_id,e.document_number,e.line_item,e.post_date,e.approval_date,"
@@ -69,6 +70,10 @@ internal static class FilterVoucherPageReader
             + "FROM evaluated e WHERE e.document_number = @document AND e.entry_id > @afterId "
             + "AND EXISTS (SELECT 1 FROM evaluated hit WHERE hit.document_number = e.document_number AND hit.is_hit = 1) "
             + "ORDER BY e.entry_id " + dialect.LimitClause("@pageSize");
+        var detailCount = await PageTotalCount.ReadAsync(command, request, cte
+            + (dialect is SqlServerDialect ? "SELECT COUNT_BIG(*) " : "SELECT COUNT(*) ")
+            + "FROM evaluated e WHERE e.document_number = @document "
+            + "AND EXISTS (SELECT 1 FROM evaluated hit WHERE hit.document_number = e.document_number AND hit.is_hit = 1)", ct);
         var details = new List<FilterVoucherDetail>();
         await using (var reader = await command.ExecuteReaderAsync(ct))
         {
@@ -90,6 +95,6 @@ internal static class FilterVoucherPageReader
         }
         var moreDetails = details.Count > size;
         if (moreDetails) details.RemoveAt(size);
-        return new([], details, moreDetails ? details[^1].EntryId.ToString(CultureInfo.InvariantCulture) : null);
+        return new([], details, moreDetails ? details[^1].EntryId.ToString(CultureInfo.InvariantCulture) : null, detailCount);
     }
 }

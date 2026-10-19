@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 using JET.Infrastructure;
 using JET.Tests.Infrastructure;
@@ -91,11 +92,17 @@ public sealed class DevDbReconcileHandlerTests
         Assert.Contains(zombieId, zombies);
     }
 
+    // 2026-10-14 起缺抽樣種子版本的案件一律視為舊版 JET 建立（InfSamplingPrf.ResolveSeed），本機與 SQL Server 登錄都照這條規則讀取；
+    // 這裡的測試案件原本沒有種子，被判成舊版而走不到要測的分支。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
     private static ProjectDocument Doc(string projectId) =>
         new(projectId, "REC", "對帳測試", "op", "2024-01-01", "2024-12-31", null,
             ProjectDocument.DefaultMoneyScale, ProjectDocument.DefaultRoundingMode,
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
-            CurrentStep: 1, ProjectDocument.CurrentSchemaVersion, ProjectDocument.SqlServerDatabaseProvider);
+            CurrentStep: 1, ProjectDocument.CurrentSchemaVersion, ProjectDocument.SqlServerDatabaseProvider)
+        {
+            SampleSeed = 1,
+            SampleSeedVersion = JetAuditProgram.CurrentInfSamplingAlgorithmVersion
+        };
 
     private static async Task WriteLocalSqlServerProjectJsonAsync(string projectsRoot, string projectId)
     {
@@ -115,7 +122,9 @@ public sealed class DevDbReconcileHandlerTests
               "createdUtc": "2026-06-01T00:00:00+00:00",
               "currentStep": 1,
               "schemaVersion": 1,
-              "databaseProvider": "sqlServer"
+              "databaseProvider": "sqlServer",
+              "sampleSeed": 1,
+              "sampleSeedVersion": 2
             }
             """);
     }

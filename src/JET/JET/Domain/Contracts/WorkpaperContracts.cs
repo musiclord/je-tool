@@ -83,6 +83,18 @@ public sealed record CreatorSummaryExportRow(
     long CreditTotalScaled);
 
 /// <summary>
+/// 編製人員彙總的顯示名稱：建立人員空白的那一組，預篩選報告、工作底稿 Step 1-2 與畫面一律寫「（空白）」
+/// （低嚴重度事項 D2，使用者 2026-10-19 要求處理；畫面在 validate-step.js 與 overview-bi.js 用同一個詞）。
+/// </summary>
+public static class CreatorSummaryDisplay
+{
+    public const string BlankLabel = "（空白）";
+
+    public static string NameOf(string? createdBy) =>
+        string.IsNullOrWhiteSpace(createdBy) ? BlankLabel : createdBy;
+}
+
+/// <summary>
 /// 不截斷的全編製人員彙總查詢(匯出底稿 step1-2)。鏡射既有 prescreen creator 彙總 SQL 但去掉 LIMIT 50:
 /// step1-2 要列出每一位編製人員。distinct created_by 基數有界(人員數 + 自動拋轉傳票類型,實務數十~數百),
 /// 故回完整清單即可、**不需分頁**——對有界基數加分頁是過度工程化。

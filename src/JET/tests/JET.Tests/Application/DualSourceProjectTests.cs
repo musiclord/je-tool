@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 using JET.Infrastructure;
 using JET.Tests.Infrastructure;
@@ -25,11 +26,17 @@ public sealed class DualSourceProjectTests
           "periodStart": "2024-01-01", "periodEnd": "2024-12-31", "databaseProvider": "sqlServer" }
         """;
 
+    // 2026-10-14 起缺抽樣種子版本的案件一律視為舊版 JET 建立（InfSamplingPrf.ResolveSeed），本機與 SQL Server 登錄都照這條規則讀取；
+    // 這裡的測試案件原本沒有種子，被判成舊版而走不到要測的分支。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
     private static ProjectDocument SqlServerDoc(string projectId, string code = "SRV-CODE") =>
         new(projectId, code, "線上實體", "op", "2024-01-01", "2024-12-31", null,
             ProjectDocument.DefaultMoneyScale, ProjectDocument.DefaultRoundingMode,
             new DateTimeOffset(2026, 3, 3, 0, 0, 0, TimeSpan.Zero),
-            CurrentStep: 1, ProjectDocument.CurrentSchemaVersion, ProjectDocument.SqlServerDatabaseProvider);
+            CurrentStep: 1, ProjectDocument.CurrentSchemaVersion, ProjectDocument.SqlServerDatabaseProvider)
+        {
+            SampleSeed = 1,
+            SampleSeedVersion = JetAuditProgram.CurrentInfSamplingAlgorithmVersion
+        };
 
     private static SqlServerProjectRegistry RegistryFor(string conn) =>
         new(new SqlServerConnectionOptions(conn, SingleDb));
@@ -221,7 +228,9 @@ public sealed class DualSourceProjectTests
             () => host.DispatchAsync("project.load", $$"""{ "projectId": "{{name}}" }"""));
 
         Assert.Equal(JetErrorCodes.ProjectNotFound, ex.Code);
-        Assert.Contains("已不在伺服器上", ex.Message);
+        // 畫面用字在 803d538（KCT 驗收回饋修正）改成「已不在 SQL Server 上」，SQL Server 開發暫緩時這項斷言沒有跟著改。
+        // 第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
+        Assert.Contains("已不在 SQL Server 上", ex.Message);
     }
 
     [SqlServerFact]
@@ -276,7 +285,9 @@ public sealed class DualSourceProjectTests
                     "project.load", $$"""{ "projectId": "{{name}}", "databaseProvider": "sqlServer" }"""));
 
             Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-            Assert.Contains("本地已有同名案件", ex.Message);
+            // 畫面用字在 803d538（KCT 驗收回饋修正）由「本地」統一為「本機」；SQL Server 開發暫緩，這項斷言當時沒有跟著改。
+            // 第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
+            Assert.Contains("本機已有同名案件", ex.Message);
             Assert.Null(ex.Field);
         }
         finally
@@ -559,7 +570,9 @@ public sealed class DualSourceProjectTests
               "createdUtc": "2026-06-01T00:00:00+00:00",
               "currentStep": 1,
               "schemaVersion": 1,
-              "databaseProvider": "sqlServer"
+              "databaseProvider": "sqlServer",
+              "sampleSeed": 1,
+              "sampleSeedVersion": 2
             }
             """);
     }

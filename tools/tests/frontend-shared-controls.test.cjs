@@ -52,6 +52,33 @@ test('section 9 E: native date hints do not promise pasted formats outside the l
   assert.match(list.$('.value-editor').textContent, /Excel 序列值.*民國年/);
 });
 
+// 低嚴重度事項 F09（使用者 2026-10-19 要求處理）：日期清單的 Excel 序列值和後端 DateNormalizer 一樣，換算後只接受 1900 到 2100 年；
+// 範圍外的數字保留原文送出，由後端寫出格式錯誤。
+test('date lists convert Excel serials only within the backend year range', () => {
+  const rule = { type: 'fieldValue', field: 'postDate', operator: 'in', values: ['45292', '2', '73415', '1', '73416', '240115'] };
+  const f = dateFixture(rule);
+  assert.deepEqual(plain(f.window.JetUi.FilterValues.wire(rule, f.store.getState()).values),
+    ['2024-01-01', '1900-01-01', '2100-12-31', '1', '73416', '240115']);
+});
+
+// 使用者 2026-10-19 裁定：帶千分位的數字視為無法辨識的日期，和後端相同不當序列值換算，保留原文送出。
+test('date lists keep numbers with thousands separators as typed', () => {
+  const rule = { type: 'fieldValue', field: 'postDate', operator: 'in', values: ['1,234', '45,292', '45292'] };
+  const f = dateFixture(rule);
+  assert.deepEqual(plain(f.window.JetUi.FilterValues.wire(rule, f.store.getState()).values),
+    ['1,234', '45,292', '2024-01-01']);
+});
+
+// 使用者 2026-10-19 裁定「視為無法辨識的日期」：沒有四位數年份或沒有日的寫法，前端不自行補齊，保留原文送出，
+// 由後端逐值寫出無法辨識；寫出年份與日的英文寫法也原樣交給後端判斷。
+test('date lists keep incomplete dates as typed for the backend to reject', () => {
+  const rule = { type: 'fieldValue', field: 'postDate', operator: 'in', values: ['12/31', 'Dec 2025', '2025-12', 'June 11, 2025'] };
+  const f = dateFixture(rule);
+  assert.deepEqual(plain(f.window.JetUi.FilterValues.wire(rule, f.store.getState()).values),
+    ['12/31', 'Dec 2025', '2025-12', 'June 11, 2025']);
+  assert.equal(f.window.JetUi.FilterValues.problem(rule, f.store.getState()), '');
+});
+
 test('section 9 E: the legacy date range shares the same controls', () => {
   const f = dateFixture({ type: 'dateRange', field: 'postDate', from: '2025-01-01', to: '2025-01-31' });
   for (const key of ['from', 'to']) assert.ok(f.$('[data-rule-bind="' + key + '"]').classList.contains('date-input'));

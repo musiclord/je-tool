@@ -294,8 +294,10 @@ public sealed class WorkpaperProgramTests
         Assert.Equal(
             "查核期間內（2025-01-01 ~ 2025-12-31）之會計分錄",
             Sheet(finalized, WorkpaperSheetCatalog.Step3).AuditCondition);
+        // 使用者 2026-10-19 裁定刪掉方法說明裡的「專案」，畫面與底稿統一用「案件」或直接寫查核期間。
+        // 首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；仍逐字比對整句。
         Assert.Contains(
-            "本次高風險條件以專案查核期間內的會計分錄為母體；查核期間外與無有效總帳日期之列不納入本版情境命中與矩陣。",
+            "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與無有效總帳日期之列不納入本版情境命中與矩陣。",
             Sheet(finalized, WorkpaperSheetCatalog.Step3).Methodology);
         Assert.Equal(
             "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)",

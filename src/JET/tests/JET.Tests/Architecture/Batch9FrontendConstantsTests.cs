@@ -39,26 +39,30 @@ public sealed class Batch9FrontendConstantsTests
     }
 
     [Fact]
-    public void PagingFifties_AreNamedByPurposeWithoutChangingTheTwoHundredRowQueryDefault()
+    public void PagingLimits_KeepSummaryLimitsSeparateFromTwoHundredRowTables()
     {
         var core = Read("JET", "wwwroot", "js", "ui-core.js");
         // 工作底稿版本紀錄改用具名的 REPORT_HISTORY_PAGE_SIZE，仍固定 50 份；首次失敗：20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6
         // （原寫在已刪除的 WorkpaperSheetMirrorTests.WorkpaperHistory_DoesNotReplaceCurrentCompletionEvidence，2026-10-14 搬來）。
         // 第六步實際一頁 50 份由 tools/tests/frontend-journey-tables.test.cjs 與 frontend-workflow.test.cjs 的 batch9 report history 測試核對。
-        foreach (var key in new[] { "RESULT_PREVIEW_PAGE_SIZE", "REPORT_HISTORY_PAGE_SIZE", "DEV_TABLE_PAGE_SIZE", "VALUE_PROFILE_LIMIT" })
+        foreach (var key in new[] { "RESULT_PREVIEW_PAGE_SIZE", "REPORT_HISTORY_PAGE_SIZE", "VALUE_PROFILE_LIMIT" })
         {
             Assert.Equal(50, NumericConstant(core, key));
             Assert.Contains(key + ": " + key, core, StringComparison.Ordinal);
         }
         // These are actual endpoint defaults, not inferred from a matching-looking frontend literal.
         Assert.Equal(50, HandlerDefault(typeof(MappingValueProfileHandler)));
-        Assert.Equal(50, HandlerDefault(typeof(QueryDataPreviewHandler)));
+        // 使用者 2026-10-16 要求明細與欄位配對每頁最多 200 筆；驗證摘要及欄位值取樣的 50 筆設定不變。
+        // 第一次失敗：20261016-093839202-e342e301c3f14aa2ae0b43abe98a30ed。
+        Assert.Equal(200, HandlerDefault(typeof(QueryDataPreviewHandler)));
+        Assert.Equal(200, NumericConstant(core, "TABLE_PAGE_SIZE"));
+        Assert.Contains("TABLE_PAGE_SIZE: TABLE_PAGE_SIZE", core, StringComparison.Ordinal);
         Assert.Equal(50, HandlerDefault(typeof(DevDbTableDataHandler)));
         Assert.Equal(200, PageRequest.DefaultPageSize);
         Assert.Equal(500, PageRequest.MaxPageSize);
-        // 2026-10-14 從 PagingConsumers_UseTheMatchingSharedUiConstant 原樣搬來。開發者面板不是審計員畫面，不寫情境行為測試；
-        // 其他畫面的一頁 50 筆已由 tools/tests/frontend-journey-tables.test.cjs 以實際送出的請求測過。
-        Assert.Contains("limit: Ui.DEV_TABLE_PAGE_SIZE", Read("JET", "wwwroot", "js", "dev-panel.js"), StringComparison.Ordinal);
+        // 開發者表格也明示每頁 200 筆，省略 limit 的後端相容預設仍為 50。
+        // 第一次失敗：20261016-094045942-99a1634b315f4241bf92408a1a7da5d6。
+        Assert.Contains("limit: Ui.TABLE_PAGE_SIZE", Read("JET", "wwwroot", "js", "dev-panel.js"), StringComparison.Ordinal);
     }
 
     [Fact]

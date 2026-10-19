@@ -51,7 +51,10 @@ public sealed class SqliteDialect : IProviderSqlDialect
     }
 
     public string ContainsIgnoreCase(string columnExpr, string parameterName) =>
-        $"instr(UPPER(COALESCE({columnExpr}, '')), {parameterName}) > 0";
+        $"instr({Upper($"COALESCE({columnExpr}, '')")}, {parameterName}) > 0";
+
+    // SqliteProjectDatabase 開啟連線時把 upper 換成 .NET ToUpperInvariant()。
+    public string Upper(string expr) => $"UPPER({expr})";
 
     public string Trim(string expr) => $"TRIM({expr}, {SqlWhitespaceList.Sqlite})";
 
@@ -105,7 +108,10 @@ public sealed class DuckDbDialect : IProviderSqlDialect
     }
 
     public string ContainsIgnoreCase(string columnExpr, string parameterName) =>
-        $"instr(UPPER(COALESCE({columnExpr}, '')), {parameterName}) > 0";
+        $"instr({Upper($"COALESCE({columnExpr}, '')")}, {parameterName}) > 0";
+
+    // DuckDbInvariantUpper 在連線開啟時把 upper 換成 .NET ToUpperInvariant()。
+    public string Upper(string expr) => $"UPPER({expr})";
 
     public string Trim(string expr) => $"TRIM({expr}, {SqlWhitespaceList.DuckDb})";
 
@@ -152,14 +158,23 @@ public sealed class SqlServerDialect : IProviderSqlDialect
 
         // 錨點(1900-01-01,週一)起天數模 7:週一=0…週六=5、週日=6。
         // canonical(.NET DayOfWeek,週日=0…週六=6)→ 此編碼為 (d + 6) % 7。
+        // 1900 年以前天數為負，T-SQL 的 % 保留被除數正負號，所以先加 7 再取一次餘數，結果固定在 0 到 6。
         var list = string.Join(", ", nonWorkingDays.Select(d => (d + 6) % 7).OrderBy(m => m));
-        return $"(DATEDIFF(day, '19000101', CONVERT(date, {dateExpr})) % 7) IN ({list})";
+        return $"((DATEDIFF(day, '19000101', CONVERT(date, {dateExpr})) % 7 + 7) % 7) IN ({list})";
     }
 
     public string ContainsIgnoreCase(string columnExpr, string parameterName) =>
-        $"CHARINDEX({parameterName}, UPPER(COALESCE({columnExpr}, N''))) > 0";
+        $"CHARINDEX({parameterName}, {Upper($"COALESCE({columnExpr}, N'')")}) > 0";
 
-    // TRIM(characters FROM string) 需要相容性層級 140 以上（SQL Server 2017）；值概況查詢已用同一寫法。只經編譯，未實機驗證。
+    // 文字欄固定 Latin1_General_BIN2，它的大小寫對照表較舊，和 .NET 有 546 個字元不同；轉大寫時改用
+    // Latin1_General_100_BIN2，降到 308 個罕用字元（使用者 2026-10-19 裁定，跨資料庫一致性計畫第三節 D）。
+    // 兩種定序都依字元碼比較，欄位本身的比較與排序不受影響。
+    public string Upper(string expr) => $"UPPER(({expr}) COLLATE Latin1_General_100_BIN2)";
+
+    // TRIM(characters FROM string) 需要相容性層級 140 以上（SQL Server 2017）；值概況查詢已用同一寫法。
+    // 2026-10-19 在本機 SQL Server 2022（相容性層級 160）的 Provider 執行過：KctReadyPredicateProviderTests 與
+    // FilterSinglePurposeEquivalenceTests 的 SQL Server 版只用半形空白核對修剪結果；全形空白、不換行空格與 Tab
+    // 只有 SQLite 與 DuckDB 的 WhitespaceAndCaseConsistencyTests 核對。
     public string Trim(string expr) => $"TRIM({SqlWhitespaceList.SqlServer} FROM {expr})";
 
     public string IntegerQuotient(string dividendExpression, string divisorExpression) =>

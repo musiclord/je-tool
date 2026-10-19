@@ -417,7 +417,7 @@ public sealed partial class LegacyReportWriter
                 cells.SetInlineString("E2", $"Year End: {context.Project.PeriodEnd}");
                 cells.Clear("E3");
                 cells.SetInlineString("E4", $"Prepared by: {operatorId}");
-                cells.SetInlineString("E5", $"Prepared date: {context.GeneratedUtc:yyyy/MM/dd}");
+                cells.SetInlineString("E5", string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.GeneratedUtc:yyyy/MM/dd}"));
                 cells.SetInlineString("E9", glBatch is null
                     ? "N/A"
                     : Path.GetFileName(glBatch.SourceFileName));

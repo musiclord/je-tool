@@ -32,7 +32,7 @@ internal static class CompletenessAccountPageQuery
     /// <param name="differencesOnly">差異表只列有差異的科目；全科目表列出全部。</param>
     public static string Sql(string diffCte, bool differencesOnly, KeysetPagePlan paging, ISqlDialect dialect) =>
         diffCte + OrderedCte +
-        "\nSELECT account_code, account_name, tb_s, gl_s, tb_s - gl_s, not_in_tb, page_row" + paging.SelectSuffix + " " +
+        "\nSELECT account_code, account_name, tb_s, gl_s, tb_s - gl_s AS difference_amount, not_in_tb, page_row" + paging.SelectSuffix + " " +
         "FROM ordered WHERE " + (differencesOnly ? "tb_s <> gl_s" : "1 = 1") + paging.Predicate + " " +
         paging.OrderBy + " " + dialect.LimitClause("@pageSize") + ";";
 
@@ -47,8 +47,9 @@ internal static class CompletenessAccountPageQuery
     }
 
     public static async Task<PageResult<CompletenessDiffAccount>> ReadAsync(
-        DbCommand command, KeysetPagePlan paging, PageRequest request, CancellationToken cancellationToken)
+        DbCommand command, KeysetPagePlan paging, PageRequest request, CancellationToken cancellationToken, ISqlDialect dialect, string diffCte)
     {
+        var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, dialect, cancellationToken, diffCte + OrderedCte);
         var buffer = new KeysetPageBuffer<(CompletenessDiffAccount Row, long PageRow)>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -67,6 +68,6 @@ internal static class CompletenessAccountPageQuery
         var page = buffer.ToPage(request, paging, static item => item.PageRow);
         return new PageResult<CompletenessDiffAccount>(
             page.Rows.Select(static item => item.Row).ToArray(),
-            page.NextCursor);
+            page.NextCursor, totalCount);
     }
 }

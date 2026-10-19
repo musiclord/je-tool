@@ -143,11 +143,14 @@ public sealed class TypedFieldRuleValidationTests
         // 2026-10-03 主線裁定 T9：指名改用欄位顯示名稱與比較方式名稱，不顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         var errors = Validate(TypedRule(fieldId, op, value: "2025-01-01", amountBasis: null));
         var label = fieldId == TextFieldId ? "備註" : fieldId == DateFieldId ? "審核日" : "稅額";
+        var setting = fieldId == TextFieldId ? "文字" : fieldId == DateFieldId ? "日期" : "金額";
 
         var error = Assert.Single(errors);
         // 使用者 2026-10-13 勾選頁確認（文字批次 C）：改鎖確認後的整句，仍指名欄位與比較方式。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 使用者 2026-10-19 裁定改用具體說法：寫出欄位目前設定成文字、日期或金額，不用「型別」。
+        // 首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；仍鎖整句，指名欄位、設定與比較方式。
         Assert.Equal(
-            "第 1 組第 1 條：「" + label + "」目前的型別不適用「" + FilterConditionLabels.TypedOperatorLabel(op) + "」",
+            "第 1 組第 1 條：「" + label + "」目前設定為" + setting + "，不能用「" + FilterConditionLabels.TypedOperatorLabel(op) + "」比較",
             error);
         Assert.DoesNotContain(fieldId, error, StringComparison.Ordinal);
     }

@@ -42,6 +42,7 @@ public sealed class QueryNullRecordsPageHandler(
                 postDate = r.PostDate,
                 description = r.Description
             }).ToArray(),
+            totalCount = page.TotalCount,
             nextCursor = page.NextCursor
         };
     }

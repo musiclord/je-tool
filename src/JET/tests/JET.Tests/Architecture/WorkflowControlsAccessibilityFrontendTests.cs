@@ -85,8 +85,11 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         var treeStart = core.IndexOf("function taxonomyTreeHtml(", StringComparison.Ordinal);
         Assert.True(treeStart >= 0 && treeStart < pickerStart);
         var tree = core[treeStart..pickerStart];
-        Assert.Contains("aria-label=\"展開或收合", tree, StringComparison.Ordinal);
-        Assert.Contains("aria-expanded=\"' + open + '\"", tree, StringComparison.Ordinal);
+        // 使用者 2026-10-19 要求同功能元件只留一套：展開按鈕改用共用的 disclosureAttributes，名稱改說是哪一類的下層分類。
+        // 首次失敗：20261019-102446198-5198acd5b7e747feae8ed16dcfac32a3；仍檢查名稱及展開狀態。
+        Assert.Contains("aria-label=\"' + esc(category.label) + '的下層分類\"' +", tree, StringComparison.Ordinal);
+        Assert.Contains("disclosureAttributes(open) + '></button>'", tree, StringComparison.Ordinal);
+        Assert.Contains("return ' aria-expanded=\"' + (open ? 'true' : 'false') + '\"'", core, StringComparison.Ordinal);
     }
 
     [Fact]

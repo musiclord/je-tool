@@ -45,6 +45,7 @@ public sealed class LocalNullRecordsPageRepository(ILocalProjectDatabase databas
             "WHERE " + predicate + paging.Predicate + " " +
             paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
+        var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, database.Dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<NullRecordRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -52,6 +53,6 @@ public sealed class LocalNullRecordsPageRepository(ILocalProjectDatabase databas
             buffer.Add(NullRecordRowMapper.MapRow(reader, category), paging.HasSort ? reader.GetValue(5) : null);
         }
 
-        return buffer.ToPage(request, paging, static row => row.EntryId);
+        return buffer.ToPage(request, paging, static row => row.EntryId, totalCount);
     }
 }

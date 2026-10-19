@@ -202,7 +202,8 @@ test('data preview fixture runs the real panel: loading on entry and the other-d
   const f = support.dataPreviewFixture();
   assert.equal(f.requests.length, 0, 'nothing loads before a case is open');
   f.enterWorkflow(); await settle();
-  assert.deepEqual(plain(f.requests.map(request => [request.action, request.payload])), [['queryDataPreview', { dataset: 'pbcGl' }]]);
+  // 2026-10-16：所有來源預覽改為 200 筆有界分頁，首次請求明確送出 offset 0。
+  assert.deepEqual(plain(f.requests.map(request => [request.action, request.payload])), [['queryDataPreview', { dataset: 'pbcGl', limit: 200, offset: 0 }]]);
   assert.equal(f.body().getAttribute('aria-busy'), 'true');
   f.request('queryDataPreview').resolve({ columns: ['Doc'], rows: [['JV-1']], totalCount: 1 }); await settle();
   assert.notEqual(f.body().getAttribute('aria-busy'), 'true');

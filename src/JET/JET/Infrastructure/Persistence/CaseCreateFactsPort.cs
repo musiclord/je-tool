@@ -58,7 +58,7 @@ internal sealed class CaseCreateFactsPort(
                 JetErrorCodes.InvalidPayload,
                 plan.HasUserSuppliedCaseName
                     ? $"案件位置已有名為「{exception.ProjectId}」的資料夾，請改用其他案件名稱，或先刪除該資料夾。"
-                    : $"產生的專案識別碼『{exception.ProjectId}』已存在，請重新建立案件。",
+                    : $"系統自動產生的案件名稱「{exception.ProjectId}」已被使用，請重新建立案件。",
                 plan.HasUserSuppliedCaseName ? JetErrorFields.CaseName : null);
         }
         try

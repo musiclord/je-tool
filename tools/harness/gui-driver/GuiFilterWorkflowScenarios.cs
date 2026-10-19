@@ -46,7 +46,7 @@ internal static partial class GuiScenarios
         Task Click(string selector) => ClickControlAsync(cdp, process, selector, outcome, ct);
         Task Choose(string selector, string value) => ChooseOptionAsync(cdp, process, selector, value, outcome, ct);
         Task Check(string expression) => WaitForProbeAsync(cdp, process,
-            "(function(){ var state=window.JetStore.getState(), draft=state.filter.draft, saved=state.filter.savedScenarios, preview=state.filter.preview; return {viewport:[innerWidth,innerHeight],pixelRatio:devicePixelRatio,busyLabel:state.busyLabel,idle:!state.busy, ok:!!(" + expression + "), matrixVoucherRows:document.querySelectorAll('[data-bind=matrix-vouchers] tbody tr').length, matrixRowRows:document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length, matrixReady:!!document.querySelector('[data-bind=matrix-body][data-loaded]'), pairWidths:Array.from(document.querySelectorAll('.filter-account-pair .category-select')).map(e=>[e.clientWidth,e.scrollWidth]), dateOperator:draft.groups.flatMap(g=>g.rules).find(r=>r.type==='fieldValue')?.operator, matrixHasNames:!!document.querySelector('[data-bind=matrix-vouchers] .filter-matrix-name'), active:{tag:document.activeElement?.tagName,cls:document.activeElement?.className,inControls:!!document.activeElement?.closest('.rule-row__controls')}, selectedRows:Array.from(document.querySelectorAll('.rule-row--selected')).map(e=>({text:e.querySelector('.filter-rule-selected')?.textContent,containsActive:e.contains(document.activeElement),top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom})),workbenchColumns:document.querySelector('.filter-workbench')?getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns:null,draftRules:draft.groups.map(g=>g.rules.map(r=>({type:r.type,field:r.field,operator:r.operator}))),openCheckCategory:document.querySelector('[data-check-category][aria-expanded=true]')?.dataset.checkCategory}; })()",
+            "(function(){ var state=window.JetStore.getState(), draft=state.filter.draft, saved=state.filter.savedScenarios, preview=state.filter.preview; return {viewport:[innerWidth,innerHeight],pixelRatio:devicePixelRatio,busyLabel:state.busyLabel,idle:!state.busy, ok:!!(" + expression + "), matrixVoucherRows:document.querySelectorAll('[data-bind=matrix-vouchers] tbody tr').length, matrixScenarioTables:document.querySelectorAll('[data-bind=matrix-scenarios] table').length, matrixReady:!!document.querySelector('[data-bind=matrix-body][data-loaded]'), pairWidths:Array.from(document.querySelectorAll('.filter-account-pair .category-select')).map(e=>[e.clientWidth,e.scrollWidth]), dateOperator:draft.groups.flatMap(g=>g.rules).find(r=>r.type==='fieldValue')?.operator, matrixHasNames:!!document.querySelector('[data-bind=matrix-vouchers] .filter-matrix-name'), active:{tag:document.activeElement?.tagName,cls:document.activeElement?.className,inControls:!!document.activeElement?.closest('.rule-row__controls')}, selectedRows:Array.from(document.querySelectorAll('.rule-row--selected')).map(e=>({text:e.querySelector('.filter-rule-selected')?.textContent,containsActive:e.contains(document.activeElement),top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom})),workbenchColumns:document.querySelector('.filter-workbench')?getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns:null,draftRules:draft.groups.map(g=>g.rules.map(r=>({type:r.type,field:r.field,operator:r.operator}))),openCheckCategory:document.querySelector('[data-check-category][aria-expanded=true]')?.dataset.checkCategory}; })()",
             value => value, value => ReadBoolean(value,"idle") && ReadBoolean(value,"ok"), "filter_workflow_failed", ct,
             value => outcome.LastFilterProbe = value.Clone());
         async Task Fill(string selector, string value)
@@ -97,7 +97,8 @@ internal static partial class GuiScenarios
         {
             await Click("[data-filter-pane-select=\"saved\"]");
             var beforeHeight = await cdp.EvaluateAsync($"document.querySelector('.saved-scenario:nth-of-type({index + 1})').getBoundingClientRect().height", ct);
-            await Click($".saved-scenario:nth-of-type({index + 1}) .filter-saved-actions summary");
+            // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗收據 20261019-163612298-38cf234cbaa34b94b26c2d5cd86e20ef）。
+            await Click($".saved-scenario:nth-of-type({index + 1}) .jet-menu__toggle");
             await Check($"Math.abs(document.querySelector('.saved-scenario:nth-of-type({index + 1})').getBoundingClientRect().height-{beforeHeight.GetRawText()})<0.5");
             await Click($"[data-action=\"edit-scenario\"][data-index=\"{index}\"]");
             await ContinueWithoutSavingIfAskedAsync(cdp, Click, ct);
@@ -165,11 +166,11 @@ internal static partial class GuiScenarios
             await Click("[data-action=\"cancel-edit-scenario\"]");
             await Check("saved[1].groups.length===1 && saved[1].groups[0].rules[1].type==='group' && saved[0].source==='kct' && !saved[0].editorOrigins");
             await Click("[data-filter-pane-select=\"saved\"]");
-            await Click(".saved-scenario:nth-of-type(1) .filter-saved-actions summary");
+            await Click(".saved-scenario:nth-of-type(1) .jet-menu__toggle");
             await Click("[data-action=\"remove-scenario\"][data-index=\"0\"]");
             await Click("[data-action=\"cancel-remove-scenario\"][data-index=\"0\"]");
             await Check("saved.length===2 && document.activeElement.dataset.action==='toggle-scenario' && document.activeElement.dataset.index==='0'");
-            await Click(".saved-scenario:nth-of-type(1) .filter-saved-actions summary");
+            await Click(".saved-scenario:nth-of-type(1) .jet-menu__toggle");
             await Click("[data-action=\"remove-scenario\"][data-index=\"0\"]");
             await Click("[data-action=\"confirm-remove-scenario\"][data-index=\"0\"]");
             await Check("saved.length===1 && saved[0].groups.length===1 && saved[0].groups[0].rules[1].type==='group' && document.activeElement.dataset.action==='toggle-scenario' && document.activeElement.dataset.index==='0'");
@@ -193,7 +194,10 @@ internal static partial class GuiScenarios
             // 介面改版後控制項變大，最小視窗（125% 縮放約 806×481）排不下同一行，文字框換到選單下一行（2026-10-14 實測，
             // 第一次失敗收據 20261014-062933505-e5cb6897255c4899a5d30c44559f2a41）。同一行時仍要和選單垂直置中，
             // 換行時要從條件控制項的同一條左緣開始；兩種排法都只有一行高。
-            await Check("(()=>{var area=document.querySelector('textarea.value-editor__list'),t=area.getBoundingClientRect(),s=document.querySelector('[data-value-kind]').getBoundingClientRect(),c=area.closest('.rule-row').querySelector('.rule-row__controls').getBoundingClientRect();var sameLine=Math.abs((t.top+t.bottom-s.top-s.bottom)/2)<1,below=t.top>=s.bottom && Math.abs(t.left-c.left)<1;return (sameLine||below) && t.height<=40;})()");
+            // 使用者 2026-10-16 指出輸入後突然撐高很突兀（資料表分頁與 Agent 文件整理計畫），值清單改成固定五行高（114px）、
+            // 獨占一列放在選單下方，原本「只有一行高」的檢查跟著改成核對這個排法與固定高度
+            // （第一次失敗收據 20261019-165252976-e36e0d435f404068a514af791647859b，卡在高度不超過 40px）。
+            await Check("(()=>{var area=document.querySelector('textarea.value-editor__values'),t=area.getBoundingClientRect(),s=document.querySelector('[data-value-kind]').getBoundingClientRect(),c=area.closest('.rule-row').querySelector('.rule-row__controls').getBoundingClientRect();return t.top>=s.bottom && Math.abs(t.left-c.left)<1 && Math.abs(t.height-114)<1;})()");
             await Choose(".rule-row [data-value-polarity]", "exclude");
             await Check("draft.groups[0].rules[0].operator==='notContains' && draft.groups[0].rules[0].values[0]==='SYNTHETIC'");
             await Choose(".rule-row [data-value-kind]", "exact");
@@ -201,7 +205,7 @@ internal static partial class GuiScenarios
             // 移除正在編輯的保存情境，兩個頁籤必須同步；原本獨立的新草稿已在前段驗證保留。
             await Edit(0);
             await Click("[data-filter-pane-select=saved]");
-            await Click(".saved-scenario .filter-saved-actions summary");
+            await Click(".saved-scenario .jet-menu__toggle");
             await Click("[data-action=remove-scenario][data-index='0']");
             await Click("[data-action=confirm-remove-scenario][data-index='0']");
             await Check("saved.length===0 && draft.groups.length===0 && draft.name==='' && !preview && draft.__editingIndex===undefined");
@@ -304,12 +308,15 @@ internal static partial class GuiScenarios
             await Click("[data-matrix-view=\"vouchers\"]");
             outcome.RecordStage("matrix-vouchers");
             await Check("document.querySelector('[data-bind=matrix-vouchers] tbody tr') && document.querySelector('[data-bind=matrix-scenarios]').hidden && document.querySelector('[data-bind=matrix-vouchers] .filter-matrix-name').textContent===saved[0].name");
-            await Click("[data-matrix-view=\"rows\"]");
-            await Check("document.querySelector('[data-bind=matrix-rows] tbody tr') && document.querySelector('[data-bind=matrix-vouchers]').hidden");
-            await FindControlPointAsync(cdp,process,"[data-matrix-view=\"rows\"]",ct);
+            // 使用者 2026-10-16 裁定移除矩陣的「分錄明細」頁（資料表分頁與 Agent 文件整理計畫），這段原本切到那一頁並核對它的表格。
+            // 改成切回「符合條件摘要」，核對兩個頁籤來回切換與點擊位置，並確認分錄明細頁已不存在
+            // （第一次失敗收據 20261019-162920500-452807ceeed9432b9c6b146b202fa0be，卡在找不到分錄明細頁籤）。
+            await Click("[data-matrix-view=\"scenarios\"]");
+            await Check("document.querySelector('[data-bind=matrix-scenarios] table') && !document.querySelector('[data-bind=matrix-scenarios]').hidden && document.querySelector('[data-bind=matrix-vouchers]').hidden && !document.querySelector('[data-matrix-view=rows]') && !document.querySelector('[data-bind=matrix-rows]')");
+            await FindControlPointAsync(cdp,process,"[data-matrix-view=\"scenarios\"]",ct);
             await Click("[data-action=\"export-criteria-report\"]");
             await Check("state.reportArtifacts.some(a=>a.kind==='criteriaSelectionReport' && !a.stale && a.sourceRef.scenarioRevision===state.filterResultRef.revision && a.sourceRef.validationRunId===state.lastRuns.validate.resultRef.runId)");
-            await Check("document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length>0 && !document.querySelector('[data-bind=matrix-rows]').hidden");
+            await Check("document.querySelector('[data-bind=matrix-scenarios] table') && !document.querySelector('[data-bind=matrix-scenarios]').hidden");
             // 人工驗收第 6 項：讓後端拒絕缺少分類的條件，原保存情境必須仍在。
             await Edit(0);
             await AddCustom("check:accountCategory");
@@ -328,9 +335,10 @@ internal static partial class GuiScenarios
             // 所以改成和主題變數比對（第一次失敗收據 20261014-063958820-b984bcfa564a4f1aa8dc0a653a28d278）。
             await Check("window.innerWidth>=1200 && window.innerWidth<=1260 && getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns.split(' ').length===2 && (()=>{var probe=document.createElement('div');probe.style.backgroundColor='var(--color-surface)';document.body.appendChild(probe);var surface=getComputedStyle(probe).backgroundColor;probe.remove();return getComputedStyle(document.querySelector('.filter-workspace .rule-card')).backgroundColor===surface;})()");
             await Check("!document.querySelector('[data-save-panel]').hidden");
-            await Check("!document.querySelector('[data-bind=matrix-body]').hasAttribute('data-loaded') && document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length===0");
+            // 分錄明細頁移除後，改用目前選中的「符合條件摘要」核對矩陣清空後重新讀取（原因同上）。
+            await Check("!document.querySelector('[data-bind=matrix-body]').hasAttribute('data-loaded') && !document.querySelector('[data-bind=matrix-scenarios] table')");
             await Click("[data-filter-pane-select=\"saved\"]");
-            await Check("document.querySelectorAll('[data-bind=matrix-rows] tbody tr').length>0");
+            await Check("!!document.querySelector('[data-bind=matrix-scenarios] table')");
             await Click("[data-filter-pane-select=\"filter\"]");
             await AddCustom("field:postDate");
             await Choose(".rule-row [data-value-polarity]", "exclude");

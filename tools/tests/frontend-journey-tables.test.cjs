@@ -1,4 +1,7 @@
 'use strict';
+// 2026-10-16：依使用者要求將資料明細改為每頁 200 筆及前後換頁。首次失敗保留於
+// artifacts/harness/runs/20261016-093720476-14d8f06e13d34b44ac2b371b7a26ad3f/contract-specialized.stdout.log。
+// 同步舊的頁量與累加預期，保留排序、錯誤、重試及來源失效斷言。
 // 審計員情境測試：明細表與右側資料預覽（收尾四項第一項第 2 批，2026-10-13）。
 //
 // 依據：使用者 2026-10-13 對第一項選「照建議做」，把只比對原始碼字串的 C# 測試改成執行正式前端腳本的行為測試。
@@ -24,7 +27,7 @@
 //   （各部分都已補齊，2026-10-14 第二、三波整併已刪除）。
 //
 // 斷言原則（計畫第 1 節）：只有使用者裁定過的文字逐字比對，出處寫在該斷言旁；其他畫面文字只比對意思。
-// 預期值一律寫字面值（例如一頁 50 筆、載入更多 200 筆），不讀正式常數；action payload 精確比對。
+// 預期值一律寫字面值（例如明細每頁 200 筆），不讀正式常數；action payload 精確比對。
 // 全部用合成資料。這一批不碰訊息面板的句子、後端原因句子與第五步的儲存、移除、重新檢查流程。
 // 測試程序的記憶體與時間上限，見 support/resource-guard.cjs（2026-10-13）。
 require('./support/resource-guard.cjs');
@@ -54,7 +57,7 @@ function validationJourney(mutate = () => {}) {
   f.store.setLastRun('validate', data);
   f.store.setLastRun('prescreen', Object.assign(F.remapPrescreen('p1'), { weekendActivity: { postingCount: 2, approvalCount: 0 } }));
   const root = f.draw();
-  const detailOf = id => { const button = root.querySelector('[data-load-more="' + id + '"]'); assert.ok(button, id + ' load-more rendered'); return button.closest('.rule-detail'); };
+  const detailOf = id => { const body = root.querySelector('[data-page-query="' + id + '"]'); assert.ok(body, id + ' paged table rendered'); return body.closest('.rule-detail'); };
   // 找出內含某個節點的明細面板，再找控制它的「檢視」按鈕。
   function toggleFor(selector) {
     const inner = root.querySelector(selector); assert.ok(inner, selector + ' rendered');
@@ -74,10 +77,10 @@ function submitSearch(scope, text) {
   form.fire('submit');
 }
 
-// 第五步：remapFilterPreviewFixture 再加上矩陣與完整命中分頁的請求記錄。
+// 第五步：remapFilterPreviewFixture 再加上矩陣分頁的請求記錄。
 function filterJourney({ saved = [] } = {}) {
   const f = F.remapFilterPreviewFixture();
-  for (const action of ['queryTagMatrixScenarios', 'queryTagMatrixVoucherPage', 'queryTagMatrixRowPage', 'queryFilterHitsPage'])
+  for (const action of ['queryTagMatrixScenarios', 'queryTagMatrixVoucherPage', 'queryTagMatrixRowPage'])
     f.window.JetApi[action] = payload => new Promise((resolve, reject) => f.requests.push({ action, payload, resolve, reject }));
   if (saved.length) {
     f.store.setLastRun('validate', { resultRef: { runId: 'v1' }, completenessTest: { eligibility: { isEligible: true } } });
@@ -101,8 +104,8 @@ async function draftVoucherList(f, rows = [{ documentNumber: 'SYN-B', postDate: 
 // 第一部分　情境 20：明細表
 // ===========================================================================
 
-// 第四步七張「載入更多」明細表：點表頭排序、輸入號碼查看，都把排序與搜尋送給後端並從第一頁重讀。
-// 每一列：載入更多鈕的編號、後端 action、排序鍵（點第一個可排序表頭）、payload 固定帶的其他鍵。
+// 第四步七張分頁明細表：點表頭排序、輸入號碼查看，都把排序與搜尋送給後端並從第一頁重讀。
+// 每一列：明細識別標記、後端 action、排序鍵（點第一個可排序表頭）、payload 固定帶的其他鍵。
 // 七張表共用同一組合成列，但每張表的後端資料列只有自己的欄位（tools/tests/fixtures/action-shapes.json）。
 // 2026-10-15 前後端契合時改成只留該表後端會送的欄位；排序鍵的值仍決定先後，斷言不變。
 const BACKEND_ROW_FIELDS = {
@@ -127,7 +130,7 @@ const VALIDATION_TABLES = [
 
 for (const [id, action, key, extra] of VALIDATION_TABLES) {
   test('step four ' + id + ' table sorts and searches on the backend from the first page and ignores clicks while reading', async () => {
-    const f = validationJourney(), detail = f.detailOf(id), table = detail.querySelector('[data-load-target]').closest('table');
+    const f = validationJourney(), detail = f.detailOf(id), table = detail.querySelector('[data-page-query]').closest('table');
     const sortButton = table.querySelector('.th-sort'); assert.ok(sortButton, 'a sortable header is rendered');
     assert.equal(sortButton.getAttribute('data-sort-key'), key);
 
@@ -135,8 +138,8 @@ for (const [id, action, key, extra] of VALIDATION_TABLES) {
     assert.equal(f.requestsOf(action).length, 1);
     assert.deepEqual(plain(f.requestsOf(action)[0].payload), { ...extra, cursor: null, pageSize: 200, sort: { key, direction: 'asc' }, search: null });
 
-    // 讀取中再點表頭、再按查看、再按載入更多，都不送第二個請求（查看會在讀完後才接著做，見下一組測試）。
-    sortButton.fire('click'); detail.querySelector('[data-load-more="' + id + '"]').fire('click');
+    // 讀取中再點表頭、再按查看、再按下一頁，都不送第二個請求（查看會在讀完後才接著做，見下一組測試）。
+    sortButton.fire('click'); detail.querySelector('[data-page-next]').fire('click');
     assert.equal(f.requests.length, 1, 'nothing else is sent while the table is reading');
 
     // 後端回傳的順序原樣顯示，畫面不自己排序。
@@ -144,7 +147,7 @@ for (const [id, action, key, extra] of VALIDATION_TABLES) {
       backendRow(action, { accountCode: '2002', documentNumber: 'JV-B', sourceRowNumber: 9, description: 'later' }),
       backendRow(action, { accountCode: '1001', documentNumber: 'JV-A', sourceRowNumber: 1, description: 'earlier' })], nextCursor: 'next-1' });
     await settle();
-    const text = detail.querySelector('[data-load-target]').textContent;
+    const text = detail.querySelector('[data-page-query]').textContent;
     const later = text.indexOf(key === 'accountCode' ? '2002' : key === 'sourceRowNumber' ? '9' : 'JV-B');
     const earlier = text.indexOf(key === 'accountCode' ? '1001' : key === 'sourceRowNumber' ? '1' : 'JV-A');
     assert.ok(later >= 0 && earlier > later, 'rows stay in the backend order: ' + text);
@@ -156,8 +159,8 @@ for (const [id, action, key, extra] of VALIDATION_TABLES) {
     assert.deepEqual(plain(f.requestsOf(action)[1].payload), { ...extra, cursor: null, pageSize: 200, sort: { key, direction: 'asc' }, search: 'JV-1' });
     f.requestsOf(action)[1].resolve({ rows: [backendRow(action, { accountCode: '1001', documentNumber: 'JV-1' })], nextCursor: 'next-2' }); await settle();
 
-    // 載入更多沿用同一個排序與搜尋，接著上一頁的游標。
-    detail.querySelector('[data-load-more="' + id + '"]').fire('click');
+    // 下一頁沿用同一個排序與搜尋，接著上一頁的游標。
+    detail.querySelector('[data-page-next]').fire('click');
     assert.deepEqual(plain(f.requestsOf(action)[2].payload), { ...extra, cursor: 'next-2', pageSize: 200, sort: { key, direction: 'asc' }, search: 'JV-1' });
     f.requestsOf(action)[2].resolve({ rows: [], nextCursor: null }); await settle();
 
@@ -167,6 +170,56 @@ for (const [id, action, key, extra] of VALIDATION_TABLES) {
     assert.equal(f.store.getState().busy, false, 'reading a page never takes over the whole screen');
   });
 }
+
+test('approval dates outside the period load the first 200 rows on opening even when all 7053 findings are absent from the summary sample', async () => {
+  const f = validationJourney(data => { data.nullRecordsTest.outOfRangeDateCount = 7053; data.nullRecordsTest.nullRows = []; });
+  const detail = f.detailOf('null-outOfRangeDate');
+  assert.equal(f.requestsOf('queryNullRecordsPage').length, 0, 'folded details do not read rows');
+  f.toggleFor('[data-page-query="null-outOfRangeDate"]').fire('click');
+  assert.deepEqual(plain(f.requestsOf('queryNullRecordsPage')[0].payload),
+    { category: 'outOfRangeDate', cursor: null, pageSize: 200, sort: null, search: null });
+  f.requestsOf('queryNullRecordsPage')[0].resolve({
+    rows: Array.from({ length: 200 }, (_, i) => ({ documentNumber: 'APPROVAL-' + (i + 1), accountCode: '1001', description: 'Synthetic' })),
+    nextCursor: 'after-200', totalCount: 7053
+  }); await settle();
+  assert.equal(detail.querySelectorAll('tbody tr').length, 200);
+  assert.match(detail.querySelector('tbody').textContent, /APPROVAL-1/);
+  assert.equal(detail.querySelector('[data-page-position]').textContent, '1/36');
+  assert.equal(detail.querySelector('[data-page-previous]').disabled, true);
+  assert.equal(detail.querySelector('[data-page-next]').disabled, false);
+  assert.equal(detail.querySelector('.table-pager').hidden, false, 'more than 200 rows shows the pager');
+});
+
+// 2026-10-16：總筆數只在第一頁計算，帶游標的續頁回 totalCount null（docs/action-contract-manifest.md）。
+// 換到第二頁後分頁列仍用第一頁的總筆數算頁數，下一頁照樣可按。
+test('a continuation page without a total keeps the first page count on a step four detail table', async () => {
+  const f = validationJourney(data => { data.nullRecordsTest.outOfRangeDateCount = 7053; data.nullRecordsTest.nullRows = []; });
+  const detail = f.detailOf('null-outOfRangeDate');
+  f.toggleFor('[data-page-query="null-outOfRangeDate"]').fire('click');
+  const page = start => Array.from({ length: 200 }, (_, i) => ({ documentNumber: 'APPROVAL-' + (start + i), accountCode: '1001', description: 'Synthetic' }));
+  f.requestsOf('queryNullRecordsPage')[0].resolve({ rows: page(1), nextCursor: 'after-200', totalCount: 7053 }); await settle();
+  detail.querySelector('[data-page-next]').fire('click');
+  assert.equal(f.requestsOf('queryNullRecordsPage')[1].payload.cursor, 'after-200');
+  f.requestsOf('queryNullRecordsPage')[1].resolve({ rows: page(201), nextCursor: 'after-400', totalCount: null }); await settle();
+  assert.match(detail.querySelector('tbody').textContent, /APPROVAL-201/);
+  assert.equal(detail.querySelector('[data-page-position]').textContent, '2/36');
+  assert.equal(detail.querySelector('[data-page-next]').disabled, false);
+  assert.equal(detail.querySelector('.table-pager').hidden, false);
+});
+
+// 使用者 2026-10-16：「一頁至多200筆資料，如果超過200筆就分頁數」。只有一頁時不顯示分頁列；讀取完成前也不先顯示空的頁碼。
+test('a detail table with at most 200 rows shows no pager, and the pager stays hidden until the first page arrives', async () => {
+  const f = validationJourney(data => { data.nullRecordsTest.outOfRangeDateCount = 150; data.nullRecordsTest.nullRows = []; });
+  const detail = f.detailOf('null-outOfRangeDate');
+  f.toggleFor('[data-page-query="null-outOfRangeDate"]').fire('click');
+  assert.equal(detail.querySelector('.table-pager').hidden, true, 'no page numbers before the first page is read');
+  f.requestsOf('queryNullRecordsPage')[0].resolve({
+    rows: Array.from({ length: 150 }, (_, i) => ({ documentNumber: 'SINGLE-' + (i + 1), accountCode: '1001', description: 'Synthetic' })),
+    nextCursor: null, totalCount: 150
+  }); await settle();
+  assert.equal(detail.querySelectorAll('tbody tr').length, 150);
+  assert.equal(detail.querySelector('.table-pager').hidden, true, 'a single page has no pager');
+});
 
 test('step four sample details and prescreen hits sort and search on the backend from the first page', async () => {
   const f = validationJourney();
@@ -186,9 +239,9 @@ test('step four sample details and prescreen hits sort and search on the backend
   submitSearch(sample, 'JV-S');
   assert.deepEqual(plain(f.requestsOf('queryInfSamplePage')[2].payload), { cursor: null, pageSize: 200, sort: { key: 'debit', direction: 'asc' }, search: 'JV-S' });
 
-  // 預篩選命中：展開時讀前 50 筆（字面值），之後排序與查看由後端從第一頁重讀，一頁 200 筆。
+  // 預篩選命中：展開時讀前 200 筆（字面值），之後排序與查看由後端從第一頁重讀，一頁 200 筆。
   f.toggleFor('[data-prescreen-key="weekendPosting"]').fire('click');
-  assert.deepEqual(plain(f.requestsOf('queryPrescreenPage')[0].payload), { ruleKey: 'weekendPosting', pageSize: 50 });
+  assert.deepEqual(plain(f.requestsOf('queryPrescreenPage')[0].payload), { ruleKey: 'weekendPosting', pageSize: 200 });
   f.requestsOf('queryPrescreenPage')[0].resolve({ rows: [{ documentNumber: 'JV-P', lineItem: '1', postDate: '2025-01-04', accountCode: '1001',
     accountName: 'Synthetic cash', documentDescription: 'weekend', amount: 1234.5, drCr: 'DEBIT' }], nextCursor: 'p-2' });
   await settle();
@@ -202,11 +255,11 @@ test('step four sample details and prescreen hits sort and search on the backend
     { ruleKey: 'weekendPosting', cursor: null, pageSize: 200, sort: { key: 'documentNumber', direction: 'asc' }, search: 'JV-P' });
 });
 
-test('step five voucher list sorts, searches and clears on the backend from the first page, fifty vouchers per page', async () => {
+test('step five voucher list sorts, searches and clears on the backend from the first page, two hundred vouchers per page', async () => {
   const f = filterJourney();
   const first = await draftVoucherList(f);
-  // 第五步預覽的傳票清單一頁 50 張（字面值）。
-  assert.equal(first.payload.pageSize, 50);
+  // 第五步預覽的傳票清單一頁 200 張（字面值）。
+  assert.equal(first.payload.pageSize, 200);
   assert.deepEqual(Object.keys(first.payload).sort(), ['pageSize', 'populationScope', 'scenario']);
   const host = f.$('.filter-voucher-host'); assert.ok(host);
   const rowsText = host.querySelector('tbody').textContent;
@@ -215,7 +268,7 @@ test('step five voucher list sorts, searches and clears on the backend from the 
   const base = { populationScope: 'auditPeriod', scenario: plain(first.payload.scenario) };
   host.querySelector('th[data-sort-key="voucherTotal"] .th-sort').onclick();
   assert.deepEqual(plain(f.requestsOf('queryFilterVoucherPage')[1].payload),
-    { ...base, cursor: null, pageSize: 50, queryRevision: 'q1', sort: { key: 'voucherTotal', direction: 'asc' }, search: null });
+    { ...base, cursor: null, pageSize: 200, queryRevision: 'q1', sort: { key: 'voucherTotal', direction: 'asc' }, search: null });
   f.requestsOf('queryFilterVoucherPage')[1].resolve({ queryRevision: 'q1', rows: [{ documentNumber: 'SYN-A', postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 1, voucherTotal: -10 }], nextCursor: null });
   await settle();
   assert.equal(host.querySelector('th[data-sort-key="voucherTotal"]').getAttribute('aria-sort'), 'ascending');
@@ -224,52 +277,110 @@ test('step five voucher list sorts, searches and clears on the backend from the 
   form.querySelector('[data-page-search-input]').value = ' SYN ';
   form.onsubmit({ preventDefault() {} });
   assert.deepEqual(plain(f.requestsOf('queryFilterVoucherPage')[2].payload),
-    { ...base, cursor: null, pageSize: 50, queryRevision: 'q1', sort: { key: 'voucherTotal', direction: 'asc' }, search: 'SYN' });
+    { ...base, cursor: null, pageSize: 200, queryRevision: 'q1', sort: { key: 'voucherTotal', direction: 'asc' }, search: 'SYN' });
   f.requestsOf('queryFilterVoucherPage')[2].resolve({ queryRevision: 'q1', rows: [{ documentNumber: 'SYN-A', postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 1, voucherTotal: -10 }], nextCursor: null });
   await settle();
 
   host.querySelector('[data-page-search-clear]').onclick();
   assert.deepEqual(plain(f.requestsOf('queryFilterVoucherPage')[3].payload),
-    { ...base, cursor: null, pageSize: 50, queryRevision: 'q1', sort: { key: 'voucherTotal', direction: 'asc' }, search: null });
+    { ...base, cursor: null, pageSize: 200, queryRevision: 'q1', sort: { key: 'voucherTotal', direction: 'asc' }, search: null });
 });
 
-test('step five saved scenario lists read fifty vouchers and fifty entries per page', async () => {
+test('step five saved scenario lists read two hundred vouchers and two hundred entries per page', async () => {
   const f = filterJourney({ saved: [F.savedG()] });
   f.click('[data-action="toggle-scenario"][data-index="0"]');
   f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, summaryRowCount: 2, populationScope: 'auditPeriod' } }); await settle();
-  // 已儲存情境的傳票清單一頁 50 張（字面值），帶情境位置與版本。
-  assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload), { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod', pageSize: 50 });
+  // 已儲存情境的傳票清單一頁 200 張（字面值），帶情境位置與版本。
+  assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload), { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod', pageSize: 200 });
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [{ documentNumber: 'SAVED-1', postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 2, voucherTotal: 5 }], nextCursor: null });
   await settle();
   f.$('[data-voucher-open="0"]').onclick();
-  // 展開傳票的分錄一頁 50 筆（字面值）。
+  // 展開傳票的分錄一頁 200 筆（字面值）。
   assert.deepEqual(plain(f.request('queryFilterVoucherRowsPage').payload),
-    { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod', documentNumber: 'SAVED-1', cursor: null, pageSize: 50, queryRevision: 'q1' });
+    { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod', documentNumber: 'SAVED-1', cursor: null, pageSize: 200, queryRevision: 'q1' });
 });
 
-test('step five full hit list and risk matrix tables sort and search on the backend from the first page', async () => {
+test('voucher pages replace 200 rows, restore the previous page and retry a failed whole-result sort', async () => {
+  const f = filterJourney();
+  f.click('[data-kct-letter="G"]'); f.click('[data-action="preview-scenario"]');
+  f.request('filterPreview').resolve({ scenario: { count: 201, voucherCount: 201, summaryRowCount: 201, populationScope: 'auditPeriod' } }); await settle();
+  const rows = Array.from({ length: 200 }, (_, i) => ({ documentNumber: 'V-' + (i + 1), postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 1, voucherTotal: i + 1 }));
+  f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows, nextCursor: 'after-200', totalCount: 201 }); await settle();
+  const host = f.$('.filter-voucher-host');
+  assert.equal(host.querySelectorAll('tbody tr').length, 200); assert.equal(host.querySelector('[data-page-position]').textContent, '1/2');
+  host.querySelector('[data-voucher-next]').onclick();
+  assert.equal(f.request('queryFilterVoucherPage').payload.cursor, 'after-200');
+  assert.equal(host.querySelector('[data-voucher-next]').disabled, true);
+  f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [{ ...rows[0], documentNumber: 'V-201' }], nextCursor: null, totalCount: 201 }); await settle();
+  assert.equal(host.querySelectorAll('tbody tr').length, 1); assert.match(host.querySelector('tbody').textContent, /V-201/);
+  assert.equal(host.querySelector('[data-page-position]').textContent, '2/2'); assert.equal(host.querySelector('[data-voucher-next]').disabled, true);
+  host.querySelector('th[data-sort-key="voucherTotal"] .th-sort').onclick();
+  const sorted = f.request('queryFilterVoucherPage');
+  assert.equal(sorted.payload.cursor, null); assert.deepEqual(plain(sorted.payload.sort), { key: 'voucherTotal', direction: 'asc' });
+  sorted.reject(new Error('synthetic whole-result sort failed')); await settle();
+  assert.match(host.querySelector('tbody').textContent, /V-201/); assert.equal(host.querySelector('[data-page-position]').textContent, '2/2');
+  assert.equal(host.querySelector('th[data-sort-key="voucherTotal"]').getAttribute('aria-sort'), 'none');
+  host.querySelector('[data-voucher-retry]').onclick();
+  assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload), plain(sorted.payload));
+  f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows, nextCursor: 'sorted-200', totalCount: 201 }); await settle();
+  assert.equal(host.querySelector('[data-page-position]').textContent, '1/2');
+  host.querySelector('[data-voucher-next]').onclick();
+  f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [{ ...rows[0], documentNumber: 'V-201' }], nextCursor: null, totalCount: 201 }); await settle();
+  host.querySelector('[data-voucher-previous]').onclick(); assert.equal(f.request('queryFilterVoucherPage').payload.cursor, null);
+  f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows, nextCursor: 'sorted-200', totalCount: 201 }); await settle();
+  assert.equal(host.querySelectorAll('tbody tr').length, 200); assert.equal(host.querySelector('[data-page-position]').textContent, '1/2');
+});
+
+// 2026-10-16：第五步傳票清單的續頁同樣不回總筆數；換頁後仍顯示第一頁算出的總頁數。
+test('a voucher continuation page without a total keeps the first page count', async () => {
+  const f = filterJourney();
+  f.click('[data-kct-letter="G"]'); f.click('[data-action="preview-scenario"]');
+  f.request('filterPreview').resolve({ scenario: { count: 401, voucherCount: 401, summaryRowCount: 401, populationScope: 'auditPeriod' } }); await settle();
+  const rows = start => Array.from({ length: 200 }, (_, i) => ({ documentNumber: 'V-' + (start + i), postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 1, voucherTotal: 1 }));
+  f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: rows(1), nextCursor: 'after-200', totalCount: 401 }); await settle();
+  const host = f.$('.filter-voucher-host');
+  assert.equal(host.querySelector('[data-page-position]').textContent, '1/3');
+  host.querySelector('[data-voucher-next]').onclick();
+  f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: rows(201), nextCursor: 'after-400', totalCount: null }); await settle();
+  assert.match(host.querySelector('tbody').textContent, /V-201/);
+  assert.equal(host.querySelector('[data-page-position]').textContent, '2/3');
+  assert.equal(host.querySelector('[data-voucher-next]').disabled, false);
+});
+
+for (const outcome of ['success', 'failure']) test('voucher in-flight ' + outcome + ' survives a step redraw and updates the newly mounted table', async () => {
+  const f = filterJourney(); await draftVoucherList(f);
+  const oldHost = f.$('.filter-voucher-host'); oldHost.querySelector('[data-voucher-next]').onclick();
+  const pending = f.request('queryFilterVoucherPage');
+  f.store.touch();
+  const host = f.$('.filter-voucher-host');
+  assert.ok(host !== oldHost, 'the step redraw actually replaced the table host');
+  assert.equal(oldHost.isConnected, false); assert.equal(host.querySelector('[data-voucher-next]').disabled, true);
+  if (outcome === 'failure') {
+    pending.reject(new Error('synthetic redraw page failure')); await settle();
+    assert.match(host.querySelector('tbody').textContent, /SYN-B/);
+    const retry = host.querySelector('[data-voucher-retry]'); assert.ok(retry);
+    retry.onclick();
+    assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload), plain(pending.payload));
+    assert.equal(host.querySelector('[data-voucher-next]').disabled, true, 'retry marks the current host as reading');
+  }
+  f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [{ documentNumber: 'AFTER-REDRAW', postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 1, voucherTotal: 1 }], nextCursor: null, totalCount: 201 });
+  await settle();
+  assert.match(host.querySelector('tbody').textContent, /AFTER-REDRAW/);
+  assert.doesNotMatch(host.querySelector('tbody').textContent, /SYN-B/);
+  assert.equal(host.querySelector('table').getAttribute('aria-busy'), 'false');
+  assert.equal(host.querySelector('[data-voucher-previous]').disabled, false);
+  assert.equal(host.querySelector('[data-voucher-next]').disabled, true);
+});
+
+// 原本前半段核對「完整命中分錄」表：只在後端沒有回傳傳票清單時才出現，正式後端一律回傳，所以走不到。
+// 使用者 2026-10-19 裁定刪除這段畫面，這裡的檢查一併移除。第一次失敗：20261019-090901211-9e9ec7ffcbf34596ae2d8476cf613b45。
+test('step five risk matrix tables sort and search on the backend from the first page', async () => {
   const f = filterJourney({ saved: [F.savedG()] });
 
-  // 完整命中分錄：後端沒有回傳傳票清單時改列命中分錄，按「載入更多」後表頭換成後端的欄位定義並可排序。
-  f.click('[data-action="toggle-scenario"][data-index="0"]');
-  f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, summaryRowCount: 2, populationScope: 'auditPeriod', previewRows: [
-    { documentNumber: 'PRE-1', lineItem: '1', postDate: '2025-01-01', accountCode: '1001', amount: 1, drCr: 'DEBIT' }] } });
-  await settle();
-  f.request('queryFilterVoucherPage').resolve(unchecked('正式後端一定回傳傳票清單；這裡刻意回 null，確認畫面改列完整命中分錄', null)); await settle();
-  f.click('[data-action="hits-load-more"]');
-  assert.deepEqual(plain(f.request('queryFilterHitsPage').payload), { scenarioPosition: 1, cursor: null, pageSize: 200, sort: null, search: null });
-  f.request('queryFilterHitsPage').resolve({ columns: [{ key: 'documentNumber', label: '傳票號碼', valueType: 'text', sortable: true }],
-    rows: [{ documentNumber: 'HIT-1' }], nextCursor: 'h-2' });
-  await settle();
-  const preview = f.$('[data-bind="scenario-preview-0"]'), table = preview.querySelector('.preview-table');
-  table.fire('click', { target: table.querySelector('.th-sort[data-sort-key="documentNumber"]') });
-  assert.deepEqual(plain(f.requestsOf('queryFilterHitsPage')[1].payload),
-    { scenarioPosition: 1, cursor: null, pageSize: 200, sort: { key: 'documentNumber', direction: 'asc' }, search: null });
-
-  // 高風險條件矩陣的傳票表與分錄表：一打開就讀第一頁，排序與查看都從第一頁重讀。
+  // 高風險條件矩陣的傳票表：一打開就讀第一頁，排序與查看都從第一頁重讀。
   f.click('[data-action="toggle-matrix"]');
   f.request('queryTagMatrixScenarios').resolve({ scenarios: [{ position: 1, name: 'G', voucherHitCount: 1, rowHitCount: 2, summaryRowCount: 2 }] }); await settle();
-  for (const [view, action, key] of [['vouchers', 'queryTagMatrixVoucherPage', 'voucherTotal'], ['rows', 'queryTagMatrixRowPage', 'amount']]) {
+  for (const [view, action, key] of [['vouchers', 'queryTagMatrixVoucherPage', 'voucherTotal']]) {
     f.click('[data-matrix-view="' + view + '"]'); await settle();
     assert.deepEqual(plain(f.requestsOf(action)[0].payload), { cursor: null, pageSize: 200, sort: null, search: null }, view);
     f.requestsOf(action)[0].resolve({ rows: [], nextCursor: null }); await settle();
@@ -282,12 +393,33 @@ test('step five full hit list and risk matrix tables sort and search on the back
   }
 });
 
+test('risk matrix retains the full long scenario title and has no entry-detail tab or row query', async () => {
+  const name = '合成的長條件名稱用來確認標題仍可完整閱讀與安全轉義 <b>條件</b> ' + '跨期間傳票篩選條件'.repeat(12);
+  const f = filterJourney({ saved: [F.savedG(name)] });
+  f.click('[data-action="toggle-matrix"]');
+  f.request('queryTagMatrixScenarios').resolve({ scenarios: [{ position: 1, name, voucherHitCount: 201, rowHitCount: 401, summaryRowCount: 401 }] });
+  await settle();
+  assert.equal(f.$('[data-matrix-view="rows"]'), null);
+  assert.equal(f.$('[data-bind="matrix-rows"]'), null);
+  f.click('[data-matrix-view="vouchers"]'); await settle();
+  f.request('queryTagMatrixVoucherPage').resolve({ rows: [], nextCursor: null, totalCount: 0 }); await settle();
+  const header = f.$('[data-bind="matrix-vouchers"] th[title]');
+  assert.ok(header); assert.equal(header.getAttribute('title'), name);
+  assert.equal(header.querySelector('.filter-matrix-name').textContent, name);
+  assert.equal(header.querySelector('b'), null, 'title text never becomes markup');
+  // 使用者 2026-10-16 選定交叉表表頭只顯示代號：名稱只留給停留提示與輔助技術，不佔欄寬。
+  assert.match(header.getAttribute('class'), /preview-table__tag/);
+  assert.match(header.querySelector('.filter-matrix-name').getAttribute('class'), /visually-hidden/);
+  assert.equal(header.textContent.slice(0, header.textContent.length - name.length), 'C1');
+  assert.equal(f.requestsOf('queryTagMatrixRowPage').length, 0);
+});
+
 // 讀取中按「查看」或「清除」：2026-10-02 整體複審 W18 改成不再忽略，只記住最後一次，讀完後接著做。
 // 狀態列的說明句沒有找到使用者逐字裁定，只比對意思（讀完後接著查看或清除）。
 test('searching while a table is reading waits for the current read and keeps only the last text, even after a failure', async () => {
   const f = validationJourney(), detail = f.detailOf('docBalance');
   const status = () => detail.querySelector('[data-page-status]');
-  detail.querySelector('[data-load-more="docBalance"]').fire('click');
+  f.toggleFor('[data-page-query="docBalance"]').fire('click');
   assert.equal(f.requestsOf('queryDocBalancePage').length, 1);
 
   submitSearch(detail, 'A'); submitSearch(detail, 'B');
@@ -302,7 +434,7 @@ test('searching while a table is reading waits for the current read and keeps on
 
   // 清除的版本：讀取中按清除，讀完後接著用空白條件從第一頁重讀。
   f.requestsOf('queryDocBalancePage')[1].resolve({ rows: [{ documentNumber: 'B-1' }], nextCursor: 'b-2' }); await settle();
-  detail.querySelector('[data-load-more="docBalance"]').fire('click');
+  detail.querySelector('[data-page-next]').fire('click');
   assert.deepEqual(plain(f.requestsOf('queryDocBalancePage')[2].payload), { cursor: 'b-2', pageSize: 200, sort: null, search: 'B' });
   detail.querySelector('[data-page-search-clear]').fire('click');
   assert.equal(f.requestsOf('queryDocBalancePage').length, 3);
@@ -316,12 +448,12 @@ test('searching while a table is reading waits for the current read and keeps on
 // 表格裡仍是舊列；換了驗證結果後晚到的列不顯示，讀取中記住的查看也不再送出。
 test('a failed sort or search keeps the old rows, restores the header and box, and retry resends the exact request', async () => {
   const f = validationJourney(), detail = f.detailOf('docBalance');
-  const table = detail.querySelector('[data-load-target]').closest('table'), input = detail.querySelector('[data-page-search-input]');
+  const table = detail.querySelector('[data-page-query]').closest('table'), input = detail.querySelector('[data-page-search-input]');
   const sortButton = table.querySelector('.th-sort[data-sort-key="debit"]');
-  const before = detail.querySelector('[data-load-target]').textContent;
+  const before = detail.querySelector('[data-page-query]').textContent;
   sortButton.fire('click');
   f.requestsOf('queryDocBalancePage')[0].reject(new Error('synthetic sort failure')); await settle();
-  assert.equal(detail.querySelector('[data-load-target]').textContent, before, 'the old rows stay');
+  assert.equal(detail.querySelector('[data-page-query]').textContent, before, 'the old rows stay');
   assert.equal(table.querySelector('th[data-sort-key="debit"]').getAttribute('aria-sort'), 'none', 'the header no longer claims the failed sort');
   submitSearch(detail, 'JV-404');
   assert.deepEqual(plain(f.requestsOf('queryDocBalancePage')[1].payload), { cursor: null, pageSize: 200, sort: null, search: 'JV-404' });
@@ -335,33 +467,33 @@ test('a failed sort or search keeps the old rows, restores the header and box, a
   assert.deepEqual(plain(f.requestsOf('queryDocBalancePage')[2].payload), { cursor: null, pageSize: 200, sort: null, search: 'JV-404' });
   assert.equal(input.value, 'JV-404');
   f.requestsOf('queryDocBalancePage')[2].resolve({ rows: [{ documentNumber: 'JV-404' }], nextCursor: null }); await settle();
-  assert.match(detail.querySelector('[data-load-target]').textContent, /JV-404/);
+  assert.match(detail.querySelector('[data-page-query]').textContent, /JV-404/);
   assert.equal(f.store.getState().busy, false);
 
   // 讀取中換了驗證結果：晚到的列不顯示，讀取中按下的查看也不送出。
   sortButton.fire('click'); submitSearch(detail, 'LATER');
-  const count = f.requests.length, shown = detail.querySelector('[data-load-target]').textContent;
+  const count = f.requests.length, shown = detail.querySelector('[data-page-query]').textContent;
   f.store.setLastRun('validate', F.batch8ValidationData('v-new'));
   f.requestsOf('queryDocBalancePage').at(-1).resolve({ rows: [{ documentNumber: 'STALE-ROW' }], nextCursor: null }); await settle();
-  assert.equal(detail.querySelector('[data-load-target]').textContent, shown);
-  assert.doesNotMatch(detail.querySelector('[data-load-target]').textContent, /STALE-ROW/);
+  assert.equal(detail.querySelector('[data-page-query]').textContent, shown);
+  assert.doesNotMatch(detail.querySelector('[data-page-query]').textContent, /STALE-ROW/);
   assert.equal(f.requests.length, count, 'the remembered search is dropped with the old result');
 });
 
 // 金額顯示：使用者 2026-10-02 裁定 P3-4「畫面統一兩位小數加千分位；報表與底稿不變」
 // （出處：src/JET/JET/wwwroot/js/ui-core.js 的 money 函式註解，以及原 C# 測試 ScreenBehaviorReviewFrontendTests 的註解）。
 // 1,234.50、-10.00 這類顯示結果是裁定格式的直接例子，逐字比對。
-test('money shows two decimals with thousands separators on step four tables, the overview and step four load-more pages', async () => {
+test('money shows two decimals with thousands separators on step four tables, the overview and step four queried pages', async () => {
   const f = validationJourney();
-  assert.match(f.detailOf('completeness').querySelector('[data-load-target]').textContent, /1,234\.50/);
-  assert.match(f.detailOf('docBalance').querySelector('[data-load-target]').textContent, /1,234\.50/);
+  assert.match(f.detailOf('completeness').querySelector('[data-page-query]').textContent, /1,234\.50/);
+  assert.match(f.detailOf('docBalance').querySelector('[data-page-query]').textContent, /1,234\.50/);
 
-  // 載入更多接上的列同樣格式。
+  // 展開後讀取的第一頁同樣格式。
   const detail = f.detailOf('completeness');
-  detail.querySelector('[data-load-more="completeness"]').fire('click');
+  f.toggleFor('[data-page-query="completeness"]').fire('click');
   f.requestsOf('queryCompletenessDiffPage')[0].resolve({ rows: [{ accountCode: '3003', accountName: 'x', tbAmount: 1234567.891, glAmount: -10, diff: 0.003 }], nextCursor: null });
   await settle();
-  const loaded = detail.querySelector('[data-load-target]').textContent;
+  const loaded = detail.querySelector('[data-page-query]').textContent;
   assert.match(loaded, /1,234,567\.89/); assert.match(loaded, /-10\.00/);
   // 極小的非零差額不顯示成 0.00（只比對意思）。原 C# 測試標為 L46，第一次失敗收據 20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022；
   // 摘要列與第一頁的差額另由 frontend-workflow.test.cjs「batch8 tiny nonzero differences stay visible ...」測試。
@@ -371,8 +503,8 @@ test('money shows two decimals with thousands separators on step four tables, th
   const tiny = validationJourney(data => {
     data.completenessTest.diffAccounts[0].diff = 0.003; data.docBalanceTest.unbalancedDocuments[0].diff = -0.003;
   });
-  assert.match(tiny.detailOf('completeness').querySelector('[data-load-target]').textContent, /不足 0\.01/);
-  assert.match(tiny.detailOf('docBalance').querySelector('[data-load-target]').textContent, /負值.*不足 0\.01/);
+  assert.match(tiny.detailOf('completeness').querySelector('[data-page-query]').textContent, /不足 0\.01/);
+  assert.match(tiny.detailOf('docBalance').querySelector('[data-page-query]').textContent, /負值.*不足 0\.01/);
 
   // 預篩選命中的第一頁與後續頁。
   f.toggleFor('[data-prescreen-key="weekendPosting"]').fire('click');
@@ -380,7 +512,7 @@ test('money shows two decimals with thousands separators on step four tables, th
   await settle();
   const hits = f.root.querySelector('[data-prescreen-key="weekendPosting"]');
   assert.match(hits.querySelector('tbody').textContent, /1,234\.50/);
-  hits.querySelector('[data-prescreen-load-more]').fire('click');
+  hits.querySelector('[data-page-next]').fire('click');
   f.requestsOf('queryPrescreenPage')[1].resolve({ rows: [{ documentNumber: 'JV-Q', postDate: '2025-01-05', accountCode: '1001', amount: -10, drCr: 'CREDIT' }], nextCursor: null });
   await settle();
   assert.match(hits.querySelector('tbody').textContent, /-10\.00/);
@@ -431,9 +563,8 @@ test('money shows two decimals on step five voucher lists, entry details and ris
   g.click('[data-matrix-view="vouchers"]'); await settle();
   g.request('queryTagMatrixVoucherPage').resolve({ rows: [{ documentNumber: 'M-1', postDate: '2025-01-01', createdBy: 'U', voucherTotal: 1234.5 }], nextCursor: null }); await settle();
   assert.match(g.$('[data-bind="matrix-vouchers"] tbody').textContent, /1,234\.50/);
-  g.click('[data-matrix-view="rows"]'); await settle();
-  g.request('queryTagMatrixRowPage').resolve({ rows: [{ documentNumber: 'M-1', lineItem: '1', postDate: '2025-01-01', accountCode: '1001', amount: -10 }], nextCursor: null }); await settle();
-  assert.match(g.$('[data-bind="matrix-rows"] tbody').textContent, /-10\.00/);
+  assert.equal(g.$('[data-matrix-view="rows"]'), null, 'the removed entry-detail tab stays absent');
+  assert.equal(g.requestsOf('queryTagMatrixRowPage').length, 0);
 });
 
 test('report history shows fifty files per page and the mapping value sample reads fifty source values', () => {
@@ -443,8 +574,13 @@ test('report history shows fifty files per page and the mapping value sample rea
     generatedUtc: '2026-01-01T00:00:00Z', stale: false, fileState: 'asPublished', sourceRef: {} })));
   const root = f.draw();
   assert.equal(root.querySelectorAll('[data-open-artifact]').length, 50);
+  // 使用者 2026-10-16 要求換頁設計統一：版本紀錄也用左箭頭、目前頁數/總頁數、右箭頭。
+  assert.equal(root.querySelector('.table-pager [data-page-position]').textContent, '1/2');
   root.querySelector('[data-history-page="1"]').fire('click');
-  assert.equal(f.draw().querySelectorAll('[data-open-artifact]').length, 1);
+  const second = f.draw();
+  assert.equal(second.querySelectorAll('[data-open-artifact]').length, 1);
+  assert.equal(second.querySelector('.table-pager [data-page-position]').textContent, '2/2');
+  assert.equal(second.querySelector('[data-history-page="1"]').disabled, true);
 
   // 第三步「人工/自動」來源值：一次讀 50 個（字面值）。
   const m = F.mappingFixture(), page = m.render();
@@ -468,13 +604,13 @@ const previewRequests = f => f.requests.filter(request => request.action === 'qu
 test('switching the preview dataset replaces the old table with a named loading state without locking the screen', async () => {
   const f = await previewOpened();
   // 第一次進入案件畫面就讀目前的資料表。
-  assert.deepEqual(plain(previewRequests(f)[0].payload), { dataset: 'pbcGl' });
+  assert.deepEqual(plain(previewRequests(f)[0].payload), { dataset: 'pbcGl', offset: 0, limit: 200 });
   f.request('queryDataPreview').resolve({ columns: ['documentNumber'], rows: [['OLD-ROW']], totalCount: 1 }); await settle();
   assert.match(f.body().textContent, /OLD-ROW/);
   assert.equal(f.body().getAttribute('aria-busy'), null);
 
   tab(f, 'gl').fire('click');
-  assert.deepEqual(plain(previewRequests(f)[1].payload), { dataset: 'gl' });
+  assert.deepEqual(plain(previewRequests(f)[1].payload), { dataset: 'gl', offset: 0, limit: 200 });
   // 載入中立刻換掉舊表格，寫出資料名稱（只比對意思）。
   assert.doesNotMatch(f.body().textContent, /OLD-ROW/);
   assert.ok(f.body().querySelector('table') === null, 'the old table is gone while loading');
@@ -489,6 +625,20 @@ test('switching the preview dataset replaces the old table with a named loading 
   assert.equal(f.body().getAttribute('aria-busy'), null);
 });
 
+// 使用者 2026-10-19 要求前端不露出系統用詞：GL 與未納入測試的分錄，借貸欄和結果表格一樣寫「借」「貸」。
+test('the GL preview shows debit and credit as 借 and 貸 instead of the stored English values', async () => {
+  const f = await previewOpened();
+  f.request('queryDataPreview').resolve({ columns: ['documentNumber'], rows: [['FIRST']], totalCount: 1 }); await settle();
+  for (const dataset of ['gl', 'glExcluded']) {
+    tab(f, dataset).fire('click');
+    previewRequests(f).at(-1).resolve({ columns: ['documentNumber', 'drCr'], rows: [['JV-1', 'DEBIT'], ['JV-1', 'CREDIT']], totalCount: 2 });
+    await settle();
+    const cells = f.body().querySelectorAll('td').map(cell => cell.textContent);
+    assert.deepEqual(cells, ['JV-1', '借', 'JV-1', '貸'], dataset);
+    assert.doesNotMatch(f.body().textContent, /DEBIT|CREDIT/, dataset);
+  }
+});
+
 test('a failed preview shows the escaped reason in place and retry asks again for the same dataset', async () => {
   const f = await previewOpened();
   tab(f, 'tb').fire('click');
@@ -501,12 +651,74 @@ test('a failed preview shows the escaped reason in place and retry asks again fo
   const retry = body.querySelector('[data-action="retry-data-preview"]'); assert.ok(retry);
   retry.fire('click');
   assert.equal(previewRequests(f).length, 3);
-  assert.deepEqual(plain(previewRequests(f)[2].payload), { dataset: 'tb' });
+  assert.deepEqual(plain(previewRequests(f)[2].payload), { dataset: 'tb', offset: 0, limit: 200 });
   assert.equal(body.getAttribute('aria-busy'), 'true');
   previewRequests(f)[2].resolve({ columns: ['accountCode'], rows: [['1001']], totalCount: 1 }); await settle();
   assert.ok(body.querySelector('[data-action="retry-data-preview"]') === null, 'the retry button goes away after success');
   assert.match(body.textContent, /1001/);
   assert.equal(f.store.getState().busy, false);
+});
+
+test('source preview uses 200-row offset pages for 201 rows and previous returns to the first page', async () => {
+  const f = await previewOpened();
+  const firstRows = Array.from({ length: 200 }, (_, i) => ['SOURCE-' + (i + 1)]);
+  previewRequests(f)[0].resolve({ columns: ['documentNumber'], rows: firstRows, totalCount: 201 }); await settle();
+  assert.equal(f.body().querySelectorAll('tbody tr').length, 200);
+  assert.equal(f.aside().querySelector('[data-page-position]').textContent, '1/2');
+  assert.equal(f.aside().querySelector('[data-page-previous]').disabled, true);
+  f.aside().querySelector('[data-page-next]').fire('click');
+  assert.deepEqual(plain(previewRequests(f)[1].payload), { dataset: 'pbcGl', limit: 200, offset: 200 });
+  previewRequests(f)[1].resolve({ columns: ['documentNumber'], rows: [['SOURCE-201']], totalCount: 201 }); await settle();
+  assert.equal(f.body().querySelectorAll('tbody tr').length, 1);
+  assert.equal(f.body().querySelector('tbody').textContent, 'SOURCE-201');
+  assert.equal(f.aside().querySelector('[data-page-position]').textContent, '2/2');
+  assert.equal(f.aside().querySelector('[data-page-next]').disabled, true);
+  f.aside().querySelector('[data-page-previous]').fire('click');
+  assert.deepEqual(plain(previewRequests(f)[2].payload), { dataset: 'pbcGl', limit: 200, offset: 0 });
+  previewRequests(f)[2].resolve({ columns: ['documentNumber'], rows: firstRows, totalCount: 201 }); await settle();
+  assert.equal(f.body().querySelectorAll('tbody tr').length, 200);
+  assert.equal(f.aside().querySelector('[data-page-position]').textContent, '1/2');
+  assert.equal(f.body().querySelector('.th-sort'), null, 'the preview does not offer sorting only the current page');
+});
+
+// 2026-10-16：資料預覽的總筆數與統計只在 offset 0 計算，續頁兩者都是 null；畫面沿用第一頁的頁數、列數與統計。
+test('a preview continuation page without a total or stats keeps the first page count and summary', async () => {
+  const f = await previewOpened();
+  f.request('queryDataPreview').resolve({ columns: ['documentNumber'], rows: [['PBC-ROW']], totalCount: 1 }); await settle();
+  tab(f, 'gl').fire('click');
+  const stats = { amountAbsMin: 1, amountAbsMax: 9, postDateMin: '2025-01-01', postDateMax: '2025-12-31', voucherCount: 3 };
+  previewRequests(f)[1].resolve({ columns: ['documentNumber'], rows: Array.from({ length: 200 }, (_, i) => ['GL-' + (i + 1)]), totalCount: 401, stats }); await settle();
+  const note = () => f.aside().querySelector('.data-preview__note');
+  const firstNote = note().textContent;
+  // 使用者 2026-10-19 裁定「來源檔用列，分錄用筆」：GL 的筆數單位改成「筆」。
+  // 第一次失敗：FrontendMapping 收據 20261019-122433278-c327738e178a4e6e829f666f3c1bd5c1。
+  assert.match(firstNote, /共 401 筆/); assert.match(firstNote, /傳票 3 張/);
+  assert.equal(note().querySelector('[data-page-position]').textContent, '1/3');
+  note().querySelector('[data-page-next]').fire('click');
+  assert.deepEqual(plain(previewRequests(f)[2].payload), { dataset: 'gl', limit: 200, offset: 200 });
+  previewRequests(f)[2].resolve({ columns: ['documentNumber'], rows: [['GL-201']], totalCount: null, stats: null }); await settle();
+  assert.equal(f.body().querySelector('tbody').textContent, 'GL-201');
+  assert.equal(note().querySelector('[data-page-position]').textContent, '2/3');
+  assert.match(note().textContent, /共 401 筆/); assert.match(note().textContent, /傳票 3 張/);
+  assert.equal(note().querySelector('[data-page-next]').disabled, false);
+});
+
+test('source preview next-page failure retains rows and page number while retry keeps the failed offset', async () => {
+  const f = await previewOpened();
+  previewRequests(f)[0].resolve({ columns: ['documentNumber'], rows: [['KEPT-PREVIEW']], totalCount: 201 }); await settle();
+  f.aside().querySelector('[data-page-next]').fire('click');
+  assert.equal(f.body().querySelector('tbody').textContent, 'KEPT-PREVIEW');
+  assert.equal(f.aside().querySelector('[data-page-position]').textContent, '1/2');
+  assert.equal(f.aside().querySelector('[data-page-next]').disabled, true);
+  previewRequests(f)[1].reject(new Error('synthetic second-page failure')); await settle();
+  assert.equal(f.body().querySelector('tbody').textContent, 'KEPT-PREVIEW');
+  assert.equal(f.aside().querySelector('[data-page-position]').textContent, '1/2');
+  f.body().querySelector('[data-action="retry-data-preview"]').fire('click');
+  assert.deepEqual(plain(previewRequests(f)[2].payload), { dataset: 'pbcGl', limit: 200, offset: 200 });
+  previewRequests(f)[2].resolve({ columns: ['documentNumber'], rows: [['RETRIED-PREVIEW']], totalCount: 201 }); await settle();
+  assert.equal(f.body().querySelector('tbody').textContent, 'RETRIED-PREVIEW');
+  assert.equal(f.aside().querySelector('[data-page-position]').textContent, '2/2');
+  assert.equal(f.body().querySelector('[data-action="retry-data-preview"]'), null);
 });
 
 test('a late preview response is dropped after switching dataset, re-importing or switching case', async () => {
@@ -526,7 +738,7 @@ test('a late preview response is dropped after switching dataset, re-importing o
   f.store.setImportResult('gl', { batchId: 'reimported', columns: [], rowCount: 1 }); await settle();
   const afterImport = previewRequests(f).at(-1);
   assert.ok(afterImport !== beforeImport, 'the new data is read again');
-  assert.deepEqual(plain(afterImport.payload), { dataset: 'gl' });
+  assert.deepEqual(plain(afterImport.payload), { dataset: 'gl', offset: 0, limit: 200 });
   beforeImport.resolve({ columns: ['documentNumber'], rows: [['BEFORE-IMPORT']], totalCount: 1 }); await settle();
   assert.doesNotMatch(f.body().textContent, /BEFORE-IMPORT/);
   afterImport.resolve({ columns: ['documentNumber'], rows: [['AFTER-IMPORT']], totalCount: 1 }); await settle();
@@ -544,7 +756,7 @@ test('a late preview response is dropped after switching dataset, re-importing o
   f.ui.goBackToPicker();
   f.enterWorkflow({ projectId: 'preview-second', periodStart: '2025-01-01', periodEnd: '2025-12-31' }); await settle();
   const newCase = previewRequests(f).at(-1);
-  assert.deepEqual(plain(newCase.payload), { dataset: 'pbcGl' }, 'the new case starts from the first tab');
+  assert.deepEqual(plain(newCase.payload), { dataset: 'pbcGl', offset: 0, limit: 200 }, 'the new case starts from the first tab');
   oldCase.reject(new Error('old case failure')); await settle();
   // 回到案件清單會讀案件清單（合成環境不回應），所以只看和資料預覽有關的訊息。
   assert.equal(f.store.getState().messages.slice(messages).some(message => /資料預覽|old case failure/.test(message.text)), false,
@@ -574,7 +786,7 @@ test('asking twice for the same dataset shows only the latest answer, and a re-i
   assert.doesNotMatch(f.body().textContent, /OLD-TB/);
   f.$('.data-preview__rail').fire('click'); await settle();
   assert.equal(previewRequests(f).length, count + 1, 'expanding reads the new data once');
-  assert.deepEqual(plain(previewRequests(f).at(-1).payload), { dataset: 'tb' });
+  assert.deepEqual(plain(previewRequests(f).at(-1).payload), { dataset: 'tb', offset: 0, limit: 200 });
 
   // 讀取途中收合面板，接著換案件：新案件收合時不讀，舊案件的結果晚到也不顯示在新案件。
   tab(f, 'gl').fire('click');
@@ -586,7 +798,7 @@ test('asking twice for the same dataset shows only the latest answer, and a re-i
   oldCase.resolve({ columns: ['documentNumber'], rows: [['OLD-CASE-ROW']], totalCount: 1 }); await settle();
   assert.doesNotMatch(f.body().textContent, /OLD-CASE-ROW/);
   f.$('.data-preview__rail').fire('click'); await settle();
-  assert.deepEqual(plain(previewRequests(f).at(-1).payload), { dataset: 'pbcGl' }, 'expanding reads the new case from the first tab');
+  assert.deepEqual(plain(previewRequests(f).at(-1).payload), { dataset: 'pbcGl', offset: 0, limit: 200 }, 'expanding reads the new case from the first tab');
 });
 
 test('preview amounts on standardized data show two decimals while PBC source values stay as imported', async () => {
@@ -675,10 +887,47 @@ test('the other-data menu works from the keyboard on the same toggle with matchi
   active().dispatch('keydown', { key: 'ArrowDown' });
   const chosen = active(); assert.equal(chosen.getAttribute('data-ds'), 'authorizedPreparers');
   chosen.dispatch('click'); // 原生按鈕按 Enter 時瀏覽器送出 click。
-  assert.deepEqual(plain(previewRequests(f).at(-1).payload), { dataset: 'authorizedPreparers' });
+  assert.deepEqual(plain(previewRequests(f).at(-1).payload), { dataset: 'authorizedPreparers', offset: 0, limit: 200 });
   assert.equal(toggle.getAttribute('aria-expanded'), 'false'); assert.equal(menu.hidden, true);
   assert.ok(active() === toggle, 'choosing from the menu returns focus to the toggle');
   assert.equal(toggle.classList.contains('is-active'), true);
   assert.ok(tabs.querySelector('[data-more-toggle]') === toggle, 'the toggle is never rebuilt');
   for (const main of tabs.querySelectorAll('[role="tab"]')) assert.equal(main.getAttribute('aria-selected'), 'false');
+});
+
+// 2026-10-19 使用者要求同功能的元件只留一套：資料預覽的主要資料表改成共用頁籤，外層是 role="tablist"，
+// 只有選中的頁籤留在 Tab 鍵順序裡，方向鍵左右、Home、End 直接換資料表；「其他資料」是頁籤後面的共用選單，不在方向鍵裡。
+test('data preview tabs switch datasets with arrow keys, Home and End, keep one tab in the Tab order, and leave the other-data menu out of the arrows', async () => {
+  const f = await previewOpened();
+  const list = f.aside().querySelector('.data-preview__tabs [role="tablist"]');
+  assert.ok(list, 'the main datasets sit in a tablist');
+  assert.equal(list.getAttribute('aria-label'), '資料預覽資料表');
+  const tabs = () => list.querySelectorAll('[role="tab"]');
+  assert.deepEqual(tabs().map(item => item.getAttribute('data-ds')), ['pbcGl', 'gl', 'pbcTb', 'tb', 'accountMappings']);
+  assert.ok(list.querySelector('[data-more-toggle]') === null, 'the other-data button is not one of the tabs');
+  const active = () => f.dom.document.activeElement;
+  function expectSelected(dataset, label) {
+    for (const item of tabs()) {
+      const on = item.getAttribute('data-ds') === dataset;
+      assert.equal(item.getAttribute('aria-selected'), on ? 'true' : 'false', label + ': aria-selected ' + item.getAttribute('data-ds'));
+      assert.equal(item.getAttribute('tabindex'), on ? '0' : '-1', label + ': tabindex ' + item.getAttribute('data-ds'));
+    }
+    assert.ok(active() === tab(f, dataset), label + ': focus is on the selected tab');
+    assert.deepEqual(plain(previewRequests(f).at(-1).payload), { dataset, offset: 0, limit: 200 }, label + ': the dataset is read');
+  }
+  tab(f, 'pbcGl').focus();
+  for (const [key, dataset] of [['ArrowRight', 'gl'], ['End', 'accountMappings'], ['ArrowRight', 'pbcGl'], ['ArrowLeft', 'accountMappings'], ['Home', 'pbcGl']]) {
+    assert.equal(active().dispatch('keydown', { key }).defaultPrevented, true, key + ' is handled');
+    expectSelected(dataset, key);
+  }
+  // 正在看「其他資料」裡的資料表時，沒有頁籤是選中的，第一個頁籤留在 Tab 鍵順序裡。
+  const toggle = f.aside().querySelector('[data-more-toggle]');
+  toggle.dispatch('click');
+  f.aside().querySelector('[role="menuitem"][data-ds="schemaOverview"]').dispatch('click');
+  assert.deepEqual(plain(previewRequests(f).at(-1).payload), { dataset: 'schemaOverview', offset: 0, limit: 200 });
+  for (const item of tabs()) {
+    assert.equal(item.getAttribute('aria-selected'), 'false');
+    assert.equal(item.getAttribute('tabindex'), item.getAttribute('data-ds') === 'pbcGl' ? '0' : '-1');
+  }
+  assert.equal(toggle.classList.contains('is-active'), true, 'the other-data button carries the underline');
 });

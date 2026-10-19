@@ -646,6 +646,62 @@ public sealed class PrescreenDirectTemplatePackageTests
         AssertProviderOracleEqual(sqlite, sqlServer);
     }
 
+    // 使用者 2026-10-19 裁定：傳票號碼空白的命中算進摘要頁的行層命中數，明細表不列，摘要頁加一列說明，數字不動。
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task Criteria_BlankDocumentNumberHits_AreExplainedOnTheSummary(string provider)
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            builder => builder
+                .WithColumns(OriginalHeaders)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "1101", "現金", "風險摘要 1", "100.00", 1)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "4101", "收入", "一般摘要 1", "100.00", 0)
+                .AddRow("", "2025-03-07", "2025-03-08", "1101", "現金", "風險摘要 空白 1", "50.00", 1)
+                .AddRow("", "2025-03-07", "2025-03-08", "4101", "收入", "風險摘要 空白 2", "50.00", 0),
+            databaseProvider: provider,
+            configureTb: tb => tb
+                .AddRow("1101", "現金", 150)
+                .AddRow("4101", "收入", -150));
+        var validation = await host.DispatchAsync("validate.run");
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var committed = await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new { scenarios = new[] { KeywordScenario("命中摘要", "風險") } }));
+        var response = await host.DispatchAsync(
+            "export.criteriaSelectionReport",
+            JsonSerializer.Serialize(new
+            {
+                validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString(),
+                prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString(),
+                revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()
+            }));
+        using var workbook = new XLWorkbook(Path.Combine(
+            host.ProjectsRoot, projectId, response.GetProperty("artifact").GetProperty("fileName").GetString()!));
+
+        var summary = workbook.Worksheet("Summary Inforamtion");
+        Assert.Equal(1, summary.Cell("C5").GetValue<long>());
+        Assert.Equal(3, summary.Cell("D5").GetValue<long>());
+        var detail = workbook.Worksheet("#Criteria Select 1");
+        Assert.Equal(3, detail.LastRowUsed()!.RowNumber());
+        Assert.Equal(new[] { "JV-001", "JV-001" }, new[] { detail.Cell(2, 1).GetString(), detail.Cell(3, 1).GetString() });
+        var note = Assert.Single(summary.RowsUsed(), row => row.Cell(1).GetString() == "Criteria Selection 1（說明）");
+        Assert.Equal("另有 2 筆分錄的傳票號碼空白，未列入明細表。", note.Cell(2).GetString());
+        Assert.True(note.RowNumber() >= 16);
+    }
+
+    // 沒有空白傳票號碼的命中時不加說明列。
+    [Fact]
+    public async Task Criteria_WithoutBlankDocumentNumberHits_AddsNoExplanationRow()
+    {
+        var oracle = await ExportCriteriaOracleAsync("sqlite", connectionString: null);
+
+        Assert.Equal(2, oracle.RowHitCount);
+        Assert.False(oracle.HasExplanationRow);
+    }
+
     private static LegacyReportWriter CreateWriter(
         SqliteProjectDatabase database,
         IPrescreenPageRepository pages) =>
@@ -841,7 +897,8 @@ public sealed class PrescreenDirectTemplatePackageTests
             return new CriteriaProviderOracle(
                 summary.Cell("C5").GetValue<long>(),
                 summary.Cell("D5").GetValue<long>(),
-                detailRows);
+                detailRows,
+                summary.RowsUsed().Any(row => row.Cell(1).GetString().EndsWith("（說明）", StringComparison.Ordinal)));
         }
         finally
         {
@@ -857,7 +914,8 @@ public sealed class PrescreenDirectTemplatePackageTests
     private sealed record CriteriaProviderOracle(
         long VoucherHitCount,
         long RowHitCount,
-        IReadOnlyList<string> DetailRows);
+        IReadOnlyList<string> DetailRows,
+        bool HasExplanationRow);
 
     private static void AssertProviderOracleEqual(
         CriteriaProviderOracle expected,
@@ -866,6 +924,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         Assert.Equal(expected.VoucherHitCount, actual.VoucherHitCount);
         Assert.Equal(expected.RowHitCount, actual.RowHitCount);
         Assert.Equal(expected.DetailRows, actual.DetailRows);
+        Assert.Equal(expected.HasExplanationRow, actual.HasExplanationRow);
     }
 
     private static PrescreenReportProjection Projection(long rowCount)

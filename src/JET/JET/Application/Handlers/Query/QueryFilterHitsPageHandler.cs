@@ -100,6 +100,7 @@ public sealed class QueryFilterHitsPageHandler(
                 description = r.Description,
                 customValues = customValues[r.EntryId]
             }).ToArray(),
+            totalCount = page.TotalCount,
             nextCursor = query.WrapCursor(page.NextCursor)
         };
     }

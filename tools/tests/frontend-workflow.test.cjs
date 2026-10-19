@@ -1,4 +1,7 @@
 'use strict';
+// 2026-10-16：依使用者要求將資料明細改為每頁 200 筆及前後換頁。首次失敗保留於
+// artifacts/harness/runs/20261016-093720476-14d8f06e13d34b44ac2b371b7a26ad3f/contract-specialized.stdout.log。
+// 同步舊的頁量與累加預期，保留排序、錯誤、重試及來源失效斷言。
 // 第九節 D 改為名稱與動機常駐、單次儲存後清空草稿；移除舊表單開關操作並改驗證新流程。
 // 原測試首次失敗：20261014-123035603-d123badefd7941119a02c58b1b431fae；保留請求、錯誤、失效與並行修改斷言。
 // 測試程序的記憶體與時間上限，見 support/resource-guard.cjs（2026-10-13）。
@@ -13,7 +16,7 @@ const vm = require('node:vm');
 const { root, settle, plain, batch9TreeDom, batch7Dom, batch7ControlDom, validationFixture, batch8Fixture, batch8ValidationData, batch8Artifacts,
   savedG, usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, overviewDialogFixture, remapPaper, remapPrescreen } = require('./support/frontend-fixtures.cjs');
 // 本檔自己組的假後端也包進 contractJetApi，送出的資料與假回應照樣和正式後端的形狀核對（2026-10-15）。
-const { contractJetApi } = require('./support/action-contract.cjs');
+const { contractJetApi, unchecked } = require('./support/action-contract.cjs');
 // 上游修改清除篩選情境時的訊息。使用者 2026-10-13 勾選頁確認 12，原本是「前面的資料已更改，請重新設定篩選情境。」
 // （第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
 const UPSTREAM_RESET_MESSAGE = '前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。';
@@ -301,6 +304,22 @@ test('a published report survives unavailable catalog refresh without losing oth
   assert.equal(store.getState().reportArtifacts[1].catalogWarning, '檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。');
 });
 
+// 使用者 2026-10-19 裁定「回報成功並提醒」：報告檔已產生、卻寫不進操作紀錄時，回應的 warnings 帶提醒。
+// 四種產生報告都經過 applyReportExport，提醒在這裡顯示；報告清單照常更新。
+test('report exports show the audit-log reminder carried in the response warnings', () => {
+  const window = { setTimeout, clearTimeout }, context = vm.createContext({ window });
+  for (const file of ['state.js', 'ui-core.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  const store = window.JetStore;
+  store.setProject({ projectId: 'published' });
+  const warning = '檔案已產生，但這次產生的檔案沒有寫入操作紀錄。';
+  const artifact = { artifactId: 'prescreen-1', kind: 'prescreenReport', stale: false };
+  store.applyReportExport({ artifact, reportArtifacts: [artifact], warnings: [warning] });
+  assert.deepEqual(plain(store.getState().messages.filter(m => m.text === warning).map(m => m.level)), ['warn']);
+  assert.deepEqual(plain(store.getState().reportArtifacts.map(a => a.artifactId)), ['prescreen-1']);
+  store.applyReportExport({ artifact, reportArtifacts: [artifact], warnings: [] });
+  assert.equal(store.getState().messages.filter(m => m.text === warning).length, 1, 'an export without the reminder adds nothing');
+});
+
 test('successful operations clear only their own stale state and workpaper does not require a criteria file', () => {
   const window = { setTimeout, clearTimeout }, context = vm.createContext({ window });
   for (const file of ['state.js', 'ui-core.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
@@ -578,7 +597,7 @@ test('account editor keeps drafts on failure, saves only changed accounts, pages
   function render() { return accountEditorControls(ui, store); }
   render();
   assert.equal(reads.length, 1);
-  assert.equal(reads[0].payload.pageSize, 50); // 2026-10-09 續修第 7 則選項裁定；其餘斷言保留。
+  assert.equal(reads[0].payload.pageSize, 200); // 2026-10-16 統一明細頁量，取代 2026-10-09 的 50 筆；其餘斷言保留。
   reads[0].reject(new Error('load failed')); await settle();
   assert.match(render().html, /load failed/);
   render().control('[data-account-retry]').fire('click');
@@ -616,9 +635,9 @@ test('account editor keeps drafts on failure, saves only changed accounts, pages
   assert.match(render().html, /data-account-current="1" data-category-id="builtin.revenue"/);
   render().control('[data-account-next]').fire('click');
   assert.equal(reads[2].payload.cursor, 'next');
-  reads[2].resolve({ rows: [{ accountCode: 'r', accountName: 'Revenue', categoryId: 'builtin.revenue' }], nextCursor: null });
+  reads[2].resolve({ rows: [{ accountCode: 'r', accountName: 'Revenue', categoryId: 'builtin.revenue' }], nextCursor: null, totalCount: 201 });
   await settle(); page = render();
-  assert.match(page.html, /第 2 頁/);
+  assert.match(page.html, /data-page-position[^>]*>2\/2</);
   applyCategory('builtin.others');
   render().control('[data-account-cancel]').fire('click');
   assert.doesNotMatch(render().html, /個科目待儲存/);
@@ -632,6 +651,49 @@ test('account editor keeps drafts on failure, saves only changed accounts, pages
   store.setProject({ projectId: 'another' }); render();
   assert.equal(reads.length, 5);
   assert.equal(reads[4].payload.cursor, null);
+});
+
+// 使用者 2026-10-19 裁定「回報成功並提醒」：存檔後讀不回科目配對摘要時，後端回應不帶摘要欄位，只帶提醒與失效結果。
+// 畫面保留原本的摘要與比對用的批次，套用失效結果並顯示提醒；已存的分類不再待儲存，之後改分類照常可以再存。
+test('account editor keeps the previous summary when the saved summary cannot be read back', async () => {
+  const reads = [], writes = [];
+  const window = { setTimeout, clearTimeout, JetApi: contractJetApi({
+    queryAccountMappingPage: payload => new Promise((resolve, reject) => reads.push({ payload, resolve, reject })),
+    accountMappingSave: payload => new Promise((resolve, reject) => writes.push({ payload, resolve, reject }))
+  }) };
+  const document = { createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
+  const context = vm.createContext({ window, document });
+  for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js'])
+    vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
+  const store = window.JetStore, ui = window.JetUi;
+  store.setProject({ projectId: 'synthetic' });
+  store.setTaxonomy({ revision: 1, categories: [{ categoryId: 'builtin.cash', label: 'Cash' }, { categoryId: 'builtin.revenue', label: 'Revenue' }] });
+  const summary = { batchId: 'before', rowCount: 2, hasAnyCategory: true, hasRevenue: false, hasCounterpart: true, blankCategoryCount: 1 };
+  store.setAccountMappingState(summary);
+  ui.run = (name, work) => Promise.resolve().then(work);
+  function render() { return accountEditorControls(ui, store); }
+  function applyRevenue() {
+    let page = render(); page.control('selection').checked = true; page.control('selection').fire('change');
+    page = render(); page.control('[data-account-bulk-category]').value = 'builtin.revenue';
+    page.control('[data-account-bulk-category]').fire('change');
+    render().control('[data-account-apply]').fire('click');
+  }
+  render();
+  reads[0].resolve({ rows: [{ accountCode: 'A1', accountName: 'One', categoryId: 'builtin.cash' }], nextCursor: null });
+  await settle();
+  applyRevenue();
+  render().control('[data-account-save]').fire('click'); await settle();
+  const warning = '變更已儲存，但畫面上的科目配對摘要沒有更新；重新開啟案件就會更新，不必重做變更。';
+  writes[0].resolve(unchecked('存檔後讀不回科目配對摘要時的回應；正式旅程讀得到摘要，走不到這裡', { warnings: [warning],
+    invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true, accountMapping: false },
+    staleState: { validation: false, prescreen: true, filter: false }, reportArtifacts: [], reportArtifactWarning: null }));
+  await settle();
+  assert.equal(store.getState().importState.accountMapping, summary, 'the previous summary stays on screen');
+  assert.deepEqual(plain(store.getState().messages.filter(m => m.text === warning).map(m => m.level)), ['warn']);
+  assert.equal(store.getState().staleState.prescreen, true);
+  assert.equal(ui.accountMappingEditor.pendingCount(), 0);
+  assert.match(render().html, /data-account-current="0" data-category-id="builtin.revenue"/);
+  assert.equal(reads.length, 1, 'the editor keeps its loaded page instead of starting over');
 });
 
 // 使用者 2026-10-08 裁定「跨頁保留，一次儲存」：勾選與已套用的分類在換頁後都保留，最後按一次儲存；
@@ -1182,8 +1244,8 @@ test('missing document and account details have independent searchable sorted ta
   const f = fixture();
   f.store.getState().lastRuns.validate = validationFixture();
   const html = f.render().container.innerHTML;
-  const documentTable = html.match(/<tbody data-load-target="null-nullDocument">([\s\S]*?)<\/tbody>/)[1];
-  const accountTable = html.match(/<tbody data-load-target="null-nullAccount">([\s\S]*?)<\/tbody>/)[1];
+  const documentTable = html.match(/<tbody data-page-query="null-nullDocument">([\s\S]*?)<\/tbody>/)[1];
+  const accountTable = html.match(/<tbody data-page-query="null-nullAccount">([\s\S]*?)<\/tbody>/)[1];
   assert.match(documentTable, /document only/); assert.doesNotMatch(documentTable, /account only/);
   assert.match(accountTable, /account only/); assert.doesNotMatch(accountTable, /document only/);
   assert.match(documentTable, /both missing/); assert.match(accountTable, /both missing/);
@@ -1264,19 +1326,9 @@ test('detail errors provide a direct retry and accessible waiting state without 
 });
 
 function pagedReadFixture(options = {}) {
-  function el() {
-    const handlers = {}, attributes = {}, children = [];
-    const node = { isConnected: true, hidden: false, disabled: false, textContent: '載入更多', value: '',
-      handlers, children, innerHTML: '', className: '',
-      setAttribute(k, v) { attributes[k] = v; }, getAttribute(k) { return attributes[k] || null; },
-      addEventListener(k, fn) { handlers[k] = fn; },
-      fire(k, event = {}) { return handlers[k]({ preventDefault() {}, target: node, ...event }); },
-      appendChild(child) { children.push(child); child.parentElement = node; return child; },
-      querySelectorAll() { return []; },
-      querySelector(selector) { return children.find(c => c.getAttribute('data-page-status') !== null && selector === '[data-page-status]') || null; }
-    }; return node;
-  }
-  const document = { createElement: () => el() }, window = { setTimeout, clearTimeout };
+  // 新頁碼導覽有真正的子節點，沿用樹狀 DOM 解析，不為分頁另寫一份假的實作。
+  const dom = batch9TreeDom(), el = dom.element;
+  const document = dom.document, window = { setTimeout, clearTimeout };
   const context = vm.createContext({ document, window });
   for (const file of ['state.js', 'ui-core.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const store = window.JetStore; store.setProject({ projectId: 'paged-read' });
@@ -1287,16 +1339,18 @@ function pagedReadFixture(options = {}) {
   form.querySelector = selector => ['[data-page-search-input]', '[data-search-input]'].includes(selector) ? input :
     ['[data-page-search-clear]', '[data-search-clear]'].includes(selector) ? clear : null;
   wrapper.appendChild(table); wrapper.appendChild(more);
-  window.JetUi.bindPagedTable(wrapper, { sourceKind: 'validate', table, search: form, loadMore: more,
+  const controller = window.JetUi.bindPagedTable(wrapper, { sourceKind: 'validate', table, search: form,
     fetchPage(cursor, sort, search) {
       if (options.throwSync) throw new Error('synchronous failure');
       return new Promise((resolve, reject) => requests.push({ cursor, sort, search, resolve, reject })); },
     clearRows() { rows.length = 0; }, appendRows(data) { rows.push(...data); } });
-  return { store, wrapper, table, more, form, input, clear, sort, requests, rows };
+  return { store, wrapper, table, more: wrapper.querySelector('[data-page-next]'), form, input, clear, sort, requests, rows,
+    start: () => controller.ensureLoaded(), previous: wrapper.querySelector('[data-page-previous]'),
+    position: wrapper.querySelector('[data-page-position]'), retry: wrapper.children.find(node => node.textContent === '重試') };
 }
 
 test('paged read ignores late data after a source change and never acquires the global busy state', async () => {
-  const f = pagedReadFixture(); f.store.setBusy(true, 'unrelated operation'); f.more.fire('click');
+  const f = pagedReadFixture(); f.store.setBusy(true, 'unrelated operation'); f.start();
   assert.equal(f.requests.length, 1);
   assert.equal(f.table.getAttribute('aria-busy'), 'true');
   f.store.setProject({ projectId: 'replacement' });
@@ -1306,15 +1360,15 @@ test('paged read ignores late data after a source change and never acquires the 
 });
 
 test('paged read preserves rows on failure and reports an actionable local status', async () => {
-  const f = pagedReadFixture(); f.more.fire('click');
+  const f = pagedReadFixture(); f.start();
   f.requests[0].reject(new Error('synthetic failed page')); await settle();
   assert.deepEqual(f.rows, ['existing']);
-  assert.equal(f.more.disabled, false);
+  assert.equal(f.retry.disabled, false);
   const status = f.wrapper.children.find(c => c.getAttribute('data-page-status') !== null);
   assert.ok(status, 'failure belongs next to the affected table');
   assert.match(status.textContent, /重試/);
   assert.equal(status.getAttribute('role'), 'status');
-  f.more.fire('click'); f.requests[1].resolve({ rows: ['recovered'], nextCursor: null }); await settle();
+  f.retry.fire('click'); f.requests[1].resolve({ rows: ['recovered'], nextCursor: null }); await settle();
   assert.deepEqual(f.rows, ['recovered']);
   assert.equal(f.table.getAttribute('aria-busy'), 'false');
   assert.equal(f.store.getState().busy, false);
@@ -1322,7 +1376,7 @@ test('paged read preserves rows on failure and reports an actionable local statu
 });
 
 for (const change of ['data', 'run', 'detached']) test('paged read rejects a response after ' + change + ' changes', async () => {
-  const f = pagedReadFixture(); f.more.fire('click');
+  const f = pagedReadFixture(); f.start();
   if (change === 'data') f.store.setImportResult('gl', { batchId: 'new' });
   else if (change === 'run') f.store.setLastRun('validate', { resultRef: { runId: 'v1' } });
   else f.wrapper.isConnected = false;
@@ -1331,7 +1385,7 @@ for (const change of ['data', 'run', 'detached']) test('paged read rejects a res
 });
 
 test('paged sorting and search retry the exact failed request without discarding the previous result', async () => {
-  const f = pagedReadFixture(); f.more.fire('click');
+  const f = pagedReadFixture(); f.start();
   f.requests[0].resolve({ rows: ['initial'], nextCursor: 'cursor-1' }); await settle();
   f.table.fire('click', { target: f.sort });
   assert.deepEqual(JSON.parse(JSON.stringify(f.requests[1].sort)), { key: 'amount', direction: 'asc' });
@@ -1345,14 +1399,42 @@ test('paged sorting and search retry the exact failed request without discarding
   assert.equal(f.requests[3].search, 'JV'); assert.equal(f.requests[3].cursor, null);
   assert.deepEqual(JSON.parse(JSON.stringify(f.requests[3].sort)), { key: 'amount', direction: 'asc' });
   f.requests[3].resolve({ rows: ['matched'], nextCursor: null }); await settle();
-  assert.deepEqual(f.rows, ['matched']); assert.equal(f.input.value, 'JV'); assert.equal(f.more.hidden, true);
+  assert.deepEqual(f.rows, ['matched']); assert.equal(f.input.value, 'JV'); assert.equal(f.more.disabled, true);
 });
 
 test('synchronous page failure restores controls and no legacy whole-page read helper remains', async () => {
-  const f = pagedReadFixture({ throwSync: true }); f.more.fire('click'); await settle();
-  assert.equal(f.more.disabled, false); assert.deepEqual(f.rows, ['existing']);
+  const f = pagedReadFixture({ throwSync: true }); f.start(); await settle();
+  assert.equal(f.retry.disabled, false); assert.deepEqual(f.rows, ['existing']);
   assert.equal(f.table.getAttribute('aria-busy'), 'false');
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'steps/validate-step.js'), 'utf8'), /Ui\.bindLoadMore/);
+});
+
+test('200-row pager replaces each page across 401 rows, goes back, retains failed pages and resets search totals', async () => {
+  const f = pagedReadFixture();
+  const rows = start => Array.from({ length: 200 }, (_, i) => 'ROW-' + (start + i));
+  f.start();
+  f.requests[0].resolve({ rows: rows(1), nextCursor: 'after-200', totalCount: 401 }); await settle();
+  assert.equal(f.rows.length, 200); assert.equal(f.position.textContent, '1/3');
+  assert.equal(f.previous.disabled, true); assert.equal(f.more.disabled, false);
+  f.more.fire('click'); assert.equal(f.requests[1].cursor, 'after-200');
+  f.requests[1].resolve({ rows: rows(201), nextCursor: 'after-400', totalCount: 401 }); await settle();
+  assert.equal(f.rows.length, 200); assert.equal(f.rows[0], 'ROW-201'); assert.equal(f.rows.at(-1), 'ROW-400');
+  assert.equal(f.position.textContent, '2/3'); assert.equal(f.rows.includes('ROW-1'), false);
+  f.more.fire('click'); f.requests[2].reject(new Error('synthetic third-page failure')); await settle();
+  assert.equal(f.position.textContent, '2/3'); assert.equal(f.rows[0], 'ROW-201'); assert.equal(f.retry.hidden, false);
+  f.retry.fire('click'); assert.equal(f.requests[3].cursor, 'after-400');
+  f.requests[3].resolve({ rows: ['ROW-401'], nextCursor: null, totalCount: 401 }); await settle();
+  assert.deepEqual(f.rows, ['ROW-401']); assert.equal(f.position.textContent, '3/3'); assert.equal(f.more.disabled, true);
+  f.previous.fire('click'); assert.equal(f.requests[4].cursor, 'after-200');
+  f.requests[4].resolve({ rows: rows(201), nextCursor: 'after-400', totalCount: 401 }); await settle();
+  assert.equal(f.position.textContent, '2/3'); assert.equal(f.rows[0], 'ROW-201');
+  f.previous.fire('click'); assert.equal(f.requests[5].cursor, null);
+  f.requests[5].resolve({ rows: rows(1), nextCursor: 'after-200', totalCount: 401 }); await settle();
+  f.input.value = 'MATCH'; f.form.fire('submit');
+  assert.equal(f.requests[6].cursor, null); assert.equal(f.requests[6].search, 'MATCH');
+  f.requests[6].resolve({ rows: ['MATCH-1'], nextCursor: null, totalCount: 1 }); await settle();
+  assert.deepEqual(f.rows, ['MATCH-1']); assert.equal(f.position.textContent, '1/1');
+  assert.equal(f.previous.disabled, true); assert.equal(f.more.disabled, true);
 });
 
 test('late detail response cannot populate a replacement project with the same run ID', async () => {
@@ -1537,7 +1619,9 @@ test('failed or cancelled full imports retain selection and old data, retry alon
 
 // 2026-10-03 主線在瀏覽器主機重測 S9 時發現：匯入成功後寫入新資料的那一次重繪，匯入精靈還在「匯入中」；之後收起精靈
 // 不會再重繪，卡片多停約 4 秒「匯入中…」，「剛剛重新匯入（時間）」徽章也從來沒有出現。這裡在資料更新的那一次通知就重畫並檢查。
-test('a finished import shows the result and the just-imported badge in the same update', async () => {
+// 使用者 2026-10-19 同意按鈕改名「加入」「更換」後，加入的徽章一併改成「剛剛加入新檔（時間）」，不再寫「已加入來源」。
+for (const [mode, badge, other] of [['replace', /剛剛重新匯入（/, /剛剛加入新檔/], ['append', /剛剛加入新檔（/, /剛剛重新匯入|已加入來源/]])
+test('a finished ' + mode + ' import shows the result and the just-imported badge in the same update', async () => {
   const f = fixture(), calls = [];
   const api = f.window.JetApi;
   api.hostSelectFiles = async () => ({ files: [{ filePath: 'synthetic.csv', fileName: 'synthetic.csv' }] });
@@ -1556,7 +1640,7 @@ test('a finished import shows the result and the just-imported badge in the same
       actions.set(name, el); return el;
     }
     const toggle = control('toggle', { 'data-task-toggle': 'gl' });
-    for (const name of ['wizard-replace-gl','wizard-pick','wizard-confirm','wizard-cancel']) control(name);
+    for (const name of ['wizard-replace-gl','wizard-append-gl','wizard-pick','wizard-confirm','wizard-cancel']) control(name);
     const card = { querySelector: selector => actions.get((selector.match(/data-action="([^"]+)"/) || [])[1]) || null,
       querySelectorAll: () => [] };
     const container = { innerHTML: '',
@@ -1565,7 +1649,7 @@ test('a finished import shows the result and the just-imported badge in the same
     f.window.JetUi.renderStep('import', container, f.store.getState());
     return { html: () => container.innerHTML, click: name => actions.get(name).click() };
   }
-  render().click('toggle'); render().click('wizard-replace-gl');
+  render().click('toggle'); render().click('wizard-' + mode + '-gl');
   render().click('wizard-pick'); await settle();
   render().click('wizard-confirm');
   let atUpdate = null;
@@ -1575,7 +1659,8 @@ test('a finished import shows the result and the just-imported badge in the same
   calls[0].resolve({batchId:'new',rowCount:2,addedRowCount:2,columns:['doc','amount'],sources:[]}); await settle();
   assert.ok(atUpdate, 'writing the new data notifies the screen');
   assert.doesNotMatch(atUpdate, /匯入中/);
-  assert.match(atUpdate, /剛剛重新匯入（/);
+  assert.match(atUpdate, badge);
+  assert.doesNotMatch(atUpdate, other);
   assert.match(atUpdate, /已匯入 2 列/);
 });
 
@@ -1712,6 +1797,27 @@ test('GL mapping success refreshes the authorized list comparison without anothe
   f.store.setLastRun('prescreen', { synthetic: true });
   f.store.refreshAuthorizedPreparerState({ ...refreshed, matchedPreparerCount: 3 });
   assert.equal(f.store.getState().lastRuns.prescreen.synthetic, true, 'read-only status refresh keeps computed results');
+});
+
+// 使用者 2026-10-19 裁定：確認配對已存檔、但讀不到授權清單比對狀態時，回應不帶這個欄位，畫面保留原本的比對結果。
+// 一併附上的提醒句由後端測試核對；這裡的假回應只能用正式後端記錄過的形狀，所以只省略欄位。
+test('GL mapping success without the authorized list comparison keeps the shown comparison', async () => {
+  const f = authorizedPreparerReviewFixture();
+  f.store.setImportResult('gl', { rowCount: 1, columns: ['doc', 'date', 'acc', 'name', 'desc', 'amt', 'author'] });
+  f.store.replaceMappingDraft('gl', { docNum: 'doc', postDate: 'date', accNum: 'acc', accName: 'name', description: 'desc', amount: 'amt', createBy: 'author' });
+  const shown = { rowCount: 35, sourceRowCount: 54, blankRowCount: 4, duplicateRowCount: 15, matchedPreparerCount: 2 };
+  f.store.setAuthorizedPreparerState(shown);
+  f.window.JetApi.mappingCommitGl = async () => ({ projectedRowCount: 1 });
+  const source = fs.readFileSync(path.join(root, 'steps/mapping-step.js'), 'utf8');
+  vm.runInContext(source.replace("  Ui.registerStep('mapping', render);",
+    '  window.bindReviewedGlMapping = function (container) { bindMappingSection(container, "gl", Ui.GL_FIELDS); };'), f.context);
+  let click;
+  const section = { addEventListener() {}, querySelectorAll: () => [], querySelector: selector =>
+    selector === '[data-action="commit-gl"]' ? { addEventListener: (_, handler) => { click = handler; } } : null };
+  f.window.bindReviewedGlMapping({ querySelector: () => section });
+  click(); await settle();
+  assert.equal(f.store.getState().mapping.gl.committed.projectedRowCount, 1, 'the commit itself succeeded');
+  assert.deepEqual(plain(f.store.getState().importState.authorizedPreparer), shown);
 });
 
 test('authorized list selects an identifier, keeps the draft on failure, cancels and removes only after success', async () => {
@@ -2065,6 +2171,51 @@ test('picking files continues after one fails, offers an encoding retry in place
   page = w.render();
   assert.equal((page.html().match(/class="pending-row"/g) || []).length, 2, 'the same file is not added twice');
   assert.ok(w.f.store.getState().messages.some(m => /已在清單/.test(m.text)), 'the auditor is told the file was already listed');
+});
+
+// 低嚴重度事項 A2（使用者 2026-10-19 要求處理）：文字檔改選分隔符或編碼後重新讀前 10 列，
+// 「只讀到一欄」的提醒跟著出現或消失，不必先展開預覽；勾掉的來源也不會因為改選被重新勾回。
+test('changing a text source delimiter refreshes the single-column notice without opening the preview', async () => {
+  const SINGLE = '只讀到一欄。若檔案上方有公司名稱或報表標題列';
+  const previews = [];
+  const w = importWizardFixture(api => {
+    api.hostSelectFiles = async () => ({ files: [{ filePath: 'C:\\in\\tabbed.txt', fileName: 'tabbed.txt' }] });
+    api.importInspectFile = async () => ({ fileType: 'csv', columns: ['doc\tamount'], encoding: 'utf-8', delimiter: ',',
+      notices: [SINGLE + '……'] });
+    api.importPreviewFile = async payload => {
+      previews.push(payload);
+      return payload.delimiter === '\t'
+        ? { columns: ['doc', 'amount'], sampleRows: [['a', '1']] }
+        : { columns: ['doc\tamount'], sampleRows: [['a\t1']], notices: [SINGLE + '……'] };
+    };
+  });
+  w.open();
+  w.render().click('wizard-pick'); await settle();
+  assert.ok(w.render().html().includes(SINGLE), 'the inspection notice is shown');
+  const include = w.render().control('bind:include:0');
+  include.checked = false; include.fire('change');
+  const delimiter = w.render().control('bind:delimiter:0');
+  delimiter.value = '\t'; delimiter.fire('change'); await settle();
+  assert.deepEqual(plain(previews.at(-1)), { filePath: 'C:\\in\\tabbed.txt', limit: 10, encoding: 'utf-8', delimiter: '\t' });
+  assert.ok(!w.render().html().includes(SINGLE), 'choosing the tab delimiter clears the notice');
+  assert.match(w.render().html(), /data-pending-bind="include" data-index="0">/, 'a source the auditor unticked stays unticked');
+  delimiter.value = ','; delimiter.fire('change'); await settle();
+  assert.ok(w.render().html().includes(SINGLE), 'choosing the comma again brings the notice back');
+});
+
+// 使用者 2026-10-19 要求前端不露出系統用詞：編碼選項寫 UTF-8、Big5（繁體中文）、UTF-16，送出的值仍是後端接受的名稱。
+test('text source encoding options read as common names while keeping the backend values', async () => {
+  const w = importWizardFixture(api => {
+    api.hostSelectFiles = async () => ({ files: [{ filePath: 'plain.csv', fileName: 'plain.csv' }] });
+    api.importInspectFile = async () => ({ fileType: 'csv', columns: ['doc', 'amount'], encoding: 'big5', delimiter: ',' });
+  });
+  w.open();
+  w.render().click('wizard-pick'); await settle();
+  const html = w.render().html();
+  assert.match(html, /<option value="utf-8">UTF-8<\/option>/);
+  assert.match(html, /<option value="big5" selected>Big5（繁體中文）<\/option>/);
+  assert.match(html, /<option value="utf-16">UTF-16<\/option>/);
+  assert.doesNotMatch(html, />(utf-8|big5|utf-16)</);
 });
 
 test('a workbook with several sheets becomes one pending source per sheet and each is sent with its sheet name', async () => {
@@ -2526,6 +2677,28 @@ test('classification tree has no search and preserves explicit collapsed branche
   dom = render(); assert.equal(dom.querySelector('[data-category-node="bank"]').hidden, true);
 });
 
+// 2026-10-19 使用者要求同功能的元件只留一套：分類樹的展開改成共用的展開箭頭按鈕，名稱說出它控制哪一個分類的下層，
+// 開關只寫在 aria-expanded，按鈕不再顯示「展開」「收合」；沒有下層的分類留同樣寬的空位，名稱才對齊。
+test('classification tree toggles are shared chevron buttons named after their category and report their state through aria-expanded', () => {
+  const f = taxonomyReviewFixture(), ui = f.window.JetUi;
+  f.store.setTaxonomy({ revision: 2, categories: classificationTree() });
+  const view = { search: '', collapsed: {} };
+  const html = ui.taxonomyPickerHtml(f.store.getState(), [], 'categoryIds', '指定分類', view);
+  assert.doesNotMatch(html, />(展開|收合)</, 'the toggle shows no 展開 or 收合 text');
+  assert.equal((html.match(/<span class="category-tree__toggle" aria-hidden="true"><\/span>/g) || []).length, 3, 'the three leaf categories keep an empty slot');
+  const dom = taxonomyReviewDom(html);
+  ui.bindTaxonomyPicker(dom, f.store.getState(), view);
+  const toggle = dom.querySelector('[data-category-toggle="builtin.cash"]');
+  assert.match(toggle.getAttribute('class'), /\bjet-disclosure\b/);
+  assert.equal(toggle.getAttribute('aria-label'), '現金的下層分類');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  toggle.fire();
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(dom.querySelector('[data-category-node="bank"]').hidden, true);
+  toggle.fire();
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+});
+
 function accountTreeReviewFixture(initialValues = ['0099']) {
   const f = taxonomyReviewFixture(), requests = [];
   f.store.setTaxonomy({ revision: 2, categories: classificationTree() });
@@ -2575,6 +2748,25 @@ test('account-tree category selection is atomic for server truncation and the ex
   }
 });
 
+// 使用者 2026-10-19 裁定：有搜尋字時勾選分類，仍選入整個分類與下層分類的科目，和勾選框的文字一致；
+// 清單改顯示整個分類，搜尋框清空。
+test('account-tree category checkbox selects the whole category even while searching', async () => {
+  const f = accountTreeReviewFixture();
+  f.render().search('現金');
+  assert.equal(f.requests[0].payload.search, '現金');
+  f.requests[0].resolve({ rows: [{ accountCode: '1101', accountName: '現金', categoryId: 'bank' }], nextCursor: null }); await settle();
+  f.render().check('[data-account-tree-select-category="builtin.cash"]');
+  assert.equal(f.requests[1].payload.categoryId, 'builtin.cash');
+  assert.equal(f.requests[1].payload.search, '');
+  f.requests[1].resolve({ rows: [
+    { accountCode: '1101', accountName: '現金', categoryId: 'bank' },
+    { accountCode: '1102', accountName: '銀行存款', categoryId: 'bank' }], nextCursor: null }); await settle();
+  assert.deepEqual(plain(f.rule.values), ['0099', '1101', '1102']);
+  const html = f.render().html;
+  assert.match(html, /data-account-tree-code="1102"/);
+  assert.match(html, /value="" data-account-tree-search /);
+});
+
 test('account-tree search remains category-scoped, failures are retryable, and later search wins', async () => {
   const f = accountTreeReviewFixture(); f.render().click('[data-account-tree-category="builtin.cash"]');
   f.requests[0].reject(new Error('Synthetic page failure')); await settle();
@@ -2609,9 +2801,10 @@ function batch7Fixture() {
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
     '  window.batch7 = { bind, customPickerHtml, addFieldCondition, addCommonCheck, conditionFromSpec, findCommonCheck, bindCompoundRule, compoundRuleHtml, ruleRowHtml, ruleSubjectHtml, ruleProblem, readBackHtml, toWireDraft, syncViewState, getView: () => viewState };'), context);
-  // 2026-10-16 正式匯出加了 countText，替換字串跟著改；只多匯出 matchStatusHtml 供下面的測試使用。
-  vm.runInContext(fs.readFileSync(path.join(root, 'filter-vouchers.js'), 'utf8').replace('Ui.FilterVouchers = { summary: summary, countText: countText, mount: mount };',
-    'Ui.FilterVouchers = { summary: summary, countText: countText, mount: mount, matchStatusHtml: matchStatusHtml };'), context);
+  // 替換字串跟著正式匯出改：2026-10-16 加了 countText，2026-10-19 刪掉只給備用畫面用的 countText（第一次失敗：
+  // 20261019-090901211-9e9ec7ffcbf34596ae2d8476cf613b45）。只多匯出 matchStatusHtml 供下面的測試使用。
+  vm.runInContext(fs.readFileSync(path.join(root, 'filter-vouchers.js'), 'utf8').replace('Ui.FilterVouchers = { summary: summary, mount: mount };',
+    'Ui.FilterVouchers = { summary: summary, mount: mount, matchStatusHtml: matchStatusHtml };'), context);
   const store = window.JetStore, ui = window.JetUi, api = window.batch7;
   store.setProject({ projectId: 'batch7-synthetic', rocDateEnabled: true, periodStart: '2025-01-01', periodEnd: '2025-12-31' });
   api.syncViewState(store.getState());
@@ -2879,8 +3072,10 @@ test('batch8 completeness detail displays both authoritative control totals even
   // 2026-10-05 V2 裁定：照實說明兩欄都是 JET 算的數字，不比對來源檔本身；欄名逐字核對。
   // 使用者 2026-10-13 選擇讓第四步明細表的筆數與金額欄連同表頭靠右，這兩欄表頭多了 preview-table__amount；
   // 原本鎖住沒有 class 的 <th>，改字前的失敗收據：20261013-033220756-0bcbdbb6d2ad4869a5beedc5647669b9。欄名仍逐字核對。
-  assert.match(html, /確認 JET 存下的分錄沒有少，也沒有重複。/); assert.match(html, /這一項不和來源檔自己的合計比對。/);
-  assert.match(html, /<th class="preview-table__amount">確認配對時算出<\/th>/); assert.match(html, /<th class="preview-table__amount">存下後重新計算<\/th>/);
+  // 使用者 2026-10-16 移除這張核對表上方的說明，數字與原有欄名仍須完整呈現。
+  assert.doesNotMatch(html, /確認 JET 存下的分錄沒有少，也沒有重複。|這一項不和來源檔自己的合計比對。/);
+  const dom = batch9TreeDom(); dom.content.innerHTML = html;
+  assert.deepEqual(dom.content.querySelectorAll('th').map(th => th.textContent), ['核對項目', '確認配對時算出', '存下後重新計算']);
   assert.ok((html.match(/123/g) || []).length >= 2); assert.ok((html.match(/4,567\.89/g) || []).length >= 4);
   data.completenessTest.partA = { eligibleSource: null, effectiveTarget: null, rowCountMatch: null, amountMatch: null };
   const missing = f.v.detailHtml(item.detail(data));
@@ -2895,7 +3090,7 @@ test('batch8 an older case without import control totals remains eligible and do
   f.store.setLastRun('validate', data);
   const item = f.v.VALIDATION_ITEMS.find(entry => entry.title === '完整性測試');
   const html = f.v.detailHtml(item.detail(data));
-  assert.match(html, /—/); assert.match(html, /不代表 0/);
+  assert.match(html, /—/); assert.doesNotMatch(html, />0(?:\.00)?<|NaN/);
   assert.doesNotMatch(html, /請重新執行|重新匯入/);
   const eligibility = f.ui.completenessEligibility(data);
   assert.equal(eligibility.isEligible, true); assert.equal(eligibility.warning, data.completenessTest.eligibility.warning);
@@ -2913,14 +3108,14 @@ test('batch8 tiny nonzero differences stay visible on summaries, first pages and
     assert.match(html, /不足 0\.01/); assert.match(html, /完整.*驗證報告|驗證報告.*完整/);
   }
   assert.match(f.v.statsBarHtml(data), /不足 0\.01/);
-  // 使用者 2026-10-13 選擇讓金額欄靠右，載入更多的金額欄改成 { cell, className } 欄位設定，和第五步的欄位設定同一種寫法；
+  // 使用者 2026-10-13 選擇讓金額欄靠右，明細分頁表的金額欄改成 { cell, className } 欄位設定，和第五步的欄位設定同一種寫法；
   // 原本直接呼叫欄位函式，改寫前的失敗收據：20261013-033220756-0bcbdbb6d2ad4869a5beedc5647669b9。顯示的字仍逐字核對。
-  for (const column of [f.v.LOAD_MORE_SPECS.completeness.columns[4], f.v.LOAD_MORE_SPECS.docBalance.columns[3]]) {
+  for (const column of [f.v.DETAIL_PAGE_SPECS.completeness.columns[4], f.v.DETAIL_PAGE_SPECS.docBalance.columns[3]]) {
     assert.equal(column.className, 'preview-table__amount');
   }
-  assert.equal(f.v.LOAD_MORE_SPECS.completeness.columns[4].cell({ diff: 0.003 }), '不足 0.01');
-  assert.equal(f.v.LOAD_MORE_SPECS.docBalance.columns[3].cell({ diff: -0.003 }), '負值，不足 0.01');
-  assert.equal(f.v.LOAD_MORE_SPECS.docBalance.columns[3].cell({ diff: 0 }), '0.00');
+  assert.equal(f.v.DETAIL_PAGE_SPECS.completeness.columns[4].cell({ diff: 0.003 }), '不足 0.01');
+  assert.equal(f.v.DETAIL_PAGE_SPECS.docBalance.columns[3].cell({ diff: -0.003 }), '負值，不足 0.01');
+  assert.equal(f.v.DETAIL_PAGE_SPECS.docBalance.columns[3].cell({ diff: 0 }), '0.00');
 });
 
 test('batch8 overview uses the same tiny net display while ordinary debit and credit totals retain two decimals', () => {
@@ -2939,9 +3134,9 @@ test('batch8 empty remedies are omitted and all blank-source category labels are
   assert.match(f.v.detailHtml({ kind: 'reason', text: 'Synthetic reason', remedy: 'Synthetic next step' }), /Synthetic next step/);
   const data = batch8ValidationData(), item = f.v.VALIDATION_ITEMS.find(item => item.title === '總帳日期空白');
   assert.equal(item.detail(data).rows[0][0], '總帳日期空白');
-  assert.equal(f.v.LOAD_MORE_SPECS.sourceQuality.columns[0]({ category: 'nullPostDate' }), '總帳日期空白');
+  assert.equal(f.v.DETAIL_PAGE_SPECS.sourceQuality.columns[0]({ category: 'nullPostDate' }), '總帳日期空白');
   for (const [key, label] of [['nullDescription', '空白摘要'], ['nullDocument', '空白傳票號碼'], ['nullAccount', '空白科目編號']]) {
-    assert.equal(f.v.LOAD_MORE_SPECS['null-' + key].columns[4]({}), label);
+    assert.equal(f.v.DETAIL_PAGE_SPECS['null-' + key].columns[4]({}), label);
   }
   assert.deepEqual(plain(item.detail(data).columns.slice(3, 5)), ['傳票號碼', '科目編號']);
 });
@@ -2987,11 +3182,11 @@ test('excluded data stays available through the sidebar without a duplicate popu
   const f = batch8Fixture();
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'steps/validate-step.js'), 'utf8'), /populationSummaryHtml|preview-excluded-entries/);
   f.ui.openDataPreview('glExcluded');
-  assert.deepEqual(plain(f.requests[0].payload), { dataset: 'glExcluded' }); // 使用者 2026-10-08 裁定資料名稱全系統統一
+  assert.deepEqual(plain(f.requests[0].payload), { dataset: 'glExcluded', offset: 0, limit: 200 }); // 使用者 2026-10-08 裁定資料名稱全系統統一
   f.requests[0].resolve({ columns: [], rows: [], totalCount: 0, stats: { excludedByPeriodCount: 15, excludedByPostingStatusCount: 5 } }); await settle();
   assert.match(f.previewDom.node('note').innerHTML, /過帳狀態不符/);
   assert.equal(f.window.batch8Preview.displayCell('glExcluded', 'exclusionReason', 'postingStatus'), '過帳狀態不符');
-  const request = f.v.LOAD_MORE_SPECS.sourceQuality.fetchPage('cursor-2', { key: 'sourceRowNumber', direction: 'asc' }, 'JV');
+  const request = f.v.DETAIL_PAGE_SPECS.sourceQuality.fetchPage('cursor-2', { key: 'sourceRowNumber', direction: 'asc' }, 'JV');
   assert.deepEqual(plain(f.requests[1].payload), { cursor: 'cursor-2', pageSize: 200, sort: { key: 'sourceRowNumber', direction: 'asc' }, search: 'JV' });
   f.requests[1].resolve({ rows: [], nextCursor: null }); await request;
 });
@@ -3377,10 +3572,12 @@ test('batch9 first step shows distinct reused document numbers separately from a
   f.store.setLastRun('validate', { documentDateReuse: { documentNumberCount: 3, entryCount: 17 } });
   const before = plain(state.project), dom = batch7Dom(''); f.window.batch8Create.render(dom, state);
   assert.match(dom.innerHTML, /role="status"/);
-  assert.match(dom.innerHTML, /3\s*個傳票號碼/); assert.match(dom.innerHTML, /17\s*列/);
+  // 使用者 2026-10-19 裁定「來源檔用列，分錄用筆」：受影響的是 GL 分錄，改寫「筆分錄」。
+  // 第一次失敗：FrontendMapping 收據 20261019-122433278-c327738e178a4e6e829f666f3c1bd5c1。
+  assert.match(dom.innerHTML, /3\s*個傳票號碼/); assert.match(dom.innerHTML, /17\s*筆分錄/);
   assert.match(dom.innerHTML, /不同總帳日期/);
   // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）；提示不再說明比對鍵，傳票比對鍵沒有被改由下面的 project 比對核對。
-  assert.ok(dom.innerHTML.includes('GL 有 3 個傳票號碼出現在不同總帳日期（共 17 列），請確認來源系統是否重複使用號碼。'));
+  assert.ok(dom.innerHTML.includes('GL 有 3 個傳票號碼出現在不同總帳日期（共 17 筆分錄），請確認來源系統是否重複使用號碼。'));
   assert.doesNotMatch(dom.innerHTML, /跨月.*3\s*張傳票/);
   assert.deepEqual(plain(state.project), before);
   assert.equal(f.ui.stepGate(state, 1).ok, true, 'this is a review reminder, not a new blocking gate');
@@ -3398,7 +3595,7 @@ test('batch9 first step distinguishes a measured zero from unavailable legacy or
   }
   f.store.setLastRun('validate', { documentDateReuse: { documentNumberCount: 3, entryCount: 17 } });
   f.store.setStaleState({ validation: true });
-  assert.match(html(), /尚未確認/); assert.doesNotMatch(html(), /3\s*個傳票號碼|17\s*列/);
+  assert.match(html(), /尚未確認/); assert.doesNotMatch(html(), /3\s*個傳票號碼|17\s*筆分錄/);
 });
 
 test('batch9 reopening uses persisted date-reuse summary without an extra source scan', () => {
@@ -3408,7 +3605,8 @@ test('batch9 reopening uses persisted date-reuse summary without an extra source
     latestRuns: { validate: { documentDateReuse: { documentNumberCount: 1, entryCount: 4 } } },
     staleState: { validation: false, prescreen: false, filter: false } }, { stayOnCurrentStep: true });
   const dom = batch7Dom(''); f.window.batch8Create.render(dom, f.store.getState());
-  assert.match(dom.innerHTML, /1\s*個傳票號碼/); assert.match(dom.innerHTML, /4\s*列/);
+  // 「筆分錄」的改寫與第一次失敗收據同上一個建案頁測試。
+  assert.match(dom.innerHTML, /1\s*個傳票號碼/); assert.match(dom.innerHTML, /4\s*筆分錄/);
   assert.equal(f.requests.length, 0, 'summary rendering does not fetch GL rows');
 });
 
@@ -3430,14 +3628,14 @@ function batch9PagerLifecycleFixture(kind) {
   const state = store.getState(); state.view = 'workflow'; state.currentStepIndex = 3;
   const runKind = kind === 'prescreen' ? 'prescreen' : 'validate', scope = kind === 'prescreen' ? 'p' : 'v';
   const details = { ordinary: { kind: 'table', columns: ['傳票號碼', '借方', '貸方', '差額'], rows: [['PREVIEW', '1', '0', '1']],
-    loadMore: 'docBalance', sortAction: 'query.docBalancePage', sortKeys: ['documentNumber', 'debit', 'credit', 'diff'], searchLabel: '依傳票號碼查看' },
+    pageQuery: 'docBalance', sortAction: 'query.docBalancePage', sortKeys: ['documentNumber', 'debit', 'credit', 'diff'], searchLabel: '依傳票號碼查看' },
     dynamic: { kind: 'dynamicPage', pageKey: 'inf' }, prescreen: { kind: 'prescreenPreview', previews: [{ key: 'weekendPosting', label: '週末過帳' }] } };
   ui.registerStep('validate', (container, current) => { container.innerHTML = window.batch9Pages.ruleListHtml([
     { title: 'Synthetic detail', desc: 'Synthetic', status: () => ({ tone: 'hit', text: '3 筆' }), detail: () => details[kind] }
   ], current.lastRuns[runKind], scope); window.batch9Pages.bind(container, false); });
   function draw() { window.batch9PagerApp.renderContent(store.getState(), store.STEPS[3]); return view(); }
   function view() { return { root: dom.content, panel: dom.content.querySelector('.rule-detail'), toggle: dom.content.querySelector('[data-action="toggle-detail"]'),
-    get table() { return dom.content.querySelector('.preview-table'); }, get more() { return dom.content.querySelector('[data-load-more], [data-dynamic-load-more], [data-prescreen-load-more]'); },
+    get table() { return dom.content.querySelector('.preview-table'); }, get more() { return dom.content.querySelector('[data-page-next]'); },
     get search() { return dom.content.querySelector('[data-page-search]'); }, get input() { return dom.content.querySelector('[data-page-search-input]'); },
     get wrap() { return dom.content.querySelector('.preview-table__wrap'); }, get tbody() { return dom.content.querySelector('.preview-table tbody'); } }; }
   // 每種清單只放正式後端那一頁真的有的欄位（tools/tests/fixtures/action-shapes.json）；2026-10-15 前後端契合時改掉三種清單共用的假列。
@@ -3460,11 +3658,11 @@ for (const kind of ['ordinary', 'dynamic', 'prescreen']) test('batch9 medium pag
   page.input.value = 'JV'; page.search.fire('submit'); f.requests.at(-1).resolve(f.response(['JV-A'], 'page-2')); await settle();
   page.more.fire('click'); assert.equal(f.requests.at(-1).payload.cursor, 'page-2');
   f.requests.at(-1).resolve(f.response(['JV-B'], 'page-3')); await settle();
-  assert.match(page.tbody.textContent, /JV-A.*JV-B/);
+  assert.match(page.tbody.textContent, /JV-B/); assert.doesNotMatch(page.tbody.textContent, /JV-A/, 'next page replaces earlier rows');
   page.wrap.scrollTop = 73; page.wrap.scrollLeft = 41; page.root.scrollTop = 257;
   const before = f.requests.length; f.store.touch(); page = f.draw();
   assert.equal(page.panel.hidden, false, 'redraw preserves the expanded detail');
-  assert.match(page.tbody?.textContent || '', /JV-A.*JV-B/, 'the loaded rows are restored rather than just the summary preview');
+  assert.match(page.tbody?.textContent || '', /JV-B/, 'the loaded rows are restored rather than just the summary preview');
   assert.equal(page.input.value, 'JV'); assert.equal(page.table.querySelector('th[data-sort-key]').getAttribute('aria-sort'), 'ascending');
   assert.equal(page.wrap.scrollTop, 73); assert.equal(page.wrap.scrollLeft, 41); assert.equal(page.root.scrollTop, 257);
   assert.equal(f.requests.length, before, 'redraw must not silently restart the query');
@@ -3480,7 +3678,7 @@ for (const kind of ['ordinary', 'dynamic', 'prescreen']) test('batch9 medium pag
   const retry = [...page.panel.querySelectorAll('button')].find(button => button.textContent === '重試' && !button.hidden);
   assert.ok(retry, 'the retry action remains next to the retained table'); retry.fire('click');
   assert.equal(f.requests.at(-1).payload.cursor, 'next'); f.requests.at(-1).resolve(f.response(['SECOND'], null)); await settle();
-  assert.match(f.view().tbody.textContent, /FIRST.*SECOND/); assert.equal(f.view().more.hidden, true);
+  assert.match(f.view().tbody.textContent, /SECOND/); assert.doesNotMatch(f.view().tbody.textContent, /FIRST/); assert.equal(f.view().more.disabled, true);
 });
 
 for (const kind of ['ordinary', 'dynamic', 'prescreen']) for (const change of ['project', 'reopen', 'run', 'generation']) {
@@ -3494,8 +3692,9 @@ for (const kind of ['ordinary', 'dynamic', 'prescreen']) for (const change of ['
     late.resolve(f.response(['WRONG-LATE'], 'wrong-next')); await settle();
     assert.doesNotMatch(page.root.textContent, /WRONG-LATE/);
     if (page.panel.hidden) page.toggle.fire('click');
-    if (kind !== 'ordinary') { f.requests.at(-1).resolve(f.response(['NEW-PREVIEW'], 'new-preview-next')); await settle(); }
-    page = f.view(); page.more.fire('click'); assert.equal(f.requests.at(-1).payload.cursor, null, 'new scope starts at the first query page');
+    assert.equal(f.requests.at(-1).payload.cursor ?? null, null, 'new scope starts at the first query page');
+    f.requests.at(-1).resolve(f.response(['NEW-PREVIEW'], 'new-preview-next')); await settle();
+    page = f.view(); page.more.fire('click'); assert.equal(f.requests.at(-1).payload.cursor, 'new-preview-next');
   });
 }
 
@@ -3608,16 +3807,16 @@ test('batch9 constants keep separate fixed audit thresholds and unchanged full l
   assert.equal(f.ui.newFilterRule('trailingDigits').keywords, '000000', 'KCT H is an exact literal pattern, not an audit threshold alias');
 });
 
-test('batch9 shared preview size stays fifty while fourth-step load-more remains two hundred', async () => {
+test('batch9 detail first page and later pages use two hundred while value profiles stay fifty', async () => {
   const f = batch9PagerLifecycleFixture('prescreen');
-  assert.equal(f.ui.RESULT_PREVIEW_PAGE_SIZE, 50); assert.equal(f.ui.VALUE_PROFILE_LIMIT, 50);
-  const page = await f.open(); assert.equal(f.requests[0].payload.pageSize, 50);
+  assert.equal(f.ui.TABLE_PAGE_SIZE, 200); assert.equal(f.ui.VALUE_PROFILE_LIMIT, 50);
+  const page = await f.open(); assert.equal(f.requests[0].payload.pageSize, 200);
   page.more.fire('click'); assert.equal(f.requests.at(-1).payload.pageSize, 200);
 });
 
 test('batch9 report history uses its own fifty-file page rather than a query or audit limit', () => {
   const f = batch9Fixture(), dom = batch9TreeDom();
-  assert.equal(f.ui.REPORT_HISTORY_PAGE_SIZE, 50); assert.equal(f.ui.DEV_TABLE_PAGE_SIZE, 50);
+  assert.equal(f.ui.REPORT_HISTORY_PAGE_SIZE, 50); assert.equal(f.ui.TABLE_PAGE_SIZE, 200);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/export-step.js'), 'utf8'), f.context);
   f.store.setReportArtifacts(Array.from({ length: 51 }, (_, i) => ({ artifactId: 'paper-' + i, kind: 'workingPaper', fileName: 'Synthetic-' + i + '.xlsx',
     generatedUtc: '2026-01-01T00:00:00Z', stale: false, fileState: 'asPublished', sourceRef: {} })));
@@ -4070,8 +4269,8 @@ test('K6 mapping differences load only on demand, preserve paging and retry, and
  assert.deepEqual(plain(f.pending[0].payload),{kind:'mappingOnly',cursor:null,pageSize:200});
  f.pending[0].resolve({rows:[{accountCode:'E',accountName:'Extra'}],nextCursor:'next',totalCount:2});await settle();
  page=f.render();assert.match(page.textContent,/E.*Extra/);assert.equal(f.pending.length,1,'redraw does not scan again');
- page.querySelector('[data-difference-more="mappingOnly"]').fire('click');assert.equal(f.pending[1].payload.cursor,'next');
- f.pending[1].resolve({rows:[{accountCode:'X',accountName:'Outside'}],nextCursor:null,totalCount:null});await settle();
+ page.querySelector('[data-difference-list="mappingOnly"] [data-page-next]').fire('click');assert.equal(f.pending[1].payload.cursor,'next');
+ f.pending[1].resolve({rows:[{accountCode:'X',accountName:'Outside'}],nextCursor:null,totalCount:2});await settle();
  assert.match(page.textContent,/X.*Outside/);
  page.querySelector('[data-mapping-difference="unmapped"]').fire('click');f.pending[2].reject(new Error('synthetic retry'));await settle();
  const list=page.querySelector('[data-difference-list="unmapped"]');assert.match(list.textContent,/讀取失敗/);
@@ -4092,6 +4291,18 @@ test('mapping import shows positional warning and lets unknown difference counts
  page.querySelector('[data-mapping-difference="unmapped"]').fire('click');
  f.pending[0].resolve({rows:[],nextCursor:null,totalCount:0});await settle();
  assert.equal(f.pending.length,1);assert.match(f.render().textContent,/配對檔未列的科目.*0/);
+});
+
+// 低嚴重度事項（使用者 2026-10-19 要求處理）：科目配對檔的欄位內含換行提醒，和 GL、TB 一樣以需要注意的等級顯示在訊息裡。
+test('mapping import shows the quoted line-break reminder like GL and TB imports',async()=>{
+ const f=k6MappingDifferenceFixture();
+ const reminder='「合成科目配對.csv」有 1 列的欄位內含換行，例如第 2 列。引號位置錯誤時，後續資料會併入同一格而使列數減少，請以 Excel 開啟原檔核對。';
+ f.window.JetApi.importAccountMappingFromFile=async()=>({batchId:'saved',rowCount:1,hasAnyCategory:true,
+  mappingOnlyCount:0,unmappedCount:0,warnings:[reminder]});
+ f.render().querySelector('[data-action="import-account-mapping"]').fire('click');await settle();await Promise.all(f.actions);
+ const shown=f.store.getState().messages.find(m=>m.text===reminder);
+ assert.ok(shown,'the reminder reaches the message panel');
+ assert.equal(shown.level,'warn');
 });
 
 // 訊息等級只有後端 log.append 接受的那幾種；其他等級不能送進訊息佇列。
@@ -4227,12 +4438,12 @@ test('acceptance category choices keep their checkboxes and hierarchy without a 
   assert.match(html, /data-category-toggle="parent"/);
 });
 
-test('acceptance account editor uses 50 rows and drops pending classifications on backend source invalidation', async () => {
+test('acceptance account editor uses 200 rows and drops pending classifications on backend source invalidation', async () => {
   const f = usageJourneyFixture('validate'); f.state.lastRuns.validate = null;
   f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' });
   f.store.setAccountMappingState({ batchId: 'old-categories', hasAnyCategory: true });
   f.draw();
-  assert.equal(f.request('queryAccountMappingPage').payload.pageSize, 50);
+  assert.equal(f.request('queryAccountMappingPage').payload.pageSize, 200);
   f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: 'OLD', accountName: 'Old account', categoryId: 'builtin.cash' }], nextCursor: null });
   await settle(); f.draw();
   f.change('[data-account-select-page]', true); chooseAccountCategory(f, 'builtin.revenue');
@@ -5084,6 +5295,8 @@ test('remap S2-02 TB card and both import modes explain the same-period boundary
     f.request('hostSelectFiles').resolve({ files: [{ filePath: 'synthetic.csv', fileName: 'synthetic.csv' }] }); await settle();
     f.request('importInspectFile').resolve({ fileType: 'csv', columns: ['Code', 'Amount'], encoding: 'utf-8', delimiter: ',' }); await settle(); f.draw();
     assert.match(f.$('.wizard-pane__hint').textContent, /同一查核期間/); assert.match(f.$('.wizard-pane__hint').textContent, /不會自動配成期初與期末/);
+    // 使用者 2026-10-19：說明開頭跟著按鈕改成「加入：」。
+    if (mode === 'append') assert.match(f.$('.wizard-pane__hint').textContent, /^加入：新檔的資料會附加到現有 2 列/);
     f.click('[data-action="wizard-cancel"]'); f.draw();
   }
   f.click('[data-task-toggle="gl"]'); f.draw(); assert.match(f.dom.content.textContent, /可合併欄位相同/);
@@ -5428,10 +5641,10 @@ test('remap S5-23 a rejected preview marks the backend identified rule and reaso
   const row = f.$('.rule-row[data-gi="0"][data-ri="0"]'); assert.equal(row.classList.contains('rule-row--invalid'), true); assert.equal(row.querySelector('[data-rule-error]').textContent, '合成錯誤。');
 });
 
-test('remap S5-23 expanding a voucher requests fifty rows and labels hits separately from reference entries', async () => {
+test('remap S5-23 expanding a voucher requests two hundred rows and labels hits separately from reference entries', async () => {
   const f = remapFilterPreviewFixture(); await remapSuccessfulPreview(f);
   const open = f.$('[data-voucher-open="0"]'); assert.ok(open); assert.equal(typeof open.onclick, 'function'); open.onclick();
-  const req = f.request('queryFilterVoucherRowsPage'); assert.equal(req.payload.documentNumber, 'SYNTHETIC-JV'); assert.equal(req.payload.pageSize, 50);
+  const req = f.request('queryFilterVoucherRowsPage'); assert.equal(req.payload.documentNumber, 'SYNTHETIC-JV'); assert.equal(req.payload.pageSize, 200);
   req.resolve({ rows: [{ lineItem: '1', isHit: true, amount: 10 }, { lineItem: '2', isHit: false, amount: -10 }], nextCursor: null }); await settle();
   const rows = f.dom.content.querySelectorAll('.voucher-details tbody tr'); assert.equal(rows.length, 2);
   assert.match(rows[0].textContent, /符合條件的分錄/); assert.match(rows[1].textContent, /參考分錄/);
@@ -5959,26 +6172,26 @@ test('oct9 account paging across 201 accounts never saves implicitly and identif
   const all = Array.from({ length: 200 }, (_, i) => ({ accountCode: 'A' + String(i).padStart(3, '0'), accountName: 'Synthetic', categoryId: null }))
     .concat([{ accountCode: 'B001', accountName: 'Synthetic', categoryId: null }]);
   async function reply(index) {
-    const request = reads[index]; assert.equal(request.payload.pageSize, 50);
+    const request = reads[index]; assert.equal(request.payload.pageSize, 200);
     const offset = request.payload.cursor ? Number(request.payload.cursor) : 0;
-    request.resolve({ rows: all.slice(offset, offset + 50), nextCursor: offset + 50 < all.length ? String(offset + 50) : null });
+    request.resolve({ rows: all.slice(offset, offset + 200), nextCursor: offset + 200 < all.length ? String(offset + 200) : null, totalCount: 201 });
     await settle();
   }
   render(); await reply(0);
-  for (let index = 0; index < 5; index++) {
+  for (let index = 0; index < 2; index++) {
     const page = render(); page.control('[data-account-select-page]').checked = true; page.control('[data-account-select-page]').fire('change');
-    if (index < 4) { assert.doesNotMatch(page.html, /data-account-next disabled/); page.control('[data-account-next]').fire(); await reply(index + 1); }
+    if (index < 1) { assert.doesNotMatch(page.html, /data-account-next[^>]*disabled/); page.control('[data-account-next]').fire(); await reply(index + 1); }
   }
   assert.match(render().html, /已選 201 個科目/);
   let page = render(); page.control('[data-account-bulk-category]').value = 'cash';
     page.control('[data-account-bulk-category]').fire('change');
   render().control('[data-account-apply]').fire(); assert.equal(ui.accountMappingEditor.pendingCount(), 201);
-  render().control('[data-account-prev]').fire(); await reply(5);
+  render().control('[data-account-prev]').fire(); await reply(2);
   assert.doesNotMatch(render().html, /data-account-next disabled/);
-  render().control('[data-account-next]').fire(); await reply(6);
+  render().control('[data-account-next]').fire(); await reply(3);
   assert.equal(writes.length, 0, 'paging has not sent a save request');
-  assert.equal(render().html.includes('最後一頁'), true, 'the pager identifies the last page');
-  assert.match(render().html, /本頁第 201–201 個/);
+  assert.match(render().html, /data-page-position[^>]*>2\/2</, 'the pager identifies the last page');
+  assert.match(render().html, /data-account-next[^>]*disabled/);
   render().control('[data-account-save]').fire(); await settle();
   assert.equal(writes.length, 1); assert.equal(writes[0].changes.length, 201);
   assert.deepEqual(writes[0].changes[0], { accountCode: 'A000', categoryId: 'cash' });

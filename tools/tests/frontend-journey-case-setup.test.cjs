@@ -310,7 +310,9 @@ test('journey 4: every import task uses the same action button and an opened tas
   const f = importFixture();
   const actions = ['gl', 'tb', 'authorizedPreparer', 'calendar'].map(kind => f.$('[data-task-toggle="' + kind + '"]'));
   assert.ok(actions.every(action => action !== null), 'all four tasks are listed');
-  assert.deepEqual(actions.map(action => action.getAttribute('class')), Array(4).fill('import-task__action'));
+  // 2026-10-19 使用者要求同功能的元件只留一套，展開用的按鈕都接共用的展開箭頭 jet-disclosure；四列仍是同一種按鈕
+  // （第一次失敗：FrontendMapping 收據 20261019-095317346-4d75b1d78d9a4296a887c2e7cfb720df）。
+  assert.deepEqual(actions.map(action => action.getAttribute('class')), Array(4).fill('import-task__action jet-disclosure'));
   f.click('[data-task-toggle="tb"]');
   assert.equal(f.$('[data-task-toggle="tb"]').getAttribute('aria-expanded'), 'true');
   assert.equal(f.$('[data-task-toggle="gl"]').getAttribute('aria-expanded'), 'false');

@@ -53,6 +53,7 @@ public static class CsvDialectDetector
 
     /// <summary>
     /// 取樣前 MaxSampledLines 個非空邏輯列，統計各候選在引號外的出現次數。
+    /// 只有空白字元與候選分隔符的列和文字檔讀取器一樣算空白列，不當成標頭，裡面的分隔符也不算進下一列。
     /// 引號規則和文字檔讀取器相同：只有欄位開頭的引號會進入引號模式，欄位中間的引號（例如英吋符號）是一般字元；
     /// 引號模式裡連續兩個引號是跳脫。分隔符還沒決定，所以「前一個字元是任一候選分隔符或行首」都當成欄位開頭。
     /// </summary>
@@ -104,21 +105,24 @@ public static class CsvDialectDetector
                         return lines;
                     }
 
-                    current = NewCounter();
                     lineHasContent = false;
                 }
 
+                current = NewCounter();
                 atFieldStart = true;
                 continue;
             }
-
-            lineHasContent = true;
 
             if (current.ContainsKey(ch))
             {
                 current[ch]++;
                 atFieldStart = true;
                 continue;
+            }
+
+            if (!char.IsWhiteSpace(ch))
+            {
+                lineHasContent = true;
             }
 
             atFieldStart = false;

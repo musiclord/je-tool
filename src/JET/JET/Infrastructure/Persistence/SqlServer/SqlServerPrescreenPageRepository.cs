@@ -52,7 +52,7 @@ public sealed class SqlServerPrescreenPageRepository(SqlServerProjectDatabase da
             command.CommandText = expand.CommandText;
         }
 
-        return await LocalPrescreenPageRepository.ReadPageAsync(command, request, paging, cancellationToken);
+        return await LocalPrescreenPageRepository.ReadPageAsync(command, request, paging, SqlServerDialect.Instance, cancellationToken);
     }
 
     public async Task<PrescreenHitCounts> GetCountsAsync(

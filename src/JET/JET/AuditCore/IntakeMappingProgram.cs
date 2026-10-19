@@ -239,6 +239,19 @@ internal sealed class AccountMappingProjection
         row.Values.TryGetValue(nameColumn, out var rawName);
         var name = string.IsNullOrWhiteSpace(rawName) ? null : rawName.Trim();
 
+        // 和 SQL Server 欄寬相同的共用上限（TextStorageLimits）；超過就整批不儲存，不截斷。
+        if (code.Length > TextStorageLimits.KeyUtf16CodeUnits)
+        {
+            AddError($"第 {row.SourceRowNumber} 列：科目編號超過 {TextStorageLimits.KeyUtf16CodeUnits} 個字，請縮短來源資料。");
+            return;
+        }
+
+        if (name?.Length > TextStorageLimits.TextUtf16CodeUnits)
+        {
+            AddError($"第 {row.SourceRowNumber} 列：科目名稱超過 {TextStorageLimits.TextUtf16CodeUnits} 個字，請縮短來源資料。");
+            return;
+        }
+
         // 相同科目代號維持既有 last-wins 語意；Dictionary 的原始插入順序不變。
         projected[code] = new AccountMappingRow(
             row.SourceRowNumber,
@@ -323,7 +336,11 @@ internal sealed record AuthorizedPreparerPlan(
 
 internal sealed class AuthorizedPreparerProjection
 {
+    private const int MaxReportedErrors = 10;
+
     private readonly IReadOnlyList<string> columns;
+    private readonly List<string> firstErrors = [];
+    private int errorCount;
     private readonly string? requestedColumn;
     // 人員識別值去頭尾空白後不分大小寫去重（2026-10-04 裁定 C3，和 GL 建立人員的比對同一規則）；保留第一次看到的寫法。
     private readonly HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
@@ -363,6 +380,19 @@ internal sealed class AuthorizedPreparerProjection
         }
 
         var name = rawName?.Trim();
+        if (name?.Length > TextStorageLimits.KeyUtf16CodeUnits)
+        {
+            // 和 SQL Server 欄寬相同的共用上限（TextStorageLimits）；超過就整批不儲存，不截斷。
+            errorCount++;
+            if (firstErrors.Count < MaxReportedErrors)
+            {
+                firstErrors.Add(
+                    $"第 {row.SourceRowNumber} 列：人員識別值超過 {TextStorageLimits.KeyUtf16CodeUnits} 個字，請縮短來源資料或改選其他識別欄。");
+            }
+
+            return;
+        }
+
         if (!string.IsNullOrEmpty(name))
         {
             if (!names.Add(name)) DuplicateRowCount++;
@@ -378,6 +408,13 @@ internal sealed class AuthorizedPreparerProjection
             throw new JetActionException(
                 JetErrorCodes.EmptyWorkbook,
                 $"檔案「{fileName}」沒有任何資料列。");
+        }
+
+        if (errorCount > 0)
+        {
+            throw new JetActionException(
+                JetErrorCodes.ProjectionFailed,
+                $"授權人員名單有 {errorCount} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
         }
 
         if (names.Count == 0)
@@ -777,7 +814,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                $"不支援的檔案類型 '{request.Extension}'，科目配對檔支援 .xlsx、.csv。");
+                $"不支援的檔案類型「{request.Extension}」，科目配對檔支援 .xlsx、.csv。");
         }
 
         return new AccountMappingPlan(
@@ -803,7 +840,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                $"不支援的檔案類型 '{request.Extension}'，授權編製人員清單僅支援 .xlsx。");
+                $"不支援的檔案類型「{request.Extension}」，授權編製人員清單僅支援 .xlsx。");
         }
 
         return new AuthorizedPreparerPlan(
@@ -853,7 +890,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                $"不支援的檔案類型 '{request.Extension}',行事曆檔僅支援 .xlsx。");
+                $"不支援的檔案類型「{request.Extension}」，行事曆檔僅支援 .xlsx。");
         }
 
         return CalendarPlanFor(
@@ -948,6 +985,14 @@ public static partial class JetAuditProgram
             {
                 row.Values.TryGetValue(nameColumn, out var rawName);
                 name = string.IsNullOrWhiteSpace(rawName) ? null : rawName.Trim();
+            }
+
+            // 和 SQL Server 欄寬相同的共用上限（TextStorageLimits）；超過就整批不儲存，不截斷。
+            if (name?.Length > TextStorageLimits.CalendarDayNameUtf16CodeUnits)
+            {
+                errors.Add(
+                    $"第 {row.SourceRowNumber} 列：「{nameColumn}」超過 {TextStorageLimits.CalendarDayNameUtf16CodeUnits} 個字，請縮短來源資料");
+                continue;
             }
 
             if (seen.Add(date))

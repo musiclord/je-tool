@@ -69,9 +69,13 @@
       var expected = match[1].padStart(4, '0') + '-' + match[2].padStart(2, '0') + '-' + match[3].padStart(2, '0');
       return Number(match[1]) >= 1 && Number(match[1]) <= 9999 && iso(day(Number(match[1]), Number(match[2]), Number(match[3]))) === expected ? expected : text;
     }
-    var serial = moneyNumber(text);
+    // 帶千分位的數字不當序列值（使用者 2026-10-19 裁定），和後端 DateNormalizer 相同，保留原文由後端寫出格式錯誤。
+    var serial = text.indexOf(',') < 0 ? moneyNumber(text) : null;
     if (serial !== null && serial >= 1 && serial <= 2958465) {
-      return iso(new Date(day(1899, 12, 30).getTime() + Math.floor(serial * 86400000 + 0.5)));
+      // 和後端 DateNormalizer 相同，序列值換算後只接受 1900 到 2100 年；範圍外保留原文，由後端寫出格式錯誤。
+      var converted = iso(new Date(day(1899, 12, 30).getTime() + Math.floor(serial * 86400000 + 0.5)));
+      var year = Number(converted.slice(0, 4));
+      if (year >= 1900 && year <= 2100) { return converted; }
     }
     return text;
   }
@@ -181,7 +185,7 @@
         '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-category="' + Ui.esc(category.categoryId) +
         '" aria-expanded="' + (tree.categoryId === category.categoryId) + '">' + Ui.esc(category.label) + '</button>' +
         '<label><input type="checkbox" data-account-tree-select-category="' + Ui.esc(category.categoryId) + '"' +
-        (checked ? ' checked' : '') + '>勾選此分類及下層科目</label></div>';
+        (checked ? ' checked' : '') + '>勾選此分類的科目（包含下層分類）</label></div>';
     });
     var groups = [];
     tree.rows.forEach(function (row) {
@@ -206,7 +210,7 @@
       '<div class="value-editor__aux" data-motion-list="account-tree">' +
       Ui.searchBoxHtml('搜尋科目編號或名稱', { attributes: { 'data-account-tree-search-form': true },
         inputAttributes: { 'data-account-tree-search': true, 'data-focus-key': focusKey + '-account-search' }, maxLength: 400, value: tree.searchDraft }) +
-      '<p class="rule-field__hint">分類會包含所有下層；勾選後寫入上方科目編號清單，不改變保留或排除方式。</p>' +
+      '<p class="rule-field__hint">選分類時包含下層分類的科目；勾選後寫入上方科目編號清單，不改變保留或排除方式。</p>' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-category="">查看全部科目</button>' + categoryRows +
       '<p data-account-tree-status data-motion-key="' + Ui.esc('acct-status-' + motionId(rule)) + '" role="status">' + status + '</p>' + accounts +
       (tree.nextCursor ? '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-more data-motion-key="' + Ui.esc('acct-more-' + motionId(rule)) + '"' +
@@ -268,7 +272,7 @@
         redraw();
       }).catch(function (error) {
         if (!active() || tree.sequence !== sequence) { return; }
-        tree.pending = false; tree.error = (error && error.message ? error.message : '科目清單讀取失敗。') + ' 可按「重新載入」重試。';
+        tree.pending = false; tree.error = Ui.errorText(error, '科目清單讀取失敗。') + ' 可按「重新載入」重試。';
         redraw();
       });
     }
@@ -280,7 +284,13 @@
       button.addEventListener('click', function () { readPage(payload(button.getAttribute('data-account-tree-category'), null), null); });
     });
     root.querySelectorAll('[data-account-tree-select-category]').forEach(function (control) {
-      control.addEventListener('change', function () { readPage(payload(control.getAttribute('data-account-tree-select-category'), null), control.checked); });
+      control.addEventListener('change', function () {
+        // 勾選分類一律選整個分類與下層分類，不受搜尋字限制（使用者 2026-10-19 裁定）；
+        // 清單跟著顯示整個分類，搜尋框一併清空，畫面上看到的就是選到的範圍。
+        var request = payload(control.getAttribute('data-account-tree-select-category'), null);
+        request.search = ''; tree.searchDraft = '';
+        readPage(request, control.checked);
+      });
     });
     root.querySelectorAll('[data-account-tree-code]').forEach(function (control) {
       control.addEventListener('change', function () {
@@ -409,7 +419,7 @@
       var isPerson = ['createBy', 'approveBy'].indexOf(rule.field) >= 0 && !rule.fieldId;
       var listHint = type === 'date' ? '每行一個日期' : type === 'text' && /^(contains|notContains)$/.test(rule.operator) ? '每行一個關鍵字' :
         isPerson ? '每行一個人員代號或姓名' : rule.field === 'accNum' ? '每行一個科目編號' : '每行一個值';
-      var list = '<textarea rows="1" class="value-editor__list" data-value-key="values" data-values-for="' + Ui.esc(motionId(rule)) + '" aria-label="' + listHint + '" placeholder="' + listHint + '">' + Ui.esc((rule.values || []).join('\n')) + '</textarea>';
+      var list = '<textarea rows="1" class="value-editor__list value-editor__values" data-value-key="values" data-values-for="' + Ui.esc(motionId(rule)) + '" aria-label="' + listHint + '" placeholder="' + listHint + '">' + Ui.esc((rule.values || []).join('\n')) + '</textarea>';
       if (delimitedList(rule, state)) { list += '<p class="rule-field__hint">' + delimiterHint + '</p>'; }
       else if (type === 'text') { list += '<p class="rule-field__hint">文字值清單每行一個值；值內的逗號、頓號與 Tab 保留，不會拆開。</p>'; }
       if (isPerson) { list += '<p class="help-text">請填 GL 裡的姓名或員工代碼；姓名本身有逗號時，請改填員工代碼。</p>'; }
@@ -450,7 +460,9 @@
   function bind(root, rule, state, changed) {
     if (!root) { return; }
     function fitLists() {
-      root.querySelectorAll('textarea.value-editor__list').forEach(function (input) {
+      // 值清單（value-editor__values）一開始就是固定的多行高度，貼上或拆成多行都不改高度（使用者 2026-10-16）；
+      // 這裡只調整單值與每月幾日這類單行輸入。
+      root.querySelectorAll('textarea.value-editor__list:not(.value-editor__values)').forEach(function (input) {
         if (!input.getClientRects().length) { return; }
         input.style.height = 'auto';
         // 起始高度 32px，和旁邊的下拉選單同高（app.css 的 --control-height）。
@@ -620,8 +632,9 @@
     if (inputs.some(function (input) { return !input.trim(); })) { return selected.label + '請填好條件值'; }
     if (isTail(rule.operator)) {
       var tails = splitDelimited(value.value);
-      if (!tails.length || tails.length > Ui.TYPED_SET_MAX_VALUES || tails.some(function (item) { return !/^\d{1,12}$/.test(item); })) {
-        return '尾數請填入 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 組純數字，每組 1 到 12 位';
+      if (!tails.length || tails.length > Ui.TYPED_SET_MAX_VALUES ||
+          tails.some(function (item) { return !/^\d+$/.test(item) || item.length > Ui.TAIL_DIGITS_MAX; })) {
+        return '尾數請填入 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 組純數字，每組 1 到 ' + Ui.TAIL_DIGITS_MAX + ' 位';
       }
       return '';
     }

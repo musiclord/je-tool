@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace JET.Domain;
 
 /// <summary>
@@ -89,6 +91,13 @@ public static class FilterScenarioLimits
     /// 前端 ui-core.js 的 FILTER_MAX_SAVED_SCENARIOS 只是就近提示用的鏡像，由架構測試比對。
     /// </summary>
     public const int MaxSavedScenarios = 10;
+
+    /// <summary>
+    /// 情境名稱上限，和 SQL Server 的 <c>config_filter_scenario.name NVARCHAR(400)</c> 同寬；三種資料庫共用，儲存時超過就回錯誤，
+    /// 不讓 SQL Server 默默截斷（使用者 2026-10-19 選「三種共用 400 字上限」）。前端 ui-core.js 的
+    /// FILTER_MAX_SCENARIO_NAME_LENGTH 是輸入框的鏡像，由架構測試比對。
+    /// </summary>
+    public const int MaxNameLength = TextStorageLimits.TextUtf16CodeUnits;
 }
 
 /// <summary>科目配對分析的三模式（見 docs/jet-guide.md 第 6 節「進階條件篩選」）。</summary>
@@ -405,6 +414,11 @@ public static partial class FilterScenarioValidator
             errors.Add("篩選動機說明必填。");
         }
 
+        if (forSave && scenario.Name.Length > FilterScenarioLimits.MaxNameLength)
+        {
+            errors.Add($"情境名稱不可超過 {FilterScenarioLimits.MaxNameLength} 字，請縮短名稱後再儲存。");
+        }
+
         if (scenario.Groups.Count == 0)
         {
             errors.Add("尚未設定任何條件");
@@ -709,7 +723,8 @@ public static partial class FilterScenarioValidator
         {
             if (TypedFieldOperatorSets.All.Contains(rule.TypedOperator))
             {
-                errors.Add($"{label}：「{field.Label}」目前的型別不適用「{FilterConditionLabels.TypedOperatorLabel(rule.TypedOperator)}」");
+                // 使用者 2026-10-19 裁定改用具體說法：寫出欄位目前設定成文字、日期或金額，不用「型別」。
+                errors.Add($"{label}：「{field.Label}」目前設定為{RdeFieldValueTypeNames.DisplayName(field.ValueType)}，不能用「{FilterConditionLabels.TypedOperatorLabel(rule.TypedOperator)}」比較");
             }
             else
             {
@@ -1181,7 +1196,7 @@ public static partial class FilterScenarioValidator
 
         foreach (var bound in new[] { rule.FromDate, rule.ToDate })
         {
-            if (bound is not null && !DateOnly.TryParseExact(bound, "yyyy-MM-dd", out _))
+            if (bound is not null && !DateOnly.TryParseExact(bound, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
             {
                 errors.Add($"{label}：{DateFormatReason(bound)}");
             }

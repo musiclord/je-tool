@@ -5,7 +5,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// JSON payload 解析共用工具。缺必填欄位一律拋 invalid_payload 並指名欄位。
+/// JSON payload 解析共用工具。缺必填欄位或格式不對時一律拋 invalid_payload。畫面只送已檢查過的值，
+/// 走到這些錯誤表示程式送錯資料：畫面只顯示非預期錯誤那一句，固定的檢查代號記進支援日誌，
+/// 不寫欄位名稱或收到的值（使用者 2026-10-19 要求前端不露出系統用詞）。
 /// </summary>
 public static class PayloadReader
 {
@@ -14,9 +16,7 @@ public static class PayloadReader
         var value = GetOptionalString(payload, name);
         if (string.IsNullOrWhiteSpace(value))
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"payload 缺少必填欄位 '{name}'。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "payload_required_text_missing");
         }
 
         return value;
@@ -58,22 +58,20 @@ public static class PayloadReader
     public static string GetRequiredDate(JsonElement payload, string name)
     {
         var value = GetRequiredString(payload, name);
-        return ValidateDate(value, name);
+        return ValidateDate(value);
     }
 
     public static string? GetOptionalDate(JsonElement payload, string name)
     {
         var value = GetOptionalString(payload, name);
-        return value is null ? null : ValidateDate(value, name);
+        return value is null ? null : ValidateDate(value);
     }
 
-    private static string ValidateDate(string value, string name)
+    private static string ValidateDate(string value)
     {
         if (!DateTime.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"欄位 '{name}' 必須是 yyyy-MM-dd 格式的日期，收到 '{value}'。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "payload_date_invalid");
         }
 
         return value;
@@ -86,9 +84,7 @@ public static class PayloadReader
             || !payload.TryGetProperty(name, out var property)
             || property.ValueKind != JsonValueKind.Object)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"payload 缺少必填物件欄位 '{name}'。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "payload_required_object_missing");
         }
 
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -116,9 +112,7 @@ public static class PayloadReader
             || !payload.TryGetProperty(name, out var property)
             || property.ValueKind != JsonValueKind.Array)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"payload 缺少必填陣列欄位 '{name}'。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "payload_required_array_missing");
         }
 
         var values = new List<string>();
@@ -145,9 +139,7 @@ public static class PayloadReader
             || !payload.TryGetProperty(name, out var property)
             || property.ValueKind != JsonValueKind.Array)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                $"payload 缺少必填陣列欄位 '{name}'。");
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "payload_required_array_missing");
         }
 
         var values = new List<int>();
@@ -156,9 +148,7 @@ public static class PayloadReader
         {
             if (item.ValueKind != JsonValueKind.Number || !item.TryGetInt32(out var number))
             {
-                throw new JetActionException(
-                    JetErrorCodes.InvalidPayload,
-                    $"欄位 '{name}' 必須是整數陣列。");
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "payload_int_array_invalid");
             }
 
             values.Add(number);

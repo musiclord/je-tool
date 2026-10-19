@@ -42,6 +42,14 @@ public static class RdeFieldValueTypeNames
     public const string Money = "money";
 
     public static bool IsCanonical(string? value) => value is Text or Date or Money;
+
+    /// <summary>畫面與訊息上的名稱，和第三步下拉選單 ui-core.js 的 RDE_VALUE_TYPES 相同。</summary>
+    public static string DisplayName(string? value) => value switch
+    {
+        Date => "日期",
+        Money => "金額",
+        _ => "文字"
+    };
 }
 
 /// <summary>
@@ -51,7 +59,7 @@ public static class RdeFieldValueTypeNames
 /// </summary>
 public static class GlRdeStorageLimits
 {
-    public const int TextValueUtf16CodeUnits = 450;
+    public const int TextValueUtf16CodeUnits = TextStorageLimits.KeyUtf16CodeUnits;
     public const int LabelUtf16CodeUnits = 400;
 }
 

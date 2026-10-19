@@ -127,8 +127,8 @@
   var PRESCREEN_DEFAULTS = { preparerMaxEntries: 11, accountMaxEntries: 11, trailingZeroDigits: 6 };
   // 三種展示用途各自命名，不改後端query.*Page預設200列，也不共用審計門檻。
   var RESULT_PREVIEW_PAGE_SIZE = 50;
+  var TABLE_PAGE_SIZE = 200;
   var REPORT_HISTORY_PAGE_SIZE = 50;
-  var DEV_TABLE_PAGE_SIZE = 50;
 
   var GL_MODES = [
     { value: 'dual', label: '借方欄＋貸方欄' },
@@ -269,8 +269,8 @@
     holidayApproval: '傳票核准日落在已匯入假日清單的日期。',
     blankDescription: '摘要欄位空白的分錄；可在下一步直接作為篩選條件。',
     nonAuthorizedPreparer: '傳票建立人員的識別值非空白，且未列在匯入的授權清單中。請使用與 GL 相同的姓名或員工代碼欄位；這個差異本身不代表已判定越權。',
-    lowFrequencyPreparer: '依本次測試的分錄，按傳票建立人員計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下的人員分錄。同張傳票多列會計多筆；空白人員不列入。自訂條件可另設分錄筆數上限。',
-    lowFrequencyAccount: '依本次測試的分錄，按科目編號計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下的科目分錄。同張傳票多列會計多筆；空白科目不列入。自訂條件可另設分錄筆數上限。'
+    lowFrequencyPreparer: '依本次測試的分錄，按傳票建立人員計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下的人員分錄。同張傳票有多筆分錄時每筆都計入；空白人員不列入。自訂條件可另設分錄筆數上限。',
+    lowFrequencyAccount: '依本次測試的分錄，按科目編號計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下的科目分錄。同張傳票有多筆分錄時每筆都計入；空白科目不列入。自訂條件可另設分錄筆數上限。'
   };
   function prescreenConditionDescription(key) { return PRESCREEN_DESCRIPTIONS[key] || ''; }
   function prescreenConditionLabel(key) {
@@ -485,6 +485,8 @@
 
   // 後端 FilterScenarioLimits.MaxSavedScenarios 的 UI 鏡像（每個案件可保存的篩選情境數）；後端仍是權威。
   var FILTER_MAX_SAVED_SCENARIOS = 10;
+  // 情境名稱上限，和後端 FilterScenarioLimits.MaxNameLength 相同（三種資料庫共用，使用者 2026-10-19）；輸入框直接限制字數。
+  var FILTER_MAX_SCENARIO_NAME_LENGTH = 400;
 
   // typed（攸關資料元素）條件的 operator 封閉選單。value/label 逐鍵鏡像 Domain
   // FilterConditionLabels.TypedOperators 與 TypedFieldOperatorSets 的 per-type 集合；
@@ -531,6 +533,9 @@
 
   // typed in／notIn 的值數上限（與後端相同，1 到 100；後端仍是權威）。
   var TYPED_SET_MAX_VALUES = 100;
+
+  // 尾數比對每組的位數上限，也是尾數連續 0 的位數上限（與後端 TrailingZeroThreshold.MaxCustomDigits 相同；後端仍是權威）。
+  var TAIL_DIGITS_MAX = 12;
 
   // RDE 型別 → 可用 operator 集合；未知型別回空陣列（fail closed，同後端 ForValueType）。
   function typedOperatorsForValueType(valueType) {
@@ -703,6 +708,22 @@
   // 「另一項作業還在進行」的唯一寫法（使用者 2026-10-13 勾選頁確認，14、16 統一成同一句）。
   var OTHER_OPERATION_RUNNING = '另一項作業還在進行，請等它完成後再試。';
 
+  // JavaScript 內建的程式錯誤（TypeError 這類）是程式本身的問題，英文原文不給審計員看（使用者 2026-10-19 要求前端不露出系統用詞）。
+  // 這時和錯誤沒有訊息時一樣，改寫呼叫端給的說明，沒有就寫後端非預期錯誤的同一句；後端回的錯誤與前端自己寫的說明照原句。
+  var UNEXPECTED_ERROR_MESSAGE = '發生非預期的錯誤，此操作未完成。請再試一次。';
+
+  // 以錯誤名稱判斷，iframe 或測試的另一個執行環境丟出的內建錯誤也認得出來。
+  var PROGRAM_ERROR_NAMES = ['TypeError', 'ReferenceError', 'RangeError', 'SyntaxError', 'EvalError', 'URIError'];
+
+  function isProgramError(error) {
+    return !!error && PROGRAM_ERROR_NAMES.indexOf(error.name) >= 0;
+  }
+
+  function errorText(error, fallback) {
+    if (error && error.message && !isProgramError(error)) { return error.message; }
+    return fallback == null ? UNEXPECTED_ERROR_MESSAGE : fallback;
+  }
+
   // 進度接進訊息時，開頭「工作底稿：正在…」的冒號拿掉，免得一句出現兩個冒號（使用者 2026-10-14 第三輪勾選頁確認 R3-28）。
   // 忙碌畫面上的進度照舊，只有訊息面板用這個寫法。
   function progressInMessage(detail) {
@@ -741,9 +762,8 @@
     } catch (error) {
       promise = Promise.reject(error);
     }
-    if (promise && promise.requestId) {
-      Store.setBusyRequest(promise.requestId);
-    }
+    // 取消目標只由 app.js 在請求送出時依可取消動作清單設定；這裡不再用 promise 上的 requestId 補設，
+    // 否則開啟資料夾這類不能取消的動作也會出現取消鈕（低嚴重度事項 F4，使用者 2026-10-19 要求處理）。
     return Promise.resolve(promise)
       .then(function (value) {
         operationSucceeded = true;
@@ -775,11 +795,11 @@
           timed = true;
         } else if (error && (error.code === 'completeness_prerequisite_failed' || error.code === 'no_saved_scenario')) {
           // 沒有已儲存的情境也是前置條件不足（使用者 2026-10-14 第三輪勾選頁確認 R3-34，照 18 的寫法）。
-          message = label + '尚無法執行：' + trimSentenceEnd(error.message);
+          message = label + '尚無法執行：' + trimSentenceEnd(errorText(error));
           level = 'warn';
         } else {
           // 原因若以句號結尾，先拿掉，避免出現「。（」或「。。」。
-          message = label + '失敗：' + trimSentenceEnd(error && error.message);
+          message = label + '失敗：' + trimSentenceEnd(errorText(error));
           timed = true;
         }
         // 步驟提示框只寫動作與原因；耗時與最後進度只進訊息面板。
@@ -814,7 +834,7 @@
         return Promise.resolve()
           .then(options.refresh)
           .catch(function (error) {
-            Store.addMessage((options.refreshLabel || '重新整理') + '失敗：' + error.message, 'error');
+            Store.addMessage((options.refreshLabel || '重新整理') + '失敗：' + errorText(error), 'error');
           })
           .then(function () { return value; });
       });
@@ -828,7 +848,7 @@
       .catch(function (error) {
         // 唯讀動作理論上不會被後端序列化閘回絕；若真回絕就靜默（背景刷新不打擾使用者）。
         if (error && error.code === 'operation_in_progress') { return; }
-        Store.addMessage(label + '失敗：' + error.message, 'error');
+        Store.addMessage(label + '失敗：' + errorText(error), 'error');
       });
   }
 
@@ -905,7 +925,7 @@
     Store.setBusy(false);
     // 沒有原因時不寫「未知錯誤」（使用者 2026-10-14 第三輪勾選頁確認 R3-29）。
     Store.addMessage(
-      error && error.message ? '無法離開案件，已保留目前畫面：' + error.message : '無法離開案件，已保留目前畫面。請再試一次。',
+      errorText(error, '') ? '無法離開案件，已保留目前畫面：' + errorText(error, '') : '無法離開案件，已保留目前畫面。請再試一次。',
       'error');
   }
 
@@ -1021,9 +1041,10 @@
         var hidden = taxonomyNodeHidden(all, view.collapsed, category.categoryId);
         return '<div class="category-tree__row" data-category-node="' + esc(category.categoryId) + '" data-collapsible' + (hidden ? ' hidden' : '') +
           ' style="margin-inline-start:' + category.depth + 'em">' +
-          (branch ? '<button type="button" class="btn btn--ghost btn--tiny" data-category-toggle="' + esc(category.categoryId) +
-            '" data-focus-key="' + esc(prefix + '-' + category.categoryId) + '" aria-label="展開或收合' + esc(category.label) +
-            '" aria-expanded="' + open + '">' + (open ? '收合' : '展開') + '</button>' : '') +
+          // 有下層的分類前面是展開箭頭；沒有下層的分類留同樣寬的空位，名稱才對齊。
+          (branch ? '<button type="button" class="category-tree__toggle jet-disclosure" data-category-toggle="' + esc(category.categoryId) +
+            '" data-focus-key="' + esc(prefix + '-' + category.categoryId) + '" aria-label="' + esc(category.label) + '的下層分類"' +
+            disclosureAttributes(open) + '></button>' : '<span class="category-tree__toggle" aria-hidden="true"></span>') +
           rowHtml(category) + '</div>';
       }).join('') + '</div>';
   }
@@ -1048,7 +1069,7 @@
       });
       root.querySelectorAll('[data-category-toggle]').forEach(function (button) {
         var open = !view.collapsed[button.getAttribute('data-category-toggle')];
-        button.setAttribute('aria-expanded', String(open)); button.textContent = open ? '收合' : '展開';
+        button.setAttribute('aria-expanded', String(open));
       });
     }
     root.querySelectorAll('[data-category-toggle]').forEach(function (button) {
@@ -1094,8 +1115,8 @@
       var cls = col.className ? ' class="' + esc(col.className) + '"' : '';
       if (!col.key) { return '<th' + cls + '>' + esc(col.label) + '</th>'; }
       return '<th' + cls + ' data-sort-key="' + esc(col.key) + '" aria-sort="none">' +
-        '<button type="button" class="th-sort" data-sort-key="' + esc(col.key) + '" title="按一下依此欄排序，再按一下反向排序">' +
-        esc(col.label) + '<span class="th-sort__mark" aria-hidden="true"></span></button></th>';
+        '<button type="button" class="th-sort" data-sort-key="' + esc(col.key) + '" title="依完整查詢結果排序，再按一下反向排序">' +
+        '<span class="th-sort__label">' + esc(col.label) + '</span><span class="th-sort__mark" aria-hidden="true"></span></button></th>';
     }).join('');
   }
 
@@ -1105,20 +1126,50 @@
       clearAttributes: { 'data-page-search-clear': true } });
   }
 
-  // 可排序、可搜尋的分頁表。呼叫端可保留viewState，讓重繪接回已由使用者逐頁讀取的列；不預讀全母體。
-  // 換排序或搜尋就清掉列從第一頁重載，
-  // 「載入更多」接續同一個排序與搜尋。首擊（或第一次重載）先清掉呼叫端放的首屏預覽列，避免兩套順序混排。
-  // opts: fetchPage(cursor, sort, search) → Promise({ rows, nextCursor })、appendRows(rows)、clearRows()、
-  //       loadMore（按鈕，可為 null）、table（含 th[data-sort-key] 的表）、search（pageSearchHtml 的表單，可為 null）、
-  //       autoLoad（掛上就載入第一頁）。
+  // 只有一頁時不顯示分頁列（使用者 2026-10-16：超過 200 筆才分頁）。總筆數未知時，以是否有前後頁判斷。
+  function pagerNeeded(page, pages, canNext) {
+    if (page > 1 || canNext) { return true; }
+    return pages != null && pages > 1;
+  }
+
+  // 所有明細共用同一種頁碼。總筆數由後端依相同搜尋範圍計算，前端只保存當頁及已走過的游標。
+  // pageSize 只給非明細清單（例如工作底稿版本紀錄）使用；明細一律每頁 TABLE_PAGE_SIZE 筆。
+  function pageControlsHtml(page, totalCount, options) {
+    var opts = options || {};
+    var size = opts.pageSize || TABLE_PAGE_SIZE;
+    var pages = totalCount == null ? null : Math.max(1, Math.ceil(Number(totalCount) / size));
+    var previous = opts.previousAttribute || 'data-page-previous';
+    var next = opts.nextAttribute || 'data-page-next';
+    var canNext = opts.canNext !== undefined ? !!opts.canNext : pages != null && page < pages;
+    return '<nav class="table-pager" aria-label="資料分頁"' + (pagerNeeded(page, pages, canNext) ? '' : ' hidden') +
+      '><button type="button" class="btn btn--ghost btn--tiny table-pager__button" ' +
+      previous + ' aria-label="上一頁"' + (page <= 1 || opts.busy ? ' disabled' : '') +
+      '><span class="table-pager__arrow table-pager__arrow--previous" aria-hidden="true"></span></button>' +
+      '<span class="table-pager__position" data-page-position aria-live="polite">' + page + '/' + (pages == null ? '—' : pages) + '</span>' +
+      '<button type="button" class="btn btn--ghost btn--tiny table-pager__button" ' + next + ' aria-label="下一頁"' +
+      (opts.busy || !canNext ? ' disabled' : '') +
+      '><span class="table-pager__arrow table-pager__arrow--next" aria-hidden="true"></span></button></nav>';
+  }
+
+  // fetchPage(cursor, sort, search) 回 rows、nextCursor、totalCount。換搜尋或排序後回第一頁，失敗保留原頁。
   function bindPagedTable(root, opts) {
     var persistent = !!opts.viewState;
     var state = opts.viewState || {};
     if (!state.initialized) {
       Object.assign(state, { initialized: true, cursor: null, sort: null, search: '', started: false, busy: false,
-        rows: [], retryRequest: null, queuedSearch: null, statusText: '' });
+        rows: [], pageIndex: 0, pageCursors: [null], totalCount: null, retryRequest: null, queuedSearch: null, statusText: '' });
+      if (opts.initialPage) {
+        Object.assign(state, { rows: opts.initialPage.rows || [], cursor: opts.initialPage.nextCursor,
+          totalCount: opts.initialPage.totalCount, started: true });
+      }
     }
-    var loadMore = opts.loadMore || null;
+    var pager = document.createElement('div');
+    pager.innerHTML = pageControlsHtml(1, state.totalCount);
+    root.appendChild(pager);
+    var pagerNav = pager.querySelector('.table-pager');
+    var previousPage = pager.querySelector('[data-page-previous]');
+    var nextPage = pager.querySelector('[data-page-next]');
+    var position = pager.querySelector('[data-page-position]');
     var table = opts.table || null;
     var form = opts.search || null;
     var captured = Store.getState();
@@ -1148,7 +1199,6 @@
     // [hidden] 的 display:none 帶 !important，這裡的行內樣式不會讓它藏不起來。
     if (retry.style) { retry.style.display = 'block'; retry.style.width = 'fit-content'; }
     root.appendChild(retry);
-    var moreText = loadMore ? loadMore.textContent : '';
     var scrollElement = opts.scrollElement || (root.querySelector && root.querySelector('.preview-table__wrap'));
 
     // 表頭可能在首擊後才由系統端欄位定義重建，所以排序標記每次載入後重新套，點擊用事件委派。
@@ -1171,16 +1221,17 @@
     // pending回應更新同一份viewState，再交給最新的DOM綁定呈現；舊節點不接收晚到資料。
     function refresh(replayRows) {
       if (!current() || root.isConnected === false || (persistent && state.refresh !== refresh)) { return; }
-      if (persistent && replayRows && state.started) {
+      if (replayRows && state.started) {
         var top = scrollElement ? scrollElement.scrollTop : 0, left = scrollElement ? scrollElement.scrollLeft : 0;
         opts.clearRows(); opts.appendRows(state.rows);
         if (scrollElement) { scrollElement.scrollTop = top; scrollElement.scrollLeft = left; }
       }
       applySortMarks(); applySearchBox();
-      if (loadMore) {
-        if (state.started) { loadMore.hidden = state.cursor == null; }
-        loadMore.disabled = state.busy; loadMore.textContent = state.busy ? '載入中…' : moreText;
-      }
+      var pages = state.totalCount == null ? null : Math.max(1, Math.ceil(state.totalCount / TABLE_PAGE_SIZE));
+      previousPage.disabled = state.busy || !state.started || state.pageIndex === 0;
+      nextPage.disabled = state.busy || !state.started || state.cursor == null;
+      position.textContent = (state.pageIndex + 1) + '/' + (pages == null ? '—' : pages);
+      pagerNav.hidden = !state.started || !pagerNeeded(state.pageIndex + 1, pages, state.cursor != null);
       if (table) { table.setAttribute('aria-busy', state.busy ? 'true' : 'false'); }
       if (state.statusText) { status.textContent = state.statusText; }
       status.hidden = !state.statusText;
@@ -1189,47 +1240,43 @@
     if (persistent) { state.refresh = refresh; }
 
     // 重載失敗時把排序與搜尋退回上一次成功的狀態：表格裡還是舊列，表頭與輸入框不能宣稱新的排序或搜尋。
-    function fetch(reset, label, previous) {
+    function fetch(reset, label, previous, targetPage) {
       if (state.busy || !current() || root.isConnected === false || (persistent && state.refresh !== refresh)) { return Promise.resolve(); }
       state.busy = true;
-      var prev = loadMore ? loadMore.textContent : '';
-      if (loadMore) { loadMore.disabled = true; loadMore.textContent = '載入中…'; }
+      var target = reset ? 0 : (targetPage == null ? state.pageIndex + 1 : targetPage);
+      var cursor = reset ? null : (target === state.pageIndex + 1 ? state.cursor : state.pageCursors[target]);
+      refresh(false);
       if (table) { table.setAttribute('aria-busy', 'true'); }
       status.hidden = false; status.textContent = '正在讀取資料…'; retry.hidden = true;
       state.statusText = status.textContent;
-      var requested = { reset: reset, label: label, previous: previous, sort: state.sort, search: state.search };
+      var requested = { reset: reset, target: target, label: label, previous: previous, sort: state.sort, search: state.search };
       // These are bounded result reads, not mutations. Their status must not acquire the whole-page busy state.
       var pending;
-      try { pending = opts.fetchPage(reset ? null : state.cursor, requested.sort, requested.search); }
+      try { pending = opts.fetchPage(cursor, requested.sort, requested.search); }
       catch (error) { pending = Promise.reject(error); }
       return Promise.resolve(pending).then(function (data) {
           if (!current()) { return; }
           var rows = (data && data.rows) || [];
-          if (persistent) {
-            if (reset || !state.started) { state.rows = []; }
-            state.rows = state.rows.concat(rows); state.started = true;
-          } else {
-            if (reset || !state.started) { opts.clearRows(); state.started = true; }
-            opts.appendRows(rows); applySortMarks();
-          }
+          if (reset) { state.pageCursors = [null]; }
+          state.pageCursors[target] = cursor;
+          state.rows = rows; state.started = true; state.pageIndex = target;
+          if (data && data.totalCount != null) { state.totalCount = data.totalCount; }
           state.cursor = data ? data.nextCursor : null;
-          if (loadMore) { loadMore.hidden = state.cursor == null; loadMore.disabled = false; loadMore.textContent = prev; }
-          status.textContent = '本次載入 ' + rows.length.toLocaleString() + ' 筆資料';
-          state.statusText = status.textContent; state.retryRequest = null;
-          if (persistent) { state.refresh(true); }
+          state.statusText = ''; state.retryRequest = null;
+          if (persistent) { state.refresh(true); } else { refresh(true); }
+          if (scrollElement) { scrollElement.scrollTop = 0; }
         }).catch(function (error) {
           if (!current()) { return; }
           if (previous) { state.sort = previous.sort; state.search = previous.search; applySortMarks(); applySearchBox(); }
-          if (loadMore) { loadMore.disabled = false; loadMore.textContent = prev; }
           state.retryRequest = requested; retry.hidden = false;
           status.textContent = (error && error.code === 'operation_cancelled' ? '讀取已取消。' : '讀取失敗。') +
-            '目前資料未變更，可重試。' + (error && error.message ? ' ' + error.message : '');
+            '目前資料未變更，可重試。' + (errorText(error, '') ? ' ' + errorText(error, '') : '');
           state.statusText = status.textContent;
-          if (persistent) { state.refresh(false); }
+          if (persistent) { state.refresh(false); } else { refresh(false); }
         }).finally(function () {
           state.busy = false;
           if (table) { table.setAttribute('aria-busy', 'false'); }
-          if (persistent) { state.refresh(false); }
+          if (persistent) { state.refresh(false); } else { refresh(false); }
           // 讀取中按下的「查看」或「清除」在這裡接著執行；成功或失敗都會走到這裡。
           if (persistent) { state.runQueuedSearch(); } else { runQueuedSearch(); }
         });
@@ -1261,11 +1308,12 @@
       if (!state.retryRequest || state.busy || !current()) { return; }
       var request = state.retryRequest;
       state.sort = request.sort; state.search = request.search; applySortMarks(); applySearchBox();
-      fetch(request.reset, request.label, request.previous);
+      fetch(request.reset, request.label, request.previous, request.target);
     });
     function snapshot() { return { sort: state.sort, search: state.search }; }
 
-    if (loadMore) { loadMore.addEventListener('click', function () { fetch(false, '載入更多'); }); }
+    previousPage.addEventListener('click', function () { if (state.pageIndex > 0) { fetch(false, '上一頁', null, state.pageIndex - 1); } });
+    nextPage.addEventListener('click', function () { if (state.cursor != null) { fetch(false, '下一頁'); } });
     if (table) {
       table.addEventListener('click', function (event) {
         var button = event.target && event.target.closest ? event.target.closest('.th-sort') : null;
@@ -1281,9 +1329,10 @@
     bindSearchBox(form, function (text, cleared) {
       search(text, cleared ? '正在讀取資料，讀完後接著清除查看條件。' : '正在讀取資料，讀完後接著查看這個號碼。');
     });
-    if (persistent) { refresh(true); }
+    refresh(true);
     if (opts.autoLoad && !state.started && !state.busy) { fetch(true, '載入明細'); }
-    return { reload: function () { return fetch(true, '載入明細'); } };
+    return { reload: function () { return fetch(true, '載入明細'); },
+      ensureLoaded: function () { return !state.started && !state.busy ? fetch(true, '載入明細') : Promise.resolve(); } };
   }
 
   // 單格顯示：custom 欄一律讀 row.customValues[key]（key set 精確等於 custom columns，
@@ -1550,6 +1599,320 @@
     return global.JetUi.accountMappingEditor.confirmPending(consequence, continueLabel, options);
   }
 
+  // 「尚未儲存」對話框：第四步科目分類與第五步篩選情境共用這一個（使用者 2026-10-19 要求同功能的元件只留一套）。
+  // 按鈕由左到右是「留在這裡」、不儲存也繼續、儲存並繼續；沒有 save 時只留前兩顆，第二顆改成主要按鈕。
+  // 第二顆的字由呼叫端給：改動會留在畫面上時寫「先不儲存」，會被換掉或丟掉時寫「不儲存，直接…」。
+  // 按 Esc 或點對話框外面等於留在這裡，焦點回到原本的按鈕。同一時間只開一個；開著或正在儲存時，新的要求當成留在這裡。
+  // options：id、title、body、continueLabel、saveLabel、save（回傳 Promise，值為 true 表示存好了）、focusStay（預設焦點留在「留在這裡」）、
+  // proceed（選了不儲存時當下執行，儲存成功後接著執行；save 在按下時當下送出，和原本兩個對話框一樣）。
+  // 回傳 Promise<boolean>：true 表示可以繼續（選了不儲存，或儲存成功）；儲存失敗時焦點回到原本的按鈕並回傳 false。
+  var unsavedDialogOpen = false;
+  function confirmUnsaved(options) {
+    if (unsavedDialogOpen) { return Promise.resolve(false); }
+    unsavedDialogOpen = true;
+    var saveable = typeof options.save === 'function';
+    var previousFocus = document.activeElement;
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.setAttribute('data-bind', options.id + '-modal');
+    modal.innerHTML =
+      '<div class="modal__backdrop" data-pending-choice="stay"></div>' +
+      '<div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="' + options.id + '-title" aria-describedby="' + options.id + '-body">' +
+        '<h3 class="modal__title" id="' + options.id + '-title">' + esc(options.title) + '</h3>' +
+        '<p class="modal__body" id="' + options.id + '-body">' + esc(options.body) + '</p>' +
+        '<div class="modal__actions">' +
+          '<button type="button" class="btn btn--ghost" data-pending-choice="stay">留在這裡</button>' +
+          '<button type="button" class="' + (saveable ? 'btn btn--ghost' : 'btn') + '" data-pending-choice="continue">' + esc(options.continueLabel) + '</button>' +
+          (saveable ? '<button type="button" class="btn" data-pending-choice="save">' + esc(options.saveLabel) + '</button>' : '') +
+        '</div>' +
+      '</div>';
+    function returnFocus() {
+      var target = focusTargetOutsideClosedMenu(previousFocus);
+      if (target && target.isConnected && target.focus) { target.focus(); }
+    }
+    return new Promise(function (resolve) {
+      function finish(result) {
+        unsavedDialogOpen = false;
+        resolve(result);
+      }
+      function close() {
+        document.removeEventListener('keydown', onKey, true);
+        // 對話框淡出後才移除（見 app.js 的 JetMotion.dismiss），不一瞬間消失。
+        if (global.JetMotion) { global.JetMotion.dismiss(modal); } else { modal.remove(); }
+      }
+      function onKey(event) {
+        if (event.key === 'Escape') { event.preventDefault(); close(); returnFocus(); finish(false); return; }
+        var card = modal.querySelector('.modal__card');
+        if (global.JetFocus && global.JetFocus.trapDialogTab && card) { global.JetFocus.trapDialogTab(card, event); }
+      }
+      modal.addEventListener('click', function (event) {
+        var target = event.target.closest('[data-pending-choice]');
+        if (!target) { return; }
+        var choice = target.getAttribute('data-pending-choice');
+        close();
+        if (choice === 'stay') { returnFocus(); finish(false); return; }
+        if (choice === 'continue') {
+          returnFocus();
+          if (options.proceed) { options.proceed(); }
+          finish(true);
+          return;
+        }
+        // 儲存失敗或被擋下時留在原畫面，原因由各自的儲存流程顯示。
+        var saving;
+        try { saving = Promise.resolve(options.save()); } catch (error) { saving = Promise.reject(error); }
+        saving.then(function (saved) { return !!saved; }, function () { return false; })
+          .then(function (saved) {
+            if (!saved) { returnFocus(); } else if (options.proceed) { options.proceed(); }
+            finish(saved);
+          });
+      });
+      document.addEventListener('keydown', onKey, true);
+      document.body.appendChild(modal);
+      var primary = modal.querySelector(options.focusStay || !saveable
+        ? '.modal__actions [data-pending-choice="stay"]' : '[data-pending-choice="save"]');
+      if (primary) { primary.focus(); }
+    });
+  }
+
+  // 展開與收合：按鈕形式的展開區（例如「檢視」「查看結果」「列出科目」「預覽」）文字固定，說明它控制的內容，
+  // 字後面接同一種細箭頭，收合時朝右、展開時朝下（app.css 的 .jet-disclosure），並寫 aria-expanded 與 aria-controls。
+  // 整列的標題（原生 details 的摘要、常用查核條件的分類）箭頭在字前面，方向相同（使用者 2026-10-19 要求同功能的元件只留一套）。
+  function disclosureAttributes(open, panelId) {
+    return ' aria-expanded="' + (open ? 'true' : 'false') + '"' + (panelId ? ' aria-controls="' + esc(panelId) + '"' : '');
+  }
+
+  // 頁籤：同一組裡選一個、切換底下內容的控制項，外觀是底線頁籤或凹槽分段都一樣（使用者 2026-10-19 要求同功能的元件只留一套）。
+  // 外層 role="tablist"，每個是 role="tab"，選中的寫 aria-selected="true"，只有它留在 Tab 鍵順序裡。
+  // 畫面畫好後呼叫 Ui.bindTabs(範圍)：方向鍵左右、Home、End 直接換到那一個頁籤，等於按下它，所以各組只要處理按下。
+  // 頁籤只決定畫面看哪一頁；要存進案件的設定（例如金額模式）用選項按鈕，開關式的選取（例如 KCT 條件卡）用 aria-pressed。
+  function tabAttributes(selected, panelId, tabId) {
+    return (tabId ? ' id="' + esc(tabId) + '"' : '') + ' role="tab"' +
+      (panelId ? ' aria-controls="' + esc(panelId) + '"' : '') +
+      ' aria-selected="' + (selected ? 'true' : 'false') + '" tabindex="' + (selected ? '0' : '-1') + '"';
+  }
+
+  function tabsIn(list) {
+    return Array.prototype.filter.call(list.querySelectorAll('[role="tab"]'), function (tab) {
+      return tab.closest('[role="tablist"]') === list && !tab.disabled;
+    });
+  }
+
+  // 換頁籤後更新同一組的選取與 Tab 鍵順序。
+  function selectTab(tab) {
+    var list = tab && tab.closest ? tab.closest('[role="tablist"]') : null;
+    if (!list) { return; }
+    tabsIn(list).forEach(function (item) {
+      var selected = item === tab;
+      item.setAttribute('aria-selected', selected ? 'true' : 'false');
+      item.setAttribute('tabindex', selected ? '0' : '-1');
+    });
+  }
+
+  function onTabKeydown(event) {
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(event.key) < 0 || event.altKey || event.ctrlKey || event.metaKey) { return; }
+    var tab = event.target && event.target.closest ? event.target.closest('[role="tab"]') : null;
+    var list = tab ? tab.closest('[role="tablist"]') : null;
+    if (!list) { return; }
+    var tabs = tabsIn(list);
+    var index = tabs.indexOf(tab);
+    if (index < 0) { return; }
+    event.preventDefault();
+    var next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+      : (index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+    if (next === index) { return; }
+    tabs[next].focus();
+    tabs[next].click();
+  }
+
+  // 範圍內每一組頁籤接上鍵盤；同一組只接一次，重繪出來的新組再接。
+  function bindTabs(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') { return; }
+    var lists = Array.prototype.slice.call(root.querySelectorAll('[role="tablist"]'));
+    if (root.matches && root.matches('[role="tablist"]')) { lists.unshift(root); }
+    lists.forEach(function (list) {
+      if (list.jetTabsBound) { return; }
+      list.jetTabsBound = true;
+      list.addEventListener('keydown', onTabKeydown);
+    });
+  }
+
+  // 選單：按一個按鈕打開的一串選擇，例如已儲存情境的「操作」與資料預覽的「其他資料」（使用者 2026-10-19 要求同功能的元件只留一套）。
+  // 外層 .jet-menu；按鈕 .jet-menu__toggle 寫 aria-haspopup="menu"、aria-expanded 與 aria-controls；
+  // 選單 .jet-menu__items 是 role="menu"，關閉時 hidden；每一項是 role="menuitem"、tabindex="-1" 的按鈕。
+  // 畫面畫好後呼叫 Ui.bindMenus(範圍)。開關、鍵盤與點外面關閉都在這裡處理，各畫面只處理按下項目：
+  // 在按鈕上按方向鍵下或上，打開並停在第一或最後一項；項目之間用方向鍵上下循環，Home、End 到第一與最後一項。
+  // Esc 關閉並回到按鈕；按 Tab 或焦點移出選單時關閉；按下項目後關閉，焦點原本在選單裡就回到按鈕。同一時間只開一個選單。
+  function menuToggle(menu) { return menu.querySelector('.jet-menu__toggle'); }
+  function menuList(menu) { return menu.querySelector('.jet-menu__items'); }
+
+  function menuItems(menu) {
+    var list = menuList(menu);
+    return list ? Array.prototype.filter.call(list.querySelectorAll('[role="menuitem"]'), function (item) {
+      return !item.disabled && !item.hidden;
+    }) : [];
+  }
+
+  function isMenuOpen(menu) {
+    var toggle = menuToggle(menu);
+    return !!toggle && toggle.getAttribute('aria-expanded') === 'true';
+  }
+
+  function setMenuOpen(menu, open) {
+    var toggle = menuToggle(menu);
+    var list = menuList(menu);
+    if (!toggle || !list) { return; }
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    list.hidden = !open;
+  }
+
+  function openMenusIn(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') { return []; }
+    return Array.prototype.map.call(root.querySelectorAll('.jet-menu__toggle[aria-expanded="true"]'), function (toggle) {
+      return toggle.closest('.jet-menu');
+    }).filter(Boolean);
+  }
+
+  function focusMenuItem(menu, index) {
+    var items = menuItems(menu);
+    if (items.length > 0) { items[(index + items.length) % items.length].focus(); }
+  }
+
+  // 按鈕所在的可見範圍：視窗，再扣掉每一層會裁切內容的捲動區。捲動區的 scroll-padding 標出被固定標題列蓋住的那一段，
+  // 那一段雖然在捲動區裡，選單長到那裡仍會被蓋住，所以不算可用空間。
+  function visibleBand(element) {
+    var top = 0;
+    var bottom = typeof global.innerHeight === 'number' ? global.innerHeight : Infinity;
+    for (var node = element.parentElement; node && node !== document.body; node = node.parentElement) {
+      if (typeof node.getBoundingClientRect !== 'function') { continue; }
+      var style = global.getComputedStyle(node);
+      if (!/^(auto|scroll|hidden|clip)$/.test(style.overflowY || '')) { continue; }
+      var inner = node.getBoundingClientRect().top + (node.clientTop || 0);
+      top = Math.max(top, inner + (parseFloat(style.scrollPaddingTop) || 0));
+      bottom = Math.min(bottom, inner + node.clientHeight - (parseFloat(style.scrollPaddingBottom) || 0));
+    }
+    return { top: top, bottom: bottom };
+  }
+
+  // 選單預設從按鈕下方長出來；下方放不下、上方空間又比較多時，改從按鈕上方長出來。
+  // 使用者 2026-10-19 確認：第五步已儲存情境靠近捲動區底邊的那幾列，「操作」選單的最後一項會被底邊切掉。
+  // 量的是剛打開、還沒加 jet-menu--up 的位置；打開的動畫以上緣為原點縮放，上緣的位置不受影響。
+  function placeMenu(menu) {
+    var toggle = menuToggle(menu);
+    var list = menuList(menu);
+    menu.classList.remove('jet-menu--up');
+    if (!toggle || !list || typeof global.getComputedStyle !== 'function' ||
+      typeof toggle.getBoundingClientRect !== 'function' || typeof list.getBoundingClientRect !== 'function') { return; }
+    var anchor = toggle.getBoundingClientRect();
+    var band = visibleBand(menu);
+    var overflowsBelow = list.getBoundingClientRect().top + (list.offsetHeight || 0) > band.bottom;
+    if (overflowsBelow && anchor.top - band.top > band.bottom - anchor.bottom) { menu.classList.add('jet-menu--up'); }
+  }
+
+  function openMenu(menu, focusIndex) {
+    openMenusIn(document).forEach(function (other) { if (other !== menu) { setMenuOpen(other, false); } });
+    setMenuOpen(menu, true);
+    // 先決定方向再移動焦點：焦點落在被切掉的項目上時，瀏覽器會把捲動區捲過去。
+    placeMenu(menu);
+    if (typeof focusIndex === 'number') { focusMenuItem(menu, focusIndex); }
+  }
+
+  function closeMenu(menu, returnFocus) {
+    if (!menu || !isMenuOpen(menu)) { return; }
+    setMenuOpen(menu, false);
+    var toggle = menuToggle(menu);
+    if (returnFocus && toggle && toggle.isConnected) { toggle.focus(); }
+  }
+
+  // 關掉範圍內打開的選單，例如換案件時。
+  function closeMenus(root) {
+    openMenusIn(root || document).forEach(function (menu) { setMenuOpen(menu, false); });
+  }
+
+  // 焦點原本在已經關上的選單裡（例如按下項目後跳出對話框），回到開選單的按鈕。
+  function focusTargetOutsideClosedMenu(element) {
+    var menu = element && element.closest ? element.closest('.jet-menu') : null;
+    var list = menu ? menuList(menu) : null;
+    if (!menu || isMenuOpen(menu) || !list || !list.contains(element)) { return element; }
+    return menuToggle(menu) || element;
+  }
+
+  function onMenuClick(event) {
+    var menu = event.currentTarget;
+    var target = event.target && event.target.closest ? event.target : null;
+    if (!target) { return; }
+    var toggle = target.closest('.jet-menu__toggle');
+    if (toggle && toggle.closest('.jet-menu') === menu) {
+      if (isMenuOpen(menu)) { closeMenu(menu, false); } else { openMenu(menu); }
+      return;
+    }
+    var item = target.closest('[role="menuitem"]');
+    if (!item || item.closest('.jet-menu') !== menu) { return; }
+    var list = menuList(menu);
+    var active = document.activeElement;
+    closeMenu(menu, !!active && (active === item || (!!list && list.contains(active))));
+  }
+
+  function onMenuKeydown(event) {
+    var menu = event.currentTarget;
+    var target = event.target && event.target.closest ? event.target : null;
+    if (!target || event.altKey || event.ctrlKey || event.metaKey) { return; }
+    var toggle = target.closest('.jet-menu__toggle');
+    if (toggle && toggle.closest('.jet-menu') === menu) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        openMenu(menu, event.key === 'ArrowDown' ? 0 : -1);
+      } else if (event.key === 'Escape' && isMenuOpen(menu)) {
+        event.preventDefault();
+        closeMenu(menu, true);
+      }
+      return;
+    }
+    var item = target.closest('[role="menuitem"]');
+    if (!item || item.closest('.jet-menu') !== menu) { return; }
+    var index = menuItems(menu).indexOf(item);
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusMenuItem(menu, index + (event.key === 'ArrowDown' ? 1 : -1));
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      focusMenuItem(menu, event.key === 'Home' ? 0 : -1);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMenu(menu, true);
+    } else if (event.key === 'Tab') {
+      closeMenu(menu, false);
+    }
+  }
+
+  function onMenuFocusOut(event) {
+    var menu = event.currentTarget;
+    var next = event.relatedTarget;
+    if (next && !menu.contains(next)) { closeMenu(menu, false); }
+  }
+
+  function bindMenus(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') { return; }
+    var menus = Array.prototype.slice.call(root.querySelectorAll('.jet-menu'));
+    if (root.matches && root.matches('.jet-menu')) { menus.unshift(root); }
+    menus.forEach(function (menu) {
+      if (menu.jetMenuBound) { return; }
+      menu.jetMenuBound = true;
+      menu.addEventListener('click', onMenuClick);
+      menu.addEventListener('keydown', onMenuKeydown);
+      menu.addEventListener('focusout', onMenuFocusOut);
+    });
+  }
+
+  // 點在選單以外的地方時關閉；點的是另一個選單的按鈕，由那個選單自己換成打開。
+  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    document.addEventListener('click', function (event) {
+      var target = event.target;
+      openMenusIn(document).forEach(function (menu) {
+        if (!target || !menu.contains(target)) { closeMenu(menu, false); }
+      });
+    });
+  }
+
   // 選了「不儲存」後重新進入離場流程時，改動仍在，所以這一次不再詢問，避免對話框一直重複出現。
   var pendingDepartureConfirmed = false;
 
@@ -1593,7 +1956,7 @@
 
   // 記下目前步驟失敗時的唯一寫法（使用者 2026-10-13 勾選頁確認 25、27）。開案時回到上次儲存的步驟。
   function stepSaveFailureText(error) {
-    return '目前所在的步驟未能儲存：' + trimSentenceEnd(error && error.message) +
+    return '目前所在的步驟未能儲存：' + trimSentenceEnd(errorText(error)) +
       '。下次開啟此案件時，會回到上次儲存的步驟。';
   }
 
@@ -1645,7 +2008,7 @@
           Store.setBusy(false);
           // releaseLock 已成功，後端 session 已離場；若 host 真正關窗失敗，前端不可繼續冒充仍在案件內。
           goBackToPicker();
-          Store.setPickerFeedback('案件已安全離開，但應用程式無法關閉：' + error.message);
+          Store.setPickerFeedback('案件已安全離開，但應用程式無法關閉：' + errorText(error));
         });
       },
       function (error) {
@@ -2286,6 +2649,7 @@
     TEXT_SET_NORMALIZATION_OPTIONS: TEXT_SET_NORMALIZATION_OPTIONS,
     TEXT_SET_MAX_VALUES: TEXT_SET_MAX_VALUES,
     FILTER_MAX_SAVED_SCENARIOS: FILTER_MAX_SAVED_SCENARIOS,
+    FILTER_MAX_SCENARIO_NAME_LENGTH: FILTER_MAX_SCENARIO_NAME_LENGTH,
     FILTER_TEXT_FIELDS: FILTER_TEXT_FIELDS,
     FILTER_DATE_FIELDS: FILTER_DATE_FIELDS,
     GL_APPROVAL_DATE_MODES: GL_APPROVAL_DATE_MODES,
@@ -2295,13 +2659,15 @@
     VALUE_PROFILE_LIMIT: VALUE_PROFILE_LIMIT,
     PRESCREEN_DEFAULTS: PRESCREEN_DEFAULTS,
     RESULT_PREVIEW_PAGE_SIZE: RESULT_PREVIEW_PAGE_SIZE,
+    TABLE_PAGE_SIZE: TABLE_PAGE_SIZE,
+    pageControlsHtml: pageControlsHtml,
     REPORT_HISTORY_PAGE_SIZE: REPORT_HISTORY_PAGE_SIZE,
-    DEV_TABLE_PAGE_SIZE: DEV_TABLE_PAGE_SIZE,
     TYPED_TEXT_OPERATORS: TYPED_TEXT_OPERATORS,
     TYPED_DATE_OPERATORS: TYPED_DATE_OPERATORS,
     TYPED_MONEY_OPERATORS: TYPED_MONEY_OPERATORS,
     TYPED_AMOUNT_BASIS_OPTIONS: TYPED_AMOUNT_BASIS_OPTIONS,
     TYPED_SET_MAX_VALUES: TYPED_SET_MAX_VALUES,
+    TAIL_DIGITS_MAX: TAIL_DIGITS_MAX,
     typedOperatorsForValueType: typedOperatorsForValueType,
     typedOperatorLabel: typedOperatorLabel,
     typedOperatorCarrier: typedOperatorCarrier,
@@ -2335,6 +2701,8 @@
     progressInMessage: progressInMessage,
     createLatestResponseGuard: createLatestResponseGuard,
     run: run,
+    errorText: errorText,
+    UNEXPECTED_ERROR_MESSAGE: UNEXPECTED_ERROR_MESSAGE,
     downstreamResetNoticeHtml: downstreamResetNoticeHtml,
     runBackground: runBackground,
     isRequired: isRequired,
@@ -2362,6 +2730,13 @@
     backToPickerFromHeader: backToPickerFromHeader,
     pendingAccountCategoryCount: pendingAccountCategoryCount,
     confirmPendingAccountCategories: confirmPendingAccountCategories,
+    confirmUnsaved: confirmUnsaved,
+    disclosureAttributes: disclosureAttributes,
+    tabAttributes: tabAttributes,
+    selectTab: selectTab,
+    bindTabs: bindTabs,
+    bindMenus: bindMenus,
+    closeMenus: closeMenus,
     loadProjects: loadProjects,
     syncOnlineProjects: syncOnlineProjects,
     invalidateProjectListRequests: invalidateProjectListRequests,

@@ -42,7 +42,7 @@
       global.chrome.webview.postMessage(request);
     });
 
-    // Ui.run 只保存 requestId 供 operation.cancel 使用；不暴露 transport pending table。
+    // 只公開 requestId，不暴露 transport pending table；取消目標由 onRequestStarted 依可取消動作清單決定。
     promise.requestId = requestId;
     return promise;
   }

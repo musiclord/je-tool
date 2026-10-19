@@ -6,8 +6,8 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// mapping.valueProfile 的 provider 固定答案：.NET Trim 空白、本地 OrdinalIgnoreCase 分組、
-/// count-desc／ordinal tie ordering、truncation 與參數化特殊來源欄名必須等價。
+/// mapping.valueProfile 的 provider 固定答案：.NET Trim 空白、不分大小寫分組、
+/// count-desc／ordinal tie ordering、truncation、來源存在性核對與參數化特殊來源欄名必須等價。
 /// </summary>
 public sealed class MappingValueProfileProviderParityTests
 {
@@ -50,25 +50,59 @@ public sealed class MappingValueProfileProviderParityTests
     }
 
     [SqlServerFact]
-    public async Task SqlServer_ValueProfile_PreservesExistingCaseSensitiveBehavior()
+    public async Task SqlServer_ValueProfile_MatchesSqliteOracle()
     {
         await using var project = Assert.IsType<TempSqlServerProject>(
             await TempSqlServerProject.TryCreateAsync());
-
-        var batch = (await new SqlServerImportRepository(project.Database).ReplaceBatchAsync(
-            project.ProjectId,
-            DatasetKind.Gl,
-            [new ImportSourceInput(Source(),
-            Columns,
-            Rows())],
-            CancellationToken.None)).Batch;
+        var batchId = await ImportSqlServerAsync(project);
         var repository = new SqlServerMappingValueProfileRepository(project.Database);
 
-        // 2026-10-04 第 6 批：SQL Server 開發暫緩，保留其尚未同步 L32 的舊大小寫敏感答案，不假稱已等價。
-        await AssertOracleAsync(repository, project.ProjectId, batch.BatchId, localIgnoreCase: false);
+        // 2026-10-19 跨資料庫一致性計畫第三節 D：使用者裁定 SQL Server 的值概況也不分大小寫。這個測試原名
+        // SqlServer_ValueProfile_PreservesExistingCaseSensitiveBehavior，鎖住舊的區分大小寫答案：3 個相異值，
+        // A、B、a 各 2 筆。現在改成和本機同一組固定答案。第一次失敗：2026-10-19 修改前直接執行測試程式連本機
+        // SQL Server，相異值是 3 個，預期 2 個；下方的來源核對回 null。
+        await AssertOracleAsync(repository, project.ProjectId, batchId);
+    }
+
+    // 來源存在性核對和分組用同一個比對鍵：去空白、不分大小寫。請求空白值時，來源有空白列就算存在；
+    // 查無的值依請求順序回傳。
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task Local_SourceValueCheck_MatchesOracle(string provider)
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        ILocalProjectDatabase database = provider == "duckdb"
+            ? new DuckDbProjectDatabase(folder)
+            : new SqliteProjectDatabase(folder);
+        var (projectId, batchId) = await ImportLocalAsync(database, folder);
+
+        await AssertMissingValuesAsync(new LocalMappingValueProfileRepository(database), projectId, batchId);
+    }
+
+    [SqlServerFact]
+    public async Task SqlServer_SourceValueCheck_MatchesSqliteOracle()
+    {
+        await using var project = Assert.IsType<TempSqlServerProject>(
+            await TempSqlServerProject.TryCreateAsync());
+        var batchId = await ImportSqlServerAsync(project);
+
+        await AssertMissingValuesAsync(
+            new SqlServerMappingValueProfileRepository(project.Database), project.ProjectId, batchId);
     }
 
     private static async Task AssertLocalProfileAsync(
+        ILocalProjectDatabase database,
+        JetProjectFolder folder)
+    {
+        var (projectId, batchId) = await ImportLocalAsync(database, folder);
+        var repository = new LocalMappingValueProfileRepository(database);
+
+        await AssertOracleAsync(repository, projectId, batchId);
+    }
+
+    private static async Task<(string ProjectId, string BatchId)> ImportLocalAsync(
         ILocalProjectDatabase database,
         JetProjectFolder folder)
     {
@@ -81,49 +115,62 @@ public sealed class MappingValueProfileProviderParityTests
             Columns,
             Rows())],
             CancellationToken.None)).Batch;
-        var repository = new LocalMappingValueProfileRepository(database);
+        return (projectId, batch.BatchId);
+    }
 
-        await AssertOracleAsync(repository, projectId, batch.BatchId);
+    private static async Task<string> ImportSqlServerAsync(TempSqlServerProject project) =>
+        (await new SqlServerImportRepository(project.Database).ReplaceBatchAsync(
+            project.ProjectId,
+            DatasetKind.Gl,
+            [new ImportSourceInput(Source(),
+            Columns,
+            Rows())],
+            CancellationToken.None)).Batch.BatchId;
+
+    private static async Task AssertMissingValuesAsync(
+        IMappingValueProfileRepository repository,
+        string projectId,
+        string batchId)
+    {
+        Assert.Equal(
+            new[] { "C", "Z" },
+            await repository.FindMissingValuesAsync(
+                projectId, batchId, SourceColumn, ["b", "C", " A ", "", "Z"], CancellationToken.None));
+        Assert.Equal(
+            new[] { "A" },
+            await repository.FindMissingValuesAsync(
+                projectId, batchId, BlankOnlyColumn, ["", "A"], CancellationToken.None));
     }
 
     private static async Task AssertOracleAsync(
         IMappingValueProfileRepository repository,
         string projectId,
-        string batchId,
-        bool localIgnoreCase = true)
+        string batchId)
     {
         var truncated = await repository.GetAsync(
             projectId,
             batchId,
             SourceColumn,
-            localIgnoreCase ? 1 : 2,
+            1,
             CancellationToken.None);
 
         Assert.Equal(SourceColumn, truncated.SourceColumn);
         Assert.Equal(6, truncated.BlankCount);
-        // 2026-10-04 第 6 批 L32：local 的 A/a 依已裁定規則合併；空白、排序、截斷及特殊欄名檢查保留。
-        Assert.Equal(localIgnoreCase ? 2 : 3, truncated.DistinctCount);
+        // 2026-10-04 第 6 批 L32：A/a 依已裁定規則合併；空白、排序、截斷及特殊欄名檢查保留。
+        Assert.Equal(2, truncated.DistinctCount);
         Assert.True(truncated.Truncated);
-        Assert.Equal(
-            localIgnoreCase
-                ? [new MappingValueProfileValue("A", 4)]
-                : [new MappingValueProfileValue("A", 2), new MappingValueProfileValue("B", 2)],
-            truncated.Values);
+        Assert.Equal(new[] { new MappingValueProfileValue("A", 4) }, truncated.Values);
 
         var complete = await repository.GetAsync(
             projectId,
             batchId,
             SourceColumn,
-            localIgnoreCase ? 2 : 3,
+            2,
             CancellationToken.None);
 
         Assert.False(complete.Truncated);
         Assert.Equal(
-            localIgnoreCase ? [new MappingValueProfileValue("A", 4), new MappingValueProfileValue("B", 2)] : [
-                new MappingValueProfileValue("A", 2),
-                new MappingValueProfileValue("B", 2),
-                new MappingValueProfileValue("a", 2)
-            ],
+            new[] { new MappingValueProfileValue("A", 4), new MappingValueProfileValue("B", 2) },
             complete.Values);
 
         var blankOnly = await repository.GetAsync(

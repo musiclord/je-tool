@@ -185,8 +185,8 @@
       {
         "name": "null-details-recovery",
         "timeoutSeconds": 240,
-        "actionBudget": 35,
-        "expectedActionCount": 35,
+        "actionBudget": 32,
+        "expectedActionCount": 32,
         "screenshotBudget": 1
       },
       {

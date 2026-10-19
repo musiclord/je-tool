@@ -41,6 +41,39 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Contains("TYPED_SET_MAX_VALUES: TYPED_SET_MAX_VALUES", core, StringComparison.Ordinal);
     }
 
+    // 低嚴重度事項 F8（使用者 2026-10-19 要求處理）：尾數比對每組的位數與尾數連續 0 的位數，上限都是後端同一個常數，
+    // 前端兩處都引用 Ui.TAIL_DIGITS_MAX，不寫數字。
+    [Fact]
+    public void TailDigitsMax_MatchesBackendTrailingZeroLimit()
+    {
+        var core = ReadFrontend("js", "ui-core.js");
+        var values = ReadFrontend("js", "filter-values.js");
+        var filter = ReadFrontend("js", "steps", "filter-step.js");
+
+        Assert.Equal(TrailingZeroThreshold.MaxCustomDigits, ReadIntVar(core, "TAIL_DIGITS_MAX"));
+        Assert.Contains("TAIL_DIGITS_MAX: TAIL_DIGITS_MAX", core, StringComparison.Ordinal);
+        Assert.Contains("item.length > Ui.TAIL_DIGITS_MAX", values, StringComparison.Ordinal);
+        Assert.Contains("' 組純數字，每組 1 到 ' + Ui.TAIL_DIGITS_MAX + ' 位'", values, StringComparison.Ordinal);
+        Assert.Contains("max=\"' + Ui.TAIL_DIGITS_MAX + '\" step=\"1\" aria-label=\"尾數連續 0 的位數\"", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("{1," + TrailingZeroThreshold.MaxCustomDigits + "}", values, StringComparison.Ordinal);
+        Assert.DoesNotContain("max=\"" + TrailingZeroThreshold.MaxCustomDigits + "\"", filter, StringComparison.Ordinal);
+    }
+
+    // 使用者 2026-10-19 裁定第五步檢查句寫出欄位目前的設定；後端的名稱要和第三步下拉選單的選項文字相同。
+    [Theory]
+    [InlineData(RdeFieldValueTypeNames.Text)]
+    [InlineData(RdeFieldValueTypeNames.Date)]
+    [InlineData(RdeFieldValueTypeNames.Money)]
+    public void RdeValueTypeDisplayName_MatchesTheMappingDropdown(string valueType)
+    {
+        var core = ReadFrontend("js", "ui-core.js");
+
+        Assert.Contains(
+            "{ value: '" + valueType + "', label: '" + RdeFieldValueTypeNames.DisplayName(valueType) + "' }",
+            core,
+            StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// 文字值清單（舊式條件 textSet）每條的值數上限，前端副本必須等於後端 <c>FilterScenarioLimits.MaxTextSetValuesPerRule</c>。
     /// 2026-10-14 原樣搬自 <c>FilterAstFrontendContractTests.TextSet_UsesLineDelimitedTextareaAndClosedModeOptions</c>
@@ -102,6 +135,10 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Equal(FilterScenarioLimits.MaxSavedScenarios, ReadIntVar(core, "FILTER_MAX_SAVED_SCENARIOS"));
         Assert.Contains("FILTER_MAX_SAVED_SCENARIOS: FILTER_MAX_SAVED_SCENARIOS", core, StringComparison.Ordinal);
         Assert.Contains("scenarios.length > Ui.FILTER_MAX_SAVED_SCENARIOS", filter, StringComparison.Ordinal);
+        // 情境名稱上限：前端輸入框鏡像後端的三種資料庫共用上限（使用者 2026-10-19 選「三種共用 400 字上限」）。
+        Assert.Equal(FilterScenarioLimits.MaxNameLength, ReadIntVar(core, "FILTER_MAX_SCENARIO_NAME_LENGTH"));
+        Assert.Contains("FILTER_MAX_SCENARIO_NAME_LENGTH: FILTER_MAX_SCENARIO_NAME_LENGTH", core, StringComparison.Ordinal);
+        Assert.Contains("data-bind=\"scenario-name\" maxlength=\"' + Ui.FILTER_MAX_SCENARIO_NAME_LENGTH + '\"", filter, StringComparison.Ordinal);
         // 2026-10-03 用語統一 W10：前後端訊息一起改成「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         Assert.Contains(
             // 使用者 2026-10-13 勾選頁確認 60（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。

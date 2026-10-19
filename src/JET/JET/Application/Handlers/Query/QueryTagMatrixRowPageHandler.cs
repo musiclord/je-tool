@@ -40,7 +40,7 @@ public sealed class QueryTagMatrixRowPageHandler(
         if (scenarios.Count == 0)
         {
             if (cursor is not null) { throw FilterResultQuerySnapshot.Stale(); }
-            return new { rows = Array.Empty<object>(), nextCursor = (string?)null };
+            return new { rows = Array.Empty<object>(), totalCount = 0L, nextCursor = (string?)null };
         }
 
         var revision = FilterPopulationScopeParser.RequireCurrentRevision(scenarios);
@@ -98,6 +98,7 @@ public sealed class QueryTagMatrixRowPageHandler(
         return new
         {
             rows,
+            totalCount = page.TotalCount,
             nextCursor = query.WrapCursor(page.NextCursor)
         };
     }

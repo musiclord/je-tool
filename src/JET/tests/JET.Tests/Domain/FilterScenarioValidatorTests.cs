@@ -591,6 +591,28 @@ public sealed class FilterScenarioValidatorTests
         Assert.Equal(expectValid, errors.Count == 0);
     }
 
+    // 使用者 2026-10-19 裁定「視為無法辨識的日期」：第五步日期清單貼上沒有年份或沒有日的寫法時，
+    // 前端保留原文送出，這裡逐值寫出無法辨識，不再補成今年或 1 日
+    // （修正前失敗：收據 20261019-151809317-0d2e1e0ff5e0496d994d8a4e4a2810e5）。
+    [Fact]
+    public void Validate_DateListWithIncompleteDates_NamesEachValue()
+    {
+        var scenario = JET.Application.FilterScenarioPayloadParser.Parse(System.Text.Json.JsonSerializer.SerializeToElement(new
+        {
+            name = "Synthetic dates", rationale = "Fixed date list", groups = new[] { new { rules = new object[] {
+                new { type = "fieldValue", field = "postDate", @operator = "in", values = new[] { "2025-06-11", "12/31", "Dec 2025" } }
+            } } }
+        }), 100);
+        var errors = FilterScenarioValidator.Validate(scenario, Ready);
+
+        Assert.Equal(
+            [
+                "第 1 組第 1 條：清單第 2 個值：日期「12/31」無法辨識，請以 2026-12-31 的格式輸入",
+                "第 1 組第 1 條：清單第 3 個值：日期「Dec 2025」無法辨識，請以 2026-12-31 的格式輸入"
+            ],
+            errors);
+    }
+
     // BVA：自訂低頻編製者門檻 maxEntries ≥ 1(0 下鄰拒、1 邊界收、11 預設收、缺漏拒)。
     [Theory]
     [InlineData(0, false)]

@@ -148,6 +148,27 @@ public sealed class IntakeMappingProgramTests
     }
 
     [Fact]
+    public void UnsupportedFileTypeMessages_UseTheSamePunctuationAsTheOtherFileMessages()
+    {
+        // 使用者 2026-10-19 裁定「改成和其他訊息相同」：副檔名用「」包住、用全形逗號，比照 GL、TB 選檔的同類訊息
+        // （修正前失敗：收據 20261019-151229950-9c3df916191d478296f1f8f146d3ec62）。
+        var accountMapping = Assert.Throws<JetActionException>(() => JetAuditProgram.Plan(
+            new AccountMappingRequest("project", "mapping.pdf", FileExists: true, Extension: ".pdf", Mode: "replace")));
+        Assert.Equal(JetErrorCodes.UnsupportedFileType, accountMapping.Code);
+        Assert.Equal("不支援的檔案類型「.pdf」，科目配對檔支援 .xlsx、.csv。", accountMapping.Message);
+
+        var authorizedPreparer = Assert.Throws<JetActionException>(() => JetAuditProgram.Plan(
+            new AuthorizedPreparerRequest("project", "preparers.csv", true, ".csv", "replace", "Code")));
+        Assert.Equal(JetErrorCodes.UnsupportedFileType, authorizedPreparer.Code);
+        Assert.Equal("不支援的檔案類型「.csv」，授權編製人員清單僅支援 .xlsx。", authorizedPreparer.Message);
+
+        var calendar = Assert.Throws<JetActionException>(() => JetAuditProgram.Plan(
+            new CalendarFileRequest("import.holiday.fromFile", "project", CalendarDayType.Holiday, "calendar.csv", FileExists: true, Extension: ".csv")));
+        Assert.Equal(JetErrorCodes.UnsupportedFileType, calendar.Code);
+        Assert.Equal("不支援的檔案類型「.csv」，行事曆檔僅支援 .xlsx。", calendar.Message);
+    }
+
+    [Fact]
     public void InlineCalendarPlan_NormalizesAndDeduplicatesDates()
     {
         var plan = JetAuditProgram.Plan(new CalendarInlineRequest(
@@ -306,6 +327,94 @@ public sealed class IntakeMappingProgramTests
         Assert.Equal(
             ["王小明", "李大華"],
             projection.Complete(4, "authorized.xlsx"));
+    }
+
+    // 跨資料庫一致性計畫第三節 C（2026-10-19 使用者裁定「文字欄長度三方一致」）：上限照 SQL Server 欄寬，
+    // 科目編號與人員識別值 450 字、科目名稱 400 字、假日名稱 256 字；剛好等於上限照常保存，超過就整批不儲存。
+    // 第一次失敗：20261019-020852386-c03d4566bbee453ca11b4781aafad514，超過上限的三個案例在修改前都照常匯入。
+    [Fact]
+    public void AccountMappingProjection_TextOverStorageLimit_FailsWithRowNumbers()
+    {
+        var projection = JetAuditProgram.PrepareAccountMappingProjection(["code", "name", "category"]);
+        projection.Observe(Row(2, ("code", new string('A', 450)), ("name", new string('名', 400)), ("category", "Cash")));
+        projection.Observe(Row(3, ("code", new string('B', 451)), ("name", "現金"), ("category", "Cash")));
+        projection.Observe(Row(4, ("code", "1101"), ("name", new string('名', 401)), ("category", "Cash")));
+
+        var error = Assert.Throws<JetActionException>(() =>
+            projection.Complete(3, "mapping.xlsx", AccountMappingFailureStyle.Local));
+
+        Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
+        Assert.Equal(
+            "科目配對檔有 2 列無法讀取，本次匯入未儲存：第 3 列：科目編號超過 450 個字，請縮短來源資料。 第 4 列：科目名稱超過 400 個字，請縮短來源資料。",
+            error.Message);
+    }
+
+    [Fact]
+    public void AccountMappingProjection_TextAtStorageLimit_KeepsFullText()
+    {
+        var projection = JetAuditProgram.PrepareAccountMappingProjection(["code", "name", "category"]);
+        projection.Observe(Row(2, ("code", new string('A', 450)), ("name", new string('名', 400)), ("category", "Cash")));
+
+        var row = Assert.Single(projection.Complete(1, "mapping.xlsx", AccountMappingFailureStyle.Local));
+
+        Assert.Equal(new string('A', 450), row.AccountCode);
+        Assert.Equal(new string('名', 400), row.AccountName);
+    }
+
+    [Fact]
+    public void AuthorizedPreparerProjection_NameOverStorageLimit_FailsWithRowNumber()
+    {
+        var projection = JetAuditProgram.PrepareAuthorizedPreparerProjection(
+            ["AUTHORIZED_PREPARER"], "AUTHORIZED_PREPARER");
+        projection.Observe(Row(2, ("AUTHORIZED_PREPARER", new string('王', 450))));
+        projection.Observe(Row(3, ("AUTHORIZED_PREPARER", new string('李', 451))));
+
+        var error = Assert.Throws<JetActionException>(() => projection.Complete(2, "authorized.xlsx"));
+
+        Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
+        Assert.Equal(
+            "授權人員名單有 1 列無法讀取，本次匯入未儲存：第 3 列：人員識別值超過 450 個字，請縮短來源資料或改選其他識別欄。",
+            error.Message);
+    }
+
+    [Fact]
+    public void AuthorizedPreparerProjection_NameAtStorageLimit_KeepsFullText()
+    {
+        var projection = JetAuditProgram.PrepareAuthorizedPreparerProjection(
+            ["AUTHORIZED_PREPARER"], "AUTHORIZED_PREPARER");
+        projection.Observe(Row(2, ("AUTHORIZED_PREPARER", new string('王', 450))));
+
+        Assert.Equal([new string('王', 450)], projection.Complete(1, "authorized.xlsx"));
+    }
+
+    [Fact]
+    public async Task CalendarFileProjection_NameOverStorageLimit_FailsAndAtLimitIsKept()
+    {
+        var plan = JetAuditProgram.Plan(new CalendarFileRequest(
+            "import.holiday.fromFile",
+            "project",
+            CalendarDayType.Holiday,
+            "calendar.xlsx",
+            FileExists: true,
+            Extension: ".xlsx"));
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() =>
+            JetAuditProgram.ProjectCalendarFileAsync(
+                plan,
+                ["Date_of_Holiday", "Holiday_Name"],
+                Rows(
+                    Row(3, ("Date_of_Holiday", "2025-01-01"), ("Holiday_Name", new string('節', 257))),
+                    Row(4, ("Date_of_Holiday", "2025-01-02"), ("Holiday_Name", new string('節', 256)))),
+                CancellationToken.None));
+        Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
+        Assert.Equal("檔案有 1 列無法讀取：第 3 列：「Holiday_Name」超過 256 個字，請縮短來源資料", error.Message);
+
+        var entries = await JetAuditProgram.ProjectCalendarFileAsync(
+            plan,
+            ["Date_of_Holiday", "Holiday_Name"],
+            Rows(Row(4, ("Date_of_Holiday", "2025-01-02"), ("Holiday_Name", new string('節', 256)))),
+            CancellationToken.None);
+        Assert.Equal(new CalendarDayEntry("2025-01-02", new string('節', 256)), Assert.Single(entries));
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -21,18 +22,23 @@ public sealed class QueryAccountMappingPageHandler(
         var categoryId = PayloadReader.GetOptionalString(payload, "categoryId")?.Trim();
         if (categoryId?.Length > 64)
             throw new JetActionException(JetErrorCodes.InvalidPayload, "分類識別無效，請重新選擇分類。");
-        var request = new PageRequest(cursor, PayloadReader.GetOptionalInt(payload, "pageSize") ?? 100);
+        var request = new PageRequest(cursor, Math.Clamp(PayloadReader.GetOptionalInt(payload, "pageSize") ?? 200, 1, 200), IncludeTotalCount: string.IsNullOrEmpty(cursor));
         var page = await Task.Run(() => repositories.AccountMappingEditor.GetPageAsync(
             projectId, request, search, cancellationToken, categoryId), cancellationToken);
         return new { rows = page.Rows.Select(row => new
             { accountCode = row.AccountCode, accountName = row.AccountName, categoryId = row.CategoryId }).ToArray(),
+            totalCount = page.TotalCount,
             nextCursor = page.NextCursor };
     }
 }
 
 public sealed class AccountMappingSaveHandler(
-    ProjectSession session) : IApplicationActionHandler
+    ProjectSession session, ILogger? logger = null) : IApplicationActionHandler
 {
+    // 使用者 2026-10-19 在視窗內選擇題確認的句子，句型比照讀不回結果狀態時的提醒。
+    internal const string SummaryUnavailableWarning =
+        "變更已儲存，但畫面上的科目配對摘要沒有更新；重新開啟案件就會更新，不必重做變更。";
+
     public string Action => "accountMapping.save";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
@@ -54,15 +60,36 @@ public sealed class AccountMappingSaveHandler(
             changes.Add(new AccountMappingChange(code, categoryId));
         }
         await Task.Run(() => repositories.AccountMappingEditor.SaveAsync(projectId, changes, cancellationToken), cancellationToken);
-        var state = await repositories.AccountMappings.FindStateAsync(projectId, cancellationToken)
-            ?? throw new InvalidOperationException("科目分類儲存後找不到狀態。");
+        // 分類已經存好，之後的讀取不受取消影響。讀不回科目配對摘要時回報成功並提醒，回應不帶摘要欄位，
+        // 前端保留畫面上原本的摘要（使用者 2026-10-19 裁定）；支援日誌記下錯誤類型，不記訊息內容。
+        AccountMappingState? state = null;
+        try
+        {
+            state = await repositories.AccountMappings.FindStateAsync(projectId, CancellationToken.None)
+                ?? throw new InvalidOperationException("科目分類儲存後找不到狀態。");
+        }
+        catch (Exception error)
+        {
+            if (logger is not null) WorkflowResultStateSupport.StateReadFailed(logger, "account_mapping_state", error.GetType().Name);
+        }
+
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(
             projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, AuditMutationEffects.For(AuditMutation.AccountMapping));
+            repositories.FilterScenarios, repositories.ReportArtifactStore, AuditMutationEffects.For(AuditMutation.AccountMapping), logger);
+        if (state is null)
+        {
+            return new { warnings = new[] { SummaryUnavailableWarning },
+                invalidatedResults = mutationState.InvalidatedResults,
+                staleState = mutationState.StaleState,
+                reportArtifacts = mutationState.ReportArtifacts,
+                reportArtifactWarning = mutationState.ReportArtifactWarning };
+        }
+
         return new { batchId = state.BatchId, rowCount = state.RowCount, fileName = state.FileName,
             importedUtc = state.ImportedUtc, hasAnyCategory = state.HasAnyCategory,
             hasRevenue = state.HasRevenue, hasCounterpart = state.HasCounterpart,
             blankCategoryCount = state.BlankCategoryCount,
+            warnings = Array.Empty<string>(),
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
             reportArtifacts = mutationState.ReportArtifacts,

@@ -41,6 +41,7 @@ public sealed class QueryDocBalancePageHandler(
                 credit = (decimal)r.CreditScaled / scale,
                 diff = (decimal)r.DiffScaled / scale
             }).ToArray(),
+            totalCount = page.TotalCount,
             nextCursor = page.NextCursor
         };
     }

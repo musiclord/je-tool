@@ -1,4 +1,7 @@
 'use strict';
+// 2026-10-16：依使用者要求將資料明細改為每頁 200 筆及前後換頁。首次失敗保留於
+// artifacts/harness/runs/20261016-093720476-14d8f06e13d34b44ac2b371b7a26ad3f/contract-specialized.stdout.log。
+// 同步舊的頁量與累加預期，保留排序、錯誤、重試及來源失效斷言。
 // 第九節 D 改為名稱與動機常駐、單次儲存後清空草稿；移除舊表單開關操作並改驗證新流程。
 // 原測試首次失敗：20261014-123035603-d123badefd7941119a02c58b1b431fae；保留請求、錯誤、失效與並行修改斷言。
 require('./support/resource-guard.cjs');
@@ -460,7 +463,7 @@ test('journey 13: a saved scenario and the matrix fail in place and can be retri
   f.request('filterPreview').resolve(scenarioPreview()); await settle();
   // 有可用版本時，傳票清單用已存情境的位置與版本讀，不再送條件內容。
   assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload),
-    { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod', pageSize: 50 });
+    { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod', pageSize: 200 });
   f.request('queryFilterVoucherPage').resolve(voucherPage('JV-1')); await settle(); await settle();
   // 使用者 2026-10-16 要求分開顯示傳票數量與分錄筆數；第一次失敗：輸入不符 /3 筆分錄/。
   assert.match(body().textContent, /2符合條件的傳票數量3符合條件的分錄筆數/);
@@ -581,8 +584,8 @@ test('journey 13: while another operation runs, saved results still load and pre
 // 以及 ApprovedUxFrontendTests.Workpaper_… 的第五步部分（不再出現舊按鈕與內部用語）。
 // 「重新檢查並儲存情境」是使用者 2026-10-13 對「情境卡住」選「本計畫內修好」時選項說明寫的按鈕名稱
 // （docs/history/specs/2026-10-06-kct-gl-requirements-plan.md「收尾四項：調查與裁定（2026-10-13）」），計畫第 1 節列為逐字比對；
-// 2026-10-02 起取代原本的「以查核期間重新保存」。矩陣、報告與命中明細的說明只比對意思。
-test('journey 13: without a usable version the matrix, the criteria report and full hits stay locked and say why', async () => {
+// 2026-10-02 起取代原本的「以查核期間重新保存」。矩陣與報告的說明只比對意思。
+test('journey 13: without a usable version the matrix and the criteria report stay locked and say why', async () => {
   const f = savedFixture({ saved: [savedGNamed('甲')], resultRef: null, pane: 'saved',
     check: { status: 'needsEdit', recalculatedCount: 0, problems: [{ position: 1, name: '甲', messages: ['合成原因'] }] } });
   const resave = f.$('[data-action="resave-scenarios"]');
@@ -613,13 +616,14 @@ test('journey 13: without a usable version the matrix, the criteria report and f
   assert.deepEqual(plain(f.request('filterPreview').payload), { populationScope: 'auditPeriod', scenario: wire });
   f.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, summaryRowCount: 3, populationScope: 'auditPeriod',
     previewRows: [{ documentNumber: 'JV-P', postDate: '2025-01-01', accountCode: '1001', amount: 5 }] } }); await settle();
-  assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload), { scenario: wire, populationScope: 'auditPeriod', pageSize: 50 });
-  // 後端沒有回傳傳票清單時（見 impl-item1-batch9.md：正式後端一定回傳），只列前幾筆並說明儲存後才能載入全部，沒有「載入更多」。
-  f.request('queryFilterVoucherPage').resolve(unchecked('正式後端一定回傳傳票清單；這裡刻意回 null，確認畫面只列前幾筆', null)); await settle(); await settle();
+  assert.deepEqual(plain(f.request('queryFilterVoucherPage').payload), { scenario: wire, populationScope: 'auditPeriod', pageSize: 200 });
+  // 原本這裡刻意讓傳票清單回空值，核對只列前幾筆的備用畫面。正式後端一律回傳傳票清單，那段畫面走不到，
+  // 使用者 2026-10-19 裁定刪除；改核對實際會走的路：沒有版本時，照條件內容讀出的傳票清單直接列出。
+  // 第一次失敗：20261019-090901211-9e9ec7ffcbf34596ae2d8476cf613b45。
+  f.request('queryFilterVoucherPage').resolve(voucherPage('JV-P')); await settle(); await settle();
   const body = f.$('[data-bind="scenario-preview-0"]');
   assert.match(body.textContent, /JV-P/);
-  assert.ok(body.querySelector('[data-action="hits-load-more"]') === null, 'no full hit list without a version');
-  assert.match(body.textContent, /儲存/);
+  assert.ok(body.querySelector('.filter-voucher-host table') !== null, 'the voucher list is shown');
 
   // 整個第五、六步都沒有範圍選擇器，也沒有舊按鈕名稱與內部用語。
   const retired = ['以查核期間重新保存', '較早的版本', '版本參照', '測試母體區', '有界預覽', '尚無 CriteriaSelectionReport', '凍結為 CriteriaSelectionReport', '匯出時會依目前資料重新計算'];
@@ -875,7 +879,10 @@ test('journey 13: when the backend invalidates only filter hits, expanded scenar
   await settle();
   const toggle = f.$('[data-action="toggle-scenario"][data-index="0"]');
   assert.equal(f.$('[data-bind="scenario-body-0"]').hidden, false, 'the expanded scenario stays open');
-  assert.match(toggle.textContent, /收起/);
+  // 2026-10-19 使用者要求同功能的元件只留一套：展開按鈕的字固定是「查看結果」，開著由 aria-expanded 與箭頭表示，
+  // 不再把字換成「收起結果」（第一次失敗：FrontendMapping 收據 20261019-095317346-4d75b1d78d9a4296a887c2e7cfb720df）。
+  assert.equal(toggle.textContent, '查看結果');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
   assert.equal(f.sent('filterPreview').length, 2, 'its hits are read again');
   assert.doesNotMatch(f.$('[data-bind="scenario-preview-0"]').textContent, /OLD-1/, 'the outdated rows are gone');
   assert.equal(f.$('[data-bind="matrix-body"]').hidden, false, 'the matrix stays open');
@@ -901,7 +908,7 @@ test('journey 13: hit details show the backend RDE amount column with values fro
   const host = f.$('[data-bind="scenario-preview-0"] .filter-voucher-host');
   host.querySelector('[data-voucher-open="0"]').onclick(); await settle();
   assert.deepEqual(plain(f.request('queryFilterVoucherRowsPage').payload), { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod',
-    documentNumber: 'JV-1', cursor: null, pageSize: 50, queryRevision: 'q1' });
+    documentNumber: 'JV-1', cursor: null, pageSize: 200, queryRevision: 'q1' });
   f.request('queryFilterVoucherRowsPage').resolve(unchecked('列的頂層刻意放一個和攸關資料元素同名的干擾值；正式後端不會送這個鍵', { queryRevision: 'q1', nextCursor: null,
     columns: [{ key: 'documentNumber', label: '傳票號碼', valueType: 'text', isCustom: false }, RDE_COLUMN],
     rows: [{ lineItem: '1', isHit: true, amount: -10, 'rde.amount1': 999, customValues: { 'rde.amount1': 1234.5 } }] }));
@@ -911,25 +918,8 @@ test('journey 13: hit details show the backend RDE amount column with values fro
   const cells = details.querySelectorAll('tbody td').map(td => td.textContent);
   assert.ok(cells.includes('1,234.50'), 'the RDE amount comes from customValues');
   assert.ok(!cells.includes('999'));
-
-  // 後端沒有回傳傳票清單時的「完整命中分錄」表（正式後端一定回傳傳票清單，見 impl-item1-batch9.md）：同樣照後端欄位定義。
-  const g = savedFixture({ saved: [savedGNamed('甲')], pane: 'saved' });
-  g.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
-  g.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, summaryRowCount: 3, populationScope: 'auditPeriod',
-    previewRows: [{ documentNumber: 'JV-P', postDate: '2025-01-01', accountCode: '1001', amount: 5 }] } }); await settle();
-  g.request('queryFilterVoucherPage').resolve(unchecked('正式後端一定回傳傳票清單；這裡刻意回 null，確認畫面改列完整命中分錄', null)); await settle(); await settle();
-  g.click('[data-action="hits-load-more"]'); await settle();
-  assert.deepEqual(plain(g.request('queryFilterHitsPage').payload), { scenarioPosition: 1, cursor: null, pageSize: 200, sort: null, search: null });
-  g.request('queryFilterHitsPage').resolve(unchecked('列的頂層刻意放一個和攸關資料元素同名的干擾值；正式後端不會送這個鍵', { nextCursor: null,
-    columns: [{ key: 'documentNumber', label: '傳票號碼', valueType: 'text', isCustom: false }, RDE_COLUMN],
-    rows: [{ documentNumber: 'JV-9', 'rde.amount1': 999, customValues: { 'rde.amount1': 1234.5 } }] }));
-  await settle(); await settle();
-  const table = g.$('[data-bind="scenario-preview-0"] .preview-table');
-  assert.ok(table.querySelectorAll('thead th').map(th => th.textContent).some(text => text.includes('合成金額欄')));
-  const hitCells = table.querySelectorAll('tbody td').map(td => td.textContent);
-  assert.ok(hitCells.includes('1,234.50'));
-  assert.ok(!hitCells.includes('999'));
-  assert.ok(!hitCells.includes('JV-P'), 'the first full page replaces the preview rows');
+  // 原本這裡另核對後端沒有回傳傳票清單時的「完整命中分錄」表。正式後端一律回傳傳票清單，那段畫面走不到，
+  // 使用者 2026-10-19 裁定刪除，這段檢查一併移除。第一次失敗：20261019-090901211-9e9ec7ffcbf34596ae2d8476cf613b45。
 });
 
 // ================================================================================================
@@ -1337,4 +1327,186 @@ test('journey 15: no entry for adding a condition offers an old-style condition 
     assertCurrentTypes(ruleTypes(f.draft()), 'example ' + key);
     reset();
   }
+});
+
+// 2026-10-19 使用者要求同功能的元件只留一套：已儲存情境的「操作」和資料預覽的「其他資料」改用同一個共用選單（ui-core.js 的 bindMenus）。
+// 這裡照審計員的操作走一遍：用滑鼠與鍵盤打開、一次只開一個、Esc 與 Tab 與點其他地方關閉，按下動作後選單關閉、焦點去該去的地方。
+test('journey 13: each saved scenario\'s actions menu opens from its button or the keyboard, only one at a time, and closes on Esc, Tab, an outside click or a chosen action', () => {
+  const f = savedFixture({ saved: [savedGNamed('甲'), savedGNamed('乙')], pane: 'saved' });
+  const active = () => f.dom.document.activeElement;
+  const toggle = index => f.$$('.saved-scenario .jet-menu__toggle')[index];
+  const menu = index => f.$('#saved-actions-' + index);
+  const items = index => menu(index).querySelectorAll('[role="menuitem"]');
+  // 標記：按鈕指向自己那一列的選單；選單是 role="menu"，三個動作只能用方向鍵到達。
+  assert.equal(toggle(0).getAttribute('aria-haspopup'), 'menu');
+  assert.equal(toggle(0).getAttribute('aria-controls'), 'saved-actions-0');
+  assert.equal(toggle(0).getAttribute('aria-expanded'), 'false');
+  assert.equal(toggle(0).textContent, '操作');
+  assert.equal(menu(0).getAttribute('role'), 'menu');
+  assert.equal(menu(0).hidden, true);
+  assert.deepEqual(items(0).map(item => item.textContent), ['編輯', '另存副本', '移除']);
+  for (const item of items(0)) assert.equal(item.getAttribute('tabindex'), '-1');
+
+  // 鍵盤：方向鍵下打開並停在第一項，上下循環，Home、End 到頭尾，Esc 關閉並回到按鈕；方向鍵上打開時停在最後一項，Tab 關閉。
+  toggle(0).focus();
+  assert.equal(toggle(0).dispatch('keydown', { key: 'ArrowDown' }).defaultPrevented, true);
+  assert.equal(toggle(0).getAttribute('aria-expanded'), 'true'); assert.equal(menu(0).hidden, false);
+  assert.ok(active() === items(0)[0], 'ArrowDown opens the menu on the first action');
+  active().dispatch('keydown', { key: 'ArrowUp' }); assert.ok(active() === items(0)[2], 'ArrowUp wraps to the last action');
+  active().dispatch('keydown', { key: 'ArrowDown' }); assert.ok(active() === items(0)[0], 'ArrowDown wraps to the first action');
+  active().dispatch('keydown', { key: 'End' }); assert.ok(active() === items(0)[2]);
+  active().dispatch('keydown', { key: 'Home' }); assert.ok(active() === items(0)[0]);
+  active().dispatch('keydown', { key: 'Escape' });
+  assert.equal(toggle(0).getAttribute('aria-expanded'), 'false'); assert.equal(menu(0).hidden, true);
+  assert.ok(active() === toggle(0), 'Esc returns focus to the button');
+  toggle(0).dispatch('keydown', { key: 'ArrowUp' });
+  assert.ok(active() === items(0)[2], 'ArrowUp opens the menu on the last action');
+  active().dispatch('keydown', { key: 'Tab' });
+  assert.equal(menu(0).hidden, true, 'Tab closes the menu');
+
+  // 滑鼠：再按一次同一個按鈕關閉；打開另一列的選單時，前一個關閉；點畫面其他地方關閉。
+  toggle(0).dispatch('click'); assert.equal(menu(0).hidden, false);
+  toggle(0).dispatch('click'); assert.equal(menu(0).hidden, true, 'the same button closes it again');
+  toggle(0).dispatch('click');
+  toggle(1).dispatch('click');
+  assert.equal(menu(0).hidden, true, 'opening another row closes the first menu');
+  assert.equal(toggle(0).getAttribute('aria-expanded'), 'false');
+  assert.equal(menu(1).hidden, false);
+  f.$('.saved-scenario__name').dispatch('click');
+  assert.equal(menu(1).hidden, true, 'a click elsewhere closes the menu');
+
+  // 按下「移除」：選單關閉，確認問題在同一列出現，焦點在「取消」，選單裡的「移除」先藏起來。
+  toggle(1).dispatch('click');
+  items(1)[2].focus(); items(1)[2].dispatch('click');
+  assert.ok(f.$('.saved-scenario__confirm') !== null, 'the removal question appears');
+  assert.equal(toggle(1).getAttribute('aria-expanded'), 'false', 'choosing an action closes the menu');
+  assert.equal(menu(1).hidden, true);
+  assert.ok(active() === f.$('[data-action="cancel-remove-scenario"][data-index="1"]'), 'focus moves to cancel, not back to the menu');
+  assert.equal(f.$('#saved-actions-1 [data-action="remove-scenario"]').hidden, true);
+  assert.equal(f.scenarioWrites().length, 0, 'opening and closing the menu sends nothing');
+});
+
+// 使用者 2026-10-19 確認：靠近捲動區底邊的那一列，「操作」選單往下長，最後一項會被底邊切掉，所以下方放不下時改往上展開。
+// 假 DOM 沒有版面，這裡照預覽主機量到的位置給固定值：捲動區從 0 到 778，上方 111 被標題列蓋住，最後一列的按鈕在 676 到 704，選單高 100。
+test('journey 13: an actions menu without room below opens upward, and a row with room below still opens downward', () => {
+  const f = savedFixture({ saved: [savedGNamed('甲'), savedGNamed('乙')], pane: 'saved' });
+  const toggle = index => f.$$('.saved-scenario .jet-menu__toggle')[index];
+  const opensUp = index => toggle(index).closest('.jet-menu').classList.contains('jet-menu--up');
+  const scroller = f.dom.content;
+  f.window.innerHeight = 900;
+  f.window.getComputedStyle = node => node === scroller
+    ? { gridTemplateColumns: 'none', overflowY: 'auto', scrollPaddingTop: '111px', scrollPaddingBottom: 'auto' }
+    : { gridTemplateColumns: 'none', overflowY: 'visible' };
+  scroller.getBoundingClientRect = () => ({ top: 0, bottom: 778 });
+  scroller.clientTop = 0;
+  scroller.clientHeight = 778;
+  function rowAt(index, top) {
+    toggle(index).getBoundingClientRect = () => ({ top, bottom: top + 28 });
+    const list = f.$('#saved-actions-' + index);
+    list.getBoundingClientRect = () => ({ top: top + 32, bottom: top + 132 });
+    list.offsetHeight = 100;
+  }
+  rowAt(0, 200);
+  rowAt(1, 676);
+
+  toggle(1).dispatch('click');
+  assert.equal(f.$('#saved-actions-1').hidden, false);
+  assert.equal(opensUp(1), true, 'the row near the bottom edge opens upward');
+  toggle(1).dispatch('click');
+  assert.equal(opensUp(1), true, 'closing keeps the direction, so the menu shrinks back toward the button');
+  toggle(0).dispatch('click');
+  assert.equal(opensUp(0), false, 'a row with room below opens downward');
+
+  // 捲動後再打開會重新量：同一列移到上方時改回往下展開。
+  rowAt(1, 300);
+  toggle(1).dispatch('click');
+  assert.equal(opensUp(1), false, 'reopening measures the space again');
+  // 上方只剩標題列蓋住的那一段時，往上也放不下，維持往下。
+  toggle(1).dispatch('click');
+  rowAt(1, 120);
+  scroller.clientHeight = 200;
+  toggle(1).dispatch('click');
+  assert.equal(opensUp(1), false, 'the strip under the title bar does not count as room above');
+});
+
+// 按下選單裡的動作後跳出「尚未儲存」對話框，選「留在這裡」時，焦點回到那一列的「操作」，不落在已經收起的選單項目上。
+test('journey 13: staying in the unsaved-changes dialog opened from a scenario\'s actions menu returns focus to that row\'s actions button', () => {
+  const f = savedFixture({ saved: [savedGNamed('甲'), savedGNamed('乙')], pane: 'saved' });
+  f.dom.document.body = f.dom.element('body');
+  const active = () => f.dom.document.activeElement;
+  const toggle = index => f.$$('.saved-scenario .jet-menu__toggle')[index];
+  f.click('[data-kct-letter="A"]');
+  const draft = JSON.stringify(f.draft());
+  toggle(1).dispatch('click');
+  const edit = f.$('#saved-actions-1 [data-action="edit-scenario"]');
+  edit.focus(); edit.dispatch('click');
+  const dialog = f.dom.document.body.querySelector('[data-bind="filter-pending-modal"]');
+  assert.ok(dialog, 'the unsaved-changes dialog opens');
+  assert.equal(toggle(1).getAttribute('aria-expanded'), 'false', 'the menu closes behind the dialog');
+  dialog.fire('click', { target: dialog.querySelector('.modal__actions [data-pending-choice="stay"]') });
+  assert.equal(f.dom.document.body.querySelector('[data-bind="filter-pending-modal"]'), null);
+  assert.ok(active() === toggle(1), 'focus returns to the actions button of the same row');
+  assert.equal(JSON.stringify(f.draft()), draft, 'staying keeps the conditions');
+});
+
+// 2026-10-19 使用者要求同功能的元件只留一套：第五步的兩組頁籤和其他頁籤一樣，方向鍵左右、Home、End 直接換頁，
+// 只有選中的頁籤留在 Tab 鍵順序裡；原本是 aria-pressed 的按鈕，每一個都要用 Tab 走過。
+test('step five work and condition-source tabs switch with arrow keys, Home and End, and keep only the selected tab in the Tab order', () => {
+  const f = savedFixture({ saved: [savedGNamed('甲')] });
+  const active = () => f.dom.document.activeElement;
+  const work = key => f.$('[data-filter-pane-select="' + key + '"]');
+  const source = key => f.$('[data-condition-source="' + key + '"]');
+  assert.equal(work('filter').closest('[role="tablist"]').getAttribute('aria-label'), '篩選工作區');
+  assert.equal(source('kct').closest('[role="tablist"]').getAttribute('aria-label'), '條件來源');
+  function expectWork(key, label) {
+    for (const other of ['filter', 'saved']) {
+      assert.equal(work(other).getAttribute('aria-selected'), other === key ? 'true' : 'false', label + ': aria-selected ' + other);
+      assert.equal(work(other).getAttribute('tabindex'), other === key ? '0' : '-1', label + ': tabindex ' + other);
+      assert.equal(f.$('[data-filter-pane="' + other + '"]').hidden, other !== key, label + ': pane ' + other);
+    }
+    assert.equal(work(key).getAttribute('aria-controls'), 'filter-pane-' + key);
+    assert.ok(active() === work(key), label + ': focus follows the selection');
+  }
+  work('filter').focus();
+  for (const [key, expected] of [['ArrowRight', 'saved'], ['ArrowRight', 'filter'], ['End', 'saved'], ['Home', 'filter'], ['ArrowLeft', 'saved']]) {
+    assert.equal(active().dispatch('keydown', { key }).defaultPrevented, true, key + ' is handled');
+    expectWork(expected, key);
+  }
+  work('filter').dispatch('click');
+  source('kct').focus();
+  source('kct').dispatch('keydown', { key: 'ArrowRight' });
+  assert.ok(active() === source('prescreen'));
+  assert.equal(source('prescreen').getAttribute('aria-selected'), 'true');
+  assert.equal(f.$('[data-condition-pane="prescreen"]').hidden, false);
+  assert.equal(f.$('[data-condition-pane="kct"]').hidden, true);
+  active().dispatch('keydown', { key: 'End' });
+  assert.ok(active() === source('custom'));
+  assert.equal(f.$('[data-condition-pane="custom"]').hidden, false);
+});
+
+// 2026-10-19 使用者要求同功能的元件只留一套：「查看結果」與「查看矩陣」是共用的展開按鈕，字固定，
+// 開關寫在 aria-expanded，aria-controls 指向它打開的內容；原本字會換成「收起結果」「收合矩陣」。
+test('journey 13: 查看結果 and 查看矩陣 keep their labels and report what they open through aria-expanded and aria-controls', async () => {
+  const f = savedFixture({ saved: [savedGNamed('甲')], pane: 'saved' });
+  const result = () => f.$('[data-action="toggle-scenario"][data-index="0"]');
+  const matrix = () => f.$('[data-action="toggle-matrix"]');
+  assert.equal(result().textContent, '查看結果');
+  assert.ok(result().classList.contains('jet-disclosure'));
+  assert.equal(result().getAttribute('aria-controls'), 'scenario-body-0');
+  assert.ok(f.$('#scenario-body-0') === f.$('[data-bind="scenario-body-0"]'), 'the id names the scenario body');
+  assert.equal(result().getAttribute('aria-expanded'), 'false');
+  f.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
+  assert.equal(result().getAttribute('aria-expanded'), 'true');
+  assert.equal(result().textContent, '查看結果');
+  assert.equal(f.$('#scenario-body-0').hidden, false);
+  assert.equal(matrix().textContent, '查看矩陣');
+  assert.ok(matrix().classList.contains('jet-disclosure'));
+  assert.equal(matrix().getAttribute('aria-controls'), 'filter-matrix-body');
+  assert.ok(f.$('#filter-matrix-body') === f.$('[data-bind="matrix-body"]'), 'the id names the matrix body');
+  f.click('[data-action="toggle-matrix"]'); await settle();
+  assert.equal(matrix().getAttribute('aria-expanded'), 'true');
+  assert.equal(matrix().textContent, '查看矩陣');
+  f.click('[data-action="toggle-matrix"]');
+  assert.equal(matrix().getAttribute('aria-expanded'), 'false');
+  assert.equal(f.$('#filter-matrix-body').hidden, true);
 });

@@ -53,6 +53,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
         IAsyncEnumerable<StagingRow> rows,
         CancellationToken cancellationToken)
     {
+        source = ImportSourceFileName.Normalize(source);
         await database.EnsureCreatedAsync(projectId, cancellationToken);
         projection ??= JetAuditProgram.PrepareAccountMappingProjection(
             columns,
@@ -102,7 +103,8 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
             insertBatch.Transaction = transaction;
             insertBatch.Parameters.AddWithValue("@batchId", batchId);
             insertBatch.Parameters.AddWithValue("@kind", kindName);
-            insertBatch.Parameters.AddWithValue("@filePath", source.FilePath);
+            // source_file_path 是舊欄名；和本機一樣只保存檔名，不在資料庫留下本機絕對路徑（2026-10-19 跨資料庫一致性第二階段）。
+            insertBatch.Parameters.AddWithValue("@filePath", source.FileName);
             insertBatch.Parameters.AddWithValue("@fileName", source.FileName);
             insertBatch.Parameters.AddWithValue("@sheetName", (object?)source.SheetName ?? DBNull.Value);
             insertBatch.Parameters.AddWithValue("@encoding", (object?)source.EncodingName ?? DBNull.Value);
@@ -164,8 +166,8 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
             insertTarget.Transaction = transaction;
             insertTarget.Parameters.AddWithValue("@batchId", batchId);
             var sourceRowParam = insertTarget.Parameters.Add("@sourceRowNumber", SqlDbType.Int);
-            var codeParam = insertTarget.Parameters.Add("@accountCode", SqlDbType.NVarChar, 450);
-            var nameParam = insertTarget.Parameters.Add("@accountName", SqlDbType.NVarChar, 400);
+            var codeParam = insertTarget.Parameters.Add("@accountCode", SqlDbType.NVarChar, TextStorageLimits.KeyUtf16CodeUnits);
+            var nameParam = insertTarget.Parameters.Add("@accountName", SqlDbType.NVarChar, TextStorageLimits.TextUtf16CodeUnits);
             var categoryParam = insertTarget.Parameters.Add("@category", SqlDbType.NVarChar, 40);
             var categoryIdParam = insertTarget.Parameters.Add("@categoryId", SqlDbType.NVarChar, 64);
             var explicitParam = insertTarget.Parameters.Add("@explicit", SqlDbType.Int);

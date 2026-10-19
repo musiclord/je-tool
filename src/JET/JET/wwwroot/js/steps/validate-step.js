@@ -20,8 +20,6 @@
     var control = {
       kind: 'table',
       // 2026-10-05 V2：兩欄都是 JET 自己算的數字，一欄在確認配對時算出，一欄在存下後重新計算；不比對來源檔本身。
-      prefix: '確認 JET 存下的分錄沒有少，也沒有重複。兩欄都只算查核期間內、符合過帳狀態設定的分錄。' +
-        '這一項不和來源檔自己的合計比對。舊案件沒有這組數字時顯示「—」，不代表 0。',
       columns: ['核對項目', '確認配對時算出', '存下後重新計算'],
       numeric: [1, 2],
       rows: [['分錄筆數', countText(source.rowCount), countText(target.rowCount)],
@@ -155,7 +153,7 @@
         body.setAttribute('aria-busy', 'false');
         var message = error && error.code === 'operation_cancelled'
           ? '讀取已取消。'
-          : '讀取分錄失敗。' + (error && error.message ? ' ' + error.message : '');
+          : '讀取分錄失敗。' + (Ui.errorText(error, '') ? ' ' + Ui.errorText(error, '') : '');
         body.innerHTML = '<p role="status">' + Ui.esc(message) + '</p>' +
           '<button type="button" class="btn btn--ghost btn--tiny" data-detail-retry>重試</button>';
       });
@@ -222,24 +220,20 @@
     function (row) { return row.drCr === 'DEBIT' ? '借' : '貸'; }
   ];
 
-  // 預篩選命中表：首屏 50 筆之後由同一張表接「載入更多」、表頭排序與依傳票號碼查看；
+  // 預篩選命中表：每頁最多 200 筆，排序與搜尋由後端對完整查詢範圍處理；
   // 首擊或換排序時先清掉首屏列，再從資料庫端的第一頁接續。
-  function bindPrescreenTable(block, key) {
+  function bindPrescreenTable(block, key, data) {
     var tbody = block.querySelector('.preview-table tbody');
-    var summary = block.querySelector('.rule-detail__preview-summary');
     if (!tbody) { return; }
     Ui.bindPagedTable(block, {
+      initialPage: data,
       sourceKind: 'prescreen',
       viewState: detailPageState('prescreen', detailPageKey(block, 'prescreen-' + key)),
       fetchPage: function (cursor, sort, search) {
         return global.JetApi.queryPrescreenPage({ ruleKey: key, cursor: cursor, pageSize: 200, sort: sort, search: search || null });
       },
-      appendRows: function (rows) {
-        Ui.appendRowsToTbody(tbody, rows, PRESCREEN_PAGE_COLUMNS);
-        if (summary) { summary.textContent = '已載入 ' + tbody.rows.length.toLocaleString() + ' 筆符合條件的分錄'; }
-      },
+      appendRows: function (rows) { Ui.appendRowsToTbody(tbody, rows, PRESCREEN_PAGE_COLUMNS); },
       clearRows: function () { tbody.innerHTML = ''; },
-      loadMore: block.querySelector('[data-prescreen-load-more]'),
       table: block.querySelector('.preview-table'),
       search: block.querySelector('[data-page-search]')
     });
@@ -248,11 +242,8 @@
   function prescreenPageHtml(data, scrollKey) {
     var rows = (data && data.rows) || [];
     return (
-      '<p class="rule-detail__preview-summary">已載入 ' + rows.length.toLocaleString() + ' 筆符合條件的分錄</p>' +
       Ui.pageSearchHtml('依傳票號碼查看') +
-      '<div class="preview-table__wrap" data-preserve-scroll="' + Ui.esc(scrollKey || 'prescreen-detail') + '">' + Ui.previewTableHtml(rows, 'query.prescreenPage') + '</div>' +
-      '<button type="button" class="btn btn--ghost btn--tiny rule-detail__load-more" data-prescreen-load-more' +
-        (data && data.nextCursor != null ? '' : ' hidden') + '>載入更多</button>'
+      '<div class="preview-table__wrap" data-preserve-scroll="' + Ui.esc(scrollKey || 'prescreen-detail') + '">' + Ui.previewTableHtml(rows, 'query.prescreenPage') + '</div>'
     );
   }
 
@@ -266,11 +257,10 @@
              (detail.remedy ? '<p class="rule-detail__remedy">' + Ui.esc(detail.remedy) + '</p>' : '');
     }
     if (detail.kind === 'table') {
-      // 只有一顆「載入更多」的表才提供排序與搜尋（空值表兩顆鈕共用一個 tbody，混排兩個類別不能排序）。
-      var lmIdsForHead = detail.loadMore == null ? [] :
-        (Array.isArray(detail.loadMore) ? detail.loadMore : [detail.loadMore]);
-      var sortable = !!detail.sortAction && lmIdsForHead.length === 1;
-      // 金額與筆數欄連同表頭靠右（使用者 2026-10-13 選擇處理數字欄靠左）；detail.numeric 列出是數字的欄。
+      // detail.pageQuery 是這張表分頁查詢的識別（DETAIL_PAGE_SPECS 的鍵）；有分頁查詢的表才提供排序與搜尋。
+      var pageQuery = detail.pageQuery || null;
+      var sortable = !!detail.sortAction && !!pageQuery;
+      // 金額與筆數的資料格靠右（使用者 2026-10-13），表頭依 2026-10-16 要求統一靠左；detail.numeric 列出是數字的欄。
       var numeric = detail.numeric || [];
       var amountClass = function (index) { return numeric.indexOf(index) >= 0 ? 'preview-table__amount' : ''; };
       var thead = '<tr>' + (sortable
@@ -288,19 +278,13 @@
         }).join('') + '</tr>';
       }).join('');
       var prefix = detail.prefix ? '<p class="rule-detail__prefix">' + Ui.esc(detail.prefix) + '</p>' : '';
-      // loadMore：把後端首屏 ≤50 預覽下方接「載入更多」鈕(keyset)。
-      // detail.loadMore 可為單一 id 字串或 id 陣列(空值「傳票號／科目」一格 tbody 兩 category 各一鈕)。
-      // tbody 以 data-load-target 對齊此明細，載入與重試由共用分頁處理。
-      var lmIds = detail.loadMore == null ? [] :
-        (Array.isArray(detail.loadMore) ? detail.loadMore : [detail.loadMore]);
-      var targetAttr = lmIds.length ? ' data-load-target="' + Ui.esc(lmIds[0]) + '"' : '';
-      var buttons = lmIds.map(function (id) { return loadMoreButtonHtml(id); }).join('');
+      // tbody 以 data-page-query 對應分頁查詢；展開後由共用分頁讀第一頁，取代摘要樣本。
+      var targetAttr = pageQuery ? ' data-page-query="' + Ui.esc(pageQuery) + '"' : '';
       return prefix + searchHtml +
-        '<div class="preview-table__wrap" data-preserve-scroll="detail-' + Ui.esc(scrollKey || lmIds[0] || 'table') + '">' +
+        '<div class="preview-table__wrap" data-preserve-scroll="detail-' + Ui.esc(scrollKey || pageQuery || 'table') + '">' +
           '<table class="preview-table"><thead>' + thead + '</thead>' +
           '<tbody' + targetAttr + '>' + tbody + '</tbody></table>' +
-        '</div>' +
-        buttons;
+        '</div>';
     }
     if (detail.kind === 'dynamicPage') {
       var spec = DYNAMIC_PAGE_SPECS[detail.pageKey];
@@ -321,20 +305,14 @@
     return '';
   }
 
-  // 「載入更多」鈕標記:沿用既有 btn--ghost btn--tiny;data-load-more 對應同 id 的 tbody。
-  function loadMoreButtonHtml(id) {
-    return '<button type="button" class="btn btn--ghost btn--tiny rule-detail__load-more"' +
-      ' data-load-more="' + Ui.esc(id) + '">載入更多</button>';
-  }
-
-  // 載入更多分頁的金額欄一律走 Ui.money（兩位小數加千分位），與首頁 detail() 欄同格式，避免分頁後尾數位數不一致。
+  // 分頁金額一律走 Ui.money，和摘要樣本保持相同格式。
   // 目前 num() 的呼叫點全為金額（tbAmount/glAmount/diff/debit/credit）；若日後拿它顯示計數，請改回 toLocaleString。
   function num(v) { return Ui.money(v); }
 
-  // 「載入更多」規格表:id → { fetchPage(cursor)、columns(接列欄序與既有 table 對齊) }。
+  // 明細查詢規格：id 對應 fetchPage 與 columns，供共用分頁取得每一頁。
   // fetchPage 只發對應 query.*Page action、回 { rows, nextCursor };columns 為每欄的 row→cell 取值函式。
   // 純呼叫膠水:不算差異、不判命中、不組 SQL;顯示形狀(金額換算、借貸文字)由後端 row 決定,前端僅格式化呈現。
-  var LOAD_MORE_SPECS = {
+  var DETAIL_PAGE_SPECS = {
     completeness: {
       fetchPage: function (cursor, sort, search) {
         return global.JetApi.queryCompletenessDiffPage({ cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
@@ -360,12 +338,12 @@
     },
   };
 
-  // 「載入更多」接上的列和首頁同一欄靠右，和 detailHtml 的 numeric 對齊。
+  // 分頁數字欄靠右，和 detailHtml 的 numeric 對齊。
   function amountColumn(cell) { return { cell: cell, className: 'preview-table__amount' }; }
 
   // 空值四子項共對應五個後端 category 與固定的「異常類別」顯示字;
-  // id 形如 null-<category>,動態註冊進 LOAD_MORE_SPECS（columns 與既有空值 table 欄序對齊）。
-  function nullLoadMoreSpec(category, categoryLabel) {
+  // id 形如 null-<category>,動態註冊進 DETAIL_PAGE_SPECS（columns 與既有空值 table 欄序對齊）。
+  function nullPageSpec(category, categoryLabel) {
     return {
       fetchPage: function (cursor, sort, search) {
         return global.JetApi.queryNullRecordsPage({ category: category, cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
@@ -382,14 +360,14 @@
 
   // 後端 nullRecordsPage 白名單四 category → 「異常類別」顯示字(對齊 issuesCn map)。
   // 空白總帳日期已改由來源品質承載，不再屬於空值紀錄測試。
-  LOAD_MORE_SPECS['null-outOfRangeDate'] = nullLoadMoreSpec('outOfRangeDate', '核准日不在期間');
-  LOAD_MORE_SPECS['null-nullDescription'] = nullLoadMoreSpec('nullDescription', '空白摘要');
-  LOAD_MORE_SPECS['null-nullDocument'] = nullLoadMoreSpec('nullDocument', '空白傳票號碼');
-  LOAD_MORE_SPECS['null-nullAccount'] = nullLoadMoreSpec('nullAccount', '空白科目編號');
+  DETAIL_PAGE_SPECS['null-outOfRangeDate'] = nullPageSpec('outOfRangeDate', '核准日不在期間');
+  DETAIL_PAGE_SPECS['null-nullDescription'] = nullPageSpec('nullDescription', '空白摘要');
+  DETAIL_PAGE_SPECS['null-nullDocument'] = nullPageSpec('nullDocument', '空白傳票號碼');
+  DETAIL_PAGE_SPECS['null-nullAccount'] = nullPageSpec('nullAccount', '空白科目編號');
 
   // 來源品質全量明細（query.sourceQualityPage）：不套查核期間述詞，因此仍看得到
   // 被期間界定排除的空白總帳日期；欄序與下方 detail 的固定欄一致。
-  LOAD_MORE_SPECS.sourceQuality = {
+  DETAIL_PAGE_SPECS.sourceQuality = {
     fetchPage: function (cursor, sort, search) {
       return global.JetApi.querySourceQualityPage({ cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
     },
@@ -433,9 +411,8 @@
 
   // 空值紀錄測試在後端是單一規則（null_records_test）；UI 依異常類別拆成四個子項呈現。
   // 每個子項讀對應子計數作徽章，詳情用 nullRows 的 issues 標籤過濾出該類列
-  // （明細仍是後端那份 ≤50 有界樣本，故過濾後筆數可能少於徽章數）。
-  // categories：後端 nullRecordsPage 的 category 白名單值(一或多個);各對應一顆「載入更多」鈕,
-  // 接續逐頁回取該類全量明細(首屏仍是後端 ≤50 有界樣本)。
+  // 摘要樣本只供尚未展開的初始結構；展開後直接讀取該類別第一頁，不以樣本判斷是否有明細。
+  // categories 只放一個 nullRecordsPage 的 category 白名單值，對應 DETAIL_PAGE_SPECS 的 null-<category>。
   function nullSubItem(title, desc, issueKeys, countOf, categories) {
     return {
       title: title,
@@ -463,7 +440,7 @@
           sortAction: 'query.nullRecordsPage', sortKeys: ['documentNumber', 'accountCode', 'postDate', 'description', null],
           searchLabel: '依傳票號碼、科目編號或摘要搜尋',
           rows: rows,
-          loadMore: (categories || []).map(function (c) { return 'null-' + c; })
+          pageQuery: 'null-' + categories[0]
         };
       }
     };
@@ -514,7 +491,7 @@
             searchLabel: '依科目編號查看',
             rows: rows,
             prefix: [eligibility.reason || eligibility.warning, differencePrecisionNote].filter(Boolean).join(' '),
-            loadMore: 'completeness'
+            pageQuery: 'completeness'
           });
         }
         if (!eligibility.isEligible || eligibility.warning) {
@@ -557,7 +534,7 @@
             searchLabel: '依傳票號碼查看',
             rows: rows,
             prefix: differencePrecisionNote,
-            loadMore: 'docBalance'
+            pageQuery: 'docBalance'
           };
         }
         return null;
@@ -612,7 +589,7 @@
           searchLabel: '依傳票號碼查看',
           rows: rows,
           prefix: '這些分錄保留在 PBC-GL 中，並列入 GL(未納入測試)。',
-          loadMore: 'sourceQuality'
+          pageQuery: 'sourceQuality'
         };
       }
     }
@@ -891,8 +868,10 @@
           (taxonomyOpen ? taxonomyCardHtml(state) :
             '<div class="account-methods-block" data-motion-key="account-methods">' +
             '<div class="account-methods" role="tablist" aria-label="科目配對方式">' +
-              '<button type="button" role="tab" id="account-method-jet" data-action="select-account-jet" data-focus-key="account-method-jet" aria-controls="account-method-panel" aria-selected="' + !accountExcelOpen + '" tabindex="' + (accountExcelOpen ? '-1' : '0') + '">在 JET 配對</button>' +
-              '<button type="button" role="tab" id="account-method-excel" data-action="toggle-account-excel" data-focus-key="account-method-excel" aria-controls="account-method-panel" aria-selected="' + accountExcelOpen + '" tabindex="' + (accountExcelOpen ? '0' : '-1') + '">用 Excel 配對</button>' +
+              '<button type="button" data-action="select-account-jet" data-focus-key="account-method-jet"' +
+                Ui.tabAttributes(!accountExcelOpen, 'account-method-panel', 'account-method-jet') + '>在 JET 配對</button>' +
+              '<button type="button" data-action="toggle-account-excel" data-focus-key="account-method-excel"' +
+                Ui.tabAttributes(accountExcelOpen, 'account-method-panel', 'account-method-excel') + '>用 Excel 配對</button>' +
             '</div><div role="tabpanel" id="account-method-panel" data-motion-key="account-method-' + (accountExcelOpen ? 'excel' : 'jet') +
               '" aria-labelledby="account-method-' + (accountExcelOpen ? 'excel' : 'jet') + '">' +
               (accountExcelOpen ? accountMappingCardHtml(state.importState.accountMapping, ready)
@@ -944,12 +923,12 @@
       var detail = (status && item.detail) ? item.detail(runData) : null;
       var expanded = !!view.expanded[scope + '-' + idx];
       var toggleBtn = detail
-        ? '<button type="button" class="btn btn--ghost btn--tiny rule-item__toggle"' +
-            ' data-action="toggle-detail" data-scope="' + Ui.esc(scope) + '" data-idx="' + idx + '">' +
-            (expanded ? '收合' : '檢視') + '</button>'
+        ? '<button type="button" class="btn btn--ghost btn--tiny rule-item__toggle jet-disclosure"' +
+            ' data-action="toggle-detail" data-scope="' + Ui.esc(scope) + '" data-idx="' + idx + '"' +
+            Ui.disclosureAttributes(expanded, 'rule-detail-' + scope + '-' + idx) + '>檢視</button>'
         : '';
       var detailContainer = detail
-        ? '<div class="rule-detail" data-bind="rule-detail-' + Ui.esc(scope) + '-' + idx + '" data-collapsible' + (expanded ? '' : ' hidden') + '>' +
+        ? '<div class="rule-detail" id="' + Ui.esc('rule-detail-' + scope + '-' + idx) + '" data-bind="rule-detail-' + Ui.esc(scope) + '-' + idx + '" data-collapsible' + (expanded ? '' : ' hidden') + '>' +
             detailHtml(detail, scope + '-' + idx) +
           '</div>'
         : '';
@@ -1055,8 +1034,9 @@
     var open = !!mappingDifferenceView(info).expanded.blank;
     return '<p class="import-card__status" data-bind="blank-category-notice">分類留白 ' + Number(info.blankCategoryCount).toLocaleString() +
         ' 筆，視為 Others。可在下方整批調整分類，或修改科目配對檔後重新匯入。 ' +
-        '<button type="button" class="btn btn--ghost btn--tiny" data-action="list-blank-categories" aria-expanded="' + open + '">列出科目</button></p>' +
-      '<div class="account-mapping-checks__list" data-bind="blank-category-list" data-motion-key="blank-category-list" data-collapsible' +
+        '<button type="button" class="btn btn--ghost btn--tiny jet-disclosure" data-action="list-blank-categories"' +
+          Ui.disclosureAttributes(open, 'blank-category-list') + '>列出科目</button></p>' +
+      '<div class="account-mapping-checks__list" id="blank-category-list" data-bind="blank-category-list" data-motion-key="blank-category-list" data-collapsible' +
         (open ? '' : ' hidden') + '></div>';
   }
 
@@ -1105,9 +1085,9 @@
     return ['mappingOnly', 'unmapped'].map(function (kind) {
       return '<p class="import-card__status"><span data-difference-count="' + kind + '">' +
         mappingDifferenceCountText(kind, view.counts[kind]) + '</span>' +
-        ' <button type="button" class="btn btn--ghost btn--tiny" data-mapping-difference="' + kind +
-        '" aria-expanded="' + !!view.expanded[kind] + '">列出科目</button></p>' +
-        '<div class="account-mapping-checks__list" data-difference-list="' + kind + '" data-motion-key="difference-list-' + kind + '" data-collapsible' + (view.expanded[kind] ? '' : ' hidden') + '></div>';
+        ' <button type="button" class="btn btn--ghost btn--tiny jet-disclosure" data-mapping-difference="' + kind + '"' +
+        Ui.disclosureAttributes(!!view.expanded[kind], 'difference-list-' + kind) + '>列出科目</button></p>' +
+        '<div class="account-mapping-checks__list" id="difference-list-' + kind + '" data-difference-list="' + kind + '" data-motion-key="difference-list-' + kind + '" data-collapsible' + (view.expanded[kind] ? '' : ' hidden') + '></div>';
     }).join('');
   }
 
@@ -1119,7 +1099,7 @@
       if (!button || !list) { return; }
       view.countNodes[kind] = container.querySelector('[data-difference-count="' + kind + '"]');
       function mount() {
-        list.innerHTML = '<ul class="kv-list" data-difference-rows></ul><button type="button" class="btn btn--ghost btn--tiny" data-difference-more="' + kind + '">載入更多</button>';
+        list.innerHTML = '<ul class="kv-list" data-difference-rows></ul>';
         var rows = list.querySelector('[data-difference-rows]');
         var listed = 0;
         var page = view.pages[kind] || (view.pages[kind] = {});
@@ -1140,12 +1120,11 @@
                 return '<li>' + Ui.esc(row.accountCode || '（空白科目編號）') + (row.accountName ? '　' + Ui.esc(row.accountName) : '') + '</li>';
               }).join(''));
             }
-            // 只有這次掛上後第一次放進列（第一頁）時走 JetMotion；「載入更多」接在後面，不再整塊比對。
+            // 第一次放入列時走 JetMotion；後續換頁直接替換資料。
             if (listed === 0) { morphCheckList(list, fill); } else { fill(); }
             listed += items.length;
           },
-          clearRows: function () { rows.innerHTML = ''; },
-          loadMore: list.querySelector('[data-difference-more="' + kind + '"]')
+          clearRows: function () { rows.innerHTML = ''; }
         });
       }
       if (view.expanded[kind]) { mount(); }
@@ -1314,8 +1293,9 @@
     return (
       '<section class="account-classification' + (taxonomyAdvanced ? ' is-advanced' : '') + '" data-bind="account-taxonomy-card" data-motion-key="account-taxonomy">' +
         '<div class="rule-card__head"><h4 class="rule-card__title">分類設定</h4>' +
-        '<button class="btn btn--ghost btn--tiny account-classification__advanced" data-action="toggle-taxonomy-advanced" data-focus-key="taxonomy-advanced" aria-expanded="' + taxonomyAdvanced + '">進階設定</button></div>' +
-        '<dl class="taxonomy-guide" data-motion-key="taxonomy-guide"' + (taxonomyAdvanced ? '' : ' hidden') + '>' +
+        '<button type="button" class="btn btn--ghost btn--tiny jet-disclosure" data-action="toggle-taxonomy-advanced" data-focus-key="taxonomy-advanced"' +
+          Ui.disclosureAttributes(taxonomyAdvanced, 'taxonomy-guide') + '>進階設定</button></div>' +
+        '<dl class="taxonomy-guide" id="taxonomy-guide" data-motion-key="taxonomy-guide"' + (taxonomyAdvanced ? '' : ' hidden') + '>' +
           '<div><dt>分類名稱</dt><dd id="taxonomy-name-help">用於配對檔與篩選條件，可依案件命名。</dd></div>' +
           '<div><dt>分類用途</dt><dd id="taxonomy-role-help">自訂分類需要參與收入與現金等借貸組合檢查時才設定。Cash 已對應現金，無須另設。</dd></div>' +
           '<div><dt>上層分類</dt><dd id="taxonomy-parent-help">需要將多個分類一起篩選時，可歸入同一上層。新增下層分類時，分類用途預設沿用上層，之後可以自行修改。</dd></div>' +
@@ -1553,8 +1533,8 @@
     }).catch(function (error) {
       if (active()) {
         Store.setValidationOutput(kind, { runId: runId, status: 'failed',
-          reason: error && error.message ? error.message : '',
-          message: (kind === 'template' ? '範本尚未產生：' : '報告尚未產生：') + error.message + ' 可使用此區按鈕重試。' });
+          reason: Ui.errorText(error, ''),
+          message: (kind === 'template' ? '範本尚未產生：' : '報告尚未產生：') + Ui.errorText(error) + ' 可使用此區按鈕重試。' });
       } else { return null; }
       throw error;
     });
@@ -1586,7 +1566,12 @@
       return current.project === project && current.dataGeneration === generation && current.lastRuns.validate === runData;
     }
     function preserveFailure(error) {
-      if (error && error.code === 'operation_cancelled') { throw error; }
+      // 走到這裡時資料驗證已完成並保存；產生報告時被取消，訊息也要說已完成的部分仍保留
+      // （低嚴重度事項 F5，使用者 2026-10-19 要求處理）。
+      if (error && error.code === 'operation_cancelled') {
+        error.completedResultsPreserved = true;
+        throw error;
+      }
       failures.push(error);
     }
     return exportValidationArtifacts(runData).then(function (data) {
@@ -1642,10 +1627,8 @@
       // 第一次打開才讀第一頁；之後收起再打開或整段重繪，都從 blankView.pages.blank 接回已讀的列，不重讀。
       var mountBlank = function () {
         blankList.dataset.loaded = '1';
-        blankList.innerHTML = '<ul class="kv-list" data-bind="blank-category-rows"></ul>' +
-          '<button type="button" class="btn btn--ghost btn--tiny" data-action="blank-category-more">載入更多</button>';
+        blankList.innerHTML = '<ul class="kv-list" data-bind="blank-category-rows"></ul>';
         var rowsEl = blankList.querySelector('[data-bind="blank-category-rows"]');
-        var moreBtn = blankList.querySelector('[data-action="blank-category-more"]');
         var listed = 0;
         // 掛上時從 blankView.pages.blank 同步接回的已讀列直接放進去：這時清單剛取消 hidden，
         // 走 JetMotion 會在列放進去前先量高度，展開區反而朝空清單的高度長。只有晚到的第一頁才走 JetMotion。
@@ -1665,8 +1648,7 @@
             viewState: blankView.pages.blank || (blankView.pages.blank = {}),
             fetchPage: function (cursor) { return global.JetApi.queryAccountMappingBlankPage({ cursor: cursor, pageSize: 200 }); },
             appendRows: appendRows,
-            clearRows: function () { rowsEl.innerHTML = ''; },
-            loadMore: moreBtn
+            clearRows: function () { rowsEl.innerHTML = ''; }
           });
         } finally {
           mounting = false;
@@ -1743,6 +1725,8 @@
               blankCategoryCount: data.blankCategoryCount
             });
             if (data.columnMappingWarning) { Store.addMessage(data.columnMappingWarning, 'warn'); }
+            // 文字檔欄位內含換行的提醒，和 GL、TB 匯入同一句、同一種顯示方式（低嚴重度事項，使用者 2026-10-19 要求處理）。
+            (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
             Store.applyMutationEffects(data);
             var differences = mappingDifferenceView(Store.getState().importState.accountMapping);
             differences.counts = { mappingOnly: data.mappingOnlyCount, unmapped: data.unmappedCount };
@@ -1813,7 +1797,7 @@
     );
   }
 
-  // 以系統端回傳的欄位定義渲染結果表，並接上同一份定義的「載入更多」。
+  // 以後端欄位定義渲染結果表，所有頁面沿用同一份欄位定義。
   // 欄序、欄名與每格的取值鍵都來自 response，畫面不重建這份 schema。
   function renderDynamicPage(body, data, spec) {
     var columns = (data && data.columns) || [];
@@ -1824,21 +1808,19 @@
       '<div class="preview-table__wrap" data-preserve-scroll="' + Ui.esc(pageKey) + '">' +
         '<table class="preview-table"><thead>' + Ui.dynamicColumnHeadHtml(columns) + '</thead>' +
         '<tbody data-dynamic-body></tbody></table>' +
-      '</div>' +
-      '<button type="button" class="btn btn--ghost btn--tiny rule-detail__load-more"' +
-        ' data-dynamic-load-more' + (data && data.nextCursor != null ? '' : ' hidden') + '>載入更多</button>';
+      '</div>';
 
     var tbody = body.querySelector('[data-dynamic-body]');
     Ui.appendRowsToTbody(tbody, (data && data.rows) || [], cells);
 
     // 首擊或換排序、搜尋時先清掉這裡的首屏列，再自資料庫端的第一頁接續，避免兩套順序混排。
     Ui.bindPagedTable(body, {
+      initialPage: data,
       sourceKind: 'validate',
       viewState: detailPageState('validate', pageKey),
       fetchPage: function (cursor, sort, search) { return spec.fetchPage(cursor, sort, search); },
       appendRows: function (rows) { Ui.appendRowsToTbody(tbody, rows, cells); },
       clearRows: function () { tbody.innerHTML = ''; },
-      loadMore: body.querySelector('[data-dynamic-load-more]'),
       table: body.querySelector('.preview-table'),
       search: body.querySelector('[data-page-search]')
     });
@@ -1853,16 +1835,8 @@
       var button = container.querySelector('[data-action="' + item[0] + '"]');
       if (button) { button.addEventListener('click', function () { item[1](); Store.touch(); }); }
     });
-    container.querySelectorAll('.account-methods [role="tab"]').forEach(function (tab) {
-      tab.addEventListener('keydown', function (event) {
-        if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(event.key) < 0) { return; }
-        event.preventDefault();
-        var tabs = Array.from(container.querySelectorAll('.account-methods [role="tab"]'));
-        var index = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (tabs.indexOf(tab) + 1) % tabs.length;
-        tabs.forEach(function (item, i) { item.tabIndex = i === index ? 0 : -1; });
-        tabs[index].focus();
-      });
-    });
+    // 兩個配對方式頁籤的左右鍵、Home、End 由 ui-core.js 的共用頁籤處理，換到那一頁等於按下它。
+    Ui.bindTabs(container);
     // 「在 JET 配對」分頁的失敗狀態：切到「用 Excel 配對」，焦點交給同一區的「準備科目配對檔」。
     var retryTemplateInExcel = container.querySelector('[data-action="retry-account-template-in-excel"]');
     if (retryTemplateInExcel) {
@@ -1902,28 +1876,28 @@
     }
 
     // 每一種明細各有自己的查詢、排序、搜尋與游標，不再混用兩類空值資料。
-    container.querySelectorAll('[data-load-more]').forEach(function (btn) {
-      var id = btn.getAttribute('data-load-more');
-      var spec = LOAD_MORE_SPECS[id];
+    container.querySelectorAll('[data-page-query]').forEach(function (tbody) {
+      var id = tbody.getAttribute('data-page-query');
+      var spec = DETAIL_PAGE_SPECS[id];
       if (!spec) { return; }
-      var detail = btn.closest('.rule-detail');
-      var tbody = detail ? detail.querySelector('[data-load-target]') : null;
-      if (!tbody) { return; }
-      Ui.bindPagedTable(detail, {
+      var detail = tbody.closest('.rule-detail');
+      if (!detail) { return; }
+      var controller = Ui.bindPagedTable(detail, {
           sourceKind: 'validate',
           viewState: detailPageState('validate', detailPageKey(detail, id)),
           fetchPage: spec.fetchPage,
           appendRows: function (rows) { Ui.appendRowsToTbody(tbody, rows, spec.columns); },
           clearRows: function () { tbody.innerHTML = ''; },
-          loadMore: btn,
           table: tbody.closest('table'),
+          scrollElement: tbody.closest('.preview-table__wrap'),
           search: detail.querySelector('[data-page-search]')
       });
+      detail._loadPage = controller.ensureLoaded;
     });
 
     // 「檢視 / 收合」切換。
     // 對 prescreenPreview 類型：首次展開時觸發惰性抓取；之後只切 hidden。
-    // 其餘類型（reason / table）：純 DOM，無 API。
+    // 一般明細表首次展開也會透過 _loadPage 讀取第一頁；reason 只顯示文字。
     container.querySelectorAll('[data-action="toggle-detail"]').forEach(function (btn) {
       var scope = btn.getAttribute('data-scope');
       var idx = btn.getAttribute('data-idx');
@@ -1932,6 +1906,7 @@
       function showExpandedDetail() {
         // 只在展開時、且面板含 prescreenPreview 子區塊時觸發惰性抓取。
         if (panel.hidden) { return; }
+        if (panel._loadPage) { panel._loadPage(); }
 
         // 從當前 store 狀態取 runId，作為快取鍵的一部分。
         var state = Store.getState();
@@ -1960,21 +1935,20 @@
 
           var bodyEl = block.querySelector('.rule-detail__preview-body');
           loadDetailPreview(bodyEl, cacheKey, 'prescreen', presRun,
-            function () { return global.JetApi.queryPrescreenPage({ ruleKey: key, pageSize: Ui.RESULT_PREVIEW_PAGE_SIZE }); },
+            function () { return global.JetApi.queryPrescreenPage({ ruleKey: key, pageSize: Ui.TABLE_PAGE_SIZE }); },
             function (data) {
               bodyEl.innerHTML = prescreenPageHtml(data, detailPageKey(block, 'prescreen-' + key));
-              bindPrescreenTable(block, key);
+              bindPrescreenTable(block, key, data);
             });
         });
       }
       btn.addEventListener('click', function () {
         panel.hidden = !panel.hidden;
         detailView(detailRunKind(scope)).expanded[scope + '-' + idx] = !panel.hidden;
-        btn.textContent = panel.hidden ? '檢視' : '收合';
-        btn.classList.toggle('is-open', !panel.hidden);
+        btn.setAttribute('aria-expanded', String(!panel.hidden));
         showExpandedDetail();
       });
-      if (!panel.hidden) { btn.classList.toggle('is-open', true); showExpandedDetail(); }
+      if (!panel.hidden) { showExpandedDetail(); }
     });
 
     if (!ready) { return; }

@@ -226,6 +226,8 @@ function batch9TreeDom(options = {}) {
       // 第 0 批補：bubbles 選項開啟時 fire() 等於 dispatch()；沒開時維持 wf 的寫法，只呼叫目標自己的監聽。
       fire(name, extra = {}) { if (options.bubbles) return dispatchEvent(this, name, extra); for (const fn of this.handlers[name] || []) fn({ target: this, currentTarget: this, preventDefault() {}, stopPropagation() {}, ...extra }); },
       dispatch(name, extra = {}) { return dispatchEvent(this, name, extra); },
+      // 2026-10-19：共用頁籤用方向鍵換頁時呼叫 element.click()，和瀏覽器一樣送出會冒泡的 click。
+      click() { return dispatchEvent(this, 'click'); },
       // 第 0 批補：app.js 的焦點辨識讀 element.attributes 與 element.id；剪貼簿備援會呼叫 select()。
       get attributes() { return Object.entries(this.attrs).map(([name, value]) => ({ name, value })); },
       get id() { return this.attrs.id || ''; }, set id(value) { this.attrs.id = String(value); },
@@ -573,7 +575,7 @@ function batch8Fixture() {
   const context = vm.createContext({ window, document });
   for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js', 'filter-values.js', 'overview-bi.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const modules = [
-    ['validate', 'window.batch8Validation = { bind, detailView, VALIDATION_ITEMS, PRESCREEN_ITEMS, NULL_PRESCREEN_ITEMS, LOAD_MORE_SPECS, detailHtml, validationCardHtml, validationArtifactsHtml, validationOutputStatusHtml, prescreenArtifactHtml, prescreenCardHtml, statsBarHtml, pairCountStatus, hitCountStatus };'],
+    ['validate', 'window.batch8Validation = { bind, detailView, VALIDATION_ITEMS, PRESCREEN_ITEMS, NULL_PRESCREEN_ITEMS, DETAIL_PAGE_SPECS, detailHtml, validationCardHtml, validationArtifactsHtml, validationOutputStatusHtml, prescreenArtifactHtml, prescreenCardHtml, statsBarHtml, pairCountStatus, hitCountStatus };'],
     ['filter', 'window.batch8Filter = { customPickerHtml, exampleListHtml, viewState, ruleControlsHtml, ruleSummaryLabel, readBackHtml, toWireDraft, compoundRuleHtml, scenarioBuilderHtml };'],
     ['mapping', 'window.batch8Mapping = { classicEditSection, summarySection, mappingPreflightHtml };'],
     ['import', 'window.batch8Import = { emptyFaceHtml, wizardBannerHtml, previewTableHtml, datasetCard, getWizard: () => wizard };'],

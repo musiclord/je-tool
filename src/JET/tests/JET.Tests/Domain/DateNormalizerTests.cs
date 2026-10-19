@@ -80,6 +80,23 @@ public sealed class DateNormalizerTests
         Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out _));
     }
 
+    // 使用者 2026-10-19 裁定：帶千分位的數字視為無法辨識的日期，不當 Excel 序列值換算。
+    [Theory]
+    [InlineData("1,234")]    // 以前換成 1903-05-18，再以期間外排除。
+    [InlineData("45,292")]   // 去掉千分位是 2024-01-01 的序列值，同樣不接受。
+    [InlineData("73,415.5")]
+    // 逗號不在三位一組的位置，以前同樣當成序列值（「12,31」是 1231）；改動後一度被寬鬆解析讀成今年的 12 月 31 日。
+    // 下面四列是獨立複審後新增的，修正前的失敗收據 20261019-133635513-8bc41e6e2ef140c48f9b0bb1e55f32f3。
+    [InlineData("12,31")]
+    [InlineData("3,15")]
+    [InlineData("1,2024")]
+    [InlineData("2024,12,31")] // 以前是超出範圍的序列值而拒絕，不能改讀成 2024-12-31。
+    public void TryNormalize_SerialWithThousandsSeparator_Rejected(string raw)
+    {
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out _));
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOff, out _));
+    }
+
     // 負向：歧義與非法格式（兩種開關都必須拒絕）
     [Theory]
     [InlineData("11/05/06")]   // 兩位數年：無法分辨民國/西元/日月序
@@ -120,6 +137,46 @@ public sealed class DateNormalizerTests
     public void TryNormalize_LooseFallbackOutsideGuard_Rejected(string raw)
     {
         Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out _));
+    }
+
+    // 使用者 2026-10-19 裁定「視為無法辨識的日期」：寬鬆解析只接受寫出四位數年份與日的寫法，
+    // 不自行補上執行當年、不補成 1 日，也不把一兩位數讀成年份。修正前這些值都被接受
+    // （失敗收據 20261019-151920082-d008d7d7066b489ab4ea0b4c1907bcf1）。
+    [Theory]
+    [InlineData("12/31")]        // 補成執行當年
+    [InlineData("12-31")]
+    [InlineData("Dec 31")]
+    [InlineData("December 31")]
+    [InlineData("2025-12")]      // 補成 12 月 1 日
+    [InlineData("2025-01")]      // 月份的 01 不能當成日
+    [InlineData("Dec 2025")]
+    [InlineData("31 Dec")]       // 讀成 2031-12-01
+    [InlineData("1 Dec")]        // 讀成 2001-12-01
+    [InlineData("Dec 31, 25")]   // 兩位數 25 讀成 2025 年
+    [InlineData("11-Jun-25")]
+    public void TryNormalize_IncompleteDate_Rejected(string raw)
+    {
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out _));
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOff, out _));
+    }
+
+    // 同一裁定：年份與日都寫出來的寫法照常接受；時間裡的數字不算成日，月與日相同時要各有一個數字。
+    [Theory]
+    [InlineData("June 11, 2025", "2025-06-11")]
+    [InlineData("11 June 2025", "2025-06-11")]
+    [InlineData("11-Jun-2025", "2025-06-11")]
+    [InlineData("2025年6月11日", "2025-06-11")]
+    [InlineData("2025 Dec 1", "2025-12-01")]
+    [InlineData("2025/06/11 00:00:00", "2025-06-11")]
+    [InlineData("2025/06/01 01:01:01", "2025-06-01")]
+    [InlineData("2025-06-11T08:30:00", "2025-06-11")]
+    [InlineData("2025-1-1", "2025-01-01")]
+    public void TryNormalize_DateWithYearAndDayWritten_Accepted(string raw, string expected)
+    {
+        Assert.True(DateNormalizer.TryNormalize(raw, RocOn, out var onResult));
+        Assert.Equal(expected, onResult);
+        Assert.True(DateNormalizer.TryNormalize(raw, RocOff, out var offResult));
+        Assert.Equal(expected, offResult);
     }
 
     [Fact]

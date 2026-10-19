@@ -51,13 +51,14 @@ internal static class TagMatrixVoucherPageReader
         if (scenarioScope.IsEmpty)
         {
             return (
-                new PageResult<VoucherTagRow>([], null),
+                new PageResult<VoucherTagRow>([], null, request.IncludeTotalCount ? 0 : null),
                 new Dictionary<string, IReadOnlyList<int>>());
         }
 
         var paging = KeysetPaging.Plan(dialect, request, ResultPageSorting.TagMatrixVoucher);
 
         // 查詢 1:本頁命中傳票 + 聚合。彙總包成子查詢，排序、搜尋與游標述詞才能用彙總欄。
+        long? totalCount = null;
         var buffer = new KeysetPageBuffer<VoucherTagRow>();
         await using (var command = connection.CreateCommand())
         {
@@ -79,6 +80,7 @@ internal static class TagMatrixVoucherPageReader
 
             command.Parameters.Add(Param(command, "@pageSize", request.ClampedPageSize + 1));
 
+            totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, dialect, cancellationToken);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -100,7 +102,7 @@ internal static class TagMatrixVoucherPageReader
         if (rows.Count == 0)
         {
             return (
-                new PageResult<VoucherTagRow>(rows, next),
+                new PageResult<VoucherTagRow>(rows, next, totalCount),
                 new Dictionary<string, IReadOnlyList<int>>());
         }
 
@@ -144,7 +146,7 @@ internal static class TagMatrixVoucherPageReader
             kv => kv.Key,
             kv => (IReadOnlyList<int>)kv.Value);
 
-        return (new PageResult<VoucherTagRow>(rows, next), positionsByDoc);
+        return (new PageResult<VoucherTagRow>(rows, next, totalCount), positionsByDoc);
     }
 
     private static DbParameter Param(DbCommand command, string name, object value)

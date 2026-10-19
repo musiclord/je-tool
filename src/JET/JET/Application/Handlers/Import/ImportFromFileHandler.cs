@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using JET.AuditCore;
@@ -162,15 +161,11 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         await AdvanceStepAsync(projectId, WorkflowMilestones.For(Action), CancellationToken.None);
 
         var batch = result.Data.Batch;
-        string[] warnings =
-        [
-            .. DuplicateSourceWarnings(plan.Operation, previous, batch),
-            .. QuotedLineBreakWarnings(sourceRequests, lineBreakTallies)
-        ];
-
+        string? auditLogWarning = null;
         if (replacesExistingBatch)
         {
-            await repositories.ProjectAuditLog.AppendAsync(
+            auditLogWarning = await CommittedAuditLog.AppendAsync(
+                repositories.ProjectAuditLog,
                 projectId,
                 ProjectAuditEvent.Create(
                     ProjectAuditOperations.DataReimport,
@@ -178,11 +173,18 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                     Kind.ToStorageName(),
                     batch.RowCount,
                     replacedCount: 1),
-                CancellationToken.None);
+                logger);
         }
 
+        string[] warnings =
+        [
+            .. DuplicateSourceWarnings(plan.Operation, previous, batch),
+            .. QuotedLineBreakWarnings(sourceRequests, lineBreakTallies),
+            .. auditLogWarning is null ? Array.Empty<string>() : [auditLogWarning]
+        ];
+
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
         return new
         {
             batchId = batch.BatchId,
@@ -198,10 +200,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         };
     }
 
-    /// <summary>
-    /// V11：文字檔裡用引號包住、內含換行的欄位是合法寫法，所以不擋匯入；但引號放錯位置時，後面的列會被併進同一格。
-    /// 每個有這種資料的來源各寫一則提醒與一筆支援日誌。列號是來源列號，也就是用 Excel 打開時的列號；日誌不寫檔名。
-    /// </summary>
+    /// <summary>V11：每個有引號內換行的來源各寫一則提醒與一筆支援日誌，統計與句子見 <see cref="QuotedLineBreakTally"/>。</summary>
     private string[] QuotedLineBreakWarnings(
         IReadOnlyList<(ImportFileSourcePayload Payload, TabularSourceRequest Request)> sources,
         IReadOnlyList<QuotedLineBreakTally> tallies)
@@ -209,51 +208,14 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         var warnings = new List<string>();
         for (var index = 0; index < tallies.Count; index++)
         {
-            var tally = tallies[index];
-            if (tally.Count == 0)
+            var warning = tallies[index].Warning(sources[index].Payload.FileName, index + 1, logger);
+            if (warning is not null)
             {
-                continue;
-            }
-
-            var rows = string.Join("、", tally.FirstRows);
-            // 使用者 2026-10-13 確認的句子只有「，例如第…列」一種寫法，列號全部列出時也一樣。
-            var where = $"，例如第 {rows} 列";
-            warnings.Add(
-                // 使用者 2026-10-13 勾選頁確認的句子。
-                $"「{sources[index].Payload.FileName}」有 {tally.Count.ToString("N0", CultureInfo.InvariantCulture)} 列的欄位內含換行{where}。"
-                + "引號位置錯誤時，後續資料會併入同一格而使筆數減少，請以 Excel 開啟原檔核對。");
-            if (logger is not null)
-            {
-                ImportSourceDiagnostics.QuotedLineBreaks(logger, index + 1, tally.Count, string.Join(",", tally.FirstRows));
+                warnings.Add(warning);
             }
         }
 
         return [.. warnings];
-    }
-
-    /// <summary>V11：一個來源裡用引號包住、內含換行的資料列筆數，以及前五個列號。</summary>
-    private sealed class QuotedLineBreakTally
-    {
-        private const int ListedRowLimit = 5;
-        private readonly List<int> firstRows = [];
-
-        public int Count { get; private set; }
-
-        public IReadOnlyList<int> FirstRows => firstRows;
-
-        public void Observe(StagingRow row)
-        {
-            if (!row.HasQuotedLineBreak)
-            {
-                return;
-            }
-
-            Count++;
-            if (firstRows.Count < ListedRowLimit)
-            {
-                firstRows.Add(row.SourceRowNumber);
-            }
-        }
     }
 
     private static string[] DuplicateSourceWarnings(IntakeOperation operation, ImportBatchInfo? previous, ImportBatchInfo current)
@@ -266,8 +228,9 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             .Select(source =>
             {
                 var label = source.SheetName is null ? $"「{source.FileName}」" : $"「{source.FileName}」的工作表「{source.SheetName}」";
-                // 使用者 2026-10-13 勾選頁確認：寫實際比對的結果，不寫「可能」。
-                return $"{label}與已匯入的來源檔名、工作表及筆數皆相同，已照常加入；請確認是否重複匯入。";
+                // 使用者 2026-10-13 勾選頁確認：寫實際比對的結果，不寫「可能」。比對的是來源檔的列數，
+                // 依 2026-10-19 裁定的「來源檔用列，分錄用筆」寫成「列數」。
+                return $"{label}與已匯入的來源檔名、工作表及列數皆相同，已照常加入；請確認是否重複匯入。";
             }).ToArray();
     }
 
@@ -360,7 +323,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
     {
         var context = ImportFailureDiagnostics.Find(error);
         var guidance = context is { Stage: ImportFailureStage.CellConversion, Row: { } row, Column: { } column }
-            ? $"第 {row} 列、第 {column} 欄的儲存格無法轉換，請檢查型別或數值範圍後重試。"
+            ? $"第 {row} 列、第 {column} 欄的儲存格內容無法讀取，請在 Excel 確認該儲存格的格式與數值後重試。"
             : error is System.Xml.XmlException
                 ? "工作表內容無法解析，請用 Excel 修復或另存來源檔後重試。"
                 : "讀取失敗，請確認檔案可讀及編碼設定後重試。";

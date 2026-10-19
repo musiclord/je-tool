@@ -23,11 +23,12 @@ public sealed class QueryAccountMappingBlankPageHandler(
 
         var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
         var page = await Task.Run(
-            () => repositories.AccountMappingBlankPages.GetPageAsync(projectId, new PageRequest(cursor, pageSize), cancellationToken),
+            () => repositories.AccountMappingBlankPages.GetPageAsync(projectId, new PageRequest(cursor, Math.Clamp(pageSize <= 0 ? 200 : pageSize, 1, 200), IncludeTotalCount: string.IsNullOrEmpty(cursor)), cancellationToken),
             cancellationToken);
         return new
         {
             rows = page.Rows.Select(row => (object)new { accountCode = row.AccountCode, accountName = row.AccountName }).ToArray(),
+            totalCount = page.TotalCount,
             nextCursor = page.NextCursor
         };
     }

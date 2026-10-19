@@ -111,6 +111,13 @@ public interface IProjectStore
 
     /// <summary>永久刪除專案資料夾（project.json + jet.db）。硬刪不可復原；資料庫由 deleter 另行清除（見 project.delete）。</summary>
     Task DeleteAsync(string projectId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 設定檔讀不通時，只為了刪除案件判斷它用哪一種本機資料庫：原始設定檔有記錄就照記錄，沒有記錄的舊版案件看資料夾裡的資料庫檔。
+    /// 是 SQL Server 或判斷不出來時回 null。
+    /// </summary>
+    Task<string?> FindLocalDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
+        => Task.FromResult<string?>(null);
 }
 
 /// <summary>

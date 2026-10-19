@@ -67,4 +67,16 @@ public sealed class CsvDialectDetectorTests
     {
         Assert.Null(CsvDialectDetector.DetectDelimiter(""));
     }
+
+    // 低嚴重度事項 A1（使用者 2026-10-19 要求處理）：第一行只有空白字元或分隔符時，以前被當成標頭，
+    // 偵測不到分隔符，Tab 與分號檔改用預設的逗號，整個檔讀成一欄。這種列和讀取器一樣算空白列。
+    [Theory]
+    [InlineData("   \r\na\tb\r\n1\t2", '\t')]
+    [InlineData("  \r\na;b\r\n1;2", ';')]
+    [InlineData("\t\t\r\na\tb\tc\r\n1\t2\t3", '\t')]
+    [InlineData(",,\na;b\n1;2", ';')]
+    public void DetectDelimiter_LinesOfOnlySpacesOrDelimiters_AreSkippedLikeTheReader(string sample, char expected)
+    {
+        Assert.Equal(expected, CsvDialectDetector.DetectDelimiter(sample));
+    }
 }

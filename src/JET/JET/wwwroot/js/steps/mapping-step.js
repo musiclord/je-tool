@@ -393,11 +393,12 @@
     Store.changeMappingMode(kind, pruned, mode);
   }
 
-  // 惰性載入 PBC-GL 或 PBC-TB 的前 10 列；載入完成後 touch() 重建面板顯示資料。
-  function ensureSourcePreview(kind, importInfo) {
+  // 對照表與右側預覽使用相同的有界分頁；換頁不改配對草稿。
+  function ensureSourcePreview(kind, importInfo, page) {
     if (!importInfo) { return; }
     var c = sourceCache[kind];
-    if (c && c.batchId === importInfo.batchId && (c.loading || c.rows || c.error)) { return; }
+    if (page == null && c && c.batchId === importInfo.batchId && (c.loading || c.rows || c.error)) { return; }
+    page = page == null ? 1 : page;
     var requestState = Store.getState();
     var projectId = requestState.project ? requestState.project.projectId : null;
     var batchId = importInfo.batchId;
@@ -407,41 +408,60 @@
       return !!latest.project && latest.project.projectId === projectId &&
         !!latestImport && latestImport.batchId === batchId;
     });
-    sourceCache[kind] = { batchId: importInfo.batchId, loading: true };
-    global.JetApi.queryDataPreview({ dataset: kind === 'gl' ? 'pbcGl' : 'pbcTb', limit: 10 })
+    var previous = c && c.batchId === batchId && c.rows ? c : null;
+    sourceCache[kind] = Object.assign({}, previous || { batchId: batchId, page: page }, { loading: true, error: false });
+    global.JetApi.queryDataPreview({ dataset: kind === 'gl' ? 'pbcGl' : 'pbcTb', limit: Ui.TABLE_PAGE_SIZE, offset: (page - 1) * Ui.TABLE_PAGE_SIZE })
       .then(function (data) {
         if (!acceptResponse()) { return; }
         sourceCache[kind] = {
           batchId: batchId,
+          page: page,
           columns: data.columns || [],
           rows: data.rows || [],
-          totalCount: data.totalCount || 0
+          // 後端只在第一頁計算總列數；換頁沿用同一批次已知的總數。
+          totalCount: data.totalCount != null ? data.totalCount : (previous ? previous.totalCount : 0)
         };
         Store.touch();
       })
       .catch(function () {
         if (!acceptResponse()) { return; }
-        sourceCache[kind] = { batchId: batchId, error: true };
+        sourceCache[kind] = Object.assign({}, previous || { batchId: batchId, page: page }, { loading: false, error: true, retryPage: page });
         Store.touch();
       });
+  }
+
+  function sourcePagerHtml(kind, cache) {
+    if (!cache) { return ''; }
+    var status = cache.error ? '<span role="alert">預覽載入失敗。</span> <button type="button" class="btn btn--ghost btn--tiny" data-source-retry>重試</button>' : '';
+    return (cache.rows ? Ui.pageControlsHtml(cache.page || 1, cache.totalCount, {
+      previousAttribute: 'data-source-previous', nextAttribute: 'data-source-next', busy: cache.loading
+    }) : '') + status;
   }
 
   // 配對介面切換（簡易清單／對照表格）。渲染在 GL 與 TB「各自的」編輯區頂部，
   // 讓使用者在任一資料集就地切換、不必捲回頁面最上方。兩處共用同一份 session 級
   // mappingUiMode（bump 後全步重繪，兩處 is-active 一致），只是入口就近可達。
   // 已提交的摘要卡是唯讀、無可切換的編輯介面，故該狀態不渲染此切換。
-  function uiModeToggleHtml() {
+  // 兩種介面只換畫面的呈現，不改配對草稿，所以用共用的頁籤寫法（Ui.tabAttributes），不是選項按鈕。
+  function uiModeToggleHtml(kind) {
     var uiMode = Store.getState().mappingUiMode;
     function btn(value, label) {
-      return '<button type="button" class="seg-toggle__btn' + (uiMode === value ? ' is-active' : '') +
-        '" data-ui-mode="' + value + '">' + label + '</button>';
+      var id = 'mapping-ui-' + kind + '-' + value;
+      return '<button type="button" class="seg-toggle__btn" data-ui-mode="' + value + '" data-focus-key="' + id + '"' +
+        Ui.tabAttributes(uiMode === value, 'map-layout-' + kind, id) + '>' + label + '</button>';
     }
-    return '<div class="seg-toggle" role="group" aria-label="配對介面">' +
+    return '<div class="seg-toggle" role="tablist" aria-label="配對介面">' +
       btn('classic', '簡易清單') + btn('grid', '對照表格') +
       '</div>';
   }
 
+  function mapLayoutPanelAttributes(kind) {
+    return ' id="map-layout-' + kind + '" role="tabpanel" aria-labelledby="mapping-ui-' + kind + '-' + Store.getState().mappingUiMode + '"';
+  }
+
   function bindUiModeToggle(container) {
+    // 方向鍵由 ui-core.js 的共用頁籤處理，換到那一個等於按下它。
+    Ui.bindTabs(container);
     container.querySelectorAll('[data-ui-mode]').forEach(function (b) {
       b.addEventListener('click', function () {
         Store.setMappingUiMode(b.getAttribute('data-ui-mode'));
@@ -891,7 +911,7 @@
     if (!request) { return ''; }
     var other = (glOptions().rdeFields || []).some(function (field) { return field.label === '傳票建立日'; });
     return '<div role="status" class="map-options__note" data-motion-key="created-date-confirm">這個來源欄目前是「' + Ui.esc(request.label) + '」欄位。' +
-      '改成傳票建立日後會使用日期型別。' +
+      '改成傳票建立日後，這一欄會以日期讀取。' +
       (other ? '另一個「傳票建立日」欄位會保留，請依來源欄確認是否需要。' : '') +
       '<button type="button" class="btn btn--ghost" data-action="confirm-created-date">把它改成傳票建立日</button>' +
       '<button type="button" class="btn btn--ghost" data-action="cancel-created-date">取消</button></div>';
@@ -917,7 +937,7 @@
               '" value="' + Ui.esc(hit.label) +
               '" maxlength="' + Ui.RDE_MAX_LABEL_LENGTH + '">' +
             '<label class="visually-hidden" for="rde-type-' + index + '">' +
-              Ui.esc(column) + ' 的資料型別</label>' +
+              Ui.esc(column) + ' 的資料類型</label>' +
             '<select id="rde-type-' + index + '" data-rde-type="' + Ui.esc(column) +
               '" data-focus-key="rde-type-' + Ui.esc(column) + '">' +
               Ui.RDE_VALUE_TYPES.map(function (t) {
@@ -1010,7 +1030,7 @@
       facts.push('共 ' + Number(committed.projectedRowCount).toLocaleString() + ' 筆');
     }
     if (committed.committedUtc) {
-      facts.push('完成於 ' + new Date(committed.committedUtc).toLocaleString('zh-Hant', { hour12: false }));
+      facts.push('確認於 ' + new Date(committed.committedUtc).toLocaleString('zh-Hant', { hour12: false }));
     }
 
     return (
@@ -1022,8 +1042,8 @@
           committedTableHtml(kind, fields, importInfo, committed) +
           literalNoteHtml(fields, committed) +
           committedOptionsHtml(kind, committed) +
-          '<div class="panel__actions">' +
-            '<button type="button" class="btn btn--ghost panel__action--start" data-action="preview-target-' + kind +
+          '<div class="panel__actions panel__actions--start">' +
+            '<button type="button" class="btn btn--ghost" data-action="preview-target-' + kind +
               '" title="' + (kind === 'gl' ? '檢視 GL' : '檢視 TB') + '">預覽</button>' +
             '<button type="button" class="btn btn--ghost" data-action="remap-' + kind + '">重新配對</button>' +
           '</div>' +
@@ -1087,10 +1107,10 @@
 
     var cache = sourceCache[kind];
     var bodyHtml;
-    if (!cache || (importInfo && cache.batchId !== importInfo.batchId) || cache.loading) {
+    if (!cache || (importInfo && cache.batchId !== importInfo.batchId) || (cache.loading && !cache.rows)) {
       bodyHtml = '<tr><td class="map-grid__loading" colspan="' + span + '">載入預覽中…</td></tr>';
-    } else if (cache.error) {
-      bodyHtml = '<tr><td class="map-grid__loading" colspan="' + span + '">預覽載入失敗，可重新進入此步驟再試。</td></tr>';
+    } else if (cache.error && !cache.rows) {
+      bodyHtml = '<tr><td class="map-grid__loading" colspan="' + span + '">預覽載入失敗，請重試。</td></tr>';
     } else if (!cache.rows.length) {
       bodyHtml = '<tr><td class="map-grid__loading" colspan="' + span + '">最近一次匯入沒有資料列。</td></tr>';
     } else {
@@ -1103,11 +1123,7 @@
       }).join('');
     }
 
-    var note = '';
-    if (cache && cache.rows && !cache.loading && !cache.error) {
-      note = '<p class="map-grid__note">顯示前 ' + cache.rows.length + ' 列／共 ' +
-        Number(cache.totalCount).toLocaleString() + ' 列</p>';
-    }
+    var note = sourcePagerHtml(kind, cache);
 
     return '<div class="map-grid-wrap" data-preserve-scroll="map-grid-' + kind + '"><table class="map-grid">' +
       '<thead><tr class="map-grid__assign">' + assignRow + '</tr>' +
@@ -1167,10 +1183,10 @@
 
     var cache = sourceCache[kind];
     var bodyHtml;
-    if (!cache || cache.batchId !== importInfo.batchId || cache.loading) {
+    if (!cache || cache.batchId !== importInfo.batchId || (cache.loading && !cache.rows)) {
       bodyHtml = '<tr><td class="map-grid__loading" colspan="' + span + '">載入預覽中…</td></tr>';
-    } else if (cache.error) {
-      bodyHtml = '<tr><td class="map-grid__loading" colspan="' + span + '">預覽載入失敗，可重新進入此步驟再試。</td></tr>';
+    } else if (cache.error && !cache.rows) {
+      bodyHtml = '<tr><td class="map-grid__loading" colspan="' + span + '">預覽載入失敗，請重試。</td></tr>';
     } else if (!cache.rows.length) {
       bodyHtml = '<tr><td class="map-grid__loading" colspan="' + span + '">最近一次匯入沒有資料列。</td></tr>';
     } else {
@@ -1183,11 +1199,7 @@
       }).join('');
     }
 
-    var note = '';
-    if (cache && cache.rows && !cache.loading && !cache.error) {
-      note = '<p class="map-grid__note">顯示前 ' + cache.rows.length + ' 列／共 ' +
-        Number(cache.totalCount).toLocaleString() + ' 列</p>';
-    }
+    var note = sourcePagerHtml(kind, cache);
 
     return '<div class="map-grid-wrap" data-preserve-scroll="map-grid-' + kind + '"><table class="map-grid">' +
       '<thead><tr class="map-grid__assign">' + assignRow + '</tr>' +
@@ -1431,10 +1443,10 @@
     // 下面的設定跟著移動，不再一下跳過去（app.js 的 JetMotion，使用者 2026-10-12）。
     return '<section class="mapping-section" data-bind="mapping-' + kind + '" data-motion-key="mapping-' + kind + '-edit">' +
         '<div class="mapping-section__toolbar"><h3 class="mapping-section__title">' + title + '</h3>' +
-          uiModeToggleHtml() + '</div>' +
+          uiModeToggleHtml(kind) + '</div>' +
         banner +
         '<div class="mode-group" role="radiogroup" aria-label="金額欄位格式">' + modeRadios + '</div>' +
-        '<div class="map-layout" data-motion-key="map-layout-' + kind + '">' +
+        '<div class="map-layout map-layout--grid" data-motion-key="map-layout-' + kind + '"' + mapLayoutPanelAttributes(kind) + '>' +
           '<div class="map-layout__main">' +
             twoDimMappingTable(kind, fields, importInfo, mappingState, mode) +
             literalHtml +
@@ -1478,7 +1490,7 @@
             Ui.esc(col) + '</option>';
         }).join('');
         var options = kind === 'gl' && field.key === 'lineID'
-          ? '<optgroup label="系統產生"><option value="">由 JET 自動編號</option></optgroup>' +
+          ? '<optgroup label="系統產生"><option value="">自動編號</option></optgroup>' +
             '<optgroup label="來源欄位">' + sourceOptions + '</optgroup>'
           : '<option value="">—</option>' + sourceOptions;
         // 名稱取自欄位目錄的標籤，報讀器才知道這是哪個 JET 欄位的來源欄。
@@ -1509,10 +1521,10 @@
     // 下面的設定跟著移動，不再一下跳過去（app.js 的 JetMotion，使用者 2026-10-12）。
     return '<section class="mapping-section" data-bind="mapping-' + kind + '" data-motion-key="mapping-' + kind + '-edit">' +
         '<div class="mapping-section__toolbar"><h3 class="mapping-section__title">' + title + '</h3>' +
-          uiModeToggleHtml() + '</div>' +
+          uiModeToggleHtml(kind) + '</div>' +
         banner +
         '<div class="mode-group" role="radiogroup" aria-label="金額欄位格式">' + modeRadios + '</div>' +
-        '<div class="map-layout" data-motion-key="map-layout-' + kind + '">' +
+        '<div class="map-layout" data-motion-key="map-layout-' + kind + '"' + mapLayoutPanelAttributes(kind) + '>' +
           '<div class="map-layout__main mapping-table-wrap" data-preserve-scroll="mapping-table-' + kind + '"><table class="mapping-table">' +
             '<thead><tr><th>JET 欄位</th><th>來源欄位</th></tr></thead>' +
             '<tbody>' + rows + '</tbody>' +
@@ -2049,6 +2061,15 @@
     var gridWrap = section.querySelector('.map-grid-wrap');
     if (gridWrap) {
       ensureSourcePreview(kind, Store.getState().importState[kind]);
+      [['[data-source-previous]', -1], ['[data-source-next]', 1], ['[data-source-retry]', 0]].forEach(function (item) {
+        var button = section.querySelector(item[0]);
+        if (button) { button.addEventListener('click', function () {
+          var cache = sourceCache[kind];
+          if (!cache || cache.loading) { return; }
+          ensureSourcePreview(kind, Store.getState().importState[kind], item[1] === 0 ? cache.retryPage : Math.max(1, (cache.page || 1) + item[1]));
+          Store.touch();
+        }); }
+      });
     }
 
     // 簡易清單的「預覽」：開資料預覽看 PBC-GL 或 PBC-TB（grid 模式無此鈕）。
@@ -2135,7 +2156,7 @@
             project: project,
             importInfo: importInfo,
             // 後端沒有附原因時（使用者 2026-10-13 勾選頁確認 M1）。
-            message: error && error.message ? error.message : '確認配對未完成，請再試一次。',
+            message: Ui.errorText(error, '確認配對未完成，請再試一次。'),
             details: error && Array.isArray(error.details) ? error.details : null
           };
           Store.touch();

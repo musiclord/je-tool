@@ -29,11 +29,16 @@ internal sealed record ReportExportPlan(
     IReadOnlyList<GlRdeFieldMetadata> CustomFields,
     bool UseAtomicBatch);
 
-internal sealed record ReportExportFacts(IReadOnlyList<ReportArtifact> Artifacts);
+/// <summary>
+/// 發布的報告。AuditLogWarning 是報告已發布、卻寫不進操作紀錄時給審計員的提醒
+/// （使用者 2026-10-19 裁定回報成功並提醒），寫進去時是 null。
+/// </summary>
+internal sealed record ReportExportFacts(IReadOnlyList<ReportArtifact> Artifacts, string? AuditLogWarning = null);
 
 internal sealed record ReportExportResult(
     ReportExportPlan Plan,
-    IReadOnlyList<ReportArtifact> Artifacts);
+    IReadOnlyList<ReportArtifact> Artifacts,
+    string? AuditLogWarning = null);
 
 /// <summary>
 /// Mechanical artifact publication port. Application supplies the already-shaped
@@ -135,7 +140,7 @@ public static partial class JetAuditProgram
 
         // Content requests are checked before the store call. Do not add a new
         // post-publication failure boundary by revalidating store output here.
-        return new ReportExportResult(plan, facts.Artifacts);
+        return new ReportExportResult(plan, facts.Artifacts, facts.AuditLogWarning);
     }
 
     private static IReadOnlyList<ReportArtifactKind> Kinds(

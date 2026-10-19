@@ -86,7 +86,8 @@ internal static partial class GuiScenarios
         await Click("[data-action=save-scenario]"); await Check("saved.length===1");
         outcome.RecordStage("nested_cancel_return_reopen_export");
         await Click("[data-filter-pane-select=saved]");
-        await Click(".saved-scenario .filter-saved-actions summary"); await Click("[data-action=edit-scenario][data-index='0']");
+        // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗收據 20261019-163612298-38cf234cbaa34b94b26c2d5cd86e20ef）。
+        await Click(".saved-scenario .jet-menu__toggle"); await Click("[data-action=edit-scenario][data-index='0']");
         await Choose(classification + " [data-rule-bind=categorySelection]", "role");
         await Choose(group + " > [data-child-join]", "AND"); await Click("[data-action=cancel-edit-scenario]");
         await Check("saved[0].groups[0].rules[0].rules[1].rules[1].rules[2].categorySelection==='subtree' && saved[0].groups[0].rules[0].rules[1].rules[1].rules[1].rules[1].join==='OR'");

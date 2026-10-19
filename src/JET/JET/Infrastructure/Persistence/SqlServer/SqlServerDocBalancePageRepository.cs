@@ -40,6 +40,7 @@ public sealed class SqlServerDocBalancePageRepository(SqlServerProjectDatabase d
 
         command.Parameters.AddWithValue("@pageSize", request.ClampedPageSize + 1);
 
+        var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, Dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<UnbalancedDocument>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -51,7 +52,7 @@ public sealed class SqlServerDocBalancePageRepository(SqlServerProjectDatabase d
                 paging.HasSort ? reader.GetValue(4) : null);
         }
 
-        return buffer.ToPage(request, paging, static row => row.DocumentNumber ?? string.Empty);
+        return buffer.ToPage(request, paging, static row => row.DocumentNumber ?? string.Empty, totalCount);
     }
 
     public async IAsyncEnumerable<UnbalancedVoucherDateRow> StreamVoucherDateRowsAsync(

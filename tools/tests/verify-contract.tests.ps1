@@ -13,6 +13,16 @@ $OutputEncoding = $utf8
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $runnerPath = Join-Path $repositoryRoot 'tools/verify.ps1'
 $harnessModulePath = Join-Path $repositoryRoot 'tools/harness/JetHarness.psm1'
+# 驗證框架模組的函式依職責分在 JetHarness.psm1 與同目錄的 JetHarness.*.ps1，後者由 psm1 用點號載入。
+# 檢查模組原文時看全部檔案；同一個檔案裡的函式維持原本的先後順序。2026-10-19 拆檔後，原本只讀 psm1 的三處檢查
+# 找不到搬走的函式，第一次失敗是 suite 20261019-125407058-e6de3ce9574a47e798b357aab0648f6a 的
+# 「ReleaseCandidate must own, verify, and remove its short candidate workspace.」；檢查的內容沒有放寬。
+$harnessModulePartPaths = @(
+    Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'tools/harness') -Filter 'JetHarness.*.ps1' -File |
+        Where-Object { $_.Extension -ceq '.ps1' } |
+        Sort-Object Name |
+        ForEach-Object FullName)
+$harnessModuleSourcePaths = @($harnessModulePath) + $harnessModulePartPaths
 $packageVerifierPath = Join-Path $repositoryRoot 'tools/harness/JetPackageVerifier.ps1'
 $documentationVerifierPath = Join-Path $repositoryRoot 'tools/harness/JetDocumentationCheck.ps1'
 $pwshPath = [Environment]::ProcessPath
@@ -36,6 +46,10 @@ function Assert-Contract {
     if (-not $Condition) {
         throw [InvalidOperationException]::new($Message)
     }
+}
+
+function Get-HarnessModuleSourceText {
+    return @($harnessModuleSourcePaths | ForEach-Object { Get-Content -LiteralPath $_ -Raw -Encoding utf8 }) -join "`n"
 }
 
 function Invoke-Runner {
@@ -557,7 +571,21 @@ try {
         -Message 'Releasing COM references must not implicitly quit an unverified Excel process.'
     Assert-Contract -Condition ($excelSourceText -notmatch 'data[/\\](test-case|temporary-test-case|legacy-parity-work)') `
         -Message 'The Phase 5 Excel driver cannot reference private data roots.'
-    $harnessSourceText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools/harness/JetHarness.psm1') -Raw -Encoding utf8
+    # 拆出去的檔案要真的被載入，載入的也都要存在；漏載的函式不會出現在模組裡。
+    $harnessLoadedParts = @([regex]::Matches(
+            (Get-Content -LiteralPath $harnessModulePath -Raw -Encoding utf8),
+            "(?m)^\. \(Join-Path \`$PSScriptRoot '(JetHarness\.\w+\.ps1)'\)\r?$") |
+        ForEach-Object { $_.Groups[1].Value } |
+        Sort-Object)
+    $harnessPartNames = @($harnessModulePartPaths | ForEach-Object { [IO.Path]::GetFileName($_) } | Sort-Object)
+    Assert-Contract -Condition ($harnessPartNames.Count -gt 0 -and
+            ($harnessLoadedParts -join ',') -ceq ($harnessPartNames -join ',')) `
+        -Message 'JetHarness.psm1 must load every JetHarness.*.ps1 file beside it, and only those.'
+    $harnessSourceText = Get-HarnessModuleSourceText
+    foreach ($harnessPartName in $harnessPartNames) {
+        Assert-Contract -Condition ($harnessSourceText.Contains("'tools/harness/$harnessPartName'", [StringComparison]::Ordinal)) `
+            -Message "Get-JetRunnerIdentity must hash $harnessPartName, so receipts record which harness code ran."
+    }
     $processRunnerSourceText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools/harness/JetHarness.Process.cs') -Raw -Encoding utf8
     Assert-Contract -Condition ($harnessSourceText.Contains('EnvironmentVariablesToSet', [StringComparison]::OrdinalIgnoreCase) -and
         $processRunnerSourceText.Contains('EnvironmentVariablesToSet', [StringComparison]::OrdinalIgnoreCase)) `
@@ -597,11 +625,10 @@ try {
             '[bool]$manifest.process.killAttempted -or',
             [StringComparison]::Ordinal)) `
         -Message 'A GUI pass must still require graceful process exit without a kill fallback.'
-    foreach ($ioScript in @(
-            'tools/harness/JetHarness.psm1',
-            'tools/harness/JetPackageVerifier.ps1',
-            'tools/harness/JetDocumentationCheck.ps1')) {
-        $ioScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot $ioScript) -Raw -Encoding utf8
+    # 每個點號載入的檔案各自解析型別名稱，所以拆出去的檔案也要各自寫 using。
+    foreach ($ioScriptPath in @($harnessModuleSourcePaths) + @($packageVerifierPath, $documentationVerifierPath)) {
+        $ioScript = [IO.Path]::GetRelativePath($repositoryRoot, $ioScriptPath).Replace('\', '/')
+        $ioScriptText = Get-Content -LiteralPath $ioScriptPath -Raw -Encoding utf8
         Assert-Contract -Condition ($ioScriptText.Contains('using namespace System.IO', [StringComparison]::Ordinal)) `
             -Message "$ioScript must resolve its System.IO exception types."
     }
@@ -670,7 +697,7 @@ try {
     Assert-Contract -Condition ($registryScenarioNames.Count -gt 0 -and
             (@($registryScenarioNames | Sort-Object) -join ',') -ceq (@($driverScenarioNames | Sort-Object) -join ',')) `
         -Message 'Every GUI scenario in lanes.json must be implemented by the GUI driver, and the driver must not keep unlisted scenarios.'
-    $runnerText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools/harness/JetHarness.psm1') -Raw -Encoding utf8
+    $runnerText = Get-HarnessModuleSourceText
     foreach ($registryScenarioName in $registryScenarioNames) {
         Assert-Contract -Condition ($runnerText.Contains("'$registryScenarioName'", [StringComparison]::Ordinal)) `
             -Message "The runner must judge the assertions of GUI scenario $registryScenarioName."

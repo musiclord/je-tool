@@ -221,7 +221,10 @@ public sealed class WorkpaperStep41PreparedExportSessionTests
         }
 
         string connectionString;
-        using (var pooled = Assert.IsType<SqliteConnection>(
+        // 2026-10-19 起 SQLite 連線是可取消的 CancellableSqliteConnection（跨資料庫一致性第二階段）；
+        // 原本斷言 SqliteConnection 的確切型別，改成斷言現行的確切型別。第一次失敗收據：
+        // 20261019-055334911-de734c3f428a499d8256a175e93e8bbb。
+        using (var pooled = Assert.IsType<CancellableSqliteConnection>(
                    database.CreateConnection(projectId)))
         {
             connectionString = new SqliteConnectionStringBuilder(

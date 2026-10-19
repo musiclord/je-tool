@@ -135,6 +135,57 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         return Task.CompletedTask;
     }
 
+    public async Task<string?> FindLocalDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
+    {
+        if (!JetProjectFolder.IsValidProjectId(projectId) || !Directory.Exists(folder.GetProjectDirectory(projectId)))
+        {
+            return null;
+        }
+
+        var path = folder.GetProjectJsonPath(projectId);
+        string? recorded = null;
+        var gate = GateFor(path);
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (File.Exists(path))
+            {
+                using var raw = JsonDocument.Parse(await ReadSharedAsync(path, cancellationToken));
+                if (raw.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    recorded = raw.RootElement.EnumerateObject()
+                        .Where(property => string.Equals(property.Name, "databaseProvider", StringComparison.OrdinalIgnoreCase)
+                            && property.Value.ValueKind == JsonValueKind.String)
+                        .Select(property => property.Value.GetString())
+                        .FirstOrDefault();
+                }
+            }
+        }
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+        {
+            // 整份讀不通時改看資料夾裡的資料庫檔。
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        if (!string.IsNullOrWhiteSpace(recorded))
+        {
+            return recorded is ProjectDocument.DefaultDatabaseProvider or ProjectDocument.DuckDbDatabaseProvider ? recorded : null;
+        }
+
+        // 沒有記錄種類：資料夾裡只有一種本機資料庫檔時才算本機案件；兩種都有或都沒有，就判斷不出來。
+        var hasSqlite = File.Exists(folder.GetDatabasePath(projectId));
+        var hasDuckDb = File.Exists(Path.Combine(folder.GetProjectDirectory(projectId), DuckDbProjectDatabase.DatabaseFileName));
+        return (hasSqlite, hasDuckDb) switch
+        {
+            (true, false) => ProjectDocument.DefaultDatabaseProvider,
+            (false, true) => ProjectDocument.DuckDbDatabaseProvider,
+            _ => null
+        };
+    }
+
     private async Task WriteAsync(ProjectDocument document, CancellationToken cancellationToken)
     {
         var json = JsonSerializer.Serialize(document, JsonOptions);

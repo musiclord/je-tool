@@ -42,28 +42,28 @@ internal static class AccountMappingDifferenceQuery
         if (hasCursor)
         {
             if (!PageCursor.TryDecode(request.Cursor, out var decoded) || !decoded.StartsWith(kind + "\n", StringComparison.Ordinal))
-                throw new JetActionException(JetErrorCodes.InvalidPayload, "游標不屬於這份科目清單，請重新列出科目。");
+                throw new JetActionException(JetErrorCodes.InvalidPayload, "無法接續上一頁，請重新列出科目。");
             cursorCode = decoded[(kind.Length + 1)..];
         }
         await using var command = connection.CreateCommand();
         var count = dialect is SqlServerDialect ? "COUNT_BIG(*)" : "COUNT(*)";
-        // 第一頁總數用同一語句的純量子查詢，與 CountAsync 同寫法，另計一次科目母體。
+        // 第一頁的總數用同一語句的純量子查詢，與 CountAsync 同寫法，另計一次科目母體；之後的頁不再計算。
         // SQLite 與 DuckDB 在同一語句讀同一快照；SQL Server 預設隔離不保證此事，只經編譯。
         // 不用 COUNT(*) OVER ()：
         // DuckDB 1.5.3 在這種分組加 NOT EXISTS 的形狀上多執行緒時偶發內部錯誤，並讓同一資料庫的其他連線一起失效。
         command.CommandText = Cte(prefix, dialect) + $" SELECT account_code, account_name, "
-            + (hasCursor ? "NULL" : $"(SELECT {count} FROM {table})") + $" AS total_count FROM {table} "
+            + (request.IncludeTotalCount ? $"(SELECT {count} FROM {table})" : "NULL") + $" AS total_count FROM {table} "
             + (hasCursor ? "WHERE account_code > @cursor " : "")
             + "ORDER BY account_code " + dialect.LimitClause("@pageSize") + ";";
         if (hasCursor) command.AddWithValue("@cursor", cursorCode);
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
         var rows = new List<AccountMappingBlankAccount>();
-        long? totalCount = hasCursor ? null : 0;
+        long? totalCount = request.IncludeTotalCount ? 0 : null;
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
             rows.Add(new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1)));
-            if (!hasCursor) totalCount = Convert.ToInt64(reader.GetValue(2));
+            if (request.IncludeTotalCount) totalCount = Convert.ToInt64(reader.GetValue(2));
         }
         var hasMore = rows.Count > request.ClampedPageSize;
         if (hasMore) rows.RemoveAt(rows.Count - 1);

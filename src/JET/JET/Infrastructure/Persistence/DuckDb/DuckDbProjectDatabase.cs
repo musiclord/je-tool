@@ -377,7 +377,13 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
     /// 一般讀寫連線的連線字串。DuckDB.NET 在同一程序內把 DataSource 相同的連線接到同一個資料庫實體，
     /// 實體只在第一次開啟時套用設定，所以持有連線與 repository 連線必須使用完全相同的字串。
     /// </summary>
-    private static string ConnectionString(string databasePath) => $"DataSource={databasePath}";
+    private static string ConnectionString(string databasePath) => $"DataSource={databasePath};{EngineSettings}";
+
+    /// <summary>
+    /// 每條 DuckDB 連線都套用的引擎設定。DuckDB 預設遞增與遞減都把空值排最後；改成遞增在前、遞減在後，
+    /// 和 SQLite 與 SQL Server 的預設相同，沒有明確指定空值位置的排序在三種資料庫才會一樣（2026-10-19 實測）。
+    /// </summary>
+    internal const string EngineSettings = "default_null_order=nulls_first_on_asc_last_on_desc";
 
     private readonly Lock retentionGate = new();
 
@@ -492,7 +498,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
     /// </summary>
     public DbConnection CreateReadOnlyConnection(string projectId)
         => new DuckDbConnectionAdapter(
-            new DuckDBConnection($"DataSource={GetDatabasePath(projectId)};ACCESS_MODE=READ_ONLY"));
+            new DuckDBConnection($"DataSource={GetDatabasePath(projectId)};ACCESS_MODE=READ_ONLY;{EngineSettings}"));
 
     /// <summary>
     /// 匯入連線層調校：DuckDB 自管 MVCC 與寫入路徑，SQLite 的 WAL/synchronous/temp_store/cache_size

@@ -44,7 +44,7 @@ public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
             $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({plan.Sql})" + paging.Predicate + " " +
             paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
-        return await ReadPageAsync(command, request, paging, cancellationToken);
+        return await ReadPageAsync(command, request, paging, database.Dialect, cancellationToken);
     }
 
     public async Task<PrescreenHitCounts> GetCountsAsync(
@@ -97,8 +97,10 @@ public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
         System.Data.Common.DbCommand command,
         PageRequest request,
         KeysetPagePlan paging,
+        ISqlDialect dialect,
         CancellationToken cancellationToken)
     {
+        var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<PrescreenHitRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -117,6 +119,6 @@ public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
                 paging.HasSort ? reader.GetValue(9) : null);
         }
 
-        return buffer.ToPage(request, paging, static row => row.EntryId);
+        return buffer.ToPage(request, paging, static row => row.EntryId, totalCount);
     }
 }

@@ -1441,7 +1441,7 @@ test('oct9 mapping keeps one compact toolbar without generic hints or an empty w
 
 test('oct9 unassigned voucher line item says it is numbered automatically without changing the payload', () => {
   const f = fixture(); f.store.setMappingUiMode('classic');
-  assert.match(f.render().html, /data-mapping-key="lineID"[^>]*><optgroup label="系統產生"><option value="">由 JET 自動編號<\/option>/);
+  assert.match(f.render().html, /data-mapping-key="lineID"[^>]*><optgroup label="系統產生"><option value="">自動編號<\/option>/);
   assert.equal(f.store.getState().mapping.gl.draft.lineID, undefined);
 });
 
@@ -1449,8 +1449,9 @@ test('oct9 layout followup distinguishes system numbering from a source column w
   const f = fixture(); f.store.setMappingUiMode('classic');
   f.store.setImportResult('gl', { batchId: 'numbering-groups', columns: ['自動編號', '由 JET 自動編號', '項次<&>'], rowCount: 2 });
   function select() { return f.render().html.match(/<select[^>]*data-mapping-key="lineID"[\s\S]*?<\/select>/)[0]; }
-  assert.match(select(), /<optgroup label="系統產生"><option value="">由 JET 自動編號<\/option><\/optgroup>/);
-  assert.match(select(), /<optgroup label="來源欄位">/);
+  // 使用者 2026-10-16：群組標題「系統產生」已和來源欄位區隔，選項只寫「自動編號」；同名來源欄仍以欄名為值，和空值的系統選項分得開。
+  assert.match(select(), /<optgroup label="系統產生"><option value="">自動編號<\/option><\/optgroup>/);
+  assert.match(select(), /<optgroup label="來源欄位"><option value="自動編號">自動編號<\/option>/);
   assert.match(select(), /<option value="項次&lt;&amp;&gt;">項次&lt;&amp;&gt;<\/option>/);
   assert.equal(f.store.getState().mapping.gl.draft.lineID, undefined);
   for (const name of ['自動編號', '由 JET 自動編號']) {

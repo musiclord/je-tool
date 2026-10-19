@@ -21,7 +21,7 @@
 
 ## 更新與交接
 
-[工作計畫](../specs/2026-10-16-architecture-documentation-plan.md)記錄目前範圍及下一階段。
+[工作計畫](../history/specs/2026-10-16-architecture-documentation-plan.md)記錄目前範圍及下一階段。
 給 agent 的[分析與繪圖流程](../../.agents/harness/architecture-documentation.md)說明 RepoWise、Roslyn、
 LikeC4 和 Archify 如何分工，以及哪些關係仍需人工核對。
 

@@ -567,6 +567,9 @@
       bump();
     },
 
+    // 執行完成只清自己那一項過期旗標，對應後端 ResultStaleStateSql.ClearRuleRunWithinAsync 與 ClearFilterWithinAsync。
+    // 執行結果的回應就是保存的結果摘要，不另帶 staleState；開案時由 setStaleState 套用後端讀回的旗標
+    // （低嚴重度事項 F6，使用者 2026-10-19 要求處理時查明）。
     setLastRun: function (kind, summary) {
       state.lastRuns[kind] = summary || null;
       if (summary) { state.staleState[kind === 'validate' ? 'validation' : kind] = false; }
@@ -625,6 +628,8 @@
               ? Object.assign({}, artifact, { catalogWarning: warning }) : artifact;
           }));
       }
+        // 報告已產生、卻寫不進操作紀錄時，回應的 warnings 帶提醒（使用者 2026-10-19 裁定回報成功並提醒）。
+        (data.warnings || []).forEach(function (text) { Store.addMessage(text, 'warn'); });
     },
 
     // 一般報告同名覆蓋；Working Paper 每次新增版本，只更新同一 artifactId。

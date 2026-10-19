@@ -110,7 +110,7 @@ public sealed record PageSort(string Key, PageSortDirection Direction);
 /// <paramref name="Sort"/> 省略時用該查詢的穩定鍵升冪；<paramref name="Search"/> 是「依傳票號碼查看」或
 /// 「依科目編號查看」的文字，由各查詢決定比對哪一欄，省略或空白表示不過濾。
 /// </summary>
-public sealed record PageRequest(string? Cursor, int PageSize, PageSort? Sort = null, string? Search = null)
+public sealed record PageRequest(string? Cursor, int PageSize, PageSort? Sort = null, string? Search = null, bool IncludeTotalCount = false)
 {
     public const int DefaultPageSize = 200;
     public const int MaxPageSize = 500;
@@ -120,5 +120,8 @@ public sealed record PageRequest(string? Cursor, int PageSize, PageSort? Sort = 
         PageSize <= 0 ? DefaultPageSize : Math.Min(PageSize, MaxPageSize);
 }
 
-/// <summary>一頁結果 + 下一頁游標(null 表已到底)。</summary>
-public sealed record PageResult<T>(IReadOnlyList<T> Rows, string? NextCursor);
+/// <summary>
+/// 一頁結果 + 下一頁游標(null 表已到底)。<paramref name="TotalCount"/> 只在請求要求時計算（第一頁），
+/// 其他頁為 null，由畫面沿用第一頁的總數，換頁不再重掃完整查詢範圍。
+/// </summary>
+public sealed record PageResult<T>(IReadOnlyList<T> Rows, string? NextCursor, long? TotalCount = null);

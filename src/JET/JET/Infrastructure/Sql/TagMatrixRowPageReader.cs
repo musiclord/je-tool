@@ -57,7 +57,7 @@ internal static class TagMatrixRowPageReader
         if (scenarioScope.IsEmpty)
         {
             return (
-                new PageResult<RowTagRow>([], null),
+                new PageResult<RowTagRow>([], null, request.IncludeTotalCount ? 0 : null),
                 [],
                 new Dictionary<long, IReadOnlyList<int>>());
         }
@@ -65,6 +65,7 @@ internal static class TagMatrixRowPageReader
         var paging = KeysetPaging.Plan(dialect, request, ResultPageSorting.TagMatrixRow);
 
         // 查詢 1:本頁命中傳票之所有行(含非命中行)。
+        long? totalCount = null;
         var buffer = new KeysetPageBuffer<(RowTagRow Row, long EntryId)>();
         await using (var command = connection.CreateCommand())
         {
@@ -84,6 +85,7 @@ internal static class TagMatrixRowPageReader
 
             command.Parameters.Add(Param(command, "@pageSize", request.ClampedPageSize + 1));
 
+            totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, dialect, cancellationToken);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -111,7 +113,7 @@ internal static class TagMatrixRowPageReader
         if (entryIds.Length == 0)
         {
             return (
-                new PageResult<RowTagRow>(rows, next),
+                new PageResult<RowTagRow>(rows, next, totalCount),
                 entryIds,
                 new Dictionary<long, IReadOnlyList<int>>());
         }
@@ -155,7 +157,7 @@ internal static class TagMatrixRowPageReader
             kv => kv.Key,
             kv => (IReadOnlyList<int>)kv.Value);
 
-        return (new PageResult<RowTagRow>(rows, next), entryIds, positionsByEntry);
+        return (new PageResult<RowTagRow>(rows, next, totalCount), entryIds, positionsByEntry);
     }
 
     /// <summary>

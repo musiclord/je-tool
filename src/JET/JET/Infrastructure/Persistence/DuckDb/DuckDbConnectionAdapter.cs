@@ -34,9 +34,17 @@ internal sealed class DuckDbConnectionAdapter(DbConnection inner) : DbConnection
 
     public override void Close() => inner.Close();
 
-    public override void Open() => inner.Open();
+    public override void Open()
+    {
+        inner.Open();
+        DuckDbInvariantUpper.Ensure(inner);
+    }
 
-    public override Task OpenAsync(CancellationToken cancellationToken) => inner.OpenAsync(cancellationToken);
+    public override async Task OpenAsync(CancellationToken cancellationToken)
+    {
+        await inner.OpenAsync(cancellationToken).ConfigureAwait(false);
+        DuckDbInvariantUpper.Ensure(inner);
+    }
 
     protected override DbCommand CreateDbCommand() => new DuckDbCommandAdapter(inner.CreateCommand(), this);
 

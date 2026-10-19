@@ -87,7 +87,7 @@ internal static class JetSchemaCatalog
     [
         // ── Source:客戶提供 / 匯入原貌(DataView) ─────────────────────────────
         new("staging_gl_raw_row", "PBC-GL", SchemaLayer.Source, SchemaAudience.DataView,
-            "PBC-GL（匯入的總帳明細原樣，尚未完成欄位配對）"),
+            "PBC-GL（匯入的總帳明細原樣，未經欄位配對整理）"),
         new("staging_tb_raw_row", "PBC-TB", SchemaLayer.Source, SchemaAudience.DataView,
             "PBC-TB(匯入的試算表原樣,未標準化)"),
         new("target_account_mapping", "ACCOUNT_MAPPING", SchemaLayer.Source, SchemaAudience.DataView,

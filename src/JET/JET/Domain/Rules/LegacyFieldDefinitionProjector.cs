@@ -223,12 +223,15 @@ internal static class LegacyFieldDefinitionProjector
     private sealed class MutableProjection
     {
         private readonly List<LegacyFieldDefinitionState> _definitions;
+        // 來源欄原本的定義。同一個來源欄配給第二個欄位時，從這裡複製，不沿用第一個欄位改過的名稱與型態。
+        private readonly LegacyFieldDefinitionState[] _sources;
         private readonly Dictionary<string, int> _sourceIndexes;
         private readonly HashSet<int> _claimedIndexes = [];
 
         internal MutableProjection(IReadOnlyList<LegacyFieldDefinitionState> source)
         {
             _definitions = source.OrderBy(static definition => definition.Ordinal).ToList();
+            _sources = [.. _definitions];
             _sourceIndexes = new Dictionary<string, int>(StringComparer.Ordinal);
             for (var index = 0; index < _definitions.Count; index++)
             {
@@ -238,19 +241,18 @@ internal static class LegacyFieldDefinitionProjector
 
         internal void RenamePreservingSource(string sourceName, string targetName)
         {
-            var index = ClaimSourceIndex(sourceName);
-            var source = _definitions[index];
-            _definitions[index] = source with
+            var (index, shared) = ClaimSource(sourceName);
+            Place(index, shared, _sources[index] with
             {
                 FieldName = targetName,
                 Description = sourceName
-            };
+            });
         }
 
         internal void RenameAsText(string sourceName, string targetName)
         {
-            var index = ClaimSourceIndex(sourceName);
-            var source = _definitions[index];
+            var (index, shared) = ClaimSource(sourceName);
+            var source = _sources[index];
 
             if (source.Kind == LegacyFieldKind.Number)
             {
@@ -261,26 +263,27 @@ internal static class LegacyFieldDefinitionProjector
                     TextLength = source.MaxRenderedLength,
                     DecimalPlaces = null
                 };
-                _definitions[index] = textProjection with
+                // 來源欄已經改成別的欄位名時，原位置不再留 _Temp，只追加轉成文字的欄位。
+                if (!shared)
                 {
-                    FieldName = $"{targetName}_Temp"
-                };
-                _definitions.Add(textProjection with
-                {
-                    Ordinal = _definitions.Count + 1,
-                    FieldName = targetName
-                });
+                    _definitions[index] = textProjection with
+                    {
+                        FieldName = $"{targetName}_Temp"
+                    };
+                }
+
+                Append(textProjection with { FieldName = targetName });
                 return;
             }
 
-            _definitions[index] = source with
+            Place(index, shared, source with
             {
                 FieldName = targetName,
                 Description = sourceName,
                 Kind = LegacyFieldKind.Text,
                 TextLength = source.MaxRenderedLength,
                 DecimalPlaces = null
-            };
+            });
         }
 
         internal void RenameAsNumber(
@@ -288,32 +291,42 @@ internal static class LegacyFieldDefinitionProjector
             string targetName,
             int decimalPlaces)
         {
-            var index = ClaimSourceIndex(sourceName);
-            var source = _definitions[index];
-            _definitions[index] = source with
+            var (index, shared) = ClaimSource(sourceName);
+            Place(index, shared, _sources[index] with
             {
                 FieldName = targetName,
                 Description = sourceName,
                 Kind = LegacyFieldKind.Number,
                 TextLength = 0,
                 DecimalPlaces = Math.Max(0, decimalPlaces)
-            };
+            });
         }
 
-        private int ClaimSourceIndex(string sourceName)
+        // 審計員可以把同一個來源欄配給多個欄位，例如總帳日期與傳票核准日都選同一欄（使用者 2026-10-19 要求處理，
+        // 預設審計員可信，不擋）。依欄位目錄順序，第一個欄位在來源欄原位置改名，之後的欄位追加在後面。
+        private (int Index, bool Shared) ClaimSource(string sourceName)
         {
             if (!_sourceIndexes.TryGetValue(sourceName, out var index))
             {
                 throw new InvalidOperationException($"來源欄位定義 '{sourceName}' 不存在。");
             }
 
-            if (!_claimedIndexes.Add(index))
+            return (index, !_claimedIndexes.Add(index));
+        }
+
+        private void Place(int index, bool shared, LegacyFieldDefinitionState definition)
+        {
+            if (shared)
             {
-                throw new InvalidOperationException($"來源欄位定義 '{sourceName}' 被重複配對。");
+                Append(definition);
+                return;
             }
 
-            return index;
+            _definitions[index] = definition;
         }
+
+        private void Append(LegacyFieldDefinitionState definition) =>
+            _definitions.Add(definition with { Ordinal = _definitions.Count + 1 });
 
         internal void AppendDerived(
             string fieldName,

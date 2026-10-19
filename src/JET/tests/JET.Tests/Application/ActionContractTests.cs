@@ -709,7 +709,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     {
         var data = await fixture.Host.DispatchAsync("query.completenessDiffPage",
             JsonSerializer.Serialize(new { pageSize = 200 }));
-        JsonShape.HasExactKeys(data, "rows", "nextCursor");
+        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
+        JsonShape.Number(data, "totalCount");
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
             JsonShape.HasExactKeys(e, "accountCode", "accountName", "tbAmount", "glAmount", "diff", "notInTb"));
     }
@@ -719,7 +721,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     {
         var data = await fixture.Host.DispatchAsync("query.docBalancePage",
             JsonSerializer.Serialize(new { pageSize = 200 }));
-        JsonShape.HasExactKeys(data, "rows", "nextCursor");
+        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
+        JsonShape.Number(data, "totalCount");
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
             JsonShape.HasExactKeys(e, "documentNumber", "debit", "credit", "diff"));
     }
@@ -729,7 +733,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     {
         var data = await fixture.Host.DispatchAsync("query.nullRecordsPage",
             JsonSerializer.Serialize(new { category = "nullDescription", pageSize = 200 }));
-        JsonShape.HasExactKeys(data, "rows", "nextCursor");
+        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
+        JsonShape.Number(data, "totalCount");
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
             JsonShape.HasExactKeys(e, "documentNumber", "accountCode", "postDate", "description"));
     }
@@ -749,7 +755,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
 
         var data = await fixture.Host.DispatchAsync("query.filterHitsPage",
             JsonSerializer.Serialize(new { scenarioPosition = 1, pageSize = 200 }));
-        JsonShape.HasExactKeys(data, "columns", "rows", "nextCursor");
+        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        JsonShape.HasExactKeys(data, "columns", "rows", "nextCursor", "totalCount");
+        JsonShape.Number(data, "totalCount");
         var columns = JsonShape.Arr(data, "columns");
         Assert.Equal(
             ["documentNumber", "lineItem", "postDate", "accountCode", "accountName", "amount", "drCr", "description"],
@@ -818,7 +826,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
 
         var data = await fixture.Host.DispatchAsync("query.tagMatrixVoucherPage",
             JsonSerializer.Serialize(new { pageSize = 200 }));
-        JsonShape.HasExactKeys(data, "rows", "nextCursor");
+        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
+        JsonShape.Number(data, "totalCount");
         var rows = JsonShape.Arr(data, "rows");
         Assert.True(rows.GetArrayLength() >= 1, "已 commit 命中情境,rows 應非空");
         JsonShape.Element(rows, e =>
@@ -839,7 +849,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
 
         var data = await fixture.Host.DispatchAsync("query.infSamplePage",
             JsonSerializer.Serialize(new { pageSize = 200 }));
-        JsonShape.HasExactKeys(data, "columns", "rows", "nextCursor");
+        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        JsonShape.HasExactKeys(data, "columns", "rows", "nextCursor", "totalCount");
+        JsonShape.Number(data, "totalCount");
         var columns = JsonShape.Arr(data, "columns");
         Assert.Equal(
             ["documentNumber", "accountCode", "accountName", "debit", "credit", "postDate",
@@ -894,9 +906,12 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
 
             // 2026-09-23：已記入 manifest 的加法契約，分開所選底稿成功、全案結果狀態及清單刷新提醒。
             // 原欄位與產物來源檢查保留；此處選全部情境且清單可讀，兩個新欄位有固定答案。
-            JsonShape.HasExactKeys(data, "ok", "artifact", "sheetStats", "reportArtifacts", "filterResultsCurrent", "reportArtifactWarning");
+            // 使用者 2026-10-19 裁定產生報告寫不進操作紀錄時回報成功並提醒，回應多了 warnings；這裡寫得進操作紀錄，
+            // 所以是空陣列（加上這個欄位前的失敗收據 20261019-153611395-da8287ebb31a47dbac7419f7421eeae2）。
+            JsonShape.HasExactKeys(data, "ok", "artifact", "sheetStats", "reportArtifacts", "filterResultsCurrent", "reportArtifactWarning", "warnings");
             Assert.True(data.GetProperty("filterResultsCurrent").GetBoolean());
             Assert.Equal(JsonValueKind.Null, data.GetProperty("reportArtifactWarning").ValueKind);
+            Assert.Empty(JsonShape.Arr(data, "warnings").EnumerateArray());
             Assert.Equal(JsonValueKind.True, data.GetProperty("ok").ValueKind);
             var artifact = JsonShape.Obj(data, "artifact");
             JsonShape.HasExactKeys(artifact,
@@ -1022,7 +1037,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
 
         var data = await fixture.Host.DispatchAsync("query.tagMatrixRowPage",
             JsonSerializer.Serialize(new { pageSize = 200 }));
-        JsonShape.HasExactKeys(data, "rows", "nextCursor");
+        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
+        JsonShape.Number(data, "totalCount");
         var rows = JsonShape.Arr(data, "rows");
         Assert.True(rows.GetArrayLength() >= 1, "已 commit 命中情境,命中傳票之所有行 rows 應非空");
         JsonShape.Element(rows, e =>

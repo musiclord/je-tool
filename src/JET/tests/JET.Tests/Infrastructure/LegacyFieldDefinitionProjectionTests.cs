@@ -56,6 +56,85 @@ public sealed class LegacyFieldDefinitionProjectionTests
         AssertTextProjection(definitions[5], "account-source", textLength: 6);
     }
 
+    // 同一個來源欄配給多個欄位（使用者 2026-10-19 要求處理；正式流程的重現在 MappingSharedSourceColumnTests）：
+    // 依欄位目錄順序，第一個欄位在原位置改名，之後的欄位照來源欄原本的定義追加；數字來源已被改名時不再留 _Temp。
+    [Fact]
+    public void GlSharedSourceColumns_FirstFieldRenamesInPlaceAndLaterFieldsAppendFromTheSourceDefinition()
+    {
+        var source = new[]
+        {
+            new LegacyFieldDefinitionState(1, "num", null, LegacyFieldKind.Number, 0, 0, 6, true),
+            new LegacyFieldDefinitionState(2, "flag", null, LegacyFieldKind.Text, 1, null, 1, true),
+            new LegacyFieldDefinitionState(3, "amount-source", null, LegacyFieldKind.Number, 0, 2, 7, true)
+        };
+        var spec = new GlMappingSpec(
+            new Dictionary<string, string>
+            {
+                [GlMappingKeys.DocNum] = "num",
+                [GlMappingKeys.LineId] = "num",
+                [GlMappingKeys.AccNum] = "num",
+                [GlMappingKeys.JeSource] = "flag",
+                [GlMappingKeys.Manual] = "flag",
+                [GlMappingKeys.Amount] = "amount-source"
+            },
+            GlAmountMode.SignedAmount);
+
+        var definitions = LegacyFieldDefinitionProjector.ProjectGl(source, spec, moneyScale: 100);
+
+        Assert.Equal(
+            [
+                "傳票號碼_JE_Temp",
+                "分錄來源模組_JE",
+                "amount-source",
+                "傳票號碼_JE",
+                "傳票文件項次_JE_S",
+                "會計科目編號_JE",
+                "人工傳票否_JE_S",
+                "傳票金額_JE"
+            ],
+            definitions.Select(static definition => definition.FieldName));
+        Assert.Equal(Enumerable.Range(1, definitions.Count), definitions.Select(static definition => definition.Ordinal));
+        AssertTextProjection(definitions[0], "num", textLength: 6);
+        AssertTextProjection(definitions[3], "num", textLength: 6);
+        Assert.Equal("num", definitions[4].Description);
+        Assert.Equal(LegacyFieldKind.Number, definitions[4].Kind);
+        Assert.Equal(0, definitions[4].DecimalPlaces);
+        AssertTextProjection(definitions[5], "num", textLength: 6);
+        Assert.Equal("flag", definitions[1].Description);
+        Assert.Equal(LegacyFieldKind.Text, definitions[1].Kind);
+        Assert.Equal("flag", definitions[6].Description);
+        Assert.Equal(LegacyFieldKind.Number, definitions[6].Kind);
+        Assert.Equal(0, definitions[6].DecimalPlaces);
+    }
+
+    [Fact]
+    public void TbSharedSourceColumn_AccountCodeAndNameBothCarryTheSourceDefinition()
+    {
+        var source = new[]
+        {
+            new LegacyFieldDefinitionState(1, "科目", null, LegacyFieldKind.Text, 8, null, 8, true),
+            new LegacyFieldDefinitionState(2, "變動", null, LegacyFieldKind.Number, 0, 2, 9, true)
+        };
+        var spec = new TbMappingSpec(
+            new Dictionary<string, string>
+            {
+                [TbMappingKeys.AccNum] = "科目",
+                [TbMappingKeys.AccName] = "科目",
+                [TbMappingKeys.Amount] = "變動"
+            },
+            TbChangeMode.DirectChange);
+
+        var definitions = LegacyFieldDefinitionProjector.ProjectTb(source, spec, moneyScale: 100);
+
+        Assert.Equal(
+            ["會計科目編號_TB", "試算表變動金額_TB", "會計科目名稱_TB"],
+            definitions.Select(static definition => definition.FieldName));
+        Assert.Equal(Enumerable.Range(1, definitions.Count), definitions.Select(static definition => definition.Ordinal));
+        AssertTextProjection(definitions[0], "科目", textLength: 8);
+        AssertTextProjection(definitions[2], "科目", textLength: 8);
+        Assert.Equal("變動", definitions[1].Description);
+    }
+
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
     [InlineData(ProjectDocument.DuckDbDatabaseProvider)]

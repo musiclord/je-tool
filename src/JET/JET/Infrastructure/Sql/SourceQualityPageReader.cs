@@ -24,6 +24,7 @@ internal static class SourceQualityPageReader
             + $"JOIN {schemaPrefix}import_batch_source bs ON bs.batch_id = s.batch_id AND bs.source_no = s.source_no "
             + "WHERE " + ValidationProcedures.NullPostDateSourceQualityPredicateWith("g") + paging.Predicate + " "
             + paging.OrderBy + " " + dialect.LimitClause("@pageSize") + ";";
+        var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<SourceQualityFindingRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -37,6 +38,6 @@ internal static class SourceQualityPageReader
                 reader.IsDBNull(6) ? null : reader.GetString(6), reader.GetInt64(7)),
                 paging.HasSort ? reader.GetValue(8) : null);
         }
-        return buffer.ToPage(request, paging, static row => row.EntryId);
+        return buffer.ToPage(request, paging, static row => row.EntryId, totalCount);
     }
 }

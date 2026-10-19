@@ -43,6 +43,24 @@ public sealed class ProjectionFailureTextTests
         Assert.DoesNotContain("「」", error.Message, StringComparison.Ordinal);
     }
 
+    // 跨資料庫一致性計畫第三節 C：超過共用上限的值可能很長，錯誤只顯示前 50 字加「…」，分組仍用完整值，
+    // 避免誤把摘要欄配成科目名稱時，錯誤區被整段原文撐滿。第一次失敗：20261019-021336926-0f298a926fcf40d0ab0e3eb05851882d。
+    [Fact]
+    public void LongValue_ShowsFirstFiftyCharactersAndKeepsDistinctValues()
+    {
+        const string reason = "文字超過 400 個字。請縮短來源資料，或改選正確的欄位";
+        var error = ProjectionFailureText.Create(new ProjectionResult(0,
+        [
+            new RowProjectionError(2, "科目名稱", new string('甲', 401), reason),
+            new RowProjectionError(3, "科目名稱", new string('甲', 50) + new string('乙', 351), reason)
+        ]));
+
+        Assert.Equal(
+            "來源欄「科目名稱」有 2 列文字超過 400 個字：「" + new string('甲', 50) + "…」在第 2 列；「"
+            + new string('甲', 50) + "…」在第 3 列。請縮短來源資料，或改選正確的欄位。",
+            Assert.Single(error.Details!).Message);
+    }
+
     [Fact]
     public void MoreErrorsThanCollected_SaysWhichRowsWereSummarized()
     {

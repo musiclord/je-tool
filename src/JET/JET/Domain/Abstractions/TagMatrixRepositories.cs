@@ -63,4 +63,13 @@ public interface ITagMatrixScenariosRepository
     /// </summary>
     Task<IReadOnlyDictionary<int, long>> GetWholeVoucherRowCountsAsync(
         string projectId, IReadOnlyList<int> scenarioPositions, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 各情境命中列中傳票號碼空白的分錄數。空白號碼不是一張傳票：這些分錄算進行層命中數，卻不會寫進
+    /// Criteria Selection 工作表，報告摘要頁據此加一列說明（使用者 2026-10-19 裁定）。沒有這種命中的位置不在回傳 dict。
+    /// 兩個正式實作都覆寫；預設實作只給不匯出報告的測試替身用。
+    /// </summary>
+    Task<IReadOnlyDictionary<int, long>> GetBlankDocumentHitRowCountsAsync(
+        string projectId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<int, long>>(new Dictionary<int, long>());
 }

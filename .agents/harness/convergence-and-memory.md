@@ -61,7 +61,7 @@
 |:---|:---|
 | 專案目的、服務順序、正式環境限制 | `docs/project-context.md` |
 | 領域、架構、資料流、action 或畫面行為 | 相應現行規格與測試 |
-| 大型工作目標、核准範圍、階段、first-red、下一步 | 唯一現行 `docs/specs/` 計畫 |
+| 大型工作目標、核准範圍、階段、第一次失敗、下一步 | 唯一現行 `docs/specs/` 計畫 |
 | 延後事項與重啟條件 | `docs/development-status.md` |
 | 已取代但仍需解釋的決策 | `docs/history/` |
 | 一次性過程、完整 logs、逐輪問題 | 留在 session 或 ignored evidence，不搬進現行文件 |

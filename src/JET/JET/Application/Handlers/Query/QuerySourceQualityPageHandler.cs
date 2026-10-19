@@ -40,6 +40,7 @@ public sealed class QuerySourceQualityPageHandler(
                 postDate = row.PostDate,
                 description = row.Description
             }).ToArray(),
+            totalCount = page.TotalCount,
             nextCursor = page.NextCursor
         };
     }

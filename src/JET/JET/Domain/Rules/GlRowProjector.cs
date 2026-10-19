@@ -125,6 +125,11 @@ public static class GlRowProjector
             return false;
         }
 
+        if (!TryCheckTextLengths(row, spec, out error))
+        {
+            return false;
+        }
+
         // 衍生欄一律由標準化後的 AmountScaled 計算，
         // 不直接取原始借/貸欄，確保四種金額模式語意一致。
         var debitScaled = amountScaled >= 0 ? amountScaled : 0;
@@ -472,6 +477,39 @@ public static class GlRowProjector
         }
 
         values = result ?? [];
+        error = null;
+        return true;
+    }
+
+    /// <summary>標準文字欄的共用上限（<see cref="TextStorageLimits"/>）；摘要沒有上限，不列入。</summary>
+    private static readonly (string Key, int Limit)[] TextLengthLimits =
+    [
+        (GlMappingKeys.DocNum, TextStorageLimits.KeyUtf16CodeUnits),
+        (GlMappingKeys.LineId, TextStorageLimits.TextUtf16CodeUnits),
+        (GlMappingKeys.AccNum, TextStorageLimits.KeyUtf16CodeUnits),
+        (GlMappingKeys.AccName, TextStorageLimits.TextUtf16CodeUnits),
+        (GlMappingKeys.JeSource, TextStorageLimits.TextUtf16CodeUnits),
+        (GlMappingKeys.CreateBy, TextStorageLimits.TextUtf16CodeUnits),
+        (GlMappingKeys.ApproveBy, TextStorageLimits.TextUtf16CodeUnits),
+        (GlMappingKeys.PostingStatus, TextStorageLimits.TextUtf16CodeUnits)
+    ];
+
+    private static bool TryCheckTextLengths(StagingRow row, GlMappingSpec spec, out RowProjectionError? error)
+    {
+        foreach (var (key, limit) in TextLengthLimits)
+        {
+            var value = GetMappedValue(row, spec, key);
+            if (value is not null && value.Length > limit)
+            {
+                error = new RowProjectionError(
+                    row.SourceRowNumber,
+                    MappedColumnOrKey(spec, key),
+                    value,
+                    ProjectionErrorReasons.TextTooLong(limit));
+                return false;
+            }
+        }
+
         error = null;
         return true;
     }

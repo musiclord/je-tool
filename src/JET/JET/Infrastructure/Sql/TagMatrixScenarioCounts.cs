@@ -72,6 +72,20 @@ internal static class TagMatrixScenarioCounts
         return result;
     }
 
+    /// <summary>
+    /// 各情境命中列中傳票號碼空白的分錄數：行層命中數裡，<see cref="TagMatrixRowPageReader"/> 不會展開的那一部分。
+    /// 兩 provider 只差 COUNT 與 COUNT_BIG 及 schema 前綴。
+    /// </summary>
+    public static async Task<IReadOnlyDictionary<int, long>> ReadBlankDocumentRowCountsAsync(
+        DbConnection connection, string schemaPrefix, string countExpression, CancellationToken cancellationToken) =>
+        await ReadPositionCountsAsync(
+            connection,
+            $"SELECT r.scenario_position, {countExpression} FROM {schemaPrefix}result_filter_run r " +
+            $"JOIN {schemaPrefix}target_gl_entry g ON g.entry_id = r.entry_id " +
+            $"WHERE g.document_number IS NULL AND {GlEffectivePopulation.SqlPredicate("g")} " +
+            "GROUP BY r.scenario_position;",
+            cancellationToken);
+
     private static async Task<Dictionary<int, long>> ReadPositionCountsAsync(
         DbConnection connection, string sql, CancellationToken cancellationToken)
     {

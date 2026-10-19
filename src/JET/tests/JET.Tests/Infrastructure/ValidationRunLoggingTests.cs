@@ -31,7 +31,9 @@ public sealed class ValidationRunLoggingTests
     // SQL Server remains compile-only; its older digest is deliberately not guessed.
     private const string SqliteSnapshotDigest = "AD31E59FBB5F164FB2ADBD07C829C7E82082D95A1090DE6811E26CA57B56D2CD";
     private const string DuckDbSnapshotDigest = "61E098DDB6082D242C9DC6B6C512D60BAF17EA65A2E265ACEFC46A3102BEEDF6";
-    private const string SqlServerSnapshotDigest = "8B9DDBECADB0DD54D44FF2D4494FDDD59E237CB0512776171EDEC26A0B73E71E";
+    // 2026-10-19 第一次在本機 SQL Server 2022 執行，依實際命令序列更新：12 條命令和本機版一一對應，漂移來自開發暫緩期間只經編譯的
+    // 共用 SQL 修改（空白傳票號碼排除、第 12 條摘要計數與方言的去空白）。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
+    private const string SqlServerSnapshotDigest = "E123F4F14083CDA051149B40A1FEFB9D126FE5E87AE1A11EB55D5944F9512EA9";
 
     // 標準多列 INSERT（SQLite 與 SQL Server 皆合法）；只填 NOT NULL + 少數欄，entry_id 為自增/IDENTITY。
     // schema-per-project：SQL Server 端的 target_gl_entry 須以 [schema]. 限定，SQLite 端維持裸名（schemaPrefix ""）。

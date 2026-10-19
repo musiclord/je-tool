@@ -699,7 +699,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         HashSet<string> ObservedKeys,
         long NextRowNumber);
 
-    private static IReadOnlyList<ImportSourceInput> NormalizeSources(
+    internal static IReadOnlyList<ImportSourceInput> NormalizeSources(
         IReadOnlyList<ImportSourceInput> sources) =>
         sources
             .Select(input => input with { Source = ImportSourceFileName.Normalize(input.Source) })

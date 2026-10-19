@@ -123,7 +123,7 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 | 改驗證、預篩選、篩選或抽樣規則 | `docs/jet-guide.md` 第 4 到第 6 節；精確舊規則與 KCT A 到 J 對應在 `docs/history/superseded/jet-guide-2026-08.md`；衝突裁決走 `docs/business-logic-provenance.md` |
 | 改 action、payload 或前端 | `docs/action-contract-manifest.md` 與 `docs/jet-frontend-description.md` |
 | 改報表輸出或範本 | `docs/jet-guide.md` 第 7 節與 `docs/data-and-legacy.md` |
-| 碰資料庫實作或 SQL Server | `docs/jet-guide.md` 第 8 節；企業多人範圍與已知安全缺口在 `docs/sqlserver-enterprise-deferred.md` |
+| 碰資料庫實作或 SQL Server | `docs/jet-guide.md` 第 8 節；SQL Server 的延後事項、已知安全缺口與暫緩期間的修改，封存在 `docs/history/2026-10-20-sqlserver-archive.md` |
 | 與 IDEA 或 VBA 舊行為比對 | `docs/jet-guide.md` 第 17 節與 `legacy/jet-legacy-notes.md`；差異只分五類，不自創例外 |
 | 立案或接手大型開發 | `docs/development-status.md` 與 `.agents/harness/development-workflow.md` |
 

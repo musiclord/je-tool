@@ -50,6 +50,8 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
 
         var request = new TabularSourceRequest(filePath);
         var source = new ImportSourceDescriptor(filePath, fileName, null, null, null);
+        // V11 的引號內換行提醒也適用科目配對檔（低嚴重度事項，使用者 2026-10-19 要求處理）。
+        var lineBreaks = new QuotedLineBreakTally();
 
         var facts = await Task.Run(
             async () =>
@@ -70,7 +72,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
                     projection = JetAuditProgram.PrepareAccountMappingProjection(columns, taxonomy);
                 }
 
-                var rows = reader.ReadRowsAsync(effectiveRequest, cancellationToken);
+                var rows = lineBreaks.Tally(reader.ReadRowsAsync(effectiveRequest, cancellationToken), cancellationToken);
                 return await repositories.ReferenceDataFacts.ExecuteAsync(
                     plan,
                     source,
@@ -81,8 +83,10 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
             },
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
+        var lineBreakWarning = lineBreaks.Warning(fileName, sourceNo: 1, logger);
+        string[] warnings = lineBreakWarning is null ? [] : [lineBreakWarning];
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
         AccountMappingDifferenceCounts? differences = null;
         try
         {
@@ -107,6 +111,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
             mappingOnlyCount = differences?.MappingOnlyCount,
             unmappedCount = differences?.UnmappedCount,
             columnMappingWarning = result.ColumnMappingWarning,
+            warnings,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
             reportArtifacts = mutationState.ReportArtifacts,

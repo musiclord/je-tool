@@ -48,4 +48,7 @@ internal static class ProjectionErrorReasons
 
     public static string RdeTextTooLong(int limit) =>
         $"文字超過 {limit} 個字。請縮短來源資料，或取消保留此欄位";
+
+    public static string TextTooLong(int limit) =>
+        $"文字超過 {limit} 個字。請縮短來源資料，或改選正確的欄位";
 }

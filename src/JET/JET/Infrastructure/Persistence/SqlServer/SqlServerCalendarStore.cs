@@ -40,7 +40,7 @@ public sealed class SqlServerCalendarStore(SqlServerProjectDatabase database) : 
 
             var typeParam = insert.Parameters.Add("@type", System.Data.SqlDbType.NVarChar, 10);
             var dateParam = insert.Parameters.Add("@date", System.Data.SqlDbType.NVarChar, 32);
-            var nameParam = insert.Parameters.Add("@name", System.Data.SqlDbType.NVarChar, 256);
+            var nameParam = insert.Parameters.Add("@name", System.Data.SqlDbType.NVarChar, TextStorageLimits.CalendarDayNameUtf16CodeUnits);
             typeParam.Value = type.ToStorageName();
 
             // INSERT OR IGNORE 等價:先 DELETE 全清,故只需對輸入以日期去重避免本批 (day_type,date) PK 衝突。

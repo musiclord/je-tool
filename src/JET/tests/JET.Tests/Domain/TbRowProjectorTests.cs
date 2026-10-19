@@ -418,4 +418,36 @@ public sealed class TbRowProjectorTests
         Assert.Equal("金額超出可儲存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
     }
 
+    // 跨資料庫一致性計畫第三節 C（2026-10-19 使用者裁定「文字欄長度三方一致」）：科目編號上限 450 字、
+    // 科目名稱 400 字，和 SQL Server 欄寬相同；超過就回列錯誤，不截斷。第一次失敗：20261019-020852386-c03d4566bbee453ca11b4781aafad514。
+    [Fact]
+    public void TextOverStorageLimit_ReturnsRowError_AndAtLimitProjects()
+    {
+        var spec = new TbMappingSpec(
+            new Dictionary<string, string>
+            {
+                [TbMappingKeys.AccNum] = "code",
+                [TbMappingKeys.AccName] = "name",
+                [TbMappingKeys.Amount] = "amount"
+            },
+            TbChangeMode.DirectChange);
+        StagingRow Row(int number, string code, string name) => new(number, new Dictionary<string, string>
+        {
+            ["code"] = code,
+            ["name"] = name,
+            ["amount"] = "100"
+        });
+
+        Assert.True(TbRowProjector.TryProject(Row(2, new string('A', 450), new string('名', 400)), spec, Scale, out var atLimit, out _));
+        Assert.Equal(new string('A', 450), atLimit!.AccountCode);
+        Assert.Equal(new string('名', 400), atLimit.AccountName);
+
+        Assert.False(TbRowProjector.TryProject(Row(3, new string('A', 451), "現金"), spec, Scale, out _, out var codeError));
+        Assert.Equal("code", codeError!.Field);
+        Assert.Equal("文字超過 450 個字。請縮短來源資料，或改選正確的欄位", codeError.Reason);
+
+        Assert.False(TbRowProjector.TryProject(Row(4, "1101", new string('名', 401)), spec, Scale, out _, out var nameError));
+        Assert.Equal("name", nameError!.Field);
+        Assert.Equal("文字超過 400 個字。請縮短來源資料，或改選正確的欄位", nameError.Reason);
+    }
 }

@@ -3,7 +3,7 @@
   讓使用者隨時看到目前操作的資料長什麼樣子：
   - 欄位配對時對照「欄名 ↔ 實際內容」（PBC-GL、PBC-TB）
   - 進階篩選前掌握數值/日期/摘要的大概樣貌（GL、TB 與概況統計）
-  有界預覽（≤50 列 + 總列數），絕不載入完整母體；權威計算一律在後端。
+  每頁最多 200 列，分頁讀取完整資料；權威計算一律在後端。
 
   第二波呈現層：常駐右欄面板（頁籤切換資料表＋橫向捲動表格）。
   - 資料集選擇由下拉改為頁籤：PBC／標準化的 GL、TB 與科目配對直接可見，其餘收進「其他資料」選單；
@@ -14,7 +14,7 @@
     清單／行事曆匯入），state.dataGeneration 遞增；本面板據此作廢快取——可見即自動重抓當前
     作用資料集，收合則待展開再抓。世代訊號只在真實資料落地時跳（非每個 action），故不會對大母體
     高頻打擊。詳見 initDataPreview 的訂閱者。
-  - query.dataPreview 的 payload／回應欄位一個都不改；不新增後端 action。
+  - 使用 query.dataPreview 的 limit 與 offset 分頁；不新增後端 action。
 */
 (function (global) {
   'use strict';
@@ -35,6 +35,9 @@
     { value: 'dateDimension', label: '行事曆（假日與補班日）' },
     { value: 'schemaOverview', label: '資料表摘要' }
   ];
+
+  // 內容是 GL 或 TB 的分錄、科目的資料集；筆數單位用「筆」，其餘用「列」。
+  var ENTRY_DATASETS = ['gl', 'glExcluded', 'tb', 'accountMappings'];
 
   // 受查者提供資料（PBC）與標準化資料成對直接呈現；科目配對是驗證步驟的主要工作資料，
   // 同樣保持直接可見，避免步驟按鈕換位後只亮「其他資料」而看不出目前資料集。
@@ -89,6 +92,8 @@
   function displayCell(dataset, column, cell) {
     if (cell === null) { return null; }
     if (dataset === 'gl' && column === 'manualAuto') { return { manual: '人工', automatic: '自動' }[cell] || cell; }
+    // 借貸別和結果表格一樣寫「借」「貸」，不顯示資料庫存的英文值（使用者 2026-10-19 要求前端不露出系統用詞）。
+    if ((dataset === 'gl' || dataset === 'glExcluded') && column === 'drCr') { return { DEBIT: '借', CREDIT: '貸' }[cell] || cell; }
     if (dataset === 'dateDimension' && column === 'dayType') {
       return DAY_TYPE_LABELS[cell] || cell;
     }
@@ -116,7 +121,10 @@
   var RESIZE_MIN = 300; // 最窄可拖到的寬度（再窄請用收合鈕）；預設 436、上限依視窗推算。
 
   var activeDataset = MAIN_TABS[0].value; // 預設 PBC-GL
-  var menuOpen = false;                   // 「其他資料」選單是否展開
+  var activePage = 1;
+  var successfulPreview = null;
+  var previewBusy = false;
+  var retryPage = 1;
   var compactMediaQuery = null;           // 半屏模式的唯一 viewport 判定
   var autoCollapsed = false;              // 只有系統收合者，回到寬螢幕才自動恢復
   var loadedOnce = false;                 // 首次自動載入的節制旗標
@@ -129,12 +137,16 @@
   function resetDataPreviewState() {
     previewResponseGuard.invalidate();
     activeDataset = MAIN_TABS[0].value;
+    activePage = 1;
+    successfulPreview = null;
+    previewBusy = false;
+    retryPage = 1;
     loadedOnce = false;
     lastDataGeneration = 0;
     lastCollapsed = false;
     dirty = false;
     refreshQueued = false;
-    menuOpen = false;
+    if (elTabs) { Ui.closeMenus(elTabs); }
     if (elBody) {
       elBody.removeAttribute('aria-busy');
       elBody.removeAttribute('data-preview-state');
@@ -174,6 +186,10 @@
     elNote = elAside.querySelector('.data-preview__note');
 
     renderTabs();
+    if (elTabs) {
+      Ui.bindTabs(elTabs);
+      Ui.bindMenus(elTabs);
+    }
     if (elBody) {
       elBody.innerHTML = '<p class="data-preview__hint">切換上方資料表以載入預覽。</p>';
     }
@@ -194,23 +210,18 @@
       });
     }
 
-    // 頁籤／其他資料選單以事件委派處理；DOM 只建立一次，開關時不替換目前焦點節點。
+    // 頁籤與「其他資料」選單的項目以事件委派處理；DOM 只建立一次，開關時不替換目前焦點節點。
+    // 頁籤的方向鍵、選單的開關與鍵盤由 ui-core.js 的共用頁籤與選單處理。
     if (elTabs) {
       elTabs.addEventListener('click', onTabsClick);
-      elTabs.addEventListener('keydown', onTabsKeydown);
     }
     if (elBody) {
       elBody.addEventListener('click', function (event) {
         var retry = event.target.closest('[data-action="retry-data-preview"]');
         if (!retry || retry.getAttribute('data-dataset') !== activeDataset) { return; }
-        refresh();
+        refresh(retryPage);
       });
     }
-
-    // 點面板外關閉「其他資料」選單。
-    document.addEventListener('click', function (e) {
-      if (menuOpen && (!elTabs || !elTabs.contains(e.target))) { closeMenu(); }
-    });
 
     // 資料預覽的刷新時機（節制與世代雙軌）：
     //  1) 首次進入 workflow 且已有專案：自動載入一次（沿用舊 <details> 首開節制），並同步世代基準。
@@ -334,76 +345,10 @@
     });
   }
 
+  // 按下頁籤或選單裡的資料表。選單裡的項目先由共用選單關閉選單、把焦點交回「其他資料」，才到這裡。
   function onTabsClick(e) {
-    var toggle = e.target.closest('[data-more-toggle]');
-    if (toggle) {
-      e.stopPropagation();
-      if (menuOpen) { closeMenu(); } else { openMenu(); }
-      return;
-    }
     var item = e.target.closest('[data-ds]');
-    if (item) {
-      var fromMenu = !!item.closest('[role="menu"]');
-      closeMenu({ restoreFocus: fromMenu });
-      selectDataset(item.getAttribute('data-ds'));
-    }
-  }
-
-  function otherMenuItems() {
-    return elTabs ? Array.prototype.slice.call(elTabs.querySelectorAll('[role="menuitem"]')) : [];
-  }
-
-  function focusOtherMenuItem(index) {
-    var items = otherMenuItems();
-    if (items.length === 0) { return; }
-    var bounded = (index + items.length) % items.length;
-    items[bounded].focus();
-  }
-
-  function onTabsKeydown(e) {
-    var toggle = e.target.closest('[data-more-toggle]');
-    var menuItem = e.target.closest('[role="menuitem"]');
-
-    if (toggle && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-      e.preventDefault();
-      openMenu();
-      focusOtherMenuItem(e.key === 'ArrowDown' ? 0 : -1);
-      return;
-    }
-    if (e.key === 'Escape' && (toggle || menuItem || menuOpen)) {
-      e.preventDefault();
-      closeMenu({ restoreFocus: true });
-      return;
-    }
-    if (!menuItem) { return; }
-
-    var items = otherMenuItems();
-    var index = items.indexOf(menuItem);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      focusOtherMenuItem(index + (e.key === 'ArrowDown' ? 1 : -1));
-    } else if (e.key === 'Home' || e.key === 'End') {
-      e.preventDefault();
-      focusOtherMenuItem(e.key === 'Home' ? 0 : -1);
-    } else if (e.key === 'Tab') {
-      closeMenu();
-    }
-  }
-
-  function openMenu() {
-    if (menuOpen) { return; }
-    menuOpen = true;
-    syncTabs();
-  }
-
-  function closeMenu(options) {
-    if (!menuOpen) { return; }
-    menuOpen = false;
-    syncTabs();
-    if (options && options.restoreFocus && elTabs) {
-      var toggle = elTabs.querySelector('[data-more-toggle]');
-      if (toggle) { toggle.focus(); }
-    }
+    if (item) { selectDataset(item.getAttribute('data-ds')); }
   }
 
   // 切換作用中資料集：更新頁籤態並載入該資料集（使用者動作才呼叫後端）。
@@ -414,51 +359,53 @@
     refresh();
   }
 
+  // 主要資料表是一組頁籤；其餘的放在「其他資料」選單裡。正在看選單裡的資料表時，沒有頁籤是選中的，
+  // 「其他資料」畫上和選中頁籤一樣的底線，選單裡那一項加粗。頁籤與選單的外觀與鍵盤都是共用的一套。
   function renderTabs() {
     if (!elTabs) { return; }
 
     var mainHtml = MAIN_TABS.map(function (t) {
-      var active = t.value === activeDataset ? ' is-active' : '';
-      return '<button type="button" class="data-preview__tab' + active + '" data-ds="' + t.value +
-        '" role="tab" aria-selected="' + (active ? 'true' : 'false') + '">' + Ui.esc(t.label) + '</button>';
+      return '<button type="button" class="data-preview__tab" data-ds="' + t.value + '"' +
+        Ui.tabAttributes(t.value === activeDataset) + '>' + Ui.esc(t.label) + '</button>';
     }).join('');
 
     var moreActive = MORE.some(function (d) { return d.value === activeDataset; });
     var menuHtml = MORE.map(function (d) {
       var active = d.value === activeDataset ? ' is-active' : '';
-      return '<button type="button" class="data-preview__menu-item' + active +
-        '" data-ds="' + d.value + '" role="menuitem">' + Ui.esc(d.label) + '</button>';
+      return '<button type="button" class="jet-menu__item data-preview__menu-item' + active +
+        '" data-ds="' + d.value + '" role="menuitem" tabindex="-1">' + Ui.esc(d.label) + '</button>';
     }).join('');
 
     var moreHtml =
-      '<span class="data-preview__more">' +
-        '<button type="button" class="data-preview__tab data-preview__tab--more' + (moreActive ? ' is-active' : '') +
-          '" data-more-toggle aria-haspopup="menu" aria-controls="data-preview-other-menu" aria-expanded="' +
-          (menuOpen ? 'true' : 'false') + '">其他資料</button>' +
-        '<div class="data-preview__menu" id="data-preview-other-menu" role="menu"' +
-          (menuOpen ? '' : ' hidden') + '>' + menuHtml + '</div>' +
+      '<span class="jet-menu data-preview__more">' +
+        '<button type="button" class="jet-menu__toggle data-preview__tab data-preview__tab--more' + (moreActive ? ' is-active' : '') +
+          '" data-more-toggle aria-haspopup="menu" aria-controls="data-preview-other-menu" aria-expanded="false">其他資料</button>' +
+        '<div class="jet-menu__items data-preview__menu" id="data-preview-other-menu" role="menu" aria-label="其他資料" hidden>' +
+          menuHtml + '</div>' +
       '</span>';
 
-    elTabs.innerHTML = mainHtml + moreHtml;
+    elTabs.innerHTML = '<div class="data-preview__tablist" role="tablist" aria-label="資料預覽資料表">' + mainHtml + '</div>' + moreHtml;
   }
 
   function syncTabs() {
     if (!elTabs) { return; }
-    elTabs.querySelectorAll('[data-ds]').forEach(function (item) {
-      var active = item.getAttribute('data-ds') === activeDataset;
-      item.classList.toggle('is-active', active);
-      if (item.getAttribute('role') === 'tab') {
-        item.setAttribute('aria-selected', active ? 'true' : 'false');
-      }
+    var tabs = Array.prototype.slice.call(elTabs.querySelectorAll('[role="tab"]'));
+    var selected = tabs.filter(function (tab) { return tab.getAttribute('data-ds') === activeDataset; })[0];
+    if (selected) {
+      Ui.selectTab(selected);
+    } else {
+      // 正在看選單裡的資料表：頁籤都不選，第一個頁籤留在 Tab 鍵順序裡。
+      tabs.forEach(function (tab, index) {
+        tab.setAttribute('aria-selected', 'false');
+        tab.setAttribute('tabindex', index === 0 ? '0' : '-1');
+      });
+    }
+    elTabs.querySelectorAll('[role="menuitem"]').forEach(function (item) {
+      item.classList.toggle('is-active', item.getAttribute('data-ds') === activeDataset);
     });
     var moreActive = MORE.some(function (dataset) { return dataset.value === activeDataset; });
     var toggle = elTabs.querySelector('[data-more-toggle]');
-    var menu = elTabs.querySelector('[role="menu"]');
-    if (toggle) {
-      toggle.classList.toggle('is-active', moreActive);
-      toggle.setAttribute('aria-expanded', menuOpen ? 'true' : 'false');
-    }
-    if (menu) { menu.hidden = !menuOpen; }
+    if (toggle) { toggle.classList.toggle('is-active', moreActive); }
   }
 
   // 步驟內的「預覽資料」按鈕入口：展開右欄、切到對應資料集並載入。
@@ -498,7 +445,7 @@
     if (!elBody) { return; }
     clearPreviewRequestState();
     elBody.setAttribute('data-preview-state', 'error');
-    var message = error && error.message ? error.message : '無法讀取這份資料預覽。';
+    var message = Ui.errorText(error, '無法讀取這份資料預覽。');
     elBody.innerHTML =
       '<div class="data-preview__status data-preview__status--error" role="alert">' +
         '<strong>載入失敗</strong>' +
@@ -509,7 +456,8 @@
     if (elNote) { elNote.innerHTML = ''; }
   }
 
-  function refresh() {
+  function refresh(page) {
+    var requestedPage = typeof page === 'number' ? page : 1;
     if (!Store.getState().project) {
       loadedOnce = false; // 尚無專案，等有專案再由訂閱者自動載入一次
       if (elBody) {
@@ -526,6 +474,11 @@
     var requestState = Store.getState();
     var projectId = requestState.project.projectId;
     var dataGeneration = requestState.dataGeneration;
+    var previous = successfulPreview && successfulPreview.dataset === dataset &&
+      successfulPreview.projectId === projectId && successfulPreview.dataGeneration === dataGeneration && typeof page === 'number'
+      ? successfulPreview : null;
+    previewBusy = true;
+    retryPage = requestedPage;
     var acceptResponse = previewResponseGuard.issue(function () {
       var latest = Store.getState();
       return latest.view === 'workflow' && !!latest.project &&
@@ -533,19 +486,45 @@
         latest.dataGeneration === dataGeneration &&
         activeDataset === dataset;
     });
-    renderPreviewLoading(dataset);
+    if (previous) {
+      renderPreview(dataset, previous.data);
+      elBody.setAttribute('aria-busy', 'true');
+    } else {
+      activePage = requestedPage;
+      successfulPreview = null;
+      renderPreviewLoading(dataset);
+    }
 
     // 唯讀、可併行的背景讀取：走 runBackground 而非 run——資料預覽的世代自動刷新會在某個變更型
     // 作業的 run 仍持有 busy 期間觸發（匯入／配對提交／載入專案完成後的 bumpData），若走 run 會被
     // single-flight 靜默吞掉而看到陳舊預覽；後端 query.dataPreview 屬 concurrent、可安全併行。
     // 使用者切頁籤發生在非 busy 時（作業進行中右欄已被 inert 擋住），此路徑一致不設整介面遮罩。
     Ui.runBackground('載入資料預覽', function () {
-      return global.JetApi.queryDataPreview({ dataset: dataset }).then(function (data) {
-        if (acceptResponse()) { renderPreview(dataset, data); }
+      return global.JetApi.queryDataPreview({ dataset: dataset, limit: Ui.TABLE_PAGE_SIZE, offset: (requestedPage - 1) * Ui.TABLE_PAGE_SIZE }).then(function (data) {
+        if (acceptResponse()) {
+          previewBusy = false;
+          activePage = requestedPage;
+          // 後端只在第一頁計算總列數與概況統計；換頁時沿用同一資料集第一頁的數字。
+          if (previous && data && data.totalCount == null) {
+            data = Object.assign({}, data, { totalCount: previous.data.totalCount, stats: previous.data.stats });
+          }
+          successfulPreview = { dataset: dataset, projectId: projectId, dataGeneration: dataGeneration, data: data };
+          renderPreview(dataset, data);
+          elBody.scrollTop = 0;
+        }
       }).catch(function (error) {
         // 跨案／跨世代的舊請求連錯誤也不污染新案件訊息；當前請求才交回 runBackground 呈現。
         if (acceptResponse()) {
-          renderPreviewError(dataset, error);
+          previewBusy = false;
+          if (previous) {
+            renderPreview(dataset, previous.data);
+            var errorBlock = document.createElement('div');
+            errorBlock.className = 'data-preview__status data-preview__status--error';
+            errorBlock.setAttribute('role', 'alert');
+            errorBlock.innerHTML = '<span>' + Ui.esc(Ui.errorText(error, '換頁失敗。')) + '</span>' +
+              '<button type="button" class="btn btn--ghost btn--tiny" data-action="retry-data-preview" data-dataset="' + Ui.esc(dataset) + '">重試</button>';
+            elBody.appendChild(errorBlock);
+          } else { renderPreviewError(dataset, error); }
           throw error;
         }
       });
@@ -616,10 +595,11 @@
     if (!elNote) { return; }
     if (!data) { elNote.innerHTML = ''; return; }
 
-    var shown = (data.rows && data.rows.length) || 0;
     var total = Number(data.totalCount || 0).toLocaleString();
     var cols = (data.columns && data.columns.length) || 0;
-    var count = '前 ' + shown + ' 列，共 ' + total + ' 列，全 ' + cols + ' 欄';
+    // GL 與 TB 的分錄、科目用「筆」，來源檔與其他清單用「列」（使用者 2026-10-19 裁定）。
+    var unit = ENTRY_DATASETS.indexOf(activeDataset) >= 0 ? ' 筆' : ' 列';
+    var count = '共 ' + total + unit + '，全 ' + cols + ' 欄';
 
     // stats 的形狀依資料集而異，由後端決定：GL 回金額、日期與傳票概況，
     // GL(未納入測試) 回兩類排除計數。畫面只複述既有欄位，不跨資料集猜欄位。
@@ -640,11 +620,13 @@
     }
 
     elNote.innerHTML =
-      statsHtml +
+      Ui.pageControlsHtml(activePage, data.totalCount, { busy: previewBusy }) + statsHtml +
       '<div class="data-preview__note-row">' +
         '<span class="data-preview__count">' + Ui.esc(count) + '</span>' +
         '<span class="data-preview__scroll-hint">← 橫向捲動看全部欄位 →</span>' +
       '</div>';
+    elNote.querySelector('[data-page-previous]').addEventListener('click', function () { refresh(Math.max(1, activePage - 1)); });
+    elNote.querySelector('[data-page-next]').addEventListener('click', function () { refresh(activePage + 1); });
   }
 
   function emptyHint(dataset) {

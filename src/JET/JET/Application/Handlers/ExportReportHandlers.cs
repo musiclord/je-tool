@@ -215,7 +215,8 @@ public sealed class ExportValidationArtifactsHandler(
             ok = true,
             artifacts = result.Artifacts.Select(ReportExportSupport.ArtifactWire).ToArray(),
             reportArtifacts = catalog.Artifacts,
-            reportArtifactWarning = catalog.Warning
+            reportArtifactWarning = catalog.Warning,
+            warnings = ReportExportSupport.Warnings(result.AuditLogWarning)
         };
     }
 
@@ -376,7 +377,8 @@ public sealed class ExportPrescreenReportHandler(
         {
             ok = true, artifact = ReportExportSupport.ArtifactWire(artifact),
             reportArtifacts = catalog.Artifacts,
-            reportArtifactWarning = catalog.Warning
+            reportArtifactWarning = catalog.Warning,
+            warnings = ReportExportSupport.Warnings(result.AuditLogWarning)
         };
     }
 }
@@ -532,7 +534,8 @@ public sealed class ExportCriteriaSelectionReportHandler(
         {
             ok = true, artifact = ReportExportSupport.ArtifactWire(artifact),
             reportArtifacts = catalog.Artifacts,
-            reportArtifactWarning = catalog.Warning
+            reportArtifactWarning = catalog.Warning,
+            warnings = ReportExportSupport.Warnings(result.AuditLogWarning)
         };
     }
 }

@@ -7,7 +7,9 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 2026-10-02 使用者裁定本機案件寫操作紀錄失敗不擋作業。操作紀錄表損壞時，
 /// SQLite 與 DuckDB 案件的 GL 重新匯入、GL 重新配對與匯出報告都照常完成並回報成功，
-/// 失敗只記在支援日誌的 project_audit.write_failed 事件。
+/// 失敗只記在支援日誌的 project_audit.write_failed 事件。2026-10-19 起，重新匯入與重新配對的回應
+/// 另在 warnings 附提醒（使用者裁定「回報成功並提醒」）。匯出報告同日另題裁定同樣提醒，
+/// 四種產生報告的提醒在 ReportExportAuditLogWarningTests 檢查，這裡不重複。
 /// </summary>
 public sealed class ProjectAuditBestEffortJourneyTests
 {
@@ -39,6 +41,9 @@ public sealed class ProjectAuditBestEffortJourneyTests
             "audit-best-effort-reimport");
         Assert.True(reimport.GetProperty("rowCount").GetInt64() > 0);
         Assert.False(string.IsNullOrWhiteSpace(reimport.GetProperty("batchId").GetString()));
+        // 使用者 2026-10-19 裁定：寫不進操作紀錄時回報成功並提醒。本機案件不擋作業，但同樣要提醒。
+        // 新增的斷言；修正前兩個資料庫的 warnings 都是空的（收據 20261019-125810518-202248fc37a24cb889e2ee537ada1604）。
+        Assert.Contains(AuditLogNotWritten, Warnings(reimport));
 
         // GL 重新配對：投影照常完成並回報成功。
         var recommit = await host.DispatchAsync(
@@ -53,6 +58,10 @@ public sealed class ProjectAuditBestEffortJourneyTests
             "audit-best-effort-recommit");
         Assert.True(recommit.GetProperty("ok").GetBoolean());
         Assert.Equal(reimport.GetProperty("batchId").GetString(), recommit.GetProperty("batchId").GetString());
+        // 讀不到紀錄表時無法判斷這次算不算重新配對：不寫可能不實的紀錄，但照樣提醒這次沒有寫入操作紀錄。
+        // 這條斷言原本是 DoesNotContain；獨立複審指出它和「寫不進操作紀錄時提醒」的裁定不符，改成 Contains
+        // （修正前的失敗收據 20261019-133654138-d0d92aee886d478cae2074fd4f48c340）。
+        Assert.Contains(AuditLogNotWritten, Warnings(recommit));
         var projected = recommit.GetProperty("projectedRowCount").GetInt64();
         Assert.True(projected > 0);
         var entries = await host.DispatchAsync(
@@ -75,6 +84,7 @@ public sealed class ProjectAuditBestEffortJourneyTests
             "audit-best-effort-recommit-again");
         Assert.True(recommitAgain.GetProperty("ok").GetBoolean());
         Assert.Equal(projected, recommitAgain.GetProperty("projectedRowCount").GetInt64());
+        Assert.Contains(AuditLogNotWritten, Warnings(recommitAgain));
 
         // 匯出報告：報告檔照常寫出並回報成功。
         var validation = await host.DispatchAsync("validate.run");
@@ -91,12 +101,17 @@ public sealed class ProjectAuditBestEffortJourneyTests
 
         await AssertSupportEventAsync(host, projectId, "audit-best-effort-reimport", "data.reimport", "append");
         // 重新匯入會清掉已提交的配對，重新配對前要讀紀錄表判斷需不需要記重新配對。
-        // 讀取失敗時寧可少記一筆，所以這裡只有讀取階段的事件，沒有寫入。
+        // 讀取失敗時寧可少記一筆，所以這裡只有讀取階段的事件，沒有寫入；回應照樣附提醒。
         await AssertSupportEventAsync(host, projectId, "audit-best-effort-recommit", "mapping.recommit", "check");
         await AssertSupportEventAsync(
             host, projectId, "audit-best-effort-recommit-again", "mapping.recommit", "append");
         await AssertSupportEventAsync(host, projectId, "audit-best-effort-export", "report.publish", "append");
     }
+
+    private const string AuditLogNotWritten = "變更已儲存，但這次變更沒有寫入操作紀錄。";
+
+    private static string[] Warnings(JsonElement response) =>
+        [.. response.GetProperty("warnings").EnumerateArray().Select(static warning => warning.GetString()!)];
 
     private static async Task DropAuditTableAsync(HandlerTestHost host, string projectId, string provider)
     {

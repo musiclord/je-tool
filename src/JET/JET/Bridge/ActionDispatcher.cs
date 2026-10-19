@@ -131,6 +131,15 @@ public sealed class ActionDispatcher
             // 第五步損毀的條件：畫面只看到通用句，哪一條、哪一種記進支援日誌。
             FilterScenarioDiagnostics.LogException(_logger, action, exception);
 
+            // 已要求取消時，資料庫驅動中止語句後丟出的例外一律回報成取消：SQL Server 中止執行中的語句時丟出
+            // SqlException，不是 OperationCanceledException。三種資料庫在畫面上都回「作業已取消」
+            // （2026-10-19 跨資料庫一致性第二階段）。業務錯誤照舊原樣放行。
+            if (exception is not (JetActionException or OperationCanceledException)
+                && cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException("作業已取消。", exception, cancellationToken);
+            }
+
             // 引擎錯誤映射：業務錯誤（JetActionException）原樣放行；其餘例外先過映射點，
             // 可辨識者（登入失敗/唯一鍵衝突/死鎖/逾時）以明確錯誤碼取代裸 bridge_error。
             if (exception is not JetActionException && _engineErrorTranslator?.Invoke(exception) is { } translated)

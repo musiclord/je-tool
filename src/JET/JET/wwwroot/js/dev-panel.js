@@ -7,7 +7,7 @@
   var Ui = global.JetUi;
 
   // 區域狀態（dev-only，不進 Store）
-  var dev = { tables: [], selected: null, offset: 0, limit: Ui.DEV_TABLE_PAGE_SIZE, totalCount: 0 };
+  var dev = { tables: [], selected: null, offset: 0, limit: Ui.TABLE_PAGE_SIZE, totalCount: 0 };
 
   function initDevPanel() {
     var body = Ui.$('dev-panel-body');
@@ -18,11 +18,11 @@
         '<button type="button" class="btn btn--ghost" data-action="dev-refresh">重新整理</button>' +
         '<select class="dev-panel__select" data-bind="dev-table-select"></select>' +
         '<button type="button" class="btn btn--ghost" data-action="dev-query">查詢</button>' +
-        '<button type="button" class="btn btn--ghost" data-action="dev-prev" disabled>上一頁</button>' +
-        '<button type="button" class="btn btn--ghost" data-action="dev-next" disabled>下一頁</button>' +
       '</div>' +
       '<p class="dev-panel__info" data-bind="dev-info">尚未載入。</p>' +
-      '<div class="dev-panel__grid" data-bind="dev-grid"></div>';
+      '<div class="dev-panel__grid" data-bind="dev-grid"></div>' + Ui.pageControlsHtml(1, 0, {
+        previousAttribute: 'data-action="dev-prev"', nextAttribute: 'data-action="dev-next"'
+      });
 
     body.querySelector('[data-action="dev-refresh"]').addEventListener('click', devRefresh);
     body.querySelector('[data-action="dev-query"]').addEventListener('click', function () {
@@ -78,6 +78,10 @@
         var next = document.querySelector('[data-action="dev-next"]');
         prev.disabled = dev.offset <= 0;
         next.disabled = dev.offset + dev.limit >= data.totalCount;
+        var devPages = Math.max(1, Math.ceil(data.totalCount / dev.limit));
+        Ui.$('dev-panel-body').querySelector('[data-page-position]').textContent =
+          (Math.floor(dev.offset / dev.limit) + 1) + '/' + devPages;
+        Ui.$('dev-panel-body').querySelector('.table-pager').hidden = devPages <= 1 && dev.offset <= 0;
 
         Ui.setText('dev-info',
           data.tableName + ' ｜ 共 ' + data.totalCount + ' 列 ｜ 顯示 ' +

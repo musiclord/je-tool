@@ -1,3 +1,4 @@
+using System.Globalization;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
@@ -91,6 +92,9 @@ public sealed partial class LegacyReportWriter
         var counts = await tagMatrixCounts.GetCountsAsync(
             context.Project.ProjectId,
             cancellationToken).ConfigureAwait(false);
+        var blankDocumentHitRows = await tagMatrixCounts.GetBlankDocumentHitRowCountsAsync(
+            context.Project.ProjectId,
+            cancellationToken).ConfigureAwait(false);
         var stylesPart = editor.Document.WorkbookPart?.WorkbookStylesPart
             ?? throw new InvalidDataException(
                 "Criteria Selection template has no styles part.");
@@ -135,6 +139,7 @@ public sealed partial class LegacyReportWriter
             editor,
             context,
             counts,
+            blankDocumentHitRows,
             exportedRowCounts,
             operatorId,
             cancellationToken);
@@ -176,6 +181,7 @@ public sealed partial class LegacyReportWriter
         DirectTemplateWorkbookEditor editor,
         CriteriaSelectionReportContext context,
         IReadOnlyDictionary<int, (long VoucherHitCount, long RowHitCount)> counts,
+        IReadOnlyDictionary<int, long> blankDocumentHitRows,
         IReadOnlyDictionary<int, long> exportedRowCounts,
         string operatorId,
         CancellationToken cancellationToken)
@@ -218,7 +224,7 @@ public sealed partial class LegacyReportWriter
                 cells.SetInlineString("D1", $"Prepared by: {operatorId}");
                 cells.SetInlineString(
                     "D2",
-                    $"Prepared date: {context.GeneratedUtc:yyyy/MM/dd}");
+                    string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.GeneratedUtc:yyyy/MM/dd}"));
                 cells.Clear("A4");
                 cells.Clear("C4");
                 cells.Clear("D4");
@@ -227,6 +233,20 @@ public sealed partial class LegacyReportWriter
                     .ToDictionary(item => item.Position);
                 var sheetData = part.Worksheet.GetFirstChild<SheetData>()!;
                 var nextConditionRow = Math.Max(16u, sheetData.Elements<Row>().Max(row => row.RowIndex?.Value ?? 0) + 2);
+                // 情境列下方的接續列：過長條件的分段與空白傳票號碼的說明，都沿用該情境 B 欄的格式。
+                void AppendContinuationRow(string label, string text, uint? style)
+                {
+                    sheetData.Append(new Row(
+                        new Cell { CellReference = $"A{nextConditionRow}", DataType = CellValues.InlineString,
+                            StyleIndex = style, InlineString = new InlineString(new Text(label)) },
+                        new Cell { CellReference = $"B{nextConditionRow}", DataType = CellValues.InlineString,
+                            StyleIndex = style, InlineString = new InlineString(new Text(text) { Space = SpaceProcessingModeValues.Preserve }) })
+                        { RowIndex = nextConditionRow });
+                    nextConditionRow++;
+                    var dimension = part.Worksheet.GetFirstChild<SheetDimension>();
+                    if (dimension is not null) dimension.Reference = $"A1:D{nextConditionRow - 1}";
+                }
+
                 for (var position = 1; position <= 10; position++)
                 {
                     var row = position + 4;
@@ -250,22 +270,28 @@ public sealed partial class LegacyReportWriter
                     var conditionParts = FilterConditionExcelText.Parts(conditionLogic ?? scenario.Name);
                     cells.SetInlineString($"B{row}", conditionParts.Count == 1 ? conditionParts[0]
                         : $"完整條件見本頁第 {nextConditionRow} 列起，分段接續列出。");
-                    if (conditionParts.Count > 1)
+                    var blankDocumentRows = blankDocumentHitRows.GetValueOrDefault(position);
+                    if (conditionParts.Count > 1 || blankDocumentRows > 0)
                     {
-                        var style = part.Worksheet.Descendants<Cell>().Single(cell => cell.CellReference?.Value == $"B{row}").StyleIndex;
-                        foreach (var conditionPart in conditionParts)
+                        var style = part.Worksheet.Descendants<Cell>().Single(cell => cell.CellReference?.Value == $"B{row}").StyleIndex?.Value;
+                        if (conditionParts.Count > 1)
                         {
-                            ct.ThrowIfCancellationRequested();
-                            sheetData.Append(new Row(
-                                new Cell { CellReference = $"A{nextConditionRow}", DataType = CellValues.InlineString,
-                                    StyleIndex = style?.Value, InlineString = new InlineString(new Text($"Criteria Selection {position}（續）")) },
-                                new Cell { CellReference = $"B{nextConditionRow}", DataType = CellValues.InlineString,
-                                    StyleIndex = style?.Value, InlineString = new InlineString(new Text(conditionPart) { Space = SpaceProcessingModeValues.Preserve }) })
-                                { RowIndex = nextConditionRow });
-                            nextConditionRow++;
+                            foreach (var conditionPart in conditionParts)
+                            {
+                                ct.ThrowIfCancellationRequested();
+                                AppendContinuationRow($"Criteria Selection {position}（續）", conditionPart, style);
+                            }
                         }
-                        var dimension = part.Worksheet.GetFirstChild<SheetDimension>();
-                        if (dimension is not null) dimension.Reference = $"A1:D{nextConditionRow - 1}";
+
+                        if (blankDocumentRows > 0)
+                        {
+                            // 空白傳票號碼不是一張傳票，明細表不會列出這些分錄。一般情境的 D 欄是行層命中數，含這些分錄；
+                            // 整張傳票情境的 D 欄是明細表的分錄數，不含。摘要頁加一列說明（使用者 2026-10-19 裁定），數字本身不動。
+                            AppendContinuationRow(
+                                $"Criteria Selection {position}（說明）",
+                                string.Create(CultureInfo.InvariantCulture, $"另有 {blankDocumentRows:N0} 筆分錄的傳票號碼空白，未列入明細表。"),
+                                style);
+                        }
                     }
                     cells.SetNumber(
                         $"C{row}",

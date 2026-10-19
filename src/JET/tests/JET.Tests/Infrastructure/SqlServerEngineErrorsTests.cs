@@ -185,6 +185,59 @@ public sealed class SqlServerEngineErrorsTests
         Assert.Same(business, thrown);
     }
 
+    [Fact]
+    public async Task Dispatcher_SqlExceptionAfterCancel_SurfacesAsOperationCancelled()
+    {
+        // SQL Server 中止執行中的語句時丟出 SqlException；已要求取消時，dispatcher 出口改回報成取消，
+        // 畫面和 SQLite、DuckDB 一樣顯示「作業已取消」（2026-10-19 跨資料庫一致性第二階段）。
+        using var cancellation = new CancellationTokenSource();
+        var engineError = CreateSqlException(0);
+        var dispatcher = new ActionDispatcher(
+            [new CancelThenThrowHandler("__test.canceledSqlError", cancellation, engineError)],
+            NullLogger<ActionDispatcher>.Instance,
+            new ProjectSession(),
+            SqlServerEngineErrors.TryTranslate);
+
+        using var payload = JsonDocument.Parse("{}");
+        var thrown = await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            dispatcher.DispatchAsync("__test.canceledSqlError", payload.RootElement, cancellation.Token));
+
+        Assert.Same(engineError, thrown.InnerException);
+        Assert.Equal(JetErrorCodes.OperationCancelled, JetWebMessageBridge.ToErrorDto(thrown).Code);
+    }
+
+    [Fact]
+    public async Task Dispatcher_BusinessErrorAfterCancel_PassesThroughUntranslated()
+    {
+        // 取消後才出現的業務錯誤仍照原樣上 wire，不被改寫成取消。
+        using var cancellation = new CancellationTokenSource();
+        var business = new JetActionException(JetErrorCodes.NotAuthorized, "無存取權");
+        var dispatcher = new ActionDispatcher(
+            [new CancelThenThrowHandler("__test.canceledBusiness", cancellation, business)],
+            NullLogger<ActionDispatcher>.Instance,
+            new ProjectSession(),
+            SqlServerEngineErrors.TryTranslate);
+
+        using var payload = JsonDocument.Parse("{}");
+        var thrown = await Assert.ThrowsAsync<JetActionException>(() =>
+            dispatcher.DispatchAsync("__test.canceledBusiness", payload.RootElement, cancellation.Token));
+
+        Assert.Same(business, thrown);
+    }
+
+    /// <summary>先要求取消再丟出例外，重現「取消送達後驅動才回錯誤」的順序。</summary>
+    private sealed class CancelThenThrowHandler(
+        string action, CancellationTokenSource cancellation, Exception exception) : IApplicationActionHandler
+    {
+        public string Action => action;
+
+        public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+        {
+            cancellation.Cancel();
+            return Task.FromException<object?>(exception);
+        }
+    }
+
     private sealed class ThrowingHandler(string action, Exception exception) : IApplicationActionHandler
     {
         public string Action => action;

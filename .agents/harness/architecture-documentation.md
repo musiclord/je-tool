@@ -1,7 +1,7 @@
 # JET 架構文件的分析與繪圖
 
 這份流程讓不同 agent 使用同一份來源證據繪圖。閱讀入口在[架構文件](../../docs/architecture/README.md)，
-跨 session 的範圍和裁定只記在[現行計畫](../../docs/specs/2026-10-16-architecture-documentation-plan.md)。
+目前工作範圍與計畫入口見[開發現況](../../docs/development-status.md)。既有圖表的研究與交付範圍見[架構文件計畫](../../docs/history/specs/2026-10-16-architecture-documentation-plan.md)，不把該次成果當成持續開發的授權。
 
 ## 工具分工
 

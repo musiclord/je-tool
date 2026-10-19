@@ -521,6 +521,43 @@ public sealed class AccountMappingTemplateExportTests
     public async Task Template_ExcludesBlankGlAccountCodes_AndFilledTemplateImportsBack(string databaseProvider)
     {
         using var host = new HandlerTestHost();
+        await AssertTemplateExcludesBlankGlAccountCodesAsync(host, databaseProvider, () =>
+            new LocalAccountMappingExportRepository(databaseProvider == "sqlite"
+                ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))
+                : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot))));
+    }
+
+    /// <summary>
+    /// SQL Server 的範本查詢也不得退回列出空白科目編號的舊寫法。三種資料庫用同一份含空白編號的合成資料，
+    /// 範本列的編號與名稱都對同一組固定答案，等於逐列核對三種資料庫的範本相同（2026-10-19 跨資料庫一致性第二階段）。
+    /// </summary>
+    [SqlServerFact]
+    public async Task Template_ExcludesBlankGlAccountCodes_AndFilledTemplateImportsBack_SqlServer()
+    {
+        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
+        if (connectionString is null)
+        {
+            return;
+        }
+
+        using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
+        try
+        {
+            await AssertTemplateExcludesBlankGlAccountCodesAsync(host, "sqlServer", () =>
+                new SqlServerAccountMappingExportRepository(
+                    new SqlServerProjectDatabase(new SqlServerConnectionOptions(connectionString))));
+        }
+        finally
+        {
+            await DropSqlServerProjectsAsync(host.ProjectsRoot, connectionString);
+        }
+    }
+
+    private static async Task AssertTemplateExcludesBlankGlAccountCodesAsync(
+        HandlerTestHost host,
+        string databaseProvider,
+        Func<IAccountMappingExportRepository> createRepository)
+    {
         var projectId = await InlineWorkbookProject.SetupAsync(
             host,
             builder => builder
@@ -530,13 +567,12 @@ public sealed class AccountMappingTemplateExportTests
                 .AddRow("JV-001", "2025-03-05", "5101", "薪資費用", "貸方", "500.00", 0),
             databaseProvider: databaseProvider,
             configureTb: tb => tb.AddRow("1101", "現金", 300));
+        var expected = new (string Code, string Name)[] { ("1101", "現金"), ("5101", "薪資費用") };
 
-        ILocalProjectDatabase database = databaseProvider == "sqlite"
-            ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))
-            : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
-        var rows = await new LocalAccountMappingExportRepository(database)
+        var rows = await createRepository()
             .FetchTemplateRowsAsync(projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
         Assert.Equal(new[] { "1101", "5101" }, rows.Select(r => r.AccountCode).ToArray());
+        Assert.Equal(expected, rows.Select(r => (r.AccountCode, r.AccountName ?? string.Empty)));
 
         var population = await host.DispatchAsync("query.accountMappingDifferencePage", """{"kind":"unmapped"}""");
         Assert.Equal(
@@ -552,6 +588,7 @@ public sealed class AccountMappingTemplateExportTests
             var export = await host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { runId }));
             Assert.Equal(2, export.GetProperty("rowCount").GetInt32());
             templatePath = export.GetProperty("filePath").GetString()!;
+            Assert.Equal(expected, ReadTemplateRows(templatePath));
             using (var wb = new XLWorkbook(templatePath))
             {
                 var ws = wb.Worksheet("AccountMapping");

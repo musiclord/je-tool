@@ -80,8 +80,8 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
 
         var pBatch = insert.Parameters.Add("@batchId", SqlDbType.NVarChar, 64);
         var pRowNumber = insert.Parameters.Add("@sourceRowNumber", SqlDbType.BigInt);
-        var pAccCode = insert.Parameters.Add("@accountCode", SqlDbType.NVarChar, 450);
-        var pAccName = insert.Parameters.Add("@accountName", SqlDbType.NVarChar, 400);
+        var pAccCode = insert.Parameters.Add("@accountCode", SqlDbType.NVarChar, TextStorageLimits.KeyUtf16CodeUnits);
+        var pAccName = insert.Parameters.Add("@accountName", SqlDbType.NVarChar, TextStorageLimits.TextUtf16CodeUnits);
         var pChange = insert.Parameters.Add("@changeScaled", SqlDbType.BigInt);
         pBatch.Value = batchId;
 

@@ -39,6 +39,7 @@ public sealed class LocalInfSamplePageRepository(ILocalProjectDatabase database)
             $" AND {GlEffectivePopulation.SqlPredicate("g")}" + paging.Predicate + " " +
             paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
+        var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, database.Dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<InfSampleRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -59,6 +60,6 @@ public sealed class LocalInfSamplePageRepository(ILocalProjectDatabase database)
                 paging.HasSort ? reader.GetValue(11) : null);
         }
 
-        return buffer.ToPage(request, paging, static row => row.EntryId);
+        return buffer.ToPage(request, paging, static row => row.EntryId, totalCount);
     }
 }

@@ -33,7 +33,7 @@ require('./support/resource-guard.cjs');
 // 對照表與改壞檢查紀錄見 artifacts/review/closing-four-items-20261013/impl-item1-batch7.md。
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { mappingRenderFixture, plain, settle } = require('./support/frontend-fixtures.cjs');
+const { mappingRenderFixture, plain, settle, readWwwroot } = require('./support/frontend-fixtures.cjs');
 
 const GL_COLUMNS = ['Doc', 'Date', 'Account', 'Name', 'Memo', 'Debit', 'Credit', 'Amount', 'Side', 'Manual', 'Posting', 'Approve', 'Dept', 'Region'];
 const TB_COLUMNS = ['TbAccount', 'TbName', 'TbDebit', 'TbCredit'];
@@ -44,6 +44,52 @@ const DEFAULT_MANUAL = { manualValues: ['1'], automaticValues: ['0'] };
 const SIDE_DONE = { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side', dcDebitCode: 'D' };
 
 const settleAll = async (times = 4) => { for (let i = 0; i < times; i++) await settle(); };
+
+// 2026-10-16：使用者要求來源資料每頁 200 筆，取消對照表只列十筆的限制；既有失效及焦點檢查保留。
+test('mapping grid pages 201 source rows as 200 and one while preserving every mapping choice', async () => {
+  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { docNum: 'Doc' } });
+  const first = f.last('queryDataPreview');
+  assert.deepEqual(plain(first.payload), { dataset: 'pbcGl', limit: 200, offset: 0 });
+  const firstRows = Array.from({ length: 200 }, (_, i) => ['MAPPING-' + (i + 1)]);
+  first.resolve({ columns: ['Doc'], rows: firstRows, totalCount: 201 }); await settleAll();
+  const savedDraft = f.draftNow();
+  assert.equal(f.$$('.map-grid tbody tr').length, 200);
+  assert.equal(f.need('[data-page-position]').textContent, '1/2');
+  assert.equal(f.need('[data-source-previous]').disabled, true);
+  f.press('[data-source-next]');
+  assert.deepEqual(plain(f.last('queryDataPreview').payload), { dataset: 'pbcGl', limit: 200, offset: 200 });
+  f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: [['MAPPING-201']], totalCount: 201 }); await settleAll();
+  assert.equal(f.$$('.map-grid tbody tr').length, 1);
+  assert.equal(f.need('.map-grid tbody').textContent, 'MAPPING-201');
+  assert.equal(f.need('[data-page-position]').textContent, '2/2');
+  assert.equal(f.need('[data-source-next]').disabled, true);
+  assert.deepEqual(f.draftNow(), savedDraft);
+  f.press('[data-source-previous]');
+  assert.deepEqual(plain(f.last('queryDataPreview').payload), { dataset: 'pbcGl', limit: 200, offset: 0 });
+  f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: firstRows, totalCount: 201 }); await settleAll();
+  assert.equal(f.$$('.map-grid tbody tr').length, 200);
+  assert.deepEqual(f.draftNow(), savedDraft);
+  assert.equal(f.$('.th-sort'), null, 'mapping does not sort only the visible source rows');
+});
+
+test('mapping next-page failure preserves the successful page and retries the failed offset', async () => {
+  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { docNum: 'Doc' } });
+  f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: [['KEPT-MAPPING']], totalCount: 201 }); await settleAll();
+  f.press('[data-source-next]');
+  assert.equal(f.need('.map-grid tbody').textContent, 'KEPT-MAPPING');
+  assert.equal(f.need('[data-page-position]').textContent, '1/2');
+  assert.equal(f.need('[data-source-next]').disabled, true);
+  f.last('queryDataPreview').reject(new Error('synthetic next-page failure')); await settleAll();
+  assert.equal(f.need('.map-grid tbody').textContent, 'KEPT-MAPPING');
+  assert.equal(f.need('[data-page-position]').textContent, '1/2');
+  f.press('[data-source-retry]');
+  assert.deepEqual(plain(f.last('queryDataPreview').payload), { dataset: 'pbcGl', limit: 200, offset: 200 });
+  f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: [['RETRIED-MAPPING']], totalCount: 201 }); await settleAll();
+  assert.equal(f.need('.map-grid tbody').textContent, 'RETRIED-MAPPING');
+  assert.equal(f.need('[data-page-position]').textContent, '2/2');
+  assert.equal(f.$('[data-source-retry]'), null);
+  assert.deepEqual(f.draftNow(), { docNum: 'Doc' });
+});
 
 // 本檔的夾具：建立在共用的 mappingRenderFixture 上，先匯入合成的 GL（需要時加 TB），再依參數放好草稿。
 // 草稿與格式只是開場的佈置；測試要驗的操作一律經畫面上的控制項觸發。
@@ -519,6 +565,21 @@ test('mapping: approval date has a single source choice; clearing the source mea
   }
 });
 
+// 低嚴重度事項 D18（使用者 2026-10-19 要求處理）：配對完成後一律寫「已確認配對」，時間寫「確認於」，不再寫「完成於」；
+// 科目分類在 GL 確認配對前的提示也用同一個說法。
+test('mapping: the confirmed summary and the classification gate both say the mapping was confirmed', () => {
+  const f = journey();
+  f.window.JetUi.applyLoadedProject({ project: { projectId: 'confirmed', currentStep: 2 },
+    importState: { gl: { batchId: 'gl-c', columns: GL_COLUMNS, rowCount: 3 } },
+    mapping: { gl: { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', committedUtc: '2025-12-31T00:00:00Z' } } },
+  { stayOnCurrentStep: true });
+  const status = f.need('.mapping-summary__status').textContent;
+  assert.match(status, /^已確認配對.*確認於 /);
+  assert.doesNotMatch(status, /完成於/);
+  assert.equal(f.window.JetUi.accountMappingEditor.html(f.store.getState(), false),
+    '<p class="rule-card__gate">GL 確認配對後，即可設定科目分類。</p>');
+});
+
 test('mapping: cancelling changes restores a separate copy of the confirmed settings', () => {
   const f = journey();
   f.window.JetUi.applyLoadedProject({ project: { projectId: 'restore', currentStep: 2 },
@@ -965,7 +1026,7 @@ test('redraw: after a new import, the old grid preview is never shown whether it
       const f = journey({ ui: 'grid', tb: TB_COLUMNS });
       const old = reads(f).at(-1);
       assert.ok(old !== undefined, label + ': the grid reads its preview');
-      assert.deepEqual(plain(old.payload), { dataset, limit: 10 });
+      assert.deepEqual(plain(old.payload), { dataset, limit: 200, offset: 0 });
       f.store.setImportResult(kind, { batchId: kind + '-2', columns, rowCount: 5 });
       const fresh = reads(f).at(-1);
       assert.ok(fresh !== old, label + ': the new import is read again');
@@ -1051,4 +1112,49 @@ test('mapping messages: a confirmed mapping logs the row count with the elapsed 
   // 作業名稱沒有使用者裁定，只確認提到 GL 與配對。
   assert.match(messageList(f)[0].text, new RegExp('^[^：]*GL[^：]*配對[^：]*失敗：合成：配對未通過檢查（' + ELAPSED + '）。$'));
   assert.equal(messageList(f)[0].level, 'error');
+});
+
+// 2026-10-16：總筆數只在第一頁計算，續頁回 null（docs/action-contract-manifest.md 的 query.dataPreview）；
+// 對照表格換頁後仍沿用第一頁的總頁數，不會因為續頁沒有總數就失去頁碼。
+test('mapping grid keeps the first page count when the next page arrives without a total', async () => {
+  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { docNum: 'Doc' } });
+  f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: Array.from({ length: 200 }, (_, i) => ['FIRST-' + (i + 1)]), totalCount: 401 });
+  await settleAll();
+  assert.equal(f.need('[data-page-position]').textContent, '1/3');
+  f.press('[data-source-next]');
+  assert.deepEqual(plain(f.last('queryDataPreview').payload), { dataset: 'pbcGl', limit: 200, offset: 200 });
+  f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: [['SECOND-1']], totalCount: null, stats: null }); await settleAll();
+  assert.equal(f.need('.map-grid tbody').textContent, 'SECOND-1');
+  assert.equal(f.need('[data-page-position]').textContent, '2/3');
+  assert.equal(f.need('[data-source-next]').disabled, false, 'the third page is still reachable');
+});
+
+// 使用者 2026-10-16（圖一）：「GL和TB在欄位配對時的資料表高度至少要大於必填欄位的高度」。對照表格與必填清單放在同一列，
+// 分頁列排在表格下方；表格至少 480px，清單較長時表格跟著加高，兩者等高。實際高度只有瀏覽器量得到，這裡核對結構與樣式規則。
+test('mapping grid sits beside the required list in one row, with the pager below the table', async () => {
+  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { docNum: 'Doc' } });
+  f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: Array.from({ length: 200 }, (_, i) => ['ROW-' + (i + 1)]), totalCount: 401 });
+  await settleAll();
+  const layout = f.need('.map-layout--grid');
+  const main = layout.querySelector('.map-layout__main');
+  assert.ok(main.querySelector('.map-grid-wrap'), 'the table is in the layout row');
+  assert.ok(layout.children.some(node => (node.getAttribute('class') || '').split(/\s+/).includes('map-rail')), 'the required list is beside it');
+  const children = main.children.map(node => (node.getAttribute('class') || ''));
+  assert.ok(children.indexOf('map-grid-wrap') < children.findIndex(name => name.split(/\s+/).includes('table-pager')), 'the pager follows the table');
+  const css = readWwwroot('css/app.css');
+  assert.match(css, /\.map-layout--grid > \.map-layout__main \{ display: contents; \}/);
+  assert.match(css, /\.map-layout--grid > \.map-layout__main > \.map-grid-wrap \{\s*grid-row: 1;\s*contain: size;\s*min-height: 480px;/);
+  assert.match(css, /\.map-layout--grid > \.map-rail \{ grid-column: 2; grid-row: 1; \}/);
+});
+
+// 使用者 2026-10-16（圖三）：「按鈕 `預覽` 和 `重新配對` 相隔太遠，短時間比較難察覺到這兩個按鈕的存在」。
+test('the confirmed mapping summary keeps preview and remap side by side', async () => {
+  const f = journey({ draft: DUAL });
+  f.press('[data-action="commit-gl"]');
+  f.last('mappingCommitGl').resolve(commitReply()); await settleAll(); f.timers.run();
+  const remap = f.need('[data-action="remap-gl"]');
+  const actions = remap.parentNode;
+  assert.ok(actions.getAttribute('class').split(/\s+/).includes('panel__actions--start'), 'both buttons start from the left');
+  assert.deepEqual(actions.children.map(node => node.textContent), ['預覽', '重新配對']);
+  assert.equal(actions.querySelector('.panel__action--start'), null, 'no button pushes the other to the far side');
 });

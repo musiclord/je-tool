@@ -56,7 +56,15 @@ public sealed class PagedTableFrontendTests
             Collect(seen, match.Groups["action"].Value, Regex.Matches(match.Groups["body"].Value, @"'(?<key>\w+)'").Select(m => m.Groups["key"].Value));
         }
 
-        Assert.True(seen.Count >= 8, "至少八個分頁查詢要有可排序表頭：" + string.Join("、", seen.Keys));
+        // 使用者 2026-10-16 移除矩陣的分錄明細頁；其餘固定表頭逐項保留，不能只降低數量門檻。
+        // 第一次失敗：20261016-093839202-e342e301c3f14aa2ae0b43abe98a30ed。
+        var expectedActions = new[]
+        {
+            "query.completenessDiffPage", "query.docBalancePage", "query.nullRecordsPage",
+            "query.sourceQualityPage", "query.prescreenPage", "query.tagMatrixVoucherPage", "query.filterVoucherPage"
+        };
+        Assert.Equal(expectedActions.Order(StringComparer.Ordinal), seen.Keys.Order(StringComparer.Ordinal));
+        Assert.DoesNotContain("query.tagMatrixRowPage", seen.Keys);
         foreach (var (action, keys) in seen)
         {
             Assert.True(Catalogs.TryGetValue(action, out var catalog), $"前端用了沒有排序目錄的查詢 {action}");

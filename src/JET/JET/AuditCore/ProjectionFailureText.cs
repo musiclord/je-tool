@@ -14,6 +14,8 @@ internal static class ProjectionFailureText
     // 每組最多列出的不同值與每個值最多列出的列號；超過時寫出總數，避免錯誤區比資料本身還長。
     internal const int MaxValuesPerGroup = 10;
     internal const int MaxRowsPerValue = 10;
+    // 超過文字上限的值可能整段很長，只顯示前 50 字加「…」；分組仍用完整值。
+    internal const int MaxDisplayedValueLength = 50;
 
     internal static JetActionException Create(ProjectionResult projection)
     {
@@ -59,7 +61,7 @@ internal static class ProjectionFailureText
                 rowsText += singleValue ? "等" : $"，共 {value.Count} 列";
             if (singleValue && value.Value.Length == 0) return rowsText;
             var where = rowsText.StartsWith('第') ? "在" + rowsText : "在 " + rowsText;
-            return (value.Value.Length == 0 ? "空白" : $"「{value.Value}」") + where;
+            return Quote(value.Value) + where;
         }));
         if (group.OmittedValueRowCount > 0)
             located += $"；另有 {group.OmittedValueRowCount} 列的值未列出";
@@ -88,7 +90,7 @@ internal static class ProjectionFailureText
                 // 多來源時列號前面是檔名（例如「JE.csv 第 7 列」），中文與英文之間留一格。
                 var rowsText = RowsText(value.ToList(), singleValue);
                 var where = rowsText.StartsWith('第') ? "在" + rowsText : "在 " + rowsText;
-                return (value.Key.Length == 0 ? "空白" : $"「{value.Key}」") + where;
+                return Quote(value.Key) + where;
             }));
             if (values.Count > MaxValuesPerGroup)
             {
@@ -128,4 +130,15 @@ internal static class ProjectionFailureText
     }
 
     private static bool IsBlank(string? value) => string.IsNullOrWhiteSpace(value);
+
+    private static string Quote(string value)
+    {
+        if (value.Length == 0) return "空白";
+        if (value.Length <= MaxDisplayedValueLength) return $"「{value}」";
+        // 不把一個字拆成半個：截斷處是代理字組的前半時少取一格。
+        var length = char.IsHighSurrogate(value[MaxDisplayedValueLength - 1])
+            ? MaxDisplayedValueLength - 1
+            : MaxDisplayedValueLength;
+        return $"「{value[..length]}…」";
+    }
 }

@@ -45,4 +45,15 @@ public sealed class LocalTagMatrixScenariosRepository(ILocalProjectDatabase data
         return await TagMatrixScenarioCounts.ReadWholeVoucherRowCountsAsync(
             connection, schemaPrefix: string.Empty, "COUNT(*)", scenarioPositions, cancellationToken);
     }
+
+    public async Task<IReadOnlyDictionary<int, long>> GetBlankDocumentHitRowCountsAsync(
+        string projectId, CancellationToken cancellationToken)
+    {
+        await database.EnsureReadyAsync(projectId, cancellationToken);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+
+        return await TagMatrixScenarioCounts.ReadBlankDocumentRowCountsAsync(
+            connection, schemaPrefix: string.Empty, "COUNT(*)", cancellationToken);
+    }
 }

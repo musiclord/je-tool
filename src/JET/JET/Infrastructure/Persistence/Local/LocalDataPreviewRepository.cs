@@ -35,12 +35,16 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         DataPreviewDataset dataset,
         int moneyScale,
         int limit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, int offset = 0)
     {
+        limit = Math.Clamp(limit, 1, 200);
+        offset = Math.Max(0, offset);
+
         // schemaOverview 由 catalog metadata 驅動，不需資料庫——提早回，避免無謂連線。
         if (dataset == DataPreviewDataset.SchemaOverview)
         {
-            return SchemaOverviewPreview();
+            var overview = SchemaOverviewPreview();
+            return overview with { Rows = overview.Rows.Skip(offset).Take(limit).ToArray() };
         }
 
         await database.EnsureReadyAsync(projectId, cancellationToken);
@@ -50,14 +54,14 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 
         return dataset switch
         {
-            DataPreviewDataset.PbcGl => await StagingPreviewAsync(connection, "gl", "staging_gl_raw_row", limit, cancellationToken),
-            DataPreviewDataset.PbcTb => await StagingPreviewAsync(connection, "tb", "staging_tb_raw_row", limit, cancellationToken),
-            DataPreviewDataset.Gl => await GlPreviewAsync(connection, moneyScale, limit, cancellationToken),
-            DataPreviewDataset.GlExcluded => await GlExcludedPreviewAsync(connection, moneyScale, limit, cancellationToken),
-            DataPreviewDataset.Tb => await TbPreviewAsync(connection, moneyScale, limit, cancellationToken),
-            DataPreviewDataset.AccountMappings => await AccountMappingsPreviewAsync(connection, limit, cancellationToken),
-            DataPreviewDataset.AuthorizedPreparers => await AuthorizedPreparersPreviewAsync(connection, limit, cancellationToken),
-            DataPreviewDataset.DateDimension => await DateDimensionPreviewAsync(connection, limit, cancellationToken),
+            DataPreviewDataset.PbcGl => await StagingPreviewAsync(connection, "gl", "staging_gl_raw_row", limit, cancellationToken, offset),
+            DataPreviewDataset.PbcTb => await StagingPreviewAsync(connection, "tb", "staging_tb_raw_row", limit, cancellationToken, offset),
+            DataPreviewDataset.Gl => await GlPreviewAsync(connection, moneyScale, limit, cancellationToken, offset),
+            DataPreviewDataset.GlExcluded => await GlExcludedPreviewAsync(connection, moneyScale, limit, cancellationToken, offset),
+            DataPreviewDataset.Tb => await TbPreviewAsync(connection, moneyScale, limit, cancellationToken, offset),
+            DataPreviewDataset.AccountMappings => await AccountMappingsPreviewAsync(connection, limit, cancellationToken, offset),
+            DataPreviewDataset.AuthorizedPreparers => await AuthorizedPreparersPreviewAsync(connection, limit, cancellationToken, offset),
+            DataPreviewDataset.DateDimension => await DateDimensionPreviewAsync(connection, limit, cancellationToken, offset),
             _ => throw new ArgumentOutOfRangeException(nameof(dataset), dataset, null)
         };
     }
@@ -73,18 +77,21 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
     private static async Task<DataPreviewResult> DateDimensionPreviewAsync(
         DbConnection connection,
         int limit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, int offset = 0)
     {
-        long totalCount;
-        await using (var count = connection.CreateCommand())
+        long? totalCount = null;
+        if (offset == 0)
         {
-            count.CommandText = "SELECT COUNT(*) FROM staging_calendar_raw_day;";
-            totalCount = Convert.ToInt64(await count.ExecuteScalarAsync(cancellationToken));
-        }
+            await using (var count = connection.CreateCommand())
+            {
+                count.CommandText = "SELECT COUNT(*) FROM staging_calendar_raw_day;";
+                totalCount = Convert.ToInt64(await count.ExecuteScalarAsync(cancellationToken));
+            }
 
-        if (totalCount == 0)
-        {
-            return new DataPreviewResult([], [], 0, null);
+            if (totalCount == 0)
+            {
+                return new DataPreviewResult([], [], 0, null);
+            }
         }
 
         await using var command = connection.CreateCommand();
@@ -93,7 +100,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             SELECT date, day_type, day_name
             FROM staging_calendar_raw_day
             ORDER BY date
-            LIMIT {limit};
+            LIMIT {limit} OFFSET {offset};
             """;
 
         var rows = new List<IReadOnlyList<string?>>();
@@ -115,23 +122,26 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
     /// 已存科目配對的有界預覽，不重新判讀舊匯入檔案。
     /// </summary>
     private Task<DataPreviewResult> AccountMappingsPreviewAsync(
-        DbConnection connection, int limit, CancellationToken cancellationToken) =>
-        AccountMappingEditorRepository.PreviewSavedAsync(connection, database.Dialect, "", limit, cancellationToken);
+        DbConnection connection, int limit, CancellationToken cancellationToken, int offset = 0) =>
+        AccountMappingEditorRepository.PreviewSavedAsync(connection, database.Dialect, "", limit, cancellationToken, offset);
     private static async Task<DataPreviewResult> AuthorizedPreparersPreviewAsync(
         DbConnection connection,
         int limit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, int offset = 0)
     {
-        long totalCount;
-        await using (var count = connection.CreateCommand())
+        long? totalCount = null;
+        if (offset == 0)
         {
-            count.CommandText = "SELECT COUNT(*) FROM target_authorized_preparer;";
-            totalCount = Convert.ToInt64(await count.ExecuteScalarAsync(cancellationToken));
-        }
+            await using (var count = connection.CreateCommand())
+            {
+                count.CommandText = "SELECT COUNT(*) FROM target_authorized_preparer;";
+                totalCount = Convert.ToInt64(await count.ExecuteScalarAsync(cancellationToken));
+            }
 
-        if (totalCount == 0)
-        {
-            return new DataPreviewResult([], [], 0, null);
+            if (totalCount == 0)
+            {
+                return new DataPreviewResult([], [], 0, null);
+            }
         }
 
         await using var command = connection.CreateCommand();
@@ -140,7 +150,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             SELECT name
             FROM target_authorized_preparer
             ORDER BY name
-            LIMIT {limit};
+            LIMIT {limit} OFFSET {offset};
             """;
 
         var rows = new List<IReadOnlyList<string?>>();
@@ -162,7 +172,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         string kindName,
         string stagingTable,
         int limit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, int offset = 0)
     {
         string? batchId = null;
         List<string> columns = [];
@@ -192,9 +202,10 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             return new DataPreviewResult([], [], 0, null);
         }
 
-        long totalCount;
-        await using (var count = connection.CreateCommand())
+        long? totalCount = null;
+        if (offset == 0)
         {
+            await using var count = connection.CreateCommand();
             count.CommandText = $"SELECT COUNT(*) FROM {stagingTable} WHERE batch_id = @batchId;";
             count.AddWithValue("@batchId", batchId);
             totalCount = (long)(await count.ExecuteScalarAsync(cancellationToken))!;
@@ -209,10 +220,11 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
                 FROM {stagingTable}
                 WHERE batch_id = @batchId
                 ORDER BY row_number
-                LIMIT @limit;
+                LIMIT @limit OFFSET @offset;
                 """;
             select.AddWithValue("@batchId", batchId);
             select.AddWithValue("@limit", limit);
+            select.AddWithValue("@offset", offset);
 
             await using var reader = await select.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -230,14 +242,16 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         DbConnection connection,
         int moneyScale,
         int limit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, int offset = 0)
     {
-        long totalCount;
+        long? totalCount = null;
         GlPreviewStats? stats = null;
 
-        // 總數與概況統計一次取得（set-based；空表時 MIN/MAX 為 NULL → stats 維持 null）
-        await using (var statsQuery = connection.CreateCommand())
+        // 總數與概況統計一次取得（set-based；空表時 MIN/MAX 為 NULL → stats 維持 null）。
+        // 只在第一頁計算；換頁沿用第一頁的數字，不再每頁重掃整份 GL。
+        if (offset == 0)
         {
+            await using var statsQuery = connection.CreateCommand();
             statsQuery.CommandText =
                 $"""
                 SELECT COUNT(*),
@@ -280,9 +294,10 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
                 FROM target_gl_entry
                 WHERE {GlEffectivePopulation.SqlPredicate()}
                 ORDER BY entry_id
-                LIMIT @limit;
+                LIMIT @limit OFFSET @offset;
                 """;
             select.AddWithValue("@limit", limit);
+            select.AddWithValue("@offset", offset);
 
             await using var reader = await select.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -309,14 +324,15 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         DbConnection connection,
         int moneyScale,
         int limit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, int offset = 0)
     {
-        long totalCount;
-        long excludedByPeriodCount;
-        long excludedByPostingStatusCount;
+        long? totalCount = null;
+        GlExcludedPreviewStats? stats = null;
 
-        await using (var statsQuery = connection.CreateCommand())
+        // 只在第一頁計算總數與兩類排除筆數；換頁沿用第一頁的數字。
+        if (offset == 0)
         {
+            await using var statsQuery = connection.CreateCommand();
             statsQuery.CommandText =
                 """
                 SELECT COUNT(*),
@@ -331,13 +347,9 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             await using var reader = await statsQuery.ExecuteReaderAsync(cancellationToken);
             await reader.ReadAsync(cancellationToken);
             totalCount = reader.GetInt64(0);
-            excludedByPeriodCount = reader.GetInt64(1);
-            excludedByPostingStatusCount = reader.GetInt64(2);
+            stats = new GlExcludedPreviewStats(reader.GetInt64(1), reader.GetInt64(2));
         }
 
-        var stats = new GlExcludedPreviewStats(
-            excludedByPeriodCount,
-            excludedByPostingStatusCount);
         var rows = new List<IReadOnlyList<string?>>();
 
         await using (var select = connection.CreateCommand())
@@ -349,9 +361,10 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
                 FROM target_gl_entry
                 WHERE is_effective = 0
                 ORDER BY entry_id
-                LIMIT @limit;
+                LIMIT @limit OFFSET @offset;
                 """;
             select.AddWithValue("@limit", limit);
+            select.AddWithValue("@offset", offset);
 
             await using var reader = await select.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -379,18 +392,21 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         DbConnection connection,
         int moneyScale,
         int limit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, int offset = 0)
     {
-        long totalCount;
-        await using (var count = connection.CreateCommand())
+        long? totalCount = null;
+        if (offset == 0)
         {
-            count.CommandText = "SELECT COUNT(*) FROM target_tb_balance;";
-            totalCount = (long)(await count.ExecuteScalarAsync(cancellationToken))!;
-        }
+            await using (var count = connection.CreateCommand())
+            {
+                count.CommandText = "SELECT COUNT(*) FROM target_tb_balance;";
+                totalCount = (long)(await count.ExecuteScalarAsync(cancellationToken))!;
+            }
 
-        if (totalCount == 0)
-        {
-            return new DataPreviewResult([], [], 0, null);
+            if (totalCount == 0)
+            {
+                return new DataPreviewResult([], [], 0, null);
+            }
         }
 
         var rows = new List<IReadOnlyList<string?>>();
@@ -401,9 +417,10 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
                 SELECT account_code, account_name, change_amount_scaled
                 FROM target_tb_balance
                 ORDER BY balance_id
-                LIMIT @limit;
+                LIMIT @limit OFFSET @offset;
                 """;
             select.AddWithValue("@limit", limit);
+            select.AddWithValue("@offset", offset);
 
             await using var reader = await select.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))

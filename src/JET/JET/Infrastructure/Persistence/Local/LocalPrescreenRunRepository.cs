@@ -274,7 +274,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
                    COALESCE(SUM(CASE WHEN is_manual = 1 THEN 1 ELSE 0 END), 0)
             FROM target_gl_entry
             WHERE {GlEffectivePopulation.SqlPredicate()}
-            GROUP BY UPPER({person})
+            GROUP BY {database.Dialect.Upper(person)}
             ORDER BY COUNT(*) DESC, MIN({person})
             LIMIT {SummaryRowLimit};
             """;
@@ -293,7 +293,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         return rows;
     }
 
-    /// <summary>編製者的分組鍵：空白視為 ''，去掉和 .NET 相同的空白字元；呼叫端再套 UPPER 做不分大小寫分組。</summary>
+    /// <summary>編製者的分組鍵：空白視為 ''，去掉和 .NET 相同的空白字元；呼叫端再套方言的 Upper 做不分大小寫分組。</summary>
     internal static string PersonKey(ISqlDialect dialect) => dialect.Trim("COALESCE(created_by, '')");
 
     /// <summary>
@@ -308,7 +308,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         command.CommandText =
             $"""
             SELECT COUNT(*),
-                   COUNT(DISTINCT UPPER({PersonKey(database.Dialect)}))
+                   COUNT(DISTINCT {database.Dialect.Upper(PersonKey(database.Dialect))})
             FROM target_gl_entry
             WHERE {GlEffectivePopulation.SqlPredicate()};
             """;

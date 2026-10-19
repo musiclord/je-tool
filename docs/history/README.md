@@ -11,14 +11,15 @@
 
 | 位置 | 內容 |
 |:---|:---|
-| [`2026-08-30-repository-lineage.md`](2026-08-30-repository-lineage.md) | 兩個來源專案的提交關係、遷移基準的核對數字與關庫裁定；2026-10-02 從現行文件移入，摘要在 `../data-and-legacy.md` |
+| [`2026-08-30-repository-lineage.md`](2026-08-30-repository-lineage.md) | 技術選型原因與資料庫演進、兩個來源專案的提交關係、遷移基準的核對數字與關庫裁定；2026-10-02 從現行文件移入，來源專案摘要在 `../data-and-legacy.md` |
 | [`2026-09-07-filter-acceptance-records.md`](2026-09-07-filter-acceptance-records.md) | 2026-09-05 到 09-07 的篩選補充與操作驗收紀錄；2026-10-02 從 `../idea-replacement-scope.md` 移出 |
 | [`2026-09-18-feedback-execution-records.md`](2026-09-18-feedback-execution-records.md) | 從回饋修正計畫與開發現況移出的歷次執行紀錄；原話與驗證保留，當時的下一步不再指導本輪 |
 | [`2026-09-23-frontend-terminology-review.md`](2026-09-23-frontend-terminology-review.md) | 2026-09-22 到 09-23 畫面用語與呈現的核對紀錄；現行用語表已併入 `../jet-frontend-description.md` |
 | [`2026-10-02-development-status-archive.md`](2026-10-02-development-status-archive.md) | 2026-09-17 到 09-23 寫在開發現況裡的逐輪進度敘述與較早的驗證數字，原文照抄 |
+| [`2026-10-20-sqlserver-archive.md`](2026-10-20-sqlserver-archive.md) | 使用者 2026-10-20 要求封存的全部 SQL Server 事項：延後事項、企業環境範圍與暫緩期間的修改清單；重新開發 SQL Server 時從這裡取回 |
 | [`architecture-2026-08-30/`](architecture-2026-08-30/README.md) | 2026-08-30 產生的執行期架構圖與說明；之後程式已大改，只供參考 |
 | [`development-log.md`](development-log.md) | 合併後的開發紀錄，依日期排列，新的在上。共 81 個條目 |
-| [`specs/`](specs/) | 當時的設計書、驗證證據與已結束的計畫，檔名以日期開頭。7 份設計書（2026-06）、5 份證據（2026-07），2026-09-30 從 `docs/specs/` 移入的 7 份計畫（2026-08 至 2026-09），以及之後移入的 2026-09-17、2026-10-06 與 2026-10-15 計畫 |
+| [`specs/`](specs/) | 當時的設計書、驗證證據與已結束的計畫，檔名以日期開頭。7 份設計書（2026-06）、5 份證據（2026-07），2026-09-30 從 `docs/specs/` 移入的 7 份計畫（2026-08 至 2026-09），以及之後移入的 2026-09-17、2026-10-06、2026-10-15、兩份 2026-10-16 與兩份 2026-10-19 計畫 |
 | [`superseded/`](superseded/) | 已被現行文件取代的舊版本，檔名以世代月份結尾 |
 
 `superseded/` 的每一份都有對應的現行文件，查現況請看現行文件而不是這裡：
@@ -32,7 +33,7 @@
 | `docs-readme-2026-06.md`、`docs-readme-2026-08.md` | [`../README.md`](../README.md) |
 | `windows-handoff-2026-06.md`、`-2026-08.md` | 人工驗收改由現行計畫承接，沒有常設清單 |
 | `agent-frameworks-2026-08.md` | [`../../.agents/harness/agent-compatibility.md`](../../.agents/harness/agent-compatibility.md) |
-| `sqlserver-online-handoff-deferred-2026-08.md` | [`../sqlserver-enterprise-deferred.md`](../sqlserver-enterprise-deferred.md)（內容已回收為現行文件） |
+| `sqlserver-online-handoff-deferred-2026-08.md` | 內容回收為 `docs/sqlserver-enterprise-deferred.md`，2026-10-20 再併入 [SQL Server 封存事項](2026-10-20-sqlserver-archive.md) |
 
 `agent-frameworks-2026-08.md` 記錄了當時對 Claude Code 與 Codex 載入機制的逐項查證，包含各家官方文件的
 轉址與版本。那些查證有時效性，引用前要重新確認，不能直接當成目前的平台行為。
@@ -59,6 +60,10 @@
 | [2026-09-17 使用者回饋與操作流程一致性修正](specs/2026-09-17-user-feedback-and-workflow-review-plan.md) | 待使用者驗收 | 2026-10-05 完成交付前修正後移入。 |
 | [2026-10-06 KCT 總帳資料整理需求與新版 JET 對照](specs/2026-10-06-kct-gl-requirements-plan.md) | 待使用者驗收 | 第九節驗收回饋已完成實作、整合驗證與獨立複審；本輪依使用者裁定未執行 Gui。 |
 | [2026-10-15 介面動態與驗證循環整理](specs/2026-10-15-motion-and-verification-plan.md) | 已完成 | 2026-10-16 結案；動態經使用者試用確認，Gui 改到另一個桌面，前後端資料形狀核對與審計規則固定答案盤點。 |
+| [2026-10-16 架構文件與圖表維護](specs/2026-10-16-architecture-documentation-plan.md) | 本輪已交付 | 原圖、可編輯模型、來源證據與共用分析流程；圖表下一階段由 Claude 重繪。 |
+| [2026-10-16 資料表分頁與 Agent 文件整理](specs/2026-10-16-table-pagination-and-agent-docs-plan.md) | 已完成，使用者已驗收 | 2026-10-20 使用者指示收尾並提交推送後移入；明細表 200 筆分頁與表頭、Agent 文件收斂。 |
+| [2026-10-19 跨資料庫審計結果一致性整合](specs/2026-10-19-cross-database-consistency-plan.md) | 待使用者驗收 | 2026-10-20 移入；三種資料庫的審計結果一致與 SQL Server 實機驗證，後續 SQL Server 事項已封存。 |
+| [2026-10-19 延後事項清理](specs/2026-10-19-deferred-items-cleanup-plan.md) | 待使用者驗收 | 2026-10-20 移入；延後事項的六項處理、獨立複審，以及複審後五個新問題的裁定與修正。 |
 
 ### 設計書與證據
 

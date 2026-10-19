@@ -1,7 +1,7 @@
 # 截圖檢查
 
 這份說明讓 Agent 自己看得到畫面，又不打擾使用者：截圖在背景執行的 Edge 裡完成，不在桌面開視窗，
-也不連使用者在 Codex 開的瀏覽器主機（`127.0.0.1:4244`）。
+也不連 4244 或使用者操作中的 4245；實際後端操作使用 4246 的 QA 主機。
 
 ## 準備合成預覽
 
@@ -10,7 +10,7 @@
 1. 用 Focused 命令與 `JET_FRONTEND_PREVIEW_EXPORT=1` 產生 `artifacts/frontend-preview/fixtures.json`。
    C# 或 action 契約改過後要重新產生；只改 CSS 不必。
 2. Claude Code 用 Preview 啟動 `.claude/launch.json` 的 `JET synthetic frontend`，其他工具執行
-   `node tools/harness/frontend-preview/server.cjs`。服務在 `127.0.0.1:4243`，一小時後自動結束，結束後重新啟動即可。
+   `node tools/harness/frontend-preview/server.cjs`。Claude 設定固定在 `127.0.0.1:4243`，一般啟動以終端顯示的埠為準；一小時後自動結束。
 
 合成預覽備有第五步的固定答案，也能從左欄切到第一到第五步，看到這些步驟用既有狀態畫出的樣子。
 需要後端回應的子區塊會顯示「此操作需在 JET 桌面程式執行」或「預覽載入失敗」，這是預覽的限制，不是產品錯誤。
@@ -29,6 +29,7 @@ node .agents/skills/jet-frontend-design/scripts/preview-shot.cjs --step=5 --out=
 
 - `--step=1` 到 `--step=6`：點左欄的第幾個步驟。
 - `--scene=matches`、`empty` 或 `stale`：第五步的固定情境。
+- `--port=4243`：指定合成預覽埠，預設 4243；這個腳本依賴固定預覽頁，不能拿來操作 QA 主機。
 - `--overview`：開啟流程總覽。
 - `--width=1536 --height=864`：預設是 1920×1080、縮放 125% 的畫面大小；檢查窄版時改成 `--width=1024`。
 - `--css=檔案`：在正式樣式之後另外載入一份樣式表，只用在方向樣張，不改正式前端。
@@ -38,8 +39,8 @@ node .agents/skills/jet-frontend-design/scripts/preview-shot.cjs --step=5 --out=
 ## 看截圖的順序
 
 1. 先瞇眼看：主要區塊、次要區塊與目前步驟是否一眼分得出來。
-2. 對照 `SKILL.md` 的禁止清單逐項看，命中的地方記下選擇器。
-3. 對照 `data-and-cjk-rules.md`：數字對齊、最小字級、對比、焦點、狀態是否有文字或符號。
+2. 對照 `SKILL.md` 的設計方向與 `ai-default-patterns.md`，找出和本次改動有關的偏離。
+3. 依 `data-and-cjk-rules.md` 檢查受影響的表頭、分頁、數字對齊、焦點與狀態；不要求每輪檢查所有項目。
 4. 換一個情境再看：多組條件、空結果、錯誤、窄版與右側資料預覽展開時。
 5. 改完重截同一張，前後並排比較，確認沒有改壞其他步驟。
 

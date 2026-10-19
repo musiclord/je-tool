@@ -252,12 +252,9 @@
           '<div data-motion="fade" data-motion-key="workpapers-page-' + historyPage + '">' +
           Ui.reportArtifactListHtml(visibleWorkpapers, '尚未產生工作底稿。', { history: true, reveal: true, motion: 'workpapers' }) +
           '</div>' +
-          (pageCount > 1 ? '<div class="panel__actions panel__actions--start">' +
-            '<button type="button" class="btn btn--ghost btn--tiny" data-history-page="-1"' +
-              (historyPage === 0 ? ' disabled' : '') + '>上一頁</button>' +
-            '<span>第 ' + (historyPage + 1) + ' 頁，共 ' + pageCount + ' 頁（' + workpapers.length + ' 份）</span>' +
-            '<button type="button" class="btn btn--ghost btn--tiny" data-history-page="1"' +
-              (historyPage + 1 === pageCount ? ' disabled' : '') + '>下一頁</button></div>' : '') +
+          // 換頁沿用明細表的共用分頁外觀（使用者 2026-10-16 要求統一）；一頁仍是 50 份文件，只有一頁時不顯示。
+          Ui.pageControlsHtml(historyPage + 1, workpapers.length, { pageSize: HISTORY_PAGE_SIZE,
+            previousAttribute: 'data-history-page="-1"', nextAttribute: 'data-history-page="1"' }) +
           sheetStatsHtml(state) +
         '</section>' +
         Ui.stepFooterHtml(state) +

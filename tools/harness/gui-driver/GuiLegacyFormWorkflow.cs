@@ -78,7 +78,8 @@ internal static partial class GuiScenarios
         await Check("saved.length===5");
         outcome.RecordStage("legacy_form_cancel_and_export");
         await Click("[data-filter-pane-select=saved]");
-        await Click(".saved-scenario .filter-saved-actions summary");
+        // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗收據 20261019-163612298-38cf234cbaa34b94b26c2d5cd86e20ef）。
+        await Click(".saved-scenario .jet-menu__toggle");
         await Click("[data-action=edit-scenario][data-index='0']");
         await Fill(".rule-row[data-ri='2'] [data-value-key=values]", "GUI-RETRY");
         await Click("[data-action=preview-scenario]"); await Check("!!preview && preview.count===0");

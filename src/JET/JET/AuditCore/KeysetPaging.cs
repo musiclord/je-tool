@@ -40,6 +40,7 @@ internal sealed class KeysetPagePlan
     internal KeysetPagePlan(
         string selectSuffix,
         string predicate,
+        string searchPredicate,
         string orderBy,
         IReadOnlyList<KeyValuePair<string, object>> parameters,
         SortColumn? sort,
@@ -47,6 +48,7 @@ internal sealed class KeysetPagePlan
     {
         SelectSuffix = selectSuffix;
         Predicate = predicate;
+        SearchPredicate = searchPredicate;
         OrderBy = orderBy;
         Parameters = parameters;
         Sort = sort;
@@ -55,6 +57,7 @@ internal sealed class KeysetPagePlan
 
     public string SelectSuffix { get; }
     public string Predicate { get; }
+    public string SearchPredicate { get; }
     public string OrderBy { get; }
     public IReadOnlyList<KeyValuePair<string, object>> Parameters { get; }
     public SortColumn? Sort { get; }
@@ -102,6 +105,8 @@ internal static class KeysetPaging
             parameters.Add(new(SearchParameter, search.ToUpperInvariant()));
         }
 
+        var searchPredicate = predicates.Count == 0 ? string.Empty
+            : " AND " + string.Join(" AND ", predicates.Select(static item => $"({item})"));
         var stable = catalog.StableKey;
         var stableExpr = $"({stable.Sql})";
         SortColumn? sort = null;
@@ -161,7 +166,7 @@ internal static class KeysetPaging
         var predicate = predicates.Count == 0
             ? string.Empty
             : " AND " + string.Join(" AND ", predicates.Select(static item => $"({item})"));
-        return new KeysetPagePlan(selectSuffix, predicate, orderBy, parameters, sort, direction);
+        return new KeysetPagePlan(selectSuffix, predicate, searchPredicate, orderBy, parameters, sort, direction);
     }
 
     private static object Typed(SortValueKind kind, string text) =>
@@ -175,7 +180,7 @@ internal static class KeysetPaging
 
     private static JetActionException CursorMismatch() => new(
         JetErrorCodes.InvalidPayload,
-        "游標和目前的排序不一致，請從第一頁重新載入。");
+        "排序已改變，無法接續上一頁，請從第一頁重新載入。");
 }
 
 /// <summary>
@@ -194,7 +199,7 @@ internal sealed class KeysetPageBuffer<T>
         _sortValues.Add(sortValue is DBNull ? null : sortValue);
     }
 
-    public PageResult<T> ToPage(PageRequest request, KeysetPagePlan plan, Func<T, object> stableKey)
+    public PageResult<T> ToPage(PageRequest request, KeysetPagePlan plan, Func<T, object> stableKey, long? totalCount = null)
     {
         var size = request.ClampedPageSize;
         var hasMore = _rows.Count > size;
@@ -205,6 +210,6 @@ internal sealed class KeysetPageBuffer<T>
         }
 
         var next = hasMore ? plan.NextCursor(_sortValues[^1], stableKey(_rows[^1])) : null;
-        return new PageResult<T>(_rows, next);
+        return new PageResult<T>(_rows, next, totalCount);
     }
 }

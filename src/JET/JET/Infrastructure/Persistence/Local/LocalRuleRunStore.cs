@@ -52,13 +52,14 @@ public sealed class LocalRuleRunStore(ILocalProjectDatabase database) : IRuleRun
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        // 同毫秒寫入以 rowid 當平手鍵，確保「最新」可重現。
+        // generated_utc 記到 100 奈秒，兩次執行幾乎不可能同時；真的同時就以 run_id 當平手鍵，
+        // 和 SqlServerRuleRunStore 相同，三種資料庫選到同一筆（2026-10-19 跨資料庫一致性第二階段）。
         command.CommandText =
             """
             SELECT run_id, run_kind, generated_utc, summary_json
             FROM result_rule_run
             WHERE run_kind = @runKind
-            ORDER BY generated_utc DESC, rowid DESC
+            ORDER BY generated_utc DESC, run_id DESC
             LIMIT 1;
             """;
         command.AddWithValue("@runKind", runKind);

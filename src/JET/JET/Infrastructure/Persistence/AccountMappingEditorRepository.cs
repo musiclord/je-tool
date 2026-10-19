@@ -40,11 +40,12 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         """;
 
     internal static async Task<DataPreviewResult> PreviewSavedAsync(DbConnection connection, ISqlDialect dialect,
-        string prefix, int limit, CancellationToken cancellationToken)
+        string prefix, int limit, CancellationToken cancellationToken, int offset = 0)
     {
-        long count;
-        await using (var command = connection.CreateCommand())
+        long? count = null;
+        if (offset == 0)
         {
+            await using var command = connection.CreateCommand();
             command.CommandText = $"SELECT COUNT(*) FROM {prefix}target_account_mapping;";
             count = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
         }
@@ -54,8 +55,9 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
             FROM {prefix}target_account_mapping m
             LEFT JOIN {prefix}config_account_taxonomy t ON t.category_id = m.category_id
             ORDER BY m.account_code
-            """ + " " + dialect.LimitClause("@limit") + ";";
+            """ + " " + (dialect is SqlServerDialect ? "OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY" : "LIMIT @limit OFFSET @offset") + ";";
         select.AddWithValue("@limit", limit);
+        select.AddWithValue("@offset", offset);
         var rows = new List<IReadOnlyList<string?>>();
         await using var reader = await select.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -73,21 +75,21 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         var p = prefix(projectId);
         await using var command = connection.CreateCommand();
         var hasCursor = PageCursor.TryDecode(request.Cursor, out var key);
-        command.CommandText = AccountsCte(p, dialect) + $"""
-            SELECT a.account_code, a.account_name,
-                   m.category_id
-            FROM accounts a LEFT JOIN {p}target_account_mapping m ON m.account_code = a.account_code
-            WHERE 1 = 1
-            """ + (hasCursor ? " AND a.account_code > @cursor" : "")
+        var source = $"FROM accounts a LEFT JOIN {p}target_account_mapping m ON m.account_code = a.account_code WHERE 1 = 1"
             + (!string.IsNullOrEmpty(search) ? " AND (" + dialect.ContainsIgnoreCase("a.account_code", "@search")
                 + " OR " + dialect.ContainsIgnoreCase("a.account_name", "@search") + ")" : "")
             + (!string.IsNullOrEmpty(categoryId) ? $" AND EXISTS (SELECT 1 FROM {p}config_account_taxonomy_path tp"
-                + " WHERE tp.ancestor_id = @categoryId AND tp.descendant_id = m.category_id)" : "")
+                + " WHERE tp.ancestor_id = @categoryId AND tp.descendant_id = m.category_id)" : "");
+        command.CommandText = AccountsCte(p, dialect) + " SELECT a.account_code, a.account_name, m.category_id "
+            + source + (hasCursor ? " AND a.account_code > @cursor" : "")
             + " ORDER BY a.account_code " + dialect.LimitClause("@limit") + ";";
         if (hasCursor) command.AddWithValue("@cursor", key);
         if (!string.IsNullOrEmpty(search)) command.AddWithValue("@search", search.ToUpperInvariant());
         if (!string.IsNullOrEmpty(categoryId)) command.AddWithValue("@categoryId", categoryId);
         command.AddWithValue("@limit", request.ClampedPageSize + 1);
+        var count = dialect is SqlServerDialect ? "COUNT_BIG(*)" : "COUNT(*)";
+        var totalCount = await PageTotalCount.ReadAsync(command, request,
+            AccountsCte(p, dialect) + $" SELECT {count} " + source, cancellationToken);
         var rows = new List<AccountMappingEditRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -95,7 +97,7 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
                 reader.IsDBNull(2) ? null : reader.GetString(2)));
         var more = rows.Count > request.ClampedPageSize;
         if (more) rows.RemoveAt(rows.Count - 1);
-        return new(rows, more ? PageCursor.Encode(rows[^1].AccountCode) : null);
+        return new(rows, more ? PageCursor.Encode(rows[^1].AccountCode) : null, totalCount);
     }
 
     public async Task SaveAsync(string projectId, IReadOnlyList<AccountMappingChange> changes,

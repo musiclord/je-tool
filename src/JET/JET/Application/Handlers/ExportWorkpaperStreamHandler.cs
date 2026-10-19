@@ -181,13 +181,29 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
                         artifactProgress.WriterProgress);
                     artifactProgress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd);
-        var artifact = artifactStore is IReportArtifactPublishingStore publishingStore
-            ? await publishingStore.WriteWithPublishingAsync(
+        // 正式組裝的報告清單會寫操作紀錄；經這個介面發布才拿得到寫不進操作紀錄時的提醒（使用者 2026-10-19 裁定）。
+        ReportArtifact artifact;
+        string? auditLogWarning = null;
+        if (artifactStore is IAuditedReportPublishingStore auditedStore)
+        {
+            var publication = await auditedStore.WriteAuditedAsync(
                 projectId,
                 request,
                 _ => artifactProgress.PublishingArtifact(),
-                cancellationToken)
-            : await artifactStore.WriteAsync(projectId, request, cancellationToken);
+                cancellationToken);
+            artifact = publication.Artifacts[0];
+            auditLogWarning = publication.AuditLogWarning;
+        }
+        else
+        {
+            artifact = artifactStore is IReportArtifactPublishingStore publishingStore
+                ? await publishingStore.WriteWithPublishingAsync(
+                    projectId,
+                    request,
+                    _ => artifactProgress.PublishingArtifact(),
+                    cancellationToken)
+                : await artifactStore.WriteAsync(projectId, request, cancellationToken);
+        }
 
         var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportArtifactStore);
@@ -198,6 +214,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             artifact = ReportExportSupport.ArtifactWire(artifact),
             reportArtifacts = catalog.Artifacts,
             reportArtifactWarning = catalog.Warning,
+            warnings = ReportExportSupport.Warnings(auditLogWarning),
             sheetStats = (exportStats?.SheetStats ?? Array.Empty<SheetStat>())
                 .Select(item => (object)new { sheetName = item.SheetName, rowsWritten = item.RowsWritten })
                 .ToArray()

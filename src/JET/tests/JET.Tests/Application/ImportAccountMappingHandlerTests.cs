@@ -432,6 +432,8 @@ public sealed class ImportAccountMappingHandlerTests
         Assert.Equal(
             new[] { "accountCode", "accountName", "standardizedCategory" },
             data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToArray());
-        Assert.Equal(50, data.GetProperty("rows").GetArrayLength());
+        // 2026-10-16 明細改為每頁最多 200 筆，這份固定合成母體的 150 筆應在同一頁。
+        // 首次失敗：20261016-095520371-60c9a9002376403f857a74b0ae85b6b8。
+        Assert.Equal(150, data.GetProperty("rows").GetArrayLength());
     }
 }

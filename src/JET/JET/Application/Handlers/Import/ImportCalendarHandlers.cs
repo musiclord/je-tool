@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -13,15 +14,18 @@ public abstract class ImportCalendarHandler : IApplicationActionHandler
     private readonly IProjectStore projectStore;
     private readonly IProjectRegistry projectRegistry;
     private readonly ProjectSession session;
+    private readonly ILogger? logger;
 
     internal ImportCalendarHandler(
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        ProjectSession session)
+        ProjectSession session,
+        ILogger? logger = null)
     {
         this.projectStore = projectStore;
         this.projectRegistry = projectRegistry;
         this.session = session;
+        this.logger = logger;
     }
 
     public abstract string Action { get; }
@@ -50,7 +54,7 @@ public abstract class ImportCalendarHandler : IApplicationActionHandler
         await MarkCalendarImportedAsync(document);
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
         return new { count = result.Count,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
@@ -82,8 +86,9 @@ public sealed class ImportHolidayHandler : ImportCalendarHandler
     internal ImportHolidayHandler(
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        ProjectSession session)
-        : base(projectStore, projectRegistry, session)
+        ProjectSession session,
+        ILogger? logger = null)
+        : base(projectStore, projectRegistry, session, logger)
     {
     }
 
@@ -97,8 +102,9 @@ public sealed class ImportMakeupDayHandler : ImportCalendarHandler
     internal ImportMakeupDayHandler(
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        ProjectSession session)
-        : base(projectStore, projectRegistry, session)
+        ProjectSession session,
+        ILogger? logger = null)
+        : base(projectStore, projectRegistry, session, logger)
     {
     }
 
@@ -118,17 +124,20 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
     private readonly IProjectStore projectStore;
     private readonly IProjectRegistry projectRegistry;
     private readonly ProjectSession session;
+    private readonly ILogger? logger;
 
     internal ImportCalendarFromFileHandler(
         ITabularFileReader reader,
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        ProjectSession session)
+        ProjectSession session,
+        ILogger? logger = null)
     {
         this.reader = reader;
         this.projectStore = projectStore;
         this.projectRegistry = projectRegistry;
         this.session = session;
+        this.logger = logger;
     }
 
     public abstract string Action { get; }
@@ -176,7 +185,7 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
         await MarkCalendarImportedAsync(document);
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
         return new { count = result.Count,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
@@ -206,8 +215,9 @@ public sealed class ImportHolidayFromFileHandler : ImportCalendarFromFileHandler
         ITabularFileReader reader,
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        ProjectSession session)
-        : base(reader, projectStore, projectRegistry, session)
+        ProjectSession session,
+        ILogger? logger = null)
+        : base(reader, projectStore, projectRegistry, session, logger)
     {
     }
 
@@ -222,8 +232,9 @@ public sealed class ImportMakeupDayFromFileHandler : ImportCalendarFromFileHandl
         ITabularFileReader reader,
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        ProjectSession session)
-        : base(reader, projectStore, projectRegistry, session)
+        ProjectSession session,
+        ILogger? logger = null)
+        : base(reader, projectStore, projectRegistry, session, logger)
     {
     }
 
@@ -242,15 +253,18 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
     private readonly IProjectStore projectStore;
     private readonly IProjectRegistry projectRegistry;
     private readonly ProjectSession session;
+    private readonly ILogger? logger;
 
     internal CalendarSetNonWorkingDaysHandler(
         IProjectStore projectStore,
         IProjectRegistry projectRegistry,
-        ProjectSession session)
+        ProjectSession session,
+        ILogger? logger = null)
     {
         this.projectStore = projectStore;
         this.projectRegistry = projectRegistry;
         this.session = session;
+        this.logger = logger;
     }
 
     public string Action => "calendar.setNonWorkingDays";
@@ -294,7 +308,7 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(
             projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.ShouldExecute ? plan.Effects : null);
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.ShouldExecute ? plan.Effects : null, logger);
         return new { ok = true, nonWorkingDays = result.NormalizedDays,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,

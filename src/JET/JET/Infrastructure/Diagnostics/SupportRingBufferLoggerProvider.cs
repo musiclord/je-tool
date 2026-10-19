@@ -71,6 +71,9 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "artifact.journal.discarded",
         "artifact.manifest.reset",
         "project_audit.write_failed",
+        // 資料已提交後寫不進操作紀錄，或讀不回結果狀態、授權清單比對：只記操作代號、讀取階段與錯誤類型（2026-10-19）。
+        "audit_log.append_failed",
+        "workflow_state.read_failed",
         "sql_server.unreachable",
         "filter.scenario_unreadable",
         "filter.compile_check_failed",

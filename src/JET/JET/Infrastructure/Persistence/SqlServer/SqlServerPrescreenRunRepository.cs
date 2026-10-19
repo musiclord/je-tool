@@ -269,7 +269,8 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
         SqlConnection connection, string projectId, PrescreenExecutionInput input, CancellationToken cancellationToken)
     {
         // 編製者彙總與預篩選規則共用有效分錄母體。
-        // 人員依去空白、不分大小寫的識別值分組，顯示值取同組碼位最小的去空白寫法（與本地倉儲同口徑）。只經編譯，未實機驗證。
+        // 人員依去空白、不分大小寫的識別值分組，顯示值取同組碼位最小的去空白寫法（與本地倉儲同口徑）。
+        // 分組鍵的轉大寫走方言（跨資料庫一致性計畫第三節 D）。
         var person = LocalPrescreenRunRepository.PersonKey(SqlServerDialect.Instance);
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
@@ -281,7 +282,7 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
                    COALESCE(SUM(CAST(CASE WHEN is_manual = 1 THEN 1 ELSE 0 END AS BIGINT)), 0)
             FROM {s}.target_gl_entry
             WHERE {{GlEffectivePopulation.SqlPredicate()}}
-            GROUP BY UPPER({{person}} COLLATE Latin1_General_BIN2)
+            GROUP BY {{SqlServerDialect.Instance.Upper(person)}}
             ORDER BY COUNT_BIG(*) DESC, MIN({{person}} COLLATE Latin1_General_BIN2);
             """);
         var rows = new List<CreatorSummaryRow>();
@@ -310,7 +311,7 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
             SELECT COUNT_BIG(*),
-                   COUNT_BIG(DISTINCT UPPER({{LocalPrescreenRunRepository.PersonKey(SqlServerDialect.Instance)}} COLLATE Latin1_General_BIN2))
+                   COUNT_BIG(DISTINCT {{SqlServerDialect.Instance.Upper(LocalPrescreenRunRepository.PersonKey(SqlServerDialect.Instance))}})
             FROM {s}.target_gl_entry
             WHERE {{GlEffectivePopulation.SqlPredicate()}};
             """);

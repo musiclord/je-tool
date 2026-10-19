@@ -294,7 +294,8 @@ public static partial class AppCompositionRoot
                 new CalendarSetNonWorkingDaysHandler(
                     projectStore,
                     projectRegistry,
-                    session);
+                    session,
+                    loggerFactory.CreateLogger<CalendarSetNonWorkingDaysHandler>());
             IApplicationActionHandler projectSaveProgressHandler =
                 new ProjectSaveProgressHandler(projectStore, session);
             IApplicationActionHandler queryDataPreviewHandler =
@@ -331,13 +332,13 @@ public static partial class AppCompositionRoot
             projectListHandler,
             new ProjectCreateHandler(
                 projectStore, repositoryCatalog, currentPrincipal, session),
-            new ProjectUpdateHandler(projectStore, projectRegistry, session),
+            new ProjectUpdateHandler(projectStore, projectRegistry, session, loggerFactory.CreateLogger<ProjectUpdateHandler>()),
             new ProjectLoadHandler(
                 projectStore, repositoryCatalog, projectRegistry, appConfigStore, currentPrincipal, session,
                 duckDbDatabase, loggerFactory.CreateLogger<ProjectLoadHandler>()),
-            new AccountTaxonomySaveHandler(session),
+            new AccountTaxonomySaveHandler(session, loggerFactory.CreateLogger<AccountTaxonomySaveHandler>()),
             new QueryAccountMappingPageHandler(session),
-            new AccountMappingSaveHandler(session),
+            new AccountMappingSaveHandler(session, loggerFactory.CreateLogger<AccountMappingSaveHandler>()),
             new ProjectDeleteHandler(
                 projectStore, repositoryCatalog, projectRegistry, currentPrincipal, session),
             new ProjectDeletePreviewHandler(projectStore, repositoryCatalog, projectRegistry, currentPrincipal),
@@ -356,14 +357,16 @@ public static partial class AppCompositionRoot
             new ImportGlFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger<ImportGlFromFileHandler>()),
             new ImportTbFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger<ImportTbFromFileHandler>()),
             new ImportAccountMappingHandler(fileReader, session, loggerFactory.CreateLogger<ImportAccountMappingHandler>()),
-            new ImportAuthorizedPreparerFromFileHandler(fileReader, session),
-            new ClearAuthorizedPreparerHandler(session),
+            new ImportAuthorizedPreparerFromFileHandler(fileReader, session, loggerFactory.CreateLogger<ImportAuthorizedPreparerFromFileHandler>()),
+            new ClearAuthorizedPreparerHandler(session, loggerFactory.CreateLogger<ClearAuthorizedPreparerHandler>()),
             new ImportInspectFileHandler(fileReader, loggerFactory.CreateLogger<ImportInspectFileHandler>()),
             new ImportPreviewFileHandler(fileReader),
-            new ImportHolidayHandler(projectStore, projectRegistry, session),
-            new ImportMakeupDayHandler(projectStore, projectRegistry, session),
-            new ImportHolidayFromFileHandler(fileReader, projectStore, projectRegistry, session),
-            new ImportMakeupDayFromFileHandler(fileReader, projectStore, projectRegistry, session),
+            new ImportHolidayHandler(projectStore, projectRegistry, session, loggerFactory.CreateLogger<ImportHolidayHandler>()),
+            new ImportMakeupDayHandler(projectStore, projectRegistry, session, loggerFactory.CreateLogger<ImportMakeupDayHandler>()),
+            new ImportHolidayFromFileHandler(fileReader, projectStore, projectRegistry, session,
+                loggerFactory.CreateLogger<ImportHolidayFromFileHandler>()),
+            new ImportMakeupDayFromFileHandler(fileReader, projectStore, projectRegistry, session,
+                loggerFactory.CreateLogger<ImportMakeupDayFromFileHandler>()),
             calendarSetNonWorkingDaysHandler,
             new MappingRestoreDraftHandler(mappingMetadataReader, mappingRestoreAuthorizations, session),
             new MappingValueProfileHandler(session),

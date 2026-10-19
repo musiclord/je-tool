@@ -75,6 +75,10 @@
               "prescreen": "boolean",
               "validation": "boolean"
             }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": null
           }
         }
       }
@@ -423,6 +427,10 @@
                 "stale": "boolean"
               }
             }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": null
           }
         }
       }
@@ -487,6 +495,10 @@
                 "stale": "boolean"
               }
             }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": null
           }
         }
       }
@@ -554,6 +566,10 @@
                 "stale": "boolean"
               }
             }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": null
           }
         }
       }
@@ -640,6 +656,10 @@
                 "sheetName": "string"
               }
             }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": null
           }
         }
       }
@@ -1673,7 +1693,11 @@
               "validation": "boolean"
             }
           },
-          "unmappedCount": "null|number"
+          "unmappedCount": "null|number",
+          "warnings": {
+            "kind": "array",
+            "items": "string"
+          }
         }
       }
     },
@@ -4243,7 +4267,8 @@
                 "accountName": "string"
               }
             }
-          }
+          },
+          "totalCount": "number"
         }
       }
     },
@@ -4302,7 +4327,8 @@
                 "categoryId": "null|string"
               }
             }
-          }
+          },
+          "totalCount": "null|number"
         }
       }
     },
@@ -4339,7 +4365,8 @@
                 "tbAmount": "number"
               }
             }
-          }
+          },
+          "totalCount": "null|number"
         }
       }
     },
@@ -4347,11 +4374,13 @@
       "request": {
         "kind": "object",
         "optional": [
-          "limit"
+          "limit",
+          "offset"
         ],
         "fields": {
           "dataset": "string",
-          "limit": "number"
+          "limit": "number",
+          "offset": "number"
         }
       },
       "response": {
@@ -4390,7 +4419,7 @@
               "voucherCount": "number"
             }
           },
-          "totalCount": "number"
+          "totalCount": "null|number"
         }
       }
     },
@@ -4425,7 +4454,8 @@
                 "documentNumber": "string"
               }
             }
-          }
+          },
+          "totalCount": "null|number"
         }
       }
     },
@@ -4482,7 +4512,8 @@
                 "postDate": "string"
               }
             }
-          }
+          },
+          "totalCount": "null|number"
         }
       }
     },
@@ -4690,7 +4721,8 @@
               }
             }
           },
-          "scenarioRevision": "null|string"
+          "scenarioRevision": "null|string",
+          "totalCount": "null|number"
         }
       }
     },
@@ -4918,7 +4950,8 @@
               }
             }
           },
-          "scenarioRevision": "null|string"
+          "scenarioRevision": "null|string",
+          "totalCount": "null|number"
         }
       }
     },
@@ -4976,7 +5009,8 @@
                 "postDate": "string"
               }
             }
-          }
+          },
+          "totalCount": "null|number"
         }
       }
     },
@@ -5012,7 +5046,8 @@
                 "postDate": "string"
               }
             }
-          }
+          },
+          "totalCount": "null|number"
         }
       }
     },
@@ -5058,7 +5093,8 @@
                 "postDate": "string"
               }
             }
-          }
+          },
+          "totalCount": "null|number"
         }
       }
     },
@@ -5096,7 +5132,8 @@
                 "sourceRowNumber": "number"
               }
             }
-          }
+          },
+          "totalCount": "null|number"
         }
       }
     },
@@ -5141,7 +5178,8 @@
                 "postDate": "string"
               }
             }
-          }
+          },
+          "totalCount": "null|number"
         }
       }
     },
@@ -5205,7 +5243,8 @@
                 "voucherTotal": "number"
               }
             }
-          }
+          },
+          "totalCount": "null|number"
         }
       }
     },

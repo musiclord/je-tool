@@ -16,7 +16,9 @@ public sealed class AuditDependencyPolicyTests
         [AuditMutation.AuthorizedPreparer, false, true, true],
         [AuditMutation.PreparationDate, false, true, true],
         [AuditMutation.SchemaV7Migration, true, true, true],
-        [AuditMutation.AccountTaxonomy, false, true, true]
+        [AuditMutation.AccountTaxonomy, false, true, true],
+        // 跨資料庫一致性計畫第三節 F：SQL Server 第 14 版改文字欄定序，失效範圍比照第 7 版升級。
+        [AuditMutation.TextComparisonMigration, true, true, true]
     ];
 
     [Fact]

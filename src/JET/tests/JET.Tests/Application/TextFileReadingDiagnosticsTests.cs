@@ -89,8 +89,10 @@ public sealed class TextFileReadingDiagnosticsTests
         Assert.Equal(
 // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
                         // 47a 使用者 2026-10-13 確認的句子只有「，例如第…列」一種寫法（文字批次 C；第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666）。
+                        // 使用者 2026-10-19 裁定來源檔用「列」、分錄用「筆」，並依規則統一全部畫面文字：「筆數減少」改成「列數減少」
+                        // （第一次失敗：收據 20261019-133710985-cc5281a3d50446b8b888b6bcf9b9ff29）。
                         ["「multiline.csv」有 2 列的欄位內含換行，例如第 2、4 列。"
-             + "引號位置錯誤時，後續資料會併入同一格而使筆數減少，請以 Excel 開啟原檔核對。"],
+             + "引號位置錯誤時，後續資料會併入同一格而使列數減少，請以 Excel 開啟原檔核對。"],
             imported.GetProperty("warnings").EnumerateArray().Select(static item => item.GetString()!).ToArray());
 
         var entries = await SupportEntriesAsync(host, projectId, "multiline-import");
@@ -101,6 +103,42 @@ public sealed class TextFileReadingDiagnosticsTests
         Assert.Equal("2,4", fields.GetProperty("multiline_record_rows").GetString());
         Assert.DoesNotContain("PRIVATE", string.Join('\n', entries.Select(entry => entry.GetRawText())));
         Assert.DoesNotContain("multiline.csv", string.Join('\n', entries.Select(entry => entry.GetRawText())));
+    }
+
+    // 低嚴重度事項（使用者 2026-10-19 要求處理）：科目配對檔用文字檔匯入時，引號內換行的提醒與支援日誌和 GL、TB 相同。
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task QuotedLineBreaks_InAccountMappingTextFile_AreReportedLikeGlAndTb(string provider)
+    {
+        using var host = new HandlerTestHost(enableDevTools: false);
+        var projectId = await InlineWorkbookProject.SetupAsync(host, b => b
+            .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
+            .AddRow("JV-1", "2025-01-02", "1101", "現金", "合成", 10, 1)
+            .AddRow("JV-1", "2025-01-02", "1102", "零用金", "合成", 10, 0),
+            databaseProvider: provider);
+        var path = Path.Combine(host.ProjectsRoot, "mapping.csv");
+        await File.WriteAllTextAsync(path,
+            "GL_Number,GL_Name,Standardized Account Name*\n" +
+            "1101,\"現金\n銀行存款\",Cash\n" +
+            "1102,零用金,Cash\n",
+            new UTF8Encoding(false));
+
+        var imported = await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }),
+            correlationId: "mapping-multiline");
+
+        Assert.Equal(2, imported.GetProperty("rowCount").GetInt32());
+        Assert.Equal(
+            ["「mapping.csv」有 1 列的欄位內含換行，例如第 2 列。"
+             + "引號位置錯誤時，後續資料會併入同一格而使列數減少，請以 Excel 開啟原檔核對。"],
+            imported.GetProperty("warnings").EnumerateArray().Select(static item => item.GetString()!).ToArray());
+        var entries = await SupportEntriesAsync(host, projectId, "mapping-multiline");
+        var fields = entries.Single(entry => entry.GetProperty("eventName").GetString() == "import.multiline_fields")
+            .GetProperty("fields");
+        Assert.Equal(1, fields.GetProperty("source_no").GetInt32());
+        Assert.Equal(1, fields.GetProperty("multiline_record_count").GetInt32());
+        Assert.Equal("2", fields.GetProperty("multiline_record_rows").GetString());
+        Assert.DoesNotContain("mapping.csv", string.Join('\n', entries.Select(entry => entry.GetRawText())));
     }
 
     [Fact]
@@ -128,8 +166,9 @@ public sealed class TextFileReadingDiagnosticsTests
         Assert.Equal(16, imported.GetProperty("rowCount").GetInt32());
         Assert.Equal(
 // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        // 2026-10-19「列數減少」的改字同第一個測試（第一次失敗：收據 20261019-133710985-cc5281a3d50446b8b888b6bcf9b9ff29）。
                         ["「many.csv」有 7 列的欄位內含換行，例如第 2、4、6、8、10 列。"
-             + "引號位置錯誤時，後續資料會併入同一格而使筆數減少，請以 Excel 開啟原檔核對。"],
+             + "引號位置錯誤時，後續資料會併入同一格而使列數減少，請以 Excel 開啟原檔核對。"],
             imported.GetProperty("warnings").EnumerateArray().Select(static item => item.GetString()!).ToArray());
     }
 }

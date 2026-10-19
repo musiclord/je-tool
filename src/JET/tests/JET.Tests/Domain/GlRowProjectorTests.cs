@@ -285,6 +285,27 @@ public sealed class GlRowProjectorTests
         Assert.Null(projected!.PostDate);
     }
 
+    // 使用者 2026-10-19 裁定：總帳日期帶千分位時和其他無法辨識的日期相同，確認配對列出列號，不再換成 1903 年。
+    [Fact]
+    public void DateProjection_NumberWithThousandsSeparator_FailsWithRowNumber()
+    {
+        var row = new StagingRow(12, new Dictionary<string, string>
+        {
+            ["傳票號碼"] = "X",
+            ["日期"] = "1,234",
+            ["會計項目"] = "1",
+            ["項目名稱"] = "n",
+            ["摘要"] = "d",
+            ["借方金額"] = "1"
+        });
+
+        Assert.False(GlRowProjector.TryProject(row, DualSpec(), Scale, out _, out var error));
+        Assert.Equal(12, error!.SourceRowNumber);
+        Assert.Equal("日期", error.Field);
+        Assert.Equal("1,234", error.RawValue);
+        Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
+    }
+
     [Fact]
     public void TryProject_ScaledAmountExceedsLongRange_ReturnsRowProjectionError()
     {

@@ -89,6 +89,11 @@ try {
   使用 `Jet` 開頭的 PascalCase；C# 專案、原始碼檔、型別、namespace 和組件名稱也依 .NET 慣例使用
   PascalCase。這些都是檔案或程式識別名稱，不會成為 `tools/` 的新分類。
 - C# 驅動程式仍屬於驗證框架，所以專案目錄要放在 `tools/harness/` 下，不能在 `tools/` 增加第三個分類。
+- 驗證框架的主模組 `tools/harness/JetHarness.psm1` 只留主函式 `Invoke-JetHarness`。其餘函式依職責分在同目錄的
+  `JetHarness.Foundation.ps1`、`JetHarness.Artifacts.ps1`、`JetHarness.Results.ps1`、`JetHarness.Steps.ps1`、
+  `JetHarness.Preflight.ps1`、`JetHarness.Lanes.ps1` 與 `JetHarness.ReleaseCandidate.ps1`，每個檔開頭寫明內容。
+  主模組用點號載入（dot-source）這些檔，函式仍在同一個模組裡執行。新增或改名這類檔案時，同步改主模組的載入清單與
+  `Get-JetRunnerIdentity` 的檔案清單，收據才會記到它的雜湊；`tools/tests/verify-contract.tests.ps1` 會檢查兩份清單都涵蓋每個檔。
 - `bin/`、`obj/`、`artifacts/` 和 `TestResults/` 都是本機產物，不屬於第一次提交內容。
 
 ## 日常資料庫測試與服務收尾
@@ -108,8 +113,10 @@ try {
 1. 啟動前核對本次使用的本機執行個體、服務與相依服務，只開啟測試需要的服務；維持手動啟動。
 2. 把測試及收尾放在同一段 `try` 和 `finally` 流程。成功、失敗或可處理的中止都先結束測試連線、完成
    原有測試資料清理，再正常停止服務。若程序遭強制中斷，接手時先檢查並完成服務收尾。
-3. 這台開發電腦使用 `MSSQLSERVER`，平時與 `MSSQLLaunchpad`、`SQLSERVERAGENT` 一起保持停止且手動
-   啟動。停止引擎前先停止仍在執行的相依服務，然後重新讀取狀態，確認服務已停止且沒有 `sqlservr.exe`。
+3. 這台開發電腦使用 `MSSQLSERVER`，平時與 `MSSQLLaunchpad`、`SQLSERVERAGENT`、`MSSQLFDLauncher` 一起
+   保持停止且手動啟動。停止引擎前先停止仍在執行的相依服務。`MSSQLFDLauncher` 是全文檢索的啟動服務，
+   Windows 沒有把它登記成引擎的相依服務，引擎停止後它仍會執行，要另外停止。最後重新讀取狀態，確認這些
+   服務都已停止且沒有 `sqlservr.exe`。
 4. 停止服務不刪資料庫檔案，也不用終止全部同名程序代替正常關閉。只處理本次已確認的本機 JET 服務；
    遠端或共用執行個體另依其管理責任處理。若權限不足而無法停止，明說尚未關閉及需要的 Windows 管理員
    授權，不得回報已完成收尾。

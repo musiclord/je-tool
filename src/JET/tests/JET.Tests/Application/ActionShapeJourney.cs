@@ -37,7 +37,7 @@ internal static class ActionShapeJourney
     internal static readonly IReadOnlyList<(string Path, string Kind)> UnreachedKinds =
     [
         // ReportExportSupport.ReadArtifactCatalogAfterPublicationAsync：檔案發布之後讀報告清單失敗或超過 3 秒，回 null 與警告。
-        // 發布與讀清單之間沒有可以介入的時間點，合成流程無法穩定重現。
+        // 發布與讀清單之間沒有可以介入的時間點；這段流程也把清單更新期限固定成不會到期（見 RecordAsync），所以走不到。
         ("export.validationArtifacts response.reportArtifacts", "null"),
         ("export.validationArtifacts response.reportArtifactWarning", "string"),
         ("export.prescreenReport response.reportArtifacts", "null"),
@@ -51,8 +51,8 @@ internal static class ActionShapeJourney
         ("import.accountMapping.fromFile response.unmappedCount", "null"),
         // WorksheetInspection.RowCountEstimate：Access 資料表與沒有範圍資訊的工作表沒有估計值；合成資料做不出這種檔案。
         ("import.inspectFile response.worksheets[].rowCountEstimate", "null"),
-        // MappingValueProfileHandler：SQL Server 的值清單不核對來源值，回 null（sourceValueCheckStatus 是 unsupportedProvider）；
-        // SQL Server 開發暫緩，這個流程只跑 SQLite 與 DuckDB。
+        // MappingValueProfileHandler：資料庫實作沒有來源值核對時回 null（sourceValueCheckStatus 是 unsupportedProvider）；
+        // SQLite、DuckDB 與 SQL Server 都已實作（SQL Server 自 2026-10-19 起），合成流程做不出這個值。
         ("mapping.valueProfile response.missingComparisonValues", "null"),
     ];
 
@@ -60,6 +60,10 @@ internal static class ActionShapeJourney
 
     internal static async Task<ActionShapeRecorder> RecordAsync(string provider)
     {
+        // 報告清單更新的 3 秒期限是給畫面的時間上限，不是資料形狀的一部分。這段流程固定走到清單更新完成，
+        // 記到的形狀才不會隨機器快慢改變（2026-10-19 Public 曾因 DuckDB 的清單更新超過 3 秒而失敗）。
+        // 只影響這個非同步流程，同時執行的其他測試仍用系統時間。報告清單檔被其他程式占用的情況照常走到，見 accountTaxonomy.save。
+        ReportExportSupport.CatalogRefreshClock.Value = NeverExpiringClock.Instance;
         var recorder = new ActionShapeRecorder(MapPaths);
         var shell = new JourneyHostShell();
         var temporaryFiles = new List<string>();
@@ -203,7 +207,10 @@ internal static class ActionShapeJourney
             // 右側資料預覽與第三步的原始資料預覽：data-preview.js、mapping-step.js。
             foreach (var dataset in new[] { "pbcGl", "pbcTb" })
             {
-                await Send("query.dataPreview", new { dataset, limit = 10 });
+                // 2026-10-16 欄位配對改用有界的 200 筆分頁，offset 是實際送出的頁起點。
+                await Send("query.dataPreview", new { dataset, limit = 200, offset = 0 });
+                // 換到下一頁：總筆數與統計只在第一頁計算，續頁回 null（使用者 2026-10-16 要求處理每頁重算總筆數）。
+                await Send("query.dataPreview", new { dataset, limit = 1, offset = 1 });
             }
 
             // 第三步欄位配對：mapping-step.js 的值清單與確認配對。
@@ -363,6 +370,9 @@ internal static class ActionShapeJourney
             // 審計員先匯入一份欄名不是標準名稱的科目配對檔：後端依欄位順序對應並提醒，審計員改用正確的檔案再匯入。
             var renamedAccountPath = Track(SyntheticAccountMapping(accountExport.GetProperty("filePath").GetString()!, renameHeaders: true));
             await Send("import.accountMapping.fromFile", new { filePath = renamedAccountPath, fileName = "合成科目配對（欄名不同）.xlsx" });
+            // 審計員改用文字檔匯入，其中一個科目名稱用引號包住、內含換行：匯入照常完成並附上提醒（使用者 2026-10-19 要求處理）。
+            var accountCsvPath = Track(AccountMappingCsvWithLineBreak(accountPath));
+            await Send("import.accountMapping.fromFile", new { filePath = accountCsvPath, fileName = "合成科目配對.csv" });
             await Send("import.accountMapping.fromFile", new { filePath = accountPath, fileName = "合成科目配對.xlsx" });
             await Send("query.dataPreview", new { dataset = "accountMappings" });
             var accounts = await Send("query.accountMappingPage", new { cursor = (string?)null, pageSize = 1, search = "" });
@@ -714,7 +724,7 @@ internal static class ActionShapeJourney
             await Send(action, new { mode, sources = new[] { new { filePath = path, fileName, sheetName = sheet } } });
         }
 
-        // ui-core.js 的分頁表格：先讀第一頁；點欄位標題排序後從第一頁重讀；「載入更多」帶上一頁的 nextCursor 與同一個排序；
+        // ui-core.js 的分頁表格：先讀第一頁；點欄位標題排序後從第一頁重讀；換到下一頁時帶上一頁的 nextCursor 與同一個排序；
         // 「依號碼查看明細」帶搜尋文字。fixedFields 是各頁固定帶的欄位（例如 ruleKey）。
         async Task PagedAsync(string action, JsonObject fixedFields, string sortKey, string search)
         {
@@ -738,7 +748,7 @@ internal static class ActionShapeJourney
             await Send(action, Page(null, 200, false, search));
         }
 
-        // validate-step.js 只有「載入更多」的清單：第一頁 cursor 為 null，之後帶上一頁的 nextCursor。
+        // validate-step.js 只換頁、不排序的清單：第一頁 cursor 為 null，之後帶上一頁的 nextCursor。
         async Task CursorPagesAsync(string action, JsonObject fixedFields)
         {
             var payload = (JsonObject)fixedFields.DeepClone();
@@ -1087,6 +1097,19 @@ internal static class ActionShapeJourney
         return path;
     }
 
+    /// <summary>科目配對檔轉成文字檔，第一個科目的名稱用引號包住、內含換行，匯入時會附上欄位內含換行的提醒。</summary>
+    private static string AccountMappingCsvWithLineBreak(string workbookPath)
+    {
+        var path = WorkbookCsv(workbookPath, [], _ => []);
+        var lines = File.ReadAllText(path).Split('\n');
+        var nameColumn = Array.IndexOf(lines[0].Split(','), "科目名稱");
+        var cells = lines[1].Split(',');
+        cells[nameColumn] = "\"" + cells[nameColumn] + "\n合成續行\"";
+        lines[1] = string.Join(",", cells);
+        File.WriteAllText(path, string.Join("\n", lines), new UTF8Encoding(false));
+        return path;
+    }
+
     /// <summary>
     /// 示範試算表轉成文字檔，最後加一個整欄空白的欄，以及另外三種變動金額方式用的欄：年度變動（借方減貸方）、
     /// 期初與期末餘額、期初與期末的借貸方。期初一律 1000，期末是期初加變動，三種方式算出的變動都和借方、貸方金額相同。
@@ -1162,5 +1185,25 @@ internal static class ActionShapeJourney
         }
 
         public Task RevealInExplorerAsync(string path, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    /// <summary>計時器永遠不到期：報告清單更新一定等到完成。</summary>
+    private sealed class NeverExpiringClock : TimeProvider
+    {
+        public static readonly NeverExpiringClock Instance = new();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
+            new IdleTimer();
+
+        private sealed class IdleTimer : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+
+            public void Dispose()
+            {
+            }
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
     }
 }

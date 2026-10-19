@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -8,7 +9,8 @@ namespace JET.Application;
 public sealed class ProjectUpdateHandler(
     IProjectStore projectStore,
     IProjectRegistry projectRegistry,
-    ProjectSession session) : IApplicationActionHandler
+    ProjectSession session,
+    ILogger? logger = null) : IApplicationActionHandler
 {
     public string Action => "project.update";
 
@@ -72,7 +74,7 @@ public sealed class ProjectUpdateHandler(
         }
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, effects);
+            repositories.FilterScenarios, repositories.ReportArtifactStore, effects, logger);
         return new
         {
             project = new

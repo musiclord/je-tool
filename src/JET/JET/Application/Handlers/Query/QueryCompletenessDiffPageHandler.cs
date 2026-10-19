@@ -43,6 +43,7 @@ public sealed class QueryCompletenessDiffPageHandler(
                 diff = (decimal)r.DiffScaled / scale,
                 notInTb = r.NotInTb
             }).ToArray(),
+            totalCount = page.TotalCount,
             nextCursor = page.NextCursor
         };
     }

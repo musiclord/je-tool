@@ -134,10 +134,11 @@ internal static partial class GuiScenarios
         var scrollProbe = await cdp.EvaluateAsync("(()=>{var t=document.querySelector('.account-editor__table'),r=t.getBoundingClientRect();return {y:Math.min(r.bottom,innerHeight-30)-5,scroll:t.scrollTop};})()", ct);
         outcome.RecordAction();
         await cdp.DragAsync(ReadDouble(dragStart, "x"), ReadDouble(dragStart, "y"), ReadDouble(dragStart, "x"), ReadDouble(scrollProbe, "y"), ct, holdMilliseconds: 600);
-        // 使用者 2026-10-09 裁定科目清單每頁 50 個。按住 0.6 秒能捲多遠看畫面更新的速度，可能捲到底、整頁都選了，
+        // 使用者 2026-10-09 裁定科目清單每頁 50 個；2026-10-16 改成明細一律每頁至多 200 筆（資料表分頁與 Agent 文件整理計畫），
+        // 這裡的上限跟著改成 200（第一次失敗收據 20261019-164752787-b26dc7814b724f918fab4e67b9494650）。按住 0.6 秒能捲多遠看畫面更新的速度，可能捲到底、整頁都選了，
         // 所以「全選本頁」要和實際選取一致：整頁都選是全選，否則是部分選取（2026-10-14 實跑整頁全選，
         // 收據 20261014-071836346-5f284f26ccaa4447a4e019c23e1b53e4）。
-        await Check("feedback_account_drag_scroll", $"(()=>{{var rows=document.querySelectorAll('[data-account-select]').length,on=document.querySelectorAll('[data-account-select]:checked').length,page=document.querySelector('[data-account-select-page]');return document.querySelector('.account-editor__table').scrollTop>{ReadDouble(scrollProbe, "scroll")}+10 && on>2 && rows<=50 && (on===rows ? page.checked && !page.indeterminate : page.indeterminate) && document.querySelector('[data-account-save]').disabled;}})()");
+        await Check("feedback_account_drag_scroll", $"(()=>{{var rows=document.querySelectorAll('[data-account-select]').length,on=document.querySelectorAll('[data-account-select]:checked').length,page=document.querySelector('[data-account-select-page]');return document.querySelector('.account-editor__table').scrollTop>{ReadDouble(scrollProbe, "scroll")}+10 && on>2 && rows<=200 && (on===rows ? page.checked && !page.indeterminate : page.indeterminate) && document.querySelector('[data-account-save]').disabled;}})()");
         // 先清除，再單選一列，讓下面連點兩下「全選本頁」每次都是部分選取、全選、全不選。
         await Click("[data-account-clear-selection]");
         await Click("[data-account-select='1']");
@@ -216,7 +217,8 @@ internal static partial class GuiScenarios
         await Click(weekend);
         await Click(weekend);
         await Check("feedback_both_preview_sides", "['weekendPosting','weekendApproval'].every(k=>document.querySelector('[data-prescreen-key='+k+'] tbody tr')) && !state.busy");
-        await FindControlPointAsync(cdp, process, "[data-prescreen-key=weekendApproval] .rule-detail__preview-summary", ct);
+        // 預覽上方「已載入 N 筆」的說明在同一次分頁改版拿掉，改找同一區塊的標題；這一行在上面那次失敗前沒有執行到。
+        await FindControlPointAsync(cdp, process, "[data-prescreen-key=weekendApproval] .rule-detail__preview-label", ct);
         await CaptureScreenshotAsync(cdp, outcome, ct);
         // 以實際 TB 下拉選單建立非零差異，再走驗證、篩選、匯出、返回與重開。
         await Click("[data-bind=step-nav] [data-step-index='2']");

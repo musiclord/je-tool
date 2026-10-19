@@ -38,6 +38,7 @@ public sealed class LocalFilterHitsPageRepository(ILocalProjectDatabase database
             $"WHERE r.scenario_position = @pos AND {GlEffectivePopulation.SqlPredicate("g")}" + paging.Predicate + " " +
             paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
+        var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, database.Dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<FilterHitRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -57,6 +58,6 @@ public sealed class LocalFilterHitsPageRepository(ILocalProjectDatabase database
                 paging.HasSort ? reader.GetValue(9) : null);
         }
 
-        return buffer.ToPage(request, paging, static row => row.EntryId);
+        return buffer.ToPage(request, paging, static row => row.EntryId, totalCount);
     }
 }

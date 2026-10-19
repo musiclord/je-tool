@@ -31,7 +31,7 @@ internal sealed partial class GlRulePredicates
         // 人員（建立人員、核准人員）依去空白、不分大小寫的識別值分組，和人員清單、編製等於核准同一規則（2026-10-04 裁定 C3）；
         // 科目編號只去空白，大小寫規則不變。
         var isPerson = rule.Field is "createBy" or "approveBy";
-        string Key(string alias) => isPerson ? $"UPPER({dialect.Trim($"{alias}.{column}")})" : dialect.Trim($"{alias}.{column}");
+        string Key(string alias) => isPerson ? dialect.Upper(dialect.Trim($"{alias}.{column}")) : dialect.Trim($"{alias}.{column}");
         return $"{Key("g")} IN (SELECT {Key("f")} FROM {schemaPrefix}target_gl_entry f " +
             $"WHERE {populationScopePredicate(context, "f")} AND f.{column} IS NOT NULL " +
             $"AND {dialect.Trim($"f.{column}")} <> '' GROUP BY {Key("f")} HAVING {comparison})";

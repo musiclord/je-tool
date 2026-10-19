@@ -34,7 +34,7 @@
     m.droppedCount += dropped.length;
   }
   function dirty(m) { return Object.keys(m.changes).length > 0; }
-  var PAGE_SIZE = 50; // 每頁科目數，與一次儲存上限分開。
+  var PAGE_SIZE = Ui.TABLE_PAGE_SIZE; // 每頁科目數，與一次儲存上限分開。
   var SAVE_BATCH = 500; // accountMapping.save 每次最多 500 筆，超過時分批送出。
   function load(m) {
     if (m.loading) { return Promise.resolve(); }
@@ -49,9 +49,10 @@
       .then(function (data) {
         if (model !== m) { return; }
         m.rows = data.rows; m.nextCursor = data.nextCursor;
+        if (data.totalCount != null) { m.totalCount = data.totalCount; }
         m.rows.forEach(function (row) { m.saved[row.accountCode] = row.categoryId; });
       }).catch(function (error) {
-        if (model === m) { m.error = error.message || '科目清單載入失敗，請重試。'; }
+        if (model === m) { m.error = Ui.errorText(error, '科目清單載入失敗，請重試。'); }
       }).finally(function () {
         if (model !== m) { return; }
         m.loading = false;
@@ -60,7 +61,7 @@
   }
   function html(state, ready) {
     var m = current(state);
-    if (!ready) { return '<p class="rule-card__gate">完成 GL 欄位配對後，即可設定科目分類。</p>'; }
+    if (!ready) { return '<p class="rule-card__gate">GL 確認配對後，即可設定科目分類。</p>'; }
     var categories = Ui.taxonomyTree(state);
     var rows = (m.rows || []).map(function (row, index) {
       var selected = Object.prototype.hasOwnProperty.call(m.changes, row.accountCode)
@@ -99,11 +100,9 @@
         (m.rows.length && m.rows.every(function (row) { return m.selected[row.accountCode]; }) ? ' checked' : '') + '><span>本頁</span></label>' +
         '</th><th>科目編號</th><th>科目名稱</th><th>目前分類</th></tr></thead><tbody>' +
         (rows || '<tr><td colspan="4">沒有符合的科目。</td></tr>') + '</tbody></table></div>') +
-      '<div class="account-editor__footer"><div class="account-editor__pager"><button class="btn btn--ghost" data-account-prev' +
-        (!m.previous.length || m.loading ? ' disabled' : '') + '>上一頁</button>' +
-        '<span class="account-editor__page">第 ' + (m.previous.length + 1) + ' 頁' + (m.rows && m.rows.length && !m.loading && !m.nextCursor ? '（最後一頁）' : '') +
-          (m.rows && m.rows.length ? '<span class="account-editor__range">本頁第 ' + (m.previous.length * PAGE_SIZE + 1) + '–' + (m.previous.length * PAGE_SIZE + m.rows.length) + ' 個</span>' : '') + '</span><button class="btn btn--ghost" data-account-next' +
-        (!m.nextCursor || m.loading ? ' disabled' : '') + '>下一頁</button></div>' +
+      '<div class="account-editor__footer">' + Ui.pageControlsHtml(m.previous.length + 1, m.totalCount, {
+        previousAttribute: 'data-account-prev', nextAttribute: 'data-account-next', busy: m.loading, canNext: !!m.nextCursor
+      }) +
         '<div class="panel__actions">' +
         '<button class="btn btn--ghost" data-account-cancel' + (!dirty(m) || m.loading ? ' disabled' : '') + '>取消變更</button>' +
         '<button class="btn" data-account-save' + (!dirty(m) || m.loading ? ' disabled' : '') + '>儲存科目分類</button></div></div>' +
@@ -300,11 +299,16 @@
         (m.rows || []).forEach(function (row) {
           if (Object.prototype.hasOwnProperty.call(m.saved, row.accountCode)) { row.categoryId = m.saved[row.accountCode]; }
         });
-        // setter 同步重繪前先對齊新批次，分類設定改名不丟棄尚未保存的選擇。
-        m.key = key(Object.assign({}, Store.getState(), { importState:
-          Object.assign({}, Store.getState().importState, { accountMapping: data }) }));
-        Store.setAccountMappingState(data);
+        // 存檔後讀不回科目配對摘要時，回應不帶摘要欄位：保留畫面上原本的摘要與比對用的批次，
+        // 只套用失效結果並顯示提醒（使用者 2026-10-19 裁定）。
+        if (data.batchId) {
+          // setter 同步重繪前先對齊新批次，分類設定改名不丟棄尚未保存的選擇。
+          m.key = key(Object.assign({}, Store.getState(), { importState:
+            Object.assign({}, Store.getState().importState, { accountMapping: data }) }));
+          Store.setAccountMappingState(data);
+        }
         Store.applyMutationEffects(data);
+        (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
         last = data;
         return saveBatch(index + 1);
       });
@@ -340,76 +344,29 @@
     return '';
   }
 
-  var confirmationOpen = false;
-
-  // 離開第四步、執行預篩選或離開案件前，如果還有沒儲存的分類就先問。回傳 Promise<boolean>：true 表示可以繼續。
+  // 離開第四步、執行預篩選或離開案件前，如果還有沒儲存的分類就先問，用第五步篩選情境也在用的共用對話框
+  // （Ui.confirmUnsaved）。回傳 Promise<boolean>：true 表示可以繼續。
   // consequence 說明不儲存會怎樣，continueLabel 是「不儲存也繼續」那顆按鈕的文字。
   // options.saveable 為 false 時不提供「儲存並繼續」：匯入 GL 或 TB、確認配對與匯入科目配對檔本身就會清除或取代
   // 已儲存的分類，先存也留不住（使用者 2026-10-15 選擇「拿掉儲存，只留兩個按鈕」）。
-  // 同一時間只開一個對話框；已經開著時，新的要求當成「留在這裡」。
   function confirmPending(consequence, continueLabel, options) {
     var count = pendingCount();
     if (!count) { return Promise.resolve(true); }
-    if (confirmationOpen) { return Promise.resolve(false); }
-    confirmationOpen = true;
     var saveable = !(options && options.saveable === false);
     var cleared = saveable ? workClearedBySave() : { prescreen: false, scenarios: false };
-    return new Promise(function (resolve) {
-      function finish(result) {
-        confirmationOpen = false;
-        resolve(result);
-      }
-      var previousFocus = document.activeElement;
-      var modal = document.createElement('div');
-      modal.className = 'modal';
-      modal.setAttribute('data-bind', 'account-pending-modal');
-      modal.innerHTML =
-        '<div class="modal__backdrop" data-pending-choice="stay"></div>' +
-        '<div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="account-pending-title" aria-describedby="account-pending-body">' +
-          '<h3 class="modal__title" id="account-pending-title">科目分類尚未儲存</h3>' +
-          '<p class="modal__body" id="account-pending-body">有 ' + count + ' 個科目的分類尚未儲存。' +
-            Ui.esc(consequence) + Ui.esc(clearingNote(cleared)) + '</p>' +
-          '<div class="modal__actions">' +
-            '<button type="button" class="btn btn--ghost" data-pending-choice="stay">留在這裡</button>' +
-            '<button type="button" class="' + (saveable ? 'btn btn--ghost' : 'btn') + '" data-pending-choice="continue">' + Ui.esc(continueLabel || '先不儲存') + '</button>' +
-            (saveable ? '<button type="button" class="btn" data-pending-choice="save">儲存並繼續</button>' : '') +
-          '</div>' +
-        '</div>';
-      function detach() {
-        document.removeEventListener('keydown', onKey, true);
-        // 對話框淡出後才移除（見 app.js 的 JetMotion.dismiss），不一瞬間消失。
-        if (global.JetMotion) { global.JetMotion.dismiss(modal); } else { modal.remove(); }
-      }
-      function close(result) {
-        detach();
-        if (previousFocus && previousFocus.isConnected && previousFocus.focus) { previousFocus.focus(); }
-        finish(result);
-      }
-      function onKey(event) {
-        if (event.key === 'Escape') { event.preventDefault(); close(false); return; }
-        var card = modal.querySelector('.modal__card');
-        if (global.JetFocus && card) { global.JetFocus.trapDialogTab(card, event); }
-      }
-      modal.addEventListener('click', function (event) {
-        var target = event.target.closest('[data-pending-choice]');
-        if (!target) { return; }
-        var choice = target.getAttribute('data-pending-choice');
-        if (choice === 'stay') { close(false); return; }
-        if (choice === 'continue') { close(true); return; }
-        detach();
-        // 儲存失敗時留在原畫面，錯誤由 Ui.run 顯示，焦點回到原本的按鈕。
-        Ui.run('儲存科目分類', function () { return saveChanges(model); })
-          .then(function () {
-            var saved = pendingCount() === 0;
-            if (!saved && previousFocus && previousFocus.isConnected && previousFocus.focus) { previousFocus.focus(); }
-            finish(saved);
-          }, function () { finish(false); });
-      });
-      document.addEventListener('keydown', onKey, true);
-      document.body.appendChild(modal);
+    return Ui.confirmUnsaved({
+      id: 'account-pending',
+      title: '科目分類尚未儲存',
+      body: '有 ' + count + ' 個科目的分類尚未儲存。' + consequence + clearingNote(cleared),
+      continueLabel: continueLabel || '先不儲存',
+      saveLabel: '儲存並繼續',
+      // 儲存失敗時錯誤由 Ui.run 顯示。
+      save: saveable ? function () {
+        return Ui.run('儲存科目分類', function () { return saveChanges(model); })
+          .then(function () { return pendingCount() === 0; });
+      } : null,
       // 會清除篩選情境或已儲存的分類時，預設停在「留在這裡」，按 Enter 不會直接清掉。
-      var primary = modal.querySelector(cleared.scenarios || !saveable ? '.modal__actions [data-pending-choice="stay"]' : '[data-pending-choice="save"]');
-      if (primary) { primary.focus(); }
+      focusStay: cleared.scenarios || !saveable
     });
   }
 

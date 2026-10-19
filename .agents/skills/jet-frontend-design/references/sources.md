@@ -1,8 +1,26 @@
 # 來源、授權與查核日期
 
-只有維護本 skill 或重新查核外部資料時才需要讀這份。查核日期都是 2026-10-08。
+只有追查設計來由或維護本 skill 時才需要讀這份。各節保留原研究的查核日期，不代表 2026-10-16 全部重新研究過。
 本 skill 只吸收下列來源的原則，用自己的話針對 JET 改寫，沒有複製原文；引用的樣式名稱與偵測規則名稱只用來對照。
 研究過程的完整筆記在本機 `artifacts/research/2026-10-08-frontend-design-research.md`，不進 Git。
+
+## 使用者指定的方向與原話
+
+- MindBridge 的 [KPMG 合作頁](https://www.mindbridge.ai/partner-program/kpmg-mindbridge/) 是使用者 2026-10-10 指定的參考。
+  原話與樣張在 [KCT 需求計畫](../../../../docs/history/specs/2026-10-06-kct-gl-requirements-plan.md) 的
+  「整體介面大改版：研究與方向（2026-10-10）」。
+  後續保留的是商業工具的結構與部分元件分工，暖紙、石板藍和淺色標題列依使用者後續裁定；不能直接恢復參考網站的深藍漸層。
+- 同一計畫的「介面色系、材質與標誌調整（2026-10-11）」「依 Apple 設計理念重新調整外觀（2026-10-11）」
+  「整體的 Liquid Glass 質感（2026-10-12）」「動態的完整度、流程欄與訊息區（2026-10-12）」
+  「第三步切換閃動與整體動態重新設計（2026-10-12）」與「加快淡入淡出、補齊展開收合與移除前的晃動（2026-10-13）」保留原話。
+  現行結果見 [前端說明](../../../../docs/jet-frontend-description.md)。
+- [介面動態與驗證循環整理計畫](../../../../docs/history/specs/2026-10-15-motion-and-verification-plan.md)
+  保存動態速度、玻璃彈性與檢查時機的後續裁定。使用者否定的是標籤的拋物線，不能轉述為禁止所有回彈。
+- 2026-10-16 技能整理改為「正文放有效指示、參考檔保存來源」，沒有重新採用已被後續裁定取代的樣張。
+  表格表頭、傳票交叉表代號表頭與 200 筆分頁依使用者 2026-10-16 的要求與選擇，原話在
+  [資料表分頁計畫](../../../../docs/history/specs/2026-10-16-table-pagination-and-agent-docs-plan.md)；程式數值與完成狀態分別查現行來源和計畫。
+
+下列版本、實測數字與日期都是當時研究紀錄。它們說明設計由來，不用來宣稱目前外部套件版本、帳號能力或畫面測量結果。
 
 ## 本 skill 的底稿
 
@@ -146,5 +164,8 @@ Liquid Glass 設計元素與理念，避免拆東牆補西牆。這次由 Claude
 
 ## Skill 格式
 
-- Claude Code skills：https://code.claude.com/docs/en/skills 。`description` 與 `when_to_use` 合計在清單中最多顯示 1,536 個字元；本文建議少於 500 行。
-- Codex skills：https://learn.chatgpt.com/docs/build-skills 。`.agents/skills/` 的 `name` 與 `description` 必填；`agents/openai.yaml` 的 `policy.allow_implicit_invocation` 預設為 true。
+2026-10-16 重新查核格式入口，載入行為以 [agent-compatibility.md](../../../harness/agent-compatibility.md) 為準。
+
+- [Claude Code skills](https://code.claude.com/docs/en/skills)：專案技能放在 `.claude/skills/`；正文之外的參考檔按需讀取。
+- [Codex skills](https://learn.chatgpt.com/docs/build-skills)：正本使用 `.agents/skills/`，`agents/openai.yaml` 可設定 `allow_implicit_invocation`。
+- [VS Code skills](https://code.visualstudio.com/docs/agent-customization/agent-skills)：技能位置與可選欄位依所選 harness 判斷。

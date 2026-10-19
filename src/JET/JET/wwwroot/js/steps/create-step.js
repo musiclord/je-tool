@@ -111,7 +111,7 @@
   function showCreateError(form, error, updating) {
     var summary = form.querySelector('[data-bind="' + (updating ? 'project-update-error' : 'create-error') + '"]');
     if (!summary) { return; }
-    var message = error && error.message ? error.message : (updating ? '無法儲存案件資料。' : '無法建立案件。');
+    var message = Ui.errorText(error, updating ? '無法儲存案件資料。' : '無法建立案件。');
     summary.textContent = message;
     summary.hidden = false;
 
@@ -151,8 +151,9 @@
     var unusual = validDate.test(value) && ((validDate.test(start) && value < start) ||
       (validDate.test(end) && value > oneYearAfter(end)));
     // 早於查核起始日，或晚於查核截止日超過一年時提醒；只顯示狀態，不在提示裡解釋判斷規則。
+    // 句子和後端 ProjectMetadataRules.PreparationDateWarning 一字不差，儲存後回傳的提醒才不會換一種說法。
     // 顯示時先寫文字再展開；收起時保留原文字，讓提示帶著內容收合。
-    if (unusual) { warning.textContent = '期末財報準備日與查核期間不符，請確認年份。'; }
+    if (unusual) { warning.textContent = '期末財報準備日與查核期間不相符，請確認年份；不影響後續操作。'; }
     warning.hidden = !unusual;
   }
 
@@ -257,7 +258,7 @@
     } else {
       variant = 'form-notice--warning';
       text = 'GL 有 ' + summary.documentNumberCount.toLocaleString() + ' 個傳票號碼出現在不同總帳日期（共 ' +
-        summary.entryCount.toLocaleString() + ' 列），請確認來源系統是否重複使用號碼。';
+        summary.entryCount.toLocaleString() + ' 筆分錄），請確認來源系統是否重複使用號碼。';
     }
     return '<p class="form-notice ' + variant + '" data-bind="document-date-reuse" role="status">' + Ui.esc(text) + '</p>';
   }

@@ -40,6 +40,7 @@ public sealed class SqlServerInfSamplePageRepository(SqlServerProjectDatabase da
         command.Parameters.AddWithValue("@pageSize", request.ClampedPageSize + 1);
         command.Parameters.AddWithValue("@runId", runId);
 
+        var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, Dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<InfSampleRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -60,6 +61,6 @@ public sealed class SqlServerInfSamplePageRepository(SqlServerProjectDatabase da
                 paging.HasSort ? reader.GetValue(11) : null);
         }
 
-        return buffer.ToPage(request, paging, static row => row.EntryId);
+        return buffer.ToPage(request, paging, static row => row.EntryId, totalCount);
     }
 }

@@ -19,6 +19,28 @@ internal sealed class ReportArtifactExecutionPort(
         CancellationToken cancellationToken)
     {
         EnsureRequestsMatchPlan(plan);
+        if (!plan.UseAtomicBatch && requests.Count != 1)
+        {
+            throw new InvalidOperationException(
+                $"Single report export '{plan.Request.ActionName}' 必須恰有一個 content writer。");
+        }
+
+        // 正式組裝的報告清單會寫操作紀錄；經這個介面發布才拿得到寫不進操作紀錄時的提醒。
+        if (publishingArtifact is not null && artifactStore is IAuditedReportPublishingStore auditedStore)
+        {
+            var publication = plan.UseAtomicBatch
+                ? await auditedStore.WriteBatchAuditedAsync(
+                    plan.Request.ProjectId,
+                    requests,
+                    publishingArtifact,
+                    cancellationToken)
+                : await auditedStore.WriteAuditedAsync(
+                    plan.Request.ProjectId,
+                    requests[0],
+                    publishingArtifact,
+                    cancellationToken);
+            return new ReportExportFacts(publication.Artifacts, publication.AuditLogWarning);
+        }
 
         IReadOnlyList<ReportArtifact> artifacts;
         if (plan.UseAtomicBatch)
@@ -37,12 +59,6 @@ internal sealed class ReportArtifactExecutionPort(
         }
         else
         {
-            if (requests.Count != 1)
-            {
-                throw new InvalidOperationException(
-                    $"Single report export '{plan.Request.ActionName}' 必須恰有一個 content writer。");
-            }
-
             var artifact = publishingArtifact is not null
                 && artifactStore is IReportArtifactPublishingStore publishingStore
                 ? await publishingStore.WriteWithPublishingAsync(

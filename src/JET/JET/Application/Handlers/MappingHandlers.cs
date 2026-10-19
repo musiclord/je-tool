@@ -150,8 +150,10 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             projectId,
             DatasetKind.Gl,
             cancellationToken);
+        // 已有確認的配對就要記重新配對；沒有時讀紀錄表判斷，本機案件讀不到時是 null（無法判斷）。
         var recordsRecommit = existingMapping is not null
-            || await repositories.ProjectAuditLog.RequiresMappingRecommitAuditAsync(projectId, "gl", cancellationToken);
+            ? true
+            : await repositories.ProjectAuditLog.TryRequiresMappingRecommitAuditAsync(projectId, "gl", cancellationToken);
         // 重新匯入會刪掉已確認的配對，但畫面的草稿仍帶著上次確認時發出的攸關資料元素欄位身分。
         // 還沒重新確認時沿用那一份，草稿才送得出去。已儲存情境會隨重新匯入一併清除（使用者 2026-10-07 裁定）。
         var reusableMapping = existingMapping
@@ -215,21 +217,43 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             WorkflowMilestones.For(Action),
             CancellationToken.None, logger);
 
-        if (recordsRecommit)
-        {
-            await repositories.ProjectAuditLog.AppendAsync(
-                projectId,
-                ProjectAuditEvent.Create(
-                    ProjectAuditOperations.MappingRecommit,
-                    ProjectAuditTargetTypes.Mapping,
-                    "gl",
-                    result.Projection.ProjectedRowCount,
-                    replacedCount: 1),
-                CancellationToken.None);
-        }
+        var auditLogWarning = await CommittedAuditLog.AppendMappingRecommitAsync(
+            repositories.ProjectAuditLog, projectId, recordsRecommit, "gl", result.Projection.ProjectedRowCount, logger);
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
+        // 非阻斷提醒（如必填欄整欄空白，疑似配錯欄）；前端提交成功後一併顯示。多數情況為空陣列。
+        var warnings = CommittedAuditLog.WithWarning(result.Projection.Warnings, auditLogWarning);
+        AuthorizedPreparerState? authorizedPreparerState;
+        try
+        {
+            authorizedPreparerState = await repositories.AuthorizedPreparers.FindStateAsync(projectId, CancellationToken.None);
+        }
+        catch (Exception error)
+        {
+            // 變更已提交，讀不到授權清單比對狀態時和讀不回結果狀態相同處理：回報成功、附提醒，
+            // 回應不帶這個欄位，前端保留畫面上的狀態（使用者 2026-10-19 裁定）。支援日誌記下錯誤類型。
+            if (logger is not null) WorkflowResultStateSupport.StateReadFailed(logger, "authorized_preparer_state", error.GetType().Name);
+            var unavailable = WorkflowResultStateSupport.StateUnavailable(mutationState.InvalidatedResults);
+            return new
+            {
+                ok = true,
+                mapping = result.Spec.Mapping,
+                amountMode = GlAmountModeNames.ToWireName(result.Spec.AmountMode),
+                postingStatusPolicy = plan.EffectivePopulation.PostingStatusPolicy,
+                approvalDateMode = result.Spec.Options.ApprovalDateMode,
+                manualAutoPolicy = result.Spec.Options.ManualAutoPolicy,
+                rdeFields = result.Spec.Options.RdeFields,
+                batchId = batch.BatchId,
+                projectedRowCount = result.Projection.ProjectedRowCount,
+                warnings,
+                invalidatedResults = unavailable.InvalidatedResults,
+                staleState = unavailable.StaleState,
+                reportArtifacts = unavailable.ReportArtifacts,
+                reportArtifactWarning = unavailable.ReportArtifactWarning
+            };
+        }
+
         return new
         {
             ok = true,
@@ -241,9 +265,8 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             rdeFields = result.Spec.Options.RdeFields,
             batchId = batch.BatchId,
             projectedRowCount = result.Projection.ProjectedRowCount,
-            // 非阻斷提醒（如必填欄整欄空白，疑似配錯欄）；前端提交成功後一併顯示。多數情況為空陣列。
-            warnings = result.Projection.Warnings,
-            authorizedPreparerState = await repositories.AuthorizedPreparers.FindStateAsync(projectId, CancellationToken.None),
+            warnings,
+            authorizedPreparerState,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
             reportArtifacts = mutationState.ReportArtifacts,
@@ -288,8 +311,10 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
             projectId,
             DatasetKind.Tb,
             cancellationToken);
+        // 判斷方式同 GL：本機案件讀不到紀錄表時是 null（無法判斷）。
         var recordsRecommit = existingMapping is not null
-            || await repositories.ProjectAuditLog.RequiresMappingRecommitAuditAsync(projectId, "tb", cancellationToken);
+            ? true
+            : await repositories.ProjectAuditLog.TryRequiresMappingRecommitAuditAsync(projectId, "tb", cancellationToken);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
@@ -324,21 +349,11 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
             WorkflowMilestones.For(Action),
             CancellationToken.None, logger);
 
-        if (recordsRecommit)
-        {
-            await repositories.ProjectAuditLog.AppendAsync(
-                projectId,
-                ProjectAuditEvent.Create(
-                    ProjectAuditOperations.MappingRecommit,
-                    ProjectAuditTargetTypes.Mapping,
-                    "tb",
-                    result.Projection.ProjectedRowCount,
-                    replacedCount: 1),
-                CancellationToken.None);
-        }
+        var auditLogWarning = await CommittedAuditLog.AppendMappingRecommitAsync(
+            repositories.ProjectAuditLog, projectId, recordsRecommit, "tb", result.Projection.ProjectedRowCount, logger);
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
         return new
         {
             ok = true,
@@ -346,7 +361,7 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
             changeMode = TbChangeModeNames.ToWireName(result.Spec.ChangeMode),
             batchId = batch.BatchId,
             projectedRowCount = result.Projection.ProjectedRowCount,
-            warnings = result.Projection.Warnings,
+            warnings = CommittedAuditLog.WithWarning(result.Projection.Warnings, auditLogWarning),
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
             reportArtifacts = mutationState.ReportArtifacts,

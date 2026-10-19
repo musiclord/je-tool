@@ -41,7 +41,9 @@ public sealed class PrescreenRunLoggingTests
     // 其餘 17 條命令與參數未變。SQL Server 同樣未執行，維持原值待核對。
     private const string SqliteSnapshotDigest = "847BAFE0A6F3930C007CC233A7CC16CCDD9CD6CC2FD3F3E51D62F29070BCBFB5";
     private const string DuckDbSnapshotDigest = "AF944C136750118DE969727193752237EF2EC8FCAC5424AB5046AC8F2677FAE3";
-    private const string SqlServerSnapshotDigest = "F2274C9B66E03AAB184715287E158F5081F8F2011F7E1FDE210A1E234937434C";
+    // 2026-10-19 第一次在本機 SQL Server 2022 執行，依實際命令序列更新：命令數和本機版相同，漂移來自開發暫緩期間只經編譯的共用 SQL 修改
+    // 與這輪 SQL Server 轉大寫改走方言。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
+    private const string SqlServerSnapshotDigest = "E2A19883500A0386EF903F72FF32E9FD2889D5AD9EA85C8EEE5EFC6DA6E73D3B";
 
     private const string PeriodStart = "2025-09-30"; // 可辨識的期末日，後期核准述詞綁定後應現身於 parameters
 
@@ -107,7 +109,17 @@ public sealed class PrescreenRunLoggingTests
         });
         // 編製者彙總：人員依去空白、不分大小寫的識別值分組（2026-10-04 第二遍回饋審閱第 2 批，C3）；
         // 原本斷言 GROUP BY created_by（第一次失敗：Public 收據 20261004-050120179-d7f0450b8a4940a39d1e58357427160f）。
-        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains("GROUP BY UPPER(TRIM(COALESCE(created_by, '')"));
+        // SQL Server 的去空白寫成 TRIM(NCHAR(...) FROM x)，2026-10-19 起轉大寫也改走方言，寫成 UPPER((x) COLLATE Latin1_General_100_BIN2)；
+        // 原本的字串只符合本機寫法，SQL Server 版從未通過。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
+        if (expectedProvider == "sqlServer")
+        {
+            Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains("GROUP BY UPPER((TRIM(")
+                && e.Fields["sql"]!.ToString()!.Contains("FROM COALESCE(created_by, ''))) COLLATE Latin1_General_100_BIN2)"));
+        }
+        else
+        {
+            Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains("GROUP BY UPPER(TRIM(COALESCE(created_by, '')"));
+        }
         // 後期核准述詞綁定期末日 → parameters 含可辨識值
         Assert.Contains(sql, e => e.Fields["parameters"]!.ToString()!.Contains(PeriodStart));
         // 事件數為小常數（無逐列執行）——遠低於任何母體規模

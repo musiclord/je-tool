@@ -304,7 +304,8 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
 
     private static SqliteConnection CreateConfiguredConnection(string connectionString)
     {
-        var connection = new SqliteConnection(connectionString);
+        // 取消會中斷執行中的語句，見 CancellableSqliteConnection。
+        var connection = new CancellableSqliteConnection(connectionString);
         // SQLite's built-in UPPER is ASCII-only. Match the existing invariant-uppercase
         // operands for filters and prescreen rules, including pooled and read-only connections.
         connection.CreateFunction<string?, string?>("upper", static value => value?.ToUpperInvariant(), isDeterministic: true);

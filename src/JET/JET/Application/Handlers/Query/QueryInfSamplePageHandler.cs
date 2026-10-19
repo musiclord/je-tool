@@ -36,7 +36,7 @@ public sealed class QueryInfSamplePageHandler(
             {
                 columns = RenderColumns(columnPlan),
                 rows = Array.Empty<object>(),
-                nextCursor = (string?)null
+                totalCount = 0L, nextCursor = (string?)null
             };
         }
 
@@ -74,6 +74,7 @@ public sealed class QueryInfSamplePageHandler(
                 description = r.Description,
                 customValues = customValues[r.EntryId]
             }).ToArray(),
+            totalCount = page.TotalCount,
             nextCursor = page.NextCursor
         };
     }

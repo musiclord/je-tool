@@ -365,10 +365,15 @@ internal static partial class GuiScenarios
         }
         const string doc = "[data-bind=rule-detail-pn-1]";
         const string account = "[data-bind=rule-detail-pn-2]";
-        const string docMore = doc + " [data-load-more=null-nullDocument]";
-        const string accountMore = account + " [data-load-more=null-nullAccount]";
+        // 使用者 2026-10-16 裁定明細一律每頁至多 200 筆、用左右箭頭換頁（資料表分頁與 Agent 文件整理計畫），「載入更多」已移除。
+        // 打開明細就讀第一頁 200 列，第 2 頁是剩下的 6 列；原本按兩次「載入更多」累積到 206 列，改成核對頁碼與換頁
+        // （第一次失敗收據 20261019-164820528-1585a7eae899498882912269c48d443e，找不到「載入更多」）。
+        const string docNext = doc + " [data-page-next]";
+        const string accountNext = account + " [data-page-next]";
         string Rows(string panel, int count) => "document.querySelectorAll(" +
             JsonSerializer.Serialize(panel + " tbody tr") + ").length===" + count;
+        string Page(string panel, string position) => "document.querySelector(" +
+            JsonSerializer.Serialize(panel + " [data-page-position]") + ").textContent===" + JsonSerializer.Serialize(position);
         ResizeFilterWindow(1250, 950);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
@@ -377,24 +382,22 @@ internal static partial class GuiScenarios
         await Check("state.lastRuns.validate.nullRecordsTest.nullDocumentCount===206 && state.lastRuns.validate.nullRecordsTest.nullAccountCount===206");
         await Click(".prescreen-signals > summary");
         await Click("[data-action=toggle-detail][data-scope=pn][data-idx='1']");
-        await Click(docMore);
-        await Check(Rows(doc, 200) + " && document.querySelector('" + doc + " th[data-sort-key=postDate]').textContent.includes('總帳日期')");
-        await Click(docMore);
-        await Check(Rows(doc, 206) + " && document.querySelector('" + docMore + "').hidden");
+        await Check(Rows(doc, 200) + " && " + Page(doc, "1/2") + " && document.querySelector('" + doc + " th[data-sort-key=postDate]').textContent.includes('總帳日期')");
+        await Click(docNext);
+        await Check(Rows(doc, 6) + " && " + Page(doc, "2/2") + " && document.querySelector('" + docNext + "').disabled");
         await Click("[data-action=toggle-detail][data-scope=pn][data-idx='2']");
-        await Click(accountMore);
-        await Check(Rows(account, 200) + " && " + Rows(doc, 206));
-        await Click(accountMore);
-        await Check(Rows(account, 206));
+        await Check(Rows(account, 200) + " && " + Page(account, "1/2") + " && " + Rows(doc, 6));
+        await Click(accountNext);
+        await Check(Rows(account, 6) + " && " + Page(account, "2/2"));
         outcome.RecordStage("null_independent_sort_and_pages");
         await Click(doc + " .th-sort[data-sort-key=description]");
-        await Check(Rows(doc, 200) + " && " + Rows(account, 206));
+        await Check(Rows(doc, 200) + " && " + Page(doc, "1/2") + " && " + Rows(account, 6));
         await Click(doc + " .th-sort[data-sort-key=description]");
-        await Check("document.querySelector('" + doc + " tbody').textContent.includes('GUI-NULL-BOTH') && " + Rows(account, 206));
+        await Check("document.querySelector('" + doc + " tbody').textContent.includes('GUI-NULL-BOTH') && " + Rows(account, 6));
         outcome.RecordStage("null_failed_search_retains_rows");
         await Search(doc, "GUI-NULL-BOTH");
         await WaitForFixtureEventAsync(ownedRun, process, "fail-null-search-once", "failure.injected", ct);
-        await Check(Rows(doc, 200) + " && document.querySelector('" + doc + " [data-page-search-input]').value==='' && " + Rows(account, 206));
+        await Check(Rows(doc, 200) + " && document.querySelector('" + doc + " [data-page-search-input]').value==='' && " + Rows(account, 6));
         outcome.RecordStage("null_retry_and_overlap");
         await Search(doc, "GUI-NULL-BOTH");
         await Check(Rows(doc, 1) + " && document.querySelector('" + doc + " tbody').textContent.includes('GUI-NULL-BOTH')");
@@ -403,7 +406,7 @@ internal static partial class GuiScenarios
         await Click(doc + " [data-page-search-clear]");
         await Check(Rows(doc, 200) + " && " + Rows(account, 1));
         await Search(doc, "GUI-NO-SUCH-ROW");
-        await Check(Rows(doc, 0) + " && document.querySelector('" + docMore + "').hidden");
+        await Check(Rows(doc, 0) + " && document.querySelector('" + doc + " .table-pager').hidden");
         await Click(doc + " [data-page-search-clear]");
         await Check(Rows(doc, 200));
         await FindControlPointAsync(cdp, process, doc + " [data-page-search-input]", ct);
@@ -417,10 +420,9 @@ internal static partial class GuiScenarios
         await Click("[data-bind=step-nav] [data-step-index='3']");
         await Click(".prescreen-signals > summary");
         await Click("[data-action=toggle-detail][data-scope=pn][data-idx='1']");
-        await Click(docMore);
-        await Check(Rows(doc, 200));
-        await Click(docMore);
-        await Check(Rows(doc, 206) + " && state.lastRuns.validate.nullRecordsTest.nullAccountCount===206");
+        await Check(Rows(doc, 200) + " && " + Page(doc, "1/2"));
+        await Click(docNext);
+        await Check(Rows(doc, 6) + " && state.lastRuns.validate.nullRecordsTest.nullAccountCount===206");
         outcome.Assertions.NullDetailsRecoveryVerified = true;
         await Click("[data-action=app-exit]");
         outcome.Assertions.ExitRequested = true;

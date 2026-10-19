@@ -39,6 +39,7 @@ public sealed class LocalDocBalancePageRepository(ILocalProjectDatabase database
             ") u WHERE 1 = 1" + paging.Predicate + " " +
             paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
+        var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, database.Dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<UnbalancedDocument>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -50,7 +51,7 @@ public sealed class LocalDocBalancePageRepository(ILocalProjectDatabase database
                 paging.HasSort ? reader.GetValue(4) : null);
         }
 
-        return buffer.ToPage(request, paging, static row => row.DocumentNumber ?? string.Empty);
+        return buffer.ToPage(request, paging, static row => row.DocumentNumber ?? string.Empty, totalCount);
     }
 
     public async IAsyncEnumerable<UnbalancedVoucherDateRow> StreamVoucherDateRowsAsync(

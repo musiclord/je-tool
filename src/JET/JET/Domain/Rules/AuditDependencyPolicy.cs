@@ -15,7 +15,10 @@ internal enum AuditMutation
     AuthorizedPreparer,
     PreparationDate,
     SchemaV7Migration,
-    AccountTaxonomy
+    AccountTaxonomy,
+    // SQL Server 第 14 版把 GL、TB 與科目配對的文字欄固定成位元序定序，轉大寫也改用新版對照表；
+    // 既有結果可能是用舊規則比對算出來的。
+    TextComparisonMigration
 }
 
 /// <summary>
@@ -43,7 +46,7 @@ internal static class AuditDependencyPolicy
             Impact(validation: true, prescreen: true, filterHits: true, clearAccountMapping: true),
         AuditMutation.Calendar or AuditMutation.AccountMapping or AuditMutation.AuthorizedPreparer or AuditMutation.PreparationDate =>
             Impact(validation: false, prescreen: true, filterHits: true),
-        AuditMutation.SchemaV7Migration =>
+        AuditMutation.SchemaV7Migration or AuditMutation.TextComparisonMigration =>
             Impact(validation: true, prescreen: true, filterHits: true),
         AuditMutation.AccountTaxonomy =>
             Impact(validation: false, prescreen: true, filterHits: true),

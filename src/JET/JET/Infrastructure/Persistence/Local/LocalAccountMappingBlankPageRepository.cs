@@ -26,6 +26,8 @@ public sealed class LocalAccountMappingBlankPageRepository(ILocalProjectDatabase
             + "WHERE classification_explicit = 0 " + (hasCursor ? "AND account_code > @cursor " : string.Empty)
             + "ORDER BY account_code " + database.Dialect.LimitClause("@pageSize") + ";";
 
+        var totalCount = await PageTotalCount.ReadAsync(command, request,
+            "SELECT COUNT(*) FROM target_account_mapping WHERE classification_explicit = 0;", cancellationToken);
         var rows = new List<AccountMappingBlankAccount>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -41,6 +43,6 @@ public sealed class LocalAccountMappingBlankPageRepository(ILocalProjectDatabase
             rows.RemoveAt(rows.Count - 1);
         }
 
-        return new PageResult<AccountMappingBlankAccount>(rows, hasMore ? PageCursor.Encode(rows[^1].AccountCode) : null);
+        return new PageResult<AccountMappingBlankAccount>(rows, hasMore ? PageCursor.Encode(rows[^1].AccountCode) : null, totalCount);
     }
 }

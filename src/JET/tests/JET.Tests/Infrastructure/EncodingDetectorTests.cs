@@ -29,6 +29,47 @@ public sealed class EncodingDetectorTests
         Assert.Equal(Encoding.Unicode.CodePage, encoding.CodePage);
     }
 
+    // 低嚴重度事項 A3（使用者 2026-10-19 要求處理）：BOM 偵測出的 UTF-8 與 UTF-16 也是嚴格編碼，遇到壞位元組丟例外；
+    // 前導位元組和 BOM 相同，StreamReader 才會沿用它，不換成默默替換字元的預設編碼。
+    [Theory]
+    [InlineData(new byte[] { 0xEF, 0xBB, 0xBF, 0x61 }, 65001, new byte[] { 0xEF, 0xBB, 0xBF })]
+    [InlineData(new byte[] { 0xFF, 0xFE, 0x61, 0x00 }, 1200, new byte[] { 0xFF, 0xFE })]
+    [InlineData(new byte[] { 0xFE, 0xFF, 0x00, 0x61 }, 1201, new byte[] { 0xFE, 0xFF })]
+    public void Detect_BomEncodings_AreStrictAndKeepTheirPreamble(byte[] bytes, int codePage, byte[] preamble)
+    {
+        var path = TestCsvBuilder.WriteBytes(bytes);
+        try
+        {
+            var encoding = EncodingDetector.Detect(path);
+
+            Assert.Equal(codePage, encoding.CodePage);
+            Assert.Equal(preamble, encoding.GetPreamble());
+            var bad = codePage == 65001 ? new byte[] { 0xFF } : codePage == 1200 ? new byte[] { 0x00, 0xD8, 0x61, 0x00 } : new byte[] { 0xD8, 0x00, 0x00, 0x61 };
+            Assert.Throws<DecoderFallbackException>(() => encoding.GetString(bad));
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Resolve_Utf16Name_OnBigEndianBom_ReturnsStrictBigEndian()
+    {
+        var path = TestCsvBuilder.WriteBytes([0xFE, 0xFF, 0x00, 0x61]);
+        try
+        {
+            var encoding = EncodingDetector.Resolve("utf-16", path);
+
+            Assert.Equal(Encoding.BigEndianUnicode.CodePage, encoding.CodePage);
+            Assert.Throws<DecoderFallbackException>(() => encoding.GetString([0xD8, 0x00, 0x00, 0x61]));
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
     [Fact]
     public void Resolve_InvalidName_ThrowsInvalidPayload()
     {

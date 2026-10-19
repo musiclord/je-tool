@@ -36,7 +36,26 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var projectId = PayloadReader.GetRequiredString(payload, "projectId");
-        var document = await projectStore.FindAsync(projectId, cancellationToken)
+        ProjectDocument? found;
+        try
+        {
+            found = await projectStore.FindAsync(projectId, cancellationToken);
+        }
+        catch (JetActionException error) when (error.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
+        {
+            // 設定檔損壞、舊版或期間無效的案件，畫面請審計員從備份還原或另建案件，舊的這份也要能從案件清單刪掉
+            // （低嚴重度事項 E1，使用者 2026-10-19 要求處理）。只處理確定是本機資料庫的案件；SQL Server 案件還要清掉
+            // 伺服器上的資料，維持原本的錯誤（列在 SQL Server 的延後事項）。
+            var localProvider = await projectStore.FindLocalDatabaseProviderAsync(projectId, cancellationToken);
+            if (localProvider is null)
+            {
+                throw;
+            }
+
+            return await DeleteAsync(projectId, localProvider, cancellationToken);
+        }
+
+        var document = found
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
                 ProjectFolderMessages.CannotDelete(projectId));
@@ -57,9 +76,14 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
                 "您沒有此線上案件的存取權，無法刪除。");
         }
 
+        return await DeleteAsync(projectId, document.DatabaseProvider, cancellationToken);
+    }
+
+    private async Task<object> DeleteAsync(string projectId, string databaseProvider, CancellationToken cancellationToken)
+    {
         // 被刪的案件不一定是作用中案件，所以依它自己的 project.json 選資料庫組，不讀也不改 session 的那一組。
         // 未知種類在取刪案鎖之前回 unsupported_provider。
-        var repositories = repositoryCatalog.For(document.DatabaseProvider);
+        var repositories = repositoryCatalog.For(databaseProvider);
         var deletionLockService = repositories.DeletionLockService;
         var reportArtifactStore = repositories.ReportArtifactStore;
         var databaseDeleter = repositories.DatabaseDeleter;

@@ -8,7 +8,8 @@ VS Code AI Agent 的共用規則權威；本檔只是 Copilot 與 VS Code 的入
 - 未經使用者明確授權，不 stage、commit、push、變更 remote，也不主動提議這些操作。
 - 禁止 `git add -A`、`git add --all`、`git add -u`、`git add .` 與 `git write-tree`；獲准後只加入明確路徑。
 - Commit、PR 與同步說明不得自行加入 `Co-Authored-By`、`Generated with` 或其他 AI 署名。
-- 不讀取、上傳或記錄 `AGENTS.md` 所列私人案件路徑；一般驗證只使用合成或已核准資料。
+- `AGENTS.md` 所列私人案件路徑只能在本機唯讀核對業務邏輯；不寫入、不複製進儲存庫、不上傳、不記錄，也不送進聊天或外部服務。
+  一般驗證不順便搜尋這些目錄，只使用合成或已核准資料。
 - 正式驗證只使用 `pwsh -NoProfile -File tools/verify.ps1` 進入，不用直接 `dotnet test` 取代收據、鎖與清理。
 - Commit 與 PR 內文保持精簡，只寫主要變更與必要原因，避免詳細描述實作過程、驗證細節與逐項修改內容。
 

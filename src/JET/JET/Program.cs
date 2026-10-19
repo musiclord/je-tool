@@ -5,11 +5,17 @@ namespace JET
     internal static class Program
     {
         /// <summary>
+        /// Main 建立的例外後盾。WebView2 初始化失敗這類已接住、不會成為未處理例外的錯誤，也寫到同一個檔案。
+        /// </summary>
+        internal static GlobalExceptionFallbackLog? FallbackLog { get; private set; }
+
+        /// <summary>
         ///  The main entry point for the application.
         /// </summary>
         [STAThread]
         static void Main()
         {
+            ProcessCulture.UseGregorianCalendar();
 #if JET_AGENT_GUI_TEST
             var agentGuiProfile = AgentGuiTestProfile.LoadRequired();
             using var agentGuiMutex = new Mutex(
@@ -26,6 +32,7 @@ namespace JET
 #else
             var fallbackLog = GlobalExceptionFallbackLog.CreateDefault();
 #endif
+            FallbackLog = fallbackLog;
             System.Windows.Forms.Application.ThreadException += (_, eventArgs) =>
                 fallbackLog.Write("Application.ThreadException", eventArgs.Exception);
             AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>

@@ -99,7 +99,7 @@ public sealed class SqlServerFilterCommitRepository(
         insert.Transaction = transaction;
 
         var position = insert.Parameters.Add("@position", SqlDbType.Int);
-        var name = insert.Parameters.Add("@name", SqlDbType.NVarChar, 400);
+        var name = insert.Parameters.Add("@name", SqlDbType.NVarChar, FilterScenarioLimits.MaxNameLength);
         var rationale = insert.Parameters.Add("@rationale", SqlDbType.NVarChar, -1);
         var definitionJson = insert.Parameters.Add("@definitionJson", SqlDbType.NVarChar, -1);
         var savedUtc = insert.Parameters.Add("@savedUtc", SqlDbType.NVarChar, 40);

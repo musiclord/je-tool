@@ -26,7 +26,10 @@ public sealed class PayloadReaderTests
             () => PayloadReader.GetStringMap(document.RootElement, "mapping"));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
-        Assert.Contains("mapping", exception.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-19 要求前端不露出系統用詞：訊息改為非預期錯誤那一句，不再寫出欄位名稱。
+        // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；改為整句比對，並核對支援日誌記下的檢查代號。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
+        Assert.Equal("payload_required_object_missing", JetPayloadRejection.CheckOf(exception));
     }
 
     [Fact]
@@ -65,6 +68,9 @@ public sealed class PayloadReaderTests
             () => PayloadReader.GetStringList(document.RootElement, "items"));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
-        Assert.Contains("items", exception.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-19 要求前端不露出系統用詞：訊息改為非預期錯誤那一句，不再寫出欄位名稱。
+        // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；改為整句比對，並核對支援日誌記下的檢查代號。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
+        Assert.Equal("payload_required_array_missing", JetPayloadRejection.CheckOf(exception));
     }
 }

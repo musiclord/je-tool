@@ -334,7 +334,7 @@ public sealed partial class LegacyReportWriter
                 cells.SetInlineString("E4", $"Prepared by: {operatorId}");
                 cells.SetInlineString(
                     "E5",
-                    $"Prepared date: {context.GeneratedUtc:yyyy/MM/dd}");
+                    string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.GeneratedUtc:yyyy/MM/dd}"));
                 cells.SetInlineString("C8", closeDateText);
                 cells.SetInlineString("C11", zeroText);
 
@@ -714,7 +714,7 @@ public sealed partial class LegacyReportWriter
                         sheet.TextCell(
                             row,
                             1,
-                            CreatorSummaryDisplayName(item.CreatedBy),
+                            CreatorSummaryDisplay.NameOf(item.CreatedBy),
                             LegacyReportStyles.ExportDatabaseText),
                         sheet.NumberCell(
                             row,
@@ -802,7 +802,7 @@ public sealed partial class LegacyReportWriter
             cancellationToken.ThrowIfCancellationRequested();
             widths.Observe(
             [
-                CreatorSummaryDisplayName(item.CreatedBy),
+                CreatorSummaryDisplay.NameOf(item.CreatedBy),
                 item.EntryCount.ToString("N0", CultureInfo.InvariantCulture),
                 FormatDisplayedAmount(item.DebitTotalScaled, moneyScale),
                 FormatDisplayedAmount(item.CreditTotalScaled, moneyScale)
@@ -810,9 +810,6 @@ public sealed partial class LegacyReportWriter
         }
         return widths.Widths;
     }
-
-    private static string CreatorSummaryDisplayName(string? createdBy) =>
-        string.IsNullOrWhiteSpace(createdBy) ? "（空白）" : createdBy;
 
     private async Task EmitAccountUsageAsync(
         SpreadsheetDocument document,

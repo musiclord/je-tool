@@ -28,7 +28,7 @@
 路徑是內容不變的新名範本。沒有發現未解釋的產品規則、SQL、處理器或前端業務邏輯分叉。
 
 日後的權威順序、完整來源文件位置與衝突處理程序見
-[`business-logic-provenance.md`](business-logic-provenance.md)。這份比對只證明遷移基準，不會把舊專案
+[`business-logic-provenance.md`](../business-logic-provenance.md)。這份比對只證明遷移基準，不會把舊專案
 的測試通過結果或驗證框架限制帶進新專案。
 
 ## 已決定不保存來源 Git 歷史
@@ -43,7 +43,7 @@
 
 ## 新儲存庫保存的背景
 
-- [`docs/history/`](history/README.md)：兩個來源的文件副本，已正規化並依時間軸重組。開發紀錄合併為
+- [`docs/history/`](README.md)：兩個來源的文件副本，已正規化並依時間軸重組。開發紀錄合併為
   單一檔案，設計書與證據併入同一個 `specs/`，被現行文件取代的舊版本收在 `superseded/`，不再依來源
   專案分目錄。
 - `legacy/`：IDEA、VBA、圖表與原型對照來源。
@@ -70,3 +70,38 @@
 
 關庫不再包含重寫歷史、建立新舊 SHA 對照表、掃描來源 Git 物件或搬移來源產物；這些事項已完成裁定，
 不是第一次提交的待辦。
+
+## 技術選型與演進
+
+2026-10-16 補記。以下整理當時文件留下的考量，不是現行規格。可追到的選型文件最早提交於 2026-04-09；
+這只能證明當時已有記錄，不能判定構想首次出現的日期。來源連結固定到當時提交，不另外複製整份舊文件。
+
+### 早期選型的考量
+
+4 月 9 日的[技術指南](https://github.com/musiclord/je-testing/blob/e90bf9a614a616b76e5bc686fda380901629eb11/docs/technical_guide.md#L211-L219)
+在「避免額外安裝」一欄寫明：「使用 Windows 內建的 WebView2 Runtime」。當時以目標電腦已有 Runtime 為部署前提。
+
+下表摘要同日的[架構選型](https://github.com/musiclord/je-testing/blob/e90bf9a614a616b76e5bc686fda380901629eb11/docs/architecture.md#L185-L206)
+及 4 月 17 日的[遷移背景與選型](https://github.com/musiclord/je-testing/blob/06ed5cdc5f9c235b176631c5931db44e4a3dc3f0/docs/jet-guide.md#L475-L511)。
+
+| 當時選擇 | 考量 |
+|:---|:---|
+| 從 Excel VBA 與 Access 移出 | Access 單檔 2GB 上限、Excel 巨集政策、UserForms 介面彈性，以及測試、維護與 AI 協作的限制。 |
+| C# 與 .NET 10 LTS | 看重 C# 社群及 AI 工具支援，讓建置與測試能透過命令列自動執行。正式產品另受公司禁用 Python 的限制。 |
+| WinForms | 作為簡單的桌面容器，`Form1` 只承載 WebView2，不放業務邏輯。當時認為 WPF 對起步階段過重。 |
+| WebView2 與 HTML、CSS、JS | 利用既有 Runtime 承載網頁介面，讓 AI 容易產生與修改畫面，縮短介面迭代時間。 |
+| 本機單一執行檔 | 把 .NET 執行階段隨程式部署，使用者直接執行。不架 Web server，也不開網路端口。 |
+
+這些是當時的比較判斷；文件沒有留下 .NET 10 與 .NET 8、9 的逐項比較。後續對 Electron、Tauri、Blazor Hybrid
+及本機 Web server 的排除理由，已保存在[六月指南第 9 節](superseded/jet-guide-2026-06.md#9-技術約束與排除選項)。
+
+### 資料庫選擇的演進
+
+| 時間 | 當時的方向或決策 |
+|:---|:---|
+| 2026-04-09 | 以 SQL Server 處理大量資料與運算，.NET 只處理結果集。來源為上方技術指南。 |
+| 2026-04-17 | SQLite 負責本機運算，減輕 SQL Server 負荷。先以 SQLite 為主，但共用資料存取介面須同時支援 SQL Server。見[當時記錄的使用者原則](https://github.com/musiclord/je-testing/blob/06ed5cdc5f9c235b176631c5931db44e4a3dc3f0/docs/jet-guide.md#L639-L645)。 |
+| 2026-06-02 | DuckDB 列為分析型資料庫候選，尚不作為起始依賴。見[當時的本機資料庫選型](https://github.com/musiclord/je-testing/blob/a268a96d16919764e3b065150ba16d5d0572e782/docs/jet-guide.md#L658)。 |
+| 2026-07-07 | 使用者決定納入 DuckDB 為第二個本機引擎，SQLite 維持預設。兩者須支援相同業務邏輯及案件資料夾移交；大資料量時是否建議使用 DuckDB，另由效能量測決定。見[設計紀錄](https://github.com/musiclord/new-je-tool/blob/eca52f94c1918d2ecde9dc223942e84673c41dc9/docs/specs/2026-07-07-duckdb-second-local-provider-design.md#L1-L9)，該紀錄於 7 月 8 日提交。 |
+
+後來以本機作業優先、暫緩 SQL Server 開發的現行方向，統一見[正式環境限制](../project-context.md#開發電腦與正式環境不同)。

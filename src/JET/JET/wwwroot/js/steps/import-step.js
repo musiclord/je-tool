@@ -11,7 +11,17 @@
   var Store = global.JetStore;
   var Ui = global.JetUi;
 
-  var ENCODING_OPTIONS = ['utf-8', 'big5', 'utf-16'];
+  // 送出的值是後端接受的三種編碼名稱；畫面寫一般常見的寫法（使用者 2026-10-19 要求前端不露出系統用詞）。
+  var ENCODING_OPTIONS = [
+    { value: 'utf-8', label: 'UTF-8' },
+    { value: 'big5', label: 'Big5（繁體中文）' },
+    { value: 'utf-16', label: 'UTF-16' }
+  ];
+
+  function encodingLabel(value) {
+    var option = ENCODING_OPTIONS.find(function (item) { return item.value === value; });
+    return option ? option.label : value;
+  }
   var DELIMITER_OPTIONS = [
     { value: ',', label: '逗號 ,' },
     { value: '\t', label: 'Tab' },
@@ -29,7 +39,7 @@
   // 有值時直接畫成已展開的進度，不會先收起再隨下一個進度事件重新長出來。匯入完成或失敗時清掉。
   var progressShown = {};
 
-  // 重新匯入/加入來源完成的「卡片成功態」一次性旗標。{ kind, mode:'replace'|'append', at:ms } | null
+  // 更換或加入完成的「卡片成功態」一次性旗標。{ kind, mode:'replace'|'append', at:ms } | null
   var justImported = null;
   var justImportedTimer = null;
 
@@ -112,8 +122,8 @@
           '<span class="import-task__mark' + markClass + '" aria-hidden="true">' + mark + '</span>' +
           '<span class="import-task__name' + nameClass + '">' + opts.name + tag + '</span>' +
           '<span class="import-task__meta">' + opts.meta + '</span>' +
-          '<button type="button" class="import-task__action" ' +
-            'data-task-toggle="' + key + '" aria-label="操作：' + Ui.esc(opts.name) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+          '<button type="button" class="import-task__action jet-disclosure" ' +
+            'data-task-toggle="' + key + '" aria-label="操作：' + Ui.esc(opts.name) + '"' + Ui.disclosureAttributes(open) + '>' +
             '操作</button>' +
         '</div>' +
         (open ? '<div class="import-task__panel" data-motion-key="' + Ui.esc('task-' + key) + '">' + cardHtml + '</div>' : '') +
@@ -276,7 +286,7 @@
       draft.previewData = data;
       Store.touch();
     }, function (error) {
-      if (preparerDraft === draft) { draft.previewError = error.message; Store.touch(); }
+      if (preparerDraft === draft) { draft.previewError = Ui.errorText(error); Store.touch(); }
       throw error;
     });
   }
@@ -529,7 +539,7 @@
   function summaryFaceHtml(kind, info) {
     var justBadge = '';
     if (justImported && justImported.kind === kind) {
-      var label = justImported.mode === 'append' ? '已加入來源' : '剛剛重新匯入';
+      var label = justImported.mode === 'append' ? '剛剛加入新檔' : '剛剛重新匯入';
       justBadge = '<p class="import-card__just" data-bind="just-imported-' + kind + '" data-motion-key="' + Ui.esc('just-' + kind) + '">' +
         '<span class="import-card__just-mark" aria-hidden="true">✓</span> ' + label + '（' +
         new Date(justImported.at).toLocaleTimeString('zh-Hant', { hour12: false }) + '）</p>';
@@ -541,8 +551,8 @@
         info.columns.length + ' 欄（' + ((info.sources || []).length || 1) + ' 個來源）。</p>' +
       sourceListHtml(info.sources || []) +
       '<div class="import-card__actions">' +
-        '<button type="button" class="btn btn--ghost" data-action="wizard-append-' + kind + '">加入來源</button>' +
-        '<button type="button" class="btn btn--ghost" data-action="wizard-replace-' + kind + '">取代這份資料集</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="wizard-append-' + kind + '">加入</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="wizard-replace-' + kind + '">更換</button>' +
       '</div>'
     );
   }
@@ -565,7 +575,7 @@
       var name = Ui.esc(s.fileName) + (s.sheetName ? '<span class="source-list__sheet">' +
         Ui.esc(s.sheetName) + '</span>' : '');
       var detail = [];
-      if (s.encoding) { detail.push('編碼 ' + Ui.esc(s.encoding)); }
+      if (s.encoding) { detail.push('編碼 ' + Ui.esc(encodingLabel(s.encoding))); }
       if (s.delimiter) { detail.push('分隔符 ' + Ui.esc(s.delimiter === '\t' ? 'Tab' : s.delimiter)); }
 
       return (
@@ -595,7 +605,7 @@
       return '<p class="wizard-pane__hint">匯入中…請稍候，完成後會顯示匯入結果。</p>';
     }
     if (wizard.mode === 'append') {
-      return '<p class="wizard-pane__hint">加入來源：新檔的資料會附加到現有 ' +
+      return '<p class="wizard-pane__hint">加入：新檔的資料會附加到現有 ' +
         Number(info.rowCount).toLocaleString() + ' 列（欄位名稱需與現有一致）。' +
         (wizard.kind === 'tb' ? '請只追加同一查核期間的試算表資料，不會自動配成期初與期末的期間變動。' : '') +
         '成功加入後，這份資料集需要重新確認配對，受影響的測試結果需要重算。已匯出的底稿檔案不會改寫。</p>';
@@ -670,8 +680,8 @@
             (failed
               ? '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-retry" ' +
                   'data-index="' + index + '">重新檢視</button>'
-              : '<button type="button" class="btn btn--ghost btn--tiny pending-row__preview" data-action="pending-preview" ' +
-                  'data-index="' + index + '" aria-expanded="' + (item.previewOpen ? 'true' : 'false') + '">預覽</button>') +
+              : '<button type="button" class="btn btn--ghost btn--tiny pending-row__preview jet-disclosure" data-action="pending-preview" ' +
+                  'data-index="' + index + '"' + Ui.disclosureAttributes(item.previewOpen) + '>預覽</button>') +
             '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-remove" ' +
               'data-index="' + index + '" title="從清單移除這個來源">移除</button>' +
           '</div>' +
@@ -699,7 +709,7 @@
     if (item.fileType === 'csv') {
       var encodingOptions = '<option value=""' + (item.encoding ? '' : ' selected') + '>自動偵測</option>' +
         ENCODING_OPTIONS.map(function (enc) {
-          return '<option value="' + enc + '"' + (item.encoding === enc ? ' selected' : '') + '>' + enc + '</option>';
+          return '<option value="' + enc.value + '"' + (item.encoding === enc.value ? ' selected' : '') + '>' + Ui.esc(enc.label) + '</option>';
         }).join('');
 
       var delimiterOptions = '<option value=""' + (item.delimiter ? '' : ' selected') + '>自動</option>' +
@@ -883,17 +893,8 @@
           return;
         }
         wizard.pending[index][key] = control.value || null;
-        wizard.pending[index].previewData = null; // 編碼/分隔變更 → 預覽快取失效
-        if (wizard.pending[index].inspectError) {
-          retryInspect(kind, label, index); // 在失敗的地方改選編碼就重試
-          return;
-        }
-        if (wizard.pending[index].previewOpen) {
-          wizard.pending[index].previewOpen = false;
-          togglePreview(kind, label, index); // 重抓
-        } else {
-          Store.touch();
-        }
+        // 只有文字檔有編碼與分隔符：改選後重新讀前 10 列，失敗的列也在這裡重試。
+        refreshTextSource(wizard.pending[index], '重新讀取來源檔');
       });
     });
   }
@@ -901,7 +902,7 @@
   // 入口：開啟工作區（設定 kind/mode、清空待匯入清單）。
   // 首次建立（空資料集、無破壞性疑慮）直接開檔，少一次點擊；
   // 已有資料時不自動開檔——讓使用者先看到模式橫幅、可在開檔前反悔（尤其破壞性的重新匯入）。
-  // 「加入來源」「取代這份資料集」和工作區互換，按下的那一個跟著不見：打開時焦點交給「選擇來源檔」，
+  // 「加入」「更換」和工作區互換，按下的那一個跟著不見：打開時焦點交給「選擇來源檔」，
   // 取消時交回打開它的按鈕（使用者 2026-10-13 交接：原本焦點落到整個頁面）。
   function focusImport(selectors) {
     if (global.JetFocus && global.JetFocus.deferFirst) { global.JetFocus.deferFirst(selectors); }
@@ -992,7 +993,7 @@
         previewOpen: false,
         previewData: null,
         notices: [],
-        inspectError: (error && error.message) || '檔案讀取失敗。'
+        inspectError: Ui.errorText(error, '檔案讀取失敗。')
       });
     });
   }
@@ -1036,32 +1037,48 @@
     });
   }
 
-  // 檢視失敗的來源重試。文字檔走 import.previewFile，因為只有它接受這一列選的編碼與分隔符；
+  // 文字檔重新讀前 10 列。只有 import.previewFile 接受這一列選的編碼與分隔符，所以重試檢視與改選都走這裡；
+  // 欄數、提醒與預覽一起換新，「只讀到一欄」這類提醒才會跟著改選出現或消失（低嚴重度事項 A2，使用者 2026-10-19 要求處理）。
+  // 連續改選時只採用最後一次的結果。
+  function refreshTextSource(item, label) {
+    var recovering = !!item.inspectError;
+    Ui.run(label, function () {
+      var token = item.refreshToken = (item.refreshToken || 0) + 1;
+      var payload = { filePath: item.filePath, limit: 10 };
+      if (item.encoding) { payload.encoding = item.encoding; }
+      if (item.delimiter) { payload.delimiter = item.delimiter; }
+      item.previewData = null;
+      Store.touch();
+      return global.JetApi.importPreviewFile(payload).then(function (data) {
+        if (item.refreshToken !== token) { return; }
+        item.inspectError = null;
+        if (recovering) { item.include = true; }
+        item.columnCount = (data.columns || []).length;
+        item.previewData = { columns: data.columns || [], sampleRows: data.sampleRows || [] };
+        item.notices = data.notices || [];
+        Store.touch();
+      }, function (error) {
+        if (item.refreshToken !== token) { return; }
+        item.inspectError = Ui.errorText(error, '檔案讀取失敗。');
+        item.include = false;
+        item.previewOpen = false;
+        Store.touch();
+        throw error;
+      });
+    });
+  }
+
+  // 檢視失敗的來源重試。文字檔走 refreshTextSource；
   // 其他格式重新 import.inspectFile，成功後以檢視結果取代這一列（活頁簿會展開成多個工作表）。
   function retryInspect(kind, label, index) {
     var item = wizard.pending[index];
     if (!item) { return; }
+    if (item.fileType === 'csv') {
+      refreshTextSource(item, '重新檢視來源檔');
+      return;
+    }
 
     Ui.run('重新檢視來源檔', function () {
-      if (item.fileType === 'csv') {
-        var payload = { filePath: item.filePath, limit: 10 };
-        if (item.encoding) { payload.encoding = item.encoding; }
-        if (item.delimiter) { payload.delimiter = item.delimiter; }
-        return global.JetApi.importPreviewFile(payload).then(function (data) {
-          item.inspectError = null;
-          item.include = true;
-          item.columnCount = (data.columns || []).length;
-          item.previewData = { columns: data.columns || [], sampleRows: data.sampleRows || [] };
-          item.notices = data.notices || [];
-          Store.touch();
-        }, function (error) {
-          item.inspectError = (error && error.message) || '檔案讀取失敗。';
-          item.include = false;
-          Store.touch();
-          throw error;
-        });
-      }
-
       return global.JetApi.importInspectFile({ filePath: item.filePath }).then(function (info) {
         var position = wizard.pending.indexOf(item);
         if (position >= 0) { wizard.pending.splice(position, 1); }
@@ -1069,7 +1086,7 @@
         queueInspected({ filePath: item.filePath, fileName: item.fileName }, info, skipped);
         Store.touch();
       }, function (error) {
-        item.inspectError = (error && error.message) || '檔案讀取失敗。';
+        item.inspectError = Ui.errorText(error, '檔案讀取失敗。');
         Store.touch();
         throw error;
       });
@@ -1153,7 +1170,7 @@
         resetWizard();
         applyResponse(kind, data);
         (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
-        // 匯入期間動作鈕收起，按下的「開始匯入」已經不見；完成後焦點交給這份資料集的「加入來源」。
+        // 匯入期間動作鈕收起，按下的「開始匯入」已經不見；完成後焦點交給這份資料集的「加入」。
         focusImport(['[data-bind="import-card-' + kind + '"] [data-action="wizard-append-' + kind + '"]', '[data-task-toggle="' + kind + '"]']);
         return data;
       }).catch(function (error) {

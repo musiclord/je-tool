@@ -3,7 +3,7 @@ namespace JET.AuditCore;
 /// <summary>
 /// SQL 方言縫隙：只收錄引擎間「確實不同」的片段——
 /// 週末判定（SQLite strftime ↔ SQL Server DATEPART）、不分大小寫包含
-/// （instr ↔ CHARINDEX）、主單位整數商、參數命名。取模、ABS、EXISTS、ISO 日期字串比較
+/// （instr ↔ CHARINDEX）、轉大寫、主單位整數商、參數命名。取模、ABS、EXISTS、ISO 日期字串比較
 /// 皆共通，不進介面。新增 provider = 新增一個 ISqlDialect 實作
 /// + 一組 *FilterRunRepository / *PrescreenRunRepository 的 SELECT 骨架。
 /// </summary>
@@ -18,6 +18,13 @@ public interface ISqlDialect
 
     /// <summary>columnExpr 不分大小寫包含 parameterName 參數值（NULL 以空字串參與）。</summary>
     string ContainsIgnoreCase(string columnExpr, string parameterName);
+
+    /// <summary>
+    /// 把 expr 轉成大寫，作為不分大小寫比較與分組的鍵；條件值在 .NET 端用 <c>ToUpperInvariant()</c> 轉換。
+    /// SQLite 與 DuckDB 的連線把 <c>upper</c> 換成同一個 .NET 轉換。SQL Server 無法這樣替換，改用
+    /// <c>Latin1_General_100_BIN2</c> 的大小寫對照表；仍不同的罕用字元是已知差異，見 <c>docs/jet-guide.md</c> 第 8 節。
+    /// </summary>
+    string Upper(string expr);
 
     /// <summary>
     /// 去掉 expr 頭尾的空白字元，字元集合是 .NET <c>string.Trim()</c> 的集合（<see cref="JET.Domain.TextWhitespace"/>）：

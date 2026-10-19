@@ -575,7 +575,9 @@ public sealed class DesignIntegrationFrontendTests
 
         // 第三步的提示、對照表、必填清單與資料處理都有識別；各步驟的主畫面也有，底下直接一層的區塊因此都會比對。
         Assert.Contains("data-motion-key=\"mapping-banner-' + kind + '\">", mapping, StringComparison.Ordinal);
-        Assert.Contains("'<div class=\"map-layout\" data-motion-key=\"map-layout-' + kind + '\">' +", mapping, StringComparison.Ordinal);
+        // 使用者 2026-10-19 要求頁籤只留一套：對照表外框同時是第三步頁籤的面板，識別後面接面板屬性。
+        // 首次失敗：20261019-102446198-5198acd5b7e747feae8ed16dcfac32a3；仍檢查外框帶識別。
+        Assert.Contains("'<div class=\"map-layout\" data-motion-key=\"map-layout-' + kind + '\"' + mapLayoutPanelAttributes(kind) + '>' +", mapping, StringComparison.Ordinal);
         Assert.Contains("'\" data-motion-key=\"map-rail-' + kind + '\">' +", mapping, StringComparison.Ordinal);
         Assert.Contains("data-motion-key=\"map-options-gl\"", mapping, StringComparison.Ordinal);
         Assert.Contains("data-motion-key=\"mapping-panel\"", mapping, StringComparison.Ordinal);

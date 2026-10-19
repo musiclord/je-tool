@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -10,7 +11,7 @@ namespace JET.Application;
 /// built-in 身分與 semantic role 由目前 revision 校驗，持久化層再以交易重驗 revision／刪除使用中分類。
 /// </summary>
 public sealed class AccountTaxonomySaveHandler(
-    ProjectSession session) : IApplicationActionHandler
+    ProjectSession session, ILogger? logger = null) : IApplicationActionHandler
 {
     public string Action => "accountTaxonomy.save";
 
@@ -57,7 +58,8 @@ public sealed class AccountTaxonomySaveHandler(
                 isBuiltIn = false;
                 if (requestedId is not null && !draftIds.TryAdd(requestedId, categoryId))
                 {
-                    Invalid("本次分類草稿的暫存識別重複，請重新開啟分類設定後再儲存。");
+                    // 草稿識別由畫面產生，重複只會是程式錯誤（使用者 2026-10-19 要求前端不露出系統用詞）。
+                    Reject("taxonomy_draft_id_duplicate");
                 }
             }
             else if (existing.TryGetValue(requestedId, out var persisted))
@@ -106,7 +108,7 @@ public sealed class AccountTaxonomySaveHandler(
             cancellationToken);
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(
             projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, AuditMutationEffects.For(AuditMutation.AccountTaxonomy));
+            repositories.FilterScenarios, repositories.ReportArtifactStore, AuditMutationEffects.For(AuditMutation.AccountTaxonomy), logger);
         return new
         {
             revision = saved.Revision,

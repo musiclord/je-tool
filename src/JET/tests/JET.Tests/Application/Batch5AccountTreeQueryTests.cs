@@ -73,7 +73,7 @@ public sealed class Batch5AccountTreeQueryTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task CategoryQuery_ReportsMoreThan100_AndKeeps500RowPageLimit(string provider)
+    public async Task CategoryQuery_ReportsMoreThan100_AndKeeps200RowPageLimit(string provider)
     {
         using var host = new HandlerTestHost();
         await Batch5TaxonomyTestSupport.CreateProjectAsync(host, provider);
@@ -85,18 +85,41 @@ public sealed class Batch5AccountTreeQueryTests
         var selection = await QueryAsync(host, "builtin.cash", pageSize: 100);
         Assert.Equal(Enumerable.Range(1, 100).Select(number => $"C{number:D3}"), Codes(selection));
         Assert.False(string.IsNullOrEmpty(selection.GetProperty("nextCursor").GetString()));
+        // 使用者 2026-10-16 統一每頁最多 200 筆；仍逐頁核對全部 501 筆，不縮小原有合成母體。
+        // 第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
         var remaining = await QueryAsync(host, "builtin.cash", pageSize: 500,
             cursor: selection.GetProperty("nextCursor").GetString());
-        Assert.Equal(Enumerable.Range(101, 401).Select(number => $"C{number:D3}"), Codes(remaining));
-        Assert.Equal(JsonValueKind.Null, remaining.GetProperty("nextCursor").ValueKind);
+        Assert.Equal(Enumerable.Range(101, 200).Select(number => $"C{number:D3}"), Codes(remaining));
+        Assert.False(string.IsNullOrEmpty(remaining.GetProperty("nextCursor").GetString()));
+        var remainingSecond = await QueryAsync(host, "builtin.cash", pageSize: 500,
+            cursor: remaining.GetProperty("nextCursor").GetString());
+        Assert.Equal(Enumerable.Range(301, 200).Select(number => $"C{number:D3}"), Codes(remainingSecond));
+        Assert.False(string.IsNullOrEmpty(remainingSecond.GetProperty("nextCursor").GetString()));
+        var remainingLast = await QueryAsync(host, "builtin.cash", pageSize: 500,
+            cursor: remainingSecond.GetProperty("nextCursor").GetString());
+        Assert.Equal(new[] { "C501" }, Codes(remainingLast));
+        Assert.Equal(JsonValueKind.Null, remainingLast.GetProperty("nextCursor").ValueKind);
 
         var bounded = await QueryAsync(host, "builtin.cash", pageSize: 5000);
-        Assert.Equal(Enumerable.Range(1, 500).Select(number => $"C{number:D3}"), Codes(bounded));
-        var last = await QueryAsync(host, "builtin.cash", pageSize: 5000,
+        Assert.Equal(Enumerable.Range(1, 200).Select(number => $"C{number:D3}"), Codes(bounded));
+        Assert.False(string.IsNullOrEmpty(bounded.GetProperty("nextCursor").GetString()));
+        var middle = await QueryAsync(host, "builtin.cash", pageSize: 5000,
             cursor: bounded.GetProperty("nextCursor").GetString());
-        Assert.Equal(new[] { "C501" }, Codes(last));
+        Assert.Equal(Enumerable.Range(201, 200).Select(number => $"C{number:D3}"), Codes(middle));
+        Assert.False(string.IsNullOrEmpty(middle.GetProperty("nextCursor").GetString()));
+        var last = await QueryAsync(host, "builtin.cash", pageSize: 5000,
+            cursor: middle.GetProperty("nextCursor").GetString());
+        Assert.Equal(Enumerable.Range(401, 101).Select(number => $"C{number:D3}"), Codes(last));
         Assert.Equal(JsonValueKind.Null, last.GetProperty("nextCursor").ValueKind);
-        Assert.Equal(new[] { "Z999" }, Codes(await QueryAsync(host, "builtin.others")));
+        // 總筆數只在第一頁計算，續頁回 null，畫面沿用第一頁的總頁數（使用者 2026-10-16 要求處理每頁重算總筆數）。
+        // 第一次失敗：20261016-110107604-643d3eac8ee8476fafdf625540660e37。
+        foreach (var page in new[] { selection, bounded })
+            Assert.Equal(501, page.GetProperty("totalCount").GetInt64());
+        foreach (var page in new[] { remaining, remainingSecond, remainingLast, middle, last })
+            Assert.Equal(JsonValueKind.Null, page.GetProperty("totalCount").ValueKind);
+        var outside = await QueryAsync(host, "builtin.others");
+        Assert.Equal(new[] { "Z999" }, Codes(outside));
+        Assert.Equal(1, outside.GetProperty("totalCount").GetInt64());
     }
 
     private static Task<JsonElement> QueryAsync(

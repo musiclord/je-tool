@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace JET.Domain;
 
 /// <summary>
@@ -7,6 +9,8 @@ namespace JET.Domain;
 /// 只保留與查核期間有交集的視窗，重疊或相連者合併。依 2026-10-06 K1 裁定。
 /// 回傳 ISO yyyy-MM-dd 邊界字串，由 Infrastructure 以參數綁定組成 OR 述詞
 /// （SQL 識別字不來自此處，使用者值只進參數）。日期邏輯純 C#、provider 無關。
+/// 解析與輸出都指定 InvariantCulture：Windows 日曆設成中華民國曆時，沒有指定會把西元年當成民國年，
+/// 2 月 29 日解析失敗、視窗變空（低嚴重度事項 G，使用者 2026-10-19 要求處理）。
 /// </summary>
 public static class QuarterEndWindows
 {
@@ -23,8 +27,8 @@ public static class QuarterEndWindows
     public static IReadOnlyList<Window> Compute(string periodStart, string periodEnd, int windowDays)
     {
         if (windowDays < MinWindowDays || windowDays > MaxWindowDays
-            || !DateOnly.TryParseExact(periodStart, "yyyy-MM-dd", out var start)
-            || !DateOnly.TryParseExact(periodEnd, "yyyy-MM-dd", out var end)
+            || !DateOnly.TryParseExact(periodStart, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start)
+            || !DateOnly.TryParseExact(periodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end)
             || start > end)
         {
             return [];
@@ -44,19 +48,16 @@ public static class QuarterEndWindows
                     continue;
                 }
 
-                windows.Add(new Window(
-                    quarterWindowStart.ToString("yyyy-MM-dd"),
-                    quarterEnd.ToString("yyyy-MM-dd")));
+                windows.Add(new Window(Iso(quarterWindowStart), Iso(quarterEnd)));
             }
         }
 
         var endStart = DateOnly.FromDayNumber(Math.Max(0, end.DayNumber - (windowDays - 1)));
-        windows.Add(new Window(endStart.ToString("yyyy-MM-dd"), end.ToString("yyyy-MM-dd")));
+        windows.Add(new Window(Iso(endStart), Iso(end)));
         var merged = new List<Window>();
         foreach (var window in windows.OrderBy(w => w.FromIso, StringComparer.Ordinal))
         {
-            if (merged.Count > 0 && DateOnly.ParseExact(window.FromIso, "yyyy-MM-dd").DayNumber
-                <= DateOnly.ParseExact(merged[^1].ToIso, "yyyy-MM-dd").DayNumber + 1)
+            if (merged.Count > 0 && ParseIso(window.FromIso).DayNumber <= ParseIso(merged[^1].ToIso).DayNumber + 1)
             {
                 if (string.CompareOrdinal(window.ToIso, merged[^1].ToIso) > 0)
                     merged[^1] = merged[^1] with { ToIso = window.ToIso };
@@ -65,4 +66,8 @@ public static class QuarterEndWindows
         }
         return merged;
     }
+
+    private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static DateOnly ParseIso(string text) => DateOnly.ParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 }

@@ -94,6 +94,48 @@ public sealed class BestEffortProjectAuditLogTests
         Assert.Empty(provider.Snapshot());
     }
 
+    // 2026-10-19 使用者裁定寫不進操作紀錄時回報成功並提醒：TryAppendAsync 告訴呼叫端有沒有寫進去，失敗仍不往外丟。
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TryAppend_ReportsWhetherTheEventWasWritten(bool innerFails)
+    {
+        using var provider = new SupportRingBufferLoggerProvider(capacity: 8);
+        var inner = new FakeAuditLog { AppendFailure = innerFails ? new InvalidOperationException("PRIVATE no such table") : null };
+        var audit = new BestEffortProjectAuditLog(inner, provider.CreateLogger("JET.Tests.Audit"));
+
+        var written = await audit.TryAppendAsync(
+            "project-1",
+            ProjectAuditEvent.Create(ProjectAuditOperations.DataReimport, ProjectAuditTargetTypes.Dataset, "gl", 1),
+            CancellationToken.None);
+
+        Assert.Equal(!innerFails, written);
+        Assert.Equal(1, inner.AppendCalls);
+        Assert.Equal(innerFails ? 1 : 0, provider.Snapshot().Count());
+    }
+
+    // 同一裁定：確認配對前讀不到紀錄表時回 null，讓呼叫端分得出「不需要紀錄」與「無法判斷」，後者照樣提醒。
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(null, null)]
+    public async Task TryRequiresRecommitCheck_ReturnsNullOnlyWhenTheTableCannotBeRead(bool? checkResult, bool? expected)
+    {
+        using var provider = new SupportRingBufferLoggerProvider(capacity: 8);
+        var inner = new FakeAuditLog
+        {
+            CheckResult = checkResult ?? true,
+            CheckFailure = checkResult is null ? new InvalidOperationException("PRIVATE no such table") : null
+        };
+        var audit = new BestEffortProjectAuditLog(inner, provider.CreateLogger("JET.Tests.Audit"));
+
+        var requires = await audit.TryRequiresMappingRecommitAuditAsync("project-1", "gl", CancellationToken.None);
+
+        Assert.Equal(expected, requires);
+        Assert.Equal(1, inner.CheckCalls);
+        Assert.Equal(checkResult is null ? 1 : 0, provider.Snapshot().Count());
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

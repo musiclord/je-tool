@@ -22,7 +22,8 @@ public sealed class SqlServerCreatorSummaryExportRepository(SqlServerProjectData
         await connection.OpenAsync(cancellationToken);
 
         // 編製者彙總與 prescreen.run 共用有效分錄母體。
-        // 人員依去空白、不分大小寫的識別值分組，顯示值取同組碼位最小的去空白寫法（與本地倉儲同口徑）。只經編譯，未實機驗證。
+        // 人員依去空白、不分大小寫的識別值分組，顯示值取同組碼位最小的去空白寫法（與本地倉儲同口徑）。
+        // 分組鍵的轉大寫走方言（跨資料庫一致性計畫第三節 D）。
         var person = LocalPrescreenRunRepository.PersonKey(SqlServerDialect.Instance);
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
@@ -32,7 +33,7 @@ public sealed class SqlServerCreatorSummaryExportRepository(SqlServerProjectData
                    COALESCE(SUM(credit_amount_scaled), 0)
             FROM {s}.target_gl_entry
             WHERE {{GlEffectivePopulation.SqlPredicate()}}
-            GROUP BY UPPER({{person}} COLLATE Latin1_General_BIN2)
+            GROUP BY {{SqlServerDialect.Instance.Upper(person)}}
             ORDER BY COUNT_BIG(*) DESC, MIN({{person}} COLLATE Latin1_General_BIN2);
             """);
         // created_by 平手時的次序鍵加位元序 collation：SQLite 以位元序(UTF-8 memcmp)排 TEXT，

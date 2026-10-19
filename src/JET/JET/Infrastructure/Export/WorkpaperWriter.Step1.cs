@@ -479,11 +479,11 @@ public sealed partial class WorkpaperWriter
     ];
 
     /// <summary>step1-2 編製人員列:B 人員 / C 空(自動或人工) / D 傳票數 / E 借方彙總 / F-H 空(部門/職稱/說明)。</summary>
-    private static IReadOnlyList<WorkpaperDisplayCell> ProjectCreatorRow(
+    internal static IReadOnlyList<WorkpaperDisplayCell> ProjectCreatorRow(
         CreatorSummaryExportRow creator,
         int moneyScale) =>
     [
-        ProjectText(creator.CreatedBy),
+        ProjectText(CreatorSummaryDisplay.NameOf(creator.CreatedBy)),
         ProjectBlank(WorkpaperStyles.EditableNoFill),
         ProjectInteger(creator.EntryCount, groupedForWidth: true),
         ProjectAmount(creator.DebitTotalScaled, moneyScale),

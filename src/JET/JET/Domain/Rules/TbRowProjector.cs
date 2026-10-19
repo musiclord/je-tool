@@ -88,13 +88,40 @@ public static class TbRowProjector
             return false;
         }
 
+        var accountCode = GetMappedValue(row, spec, TbMappingKeys.AccNum);
+        var accountName = GetMappedValue(row, spec, TbMappingKeys.AccName);
+        // 和 SQL Server 欄寬相同的共用上限（TextStorageLimits）；超過就回列錯誤，不截斷。
+        if (TextTooLong(row, spec, TbMappingKeys.AccNum, accountCode, TextStorageLimits.KeyUtf16CodeUnits, out error)
+            || TextTooLong(row, spec, TbMappingKeys.AccName, accountName, TextStorageLimits.TextUtf16CodeUnits, out error))
+        {
+            return false;
+        }
+
         projected = new TbProjectedRow(
             row.SourceRowNumber,
-            GetMappedValue(row, spec, TbMappingKeys.AccNum),
-            GetMappedValue(row, spec, TbMappingKeys.AccName),
+            accountCode,
+            accountName,
             changeScaled);
 
         return true;
+    }
+
+    private static bool TextTooLong(
+        StagingRow row,
+        TbMappingSpec spec,
+        string key,
+        string? value,
+        int limit,
+        out RowProjectionError? error)
+    {
+        error = value is not null && value.Length > limit
+            ? new RowProjectionError(
+                row.SourceRowNumber,
+                MappedColumnOrKey(spec, key),
+                value,
+                ProjectionErrorReasons.TextTooLong(limit))
+            : null;
+        return error is not null;
     }
 
     private static bool TryParseAmountCell(

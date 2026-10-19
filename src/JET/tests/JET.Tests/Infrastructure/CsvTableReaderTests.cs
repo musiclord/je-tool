@@ -408,6 +408,93 @@ public sealed class CsvTableReaderTests
         }
     }
 
+    // 低嚴重度事項 A3（使用者 2026-10-19 要求處理）：有 BOM 的 UTF-8 與 UTF-16 檔，StreamReader 認得 BOM 後
+    // 換成 .NET 預設的編碼，壞位元組被默默換成替代字元匯入。改成嚴格編碼後，和沒有 BOM 的 UTF-8 一樣以讀檔錯誤回報。
+    public static TheoryData<string, byte[]> BomFilesWithBadBytes() => new()
+    {
+        { "utf-8 bom, 0xFF", [0xEF, 0xBB, 0xBF, .. "a,b\n1,"u8, 0xFF, .. ",2\n"u8] },
+        { "utf-16 le bom, lone high surrogate", [0xFF, 0xFE, .. Encoding.Unicode.GetBytes("a,b\n1,"), 0x00, 0xD8, .. Encoding.Unicode.GetBytes("x\n")] },
+        { "utf-16 be bom, lone high surrogate", [0xFE, 0xFF, .. Encoding.BigEndianUnicode.GetBytes("a,b\n1,"), 0xD8, 0x00, .. Encoding.BigEndianUnicode.GetBytes("x\n")] }
+    };
+
+    [Theory]
+    [MemberData(nameof(BomFilesWithBadBytes))]
+    public async Task BomFile_WithUndecodableBytes_ThrowsFileReadError(string label, byte[] bytes)
+    {
+        var path = TestCsvBuilder.WriteBytes(bytes);
+        try
+        {
+            var reader = new CsvTableReader();
+
+            var ex = await Assert.ThrowsAsync<JetActionException>(async () =>
+            {
+                await foreach (var _ in reader.ReadRowsAsync(new TabularSourceRequest(path), CancellationToken.None))
+                {
+                }
+            });
+
+            Assert.True(ex.Code == JetErrorCodes.FileReadError, label + ": " + ex.Code);
+            // 使用者 2026-10-19 要求前端不露出系統用詞：訊息裡的編碼和匯入清單的選項一樣寫 UTF-8、Big5、UTF-16。
+            Assert.Contains("改選編碼（UTF-8、Big5 或 UTF-16）", ex.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("utf-", ex.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Utf16Override_OnBigEndianFile_ReadsByTheBom()
+    {
+        // 指定「utf-16」時照 BOM 選大端或小端；以前一律用小端開檔，讀到大端的 BOM 才換成不嚴格的編碼。
+        var path = TestCsvBuilder.WriteFile(ChineseContent, new UnicodeEncoding(bigEndian: true, byteOrderMark: true));
+        try
+        {
+            var reader = new CsvTableReader();
+            var request = new TabularSourceRequest(path, EncodingName: "utf-16");
+            var columns = await reader.ReadColumnsAsync(request, CancellationToken.None);
+
+            Assert.Equal(["傳票號碼", "總帳日期", "金額", "摘要"], columns);
+            var rows = new List<StagingRow>();
+            await foreach (var row in reader.ReadRowsAsync(request, CancellationToken.None))
+            {
+                rows.Add(row);
+            }
+
+            Assert.Equal(2, rows.Count);
+            Assert.Equal("期初轉入", rows[0].Values["摘要"]);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task LeadingWhitespaceLine_TabFileStillSplitsIntoColumns()
+    {
+        // 低嚴重度事項 A1（使用者 2026-10-19 要求處理）：第一行只有空白字元時，分隔符偵測以前把它當成標頭，
+        // 改用預設的逗號，Tab 檔整個讀成一欄、無法配對。
+        var path = TestCsvBuilder.WriteFile("   \r\n傳票號碼\t金額\r\nV1\t10\r\n", TestCsvBuilder.Utf8NoBom);
+        try
+        {
+            var (columns, rows) = await ReadAllAsync(path);
+
+            Assert.Equal(["傳票號碼", "金額"], columns);
+            var row = Assert.Single(rows);
+            Assert.Equal("V1", row.Values["傳票號碼"]);
+            Assert.Equal("10", row.Values["金額"]);
+
+            var inspection = await new CsvTableReader().InspectAsync(path, CancellationToken.None);
+            Assert.Equal(["傳票號碼", "金額"], inspection.Columns);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task ExtraCellsBeyondHeader_BecomePlaceholderColumns_LikeXlsx()
     {
@@ -500,7 +587,10 @@ public sealed class CsvTableReaderTests
                 () => reader.ReadColumnsAsync(new TabularSourceRequest(path, EncodingName: "utf-8"), CancellationToken.None));
 
             Assert.Equal(JetErrorCodes.FileReadError, ex.Code);
-            Assert.Contains("utf-8", ex.Message, StringComparison.Ordinal);
+            // 使用者 2026-10-19 要求前端不露出系統用詞：編碼改寫成審計員常見的 UTF-8，不再顯示程式內部的小寫代號。
+            // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；仍檢查訊息說出讀取時用的編碼。
+            Assert.Contains("UTF-8", ex.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("utf-8", ex.Message, StringComparison.Ordinal);
             Assert.Contains("改選編碼", ex.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("Unable", ex.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("translate", ex.Message, StringComparison.OrdinalIgnoreCase);

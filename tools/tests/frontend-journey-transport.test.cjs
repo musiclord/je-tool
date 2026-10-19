@@ -213,11 +213,17 @@ test('primitives: a saved scenario name with quotes stays inside its HTML attrib
   const f = usageJourneyFixture('filter', { serialization: 'browser' });
   f.store.setSavedScenarios([savedG(name)]);
   f.draw('filter');
-  const summary = f.$('details.filter-saved-actions summary');
-  assert.ok(summary, 'saved scenario actions rendered');
-  assert.equal(summary.getAttribute('aria-label'), '操作：' + name, 'the attribute holds the whole name');
+  // 2026-10-19 使用者要求同功能的元件只留一套，「操作」從 <details> 改成共用選單的按鈕，選單本身也帶同一個名稱，
+  // 所以改找共用選單的按鈕，並逐一列出它應有的屬性（第一次失敗：FrontendMapping 收據 20261019-095317346-4d75b1d78d9a4296a887c2e7cfb720df）。
+  const toggle = f.$('.saved-scenario .jet-menu__toggle');
+  assert.ok(toggle, 'saved scenario actions rendered');
+  assert.equal(toggle.getAttribute('aria-label'), '操作：' + name, 'the attribute holds the whole name');
   assert.equal(f.$('.saved-scenario__name').textContent, '1. ' + name);
-  assert.deepEqual(Object.keys(summary.attrs), ['aria-label'], 'no attribute was injected by the name');
+  assert.deepEqual(Object.keys(toggle.attrs), ['type', 'class', 'aria-haspopup', 'aria-expanded', 'aria-controls', 'aria-label'],
+    'no attribute was injected by the name');
+  const menu = f.$('.saved-scenario .jet-menu__items');
+  assert.equal(menu.getAttribute('aria-label'), '操作：' + name, 'the menu attribute holds the whole name');
+  assert.deepEqual(Object.keys(menu.attrs), ['class', 'id', 'role', 'aria-label', 'hidden'], 'no attribute was injected into the menu');
 });
 
 test('primitives: a latest-response guard accepts only the newest issue and nothing after invalidate', () => {

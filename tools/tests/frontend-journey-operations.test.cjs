@@ -137,6 +137,48 @@ test('journey 22: validation and the prescreen show a monotonic elapsed time and
   assert.equal(f.overlay.elapsed(), null);
 });
 
+// 低嚴重度事項 F4（使用者 2026-10-19 要求處理）：取消鈕只跟著可取消的作業出現。開啟案件資料夾不能取消，
+// 進行中不顯示取消鈕；執行驗證可以取消，上一個情境已核對它會顯示。
+test('journey 22: opening the case folder cannot be cancelled, so no cancel button appears while it runs', async () => {
+  const f = await openCaseAtValidation();
+  f.$('[data-action="open-project-folder"]').dispatch('click');
+  const open = f.request('host.openFolder');
+  assert.equal(f.state().busy, true);
+  assert.equal(f.state().activeRequestId, null);
+  f.reply(open, {}); await flush();
+  assert.equal(f.state().busy, false);
+});
+
+// 低嚴重度事項 F5（使用者 2026-10-19 要求處理）：驗證已完成並保存後，在產生報告時被取消，
+// 訊息要說已完成的部分仍保留，不只寫「已取消」；之後的科目配對檔也不再產生。
+test('journey 22: cancelling while the validation reports are produced keeps the finished validation and says so', async () => {
+  const f = await openCaseAtValidation();
+  f.click('[data-action="run-validate"]');
+  f.reply(f.request('validate.run'), validationData()); await flush();
+  f.fail(f.request('export.validationArtifacts'), { code: 'operation_cancelled', message: '合成：已取消' }); await flush();
+  assert.equal(f.state().busy, false);
+  assert.ok(f.messages().some(m => /^執行驗證並產生報告已取消，已完成的部分仍保留（耗時[^）]*）。$/.test(m.text)),
+    'the cancellation says the finished validation is kept');
+  assert.ok(f.state().lastRuns.validate, 'the finished validation stays');
+  assert.equal(f.sent('export.accountMappingTemplate').length, 0);
+});
+
+// 使用者 2026-10-19 要求前端不露出系統用詞：程式本身的錯誤（TypeError 這類）不把英文原文寫進訊息，
+// 改寫呼叫端的說明或非預期錯誤那一句；後端回的錯誤與前端自己寫的說明照原句。
+test('journey 22: a program error inside an operation is reported in Chinese, not with its English text', async () => {
+  const f = await openCaseAtValidation();
+  await f.ui.run('合成作業', () => { throw new TypeError("Cannot read properties of undefined (reading 'x')"); });
+  await flush();
+  const shown = f.messages().find(m => m.text.startsWith('合成作業失敗：'));
+  assert.ok(shown, 'the failure reaches the message panel');
+  assert.ok(shown.text.startsWith('合成作業失敗：發生非預期的錯誤，此操作未完成。請再試一次'), shown.text);
+  assert.doesNotMatch(shown.text, /Cannot read|undefined/);
+  assert.equal(f.ui.errorText(new Error('後端回的原因。')), '後端回的原因。');
+  assert.equal(f.ui.errorText(new Error(''), '讀取失敗。'), '讀取失敗。');
+  assert.equal(f.ui.errorText(new RangeError('Invalid array length'), '讀取失敗。'), '讀取失敗。');
+  assert.equal(f.ui.errorText(null), '發生非預期的錯誤，此操作未完成。請再試一次。');
+});
+
 test('journey 22: pressing another operation while one is running sends nothing, keeps the running name and says it is still running', async () => {
   const f = await openCaseAtValidation();
   f.click('[data-action="run-validate"]');
@@ -335,6 +377,13 @@ test('journey 22: a backend error without a reason is written in Chinese without
 
 // ---- 情境 23：訊息面板「複製紀錄」 ----
 
+// 複製的紀錄寫畫面上的說法（使用者 2026-10-19 要求前端不露出系統用詞）：中文欄名、資料庫名稱、三級訊息的名稱，
+// 時間是這台電腦的當地日期與時間到秒；sv-SE 的日期格式正好是 YYYY-MM-DD HH:mm:ss，用來獨立算出預期值。
+// 原本的英文欄名與原始值寫法第一次失敗：FrontendMapping 收據 20261019-110348881-1bfcfa4630b64f05ba7a8384060f5269。
+const COPIED_HEADER = '案件名稱\t案件編號\t資料庫\t時間\t等級\t訊息';
+const COPIED_LEVEL = { info: '一般', warn: '需要注意', error: '錯誤' };
+const localTime = utc => new Date(utc).toLocaleString('sv-SE', { hour12: false });
+
 // 後端 log.recent 回的紀錄：新到舊，第 n 則的時間與等級可以由 n 推回來。
 function recentEntries(count) {
   const levels = ['info', 'warn', 'error'];
@@ -365,17 +414,17 @@ test('journey 23: copying the log takes the newest one hundred after pending wri
   recent.resolve({ messages: recentEntries(120) }); await settle(); await settle(); await settle();
   assert.equal(f.clipboardWrites.length, 1);
   const lines = f.clipboardWrites[0].split('\r\n');
-  assert.equal(lines[0], 'project_id\tproject_code\tdatabase_provider\toccurred_utc\tlevel\ttext');
+  assert.equal(lines[0], COPIED_HEADER);
   assert.equal(lines.length, 101);
   // 最近 100 則是第 21 到 120 則，由舊到新；欄內的定位字元與換行換成空白，等級照存的值（含錯誤）。
   const expected = [];
   for (let n = 21; n <= 120; n++) {
     const entry = recentEntries(120)[120 - n];
-    expected.push(['合成案件', 'C-01', 'sqlite', entry.occurredUtc, entry.level, n === 110 ? '第 110 則 含定位字元 與換行' : '第 ' + n + ' 則'].join('\t'));
+    expected.push(['合成案件', 'C-01', 'SQLite', localTime(entry.occurredUtc), COPIED_LEVEL[entry.level], n === 110 ? '第 110 則 含定位字元 與換行' : '第 ' + n + ' 則'].join('\t'));
   }
   assert.deepEqual(lines.slice(1), expected);
   assert.ok(lines.slice(1).every(line => line.split('\t').length === 6), 'every row has six columns');
-  assert.ok(lines.some(line => line.split('\t')[4] === 'error'), 'the error level is copied as stored');
+  assert.ok(lines.some(line => line.split('\t')[4] === '錯誤'), 'the error level is copied by its on-screen name');
   // 按鈕說明已複製（只比對意思），稍後回到原本的名稱。
   assert.match(button.textContent, /已複製/);
   assert.equal(button.disabled, false);
@@ -393,9 +442,9 @@ test('journey 23: when the clipboard refuses, copying falls back to the copy com
   assert.equal(f.copyCommands.length, 1);
   assert.equal(f.copyCommands[0].command, 'copy');
   // 案件編號是 null 時第二欄是空字串。
-  assert.deepEqual(f.copyCommands[0].value.split('\r\n'), ['project_id\tproject_code\tdatabase_provider\toccurred_utc\tlevel\ttext',
-    '合成案件\t\tduckdb\t' + recentEntries(2)[1].occurredUtc + '\t' + recentEntries(2)[1].level + '\t第 1 則',
-    '合成案件\t\tduckdb\t' + recentEntries(2)[0].occurredUtc + '\t' + recentEntries(2)[0].level + '\t第 2 則']);
+  assert.deepEqual(f.copyCommands[0].value.split('\r\n'), [COPIED_HEADER,
+    '合成案件\t\tDuckDB\t' + localTime(recentEntries(2)[1].occurredUtc) + '\t' + COPIED_LEVEL[recentEntries(2)[1].level] + '\t第 1 則',
+    '合成案件\t\tDuckDB\t' + localTime(recentEntries(2)[0].occurredUtc) + '\t' + COPIED_LEVEL[recentEntries(2)[0].level] + '\t第 2 則']);
   assert.match(f.copyButton().textContent, /已複製/);
 });
 

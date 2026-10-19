@@ -98,9 +98,11 @@ public sealed class OverviewConcentrationFrontendTests
         }
 
         var app = ReadFrontend("js", "app.js");
-        Assert.Contains("'<summary>技術資訊</summary>'", app, StringComparison.Ordinal);
-        Assert.Contains("overviewKvRow('執行識別碼'", app, StringComparison.Ordinal);
-        Assert.Contains("overviewKvRow('規則版本'", app, StringComparison.Ordinal);
+        // 使用者 2026-10-19 裁定「其他資訊」只留資料庫，不再顯示執行識別碼與規則版本。
+        // 首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；仍檢查標題，並改為確認兩個內部代號不上畫面。
+        Assert.Contains("'<summary>其他資訊</summary>'", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("overviewKvRow('執行識別碼'", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("overviewKvRow('規則版本'", app, StringComparison.Ordinal);
         Assert.DoesNotContain("parts.push('run '", app, StringComparison.Ordinal);
         Assert.DoesNotContain("parts.push('logic '", app, StringComparison.Ordinal);
     }

@@ -29,6 +29,7 @@ public sealed class SqlServerCompletenessAccountPageRepository(SqlServerProjectD
                 ValidationProcedures.CompletenessDiffCteFor(SqlServerProjectSchema.QualifierFor(projectId)),
                 differencesOnly: false, paging, Dialect));
         CompletenessAccountPageQuery.Bind(command, paging, request);
-        return await CompletenessAccountPageQuery.ReadAsync(command, paging, request, cancellationToken);
+        return await CompletenessAccountPageQuery.ReadAsync(command, paging, request, cancellationToken, Dialect,
+            ValidationProcedures.CompletenessDiffCteFor(SqlServerProjectSchema.QualifierFor(projectId)));
     }
 }

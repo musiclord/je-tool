@@ -38,7 +38,7 @@ internal sealed partial class GlRulePredicates
         if (op == "isNotBlank") return Complete($"NOT ({blank})", missingMatches: false);
 
         var originalColumn = column;
-        if (field.ValueType == "text") column = $"UPPER({dialect.Trim(column)})";
+        if (field.ValueType == "text") column = dialect.Upper(dialect.Trim(column));
         if (field.ValueType == "money") column = rule.AmountBasis switch
         {
             "signed" => column, "absolute" => $"ABS({column})",

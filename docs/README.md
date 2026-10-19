@@ -21,11 +21,14 @@
 | CaseWare IDEA 的替代範圍與完成條件 | [`idea-replacement-scope.md`](idea-replacement-scope.md) |
 | `data/` 工作簿、程式隨附範本、`legacy/` 與來源專案 | [`data-and-legacy.md`](data-and-legacy.md) |
 | 業務邏輯從哪裡來、衝突時如何裁決 | [`business-logic-provenance.md`](business-logic-provenance.md) |
-| SQL Server 企業環境的延後範圍與已知安全缺口 | [`sqlserver-enterprise-deferred.md`](sqlserver-enterprise-deferred.md) |
+| SQL Server 封存的延後事項、已知安全缺口與暫緩期間的修改 | [`history/2026-10-20-sqlserver-archive.md`](history/2026-10-20-sqlserver-archive.md) |
 
 ## 計畫
 
-`specs/` 只放進行中的大型計畫，目前是[架構文件與圖表維護](specs/2026-10-16-architecture-documentation-plan.md)。
+`specs/` 只放進行中的大型計畫，目前沒有。2026-10-20 使用者指示收尾並提交推送，
+[資料表分頁與 Agent 文件整理](history/specs/2026-10-16-table-pagination-and-agent-docs-plan.md)、
+[跨資料庫審計結果一致性整合](history/specs/2026-10-19-cross-database-consistency-plan.md)與
+[延後事項清理](history/specs/2026-10-19-deferred-items-cleanup-plan.md)三份計畫移回歷史文件。
 本輪先收錄既有圖表、共用分析流程與關係檢查，下一階段由 Claude 重繪。
 [介面動態與驗證循環整理計畫](history/specs/2026-10-15-motion-and-verification-plan.md)2026-10-16 結案，移回歷史文件。
 [KCT 總帳資料整理需求與新版 JET 對照](history/specs/2026-10-06-kct-gl-requirements-plan.md)已完成第九節的驗收回饋修正與獨立複審，移回歷史文件，成果待使用者驗收。

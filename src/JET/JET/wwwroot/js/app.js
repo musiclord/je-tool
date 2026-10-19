@@ -58,7 +58,7 @@
   var lastMessageId = 0;
   var messagesEmptyShown = false;
   // 開機 bridge 探測是否已有結論（systemPing 成敗任一終態、或無 host 時即 true）。
-  // 讓身分徽章區分「偵測中」（尚未結論）與「主機連線失敗」（已結論且未就緒）；純渲染旗標、不進 state、不進後端 payload。
+  // 讓身分徽章區分「偵測中」（尚未結論）與「應用程式連線失敗」（已結論且未就緒）；純渲染旗標、不進 state、不進後端 payload。
   var bridgeProbeSettled = false;
 
   // 本階段共用的最小焦點 seam：app 殼層持有移動焦點與 dialog Tab 圈限，
@@ -335,7 +335,7 @@
 
   // 右上角身分徽章（原「主機連線」狀態徽章）。狀態序：
   // 尚未結論＝「偵測中」；bridge 就緒但無 whoAmI＝「已連線」；有身分時顯示「操作人員：{短名}」。
-  // 探測已結論但未就緒＝「主機連線失敗」（沿用既有故障訊號）。title 帶完整 principal 與編號來源說明。
+  // 探測已結論但未就緒＝「應用程式連線失敗」（和訊息面板同一個說法，使用者 2026-10-19 要求前端不露出系統用詞）。title 帶完整 principal 與編號來源說明。
   function renderIdentityBadge(state) {
     var badge = Ui.$('user-identity');
     if (!badge) { return; }
@@ -349,13 +349,13 @@
       title = identityTitle(user);
     } else if (state.bridgeReady) {
       text = '已連線';
-      title = '主機已連線，尚未取得使用者身分';
+      title = '應用程式已連線，尚未取得使用者身分';
     } else if (bridgeProbeSettled) {
-      text = '主機連線失敗';
-      title = '無法與主機建立連線';
+      text = '應用程式連線失敗';
+      title = '無法建立應用程式連線';
     } else {
       text = '偵測中';
-      title = '正在偵測主機連線與使用者身分';
+      title = '正在確認應用程式連線與使用者身分';
     }
 
     badge.textContent = text;
@@ -458,8 +458,9 @@
               projectCode +
               '<span class="project-provider ' + providerClass(p.databaseProvider) + '">' +
                 Ui.esc(providerText(p.databaseProvider)) + '</span>' +
-              (p.loadError ? '<span class="project-row__load-error" role="status">案件資料無法讀取：' +
-                Ui.esc(p.loadError.message || '請還原備份，或另建案件重新匯入。') + '</span>' : '') +
+              // 後端的原因已是完整句子，不再加前綴（使用者 2026-10-19 裁定）。
+              (p.loadError ? '<span class="project-row__load-error" role="status">' +
+                Ui.esc(p.loadError.message || '案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。') + '</span>' : '') +
               syncBadgeHtml(p, unreachable) +
               lockBadgeHtml(p) +
               '<span class="project-row__when">' + Ui.esc(pickerWhen(p)) + '</span>' +
@@ -630,7 +631,7 @@
     function deleteDetail(target, countText) {
       var scope = target.provider === 'sqlServer'
         ? '將從伺服器永久刪除此案件，影響所有使用者。' : '將永久刪除此案件的資料庫。';
-      return Ui.esc(countText + ' ' + scope + '案件資料夾及其中其他檔案也會一併刪除，無法復原。');
+      return Ui.esc(countText + scope + '案件資料夾及其中其他檔案也會一併刪除，無法復原。');
     }
 
     function loadDeletePreview(target) {
@@ -928,8 +929,9 @@
 
     if (id === 'import') {
       var seg = [];
-      if (imp.gl) { seg.push('PBC-GL ' + fmtNum(imp.gl.rowCount) + ' 筆'); }
-      if (imp.tb) { seg.push('PBC-TB ' + fmtNum(imp.tb.rowCount) + ' 筆'); }
+      // 來源檔的資料用「列」，GL 與 TB 的分錄、科目用「筆」（使用者 2026-10-19 裁定）。
+      if (imp.gl) { seg.push('PBC-GL ' + fmtNum(imp.gl.rowCount) + ' 列'); }
+      if (imp.tb) { seg.push('PBC-TB ' + fmtNum(imp.tb.rowCount) + ' 列'); }
       return seg.length ? seg.join(' / ') : '匯入總帳明細與試算表';
     }
 
@@ -1726,7 +1728,7 @@
     );
   }
 
-  // 抬頭只保留審計員當下辨識案件所需的案件名稱與期間；執行識別移入「技術資訊」。
+  // 抬頭只保留審計員當下辨識案件所需的案件名稱與期間；資料庫放在收合的「其他資訊」。
   // 1) 抬頭：mono eyebrow ＋ serif 案件標題 ＋ 基準行 ＋ ✕；底部 2px 實線（CSS）。
   // 標題放審計員最先要認的名字：有客戶名稱用客戶名稱，沒有就用案件名稱；「分錄測試」放進小標，
   // 不用破折號接在名字後面。標題已是案件名稱時，基準行不再重複寫一次。
@@ -1960,7 +1962,7 @@
       overviewStepDetailHtml(state);
   }
 
-  // 技術資訊：保留可追溯資料，但預設收合，不與審計員的當前任務競爭注意力。
+  // 其他資訊：預設收合，不與審計員的當前任務競爭注意力。
   function overviewKvRow(label, value, mono, key) {
     return (
       '<div class="overview-kv" data-overview-fact-key="' + Ui.esc(key) + '">' +
@@ -1971,19 +1973,15 @@
     );
   }
 
+  // 使用者 2026-10-19 裁定只留資料庫：執行識別碼與規則版本是程式內部的代號，報告上也沒有，
+  // 不再顯示；兩者仍存在案件資料裡。
   function overviewTechnicalHtml(state) {
     var provider = state.project ? providerText(state.project.databaseProvider) : '—';
-    var ref = (state.lastRuns.prescreen && state.lastRuns.prescreen.resultRef) ||
-      (state.lastRuns.validate && state.lastRuns.validate.resultRef) || null;
     return (
       '<details class="overview__technical">' +
-        '<summary>技術資訊</summary>' +
+        '<summary>其他資訊</summary>' +
         '<div class="overview__technical-grid">' +
           overviewKvRow('資料庫', provider, false, 'project.database-provider') +
-          overviewKvRow('執行識別碼', ref && ref.runId ? ref.runId : '尚未執行', true,
-            'execution.run-id') +
-          overviewKvRow('規則版本', ref && ref.logicVersion ? ref.logicVersion : '尚未執行', true,
-            'execution.logic-version') +
         '</div>' +
       '</details>'
     );
@@ -2132,10 +2130,10 @@
     );
   }
 
-  // WAI-ARIA tabs：選取只更新總覽內詳情；左右鍵、Home、End 同步選取與焦點。
+  // WAI-ARIA tabs：選取只更新總覽內詳情。左右鍵、Home、End 由 ui-core.js 共用的頁籤鍵盤處理換到那一頁，等於按下它。
   function bindOverviewStepReview(card) {
     var tabs = Array.prototype.slice.call(card.querySelectorAll('[data-overview-review]'));
-    function select(index, moveFocus) {
+    function select(index) {
       overviewSelectedStepIndex = index;
       tabs.forEach(function (tab, tabIndex) {
         var selected = tabIndex === index;
@@ -2152,20 +2150,9 @@
         var fill = function () { panel.innerHTML = overviewStepDetailBodyHtml(state, index); };
         if (global.JetMotion) { global.JetMotion.morph(panel, fill); } else { fill(); }
       }
-      if (moveFocus && tabs[index]) { tabs[index].focus(); }
     }
     tabs.forEach(function (tab, index) {
-      tab.addEventListener('click', function () { select(index, false); });
-      tab.addEventListener('keydown', function (event) {
-        var next = null;
-        if (event.key === 'ArrowLeft') { next = (index + tabs.length - 1) % tabs.length; }
-        if (event.key === 'ArrowRight') { next = (index + 1) % tabs.length; }
-        if (event.key === 'Home') { next = 0; }
-        if (event.key === 'End') { next = tabs.length - 1; }
-        if (next == null) { return; }
-        event.preventDefault();
-        select(next, true);
-      });
+      tab.addEventListener('click', function () { select(index); });
     });
   }
 
@@ -2227,10 +2214,7 @@
         renderOverviewCard(state);
       } else {
         tabs.forEach(function (tab) {
-          var active = tab.getAttribute('data-overview-tab') === key;
-          tab.classList.toggle('overview-bi__tab--active', active);
-          tab.setAttribute('aria-selected', active ? 'true' : 'false');
-          tab.setAttribute('tabindex', active ? '0' : '-1');
+          if (tab.getAttribute('data-overview-tab') === key) { Ui.selectTab(tab); }
         });
         panel.setAttribute('aria-labelledby', fresh.getAttribute('aria-labelledby'));
         global.JetOverviewBi.disposeWithin(panel);
@@ -2241,19 +2225,10 @@
       var nextTab = document.querySelector('[data-overview-tab="' + key + '"]');
       if (nextTab) { nextTab.focus(); }
     }
-    tabs.forEach(function (tab, index) {
+    // 左右鍵、Home、End 由 ui-core.js 共用的頁籤鍵盤處理，換到那一頁等於按下它。
+    tabs.forEach(function (tab) {
       tab.addEventListener('click', function () {
         select(tab.getAttribute('data-overview-tab'));
-      });
-      tab.addEventListener('keydown', function (event) {
-        var next = null;
-        if (event.key === 'ArrowLeft') { next = (index + tabs.length - 1) % tabs.length; }
-        if (event.key === 'ArrowRight') { next = (index + 1) % tabs.length; }
-        if (event.key === 'Home') { next = 0; }
-        if (event.key === 'End') { next = tabs.length - 1; }
-        if (next == null) { return; }
-        event.preventDefault();
-        select(tabs[next].getAttribute('data-overview-tab'));
       });
     });
   }
@@ -2264,6 +2239,8 @@
     if (close) { close.addEventListener('click', function () { Store.setOverviewOpen(false); }); }
 
     bindOverviewStepReview(card);
+    // 六階段與集中度檢視兩組頁籤的方向鍵由 ui-core.js 的共用頁籤處理。
+    Ui.bindTabs(card);
 
     card.querySelectorAll('[data-overview-analysis]').forEach(function (section) {
       section.addEventListener('toggle', function () {
@@ -2380,20 +2357,32 @@
     throw error;
   }
 
+  // 複製出來的紀錄給審計員貼到 Excel 或文件保存：欄名、資料庫、等級都寫畫面上的說法，
+  // 時間換成這台電腦的當地日期與時間（使用者 2026-10-19 要求前端不露出系統用詞）。
+  var COPIED_LEVEL_NAMES = { error: '錯誤', warn: '需要注意', info: '一般' };
+
+  function localTimestamp(utc) {
+    var date = new Date(utc);
+    if (utc == null || isNaN(date.getTime())) { return utc == null ? '' : String(utc); }
+    function two(value) { return String(value).padStart(2, '0'); }
+    return date.getFullYear() + '-' + two(date.getMonth() + 1) + '-' + two(date.getDate()) + ' ' +
+      two(date.getHours()) + ':' + two(date.getMinutes()) + ':' + two(date.getSeconds());
+  }
+
   function formatMessageLogForCopy(entries, project) {
     function cell(value) {
       return String(value == null ? '' : value).replace(/[\t\r\n]+/g, ' ');
     }
 
     var identity = operationLogIdentity(project);
-    var lines = ['project_id\tproject_code\tdatabase_provider\toccurred_utc\tlevel\ttext'];
+    var lines = ['案件名稱\t案件編號\t資料庫\t時間\t等級\t訊息'];
     (entries || []).slice(0, 100).reverse().forEach(function (entry) {
       lines.push([
         cell(identity.projectId),
         cell(identity.projectCode),
-        cell(identity.databaseProvider),
-        cell(entry.occurredUtc),
-        cell(entry.level),
+        cell(identity.databaseProvider ? providerText(identity.databaseProvider) : ''),
+        cell(localTimestamp(entry.occurredUtc)),
+        cell(COPIED_LEVEL_NAMES[entry.level] || entry.level),
         cell(entry.text)
       ].join('\t'));
     });
@@ -2632,14 +2621,14 @@
      減少動態時直接放到新的位置。只改呈現，不改 state、不送 action。 */
   var GLIDE_GROUPS = [
     { group: '.step-nav', item: '.toc-item', text: '.toc-item__label', active: '.toc-item--current', rigid: true },
-    { group: '.seg-toggle', item: '.seg-toggle__btn', active: '.seg-toggle__btn.is-active' },
-    { group: '.filter-source-tabs', item: 'button', active: 'button[aria-pressed="true"]' },
-    { group: '.filter-matrix-tabs', item: 'button', active: 'button[aria-pressed="true"]' },
-    { group: '.overview-bi__tabs', item: '.overview-bi__tab', active: '.overview-bi__tab--active' },
+    { group: '.seg-toggle', item: '.seg-toggle__btn', active: '.seg-toggle__btn[aria-selected="true"]' },
+    { group: '.filter-source-tabs', item: 'button', active: 'button[aria-selected="true"]' },
+    { group: '.filter-matrix-tabs', item: 'button', active: 'button[aria-selected="true"]' },
+    { group: '.overview-bi__tabs', item: '.overview-bi__tab', active: '.overview-bi__tab[aria-selected="true"]' },
     { group: '.mapping-section > .mode-group', item: '.mode-option', active: '.mode-option:has(:checked)' },
-    { group: '.filter-work-tabs', item: 'button', active: 'button[aria-pressed="true"]', line: true },
+    { group: '.filter-work-tabs', item: 'button', active: 'button[aria-selected="true"]', line: true },
     { group: '.account-methods', item: 'button', active: 'button[aria-selected="true"]', line: true },
-    { group: '.data-preview__tabs', item: '.data-preview__tab', active: '.data-preview__tab.is-active', line: true }
+    { group: '.data-preview__tabs', item: '.data-preview__tab', active: '.data-preview__tab[aria-selected="true"], .data-preview__tab--more.is-active', line: true }
   ];
 
   function bindGlide() {
@@ -3431,17 +3420,19 @@
           owners: ownersOf(element)
         };
       });
-      var menus = Array.prototype.filter.call(root.querySelectorAll(OPEN_MENUS), function (menu) {
-        return !menu.closest('[data-motion-leaving]');
-      }).map(function (menu) { return { id: menuId(menu), element: menu }; });
+      var menus = [];
+      Array.prototype.forEach.call(root.querySelectorAll(OPEN_MENU_TOGGLES), function (toggle) {
+        var menu = toggle.closest('.jet-menu');
+        if (menu && !menu.closest('[data-motion-leaving]')) { menus.push({ id: menuId(menu), element: menu }); }
+      });
       return { items: items, elements: elements, scrolls: scrollPositions(root), typing: typing(root), menus: menus };
     }
 
-    /* 重繪前打開的選單（「⋯」「操作」）：重繪後同一個位置是收起的新選單，舊的會一下子不見，
-       例如在「⋯」裡改比對範圍或加入子條件組。所以記下它們，重繪後在原處放一份很快淡出、稍微縮回按鈕，
+    /* 重繪前打開的選單（共用的 .jet-menu，例如已儲存情境的「操作」）：重繪後同一個位置是收起的新選單，舊的會一下子不見，
+       例如按下「移除」後整步重繪。所以記下它們，重繪後在原處放一份很快淡出、稍微縮回按鈕，
        和直接關閉選單時 app.css 的淡出一樣（使用者 2026-10-13 要求展開與收合一致）。 */
-    var OPEN_MENUS = 'details.filter-group-menu[open], details.filter-saved-actions[open]';
-    var MENUS = 'details.filter-group-menu, details.filter-saved-actions';
+    var OPEN_MENU_TOGGLES = '.jet-menu__toggle[aria-expanded="true"]';
+    var MENUS = '.jet-menu';
     var MENU_FADE = 120;
 
     function menuId(menu) {
@@ -3458,7 +3449,8 @@
           fresh = menu;
           return true;
         });
-        if (fresh && !fresh.open) { fadeMenu(entry.element, fresh); }
+        var freshToggle = fresh ? fresh.querySelector('.jet-menu__toggle') : null;
+        if (freshToggle && freshToggle.getAttribute('aria-expanded') !== 'true') { fadeMenu(entry.element, fresh); }
       });
     }
 
@@ -3467,12 +3459,14 @@
       if (!parent || global.getComputedStyle(parent).display === 'contents') { return; }
       var ghost = old.cloneNode(true);
       retire(ghost);
-      ghost.setAttribute('open', '');
-      var summary = ghost.querySelector('summary');
-      if (summary) { summary.style.visibility = 'hidden'; }
-      var panel = ghost.querySelector(':scope > :not(summary)');
+      var toggle = ghost.querySelector('.jet-menu__toggle');
+      if (toggle) { toggle.style.visibility = 'hidden'; }
+      var panel = ghost.querySelector('.jet-menu__items');
       // 選單自己打開時的轉場（app.css 的 @starting-style）不重播，淡出交給下面的動畫。
-      if (panel) { panel.style.transition = 'none'; }
+      if (panel) {
+        panel.hidden = false;
+        panel.style.transition = 'none';
+      }
       var look = ghost.style;
       look.position = 'absolute';
       look.margin = '0';
@@ -4844,7 +4838,7 @@
             var latest = Store.getState();
             if (latest.busy && latest.activeRequestId === targetRequestId) {
               Store.setCancellationRequested(false);
-              Store.addMessage('取消作業失敗：' + error.message, 'error');
+              Store.addMessage('取消作業失敗：' + Ui.errorText(error), 'error');
             }
           });
       });
@@ -4930,7 +4924,7 @@
       .catch(function (error) {
         bridgeProbeSettled = true;
         Store.setBridgeReady(false);
-        Store.addMessage('應用程式連線失敗：' + error.message, 'error');
+        Store.addMessage('應用程式連線失敗：' + Ui.errorText(error), 'error');
       })
       .finally(render);
 

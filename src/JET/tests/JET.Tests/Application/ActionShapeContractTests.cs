@@ -1,3 +1,4 @@
+using JET.Application;
 using JET.Tests.Infrastructure;
 using Xunit;
 
@@ -19,6 +20,10 @@ public sealed class ActionShapeContractTests
     [Fact]
     public async Task RecordedShapes_AgreeAcrossDatabases_AndMatchTheCommittedContract()
     {
+        // 模擬最慢的機器：報告清單更新的 3 秒期限一開始就到期。記到的形狀仍要和契約檔一樣，表示形狀不隨機器快慢改變。
+        // 2026-10-19 Public 曾因 DuckDB 那條旅程的清單更新超過 3 秒而失敗（收據 20261019-055334911-de734c3f428a499d8256a175e93e8bbb）。
+        ReportExportSupport.CatalogRefreshClock.Value = ExpiredDeadlineClock.Instance;
+
         // 兩條旅程各用自己的 host 與暫存目錄，同時走（使用者 2026-10-15 在 S11 選「範本複製，兩種資料庫同時跑」）。
         var recorded = await Task.WhenAll(ActionShapeJourney.RecordAsync("sqlite"), ActionShapeJourney.RecordAsync("duckdb"));
         var sqlite = recorded[0];
@@ -64,5 +69,28 @@ public sealed class ActionShapeContractTests
 
         string Line(string[] lines) => index < lines.Length ? lines[index].Trim() : "（結束）";
         return $"\n{action} 第 {index + 1} 行：SQLite「{Line(left)}」，DuckDB「{Line(right)}」";
+    }
+
+    /// <summary>每個計時器一建立就到期：報告清單更新的期限在開始前就過了。</summary>
+    private sealed class ExpiredDeadlineClock : TimeProvider
+    {
+        public static readonly ExpiredDeadlineClock Instance = new();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            callback(state);
+            return new SpentTimer();
+        }
+
+        private sealed class SpentTimer : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => false;
+
+            public void Dispose()
+            {
+            }
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
     }
 }

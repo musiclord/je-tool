@@ -541,11 +541,8 @@
       { key: 'accounts', label: '較少使用之科目' }
     ].map(function (tab) {
       var active = tab.key === activeTab;
-      return '<button type="button" class="overview-bi__tab' +
-        (active ? ' overview-bi__tab--active' : '') + '" data-overview-tab="' + tab.key +
-        '" id="overview-concentration-tab-' + tab.key + '" role="tab" ' +
-        'aria-controls="overview-concentration-panel" aria-selected="' +
-        (active ? 'true' : 'false') + '" tabindex="' + (active ? '0' : '-1') + '">' +
+      return '<button type="button" class="overview-bi__tab" data-overview-tab="' + tab.key + '"' +
+        Ui.tabAttributes(active, 'overview-concentration-panel', 'overview-concentration-tab-' + tab.key) + '>' +
         Ui.esc(tab.label) + '</button>';
     }).join('');
   }

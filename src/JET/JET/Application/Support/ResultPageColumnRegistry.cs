@@ -87,7 +87,7 @@ internal static class ResultPageColumnRegistry
                 || !(rule.Type == FilterRuleType.FieldValue ? FieldValueConditions.Operators(field.ValueType) : TypedFieldOperatorSets.ForValueType(field.ValueType))
                     .Contains(rule.TypedOperator, StringComparer.Ordinal))
             {
-                throw Stale("篩選情境使用的攸關資料元素欄位型別或比較方式已變更，請到第五步重新選擇比較方式後儲存情境。");
+                throw Stale("篩選情境用到的攸關資料元素欄位，目前的設定已不適用原本的比較方式。請到第五步重新選擇比較方式後儲存情境。");
             }
 
             selected.Add(field.FieldId);

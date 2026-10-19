@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -13,13 +14,16 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
 {
     private readonly ITabularFileReader reader;
     private readonly ProjectSession session;
+    private readonly ILogger? logger;
 
     internal ImportAuthorizedPreparerFromFileHandler(
         ITabularFileReader reader,
-        ProjectSession session)
+        ProjectSession session,
+        ILogger? logger = null)
     {
         this.reader = reader;
         this.session = session;
+        this.logger = logger;
     }
 
     public string Action => "import.authorizedPreparer.fromFile";
@@ -67,7 +71,7 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
         var result = JetAuditProgram.Finalize(plan, facts);
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects);
+            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
         return new
         {
             batchId = result.Import.BatchId,
@@ -87,7 +91,7 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
     }
 }
 
-public sealed class ClearAuthorizedPreparerHandler(ProjectSession session)
+public sealed class ClearAuthorizedPreparerHandler(ProjectSession session, ILogger? logger = null)
     : IApplicationActionHandler
 {
     public string Action => "import.authorizedPreparer.clear";
@@ -98,7 +102,7 @@ public sealed class ClearAuthorizedPreparerHandler(ProjectSession session)
         await repositories.AuthorizedPreparers.ClearAsync(projectId, cancellationToken);
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(
             projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, AuditMutationEffects.For(AuditMutation.AuthorizedPreparer));
+            repositories.FilterScenarios, repositories.ReportArtifactStore, AuditMutationEffects.For(AuditMutation.AuthorizedPreparer), logger);
         return new { cleared = true,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,

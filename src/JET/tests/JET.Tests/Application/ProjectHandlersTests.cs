@@ -120,7 +120,10 @@ public sealed class ProjectHandlersTests
                 """));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        Assert.Contains("periodStart", ex.Message);
+        // 使用者 2026-10-19 要求前端不露出系統用詞：日期欄只送得出 yyyy-MM-dd，格式不對是程式送錯資料，訊息改為非預期錯誤那一句。
+        // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；改為整句比對，並核對支援日誌記下的檢查代號。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
+        Assert.Equal("payload_date_invalid", JetPayloadRejection.CheckOf(ex));
         Assert.Null(ex.Field);
     }
 

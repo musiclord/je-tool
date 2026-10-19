@@ -37,6 +37,7 @@ public sealed class SqlServerFilterHitsPageRepository(SqlServerProjectDatabase d
 
         command.Parameters.AddWithValue("@pageSize", request.ClampedPageSize + 1);
 
+        var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, Dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<FilterHitRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -56,6 +57,6 @@ public sealed class SqlServerFilterHitsPageRepository(SqlServerProjectDatabase d
                 paging.HasSort ? reader.GetValue(9) : null);
         }
 
-        return buffer.ToPage(request, paging, static row => row.EntryId);
+        return buffer.ToPage(request, paging, static row => row.EntryId, totalCount);
     }
 }

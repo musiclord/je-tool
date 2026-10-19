@@ -8,6 +8,9 @@ namespace JET.Infrastructure;
 /// BOM（UTF-8 / UTF-16 LE/BE）→ 無 BOM 時嚴格 UTF-8 驗證取樣段 → 否則 Big5（CP950）。
 /// 解碼一律採 exception fallback：不可解碼的位元組讓讀取端以 file_read_error 回報，
 /// 而非默默替換成 U+FFFD 汙染審計資料。
+/// 讀取端的 StreamReader 會認 BOM：BOM 和這裡給的編碼的前導位元組相同時沿用這個嚴格編碼，
+/// 不同時會換成 .NET 預設、遇到壞位元組就默默替換的編碼。所以 UTF-8 與 UTF-16 的嚴格編碼都帶前導位元組，
+/// 指定「utf-16」時也照 BOM 選大端或小端（低嚴重度事項 A3，使用者 2026-10-19 要求處理）。
 /// </summary>
 public static class EncodingDetector
 {
@@ -27,7 +30,7 @@ public static class EncodingDetector
             null => Detect(filePath),
             "utf-8" => StrictUtf8(),
             "big5" => StrictBig5(),
-            "utf-16" => Encoding.Unicode,
+            "utf-16" => StrictUtf16(bigEndian: StartsWithBigEndianBom(filePath)),
             _ => throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "encoding_invalid")
         };
     }
@@ -53,6 +56,15 @@ public static class EncodingDetector
         return "big5";
     }
 
+    /// <summary>訊息裡的編碼寫一般常見的寫法，和匯入清單的選項相同；不是這三種時原樣寫出。</summary>
+    public static string DisplayNameOf(string wireName) => wireName switch
+    {
+        "utf-8" => "UTF-8",
+        "big5" => "Big5",
+        "utf-16" => "UTF-16",
+        _ => wireName
+    };
+
     public static Encoding Detect(string filePath)
     {
         var sample = ReadSample(filePath);
@@ -65,12 +77,12 @@ public static class EncodingDetector
 
         if (sample.Length >= 2 && sample[0] == 0xFF && sample[1] == 0xFE)
         {
-            return Encoding.Unicode; // UTF-16 LE
+            return StrictUtf16(bigEndian: false); // UTF-16 LE
         }
 
         if (sample.Length >= 2 && sample[0] == 0xFE && sample[1] == 0xFF)
         {
-            return Encoding.BigEndianUnicode; // UTF-16 BE
+            return StrictUtf16(bigEndian: true); // UTF-16 BE
         }
 
         // 2. 嚴格 UTF-8 驗證（容忍取樣切到多位元組字元尾端：最多回退 3 個位元組重試）
@@ -118,9 +130,29 @@ public static class EncodingDetector
         }
     }
 
+    // 只用來選大端或小端；檔案打不開時照小端，打不開的原因由讀取端照常回報。
+    private static bool StartsWithBigEndianBom(string filePath)
+    {
+        try
+        {
+            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return stream.ReadByte() == 0xFE && stream.ReadByte() == 0xFF;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    // 前導位元組 EF BB BF 讓 StreamReader 認得 BOM 後沿用這個嚴格編碼。
     private static Encoding StrictUtf8()
     {
-        return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        return new UTF8Encoding(encoderShouldEmitUTF8Identifier: true, throwOnInvalidBytes: true);
+    }
+
+    private static Encoding StrictUtf16(bool bigEndian)
+    {
+        return new UnicodeEncoding(bigEndian, byteOrderMark: true, throwOnInvalidBytes: true);
     }
 
     private static Encoding StrictBig5()

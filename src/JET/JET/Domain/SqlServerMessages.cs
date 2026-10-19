@@ -2,7 +2,9 @@ namespace JET.Domain;
 
 /// <summary>
 /// 只在線上案件出現的錯誤句（使用者 2026-10-14 第三輪勾選頁確認 R3-66、R3-37）。同一種情況全程式只用這裡的一句，
-/// 不寫環境變數、程式名稱或引擎原文；SQL Server 的修改只經編譯。
+/// 不寫環境變數、程式名稱或引擎原文。2026-10-19 的 Provider 中，<c>DualSourceProjectTests</c> 在 SQL Server 核對了
+/// <see cref="ProjectMissingOnServer"/> 與 <see cref="LocalCaseWithSameName"/>；<see cref="DuplicateKey"/> 由不連線的
+/// <c>SqlServerEngineErrorsTests</c> 核對。其餘句子沒有測試核對文字。
 /// </summary>
 public static class SqlServerMessages
 {

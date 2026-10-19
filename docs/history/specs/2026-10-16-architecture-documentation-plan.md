@@ -69,10 +69,10 @@
 
 ## 下一階段
 
-Claude 先讀[架構文件](../architecture/README.md)和[agent 流程](../../.agents/harness/architecture-documentation.md)，
+Claude 先讀[架構文件](../../architecture/README.md)和[agent 流程](../../../.agents/harness/architecture-documentation.md)，
 依使用者回饋重繪。要反映最新程式時，另建來源快照，不覆寫已收錄的研究證據。
 
 Codex 維護程式分析與檢查，Claude 處理圖表設計與說明。後續依序擴充重要連線的共同關係資料、
 LikeC4 與 Archify 的一致性檢查，以及關鍵分支的合成驗證；不能把目前 17 組關係的檢查說成已涵蓋全專案。
 
-原本列在[開發現況](../development-status.md)的其他未完成及延後事項維持原裁定，沒有因本計畫啟動而一併開工。
+原本列在[開發現況](../../development-status.md)的其他未完成及延後事項維持原裁定，沒有因本計畫啟動而一併開工。

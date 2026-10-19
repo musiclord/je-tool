@@ -300,7 +300,7 @@ internal sealed partial class GlRulePredicates(
     {
         // 儲存的 text_value 恆非空白但可能帶前後空白（投影原樣保存）；比較兩側都 trim＋upper，去空白的字元集合和 .NET 相同。
         var columnExpr = dialect.Trim("v.text_value");
-        var upperExpr = $"UPPER({columnExpr})";
+        var upperExpr = dialect.Upper(columnExpr);
         switch (op)
         {
             case "equals":
@@ -467,7 +467,7 @@ internal sealed partial class GlRulePredicates(
     public string NonAuthorizedPreparer(string schemaPrefix = "") =>
         $"(EXISTS (SELECT 1 FROM {schemaPrefix}target_authorized_preparer) " +
         $"AND g.created_by IS NOT NULL AND {dialect.Trim("g.created_by")} <> '' " +
-        $"AND UPPER({dialect.Trim("g.created_by")}) NOT IN (SELECT UPPER({dialect.Trim("name")}) FROM {schemaPrefix}target_authorized_preparer))";
+        $"AND {dialect.Upper(dialect.Trim("g.created_by"))} NOT IN (SELECT {dialect.Upper(dialect.Trim("name"))} FROM {schemaPrefix}target_authorized_preparer))";
 
     /// <summary>低頻編製者（low_frequency_preparer）：created_by 在所選母體內的分錄筆數 ≤ maxEntries。
     /// 人員依去空白、不分大小寫的識別值分組，空白人員不列入（和畫面「空白人員不列入」一致，2026-10-04 裁定 C3）。
@@ -479,8 +479,8 @@ internal sealed partial class GlRulePredicates(
         string schemaPrefix = "")
     {
         var p = NextParam(command, maxEntries);
-        var outer = $"UPPER({dialect.Trim("g.created_by")})";
-        var inner = $"UPPER({dialect.Trim("f.created_by")})";
+        var outer = dialect.Upper(dialect.Trim("g.created_by"));
+        var inner = dialect.Upper(dialect.Trim("f.created_by"));
         return $"{outer} IN (SELECT {inner} FROM {schemaPrefix}target_gl_entry f "
             + $"WHERE {populationScopePredicate(context, "f")} "
             + $"AND f.created_by IS NOT NULL AND {dialect.Trim("f.created_by")} <> '' "
@@ -721,7 +721,7 @@ internal sealed partial class GlRulePredicates(
     public string PreparerEqualsApprover() =>
         $"(g.created_by IS NOT NULL AND {dialect.Trim("g.created_by")} <> '' " +
         "AND g.approved_by IS NOT NULL " +
-        $"AND UPPER({dialect.Trim("g.created_by")}) = UPPER({dialect.Trim("g.approved_by")}))";
+        $"AND {dialect.Upper(dialect.Trim("g.created_by"))} = {dialect.Upper(dialect.Trim("g.approved_by"))})";
 
     private string TextContainsAny(
         FilterSqlParameterPlanBuilder command,
@@ -743,7 +743,7 @@ internal sealed partial class GlRulePredicates(
     {
         var clauses = keywords
             .Where(k => !string.IsNullOrWhiteSpace(k))
-            .Select(k => $"UPPER({dialect.Trim($"COALESCE({columnExpr}, '')")}) = {NextParam(command, k.Trim().ToUpperInvariant())}");
+            .Select(k => $"{dialect.Upper(dialect.Trim($"COALESCE({columnExpr}, '')"))} = {NextParam(command, k.Trim().ToUpperInvariant())}");
 
         return $"({string.Join(" OR ", clauses)})";
     }

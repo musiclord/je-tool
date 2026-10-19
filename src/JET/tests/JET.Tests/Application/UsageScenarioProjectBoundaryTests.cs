@@ -26,7 +26,10 @@ public sealed class UsageScenarioProjectBoundaryTests
         var error = await Assert.ThrowsAsync<JetActionException>(() =>
             host.DispatchAsync("project.create", payload.ToJsonString()));
         Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
-        Assert.Contains(missing, error.Message, StringComparison.Ordinal);
+        // 使用者 2026-10-19 要求前端不露出系統用詞：建案畫面會先擋下空白日期，走到這裡是程式送錯資料，訊息改為非預期錯誤那一句。
+        // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；改為整句比對，並核對支援日誌記下的檢查代號。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, error.Message);
+        Assert.Equal("payload_required_text_missing", JetPayloadRejection.CheckOf(error));
         Assert.False(Directory.Exists(Path.Combine(host.ProjectsRoot, "Synthetic missing period")));
         Assert.Empty(Directory.GetFiles(host.ProjectsRoot, "project.json", SearchOption.AllDirectories));
     }

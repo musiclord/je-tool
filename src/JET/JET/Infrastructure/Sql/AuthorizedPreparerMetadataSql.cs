@@ -73,8 +73,8 @@ internal static class AuthorizedPreparerMetadataSql
         }
 
         // 名單人員只計一次；GL 僅在資料庫內比對，不把大量識別值帶回記憶體。
-        var personKey = $"UPPER({dialect.Trim("ap.name")})";
-        var creatorKey = $"UPPER({dialect.Trim("g.created_by")})";
+        var personKey = dialect.Upper(dialect.Trim("ap.name"));
+        var creatorKey = dialect.Upper(dialect.Trim("g.created_by"));
         var count = dialect.ProviderName == "sqlServer" ? "COUNT_BIG" : "COUNT";
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;

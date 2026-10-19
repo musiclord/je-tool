@@ -20,7 +20,9 @@ internal static class PageRequestReader
         }
 
         var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
-        return new PageRequest(cursor, pageSize, ReadSort(payload, catalog), ReadSearch(payload, catalog));
+        // 總筆數只在第一頁（沒有游標）計算；換頁沿用第一頁的數字，不再每頁重掃完整查詢範圍。
+        return new PageRequest(cursor, Math.Clamp(pageSize <= 0 ? 200 : pageSize, 1, 200),
+            ReadSort(payload, catalog), ReadSearch(payload, catalog), IncludeTotalCount: string.IsNullOrEmpty(cursor));
     }
 
     public static PageSort? ReadSort(JsonElement payload, PageSortCatalog catalog)

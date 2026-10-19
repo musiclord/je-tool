@@ -169,14 +169,14 @@ test('journey 18: before validation the overview shows one empty statistics stat
   assert.match(f.text(f.fact('validation.stats.total-credit')), /98,765\.40/);
   assert.doesNotMatch(f.card().textContent, /999/, 'the population summary is not shown in place of the statistics');
 
-  // 摘要在前：抬頭、進度、六個階段與所選階段、統計、分析、技術資訊、提醒，順序固定；訊息不複製進總覽。
+  // 摘要在前：抬頭、進度、六個階段與所選階段、統計、分析、其他資訊、提醒，順序固定；訊息不複製進總覽。
   const overview = f.card().querySelector('.overview');
   assert.deepEqual(elementChildren(overview).map(child => child.className.split(/\s+/)[0]), [
     'overview__head', 'overview__progress', 'overview__pipeline', 'overview-step-detail',
     'overview__population', 'overview__analyses', 'overview__technical', 'overview__disclaimer'
   ]);
   assert.ok(f.card().querySelector('.messages__list') === null);
-  // 三個分析區與技術資訊預設收合。
+  // 三個分析區與其他資訊預設收合。
   assert.deepEqual(f.analysisKeys(), ['concentration', 'amount', 'rule-period']);
   for (const key of f.analysisKeys()) assert.equal(f.section(key).tagName, 'DETAILS');
   for (const key of f.analysisKeys()) assert.equal(f.section(key).open, false, key + ' starts collapsed');
@@ -272,9 +272,10 @@ test('journey 18: across all six stages every visible fact appears on exactly on
     assert.equal(text.split('全查核期間').length - 1, 1, 'stage ' + index + ': the analysis scope is written once');
   }
   // 現行總覽的全部事實（寫死的清單，取代原 C# 方法逐一數 app.js 定義點的做法）。
+  // 使用者 2026-10-19 裁定「其他資訊」只留資料庫，執行識別碼與規則版本兩項移出清單；
+  // 第一次失敗：FrontendMapping 收據 20261019-122433278-c327738e178a4e6e829f666f3c1bd5c1。
   assert.deepEqual([...union].sort(), [
     'analysis.scope',
-    'execution.logic-version', 'execution.run-id',
     'export.scenario-count', 'export.working-paper', 'export.working-paper-bytes',
     'filter.criteria-report', 'filter.current-result', 'filter.population-scope', 'filter.saved-scenarios',
     'import.gl.source', 'import.supporting', 'import.tb.source',
@@ -287,12 +288,14 @@ test('journey 18: across all six stages every visible fact appears on exactly on
     'workflow.location',
     'workflow.stage.0.status', 'workflow.stage.1.status', 'workflow.stage.2.status', 'workflow.stage.3.status', 'workflow.stage.4.status', 'workflow.stage.5.status'
   ]);
-  // 案件編號只在抬頭，技術資訊只放資料庫、執行識別碼與規則版本。
+  // 案件編號只在抬頭；「其他資訊」只放資料庫，執行識別碼與規則版本不再顯示（同上一段的裁定與收據）。
   const technical = f.card().querySelector('.overview__technical').textContent;
   assert.doesNotMatch(technical, /合成案件甲|2025-01-01|案件編號|查核期間/);
   assert.doesNotMatch(f.card().querySelector('.overview__population').textContent, /查核期間|2025-01-01/, 'the statistics do not repeat the period');
-  assert.match(f.text(f.fact('execution.run-id')), /p-ov/);
-  assert.match(f.text(f.fact('execution.logic-version')), /synthetic-logic-7/);
+  assert.equal(f.card().querySelector('.overview__technical summary').textContent, '其他資訊');
+  assert.match(f.text(f.fact('project.database-provider')), /SQLite|DuckDB|SQL Server/);
+  assert.doesNotMatch(technical, /p-ov|synthetic-logic-7/);
+  assert.doesNotMatch(f.card().textContent, /執行識別碼|規則版本|技術資訊/);
   assert.deepEqual(plain(f.requests), []);
 });
 

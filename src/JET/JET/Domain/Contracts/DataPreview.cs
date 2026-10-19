@@ -86,11 +86,12 @@ public sealed record GlExcludedPreviewStats(
 /// 有界預覽結果：rows ≤ limit、cell 一律字串（NULL → null）。
 /// 一般資料集無資料 = 空 Columns/Rows + TotalCount 0（不是錯誤）；
 /// glExcluded 仍保留固定 Columns 與非 null 的零值 Stats。
+/// TotalCount 與 Stats 只在第一頁（offset 0）計算；之後的頁為 null，由畫面沿用第一頁的數字。
 /// </summary>
 public sealed record DataPreviewResult(
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyList<string?>> Rows,
-    long TotalCount,
+    long? TotalCount,
     DataPreviewStats? Stats);
 
 public interface IDataPreviewRepository
@@ -100,5 +101,6 @@ public interface IDataPreviewRepository
         DataPreviewDataset dataset,
         int moneyScale,
         int limit,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        int offset = 0);
 }

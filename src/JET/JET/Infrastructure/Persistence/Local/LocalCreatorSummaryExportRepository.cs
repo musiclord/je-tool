@@ -32,7 +32,7 @@ public sealed class LocalCreatorSummaryExportRepository(ILocalProjectDatabase da
                    COALESCE(SUM(credit_amount_scaled), 0)
             FROM target_gl_entry
             WHERE {GlEffectivePopulation.SqlPredicate()}
-            GROUP BY UPPER({person})
+            GROUP BY {database.Dialect.Upper(person)}
             ORDER BY COUNT(*) DESC, MIN({person});
             """;
         return await ReadRowsAsync(command, cancellationToken);

@@ -14,13 +14,20 @@ internal static class ReportExportSupport
 
     internal sealed record PublishedArtifactCatalog(object[]? Artifacts, string? Warning);
 
+    /// <summary>
+    /// 報告清單更新期限用的時間來源，只讓測試在同一個非同步流程內替換；正式程式一律用系統時間。
+    /// 資料形狀紀錄的流程要確定走到清單更新完成的分支，不能隨機器快慢改走逾時分支（2026-10-19）。
+    /// </summary>
+    internal static AsyncLocal<TimeProvider?> CatalogRefreshClock { get; } = new();
+
     public static async Task<PublishedArtifactCatalog> ReadArtifactCatalogAfterPublicationAsync(
         IReportArtifactStore store, string projectId, TimeSpan? refreshTimeout = null,
         Func<CancellationToken, Task>? refreshSources = null, string? unavailableMessage = null)
     {
         // 正式檔與索引已保存。清單刷新失敗或遇到其他程序持鎖，不得把已完成的匯出改報失敗。
         // 此期限只約束可省略的清單刷新，與使用者的作業取消無關，不套用到正式檔案發布。
-        using var timeout = new CancellationTokenSource(refreshTimeout ?? TimeSpan.FromSeconds(3));
+        using var timeout = new CancellationTokenSource(
+            refreshTimeout ?? TimeSpan.FromSeconds(3), CatalogRefreshClock.Value ?? TimeProvider.System);
         var refreshToken = timeout.Token;
         try
         {
@@ -54,6 +61,9 @@ internal static class ReportExportSupport
 
     private static PublishedArtifactCatalog CatalogUnavailable(string? message) => new(null, message ??
         "檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。");
+
+    /// <summary>產生報告回應的 warnings：報告已發布、卻寫不進操作紀錄時放那一句提醒，其他時候是空陣列。</summary>
+    public static string[] Warnings(string? auditLogWarning) => auditLogWarning is null ? [] : [auditLogWarning];
 
     public static void RequireRequestedValidationRun(
         RuleRunRecord current,

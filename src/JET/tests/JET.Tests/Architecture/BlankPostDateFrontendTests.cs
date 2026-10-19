@@ -17,6 +17,8 @@ public sealed class BlankPostDateFrontendTests
         // 讀到不存在的欄位，或把空白過帳日重新算進空值紀錄的異常項次合計。
         Assert.DoesNotContain("nullPostDateCount", source, StringComparison.Ordinal);
         Assert.DoesNotContain("nullLoadMoreSpec('nullPostDate'", source, StringComparison.Ordinal);
+        // 2026-10-16 移除「載入更多」後，同一個函式改名為 nullPageSpec，新名稱也不得登記空白過帳日。
+        Assert.DoesNotContain("nullPageSpec('nullPostDate'", source, StringComparison.Ordinal);
         Assert.DoesNotContain("['nullPostDate']", source, StringComparison.Ordinal);
         Assert.DoesNotContain("postDate: '空白總帳日期'", source, StringComparison.Ordinal);
     }

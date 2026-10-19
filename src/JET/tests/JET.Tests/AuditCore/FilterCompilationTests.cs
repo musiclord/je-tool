@@ -171,6 +171,36 @@ public sealed class FilterCompilationTests
             NullRecordsCategoryPredicate.Scoped(NullRecordCategory.NullAccount, SqlServerDialect.Instance));
     }
 
+    // 2026-10-19 跨資料庫一致性計畫第三節 D：轉大寫改走方言。SQLite 與 DuckDB 的 SQL 文字不變；
+    // SQL Server 改用 Latin1_General_100_BIN2 的大小寫對照表，欄位本身的比較與排序仍是 Latin1_General_BIN2。
+    // 第一次失敗：20261019-025219572-8db61eaea8e248329c0efa0328ca3212，SQL Server 的一項在方言修改前失敗。
+    [Fact]
+    public void PreparerEqualsApprover_LocalProviders_KeepPlainUpper()
+    {
+        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance, DuckDbDialect.Instance })
+        {
+            var creator = dialect.Trim("g.created_by");
+            var approver = dialect.Trim("g.approved_by");
+            Assert.Equal(
+                $"(g.created_by IS NOT NULL AND {creator} <> '' AND g.approved_by IS NOT NULL "
+                + $"AND UPPER({creator}) = UPPER({approver}))",
+                new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate).PreparerEqualsApprover());
+        }
+    }
+
+    [Fact]
+    public void PreparerEqualsApprover_SqlServer_UppercasesWithTheNewerBinaryCollation()
+    {
+        var dialect = SqlServerDialect.Instance;
+        var creator = dialect.Trim("g.created_by");
+        var approver = dialect.Trim("g.approved_by");
+
+        Assert.Equal(
+            $"(g.created_by IS NOT NULL AND {creator} <> '' AND g.approved_by IS NOT NULL "
+            + $"AND UPPER(({creator}) COLLATE Latin1_General_100_BIN2) = UPPER(({approver}) COLLATE Latin1_General_100_BIN2))",
+            new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate).PreparerEqualsApprover());
+    }
+
     private static FilterRuleSpec TextRule(string keyword) =>
         new(FilterJoin.And, FilterRuleType.Text, null, "description", [keyword], TextMatchMode.Contains,
             null, null, null, null, null, null);

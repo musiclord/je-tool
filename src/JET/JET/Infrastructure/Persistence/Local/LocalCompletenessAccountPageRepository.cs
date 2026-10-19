@@ -24,6 +24,6 @@ public sealed class LocalCompletenessAccountPageRepository(ILocalProjectDatabase
         CompletenessAccountPageQuery.Bind(command, paging, request);
         command.CommandText = CompletenessAccountPageQuery.Sql(
             ValidationProcedures.CompletenessDiffCte, differencesOnly: false, paging, database.Dialect);
-        return await CompletenessAccountPageQuery.ReadAsync(command, paging, request, cancellationToken);
+        return await CompletenessAccountPageQuery.ReadAsync(command, paging, request, cancellationToken, database.Dialect, ValidationProcedures.CompletenessDiffCte);
     }
 }

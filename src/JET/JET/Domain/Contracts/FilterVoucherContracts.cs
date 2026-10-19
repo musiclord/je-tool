@@ -19,7 +19,7 @@ public sealed record FilterVoucherDetail(long EntryId, string DocumentNumber, st
     public IReadOnlyList<FilterConditionPosition> VoucherConditions { get; init; } = [];
 }
 public sealed record FilterVoucherPage(IReadOnlyList<FilterVoucherSummary> Vouchers,
-    IReadOnlyList<FilterVoucherDetail> Details, string? NextKey);
+    IReadOnlyList<FilterVoucherDetail> Details, string? NextKey, long? TotalCount = null);
 
 public interface IFilterVoucherRepository
 {

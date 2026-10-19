@@ -6,7 +6,7 @@ namespace JET.Infrastructure;
 
 public sealed partial class WorkpaperWriter
 {
-    private readonly record struct WorkpaperDisplayCell(
+    internal readonly record struct WorkpaperDisplayCell(
         string? Text,
         string? NumberLiteral,
         uint Style,

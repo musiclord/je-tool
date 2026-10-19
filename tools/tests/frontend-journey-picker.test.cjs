@@ -110,6 +110,8 @@ test('journey 1: deleting a case reloads the local list once only after it succe
   assert.equal(f.$('#delete-modal-title').textContent, '刪除案件');
   assert.deepEqual(plain(f.request('project.deletePreview').payload), { projectId: '合成甲案' });
   f.reply('project.deletePreview', { reportCount: 1, workpaperCount: 2 }); await flush();
+  // 低嚴重度事項 F13（使用者 2026-10-19 要求處理）：數量句以句號結尾，後面直接接刪除範圍，中間不多一個空白。
+  assert.match(f.$('[data-bind="delete-modal-detail"]').innerHTML, /工作底稿 2 份。將永久刪除此案件的資料庫。/);
   const listsBefore = f.sent('project.listLocal').length;
   f.click('[data-action="modal-confirm"]');
   const remove = f.request('project.delete');

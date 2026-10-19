@@ -77,7 +77,10 @@ public sealed class ImportFailureWorkflowTests
             if (trigger == "cell")
             {
                 Assert.Contains("第 6000 列、第 1 欄", error.Message);
-                Assert.Contains("型別或數值範圍", error.Message);
+                // 使用者 2026-10-19 裁定「型別」改用具體說法。首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；
+                // 仍檢查訊息指出儲存格位置與審計員能做的事。
+                Assert.Contains("請在 Excel 確認該儲存格的格式與數值後重試", error.Message);
+                Assert.DoesNotContain("型別", error.Message);
             }
             if (trigger == "xml") Assert.Contains("Excel 修復或另存", error.Message);
             if (trigger == "progress") Assert.Equal(JetErrorCodes.ImportProgressFailed, Assert.IsType<JetActionException>(error).Code);

@@ -6,14 +6,14 @@ namespace JET.Application;
 /// <summary>
 /// query.dataPreview：正式版的使用者資料預覽。
 /// 有界唯讀——欄位配對時對照欄名與實際內容、進階篩選前掌握數值/日期/摘要的大概樣貌；
-/// 明細分頁由 query.*Page 負責，本 action 絕不回完整母體。
+/// 以 limit 與 offset 每次回傳最多 200 筆，不一次讀取完整母體。
 /// </summary>
 public sealed class QueryDataPreviewHandler(
     IProjectStore projectStore,
     ProjectSession session) : IApplicationActionHandler
 {
-    private const int DefaultLimit = 50;
-    private const int MaxLimit = 100;
+    private const int DefaultLimit = 200;
+    private const int MaxLimit = 200;
 
     public string Action => "query.dataPreview";
 
@@ -29,13 +29,15 @@ public sealed class QueryDataPreviewHandler(
 
         var limit = Math.Clamp(PayloadReader.GetOptionalInt(payload, "limit") ?? DefaultLimit, 1, MaxLimit);
 
+        var offset = Math.Max(0, PayloadReader.GetOptionalInt(payload, "offset") ?? 0);
+
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
                 ProjectFolderMessages.ActiveProjectMissing);
 
         var preview = await Task.Run(
-            () => repositories.DataPreview.GetPreviewAsync(projectId, dataset, document.MoneyScale, limit, cancellationToken),
+            () => repositories.DataPreview.GetPreviewAsync(projectId, dataset, document.MoneyScale, limit, cancellationToken, offset),
             cancellationToken);
 
         return new

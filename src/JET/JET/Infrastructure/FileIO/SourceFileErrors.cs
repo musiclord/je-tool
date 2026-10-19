@@ -45,8 +45,8 @@ internal static class SourceFileErrors
     {
         return new JetActionException(
             JetErrorCodes.FileReadError,
-            $"檔案「{Path.GetFileName(filePath)}」有無法以 {encodingName} 解讀的內容。" +
-            "請在匯入清單改選編碼（utf-8、big5 或 utf-16）後重試，或把檔案另存為 UTF-8。",
+            $"檔案「{Path.GetFileName(filePath)}」有無法以 {EncodingDetector.DisplayNameOf(encodingName)} 解讀的內容。" +
+            "請在匯入清單改選編碼（UTF-8、Big5 或 UTF-16）後重試，或把檔案另存為 UTF-8。",
             innerException: error);
     }
 

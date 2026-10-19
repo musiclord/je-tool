@@ -8,17 +8,18 @@ public sealed partial class SqlServerProjectDatabase
 {
     // 目前 schema 版本。Fresh schema 由 SchemaSql 直接寫現行版；既有 schema 的版本則只在
     // MigrateExistingSchemaToCurrentAsync 完成 shape、data rewrite 與結果失效後最後寫回。
-    internal const string SchemaVersion = "13";
+    internal const string SchemaVersion = "14";
 
     internal const string BumpSchemaVersionSql =
-        "UPDATE {s}.schema_info SET [value] = '13' WHERE [key] = 'schema_version';";
+        "UPDATE {s}.schema_info SET [value] = '14' WHERE [key] = 'schema_version';";
 
     /// <summary>
     /// 第 12 版到第 13 版：<c>app_message_log.level</c> 的限制加上 <c>error</c>（使用者 2026-10-13 裁定訊息分三級）。
     /// 舊表的 CHECK 是建表時未命名的欄位限制，名稱由 SQL Server 產生，所以先從系統目錄找出還不允許 <c>error</c>
     /// 的那一條再換掉；新建的 schema 由 <see cref="SchemaSql"/> 直接建出新限制，這段不做事。舊紀錄不動。
     /// 和 <see cref="BackfillAccountMappingCategoryIdsSql"/> 一樣在 SchemaSql 之後另外執行，仍在同一個遷移交易內。
-    /// SQL Server 開發暫緩，這段只經編譯，沒有連線執行過。
+    /// 2026-10-19 的 Provider 中，從第 13 版以前升級的 <c>SqlServerSchemaMigrationTests</c> 會執行這段；但這些測試的
+    /// <c>app_message_log</c> 都由 <see cref="SchemaSql"/> 建出新限制，所以找出舊限制再換掉的那一段沒有執行到。
     /// </summary>
     internal const string WidenMessageLogLevelCheckSql =
         """
@@ -36,6 +37,23 @@ public sealed partial class SqlServerProjectDatabase
             ALTER TABLE {s}.app_message_log
                 ADD CONSTRAINT ck_app_message_log_level CHECK (level IN ('info','warn','error'));
         END;
+        """;
+
+    /// <summary>
+    /// 第 13 版到第 14 版：GL、TB 與科目配對的文字欄改成固定 <c>Latin1_General_BIN2</c>，不再沿用資料庫預設定序
+    /// （跨資料庫一致性計畫第三節 F，使用者 2026-10-19 選「SQL Server 實機才能確認的項」）。這些欄位會被文字條件、
+    /// 排序與 <c>MAX(account_name)</c> 用到；資料庫預設若是不分大小寫或全形半形的定序，結果會和本機不同。
+    /// 欄位沒有索引或限制，可以直接改定序；新建的 schema 由 <see cref="SchemaSql"/> 直接建出，這段重跑也沒有副作用。
+    /// </summary>
+    internal const string PinAuditTextCollationSql =
+        """
+        ALTER TABLE {s}.target_gl_entry ALTER COLUMN line_item NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
+        ALTER TABLE {s}.target_gl_entry ALTER COLUMN account_name NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
+        ALTER TABLE {s}.target_gl_entry ALTER COLUMN document_description NVARCHAR(MAX) COLLATE Latin1_General_BIN2 NULL;
+        ALTER TABLE {s}.target_gl_entry ALTER COLUMN source_module NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
+        ALTER TABLE {s}.target_tb_balance ALTER COLUMN account_name NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
+        ALTER TABLE {s}.target_account_mapping ALTER COLUMN account_name NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
+        ALTER TABLE {s}.result_inf_sampling_test_sample ALTER COLUMN line_item NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
         """;
 
     // SQL Server compiles a batch before executing its ALTER TABLE statements, so the v6 backfill must run
@@ -165,6 +183,24 @@ public sealed partial class SqlServerProjectDatabase
                 await widen.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            if (parsedExisting < 14)
+            {
+                await using (var pin = CreateCommand(connection, projectId, PinAuditTextCollationSql))
+                {
+                    pin.Transaction = tx;
+                    await pin.ExecuteNonQueryAsync(cancellationToken);
+                }
+
+                // 既有結果可能是用舊定序比對、或用舊的大寫對照表算出來的（方言同版改用 Latin1_General_100_BIN2 轉大寫），
+                // 和第 7 版升級一樣清除後由審計員重跑。
+                await RuleRunResultReset.ClearWithinAsync(
+                    connection,
+                    tx,
+                    cancellationToken,
+                    AuditMutation.TextComparisonMigration,
+                    SqlServerProjectSchema.QualifierFor(projectId));
+            }
+
             await using (var bump = CreateCommand(connection, projectId, BumpSchemaVersionSql))
             {
                 bump.Transaction = tx;
@@ -213,9 +249,10 @@ public sealed partial class SqlServerProjectDatabase
     /// 冪等:每張表以 OBJECT_ID 守、每個索引以 sys.indexes 守。保留字 key/value 以方括號包。
     /// 定序契約(定序雙保險之二):凡參與 JOIN/WHERE/GROUP BY/UNIQUE/ORDER BY 的文字鍵欄,
     /// 一律顯式 COLLATE Latin1_General_BIN2(＝SQLite BINARY 位元序;BMP 中文＝碼位序)——即使庫層
-    /// 預設定序不對(既有庫等環境重置),專案表行為仍正確,且意圖進版本控制。純顯示/payload 欄
-    /// (line_item、account_name、document_description、source_module、day_name、mode_name、檔名路徑、
-    /// *_json、app_message_log、config_filter_scenario 文字欄)刻意不釘,沿用庫層預設。
+    /// 預設定序不對(既有庫等環境重置),專案表行為仍正確,且意圖進版本控制。GL、TB 與科目配對的文字欄
+    /// (line_item、account_name、document_description、source_module)會被文字條件、排序與 MAX 用到,
+    /// 第 14 版起也固定 BIN2(跨資料庫一致性計畫第三節 F)。其餘純顯示/payload 欄(day_name、mode_name、
+    /// 檔名路徑、*_json、app_message_log、config_filter_scenario 文字欄)沿用庫層預設。
     /// line_item_numeric_sort_key 會參與 step4-1 ORDER BY／keyset，故固定 BIN2。
     /// 釘欄清單的機器守衛:SqlServerCollationProbeTests。
     /// </summary>
@@ -225,7 +262,7 @@ public sealed partial class SqlServerProjectDatabase
         IF OBJECT_ID(N'{s}.schema_info','U') IS NULL
             CREATE TABLE {s}.schema_info ([key] NVARCHAR(450) COLLATE Latin1_General_BIN2 PRIMARY KEY, [value] NVARCHAR(MAX) NOT NULL);
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'schema_version')
-            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '13');
+            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '14');
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'filter_data_revision')
             INSERT INTO {s}.schema_info ([key], [value]) VALUES ('filter_data_revision', '0');
 
@@ -334,14 +371,14 @@ public sealed partial class SqlServerProjectDatabase
                 batch_id              NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 source_row_number     BIGINT NOT NULL,
                 document_number       NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
-                line_item             NVARCHAR(400) NULL,
+                line_item             NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 line_item_numeric_sort_key NVARCHAR(40) COLLATE Latin1_General_BIN2 NULL,
                 post_date             NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
                 approval_date         NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
                 account_code          NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
-                account_name          NVARCHAR(400) NULL,
-                document_description  NVARCHAR(MAX) NULL,
-                source_module         NVARCHAR(400) NULL,
+                account_name          NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
+                document_description  NVARCHAR(MAX) COLLATE Latin1_General_BIN2 NULL,
+                source_module         NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 created_by            NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 approved_by           NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 is_manual             INT NULL,
@@ -413,7 +450,7 @@ public sealed partial class SqlServerProjectDatabase
                 batch_id              NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 source_row_number     BIGINT NOT NULL,
                 account_code          NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
-                account_name          NVARCHAR(400) NULL,
+                account_name          NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 change_amount_scaled  BIGINT NOT NULL
             );
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_tb_balance_account' AND object_id = OBJECT_ID(N'{s}.target_tb_balance'))
@@ -434,7 +471,7 @@ public sealed partial class SqlServerProjectDatabase
                 run_id          NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 entry_id        BIGINT NOT NULL,
                 document_number NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
-                line_item       NVARCHAR(400) NULL,
+                line_item       NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 PRIMARY KEY (run_id, entry_id)
             );
 
@@ -505,7 +542,7 @@ public sealed partial class SqlServerProjectDatabase
                 batch_id              NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 source_row_number     INT NOT NULL,
                 account_code          NVARCHAR(450) COLLATE Latin1_General_BIN2 NOT NULL,
-                account_name          NVARCHAR(400) NULL,
+                account_name          NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 standardized_category NVARCHAR(40) COLLATE Latin1_General_BIN2 NOT NULL
                     CHECK (standardized_category IN ('Revenue','Receivables','Cash','Receipt in advance','Others')),
                 category_id           NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL

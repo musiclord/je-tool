@@ -28,7 +28,7 @@ public sealed class QueryPrescreenPageHandler(
         if (ruleKey == PrescreenRuleKeys.PostPeriodApproval
             && string.IsNullOrWhiteSpace(document.LastAccountingPeriodDate))
         {
-            page = new PageResult<PrescreenHitRow>([], null);
+            page = new PageResult<PrescreenHitRow>([], null, request.IncludeTotalCount ? 0 : null);
         }
         else
         {
@@ -59,6 +59,7 @@ public sealed class QueryPrescreenPageHandler(
                 amount = (decimal)row.AmountScaled / scale,
                 drCr = row.DrCr
             }).ToArray(),
+            totalCount = page.TotalCount,
             nextCursor = page.NextCursor
         };
     }

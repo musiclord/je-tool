@@ -3,7 +3,7 @@
 // 情境 9：第四步科目分類與科目配對（收尾四項第一項第 8 批，2026-10-14）。
 //
 // 審計員的操作：
-//   情境 7　按「執行驗證」並回應合成結果；看 GL 分錄數、三項測試的說明、總帳日期空白的來源檔與列號並載入更多；
+//   情境 7　按「執行驗證」並回應合成結果；看 GL 分錄數、三項測試的說明、總帳日期空白的來源檔與列號並換頁；
 //           在右側資料預覽打開 GL(未納入測試) 看原因；展開資料可靠性測試的抽樣明細，看攸關資料元素的金額欄。
 //   情境 8　沒有驗證結果、舊驗證結果沒有判定、後端判定不可繼續、可繼續但沒有預篩選結果時，看預篩選卡、左側第五步與頁尾；
 //           按鈕狀態沒更新時硬按預篩選；執行預篩選並看結果的排列。
@@ -136,7 +136,8 @@ async function openStep4(options) {
 // 修改前失敗證據：20261014-122836046-2bb1fce5afab48aa8044747cce3a0bed，儲存與取消排在分頁前面。
 test('section 9 F: category paging precedes cancel and save in the footer', async () => {
   const f = await openStep4();
-  assert.deepEqual(f.$('.account-editor__footer').querySelectorAll('button').map(button => button.textContent),
+  // 2026-10-16 改為圖示分頁，無障礙名稱仍保留前後頁；首敗見本輪 093720476 收據。
+  assert.deepEqual(f.$('.account-editor__footer').querySelectorAll('button').map(button => button.getAttribute('aria-label') || button.textContent),
     ['上一頁', '下一頁', '取消變更', '儲存科目分類']);
 });
 
@@ -228,7 +229,7 @@ test('section 9 F: a search sent while the account list first loads is applied o
   f.request('queryAccountMappingPage').resolve({ rows: [{ accountCode: '1101', accountName: '合成現金', categoryId: null }, { accountCode: '4101', accountName: '合成收入', categoryId: null }], nextCursor: null });
   await flush();
   assert.equal(f.pending('queryAccountMappingPage').length, 2, 'the list is read again with the search');
-  assert.deepEqual(plain(f.request('queryAccountMappingPage').payload), { cursor: null, pageSize: 50, search: '1101' });
+  assert.deepEqual(plain(f.request('queryAccountMappingPage').payload), { cursor: null, pageSize: 200, search: '1101' });
 });
 
 // 使用者 2026-10-15 要求第四步「套用分類」改回下拉選單並保留上下層縮排，第五步分類樹不變。
@@ -248,7 +249,7 @@ test('section 9 F: account classification uses an indented dropdown and a submit
   f.type('[data-account-search] input', '1103');
   assert.equal(f.pending('queryAccountMappingPage').length, 0, 'typing does not query');
   search.dispatch('submit');
-  assert.deepEqual(plain(f.request('queryAccountMappingPage').payload), { cursor: null, pageSize: 50, search: '1103' });
+  assert.deepEqual(plain(f.request('queryAccountMappingPage').payload), { cursor: null, pageSize: 200, search: '1103' });
 });
 
 // 依標題找第四步某一項結果（.rule-item）。
@@ -369,10 +370,11 @@ test('journey 7: when the stored entries disagree with the totals counted at map
   assert.doesNotMatch(status, /科目/);
 });
 
-test('journey 7: blank GL dates list their source file and row, and loading more asks the source quality page', async () => {
+test('journey 7: blank GL dates list their source file and row, and opening asks the source quality page', async () => {
   const f = await openStep4({ validation: validationResult() });
   const item = ruleItem(f, '總帳日期空白');
   assert.ok(item !== null, 'source quality item listed');
+  const before = f.requests.length;
   item.querySelector('[data-action="toggle-detail"]').dispatch('click');
   const panel = ruleItem(f, '總帳日期空白').querySelector('.rule-detail');
   assert.equal(panel.hidden, false);
@@ -382,10 +384,8 @@ test('journey 7: blank GL dates list their source file and row, and loading more
   assert.ok(firstRow.includes('合成來源檔.xlsx') && firstRow.includes('7'), 'first row names the source file and row: ' + firstRow.join('、'));
   assert.ok(firstRow.includes('總帳日期空白'), 'row category label: ' + firstRow.join('、'));
 
-  const before = f.requests.length;
-  panel.querySelector('[data-load-more="sourceQuality"]').dispatch('click');
   const added = f.requests.slice(before);
-  assert.deepEqual(added.map(r => r.action), ['querySourceQualityPage'], 'loading more asks only the source quality page');
+  assert.deepEqual(added.map(r => r.action), ['querySourceQualityPage'], 'opening asks only the source quality page');
   // 2026-09-07 工作包 G：來源品質明細表加上排序與搜尋，呼叫多帶 sort 與 search（取代 PopulationAndDynamicColumnFrontendTests.SourceQualityPage_…，
   // 原方法註解的第一次失敗收據 20260907-080325828）。
   assert.deepEqual(plain(added[0].payload), { cursor: null, pageSize: 200, sort: null, search: null });
@@ -424,7 +424,7 @@ test('journey 7: entries left out of the test are their own preview dataset and 
   menuItem.dispatch('click');
   const added = f.requests.slice(before);
   assert.deepEqual(added.map(r => r.action), ['queryDataPreview']);
-  assert.deepEqual(plain(added[0].payload), { dataset: 'glExcluded' });
+  assert.deepEqual(plain(added[0].payload), { dataset: 'glExcluded', limit: 200, offset: 0 });
   added[0].resolve({ columns: ['documentNumber', 'exclusionReason'], rows: [['JV-21', 'period'], ['JV-22', 'postingStatus']], totalCount: 2,
     stats: { excludedByPeriodCount: 15, excludedByPostingStatusCount: 5 } });
   await flush();
@@ -711,7 +711,7 @@ test('journey 9: the Excel tab preview opens the account mapping dataset in the 
   f.click('[data-action="preview-account-mapping"]');
   const added = f.requests.slice(before);
   assert.deepEqual(added.map(r => r.action), ['queryDataPreview']);
-  assert.deepEqual(plain(added[0].payload), { dataset: 'accountMappings' });
+  assert.deepEqual(plain(added[0].payload), { dataset: 'accountMappings', limit: 200, offset: 0 });
   const tab = f.dom.content.querySelector('[data-bind="data-preview"] [data-ds="accountMappings"]');
   assert.equal(tab.getAttribute('aria-selected'), 'true');
 });
@@ -837,4 +837,24 @@ test('journey 9 messages: when the backend saved the categories but could not re
   const lines = messageList(f).filter(m => m.text === warning);
   assert.deepEqual(lines, [{ text: warning, level: 'warn' }]);
   assert.deepEqual(plain(f.state().reportArtifacts.map(a => a.artifactId)), ['validation-1']);
+});
+
+// 2026-10-19 使用者要求同功能的元件只留一套：規則的「檢視」是共用的展開按鈕，字固定，開關寫在 aria-expanded，
+// aria-controls 指向它打開的明細；原本字在「檢視」與「收合」之間切換。
+test('journey 7: a rule\'s 檢視 button keeps its label and reports the detail it opens through aria-expanded and aria-controls', async () => {
+  const f = await openStep4({ validation: validationResult() });
+  const toggle = () => ruleItem(f, '總帳日期空白').querySelector('[data-action="toggle-detail"]');
+  const panel = () => ruleItem(f, '總帳日期空白').querySelector('.rule-detail');
+  assert.equal(toggle().textContent, '檢視');
+  assert.ok(toggle().classList.contains('jet-disclosure'));
+  assert.equal(toggle().getAttribute('aria-expanded'), 'false');
+  assert.ok(panel().getAttribute('id'), 'the detail has an id');
+  assert.equal(toggle().getAttribute('aria-controls'), panel().getAttribute('id'));
+  toggle().dispatch('click');
+  assert.equal(panel().hidden, false);
+  assert.equal(toggle().getAttribute('aria-expanded'), 'true');
+  assert.equal(toggle().textContent, '檢視');
+  toggle().dispatch('click');
+  assert.equal(panel().hidden, true);
+  assert.equal(toggle().getAttribute('aria-expanded'), 'false');
 });

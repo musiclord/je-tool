@@ -1,6 +1,6 @@
 # JET action 介面契約
 
-更新日期：2026-10-15
+更新日期：2026-10-16
 
 這份文件是前端、WebView2 Bridge 與 C# 處理器之間的 action 登錄表。它適合用來搜尋 action 名稱，
 不需要逐段閱讀。
@@ -85,6 +85,8 @@
 
 - UI 只透過 `JetApi` 呼叫 action，不直接使用 WebView2 傳輸層。
 - Bridge 驗證外層格式、處理取消並轉送給處理器，不做審計判斷。
+- 已要求取消後，處理器丟出的例外除了業務錯誤，dispatcher 一律回 `operation_cancelled`。SQL Server 中止語句時驅動丟出自己的例外，
+  也照這條回報，三種資料庫一致（2026-10-19）。
 - 會變更案件資料的長作業由後端執行閘門協調；背景心跳與取消有明確的例外規則。
 - 大量資料只回摘要、中繼資料與有界分頁。`query.*Page` 使用游標與每頁筆數，不回完整母體。
 - 進度事件不攜帶資料列，也不是第二個狀態來源。
@@ -95,10 +97,9 @@
 
 ### 科目清單直接分類
 
-`query.accountMappingPage` 回傳本案科目與已保存分類，每頁預設 100 筆、上限 500 筆。
-第四步的科目配對畫面明確要求每頁 200 筆；其他呼叫者省略筆數時仍使用預設值。
+`query.accountMappingPage` 回傳本案科目與已保存分類，每頁預設 200 筆，上限也是 200 筆。
 參數為 `cursor`、`pageSize` 與選用的 `search`、`categoryId`；科目來源與 Excel 配對範本相同，並保留先前匯入的額外科目。
-回應 `rows` 含 `accountCode`、`accountName`、`categoryId`，另回 `nextCursor`。尚無配對的 `categoryId` 為 null；
+回應 `rows` 含 `accountCode`、`accountName`、`categoryId`，另回 `nextCursor` 與 `totalCount`。總筆數只在第一頁計算，包含目前搜尋文字和分類下的全部科目；帶游標的續頁 `totalCount` 為 null。尚無配對的 `categoryId` 為 null；
 Excel 空白分類則沿用既有的 Others 處理方式，清單顯示其目前分類。
 科目代號空白的來源列仍保留在資料驗證中，不列為可指定分類的科目。
 
@@ -106,6 +107,10 @@ Excel 空白分類則沿用既有的 Others 處理方式，清單顯示其目前
 只更新指定科目，其他頁及 Excel 已匯入的分類保留。科目或分類不存在、重複科目及取消均不得留下部分變更。
 每次變更保留獨立批次及來源列，原匯入列不改寫。儲存及預篩選、篩選結果失效在同一交易完成，資料驗證結果保留。
 回應保留科目配對的既有狀態欄位；直接編輯後的 `rowCount` 為目前已保存的科目數。
+回應另有 `warnings` 字串陣列，平常是空陣列。分類已存好、卻讀不回科目配對狀態時，回應仍成功，但不帶 `batchId`、`rowCount`
+等狀態欄位，`warnings` 是「變更已儲存，但畫面上的科目配對摘要沒有更新；重新開啟案件就會更新，不必重做變更。」，
+前端保留畫面上原本的摘要；`invalidatedResults` 等變更共同欄位照常回傳。存檔之後的讀取不受取消影響。
+支援日誌記一筆 `workflow_state.read_failed`，讀取階段寫 `account_mapping_state`。這是使用者 2026-10-19 的裁定。
 配對檔與本案科目的兩項差異筆數只由檔案匯入回應及差異清單查詢提供，這個動作不另外掃描 GL。
 此動作為互斥寫入，清單查詢為唯讀。Excel 匯入仍整份取代科目配對。
 `query.accountMappingPage.categoryId` 指定分類時，查詢包含該分類及其所有下層，與搜尋文字同時篩選。仍只回有界分頁，不回整份科目表。
@@ -191,6 +196,9 @@ SQL Server 的保存與讀取只經過編譯，沒有實機執行。
 支援日誌事件。`project.delete` 只取得案件外的 artifact lease，刪案不受報告檔狀態影響。
 DuckDB 案件的資料庫若還有操作在使用，`project.delete` 回 `operation_in_progress`，不刪資料庫、
 `project.json` 或案件資料夾；等那個操作完成後再刪除即可。
+設定檔損壞、舊版或查核期間無效而無法開啟的案件，`project.delete` 仍可刪除：設定檔有記錄 SQLite 或 DuckDB 時照記錄，
+沒有記錄時看案件資料夾裡只有哪一種本機資料庫檔，再照一般流程刪除資料庫與資料夾。記錄是 SQL Server 或判斷不出來時，
+回應原本讀取設定檔的錯誤，不刪任何資料。
 
 `project.deletePreview` 的 payload 只需 `projectId`，回應為 `{ projectId, databaseProvider, reportCount, workpaperCount }`。
 這是可併行的唯讀動作，不開啟案件、不切換 session，也不持有目前案件的資料庫。SQL Server 案件先核對與刪除相同的授權。
@@ -200,6 +208,8 @@ DuckDB 案件的資料庫若還有操作在使用，`project.delete` 回 `operat
 GL、TB、科目配對、授權清單、行事曆匯入，GL、TB 配對確認，科目分類或配對儲存、授權清單清除、非工作日設定與案件資料更新，
 成功回應共同帶 `invalidatedResults: { validation, prescreen, filter, filterScenarios, accountMapping }`、`staleState`、`reportArtifacts` 與 `reportArtifactWarning`。
 前者是本次需要清掉的結果範圍，包含未儲存的預覽；後者只描述已保存結果是否過期。前端不再用 action 名稱或 setter 自行推算失效範圍。
+變更已提交、卻讀不回目前結果狀態時，回應仍成功：`staleState` 與 `reportArtifacts` 回 null，前端保留畫面上的值，
+`reportArtifactWarning` 說明變更已儲存、重新開啟案件就會更新。支援日誌記一筆 `workflow_state.read_failed`，只寫讀取階段與錯誤類型。
 `filterScenarios` 為 true 時，後端已刪除全部已存篩選情境與命中，前端應把第五步回到預設狀態。
 `accountMapping` 為 true 時，後端已在來源修改的同一交易清除科目配對、原始配對列及配對匯入狀態，分類定義保留。
 GL 與 TB 的取代、附加及重新確認欄位配對會回傳 true，其他事件不清除科目配對。前端同步清除配對狀態、勾選與未儲存分類，重新讀取現行科目。
@@ -252,6 +262,8 @@ GL 與 TB 的匯入或配對確認都回傳五個 true，使用同一條失效�
 科目名稱為 `GL_Name`（含 `GL_NAME`），分類為 `Standardized Account Name*` 或 `STANDARDIZED_ACCOUNT_NAME`。
 三欄都先認領，再依分類、科目編號、科目名稱的順序比對尚未認領欄的中英文關鍵字；仍找不到的欄，依剩餘欄位順序補上。
 只要有欄位依順序判斷，匯入回應的 `columnMappingWarning` 就會說明來源欄與用途，畫面顯示提醒但不阻擋匯入；否則回 null。
+回應另有 `warnings` 字串陣列：科目配對檔是文字檔且有用引號包住、內含換行的欄位時，加一則和 GL、TB 匯入同一句的提醒，
+支援日誌也記同一種 `import.multiline_fields` 事件；沒有時是空陣列。
 匯入與舊案遷移共用此規則。資料預覽一律讀已儲存的配對，不重新判讀欄名。
 Excel 的 autoFilter 與隱藏列不限制匯入範圍，資料列仍全部讀入。
 `.xlsx` 科目配對檔的第一個標頭不足三欄時，沿原有做法改讀第三列標頭；略過前兩個實際列號，空白列也算在內，
@@ -262,9 +274,11 @@ GL 與 TB 的主資料匯入支援 `.xlsx`、`.xlsm`、`.xls`、`.csv`、`.txt`�
 Access 透過公司既有 Office 資料介面唯讀讀取一般資料表；`sheetName` 指選定資料表。`.xlsb` 不支援。
 一個 GL 或 TB 資料集可以追加多個欄位相同的檔案或工作表；這只會合併列，不會把兩份 TB 自動解讀成期初與期末。
 GL 與 TB 匯入成功回應的 `warnings` 為字串陣列。追加來源的實際檔名、工作表與列數都和某份既有來源相同時，
-提醒檔名、工作表及筆數皆相同、已照常加入，請使用者確認是否重複匯入；取代模式不提醒，不以預估列數判斷，也不把這個提醒當成去重功能。
+提醒來源檔名、工作表及列數皆相同、已照常加入，請使用者確認是否重複匯入；取代模式不提醒，不以預估列數判斷，也不把這個提醒當成去重功能。
 文字檔來源有用引號包住、內含換行的欄位時，每個來源再加一則提醒，寫出列數與前五個列號，匯入照常完成；
-支援日誌另記一筆 `import.multiline_fields` 事件，只含來源序號、筆數與列號，不含檔名或內容。
+支援日誌另記一筆 `import.multiline_fields` 事件，只含來源序號、列數與列號，不含檔名或內容。
+以取代模式重新匯入既有資料時，JET 寫一筆操作紀錄。寫不進去時資料仍已匯入，回應照常成功，
+`warnings` 另加「變更已儲存，但這次變更沒有寫入操作紀錄。」，這是使用者 2026-10-19 的裁定。
 
 文字檔（`.csv`、`.txt`）照一般 CSV 讀法：只有欄位開頭的引號會被當成引號，欄位中間的引號（例如英吋符號）是一般字元，
 不會把後面的列併進來；欄位開頭的引號到下一個引號之間可以換行，讀成同一格。
@@ -287,8 +301,10 @@ GL 與 TB 匯入成功回應的 `warnings` 為字串陣列。追加來源的實�
 三項匯入統計與識別欄保存於案件資料庫；`project.load` 帶回相同摘要，舊名單未保存的統計為 null，不捏造為 0。
 `matchedPreparerCount` 是有效名單中出現在 GL 傳票建立人員的識別值數量，不是 GL 分錄數；尚未確認 GL 建立人員配對時為 null。
 0 人比對成功只提醒可能選錯識別欄，不擋匯入。`mapping.commit.gl` 另回 `authorizedPreparerState` 更新這項比對；GL 重新匯入後清除舊比對。
+配對已提交、卻讀不回這項比對時，回應省略 `authorizedPreparerState`，前端保留畫面上的比對；`staleState`、`reportArtifacts`
+與 `reportArtifactWarning` 照前述「變更已提交、卻讀不回目前結果狀態」處理。這是使用者 2026-10-19 的裁定。
 名單仍不保存私人原始路徑、檔名及匯入時間。
-`import.authorizedPreparer.clear` 無必要 payload 欄位，回應 `{ cleared: true }`；同一交易移除清單、
+`import.authorizedPreparer.clear` 無必要 payload 欄位，回應 `cleared: true`，另帶上方變更共同的四個欄位；同一交易移除清單、
 預篩選與篩選結果及全部已存篩選情境，保留 GL、TB 與驗證。重試及重開後仍可重新匯入；重新匯入不會恢復情境，要重新儲存。
 
 ### 欄位配對與科目分類
@@ -324,7 +340,12 @@ GL 的 `side` 與 `flag` 金額模式共用判定，畫面合併為「金額與�
 千分位逗號只接受每組三位；括號可表示負數，不可再疊加正負號。正負號放在尾端時，前面可以有空白，有沒有千分位都讀成同一個值。
 GL、TB、RDE 金額與篩選運算值共用相同解析。
 Excel 序列值只接受 1900 到 2100 年，原生日期儲存格及 1904 日期制同樣檢查；明確西元或民國文字日期的原範圍不變，Access 原生日期不套 Excel 限制。
+帶逗號的數字不當成序列值，也不交給寬鬆解析；不論逗號是否三位一組（例如 `1,234`、`12,31`），都視為無法辨識的日期，
+確認配對時寫出列號。第五步貼上的日期清單同樣保留原文，由後端寫出格式錯誤。這是使用者 2026-10-19 的裁定。
 年份在後的數字三段式日期不猜月日順序，帶時間也一樣拒絕。
+交給寬鬆解析的值，原文要寫出四位數年份與日：`12/31`、`2025-12`、`Dec 2025`、`31 Dec`、`Dec 31, 25` 這類缺年份、缺日
+或只寫兩位數年份的值，不再補成今年、補成 1 日或猜年份，同樣視為無法辨識的日期，確認配對時寫出列號，日期清單也由後端寫出格式錯誤。
+`June 11, 2025` 與帶時間的 `2025/06/11 00:00:00` 照常接受。這也是使用者 2026-10-19 的裁定。
 
 `mapping.valueProfile` 只回有界的值分布：預設及畫面請求為 50 個最常見非空白值，action 可指定 1 到 100 個，另回 `blankCount`、`distinctCount` 與
 `truncated`。可選的 `comparisonValues` 每次最多 100 個原始字串；有提供時另外回傳 `comparisonGroups`，
@@ -333,10 +354,12 @@ Excel 序列值只接受 1900 到 2100 年，原生日期儲存格及 1904 日�
 不能自行把代碼轉大寫；空白的鍵為 null，表示已核對為空白，不是缺少資料，也不等於字串 `"null"`。
 每份回應最多包含當次有界顯示值與最多 100 個請求字串，不把完整來源清單傳給前端。
 SQLite 和 DuckDB 在資料庫內先用相同的 .NET 比對鍵彙總全部來源，再取常見值與計算不同值數量，大小寫等價的值不分成兩組。
+SQL Server 在資料庫內去掉相同的空白字元後，用方言的轉大寫彙總，大小寫等價的值同樣不分組；罕用字元的已知差異見
+[`jet-guide.md`](jet-guide.md) 第 8 節。
 `checkSourceValues: true` 必須搭配 `comparisonValues`，不能與 `comparisonOnly: true` 同時使用；它另外核對完整來源，
 回傳 `missingComparisonValues` 及 `sourceValueCheckStatus: "checked"`，不能拿前 50 個顯示值推定某個代碼不存在。
-SQL Server 的值概況目前仍區分大小寫，也尚未實作完整來源的存在性核對；明確要求核對時，原摘要仍可讀取，
-但 `missingComparisonValues` 回 null，狀態為 `unsupportedProvider`。畫面須寫尚未核對，不得當成缺值或空清單。
+SQL Server 自 2026-10-19 起也核對完整來源，比對鍵和它的分組相同。資料庫實作沒有這項核對時，原摘要仍可讀取，
+但 `missingComparisonValues` 回 null，狀態為 `unsupportedProvider`；畫面須寫尚未核對，不得當成缺值或空清單。
 `comparisonOnly: true` 時必須提供 `comparisonValues`，只回 `sourceColumn`、`comparisonGroups` 和 `comparisonKeys`；
 此模式仍要求已開啟案件，但不查匯入批次、不讀母體、不保存或驗證政策。100 是這項呈現資料的單次傳輸上限，
 不是人工、自動或過帳政策可保存的代碼上限。畫面將較長清單分批送出；只取得文字等價對應時不重查母體，核對來源是否存在時才另行查詢。
@@ -362,6 +385,9 @@ GL 和 TB 都掃描完整來源來計算錯誤總數；每組只保留最多 10 
 TB 成功回應的 `warnings` 和 GL 一樣，必填文字欄整欄空白時提醒，但不阻擋確認。
 GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單代碼在來源裡一筆都沒有時，`warnings` 另加一則提醒，
 寫出代碼、來源欄、有值的列會怎麼判定與下一步；比對方式和投影相同，去掉頭尾空白、不分大小寫。逐值指定時不做這項檢查。
+GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 寫一筆重新配對的操作紀錄。寫不進去時配對仍已生效，
+`warnings` 另加「變更已儲存，但這次變更沒有寫入操作紀錄。」，和重新匯入相同。本機案件確認前讀不到操作紀錄、
+無法判斷這次要不要記時，不寫紀錄，`warnings` 同樣加這一句。
 
 ### 資料驗證
 
@@ -442,11 +468,11 @@ KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 - `query.tagMatrixRowPage`
 - `query.accountMappingPage`（第四步科目分類清單，可依科目編號或名稱搜尋；有界分頁）
 - `query.accountMappingDifferencePage`（`kind` 為 `mappingOnly` 或 `unmapped`，另收 `cursor`、`pageSize`；
-  每頁預設 200 筆、上限 500 筆。回 `{ kind, rows: [{ accountCode, accountName }], nextCursor, totalCount }`。
-  依科目編號升冪，`accountName` 可為 null。只有首頁回總筆數，續頁的 `totalCount` 為 null；空清單首頁為 0。
+  每頁預設 200 筆，上限也是 200 筆。回 `{ kind, rows: [{ accountCode, accountName }], nextCursor, totalCount }`。
+  依科目編號升冪，`accountName` 可為 null。第一頁回總筆數，空清單為 0；續頁的 `totalCount` 為 null。
   游標不可跨清單種類使用。只在使用者列出清單時查詢，不在 `project.load` 時計算。）
 - `query.accountMappingBlankPage`（第四步「分類留白 N 筆，視為 Others」的清單；`cursor`、`pageSize`，
-  回 `rows[{ accountCode, accountName }]` 與 `nextCursor`，依科目編號升冪）
+  回 `rows[{ accountCode, accountName }]`、`nextCursor` 與 `totalCount`，依科目編號升冪）
 
 `query.filterHitsPage`、`query.tagMatrixVoucherPage` 與 `query.tagMatrixRowPage` 的游標是不可自行拆解的 token，
 綁定案件、來源資料版本、情境版本、查詢種類及排序搜尋。來源或情境變更後，即使已重新計算完成，舊游標
@@ -459,10 +485,20 @@ KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 四個既有篩選結果查詢以持久化失效旗標判斷是否需要補算，零筆與搜尋無結果不再觸發寫入。只有實際
 失效的首頁需要既有寫入鎖；一般讀取前後核對資料、情境及案件，避免切換期間回傳混合結果。
 
-**排序與搜尋（2026-09-07 起）。** 明細表的分頁查詢都接受選填 `sort` 與 `search`：`sort` 是
+所有供畫面使用的 `query.*Page` 每頁預設 200 筆，上限也是 200 筆。不帶游標的第一頁回應 `totalCount`，
+它是目前查詢範圍的總列數，包含搜尋、分類或情境條件。帶游標的續頁不再計數，`totalCount` 為 null，
+前端沿用第一頁的總筆數計算頁數。資料庫用集合查詢計數，不為了計頁而載入完整資料。
+內部報表的批次大小維持原本設定，不額外要求這項計數。
+
+`query.dataPreview` 接受 `dataset`、`limit` 與 `offset`。`limit` 預設 200，上限也是 200；`offset` 預設 0，
+負值視為 0。資料庫依固定順序只讀當頁資料。`offset` 為 0 時，`totalCount` 和 `stats` 描述完整資料集；
+`offset` 大於 0 時兩者為 null，前端沿用第一頁的值。
+回應維持 `dataset`、`columns`、`rows`、`totalCount` 與 `stats`，欄位配對及右側預覽共用這個查詢。
+
+**排序與搜尋。** 明細表的分頁查詢都接受選填 `sort` 與 `search`：`sort` 是
 `{ key, direction }`，`key` 是該查詢回應列的欄位名（白名單見下表），`direction` 是 `asc` 或 `desc`，
 省略時依該查詢的穩定鍵升冪；`search` 是最多 200 個字的文字，不分大小寫比對傳票號碼（科目層的表
-比對科目編號，空值明細另比對科目與摘要），省略或空白表示不過濾。排序後空值一律排在最後。換了排序或搜尋要從第一頁重新載入；
+比對科目編號，空值明細另比對科目與摘要），省略或空白表示不過濾。排序在資料庫的完整查詢範圍內完成後才取當頁，不是只排序前端已載入的資料。排序後空值一律排在最後。換了排序或搜尋要從第一頁重新載入；
 帶著舊游標換排序會回 `invalid_payload`，訊息說「請從第一頁重新載入」；不在白名單的 `key` 也回
 `invalid_payload` 並列出允許的鍵。`query.filterHitsPage` 與 `query.infSamplePage` 的 `columns` 另帶
 `sortable`，標示固定欄可以排序，攸關資料元素欄位不能。
@@ -484,7 +520,7 @@ KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 
 兩個 `query.filterVoucher*` 查詢以 `scenario` 草稿或 `scenarioPosition` 和 `scenarioRevision` 指定
 已儲存情境，兩種方式擇一。只列出有命中分錄的傳票，沒有待判定。
-`pageSize` 沿用預設 200、最多 500，回應包含 `rows`、`nextCursor`、
+`pageSize` 預設 200，最多 200，回應包含 `rows`、`nextCursor`、`totalCount`（只在第一頁計算，續頁為 null）、
 `queryRevision`、`scenarioRevision` 及 `conditionText`。傳票列提供 `documentNumber`、`postDate`、
 `hitRowCount`、`totalRowCount` 與 `voucherTotal`（該傳票期間內全部分錄的借方總額顯示值），可用上表的
 `sort` 與 `search`；展開分錄時另帶 `documentNumber` 及上次
@@ -569,7 +605,7 @@ KCT E、F、G、H 分別使用人員、摘要與金額的 `fieldValue`，卡片�
 `customTrailingZeros` 的替代條件是同組的金額尾數與絕對值至少 1 元，維持整數部分為零不命中的結果。
 
 `accountSide`、`accountPair` 和 `specialAccountCategoryPair` 的 `categorySelection` 可選 `role`、`node`、`subtree`，
-依序表示相同分類用途、僅分類本身、分類及所有下層。借貸組合的兩側使用同一選取方式；兩側要各自選取時可組合單側條件。
+依序表示相同分類用途、僅分類本身、包含下層分類。借貸組合的兩側使用同一選取方式；兩側要各自選取時可組合單側條件。
 省略時與舊版一樣使用 `role`；`categoryIds` 仍保存穩定分類 ID，名稱只用於呈現。
 `accountTaxonomy.save.categories[].parentCategoryId` 可為既有分類 ID、同一次請求的暫存 ID 或 null；舊呼叫端省略此欄時保留原上層。
 新分類可在 `categoryId` 傳入唯一的 `draft-N`，N 是以 1 到 9 開頭的正整數，暫存 ID 最長 64 字元；子列可引用同一次新建的父列，不限列出順序。
@@ -583,6 +619,7 @@ KCT E、F、G、H 分別使用人員、摘要與金額的 `fieldValue`，卡片�
 
 `filter.preview` 和草稿傳票查詢只檢查條件有效性，不要求名稱或動機；`filter.scenario.save` 與 `filter.commit` 才要求自訂情境的
 名稱與動機，KCT 沿用原有例外。驗證失敗回 `invalid_scenario`，`error.details` 帶每一條的位置與原因。
+情境名稱最多 400 字，三種資料庫相同；超過時回 `invalid_scenario`，訊息寫出上限，不截斷後儲存。
 只有存檔內容損毀或程式送錯資料才會出現的錯誤，`message` 與 `details[].message` 一律是「此條件內容有誤，無法儲存。請刪除此條件後重新設定。」，
 能歸屬到條件時帶組號與條號，不能歸屬時兩者為 null；原本的檢查只以程式寫死的英文代號記進支援日誌的
 `filter.scenario_unreadable` 事件（`action`、`scenario_position`、`group_no`、`rule_no`、`reason_code` 欄），不含情境名稱或條件內容。
@@ -665,6 +702,10 @@ true 表示只在檔案不存在時建立，最後發布時也不覆蓋稍後出
 可恢復的清單讀取失敗或 3 秒內未完成時，仍回 `ok: true` 及本次產物，`reportArtifacts: null`，另回
 `reportArtifactWarning`。前端保留原清單並加入本次產物，在旁邊提示「檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。」。
 清單之後讀取成功就清除該暫時提示；不得將 null 當成空清單，也不把程式錯誤偽裝成成功。
+四個報告匯出 action 的回應另有 `warnings` 字串陣列，平常是空陣列。報告已發布、卻寫不進操作紀錄時，本機與 SQL Server 案件
+都回 `ok: true` 及本次產物，`warnings` 是「檔案已產生，但這次產生的檔案沒有寫入操作紀錄。」，前端把這句當成提醒放進訊息區。
+本機案件的失敗記在支援日誌的 `project_audit.write_failed`，SQL Server 案件記在 `audit_log.append_failed`。
+這是使用者 2026-10-19 的裁定；原本本機案件不提醒，SQL Server 案件回報整個產生失敗。
 清單即將超過 4,096 筆時，只移除已確認檔案不存在的底稿紀錄。
 產生內容後、正式發布前會再次確認，途中被放回或無法確認的檔案仍保留。若仍超限，本次不發布新檔，
 使用者可自行整理不需要的舊底稿後重試。

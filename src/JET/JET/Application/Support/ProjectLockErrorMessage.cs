@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace JET.Application;
 
 /// <summary>把 provider 的持鎖資訊轉為可採信的 project_locked 訊息。</summary>
@@ -15,6 +17,6 @@ internal static class ProjectLockErrorMessage
             return ExternalProcessMessage;
         }
 
-        return $"此案件由 {lockedBy}（{machineName}）於 {lockedUtc:yyyy-MM-dd HH:mm} 開啟中，請稍後再試。";
+        return string.Create(CultureInfo.InvariantCulture, $"此案件由 {lockedBy}（{machineName}）於 {lockedUtc:yyyy-MM-dd HH:mm} 開啟中，請稍後再試。");
     }
 }

@@ -27,6 +27,13 @@ test('section 9 G1: classification has two modes and no entry-side menu', () => 
   assert.equal(f.window.JetUi.newFilterRule('accountSide').drCr, undefined);
 });
 
+// 低嚴重度事項 F9（使用者 2026-10-19 要求處理）：「包含下層分類」只有一種寫法，下拉選項和讀回、報告用同一個詞。
+test('the subtree selection option reads 包含下層分類', () => {
+  const f = draftFixture({ type: 'accountSide', categoryMode: 'is', categoryIds: ['builtin.cash'], categorySelection: 'subtree' });
+  const options = Array.from(f.$('[data-rule-bind="categorySelection"]').querySelectorAll('option'));
+  assert.deepEqual(options.map(option => option.textContent), ['相同分類用途', '僅分類本身', '包含下層分類']);
+});
+
 test('section 9 G1: voucher scope is expressed by child rules', () => {
   const f = filterOperationFixture();
   f.click('[data-add-compound="voucher"]');

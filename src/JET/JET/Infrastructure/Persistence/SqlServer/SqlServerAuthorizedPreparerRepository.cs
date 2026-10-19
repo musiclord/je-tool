@@ -53,6 +53,7 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
         IAsyncEnumerable<StagingRow> rows,
         CancellationToken cancellationToken)
     {
+        source = ImportSourceFileName.Normalize(source);
         await database.EnsureCreatedAsync(projectId, cancellationToken);
         projection ??= JetAuditProgram.PrepareAuthorizedPreparerProjection(
             columns, columns.Count == 1 ? columns[0] : null);
@@ -124,7 +125,7 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
             "INSERT INTO {s}.target_authorized_preparer (name) VALUES (@name);"))
         {
             insertTarget.Transaction = transaction;
-            var nameParam = insertTarget.Parameters.Add("@name", SqlDbType.NVarChar, 450);
+            var nameParam = insertTarget.Parameters.Add("@name", SqlDbType.NVarChar, TextStorageLimits.KeyUtf16CodeUnits);
 
             foreach (var name in names)
             {

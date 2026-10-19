@@ -703,3 +703,24 @@ test('an auditor adds the unexpected account pair from the prescreen tab and see
   assert.doesNotMatch(pane, /標示為參考的分錄不計入/);
   assert.match(pane, /SYN-1/);
 });
+
+// 使用者 2026-10-16（圖四）：「突然擴增文字輸入欄的高度讓我感覺很突兀」。值清單一開始就是固定的多行輸入框，
+// 貼上以逗號分隔的人員、拆成多行後重繪，框的高度都不由內容決定；單行輸入（每月幾日、單值）才隨內容調整。
+test('a pasted comma list keeps the value list at its fixed height instead of stretching the box', () => {
+  const f = customPane({ glMapping: { createBy: 'Maker' } });
+  f.store.setFilterDraft({ name: '合成條件', rationale: '合成', groups: [{ join: 'AND', matchScope: 'row', rules: [
+    { type: 'fieldValue', join: 'AND', field: 'createBy', operator: 'notIn', values: [] }
+  ] }] });
+  const list = () => f.$('textarea[data-value-key="values"]');
+  assert.ok(list(), 'the person list is rendered');
+  assert.ok(list().getAttribute('class').split(/\s+/).includes('value-editor__values'), 'the list carries the fixed-height class');
+  list().value = '甲員,乙員,丙員,丁員,戊員,己員,庚員';
+  list().fire('input');
+  assert.deepEqual(plain(f.draft().groups[0].rules[0].values), ['甲員', '乙員', '丙員', '丁員', '戊員', '己員', '庚員']);
+  f.store.touch();
+  assert.equal(list().value.split('\n').length, 7, 'the redrawn list shows one value per line');
+  assert.equal(list().style.height, undefined, 'the list height is not set from its content');
+  const css = readWwwroot('css/app.css');
+  assert.match(css, /\.filter-workspace \.value-editor__values \{ flex: 1 1 100%; height: calc\(5 \* 20px \+ 14px\);/,
+    'the list is five lines tall on its own row');
+});

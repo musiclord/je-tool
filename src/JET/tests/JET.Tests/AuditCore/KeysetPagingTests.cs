@@ -86,7 +86,12 @@ public sealed class KeysetPagingTests
     {
         var plan = KeysetPaging.Plan(SqlServerDialect.Instance, new PageRequest(null, 10, null, " v-00a "), Catalog);
 
-        Assert.Equal(" AND (CHARINDEX(@pageSearch, UPPER(COALESCE(g.document_number, N''))) > 0)", plan.Predicate);
+        // 2026-10-19 跨資料庫一致性計畫第三節 D：SQL Server 的轉大寫改用 Latin1_General_100_BIN2 的對照表，
+        // 原本預期 " AND (CHARINDEX(@pageSearch, UPPER(COALESCE(g.document_number, N''))) > 0)"。
+        // 第一次失敗：20261019-025219572-8db61eaea8e248329c0efa0328ca3212，方言修改前失敗。
+        Assert.Equal(
+            " AND (CHARINDEX(@pageSearch, UPPER((COALESCE(g.document_number, N'')) COLLATE Latin1_General_100_BIN2)) > 0)",
+            plan.Predicate);
         Assert.Equal("V-00A", Assert.Single(plan.Parameters).Value);
     }
 

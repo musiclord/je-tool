@@ -5,6 +5,8 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
+// SQLite 與 DuckDB 每次 Public 都執行；SQL Server 版在 2026-10-19 依跨資料庫一致性計畫補上，只在 Provider 執行。
+// 三種資料庫比對同一組固定答案。
 public sealed class FilterSinglePurposeSideEquivalenceTests
 {
     private const string Seed = """
@@ -31,6 +33,20 @@ public sealed class FilterSinglePurposeSideEquivalenceTests
     public async Task ExplicitSideGroups_KeepTheOriginalFixedEntryIdentities(string provider, bool omitRetiredScopes)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
+        await AssertExplicitSideGroupsAsync(fixture, omitRetiredScopes);
+    }
+
+    [SqlServerTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExplicitSideGroups_KeepTheOriginalFixedEntryIdentities_SqlServer(bool omitRetiredScopes)
+    {
+        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(Seed);
+        await AssertExplicitSideGroupsAsync(fixture, omitRetiredScopes);
+    }
+
+    private static async Task AssertExplicitSideGroupsAsync(FilterPredicateProviderFixture fixture, bool omitRetiredScopes)
+    {
         const string debit = """{"type":"drCrOnly","drCr":"debit"}""";
         const string credit = """{"type":"drCrOnly","drCr":"credit"}""";
         const string accountA = """{"type":"fieldValue","field":"accNum","operator":"in","values":["A"]}""";

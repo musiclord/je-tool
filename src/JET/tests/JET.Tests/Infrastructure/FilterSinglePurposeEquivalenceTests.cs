@@ -5,7 +5,8 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// 第九節 G 的改寫前比對，只使用本檔合成資料與兩種本機資料庫。
+// 第九節 G 的改寫前比對，只使用本檔合成資料。SQLite 與 DuckDB 每次 Public 都執行；SQL Server 版在
+// 2026-10-19 依跨資料庫一致性計畫補上，只在 Provider 執行。三種資料庫比對同一組固定答案。
 public sealed class FilterSinglePurposeEquivalenceTests
 {
     private const string Seed = """
@@ -23,16 +24,40 @@ public sealed class FilterSinglePurposeEquivalenceTests
         ('purpose',10,'USER-SUFFIX','1','2025-01-01','A','一般分錄','USER2',100,100,0,'DEBIT',1);
         """;
 
+    // 固定答案原本逐列寫在本機版的 InlineData；2026-10-19 補 SQL Server 版時移到這裡，讓三種資料庫讀同一份，答案不變。
+    private static readonly Dictionary<int, string[]> TrailingZeroHits = new()
+    {
+        [1] = ["HUNDRED", "MILLION", "NEG-TEN", "TEN", "TEN-FRACTION"],
+        [2] = ["HUNDRED", "MILLION"],
+        [6] = ["MILLION"]
+    };
+
     [Theory]
-    [InlineData("sqlite", 1, new[] { "HUNDRED", "MILLION", "NEG-TEN", "TEN", "TEN-FRACTION" })]
-    [InlineData("duckdb", 1, new[] { "HUNDRED", "MILLION", "NEG-TEN", "TEN", "TEN-FRACTION" })]
-    [InlineData("sqlite", 2, new[] { "HUNDRED", "MILLION" })]
-    [InlineData("duckdb", 2, new[] { "HUNDRED", "MILLION" })]
-    [InlineData("sqlite", 6, new[] { "MILLION" })]
-    [InlineData("duckdb", 6, new[] { "MILLION" })]
-    public async Task TrailingZeros_ReplacementMustKeepTheFixedHits(string provider, int digits, string[] expected)
+    [InlineData("sqlite", 1)]
+    [InlineData("duckdb", 1)]
+    [InlineData("sqlite", 2)]
+    [InlineData("duckdb", 2)]
+    [InlineData("sqlite", 6)]
+    [InlineData("duckdb", 6)]
+    public async Task TrailingZeros_ReplacementMustKeepTheFixedHits(string provider, int digits)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
+        await AssertTrailingZerosAsync(fixture, digits);
+    }
+
+    [SqlServerTheory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(6)]
+    public async Task TrailingZeros_ReplacementMustKeepTheFixedHits_SqlServer(int digits)
+    {
+        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(Seed);
+        await AssertTrailingZerosAsync(fixture, digits);
+    }
+
+    private static async Task AssertTrailingZerosAsync(FilterPredicateProviderFixture fixture, int digits)
+    {
+        var expected = TrailingZeroHits[digits];
         var original = $$"""{"type":"customTrailingZeros","digits":{{digits}}}""";
         var replacement = $$"""{"type":"fieldValue","field":"amount","operator":"endsWithDigits","values":["{{new string('0', digits)}}"],"amountBasis":"absolute"}""";
         // 使用者 2026-10-14 裁定保留原結果，以子條件組排除主單位整數為零的金額。
@@ -51,6 +76,18 @@ public sealed class FilterSinglePurposeEquivalenceTests
     public async Task KeywordsBlankAndPeople_ReplacementKeepsFixedHits(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
+        await AssertKeywordsBlankAndPeopleAsync(fixture);
+    }
+
+    [SqlServerFact]
+    public async Task KeywordsBlankAndPeople_ReplacementKeepsFixedHits_SqlServer()
+    {
+        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(Seed);
+        await AssertKeywordsBlankAndPeopleAsync(fixture);
+    }
+
+    private static async Task AssertKeywordsBlankAndPeopleAsync(FilterPredicateProviderFixture fixture)
+    {
         var cases = new (string Original, string Replacement, string[] Expected)[]
         {
             ("""{"type":"customKeywords","keywords":" abc "}""",

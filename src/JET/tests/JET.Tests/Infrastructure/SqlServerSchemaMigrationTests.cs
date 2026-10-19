@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
@@ -23,9 +24,11 @@ public sealed class SqlServerSchemaMigrationTests
         // Pure SQL-plan guard; no SQL Server connection is opened by this test.
         // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 13 版加上 error；第 11 版案件仍會補上這張表。
         // 第一次失敗收據 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
-        Assert.Equal("13", SqlServerProjectDatabase.SchemaVersion);
-        Assert.Contains("'schema_version', '13')", SqlServerProjectDatabase.SchemaSql);
-        Assert.Contains("SET [value] = '13'", SqlServerProjectDatabase.BumpSchemaVersionSql);
+        // 2026-10-19 跨資料庫一致性計畫第三節 F 把文字欄定序升到第 14 版，預期版本由 13 改成 14；
+        // 第一次失敗收據 20261019-022312081-22a88a3e48db46cdbad3a14059471cd9。
+        Assert.Equal("14", SqlServerProjectDatabase.SchemaVersion);
+        Assert.Contains("'schema_version', '14')", SqlServerProjectDatabase.SchemaSql);
+        Assert.Contains("SET [value] = '14'", SqlServerProjectDatabase.BumpSchemaVersionSql);
         Assert.Contains("config_field_mapping_previous", SqlServerProjectDatabase.SchemaSql);
     }
 
@@ -48,13 +51,44 @@ public sealed class SqlServerSchemaMigrationTests
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
             // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
             // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
-            Assert.Equal("13", await VersionAsync(connection, q));
+            // 2026-10-19 文字欄定序升到第 14 版（跨資料庫一致性計畫第三節 F），本檔四處要連線的版本預期一起改成 14；
+            // 版本常數的失敗收據是 20261019-022312081-22a88a3e48db46cdbad3a14059471cd9。
+            Assert.Equal("14", await VersionAsync(connection, q));
             Assert.Equal(1, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
             Assert.Equal(1, await ScalarLongAsync(connection, $"SELECT COUNT(*) FROM {q}schema_info WHERE [key] = 'batch9-sentinel' AND [value] = 'preserved';"));
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
             Assert.Equal(1, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
         }
         finally { await database.DeleteAsync(projectId, CancellationToken.None); }
+    }
+
+    // 跨資料庫一致性計畫第三節 F（使用者 2026-10-19 選「SQL Server 實機才能確認的項」）：GL、TB 與科目配對的文字欄
+    // 一律固定位元序定序，不沿用資料庫預設定序；新建 schema 直接建成，既有 schema 在第 14 版逐欄改定序。
+    // 純 SQL 文字檢查，不連 SQL Server。第一次失敗收據 20261019-022312081-22a88a3e48db46cdbad3a14059471cd9。
+    public static TheoryData<string, string> AuditTextColumns => new()
+    {
+        { "target_gl_entry", "line_item" },
+        { "target_gl_entry", "account_name" },
+        { "target_gl_entry", "document_description" },
+        { "target_gl_entry", "source_module" },
+        { "target_tb_balance", "account_name" },
+        { "target_account_mapping", "account_name" },
+        { "result_inf_sampling_test_sample", "line_item" }
+    };
+
+    [Theory]
+    [MemberData(nameof(AuditTextColumns))]
+    public void TextComparisonMigration_PinsAuditTextColumnsAtVersionFourteen(string table, string column)
+    {
+        Assert.Equal("14", SqlServerProjectDatabase.SchemaVersion);
+        var declarations = Regex.Matches(
+            SqlServerProjectDatabase.SchemaSql,
+            $@"\b{column}\s+NVARCHAR\((\d+|MAX)\)(?<collation>\s+COLLATE Latin1_General_BIN2)?");
+        Assert.NotEmpty(declarations);
+        Assert.All(declarations, declaration => Assert.True(declaration.Groups["collation"].Success, declaration.Value));
+        Assert.Matches(
+            $@"ALTER TABLE \{{s\}}\.{table} ALTER COLUMN {column} NVARCHAR\((\d+|MAX)\) COLLATE Latin1_General_BIN2 NULL;",
+            SqlServerProjectDatabase.PinAuditTextCollationSql);
     }
 
     // 漂移守衛（純單元、不需 SQL Server）：fresh insert 與 transaction 最後的 bump
@@ -148,7 +182,7 @@ public sealed class SqlServerSchemaMigrationTests
     }
 
     [SqlServerFact]
-    public async Task EnsureCreated_OnV7_AddsAuditTableWithoutClearingExistingResults()
+    public async Task EnsureCreated_OnV7_AddsAuditTableAndClearsResultsAtVersionFourteen()
     {
         var baseConn = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (baseConn is null) { return; }
@@ -173,11 +207,18 @@ public sealed class SqlServerSchemaMigrationTests
             // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
             // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
             // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
-            Assert.Equal("13", await VersionAsync(baseConn, q));
+            Assert.Equal("14", await VersionAsync(baseConn, q));
             Assert.Equal(1, await TablePresentAsync(baseConn, q, "audit_event_log"));
-            Assert.Equal(1, await ScalarLongAsync(
+            // 2026-10-19 跨資料庫一致性計畫第三節 F：第 14 版的文字比對遷移清除既有結果並標成待重跑，從第 7 版升級一定經過這一步。
+            // 這個測試原名 EnsureCreated_OnV7_AddsAuditTableWithoutClearingExistingResults，原本預期第 7 版的驗證結果保留 1 筆。
+            // 第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a（Provider，這一項讀到 0 筆）。
+            Assert.Equal(0, await ScalarLongAsync(
                 baseConn,
                 $"SELECT COUNT(*) FROM {q}result_rule_run WHERE run_id='v7-run';"));
+            Assert.Equal(1, await ScalarLongAsync(
+                baseConn,
+                $"SELECT COUNT(*) FROM {q}config_result_stale_state "
+                + "WHERE singleton=1 AND validation_stale=1 AND prescreen_stale=0;"));
         }
         finally
         {
@@ -207,7 +248,7 @@ public sealed class SqlServerSchemaMigrationTests
             // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
             // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
             // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
-            Assert.Equal("13", await VersionAsync(baseConn, q));
+            Assert.Equal("14", await VersionAsync(baseConn, q));
             foreach (var column in new[] { "posting_status", "is_effective", "exclusion_reason" })
             {
                 Assert.Equal(1, await ColumnPresentAsync(baseConn, q, "target_gl_entry", column));
@@ -248,31 +289,16 @@ public sealed class SqlServerSchemaMigrationTests
                 + "(category_id='builtin.cash' AND label='Cash' AND ordinal=2 AND semantic_role='cash' AND is_builtin=1 AND revision=1) OR "
                 + "(category_id='builtin.receipt_in_advance' AND label='Receipt in advance' AND ordinal=3 AND semantic_role='receipt_in_advance' AND is_builtin=1 AND revision=1) OR "
                 + "(category_id='builtin.others' AND label='Others' AND ordinal=4 AND semantic_role='others' AND is_builtin=1 AND revision=1);"));
-            Assert.Equal(1, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}config_filter_scenario WHERE position=1 "
-                + "AND CHARINDEX('\"debitCategory\":\"Cash\"', definition_json) > 0 "
-                + "AND CHARINDEX('\"creditCategory\":\"Revenue\"', definition_json) > 0 "
-                + "AND CHARINDEX('\"debitCategoryIds\":[\"builtin.cash\"]', definition_json) > 0 "
-                + "AND CHARINDEX('\"creditCategoryIds\":[\"builtin.revenue\"]', definition_json) > 0;"));
-            var migratedScenario = await ScalarTextAsync(
-                baseConn,
-                $"SELECT definition_json FROM {q}config_filter_scenario WHERE position=1;");
-            Assert.Contains(
-                "\"logicVersion\":\"filter-2026-08-04-v6\"",
-                migratedScenario,
-                StringComparison.Ordinal);
-            Assert.False(RuleLogicVersions.IsCurrent(new SavedFilterScenario(
-                1,
-                "legacy pair",
-                "migration oracle",
-                migratedScenario,
-                new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero))));
+            // 2026-10-07 起上游修改一律清除下游：第 7 版升級在同一交易刪掉全部情境與命中，篩選回到「從未執行」，
+            // 和本機 SchemaV7MigrationTests.FrozenV6_MigratesAtomically_PreservesSources_ClearsScenariosAndStalesDerivedResults 同一組預期。
+            // 原本仍預期情境被改寫保留；第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
+            Assert.Equal(0, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}config_filter_scenario;"));
             Assert.Equal(0, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}result_rule_run;"));
             Assert.Equal(0, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}result_inf_sampling_test_sample;"));
             Assert.Equal(0, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}result_filter_run;"));
             Assert.Equal(1, await ScalarLongAsync(baseConn,
                 $"SELECT COUNT(*) FROM {q}config_result_stale_state WHERE singleton=1 "
-                + "AND validation_stale=1 AND prescreen_stale=1 AND filter_stale=1;"));
+                + "AND validation_stale=1 AND prescreen_stale=1 AND filter_stale=0;"));
             Assert.Equal(3, await ScalarLongAsync(baseConn,
                 "SELECT COUNT(*) FROM sys.indexes WHERE object_id=OBJECT_ID(N'" + q + "target_gl_rde_value') "
                 + "AND name IN ('ix_target_gl_rde_value_text','ix_target_gl_rde_value_date','ix_target_gl_rde_value_amount');"));
@@ -282,11 +308,11 @@ public sealed class SqlServerSchemaMigrationTests
             // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
             // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
             // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
-            Assert.Equal("13", await VersionAsync(baseConn, q));
+            Assert.Equal("14", await VersionAsync(baseConn, q));
             Assert.Equal(1, await ScalarLongAsync(baseConn,
                 $"SELECT COUNT(*) FROM {q}target_gl_entry WHERE document_number='DOC-V6';"));
-            Assert.Equal(1, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}config_filter_scenario WHERE position=1;"));
+            Assert.Equal(0, await ScalarLongAsync(baseConn,
+                $"SELECT COUNT(*) FROM {q}config_filter_scenario;"));
         }
         finally
         {
@@ -520,15 +546,6 @@ public sealed class SqlServerSchemaMigrationTests
         command.CommandText = sql;
         var result = await command.ExecuteScalarAsync();
         return result is null or DBNull ? 0L : Convert.ToInt64(result);
-    }
-
-    private static async Task<string> ScalarTextAsync(string baseConnectionString, string sql)
-    {
-        await using var connection = new SqlConnection(SingleDbConnectionString(baseConnectionString));
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        return (string)(await command.ExecuteScalarAsync())!;
     }
 
     private static async Task<string> VersionAsync(string baseConnectionString, string qualifier)
