@@ -39,7 +39,11 @@ public sealed class ResponsiveLayoutFrontendTests
         AssertOwnsHorizontalOverflow(css, ".data-preview__body");
 
         AssertResponsiveExit(css, ".app-header");
-        AssertResponsiveExit(css, ".picker-panel__actions");
+        // 案件清單原本的底部操作列在 2026-10-20 拆到標題列、區標題與頁尾，三處都要能換行。
+        AssertResponsiveExit(css, ".picker-panel__head");
+        AssertResponsiveExit(css, ".picker-section__head");
+        AssertResponsiveExit(css, ".picker-section__tools");
+        AssertResponsiveExit(css, ".picker-footer");
         AssertResponsiveExit(css, ".stepflow-item__head");
         AssertResponsiveExit(css, ".kv-list__row");
         AssertResponsiveExit(css, ".import-task__row");

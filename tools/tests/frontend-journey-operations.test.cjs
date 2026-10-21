@@ -371,6 +371,9 @@ test('journey 22: a backend error without a reason is written in Chinese without
   assert.equal(f.messages()[0].text, '合成作業失敗：發生非預期的錯誤，此操作未完成。請再試一次（耗時不到 0.1 秒）。');
   assert.doesNotMatch(f.messages()[0].text, /[A-Za-z]/, 'no English or error code reaches the message panel');
   // 案件清單的「輸出支援日誌」用的 support.log.export 是正式的 bridge action：真的送出，不是在前端就失敗。
+  // 這顆按鈕只在 Debug 組建出現（使用者 2026-10-20 選「只藏案件清單的」），原本以 Release 開啟就按
+  // （第一次失敗：FrontendMapping 收據 20261020-010431620-e949dfcb3f2b4aab9c7c44495ccd0dc3）。
+  f.store.setDevToolsEnabled(true); await flush();
   f.click('[data-action="picker-support-export"]');
   assert.deepEqual(plain(f.request('support.log.export').payload), {});
 });

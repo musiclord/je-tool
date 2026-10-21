@@ -381,9 +381,6 @@
   var ICON_TRASH =
     '<svg viewBox="0 0 256 256" width="16" height="16" fill="currentColor" aria-hidden="true">' +
     '<path d="M216 48h-40v-8a24 24 0 0 0-24-24h-48a24 24 0 0 0-24 24v8H40a8 8 0 0 0 0 16h8v144a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16V64h8a8 8 0 0 0 0-16ZM96 40a8 8 0 0 1 8-8h48a8 8 0 0 1 8 8v8H96Zm96 168H64V64h128Zm-80-104v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Zm48 0v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Z"></path></svg>';
-  var ICON_PLUS =
-    '<svg viewBox="0 0 256 256" width="16" height="16" fill="currentColor" aria-hidden="true">' +
-    '<path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z"></path></svg>';
 
   function providerText(provider) {
     if (!provider) { return '資料庫種類尚未確認'; }
@@ -489,22 +486,27 @@
       '</div>';
   }
 
-  // 案件清單看不到訊息面板，所以「輸出支援日誌」放在下方操作列最後，是給維護 JET 的人用的一般工具，畫面不叫審計員按。
-  // 不帶 projectId：後端匯出全部去識別紀錄到 logs 資料夾。Debug 組建剛發生開案或刪除失敗時，
-  // 原始診斷日誌的出口也放在同一列，並帶同一次 correlation（system.ping.devToolsEnabled）。
-  function pickerToolsHtml(state) {
+  // 案件清單看不到訊息面板，所以另放一個「輸出支援日誌」（使用者 2026-10-13 選「從錯誤框拿掉，改成一般工具」）。
+  // 它只給開發人員用，和 DEV 面板一樣只在 Debug 組建出現（system.ping.devToolsEnabled；使用者 2026-10-20 選「只藏案件清單的」），
+  // 放在卡片外的頁尾。開案後訊息面板的「輸出支援日誌」在 Release 照舊。
+  // 不帶 projectId：後端匯出全部去識別紀錄到 logs 資料夾。剛發生開案或刪除失敗時，
+  // 原始診斷日誌的出口也放在頁尾，並帶同一次 correlation。
+  function pickerFooterHtml(state) {
+    if (!state.devToolsEnabled) { return ''; }
     var context = state.pickerFeedbackContext;
-    var devExport = state.devToolsEnabled && context && context.projectId
-      ? '<button type="button" class="btn btn--ghost" data-action="picker-dev-log-export">輸出診斷日誌（DEV）</button>'
+    var devExport = context && context.projectId
+      ? '<button type="button" class="btn btn--tiny" data-action="picker-dev-log-export">輸出診斷日誌（DEV）</button>'
       : '';
     var results = [];
     if (state.pickerSupportLogPath) { results.push('支援日誌已輸出：' + state.pickerSupportLogPath); }
     if (context && context.devExportedPath) { results.push('診斷日誌已輸出：' + context.devExportedPath); }
-    return '<button type="button" class="btn btn--ghost picker-panel__tool" data-action="picker-support-export">輸出支援日誌</button>' +
+    return '<div class="picker-footer">' +
+      '<button type="button" class="btn btn--tiny" data-action="picker-support-export">輸出支援日誌</button>' +
       devExport +
       (results.length
-        ? '<span class="picker-panel__tool-result" role="status">' + Ui.esc(results.join('；')) + '</span>'
-        : '');
+        ? '<span class="picker-footer__result" role="status">' + Ui.esc(results.join('；')) + '</span>'
+        : '') +
+      '</div>';
   }
 
   function renderPicker(state) {
@@ -569,14 +571,24 @@
     // 加入與移除的動態（JetMotion）：案件清單已經在畫面上時，新增的案件長出來、刪除的收起來；從流程畫面切回來時是整頁換掉，不比對。
     var motion = contentMotion(container, pickerShownBefore);
     container.innerHTML =
+      // 每個按鈕放在它作用的內容旁邊（使用者 2026-10-20 指出底部一排按鈕看不出用途）：
+      // 「新增案件」不屬於任何一區，放在標題右側；「同步線上案件」與「重新整理本機」只影響各自那一區，放在區標題右側。
       '<div class="picker-panel">' +
-        '<h2 class="picker-panel__title">選擇案件</h2>' +
-        '<p class="picker-panel__hint">選擇案件繼續作業，或建立新案件。</p>' +
+        '<div class="picker-panel__head">' +
+          '<div class="picker-panel__heading">' +
+            '<h2 class="picker-panel__title">選擇案件</h2>' +
+            '<p class="picker-panel__hint">選擇案件繼續作業，或建立新案件。</p>' +
+          '</div>' +
+          '<button type="button" class="btn btn--add picker-panel__new" data-action="picker-new">新增案件</button>' +
+        '</div>' +
         pickerFeedbackHtml(state.pickerFeedback, state.pickerFeedbackContext, state.pickerFeedbackLevel) +
         '<section class="picker-section">' +
           '<div class="picker-section__head">' +
             '<h3 class="picker-section__title">線上資料庫（SQL Server）</h3>' +
-            principalNote +
+            '<div class="picker-section__tools">' +
+              principalNote +
+              '<button type="button" class="btn btn--tiny" data-action="picker-sync-online">同步線上案件</button>' +
+            '</div>' +
           '</div>' +
           onlineAlert +
           '<div class="picker-section__list" data-motion-list="online">' + onlineBody + '</div>' +
@@ -584,23 +596,14 @@
         '<section class="picker-section">' +
           '<div class="picker-section__head">' +
             '<h3 class="picker-section__title">本地資料庫</h3>' +
+            '<div class="picker-section__tools">' +
+              '<button type="button" class="btn btn--tiny" data-action="picker-refresh-local">重新整理本機</button>' +
+            '</div>' +
           '</div>' +
           '<div class="picker-section__list" data-motion-list="local">' + localBody + '</div>' +
         '</section>' +
-        '<div class="picker-panel__list">' +
-          '<button type="button" class="project-row project-row--new" data-action="picker-new">' +
-            '<span class="project-row__plus">' + ICON_PLUS + '</span>' +
-            '<span class="project-row__main">' +
-              '<span class="project-row__title">新增案件</span>' +
-            '</span>' +
-          '</button>' +
-        '</div>' +
-        '<div class="picker-panel__actions">' +
-          '<button type="button" class="btn btn--ghost" data-action="picker-refresh-local">重新整理本機</button>' +
-          '<button type="button" class="btn" data-action="picker-sync-online">同步線上案件</button>' +
-          pickerToolsHtml(state) +
-        '</div>' +
       '</div>' +
+      pickerFooterHtml(state) +
       '<div class="modal" data-bind="delete-modal" hidden>' +
         '<div class="modal__backdrop" data-action="modal-cancel"></div>' +
         '<div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">' +

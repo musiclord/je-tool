@@ -736,7 +736,8 @@ Working Paper 仍可定位；檔案已移動或刪除時回傳 `artifact_not_fou
 省略 `projectId` 時是一般工具，不需要先開案件：匯出記憶體裡目前保留的全部去識別紀錄，忽略 `correlationId`，
 寫到 `%LOCALAPPDATA%\JET\logs\`，檔名同樣是 `JET-support-*.txt`，回應的 `scope` 為 `all`，仍回傳 `filePath` 與 `lineCount`。
 有 `projectId` 時 `scope` 為 `project` 或 `correlation`，行為不變（使用者 2026-10-13 選「從錯誤框拿掉，改成一般工具」）。
-畫面上，訊息面板的「輸出支援日誌」帶目前案件的 `projectId`；案件清單操作列的「輸出支援日誌」送 `{}`。
+畫面上，訊息面板的「輸出支援日誌」帶目前案件的 `projectId`；案件清單頁尾的「輸出支援日誌」送 `{}`，
+這顆按鈕只在 Debug 組建出現。action 本身在 Release 仍註冊，供訊息面板使用。
 
 畫面照正常操作送不出、只有前端送錯資料時才會被後端拒絕的格式檢查，例如 `mapping.commit.gl` 的 `amountMode`、
 `rdeFields` 或 `postingStatusPolicy` 形狀不對，錯誤碼不變（`invalid_payload` 或 `unsupported_mode`），

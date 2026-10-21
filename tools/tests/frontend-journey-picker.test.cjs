@@ -192,8 +192,11 @@ test('journey 1: when the list cannot be read again after a deletion, the deleti
   assert.ok(f.messages().some(m => m.level === 'error' && m.text.includes('合成：清單讀不出來')), 'the list failure is logged as an error');
 });
 
-test('journey 1: a case that fails to open keeps the auditor on the list with the reason, and the support log can still be exported', async () => {
+test('journey 1: a case that fails to open keeps the auditor on the list with the reason, and a debug build can still export the support log', async () => {
   const f = await boot([LOCAL_A]);
+  // 案件清單的「輸出支援日誌」只在 Debug 組建出現（使用者 2026-10-20 選「只藏案件清單的」）；
+  // 原本以 Release 開啟就按得到（第一次失敗：FrontendMapping 收據 20261020-010431620-e949dfcb3f2b4aab9c7c44495ccd0dc3）。
+  f.store.setDevToolsEnabled(true); await flush();
   f.click('[data-action="picker-open"][data-project-id="合成甲案"]');
   const load = f.request('project.load');
   assert.deepEqual(plain(load.payload), { projectId: '合成甲案', databaseProvider: 'sqlite' });
@@ -207,13 +210,14 @@ test('journey 1: a case that fails to open keeps the auditor on the list with th
   assert.equal(box.body, '開啟案件失敗：合成：案件資料讀不出來（耗時 1.2 秒）。');
   assert.deepEqual(plain(f.state().pickerFeedbackContext),
     { projectId: '合成甲案', errorCode: 'file_read_error', correlationId: 'load-correlation', devExportedPath: null });
-  // 支援日誌是案件清單操作列的一般工具：不帶案件，輸出後寫在按鈕旁，錯誤框照舊。
+  // 支援日誌在案件清單卡片下方的頁尾：不帶案件，輸出後寫在按鈕下方，錯誤框照舊。
   f.click('[data-action="picker-support-export"]');
   const exported = f.request('support.log.export');
   assert.deepEqual(plain(exported.payload), {});
   f.reply(exported, { filePath: '合成/logs/JET-support.txt' }); await flush();
   // 使用者 2026-10-13 勾選頁確認 6（final-wording.json，維持原句）。
-  assert.equal(f.$('.picker-panel__actions [role="status"]').textContent, '支援日誌已輸出：合成/logs/JET-support.txt');
+  // 2026-10-20 頁尾取代原本的操作列，原本查 .picker-panel__actions（第一次失敗：FrontendMapping 收據 20261020-005208614-97bdab80cb6b426788fc317a68b9ab44）。
+  assert.equal(f.$('.picker-footer [role="status"]').textContent, '支援日誌已輸出：合成/logs/JET-support.txt');
   assert.match(errorBox(f).body, /合成：案件資料讀不出來/);
 });
 

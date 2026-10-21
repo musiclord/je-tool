@@ -66,7 +66,18 @@ internal sealed class TempProjectRoot : IDisposable
 
         if (Directory.Exists(Path))
         {
-            Directory.Delete(Path, recursive: true);
+            try
+            {
+                Directory.Delete(Path, recursive: true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // 只把當下開著剩下檔案的程序附進訊息，照樣失敗、不重試；原因見 FileHolderDiagnostics。
+                var message = exception.Message + "\n" + FileHolderDiagnostics.Describe(Path);
+                throw exception is IOException
+                    ? new IOException(message, exception)
+                    : new UnauthorizedAccessException(message, exception);
+            }
         }
     }
 }

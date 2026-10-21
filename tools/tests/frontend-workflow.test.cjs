@@ -5409,7 +5409,9 @@ function remapAppFixture() {
 }
 
 test('remap S1-15 failed project loading exports the same error correlation from the picker', async () => {
-  const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker');
+  // 案件清單的「輸出支援日誌」只在 Debug 組建出現（使用者 2026-10-20 選「只藏案件清單的」），原本以 Release 夾具就按得到
+  // （第一次失敗：FrontendMapping 收據 20261020-010431620-e949dfcb3f2b4aab9c7c44495ccd0dc3）。
+  const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker'); f.store.setDevToolsEnabled(true);
   const opening = f.window.JetUi.openProject('failed-synthetic');
   f.request('projectLoad').reject({ code: 'file_read_error', message: '合成載入失敗', correlationId: 'picker-load-x' }); await opening;
   f.app.renderPicker(f.state);
@@ -5418,7 +5420,9 @@ test('remap S1-15 failed project loading exports the same error correlation from
   // 匯出全部紀錄。原本斷言錯誤框有兩個按鈕、payload 帶這次的 projectId 與 correlationId
   // （第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。這次的 correlation 仍留給 Debug 組建的 DEV 按鈕。
   assert.match(f.dom.content.textContent, /合成載入失敗/); assert.ok(f.$('[data-action="picker-copy-error"]') === null, 'no copy button');
-  assert.ok(f.$('.picker-panel__actions [data-action="picker-support-export"]') !== null, 'support log button in the action row');
+  // 使用者 2026-10-20 指出案件清單底部一排按鈕看不出用途，「輸出支援日誌」改放在卡片下方的頁尾，不再和重新整理、同步排成一列。
+  // 原本斷言它在 .picker-panel__actions（第一次失敗：FrontendMapping 收據 20261020-005208614-97bdab80cb6b426788fc317a68b9ab44）。
+  assert.ok(f.$('.picker-footer [data-action="picker-support-export"]') !== null, 'support log button in the footer below the case card');
   f.click('[data-action="picker-support-export"]');
   assert.deepEqual(plain(f.request('supportLogExport').payload), {});
   f.request('supportLogExport').resolve({ filePath: 'synthetic/support.ndjson' }); await settle(); f.app.renderPicker(f.state);
@@ -6623,7 +6627,24 @@ test('text-b report progress reads as one sentence per phase with the elapsed ti
   assert.equal(format({ ...progress('preparingData', null, 0, 0), artifactKind: 'prescreenReport' }), '預篩選報告：正在準備資料，經過 4.2 秒');
 });
 
-for (const devTools of [false, true]) test('text-b the case list error box has no buttons and the support log is a general tool in the action row' + (devTools ? ' (debug build)' : ''), async () => {
+test('text-b a release build shows no support log or developer tools on the case list', async () => {
+  // 使用者 2026-10-20 選「只藏案件清單的」：案件清單的「輸出支援日誌」和 DEV 面板一樣只在 Debug 組建出現，訊息面板那顆照舊。
+  // 原本 Release 也在頁尾顯示它（第一次失敗：FrontendMapping 收據 20261020-010431620-e949dfcb3f2b4aab9c7c44495ccd0dc3）。
+  const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker'); f.store.setDevToolsEnabled(false);
+  const opening = f.window.JetUi.openProject('failed-synthetic');
+  f.request('projectLoad').reject({ code: 'file_read_error', message: '合成載入失敗', correlationId: 'picker-load-x' }); await opening;
+  f.app.renderPicker(f.state);
+  const box = f.$('.picker-feedback');
+  assert.ok(box !== null, 'the error box is shown');
+  assert.match(box.textContent, /合成載入失敗/);
+  assert.ok(box.querySelector('button') === null, 'the error box has no buttons');
+  assert.ok(f.$('.picker-footer') === null, 'no footer in a release build');
+  assert.ok(f.$('[data-action="picker-support-export"]') === null, 'no support log button in a release build');
+  assert.ok(f.$('[data-action="picker-dev-log-export"]') === null, 'no developer log button in a release build');
+});
+
+test('text-b the case list error box has no buttons and a debug build puts the support log in the footer below the case card', async () => {
+  const devTools = true;
   const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker'); f.store.setDevToolsEnabled(devTools);
   const opening = f.window.JetUi.openProject('failed-synthetic');
   f.request('projectLoad').reject({ code: 'file_read_error', message: '合成載入失敗', correlationId: 'picker-load-x' }); await opening;
@@ -6632,18 +6653,24 @@ for (const devTools of [false, true]) test('text-b the case list error box has n
   assert.ok(box !== null, 'the error box is shown');
   assert.match(box.textContent, /合成載入失敗/);
   assert.ok(box.querySelector('button') === null, 'the error box has no buttons');
-  const actions = f.$('.picker-panel__actions');
-  assert.ok(actions !== null, 'the action row is shown');
-  const exportButton = actions.querySelector('[data-action="picker-support-export"]');
-  assert.ok(exportButton !== null, 'the support log button is in the action row');
+  // 使用者 2026-10-13 選定「另放一個不顯眼的同名按鈕」；2026-10-20 指出底部一排按鈕看不出用途後，它從操作列移到卡片下方的頁尾，
+  // 重新整理與同步移到各自的區標題。原本斷言它在 .picker-panel__actions 且排在重新整理與同步之後
+  // （第一次失敗：FrontendMapping 收據 20261020-005208614-97bdab80cb6b426788fc317a68b9ab44）。
+  const footer = f.$('.picker-footer');
+  assert.ok(footer !== null, 'the footer below the case card is shown');
+  const exportButton = footer.querySelector('[data-action="picker-support-export"]');
+  assert.ok(exportButton !== null, 'the support log button is in the footer');
   assert.equal(exportButton.textContent, '輸出支援日誌');
-  assert.equal(actions.children.at(-1 - (devTools ? 1 : 0)), exportButton, 'the support log button follows the refresh and sync buttons');
-  assert.equal(actions.querySelector('[data-action="picker-dev-log-export"]') !== null, devTools);
+  assert.equal(footer.children[0], exportButton, 'the support log button comes first in the footer');
+  assert.ok(f.$('.picker-panel [data-action="picker-support-export"]') === null, 'the support log button is outside the case card');
+  assert.ok(footer.querySelector('[data-action="picker-refresh-local"]') === null && footer.querySelector('[data-action="picker-sync-online"]') === null,
+    'refreshing and syncing are not maintenance tools');
+  assert.equal(footer.querySelector('[data-action="picker-dev-log-export"]') !== null, devTools);
   f.click('[data-action="picker-support-export"]');
   const sent = f.request('supportLogExport');
   assert.equal('projectId' in sent.payload, false); assert.equal('correlationId' in sent.payload, false);
   sent.resolve({ filePath: 'synthetic/logs/JET-support.txt', lineCount: 3, scope: 'all' }); await settle(); f.app.renderPicker(f.state);
-  const status = f.$('.picker-panel__actions [role="status"]');
+  const status = f.$('.picker-footer [role="status"]');
   assert.ok(status !== null, 'the result is announced beside the button');
   assert.equal(status.textContent, '支援日誌已輸出：synthetic/logs/JET-support.txt');
   assert.match(f.$('.picker-feedback').textContent, /合成載入失敗/);
