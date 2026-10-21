@@ -26,5 +26,51 @@ function Test-JetArchitectureRules {
     Assert-Case $implemented 'pass';$count++
     $inherited=@{source='T:Example.Child';target='T:Example.Parent';kind='inheritance';execution='not-observed';roslyn=@(@{kind='inherits';source='T:Example.Child';target='T:Example.Parent'})}
     Assert-Case $inherited 'pass';$count++
+    $named=Copy-Binding $base;$named.members=@('Save')
+    Assert-Case $named 'pass';$count++
+    $named.members=@('Load')
+    Assert-Case $named 'member_not_in_evidence';$count++
+
+    function Assert-Connection($value,[string]$expected) {
+        $actual=@(Get-JetConnectionEvidenceErrors -Entry $value -KnownFacts @('example-fact'))
+        if (($expected -ceq 'pass' -and $actual.Count -ne 0) -or ($expected -cne 'pass' -and $expected -cnotin $actual)) {
+            throw [IO.InvalidDataException]::new("Architecture connection test failed: $expected")
+        }
+    }
+    $call=@{diagram='example';connection='m01';kind='calls';execution='not-observed';facts=@();members=@('Run')
+        roslyn=@(@{kind='invokes';source='M:Example.Caller.Start';target='M:Example.Worker.Run';targetType='Example.Worker';dispatch='statically_bound'})}
+    Assert-Connection $call 'pass';$count++
+    $changed=Copy-Binding $call;$changed.roslyn[0].dispatch='interface_declared_target'
+    Assert-Connection $changed 'compile_target_not_concrete';$count++
+    $changed=Copy-Binding $call;$changed.members=@('Stop')
+    Assert-Connection $changed 'member_not_in_evidence';$count++
+    $changed=Copy-Binding $call;$changed.execution='observed'
+    Assert-Connection $changed 'runtime_claim_without_observation';$count++
+    $interface=@{diagram='example';connection='m02';kind='viaInterface';execution='not-observed';facts=@()
+        roslyn=@(@{kind='invokes';source='M:Example.Caller.Start';target='M:Example.IStore.Save';targetType='Example.IStore';dispatch='interface_declared_target'})
+        implementations=@(@{kind='implements';source='T:Example.Store';target='T:Example.IStore'})
+        assembly=@(@{kind='constructs';source='M:JET.AppCompositionRoot.Create';target='M:Example.Store.#ctor';targetType='Example.Store';dispatch='statically_bound'})}
+    Assert-Connection $interface 'pass';$count++
+    $changed=Copy-Binding $interface;$changed.roslyn[0].dispatch='statically_bound'
+    Assert-Connection $changed 'interface_call_not_proven';$count++
+    $changed=Copy-Binding $interface;$changed.assembly=@()
+    Assert-Connection $changed 'implementation_without_assembly';$count++
+    $changed=Copy-Binding $interface;$changed.assembly[0].source='M:Example.Factory.Create'
+    Assert-Connection $changed 'injection_not_from_composition_root';$count++
+    $indirect=@{diagram='example';connection='m03';kind='indirect';execution='not-observed';facts=@('example-fact')}
+    Assert-Connection $indirect 'pass';$count++
+    $changed=Copy-Binding $indirect;$changed.facts=@()
+    Assert-Connection $changed 'missing_facts';$count++
+    $changed=Copy-Binding $indirect;$changed.facts=@('unknown-fact')
+    Assert-Connection $changed 'fact_missing';$count++
+    $changed=Copy-Binding $indirect;$changed.roslyn=$call.roslyn
+    Assert-Connection $changed 'indirect_has_compile_target';$count++
+    Assert-Connection @{diagram='example';connection='m04';kind='return';execution='not-observed';facts=@()} 'return_without_call';$count++
+    Assert-Connection @{diagram='example';connection='m05';kind='guess';execution='not-observed';facts=@()} 'unknown_connection_kind';$count++
+    if ((Get-JetDrawnConnectionKind 'sequence' '') -cne 'calls' -or (Get-JetDrawnConnectionKind 'sequence' 'dashed') -cne 'viaInterface' -or
+        (Get-JetDrawnConnectionKind 'sequence' 'emphasis') -cne 'indirect' -or (Get-JetDrawnConnectionKind 'workflow' 'dashed') -cne 'fact') {
+        throw [IO.InvalidDataException]::new('Architecture drawn kind test failed.')
+    }
+    $count++
     return $count
 }

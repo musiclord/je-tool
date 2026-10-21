@@ -1,0 +1,353 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "SQLite：科目分類、篩選情境與命中",
+    "subtitle": "命中與抽樣只存分錄 ID；顯示明細時再連回標準化 GL",
+    "locale": "zh-TW",
+    "output": "archify/rules-erd/rules-erd.html",
+    "quality_profile": "standard",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "pk": {
+          "label": "主鍵"
+        },
+        "uk": {
+          "label": "唯一約束或唯一索引"
+        },
+        "many": {
+          "label": "多筆"
+        },
+        "one": {
+          "label": "一筆"
+        },
+        "optional": {
+          "label": "可以沒有對應"
+        }
+      }
+    }
+  },
+  "layout": {
+    "mode": "grid",
+    "gapX": 120,
+    "gapY": 70,
+    "entityW": 340
+  },
+  "entities": [
+    {
+      "id": "config_account_taxonomy_path",
+      "label": "config_account_taxonomy_path",
+      "row": 0,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "ancestor_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "descendant_id",
+          "type": "TEXT",
+          "key": "pk"
+        }
+      ],
+      "tag": "科目分類",
+      "sublabel": "分類階層的祖先與子孫"
+    },
+    {
+      "id": "config_account_taxonomy",
+      "label": "config_account_taxonomy",
+      "row": 1,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "category_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "label",
+          "type": "TEXT"
+        },
+        {
+          "name": "ordinal",
+          "type": "INTEGER",
+          "key": "uk"
+        },
+        {
+          "name": "semantic_role",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_builtin",
+          "type": "INTEGER"
+        },
+        {
+          "name": "revision",
+          "type": "INTEGER"
+        },
+        {
+          "name": "parent_category_id",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "科目分類",
+      "sublabel": "科目分類定義"
+    },
+    {
+      "id": "target_account_mapping",
+      "label": "target_account_mapping",
+      "row": 2,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "mapping_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_row_number",
+          "type": "INTEGER"
+        },
+        {
+          "name": "account_code",
+          "type": "TEXT",
+          "key": "uk"
+        },
+        {
+          "name": "account_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "standardized_category",
+          "type": "TEXT"
+        },
+        {
+          "name": "category_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "classification_explicit",
+          "type": "INTEGER"
+        }
+      ],
+      "tag": "科目分類",
+      "sublabel": "科目代碼對應到分類"
+    },
+    {
+      "id": "config_filter_scenario",
+      "label": "config_filter_scenario",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "position",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "rationale",
+          "type": "TEXT"
+        },
+        {
+          "name": "definition_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "saved_utc",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "篩選與抽樣",
+      "sublabel": "第五步已存的篩選情境"
+    },
+    {
+      "id": "result_filter_run",
+      "label": "result_filter_run",
+      "row": 1,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "scenario_position",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        }
+      ],
+      "tag": "篩選與抽樣",
+      "sublabel": "每個情境命中的分錄"
+    },
+    {
+      "id": "result_inf_sampling_test_sample",
+      "label": "result_inf_sampling_test_sample",
+      "row": 2,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "run_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "document_number",
+          "type": "TEXT"
+        },
+        {
+          "name": "line_item",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "篩選與抽樣",
+      "sublabel": "抽樣測試選出的分錄"
+    },
+    {
+      "id": "target_gl_entry",
+      "label": "target_gl_entry",
+      "sublabel": "完整欄位見標準化資料的關聯圖",
+      "tag": "參照",
+      "attributes": [
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        }
+      ],
+      "row": 1,
+      "col": 2
+    },
+    {
+      "id": "target_authorized_preparer",
+      "label": "target_authorized_preparer",
+      "row": 0,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "name",
+          "type": "TEXT",
+          "key": "pk"
+        }
+      ],
+      "tag": "參考清單",
+      "sublabel": "授權編製人清單"
+    },
+    {
+      "id": "staging_calendar_raw_day",
+      "label": "staging_calendar_raw_day",
+      "row": 1,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "day_type",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "date",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "day_name",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "參考清單",
+      "sublabel": "假日與補班日"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "path_taxonomy",
+      "from": "config_account_taxonomy_path",
+      "to": "config_account_taxonomy",
+      "label": "ancestor_id、descendant_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    },
+    {
+      "id": "mapping_taxonomy",
+      "from": "target_account_mapping",
+      "to": "config_account_taxonomy",
+      "label": "category_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "hit_scenario",
+      "from": "result_filter_run",
+      "to": "config_filter_scenario",
+      "label": "scenario_position",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    },
+    {
+      "id": "hit_entry",
+      "from": "result_filter_run",
+      "to": "target_gl_entry",
+      "label": "entry_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    },
+    {
+      "id": "sample_entry",
+      "from": "result_inf_sampling_test_sample",
+      "to": "target_gl_entry",
+      "label": "entry_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "這些連線的依據",
+      "items": [
+        "命中與抽樣明細以 entry_id 連回 target_gl_entry 取顯示欄；重算單一情境時依 scenario_position 刪除舊命中。",
+        "科目配對以 category_id 連到分類；分類階層表的兩個欄位都指向分類代碼。config_account_taxonomy 另以 parent_category_id 指向上層分類，圖上不畫自身連線。",
+        "來源：LocalFilterHitsPageRepository.cs 第 37–38 行；LocalInfSamplePageRepository.cs 第 37 行；LocalFilterRunMaterializer.cs 第 57 行；LocalAccountMappingRepository.cs 第 226–232 行；AccountTaxonomyHierarchy.cs 第 23–41 行。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "線條不是資料庫外鍵",
+      "items": [
+        "這批 SQLite 建表定義沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。",
+        "沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 27 張表，欄位含各版升級新增的欄位。",
+        "PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。"
+      ]
+    }
+  ]
+}

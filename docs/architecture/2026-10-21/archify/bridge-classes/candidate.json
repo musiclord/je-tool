@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "Action 通道的類別與介面",
+    "subtitle": "C# 只在編譯時看到 IApplicationActionHandler；哪個 handler 執行，由執行時的 action 字串查表決定",
+    "locale": "zh-TW",
+    "output": "archify/bridge-classes/bridge-classes.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "dependency": { "label": "依賴：呼叫或建立，線上寫方法" },
+        "realization": { "label": "實作介面" },
+        "inheritance": { "label": "繼承" }
+      }
+    }
+  },
+  "layout": { "mode": "grid", "typeW": 240, "typeMaxW": 300, "gapX": 100, "gapY": 95 },
+  "types": [
+    { "id": "form", "label": "Form1", "kind": "class", "row": 0, "col": 0, "sublabel": "WinForms 主視窗", "methods": [] },
+    { "id": "bridge", "label": "JetWebMessageBridge", "kind": "class", "row": 0, "col": 1, "sublabel": "接收 WebMessage", "methods": [{ "name": "Attach" }, { "name": "OnWebMessageReceived", "visibility": "private" }] },
+    { "id": "registry", "label": "RequestCancellationRegistry", "kind": "class", "row": 0, "col": 2, "sublabel": "requestId 對應取消權杖", "methods": [{ "name": "RunAsync" }] },
+    { "id": "root", "label": "AppCompositionRoot", "kind": "class", "row": 1, "col": 0, "sublabel": "建立執行時物件", "methods": [{ "name": "CreateRuntimeCore", "static": true }] },
+    { "id": "dispatcher", "label": "ActionDispatcher", "kind": "class", "row": 1, "col": 1, "sublabel": "依 action 字串查 handler", "methods": [{ "name": "DispatchAsync" }] },
+    { "id": "gate", "label": "ActionExecutionGate", "kind": "class", "row": 1, "col": 2, "sublabel": "變更型作業同時一項", "methods": [{ "name": "TryAcquire" }] },
+    { "id": "policy", "label": "ActionExecutionPolicy", "kind": "class", "row": 1, "col": 3, "sublabel": "static，action 分類", "methods": [{ "name": "IsExclusive", "static": true }, { "name": "RunsInBackground", "static": true }] },
+    { "id": "contract", "label": "IApplicationActionHandler", "kind": "interface", "row": 2, "col": 1, "sublabel": "每個 action 一個實作", "attributes": [{ "name": "Action", "type": "string" }], "methods": [{ "name": "HandleAsync" }] },
+    { "id": "save", "label": "FilterScenarioSaveHandler", "kind": "class", "row": 3, "col": 0, "sublabel": "filter.scenario.save", "methods": [{ "name": "HandleAsync" }] },
+    { "id": "importBase", "label": "ImportFromFileHandler", "kind": "abstract", "row": 3, "col": 1, "sublabel": "GL 與 TB 匯入共用", "methods": [{ "name": "HandleAsync" }] },
+    { "id": "export", "label": "ExportWorkpaperStreamHandler", "kind": "class", "row": 3, "col": 2, "sublabel": "export.workpaperStream", "methods": [{ "name": "HandleAsync" }] },
+    { "id": "importTb", "label": "ImportTbFromFileHandler", "kind": "class", "row": 4, "col": 1, "sublabel": "import.tb.fromFile", "attributes": [{ "name": "Action", "type": "string" }] }
+  ],
+  "relationships": [
+    { "id": "form_bridge", "from": "form", "to": "bridge", "kind": "dependency", "label": "建立、Attach" },
+    { "id": "bridge_registry", "from": "bridge", "to": "registry", "kind": "dependency", "label": "RunAsync" },
+    { "id": "bridge_dispatcher", "from": "bridge", "to": "dispatcher", "kind": "dependency", "label": "DispatchAsync" },
+    { "id": "root_dispatcher", "from": "root", "to": "dispatcher", "kind": "dependency", "label": "建立" },
+    { "id": "dispatcher_gate", "from": "dispatcher", "to": "gate", "kind": "dependency", "label": "TryAcquire" },
+    { "id": "dispatcher_policy", "from": "dispatcher", "to": "policy", "kind": "dependency", "label": "IsExclusive" },
+    { "id": "dispatcher_contract", "from": "dispatcher", "to": "contract", "kind": "dependency", "label": "HandleAsync" },
+    { "id": "save_contract", "from": "save", "to": "contract", "kind": "realization" },
+    { "id": "import_contract", "from": "importBase", "to": "contract", "kind": "realization" },
+    { "id": "export_contract", "from": "export", "to": "contract", "kind": "realization" },
+    { "id": "tb_import", "from": "importTb", "to": "importBase", "kind": "inheritance" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "編譯時與執行時各知道什麼",
+      "items": [
+        "ActionDispatcher 只呼叫 IApplicationActionHandler.HandleAsync，Roslyn 標成介面呼叫。",
+        "AppCompositionRoot.CreateRuntimeCore 建立所有 handler 並傳給 ActionDispatcher；執行時依畫面送來的 action 字串，對照各 handler 的 Action 屬性挑出一個。",
+        "圖上三個實作只是本輪各圖會用到的 handler，不是完整清單。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "派送前的判斷",
+      "items": [
+        "ActionExecutionPolicy 決定 action 是否互斥、是否在背景執行；互斥的變更型作業要先由 ActionExecutionGate 取得執行權，已有作業時直接回錯誤，不排隊。",
+        "JetWebMessageBridge 以 RequestCancellationRegistry.RunAsync 包住派送，畫面可依 requestId 取消。",
+        "JavaScript 端的 JetApi 不在 C# 型別裡，圖中沒有畫；WebMessage 這一段見循序圖。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "來源",
+      "items": [
+        "Form1.cs 第 496–497 行；JetWebMessageBridge.cs 第 54–56 行；ActionDispatcher.cs 第 47、88–111、161 行。",
+        "AppCompositionRoot.cs 第 357、376、395、446 行；ActionExecutionPolicy.cs 第 32–68 行；ImportFromFileHandler.cs 第 15、480 行。"
+      ]
+    }
+  ]
+}

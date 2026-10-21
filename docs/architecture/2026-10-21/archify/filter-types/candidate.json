@@ -1,0 +1,293 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "篩選情境儲存的類別與介面",
+    "subtitle": "介面是呼叫端在編譯時看到的目標；AppCompositionRoot 建立的類別，才是 Local 組裝注入的實作",
+    "locale": "zh-TW",
+    "output": "archify/filter-types/filter-types.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "dependency": {
+          "label": "依賴：呼叫或建立，線上寫方法"
+        },
+        "realization": {
+          "label": "實作介面"
+        }
+      }
+    }
+  },
+  "layout": {
+    "mode": "grid",
+    "typeW": 240,
+    "typeMaxW": 300,
+    "gapX": 110,
+    "gapY": 100
+  },
+  "types": [
+    {
+      "id": "handler",
+      "label": "FilterScenarioSaveHandler",
+      "kind": "class",
+      "row": 0,
+      "col": 0,
+      "sublabel": "filter.scenario.save 的處理器",
+      "methods": [
+        {
+          "name": "HandleAsync"
+        }
+      ]
+    },
+    {
+      "id": "batch",
+      "label": "FilterScenarioBatchWriter",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "internal static，協調整批寫入",
+      "methods": [
+        {
+          "name": "LoadAsync",
+          "static": true
+        },
+        {
+          "name": "PlanSave",
+          "static": true
+        },
+        {
+          "name": "PublishAsync",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "program",
+      "label": "JetAuditProgram",
+      "kind": "class",
+      "row": 0,
+      "col": 2,
+      "sublabel": "AuditCore 的規劃與收斂",
+      "methods": [
+        {
+          "name": "Plan",
+          "static": true
+        },
+        {
+          "name": "Finalize",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "storeContract",
+      "label": "IFilterScenarioStore",
+      "kind": "interface",
+      "row": 1,
+      "col": 0,
+      "sublabel": "情境定義的讀寫",
+      "methods": [
+        {
+          "name": "ListAsync"
+        },
+        {
+          "name": "ReplaceAllAsync"
+        }
+      ]
+    },
+    {
+      "id": "factsContract",
+      "label": "IFilterFactsPort",
+      "kind": "interface",
+      "row": 1,
+      "col": 1,
+      "sublabel": "執行篩選計畫",
+      "methods": [
+        {
+          "name": "ExecuteAsync"
+        }
+      ]
+    },
+    {
+      "id": "facts",
+      "label": "FilterFactsPort",
+      "kind": "class",
+      "row": 1,
+      "col": 2,
+      "sublabel": "依 action 選預覽或發布",
+      "methods": [
+        {
+          "name": "ExecuteAsync"
+        }
+      ]
+    },
+    {
+      "id": "localStore",
+      "label": "LocalFilterScenarioStore",
+      "kind": "class",
+      "row": 2,
+      "col": 0,
+      "sublabel": "SQLite 與 DuckDB 共用",
+      "methods": [
+        {
+          "name": "ListAsync"
+        },
+        {
+          "name": "ReplaceAllAsync"
+        }
+      ]
+    },
+    {
+      "id": "root",
+      "label": "AppCompositionRoot",
+      "kind": "class",
+      "row": 2,
+      "col": 1,
+      "sublabel": "建立 Local 組裝",
+      "methods": [
+        {
+          "name": "CreateLocalProjectRepositories",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "commitContract",
+      "label": "IFilterCommitRepository",
+      "kind": "interface",
+      "row": 2,
+      "col": 2,
+      "sublabel": "發布定義與命中",
+      "methods": [
+        {
+          "name": "CommitAsync"
+        }
+      ]
+    },
+    {
+      "id": "local",
+      "label": "LocalFilterCommitRepository",
+      "kind": "class",
+      "row": 3,
+      "col": 2,
+      "sublabel": "SQLite 與 DuckDB 共用",
+      "methods": [
+        {
+          "name": "CommitAsync"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "handler_batch",
+      "from": "handler",
+      "to": "batch",
+      "kind": "dependency",
+      "label": "三個靜態方法"
+    },
+    {
+      "id": "handler_store",
+      "from": "handler",
+      "to": "storeContract",
+      "kind": "dependency",
+      "label": "ListAsync"
+    },
+    {
+      "id": "batch_program",
+      "from": "batch",
+      "to": "program",
+      "kind": "dependency",
+      "label": "Plan、Finalize"
+    },
+    {
+      "id": "batch_facts",
+      "from": "batch",
+      "to": "factsContract",
+      "kind": "dependency",
+      "label": "ExecuteAsync"
+    },
+    {
+      "id": "batch_store",
+      "from": "batch",
+      "to": "storeContract",
+      "kind": "dependency",
+      "label": "ReplaceAllAsync"
+    },
+    {
+      "id": "facts_contract",
+      "from": "facts",
+      "to": "factsContract",
+      "kind": "realization"
+    },
+    {
+      "id": "facts_commit",
+      "from": "facts",
+      "to": "commitContract",
+      "kind": "dependency",
+      "label": "CommitAsync"
+    },
+    {
+      "id": "local_commit",
+      "from": "local",
+      "to": "commitContract",
+      "kind": "realization"
+    },
+    {
+      "id": "localStore_store",
+      "from": "localStore",
+      "to": "storeContract",
+      "kind": "realization"
+    },
+    {
+      "id": "root_localStore",
+      "from": "root",
+      "to": "localStore",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_facts",
+      "from": "root",
+      "to": "facts",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_local",
+      "from": "root",
+      "to": "local",
+      "kind": "dependency",
+      "label": "建立"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "怎麼分辨編譯時目標與實際類別",
+      "items": [
+        "依賴線指向介面時，Roslyn 只確定呼叫的是介面方法，例如 IFilterFactsPort.ExecuteAsync。",
+        "實際類別要看 AppCompositionRoot 的「建立」線：Local 組裝建立 FilterFactsPort、LocalFilterCommitRepository 與 LocalFilterScenarioStore，再注入使用端。",
+        "這些都是靜態證據，沒有執行期觀察；本圖不表示每次儲存都會走到每一條線。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "這張圖省略了什麼",
+      "items": [
+        "方法區只列這條流程用到的方法；完整簽章在證據頁的類別簽章資料。",
+        "SQL Server 組裝另有 SqlServerFilterCommitRepository 與 SqlServerFilterScenarioStore，開發暫緩，本圖不畫。",
+        "FilterScenarioBatchWriter 另呼叫 MappingCommitShared.AdvanceStepAsync 推進步驟，見業務流程圖。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "來源",
+      "items": [
+        "FilterScenarioHandlers.cs 第 12、39–43 行；FilterScenarioBatchWriter.cs 第 229–246 行；FilterFactsPort.cs 第 10、48 行。",
+        "LocalFilterCommitRepository.cs 第 13 行；LocalFilterScenarioStore.cs 第 6 行；AppCompositionRoot.Repositories.cs 第 57、61、134 行。"
+      ]
+    }
+  ]
+}

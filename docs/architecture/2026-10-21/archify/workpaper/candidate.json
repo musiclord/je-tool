@@ -1,0 +1,96 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "正式工作底稿：核對版本、寫暫存檔、發布新版本",
+    "subtitle": "審計員在第六步匯出時，JET 不覆寫既有底稿；發布失敗會嘗試把檔案還原",
+    "locale": "zh-TW",
+    "output": "archify/workpaper/workpaper.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": { "label": "畫面操作與回應" },
+        "backend": { "label": "JET 處理與判斷" },
+        "database": { "label": "讀寫案件資料或檔案" }
+      }
+    }
+  },
+  "lanes": [
+    { "id": "operate", "label": "審計員與畫面" },
+    { "id": "plan", "label": "規劃，不寫檔" },
+    { "id": "files", "label": "報告目錄" },
+    { "id": "fail", "label": "失敗處理", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "cancellable", "label": "可以取消", "fromCol": 0, "toCol": 3 },
+    { "id": "publish", "label": "發布後不再取消", "fromCol": 4, "toCol": 5 }
+  ],
+  "nodes": [
+    { "id": "request", "lane": "operate", "col": 0, "type": "frontend", "label": "匯出正式底稿", "sublabel": "export.workpaperStream" },
+    { "id": "versions", "lane": "plan", "col": 1, "type": "backend", "label": "核對目前版本", "sublabel": "驗證結果與情境版本" },
+    { "id": "recompute", "lane": "plan", "col": 2, "type": "database", "label": "重算選取的情境", "sublabel": "未選的照原樣保留" },
+    { "id": "facts", "lane": "plan", "col": 3, "type": "backend", "label": "建立底稿計畫", "sublabel": "Plan、facts 與 Finalize" },
+    { "id": "stage", "lane": "files", "col": 3, "type": "database", "label": "寫完暫存檔", "sublabel": "依計畫分頁讀資料列" },
+    { "id": "rename", "lane": "files", "col": 4, "type": "database", "label": "改名成新版本", "sublabel": "不覆寫同名底稿" },
+    { "id": "manifest", "lane": "files", "col": 5, "type": "database", "label": "發布檔案索引", "sublabel": "成功後寫發布留痕" },
+    { "id": "reply", "lane": "operate", "col": 5, "type": "frontend", "label": "回應產物與列數", "sublabel": "讀回最新產物清單" },
+    { "id": "reject", "lane": "fail", "col": 1, "type": "frontend", "label": "回報版本不符", "sublabel": "尚未寫任何檔案", "icon": "stop" },
+    { "id": "cleanup", "lane": "fail", "col": 3, "type": "backend", "label": "刪除本次暫存檔", "sublabel": "寫入失敗或取消" },
+    { "id": "restore", "lane": "fail", "col": 4, "type": "backend", "label": "還原已改名的檔案", "sublabel": "還原失敗會保留備份" },
+    { "id": "report", "lane": "fail", "col": 5, "type": "frontend", "label": "回報可處理的原因", "sublabel": "既有底稿沒有被覆寫", "icon": "stop" }
+  ],
+  "edges": [
+    { "id": "request_versions", "from": "request", "to": "versions" },
+    { "id": "versions_recompute", "from": "versions", "to": "recompute" },
+    { "id": "recompute_facts", "from": "recompute", "to": "facts" },
+    { "id": "facts_stage", "from": "facts", "to": "stage" },
+    { "id": "stage_rename", "from": "stage", "to": "rename" },
+    { "id": "rename_manifest", "from": "rename", "to": "manifest" },
+    { "id": "manifest_reply", "from": "manifest", "to": "reply" },
+    { "id": "versions_reject", "from": "versions", "to": "reject", "label": "不是目前版本", "role": "error" },
+    { "id": "stage_cleanup", "from": "stage", "to": "cleanup", "label": "失敗或取消", "role": "error" },
+    { "id": "cleanup_report", "from": "cleanup", "to": "report" },
+    { "id": "rename_restore", "from": "rename", "to": "restore", "label": "改名失敗", "role": "error" },
+    { "id": "manifest_restore", "from": "manifest", "to": "restore", "label": "索引失敗", "role": "error" },
+    { "id": "restore_report", "from": "restore", "to": "report" }
+  ],
+  "mainPath": ["request", "versions", "recompute", "facts", "stage", "rename", "manifest", "reply"],
+  "semanticChecks": {
+    "allowedRoots": ["request"],
+    "allowedTerminals": ["reply", "reject", "report"],
+    "requiredEdges": [
+      { "from": "versions", "to": "reject" },
+      { "from": "manifest", "to": "restore" }
+    ]
+  },
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "輸出內容的依據",
+      "items": [
+        "畫面必須送來驗證結果編號、情境版本與選取的情境位置；任一和資料庫不符就停止，不寫檔。",
+        "只重算這次選取的情境，未選的情境照原樣保留，回應裡的 filterResultsCurrent 也不會因此變成全案已更新。",
+        "審計員不能指定任意輸出路徑或工作表；檔名由 JET 依案件與時間產生。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "檔案與索引的界線",
+      "items": [
+        "全部暫存檔寫完後，才在改名前最後一次檢查取消；之後的索引發布用 CancellationToken.None。",
+        "正式底稿每次都是新檔名；遇到同名檔就拒絕，原檔保留。改名或索引失敗會嘗試還原，還原失敗時回錯誤並保留備份或新檔。",
+        "這不是跨程序當機也成立的檔案系統交易。發布成功後的留痕由 AuditedReportArtifactStore 寫入，失敗只記診斷。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "讀圖範圍與來源",
+      "items": [
+        "這是固定快照的靜態整理，沒有啟動 Excel，也沒有產生案件底稿。",
+        "ExportWorkpaperStreamHandler.cs 第 41–205 行；ProjectReportArtifactStore.cs 第 212–343 行。",
+        "AuditedReportArtifactStore.cs 第 38–54、112–130 行；WorkpaperPlanningFactsPort.cs 第 17–60 行。"
+      ]
+    }
+  ]
+}

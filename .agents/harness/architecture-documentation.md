@@ -1,7 +1,7 @@
 # JET 架構文件的分析與繪圖
 
 這份流程讓不同 agent 使用同一份來源證據繪圖。閱讀入口在[架構文件](../../docs/architecture/README.md)，
-目前工作範圍與計畫入口見[開發現況](../../docs/development-status.md)。既有圖表的研究與交付範圍見[架構文件計畫](../../docs/history/specs/2026-10-16-architecture-documentation-plan.md)，不把該次成果當成持續開發的授權。
+目前工作範圍與計畫入口見[開發現況](../../docs/development-status.md)。既有圖表的研究、重繪與交付範圍見[架構文件計畫](../../docs/specs/2026-10-16-architecture-documentation-plan.md)，不把該次成果當成持續開發的授權。
 
 ## 工具分工
 
@@ -49,20 +49,39 @@ Agent 從前端 action 追到 handler、介面、組裝、資料庫與回應，�
 ## 產圖與檢查
 
 1. LikeC4 與 Archify 引用同一批已核對事實。總覽可以彙整多條關係，但保留回查細節的方式。
-2. LikeC4 修改模型後執行模型檢查，再輸出離線 HTML。既有可編輯來源是[jet.c4](../../docs/architecture/2026-10-16/likec4/jet.c4)。
+2. LikeC4 修改模型後執行模型檢查，再輸出離線 HTML。現行可編輯來源是[jet.c4](../../docs/architecture/2026-10-21/likec4/jet.c4)，
+   每條關係以 `metadata { evidence '識別碼' }` 對應連線證據。
 3. Archify 先讀實際安裝版本的 SKILL.md、相關 schema 與例子。修改候選 JSON，使用 finalize 產生與檢查，
-   再實際查看圖面；不要直接修產生的 HTML。原圖在[圖表目錄](../../docs/architecture/2026-10-16/archify/)。
-4. 新成果用新目錄保存。發布前清除匯出檔內的本機絕對路徑，來源連結改用包內相對位置；模型與圖表內容不因此改寫。
+   再實際查看圖面；不要直接修產生的 HTML。現行圖在[圖表目錄](../../docs/architecture/2026-10-21/archify/)。
+4. `docs/architecture/` 只保留一個圖表目錄，以重繪日期命名，目前是 `docs/architecture/2026-10-21/`。依使用者 2026-10-21 的裁定，
+   重繪成果取代這個目錄，不保留舊目錄；前一版留在 Git 歷史。目錄改名後，同步更新政策檔與文件裡的連結。發布前清除匯出檔內的本機絕對路徑，來源連結改用包內相對位置；模型與圖表內容不因此改寫。
    核對本機連結、離線載入、來源引用，以及不同圖表是否對同一個事實作出矛盾說明。
 5. 執行正式 Documentation，再完整閱讀改動段落。驗證記錄留在本機收據，文件只寫有效結論與邊界。
 
-現有[圖表檢查](../../tools/harness/architecture/Check-Architecture.ps1)已納入 Documentation。
-它保護固定包的檔案與 17 組類別關係，並以[合成反例](../../tools/tests/architecture-evidence.tests.ps1)檢查分類。
-它還不能自動驗證所有 LikeC4 關係、循序條件、業務文字及測試觀察；沒有通過這些檢查的資料不能標成已受完整檢查保護。
+線型要對應證據種類，兩種工具用同一套分類：
+
+| 證據種類 | 依據 | Archify 循序圖 | LikeC4 關係 |
+|:---|:---|:---|:---|
+| 直接呼叫 | Roslyn 的呼叫，編譯時目標是具體方法。 | 不設 variant | `calls` |
+| 介面呼叫 | Roslyn 的呼叫只確定介面方法；畫出實作類別時，另附實作紀錄與 AppCompositionRoot 的建立位置。 | `dashed` | `viaInterface` |
+| 間接觸發 | action 字串、WebMessage、委派或延遲串流；附已核對事實。 | `emphasis` | `indirect` |
+| 回傳 | 對應同一張圖裡方向相反的呼叫。 | `return` | 不使用 |
+| 實作、建立、資料讀寫與使用 | 實作或繼承紀錄、AppCompositionRoot 的建立位置，或已核對事實。 | 不使用 | `implements`、`injects`、`data`、`uses` |
+
+業務流程、資料流、部署與資料表關聯圖的每條線，綁定到已核對事實。類別圖的依賴線上寫的方法，要出現在 Roslyn 證據裡；
+只在組裝時才決定的對象，不畫成編譯時依賴，改用 AppCompositionRoot 的「建立」線與卡片說明。
+
+連線證據的規格放在本機工作目錄，由 [`package-redraw.py`](../../tools/harness/architecture/package-redraw.py) 解析 Roslyn 紀錄並封裝成
+`evidence/connection-evidence.json`，全部通過後才取代圖表目錄；找不到證據、線型和證據種類不符或有線沒有綁定時，封裝直接停止，圖表目錄維持原樣。
+
+[圖表檢查](../../tools/harness/architecture/Check-Architecture.ps1)已納入 Documentation，並以[合成反例](../../tools/tests/architecture-evidence.tests.ps1)檢查分類。
+它保護圖表目錄的檔案與來源雜湊，並檢查每條線都有證據、類別關係符合 Roslyn 紀錄、
+線型和證據種類一致、回傳對應到呼叫、事實引用存在，以及匯出檔沒有本機路徑。
+它不能證明業務結果正確，也不比對 LikeC4 動態視圖與 Archify 循序圖的步驟順序；沒有通過這些檢查的內容不能標成已受完整檢查保護。
 
 ## 後續補強
 
-重繪新圖時，將圖中重要連線逐條綁定到共同關係資料，再擴充現有檢查。
+LikeC4 動態視圖與 Archify 循序圖描述同一流程時，後續可補上逐步對照的檢查。
 缺少來源、來源變動、關係種類不符，以及沒有觀察卻聲稱已執行，都應明確失敗。
 檢查器新增能力時也新增獨立合成反例，不把由圖表反推的資料當成正確答案。
 

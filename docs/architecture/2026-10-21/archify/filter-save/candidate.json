@@ -1,0 +1,278 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "儲存篩選情境：檢查、整批判斷與兩種寫法",
+    "subtitle": "審計員在第五步按「儲存」之後，JET 依整批是否合格決定發布命中或只寫定義",
+    "locale": "zh-TW",
+    "output": "archify/filter-save/filter-save.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": {
+          "label": "畫面操作與回應"
+        },
+        "backend": {
+          "label": "JET 檢查與判斷"
+        },
+        "database": {
+          "label": "寫入案件資料庫"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "operate",
+      "label": "審計員與畫面"
+    },
+    {
+      "id": "check",
+      "label": "儲存前檢查"
+    },
+    {
+      "id": "valid",
+      "label": "整批合格：發布"
+    },
+    {
+      "id": "invalid",
+      "label": "仍有情境要修改"
+    },
+    {
+      "id": "stop",
+      "label": "不寫入",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "before",
+      "label": "只讀取，不寫入",
+      "fromCol": 0,
+      "toCol": 3
+    },
+    {
+      "id": "write",
+      "label": "同一筆交易",
+      "fromCol": 4,
+      "toCol": 4
+    },
+    {
+      "id": "after",
+      "label": "提交之後",
+      "fromCol": 5,
+      "toCol": 5
+    }
+  ],
+  "nodes": [
+    {
+      "id": "request",
+      "lane": "operate",
+      "col": 0,
+      "type": "frontend",
+      "label": "按下儲存",
+      "sublabel": "filter.scenario.save"
+    },
+    {
+      "id": "load",
+      "lane": "check",
+      "col": 1,
+      "type": "backend",
+      "label": "確認前置資料",
+      "sublabel": "驗證是目前版本，GL 已配對"
+    },
+    {
+      "id": "rules",
+      "lane": "check",
+      "col": 2,
+      "type": "backend",
+      "label": "檢查本次情境",
+      "sublabel": "位置、名稱與儲存規則"
+    },
+    {
+      "id": "decide",
+      "lane": "check",
+      "col": 3,
+      "type": "backend",
+      "label": "整批都合格？",
+      "sublabel": "PlanWrite",
+      "icon": "decision"
+    },
+    {
+      "id": "commit",
+      "lane": "valid",
+      "col": 4,
+      "type": "database",
+      "label": "發布定義與命中",
+      "sublabel": "篩選結果改為目前"
+    },
+    {
+      "id": "advance",
+      "lane": "valid",
+      "col": 5,
+      "type": "backend",
+      "label": "推進到第五步",
+      "sublabel": "步驟落後才更新"
+    },
+    {
+      "id": "defs",
+      "lane": "invalid",
+      "col": 4,
+      "type": "database",
+      "label": "只寫情境定義",
+      "sublabel": "清除命中並標成失效"
+    },
+    {
+      "id": "needs",
+      "lane": "invalid",
+      "col": 5,
+      "type": "backend",
+      "label": "標示待修情境",
+      "sublabel": "needsEdit"
+    },
+    {
+      "id": "reply",
+      "lane": "operate",
+      "col": 5,
+      "type": "frontend",
+      "label": "讀回權威狀態",
+      "sublabel": "情境清單與失效狀態"
+    },
+    {
+      "id": "reject",
+      "lane": "stop",
+      "col": 1,
+      "type": "backend",
+      "label": "回錯誤，不寫入",
+      "sublabel": "本次修改未儲存",
+      "icon": "stop"
+    }
+  ],
+  "edges": [
+    {
+      "id": "request_load",
+      "from": "request",
+      "to": "load"
+    },
+    {
+      "id": "load_rules",
+      "from": "load",
+      "to": "rules"
+    },
+    {
+      "id": "rules_decide",
+      "from": "rules",
+      "to": "decide"
+    },
+    {
+      "id": "load_reject",
+      "from": "load",
+      "to": "reject",
+      "label": "前置不符",
+      "role": "error"
+    },
+    {
+      "id": "rules_reject",
+      "from": "rules",
+      "to": "reject",
+      "label": "本次不合格",
+      "role": "error"
+    },
+    {
+      "id": "decide_commit",
+      "from": "decide",
+      "to": "commit",
+      "label": "是",
+      "role": "branch"
+    },
+    {
+      "id": "decide_defs",
+      "from": "decide",
+      "to": "defs",
+      "label": "否",
+      "role": "branch"
+    },
+    {
+      "id": "commit_advance",
+      "from": "commit",
+      "to": "advance"
+    },
+    {
+      "id": "advance_reply",
+      "from": "advance",
+      "to": "reply"
+    },
+    {
+      "id": "defs_needs",
+      "from": "defs",
+      "to": "needs"
+    },
+    {
+      "id": "needs_reply",
+      "from": "needs",
+      "to": "reply"
+    }
+  ],
+  "mainPath": [
+    "request",
+    "load",
+    "rules",
+    "decide",
+    "commit",
+    "advance",
+    "reply"
+  ],
+  "semanticChecks": {
+    "allowedRoots": [
+      "request"
+    ],
+    "allowedTerminals": [
+      "reply",
+      "reject"
+    ],
+    "requiredEdges": [
+      {
+        "from": "decide",
+        "to": "commit"
+      },
+      {
+        "from": "decide",
+        "to": "defs"
+      },
+      {
+        "from": "rules",
+        "to": "reject"
+      }
+    ]
+  },
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "只檢查本次，整批再判斷",
+      "items": [
+        "儲存只用儲存規則檢查正在編輯的情境；其他已存情境照原內容保留，不重新檢查。",
+        "位置留空是新增或另存，加在清單最後；指定位置是取代，畫面送來的名稱必須和資料庫那一筆相同。",
+        "PlanWrite 再判斷整批能否一起計算命中，決定走發布或只寫定義。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "兩種寫法的差別",
+      "items": [
+        "整批合格：FilterFactsPort 經 IFilterCommitRepository 在同一交易取代定義並以 SQL 產生命中，篩選結果改為目前。",
+        "仍有情境要修改：IFilterScenarioStore 在同一交易只寫定義、清除命中並標成失效，回應狀態是 needsEdit。",
+        "兩條路都在提交後以 CancellationToken.None 讀回情境清單與失效狀態。發布後案件步驟落後才推進到第五步，推進失敗只記警告。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "讀圖範圍與來源",
+      "items": [
+        "這是固定快照的靜態整理，條件來自程式，沒有執行業務流程。",
+        "FilterScenarioBatchWriter.cs 第 47–94、100–178、197–289 行；MappingHandlers.cs 第 360–383 行；FilterScenario.cs 第 91 行。",
+        "前置不符的情況包含驗證結果不是目前版本、找不到案件與尚未確認 GL 欄位配對。"
+      ]
+    }
+  ]
+}

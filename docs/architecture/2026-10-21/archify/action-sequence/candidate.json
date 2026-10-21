@@ -1,0 +1,292 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "篩選情境儲存：從按下儲存到資料庫交易",
+    "locale": "zh-TW",
+    "output": "archify/action-sequence/action-sequence.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "default": {
+          "label": "直接呼叫：編譯時目標是具體方法"
+        },
+        "dashed": {
+          "label": "介面呼叫：實作依組裝推論，未觀察執行"
+        },
+        "emphasis": {
+          "label": "間接觸發：action 字串或延遲串流"
+        },
+        "return": {
+          "label": "回傳"
+        }
+      }
+    }
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "第五步畫面",
+      "sublabel": "JetApi"
+    },
+    {
+      "id": "bridge",
+      "type": "backend",
+      "label": "WebMessage 橋接",
+      "sublabel": "JetWebMessageBridge"
+    },
+    {
+      "id": "dispatcher",
+      "type": "backend",
+      "label": "依 action 派送",
+      "sublabel": "ActionDispatcher"
+    },
+    {
+      "id": "handler",
+      "type": "backend",
+      "label": "情境儲存處理",
+      "sublabel": "FilterScenarioSaveHandler"
+    },
+    {
+      "id": "batch",
+      "type": "backend",
+      "label": "整批規劃與發布",
+      "sublabel": "FilterScenarioBatchWriter"
+    },
+    {
+      "id": "facts",
+      "type": "backend",
+      "label": "篩選執行",
+      "sublabel": "FilterFactsPort"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "案件資料庫",
+      "sublabel": "SQLite 或 DuckDB"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 372,
+      "label": "共用派送：每個 action 都經過"
+    },
+    {
+      "from": 380,
+      "to": 700,
+      "label": "讀取與檢查：不符時回錯誤，不寫入"
+    },
+    {
+      "from": 708,
+      "to": 958,
+      "label": "分支 A：整批合格，write.AllValid 為真"
+    },
+    {
+      "from": 966,
+      "to": 1106,
+      "label": "分支 B：仍有情境不合格"
+    },
+    {
+      "from": 1114,
+      "to": 1380,
+      "label": "提交之後：改用 CancellationToken.None"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m01",
+      "from": "ui",
+      "to": "bridge",
+      "y": 180,
+      "label": "filter.scenario.save",
+      "variant": "emphasis",
+      "note": "postMessage 送出 requestId 與 payload"
+    },
+    {
+      "id": "m02",
+      "from": "bridge",
+      "to": "dispatcher",
+      "y": 250,
+      "label": "DispatchAsync",
+      "note": "在可取消的 RunAsync 內執行"
+    },
+    {
+      "id": "m03",
+      "from": "dispatcher",
+      "to": "handler",
+      "y": 320,
+      "label": "IApplicationActionHandler.HandleAsync",
+      "variant": "dashed",
+      "note": "依 action 字串查表；變更型作業同時只執行一項，在背景執行"
+    },
+    {
+      "id": "m04",
+      "from": "handler",
+      "to": "batch",
+      "y": 410,
+      "label": "LoadAsync",
+      "note": "要求目前驗證結果與 GL 配對"
+    },
+    {
+      "id": "m05",
+      "from": "handler",
+      "to": "db",
+      "y": 480,
+      "label": "IFilterScenarioStore.ListAsync",
+      "variant": "dashed",
+      "note": "LocalFilterScenarioStore 讀出已存情境，照原樣保留"
+    },
+    {
+      "id": "m06",
+      "from": "db",
+      "to": "handler",
+      "y": 550,
+      "label": "已存情境",
+      "variant": "return"
+    },
+    {
+      "id": "m07",
+      "from": "handler",
+      "to": "batch",
+      "y": 590,
+      "label": "PlanSave",
+      "note": "只檢查本次情境的上限、位置、名稱與規則"
+    },
+    {
+      "id": "m08",
+      "from": "handler",
+      "to": "batch",
+      "y": 660,
+      "label": "PublishAsync",
+      "note": "PlanWrite 判斷整批是否合格"
+    },
+    {
+      "id": "m09",
+      "from": "batch",
+      "to": "facts",
+      "y": 740,
+      "label": "IFilterFactsPort.ExecuteAsync",
+      "variant": "dashed",
+      "note": "先以 JetAuditProgram.Plan 建立計畫"
+    },
+    {
+      "id": "m10",
+      "from": "facts",
+      "to": "db",
+      "y": 810,
+      "label": "IFilterCommitRepository.CommitAsync",
+      "variant": "dashed",
+      "note": "LocalFilterCommitRepository：同一交易取代定義並以 SQL 產生命中"
+    },
+    {
+      "id": "m11",
+      "from": "db",
+      "to": "facts",
+      "y": 880,
+      "label": "已提交",
+      "variant": "return",
+      "note": "提交前檢查取消"
+    },
+    {
+      "id": "m12",
+      "from": "facts",
+      "to": "batch",
+      "y": 920,
+      "label": "FilterFacts",
+      "variant": "return"
+    },
+    {
+      "id": "m13",
+      "from": "batch",
+      "to": "db",
+      "y": 1000,
+      "label": "IFilterScenarioStore.ReplaceAllAsync",
+      "variant": "dashed",
+      "note": "LocalFilterScenarioStore：同一交易標記失效、清除命中、只寫定義"
+    },
+    {
+      "id": "m14",
+      "from": "db",
+      "to": "batch",
+      "y": 1070,
+      "label": "已提交",
+      "variant": "return"
+    },
+    {
+      "id": "m15",
+      "from": "batch",
+      "to": "handler",
+      "y": 1150,
+      "label": "情境、命中版本與失效狀態",
+      "variant": "return",
+      "note": "以 None 讀回權威狀態"
+    },
+    {
+      "id": "m16",
+      "from": "handler",
+      "to": "dispatcher",
+      "y": 1220,
+      "label": "回應物件",
+      "variant": "return"
+    },
+    {
+      "id": "m17",
+      "from": "dispatcher",
+      "to": "bridge",
+      "y": 1260,
+      "label": "回應物件",
+      "variant": "return",
+      "note": "例外改回固定錯誤碼"
+    },
+    {
+      "id": "m18",
+      "from": "bridge",
+      "to": "ui",
+      "y": 1330,
+      "label": "PostWebMessageAsJson",
+      "variant": "return",
+      "note": "依 requestId 完成 Promise"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "情境與前提",
+      "items": [
+        "審計員在第五步按「儲存」，畫面送出本次情境、位置與畫面上的名稱。",
+        "前提：案件已載入並使用 SQLite 或 DuckDB，也就是 Local 組裝；驗證結果是目前版本，GL 欄位配對已確認。",
+        "分支 A 與 B 只會發生一條，由 PlanWrite 對整批情境的判斷決定。本圖沒有觀察實際執行。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "線條怎麼讀",
+      "items": [
+        "實線：Roslyn 在固定快照的編譯設定下，確認這行呼叫繫結到箭頭指向的類別方法。",
+        "虛線：編譯時只確定介面方法，實際類別依組裝而定；註解寫的是 Local 組裝注入的類別。",
+        "強調色：JavaScript 的 WebMessage 經 action 字串送到 C#，編譯器看不到這段的目標。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "實作與組裝",
+      "items": [
+        "第 3 條由 action 字串查到 FilterScenarioSaveHandler，它實作 IApplicationActionHandler。",
+        "Local 組裝注入 LocalFilterCommitRepository 與 LocalFilterScenarioStore；兩種組裝都注入 FilterFactsPort。SQL Server 組裝改用 SqlServer 開頭的類別，開發暫緩，本圖不畫。",
+        "分支 A 的 PublishAsync 依序直接呼叫 JetAuditProgram.Plan、IFilterFactsPort.ExecuteAsync 與 JetAuditProgram.Finalize；發布的情境數大於 0 才推進到第五步。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "沒有畫出的路徑與來源",
+      "items": [
+        "前置不符或本次情境不合格時，FilterScenarioBatchWriter 丟出錯誤，不會寫入；細節見篩選儲存的業務流程圖。提交後推進步驟失敗只記警告。",
+        "FilterScenarioHandlers.cs 第 27–45 行；FilterScenarioBatchWriter.cs 第 47–94、100–178、197–289 行；FilterFactsPort.cs 第 14–56 行。",
+        "LocalFilterCommitRepository.cs 第 26–75 行；LocalFilterScenarioStore.cs 第 8–67 行。每條線的證據列在入口的「連線證據」頁。"
+      ]
+    }
+  ]
+}

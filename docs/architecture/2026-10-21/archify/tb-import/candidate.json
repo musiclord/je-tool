@@ -1,0 +1,92 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "TB 取代匯入：先讀標頭，再在同一交易換掉資料",
+    "subtitle": "審計員選檔後，JET 先讀完標頭才開始寫入；提交之後才更新步驟與留痕",
+    "locale": "zh-TW",
+    "output": "archify/tb-import/tb-import.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": { "label": "畫面操作與回應" },
+        "backend": { "label": "JET 處理與判斷" },
+        "database": { "label": "寫入案件資料庫" }
+      }
+    }
+  },
+  "lanes": [
+    { "id": "operate", "label": "審計員與畫面" },
+    { "id": "prepare", "label": "準備，不寫入" },
+    { "id": "tx", "label": "同一筆資料庫交易" },
+    { "id": "after", "label": "提交之後" },
+    { "id": "fail", "label": "失敗或取消", "variant": "exception" }
+  ],
+  "nodes": [
+    { "id": "request", "lane": "operate", "col": 0, "type": "frontend", "label": "選檔並匯入 TB", "sublabel": "import.tb.fromFile" },
+    { "id": "plan", "lane": "prepare", "col": 1, "type": "backend", "label": "建立匯入計畫", "sublabel": "沒帶 mode 就取代" },
+    { "id": "headers", "lane": "prepare", "col": 2, "type": "backend", "label": "先讀完所有標頭", "sublabel": "資料列只建立串流" },
+    { "id": "clear", "lane": "tx", "col": 2, "type": "database", "label": "刪除舊 TB 與下游", "sublabel": "依 AuditDependencyPolicy" },
+    { "id": "write", "lane": "tx", "col": 3, "type": "database", "label": "串流寫入新批次", "sublabel": "資料列與欄位定義" },
+    { "id": "commit", "lane": "tx", "col": 4, "type": "database", "label": "提交交易", "sublabel": "提交前最後檢查取消" },
+    { "id": "step", "lane": "after", "col": 4, "type": "backend", "label": "更新案件步驟", "sublabel": "落後才更新，失敗只記警告" },
+    { "id": "audit", "lane": "after", "col": 5, "type": "database", "label": "記錄重新匯入", "sublabel": "留痕失敗只記診斷" },
+    { "id": "reply", "lane": "operate", "col": 5, "type": "frontend", "label": "回應批次摘要", "sublabel": "列數、提醒與失效狀態" },
+    { "id": "rollback", "lane": "fail", "col": 3, "type": "backend", "label": "嘗試回復交易", "sublabel": "記下回復是否失敗" },
+    { "id": "error", "lane": "fail", "col": 5, "type": "frontend", "label": "回報失敗或取消", "sublabel": "本次匯入未提交", "icon": "stop" }
+  ],
+  "edges": [
+    { "id": "request_plan", "from": "request", "to": "plan" },
+    { "id": "plan_headers", "from": "plan", "to": "headers" },
+    { "id": "headers_clear", "from": "headers", "to": "clear" },
+    { "id": "clear_write", "from": "clear", "to": "write" },
+    { "id": "write_commit", "from": "write", "to": "commit" },
+    { "id": "commit_step", "from": "commit", "to": "step" },
+    { "id": "step_audit", "from": "step", "to": "audit", "label": "已有舊批次", "role": "branch" },
+    { "id": "step_reply", "from": "step", "to": "reply", "label": "第一次匯入", "role": "branch" },
+    { "id": "audit_reply", "from": "audit", "to": "reply" },
+    { "id": "headers_error", "from": "headers", "to": "error", "label": "標頭或選項錯誤", "role": "error" },
+    { "id": "write_rollback", "from": "write", "to": "rollback", "label": "例外或取消", "role": "error" },
+    { "id": "rollback_error", "from": "rollback", "to": "error" }
+  ],
+  "mainPath": ["request", "plan", "headers", "clear", "write", "commit", "step", "audit", "reply"],
+  "semanticChecks": {
+    "allowedRoots": ["request"],
+    "allowedTerminals": ["reply", "error"],
+    "requiredEdges": [
+      { "from": "headers", "to": "clear" },
+      { "from": "write", "to": "rollback" },
+      { "from": "commit", "to": "step" }
+    ]
+  },
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "取代 TB 會清掉什麼",
+      "items": [
+        "舊的 TB 批次、資料列與欄位定義；已確認的 TB 欄位配對先移到上一版紀錄再刪除。",
+        "依 AuditDependencyPolicy：驗證、預篩選、篩選命中、全部已存篩選情境定義，以及科目配對。",
+        "保留：分類定義與 GL 控制總數。以上都和新資料寫在同一筆交易。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "提交界線",
+      "items": [
+        "寫入途中的例外或取消會嘗試回復交易，並記下回復本身是否失敗；不能讀成任何故障都一定回復成功。",
+        "提交之後更新步驟與寫留痕都用 CancellationToken.None，失敗只記警告或診斷，已提交的匯入不撤回。",
+        "留痕只在這次取代了既有批次時寫；第一次匯入沒有舊批次可取代。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "讀圖範圍與來源",
+      "items": [
+        "這是固定快照的靜態整理，畫的是 SQLite 或 DuckDB 的 Local 組裝；追加匯入與 SQL Server 不在圖內。本次沒有執行匯入。",
+        "ImportFromFileHandler.cs 第 43–199、386–394 行；LocalImportRepository.cs 第 30–236 行；LocalMappingStateStore.cs 第 59–75 行。",
+        "AuditDependencyPolicy.cs 第 40–65 行；RuleRunResultReset.cs 第 30–99 行；BestEffortProjectAuditLog.cs 第 12–26 行。"
+      ]
+    }
+  ]
+}

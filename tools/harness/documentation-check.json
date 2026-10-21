@@ -1,10 +1,11 @@
 {
   "schemaVersion": 2,
-  "architectureManifest": "docs/architecture/2026-10-16/manifest.json",
+  "architectureManifest": "docs/architecture/2026-10-21/manifest.json",
   "files": [
     ".agents/harness/architecture-documentation.md",
     "docs/architecture/README.md",
-    "docs/architecture/2026-10-16/README.md",
+    "docs/architecture/2026-10-21/README.md",
+    "docs/specs/2026-10-16-architecture-documentation-plan.md",
     "docs/history/specs/2026-10-16-table-pagination-and-agent-docs-plan.md",
     "docs/history/specs/2026-10-19-cross-database-consistency-plan.md",
     "docs/history/specs/2026-10-19-deferred-items-cleanup-plan.md",

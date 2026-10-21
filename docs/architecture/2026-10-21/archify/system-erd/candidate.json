@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "SQLite：結果版本與操作紀錄",
+    "subtitle": "這些表各自獨立，沒有程式層的連接欄位；用途是版本、失效狀態與留痕",
+    "locale": "zh-TW",
+    "output": "archify/system-erd/system-erd.html",
+    "quality_profile": "standard",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "pk": {
+          "label": "主鍵"
+        },
+        "uk": {
+          "label": "唯一約束或唯一索引"
+        },
+        "many": {
+          "label": "多筆"
+        },
+        "one": {
+          "label": "一筆"
+        },
+        "optional": {
+          "label": "可以沒有對應"
+        }
+      }
+    }
+  },
+  "layout": {
+    "mode": "grid",
+    "gapX": 120,
+    "gapY": 70,
+    "entityW": 340
+  },
+  "entities": [
+    {
+      "id": "schema_info",
+      "label": "schema_info",
+      "row": 0,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "key",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "value",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "執行與版本",
+      "sublabel": "結構版本與篩選資料版本"
+    },
+    {
+      "id": "result_rule_run",
+      "label": "result_rule_run",
+      "row": 1,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "run_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "run_kind",
+          "type": "TEXT"
+        },
+        {
+          "name": "generated_utc",
+          "type": "TEXT"
+        },
+        {
+          "name": "summary_json",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "執行與版本",
+      "sublabel": "驗證與預篩選的執行摘要"
+    },
+    {
+      "id": "config_result_stale_state",
+      "label": "config_result_stale_state",
+      "row": 2,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "singleton",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "validation_stale",
+          "type": "INTEGER"
+        },
+        {
+          "name": "prescreen_stale",
+          "type": "INTEGER"
+        },
+        {
+          "name": "filter_stale",
+          "type": "INTEGER"
+        }
+      ],
+      "tag": "執行與版本",
+      "sublabel": "三種結果是否失效"
+    },
+    {
+      "id": "app_message_log",
+      "label": "app_message_log",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "message_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "occurred_utc",
+          "type": "TEXT"
+        },
+        {
+          "name": "level",
+          "type": "TEXT"
+        },
+        {
+          "name": "text",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "操作紀錄",
+      "sublabel": "畫面訊息紀錄"
+    },
+    {
+      "id": "audit_event_log",
+      "label": "audit_event_log",
+      "row": 1,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "event_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "occurred_utc",
+          "type": "TEXT"
+        },
+        {
+          "name": "operation",
+          "type": "TEXT"
+        },
+        {
+          "name": "target_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "target_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "subject_count",
+          "type": "INTEGER"
+        },
+        {
+          "name": "replaced_count",
+          "type": "INTEGER"
+        }
+      ],
+      "tag": "操作紀錄",
+      "sublabel": "重新匯入、發布等操作留痕"
+    }
+  ],
+  "relationships": [],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "這些表怎麼被用到",
+      "items": [
+        "上游資料修改時，RuleRunResultReset 在同一交易標記 config_result_stale_state，並把 schema_info 的 filter_data_revision 加一。",
+        "audit_event_log 由 IProjectAuditLog 寫入，例如 TB 重新匯入與報告發布；Local 組裝寫入失敗只記診斷。",
+        "來源：RuleRunResultReset.cs 第 37–88 行；AuditedReportArtifactStore.cs 第 112–130 行；ImportFromFileHandler.cs 第 171–182 行。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "線條不是資料庫外鍵",
+      "items": [
+        "這批 SQLite 建表定義沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。",
+        "沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 27 張表，欄位含各版升級新增的欄位。",
+        "PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。"
+      ]
+    }
+  ]
+}

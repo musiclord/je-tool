@@ -1,0 +1,4058 @@
+[
+  {
+    "diagram": "action-sequence",
+    "connection": "m01",
+    "fromLabel": "第五步畫面（JetApi）",
+    "toLabel": "WebMessage 橋接（JetWebMessageBridge）",
+    "label": "filter.scenario.save",
+    "kind": "indirect",
+    "execution": "not-observed",
+    "facts": [
+      "bridge",
+      "frontend"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m02",
+    "fromLabel": "WebMessage 橋接（JetWebMessageBridge）",
+    "toLabel": "依 action 派送（ActionDispatcher）",
+    "label": "DispatchAsync",
+    "kind": "calls",
+    "execution": "not-observed",
+    "members": [
+      "DispatchAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Bridge.JetWebMessageBridge.OnWebMessageReceived(System.Object,Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs)::local:@src/JET/JET/Bridge/JetWebMessageBridge.cs:1669",
+        "target": "M:JET.Bridge.ActionDispatcher.DispatchAsync(System.String,System.Text.Json.JsonElement,System.Threading.CancellationToken,System.String)",
+        "targetDisplay": "JET.Bridge.ActionDispatcher.DispatchAsync(string, System.Text.Json.JsonElement, System.Threading.CancellationToken, string?)",
+        "targetType": "JET.Bridge.ActionDispatcher",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Bridge/JetWebMessageBridge.cs",
+          "line": 56,
+          "endLine": 60,
+          "column": 38
+        },
+        "excerpt": "src/JET/JET/Bridge/JetWebMessageBridge.cs:56-60"
+      }
+    ],
+    "facts": [
+      "bridge"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m03",
+    "fromLabel": "依 action 派送（ActionDispatcher）",
+    "toLabel": "情境儲存處理（FilterScenarioSaveHandler）",
+    "label": "IApplicationActionHandler.HandleAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "HandleAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Bridge.ActionDispatcher.HandleWithRetentionAsync(JET.Application.IApplicationActionHandler,System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Application.IApplicationActionHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Application.IApplicationActionHandler.HandleAsync(System.Text.Json.JsonElement, System.Threading.CancellationToken)",
+        "targetType": "JET.Application.IApplicationActionHandler",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
+          "line": 161,
+          "endLine": 161,
+          "column": 26
+        },
+        "excerpt": "src/JET/JET/Bridge/ActionDispatcher.cs:161-161"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Application.FilterScenarioSaveHandler",
+        "target": "T:JET.Application.IApplicationActionHandler",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 12,
+          "endLine": 46,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:12-18"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Application.FilterScenarioSaveHandler.#ctor(JET.Domain.IProjectStore,JET.Application.ProjectSession,Microsoft.Extensions.Logging.ILogger)",
+        "targetDisplay": "JET.Application.FilterScenarioSaveHandler.FilterScenarioSaveHandler(JET.Domain.IProjectStore, JET.Application.ProjectSession, Microsoft.Extensions.Logging.ILogger?)",
+        "targetType": "JET.Application.FilterScenarioSaveHandler",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 376,
+          "endLine": 376,
+          "column": 13
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:376-376"
+      }
+    ],
+    "facts": [
+      "bridge",
+      "action-policy"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m04",
+    "fromLabel": "情境儲存處理（FilterScenarioSaveHandler）",
+    "toLabel": "整批規劃與發布（FilterScenarioBatchWriter）",
+    "label": "LoadAsync",
+    "kind": "calls",
+    "execution": "not-observed",
+    "members": [
+      "LoadAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioSaveHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Application.FilterScenarioBatchWriter.LoadAsync(JET.Domain.IProjectStore,System.String,JET.Application.FilterScenarioStores,System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Application.FilterScenarioBatchWriter.LoadAsync(JET.Domain.IProjectStore, string, JET.Application.FilterScenarioStores, System.Text.Json.JsonElement, System.Threading.CancellationToken)",
+        "targetType": "JET.Application.FilterScenarioBatchWriter",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 39,
+          "endLine": 39,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:39-39"
+      }
+    ],
+    "facts": [
+      "filter-preconditions"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m05",
+    "fromLabel": "情境儲存處理（FilterScenarioSaveHandler）",
+    "toLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "label": "IFilterScenarioStore.ListAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ListAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioSaveHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IFilterScenarioStore.ListAsync(System.String,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IFilterScenarioStore.ListAsync(string, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IFilterScenarioStore",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 40,
+          "endLine": 40,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:40-40"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.LocalFilterScenarioStore",
+        "target": "T:JET.Domain.IFilterScenarioStore",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterScenarioStore.cs",
+          "line": 6,
+          "endLine": 100,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterScenarioStore.cs:6-12"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.LocalFilterScenarioStore.#ctor(JET.Infrastructure.ILocalProjectDatabase)",
+        "targetDisplay": "JET.Infrastructure.LocalFilterScenarioStore.LocalFilterScenarioStore(JET.Infrastructure.ILocalProjectDatabase)",
+        "targetType": "JET.Infrastructure.LocalFilterScenarioStore",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 57,
+          "endLine": 57,
+          "column": 31
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:57-57"
+      }
+    ],
+    "facts": [
+      "filter-preconditions"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m06",
+    "fromLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "toLabel": "情境儲存處理（FilterScenarioSaveHandler）",
+    "label": "已存情境",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m05",
+    "facts": []
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m07",
+    "fromLabel": "情境儲存處理（FilterScenarioSaveHandler）",
+    "toLabel": "整批規劃與發布（FilterScenarioBatchWriter）",
+    "label": "PlanSave",
+    "kind": "calls",
+    "execution": "not-observed",
+    "members": [
+      "PlanSave"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioSaveHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Application.FilterScenarioBatchWriter.PlanSave(JET.Application.FilterScenarioBatchWriter.Prepared,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario},System.Text.Json.JsonElement,System.DateTimeOffset)",
+        "targetDisplay": "JET.Application.FilterScenarioBatchWriter.PlanSave(JET.Application.FilterScenarioBatchWriter.Prepared, System.Collections.Generic.IReadOnlyList<JET.Domain.SavedFilterScenario>, System.Text.Json.JsonElement, System.DateTimeOffset)",
+        "targetType": "JET.Application.FilterScenarioBatchWriter",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 42,
+          "endLine": 42,
+          "column": 22
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:42-42"
+      }
+    ],
+    "facts": [
+      "filter-preconditions"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m08",
+    "fromLabel": "情境儲存處理（FilterScenarioSaveHandler）",
+    "toLabel": "整批規劃與發布（FilterScenarioBatchWriter）",
+    "label": "PublishAsync",
+    "kind": "calls",
+    "execution": "not-observed",
+    "members": [
+      "PublishAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioSaveHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Application.FilterScenarioBatchWriter.PublishAsync(string, JET.Domain.IProjectStore, JET.Application.FilterScenarioStores, JET.Application.FilterScenarioBatchWriter.Prepared, JET.Application.FilterScenarioBatchWriter.Change, bool, System.DateTimeOffset, Microsoft.Extensions.Logging.ILogger?, System.Threading.CancellationToken)",
+        "targetType": "JET.Application.FilterScenarioBatchWriter",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 43,
+          "endLine": 44,
+          "column": 22
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:43-44"
+      }
+    ],
+    "facts": [
+      "filter-save"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m09",
+    "fromLabel": "整批規劃與發布（FilterScenarioBatchWriter）",
+    "toLabel": "篩選執行（FilterFactsPort）",
+    "label": "IFilterFactsPort.ExecuteAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ExecuteAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.IFilterFactsPort.ExecuteAsync(JET.AuditCore.FilterPlan,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.AuditCore.IFilterFactsPort.ExecuteAsync(JET.AuditCore.FilterPlan, System.Threading.CancellationToken)",
+        "targetType": "JET.AuditCore.IFilterFactsPort",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 232,
+          "endLine": 232,
+          "column": 35
+        },
+        "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:232-232"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.FilterFactsPort",
+        "target": "T:JET.AuditCore.IFilterFactsPort",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/FilterFactsPort.cs",
+          "line": 10,
+          "endLine": 57,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/FilterFactsPort.cs:10-16"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.FilterFactsPort.#ctor(JET.Domain.IFilterRunRepository,JET.Domain.IFilterCommitRepository)",
+        "targetDisplay": "JET.Infrastructure.FilterFactsPort.FilterFactsPort(JET.Domain.IFilterRunRepository, JET.Domain.IFilterCommitRepository)",
+        "targetType": "JET.Infrastructure.FilterFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 134,
+          "endLine": 134,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:134-134"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateSqlServerProjectRepositories(JET.Infrastructure.SqlServerProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.FilterFactsPort.#ctor(JET.Domain.IFilterRunRepository,JET.Domain.IFilterCommitRepository)",
+        "targetDisplay": "JET.Infrastructure.FilterFactsPort.FilterFactsPort(JET.Domain.IFilterRunRepository, JET.Domain.IFilterCommitRepository)",
+        "targetType": "JET.Infrastructure.FilterFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 270,
+          "endLine": 270,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:270-270"
+      }
+    ],
+    "facts": [
+      "filter-save",
+      "filter-facts"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m10",
+    "fromLabel": "篩選執行（FilterFactsPort）",
+    "toLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "label": "IFilterCommitRepository.CommitAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "CommitAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Infrastructure.FilterFactsPort.CommitAsync(JET.AuditCore.FilterPlan,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IFilterCommitRepository.CommitAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterRuleContext,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IFilterCommitRepository.CommitAsync(string, System.Collections.Generic.IReadOnlyList<JET.Domain.FilterCommitItem>, JET.Domain.FilterRuleContext, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IFilterCommitRepository",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/FilterFactsPort.cs",
+          "line": 48,
+          "endLine": 52,
+          "column": 15
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/FilterFactsPort.cs:48-52"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.LocalFilterCommitRepository",
+        "target": "T:JET.Domain.IFilterCommitRepository",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
+          "line": 13,
+          "endLine": 148,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs:13-19"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.LocalFilterCommitRepository.#ctor(JET.Infrastructure.ILocalProjectDatabase,Microsoft.Extensions.Logging.ILogger{JET.Infrastructure.LocalFilterCommitRepository})",
+        "targetDisplay": "JET.Infrastructure.LocalFilterCommitRepository.LocalFilterCommitRepository(JET.Infrastructure.ILocalProjectDatabase, Microsoft.Extensions.Logging.ILogger<JET.Infrastructure.LocalFilterCommitRepository>?)",
+        "targetType": "JET.Infrastructure.LocalFilterCommitRepository",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 61,
+          "endLine": 62,
+          "column": 29
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:61-62"
+      }
+    ],
+    "facts": [
+      "filter-facts",
+      "filter-commit"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m11",
+    "fromLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "toLabel": "篩選執行（FilterFactsPort）",
+    "label": "已提交",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m10",
+    "facts": []
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m12",
+    "fromLabel": "篩選執行（FilterFactsPort）",
+    "toLabel": "整批規劃與發布（FilterScenarioBatchWriter）",
+    "label": "FilterFacts",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m09",
+    "facts": []
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m13",
+    "fromLabel": "整批規劃與發布（FilterScenarioBatchWriter）",
+    "toLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "label": "IFilterScenarioStore.ReplaceAllAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ReplaceAllAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IFilterScenarioStore.ReplaceAllAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario},System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IFilterScenarioStore.ReplaceAllAsync(string, System.Collections.Generic.IReadOnlyList<JET.Domain.SavedFilterScenario>, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IFilterScenarioStore",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 246,
+          "endLine": 246,
+          "column": 23
+        },
+        "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:246-246"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.LocalFilterScenarioStore",
+        "target": "T:JET.Domain.IFilterScenarioStore",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterScenarioStore.cs",
+          "line": 6,
+          "endLine": 100,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterScenarioStore.cs:6-12"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.LocalFilterScenarioStore.#ctor(JET.Infrastructure.ILocalProjectDatabase)",
+        "targetDisplay": "JET.Infrastructure.LocalFilterScenarioStore.LocalFilterScenarioStore(JET.Infrastructure.ILocalProjectDatabase)",
+        "targetType": "JET.Infrastructure.LocalFilterScenarioStore",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 57,
+          "endLine": 57,
+          "column": 31
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:57-57"
+      }
+    ],
+    "facts": [
+      "filter-save",
+      "filter-invalid"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m14",
+    "fromLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "toLabel": "整批規劃與發布（FilterScenarioBatchWriter）",
+    "label": "已提交",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m13",
+    "facts": []
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m15",
+    "fromLabel": "整批規劃與發布（FilterScenarioBatchWriter）",
+    "toLabel": "情境儲存處理（FilterScenarioSaveHandler）",
+    "label": "情境、命中版本與失效狀態",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m08",
+    "facts": [
+      "filter-save"
+    ]
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m16",
+    "fromLabel": "情境儲存處理（FilterScenarioSaveHandler）",
+    "toLabel": "依 action 派送（ActionDispatcher）",
+    "label": "回應物件",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m03",
+    "facts": []
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m17",
+    "fromLabel": "依 action 派送（ActionDispatcher）",
+    "toLabel": "WebMessage 橋接（JetWebMessageBridge）",
+    "label": "回應物件",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m02",
+    "facts": []
+  },
+  {
+    "diagram": "action-sequence",
+    "connection": "m18",
+    "fromLabel": "WebMessage 橋接（JetWebMessageBridge）",
+    "toLabel": "第五步畫面（JetApi）",
+    "label": "PostWebMessageAsJson",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m01",
+    "facts": [
+      "bridge"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m01",
+    "fromLabel": "匯入畫面（JetApi）",
+    "toLabel": "action 通道（ActionDispatcher）",
+    "label": "import.tb.fromFile",
+    "kind": "indirect",
+    "execution": "not-observed",
+    "facts": [
+      "bridge",
+      "frontend"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m02",
+    "fromLabel": "action 通道（ActionDispatcher）",
+    "toLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "label": "IApplicationActionHandler.HandleAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "HandleAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Bridge.ActionDispatcher.HandleWithRetentionAsync(JET.Application.IApplicationActionHandler,System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Application.IApplicationActionHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Application.IApplicationActionHandler.HandleAsync(System.Text.Json.JsonElement, System.Threading.CancellationToken)",
+        "targetType": "JET.Application.IApplicationActionHandler",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
+          "line": 161,
+          "endLine": 161,
+          "column": 26
+        },
+        "excerpt": "src/JET/JET/Bridge/ActionDispatcher.cs:161-161"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "inherits",
+        "source": "T:JET.Application.ImportTbFromFileHandler",
+        "target": "T:JET.Application.ImportFromFileHandler",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 480,
+          "endLine": 494,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:480-486"
+      },
+      {
+        "kind": "implements",
+        "source": "T:JET.Application.ImportFromFileHandler",
+        "target": "T:JET.Application.IApplicationActionHandler",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 15,
+          "endLine": 395,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:15-21"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Application.ImportTbFromFileHandler.#ctor(JET.Domain.ITabularFileReader,JET.Domain.IProjectStore,JET.Application.ProjectSession,JET.Application.IJetEventPublisher,Microsoft.Extensions.Logging.ILogger)",
+        "targetDisplay": "JET.Application.ImportTbFromFileHandler.ImportTbFromFileHandler(JET.Domain.ITabularFileReader, JET.Domain.IProjectStore, JET.Application.ProjectSession, JET.Application.IJetEventPublisher, Microsoft.Extensions.Logging.ILogger?)",
+        "targetType": "JET.Application.ImportTbFromFileHandler",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 357,
+          "endLine": 357,
+          "column": 13
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:357-357"
+      }
+    ],
+    "facts": [
+      "bridge",
+      "tb-import"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m03",
+    "fromLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "toLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "label": "IImportRepository.GetLatestBatchAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "GetLatestBatchAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IImportRepository.GetLatestBatchAsync(System.String,JET.Domain.DatasetKind,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IImportRepository.GetLatestBatchAsync(string, JET.Domain.DatasetKind, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IImportRepository",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 62,
+          "endLine": 62,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:62-62"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.LocalImportRepository",
+        "target": "T:JET.Domain.IImportRepository",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
+          "line": 17,
+          "endLine": 814,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs:17-23"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.LocalImportRepository.#ctor(JET.Infrastructure.ILocalProjectDatabase,Microsoft.Extensions.Logging.ILogger{JET.Infrastructure.LocalImportRepository})",
+        "targetDisplay": "JET.Infrastructure.LocalImportRepository.LocalImportRepository(JET.Infrastructure.ILocalProjectDatabase, Microsoft.Extensions.Logging.ILogger<JET.Infrastructure.LocalImportRepository>?)",
+        "targetType": "JET.Infrastructure.LocalImportRepository",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 46,
+          "endLine": 46,
+          "column": 23
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:46-46"
+      }
+    ],
+    "facts": [
+      "tb-import"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m04",
+    "fromLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "toLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "label": "前一批次",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m03",
+    "facts": []
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m05",
+    "fromLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "toLabel": "表格檔讀取（ITabularFileReader）",
+    "label": "ITabularFileReader.ReadColumnsAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ReadColumnsAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:3425",
+        "target": "M:JET.Domain.ITabularFileReader.ReadColumnsAsync(JET.Domain.TabularSourceRequest,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.ITabularFileReader.ReadColumnsAsync(JET.Domain.TabularSourceRequest, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.ITabularFileReader",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 97,
+          "endLine": 97,
+          "column": 51
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:97-97"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.CompositeTabularFileReader",
+        "target": "T:JET.Domain.ITabularFileReader",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/FileIO/CompositeTabularFileReader.cs",
+          "line": 10,
+          "endLine": 39,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/FileIO/CompositeTabularFileReader.cs:10-16"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Infrastructure.CompositeTabularFileReader.#ctor(JET.Domain.ITabularFileReader[])",
+        "targetDisplay": "JET.Infrastructure.CompositeTabularFileReader.CompositeTabularFileReader(params JET.Domain.ITabularFileReader[])",
+        "targetType": "JET.Infrastructure.CompositeTabularFileReader",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 264,
+          "endLine": 265,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:264-265"
+      }
+    ],
+    "facts": [
+      "tb-import"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m06",
+    "fromLabel": "表格檔讀取（ITabularFileReader）",
+    "toLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "label": "欄位清單",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m05",
+    "facts": []
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m07",
+    "fromLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "toLabel": "表格檔讀取（ITabularFileReader）",
+    "label": "ITabularFileReader.ReadRowsAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ReadRowsAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:3425",
+        "target": "M:JET.Domain.ITabularFileReader.ReadRowsAsync(JET.Domain.TabularSourceRequest,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.ITabularFileReader.ReadRowsAsync(JET.Domain.TabularSourceRequest, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.ITabularFileReader",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 131,
+          "endLine": 131,
+          "column": 29
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:131-131"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.CompositeTabularFileReader",
+        "target": "T:JET.Domain.ITabularFileReader",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/FileIO/CompositeTabularFileReader.cs",
+          "line": 10,
+          "endLine": 39,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/FileIO/CompositeTabularFileReader.cs:10-16"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Infrastructure.CompositeTabularFileReader.#ctor(JET.Domain.ITabularFileReader[])",
+        "targetDisplay": "JET.Infrastructure.CompositeTabularFileReader.CompositeTabularFileReader(params JET.Domain.ITabularFileReader[])",
+        "targetType": "JET.Infrastructure.CompositeTabularFileReader",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 264,
+          "endLine": 265,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:264-265"
+      }
+    ],
+    "facts": [
+      "tb-import"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m08",
+    "fromLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "toLabel": "匯入執行（IntakeFactsPort）",
+    "label": "IIntakeFactsPort.ExecuteAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ExecuteAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:3425",
+        "target": "M:JET.AuditCore.IIntakeFactsPort.ExecuteAsync(JET.AuditCore.IntakePlan,System.Collections.Generic.IReadOnlyList{JET.Domain.ImportSourceInput},System.Threading.CancellationToken)",
+        "targetDisplay": "JET.AuditCore.IIntakeFactsPort.ExecuteAsync(JET.AuditCore.IntakePlan, System.Collections.Generic.IReadOnlyList<JET.Domain.ImportSourceInput>, System.Threading.CancellationToken)",
+        "targetType": "JET.AuditCore.IIntakeFactsPort",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 152,
+          "endLine": 155,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:152-155"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.IntakeFactsPort",
+        "target": "T:JET.AuditCore.IIntakeFactsPort",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/IntakeFactsPort.cs",
+          "line": 10,
+          "endLine": 37,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/IntakeFactsPort.cs:10-16"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.IntakeFactsPort.#ctor(JET.Domain.IImportRepository)",
+        "targetDisplay": "JET.Infrastructure.IntakeFactsPort.IntakeFactsPort(JET.Domain.IImportRepository)",
+        "targetType": "JET.Infrastructure.IntakeFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 118,
+          "endLine": 118,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:118-118"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateSqlServerProjectRepositories(JET.Infrastructure.SqlServerProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.IntakeFactsPort.#ctor(JET.Domain.IImportRepository)",
+        "targetDisplay": "JET.Infrastructure.IntakeFactsPort.IntakeFactsPort(JET.Domain.IImportRepository)",
+        "targetType": "JET.Infrastructure.IntakeFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 254,
+          "endLine": 254,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:254-254"
+      }
+    ],
+    "facts": [
+      "tb-import"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m09",
+    "fromLabel": "匯入執行（IntakeFactsPort）",
+    "toLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "label": "IImportRepository.ReplaceBatchAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ReplaceBatchAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Infrastructure.IntakeFactsPort.ExecuteAsync(JET.AuditCore.IntakePlan,System.Collections.Generic.IReadOnlyList{JET.Domain.ImportSourceInput},System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IImportRepository.ReplaceBatchAsync(System.String,JET.Domain.DatasetKind,System.Collections.Generic.IReadOnlyList{JET.Domain.ImportSourceInput},System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IImportRepository.ReplaceBatchAsync(string, JET.Domain.DatasetKind, System.Collections.Generic.IReadOnlyList<JET.Domain.ImportSourceInput>, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IImportRepository",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/IntakeFactsPort.cs",
+          "line": 19,
+          "endLine": 23,
+          "column": 46
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/IntakeFactsPort.cs:19-23"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.LocalImportRepository",
+        "target": "T:JET.Domain.IImportRepository",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
+          "line": 17,
+          "endLine": 814,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs:17-23"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.LocalImportRepository.#ctor(JET.Infrastructure.ILocalProjectDatabase,Microsoft.Extensions.Logging.ILogger{JET.Infrastructure.LocalImportRepository})",
+        "targetDisplay": "JET.Infrastructure.LocalImportRepository.LocalImportRepository(JET.Infrastructure.ILocalProjectDatabase, Microsoft.Extensions.Logging.ILogger<JET.Infrastructure.LocalImportRepository>?)",
+        "targetType": "JET.Infrastructure.LocalImportRepository",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 46,
+          "endLine": 46,
+          "column": 23
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:46-46"
+      }
+    ],
+    "facts": [
+      "tb-import",
+      "tb-transaction"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m10",
+    "fromLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "toLabel": "表格檔讀取（ITabularFileReader）",
+    "label": "列舉資料列",
+    "kind": "indirect",
+    "execution": "not-observed",
+    "facts": [
+      "tb-import",
+      "tb-transaction",
+      "intake-flow"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m11",
+    "fromLabel": "表格檔讀取（ITabularFileReader）",
+    "toLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "label": "資料列",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m10",
+    "facts": []
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m12",
+    "fromLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "toLabel": "匯入執行（IntakeFactsPort）",
+    "label": "ImportBatchResult",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m09",
+    "facts": []
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m13",
+    "fromLabel": "匯入執行（IntakeFactsPort）",
+    "toLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "label": "IntakeFacts",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m08",
+    "facts": []
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m14",
+    "fromLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "toLabel": "案件進度檔（JsonFileProjectStore）",
+    "label": "IProjectStore.SaveAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "SaveAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.AdvanceStepAsync(System.String,System.Int32,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:16465",
+        "target": "M:JET.Domain.IProjectStore.SaveAsync(JET.Domain.ProjectDocument,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IProjectStore.SaveAsync(JET.Domain.ProjectDocument, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IProjectStore",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 392,
+          "endLine": 392,
+          "column": 23
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:392-392"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.JsonFileProjectStore",
+        "target": "T:JET.Domain.IProjectStore",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
+          "line": 9,
+          "endLine": 304,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs:9-15"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Infrastructure.JsonFileProjectStore.#ctor(JET.Infrastructure.JetProjectFolder)",
+        "targetDisplay": "JET.Infrastructure.JsonFileProjectStore.JsonFileProjectStore(JET.Infrastructure.JetProjectFolder)",
+        "targetType": "JET.Infrastructure.JsonFileProjectStore",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 122,
+          "endLine": 122,
+          "column": 28
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:122-122"
+      }
+    ],
+    "facts": [
+      "after-commit",
+      "project-file"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m15",
+    "fromLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "toLabel": "案件資料庫（SQLite 或 DuckDB）",
+    "label": "IProjectAuditLog.AppendAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "AppendAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IProjectAuditLog.AppendAsync(System.String,JET.Domain.ProjectAuditEvent,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IProjectAuditLog.AppendAsync(string, JET.Domain.ProjectAuditEvent, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IProjectAuditLog",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 173,
+          "endLine": 181,
+          "column": 19
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:173-179"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.BestEffortProjectAuditLog",
+        "target": "T:JET.Domain.IProjectAuditLog",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/BestEffortProjectAuditLog.cs",
+          "line": 12,
+          "endLine": 48,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/Local/BestEffortProjectAuditLog.cs:12-18"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.BestEffortProjectAuditLog.#ctor(JET.Domain.IProjectAuditLog,Microsoft.Extensions.Logging.ILogger)",
+        "targetDisplay": "JET.Infrastructure.BestEffortProjectAuditLog.BestEffortProjectAuditLog(JET.Domain.IProjectAuditLog, Microsoft.Extensions.Logging.ILogger)",
+        "targetType": "JET.Infrastructure.BestEffortProjectAuditLog",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 81,
+          "endLine": 83,
+          "column": 44
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:81-83"
+      }
+    ],
+    "facts": [
+      "audit-log"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m16",
+    "fromLabel": "TB 匯入處理（ImportTbFromFileHandler）",
+    "toLabel": "action 通道（ActionDispatcher）",
+    "label": "批次摘要與失效狀態",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m02",
+    "facts": [
+      "tb-transaction"
+    ]
+  },
+  {
+    "diagram": "import-sequence",
+    "connection": "m17",
+    "fromLabel": "action 通道（ActionDispatcher）",
+    "toLabel": "匯入畫面（JetApi）",
+    "label": "回應物件",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m01",
+    "facts": []
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m01",
+    "fromLabel": "第六步畫面（JetApi）",
+    "toLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "label": "export.workpaperStream",
+    "kind": "indirect",
+    "execution": "not-observed",
+    "facts": [
+      "bridge",
+      "frontend",
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m02",
+    "fromLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "toLabel": "規劃事實（WorkpaperPlanningFactsPort）",
+    "label": "IWorkpaperPlanningFactsPort.ExecuteAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ExecuteAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.IWorkpaperPlanningFactsPort.ExecuteAsync(JET.AuditCore.WorkpaperPlan,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.AuditCore.IWorkpaperPlanningFactsPort.ExecuteAsync(JET.AuditCore.WorkpaperPlan, System.Threading.CancellationToken)",
+        "targetType": "JET.AuditCore.IWorkpaperPlanningFactsPort",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 161,
+          "endLine": 163,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:161-163"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.WorkpaperPlanningFactsPort",
+        "target": "T:JET.AuditCore.IWorkpaperPlanningFactsPort",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/WorkpaperPlanningFactsPort.cs",
+          "line": 11,
+          "endLine": 76,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/WorkpaperPlanningFactsPort.cs:11-17"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.WorkpaperPlanningFactsPort.#ctor(JET.Domain.ICompletenessDiffPageRepository,JET.Domain.IDocBalancePageRepository,JET.Domain.ITagMatrixScenariosRepository,JET.AuditCore.ILegacyFieldDefinitionFactsPort)",
+        "targetDisplay": "JET.Infrastructure.WorkpaperPlanningFactsPort.WorkpaperPlanningFactsPort(JET.Domain.ICompletenessDiffPageRepository, JET.Domain.IDocBalancePageRepository, JET.Domain.ITagMatrixScenariosRepository, JET.AuditCore.ILegacyFieldDefinitionFactsPort)",
+        "targetType": "JET.Infrastructure.WorkpaperPlanningFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 162,
+          "endLine": 163,
+          "column": 38
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:162-163"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateSqlServerProjectRepositories(JET.Infrastructure.SqlServerProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.WorkpaperPlanningFactsPort.#ctor(JET.Domain.ICompletenessDiffPageRepository,JET.Domain.IDocBalancePageRepository,JET.Domain.ITagMatrixScenariosRepository,JET.AuditCore.ILegacyFieldDefinitionFactsPort)",
+        "targetDisplay": "JET.Infrastructure.WorkpaperPlanningFactsPort.WorkpaperPlanningFactsPort(JET.Domain.ICompletenessDiffPageRepository, JET.Domain.IDocBalancePageRepository, JET.Domain.ITagMatrixScenariosRepository, JET.AuditCore.ILegacyFieldDefinitionFactsPort)",
+        "targetType": "JET.Infrastructure.WorkpaperPlanningFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 298,
+          "endLine": 299,
+          "column": 38
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:298-299"
+      }
+    ],
+    "facts": [
+      "workpaper",
+      "audit-flow"
+    ]
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m03",
+    "fromLabel": "規劃事實（WorkpaperPlanningFactsPort）",
+    "toLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "label": "WorkpaperPlanningFacts",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m02",
+    "facts": []
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m04",
+    "fromLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "toLabel": "發布留痕（AuditedReportArtifactStore）",
+    "label": "IReportArtifactPublishingStore.WriteWithPublishingAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "WriteWithPublishingAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IReportArtifactPublishingStore.WriteWithPublishingAsync(System.String,JET.Domain.ReportArtifactWriteRequest,System.Action{JET.Domain.ReportArtifactKind},System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IReportArtifactPublishingStore.WriteWithPublishingAsync(string, JET.Domain.ReportArtifactWriteRequest, System.Action<JET.Domain.ReportArtifactKind>, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IReportArtifactPublishingStore",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 185,
+          "endLine": 189,
+          "column": 21
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:185-189"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Application.AuditedReportArtifactStore",
+        "target": "T:JET.Domain.IReportArtifactPublishingStore",
+        "location": {
+          "path": "src/JET/JET/Application/Support/AuditedReportArtifactStore.cs",
+          "line": 9,
+          "endLine": 131,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Application/Support/AuditedReportArtifactStore.cs:9-15"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Application.AuditedReportArtifactStore.#ctor(JET.Domain.IReportArtifactStore,JET.Domain.IProjectAuditLog)",
+        "targetDisplay": "JET.Application.AuditedReportArtifactStore.AuditedReportArtifactStore(JET.Domain.IReportArtifactStore, JET.Domain.IProjectAuditLog)",
+        "targetType": "JET.Application.AuditedReportArtifactStore",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 173,
+          "endLine": 173,
+          "column": 35
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:173-173"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateSqlServerProjectRepositories(JET.Infrastructure.SqlServerProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Application.AuditedReportArtifactStore.#ctor(JET.Domain.IReportArtifactStore,JET.Domain.IProjectAuditLog)",
+        "targetDisplay": "JET.Application.AuditedReportArtifactStore.AuditedReportArtifactStore(JET.Domain.IReportArtifactStore, JET.Domain.IProjectAuditLog)",
+        "targetType": "JET.Application.AuditedReportArtifactStore",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 309,
+          "endLine": 309,
+          "column": 35
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:309-309"
+      }
+    ],
+    "facts": [
+      "workpaper",
+      "report-store"
+    ]
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m05",
+    "fromLabel": "發布留痕（AuditedReportArtifactStore）",
+    "toLabel": "報告檔發布（ProjectReportArtifactStore）",
+    "label": "IReportArtifactPublishingStore.WriteWithPublishingAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "WriteWithPublishingAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.AuditedReportArtifactStore.WriteWithPublishingAsync(System.String,JET.Domain.ReportArtifactWriteRequest,System.Action{JET.Domain.ReportArtifactKind},System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IReportArtifactPublishingStore.WriteWithPublishingAsync(System.String,JET.Domain.ReportArtifactWriteRequest,System.Action{JET.Domain.ReportArtifactKind},System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IReportArtifactPublishingStore.WriteWithPublishingAsync(string, JET.Domain.ReportArtifactWriteRequest, System.Action<JET.Domain.ReportArtifactKind>, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IReportArtifactPublishingStore",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Support/AuditedReportArtifactStore.cs",
+          "line": 47,
+          "endLine": 51,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/Application/Support/AuditedReportArtifactStore.cs:47-51"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.ProjectReportArtifactStore",
+        "target": "T:JET.Domain.IReportArtifactPublishingStore",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs",
+          "line": 21,
+          "endLine": 879,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs:21-27"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Infrastructure.ProjectReportArtifactStore.#ctor(JET.Infrastructure.JetProjectFolder,System.TimeProvider,Microsoft.Extensions.Logging.ILogger{JET.Infrastructure.ProjectReportArtifactStore})",
+        "targetDisplay": "JET.Infrastructure.ProjectReportArtifactStore.ProjectReportArtifactStore(JET.Infrastructure.JetProjectFolder, System.TimeProvider?, Microsoft.Extensions.Logging.ILogger<JET.Infrastructure.ProjectReportArtifactStore>?)",
+        "targetType": "JET.Infrastructure.ProjectReportArtifactStore",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 205,
+          "endLine": 207,
+          "column": 39
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:205-207"
+      }
+    ],
+    "facts": [
+      "report-store"
+    ]
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m06",
+    "fromLabel": "報告檔發布（ProjectReportArtifactStore）",
+    "toLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "label": "ReportArtifactContentWriter",
+    "kind": "indirect",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper",
+      "report-store"
+    ]
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m07",
+    "fromLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "toLabel": "工作簿寫出（WorkpaperWriter）",
+    "label": "IWorkpaperPlanWriter.WriteAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "WriteAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:8625",
+        "target": "M:JET.AuditCore.IWorkpaperPlanWriter.WriteAsync(System.IO.Stream,JET.Domain.WorkpaperContext,JET.AuditCore.WorkpaperPlan,System.Threading.CancellationToken,System.Action{JET.Domain.WorkpaperProgress})",
+        "targetDisplay": "JET.AuditCore.IWorkpaperPlanWriter.WriteAsync(System.IO.Stream, JET.Domain.WorkpaperContext, JET.AuditCore.WorkpaperPlan, System.Threading.CancellationToken, System.Action<JET.Domain.WorkpaperProgress>?)",
+        "targetType": "JET.AuditCore.IWorkpaperPlanWriter",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 176,
+          "endLine": 181,
+          "column": 41
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:176-181"
+      }
+    ],
+    "implementations": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.WorkpaperWriter",
+        "target": "T:JET.AuditCore.IWorkpaperPlanWriter",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Export/WorkpaperWriter.Appearance.cs",
+          "line": 5,
+          "endLine": 147,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Export/WorkpaperWriter.Appearance.cs:5-11"
+      }
+    ],
+    "assembly": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateWorkpaperWriter(JET.Domain.ICompletenessAccountPageRepository,JET.Domain.ICompletenessDiffPageRepository,JET.Domain.IDocBalancePageRepository,JET.Domain.ICreatorSummaryExportRepository,JET.Domain.IInfSamplePageRepository,JET.Domain.IFilterScenarioStore,JET.Domain.ITagMatrixScenariosRepository,JET.Domain.ITagMatrixVoucherPageRepository,JET.Domain.ITagMatrixRowPageRepository,JET.Domain.IMappingStateStore,JET.Domain.ICalendarExportRepository,JET.Domain.IAccountMappingExportRepository,JET.Domain.IAccountMappingStore,JET.Domain.IRawGlExportRepository,JET.Domain.IResultPageRdeValuesPort)",
+        "target": "M:JET.Infrastructure.WorkpaperWriter.#ctor(JET.Domain.ICompletenessAccountPageRepository,JET.Domain.ICompletenessDiffPageRepository,JET.Domain.IDocBalancePageRepository,JET.Domain.ICreatorSummaryExportRepository,JET.Domain.IInfSamplePageRepository,JET.Domain.IFilterScenarioStore,JET.Domain.ITagMatrixScenariosRepository,JET.Domain.ITagMatrixVoucherPageRepository,JET.Domain.ITagMatrixRowPageRepository,JET.Domain.IMappingStateStore,JET.Domain.ICalendarExportRepository,JET.Domain.IAccountMappingExportRepository,JET.Domain.IAccountMappingStore,JET.Domain.IRawGlExportRepository,JET.Domain.IResultPageRdeValuesPort)",
+        "targetDisplay": "JET.Infrastructure.WorkpaperWriter.WorkpaperWriter(JET.Domain.ICompletenessAccountPageRepository, JET.Domain.ICompletenessDiffPageRepository, JET.Domain.IDocBalancePageRepository, JET.Domain.ICreatorSummaryExportRepository, JET.Domain.IInfSamplePageRepository, JET.Domain.IFilterScenarioStore, JET.Domain.ITagMatrixScenariosRepository, JET.Domain.ITagMatrixVoucherPageRepository, JET.Domain.ITagMatrixRowPageRepository, JET.Domain.IMappingStateStore, JET.Domain.ICalendarExportRepository, JET.Domain.IAccountMappingExportRepository, JET.Domain.IAccountMappingStore, JET.Domain.IRawGlExportRepository, JET.Domain.IResultPageRdeValuesPort?)",
+        "targetType": "JET.Infrastructure.WorkpaperWriter",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 373,
+          "endLine": 388,
+          "column": 9
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:373-379"
+      }
+    ],
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m08",
+    "fromLabel": "工作簿寫出（WorkpaperWriter）",
+    "toLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "label": "ExportStats",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m07",
+    "facts": []
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m09",
+    "fromLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "toLabel": "報告檔發布（ProjectReportArtifactStore）",
+    "label": "暫存檔寫完",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m06",
+    "facts": []
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m10",
+    "fromLabel": "報告檔發布（ProjectReportArtifactStore）",
+    "toLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "label": "publishingArtifact",
+    "kind": "indirect",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper",
+      "report-store"
+    ]
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m11",
+    "fromLabel": "報告檔發布（ProjectReportArtifactStore）",
+    "toLabel": "發布留痕（AuditedReportArtifactStore）",
+    "label": "ReportArtifact",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m05",
+    "facts": []
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m12",
+    "fromLabel": "發布留痕（AuditedReportArtifactStore）",
+    "toLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "label": "ReportArtifact",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m04",
+    "facts": [
+      "audit-log"
+    ]
+  },
+  {
+    "diagram": "workpaper-sequence",
+    "connection": "m13",
+    "fromLabel": "底稿匯出處理（ExportWorkpaperStreamHandler）",
+    "toLabel": "第六步畫面（JetApi）",
+    "label": "產物、各表列數與清單",
+    "kind": "return",
+    "execution": "not-observed",
+    "returnOf": "m01",
+    "facts": []
+  },
+  {
+    "diagram": "likec4",
+    "connection": "C01",
+    "fromLabel": "審計員",
+    "toLabel": "WebView2 畫面",
+    "label": "操作",
+    "kind": "uses",
+    "execution": "not-observed",
+    "facts": [
+      "environment"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "C02",
+    "fromLabel": "來源檔案",
+    "toLabel": "檔案讀寫與底稿發布",
+    "label": "讀取來源檔",
+    "kind": "data",
+    "execution": "not-observed",
+    "facts": [
+      "tb-import",
+      "intake-flow"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "C03",
+    "fromLabel": "報告與正式工作底稿",
+    "toLabel": "審計員",
+    "label": "檢視與使用",
+    "kind": "uses",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "C04",
+    "fromLabel": "JET 桌面程序",
+    "toLabel": "WebView2 執行階段",
+    "label": "承載畫面",
+    "kind": "uses",
+    "execution": "not-observed",
+    "facts": [
+      "deployment",
+      "architecture"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "C05",
+    "fromLabel": "檔案讀寫與底稿發布",
+    "toLabel": "x64 ACE 16",
+    "label": "讀 Access 檔",
+    "kind": "uses",
+    "execution": "not-observed",
+    "facts": [
+      "deployment"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L01",
+    "fromLabel": "WebView2 畫面",
+    "toLabel": "Action 通道",
+    "label": "WebMessage：action 與 payload",
+    "kind": "indirect",
+    "execution": "not-observed",
+    "facts": [
+      "bridge",
+      "frontend"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L02",
+    "fromLabel": "Action 通道",
+    "toLabel": "Application 應用流程",
+    "label": "依 action 字串呼叫 HandleAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "HandleAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Bridge.ActionDispatcher.HandleWithRetentionAsync(JET.Application.IApplicationActionHandler,System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Application.IApplicationActionHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Application.IApplicationActionHandler.HandleAsync(System.Text.Json.JsonElement, System.Threading.CancellationToken)",
+        "targetType": "JET.Application.IApplicationActionHandler",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
+          "line": 161,
+          "endLine": 161,
+          "column": 26
+        },
+        "excerpt": "src/JET/JET/Bridge/ActionDispatcher.cs:161-161"
+      }
+    ],
+    "facts": [
+      "bridge"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L03",
+    "fromLabel": "Application 應用流程",
+    "toLabel": "AuditCore 與 Domain",
+    "label": "JetAuditProgram.Plan 與 Finalize",
+    "kind": "calls",
+    "execution": "not-observed",
+    "members": [
+      "Finalize",
+      "Plan"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.FilterRequest,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario})",
+        "targetDisplay": "JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.FilterRequest, System.Collections.Generic.IReadOnlyList<JET.Domain.SavedFilterScenario>?)",
+        "targetType": "JET.AuditCore.JetAuditProgram",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 229,
+          "endLine": 231,
+          "column": 28
+        },
+        "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:229-231"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.JetAuditProgram.Finalize(JET.AuditCore.FilterPlan,JET.AuditCore.FilterFacts)",
+        "targetDisplay": "JET.AuditCore.JetAuditProgram.Finalize(JET.AuditCore.FilterPlan, JET.AuditCore.FilterFacts)",
+        "targetType": "JET.AuditCore.JetAuditProgram",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 233,
+          "endLine": 233,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:233-233"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.IntakeRequest)",
+        "targetDisplay": "JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.IntakeRequest)",
+        "targetType": "JET.AuditCore.JetAuditProgram",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 48,
+          "endLine": 61,
+          "column": 20
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:48-54"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.JetAuditProgram.Finalize(JET.AuditCore.IntakePlan,JET.AuditCore.IntakeFacts)",
+        "targetDisplay": "JET.AuditCore.JetAuditProgram.Finalize(JET.AuditCore.IntakePlan, JET.AuditCore.IntakeFacts)",
+        "targetType": "JET.AuditCore.JetAuditProgram",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 158,
+          "endLine": 158,
+          "column": 22
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:158-158"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.WorkpaperRequest)",
+        "targetDisplay": "JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.WorkpaperRequest)",
+        "targetType": "JET.AuditCore.JetAuditProgram",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 149,
+          "endLine": 160,
+          "column": 20
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:149-155"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.JetAuditProgram.Finalize(JET.AuditCore.WorkpaperPlan,JET.AuditCore.WorkpaperPlanningFacts)",
+        "targetDisplay": "JET.AuditCore.JetAuditProgram.Finalize(JET.AuditCore.WorkpaperPlan, JET.AuditCore.WorkpaperPlanningFacts)",
+        "targetType": "JET.AuditCore.JetAuditProgram",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 164,
+          "endLine": 164,
+          "column": 29
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:164-164"
+      }
+    ],
+    "facts": [
+      "filter-save",
+      "tb-import",
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L04",
+    "fromLabel": "Application 應用流程",
+    "toLabel": "資料庫實作",
+    "label": "介面：facts port 與 repository",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ExecuteAsync",
+      "ListAsync",
+      "SaveAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioSaveHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IFilterScenarioStore.ListAsync(System.String,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IFilterScenarioStore.ListAsync(string, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IFilterScenarioStore",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 40,
+          "endLine": 40,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:40-40"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.IFilterFactsPort.ExecuteAsync(JET.AuditCore.FilterPlan,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.AuditCore.IFilterFactsPort.ExecuteAsync(JET.AuditCore.FilterPlan, System.Threading.CancellationToken)",
+        "targetType": "JET.AuditCore.IFilterFactsPort",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 232,
+          "endLine": 232,
+          "column": 35
+        },
+        "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:232-232"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:3425",
+        "target": "M:JET.AuditCore.IIntakeFactsPort.ExecuteAsync(JET.AuditCore.IntakePlan,System.Collections.Generic.IReadOnlyList{JET.Domain.ImportSourceInput},System.Threading.CancellationToken)",
+        "targetDisplay": "JET.AuditCore.IIntakeFactsPort.ExecuteAsync(JET.AuditCore.IntakePlan, System.Collections.Generic.IReadOnlyList<JET.Domain.ImportSourceInput>, System.Threading.CancellationToken)",
+        "targetType": "JET.AuditCore.IIntakeFactsPort",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 152,
+          "endLine": 155,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:152-155"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.AdvanceStepAsync(System.String,System.Int32,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:16465",
+        "target": "M:JET.Domain.IProjectStore.SaveAsync(JET.Domain.ProjectDocument,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IProjectStore.SaveAsync(JET.Domain.ProjectDocument, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IProjectStore",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 392,
+          "endLine": 392,
+          "column": 23
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:392-392"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.IWorkpaperPlanningFactsPort.ExecuteAsync(JET.AuditCore.WorkpaperPlan,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.AuditCore.IWorkpaperPlanningFactsPort.ExecuteAsync(JET.AuditCore.WorkpaperPlan, System.Threading.CancellationToken)",
+        "targetType": "JET.AuditCore.IWorkpaperPlanningFactsPort",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 161,
+          "endLine": 163,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:161-163"
+      }
+    ],
+    "facts": [
+      "filter-facts",
+      "tb-import",
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L05",
+    "fromLabel": "Application 應用流程",
+    "toLabel": "檔案讀寫與底稿發布",
+    "label": "介面：讀檔器、寫出器與報告 store",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ReadColumnsAsync",
+      "WriteAsync",
+      "WriteWithPublishingAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:3425",
+        "target": "M:JET.Domain.ITabularFileReader.ReadColumnsAsync(JET.Domain.TabularSourceRequest,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.ITabularFileReader.ReadColumnsAsync(JET.Domain.TabularSourceRequest, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.ITabularFileReader",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 97,
+          "endLine": 97,
+          "column": 51
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:97-97"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:8625",
+        "target": "M:JET.AuditCore.IWorkpaperPlanWriter.WriteAsync(System.IO.Stream,JET.Domain.WorkpaperContext,JET.AuditCore.WorkpaperPlan,System.Threading.CancellationToken,System.Action{JET.Domain.WorkpaperProgress})",
+        "targetDisplay": "JET.AuditCore.IWorkpaperPlanWriter.WriteAsync(System.IO.Stream, JET.Domain.WorkpaperContext, JET.AuditCore.WorkpaperPlan, System.Threading.CancellationToken, System.Action<JET.Domain.WorkpaperProgress>?)",
+        "targetType": "JET.AuditCore.IWorkpaperPlanWriter",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 176,
+          "endLine": 181,
+          "column": 41
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:176-181"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IReportArtifactPublishingStore.WriteWithPublishingAsync(System.String,JET.Domain.ReportArtifactWriteRequest,System.Action{JET.Domain.ReportArtifactKind},System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IReportArtifactPublishingStore.WriteWithPublishingAsync(string, JET.Domain.ReportArtifactWriteRequest, System.Action<JET.Domain.ReportArtifactKind>, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IReportArtifactPublishingStore",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 185,
+          "endLine": 189,
+          "column": 21
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:185-189"
+      }
+    ],
+    "facts": [
+      "tb-import",
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L06",
+    "fromLabel": "資料庫實作",
+    "toLabel": "AuditCore 與 Domain",
+    "label": "AuditDependencyPolicy.For",
+    "kind": "calls",
+    "execution": "not-observed",
+    "members": [
+      "For"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Infrastructure.RuleRunResultReset.ClearWithinAsync(System.Data.Common.DbConnection,System.Data.Common.DbTransaction,System.Threading.CancellationToken,JET.Domain.AuditMutation,System.String)",
+        "target": "M:JET.Domain.AuditDependencyPolicy.For(JET.Domain.AuditMutation)",
+        "targetDisplay": "JET.Domain.AuditDependencyPolicy.For(JET.Domain.AuditMutation)",
+        "targetType": "JET.Domain.AuditDependencyPolicy",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Sql/RuleRunResultReset.cs",
+          "line": 37,
+          "endLine": 37,
+          "column": 22
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Sql/RuleRunResultReset.cs:37-37"
+      }
+    ],
+    "facts": [
+      "tb-policy"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L07",
+    "fromLabel": "組裝根",
+    "toLabel": "Action 通道",
+    "label": "建立 ActionDispatcher",
+    "kind": "injects",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Bridge.ActionDispatcher.#ctor(System.Collections.Generic.IEnumerable{JET.Application.IApplicationActionHandler},Microsoft.Extensions.Logging.ILogger{JET.Bridge.ActionDispatcher},JET.Application.ProjectSession,System.Func{System.Exception,JET.Domain.JetActionException},JET.Bridge.RequestCancellationRegistry,JET.Domain.ActionExecutionGate,JET.Domain.IProjectDatabaseRetention)",
+        "targetDisplay": "JET.Bridge.ActionDispatcher.ActionDispatcher(System.Collections.Generic.IEnumerable<JET.Application.IApplicationActionHandler>, Microsoft.Extensions.Logging.ILogger<JET.Bridge.ActionDispatcher>, JET.Application.ProjectSession, System.Func<System.Exception, JET.Domain.JetActionException?>?, JET.Bridge.RequestCancellationRegistry?, JET.Domain.ActionExecutionGate?, JET.Domain.IProjectDatabaseRetention?)",
+        "targetType": "JET.Bridge.ActionDispatcher",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 446,
+          "endLine": 453,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:446-452"
+      }
+    ],
+    "facts": [
+      "composition"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L08",
+    "fromLabel": "組裝根",
+    "toLabel": "資料庫實作",
+    "label": "建立 Local 組裝",
+    "kind": "injects",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.LocalImportRepository.#ctor(JET.Infrastructure.ILocalProjectDatabase,Microsoft.Extensions.Logging.ILogger{JET.Infrastructure.LocalImportRepository})",
+        "targetDisplay": "JET.Infrastructure.LocalImportRepository.LocalImportRepository(JET.Infrastructure.ILocalProjectDatabase, Microsoft.Extensions.Logging.ILogger<JET.Infrastructure.LocalImportRepository>?)",
+        "targetType": "JET.Infrastructure.LocalImportRepository",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 46,
+          "endLine": 46,
+          "column": 23
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:46-46"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.LocalFilterScenarioStore.#ctor(JET.Infrastructure.ILocalProjectDatabase)",
+        "targetDisplay": "JET.Infrastructure.LocalFilterScenarioStore.LocalFilterScenarioStore(JET.Infrastructure.ILocalProjectDatabase)",
+        "targetType": "JET.Infrastructure.LocalFilterScenarioStore",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 57,
+          "endLine": 57,
+          "column": 31
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:57-57"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.LocalFilterCommitRepository.#ctor(JET.Infrastructure.ILocalProjectDatabase,Microsoft.Extensions.Logging.ILogger{JET.Infrastructure.LocalFilterCommitRepository})",
+        "targetDisplay": "JET.Infrastructure.LocalFilterCommitRepository.LocalFilterCommitRepository(JET.Infrastructure.ILocalProjectDatabase, Microsoft.Extensions.Logging.ILogger<JET.Infrastructure.LocalFilterCommitRepository>?)",
+        "targetType": "JET.Infrastructure.LocalFilterCommitRepository",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 61,
+          "endLine": 62,
+          "column": 29
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:61-62"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.FilterFactsPort.#ctor(JET.Domain.IFilterRunRepository,JET.Domain.IFilterCommitRepository)",
+        "targetDisplay": "JET.Infrastructure.FilterFactsPort.FilterFactsPort(JET.Domain.IFilterRunRepository, JET.Domain.IFilterCommitRepository)",
+        "targetType": "JET.Infrastructure.FilterFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 134,
+          "endLine": 134,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:134-134"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateSqlServerProjectRepositories(JET.Infrastructure.SqlServerProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.FilterFactsPort.#ctor(JET.Domain.IFilterRunRepository,JET.Domain.IFilterCommitRepository)",
+        "targetDisplay": "JET.Infrastructure.FilterFactsPort.FilterFactsPort(JET.Domain.IFilterRunRepository, JET.Domain.IFilterCommitRepository)",
+        "targetType": "JET.Infrastructure.FilterFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 270,
+          "endLine": 270,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:270-270"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.IntakeFactsPort.#ctor(JET.Domain.IImportRepository)",
+        "targetDisplay": "JET.Infrastructure.IntakeFactsPort.IntakeFactsPort(JET.Domain.IImportRepository)",
+        "targetType": "JET.Infrastructure.IntakeFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 118,
+          "endLine": 118,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:118-118"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateSqlServerProjectRepositories(JET.Infrastructure.SqlServerProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.IntakeFactsPort.#ctor(JET.Domain.IImportRepository)",
+        "targetDisplay": "JET.Infrastructure.IntakeFactsPort.IntakeFactsPort(JET.Domain.IImportRepository)",
+        "targetType": "JET.Infrastructure.IntakeFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 254,
+          "endLine": 254,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:254-254"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.WorkpaperPlanningFactsPort.#ctor(JET.Domain.ICompletenessDiffPageRepository,JET.Domain.IDocBalancePageRepository,JET.Domain.ITagMatrixScenariosRepository,JET.AuditCore.ILegacyFieldDefinitionFactsPort)",
+        "targetDisplay": "JET.Infrastructure.WorkpaperPlanningFactsPort.WorkpaperPlanningFactsPort(JET.Domain.ICompletenessDiffPageRepository, JET.Domain.IDocBalancePageRepository, JET.Domain.ITagMatrixScenariosRepository, JET.AuditCore.ILegacyFieldDefinitionFactsPort)",
+        "targetType": "JET.Infrastructure.WorkpaperPlanningFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 162,
+          "endLine": 163,
+          "column": 38
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:162-163"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateSqlServerProjectRepositories(JET.Infrastructure.SqlServerProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.WorkpaperPlanningFactsPort.#ctor(JET.Domain.ICompletenessDiffPageRepository,JET.Domain.IDocBalancePageRepository,JET.Domain.ITagMatrixScenariosRepository,JET.AuditCore.ILegacyFieldDefinitionFactsPort)",
+        "targetDisplay": "JET.Infrastructure.WorkpaperPlanningFactsPort.WorkpaperPlanningFactsPort(JET.Domain.ICompletenessDiffPageRepository, JET.Domain.IDocBalancePageRepository, JET.Domain.ITagMatrixScenariosRepository, JET.AuditCore.ILegacyFieldDefinitionFactsPort)",
+        "targetType": "JET.Infrastructure.WorkpaperPlanningFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 298,
+          "endLine": 299,
+          "column": 38
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:298-299"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Infrastructure.JsonFileProjectStore.#ctor(JET.Infrastructure.JetProjectFolder)",
+        "targetDisplay": "JET.Infrastructure.JsonFileProjectStore.JsonFileProjectStore(JET.Infrastructure.JetProjectFolder)",
+        "targetType": "JET.Infrastructure.JsonFileProjectStore",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 122,
+          "endLine": 122,
+          "column": 28
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:122-122"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.BestEffortProjectAuditLog.#ctor(JET.Domain.IProjectAuditLog,Microsoft.Extensions.Logging.ILogger)",
+        "targetDisplay": "JET.Infrastructure.BestEffortProjectAuditLog.BestEffortProjectAuditLog(JET.Domain.IProjectAuditLog, Microsoft.Extensions.Logging.ILogger)",
+        "targetType": "JET.Infrastructure.BestEffortProjectAuditLog",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 81,
+          "endLine": 83,
+          "column": 44
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:81-83"
+      }
+    ],
+    "facts": [
+      "composition"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L09",
+    "fromLabel": "組裝根",
+    "toLabel": "檔案讀寫與底稿發布",
+    "label": "建立讀檔器與報告 store",
+    "kind": "injects",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Infrastructure.CompositeTabularFileReader.#ctor(JET.Domain.ITabularFileReader[])",
+        "targetDisplay": "JET.Infrastructure.CompositeTabularFileReader.CompositeTabularFileReader(params JET.Domain.ITabularFileReader[])",
+        "targetType": "JET.Infrastructure.CompositeTabularFileReader",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 264,
+          "endLine": 265,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:264-265"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Infrastructure.ProjectReportArtifactStore.#ctor(JET.Infrastructure.JetProjectFolder,System.TimeProvider,Microsoft.Extensions.Logging.ILogger{JET.Infrastructure.ProjectReportArtifactStore})",
+        "targetDisplay": "JET.Infrastructure.ProjectReportArtifactStore.ProjectReportArtifactStore(JET.Infrastructure.JetProjectFolder, System.TimeProvider?, Microsoft.Extensions.Logging.ILogger<JET.Infrastructure.ProjectReportArtifactStore>?)",
+        "targetType": "JET.Infrastructure.ProjectReportArtifactStore",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 205,
+          "endLine": 207,
+          "column": 39
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:205-207"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateWorkpaperWriter(JET.Domain.ICompletenessAccountPageRepository,JET.Domain.ICompletenessDiffPageRepository,JET.Domain.IDocBalancePageRepository,JET.Domain.ICreatorSummaryExportRepository,JET.Domain.IInfSamplePageRepository,JET.Domain.IFilterScenarioStore,JET.Domain.ITagMatrixScenariosRepository,JET.Domain.ITagMatrixVoucherPageRepository,JET.Domain.ITagMatrixRowPageRepository,JET.Domain.IMappingStateStore,JET.Domain.ICalendarExportRepository,JET.Domain.IAccountMappingExportRepository,JET.Domain.IAccountMappingStore,JET.Domain.IRawGlExportRepository,JET.Domain.IResultPageRdeValuesPort)",
+        "target": "M:JET.Infrastructure.WorkpaperWriter.#ctor(JET.Domain.ICompletenessAccountPageRepository,JET.Domain.ICompletenessDiffPageRepository,JET.Domain.IDocBalancePageRepository,JET.Domain.ICreatorSummaryExportRepository,JET.Domain.IInfSamplePageRepository,JET.Domain.IFilterScenarioStore,JET.Domain.ITagMatrixScenariosRepository,JET.Domain.ITagMatrixVoucherPageRepository,JET.Domain.ITagMatrixRowPageRepository,JET.Domain.IMappingStateStore,JET.Domain.ICalendarExportRepository,JET.Domain.IAccountMappingExportRepository,JET.Domain.IAccountMappingStore,JET.Domain.IRawGlExportRepository,JET.Domain.IResultPageRdeValuesPort)",
+        "targetDisplay": "JET.Infrastructure.WorkpaperWriter.WorkpaperWriter(JET.Domain.ICompletenessAccountPageRepository, JET.Domain.ICompletenessDiffPageRepository, JET.Domain.IDocBalancePageRepository, JET.Domain.ICreatorSummaryExportRepository, JET.Domain.IInfSamplePageRepository, JET.Domain.IFilterScenarioStore, JET.Domain.ITagMatrixScenariosRepository, JET.Domain.ITagMatrixVoucherPageRepository, JET.Domain.ITagMatrixRowPageRepository, JET.Domain.IMappingStateStore, JET.Domain.ICalendarExportRepository, JET.Domain.IAccountMappingExportRepository, JET.Domain.IAccountMappingStore, JET.Domain.IRawGlExportRepository, JET.Domain.IResultPageRdeValuesPort?)",
+        "targetType": "JET.Infrastructure.WorkpaperWriter",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 373,
+          "endLine": 388,
+          "column": 9
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:373-379"
+      }
+    ],
+    "facts": [
+      "composition"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L10",
+    "fromLabel": "資料庫實作",
+    "toLabel": "案件資料庫",
+    "label": "集合式 SQL",
+    "kind": "data",
+    "execution": "not-observed",
+    "facts": [
+      "filter-commit",
+      "tb-transaction",
+      "audit-flow"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L11",
+    "fromLabel": "資料庫實作",
+    "toLabel": "案件進度檔",
+    "label": "project.json",
+    "kind": "data",
+    "execution": "not-observed",
+    "facts": [
+      "project-file",
+      "storage"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L12",
+    "fromLabel": "檔案讀寫與底稿發布",
+    "toLabel": "報告與正式工作底稿",
+    "label": "發布報告檔",
+    "kind": "data",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper",
+      "report-store"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "L13",
+    "fromLabel": "組裝根",
+    "toLabel": "Application 應用流程",
+    "label": "建立各 action 的 handler",
+    "kind": "injects",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Application.FilterScenarioSaveHandler.#ctor(JET.Domain.IProjectStore,JET.Application.ProjectSession,Microsoft.Extensions.Logging.ILogger)",
+        "targetDisplay": "JET.Application.FilterScenarioSaveHandler.FilterScenarioSaveHandler(JET.Domain.IProjectStore, JET.Application.ProjectSession, Microsoft.Extensions.Logging.ILogger?)",
+        "targetType": "JET.Application.FilterScenarioSaveHandler",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 376,
+          "endLine": 376,
+          "column": 13
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:376-376"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Application.ImportTbFromFileHandler.#ctor(JET.Domain.ITabularFileReader,JET.Domain.IProjectStore,JET.Application.ProjectSession,JET.Application.IJetEventPublisher,Microsoft.Extensions.Logging.ILogger)",
+        "targetDisplay": "JET.Application.ImportTbFromFileHandler.ImportTbFromFileHandler(JET.Domain.ITabularFileReader, JET.Domain.IProjectStore, JET.Application.ProjectSession, JET.Application.IJetEventPublisher, Microsoft.Extensions.Logging.ILogger?)",
+        "targetType": "JET.Application.ImportTbFromFileHandler",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 357,
+          "endLine": 357,
+          "column": 13
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:357-357"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Application.ExportWorkpaperStreamHandler.#ctor(JET.Domain.IProjectStore,JET.Application.ProjectSession,JET.Application.IJetEventPublisher)",
+        "targetDisplay": "JET.Application.ExportWorkpaperStreamHandler.ExportWorkpaperStreamHandler(JET.Domain.IProjectStore, JET.Application.ProjectSession, JET.Application.IJetEventPublisher)",
+        "targetType": "JET.Application.ExportWorkpaperStreamHandler",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 395,
+          "endLine": 395,
+          "column": 13
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:395-395"
+      }
+    ],
+    "facts": [
+      "composition"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F01",
+    "fromLabel": "JetApi",
+    "toLabel": "JetWebMessageBridge",
+    "label": "filter.scenario.save",
+    "kind": "indirect",
+    "execution": "not-observed",
+    "facts": [
+      "bridge",
+      "frontend"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F02",
+    "fromLabel": "JetWebMessageBridge",
+    "toLabel": "ActionDispatcher",
+    "label": "DispatchAsync",
+    "kind": "calls",
+    "execution": "not-observed",
+    "members": [
+      "DispatchAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Bridge.JetWebMessageBridge.OnWebMessageReceived(System.Object,Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs)::local:@src/JET/JET/Bridge/JetWebMessageBridge.cs:1669",
+        "target": "M:JET.Bridge.ActionDispatcher.DispatchAsync(System.String,System.Text.Json.JsonElement,System.Threading.CancellationToken,System.String)",
+        "targetDisplay": "JET.Bridge.ActionDispatcher.DispatchAsync(string, System.Text.Json.JsonElement, System.Threading.CancellationToken, string?)",
+        "targetType": "JET.Bridge.ActionDispatcher",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Bridge/JetWebMessageBridge.cs",
+          "line": 56,
+          "endLine": 60,
+          "column": 38
+        },
+        "excerpt": "src/JET/JET/Bridge/JetWebMessageBridge.cs:56-60"
+      }
+    ],
+    "facts": [
+      "bridge"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F03",
+    "fromLabel": "ActionDispatcher",
+    "toLabel": "IApplicationActionHandler",
+    "label": "HandleAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "HandleAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Bridge.ActionDispatcher.HandleWithRetentionAsync(JET.Application.IApplicationActionHandler,System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Application.IApplicationActionHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Application.IApplicationActionHandler.HandleAsync(System.Text.Json.JsonElement, System.Threading.CancellationToken)",
+        "targetType": "JET.Application.IApplicationActionHandler",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
+          "line": 161,
+          "endLine": 161,
+          "column": 26
+        },
+        "excerpt": "src/JET/JET/Bridge/ActionDispatcher.cs:161-161"
+      }
+    ],
+    "facts": [
+      "bridge"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F04",
+    "fromLabel": "FilterScenarioSaveHandler",
+    "toLabel": "IApplicationActionHandler",
+    "label": "實作",
+    "kind": "implements",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Application.FilterScenarioSaveHandler",
+        "target": "T:JET.Application.IApplicationActionHandler",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 12,
+          "endLine": 46,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:12-18"
+      }
+    ],
+    "facts": [
+      "bridge"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F05",
+    "fromLabel": "FilterScenarioSaveHandler",
+    "toLabel": "FilterScenarioBatchWriter",
+    "label": "LoadAsync、PlanSave、PublishAsync",
+    "kind": "calls",
+    "execution": "not-observed",
+    "members": [
+      "LoadAsync",
+      "PlanSave",
+      "PublishAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioSaveHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Application.FilterScenarioBatchWriter.LoadAsync(JET.Domain.IProjectStore,System.String,JET.Application.FilterScenarioStores,System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Application.FilterScenarioBatchWriter.LoadAsync(JET.Domain.IProjectStore, string, JET.Application.FilterScenarioStores, System.Text.Json.JsonElement, System.Threading.CancellationToken)",
+        "targetType": "JET.Application.FilterScenarioBatchWriter",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 39,
+          "endLine": 39,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:39-39"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioSaveHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Application.FilterScenarioBatchWriter.PlanSave(JET.Application.FilterScenarioBatchWriter.Prepared,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario},System.Text.Json.JsonElement,System.DateTimeOffset)",
+        "targetDisplay": "JET.Application.FilterScenarioBatchWriter.PlanSave(JET.Application.FilterScenarioBatchWriter.Prepared, System.Collections.Generic.IReadOnlyList<JET.Domain.SavedFilterScenario>, System.Text.Json.JsonElement, System.DateTimeOffset)",
+        "targetType": "JET.Application.FilterScenarioBatchWriter",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 42,
+          "endLine": 42,
+          "column": 22
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:42-42"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioSaveHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Application.FilterScenarioBatchWriter.PublishAsync(string, JET.Domain.IProjectStore, JET.Application.FilterScenarioStores, JET.Application.FilterScenarioBatchWriter.Prepared, JET.Application.FilterScenarioBatchWriter.Change, bool, System.DateTimeOffset, Microsoft.Extensions.Logging.ILogger?, System.Threading.CancellationToken)",
+        "targetType": "JET.Application.FilterScenarioBatchWriter",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 43,
+          "endLine": 44,
+          "column": 22
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:43-44"
+      }
+    ],
+    "facts": [
+      "filter-save"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F06",
+    "fromLabel": "FilterScenarioSaveHandler",
+    "toLabel": "IFilterScenarioStore",
+    "label": "ListAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ListAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioSaveHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IFilterScenarioStore.ListAsync(System.String,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IFilterScenarioStore.ListAsync(string, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IFilterScenarioStore",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 40,
+          "endLine": 40,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:40-40"
+      }
+    ],
+    "facts": [
+      "filter-preconditions"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F07",
+    "fromLabel": "FilterScenarioBatchWriter",
+    "toLabel": "JetAuditProgram",
+    "label": "Plan、Finalize",
+    "kind": "calls",
+    "execution": "not-observed",
+    "members": [
+      "Finalize",
+      "Plan"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.FilterRequest,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario})",
+        "targetDisplay": "JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.FilterRequest, System.Collections.Generic.IReadOnlyList<JET.Domain.SavedFilterScenario>?)",
+        "targetType": "JET.AuditCore.JetAuditProgram",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 229,
+          "endLine": 231,
+          "column": 28
+        },
+        "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:229-231"
+      },
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.JetAuditProgram.Finalize(JET.AuditCore.FilterPlan,JET.AuditCore.FilterFacts)",
+        "targetDisplay": "JET.AuditCore.JetAuditProgram.Finalize(JET.AuditCore.FilterPlan, JET.AuditCore.FilterFacts)",
+        "targetType": "JET.AuditCore.JetAuditProgram",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 233,
+          "endLine": 233,
+          "column": 30
+        },
+        "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:233-233"
+      }
+    ],
+    "facts": [
+      "filter-save"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F08",
+    "fromLabel": "FilterScenarioBatchWriter",
+    "toLabel": "IFilterFactsPort",
+    "label": "ExecuteAsync：整批合格",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ExecuteAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "target": "M:JET.AuditCore.IFilterFactsPort.ExecuteAsync(JET.AuditCore.FilterPlan,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.AuditCore.IFilterFactsPort.ExecuteAsync(JET.AuditCore.FilterPlan, System.Threading.CancellationToken)",
+        "targetType": "JET.AuditCore.IFilterFactsPort",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 232,
+          "endLine": 232,
+          "column": 35
+        },
+        "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:232-232"
+      }
+    ],
+    "facts": [
+      "filter-save"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F09",
+    "fromLabel": "FilterScenarioBatchWriter",
+    "toLabel": "IFilterScenarioStore",
+    "label": "ReplaceAllAsync：有不合格",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "ReplaceAllAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IFilterScenarioStore.ReplaceAllAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario},System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IFilterScenarioStore.ReplaceAllAsync(string, System.Collections.Generic.IReadOnlyList<JET.Domain.SavedFilterScenario>, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IFilterScenarioStore",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 246,
+          "endLine": 246,
+          "column": 23
+        },
+        "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:246-246"
+      }
+    ],
+    "facts": [
+      "filter-invalid"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F10",
+    "fromLabel": "FilterFactsPort",
+    "toLabel": "IFilterFactsPort",
+    "label": "實作",
+    "kind": "implements",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.FilterFactsPort",
+        "target": "T:JET.AuditCore.IFilterFactsPort",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/FilterFactsPort.cs",
+          "line": 10,
+          "endLine": 57,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/FilterFactsPort.cs:10-16"
+      }
+    ],
+    "facts": [
+      "filter-facts"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F11",
+    "fromLabel": "FilterFactsPort",
+    "toLabel": "IFilterCommitRepository",
+    "label": "CommitAsync",
+    "kind": "viaInterface",
+    "execution": "not-observed",
+    "members": [
+      "CommitAsync"
+    ],
+    "roslyn": [
+      {
+        "kind": "invokes",
+        "source": "M:JET.Infrastructure.FilterFactsPort.CommitAsync(JET.AuditCore.FilterPlan,System.Threading.CancellationToken)",
+        "target": "M:JET.Domain.IFilterCommitRepository.CommitAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterRuleContext,System.Threading.CancellationToken)",
+        "targetDisplay": "JET.Domain.IFilterCommitRepository.CommitAsync(string, System.Collections.Generic.IReadOnlyList<JET.Domain.FilterCommitItem>, JET.Domain.FilterRuleContext, System.Threading.CancellationToken)",
+        "targetType": "JET.Domain.IFilterCommitRepository",
+        "dispatch": "interface_declared_target",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/FilterFactsPort.cs",
+          "line": 48,
+          "endLine": 52,
+          "column": 15
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/FilterFactsPort.cs:48-52"
+      }
+    ],
+    "facts": [
+      "filter-facts"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F12",
+    "fromLabel": "LocalFilterCommitRepository",
+    "toLabel": "IFilterCommitRepository",
+    "label": "實作",
+    "kind": "implements",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.LocalFilterCommitRepository",
+        "target": "T:JET.Domain.IFilterCommitRepository",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
+          "line": 13,
+          "endLine": 148,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs:13-19"
+      }
+    ],
+    "facts": [
+      "filter-facts"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F13",
+    "fromLabel": "LocalFilterScenarioStore",
+    "toLabel": "IFilterScenarioStore",
+    "label": "實作",
+    "kind": "implements",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "implements",
+        "source": "T:JET.Infrastructure.LocalFilterScenarioStore",
+        "target": "T:JET.Domain.IFilterScenarioStore",
+        "location": {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterScenarioStore.cs",
+          "line": 6,
+          "endLine": 100,
+          "column": 1
+        },
+        "excerpt": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterScenarioStore.cs:6-12"
+      }
+    ],
+    "facts": [
+      "filter-invalid"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F14",
+    "fromLabel": "AppCompositionRoot",
+    "toLabel": "FilterScenarioSaveHandler",
+    "label": "建立",
+    "kind": "injects",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateRuntimeCore(JET.Application.IHostShell,System.String,System.Boolean,JET.Application.IJetEventPublisher,System.String,JET.Infrastructure.RingBufferLoggerProvider,System.String,System.String,System.Boolean,System.String,System.String)",
+        "target": "M:JET.Application.FilterScenarioSaveHandler.#ctor(JET.Domain.IProjectStore,JET.Application.ProjectSession,Microsoft.Extensions.Logging.ILogger)",
+        "targetDisplay": "JET.Application.FilterScenarioSaveHandler.FilterScenarioSaveHandler(JET.Domain.IProjectStore, JET.Application.ProjectSession, Microsoft.Extensions.Logging.ILogger?)",
+        "targetType": "JET.Application.FilterScenarioSaveHandler",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 376,
+          "endLine": 376,
+          "column": 13
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.cs:376-376"
+      }
+    ],
+    "facts": [
+      "composition"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F15",
+    "fromLabel": "AppCompositionRoot",
+    "toLabel": "FilterFactsPort",
+    "label": "建立",
+    "kind": "injects",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.FilterFactsPort.#ctor(JET.Domain.IFilterRunRepository,JET.Domain.IFilterCommitRepository)",
+        "targetDisplay": "JET.Infrastructure.FilterFactsPort.FilterFactsPort(JET.Domain.IFilterRunRepository, JET.Domain.IFilterCommitRepository)",
+        "targetType": "JET.Infrastructure.FilterFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 134,
+          "endLine": 134,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:134-134"
+      },
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateSqlServerProjectRepositories(JET.Infrastructure.SqlServerProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.FilterFactsPort.#ctor(JET.Domain.IFilterRunRepository,JET.Domain.IFilterCommitRepository)",
+        "targetDisplay": "JET.Infrastructure.FilterFactsPort.FilterFactsPort(JET.Domain.IFilterRunRepository, JET.Domain.IFilterCommitRepository)",
+        "targetType": "JET.Infrastructure.FilterFactsPort",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 270,
+          "endLine": 270,
+          "column": 27
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:270-270"
+      }
+    ],
+    "facts": [
+      "filter-facts",
+      "composition"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F16",
+    "fromLabel": "AppCompositionRoot",
+    "toLabel": "LocalFilterCommitRepository",
+    "label": "建立",
+    "kind": "injects",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.LocalFilterCommitRepository.#ctor(JET.Infrastructure.ILocalProjectDatabase,Microsoft.Extensions.Logging.ILogger{JET.Infrastructure.LocalFilterCommitRepository})",
+        "targetDisplay": "JET.Infrastructure.LocalFilterCommitRepository.LocalFilterCommitRepository(JET.Infrastructure.ILocalProjectDatabase, Microsoft.Extensions.Logging.ILogger<JET.Infrastructure.LocalFilterCommitRepository>?)",
+        "targetType": "JET.Infrastructure.LocalFilterCommitRepository",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 61,
+          "endLine": 62,
+          "column": 29
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:61-62"
+      }
+    ],
+    "facts": [
+      "filter-facts",
+      "composition"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F17",
+    "fromLabel": "AppCompositionRoot",
+    "toLabel": "LocalFilterScenarioStore",
+    "label": "建立",
+    "kind": "injects",
+    "execution": "not-observed",
+    "roslyn": [
+      {
+        "kind": "constructs",
+        "source": "M:JET.AppCompositionRoot.CreateLocalProjectRepositories(System.String,JET.Infrastructure.ILocalProjectDatabase,JET.AppCompositionRoot.ProjectRepositoryAssembly)",
+        "target": "M:JET.Infrastructure.LocalFilterScenarioStore.#ctor(JET.Infrastructure.ILocalProjectDatabase)",
+        "targetDisplay": "JET.Infrastructure.LocalFilterScenarioStore.LocalFilterScenarioStore(JET.Infrastructure.ILocalProjectDatabase)",
+        "targetType": "JET.Infrastructure.LocalFilterScenarioStore",
+        "dispatch": "statically_bound",
+        "location": {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 57,
+          "endLine": 57,
+          "column": 31
+        },
+        "excerpt": "src/JET/JET/AppCompositionRoot.Repositories.cs:57-57"
+      }
+    ],
+    "facts": [
+      "composition"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F18",
+    "fromLabel": "LocalFilterCommitRepository",
+    "toLabel": "案件資料庫",
+    "label": "同一交易寫定義並以 SQL 產生命中",
+    "kind": "data",
+    "execution": "not-observed",
+    "facts": [
+      "filter-commit"
+    ]
+  },
+  {
+    "diagram": "likec4",
+    "connection": "F19",
+    "fromLabel": "LocalFilterScenarioStore",
+    "toLabel": "案件資料庫",
+    "label": "同一交易只寫定義並清除命中",
+    "kind": "data",
+    "execution": "not-observed",
+    "facts": [
+      "filter-invalid"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "request_load",
+    "fromLabel": "按下儲存（filter.scenario.save）",
+    "toLabel": "確認前置資料（驗證是目前版本，GL 已配對）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-save",
+      "filter-preconditions"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "load_rules",
+    "fromLabel": "確認前置資料（驗證是目前版本，GL 已配對）",
+    "toLabel": "檢查本次情境（位置、名稱與儲存規則）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-preconditions"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "rules_decide",
+    "fromLabel": "檢查本次情境（位置、名稱與儲存規則）",
+    "toLabel": "整批都合格？（PlanWrite）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-preconditions",
+      "filter-save"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "load_reject",
+    "fromLabel": "確認前置資料（驗證是目前版本，GL 已配對）",
+    "toLabel": "回錯誤，不寫入（本次修改未儲存）",
+    "label": "前置不符",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-preconditions"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "rules_reject",
+    "fromLabel": "檢查本次情境（位置、名稱與儲存規則）",
+    "toLabel": "回錯誤，不寫入（本次修改未儲存）",
+    "label": "本次不合格",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-preconditions"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "decide_commit",
+    "fromLabel": "整批都合格？（PlanWrite）",
+    "toLabel": "發布定義與命中（篩選結果改為目前）",
+    "label": "是",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-save",
+      "filter-commit"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "decide_defs",
+    "fromLabel": "整批都合格？（PlanWrite）",
+    "toLabel": "只寫情境定義（清除命中並標成失效）",
+    "label": "否",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-save",
+      "filter-invalid"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "commit_advance",
+    "fromLabel": "發布定義與命中（篩選結果改為目前）",
+    "toLabel": "推進到第五步（步驟落後才更新）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-save",
+      "after-commit"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "advance_reply",
+    "fromLabel": "推進到第五步（步驟落後才更新）",
+    "toLabel": "讀回權威狀態（情境清單與失效狀態）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-save"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "defs_needs",
+    "fromLabel": "只寫情境定義（清除命中並標成失效）",
+    "toLabel": "標示待修情境（needsEdit）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-save",
+      "filter-invalid"
+    ]
+  },
+  {
+    "diagram": "filter-save",
+    "connection": "needs_reply",
+    "fromLabel": "標示待修情境（needsEdit）",
+    "toLabel": "讀回權威狀態（情境清單與失效狀態）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "filter-save"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "request_plan",
+    "fromLabel": "選檔並匯入 TB（import.tb.fromFile）",
+    "toLabel": "建立匯入計畫（沒帶 mode 就取代）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "tb-import"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "plan_headers",
+    "fromLabel": "建立匯入計畫（沒帶 mode 就取代）",
+    "toLabel": "先讀完所有標頭（資料列只建立串流）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "tb-import"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "headers_clear",
+    "fromLabel": "先讀完所有標頭（資料列只建立串流）",
+    "toLabel": "刪除舊 TB 與下游（依 AuditDependencyPolicy）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "tb-transaction",
+      "tb-policy"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "clear_write",
+    "fromLabel": "刪除舊 TB 與下游（依 AuditDependencyPolicy）",
+    "toLabel": "串流寫入新批次（資料列與欄位定義）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "tb-transaction"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "write_commit",
+    "fromLabel": "串流寫入新批次（資料列與欄位定義）",
+    "toLabel": "提交交易（提交前最後檢查取消）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "tb-transaction"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "commit_step",
+    "fromLabel": "提交交易（提交前最後檢查取消）",
+    "toLabel": "更新案件步驟（落後才更新，失敗只記警告）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "after-commit",
+      "tb-transaction"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "step_audit",
+    "fromLabel": "更新案件步驟（落後才更新，失敗只記警告）",
+    "toLabel": "記錄重新匯入（留痕失敗只記診斷）",
+    "label": "已有舊批次",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "audit-log"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "step_reply",
+    "fromLabel": "更新案件步驟（落後才更新，失敗只記警告）",
+    "toLabel": "回應批次摘要（列數、提醒與失效狀態）",
+    "label": "第一次匯入",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "tb-transaction"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "audit_reply",
+    "fromLabel": "記錄重新匯入（留痕失敗只記診斷）",
+    "toLabel": "回應批次摘要（列數、提醒與失效狀態）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "audit-log",
+      "tb-transaction"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "headers_error",
+    "fromLabel": "先讀完所有標頭（資料列只建立串流）",
+    "toLabel": "回報失敗或取消（本次匯入未提交）",
+    "label": "標頭或選項錯誤",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "tb-import"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "write_rollback",
+    "fromLabel": "串流寫入新批次（資料列與欄位定義）",
+    "toLabel": "嘗試回復交易（記下回復是否失敗）",
+    "label": "例外或取消",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "tb-transaction"
+    ]
+  },
+  {
+    "diagram": "tb-import",
+    "connection": "rollback_error",
+    "fromLabel": "嘗試回復交易（記下回復是否失敗）",
+    "toLabel": "回報失敗或取消（本次匯入未提交）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "tb-transaction"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "request_versions",
+    "fromLabel": "匯出正式底稿（export.workpaperStream）",
+    "toLabel": "核對目前版本（驗證結果與情境版本）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "versions_recompute",
+    "fromLabel": "核對目前版本（驗證結果與情境版本）",
+    "toLabel": "重算選取的情境（未選的照原樣保留）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "recompute_facts",
+    "fromLabel": "重算選取的情境（未選的照原樣保留）",
+    "toLabel": "建立底稿計畫（Plan、facts 與 Finalize）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper",
+      "audit-flow"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "facts_stage",
+    "fromLabel": "建立底稿計畫（Plan、facts 與 Finalize）",
+    "toLabel": "寫完暫存檔（依計畫分頁讀資料列）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper",
+      "report-store"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "stage_rename",
+    "fromLabel": "寫完暫存檔（依計畫分頁讀資料列）",
+    "toLabel": "改名成新版本（不覆寫同名底稿）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper",
+      "report-store"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "rename_manifest",
+    "fromLabel": "改名成新版本（不覆寫同名底稿）",
+    "toLabel": "發布檔案索引（成功後寫發布留痕）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper",
+      "report-store"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "manifest_reply",
+    "fromLabel": "發布檔案索引（成功後寫發布留痕）",
+    "toLabel": "回應產物與列數（讀回最新產物清單）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper",
+      "audit-log"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "versions_reject",
+    "fromLabel": "核對目前版本（驗證結果與情境版本）",
+    "toLabel": "回報版本不符（尚未寫任何檔案）",
+    "label": "不是目前版本",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "stage_cleanup",
+    "fromLabel": "寫完暫存檔（依計畫分頁讀資料列）",
+    "toLabel": "刪除本次暫存檔（寫入失敗或取消）",
+    "label": "失敗或取消",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "cleanup_report",
+    "fromLabel": "刪除本次暫存檔（寫入失敗或取消）",
+    "toLabel": "回報可處理的原因（既有底稿沒有被覆寫）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "rename_restore",
+    "fromLabel": "改名成新版本（不覆寫同名底稿）",
+    "toLabel": "還原已改名的檔案（還原失敗會保留備份）",
+    "label": "改名失敗",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "manifest_restore",
+    "fromLabel": "發布檔案索引（成功後寫發布留痕）",
+    "toLabel": "還原已改名的檔案（還原失敗會保留備份）",
+    "label": "索引失敗",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "workpaper",
+    "connection": "restore_report",
+    "fromLabel": "還原已改名的檔案（還原失敗會保留備份）",
+    "toLabel": "回報可處理的原因（既有底稿沒有被覆寫）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "inventory_package",
+    "fromLabel": "確認電腦環境（一般權限、WebView2、ACE）",
+    "toLabel": "核對發布資料夾（完整內容與版本）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "operations-proposal",
+      "environment",
+      "deployment"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "package_smoke",
+    "fromLabel": "核對發布資料夾（完整內容與版本）",
+    "toLabel": "用合成資料試跑（匯入、篩選與匯出）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "operations-proposal"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "smoke_approve",
+    "fromLabel": "用合成資料試跑（匯入、篩選與匯出）",
+    "toLabel": "確認部署安排（負責人與審查待定）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "operations-proposal"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "exit_copy",
+    "fromLabel": "正常離開 JET（資料庫不再被開啟）",
+    "toLabel": "冷複製完整案件（project.json、資料庫與報告）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "storage"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "copy_open",
+    "fromLabel": "冷複製完整案件（project.json、資料庫與報告）",
+    "toLabel": "在目的地開副本（原案件先保留）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "storage"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "open_same",
+    "fromLabel": "在目的地開副本（原案件先保留）",
+    "toLabel": "結果一致？（比對範圍待公司決定）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "operations-proposal"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "same_use",
+    "fromLabel": "結果一致？（比對範圍待公司決定）",
+    "toLabel": "改用新位置（建議步驟）",
+    "label": "一致",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "operations-proposal"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "same_record",
+    "fromLabel": "結果一致？（比對範圍待公司決定）",
+    "toLabel": "匯出支援日誌（記下錯誤與版本）",
+    "label": "不一致",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "support",
+      "operations-proposal"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "record_triage",
+    "fromLabel": "匯出支援日誌（記下錯誤與版本）",
+    "toLabel": "區分問題來源（環境、檔案或程式）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "support",
+      "operations-proposal"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "triage_restore",
+    "fromLabel": "區分問題來源（環境、檔案或程式）",
+    "toLabel": "用副本演練復原（舊版不一定能讀新結構）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "operations-proposal"
+    ]
+  },
+  {
+    "diagram": "maintenance",
+    "connection": "restore_resume",
+    "fromLabel": "用副本演練復原（舊版不一定能讀新結構）",
+    "toLabel": "核對後恢復作業（保留期限與責任待定）",
+    "label": "",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "operations-proposal"
+    ]
+  },
+  {
+    "diagram": "intake-dataflow",
+    "connection": "gl_read",
+    "fromLabel": "總帳檔案（xlsx、xls、CSV 或 Access）",
+    "toLabel": "讀取 GL（import.gl.fromFile）",
+    "label": "來源列",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "intake-flow"
+    ]
+  },
+  {
+    "diagram": "intake-dataflow",
+    "connection": "gl_stage",
+    "fromLabel": "讀取 GL（import.gl.fromFile）",
+    "toLabel": "PBC-GL（staging_gl_raw_row）",
+    "label": "原始列 JSON",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "intake-flow",
+      "import-links"
+    ]
+  },
+  {
+    "diagram": "intake-dataflow",
+    "connection": "gl_back",
+    "fromLabel": "PBC-GL（staging_gl_raw_row）",
+    "toLabel": "GL 投影（mapping.commit.gl）",
+    "label": "逐列讀回",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "intake-flow"
+    ]
+  },
+  {
+    "diagram": "intake-dataflow",
+    "connection": "gl_target",
+    "fromLabel": "GL 投影（mapping.commit.gl）",
+    "toLabel": "GL（target_gl_entry）",
+    "label": "標準分錄",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "intake-flow",
+      "projection-links"
+    ]
+  },
+  {
+    "diagram": "intake-dataflow",
+    "connection": "tb_read",
+    "fromLabel": "試算表檔案（xlsx、xls、CSV 或 Access）",
+    "toLabel": "讀取 TB（import.tb.fromFile）",
+    "label": "來源列",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "intake-flow",
+      "tb-import"
+    ]
+  },
+  {
+    "diagram": "intake-dataflow",
+    "connection": "tb_stage",
+    "fromLabel": "讀取 TB（import.tb.fromFile）",
+    "toLabel": "PBC-TB（staging_tb_raw_row）",
+    "label": "原始列 JSON",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "intake-flow",
+      "import-links"
+    ]
+  },
+  {
+    "diagram": "intake-dataflow",
+    "connection": "tb_back",
+    "fromLabel": "PBC-TB（staging_tb_raw_row）",
+    "toLabel": "TB 投影（mapping.commit.tb）",
+    "label": "逐列讀回",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "intake-flow"
+    ]
+  },
+  {
+    "diagram": "intake-dataflow",
+    "connection": "tb_target",
+    "fromLabel": "TB 投影（mapping.commit.tb）",
+    "toLabel": "TB（target_tb_balance）",
+    "label": "標準餘額",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "intake-flow",
+      "projection-links"
+    ]
+  },
+  {
+    "diagram": "intake-dataflow",
+    "connection": "gl_mapping",
+    "fromLabel": "審計員確認配對（第三步）",
+    "toLabel": "GL 投影（mapping.commit.gl）",
+    "label": "GL 欄位配對",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "intake-flow"
+    ]
+  },
+  {
+    "diagram": "intake-dataflow",
+    "connection": "tb_mapping",
+    "fromLabel": "審計員確認配對（第三步）",
+    "toLabel": "TB 投影（mapping.commit.tb）",
+    "label": "TB 欄位配對",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "intake-flow"
+    ]
+  },
+  {
+    "diagram": "audit-dataflow",
+    "connection": "population_validation",
+    "fromLabel": "GL 與 TB（標準化資料表）",
+    "toLabel": "驗證與預篩選（validate.run、prescreen.run）",
+    "label": "計數與彙總",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "audit-flow"
+    ]
+  },
+  {
+    "diagram": "audit-dataflow",
+    "connection": "validation_summary",
+    "fromLabel": "驗證與預篩選（validate.run、prescreen.run）",
+    "toLabel": "執行摘要（result_rule_run）",
+    "label": "摘要 JSON",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "audit-flow"
+    ]
+  },
+  {
+    "diagram": "audit-dataflow",
+    "connection": "conditions_filter",
+    "fromLabel": "情境定義（config_filter_scenario）",
+    "toLabel": "進階篩選（條件樹轉成 SQL）",
+    "label": "條件定義",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "audit-flow",
+      "filter-commit"
+    ]
+  },
+  {
+    "diagram": "audit-dataflow",
+    "connection": "population_filter",
+    "fromLabel": "GL 與 TB（標準化資料表）",
+    "toLabel": "進階篩選（條件樹轉成 SQL）",
+    "label": "測試母體",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "audit-flow"
+    ]
+  },
+  {
+    "diagram": "audit-dataflow",
+    "connection": "filter_hits",
+    "fromLabel": "進階篩選（條件樹轉成 SQL）",
+    "toLabel": "命中分錄（result_filter_run）",
+    "label": "情境位置與分錄 ID",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "audit-flow",
+      "filter-commit"
+    ]
+  },
+  {
+    "diagram": "audit-dataflow",
+    "connection": "summary_screen",
+    "fromLabel": "執行摘要（result_rule_run）",
+    "toLabel": "畫面查詢（摘要與有界分頁）",
+    "label": "結果摘要",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "audit-flow"
+    ]
+  },
+  {
+    "diagram": "audit-dataflow",
+    "connection": "hits_screen",
+    "fromLabel": "命中分錄（result_filter_run）",
+    "toLabel": "畫面查詢（摘要與有界分頁）",
+    "label": "命中分頁",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "rules-links"
+    ]
+  },
+  {
+    "diagram": "audit-dataflow",
+    "connection": "hits_workbook",
+    "fromLabel": "命中分錄（result_filter_run）",
+    "toLabel": "正式底稿（WorkpaperWriter）",
+    "label": "選取情境的命中",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper",
+      "audit-flow"
+    ]
+  },
+  {
+    "diagram": "audit-dataflow",
+    "connection": "population_workbook",
+    "fromLabel": "GL 與 TB（標準化資料表）",
+    "toLabel": "正式底稿（WorkpaperWriter）",
+    "label": "母體明細",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper"
+    ]
+  },
+  {
+    "diagram": "audit-dataflow",
+    "connection": "summary_workbook",
+    "fromLabel": "執行摘要（result_rule_run）",
+    "toLabel": "正式底稿（WorkpaperWriter）",
+    "label": "驗證結果",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "workpaper",
+      "audit-flow"
+    ]
+  },
+  {
+    "diagram": "deployment",
+    "connection": "load",
+    "fromLabel": "發布資料夾（JET.exe、設定、範本與 wwwroot）",
+    "toLabel": "JET 桌面程序（WinForms，.NET 10 自含式）",
+    "label": "啟動與載入",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "deployment"
+    ]
+  },
+  {
+    "diagram": "deployment",
+    "connection": "ui",
+    "fromLabel": "JET 桌面程序（WinForms，.NET 10 自含式）",
+    "toLabel": "WebView2 執行階段（電腦須已具備）",
+    "label": "WebMessage",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "deployment",
+      "architecture"
+    ]
+  },
+  {
+    "diagram": "deployment",
+    "connection": "read",
+    "fromLabel": "來源檔案（xlsx、xls、CSV 或 Access）",
+    "toLabel": "JET 桌面程序（WinForms，.NET 10 自含式）",
+    "label": "讀取來源檔",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "tb-import",
+      "intake-flow"
+    ]
+  },
+  {
+    "diagram": "deployment",
+    "connection": "access",
+    "fromLabel": "JET 桌面程序（WinForms，.NET 10 自含式）",
+    "toLabel": "x64 ACE 16（只有讀 Access 時需要）",
+    "label": "讀 Access",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "deployment"
+    ]
+  },
+  {
+    "diagram": "deployment",
+    "connection": "sql",
+    "fromLabel": "JET 桌面程序（WinForms，.NET 10 自含式）",
+    "toLabel": "內嵌資料庫引擎（案件選 SQLite 或 DuckDB）",
+    "label": "集合式 SQL",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "architecture",
+      "storage"
+    ]
+  },
+  {
+    "diagram": "deployment",
+    "connection": "db",
+    "fromLabel": "內嵌資料庫引擎（案件選 SQLite 或 DuckDB）",
+    "toLabel": "完整案件資料夾（project.json、資料庫與報告）",
+    "label": "jet.db 或 jet.duckdb",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "storage"
+    ]
+  },
+  {
+    "diagram": "deployment",
+    "connection": "files",
+    "fromLabel": "JET 桌面程序（WinForms，.NET 10 自含式）",
+    "toLabel": "完整案件資料夾（project.json、資料庫與報告）",
+    "label": "project.json 與報告檔",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "storage",
+      "project-file",
+      "report-store"
+    ]
+  },
+  {
+    "diagram": "deployment",
+    "connection": "log",
+    "fromLabel": "JET 桌面程序（WinForms，.NET 10 自含式）",
+    "toLabel": "支援日誌（JET 日誌目錄或所選案件）",
+    "label": "匯出支援紀錄",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "support"
+    ]
+  },
+  {
+    "diagram": "import-erd",
+    "connection": "source_batch",
+    "fromLabel": "import_batch_source（批次內的每個來源檔或工作表）",
+    "toLabel": "import_batch（一次匯入一筆，依 dataset_kind 區分）",
+    "label": "batch_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "import-links"
+    ]
+  },
+  {
+    "diagram": "import-erd",
+    "connection": "definition_batch",
+    "fromLabel": "import_field_definition（來源與目標欄位定義）",
+    "toLabel": "import_batch（一次匯入一筆，依 dataset_kind 區分）",
+    "label": "batch_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "import-links"
+    ]
+  },
+  {
+    "diagram": "import-erd",
+    "connection": "gl_batch",
+    "fromLabel": "staging_gl_raw_row（PBC-GL 原始列）",
+    "toLabel": "import_batch（一次匯入一筆，依 dataset_kind 區分）",
+    "label": "batch_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "import-links"
+    ]
+  },
+  {
+    "diagram": "import-erd",
+    "connection": "tb_batch",
+    "fromLabel": "staging_tb_raw_row（PBC-TB 原始列）",
+    "toLabel": "import_batch（一次匯入一筆，依 dataset_kind 區分）",
+    "label": "batch_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "import-links"
+    ]
+  },
+  {
+    "diagram": "projection-erd",
+    "connection": "previous_current",
+    "fromLabel": "config_field_mapping_previous（重新匯入前的上一版配對）",
+    "toLabel": "config_field_mapping（目前已確認的欄位配對）",
+    "label": "同一 dataset_kind",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "projection-links"
+    ]
+  },
+  {
+    "diagram": "projection-erd",
+    "connection": "gl_batch",
+    "fromLabel": "target_gl_entry（標準化 GL 分錄）",
+    "toLabel": "import_batch（完整欄位見匯入批次的關聯圖）",
+    "label": "batch_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "projection-links"
+    ]
+  },
+  {
+    "diagram": "projection-erd",
+    "connection": "tb_batch",
+    "fromLabel": "target_tb_balance（標準化 TB 餘額）",
+    "toLabel": "import_batch（完整欄位見匯入批次的關聯圖）",
+    "label": "batch_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "projection-links"
+    ]
+  },
+  {
+    "diagram": "projection-erd",
+    "connection": "rde_entry",
+    "fromLabel": "target_gl_rde_value（每筆分錄的自訂欄位值）",
+    "toLabel": "target_gl_entry（標準化 GL 分錄）",
+    "label": "entry_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "rde-link",
+      "projection-links"
+    ]
+  },
+  {
+    "diagram": "projection-erd",
+    "connection": "rde_field",
+    "fromLabel": "target_gl_rde_value（每筆分錄的自訂欄位值）",
+    "toLabel": "config_gl_rde_field（GL 自訂欄位的定義）",
+    "label": "field_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "rde-link",
+      "projection-links"
+    ]
+  },
+  {
+    "diagram": "rules-erd",
+    "connection": "path_taxonomy",
+    "fromLabel": "config_account_taxonomy_path（分類階層的祖先與子孫）",
+    "toLabel": "config_account_taxonomy（科目分類定義）",
+    "label": "ancestor_id、descendant_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "rules-links"
+    ]
+  },
+  {
+    "diagram": "rules-erd",
+    "connection": "mapping_taxonomy",
+    "fromLabel": "target_account_mapping（科目代碼對應到分類）",
+    "toLabel": "config_account_taxonomy（科目分類定義）",
+    "label": "category_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "rules-links"
+    ]
+  },
+  {
+    "diagram": "rules-erd",
+    "connection": "hit_scenario",
+    "fromLabel": "result_filter_run（每個情境命中的分錄）",
+    "toLabel": "config_filter_scenario（第五步已存的篩選情境）",
+    "label": "scenario_position",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "rules-links",
+      "logical-data"
+    ]
+  },
+  {
+    "diagram": "rules-erd",
+    "connection": "hit_entry",
+    "fromLabel": "result_filter_run（每個情境命中的分錄）",
+    "toLabel": "target_gl_entry（完整欄位見標準化資料的關聯圖）",
+    "label": "entry_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "rules-links"
+    ]
+  },
+  {
+    "diagram": "rules-erd",
+    "connection": "sample_entry",
+    "fromLabel": "result_inf_sampling_test_sample（抽樣測試選出的分錄）",
+    "toLabel": "target_gl_entry（完整欄位見標準化資料的關聯圖）",
+    "label": "entry_id",
+    "kind": "fact",
+    "execution": "not-observed",
+    "facts": [
+      "rules-links"
+    ]
+  }
+]

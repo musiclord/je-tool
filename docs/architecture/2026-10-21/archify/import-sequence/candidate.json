@@ -1,0 +1,282 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "TB 取代匯入：從選檔到同一交易寫入",
+    "locale": "zh-TW",
+    "output": "archify/import-sequence/import-sequence.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "default": {
+          "label": "直接呼叫：編譯時目標是具體方法"
+        },
+        "dashed": {
+          "label": "介面呼叫：實作依組裝推論，未觀察執行"
+        },
+        "emphasis": {
+          "label": "間接觸發：action 字串或延遲串流"
+        },
+        "return": {
+          "label": "回傳"
+        }
+      }
+    }
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "匯入畫面",
+      "sublabel": "JetApi"
+    },
+    {
+      "id": "route",
+      "type": "backend",
+      "label": "action 通道",
+      "sublabel": "ActionDispatcher"
+    },
+    {
+      "id": "handler",
+      "type": "backend",
+      "label": "TB 匯入處理",
+      "sublabel": "ImportTbFromFileHandler"
+    },
+    {
+      "id": "reader",
+      "type": "backend",
+      "label": "表格檔讀取",
+      "sublabel": "ITabularFileReader"
+    },
+    {
+      "id": "port",
+      "type": "backend",
+      "label": "匯入執行",
+      "sublabel": "IntakeFactsPort"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "案件資料庫",
+      "sublabel": "SQLite 或 DuckDB"
+    },
+    {
+      "id": "project",
+      "type": "database",
+      "label": "案件進度檔",
+      "sublabel": "JsonFileProjectStore"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 290,
+      "label": "共用派送：與篩選儲存圖相同"
+    },
+    {
+      "from": 298,
+      "to": 616,
+      "label": "準備：任何來源的標頭失敗就不寫入"
+    },
+    {
+      "from": 624,
+      "to": 1012,
+      "label": "同一交易：取代批次與資料列，失敗時嘗試回復"
+    },
+    {
+      "from": 1020,
+      "to": 1316,
+      "label": "提交之後：改用 CancellationToken.None"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m01",
+      "from": "ui",
+      "to": "route",
+      "y": 180,
+      "label": "import.tb.fromFile",
+      "variant": "emphasis",
+      "note": "沒帶 mode 時視為 replace；只帶檔案路徑與讀檔選項"
+    },
+    {
+      "id": "m02",
+      "from": "route",
+      "to": "handler",
+      "y": 250,
+      "label": "IApplicationActionHandler.HandleAsync",
+      "variant": "dashed",
+      "note": "依 action 字串查表；變更型作業同時只執行一項"
+    },
+    {
+      "id": "m03",
+      "from": "handler",
+      "to": "db",
+      "y": 328,
+      "label": "IImportRepository.GetLatestBatchAsync",
+      "variant": "dashed",
+      "note": "先以 JetAuditProgram.Plan 建立計畫"
+    },
+    {
+      "id": "m04",
+      "from": "db",
+      "to": "handler",
+      "y": 398,
+      "label": "前一批次",
+      "variant": "return"
+    },
+    {
+      "id": "m05",
+      "from": "handler",
+      "to": "reader",
+      "y": 438,
+      "label": "ITabularFileReader.ReadColumnsAsync",
+      "variant": "dashed",
+      "note": "逐一讀完所有來源的標頭"
+    },
+    {
+      "id": "m06",
+      "from": "reader",
+      "to": "handler",
+      "y": 508,
+      "label": "欄位清單",
+      "variant": "return"
+    },
+    {
+      "id": "m07",
+      "from": "handler",
+      "to": "reader",
+      "y": 548,
+      "label": "ITabularFileReader.ReadRowsAsync",
+      "variant": "dashed",
+      "note": "只建立延遲串流，這時還沒讀資料列"
+    },
+    {
+      "id": "m08",
+      "from": "handler",
+      "to": "port",
+      "y": 654,
+      "label": "IIntakeFactsPort.ExecuteAsync",
+      "variant": "dashed",
+      "note": "在背景執行緒傳入計畫與各來源串流"
+    },
+    {
+      "id": "m09",
+      "from": "port",
+      "to": "db",
+      "y": 724,
+      "label": "IImportRepository.ReplaceBatchAsync",
+      "variant": "dashed",
+      "note": "計畫是 Replace：刪舊批次並清除依賴結果"
+    },
+    {
+      "id": "m10",
+      "from": "db",
+      "to": "reader",
+      "y": 808,
+      "label": "列舉資料列",
+      "variant": "emphasis",
+      "note": "逐列寫入暫存表；每 20,000 列發一次進度事件"
+    },
+    {
+      "id": "m11",
+      "from": "reader",
+      "to": "db",
+      "y": 878,
+      "label": "資料列",
+      "variant": "return"
+    },
+    {
+      "id": "m12",
+      "from": "db",
+      "to": "port",
+      "y": 918,
+      "label": "ImportBatchResult",
+      "variant": "return",
+      "note": "提交前檢查取消"
+    },
+    {
+      "id": "m13",
+      "from": "port",
+      "to": "handler",
+      "y": 982,
+      "label": "IntakeFacts",
+      "variant": "return"
+    },
+    {
+      "id": "m14",
+      "from": "handler",
+      "to": "project",
+      "y": 1050,
+      "label": "IProjectStore.SaveAsync",
+      "variant": "dashed",
+      "note": "先讀案件檔，步驟落後才儲存；失敗只記警告"
+    },
+    {
+      "id": "m15",
+      "from": "handler",
+      "to": "db",
+      "y": 1120,
+      "label": "IProjectAuditLog.AppendAsync",
+      "variant": "dashed",
+      "note": "只在取代既有批次時寫；失敗只記診斷"
+    },
+    {
+      "id": "m16",
+      "from": "handler",
+      "to": "route",
+      "y": 1190,
+      "label": "批次摘要與失效狀態",
+      "variant": "return",
+      "note": "讀回結果失效狀態與底稿狀態"
+    },
+    {
+      "id": "m17",
+      "from": "route",
+      "to": "ui",
+      "y": 1260,
+      "label": "回應物件",
+      "variant": "return",
+      "note": "完成以回應為準，沒有完成事件"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "情境與前提",
+      "items": [
+        "審計員選好 TB 檔案後送出匯入，沒有指定 mode，所以是取代匯入。",
+        "前提：案件已載入並使用 SQLite 或 DuckDB，也就是 Local 組裝。本圖畫的是正常完成的路徑，沒有觀察實際執行。",
+        "追加匯入時，IntakeFactsPort 改呼叫 AppendToBatchAsync，本圖不畫。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "線條怎麼讀",
+      "items": [
+        "虛線：編譯時只確定介面方法，實際類別依組裝而定。",
+        "強調色的「列舉資料列」不是方法呼叫：LocalImportRepository 逐列取用先前建立的 IAsyncEnumerable，編譯器看不到讀檔類別。",
+        "第 1 條的 action 字串同樣是編譯器看不到的目標。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "實作與組裝",
+      "items": [
+        "ImportTbFromFileHandler 繼承 ImportFromFileHandler，HandleAsync 寫在父類別，GL 匯入共用同一段。",
+        "讀檔介面由 CompositeTabularFileReader 實作，再依副檔名交給 OpenXml、CSV、舊版 Excel 或 Access 讀取器。",
+        "Local 組裝注入 LocalImportRepository；留痕介面是包住 LocalProjectAuditLog 的 BestEffortProjectAuditLog。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "交易內清除什麼，以及來源",
+      "items": [
+        "同一交易刪除舊的 TB 批次、資料列與欄位定義，把已確認的欄位配對移到上一版紀錄後刪除；再依 AuditDependencyPolicy 清除驗證、預篩選、篩選命中、全部已存情境定義與科目配對。分類定義與 GL 控制總數保留。",
+        "交易失敗時嘗試回復，並記下回復本身是否失敗；不能讀成任何故障都一定回復成功。",
+        "ImportFromFileHandler.cs 第 43–199、386–394 行；IntakeFactsPort.cs 第 10–37 行；LocalImportRepository.cs 第 30–236 行；LocalMappingStateStore.cs 第 59–75 行；AuditDependencyPolicy.cs 第 40–65 行；RuleRunResultReset.cs 第 30–99 行。"
+      ]
+    }
+  ]
+}

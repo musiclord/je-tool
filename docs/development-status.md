@@ -12,7 +12,11 @@
 
 ## 目前大型計畫
 
-無。2026-10-20 使用者指示收尾並提交推送，下列三份計畫移到歷史文件：
+[架構文件與圖表維護計畫](specs/2026-10-16-architecture-documentation-plan.md)：2026-10-21 依固定快照重繪 6 個 LikeC4 視圖與 18 張 Archify 圖，
+依使用者裁定取代原本的圖表目錄，改放在 [`architecture/2026-10-21/`](architecture/2026-10-21/README.md)，每條連線都綁定來源證據並納入文件檢查。
+使用者同日指示不另跑測試，直接提交並推送。
+
+2026-10-20 使用者指示收尾並提交推送，下列三份計畫移到歷史文件：
 
 - [資料表分頁與 Agent 文件整理計畫](history/specs/2026-10-16-table-pagination-and-agent-docs-plan.md)：統一明細表的 200 筆分頁與表頭，
   修正使用者指出的匯入、驗證與矩陣畫面問題，同時更新並收斂 Agent 文件。使用者已驗收。
@@ -24,9 +28,6 @@
 同日依使用者要求，SQL Server 的全部事項封存在 [SQL Server 封存事項](history/2026-10-20-sqlserver-archive.md)。
 提交前完整 Gui、公開測試、前端配對合約檢查與文件檢查都通過，Gui 腳本跟上畫面改版的修正記在延後事項清理計畫的「收尾」一節；
 `ReleaseCandidate` 在提交之後執行。
-
-[架構文件與圖表維護計畫](history/specs/2026-10-16-architecture-documentation-plan.md)已完成原圖、可編輯模型、來源證據與共用分析流程的交付，
-加入選定類別關係的檢查。圖表仍以固定快照為準，下一階段交由 Claude 重繪；這項後續工作不併入本輪。
 
 [介面動態與驗證循環整理計畫](history/specs/2026-10-15-motion-and-verification-plan.md)2026-10-16 結案，移回歷史文件。
 動態依 Apple 現行的 Liquid Glass 重新校準，使用者試用後確認沒有問題。Gui 全部改在另一個 Windows 桌面執行，不再干擾使用電腦。
