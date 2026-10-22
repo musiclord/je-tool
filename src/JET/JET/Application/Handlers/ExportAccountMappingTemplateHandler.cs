@@ -40,8 +40,10 @@ public sealed class ExportAccountMappingTemplateHandler(
         IMappingStateStore? mappingStore = repositories.MappingStates;
         var progressSession = new ExportProgressSession(_eventPublisher, cancellationToken);
         var progress = progressSession.Start(ReportArtifactKind.AccountMapping);
+        SupportOperationStage.Enter("run_read");
         var run = await runStore.FindLatestAsync(projectId, RuleRunKinds.Validate, cancellationToken);
         if (!RuleLogicVersions.IsCurrent(run)) { run = null; }
+        SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 

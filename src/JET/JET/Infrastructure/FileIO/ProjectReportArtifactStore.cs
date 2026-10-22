@@ -217,9 +217,11 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
     {
         ValidateWriteRequests(requests);
         var paths = GetProjectPaths(projectId);
+        SupportOperationStage.Enter("report_lease");
         await using var lease = await AcquireLeaseAsync(paths, cancellationToken).ConfigureAwait(false);
         PrepareProjectDirectory(paths);
 
+        SupportOperationStage.Enter("report_manifest_read");
         var before = await ReadManifestAsync(paths, cancellationToken).ConfigureAwait(false);
         var generatedUtc = _timeProvider.GetUtcNow().ToUniversalTime();
         var replacedKinds = requests
@@ -248,7 +250,17 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
                     paths.ProjectDirectory,
                     $"{StagePrefix}{operationId}-{artifactId}.tmp");
                 stagePaths.Add(stagePath);
-                await WriteContentAsync(stagePath, request.WriteContentAsync, cancellationToken).ConfigureAwait(false);
+                SupportOperationStage.Enter("report_write");
+                try
+                {
+                    await WriteContentAsync(stagePath, request.WriteContentAsync, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception error) when (SupportFailureDiagnostics.Mark(
+                    error, "report_write", ("report_kind", ReportArtifactKindValues.ToValue(request.Kind))))
+                {
+                    throw;
+                }
+
                 var bytes = new FileInfo(stagePath).Length;
                 var artifact = new ReportArtifact(
                     artifactId,
@@ -263,6 +275,7 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             }
 
             // 所有暫存檔都完整寫出後才通知「即將發布」，再逐一改名；取消只會發生在改名之前。
+            SupportOperationStage.Enter("report_publish");
             if (publishingArtifact is not null)
             {
                 foreach (var item in staged)
@@ -299,12 +312,22 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
                         _moveFile(item.StagePath, item.FinalPath,
                             item.Artifact.Kind != ReportArtifactKind.WorkingPaper);
                     }
-                    catch (IOException) when (item.Artifact.Kind == ReportArtifactKind.WorkingPaper
+                    catch (Exception error) when (SupportFailureDiagnostics.Mark(
+                        error,
+                        "report_publish",
+                        ("report_kind", ReportArtifactKindValues.ToValue(item.Artifact.Kind)),
+                        ("final_in_use", FinalInUse(item.FinalPath)),
+                        ("final_read_only", FinalReadOnly(item.FinalPath))))
+                    {
+                        throw;
+                    }
+                    catch (IOException exception) when (item.Artifact.Kind == ReportArtifactKind.WorkingPaper
                         && File.Exists(item.FinalPath))
                     {
                         throw new JetActionException(
                             JetErrorCodes.FileReadError,
-                            "同名工作底稿已存在，原檔已保留。請重新匯出，JET 會使用新的版本檔名。");
+                            "同名工作底稿已存在，原檔已保留。請重新匯出，JET 會使用新的版本檔名。",
+                            innerException: exception);
                     }
 
                     // 改名成功後立即登記；後續讀時間或發布索引失敗也必須還原這一份。
@@ -322,6 +345,7 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
                     .Concat(published)
                     .ToArray();
                 // 發布階段不再接受取消；索引成功後才算完成，失敗則連同報告檔一起還原。
+                SupportOperationStage.Enter("report_manifest_write");
                 await PublishManifestAsync(paths, after, CancellationToken.None).ConfigureAwait(false);
                 return Array.AsReadOnly(published.ToArray());
             }
@@ -530,7 +554,10 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
         catch (Exception exception) when (
             exception is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            throw new JetActionException(JetErrorCodes.FileReadError, ProjectFolderMessages.InvalidPath);
+            throw new JetActionException(
+                JetErrorCodes.FileReadError,
+                ProjectFolderMessages.InvalidPath,
+                innerException: exception);
         }
 
         if (!Directory.Exists(root))
@@ -583,7 +610,8 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
             {
                 throw new JetActionException(
                     JetErrorCodes.FileReadError,
-                    "無法寫入案件位置，本次報告未產生。請確認案件資料夾的寫入權限後再試一次。");
+                    "無法寫入案件位置，本次報告未產生。請確認案件資料夾的寫入權限後再試一次。",
+                    innerException: exception);
             }
         }
     }
@@ -832,6 +860,44 @@ public sealed class ProjectReportArtifactStore : IReportArtifactStore, IReportAr
                 ? null
                 : Array.AsReadOnly(sourceRefs.ScenarioPositions.ToArray())
         };
+
+    /// <summary>
+    /// 改名失敗時查一次同名的正式檔：被其他程式開著時無法獨占開啟。覆蓋開著的檔案和唯讀檔都回報拒絕存取，
+    /// 支援日誌靠這兩項分辨原因。只在失敗路徑執行，查不到時回 null。
+    /// </summary>
+    private static bool? FinalInUse(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            using var probe = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None);
+            return false;
+        }
+        catch (IOException error) when (SourceFileErrors.IsInUse(error))
+        {
+            return true;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static bool? FinalReadOnly(string path)
+    {
+        try
+        {
+            return File.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReadOnly) != 0;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
 
     private static void DeleteFileBestEffort(string path)
     {

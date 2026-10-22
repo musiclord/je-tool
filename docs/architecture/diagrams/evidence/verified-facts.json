@@ -1,0 +1,1086 @@
+{
+  "identity": "Committed tree 07b97b3 snapshot taken 2026-10-22; SHA-256 and line-range evidence",
+  "verifiedOn": "2026-10-22",
+  "facts": [
+    {
+      "id": "architecture",
+      "title": "桌面程式與資料庫分工",
+      "claim": "JET 使用 .NET 10、WinForms 和 WebView2。SQLite 與 DuckDB 案件共用同一組 Local 開頭的資料庫類別，都由 AppCompositionRoot 的 CreateLocalProjectRepositories 建立；程式裡的分層不是各自部署的服務。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/JET.csproj",
+          "line": 1,
+          "endLine": 38,
+          "sha256": "febf8e4506ce25a04ceb2e7dff438d076067f78ce24605e9b851f5715b4718a1"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 29,
+          "endLine": 62,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "AGENTS.md",
+          "line": 1,
+          "endLine": 7,
+          "sha256": "b72a8b7b44d87671ffdc30c8827e17290c556f20fb593faa119931801e60e342"
+        }
+      ]
+    },
+    {
+      "id": "environment",
+      "title": "正式環境限制",
+      "claim": "正式環境不能假設有系統管理員權限或外部 AI 服務。本機資料庫要內嵌在 JET 裡使用，不依賴另外安裝的驅動程式或資料庫。公司文件範本與審查要求尚未確認。",
+      "status": "source-and-user-requirement",
+      "sources": [
+        {
+          "path": "docs/project-context.md",
+          "line": 51,
+          "endLine": 73,
+          "sha256": "3ae8c9aefa466bfc324b4aa18ad8edf4905de727ac2ed5cafa099cd398aa6aee"
+        }
+      ]
+    },
+    {
+      "id": "bridge",
+      "title": "JavaScript 到 C# 的 action 通道",
+      "claim": "JetApi 送出 WebMessage，JetWebMessageBridge 交給 ActionDispatcher，由它依 action 名稱找出處理類別。要知道 filter.scenario.save 實際由哪個類別處理，得同時核對 AppCompositionRoot 的註冊和類別上的 Action 屬性；只看 C# 的方法呼叫關係看不出來。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/wwwroot/js/jet-api.js",
+          "line": 5,
+          "endLine": 45,
+          "sha256": "a4abd51862f25a1b31bb4db8375d490b4d4aaa2763896c933a772f9663b96c06"
+        },
+        {
+          "path": "src/JET/JET/Bridge/JetWebMessageBridge.cs",
+          "line": 16,
+          "endLine": 65,
+          "sha256": "f600284d30eeb7c144f8266417d8232fe1cbe408b945627da4156697e1bbb94c"
+        },
+        {
+          "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
+          "line": 93,
+          "endLine": 111,
+          "sha256": "c0dad4246efa5a8a53092ac47d9fbc4abbee929a94b2774b57c1f41357b3872b"
+        },
+        {
+          "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
+          "line": 159,
+          "endLine": 172,
+          "sha256": "c0dad4246efa5a8a53092ac47d9fbc4abbee929a94b2774b57c1f41357b3872b"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 377,
+          "endLine": 381,
+          "sha256": "48c23d18dddbd7674dc099cd52aad25b2b66324dc4957ca26cf92c9c0af4f8f7"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 25,
+          "endLine": 44,
+          "sha256": "aa158cbc186141dca55eb4a7e04a0ece9a2617ad88c40ae7a0400f6278857701"
+        }
+      ]
+    },
+    {
+      "id": "filter-save",
+      "title": "儲存篩選情境的兩種寫法",
+      "claim": "FilterScenarioSaveHandler 先讀取儲存需要的前提資料，再規劃本次要改的這一個情境。整批都合格時執行 FilterPlan 並發布命中；仍有不合格的情境時只寫定義。寫入提交後讀回最新的情境與結果狀態，這一步不再接受這次的取消。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
+          "line": 25,
+          "endLine": 45,
+          "sha256": "aa158cbc186141dca55eb4a7e04a0ece9a2617ad88c40ae7a0400f6278857701"
+        },
+        {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 197,
+          "endLine": 256,
+          "sha256": "761f0a44f2ee531b0baecb2d93995515deba93409cf900f6f058437a817809c3"
+        }
+      ]
+    },
+    {
+      "id": "filter-preconditions",
+      "title": "儲存前檢查與保留其他情境",
+      "claim": "儲存前由 CompletenessEligibilitySupport 確認驗證結果是目前版本，並要求 GL 欄位已確認配對。儲存時檢查本次情境，以及情境數量、位置與名稱；取代既有位置時，畫面送來的 expectedName 必須仍和那個位置的情境名稱相同。其他情境以 KeepOthersVerbatim 原樣保留。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 47,
+          "endLine": 81,
+          "sha256": "761f0a44f2ee531b0baecb2d93995515deba93409cf900f6f058437a817809c3"
+        },
+        {
+          "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
+          "line": 100,
+          "endLine": 180,
+          "sha256": "761f0a44f2ee531b0baecb2d93995515deba93409cf900f6f058437a817809c3"
+        }
+      ]
+    },
+    {
+      "id": "filter-facts",
+      "title": "篩選介面與實際建立的類別",
+      "claim": "FilterFactsPort 實作 IFilterFactsPort，依 action 名稱決定只預覽還是發布；發布時呼叫 IFilterCommitRepository。預覽時，情境要用整張傳票計數的，另外向 IFilterRunRepository 取整張命中傳票的分錄數。案件用 SQLite 或 DuckDB 時，AppCompositionRoot 建立 LocalFilterCommitRepository 交給它；SQL Server 另有自己的實作。這是從程式的建立方式讀出的結論，不是執行紀錄。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/FilterFactsPort.cs",
+          "line": 10,
+          "endLine": 66,
+          "sha256": "3c309bc43b668e51c6abc19f4f2328cec870bc4863524a842ad5f1755192dd7b"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 56,
+          "endLine": 62,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 129,
+          "endLine": 137,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 196,
+          "endLine": 203,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 266,
+          "endLine": 271,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        }
+      ]
+    },
+    {
+      "id": "filter-commit",
+      "title": "定義和命中在同一筆交易發布",
+      "claim": "LocalFilterCommitRepository 在同一筆交易裡清除舊命中與舊定義、寫入新定義、用 SQL 算出命中並清除失效狀態，最後提交。提交前會檢查是否已取消；提交時傳入 CancellationToken.None，提交這一步不會被取消。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
+          "line": 26,
+          "endLine": 75,
+          "sha256": "fa5d2193daec98512da600572ad7739a52fa642ad0a86bb3a055c45899a71478"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
+          "line": 109,
+          "endLine": 130,
+          "sha256": "fa5d2193daec98512da600572ad7739a52fa642ad0a86bb3a055c45899a71478"
+        }
+      ]
+    },
+    {
+      "id": "filter-invalid",
+      "title": "仍不合格時只保存定義",
+      "claim": "LocalFilterScenarioStore.ReplaceAllAsync 在同一筆交易裡把篩選結果標成失效、清除命中並取代定義，不重新計算命中。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterScenarioStore.cs",
+          "line": 8,
+          "endLine": 66,
+          "sha256": "8c3d09bec20e11e701f0d61afbb3371784d5dd017ef451595fa06a4613d6ca70"
+        }
+      ]
+    },
+    {
+      "id": "tb-import",
+      "title": "試算表取代匯入",
+      "claim": "import.tb.fromFile 由 GL 與 TB 共用的 ImportFromFileHandler 產生 IntakePlan。它先讀完每個來源的標頭，再把逐列讀取的資料交給 IIntakeFactsPort；取代匯入時，IntakeFactsPort 呼叫 IImportRepository.ReplaceBatchAsync。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 42,
+          "endLine": 156,
+          "sha256": "bb13e7f6a2d5e5fdcc8595b48851e85c25fea903400da2ed2fb046ee2e220c41"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 443,
+          "endLine": 457,
+          "sha256": "bb13e7f6a2d5e5fdcc8595b48851e85c25fea903400da2ed2fb046ee2e220c41"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/IntakeFactsPort.cs",
+          "line": 10,
+          "endLine": 35,
+          "sha256": "539ce9613d85fa12d0afddedb28e2efc3edb1e94e4c38e18e7ca93bb8d82cb33"
+        }
+      ]
+    },
+    {
+      "id": "tb-transaction",
+      "title": "取代匯入的交易與取消時機",
+      "claim": "LocalImportRepository 在同一筆交易裡清除這個資料集的舊批次與標準化資料、把已確認的配對移到上一版、清除下游結果，再寫入新批次。提交前取消會嘗試回復交易；SQLite 案件執行中的語句也能中途取消，CancellableSqliteCommand 把取消接到 sqlite3_interrupt，被中斷的寫入由 SQLite 回復，錯誤回報成取消。提交之後，匯入處理類別照樣更新步驟、寫操作紀錄並回應，提交後才到的取消不會讓這次匯入被當成沒做。回復失敗時會記下診斷資訊，所以不能說任何故障都一定能回復。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
+          "line": 30,
+          "endLine": 90,
+          "sha256": "08e5e75c7b9dd698267bf3b4678c5dd2509d4fe619cbbdebc16883945f2a7e77"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
+          "line": 189,
+          "endLine": 234,
+          "sha256": "08e5e75c7b9dd698267bf3b4678c5dd2509d4fe619cbbdebc16883945f2a7e77"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 157,
+          "endLine": 200,
+          "sha256": "bb13e7f6a2d5e5fdcc8595b48851e85c25fea903400da2ed2fb046ee2e220c41"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/CancellableSqliteConnection.cs",
+          "line": 7,
+          "endLine": 27,
+          "sha256": "d27cbc086d58bc5bfd78554680296e3582861718f29ad3f264187b2a64de8fc8"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+          "line": 308,
+          "endLine": 308,
+          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+        }
+      ]
+    },
+    {
+      "id": "tb-policy",
+      "title": "TB 修改會清除哪些資料",
+      "claim": "依失效政策 AuditDependencyPolicy，TB 匯入會清除科目配對、驗證、預篩選、篩選命中與全部已存的情境定義；分類定義與 GL 控制總數保留。實際清了哪些資料表，要把這份政策和 RuleRunResultReset 的 SQL 一起看。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Domain/Rules/AuditDependencyPolicy.cs",
+          "line": 43,
+          "endLine": 68,
+          "sha256": "c29bfd4937fc4ffd432394e9a33d249b169266922bc326b0b848eb6301085ba3"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Sql/RuleRunResultReset.cs",
+          "line": 22,
+          "endLine": 26,
+          "sha256": "e450fb1b2aa1c9312eacd3f7032af5341593d4642e14169ef2664e972d12ea32"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Sql/RuleRunResultReset.cs",
+          "line": 30,
+          "endLine": 98,
+          "sha256": "e450fb1b2aa1c9312eacd3f7032af5341593d4642e14169ef2664e972d12ea32"
+        }
+      ]
+    },
+    {
+      "id": "workpaper",
+      "title": "正式工作底稿的規劃與發布",
+      "claim": "匯出前要求驗證結果與情境版本都是目前的，只重算使用者選取的情境，再依 WorkpaperPlan 透過 IWorkpaperPlanWriter 把底稿寫進暫存檔。正式底稿 WorkingPaper 每次用新檔名發布，已有同名檔就拒絕覆寫。改名或更新報告清單失敗時會嘗試還原；還原也失敗時回報錯誤，並保留原檔備份或本次新檔。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 29,
+          "endLine": 96,
+          "sha256": "e00057fdcff341db1a09a600e18a9b2542d9272cb3906e4aea979bf8da0d3b8a"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 149,
+          "endLine": 206,
+          "sha256": "e00057fdcff341db1a09a600e18a9b2542d9272cb3906e4aea979bf8da0d3b8a"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs",
+          "line": 237,
+          "endLine": 262,
+          "sha256": "4a75622596516ef620c5314316d69e8f8651f3bd432fd9ac613d600a658ed94b"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs",
+          "line": 265,
+          "endLine": 345,
+          "sha256": "4a75622596516ef620c5314316d69e8f8651f3bd432fd9ac613d600a658ed94b"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs",
+          "line": 355,
+          "endLine": 361,
+          "sha256": "4a75622596516ef620c5314316d69e8f8651f3bd432fd9ac613d600a658ed94b"
+        }
+      ]
+    },
+    {
+      "id": "logical-data",
+      "title": "程式裡的關聯不等於資料庫外鍵",
+      "claim": "config_filter_scenario 與 result_filter_run 在業務上相依，命中依附於情境；但清除程式的註解寫明兩表之間沒有外鍵。所以資料表關聯圖必須把程式裡的關聯和資料庫宣告的外鍵分開表示。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Sql/RuleRunResultReset.cs",
+          "line": 75,
+          "endLine": 87,
+          "sha256": "e450fb1b2aa1c9312eacd3f7032af5341593d4642e14169ef2664e972d12ea32"
+        }
+      ]
+    },
+    {
+      "id": "tests-read",
+      "title": "研究時讀過的測試",
+      "claim": "這些測試只讀過名稱、準備步驟與斷言，沒有執行。它們說明既有程式要驗證什麼，不能當成測試已通過的證據。",
+      "status": "test-source-read-not-executed",
+      "sources": [
+        {
+          "path": "src/JET/tests/JET.Tests/Application/UpstreamMutationClearsFilterScenariosTests.cs",
+          "line": 40,
+          "endLine": 78,
+          "sha256": "28be2528445fc83cdb2db167957c2f2a686f9db1c8f624475a615d0733ee5653"
+        },
+        {
+          "path": "src/JET/tests/JET.Tests/Application/FilterScenarioSingleChangeTests.cs",
+          "line": 96,
+          "endLine": 109,
+          "sha256": "ee9b057b6513ccf9a8d878251111f64214909fb73b5bb875d8b393a3c41bd53c"
+        },
+        {
+          "path": "src/JET/tests/JET.Tests/Infrastructure/ProjectReportArtifactStoreTests.cs",
+          "line": 21,
+          "endLine": 37,
+          "sha256": "7fda654a863bc31b6c3fc3e8325450a7e030bc0f598e7bc7af7819845b99500e"
+        }
+      ]
+    },
+    {
+      "id": "frontend",
+      "title": "三個前端操作入口",
+      "claim": "jet-api.js 把 action 名稱轉成前端方法名稱，例如 filter.scenario.save 變成 filterScenarioSave；循序圖從畫面呼叫 JetApi 的這些方法開始。篩選、匯入與匯出三個步驟的頁面都有對應的呼叫。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/wwwroot/js/jet-api.js",
+          "line": 215,
+          "endLine": 263,
+          "sha256": "a4abd51862f25a1b31bb4db8375d490b4d4aaa2763896c933a772f9663b96c06"
+        },
+        {
+          "path": "src/JET/JET/wwwroot/js/steps/filter-step.js",
+          "line": 3562,
+          "endLine": 3587,
+          "sha256": "0f7e630edf39ecafe6c3ce6725e90f2901a4f054aeca3d3a15ec9e11ce154398"
+        },
+        {
+          "path": "src/JET/JET/wwwroot/js/steps/import-step.js",
+          "line": 1134,
+          "endLine": 1159,
+          "sha256": "f8277ff741f80a74f2406d359d46500aec1dd67e9c59aea564142a2f7c888494"
+        },
+        {
+          "path": "src/JET/JET/wwwroot/js/steps/export-step.js",
+          "line": 347,
+          "endLine": 367,
+          "sha256": "fe7e581cf0ddc4bd526d762f5b351e5e59946dda00416ce5548ce55cd24d50dd"
+        }
+      ]
+    },
+    {
+      "id": "schema",
+      "title": "SQLite 資料表欄位",
+      "claim": "資料表關聯圖依 SQLite 的基本建表定義，加上第 7、10、11、12 版的結構變更畫成。只畫資料表本身的欄位，不展開 JSON 欄位裡的內容；名稱相同的欄位也不推定為資料庫外鍵。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+          "line": 20,
+          "endLine": 254,
+          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+          "line": 333,
+          "endLine": 445,
+          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+          "line": 478,
+          "endLine": 530,
+          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+          "line": 575,
+          "endLine": 611,
+          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Sql/AccountClassificationMigration.cs",
+          "line": 15,
+          "endLine": 40,
+          "sha256": "c7e55fac24bc03724d978bcb107c86de110dd5115ac9d5d92ebf8fe522f70ff9"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Sql/AccountTaxonomyHierarchy.cs",
+          "line": 8,
+          "endLine": 31,
+          "sha256": "ec654ecf20439b5585b5c80d6cbbeed3518ee0fcce2b329117d35abc1260351b"
+        },
+        {
+          "path": "src/JET/JET/AuditCore/JetSchemaCatalog.cs",
+          "line": 89,
+          "endLine": 165,
+          "sha256": "c701f010b251347abce632904619234029330875c502aa5b8d84b0dd11c32e1d"
+        }
+      ]
+    },
+    {
+      "id": "deployment",
+      "title": "資料夾發布與本機執行",
+      "claim": "FolderProfile 把主程式發布成 Windows x64 自含式的單一執行檔；前端檔案、範本與設定仍要隨整個發布資料夾一起交付。WebView2 執行階段是電腦要先具備的前提，不能因為是單檔發布就認定已經內含。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Properties/PublishProfiles/FolderProfile.pubxml",
+          "line": 1,
+          "endLine": 25,
+          "sha256": "455eb4170bcc28396c1caec73568c02512d9945d6535148e5627fb5dbc0f9dd6"
+        },
+        {
+          "path": "src/JET/JET/JET.csproj",
+          "line": 1,
+          "endLine": 65,
+          "sha256": "febf8e4506ce25a04ceb2e7dff438d076067f78ce24605e9b851f5715b4718a1"
+        },
+        {
+          "path": "docs/development-guide.md",
+          "line": 7,
+          "endLine": 43,
+          "sha256": "52fd361af20048877da76365b15d4d364df0ca4bdd692deb2a28a2bd80afe39a"
+        }
+      ]
+    },
+    {
+      "id": "storage",
+      "title": "案件資料夾裡的檔案",
+      "claim": "SQLite 案件的資料庫檔是 jet.db，DuckDB 案件是 jet.duckdb，案件資料夾也存 project.json。現行文件記載的移轉前提是：先正常離開 JET，再複製整個案件資料夾。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/JetProjectFolder.cs",
+          "line": 5,
+          "endLine": 43,
+          "sha256": "fb9bba5859d2fc0f650d14fc964c5b446f6b277b68731727b0c138196c6cf9db"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/DuckDb/DuckDbProjectDatabase.cs",
+          "line": 7,
+          "endLine": 28,
+          "sha256": "a5972e1deb788f12de431c0fec59c07ef8cfd67ce34cd41751b504c2884e3ade"
+        },
+        {
+          "path": "docs/project-context.md",
+          "line": 67,
+          "endLine": 73,
+          "sha256": "3ae8c9aefa466bfc324b4aa18ad8edf4905de727ac2ed5cafa099cd398aa6aee"
+        }
+      ]
+    },
+    {
+      "id": "support",
+      "title": "支援日誌",
+      "claim": "support.log.export 匯出目前保留、已去識別化的支援事件；指定案件時，還可以再依 correlationId 篩選。沒有指定案件時輸出到 JET 的日誌資料夾，不必先成功載入案件。案件清單頁尾的「輸出支援日誌」按鈕只在 Debug 組建顯示，由 system.ping 回傳的 devToolsEnabled 決定；開案後訊息面板的按鈕在 Release 照舊。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Application/Handlers/DevLogHandlers.cs",
+          "line": 9,
+          "endLine": 104,
+          "sha256": "0dadab0ed7ecc10f59993b4aef8fa741ff39b188385ec2a804f7c3fdf968284f"
+        },
+        {
+          "path": "src/JET/JET/wwwroot/js/app.js",
+          "line": 489,
+          "endLine": 504,
+          "sha256": "99f733865d92054b84d1edf6688068118b60d6f50f7251b44ffaba7f81de8183"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/SystemPingHandler.cs",
+          "line": 7,
+          "endLine": 20,
+          "sha256": "4c9e60a27834aa9a83efd1dc73862ccb2230299d4e384b9142581b5251ff2c6a"
+        }
+      ]
+    },
+    {
+      "id": "operations-proposal",
+      "title": "待確認的正式部署程序",
+      "claim": "版本核對、用合成資料做的初步驗收、備份保留期限、復原演練，以及公司審查的負責人，都是研究提出的建議，還不是產品功能，也不是公司核准的程序。",
+      "status": "proposal-not-executed",
+      "sources": [
+        {
+          "path": "docs/project-context.md",
+          "line": 51,
+          "endLine": 73,
+          "sha256": "3ae8c9aefa466bfc324b4aa18ad8edf4905de727ac2ed5cafa099cd398aa6aee"
+        },
+        {
+          "path": "docs/development-guide.md",
+          "line": 38,
+          "endLine": 43,
+          "sha256": "52fd361af20048877da76365b15d4d364df0ca4bdd692deb2a28a2bd80afe39a"
+        }
+      ]
+    },
+    {
+      "id": "after-commit",
+      "title": "資料提交之後才更新步驟",
+      "claim": "匯入與篩選都在資料提交之後，才嘗試推進案件步驟。步驟存不進去時，AfterCommitAsync 只記一筆警告：已完成的資料操作不會改報失敗，已提交的資料也不會因此回復。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 349,
+          "endLine": 356,
+          "sha256": "bb13e7f6a2d5e5fdcc8595b48851e85c25fea903400da2ed2fb046ee2e220c41"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/MappingHandlers.cs",
+          "line": 373,
+          "endLine": 397,
+          "sha256": "306f414640d9b1fc0cb977b190d1a5a82a3699a4839eb2ac4c5d6cddd5984f8b"
+        }
+      ]
+    },
+    {
+      "id": "rde-link",
+      "title": "自訂 RDE 欄位的對應方式",
+      "claim": "LocalGlRepository 依欄位定義寫入 config_gl_rde_field；產生標準 GL 時，再把每筆分錄的自訂 RDE 值連同 FieldId 寫進 target_gl_rde_value。兩表靠 field_id 對應，資料庫沒有宣告外鍵。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+          "line": 455,
+          "endLine": 565,
+          "sha256": "fb2020265585b10dbf3ba31b9acf5f6cf5bd3702f9c4a91928a0ed1520d62107"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalResultPageRdeValuesPort.cs",
+          "line": 35,
+          "endLine": 52,
+          "sha256": "df0d2a7175f202a381c9adeb4df9539a1b22fc5db36dab91edfc4e1f4d7f2ed2"
+        }
+      ]
+    },
+    {
+      "id": "composition",
+      "title": "啟動時建立的物件",
+      "claim": "AppCompositionRoot 在程式啟動時建立 ActionDispatcher、各 action 的處理類別、讀檔器、報告存檔類別與 project.json 的讀寫元件；案件用 SQLite 或 DuckDB 時，另外建立 repository、facts port 與操作紀錄元件，再透過建構子交給使用它們的類別。圖上的「建立」線，以及介面背後實際類別的推論，都以這些建立位置為準，沒有執行紀錄。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 120,
+          "endLine": 123,
+          "sha256": "48c23d18dddbd7674dc099cd52aad25b2b66324dc4957ca26cf92c9c0af4f8f7"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 205,
+          "endLine": 206,
+          "sha256": "48c23d18dddbd7674dc099cd52aad25b2b66324dc4957ca26cf92c9c0af4f8f7"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 264,
+          "endLine": 265,
+          "sha256": "48c23d18dddbd7674dc099cd52aad25b2b66324dc4957ca26cf92c9c0af4f8f7"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 357,
+          "endLine": 358,
+          "sha256": "48c23d18dddbd7674dc099cd52aad25b2b66324dc4957ca26cf92c9c0af4f8f7"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 379,
+          "endLine": 379,
+          "sha256": "48c23d18dddbd7674dc099cd52aad25b2b66324dc4957ca26cf92c9c0af4f8f7"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 398,
+          "endLine": 398,
+          "sha256": "48c23d18dddbd7674dc099cd52aad25b2b66324dc4957ca26cf92c9c0af4f8f7"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 449,
+          "endLine": 450,
+          "sha256": "48c23d18dddbd7674dc099cd52aad25b2b66324dc4957ca26cf92c9c0af4f8f7"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 44,
+          "endLine": 62,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 81,
+          "endLine": 82,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 118,
+          "endLine": 118,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 134,
+          "endLine": 134,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 162,
+          "endLine": 174,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 310,
+          "endLine": 311,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 375,
+          "endLine": 375,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        }
+      ]
+    },
+    {
+      "id": "action-policy",
+      "title": "分派前的互斥、背景執行與取消",
+      "claim": "ActionExecutionPolicy 判斷 action 是否互斥、是否在背景執行；會修改資料的互斥作業要先向 ActionExecutionGate 取得執行權，已有作業在跑時直接回錯誤，不排隊。已要求取消後，資料庫中止語句時丟出的其他例外一律回報成取消，三種資料庫在畫面上都顯示「作業已取消」。Form1 建立 JetWebMessageBridge，它用 RequestCancellationRegistry.RunAsync 包住分派，畫面可依 requestId 取消。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Domain/ActionExecutionPolicy.cs",
+          "line": 32,
+          "endLine": 68,
+          "sha256": "5a051f8ecee4931305344fbac36ee738355f37f984dcd93a385d2e59a761ea53"
+        },
+        {
+          "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
+          "line": 88,
+          "endLine": 111,
+          "sha256": "c0dad4246efa5a8a53092ac47d9fbc4abbee929a94b2774b57c1f41357b3872b"
+        },
+        {
+          "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
+          "line": 134,
+          "endLine": 141,
+          "sha256": "c0dad4246efa5a8a53092ac47d9fbc4abbee929a94b2774b57c1f41357b3872b"
+        },
+        {
+          "path": "src/JET/JET/Bridge/JetWebMessageBridge.cs",
+          "line": 54,
+          "endLine": 56,
+          "sha256": "f600284d30eeb7c144f8266417d8232fe1cbe408b945627da4156697e1bbb94c"
+        },
+        {
+          "path": "src/JET/JET/Form1.cs",
+          "line": 500,
+          "endLine": 501,
+          "sha256": "7c94218a3d935f742af54936b915bbc8b339c2c55f1b657788b681e6dc55bc5b"
+        }
+      ]
+    },
+    {
+      "id": "audit-log",
+      "title": "操作紀錄",
+      "claim": "SQLite 與 DuckDB 案件的 IProjectAuditLog 是 BestEffortProjectAuditLog，由它交給 LocalProjectAuditLog 寫入。操作紀錄都在資料提交之後才寫，統一經過 CommittedAuditLog.AppendAsync：寫入失敗記在支援日誌，動作仍回報成功，回應多一句提醒「變更已儲存，但這次變更沒有寫入操作紀錄。」，報告則是「檔案已產生，但這次產生的檔案沒有寫入操作紀錄。」。TB 重新匯入由 ImportFromFileHandler 寫，報告發布成功後由 AuditedReportArtifactStore 寫，重新確認配對由 MappingCommitGlHandler 與 MappingCommitTbHandler 寫。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 81,
+          "endLine": 82,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/BestEffortProjectAuditLog.cs",
+          "line": 14,
+          "endLine": 37,
+          "sha256": "39ed581d07a96682f297a1e4a58d5d7df4b393579a21d14786882091be150dc1"
+        },
+        {
+          "path": "src/JET/JET/Application/Support/CommittedAuditLog.cs",
+          "line": 11,
+          "endLine": 33,
+          "sha256": "d08b2fe81496de1886efc805d80537d62292bc551f2ba7b131179b4df1be1e32"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 164,
+          "endLine": 177,
+          "sha256": "bb13e7f6a2d5e5fdcc8595b48851e85c25fea903400da2ed2fb046ee2e220c41"
+        },
+        {
+          "path": "src/JET/JET/Application/Support/AuditedReportArtifactStore.cs",
+          "line": 166,
+          "endLine": 186,
+          "sha256": "5f754ab65631dda13ef430b64c9250dc7be575dc11c06df436e47c882de74616"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/MappingHandlers.cs",
+          "line": 220,
+          "endLine": 221,
+          "sha256": "306f414640d9b1fc0cb977b190d1a5a82a3699a4839eb2ac4c5d6cddd5984f8b"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/MappingHandlers.cs",
+          "line": 352,
+          "endLine": 353,
+          "sha256": "306f414640d9b1fc0cb977b190d1a5a82a3699a4839eb2ac4c5d6cddd5984f8b"
+        }
+      ]
+    },
+    {
+      "id": "report-store",
+      "title": "報告檔的兩層存檔類別",
+      "claim": "啟動時以 AuditedReportArtifactStore 包住 ProjectReportArtifactStore。外層另外實作 IAuditedReportPublishingStore，底稿匯出與其他報告經這個介面發布，回應裡才拿得到寫不進操作紀錄的提醒；外層只把內層當成 IReportArtifactStore 持有，呼叫前才轉型成 IReportArtifactPublishingStore。內層把報告寫在案件資料夾：先寫暫存檔，改名前最後檢查一次取消，再更新報告清單。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 205,
+          "endLine": 206,
+          "sha256": "48c23d18dddbd7674dc099cd52aad25b2b66324dc4957ca26cf92c9c0af4f8f7"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
+          "line": 173,
+          "endLine": 174,
+          "sha256": "7f38d4933456ed9febd57557bcc672698e2e60826eb4dde7667af87dbd3c4abf"
+        },
+        {
+          "path": "src/JET/JET/Application/Support/AuditedReportArtifactStore.cs",
+          "line": 6,
+          "endLine": 37,
+          "sha256": "5f754ab65631dda13ef430b64c9250dc7be575dc11c06df436e47c882de74616"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+          "line": 184,
+          "endLine": 206,
+          "sha256": "e00057fdcff341db1a09a600e18a9b2542d9272cb3906e4aea979bf8da0d3b8a"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs",
+          "line": 94,
+          "endLine": 105,
+          "sha256": "4a75622596516ef620c5314316d69e8f8651f3bd432fd9ac613d600a658ed94b"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs",
+          "line": 212,
+          "endLine": 343,
+          "sha256": "4a75622596516ef620c5314316d69e8f8651f3bd432fd9ac613d600a658ed94b"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs",
+          "line": 551,
+          "endLine": 557,
+          "sha256": "4a75622596516ef620c5314316d69e8f8651f3bd432fd9ac613d600a658ed94b"
+        }
+      ]
+    },
+    {
+      "id": "project-file",
+      "title": "案件進度檔",
+      "claim": "JsonFileProjectStore 把 project.json 寫在案件資料夾，資料庫檔也在同一個資料夾。新案先在暫存資料夾寫好再換名，更新時先寫暫存檔。檔內保存案件期間、目前步驟、資料庫種類與抽樣種子等設定；開啟案件前，可以從檔內的 databaseProvider 或資料夾裡只有哪一種資料庫檔判斷案件用的是 SQLite 還是 DuckDB。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
+          "line": 20,
+          "endLine": 46,
+          "sha256": "9d3f5968998925942419794d8030bcb618279714eb69735a7c98654d1d403521"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
+          "line": 126,
+          "endLine": 136,
+          "sha256": "9d3f5968998925942419794d8030bcb618279714eb69735a7c98654d1d403521"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
+          "line": 138,
+          "endLine": 187,
+          "sha256": "9d3f5968998925942419794d8030bcb618279714eb69735a7c98654d1d403521"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
+          "line": 189,
+          "endLine": 200,
+          "sha256": "9d3f5968998925942419794d8030bcb618279714eb69735a7c98654d1d403521"
+        },
+        {
+          "path": "src/JET/JET/Domain/ProjectDocument.cs",
+          "line": 15,
+          "endLine": 34,
+          "sha256": "735ad8f93a1a25c8e3222389b6a932d90f4a69c8e6e0a65d52e16016e9825450"
+        }
+      ]
+    },
+    {
+      "id": "intake-flow",
+      "title": "匯入與轉成標準資料的資料流",
+      "claim": "匯入時，讀檔器逐列讀出資料，LocalImportRepository 分批把原始列 JSON、批次與欄位定義寫在同一筆交易。確認配對時，LocalGlRepository 與 LocalTbRepository 從原始表逐列讀回，依配對轉換後分批寫入標準化資料表。重新匯入時，已確認的配對移到上一版紀錄後刪除。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 264,
+          "endLine": 265,
+          "sha256": "48c23d18dddbd7674dc099cd52aad25b2b66324dc4957ca26cf92c9c0af4f8f7"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
+          "line": 30,
+          "endLine": 236,
+          "sha256": "08e5e75c7b9dd698267bf3b4678c5dd2509d4fe619cbbdebc16883945f2a7e77"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
+          "line": 801,
+          "endLine": 805,
+          "sha256": "08e5e75c7b9dd698267bf3b4678c5dd2509d4fe619cbbdebc16883945f2a7e77"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+          "line": 113,
+          "endLine": 144,
+          "sha256": "fb2020265585b10dbf3ba31b9acf5f6cf5bd3702f9c4a91928a0ed1520d62107"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+          "line": 337,
+          "endLine": 337,
+          "sha256": "fb2020265585b10dbf3ba31b9acf5f6cf5bd3702f9c4a91928a0ed1520d62107"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+          "line": 471,
+          "endLine": 471,
+          "sha256": "fb2020265585b10dbf3ba31b9acf5f6cf5bd3702f9c4a91928a0ed1520d62107"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs",
+          "line": 76,
+          "endLine": 76,
+          "sha256": "95f9f0de6bd273ac7d132b4bc4b47fdaa0874ec988fe3c5a356ebd7f9526d18e"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalMappingStateStore.cs",
+          "line": 59,
+          "endLine": 75,
+          "sha256": "347d6b2e34ab9f5a36329ff9b28fc92fa88054ea5254c3d2cd1c766502934928"
+        }
+      ]
+    },
+    {
+      "id": "audit-flow",
+      "title": "驗證、預篩選與命中在資料庫計算",
+      "claim": "驗證與預篩選以 SQL 在 target_gl_entry 上計數與彙總，只把摘要 JSON 存進 result_rule_run。進階篩選把條件樹轉成 SQL，以 INSERT 搭配 SELECT 在資料庫寫入命中的情境位置與分錄 ID。WorkpaperPlanningFactsPort 只讀規劃需要的少量資料。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+          "line": 175,
+          "endLine": 372,
+          "sha256": "cdc638dbae47a63e495a11d31dd2a62fe372a20da7236f77f27d89fb8057254e"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenRunRepository.cs",
+          "line": 12,
+          "endLine": 12,
+          "sha256": "2710d673efacece365fc1bce9d33594b31e08fc2fa5f0213b8f931a21f194169"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenRunRepository.cs",
+          "line": 232,
+          "endLine": 345,
+          "sha256": "2710d673efacece365fc1bce9d33594b31e08fc2fa5f0213b8f931a21f194169"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalRuleRunStore.cs",
+          "line": 27,
+          "endLine": 28,
+          "sha256": "b4b763467a9275ddd8464c4dde08813c7c51e2caea6a39732fd5a8fa30e2ad0d"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Sql/FilterRunHitInsertSql.cs",
+          "line": 13,
+          "endLine": 13,
+          "sha256": "a5228936a22c745abc6e098f53b620f8daad3202269ff9ba512d2ee4c85f2c3f"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/WorkpaperPlanningFactsPort.cs",
+          "line": 17,
+          "endLine": 60,
+          "sha256": "6cf4696e79ce2e6049c6bfb141e34c3830f04620390f0e2a517e96bd4d6835af"
+        }
+      ]
+    },
+    {
+      "id": "import-links",
+      "title": "匯入批次的連接欄位",
+      "claim": "LocalImportRepository 取代匯入時，依 import_batch 的 dataset_kind 找出 batch_id，再刪除同一批次的原始列、來源與欄位定義；寫入時三者都帶同一個 batch_id。這些是程式在 SQL 裡使用的欄位，不是資料庫宣告的外鍵。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
+          "line": 30,
+          "endLine": 236,
+          "sha256": "08e5e75c7b9dd698267bf3b4678c5dd2509d4fe619cbbdebc16883945f2a7e77"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
+          "line": 801,
+          "endLine": 813,
+          "sha256": "08e5e75c7b9dd698267bf3b4678c5dd2509d4fe619cbbdebc16883945f2a7e77"
+        }
+      ]
+    },
+    {
+      "id": "projection-links",
+      "title": "標準化資料的連接欄位",
+      "claim": "LocalGlRepository 與 LocalTbRepository 依 batch_id 讀原始列，寫入標準化表時也寫入同一個 batch_id。GL 自訂欄位值以 entry_id 對應分錄、以 field_id 對應欄位定義。重新匯入時，LocalMappingStateStore 把同一 dataset_kind 的配對搬到上一版後刪除。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+          "line": 30,
+          "endLine": 32,
+          "sha256": "fb2020265585b10dbf3ba31b9acf5f6cf5bd3702f9c4a91928a0ed1520d62107"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+          "line": 115,
+          "endLine": 115,
+          "sha256": "fb2020265585b10dbf3ba31b9acf5f6cf5bd3702f9c4a91928a0ed1520d62107"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+          "line": 471,
+          "endLine": 526,
+          "sha256": "fb2020265585b10dbf3ba31b9acf5f6cf5bd3702f9c4a91928a0ed1520d62107"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs",
+          "line": 26,
+          "endLine": 26,
+          "sha256": "95f9f0de6bd273ac7d132b4bc4b47fdaa0874ec988fe3c5a356ebd7f9526d18e"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs",
+          "line": 69,
+          "endLine": 69,
+          "sha256": "95f9f0de6bd273ac7d132b4bc4b47fdaa0874ec988fe3c5a356ebd7f9526d18e"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalMappingStateStore.cs",
+          "line": 59,
+          "endLine": 75,
+          "sha256": "347d6b2e34ab9f5a36329ff9b28fc92fa88054ea5254c3d2cd1c766502934928"
+        }
+      ]
+    },
+    {
+      "id": "rules-links",
+      "title": "科目分類、命中與抽樣的連接欄位",
+      "claim": "命中與抽樣明細以 entry_id 連回 target_gl_entry 取顯示欄；重算單一情境時依 scenario_position 刪除舊命中。科目配對以 category_id 連到分類，分類階層表的兩個欄位都指向分類代碼。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterHitsPageRepository.cs",
+          "line": 37,
+          "endLine": 38,
+          "sha256": "fb5862998f05195be4a4d5bccc11e925a760aee6dc259b8d8861d03ff7d8fcbf"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalInfSamplePageRepository.cs",
+          "line": 37,
+          "endLine": 37,
+          "sha256": "8cd8b13a1f1ead444422e1309b9e5bb3306170079202bdf2405e3146bf971cfd"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterRunMaterializer.cs",
+          "line": 57,
+          "endLine": 57,
+          "sha256": "64ce96979fd504d64825997cc71f60530822b9987fa4dbe00208f4bf046225b9"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalAccountMappingRepository.cs",
+          "line": 226,
+          "endLine": 232,
+          "sha256": "d436e3d005a6bd43b53e1babe8874c3ec67d307eeef510552e0d1e1df5ba343c"
+        },
+        {
+          "path": "src/JET/JET/Infrastructure/Sql/AccountTaxonomyHierarchy.cs",
+          "line": 23,
+          "endLine": 41,
+          "sha256": "ec654ecf20439b5585b5c80d6cbbeed3518ee0fcce2b329117d35abc1260351b"
+        }
+      ]
+    },
+    {
+      "id": "system-tables",
+      "title": "結果版本與操作紀錄表的用途",
+      "claim": "上游資料修改時，RuleRunResultReset 在同一交易標記 config_result_stale_state，並把 schema_info 的 filter_data_revision 加一。audit_event_log 由 IProjectAuditLog 寫入，例如 TB 重新匯入與報告發布；SQLite 與 DuckDB 案件寫入失敗時記在支援日誌，並在回應附提醒。",
+      "status": "source-reviewed-static",
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Sql/RuleRunResultReset.cs",
+          "line": 37,
+          "endLine": 88,
+          "sha256": "e450fb1b2aa1c9312eacd3f7032af5341593d4642e14169ef2664e972d12ea32"
+        },
+        {
+          "path": "src/JET/JET/Application/Support/AuditedReportArtifactStore.cs",
+          "line": 166,
+          "endLine": 186,
+          "sha256": "5f754ab65631dda13ef430b64c9250dc7be575dc11c06df436e47c882de74616"
+        },
+        {
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "line": 164,
+          "endLine": 177,
+          "sha256": "bb13e7f6a2d5e5fdcc8595b48851e85c25fea903400da2ed2fb046ee2e220c41"
+        }
+      ]
+    }
+  ]
+}

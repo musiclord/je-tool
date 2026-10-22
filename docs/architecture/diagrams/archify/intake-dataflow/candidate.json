@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "匯入資料如何成為審計母體",
+    "locale": "zh-TW",
+    "output": "archify/intake-dataflow/intake-dataflow.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "default": {
+          "label": "JET 逐列讀取，分批寫入"
+        },
+        "dashed": {
+          "label": "只傳操作參數，不含資料列"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "stages": [
+    {
+      "label": "來源檔案"
+    },
+    {
+      "label": "匯入：逐列讀取"
+    },
+    {
+      "label": "原始資料表"
+    },
+    {
+      "label": "確認配對：轉成標準格式"
+    },
+    {
+      "label": "標準化資料表"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "glfile",
+      "type": "external",
+      "stage": 0,
+      "row": 0,
+      "label": "總帳檔案",
+      "sublabel": "xlsx、xls、CSV 或 Access"
+    },
+    {
+      "id": "tbfile",
+      "type": "external",
+      "stage": 0,
+      "row": 2,
+      "label": "試算表檔案",
+      "sublabel": "xlsx、xls、CSV 或 Access"
+    },
+    {
+      "id": "glread",
+      "type": "backend",
+      "stage": 1,
+      "row": 0,
+      "label": "讀取 GL",
+      "sublabel": "import.gl.fromFile"
+    },
+    {
+      "id": "tbread",
+      "type": "backend",
+      "stage": 1,
+      "row": 2,
+      "label": "讀取 TB",
+      "sublabel": "import.tb.fromFile"
+    },
+    {
+      "id": "glraw",
+      "type": "database",
+      "stage": 2,
+      "row": 0,
+      "label": "PBC-GL",
+      "sublabel": "staging_gl_raw_row"
+    },
+    {
+      "id": "auditor",
+      "type": "frontend",
+      "stage": 3,
+      "row": 1,
+      "label": "審計員確認配對",
+      "sublabel": "第三步"
+    },
+    {
+      "id": "tbraw",
+      "type": "database",
+      "stage": 2,
+      "row": 2,
+      "label": "PBC-TB",
+      "sublabel": "staging_tb_raw_row"
+    },
+    {
+      "id": "glmap",
+      "type": "backend",
+      "stage": 3,
+      "row": 0,
+      "label": "產生標準 GL",
+      "sublabel": "mapping.commit.gl"
+    },
+    {
+      "id": "tbmap",
+      "type": "backend",
+      "stage": 3,
+      "row": 2,
+      "label": "產生標準 TB",
+      "sublabel": "mapping.commit.tb"
+    },
+    {
+      "id": "gl",
+      "type": "database",
+      "stage": 4,
+      "row": 0,
+      "label": "GL",
+      "sublabel": "target_gl_entry"
+    },
+    {
+      "id": "tb",
+      "type": "database",
+      "stage": 4,
+      "row": 2,
+      "label": "TB",
+      "sublabel": "target_tb_balance"
+    }
+  ],
+  "flows": [
+    {
+      "id": "gl_read",
+      "from": "glfile",
+      "to": "glread",
+      "label": "來源列"
+    },
+    {
+      "id": "gl_stage",
+      "from": "glread",
+      "to": "glraw",
+      "label": "原始列 JSON"
+    },
+    {
+      "id": "gl_back",
+      "from": "glraw",
+      "to": "glmap",
+      "label": "逐列讀回"
+    },
+    {
+      "id": "gl_target",
+      "from": "glmap",
+      "to": "gl",
+      "label": "標準分錄"
+    },
+    {
+      "id": "tb_read",
+      "from": "tbfile",
+      "to": "tbread",
+      "label": "來源列"
+    },
+    {
+      "id": "tb_stage",
+      "from": "tbread",
+      "to": "tbraw",
+      "label": "原始列 JSON"
+    },
+    {
+      "id": "tb_back",
+      "from": "tbraw",
+      "to": "tbmap",
+      "label": "逐列讀回"
+    },
+    {
+      "id": "tb_target",
+      "from": "tbmap",
+      "to": "tb",
+      "label": "標準餘額"
+    },
+    {
+      "id": "gl_mapping",
+      "from": "auditor",
+      "to": "glmap",
+      "label": "GL 欄位配對",
+      "variant": "dashed"
+    },
+    {
+      "id": "tb_mapping",
+      "from": "auditor",
+      "to": "tbmap",
+      "label": "TB 欄位配對",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "兩次動作，各自一筆交易",
+      "items": [
+        "匯入時，讀檔器逐列讀出資料，LocalImportRepository 分批寫成原始列 JSON，同一筆交易也寫入批次與欄位定義。",
+        "審計員確認配對後，LocalGlRepository 與 LocalTbRepository 從原始表逐列讀回，依配對轉換，再分批寫入標準化資料表。",
+        "畫面只送檔案路徑、讀檔選項與配對設定，不經手資料列。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "沒有畫出的部分",
+      "items": [
+        "產生標準 GL 時，另寫 gl_control_total，以及自訂欄位的 config_gl_rde_field 與 target_gl_rde_value；細節見資料表關聯圖。",
+        "標準化 GL 表也存放不在測試母體內的分錄；查核期間與過帳狀態決定哪些分錄進入測試。",
+        "重新匯入會刪除標準化資料表的舊資料，並把已確認的配對移到上一版；要再確認一次配對，才會重新產生標準化資料。"
+      ]
+    }
+  ]
+}

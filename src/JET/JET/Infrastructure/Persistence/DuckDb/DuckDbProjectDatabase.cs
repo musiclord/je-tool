@@ -581,7 +581,12 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             parsedVersion = 11;
         }
         if (parsedVersion == 11)
+        {
             await MessageLogLevelMigration.UpgradeLocalAsync(connection, MessageLogTableSql, cancellationToken);
+            parsedVersion = 12;
+        }
+        if (parsedVersion == 12)
+            await GlExclusionReasonMigration.UpgradeLocalAsync(connection, cancellationToken);
     }
 
     /// <summary>

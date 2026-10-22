@@ -211,7 +211,8 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                "案件資料夾的路徑格式無效，無法鎖定這個案件。請確認 JET 資料夾的權限，或重新啟動 JET。");
+                "案件資料夾的路徑格式無效，無法鎖定這個案件。請確認 JET 資料夾的權限，或重新啟動 JET。",
+                innerException: exception);
         }
     }
 
@@ -267,7 +268,8 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                "無法確認案件鎖定檔的位置是否安全，系統沒有開始作業。請確認 JET 資料夾的權限，或重新啟動 JET。");
+                "無法確認案件鎖定檔的位置是否安全，系統沒有開始作業。請確認 JET 資料夾的權限，或重新啟動 JET。",
+                innerException: exception);
         }
     }
 
@@ -322,7 +324,8 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                "無法確認案件鎖定檔的位置是否安全，系統沒有開始作業。請確認 JET 資料夾的權限，或重新啟動 JET。");
+                "無法確認案件鎖定檔的位置是否安全，系統沒有開始作業。請確認 JET 資料夾的權限，或重新啟動 JET。",
+                innerException: exception);
         }
     }
 

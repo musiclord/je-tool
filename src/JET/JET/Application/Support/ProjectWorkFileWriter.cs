@@ -52,6 +52,7 @@ internal static class ProjectWorkFileWriter
             $".{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid():N}.tmp");
         try
         {
+            SupportOperationStage.Enter("work_file_write");
             await using (var stream = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,
@@ -67,6 +68,7 @@ internal static class ProjectWorkFileWriter
 
             publishing?.Invoke();
             cancellationToken.ThrowIfCancellationRequested();
+            SupportOperationStage.Enter("work_file_publish");
             try
             {
                 File.Move(temporaryPath, finalPath, overwrite: !onlyIfMissing);
@@ -76,11 +78,12 @@ internal static class ProjectWorkFileWriter
                 // 另一個程序在內容產生後才放入工作檔，也必須保留，不先刪再改名。
                 return new WriteResult(finalPath, Created: false);
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException exception)
             {
                 throw new JetActionException(
                     JetErrorCodes.FileReadError,
-                    $"{fileName} 無法寫入。請先關閉 Excel 或其他開啟檔案的程式，並確認檔案不是唯讀且有寫入權限，再產生一次。");
+                    $"{fileName} 無法寫入。請先關閉 Excel 或其他開啟檔案的程式，並確認檔案不是唯讀且有寫入權限，再產生一次。",
+                    innerException: exception);
             }
             return new WriteResult(finalPath, Created: true);
         }
@@ -88,7 +91,8 @@ internal static class ProjectWorkFileWriter
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"{fileName} 正被其他程式開著，通常是 Excel。關閉後再產生一次即可。");
+                $"{fileName} 正被其他程式開著，通常是 Excel。關閉後再產生一次即可。",
+                innerException: exception);
         }
         finally
         {

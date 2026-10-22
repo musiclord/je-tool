@@ -242,6 +242,13 @@ SQL Server 與管理政策再設計及驗收：
 - 同一份計畫：重新匯入、重新配對與匯出報告寫不進操作紀錄時，改成回報成功並附提醒（`CommittedAuditLog`），SQL Server 案件也適用；
   原本 SQL Server 案件會回報整個動作失敗。失敗記在支援日誌的 `audit_log.append_failed` 事件。
   應用層測試用一定失敗的替身核對了提醒句與支援日誌，沒有 SQL Server 測試執行到。
+- 2026-10-21 架構文件與圖表維護計畫：使用者裁定 GL(未納入測試) 的日期不符分成總帳日期空白、早於查核期間與晚於查核期間三種原因。
+  `SqlServerProjectDatabase.Schema` 升到第 15 版，既有案件升級時和本機第 13 版共用 `GlExclusionReasonMigration.SplitPeriodReasonAsync` 的 SQL，
+  帶 schema 前綴。`SqlServerDataPreviewRepository` 改成回傳四種原因與四個筆數，並接受只看一種原因；`SqlServerValidationRunRepository`
+  的日期不符筆數改成三種日期原因的合計。`SqlServerDataPreviewRepositoryTests` 的原因與筆數預期，以及 `SqlServerSchemaMigrationTests`
+  四處要連線的版本預期，都已改成新的記法，沒有執行；`SqlServerSchemaMigrationTests` 不連線的版本檢查在 Public 執行並通過。
+  `ValidationRunLoggingTests` 的 SQL Server digest 仍是舊值，下一次執行 `Provider` 時預期失敗，要依實際 SQL 更新。
+  這些 SQL Server 程式都沒有 SQL Server 測試執行到。
 
 同一份計畫處理最後獨立複審的低嚴重度事項時，下列只屬於 SQL Server 的部分沒有改，等 SQL Server 開發重啟時一併處理：
 

@@ -180,7 +180,9 @@ public static partial class AppCompositionRoot
 
         // Release-safe 支援日誌永遠註冊，只收 Information+ allowlist 並在寫入 buffer 前去識別；Debug
         // 另掛原有完整 ring/file sink。Release minimum level=Information，不格式化 sql/tx 的 Debug 內容。
-        var supportDiagnostic = new SupportRingBufferLoggerProvider(SupportLogCapacity);
+        // 屬於案件的事件另外附加到案件資料夾的支援紀錄，跨次開啟仍匯出得到（使用者 2026-10-21 裁定）。
+        var supportCaseHistory = new SupportCaseHistoryStore(folder);
+        var supportDiagnostic = new SupportRingBufferLoggerProvider(SupportLogCapacity, supportCaseHistory);
         var diagnostic = enableDevTools
             ? diagnosticLoggerProvider ?? new RingBufferLoggerProvider(DiagnosticLogCapacity)
             : null;
@@ -205,7 +207,9 @@ public static partial class AppCompositionRoot
         var baseReportArtifactStore = new ProjectReportArtifactStore(
             folder,
             logger: loggerFactory.CreateLogger<ProjectReportArtifactStore>());
-        var runtimeResources = new RuntimeOwnedResources(loggerFactory, localFileLockService);
+        // LoggerFactory.Create 不會釋放以執行個體加入的 provider；支援日誌最後才釋放，先寫完排隊中的案件紀錄，
+        // 包括放開工作鎖的那一筆。
+        var runtimeResources = new RuntimeOwnedResources(supportDiagnostic, loggerFactory, localFileLockService);
 
         // 啟動健康檢查（非阻斷）：SQL Server 已設定（base 連線字串非空）時，連一次 master
         // 跑 SELECT @@VERSION, DB_NAME(), SUSER_SNAME() 並把去敏結果寫進啟動日誌。連 master（而非單庫
@@ -331,16 +335,18 @@ public static partial class AppCompositionRoot
             projectListLocalHandler,
             projectListHandler,
             new ProjectCreateHandler(
-                projectStore, repositoryCatalog, currentPrincipal, session),
+                projectStore, repositoryCatalog, currentPrincipal, session,
+                supportCaseHistory, loggerFactory.CreateLogger<ProjectCreateHandler>()),
             new ProjectUpdateHandler(projectStore, projectRegistry, session, loggerFactory.CreateLogger<ProjectUpdateHandler>()),
             new ProjectLoadHandler(
                 projectStore, repositoryCatalog, projectRegistry, appConfigStore, currentPrincipal, session,
-                duckDbDatabase, loggerFactory.CreateLogger<ProjectLoadHandler>()),
+                duckDbDatabase, loggerFactory.CreateLogger<ProjectLoadHandler>(), supportCaseHistory),
             new AccountTaxonomySaveHandler(session, loggerFactory.CreateLogger<AccountTaxonomySaveHandler>()),
             new QueryAccountMappingPageHandler(session),
             new AccountMappingSaveHandler(session, loggerFactory.CreateLogger<AccountMappingSaveHandler>()),
             new ProjectDeleteHandler(
-                projectStore, repositoryCatalog, projectRegistry, currentPrincipal, session),
+                projectStore, repositoryCatalog, projectRegistry, currentPrincipal, session,
+                loggerFactory.CreateLogger<ProjectDeleteHandler>(), supportCaseHistory),
             new ProjectDeletePreviewHandler(projectStore, repositoryCatalog, projectRegistry, currentPrincipal),
             new ProjectHeartbeatHandler(currentPrincipal, session),
             new ProjectReleaseLockHandler(
@@ -408,7 +414,8 @@ public static partial class AppCompositionRoot
                 supportDiagnostic,
                 folder,
                 // 省略 projectId 時的輸出位置：%LOCALAPPDATA%\JET\logs\；測試釘 temp 目錄，不碰真的 %LOCALAPPDATA%。
-                Path.Combine(userProfileDirectory ?? GetUserProfileDirectory(), "logs")),
+                Path.Combine(userProfileDirectory ?? GetUserProfileDirectory(), "logs"),
+                supportCaseHistory),
             new HostSelectFileHandler(hostShell, hostDialogProjectContext),
             new HostSelectFilesHandler(hostShell, hostDialogProjectContext),
             new HostOpenFolderHandler(hostShell, folder, session),

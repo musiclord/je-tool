@@ -128,7 +128,7 @@ internal sealed class DirectTemplateWorkbookEditor
         edit(editor, cancellationToken);
         editor.EnsureAllAllowedCellsWereEdited();
         cancellationToken.ThrowIfCancellationRequested();
-        part.Worksheet.Save();
+        ExcelText.SaveWorksheet(part);
     }
 
     /// <summary>
@@ -279,7 +279,7 @@ internal sealed class DirectTemplateWorkbookEditor
                 relationship.Id);
         }
 
-        clonePart.Worksheet.Save();
+        ExcelText.SaveWorksheet(clonePart);
         var nextSheetId = Sheets.Elements<Sheet>()
             .Select(sheet => sheet.SheetId?.Value ?? 0U)
             .DefaultIfEmpty(0U)
@@ -421,8 +421,7 @@ internal sealed class DirectTemplateCellEditor
         }
 
         cell.DataType = CellValues.InlineString;
-        cell.InlineString = new InlineString(
-            new Text(value) { Space = SpaceProcessingModeValues.Preserve });
+        cell.InlineString = ExcelText.InlineString(value);
     }
 
     internal void SetNumber(
@@ -690,7 +689,14 @@ internal static class DirectTemplateWorksheetRewriter
         using var target = part.GetStream(FileMode.Create, FileAccess.Write);
         using var reader = XmlReader.Create(sourceCopy, readerSettings);
         using var writer = XmlWriter.Create(target, writerSettings);
-        RewriteXml(reader, writer, plan, cancellationToken);
+        try
+        {
+            RewriteXml(reader, writer, plan, cancellationToken);
+        }
+        catch (Exception error) when (ExcelText.MarkWriteFailure(error, part, Array.Empty<XElement>()))
+        {
+            throw;
+        }
         writer.Flush();
         target.Flush();
     }
@@ -924,7 +930,7 @@ internal static class DirectTemplateWorksheetRewriter
                         staticRow,
                         plan.InlineStringCellOverrides,
                         appliedCellOverrides);
-                    staticRow.WriteTo(writer);
+                    WriteRow(staticRow, writer);
                 }
                 continue;
             }
@@ -944,7 +950,7 @@ internal static class DirectTemplateWorksheetRewriter
                 foreach (var row in plan.CreateDynamicRows(prototype, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    row.WriteTo(writer);
+                    WriteRow(row, writer);
                 }
                 wroteDynamicRows = true;
                 continue;
@@ -971,6 +977,22 @@ internal static class DirectTemplateWorksheetRewriter
         reader.Read();
     }
 
+    /// <summary>寫出一列；失敗時記下第一個含 XML 不允許字元的儲存格，工作表順序由外層 <see cref="Rewrite"/> 補上。</summary>
+    private static void WriteRow(XElement row, XmlWriter writer)
+    {
+        try
+        {
+            row.WriteTo(writer);
+        }
+        catch (Exception error) when (ExcelText.MarkWriteFailure(
+            error,
+            part: null,
+            row.Elements(XName.Get("c", SpreadsheetNamespace))))
+        {
+            throw;
+        }
+    }
+
     private static void ApplyInlineStringCellOverrides(
         XElement row,
         IReadOnlyDictionary<string, string> overrides,
@@ -987,12 +1009,7 @@ internal static class DirectTemplateWorksheetRewriter
 
             cell.RemoveNodes();
             cell.SetAttributeValue("t", "inlineStr");
-            cell.Add(new XElement(
-                spreadsheet + "is",
-                new XElement(
-                    spreadsheet + "t",
-                    new XAttribute(XNamespace.Xml + "space", "preserve"),
-                    value)));
+            cell.Add(ExcelText.InlineStringElement(spreadsheet, value));
             applied.Add(reference);
         }
     }

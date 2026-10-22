@@ -37,8 +37,14 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
         DataPreviewDataset dataset,
         int moneyScale,
         int limit,
-        CancellationToken cancellationToken, int offset = 0)
+        CancellationToken cancellationToken, int offset = 0,
+        GlExclusionReason? exclusionReason = null)
     {
+        if (exclusionReason is not null && dataset != DataPreviewDataset.GlExcluded)
+        {
+            throw new ArgumentException("只有 GL(未納入測試) 可以依未納入原因篩選。", nameof(exclusionReason));
+        }
+
         limit = Math.Clamp(limit, 1, 200);
         offset = Math.Max(0, offset);
 
@@ -59,7 +65,7 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
             DataPreviewDataset.PbcGl => await StagingPreviewAsync(connection, projectId, "gl", "staging_gl_raw_row", limit, cancellationToken, offset),
             DataPreviewDataset.PbcTb => await StagingPreviewAsync(connection, projectId, "tb", "staging_tb_raw_row", limit, cancellationToken, offset),
             DataPreviewDataset.Gl => await GlPreviewAsync(connection, projectId, moneyScale, limit, cancellationToken, offset),
-            DataPreviewDataset.GlExcluded => await GlExcludedPreviewAsync(connection, projectId, moneyScale, limit, cancellationToken, offset),
+            DataPreviewDataset.GlExcluded => await GlExcludedPreviewAsync(connection, projectId, moneyScale, limit, cancellationToken, offset, exclusionReason),
             DataPreviewDataset.Tb => await TbPreviewAsync(connection, projectId, moneyScale, limit, cancellationToken, offset),
             DataPreviewDataset.AccountMappings => await AccountMappingsPreviewAsync(connection, projectId, limit, cancellationToken, offset),
             DataPreviewDataset.AuthorizedPreparers => await AuthorizedPreparersPreviewAsync(connection, projectId, limit, cancellationToken, offset),
@@ -300,45 +306,56 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
         string projectId,
         int moneyScale,
         int limit,
-        CancellationToken cancellationToken, int offset = 0)
+        CancellationToken cancellationToken, int offset = 0,
+        GlExclusionReason? exclusionReason = null)
     {
         long? totalCount = null;
         GlExcludedPreviewStats? stats = null;
 
-        // 只在第一頁計算總數與兩類排除筆數；換頁沿用第一頁的數字。
+        // 只在第一頁計算總數與四種原因的筆數；換頁沿用第一頁的數字。
+        // 只看一種原因時總數是那種原因的筆數，四種筆數仍描述全部未納入測試的分錄。
         if (offset == 0)
         {
             await using (var statsQuery = database.CreateCommand(connection, projectId,
                 """
                 SELECT COUNT_BIG(*),
-                       COUNT_BIG(CASE WHEN exclusion_reason = @periodReason THEN 1 END),
+                       COUNT_BIG(CASE WHEN exclusion_reason = @blankPostDateReason THEN 1 END),
+                       COUNT_BIG(CASE WHEN exclusion_reason = @beforePeriodReason THEN 1 END),
+                       COUNT_BIG(CASE WHEN exclusion_reason = @afterPeriodReason THEN 1 END),
                        COUNT_BIG(CASE WHEN exclusion_reason = @postingStatusReason THEN 1 END)
                 FROM {s}.target_gl_entry
                 WHERE is_effective = 0;
                 """))
             {
-                statsQuery.Parameters.AddWithValue("@periodReason", GlEffectivePopulation.PeriodStorageReason);
+                statsQuery.Parameters.AddWithValue("@blankPostDateReason", GlEffectivePopulation.BlankPostDateStorageReason);
+                statsQuery.Parameters.AddWithValue("@beforePeriodReason", GlEffectivePopulation.BeforePeriodStorageReason);
+                statsQuery.Parameters.AddWithValue("@afterPeriodReason", GlEffectivePopulation.AfterPeriodStorageReason);
                 statsQuery.Parameters.AddWithValue("@postingStatusReason", GlEffectivePopulation.PostingStatusStorageReason);
 
                 await using var reader = await statsQuery.ExecuteReaderAsync(cancellationToken);
                 await reader.ReadAsync(cancellationToken);
-                totalCount = reader.GetInt64(0);
-                stats = new GlExcludedPreviewStats(reader.GetInt64(1), reader.GetInt64(2));
+                stats = new GlExcludedPreviewStats(reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4));
+                totalCount = exclusionReason is { } filter ? stats.CountOf(filter) : reader.GetInt64(0);
             }
         }
 
         var rows = new List<IReadOnlyList<string?>>();
 
         await using (var select = database.CreateCommand(connection, projectId,
-            """
+            $$"""
             SELECT document_number, line_item, post_date, posting_status, account_code, account_name,
                    document_description, amount_scaled, dr_cr, exclusion_reason
             FROM {s}.target_gl_entry
-            WHERE is_effective = 0
+            WHERE is_effective = 0{{(exclusionReason is null ? "" : " AND exclusion_reason = @exclusionReason")}}
             ORDER BY entry_id
             OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
             """))
         {
+            if (exclusionReason is { } reason)
+            {
+                select.Parameters.AddWithValue("@exclusionReason", GlEffectivePopulation.StorageReasonOf(reason));
+            }
+
             select.Parameters.AddWithValue("@limit", limit);
             select.Parameters.AddWithValue("@offset", offset);
 
@@ -356,7 +373,8 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
                     reader.IsDBNull(6) ? null : reader.GetString(6),
                     ToDisplayAmount(reader.GetInt64(7), moneyScale).ToString(CultureInfo.InvariantCulture),
                     reader.GetString(8),
-                    ToWireExclusionReason(reader.IsDBNull(9) ? null : reader.GetString(9))
+                    GlExclusionReasonNames.ToWireName(
+                        GlEffectivePopulation.ReasonOfStorage(reader.IsDBNull(9) ? null : reader.GetString(9)))
                 ]);
             }
         }
@@ -413,12 +431,4 @@ public sealed class SqlServerDataPreviewRepository(SqlServerProjectDatabase data
     {
         return (decimal)scaled / moneyScale;
     }
-
-    private static string ToWireExclusionReason(string? storageReason) => storageReason switch
-    {
-        GlEffectivePopulation.PeriodStorageReason => "period",
-        GlEffectivePopulation.PostingStatusStorageReason => "postingStatus",
-        _ => throw new InvalidOperationException(
-            $"未知的 GL 排除原因 storage token '{storageReason ?? "<null>"}'。")
-    };
 }

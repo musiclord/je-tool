@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -10,17 +11,23 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
     private readonly ProjectRepositoryCatalog repositoryCatalog;
     private readonly CurrentPrincipal principal;
     private readonly IProjectSessionPublisher session;
+    private readonly ISupportCaseHistory? supportHistory;
+    private readonly ILogger? logger;
 
     internal ProjectCreateHandler(
         IProjectStore projectStore,
         ProjectRepositoryCatalog repositoryCatalog,
         CurrentPrincipal principal,
-        IProjectSessionPublisher session)
+        IProjectSessionPublisher session,
+        ISupportCaseHistory? supportHistory = null,
+        ILogger<ProjectCreateHandler>? logger = null)
     {
         this.projectStore = projectStore;
         this.repositoryCatalog = repositoryCatalog;
         this.principal = principal;
         this.session = session;
+        this.supportHistory = supportHistory;
+        this.logger = logger;
     }
 
     public string Action => "project.create";
@@ -63,6 +70,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
 
             // 同名資料夾即視為重複(provider 無關;sqlServer 的後端殘留檢查在 projectId 決定後、
             // 落檔前另行執行,見下)。
+            SupportOperationStage.Enter("name_check");
             if (await projectStore.FindAsync(caseName, cancellationToken) is not null)
             {
                 throw new JetActionException(
@@ -80,6 +88,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
 
         // 保留既有失敗優先序：SQL orphan preflight 先於 required payload
         // 解析；技術前置檢查不屬 Domain 案件政策，也不建立第二套 audit decision。
+        SupportOperationStage.Enter("preflight");
         await caseCreateFactsPort.PreflightAsync(
             new CaseCreatePreflightRequest(
                 projectId,
@@ -122,6 +131,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
                 HasUserSuppliedCaseName: !string.IsNullOrWhiteSpace(caseNameRaw),
                 principal.Name));
         CaseCreateFacts facts;
+        SupportOperationStage.Enter("case_create");
         try
         {
             facts = await caseCreateFactsPort.ExecuteAsync(
@@ -135,15 +145,18 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
                 ProjectLockErrorMessage.Format(
                     held.LockedBy,
                     held.MachineName,
-                    held.LockedUtc));
+                    held.LockedUtc),
+                innerException: held);
         }
-        catch (CaseCreateExistingWorkLockException)
+        catch (CaseCreateExistingWorkLockException exception)
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectLocked,
-                "同名案件目前已在 JET 中開啟，無法重新建立。");
+                "同名案件目前已在 JET 中開啟，無法重新建立。",
+                innerException: exception);
         }
 
+        SupportOperationStage.Enter("case_complete");
         try
         {
             var result = JetAuditProgram.Finalize(plan, facts);
@@ -155,6 +168,9 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             // SQL schema remains in an uncommitted create transaction until finalize／session are ready.
             // Final registry／access／create-audit publication ignores request cancellation and commits once.
             await caseCreateFactsPort.CompleteAsync(facts, CancellationToken.None);
+            // 建案確定之後才建立支援紀錄資料夾並記下這次開啟；之前失敗時，回復刪除案件資料夾不受紀錄檔影響。
+            SupportCaseDiagnostics.CaseOpened(
+                supportHistory, logger, document.ProjectId, document.DatabaseProvider, createdNow: true);
             return response;
         }
         catch

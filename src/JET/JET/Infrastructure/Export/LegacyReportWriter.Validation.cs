@@ -484,7 +484,7 @@ public sealed partial class LegacyReportWriter
                         ? ValidationSummaryDifferenceFill
                         : null);
                 cells.EnsureAllAllowedCellsWereEdited();
-                part.Worksheet.Save();
+                ExcelText.SaveWorksheet(part);
                 ct.ThrowIfCancellationRequested();
             },
             cancellationToken);
@@ -810,8 +810,7 @@ public sealed partial class LegacyReportWriter
         if (!string.IsNullOrEmpty(value))
         {
             cell.DataType = CellValues.InlineString;
-            cell.InlineString = new InlineString(
-                new Text(value) { Space = SpaceProcessingModeValues.Preserve });
+            cell.InlineString = ExcelText.InlineString(value);
         }
         return cell;
     }

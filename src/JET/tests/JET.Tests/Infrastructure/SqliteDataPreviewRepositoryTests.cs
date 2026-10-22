@@ -134,12 +134,18 @@ public sealed class SqliteDataPreviewRepositoryTests
             excluded.Columns);
         Assert.Equal(3, excluded.TotalCount);
         var row = Assert.Single(excluded.Rows);
+        // 使用者 2026-10-21 裁定日期不符分成三種原因：總帳日期空白的列記成 blank_post_date，讀成 blankPostDate。
+        // 種子原本是改版前的 period，第一次失敗是讀不出這個值（收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a）。
         Assert.Equal(
-            ["JV-200", "1", null, "POSTED", "5200", "一般費用", "期外", "10", "DEBIT", "period"],
+            ["JV-200", "1", null, "POSTED", "5200", "一般費用", "期外", "10", "DEBIT", "blankPostDate"],
             row);
+        // 使用者 2026-10-21 裁定日期不符分成三種原因，兩個計數改成四個；改名前的建置失敗收據
+        // 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
         var excludedStats = Assert.IsType<GlExcludedPreviewStats>(excluded.Stats);
-        Assert.Equal(1, excludedStats.ExcludedByPeriodCount);
-        Assert.Equal(2, excludedStats.ExcludedByPostingStatusCount);
+        Assert.Equal(1, excludedStats.BlankPostDateCount);
+        Assert.Equal(0, excludedStats.BeforePeriodCount);
+        Assert.Equal(0, excludedStats.AfterPeriodCount);
+        Assert.Equal(2, excludedStats.PostingStatusCount);
     }
 
     [Theory]
@@ -160,9 +166,13 @@ public sealed class SqliteDataPreviewRepositoryTests
         Assert.Equal(10, result.Columns.Count);
         Assert.Empty(result.Rows);
         Assert.Equal(0, result.TotalCount);
+        // 使用者 2026-10-21 裁定日期不符分成三種原因，兩個計數改成四個；改名前的建置失敗收據
+        // 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
         var stats = Assert.IsType<GlExcludedPreviewStats>(result.Stats);
-        Assert.Equal(0, stats.ExcludedByPeriodCount);
-        Assert.Equal(0, stats.ExcludedByPostingStatusCount);
+        Assert.Equal(0, stats.BlankPostDateCount);
+        Assert.Equal(0, stats.BeforePeriodCount);
+        Assert.Equal(0, stats.AfterPeriodCount);
+        Assert.Equal(0, stats.PostingStatusCount);
     }
 
     [Fact]
@@ -254,7 +264,7 @@ public sealed class SqliteDataPreviewRepositoryTests
             VALUES
                 ('preview', 1, 'JV-100', '1', '2024-01-01', 'POSTED', 1, NULL,
                  '1101', '現金', '有效', 12345, 12345, 0, 'DEBIT'),
-                ('preview', 2, 'JV-200', '1', NULL, 'POSTED', 0, 'period',
+                ('preview', 2, 'JV-200', '1', NULL, 'POSTED', 0, 'blank_post_date',
                  '5200', '一般費用', '期外', 1000, 1000, 0, 'DEBIT'),
                 ('preview', 3, 'JV-300', '1', '2024-02-01', 'DRAFT', 0, 'posting_status',
                  '6100', '其他費用', '未過帳', -750, 0, 750, 'CREDIT'),

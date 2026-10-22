@@ -169,12 +169,16 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
                    COALESCE(SUM(CASE WHEN is_effective = 1 THEN credit_amount_scaled ELSE 0 END), 0),
                    COALESCE(SUM(CASE WHEN is_effective = 1 THEN amount_scaled ELSE 0 END), 0),
                    COALESCE(SUM(CAST(CASE WHEN is_effective = 0 THEN 1 ELSE 0 END AS BIGINT)), 0),
-                   COALESCE(SUM(CAST(CASE WHEN exclusion_reason = @periodReason THEN 1 ELSE 0 END AS BIGINT)), 0),
+                   COALESCE(SUM(CAST(CASE WHEN exclusion_reason IN (@blankPostDateReason, @beforePeriodReason, @afterPeriodReason)
+                                          THEN 1 ELSE 0 END AS BIGINT)), 0),
                    COALESCE(SUM(CAST(CASE WHEN exclusion_reason = @postingStatusReason THEN 1 ELSE 0 END AS BIGINT)), 0)
             FROM {s}.target_gl_entry;
             """);
         command.Transaction = transaction;
-        command.Parameters.AddWithValue("@periodReason", GlEffectivePopulation.PeriodStorageReason);
+        // 日期不符是三種日期原因的合計（使用者 2026-10-21 裁定分開標示，驗證摘要的數字不變）。
+        command.Parameters.AddWithValue("@blankPostDateReason", GlEffectivePopulation.BlankPostDateStorageReason);
+        command.Parameters.AddWithValue("@beforePeriodReason", GlEffectivePopulation.BeforePeriodStorageReason);
+        command.Parameters.AddWithValue("@afterPeriodReason", GlEffectivePopulation.AfterPeriodStorageReason);
         command.Parameters.AddWithValue("@postingStatusReason", GlEffectivePopulation.PostingStatusStorageReason);
 
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);

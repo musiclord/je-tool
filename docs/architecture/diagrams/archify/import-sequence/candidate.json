@@ -1,0 +1,319 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "TB 取代匯入：從選檔到同一交易寫入",
+    "locale": "zh-TW",
+    "output": "archify/import-sequence/import-sequence.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "default": {
+          "label": "直接呼叫"
+        },
+        "dashed": {
+          "label": "介面呼叫"
+        },
+        "emphasis": {
+          "label": "間接觸發"
+        },
+        "return": {
+          "label": "回傳"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "匯入畫面",
+      "sublabel": "JetApi"
+    },
+    {
+      "id": "route",
+      "type": "backend",
+      "label": "action 通道",
+      "sublabel": "ActionDispatcher"
+    },
+    {
+      "id": "handler",
+      "type": "backend",
+      "label": "TB 匯入處理",
+      "sublabel": "ImportTbFromFileHandler"
+    },
+    {
+      "id": "reader",
+      "type": "backend",
+      "label": "表格檔讀取",
+      "sublabel": "ITabularFileReader"
+    },
+    {
+      "id": "port",
+      "type": "backend",
+      "label": "匯入執行",
+      "sublabel": "IntakeFactsPort"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "案件資料庫",
+      "sublabel": "SQLite 或 DuckDB"
+    },
+    {
+      "id": "project",
+      "type": "database",
+      "label": "案件進度檔",
+      "sublabel": "JsonFileProjectStore"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 274,
+      "label": "共用分派：與篩選儲存圖相同"
+    },
+    {
+      "from": 306,
+      "to": 575,
+      "label": "準備：任一來源的標頭讀取失敗就不寫入"
+    },
+    {
+      "from": 607,
+      "to": 931,
+      "label": "同一筆交易：取代批次與資料列，失敗時嘗試回復"
+    },
+    {
+      "from": 963,
+      "to": 1213,
+      "label": "提交之後：不再接受取消"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m01",
+      "from": "ui",
+      "to": "route",
+      "y": 180,
+      "label": "import.tb.fromFile",
+      "variant": "emphasis",
+      "note": "沒有指定 mode 就是取代匯入"
+    },
+    {
+      "id": "m02",
+      "from": "route",
+      "to": "handler",
+      "y": 240,
+      "label": "IApplicationActionHandler.HandleAsync",
+      "variant": "dashed",
+      "note": "依 action 名稱找處理類別"
+    },
+    {
+      "id": "m03",
+      "from": "handler",
+      "to": "db",
+      "y": 336,
+      "label": "IImportRepository.GetLatestBatchAsync",
+      "variant": "dashed",
+      "note": "先由 JetAuditProgram 建立計畫"
+    },
+    {
+      "id": "m04",
+      "from": "db",
+      "to": "handler",
+      "y": 398,
+      "label": "前一批次",
+      "variant": "return"
+    },
+    {
+      "id": "m05",
+      "from": "handler",
+      "to": "reader",
+      "y": 438,
+      "label": "ITabularFileReader.ReadColumnsAsync",
+      "variant": "dashed",
+      "note": "逐一讀完所有來源的標頭"
+    },
+    {
+      "id": "m06",
+      "from": "reader",
+      "to": "handler",
+      "y": 490,
+      "label": "欄位清單",
+      "variant": "return"
+    },
+    {
+      "id": "m07",
+      "from": "handler",
+      "to": "reader",
+      "y": 530,
+      "label": "ITabularFileReader.ReadRowsAsync",
+      "variant": "dashed",
+      "note": "先準備讀取方式，還沒讀資料列"
+    },
+    {
+      "id": "m08",
+      "from": "handler",
+      "to": "port",
+      "y": 637,
+      "label": "IIntakeFactsPort.ExecuteAsync",
+      "variant": "dashed",
+      "note": "在背景執行，傳入計畫與各來源的資料列"
+    },
+    {
+      "id": "m09",
+      "from": "port",
+      "to": "db",
+      "y": 699,
+      "label": "IImportRepository.ReplaceBatchAsync",
+      "variant": "dashed",
+      "note": "取代匯入：刪除舊批次與受影響的結果"
+    },
+    {
+      "id": "m10",
+      "from": "db",
+      "to": "reader",
+      "y": 761,
+      "label": "逐列讀取",
+      "variant": "emphasis",
+      "note": "逐列寫入原始列資料表；每 20,000 列回報一次進度"
+    },
+    {
+      "id": "m11",
+      "from": "reader",
+      "to": "db",
+      "y": 823,
+      "label": "資料列",
+      "variant": "return"
+    },
+    {
+      "id": "m12",
+      "from": "db",
+      "to": "port",
+      "y": 863,
+      "label": "ImportBatchResult",
+      "variant": "return",
+      "note": "提交前檢查取消"
+    },
+    {
+      "id": "m13",
+      "from": "port",
+      "to": "handler",
+      "y": 915,
+      "label": "IntakeFacts",
+      "variant": "return"
+    },
+    {
+      "id": "m14",
+      "from": "handler",
+      "to": "project",
+      "y": 993,
+      "label": "IProjectStore.SaveAsync",
+      "variant": "dashed",
+      "note": "案件步驟落後才更新；失敗只記警告"
+    },
+    {
+      "id": "m15",
+      "from": "handler",
+      "to": "db",
+      "y": 1055,
+      "label": "IProjectAuditLog.TryAppendAsync",
+      "variant": "dashed",
+      "note": "經 CommittedAuditLog 呼叫；失敗記在支援日誌，回應附提醒"
+    },
+    {
+      "id": "m16",
+      "from": "handler",
+      "to": "route",
+      "y": 1117,
+      "label": "批次摘要與失效狀態",
+      "variant": "return",
+      "note": "讀回失效狀態與報告清單；讀不回時仍回應成功並附提醒"
+    },
+    {
+      "id": "m17",
+      "from": "route",
+      "to": "ui",
+      "y": 1179,
+      "label": "回應",
+      "variant": "return",
+      "note": "完成以回應為準，沒有完成事件"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "情境與前提",
+      "items": [
+        "審計員選好 TB 檔案後送出匯入，畫面只帶檔案路徑與讀檔選項；沒有指定 mode，所以是取代匯入。",
+        "前提：案件使用 SQLite 或 DuckDB。本圖畫正常完成的路徑；追加匯入改呼叫 AppendToBatchAsync，不在圖內。",
+        "交易裡清除和保留哪些資料，以及失敗時怎麼回復，見「TB 取代匯入」流程圖。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "實際執行的類別",
+      "items": [
+        "ImportTbFromFileHandler 繼承 ImportFromFileHandler，處理流程寫在父類別，GL 匯入共用同一段。",
+        "CompositeTabularFileReader 依副檔名交給 OpenXml、CSV、舊版 Excel 或 Access 的讀取器。",
+        "「逐列讀取」這條線不是方法呼叫：LocalImportRepository 逐列取用讀檔器先準備好的資料列，所以程式碼裡看不到讀檔類別。",
+        "案件用 SQLite 或 DuckDB 時，匯入由 LocalImportRepository 執行；操作紀錄由 CommittedAuditLog 經 IProjectAuditLog 交給 BestEffortProjectAuditLog，再寫進 LocalProjectAuditLog。寫入失敗時回應附提醒「變更已儲存，但這次變更沒有寫入操作紀錄。」。",
+        "SQLite 案件在交易途中取消時，CancellableSqliteCommand 會中斷執行中的語句，被中斷的寫入由 SQLite 回復。"
+      ]
+    }
+  ],
+  "activations": [
+    {
+      "participant": "route",
+      "from": 180,
+      "to": 1179
+    },
+    {
+      "participant": "handler",
+      "from": 240,
+      "to": 1117
+    },
+    {
+      "participant": "db",
+      "from": 336,
+      "to": 398
+    },
+    {
+      "participant": "reader",
+      "from": 438,
+      "to": 490
+    },
+    {
+      "participant": "reader",
+      "from": 530,
+      "to": 554
+    },
+    {
+      "participant": "port",
+      "from": 637,
+      "to": 915
+    },
+    {
+      "participant": "db",
+      "from": 699,
+      "to": 863
+    },
+    {
+      "participant": "reader",
+      "from": 761,
+      "to": 823
+    },
+    {
+      "participant": "project",
+      "from": 993,
+      "to": 1017
+    },
+    {
+      "participant": "db",
+      "from": 1055,
+      "to": 1079
+    }
+  ]
+}

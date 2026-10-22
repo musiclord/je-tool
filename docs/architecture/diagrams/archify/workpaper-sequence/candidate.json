@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "正式底稿匯出：規劃、寫暫存檔與發布",
+    "locale": "zh-TW",
+    "output": "archify/workpaper-sequence/workpaper-sequence.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "default": {
+          "label": "直接呼叫"
+        },
+        "dashed": {
+          "label": "介面呼叫"
+        },
+        "emphasis": {
+          "label": "間接觸發"
+        },
+        "return": {
+          "label": "回傳"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "第六步畫面",
+      "sublabel": "JetApi"
+    },
+    {
+      "id": "handler",
+      "type": "backend",
+      "label": "底稿匯出處理",
+      "sublabel": "ExportWorkpaperStreamHandler"
+    },
+    {
+      "id": "facts",
+      "type": "backend",
+      "label": "讀規劃資料",
+      "sublabel": "WorkpaperPlanningFactsPort"
+    },
+    {
+      "id": "audited",
+      "type": "backend",
+      "label": "記錄發布",
+      "sublabel": "AuditedReportArtifactStore"
+    },
+    {
+      "id": "files",
+      "type": "database",
+      "label": "寫檔與發布",
+      "sublabel": "ProjectReportArtifactStore"
+    },
+    {
+      "id": "writer",
+      "type": "backend",
+      "label": "工作簿寫出",
+      "sublabel": "WorkpaperWriter"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 320,
+      "label": "準備：先重算選取的情境，再讀規劃資料"
+    },
+    {
+      "from": 352,
+      "to": 686,
+      "label": "寫暫存檔：這一段可以取消"
+    },
+    {
+      "from": 718,
+      "to": 979,
+      "label": "發布：改名前最後檢查取消，之後不再接受取消"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m01",
+      "from": "ui",
+      "to": "handler",
+      "y": 180,
+      "label": "export.workpaperStream",
+      "variant": "emphasis",
+      "note": "經 WebMessage 與 ActionDispatcher 分派"
+    },
+    {
+      "id": "m02",
+      "from": "handler",
+      "to": "facts",
+      "y": 242,
+      "label": "IWorkpaperPlanningFactsPort.ExecuteAsync",
+      "variant": "dashed",
+      "note": "先由 JetAuditProgram 建立計畫"
+    },
+    {
+      "id": "m03",
+      "from": "facts",
+      "to": "handler",
+      "y": 304,
+      "label": "WorkpaperPlanningFacts",
+      "variant": "return"
+    },
+    {
+      "id": "m04",
+      "from": "handler",
+      "to": "audited",
+      "y": 382,
+      "label": "IAuditedReportPublishingStore.WriteAuditedAsync",
+      "variant": "dashed",
+      "note": "先數既有報告，再交給下一層寫檔"
+    },
+    {
+      "id": "m05",
+      "from": "audited",
+      "to": "files",
+      "y": 444,
+      "label": "IReportArtifactPublishingStore.WriteWithPublishingAsync",
+      "variant": "dashed",
+      "note": "鎖住報告目錄，讀出報告清單"
+    },
+    {
+      "id": "m06",
+      "from": "files",
+      "to": "handler",
+      "y": 506,
+      "label": "ReportArtifactContentWriter",
+      "variant": "emphasis",
+      "note": "把暫存 .tmp 檔交給寫檔程式"
+    },
+    {
+      "id": "m07",
+      "from": "handler",
+      "to": "writer",
+      "y": 568,
+      "label": "IWorkpaperPlanWriter.WriteAsync",
+      "variant": "dashed",
+      "note": "依計畫分頁讀資料列，寫入工作簿"
+    },
+    {
+      "id": "m08",
+      "from": "writer",
+      "to": "handler",
+      "y": 630,
+      "label": "ExportStats",
+      "variant": "return"
+    },
+    {
+      "id": "m09",
+      "from": "handler",
+      "to": "files",
+      "y": 670,
+      "label": "暫存檔寫完",
+      "variant": "return"
+    },
+    {
+      "id": "m10",
+      "from": "files",
+      "to": "handler",
+      "y": 748,
+      "label": "publishingArtifact",
+      "variant": "emphasis",
+      "note": "全部暫存檔寫完才通知，畫面進度改成發布中"
+    },
+    {
+      "id": "m11",
+      "from": "files",
+      "to": "audited",
+      "y": 810,
+      "label": "ReportArtifact",
+      "variant": "return",
+      "note": "改名成正式檔名，不覆寫同名底稿"
+    },
+    {
+      "id": "m12",
+      "from": "audited",
+      "to": "handler",
+      "y": 872,
+      "label": "ReportArtifact",
+      "variant": "return",
+      "note": "經 CommittedAuditLog 寫入 report.publish 操作紀錄；失敗回提醒"
+    },
+    {
+      "id": "m13",
+      "from": "handler",
+      "to": "ui",
+      "y": 934,
+      "label": "產出檔案、各表列數與清單",
+      "variant": "return",
+      "note": "讀回最新報告清單與失效狀態；提醒一起回"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "情境與前提",
+      "items": [
+        "審計員在第六步選好情境，按下匯出正式底稿。",
+        "前提：驗證結果是目前版本，情境版本也和資料庫一致；任一不符就回錯誤，不寫檔。",
+        "本圖畫正常完成的路徑；發布失敗時怎麼還原，見「正式工作底稿」流程圖。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "報告檔由兩個類別處理",
+      "items": [
+        "外層 AuditedReportArtifactStore 先數既有報告，發布成功後寫操作紀錄；寫入失敗記在支援日誌，回應附提醒「檔案已產生，但這次產生的檔案沒有寫入操作紀錄。」，不撤回已發布的底稿。",
+        "內層 ProjectReportArtifactStore 寫暫存檔、改名，再更新報告清單。外層實作 IAuditedReportPublishingStore，底稿匯出處理經它發布才拿得到提醒；外層再經 IReportArtifactPublishingStore 呼叫內層，畫面才能顯示「發布中」。",
+        "強調色的兩條線不是直接呼叫：ReportArtifactContentWriter 與 publishingArtifact 是底稿匯出處理事先交給內層的兩段程式。內層寫暫存檔時執行前者，全部寫完、改名之前執行後者。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "準備階段讀什麼",
+      "items": [
+        "WorkpaperPlanningFactsPort 只讀規劃需要的資料：完整性差異與借貸不平的傳票各自有沒有資料、各情境的筆數，以及 TB 與 GL 的目標欄位定義；分錄明細等 WorkpaperWriter 寫底稿時再分頁讀取。"
+      ]
+    }
+  ],
+  "activations": [
+    {
+      "participant": "handler",
+      "from": 180,
+      "to": 934
+    },
+    {
+      "participant": "facts",
+      "from": 242,
+      "to": 304
+    },
+    {
+      "participant": "audited",
+      "from": 382,
+      "to": 872
+    },
+    {
+      "participant": "files",
+      "from": 444,
+      "to": 810
+    },
+    {
+      "participant": "writer",
+      "from": 568,
+      "to": 630
+    }
+  ]
+}

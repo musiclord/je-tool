@@ -221,7 +221,7 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
         }
         catch (JsonException ex) when (ProjectDocumentSeedIntegrity.IsSeedJsonPath(ex.Path))
         {
-            throw ProjectDocumentSeedIntegrity.Corruption(null);
+            throw ProjectDocumentSeedIntegrity.Corruption(null, ex);
         }
 
         ProjectDocumentSeedIntegrity.Validate(document, document.ProjectId);

@@ -29,8 +29,11 @@ public sealed class ValidationRunLoggingTests
     // First digest failure: 20261004-101806919-e8b6a1be3d8b4bd3b5bbe7349a92eddc.
     // Removing only command 12 (R10) and the two R3 non-null guards reproduces both old digests exactly.
     // SQL Server remains compile-only; its older digest is deliberately not guessed.
-    private const string SqliteSnapshotDigest = "AD31E59FBB5F164FB2ADBD07C829C7E82082D95A1090DE6811E26CA57B56D2CD";
-    private const string DuckDbSnapshotDigest = "61E098DDB6082D242C9DC6B6C512D60BAF17EA65A2E265ACEFC46A3102BEEDF6";
+    // 2026-10-21 使用者裁定日期不符分成三種原因：第 1 條命令的日期不符筆數改成三種日期原因的合計，參數跟著改。
+    // 第一次失敗：Public 收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a；只把第 1 條換回舊 SQL 與參數即可重算出兩個舊 digest。
+    // SQL Server 的同一條命令也改了，這次沒有執行 Provider，digest 沿用舊值，下次執行 Provider 時預期先失敗一次。
+    private const string SqliteSnapshotDigest = "B54F6595F7D2827ABBD732DB0A1715570418304650CEF016C6CFE957BB75760F";
+    private const string DuckDbSnapshotDigest = "E5D23830A7783CE59AC64EF92AF05761A833D0685970C271EEB57255DCD8AF5A";
     // 2026-10-19 第一次在本機 SQL Server 2022 執行，依實際命令序列更新：12 條命令和本機版一一對應，漂移來自開發暫緩期間只經編譯的
     // 共用 SQL 修改（空白傳票號碼排除、第 12 條摘要計數與方言的去空白）。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
     private const string SqlServerSnapshotDigest = "E123F4F14083CDA051149B40A1FEFB9D126FE5E87AE1A11EB55D5944F9512EA9";

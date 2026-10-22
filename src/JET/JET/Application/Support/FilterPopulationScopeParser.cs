@@ -93,9 +93,9 @@ internal static class FilterPopulationScopeParser
                 resolved = current;
             }
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
-            throw StaleDefinition();
+            throw StaleDefinition(exception);
         }
 
         return resolved ?? GlPopulationScope.AuditPeriod;
@@ -163,7 +163,8 @@ internal static class FilterPopulationScopeParser
 
     private static JetActionException InvalidPayload() => JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "population_scope_invalid");
 
-    private static JetActionException StaleDefinition() => new(
+    private static JetActionException StaleDefinition(Exception? innerException = null) => new(
         JetErrorCodes.StaleResult,
-        "已儲存的篩選情境和目前版本不一致，請到第五步重新儲存篩選情境。");
+        "已儲存的篩選情境和目前版本不一致，請到第五步重新儲存篩選情境。",
+        innerException: innerException);
 }

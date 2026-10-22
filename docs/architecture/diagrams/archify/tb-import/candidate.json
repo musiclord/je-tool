@@ -1,0 +1,275 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "TB 取代匯入：先讀標頭，再在同一交易換掉資料",
+    "locale": "zh-TW",
+    "output": "archify/tb-import/tb-import.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": {
+          "label": "畫面操作與回應"
+        },
+        "backend": {
+          "label": "JET 處理與判斷"
+        },
+        "database": {
+          "label": "寫入案件資料庫"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "lanes": [
+    {
+      "id": "operate",
+      "label": "審計員與畫面"
+    },
+    {
+      "id": "prepare",
+      "label": "準備，不寫入"
+    },
+    {
+      "id": "tx",
+      "label": "同一筆資料庫交易"
+    },
+    {
+      "id": "after",
+      "label": "提交之後"
+    },
+    {
+      "id": "fail",
+      "label": "失敗或取消",
+      "variant": "exception"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "request",
+      "lane": "operate",
+      "col": 0,
+      "type": "frontend",
+      "label": "選檔並匯入 TB",
+      "sublabel": "import.tb.fromFile"
+    },
+    {
+      "id": "plan",
+      "lane": "prepare",
+      "col": 0,
+      "type": "backend",
+      "label": "建立匯入計畫",
+      "sublabel": "沒指定 mode 就是取代"
+    },
+    {
+      "id": "headers",
+      "lane": "prepare",
+      "col": 1,
+      "type": "backend",
+      "label": "先讀完所有標頭",
+      "sublabel": "資料列還沒開始讀"
+    },
+    {
+      "id": "clear",
+      "lane": "tx",
+      "col": 2,
+      "type": "database",
+      "label": "刪除舊 TB 與下游",
+      "sublabel": "依失效政策"
+    },
+    {
+      "id": "write",
+      "lane": "tx",
+      "col": 3,
+      "type": "database",
+      "label": "逐列寫入新批次",
+      "sublabel": "資料列與欄位定義"
+    },
+    {
+      "id": "commit",
+      "lane": "tx",
+      "col": 4,
+      "type": "database",
+      "label": "提交交易",
+      "sublabel": "提交前最後檢查取消"
+    },
+    {
+      "id": "step",
+      "lane": "after",
+      "col": 4,
+      "type": "backend",
+      "label": "更新案件步驟",
+      "sublabel": "步驟落後才更新"
+    },
+    {
+      "id": "audit",
+      "lane": "after",
+      "col": 5,
+      "type": "database",
+      "label": "寫入操作紀錄",
+      "sublabel": "失敗附提醒"
+    },
+    {
+      "id": "reply",
+      "lane": "operate",
+      "col": 5,
+      "type": "frontend",
+      "label": "回應批次摘要",
+      "sublabel": "列數、提醒與失效狀態"
+    },
+    {
+      "id": "rollback",
+      "lane": "fail",
+      "col": 3,
+      "type": "backend",
+      "label": "嘗試回復交易",
+      "sublabel": "記下回復是否失敗"
+    },
+    {
+      "id": "error",
+      "lane": "fail",
+      "col": 1,
+      "type": "frontend",
+      "label": "回報失敗",
+      "sublabel": "還沒開始寫入",
+      "icon": "stop"
+    },
+    {
+      "id": "failed",
+      "lane": "fail",
+      "col": 4,
+      "type": "frontend",
+      "label": "回報失敗或取消",
+      "sublabel": "本次匯入未提交",
+      "icon": "stop"
+    }
+  ],
+  "edges": [
+    {
+      "id": "request_plan",
+      "from": "request",
+      "to": "plan",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "plan_headers",
+      "from": "plan",
+      "to": "headers"
+    },
+    {
+      "id": "headers_clear",
+      "from": "headers",
+      "to": "clear"
+    },
+    {
+      "id": "clear_write",
+      "from": "clear",
+      "to": "write"
+    },
+    {
+      "id": "write_commit",
+      "from": "write",
+      "to": "commit"
+    },
+    {
+      "id": "commit_step",
+      "from": "commit",
+      "to": "step"
+    },
+    {
+      "id": "step_audit",
+      "from": "step",
+      "to": "audit",
+      "label": "已有舊批次",
+      "role": "branch"
+    },
+    {
+      "id": "step_reply",
+      "from": "step",
+      "to": "reply",
+      "label": "第一次匯入",
+      "role": "branch"
+    },
+    {
+      "id": "audit_reply",
+      "from": "audit",
+      "to": "reply"
+    },
+    {
+      "id": "headers_error",
+      "from": "headers",
+      "to": "error",
+      "label": "標頭或選項錯誤",
+      "role": "error"
+    },
+    {
+      "id": "write_rollback",
+      "from": "write",
+      "to": "rollback",
+      "label": "例外或取消",
+      "role": "error"
+    },
+    {
+      "id": "rollback_error",
+      "from": "rollback",
+      "to": "failed"
+    }
+  ],
+  "mainPath": [
+    "request",
+    "plan",
+    "headers",
+    "clear",
+    "write",
+    "commit",
+    "step",
+    "audit",
+    "reply"
+  ],
+  "semanticChecks": {
+    "allowedRoots": [
+      "request"
+    ],
+    "allowedTerminals": [
+      "reply",
+      "error",
+      "failed"
+    ],
+    "requiredEdges": [
+      {
+        "from": "headers",
+        "to": "clear"
+      },
+      {
+        "from": "write",
+        "to": "rollback"
+      },
+      {
+        "from": "commit",
+        "to": "step"
+      }
+    ]
+  },
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "取代 TB 會清掉什麼",
+      "items": [
+        "舊的 TB 批次、資料列與欄位定義；已確認的 TB 欄位配對先移到上一版紀錄再刪除。",
+        "依失效政策清除驗證、預篩選、篩選命中、全部已存的篩選情境定義，以及科目配對。",
+        "保留分類定義與 GL 控制總數。以上都和新資料寫在同一筆交易。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "提交前後",
+      "items": [
+        "寫入途中發生例外或取消時，會嘗試回復交易，並記下回復本身有沒有失敗；不保證一定回復成功。SQLite 案件執行中的語句可以中途取消，被中斷的寫入由 SQLite 回復。",
+        "提交後更新案件步驟與寫操作紀錄，這時不再接受取消。步驟存不進去只記警告；操作紀錄寫不進去記支援日誌並在回應附提醒。已提交的匯入不撤回。",
+        "操作紀錄只在這次取代了舊批次時寫；第一次匯入沒有舊批次。"
+      ]
+    }
+  ]
+}

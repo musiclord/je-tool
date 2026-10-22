@@ -67,6 +67,55 @@ public sealed class GlEffectivePopulationTests
             && actualCounts.Sum() == boundedDays.Length;
     }
 
+    /// <summary>
+    /// 使用者 2026-10-21 裁定日期不符分成三種原因。同一組產生的列逐列比對獨立算出的原因：
+    /// 產生的總帳日期涵蓋空白、查核起日前一天、整個期間與迄日之後四天。
+    /// </summary>
+    [Property(Replay = "20260815,105", MaxTest = 256)]
+    public bool Classify_BoundedRowsMatchIndependentReasonOracle(
+        int[] daySeeds,
+        int[] statusSeeds,
+        bool postingStatusMapped,
+        bool includeBlank)
+    {
+        var boundedDays = (daySeeds ?? []).Take(128).ToArray();
+        if (boundedDays.Length == 0)
+        {
+            boundedDays = [0];
+        }
+
+        var policy = postingStatusMapped
+            ? Policy([" Posted ", "closed"], includeBlank)
+            : null;
+
+        for (var index = 0; index < boundedDays.Length; index++)
+        {
+            var daySeed = boundedDays[index];
+            var dayCode = (int)((uint)daySeed % 371u);
+            DateOnly? postDate = dayCode == 0
+                ? null
+                : PeriodStart.AddDays(dayCode - 2);
+            var statusSeed = statusSeeds is { Length: > 0 }
+                ? statusSeeds[index % statusSeeds.Length]
+                : daySeed;
+            var rawStatus = GeneratedStatus(statusSeed);
+
+            var actual = GlEffectivePopulation.Classify(
+                postDate,
+                rawStatus,
+                PeriodStart,
+                PeriodEnd,
+                postingStatusMapped,
+                policy);
+            if (actual.Reason != IndependentReason(postDate, rawStatus, postingStatusMapped, includeBlank))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     [Theory]
     [InlineData(null, "is_effective = 1")]
     [InlineData("g", "g.is_effective = 1")]
@@ -88,7 +137,8 @@ public sealed class GlEffectivePopulationTests
 
         Assert.Equal(GlEffectivePopulationDisposition.ExcludedByPeriod, result.Disposition);
         Assert.False(result.IsEffective);
-        Assert.Equal("period", result.StorageReason);
+        // 使用者 2026-10-21 裁定日期不符分成三種原因，早於查核期間另記；第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+        Assert.Equal("before_period", result.StorageReason);
     }
 
     [Fact]
@@ -101,7 +151,8 @@ public sealed class GlEffectivePopulationTests
             policy: Policy(["posted"]));
 
         Assert.Equal(GlEffectivePopulationDisposition.ExcludedByPeriod, result.Disposition);
-        Assert.Equal(GlEffectivePopulation.PeriodStorageReason, result.StorageReason);
+        // 使用者 2026-10-21 裁定日期不符分成三種原因，總帳日期空白另記；建置失敗收據 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
+        Assert.Equal(GlEffectivePopulation.BlankPostDateStorageReason, result.StorageReason);
     }
 
     [Fact]
@@ -188,7 +239,8 @@ public sealed class GlEffectivePopulationTests
         Assert.Equal(
             GlEffectivePopulationDisposition.ExcludedByPeriod,
             outsidePeriod.Disposition);
-        Assert.Equal(GlEffectivePopulation.PeriodStorageReason, outsidePeriod.StorageReason);
+        // 使用者 2026-10-21 裁定日期不符分成三種原因，晚於查核期間另記；建置失敗收據 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
+        Assert.Equal(GlEffectivePopulation.AfterPeriodStorageReason, outsidePeriod.StorageReason);
     }
 
     [Fact]
@@ -283,5 +335,32 @@ public sealed class GlEffectivePopulationTests
         return accepted
             ? GlEffectivePopulationDisposition.Effective
             : GlEffectivePopulationDisposition.ExcludedByPostingStatus;
+    }
+
+    private static GlExclusionReason? IndependentReason(
+        DateOnly? postDate,
+        string? rawStatus,
+        bool postingStatusMapped,
+        bool includeBlank)
+    {
+        if (postDate is null)
+        {
+            return GlExclusionReason.BlankPostDate;
+        }
+
+        if (postDate.Value < PeriodStart)
+        {
+            return GlExclusionReason.BeforePeriod;
+        }
+
+        if (postDate.Value > PeriodEnd)
+        {
+            return GlExclusionReason.AfterPeriod;
+        }
+
+        return IndependentDisposition(postDate, rawStatus, postingStatusMapped, includeBlank)
+            == GlEffectivePopulationDisposition.Effective
+            ? null
+            : GlExclusionReason.PostingStatus;
     }
 }

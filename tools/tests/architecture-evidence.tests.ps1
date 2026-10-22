@@ -67,6 +67,18 @@ function Test-JetArchitectureRules {
     Assert-Connection $changed 'indirect_has_compile_target';$count++
     Assert-Connection @{diagram='example';connection='m04';kind='return';execution='not-observed';facts=@()} 'return_without_call';$count++
     Assert-Connection @{diagram='example';connection='m05';kind='guess';execution='not-observed';facts=@()} 'unknown_connection_kind';$count++
+    function Assert-Members([object[]]$listed,[string]$expected) {
+        $actual=@(Get-JetMemberSourceErrors -DrawnMembers @('Store.Save','Store.Load') -Listed $listed -KnownExcerpts @('Store.cs:3-3','Store.cs:5-5') | ForEach-Object Code)
+        if (($expected -ceq 'pass' -and $actual.Count -ne 0) -or ($expected -cne 'pass' -and $expected -cnotin $actual)) {
+            throw [IO.InvalidDataException]::new("Architecture member test failed: $expected")
+        }
+    }
+    $save=@{type='Store';member='Save';excerpt='Store.cs:3-3'};$load=@{type='Store';member='Load';excerpt='Store.cs:5-5'}
+    Assert-Members @($save,$load) 'pass';$count++
+    Assert-Members @($save) 'member_source_missing';$count++
+    Assert-Members @($save,$load,@{type='Store';member='Delete';excerpt='Store.cs:3-3'}) 'member_not_drawn';$count++
+    Assert-Members @($save,$load,$save) 'member_not_drawn';$count++
+    Assert-Members @($save,@{type='Store';member='Load';excerpt='Store.cs:9-9'}) 'member_excerpt_missing';$count++
     if ((Get-JetDrawnConnectionKind 'sequence' '') -cne 'calls' -or (Get-JetDrawnConnectionKind 'sequence' 'dashed') -cne 'viaInterface' -or
         (Get-JetDrawnConnectionKind 'sequence' 'emphasis') -cne 'indirect' -or (Get-JetDrawnConnectionKind 'workflow' 'dashed') -cne 'fact') {
         throw [IO.InvalidDataException]::new('Architecture drawn kind test failed.')

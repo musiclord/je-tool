@@ -174,7 +174,7 @@ internal static class ReportWorkbookMetadataWorksheet
                 Number($"A{rowIndex}", index + 1),
                 Inline($"B{rowIndex}", chunks[index])) { RowIndex = rowIndex, Hidden = true });
         }
-        worksheet.Save();
+        ExcelText.SaveWorksheet(worksheetPart);
 
         var nextSheetId = sheets.Elements<Sheet>()
             .Select(sheet => sheet.SheetId?.Value ?? 0U)
@@ -216,7 +216,7 @@ internal static class ReportWorkbookMetadataWorksheet
     {
         CellReference = reference,
         DataType = CellValues.InlineString,
-        InlineString = new InlineString(new Text(value) { Space = SpaceProcessingModeValues.Preserve })
+        InlineString = ExcelText.InlineString(value)
     };
 
     private static Cell Number(string reference, int value) => new()

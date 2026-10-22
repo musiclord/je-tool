@@ -34,6 +34,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
     {
         var (projectId, repositories) = session.RequireActive();
 
+        SupportOperationStage.Enter("state_read");
         var glMapping = await repositories.MappingStates.FindAsync(
             projectId,
             DatasetKind.Gl,
@@ -79,8 +80,10 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 generatedUtc,
                 DefaultSampleSize,
                 sampleSeedResolution.AlgorithmVersion));
+        SupportOperationStage.Enter("validation_facts");
         var record = await repositories.ValidationFacts.ExecuteAsync(
             plan, facts => CreateRecord(plan, facts, document), cancellationToken);
+        SupportOperationStage.Enter("after_commit");
         await MappingCommitShared.AdvanceStepAsync(projectStore, document,
             WorkflowMilestones.For(Action), CancellationToken.None, logger);
         using var parsed = JsonDocument.Parse(record.SummaryJson);

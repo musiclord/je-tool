@@ -724,9 +724,11 @@ public sealed partial class WorkpaperWriter(
     /// 資料列計入 RowsWritten;固定文字/表頭列不計(對齊 SheetStat 語意)。
     /// 供資料表 emitter 以 keyset 迴圈逐列呼叫 WriteRow（串流、不全載入）。
     /// </summary>
-    private sealed class SheetWriter : IDisposable
+    // 測試直接建立它，核對寫入失敗時的附註；正式程式只在這個類別裡使用。
+    internal sealed class SheetWriter : IDisposable
     {
         private readonly string _name;
+        private readonly WorksheetPart? _part;
         private readonly OpenXmlWriter? _writer;
         private readonly DirectTemplateWorksheetOverlayWriter? _overlay;
         private readonly WorkbookStyleMap _styles;
@@ -750,6 +752,7 @@ public sealed partial class WorkpaperWriter(
         private bool _protect;
         private bool _sheetDataStarted;
         private bool _closed;
+        private bool _faulted;
         private bool _disposed;
 
         private SheetWriter(
@@ -763,13 +766,14 @@ public sealed partial class WorkpaperWriter(
             string? pageSetupRelationshipId = null)
         {
             _name = name;
+            _part = part;
             _overlay = overlay;
             _styles = styles;
             _mapCellStyle = mapCellStyle;
             _cancellationToken = cancellationToken;
             _preserveTemplate = preserveTemplate;
             _pageSetupRelationshipId = pageSetupRelationshipId;
-            if (part is not null)
+            if (part is not null && overlay is null)
             {
                 _writer = OpenXmlPartWriter.Create(part);
                 _writer.WriteStartDocument();
@@ -786,7 +790,7 @@ public sealed partial class WorkpaperWriter(
             CancellationToken cancellationToken) =>
             new(
                 name,
-                part: null,
+                part,
                 new DirectTemplateWorksheetOverlayWriter(
                     name,
                     part,
@@ -971,7 +975,7 @@ public sealed partial class WorkpaperWriter(
             if (!string.IsNullOrEmpty(value))
             {
                 cell.DataType = CellValues.InlineString;
-                cell.InlineString = new InlineString(new Text(value));
+                cell.InlineString = ExcelText.InlineString(value, preserveSpace: false);
             }
 
             return cell;
@@ -1048,8 +1052,12 @@ public sealed partial class WorkpaperWriter(
                 return;
             }
 
-            // 例外路徑也要關掉開啟的元素並釋放 writer,否則 part 留半截 XML
-            CloseElements();
+            // 例外路徑也要關掉開啟的元素並釋放 writer,否則 part 留半截 XML。
+            // 寫列時丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，蓋掉原本的失敗原因。
+            if (!_faulted)
+            {
+                CloseElements();
+            }
             _writer?.Dispose();
             _overlay?.Dispose();
             _disposed = true;
@@ -1058,7 +1066,6 @@ public sealed partial class WorkpaperWriter(
         private void WriteRowCore(uint rowIndex, IReadOnlyList<Cell> cells)
         {
             ExcelWorksheetConstraints.EnsureCell(rowIndex, 1);
-            EnsureSheetDataStarted();
 
             var row = new Row { RowIndex = rowIndex };
             if (_rowHeights.TryGetValue(rowIndex, out var height))
@@ -1071,20 +1078,42 @@ public sealed partial class WorkpaperWriter(
                 row.Append(cell);
             }
 
-            if (_preserveTemplate)
+            try
             {
-                return;
+                // 開始寫範本時被取消也算寫到一半：之後不再補結束標記，取消例外才不會被結束標記的錯誤蓋掉。
+                EnsureSheetDataStarted();
+                if (_preserveTemplate)
+                {
+                    return;
+                }
+
+                if (_overlay is not null)
+                {
+                    _overlay.WriteRow(XElement.Parse(
+                        row.OuterXml,
+                        LoadOptions.PreserveWhitespace));
+                    return;
+                }
+
+                // 整列一次寫出:記憶體只持有當前列(串流不變),且型別安全勝於手拆 start/string/end
+                _writer!.WriteElement(row);
             }
-            if (_overlay is not null)
+            catch (Exception error) when (Fault(error, cells))
             {
-                _overlay.WriteRow(XElement.Parse(
-                    row.OuterXml,
-                    LoadOptions.PreserveWhitespace));
-                return;
+                throw;
+            }
+        }
+
+        /// <summary>寫到一半的輸出之後不再補結束標記。取消不是寫入失敗，不記工作表位置。</summary>
+        private bool Fault(Exception error, IEnumerable<Cell> cells)
+        {
+            _faulted = true;
+            if (error is not OperationCanceledException)
+            {
+                ExcelText.MarkWriteFailure(error, _part, cells);
             }
 
-            // 整列一次寫出:記憶體只持有當前列(串流不變),且型別安全勝於手拆 start/string/end
-            _writer!.WriteElement(row);
+            return false;
         }
 
         private void CloseElements()

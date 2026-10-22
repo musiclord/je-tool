@@ -1,0 +1,226 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "部署、移轉與問題處理：程序草案",
+    "locale": "zh-TW",
+    "output": "archify/maintenance/maintenance.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "backend": {
+          "label": "人員執行的步驟"
+        },
+        "frontend": {
+          "label": "在 JET 裡的操作"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "lanes": [
+    {
+      "id": "prepare",
+      "label": "部署前：建議，待公司確認"
+    },
+    {
+      "id": "transfer",
+      "label": "案件移轉：現行文件的前提"
+    },
+    {
+      "id": "incident",
+      "label": "問題處理：建議，待驗證"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "inventory",
+      "lane": "prepare",
+      "col": 0,
+      "type": "backend",
+      "label": "確認電腦環境",
+      "sublabel": "一般權限、WebView2、ACE",
+      "width": 160
+    },
+    {
+      "id": "package",
+      "lane": "prepare",
+      "col": 1,
+      "type": "backend",
+      "label": "核對發布資料夾",
+      "sublabel": "完整內容與版本"
+    },
+    {
+      "id": "smoke",
+      "lane": "prepare",
+      "col": 2,
+      "type": "frontend",
+      "label": "用合成資料試跑",
+      "sublabel": "匯入、篩選與匯出"
+    },
+    {
+      "id": "approve",
+      "lane": "prepare",
+      "col": 3,
+      "type": "backend",
+      "label": "確認部署安排",
+      "sublabel": "負責人與審查待定"
+    },
+    {
+      "id": "exit",
+      "lane": "transfer",
+      "col": 0,
+      "type": "frontend",
+      "label": "正常離開 JET",
+      "sublabel": "資料庫不再被開啟"
+    },
+    {
+      "id": "copy",
+      "lane": "transfer",
+      "col": 1,
+      "type": "backend",
+      "label": "複製完整案件",
+      "sublabel": "project.json、資料庫與報告"
+    },
+    {
+      "id": "open",
+      "lane": "transfer",
+      "col": 2,
+      "type": "frontend",
+      "label": "在目的地開副本",
+      "sublabel": "原案件先保留"
+    },
+    {
+      "id": "same",
+      "lane": "transfer",
+      "col": 3,
+      "type": "backend",
+      "label": "結果一致？",
+      "sublabel": "比對範圍待公司決定",
+      "icon": "decision"
+    },
+    {
+      "id": "use",
+      "lane": "transfer",
+      "col": 4,
+      "type": "frontend",
+      "label": "改用新位置",
+      "sublabel": "建議步驟"
+    },
+    {
+      "id": "record",
+      "lane": "incident",
+      "col": 1,
+      "type": "frontend",
+      "label": "匯出支援日誌",
+      "sublabel": "記下錯誤與版本"
+    },
+    {
+      "id": "triage",
+      "lane": "incident",
+      "col": 2,
+      "type": "backend",
+      "label": "區分問題來源",
+      "sublabel": "環境、檔案或程式"
+    },
+    {
+      "id": "restore",
+      "lane": "incident",
+      "col": 3,
+      "type": "backend",
+      "label": "用副本演練復原",
+      "sublabel": "舊版不一定能讀新結構",
+      "width": 160
+    },
+    {
+      "id": "resume",
+      "lane": "incident",
+      "col": 4,
+      "type": "backend",
+      "label": "核對後恢復作業",
+      "sublabel": "保留期限與責任待定"
+    }
+  ],
+  "edges": [
+    {
+      "id": "inventory_package",
+      "from": "inventory",
+      "to": "package"
+    },
+    {
+      "id": "package_smoke",
+      "from": "package",
+      "to": "smoke"
+    },
+    {
+      "id": "smoke_approve",
+      "from": "smoke",
+      "to": "approve"
+    },
+    {
+      "id": "exit_copy",
+      "from": "exit",
+      "to": "copy"
+    },
+    {
+      "id": "copy_open",
+      "from": "copy",
+      "to": "open"
+    },
+    {
+      "id": "open_same",
+      "from": "open",
+      "to": "same"
+    },
+    {
+      "id": "same_use",
+      "from": "same",
+      "to": "use",
+      "label": "一致",
+      "role": "branch"
+    },
+    {
+      "id": "same_record",
+      "from": "same",
+      "to": "record",
+      "label": "不一致",
+      "role": "error",
+      "labelSegment": 0
+    },
+    {
+      "id": "record_triage",
+      "from": "record",
+      "to": "triage"
+    },
+    {
+      "id": "triage_restore",
+      "from": "triage",
+      "to": "restore"
+    },
+    {
+      "id": "restore_resume",
+      "from": "restore",
+      "to": "resume"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "哪些是現行做法",
+      "items": [
+        "現行文件只記載一條：正常離開 JET 後，複製整個案件資料夾，再到目的地開啟。",
+        "其他步驟是這次研究的建議，例如版本核對、合成資料試跑、備份保留期限與復原演練；還不是產品功能，也未經公司核准。",
+        "三列是各自獨立的程序，JET 不會自動備份、更新或復原。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "移轉時要注意",
+      "items": [
+        "Teams、OneDrive 或網路磁碟可以傳檔，但不代表可以在同步途中直接共用開啟同一個資料庫。",
+        "支援日誌只含去識別化的事件；指定案件時，可再依 correlationId 篩選。"
+      ]
+    }
+  ]
+}

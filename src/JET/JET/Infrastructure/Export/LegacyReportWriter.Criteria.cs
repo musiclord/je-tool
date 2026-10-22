@@ -238,9 +238,9 @@ public sealed partial class LegacyReportWriter
                 {
                     sheetData.Append(new Row(
                         new Cell { CellReference = $"A{nextConditionRow}", DataType = CellValues.InlineString,
-                            StyleIndex = style, InlineString = new InlineString(new Text(label)) },
+                            StyleIndex = style, InlineString = ExcelText.InlineString(label, preserveSpace: false) },
                         new Cell { CellReference = $"B{nextConditionRow}", DataType = CellValues.InlineString,
-                            StyleIndex = style, InlineString = new InlineString(new Text(text) { Space = SpaceProcessingModeValues.Preserve }) })
+                            StyleIndex = style, InlineString = ExcelText.InlineString(text) })
                         { RowIndex = nextConditionRow });
                     nextConditionRow++;
                     var dimension = part.Worksheet.GetFirstChild<SheetDimension>();
@@ -315,7 +315,7 @@ public sealed partial class LegacyReportWriter
                     }
                 }
                 cells.EnsureAllAllowedCellsWereEdited();
-                part.Worksheet.Save();
+                ExcelText.SaveWorksheet(part);
                 ct.ThrowIfCancellationRequested();
             },
             cancellationToken);

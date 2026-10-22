@@ -9,6 +9,23 @@ function Get-JetMemberErrors([hashtable]$Item, [object[]]$Edges) {
     return @($Item.members | Where-Object { $_ -cnotin $names } | ForEach-Object { 'member_not_in_evidence' } | Select-Object -First 1)
 }
 
+function Get-JetMemberSourceErrors {
+    param([Parameter(Mandatory=$true)][AllowEmptyCollection()][string[]]$DrawnMembers,
+          [Parameter(Mandatory=$true)][AllowEmptyCollection()][object[]]$Listed,
+          [Parameter(Mandatory=$true)][AllowEmptyCollection()][string[]]$KnownExcerpts)
+    $drawn = [Collections.Generic.HashSet[string]]::new([string[]]$DrawnMembers, [StringComparer]::Ordinal)
+    $known = [Collections.Generic.HashSet[string]]::new([string[]]$KnownExcerpts, [StringComparer]::Ordinal)
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $problems = [Collections.Generic.List[object]]::new()
+    foreach ($member in $Listed) {
+        $name = "$($member.type).$($member.member)"
+        if (-not $seen.Add($name) -or -not $drawn.Contains($name)) { $problems.Add([pscustomobject]@{ Code='member_not_drawn'; Member=$name }) }
+        if (-not $known.Contains([string]$member.excerpt)) { $problems.Add([pscustomobject]@{ Code='member_excerpt_missing'; Member=$name }) }
+    }
+    foreach ($name in @($DrawnMembers | Where-Object { -not $seen.Contains($_) })) { $problems.Add([pscustomobject]@{ Code='member_source_missing'; Member=$name }) }
+    return $problems.ToArray()
+}
+
 function Get-JetDrawnConnectionKind([string]$DiagramType, [string]$Variant) {
     if ($DiagramType -cne 'sequence') { return 'fact' }
     switch -CaseSensitive ($Variant) {
@@ -192,6 +209,25 @@ function Invoke-JetArchitectureCheck {
             if (-not $excerpts.ContainsKey("$($source.path):$($source.line)-$($source.endLine)")) { Problem 'fact_excerpt_missing' $fact.id }
         }
     }
+    # Every member drawn on a class diagram keeps one declaration excerpt from the snapshot.
+    $memberCount = 0
+    if (-not $manifest.ContainsKey('memberSources')) {
+        Problem 'member_sources_missing' $ManifestPath
+    } else {
+        $members = Read-ArchiveJson $manifest.memberSources
+        foreach ($diagram in @($manifest.diagrams | Where-Object { $_.type -ceq 'class' })) {
+            $candidate = Read-ArchiveJson $diagram.candidate
+            $drawnMembers = @(foreach ($type in $candidate.types) {
+                foreach ($member in @(@($type['attributes']) + @($type['methods']) | Where-Object { $null -ne $_ })) { "$($type.label).$($member.name)" }
+            })
+            $listed = @($members[$diagram.id] | Where-Object { $null -ne $_ })
+            $memberCount += $listed.Count
+            foreach ($problem in @(Get-JetMemberSourceErrors -DrawnMembers $drawnMembers -Listed $listed -KnownExcerpts @($excerpts.Keys))) {
+                Problem $problem.Code "$($diagram.id):$($problem.Member)"
+            }
+        }
+        if ($memberCount -ne $manifest.checkedMembers) { Problem 'member_count_changed' $manifest.memberSources }
+    }
     $entries = @(Read-ArchiveJson $manifest.connections)
     $byKey = @{}
     foreach ($entry in $entries) {
@@ -248,6 +284,7 @@ function Invoke-JetArchitectureCheck {
         likec4Views=$manifest.likec4Views
         checkedClassRelations=$proofs.Count
         checkedConnections=$entries.Count
+        checkedMembers=$memberCount
         sourceExcerpts=$excerpts.Count
         runtimeObserved=$false
         completeSemanticCoverage=$false

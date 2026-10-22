@@ -65,13 +65,13 @@ internal static class ResultPageColumnRegistry
             using var definition = JsonDocument.Parse(scenario.DefinitionJson);
             spec = FilterScenarioPayloadParser.Parse(definition.RootElement, moneyScale);
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
-            throw Stale("已儲存的篩選情境定義無法解析，請到第五步重新儲存情境。");
+            throw Stale("已儲存的篩選情境定義無法解析，請到第五步重新儲存情境。", exception);
         }
         catch (JetActionException exception) when (exception.Code == JetErrorCodes.InvalidScenario)
         {
-            throw Stale("已儲存的篩選情境無法套用目前規則，請到第五步修改後重新儲存情境。");
+            throw Stale("已儲存的篩選情境無法套用目前規則，請到第五步修改後重新儲存情境。", exception);
         }
 
         foreach (var rule in spec.Groups.SelectMany(static group => group.Rules).SelectMany(rule => rule.DescendantsAndSelf())
@@ -127,8 +127,8 @@ internal static class ResultPageColumnRegistry
         return new ResultPageColumnPlan(columns, registry, custom);
     }
 
-    private static JetActionException Stale(string message) =>
-        new(JetErrorCodes.StaleResult, message);
+    private static JetActionException Stale(string message, Exception? innerException = null) =>
+        new(JetErrorCodes.StaleResult, message, innerException: innerException);
 }
 
 /// <summary>

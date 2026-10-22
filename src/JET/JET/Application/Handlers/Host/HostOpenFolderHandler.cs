@@ -52,7 +52,8 @@ public sealed class HostOpenFolderHandler(
         {
             throw new JetActionException(
                 JetErrorCodes.ArtifactNotFound,
-                ReportArtifactMessages.FileMissing);
+                ReportArtifactMessages.FileMissing,
+                innerException: exception);
         }
 
         await hostShell.RevealInExplorerAsync(path, cancellationToken);

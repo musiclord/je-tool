@@ -116,7 +116,8 @@ internal static class ReportExportSupport
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                FilterScenarioRuleMessages.NotYetUpgraded);
+                FilterScenarioRuleMessages.NotYetUpgraded,
+                innerException: exception);
         }
 
         if (!string.Equals(current.Revision, requestedRevision, StringComparison.Ordinal))

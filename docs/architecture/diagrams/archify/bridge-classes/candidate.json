@@ -1,0 +1,320 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "Action 通道的類別與介面",
+    "locale": "zh-TW",
+    "output": "archify/bridge-classes/bridge-classes.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "dependency": {
+          "label": "依賴：呼叫或建立，線上寫方法"
+        },
+        "realization": {
+          "label": "實作介面"
+        },
+        "inheritance": {
+          "label": "繼承"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "layout": {
+    "mode": "grid",
+    "typeW": 180,
+    "typeMaxW": 280,
+    "gapX": 84,
+    "gapY": 84
+  },
+  "types": [
+    {
+      "id": "form",
+      "label": "Form1",
+      "kind": "class",
+      "row": 0,
+      "col": 0,
+      "sublabel": "WinForms 主視窗",
+      "methods": []
+    },
+    {
+      "id": "bridge",
+      "label": "JetWebMessageBridge",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "接收 WebMessage",
+      "methods": [
+        {
+          "name": "Attach",
+          "returns": "void",
+          "visibility": "public"
+        },
+        {
+          "name": "OnWebMessageReceived",
+          "parameters": "object?, CoreWebView2WebMessageReceivedEventArgs",
+          "returns": "void",
+          "visibility": "private"
+        }
+      ],
+      "width": 330
+    },
+    {
+      "id": "registry",
+      "label": "RequestCancellationRegistry",
+      "kind": "class",
+      "row": 0,
+      "col": 2,
+      "sublabel": "依 requestId 取消請求",
+      "methods": [
+        {
+          "name": "RunAsync<T>",
+          "parameters": "string, Func<CancellationToken, Task<T>>",
+          "returns": "Task<T>",
+          "visibility": "public"
+        }
+      ],
+      "width": 340
+    },
+    {
+      "id": "root",
+      "label": "AppCompositionRoot",
+      "kind": "class",
+      "row": 1,
+      "col": 0,
+      "sublabel": "啟動時建立物件",
+      "methods": [
+        {
+          "name": "CreateRuntimeCore",
+          "parameters": "IHostShell, string, …",
+          "returns": "JetApplicationRuntime",
+          "visibility": "private",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "dispatcher",
+      "label": "ActionDispatcher",
+      "kind": "class",
+      "row": 1,
+      "col": 1,
+      "sublabel": "依 action 名稱找處理類別",
+      "methods": [
+        {
+          "name": "DispatchAsync",
+          "parameters": "string, JsonElement",
+          "returns": "Task<object?>",
+          "visibility": "public"
+        }
+      ]
+    },
+    {
+      "id": "gate",
+      "label": "ActionExecutionGate",
+      "kind": "class",
+      "row": 1,
+      "col": 2,
+      "sublabel": "修改資料的作業一次一項",
+      "methods": [
+        {
+          "name": "TryAcquire",
+          "returns": "IDisposable?",
+          "visibility": "public"
+        }
+      ]
+    },
+    {
+      "id": "policy",
+      "label": "ActionExecutionPolicy",
+      "kind": "class",
+      "row": 2,
+      "col": 2,
+      "sublabel": "static，判斷互斥與背景執行",
+      "methods": [
+        {
+          "name": "IsExclusive",
+          "parameters": "string",
+          "returns": "bool",
+          "visibility": "public",
+          "static": true
+        },
+        {
+          "name": "RunsInBackground",
+          "parameters": "string",
+          "returns": "bool",
+          "visibility": "public",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "contract",
+      "label": "IApplicationActionHandler",
+      "kind": "interface",
+      "row": 2,
+      "col": 1,
+      "sublabel": "每個 action 一個實作",
+      "attributes": [
+        {
+          "name": "Action",
+          "type": "string",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "HandleAsync",
+          "parameters": "JsonElement",
+          "returns": "Task<object?>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "save",
+      "label": "FilterScenarioSaveHandler",
+      "kind": "class",
+      "row": 3,
+      "col": 0,
+      "sublabel": "filter.scenario.save"
+    },
+    {
+      "id": "importBase",
+      "label": "ImportFromFileHandler",
+      "kind": "abstract",
+      "row": 3,
+      "col": 2,
+      "sublabel": "GL 與 TB 匯入共用"
+    },
+    {
+      "id": "export",
+      "label": "ExportWorkpaperStreamHandler",
+      "kind": "class",
+      "row": 3,
+      "col": 1,
+      "sublabel": "export.workpaperStream"
+    },
+    {
+      "id": "importTb",
+      "label": "ImportTbFromFileHandler",
+      "kind": "class",
+      "row": 3,
+      "col": 3,
+      "sublabel": "import.tb.fromFile",
+      "attributes": [
+        {
+          "name": "Action = \"import.tb.fromFile\"",
+          "type": "string",
+          "visibility": "public"
+        }
+      ],
+      "width": 330
+    }
+  ],
+  "relationships": [
+    {
+      "id": "form_bridge",
+      "from": "form",
+      "to": "bridge",
+      "kind": "dependency",
+      "label": "建立、Attach"
+    },
+    {
+      "id": "bridge_registry",
+      "from": "bridge",
+      "to": "registry",
+      "kind": "dependency",
+      "label": "RunAsync"
+    },
+    {
+      "id": "bridge_dispatcher",
+      "from": "bridge",
+      "to": "dispatcher",
+      "kind": "dependency",
+      "label": "DispatchAsync"
+    },
+    {
+      "id": "root_dispatcher",
+      "from": "root",
+      "to": "dispatcher",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "dispatcher_gate",
+      "from": "dispatcher",
+      "to": "gate",
+      "kind": "dependency",
+      "label": "TryAcquire"
+    },
+    {
+      "id": "dispatcher_policy",
+      "from": "dispatcher",
+      "to": "policy",
+      "kind": "dependency",
+      "label": "IsExclusive"
+    },
+    {
+      "id": "dispatcher_contract",
+      "from": "dispatcher",
+      "to": "contract",
+      "kind": "dependency",
+      "label": "HandleAsync"
+    },
+    {
+      "id": "save_contract",
+      "from": "save",
+      "to": "contract",
+      "kind": "realization"
+    },
+    {
+      "id": "import_contract",
+      "from": "importBase",
+      "to": "contract",
+      "kind": "realization"
+    },
+    {
+      "id": "export_contract",
+      "from": "export",
+      "to": "contract",
+      "kind": "realization"
+    },
+    {
+      "id": "tb_import",
+      "from": "importTb",
+      "to": "importBase",
+      "kind": "inheritance"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "執行時怎麼找到處理類別",
+      "items": [
+        "ActionDispatcher 只呼叫介面 IApplicationActionHandler.HandleAsync。AppCompositionRoot 在啟動時建立所有處理類別；執行時依畫面送來的 action 名稱，比對各類別的 Action 屬性挑出一個。",
+        "圖上三個實作只是其他圖會用到的處理類別，不是完整清單。",
+        "JavaScript 端的 JetApi 不是 C# 型別，圖中沒有畫；WebMessage 這段見循序圖。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "分派前的判斷",
+      "items": [
+        "ActionExecutionPolicy 判斷 action 是否互斥、是否在背景執行。會修改資料的互斥作業要先向 ActionExecutionGate 取得執行權；已有作業在跑時直接回錯誤，不排隊。",
+        "JetWebMessageBridge 用 RequestCancellationRegistry 包住分派，畫面可依 requestId 取消。",
+        "已要求取消後，資料庫中止語句時丟出的其他例外一律回報成取消，三種資料庫在畫面上都顯示「作業已取消」。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "成員寫法",
+      "items": [
+        "成員只寫參數型別與回傳型別，省略參數名稱、CancellationToken 與有預設值的參數；超過四個參數只列前兩個。package 表示 internal。實作類別不重複列出介面已有的成員。"
+      ]
+    }
+  ]
+}

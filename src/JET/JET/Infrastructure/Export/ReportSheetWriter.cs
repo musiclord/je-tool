@@ -47,6 +47,7 @@ internal sealed record ReportSheetOptions(
 internal sealed class ReportSheetWriter : IDisposable
 {
     private readonly string _name;
+    private readonly WorksheetPart _part;
     private readonly OpenXmlWriter _writer;
     private readonly List<string> _merges = [];
     private readonly List<(string Range, string Formula)> _validations = [];
@@ -54,6 +55,7 @@ internal sealed class ReportSheetWriter : IDisposable
     private readonly Func<uint, uint> _mapStyle;
     private bool _protect;
     private bool _closed;
+    private bool _faulted;
     private bool _disposed;
     private long _dataRows;
 
@@ -65,6 +67,7 @@ internal sealed class ReportSheetWriter : IDisposable
         Func<uint, uint>? mapStyle = null)
     {
         _name = name;
+        _part = part;
         _options = options;
         _mapStyle = mapStyle ?? (static style => style);
         _writer = OpenXmlPartWriter.Create(part);
@@ -137,7 +140,7 @@ internal sealed class ReportSheetWriter : IDisposable
         if (!string.IsNullOrEmpty(value))
         {
             cell.DataType = CellValues.InlineString;
-            cell.InlineString = new InlineString(new Text(value) { Space = SpaceProcessingModeValues.Preserve });
+            cell.InlineString = ExcelText.InlineString(value);
         }
 
         return cell;
@@ -172,7 +175,12 @@ internal sealed class ReportSheetWriter : IDisposable
             return;
         }
 
-        CloseElements();
+        // 寫入器丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，蓋掉原本的失敗原因。
+        if (!_faulted)
+        {
+            CloseElements();
+        }
+
         _writer.Dispose();
         _disposed = true;
     }
@@ -198,7 +206,26 @@ internal sealed class ReportSheetWriter : IDisposable
             row.Append(cell);
         }
 
-        _writer.WriteElement(row);
+        try
+        {
+            _writer.WriteElement(row);
+        }
+        catch (Exception error) when (Fault(error, cells))
+        {
+            throw;
+        }
+    }
+
+    /// <summary>寫到一半的輸出之後不再補結束標記。取消不是寫入失敗，不記工作表位置。</summary>
+    private bool Fault(Exception error, IEnumerable<Cell> cells)
+    {
+        _faulted = true;
+        if (error is not OperationCanceledException)
+        {
+            ExcelText.MarkWriteFailure(error, _part, cells);
+        }
+
+        return false;
     }
 
     private void CloseElements()

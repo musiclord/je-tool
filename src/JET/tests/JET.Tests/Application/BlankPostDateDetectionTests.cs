@@ -11,6 +11,7 @@ public sealed class BlankPostDateDetectionTests(DemoProjectFixture fixture)
     [Fact]
     public async Task Validate_BlankPostDates_AreSourceQualityAndNullRecordsCategoryIsClosed()
     {
+        // 總帳日期空白的列依使用者 2026-10-21 的裁定記成 blank_post_date（原本記成日期不符的 period），斷言不變。
         await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             "INSERT INTO target_gl_entry " +
@@ -18,7 +19,7 @@ public sealed class BlankPostDateDetectionTests(DemoProjectFixture fixture)
             " document_description, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, " +
             " is_effective, exclusion_reason) " +
             "VALUES ('blank-post-date', 1, 'BLANK-DATE-1', '1', NULL, '1000', '測試科目', " +
-            $" '空白過帳日偵測', 10000, 10000, 0, 'DEBIT', 0, '{GlEffectivePopulation.PeriodStorageReason}'); " +
+            $" '空白過帳日偵測', 10000, 10000, 0, 'DEBIT', 0, '{GlEffectivePopulation.BlankPostDateStorageReason}'); " +
             "SELECT 0;");
 
         var expectedBlankDates = await DemoProjectPipeline.QueryScalarAsync(

@@ -1,0 +1,443 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JET SQLite 資料表欄位</title><style>
+:root{color-scheme:light;--bg:#eae5e1;--paper:#f4f1ec;--sunk:#e3ded7;--select:#ead7b5;--ink:#080a08;--muted:#6b6961;--line:#d3cdc4;--rule:#aaa59a;--accent:#7a4a12;--hover:#9b7247;--signal:#a8742a;--caution:#fffa00;--on-caution:#191919;
+--on-ink:#f4f1ed;--display:Bahnschrift,"Segoe UI","Microsoft JhengHei UI","Microsoft JhengHei",sans-serif;
+--k-calls:#4a4843;--k-viaInterface:#3f6c8c;--k-indirect:#b9772e;--k-return:#a29d93;--k-implements:#8a6a3e;--k-injects:#b9772e;--k-data:#5f7f96;
+--k-uses:#8b867c;--k-fact:#5b6b78;--k-dependency:#4a4843;--k-realization:#8a6a3e;--k-inheritance:#8a6a3e}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#11181b;--paper:#182125;--sunk:#263136;--select:#3a3324;--ink:#e0e3dc;--muted:#a6b0b1;--line:#2c3a3f;--rule:#536166;--hover:#c5a16b;
+--accent:#c5a16b;--signal:#c5a16b;--on-ink:#11181b;--k-calls:#c9ccc5;--k-viaInterface:#7fb0d4;--k-indirect:#d8a565;--k-return:#7d898b;--k-implements:#cfa874;
+--k-injects:#d8a565;--k-data:#9fb6c8;--k-uses:#98a3a4;--k-fact:#9fb0bd;--k-dependency:#c9ccc5;--k-realization:#cfa874;--k-inheritance:#cfa874}}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 "Segoe UI","Microsoft JhengHei UI","Microsoft JhengHei",sans-serif}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:3px;transition:color .15s}a:hover{color:var(--ink);text-decoration-color:var(--hover)}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+code,pre{font-family:Consolas,"Cascadia Mono",monospace}code,summary,h2,h3,dd,li,small,td{overflow-wrap:anywhere}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--rule)}
+.top-inner{max-width:1720px;margin:auto;padding:10px 20px;display:flex;gap:6px 22px;align-items:center;flex-wrap:wrap}
+.brand{display:flex;flex-direction:column;margin-right:auto;color:var(--ink);text-decoration:none;line-height:1.15;white-space:nowrap}
+.brand b{font:600 19px/1.1 var(--display);letter-spacing:.12em}.brand small{font-size:11.5px;letter-spacing:.08em;color:var(--muted);margin-top:3px}
+.top nav{display:flex;gap:2px 20px;flex-wrap:wrap}.top nav a{position:relative;padding:4px 0;text-decoration:none;color:var(--muted);font-size:14px}
+.top nav a:hover{color:var(--ink)}.top nav a[aria-current=page]{color:var(--ink);font-weight:600}
+.top nav a[aria-current=page]::after{content:"";position:absolute;left:0;right:0;bottom:-11px;height:2px;background:var(--ink)}
+main{max-width:1720px;margin:auto;padding:22px 20px 56px}
+h1{font:600 26px/1.3 var(--display);letter-spacing:.02em;margin:.1em 0 .4em}h2{font-size:18px;line-height:1.45;margin:.15em 0 .45em;font-weight:600}
+h3{font-size:15px;margin:.15em 0}p{max-width:95ch}.muted,small{color:var(--muted)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.card{background:var(--paper);border:1px solid var(--line)}
+.chips{display:flex;flex-wrap:wrap;gap:6px 14px;margin:8px 0 0;padding:0;list-style:none}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:0;font-size:12.5px;line-height:1.7;max-width:100%;color:var(--ink)}
+.chip::before{content:"";flex:none;width:12px;height:3px;background:var(--kc,var(--muted))}
+[data-kind=calls]{--kc:var(--k-calls)}[data-kind=viaInterface]{--kc:var(--k-viaInterface)}[data-kind=indirect]{--kc:var(--k-indirect)}
+[data-kind=return]{--kc:var(--k-return)}[data-kind=implements]{--kc:var(--k-implements)}[data-kind=injects]{--kc:var(--k-injects)}
+[data-kind=data]{--kc:var(--k-data)}[data-kind=uses]{--kc:var(--k-uses)}[data-kind=fact]{--kc:var(--k-fact)}
+[data-kind=dependency]{--kc:var(--k-dependency)}[data-kind=realization]{--kc:var(--k-realization)}[data-kind=inheritance]{--kc:var(--k-inheritance)}
+.viewer{display:grid;grid-template-columns:250px minmax(0,1fr) 330px;gap:18px;align-items:start}
+.menu,.panel{position:sticky;top:72px;max-height:calc(100vh - 88px);overflow:auto;padding:14px 14px 16px}
+input,select{width:100%;padding:6px 2px;font:inherit;border:0;border-bottom:1px solid var(--rule);border-radius:0;background:transparent;color:var(--ink)}
+input:focus,select:focus{outline:0;border-bottom-color:var(--ink)}select{cursor:pointer}select option{background:var(--paper)}
+.menu h3{font:500 12px/1.5 var(--display);letter-spacing:.12em;color:var(--muted);margin:18px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.menu button{position:relative;display:flex;justify-content:space-between;align-items:baseline;gap:10px;width:100%;padding:5px 8px 5px 16px;margin:1px 0;border:0;
+border-radius:0;background:none;color:var(--muted);font:inherit;font-size:14px;line-height:1.45;text-align:left;cursor:pointer}
+.menu button::before{content:"";position:absolute;left:4px;top:50%;width:1px;height:8px;background:var(--rule);transform:translateY(-50%);transition:width .18s,height .18s,background-color .18s}.menu button:hover{color:var(--ink)}.menu button:hover::before{height:12px;background:var(--muted)}.menu button[aria-current=true]{color:var(--ink);font-weight:600;background:var(--select)}.menu button[aria-current=true]::before{width:3px;height:16px;background:var(--signal)}
+.stage{overflow:hidden}.stage-head{justify-content:flex-end;padding:8px 18px;border-bottom:1px solid var(--line)}
+.actions{display:flex;gap:18px;flex-wrap:wrap;font-size:13.5px}.actions a{text-decoration:none}
+.actions a::after{content:" \2197";font-family:var(--display)}.actions a:hover{text-decoration:underline}
+iframe{display:block;width:100%;height:calc(100vh - 165px);min-height:560px;border:0;background:var(--paper)}
+.panel h2{font-size:16px;margin:0 0 6px}.panel h2 small{font:400 13px var(--display);letter-spacing:.04em}.panel p{font-size:13.5px;margin:.3em 0}
+.conn-list{list-style:none;margin:8px 0 14px;padding:0}.conn-list li{margin:0;padding:7px 0 7px 12px;border-left:2px solid var(--kc,var(--line));border-bottom:1px solid var(--line)}
+.conn-list a{display:block;text-decoration:none;color:var(--ink)}.conn-list a:hover .what{text-decoration:underline}
+.conn-list .what{font-size:14px}.conn-list .note{display:block;color:var(--muted);font-size:12.5px}
+.facts summary{font-size:14px;font-weight:600;padding:2px 0}.facts-list{margin:4px 0 0;padding-left:1.1em;font-size:14px}
+.legend{margin:4px 0 0;font-size:14px}.legend summary{color:var(--accent)}.legend dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 16px;margin:8px 0 0}.legend dd{margin:0}
+h3.section{margin:16px 0 4px;font-size:13.5px;font-weight:600;color:var(--muted)}.group-body article{padding:10px 0;border-bottom:1px solid var(--line)}
+.filters{position:sticky;top:57px;z-index:3;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.3fr) auto;gap:14px;align-items:end;padding:12px 16px;margin:12px 0 14px}
+.filters label{display:block;font:500 11.5px/1.5 var(--display);letter-spacing:.14em;color:var(--muted)}
+.filters output{font:400 13px var(--display);letter-spacing:.04em;color:var(--muted);white-space:nowrap;padding-bottom:7px}
+details.group{margin:10px 0;padding:0}details.group>summary{display:flex;gap:12px;align-items:baseline;justify-content:space-between;padding:12px 18px;cursor:pointer;list-style:none}
+details.group>summary::-webkit-details-marker{display:none}details.group>summary h2{margin:0;font-size:16.5px}details.group>summary:hover h2{color:var(--accent)}
+details.group>summary::after{content:"+";font:400 18px/1 var(--display);color:var(--muted)}details.group[open]>summary::after{content:"\2212"}
+details.group[open]>summary{border-bottom:1px solid var(--line)}.group-body{padding:4px 18px 14px}
+.conn{padding:12px 0 12px 14px;margin:0;border-left:2px solid var(--kc,var(--line));border-bottom:1px solid var(--line)}.conn h3{font-size:15px;font-weight:600;line-height:1.6}
+.conn h3 .chip{margin-left:10px;font-weight:400}
+.conn dl{display:grid;grid-template-columns:7.5em minmax(0,1fr);gap:3px 14px;margin:6px 0 0;font-size:14px}.conn dt{color:var(--muted);font-size:13px}.conn dd{margin:0}
+ul.refs{margin:0;padding-left:1.15em}
+pre{overflow:auto;max-height:360px;background:var(--sunk);padding:10px 14px;font-size:12.5px;line-height:1.55;border-left:2px solid var(--rule)}
+summary{cursor:pointer}.conn:target,article:target,tr:target{outline:1px solid var(--signal);outline-offset:4px;background:var(--select)}
+section,article,.conn,details.group,tr{scroll-margin-top:160px}
+article.card{padding:14px 18px;margin:10px 0}article.card h2{font-size:16.5px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:7px 8px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{font:500 11.5px/1.5 var(--display);letter-spacing:.12em;color:var(--muted);white-space:nowrap;border-bottom-color:var(--rule)}
+.members td:first-child{white-space:nowrap}.table-wrap{overflow-x:auto}.table-wrap table{min-width:620px}
+[hidden]{display:none!important}
+@media(max-width:1600px){.viewer{grid-template-columns:240px minmax(0,1fr)}.panel{grid-column:2;position:static;max-height:none}
+.panel .conn-list{columns:3 300px;column-gap:28px}.panel .conn-list li{break-inside:avoid}.panel .facts-list{columns:3 300px;column-gap:28px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(max-width:860px){.viewer,.filters{grid-template-columns:minmax(0,1fr)}.panel{grid-column:auto}.menu{position:static;max-height:44vh}.filters{position:static}
+.top nav a[aria-current=page]::after{bottom:-2px}.legend dl{grid-template-columns:minmax(0,1fr)}
+iframe{height:72vh;min-height:420px}main{padding:14px 16px 36px}.top-inner{padding:8px 16px}.conn dl{grid-template-columns:minmax(0,1fr)}.conn dt{margin-top:4px}h1{font-size:23px}}
+</style></head><body><header class="top"><div class="top-inner"><a class="brand" href="index.html"><b>JET ARCHITECTURE</b><small>架構與流程圖．2026-10-22 重繪</small></a><nav><a href="index.html">圖表入口</a><a href="connections.html">連線證據</a><a href="evidence.html">已核對事實</a><a href="types.html">類別與成員</a><a href="schema.html" aria-current="page">資料表欄位</a><a href="README.md">閱讀說明</a></nav></div></header><main><h1>SQLite 資料表欄位</h1><p class="muted">依這份快照的建表與遷移定義整理。這批定義沒有宣告外鍵；資料表關聯圖的線是程式在 SQL 裡使用的連接欄位。</p><div class="filters card" style="grid-template-columns:minmax(0,1fr) auto"><div><label for="fText">搜尋表名或欄位</label><input id="fText" type="search"></div><output id="fCount"></output></div><details class="group card table" id="schema_info"><summary><h2>schema_info</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>key</td><td>TEXT</td><td>pk</td><td>key TEXT PRIMARY KEY</td></tr><tr><td>value</td><td>TEXT</td><td></td><td>value TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 22–25 行</summary><pre>        CREATE TABLE IF NOT EXISTS schema_info (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );</pre></details></div></details><details class="group card table" id="import_batch"><summary><h2>import_batch</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>batch_id</td><td>TEXT</td><td>pk</td><td>batch_id TEXT PRIMARY KEY</td></tr><tr><td>dataset_kind</td><td>TEXT</td><td></td><td>dataset_kind TEXT NOT NULL CHECK (dataset_kind IN (&#x27;gl&#x27;,&#x27;tb&#x27;,&#x27;account_mapping&#x27;))</td></tr><tr><td>source_file_path</td><td>TEXT</td><td></td><td>source_file_path TEXT NOT NULL</td></tr><tr><td>source_file_name</td><td>TEXT</td><td></td><td>source_file_name TEXT NOT NULL</td></tr><tr><td>imported_utc</td><td>TEXT</td><td></td><td>imported_utc TEXT NOT NULL</td></tr><tr><td>row_count</td><td>INTEGER</td><td></td><td>row_count INTEGER NOT NULL DEFAULT 0</td></tr><tr><td>columns_json</td><td>TEXT</td><td></td><td>columns_json TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 32–40 行</summary><pre>        CREATE TABLE IF NOT EXISTS import_batch (
+            batch_id         TEXT PRIMARY KEY,
+            dataset_kind     TEXT NOT NULL CHECK (dataset_kind IN (&#x27;gl&#x27;,&#x27;tb&#x27;,&#x27;account_mapping&#x27;)),
+            source_file_path TEXT NOT NULL,
+            source_file_name TEXT NOT NULL,
+            imported_utc     TEXT NOT NULL,
+            row_count        INTEGER NOT NULL DEFAULT 0,
+            columns_json     TEXT NOT NULL
+        );</pre></details></div></details><details class="group card table" id="import_batch_source"><summary><h2>import_batch_source</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>batch_id</td><td>TEXT</td><td>pk</td><td>batch_id TEXT NOT NULL</td></tr><tr><td>source_no</td><td>INTEGER</td><td>pk</td><td>source_no INTEGER NOT NULL</td></tr><tr><td>source_file_path</td><td>TEXT</td><td></td><td>source_file_path TEXT NOT NULL</td></tr><tr><td>source_file_name</td><td>TEXT</td><td></td><td>source_file_name TEXT NOT NULL</td></tr><tr><td>sheet_name</td><td>TEXT</td><td></td><td>sheet_name TEXT NULL</td></tr><tr><td>encoding</td><td>TEXT</td><td></td><td>encoding TEXT NULL</td></tr><tr><td>delimiter</td><td>TEXT</td><td></td><td>delimiter TEXT NULL</td></tr><tr><td>row_count</td><td>INTEGER</td><td></td><td>row_count INTEGER NOT NULL DEFAULT 0</td></tr><tr><td>imported_utc</td><td>TEXT</td><td></td><td>imported_utc TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 44–55 行</summary><pre>        CREATE TABLE IF NOT EXISTS import_batch_source (
+            batch_id         TEXT NOT NULL,
+            source_no        INTEGER NOT NULL,
+            source_file_path TEXT NOT NULL,
+            source_file_name TEXT NOT NULL,
+            sheet_name       TEXT NULL,
+            encoding         TEXT NULL,
+            delimiter        TEXT NULL,
+            row_count        INTEGER NOT NULL DEFAULT 0,
+            imported_utc     TEXT NOT NULL,
+            PRIMARY KEY (batch_id, source_no)
+        );</pre></details></div></details><details class="group card table" id="import_field_definition"><summary><h2>import_field_definition</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>batch_id</td><td>TEXT</td><td>pk</td><td>batch_id TEXT NOT NULL</td></tr><tr><td>definition_scope</td><td>TEXT</td><td>pk</td><td>definition_scope TEXT NOT NULL CHECK (definition_scope IN (&#x27;source&#x27;,&#x27;target&#x27;))</td></tr><tr><td>ordinal</td><td>INTEGER</td><td>pk</td><td>ordinal INTEGER NOT NULL</td></tr><tr><td>field_name</td><td>TEXT</td><td></td><td>field_name TEXT NOT NULL</td></tr><tr><td>description</td><td>TEXT</td><td></td><td>description TEXT NULL</td></tr><tr><td>field_kind</td><td>TEXT</td><td></td><td>field_kind TEXT NOT NULL CHECK (field_kind IN (&#x27;text&#x27;,&#x27;number&#x27;,&#x27;date&#x27;,&#x27;time&#x27;))</td></tr><tr><td>text_length</td><td>INTEGER</td><td></td><td>text_length INTEGER NULL</td></tr><tr><td>decimal_places</td><td>INTEGER</td><td></td><td>decimal_places INTEGER NULL</td></tr><tr><td>max_rendered_length</td><td>INTEGER</td><td></td><td>max_rendered_length INTEGER NOT NULL</td></tr><tr><td>has_observation</td><td>INTEGER</td><td></td><td>has_observation INTEGER NOT NULL CHECK (has_observation IN (0,1))</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 59–71 行</summary><pre>        CREATE TABLE IF NOT EXISTS import_field_definition (
+            batch_id            TEXT NOT NULL,
+            definition_scope    TEXT NOT NULL CHECK (definition_scope IN (&#x27;source&#x27;,&#x27;target&#x27;)),
+            ordinal             INTEGER NOT NULL,
+            field_name          TEXT NOT NULL,
+            description         TEXT NULL,
+            field_kind          TEXT NOT NULL CHECK (field_kind IN (&#x27;text&#x27;,&#x27;number&#x27;,&#x27;date&#x27;,&#x27;time&#x27;)),
+            text_length         INTEGER NULL,
+            decimal_places      INTEGER NULL,
+            max_rendered_length INTEGER NOT NULL,
+            has_observation     INTEGER NOT NULL CHECK (has_observation IN (0,1)),
+            PRIMARY KEY (batch_id, definition_scope, ordinal)
+        );</pre></details></div></details><details class="group card table" id="staging_gl_raw_row"><summary><h2>staging_gl_raw_row</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>batch_id</td><td>TEXT</td><td>pk</td><td>batch_id TEXT NOT NULL</td></tr><tr><td>row_number</td><td>INTEGER</td><td>pk</td><td>row_number INTEGER NOT NULL</td></tr><tr><td>source_no</td><td>INTEGER</td><td></td><td>source_no INTEGER NOT NULL DEFAULT 1</td></tr><tr><td>source_row_number</td><td>INTEGER</td><td></td><td>source_row_number INTEGER NOT NULL DEFAULT 0</td></tr><tr><td>row_json</td><td>TEXT</td><td></td><td>row_json TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 73–80 行</summary><pre>        CREATE TABLE IF NOT EXISTS staging_gl_raw_row (
+            batch_id          TEXT NOT NULL,
+            row_number        INTEGER NOT NULL,
+            source_no         INTEGER NOT NULL DEFAULT 1,
+            source_row_number INTEGER NOT NULL DEFAULT 0,
+            row_json          TEXT NOT NULL,
+            PRIMARY KEY (batch_id, row_number)
+        );</pre></details></div></details><details class="group card table" id="staging_tb_raw_row"><summary><h2>staging_tb_raw_row</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>batch_id</td><td>TEXT</td><td>pk</td><td>batch_id TEXT NOT NULL</td></tr><tr><td>row_number</td><td>INTEGER</td><td>pk</td><td>row_number INTEGER NOT NULL</td></tr><tr><td>source_no</td><td>INTEGER</td><td></td><td>source_no INTEGER NOT NULL DEFAULT 1</td></tr><tr><td>source_row_number</td><td>INTEGER</td><td></td><td>source_row_number INTEGER NOT NULL DEFAULT 0</td></tr><tr><td>row_json</td><td>TEXT</td><td></td><td>row_json TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 82–89 行</summary><pre>        CREATE TABLE IF NOT EXISTS staging_tb_raw_row (
+            batch_id          TEXT NOT NULL,
+            row_number        INTEGER NOT NULL,
+            source_no         INTEGER NOT NULL DEFAULT 1,
+            source_row_number INTEGER NOT NULL DEFAULT 0,
+            row_json          TEXT NOT NULL,
+            PRIMARY KEY (batch_id, row_number)
+        );</pre></details></div></details><details class="group card table" id="config_field_mapping"><summary><h2>config_field_mapping</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>dataset_kind</td><td>TEXT</td><td>pk</td><td>dataset_kind TEXT PRIMARY KEY CHECK (dataset_kind IN (&#x27;gl&#x27;,&#x27;tb&#x27;))</td></tr><tr><td>mapping_json</td><td>TEXT</td><td></td><td>mapping_json TEXT NOT NULL</td></tr><tr><td>mode_name</td><td>TEXT</td><td></td><td>mode_name TEXT NOT NULL</td></tr><tr><td>source_batch_id</td><td>TEXT</td><td></td><td>source_batch_id TEXT NOT NULL</td></tr><tr><td>committed_utc</td><td>TEXT</td><td></td><td>committed_utc TEXT NOT NULL</td></tr><tr><td>format_version</td><td>INTEGER</td><td></td><td>format_version INTEGER NOT NULL DEFAULT 1</td></tr><tr><td>options_json</td><td>TEXT</td><td></td><td>options_json TEXT</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 91–97 行</summary><pre>        CREATE TABLE IF NOT EXISTS config_field_mapping (
+            dataset_kind    TEXT PRIMARY KEY CHECK (dataset_kind IN (&#x27;gl&#x27;,&#x27;tb&#x27;)),
+            mapping_json    TEXT NOT NULL,
+            mode_name       TEXT NOT NULL,
+            source_batch_id TEXT NOT NULL,
+            committed_utc   TEXT NOT NULL
+        );</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 597–602 行</summary><pre>            await EnsureColumnAsync(
+                connection,
+                transaction,
+                &quot;config_field_mapping&quot;,
+                &quot;format_version&quot;,
+                &quot;INTEGER NOT NULL DEFAULT 1&quot;,</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 604–605 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;config_field_mapping&quot;, &quot;options_json&quot;, &quot;TEXT&quot;, cancellationToken);</pre></details></div></details><details class="group card table" id="config_field_mapping_previous"><summary><h2>config_field_mapping_previous</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>dataset_kind</td><td>TEXT</td><td>pk</td><td>dataset_kind TEXT PRIMARY KEY CHECK (dataset_kind IN (&#x27;gl&#x27;,&#x27;tb&#x27;))</td></tr><tr><td>mapping_json</td><td>TEXT</td><td></td><td>mapping_json TEXT NOT NULL</td></tr><tr><td>mode_name</td><td>TEXT</td><td></td><td>mode_name TEXT NOT NULL</td></tr><tr><td>source_batch_id</td><td>TEXT</td><td></td><td>source_batch_id TEXT NOT NULL</td></tr><tr><td>committed_utc</td><td>TEXT</td><td></td><td>committed_utc TEXT NOT NULL</td></tr><tr><td>format_version</td><td>INTEGER</td><td></td><td>format_version INTEGER NOT NULL</td></tr><tr><td>options_json</td><td>TEXT</td><td></td><td>options_json TEXT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 100–108 行</summary><pre>        CREATE TABLE IF NOT EXISTS config_field_mapping_previous (
+            dataset_kind    TEXT PRIMARY KEY CHECK (dataset_kind IN (&#x27;gl&#x27;,&#x27;tb&#x27;)),
+            mapping_json    TEXT NOT NULL,
+            mode_name       TEXT NOT NULL,
+            source_batch_id TEXT NOT NULL,
+            committed_utc   TEXT NOT NULL,
+            format_version  INTEGER NOT NULL,
+            options_json    TEXT NULL
+        );</pre></details></div></details><details class="group card table" id="staging_calendar_raw_day"><summary><h2>staging_calendar_raw_day</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>day_type</td><td>TEXT</td><td>pk</td><td>day_type TEXT NOT NULL CHECK (day_type IN (&#x27;holiday&#x27;,&#x27;makeup&#x27;))</td></tr><tr><td>date</td><td>TEXT</td><td>pk</td><td>date TEXT NOT NULL</td></tr><tr><td>day_name</td><td>TEXT</td><td></td><td>day_name TEXT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 110–115 行</summary><pre>        CREATE TABLE IF NOT EXISTS staging_calendar_raw_day (
+            day_type TEXT NOT NULL CHECK (day_type IN (&#x27;holiday&#x27;,&#x27;makeup&#x27;)),
+            date     TEXT NOT NULL,
+            day_name TEXT NULL,
+            PRIMARY KEY (day_type, date)
+        );</pre></details></div></details><details class="group card table" id="target_gl_entry"><summary><h2>target_gl_entry</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>entry_id</td><td>INTEGER</td><td>pk</td><td>entry_id INTEGER PRIMARY KEY AUTOINCREMENT</td></tr><tr><td>batch_id</td><td>TEXT</td><td></td><td>batch_id TEXT NOT NULL</td></tr><tr><td>source_row_number</td><td>INTEGER</td><td></td><td>source_row_number INTEGER NOT NULL</td></tr><tr><td>document_number</td><td>TEXT</td><td></td><td>document_number TEXT NULL</td></tr><tr><td>line_item</td><td>TEXT</td><td></td><td>line_item TEXT NULL</td></tr><tr><td>line_item_numeric_sort_key</td><td>TEXT</td><td></td><td>line_item_numeric_sort_key TEXT NULL</td></tr><tr><td>post_date</td><td>TEXT</td><td></td><td>post_date TEXT NULL</td></tr><tr><td>approval_date</td><td>TEXT</td><td></td><td>approval_date TEXT NULL</td></tr><tr><td>account_code</td><td>TEXT</td><td></td><td>account_code TEXT NULL</td></tr><tr><td>account_name</td><td>TEXT</td><td></td><td>account_name TEXT NULL</td></tr><tr><td>document_description</td><td>TEXT</td><td></td><td>document_description TEXT NULL</td></tr><tr><td>source_module</td><td>TEXT</td><td></td><td>source_module TEXT NULL</td></tr><tr><td>created_by</td><td>TEXT</td><td></td><td>created_by TEXT NULL</td></tr><tr><td>approved_by</td><td>TEXT</td><td></td><td>approved_by TEXT NULL</td></tr><tr><td>is_manual</td><td>INTEGER</td><td></td><td>is_manual INTEGER NULL</td></tr><tr><td>amount_scaled</td><td>INTEGER</td><td></td><td>amount_scaled INTEGER NOT NULL</td></tr><tr><td>debit_amount_scaled</td><td>INTEGER</td><td></td><td>debit_amount_scaled INTEGER NOT NULL</td></tr><tr><td>credit_amount_scaled</td><td>INTEGER</td><td></td><td>credit_amount_scaled INTEGER NOT NULL</td></tr><tr><td>dr_cr</td><td>TEXT</td><td></td><td>dr_cr TEXT NOT NULL CHECK (dr_cr IN (&#x27;DEBIT&#x27;,&#x27;CREDIT&#x27;))</td></tr><tr><td>posting_status</td><td>TEXT</td><td></td><td>posting_status TEXT</td></tr><tr><td>is_effective</td><td>INTEGER</td><td></td><td>is_effective INTEGER</td></tr><tr><td>exclusion_reason</td><td>TEXT</td><td></td><td>exclusion_reason TEXT</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 117–137 行</summary><pre>        CREATE TABLE IF NOT EXISTS target_gl_entry (
+            entry_id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id              TEXT NOT NULL,
+            source_row_number     INTEGER NOT NULL,
+            document_number       TEXT NULL,
+            line_item             TEXT NULL,
+            line_item_numeric_sort_key TEXT NULL,
+            post_date             TEXT NULL,
+            approval_date         TEXT NULL,
+            account_code          TEXT NULL,
+            account_name          TEXT NULL,
+            document_description  TEXT NULL,
+            source_module         TEXT NULL,
+            created_by            TEXT NULL,
+            approved_by           TEXT NULL,
+            is_manual             INTEGER NULL,
+            amount_scaled         INTEGER NOT NULL,
+            debit_amount_scaled   INTEGER NOT NULL,
+            credit_amount_scaled  INTEGER NOT NULL,
+            dr_cr                 TEXT NOT NULL CHECK (dr_cr IN (&#x27;DEBIT&#x27;,&#x27;CREDIT&#x27;))
+        );</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 577–578 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;target_gl_entry&quot;, &quot;posting_status&quot;, &quot;TEXT&quot;, cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 579–580 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;target_gl_entry&quot;, &quot;is_effective&quot;, &quot;INTEGER&quot;, cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 581–582 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;target_gl_entry&quot;, &quot;exclusion_reason&quot;, &quot;TEXT&quot;, cancellationToken);</pre></details></div></details><details class="group card table" id="target_tb_balance"><summary><h2>target_tb_balance</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>balance_id</td><td>INTEGER</td><td>pk</td><td>balance_id INTEGER PRIMARY KEY AUTOINCREMENT</td></tr><tr><td>batch_id</td><td>TEXT</td><td></td><td>batch_id TEXT NOT NULL</td></tr><tr><td>source_row_number</td><td>INTEGER</td><td></td><td>source_row_number INTEGER NOT NULL</td></tr><tr><td>account_code</td><td>TEXT</td><td></td><td>account_code TEXT NULL</td></tr><tr><td>account_name</td><td>TEXT</td><td></td><td>account_name TEXT NULL</td></tr><tr><td>change_amount_scaled</td><td>INTEGER</td><td></td><td>change_amount_scaled INTEGER NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 143–150 行</summary><pre>        CREATE TABLE IF NOT EXISTS target_tb_balance (
+            balance_id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id              TEXT NOT NULL,
+            source_row_number     INTEGER NOT NULL,
+            account_code          TEXT NULL,
+            account_name          TEXT NULL,
+            change_amount_scaled  INTEGER NOT NULL
+        );</pre></details></div></details><details class="group card table" id="result_rule_run"><summary><h2>result_rule_run</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>run_id</td><td>TEXT</td><td>pk</td><td>run_id TEXT PRIMARY KEY</td></tr><tr><td>run_kind</td><td>TEXT</td><td></td><td>run_kind TEXT NOT NULL CHECK (run_kind IN (&#x27;validate&#x27;,&#x27;prescreen&#x27;))</td></tr><tr><td>generated_utc</td><td>TEXT</td><td></td><td>generated_utc TEXT NOT NULL</td></tr><tr><td>summary_json</td><td>TEXT</td><td></td><td>summary_json TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 154–159 行</summary><pre>        CREATE TABLE IF NOT EXISTS result_rule_run (
+            run_id        TEXT PRIMARY KEY,
+            run_kind      TEXT NOT NULL CHECK (run_kind IN (&#x27;validate&#x27;,&#x27;prescreen&#x27;)),
+            generated_utc TEXT NOT NULL,
+            summary_json  TEXT NOT NULL
+        );</pre></details></div></details><details class="group card table" id="result_inf_sampling_test_sample"><summary><h2>result_inf_sampling_test_sample</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>run_id</td><td>TEXT</td><td>pk</td><td>run_id TEXT NOT NULL</td></tr><tr><td>entry_id</td><td>INTEGER</td><td>pk</td><td>entry_id INTEGER NOT NULL</td></tr><tr><td>document_number</td><td>TEXT</td><td></td><td>document_number TEXT NULL</td></tr><tr><td>line_item</td><td>TEXT</td><td></td><td>line_item TEXT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 163–169 行</summary><pre>        CREATE TABLE IF NOT EXISTS result_inf_sampling_test_sample (
+            run_id          TEXT NOT NULL,
+            entry_id        INTEGER NOT NULL,
+            document_number TEXT NULL,
+            line_item       TEXT NULL,
+            PRIMARY KEY (run_id, entry_id)
+        );</pre></details></div></details><details class="group card table" id="config_filter_scenario"><summary><h2>config_filter_scenario</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>position</td><td>INTEGER</td><td>pk</td><td>position INTEGER PRIMARY KEY</td></tr><tr><td>name</td><td>TEXT</td><td></td><td>name TEXT NOT NULL</td></tr><tr><td>rationale</td><td>TEXT</td><td></td><td>rationale TEXT NOT NULL</td></tr><tr><td>definition_json</td><td>TEXT</td><td></td><td>definition_json TEXT NOT NULL</td></tr><tr><td>saved_utc</td><td>TEXT</td><td></td><td>saved_utc TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 171–177 行</summary><pre>        CREATE TABLE IF NOT EXISTS config_filter_scenario (
+            position        INTEGER PRIMARY KEY,
+            name            TEXT NOT NULL,
+            rationale       TEXT NOT NULL,
+            definition_json TEXT NOT NULL,
+            saved_utc       TEXT NOT NULL
+        );</pre></details></div></details><details class="group card table" id="staging_account_mapping_raw_row"><summary><h2>staging_account_mapping_raw_row</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>batch_id</td><td>TEXT</td><td>pk</td><td>batch_id TEXT NOT NULL</td></tr><tr><td>row_number</td><td>INTEGER</td><td>pk</td><td>row_number INTEGER NOT NULL</td></tr><tr><td>source_no</td><td>INTEGER</td><td></td><td>source_no INTEGER NOT NULL DEFAULT 1</td></tr><tr><td>source_row_number</td><td>INTEGER</td><td></td><td>source_row_number INTEGER NOT NULL DEFAULT 0</td></tr><tr><td>row_json</td><td>TEXT</td><td></td><td>row_json TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 179–186 行</summary><pre>        CREATE TABLE IF NOT EXISTS staging_account_mapping_raw_row (
+            batch_id          TEXT NOT NULL,
+            row_number        INTEGER NOT NULL,
+            source_no         INTEGER NOT NULL DEFAULT 1,
+            source_row_number INTEGER NOT NULL DEFAULT 0,
+            row_json          TEXT NOT NULL,
+            PRIMARY KEY (batch_id, row_number)
+        );</pre></details></div></details><details class="group card table" id="target_account_mapping"><summary><h2>target_account_mapping</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>mapping_id</td><td>INTEGER</td><td>pk</td><td>mapping_id INTEGER PRIMARY KEY AUTOINCREMENT</td></tr><tr><td>batch_id</td><td>TEXT</td><td></td><td>batch_id TEXT NOT NULL</td></tr><tr><td>source_row_number</td><td>INTEGER</td><td></td><td>source_row_number INTEGER NOT NULL</td></tr><tr><td>account_code</td><td>TEXT</td><td>uk</td><td>account_code TEXT NOT NULL</td></tr><tr><td>account_name</td><td>TEXT</td><td></td><td>account_name TEXT NULL</td></tr><tr><td>standardized_category</td><td>TEXT</td><td></td><td>standardized_category TEXT NOT NULL CHECK (standardized_category IN (&#x27;Revenue&#x27;,&#x27;Receivables&#x27;,&#x27;Cash&#x27;,&#x27;Receipt in advance&#x27;,&#x27;Others&#x27;))</td></tr><tr><td>category_id</td><td>TEXT</td><td></td><td>category_id TEXT</td></tr><tr><td>classification_explicit</td><td>INTEGER</td><td></td><td>classification_explicit INTEGER NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 188–196 行</summary><pre>        CREATE TABLE IF NOT EXISTS target_account_mapping (
+            mapping_id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id              TEXT NOT NULL,
+            source_row_number     INTEGER NOT NULL,
+            account_code          TEXT NOT NULL,
+            account_name          TEXT NULL,
+            standardized_category TEXT NOT NULL
+                CHECK (standardized_category IN (&#x27;Revenue&#x27;,&#x27;Receivables&#x27;,&#x27;Cash&#x27;,&#x27;Receipt in advance&#x27;,&#x27;Others&#x27;))
+        );</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 606–607 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;target_account_mapping&quot;, &quot;category_id&quot;, &quot;TEXT&quot;, cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/AccountClassificationMigration.cs 第 31–151 行</summary><pre>            alter.CommandText = &quot;ALTER TABLE target_account_mapping ADD COLUMN classification_explicit INTEGER NULL&quot;;
+            await alter.ExecuteNonQueryAsync(ct);
+        }
+        await BackfillAsync(connection, transaction, &quot;&quot;, ct);
+        await using (var bump = connection.CreateCommand())
+        {
+            bump.Transaction = transaction;
+            bump.CommandText = &quot;UPDATE schema_info SET value = &#x27;10&#x27; WHERE key = &#x27;schema_version&#x27;&quot;;
+            await bump.ExecuteNonQueryAsync(ct);
+        }
+        await transaction.CommitAsync(ct);
+    }
+
+    internal sealed record SavedMappingRow(
+        long MappingId, string BatchId, string? RowJson, string? ColumnsJson,
+        string? CategoryId, string? StandardizedCategory, string? CategoryLabel, int? Previous);
+
+    internal static async Task&lt;bool&gt; BackfillAsync(DbConnection connection, DbTransaction transaction,
+        string prefix, CancellationToken ct)
+    {
+        // 科目配對列數有界（一份配對檔的科目數），整份讀入後依匯入批次判斷來源欄。
+        var rows = new List&lt;SavedMappingRow&gt;();
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = &quot;SELECT m.mapping_id, m.batch_id, r.row_json, b.columns_json, m.category_id, &quot;
+                + $&quot;m.standardized_category, t.label, m.classification_explicit FROM {prefix}target_account_mapping m &quot;
+                + $&quot;LEFT JOIN {prefix}staging_account_mapping_raw_row r ON r.batch_id = m.batch_id &quot;
+                + &quot;AND r.row_number = m.source_row_number &quot;
+                + $&quot;LEFT JOIN {prefix}import_batch b ON b.batch_id = m.batch_id &quot;
+                + $&quot;LEFT JOIN {prefix}config_account_taxonomy t ON t.category_id = m.category_id &quot;
+                + &quot;ORDER BY m.mapping_id&quot;;
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                string? Text(int ordinal) =&gt; reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+                rows.Add(new SavedMappingRow(
+                    Convert.ToInt64(reader.GetValue(0)), reader.GetString(1), Text(2), Text(3), Text(4), Text(5), Text(6),
+                    reader.IsDBNull(7) ? null : Convert.ToInt32(reader.GetValue(7))));
+            }
+        }
+
+        var changed = false;
+        foreach (var batch in rows.GroupBy(row =&gt; row.BatchId, StringComparer.Ordinal))
+        {
+            var inferred = InferExplicit(batch.ToArray());
+            foreach (var row in batch)
+            {
+                if (!inferred.TryGetValue(row.MappingId, out var supplied) || supplied is null || supplied == row.Previous) continue;
+                await using var update = connection.CreateCommand();
+                update.Transaction = transaction;
+                update.AddWithValue(&quot;@id&quot;, row.MappingId);
+                update.AddWithValue(&quot;@explicit&quot;, supplied.Value);
+                update.CommandText = $&quot;UPDATE {prefix}target_account_mapping SET classification_explicit = @explicit WHERE mapping_id = @id&quot;;
+                await update.ExecuteNonQueryAsync(ct);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    /// &lt;summary&gt;
+    /// 依同一匯入批次的已存配對推回每列分類欄有沒有填：1 有填、0 留白、null 無法判斷。沒有原始列的科目不列入結果。
+    /// 已存分類不是 Others 就一定有填（留白只會落到 Others）。Others 列要靠來源欄判斷：和每一列已存分類都一致的欄
+    /// （留白對應 Others，有值則等於已存分類的代碼、名稱或舊版分類名）才是候選；候選欄對這一列的答案一致才採用。
+    /// &lt;/summary&gt;
+    internal static IReadOnlyDictionary&lt;long, int?&gt; InferExplicit(IReadOnlyList&lt;SavedMappingRow&gt; batchRows)
+    {
+        var columns = ParseColumns(batchRows.Select(row =&gt; row.ColumnsJson).FirstOrDefault(json =&gt; json is not null));
+        var evaluable = batchRows
+            .Select(row =&gt; (Row: row, Values: ParseValues(row.RowJson)))
+            .Where(item =&gt; item.Values is not null)
+            .ToArray();
+        var candidates = columns
+            .Where(column =&gt; evaluable.Length &gt; 0 &amp;&amp; evaluable.All(item =&gt; Consistent(item.Values!, column, item.Row)))
+            .ToArray();
+
+        var result = new Dictionary&lt;long, int?&gt;();
+        foreach (var (row, values) in evaluable)
+        {
+            if (!IsOthers(row))
+            {
+                result[row.MappingId] = 1;
+                continue;
+            }
+            var answers = candidates.Select(column =&gt; IsBlank(values!, column) ? 0 : 1).Distinct().ToArray();
+            result[row.MappingId] = answers.Length == 1 ? answers[0] : null;
+        }
+        return result;
+    }
+
+    private static bool Consistent(IReadOnlyDictionary&lt;string, string?&gt; values, string column, SavedMappingRow row)
+    {
+        if (IsBlank(values, column)) return IsOthers(row);
+        var raw = values[column]!.Trim();
+        return string.Equals(raw, row.CategoryId, StringComparison.Ordinal)
+            || string.Equals(raw, row.CategoryLabel, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(raw, row.StandardizedCategory, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsOthers(SavedMappingRow row) =&gt; row.CategoryId is null
+        ? string.Equals(row.StandardizedCategory, AccountMappingCategories.Others, StringComparison.OrdinalIgnoreCase)
+        : string.Equals(row.CategoryId, AccountTaxonomyBuiltIns.OthersId, StringComparison.Ordinal);
+
+    private static bool IsBlank(IReadOnlyDictionary&lt;string, string?&gt; values, string column) =&gt;
+        !values.TryGetValue(column, out var raw) || string.IsNullOrWhiteSpace(raw);
+
+    private static string[] ParseColumns(string? columnsJson)
+    {
+        if (columnsJson is null) return [];
+        try { return JsonSerializer.Deserialize&lt;string[]&gt;(columnsJson) ?? []; }
+        catch (JsonException) { return []; }
+    }
+
+    private static Dictionary&lt;string, string?&gt;? ParseValues(string? rowJson)
+    {
+        if (rowJson is null) return null;
+        try { return JsonSerializer.Deserialize&lt;Dictionary&lt;string, string?&gt;&gt;(rowJson); }
+        catch (JsonException) { return null; }
+    }
+}</pre></details></div></details><details class="group card table" id="staging_authorized_preparer_raw_row"><summary><h2>staging_authorized_preparer_raw_row</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>batch_id</td><td>TEXT</td><td>pk</td><td>batch_id TEXT NOT NULL</td></tr><tr><td>row_number</td><td>INTEGER</td><td>pk</td><td>row_number INTEGER NOT NULL</td></tr><tr><td>source_no</td><td>INTEGER</td><td></td><td>source_no INTEGER NOT NULL DEFAULT 1</td></tr><tr><td>source_row_number</td><td>INTEGER</td><td></td><td>source_row_number INTEGER NOT NULL DEFAULT 0</td></tr><tr><td>row_json</td><td>TEXT</td><td></td><td>row_json TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 202–209 行</summary><pre>        CREATE TABLE IF NOT EXISTS staging_authorized_preparer_raw_row (
+            batch_id          TEXT NOT NULL,
+            row_number        INTEGER NOT NULL,
+            source_no         INTEGER NOT NULL DEFAULT 1,
+            source_row_number INTEGER NOT NULL DEFAULT 0,
+            row_json          TEXT NOT NULL,
+            PRIMARY KEY (batch_id, row_number)
+        );</pre></details></div></details><details class="group card table" id="target_authorized_preparer"><summary><h2>target_authorized_preparer</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>name</td><td>TEXT</td><td>pk</td><td>name TEXT NOT NULL PRIMARY KEY</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 210–212 行</summary><pre>        CREATE TABLE IF NOT EXISTS target_authorized_preparer (
+            name TEXT NOT NULL PRIMARY KEY
+        );</pre></details></div></details><details class="group card table" id="app_message_log"><summary><h2>app_message_log</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>message_id</td><td>INTEGER</td><td>pk</td><td>message_id INTEGER PRIMARY KEY AUTOINCREMENT</td></tr><tr><td>occurred_utc</td><td>TEXT</td><td></td><td>occurred_utc TEXT NOT NULL</td></tr><tr><td>level</td><td>TEXT</td><td></td><td>level TEXT NOT NULL CHECK (level IN (&#x27;info&#x27;,&#x27;warn&#x27;,&#x27;error&#x27;))</td></tr><tr><td>text</td><td>TEXT</td><td></td><td>text TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 222–227 行</summary><pre>        CREATE TABLE IF NOT EXISTS app_message_log (
+            message_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+            occurred_utc TEXT NOT NULL,
+            level        TEXT NOT NULL CHECK (level IN (&#x27;info&#x27;,&#x27;warn&#x27;,&#x27;error&#x27;)),
+            text         TEXT NOT NULL
+        );</pre></details></div></details><details class="group card table" id="gl_control_total"><summary><h2>gl_control_total</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>singleton</td><td>INTEGER</td><td>pk</td><td>singleton INTEGER PRIMARY KEY CHECK (singleton = 1)</td></tr><tr><td>source_row_count</td><td>INTEGER</td><td></td><td>source_row_count INTEGER NOT NULL</td></tr><tr><td>target_row_count</td><td>INTEGER</td><td></td><td>target_row_count INTEGER NOT NULL</td></tr><tr><td>target_debit_scaled</td><td>INTEGER</td><td></td><td>target_debit_scaled INTEGER NOT NULL</td></tr><tr><td>target_credit_scaled</td><td>INTEGER</td><td></td><td>target_credit_scaled INTEGER NOT NULL</td></tr><tr><td>raw_row_count</td><td>INTEGER</td><td></td><td>raw_row_count INTEGER</td></tr><tr><td>effective_row_count</td><td>INTEGER</td><td></td><td>effective_row_count INTEGER</td></tr><tr><td>excluded_by_period_count</td><td>INTEGER</td><td></td><td>excluded_by_period_count INTEGER</td></tr><tr><td>excluded_by_posting_status_count</td><td>INTEGER</td><td></td><td>excluded_by_posting_status_count INTEGER</td></tr><tr><td>effective_debit_scaled</td><td>INTEGER</td><td></td><td>effective_debit_scaled INTEGER</td></tr><tr><td>effective_credit_scaled</td><td>INTEGER</td><td></td><td>effective_credit_scaled INTEGER</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 232–238 行</summary><pre>        CREATE TABLE IF NOT EXISTS gl_control_total (
+            singleton        INTEGER PRIMARY KEY CHECK (singleton = 1),
+            source_row_count INTEGER NOT NULL,
+            target_row_count INTEGER NOT NULL,
+            target_debit_scaled  INTEGER NOT NULL,
+            target_credit_scaled INTEGER NOT NULL
+        );</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 584–585 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;gl_control_total&quot;, &quot;raw_row_count&quot;, &quot;INTEGER&quot;, cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 586–587 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;gl_control_total&quot;, &quot;effective_row_count&quot;, &quot;INTEGER&quot;, cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 588–589 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;gl_control_total&quot;, &quot;excluded_by_period_count&quot;, &quot;INTEGER&quot;, cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 590–591 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;gl_control_total&quot;, &quot;excluded_by_posting_status_count&quot;, &quot;INTEGER&quot;, cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 592–593 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;gl_control_total&quot;, &quot;effective_debit_scaled&quot;, &quot;INTEGER&quot;, cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 594–595 行</summary><pre>            await EnsureColumnAsync(
+                connection, transaction, &quot;gl_control_total&quot;, &quot;effective_credit_scaled&quot;, &quot;INTEGER&quot;, cancellationToken);</pre></details></div></details><details class="group card table" id="result_filter_run"><summary><h2>result_filter_run</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>scenario_position</td><td>INTEGER</td><td>pk</td><td>scenario_position INTEGER NOT NULL</td></tr><tr><td>entry_id</td><td>INTEGER</td><td>pk</td><td>entry_id INTEGER NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 243–247 行</summary><pre>        CREATE TABLE IF NOT EXISTS result_filter_run (
+            scenario_position INTEGER NOT NULL,
+            entry_id          INTEGER NOT NULL,
+            PRIMARY KEY (scenario_position, entry_id)
+        );</pre></details></div></details><details class="group card table" id="audit_event_log"><summary><h2>audit_event_log</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>event_id</td><td>TEXT</td><td>pk</td><td>event_id TEXT PRIMARY KEY</td></tr><tr><td>occurred_utc</td><td>TEXT</td><td></td><td>occurred_utc TEXT NOT NULL</td></tr><tr><td>operation</td><td>TEXT</td><td></td><td>operation TEXT NOT NULL</td></tr><tr><td>target_type</td><td>TEXT</td><td></td><td>target_type TEXT NOT NULL</td></tr><tr><td>target_id</td><td>TEXT</td><td></td><td>target_id TEXT NOT NULL</td></tr><tr><td>subject_count</td><td>INTEGER</td><td></td><td>subject_count INTEGER NOT NULL CHECK (subject_count &gt;= 0)</td></tr><tr><td>replaced_count</td><td>INTEGER</td><td></td><td>replaced_count INTEGER NOT NULL CHECK (replaced_count &gt;= 0)</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 337–345 行</summary><pre>        CREATE TABLE IF NOT EXISTS audit_event_log (
+            event_id       TEXT PRIMARY KEY,
+            occurred_utc   TEXT NOT NULL,
+            operation      TEXT NOT NULL,
+            target_type    TEXT NOT NULL,
+            target_id      TEXT NOT NULL,
+            subject_count  INTEGER NOT NULL CHECK (subject_count &gt;= 0),
+            replaced_count INTEGER NOT NULL CHECK (replaced_count &gt;= 0)
+        );</pre></details></div></details><details class="group card table" id="config_gl_rde_field"><summary><h2>config_gl_rde_field</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>field_id</td><td>TEXT</td><td>pk</td><td>field_id TEXT PRIMARY KEY</td></tr><tr><td>source_column</td><td>TEXT</td><td></td><td>source_column TEXT NOT NULL</td></tr><tr><td>label</td><td>TEXT</td><td></td><td>label TEXT NOT NULL</td></tr><tr><td>value_type</td><td>TEXT</td><td></td><td>value_type TEXT NOT NULL CHECK (value_type IN (&#x27;text&#x27;,&#x27;date&#x27;,&#x27;money&#x27;))</td></tr><tr><td>ordinal</td><td>INTEGER</td><td></td><td>ordinal INTEGER NOT NULL</td></tr><tr><td>is_rde</td><td>INTEGER</td><td></td><td>is_rde INTEGER NOT NULL CHECK (is_rde IN (0,1))</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 377–384 行</summary><pre>        CREATE TABLE IF NOT EXISTS config_gl_rde_field (
+            field_id      TEXT PRIMARY KEY,
+            source_column TEXT NOT NULL,
+            label         TEXT NOT NULL,
+            value_type    TEXT NOT NULL CHECK (value_type IN (&#x27;text&#x27;,&#x27;date&#x27;,&#x27;money&#x27;)),
+            ordinal       INTEGER NOT NULL,
+            is_rde        INTEGER NOT NULL CHECK (is_rde IN (0,1))
+        );</pre></details></div></details><details class="group card table" id="target_gl_rde_value"><summary><h2>target_gl_rde_value</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>entry_id</td><td>INTEGER</td><td>pk</td><td>entry_id INTEGER NOT NULL</td></tr><tr><td>field_id</td><td>TEXT</td><td>pk</td><td>field_id TEXT NOT NULL</td></tr><tr><td>value_type</td><td>TEXT</td><td></td><td>value_type TEXT NOT NULL CHECK (value_type IN (&#x27;text&#x27;,&#x27;date&#x27;,&#x27;money&#x27;))</td></tr><tr><td>text_value</td><td>TEXT</td><td></td><td>text_value TEXT NULL</td></tr><tr><td>date_value</td><td>TEXT</td><td></td><td>date_value TEXT NULL</td></tr><tr><td>amount_scaled</td><td>INTEGER</td><td></td><td>amount_scaled INTEGER NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 386–402 行</summary><pre>        CREATE TABLE IF NOT EXISTS target_gl_rde_value (
+            entry_id      INTEGER NOT NULL,
+            field_id      TEXT NOT NULL,
+            value_type    TEXT NOT NULL CHECK (value_type IN (&#x27;text&#x27;,&#x27;date&#x27;,&#x27;money&#x27;)),
+            text_value    TEXT NULL,
+            date_value    TEXT NULL,
+            amount_scaled INTEGER NULL,
+            PRIMARY KEY (entry_id, field_id),
+            CHECK (
+                (CASE WHEN text_value IS NULL THEN 0 ELSE 1 END
+                 + CASE WHEN date_value IS NULL THEN 0 ELSE 1 END
+                 + CASE WHEN amount_scaled IS NULL THEN 0 ELSE 1 END) = 1
+                AND ((value_type = &#x27;text&#x27; AND text_value IS NOT NULL)
+                  OR (value_type = &#x27;date&#x27; AND date_value IS NOT NULL)
+                  OR (value_type = &#x27;money&#x27; AND amount_scaled IS NOT NULL))
+            )
+        );</pre></details></div></details><details class="group card table" id="config_account_taxonomy"><summary><h2>config_account_taxonomy</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>category_id</td><td>TEXT</td><td>pk</td><td>category_id TEXT PRIMARY KEY</td></tr><tr><td>label</td><td>TEXT</td><td></td><td>label TEXT NOT NULL</td></tr><tr><td>ordinal</td><td>INTEGER</td><td>uk</td><td>ordinal INTEGER NOT NULL UNIQUE</td></tr><tr><td>semantic_role</td><td>TEXT</td><td></td><td>semantic_role TEXT NOT NULL</td></tr><tr><td>is_builtin</td><td>INTEGER</td><td></td><td>is_builtin INTEGER NOT NULL CHECK (is_builtin IN (0,1))</td></tr><tr><td>revision</td><td>INTEGER</td><td></td><td>revision INTEGER NOT NULL</td></tr><tr><td>parent_category_id</td><td>TEXT</td><td></td><td>parent_category_id TEXT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 410–417 行</summary><pre>        CREATE TABLE IF NOT EXISTS config_account_taxonomy (
+            category_id  TEXT PRIMARY KEY,
+            label        TEXT NOT NULL,
+            ordinal      INTEGER NOT NULL UNIQUE,
+            semantic_role TEXT NOT NULL,
+            is_builtin   INTEGER NOT NULL CHECK (is_builtin IN (0,1)),
+            revision     INTEGER NOT NULL
+        );</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/AccountTaxonomyHierarchy.cs 第 19–55 行</summary><pre>            command.CommandText = &quot;ALTER TABLE config_account_taxonomy ADD COLUMN parent_category_id TEXT NULL&quot;;
+            await command.ExecuteNonQueryAsync(ct);
+        }
+        command.CommandText = &quot;&quot;&quot;
+            CREATE TABLE IF NOT EXISTS config_account_taxonomy_path (
+                ancestor_id TEXT NOT NULL, descendant_id TEXT NOT NULL,
+                PRIMARY KEY (ancestor_id, descendant_id));
+            INSERT INTO config_account_taxonomy_path SELECT category_id, category_id FROM config_account_taxonomy t
+                WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy_path p WHERE p.ancestor_id = t.category_id AND p.descendant_id = t.category_id);
+            UPDATE schema_info SET value = &#x27;11&#x27; WHERE key = &#x27;schema_version&#x27;;
+            &quot;&quot;&quot;;
+        await command.ExecuteNonQueryAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
+
+    internal static async Task SavePathsAsync(DbConnection connection, DbTransaction transaction,
+        IReadOnlyList&lt;AccountTaxonomyCategory&gt; categories, string prefix, CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $&quot;DELETE FROM {prefix}config_account_taxonomy_path&quot;;
+        await command.ExecuteNonQueryAsync(ct);
+        command.CommandText = $&quot;INSERT INTO {prefix}config_account_taxonomy_path (ancestor_id, descendant_id) VALUES (@ancestor, @descendant)&quot;;
+        var ancestor = command.AddParameter(&quot;@ancestor&quot;, System.Data.DbType.String);
+        var descendant = command.AddParameter(&quot;@descendant&quot;, System.Data.DbType.String);
+        var byId = categories.ToDictionary(item =&gt; item.CategoryId, StringComparer.Ordinal);
+        foreach (var category in categories)
+        {
+            descendant.Value = category.CategoryId;
+            for (var current = category; current is not null; current = current.ParentCategoryId is null ? null : byId[current.ParentCategoryId])
+            {
+                ancestor.Value = current.CategoryId;
+                await command.ExecuteNonQueryAsync(ct);
+            }
+        }
+    }
+}</pre></details></div></details><details class="group card table" id="config_result_stale_state"><summary><h2>config_result_stale_state</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>singleton</td><td>INTEGER</td><td>pk</td><td>singleton INTEGER PRIMARY KEY CHECK (singleton = 1)</td></tr><tr><td>validation_stale</td><td>INTEGER</td><td></td><td>validation_stale INTEGER NOT NULL CHECK (validation_stale IN (0,1))</td></tr><tr><td>prescreen_stale</td><td>INTEGER</td><td></td><td>prescreen_stale INTEGER NOT NULL CHECK (prescreen_stale IN (0,1))</td></tr><tr><td>filter_stale</td><td>INTEGER</td><td></td><td>filter_stale INTEGER NOT NULL CHECK (filter_stale IN (0,1))</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 428–433 行</summary><pre>        CREATE TABLE IF NOT EXISTS config_result_stale_state (
+            singleton        INTEGER PRIMARY KEY CHECK (singleton = 1),
+            validation_stale INTEGER NOT NULL CHECK (validation_stale IN (0,1)),
+            prescreen_stale  INTEGER NOT NULL CHECK (prescreen_stale IN (0,1)),
+            filter_stale     INTEGER NOT NULL CHECK (filter_stale IN (0,1))
+        );</pre></details></div></details><details class="group card table" id="config_account_taxonomy_path"><summary><h2>config_account_taxonomy_path</h2></summary><div class="group-body"><div class="table-wrap"><table><tr><th>欄位</th><th>型別</th><th>鍵</th><th>宣告</th></tr><tr><td>ancestor_id</td><td>TEXT</td><td>pk</td><td>ancestor_id TEXT NOT NULL</td></tr><tr><td>descendant_id</td><td>TEXT</td><td>pk</td><td>descendant_id TEXT NOT NULL</td></tr></table></div><details><summary>src/JET/JET/Infrastructure/Sql/AccountTaxonomyHierarchy.cs 第 23–25 行</summary><pre>            CREATE TABLE IF NOT EXISTS config_account_taxonomy_path (
+                ancestor_id TEXT NOT NULL, descendant_id TEXT NOT NULL,
+                PRIMARY KEY (ancestor_id, descendant_id));</pre></details></div></details></main><script>const items=[...document.querySelectorAll("details.table")];function apply(){const q=fText.value.trim().toLowerCase();let n=0;for(const a of items){const text=a.querySelector("h2").textContent+" "+[...a.querySelectorAll("td:first-child")].map(td=>td.textContent).join(" ");a.hidden=!!q&&!text.toLowerCase().includes(q);if(q&&!a.hidden)a.open=true;if(!a.hidden)n++}fCount.textContent=(q?"符合 ":"共 ")+n+" 張表"}fText.oninput=apply;apply();function openHash(){const id=decodeURIComponent(location.hash.slice(1));if(!id)return;const t=document.getElementById(id);if(!t)return;let d=t.closest("details");while(d){d.open=true;d=d.parentElement.closest("details")}if(t.tagName==="DETAILS")t.open=true;requestAnimationFrame(()=>t.scrollIntoView({block:"start"}))}addEventListener("hashchange",openHash);openHash();</script></body></html>

@@ -139,6 +139,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
+        SupportOperationStage.Enter("state_read");
         await CompletenessEligibilitySupport.RequireCurrentAsync(
             repositories.RuleRuns,
             projectId,
@@ -174,6 +175,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             await repositories.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
         var taxonomy = await repositories.AccountTaxonomy.ReadAsync(projectId, cancellationToken);
 
+        SupportOperationStage.Enter("scenario_parse");
         var savedUtc = DateTimeOffset.UtcNow;
         var revision = savedUtc.ToUniversalTime().ToString("O");
         var saved = new List<SavedFilterScenario>();
@@ -246,11 +248,13 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
 
         // definitions 與命中 entry_id 由 provider repository 在同一 transaction 整批發布；
         // 只有原子 commit 成功後才可能推進步驟。
+        SupportOperationStage.Enter("filter_facts");
         var facts = await repositories.FilterFacts.ExecuteAsync(
             plan,
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
+        SupportOperationStage.Enter("after_commit");
         if (result.MaterializedScenarioCount > 0)
         {
             await MappingCommitShared.AdvanceStepAsync(

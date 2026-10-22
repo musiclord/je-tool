@@ -44,7 +44,8 @@ public sealed class ProjectAuditSchemaMigrationTests
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
         // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 12 版加上 error。第一次失敗收據 20261013-095713643-9c52f788741d4920aa5b157e72d61847。
-        Assert.Equal("12", reader.GetString(0));
+        // 使用者 2026-10-21 裁定日期不符分成三種原因，本機 schema 再升到第 13 版。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+        Assert.Equal("13", reader.GetString(0));
         Assert.Equal(0, reader.GetInt64(1));
         Assert.Equal(1, reader.GetInt64(2));
     }

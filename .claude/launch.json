@@ -37,12 +37,11 @@
       "autoPort": false
     },
     {
-      "name": "JET browser host (design v2)",
-      "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "../je-tool-design-v2/tools/harness/browser-host/BrowserHost.csproj", "-c", "Debug", "--no-launch-profile", "--artifacts-path", "../je-tool-design-v2/artifacts/browser-host-v2/build"],
-      "port": 4247,
-      "url": "http://127.0.0.1:4247",
-      "env": { "PORT": "4247", "JET_BROWSER_HOST_DATA": "browser-host-v2", "JET_BROWSER_HOST_SEED": "taiwan-sme" },
+      "name": "JET architecture diagrams",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-I", "-m", "http.server", "4248", "--bind", "127.0.0.1", "--directory", "docs/architecture/diagrams"],
+      "port": 4248,
+      "url": "http://127.0.0.1:4248",
       "autoPort": false
     }
   ]

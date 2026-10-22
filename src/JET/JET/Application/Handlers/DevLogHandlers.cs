@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Runtime.CompilerServices;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using JET.Domain;
 
@@ -8,14 +7,16 @@ namespace JET.Application;
 
 /// <summary>
 /// support.log.export：Release/Debug 皆可用的去識別支援日誌匯出。指定 projectId 時，即使案件載入
-/// 失敗、尚無 active session，仍能把該次 correlation 寫入使用者所選案件資料夾。
+/// 失敗、尚無 active session，仍能把該次 correlation 寫入使用者所選案件資料夾；內容是該案件跨次開啟的整份紀錄，
+/// 加上這個程序還沒寫進紀錄的事件（2026-10-21）。
 /// 省略 projectId 時是一般工具：匯出目前保留的全部去識別紀錄，寫到 JET 的日誌資料夾
 /// （<c>%LOCALAPPDATA%\JET\logs\</c>），不需要先開案件（使用者 2026-10-13 選「從錯誤框拿掉，改成一般工具」）。
 /// </summary>
 public sealed class SupportLogExportHandler(
     ISupportDiagnosticLogStore supportLog,
     IProjectExportLocator projectLocator,
-    string supportLogDirectory) : IApplicationActionHandler
+    string supportLogDirectory,
+    ISupportCaseHistory caseHistory) : IApplicationActionHandler
 {
     public string Action => "support.log.export";
 
@@ -28,39 +29,37 @@ public sealed class SupportLogExportHandler(
         }
 
         var correlationId = PayloadReader.GetOptionalString(payload, "correlationId");
+        if (string.IsNullOrWhiteSpace(correlationId))
+        {
+            correlationId = null;
+        }
 
-        var snapshot = supportLog.Snapshot();
-        var projectEntries = snapshot.Where(entry => string.Equals(
-            entry.InternalProjectId,
-            projectId,
-            StringComparison.OrdinalIgnoreCase));
-        var selected = string.IsNullOrWhiteSpace(correlationId)
-            ? projectEntries.ToArray()
-            : projectEntries.Where(entry => string.Equals(
-                entry.CorrelationId,
-                correlationId,
-                StringComparison.Ordinal)).ToArray();
-
-        var scope = string.IsNullOrWhiteSpace(correlationId) ? "project" : "correlation";
-        var lines = Lines(selected, scope);
+        var scope = correlationId is null ? "project" : "correlation";
+        // 先讓排隊中與先前寫不進去的事件寫進案件紀錄，再讀整份紀錄。
+        await caseHistory.FlushAsync(cancellationToken).ConfigureAwait(false);
+        var history = await SupportCaseHistoryExport.ReadAsync(
+            caseHistory, supportLog, projectId, correlationId, cancellationToken).ConfigureAwait(false);
+        var lineCount = 0;
         var filePath = await ProjectLogFileWriter.WriteAsync(
             projectLocator,
             projectId,
             "JET-support",
-            ProjectLogFileWriter.ToAsyncLines(lines),
+            CountAsync(history.LinesAsync(Header(scope, history.Summary), cancellationToken), () => lineCount++),
             cancellationToken).ConfigureAwait(false);
 
         return new
         {
             filePath,
-            lineCount = lines.Length,
+            lineCount,
             scope,
         };
     }
 
     private async Task<object> ExportAllAsync(CancellationToken cancellationToken)
     {
-        var lines = Lines(supportLog.Snapshot(), "all");
+        var lines = new[] { Header("all", history: null) }
+            .Concat(supportLog.Snapshot().Select(SupportDiagnosticNdjson.SerializeLine))
+            .ToArray();
         var filePath = await ProjectLogFileWriter.WriteToDirectoryAsync(
             supportLogDirectory,
             "JET-support",
@@ -75,7 +74,19 @@ public sealed class SupportLogExportHandler(
         };
     }
 
-    private string[] Lines(IEnumerable<SupportDiagnosticLogEntry> selected, string scope)
+    private static async IAsyncEnumerable<string> CountAsync(
+        IAsyncEnumerable<string> lines,
+        Action counted,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (var line in lines.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            counted();
+            yield return line;
+        }
+    }
+
+    private string Header(string scope, object? history)
     {
         var metadata = new
         {
@@ -86,35 +97,25 @@ public sealed class SupportLogExportHandler(
             message = "JET support log snapshot",
             fields = new
             {
-                schemaVersion = 2,
+                // 第 3 版起每筆事件帶 processInstance 與 sequence，例外列出整條例外鏈與 JET 方法位置；
+                // 指定案件時讀入跨次開啟的案件紀錄，history 寫出紀錄的起點與缺口（2026-10-21）。
+                schemaVersion = 3,
+                processInstance = supportLog.ProcessInstance,
                 processEventsOmitted = supportLog.EventsOmitted,
                 retainedFailureLimit = 32,
-                appVersion = typeof(SupportLogExportHandler).Assembly.GetName().Version?.ToString() ?? "unknown",
-                informationalVersion = typeof(SupportLogExportHandler).Assembly
-                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown",
-                buildConfiguration = BuildConfiguration(),
-                moduleVersionId = typeof(SupportLogExportHandler).Assembly.ManifestModule.ModuleVersionId.ToString("N"),
+                appVersion = SupportBuildInfo.AppVersion,
+                informationalVersion = SupportBuildInfo.InformationalVersion,
+                buildConfiguration = SupportBuildInfo.BuildConfiguration,
+                moduleVersionId = SupportBuildInfo.ModuleVersionId,
                 framework = RuntimeInformation.FrameworkDescription,
                 os = RuntimeInformation.OSDescription,
                 processArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
                 scope,
+                history,
             }
         };
 
-        return new[] { SupportDiagnosticNdjson.SerializeObject(metadata) }
-            .Concat(selected.Select(SupportDiagnosticNdjson.SerializeLine))
-            .ToArray();
-    }
-
-    private static string BuildConfiguration()
-    {
-#if JET_AGENT_GUI_TEST
-        return "AgentGuiTest";
-#elif DEBUG
-        return "Debug";
-#else
-        return "Release";
-#endif
+        return SupportDiagnosticNdjson.SerializeObject(metadata);
     }
 }
 
@@ -306,7 +307,8 @@ internal static class ProjectLogFileWriter
         {
             throw new JetActionException(
                 JetErrorCodes.SupportLogExportFailed,
-                LogFolderWriteFailure);
+                LogFolderWriteFailure,
+                innerException: exception);
         }
 
         return await WriteFileAsync(fullDirectory, prefix, lines, LogFolderWriteFailure, cancellationToken)
@@ -379,7 +381,8 @@ internal static class ProjectLogFileWriter
             DeleteTemporaryBestEffort(temporaryPath);
             throw new JetActionException(
                 JetErrorCodes.SupportLogExportFailed,
-                writeFailureMessage);
+                writeFailureMessage,
+                innerException: exception);
         }
         catch
         {

@@ -427,14 +427,18 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             if (reader.ElementType == typeof(SharedStringItem) && reader.IsStartElement
                 && reader.LoadCurrentElement() is SharedStringItem item)
             {
-                strings.Add(ExtractRichText(item));
+                strings.Add(ExcelText.Decode(ExtractRichText(item)));
             }
         }
 
         return strings;
     }
 
-    /// <summary>只取 &lt;t&gt; 與 &lt;r&gt;&lt;t&gt;，排除 rPh / phoneticPr（注音標示不屬儲存格內容）。</summary>
+    /// <summary>
+    /// 只取 &lt;t&gt; 與 &lt;r&gt;&lt;t&gt;，排除 rPh / phoneticPr（注音標示不屬儲存格內容）。
+    /// 呼叫端再以 <see cref="ExcelText.Decode"/> 還原 Excel 的 _xHHHH_ 寫法：Excel 存檔時把控制字元寫成這種樣子，
+    /// 審計員在 Excel 看到什麼，JET 就匯入什麼（2026-10-21）。
+    /// </summary>
     private static string ExtractRichText(OpenXmlElement container)
     {
         var builder = new StringBuilder();
@@ -501,13 +505,19 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
         if (dataType == CellValues.InlineString)
         {
-            var value = cell.InlineString is null ? string.Empty : ExtractRichText(cell.InlineString).Trim();
+            var value = cell.InlineString is null ? string.Empty : ExcelText.Decode(ExtractRichText(cell.InlineString)).Trim();
             return TextValue(value);
         }
 
-        if (dataType == CellValues.String || dataType == CellValues.Error)
+        if (dataType == CellValues.String)
         {
-            // 公式字串取快取值；錯誤 cell 取原文（#DIV/0! 等）
+            // 公式字串取快取值，同樣是 Excel 的跳脫寫法
+            return TextValue(ExcelText.Decode(cell.CellValue?.InnerText ?? string.Empty).Trim());
+        }
+
+        if (dataType == CellValues.Error)
+        {
+            // 錯誤 cell 取原文（#DIV/0! 等）
             return TextValue((cell.CellValue?.InnerText ?? string.Empty).Trim());
         }
 

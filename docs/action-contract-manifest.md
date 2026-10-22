@@ -329,8 +329,8 @@ GL 的 `postDate` 在畫面顯示為「總帳日期」，用來界定案件期�
 「已確認配對」及時間，不稱為提交審計結論。成功回應才更新完成狀態；案件或來源已更換時，舊回應不得
 寫回目前畫面。操作名稱一致不代表改動既有 action 識別字。
 GL 與 TB 都在投影資料的同一交易內保存配對與確認時間；任一步失敗或取消，保留原投影與配對。
-匯入、配對、驗證、預篩選及篩選已完成資料保存後，案件步驟更新失敗只記錄 `workflow.milestone` 支援日誌，
-不把已完成的操作誤報失敗。這只適用附帶的步驟紀錄，不放寬審計結果或使用者修改案件資料的保存錯誤。
+匯入、配對、驗證、預篩選及篩選已完成資料保存後，案件步驟更新失敗只在支援日誌記一筆 `action.step_failed`，
+`step` 為 `workflow.milestone`，不把已完成的操作誤報失敗。這只適用附帶的步驟紀錄，不放寬審計結果或使用者修改案件資料的保存錯誤。
 
 GL 的 `side` 與 `flag` 金額模式共用判定，畫面合併為「金額與借貸別」，舊案件的兩種模式仍可讀取。
 `mapping.dcDebitCode` 與 `mapping.dcCreditCode` 至少填一個；兩者是字面代碼，不是來源欄名。前後空白修整後以 `OrdinalIgnoreCase` 比對。
@@ -494,6 +494,13 @@ KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 負值視為 0。資料庫依固定順序只讀當頁資料。`offset` 為 0 時，`totalCount` 和 `stats` 描述完整資料集；
 `offset` 大於 0 時兩者為 null，前端沿用第一頁的值。
 回應維持 `dataset`、`columns`、`rows`、`totalCount` 與 `stats`，欄位配對及右側預覽共用這個查詢。
+
+`dataset` 為 `glExcluded` 時，`rows` 的 `exclusionReason` 欄是 `blankPostDate`（總帳日期空白）、`beforePeriod`
+（早於查核期間）、`afterPeriod`（晚於查核期間）或 `postingStatus`（過帳狀態不符）。使用者 2026-10-21 裁定日期不符分成這三種日期原因，
+取代原本的 `period`。`stats` 固定為 `{ blankPostDateCount, beforePeriodCount, afterPeriodCount, postingStatusCount }`。
+請求可另帶選填的 `exclusionReason`，值是同一組四個字，只回這種原因的分錄；這時 `totalCount` 是這種原因的筆數，
+`stats` 仍是全部未納入測試分錄的四個筆數。畫面不會送出其他值。其他值，或在別的資料集帶這個欄位，回 `invalid_payload`，
+支援日誌的 `payload_check` 記 `preview_exclusion_reason_invalid`。
 
 **排序與搜尋。** 明細表的分頁查詢都接受選填 `sort` 與 `search`：`sort` 是
 `{ key, direction }`，`key` 是該查詢回應列的欄位名（白名單見下表），`direction` 是 `asc` 或 `desc`，
@@ -729,13 +736,13 @@ true 表示只在檔案不存在時建立，最後發布時也不覆蓋稍後出
 任意路徑。第四、第五與第六步的報告入口共用 `artifactId`，由後端在目前案件解析檔案並交給檔案總管選取。過期的
 Working Paper 仍可定位；檔案已移動或刪除時回傳 `artifact_not_found`，不開啟其他位置。
 
-`support.log.export` 在 Release 與 Debug 都可用。輸入 `{ projectId?, correlationId? }`。有 `projectId` 時只從有界記憶體
-取出該案件的 allowlist 事件，若有 correlation 則再縮成該次操作。內容在進入 buffer 前就已去識別：
-不保存 SQL、參數值、檔名、絕對路徑、案件名稱或原始 exception message。輸出固定為案件目錄內的
+`support.log.export` 在 Release 與 Debug 都可用。輸入 `{ projectId?, correlationId? }`。有 `projectId` 時匯出該案件的整份支援紀錄，
+包括之前每次開啟留下的事件，再補上這個程式還沒寫進紀錄的事件；有 correlation 時只留該次操作的行。內容在記進記憶體或案件紀錄之前
+就已去識別：不保存 SQL、參數值、檔名、絕對路徑、案件名稱或原始 exception message。輸出固定為案件目錄內的
 `JET-support-*.txt`，每行一個 JSON；案件目錄不存在或是 reparse point 時直接失敗，不改寫到其他位置。
-省略 `projectId` 時是一般工具，不需要先開案件：匯出記憶體裡目前保留的全部去識別紀錄，忽略 `correlationId`，
+省略 `projectId` 時是一般工具，不需要先開案件：匯出這個程式記憶體裡目前保留的全部去識別紀錄，忽略 `correlationId`，
 寫到 `%LOCALAPPDATA%\JET\logs\`，檔名同樣是 `JET-support-*.txt`，回應的 `scope` 為 `all`，仍回傳 `filePath` 與 `lineCount`。
-有 `projectId` 時 `scope` 為 `project` 或 `correlation`，行為不變（使用者 2026-10-13 選「從錯誤框拿掉，改成一般工具」）。
+有 `projectId` 時 `scope` 為 `project` 或 `correlation`。不指定案件的一般工具依使用者 2026-10-13 的選擇「從錯誤框拿掉，改成一般工具」。
 畫面上，訊息面板的「輸出支援日誌」帶目前案件的 `projectId`；案件清單頁尾的「輸出支援日誌」送 `{}`，
 這顆按鈕只在 Debug 組建出現。action 本身在 Release 仍註冊，供訊息面板使用。
 
@@ -750,10 +757,58 @@ Working Paper 仍可定位；檔案已移動或刪除時回傳 `artifact_not_fou
 兩種日誌匯出都使用請求的案件 ID 定位，不使用設定檔內的 ID 改變目的地；非法 ID 或不存在的目錄回 `project_not_found`。
 
 匯入失敗的紀錄包含來源序號、處理階段、最後成功列、可取得的失敗列欄、解析設定、元件版本與交易回復結果。
-`import_progress_failed` 表示進度通知失敗，不再歸為讀檔錯誤。取消保留原取消語意。
-原始例外鏈僅輸出型別、系統錯誤碼與方法名稱，不輸出訊息或檔案位置；未知列欄明示為未知。
-記憶體保留最近最多 32 次失敗摘要，總輸出仍受容量限制。`support.snapshot` 的 `schemaVersion` 為 2，
-`processEventsOmitted` 表示本程序已因容量限制省略的事件數，不能視為完整歷史。
+`import_progress_failed` 表示進度通知失敗，不再歸為讀檔錯誤。取消保留原取消語意。未知列欄明示為未知。
+
+每次操作的 `action.start` 以 `payload_shape` 記下輸入結構：只有欄位名稱、值的型別與陣列筆數。模式、借貸別這類欄位的值
+是 JET 認得的代碼才照記，前端送來的未知值只記型別。欄位配對底下的值、檔名、路徑、名稱與條件值也只記型別，
+案件代號連欄位名稱都不記。同一案件同一動作上一次失敗或取消時，下一次 `action.start` 的
+`retry_of` 會記下那次操作的 correlation。成功的 `action.end` 以 `result_refs` 記下批次、執行、報告與條件的版本代號、筆數和狀態，
+不含檔名、路徑或金額。取消改記 `action.cancelled`，不算失敗；`cancellation_requested` 為 true 表示使用者或關窗要求取消，
+false 表示程式內部丟出取消例外。
+
+分步驟的操作失敗或取消時帶 `failure_stage`，寫出停在哪個處理步驟，例如案件載入的 `metadata_read`、報告的 `report_publish`；
+還沒進入任何步驟就失敗時不帶。匯入沿用前述匯入失敗紀錄的處理階段。
+報告寫入或發布失敗另帶 `report_kind`；發布失敗時，`final_in_use` 與 `final_read_only` 記下同名正式檔是否被其他程式開著、
+是否唯讀，因為兩種情況都回報拒絕存取。
+報告、範本或底稿的工作表寫不出去時，`failure_stage` 在原本的步驟後面接 `worksheet_write`，例如 `report_write > worksheet_write`。
+這時另帶 `sheet_name`，寫出工作表名稱，例如 `V_Report 6`；名稱都是程式寫死的範本名稱，不是案件資料，查不到時不帶。
+有儲存格含 XML 不允許的字元時，`cell_reference` 寫出第一個這樣的儲存格，例如 `E2`；`invalid_codepoint` 寫出那個字元的
+十進位碼位，例如 31 表示 U+001F。這些欄位不記儲存格文字。取消不算寫入失敗，不帶這些欄位。
+檔案錯誤帶 `io_category` 與 `win32_error`。主要工作完成或失敗後，
+更新案件步驟、刪除案件資料夾或放開工作鎖失敗時記 `action.step_failed`，`step` 寫出是哪一步。
+
+例外列出整條例外鏈。每層寫型別、系統錯誤碼與可取得的位置代碼，例如 JSON 的行與位元組位置、資料庫錯誤碼；
+再列丟出處的前三層方法與所有 JET 方法的名稱和 IL 位移，其餘框架方法只寫省略幾層。不輸出例外訊息、檔案路徑或原始碼行號。
+維護者依匯出檔開頭的版本與模組代號取得相應版本的程式，就能找到呼叫位置。
+
+記憶體保留最近最多 32 次失敗摘要，總輸出仍受容量限制。`support.snapshot` 的 `schemaVersion` 為 3，
+`processInstance` 是這次啟動的隨機代號。每筆事件帶記下它的程式的 `processInstance`，以及在該程式內遞增的 `sequence`。
+不指定案件的匯出裡序號跳號，表示中間的事件已因記憶體容量沒有保留；`processEventsOmitted` 是這個程式因此省略的事件數。
+案件紀錄裡同一個程式的序號跳號，通常是中間的事件屬於其他案件或不屬於任何案件；放棄的事件另有 `support.history_gap` 寫出筆數。
+
+案件的支援紀錄存在案件資料夾的 `support-log/events.ndjson`，整個案件一個檔，保留到刪除案件；位置、分段、續接方式與保留期限
+都是使用者 2026-10-21 的裁定。建立或載入案件並取得工作鎖之後，JET 建立 `support-log` 資料夾並記一筆 `support.case_opened`，
+帶 `opened_by`（`create` 或 `load`）、`database_provider`、`app_version`、`informational_version`、`module_version_id` 與
+`build_configuration`，不記電腦、帳號或路徑。之後屬於這個案件的事件由背景依序附加，審計操作不等寫檔。
+紀錄檔自己也寫幾種行，`sequence` 都是 0：第一行是 `support.history_started`，`history_start` 為 `case_created` 表示案件在這次建立，
+`no_earlier_record` 表示之前沒有保存的紀錄，例如舊版建立的案件；每個程式第一次寫入這個案件時先寫一行 `support.history_process`，
+帶同樣的版本與模組欄位。
+
+案件還沒在這個程式開啟時，例如載入失敗，事件只附加到已經存在的紀錄檔，不建立資料夾或檔案；沒有紀錄檔時先留在記憶體，
+開啟案件後依原順序補寫。紀錄寫不進去時不影響審計操作：事件先保留，下次寫入、匯出前或程式正常結束時依原順序補寫。
+每個案件最多保留 2,000 筆，超過時放棄最舊的；補寫時先寫一行 `support.history_gap`，`missing_count` 是放棄的筆數，
+並帶最近一次失敗的 `io_category`、`win32_error` 與 `error_type`。兩個 JET 程式碰到同一個案件時輪流附加，行不會交錯。
+刪除案件時，這個程式先寫完手上的紀錄再刪除資料夾，之後不再寫入該案件；重新建立同名案件時從新的起點開始。
+案件資料夾或支援紀錄資料夾是 reparse point 時不寫入。
+
+指定案件的匯出，第一行 `support.snapshot` 的 `fields.history` 摘要整份紀錄：
+`status` 為 `saved` 表示讀到紀錄，`not_started` 表示還沒有紀錄檔，`read_failed` 表示讀不到紀錄，這時 `readFailure` 寫出錯誤類型與系統錯誤碼，
+匯出只含這個程式還沒寫進紀錄的事件。`start` 與 `startUtc` 是紀錄的起點。`unreadableLines` 與 `unreadableLineNumbers`
+是無法解讀的行，例如程式寫到一半就結束；`incompleteTailBytes` 是匯出當下最後一行還沒寫完的位元組數，這部分不讀。
+`gapMarkers` 與 `markedMissingEvents` 是缺口的行數與合計筆數，`openings` 與 `processes` 是開啟次數與寫過紀錄的程式數。
+`processesNotClosed` 列出開啟案件後沒有記到 `project.releaseLock` 成功的程式代號，通常是程式沒有正常結束，不含匯出的程式本身。
+`unsavedEvents`、`droppedEvents` 與 `lastWriteFailure` 是這個程式還沒寫進紀錄的筆數、已經放棄的筆數，以及最近一次寫不進去的原因。
+程式被強制結束時，還沒寫進紀錄的事件會遺失，紀錄裡也不會有缺口行；`processesNotClosed` 仍會列出這個程式。
 
 `dev.*` action 只服務開發面板，一般使用者流程不能依賴。`dev.log.exportFile` 輸入
 `{ projectId, correlationId? }`，從本次 Debug 程序的完整檔案 sink 篩出該案件的紀錄；有 correlationId 時

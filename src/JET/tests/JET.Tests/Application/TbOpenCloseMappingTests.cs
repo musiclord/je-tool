@@ -51,7 +51,7 @@ public sealed class TbOpenCloseMappingTests
         });
     }
 
-    /// <summary>期初借貸＋期末借貸四欄寬表（legacy SA=4）。</summary>
+    /// <summary>「設定借方貸方之期初期末金額」的四欄寬表（legacy SA=4）。</summary>
     private static string WriteOpenCloseBySideWorkbook()
     {
         return TestWorkbookBuilder.WriteWorkbook(ws =>

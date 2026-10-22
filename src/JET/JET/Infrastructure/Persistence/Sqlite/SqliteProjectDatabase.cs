@@ -509,7 +509,12 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             version = "11";
         }
         if (version == "11")
+        {
             await MessageLogLevelMigration.UpgradeLocalAsync(connection, MessageLogTableSql, cancellationToken);
+            version = "12";
+        }
+        if (version == "12")
+            await GlExclusionReasonMigration.UpgradeLocalAsync(connection, cancellationToken);
     }
 
     /// <summary>第 12 版的訊息紀錄表；和 <see cref="SchemaSql"/> 的建表語句相同，升版時用來重建舊表。</summary>

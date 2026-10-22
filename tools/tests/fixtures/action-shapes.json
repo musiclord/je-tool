@@ -4374,11 +4374,13 @@
       "request": {
         "kind": "object",
         "optional": [
+          "exclusionReason",
           "limit",
           "offset"
         ],
         "fields": {
           "dataset": "string",
+          "exclusionReason": "string",
           "limit": "number",
           "offset": "number"
         }
@@ -4401,21 +4403,25 @@
           "stats": {
             "kind": "null|object",
             "optional": [
+              "afterPeriodCount",
               "amountAbsMax",
               "amountAbsMin",
-              "excludedByPeriodCount",
-              "excludedByPostingStatusCount",
+              "beforePeriodCount",
+              "blankPostDateCount",
               "postDateMax",
               "postDateMin",
+              "postingStatusCount",
               "voucherCount"
             ],
             "fields": {
+              "afterPeriodCount": "number",
               "amountAbsMax": "number",
               "amountAbsMin": "number",
-              "excludedByPeriodCount": "number",
-              "excludedByPostingStatusCount": "number",
+              "beforePeriodCount": "number",
+              "blankPostDateCount": "number",
               "postDateMax": "string",
               "postDateMin": "string",
+              "postingStatusCount": "number",
               "voucherCount": "number"
             }
           },

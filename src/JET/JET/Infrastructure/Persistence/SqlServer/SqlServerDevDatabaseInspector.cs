@@ -114,12 +114,13 @@ public sealed class SqlServerDevDatabaseInspector(SqlServerProjectDatabase datab
             await connection.OpenAsync(cancellationToken);
             return connection;
         }
-        catch (SqlException)
+        catch (SqlException exception)
         {
             await connection.DisposeAsync();
             throw new JetActionException(
                 JetErrorCodes.FileNotFound,
-                $"專案 schema '{SqlServerProjectSchema.For(projectId)}' 不存在或無法連線(唯讀檢視不會建立 schema)。");
+                $"專案 schema '{SqlServerProjectSchema.For(projectId)}' 不存在或無法連線(唯讀檢視不會建立 schema)。",
+                innerException: exception);
         }
     }
 

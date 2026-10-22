@@ -33,8 +33,10 @@ public sealed class ExportValidationArtifactsHandler(
             [ReportArtifactKind.ValidationReport] = progressSession.Start(ReportArtifactKind.ValidationReport),
             [ReportArtifactKind.InfReport] = progressSession.Start(ReportArtifactKind.InfReport)
         };
+        SupportOperationStage.Enter("run_read");
         var run = await ReportExportSupport.RequireCurrentRunAsync(
             runStore, projectId, RuleRunKinds.Validate, runId, cancellationToken);
+        SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
         var requiresFormalMetadata = validationWriter is IFormalPlannedValidationReportWriter
@@ -57,6 +59,7 @@ public sealed class ExportValidationArtifactsHandler(
                 cancellationToken);
             allRdeFields = ReportWorkbookMetadataFactory.AllRdeFields(workbookMetadata);
         }
+        SupportOperationStage.Enter("report_plan");
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
             Action,
             projectId,
@@ -208,6 +211,7 @@ public sealed class ExportValidationArtifactsHandler(
             .ExecuteAsync(plan, cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
+        SupportOperationStage.Enter("catalog_refresh");
         var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportArtifactStore);
         return new
@@ -243,6 +247,7 @@ public sealed class ExportPrescreenReportHandler(
             repositories.PrescreenReportPlanningFacts;
         IMappingStateStore? mappingStateStore = repositories.MappingStates;
         IAccountTaxonomyStore? accountTaxonomyStore = repositories.AccountTaxonomy;
+        SupportOperationStage.Enter("run_read");
         await CompletenessEligibilitySupport.RequireCurrentAsync(
             runStore,
             projectId,
@@ -251,6 +256,7 @@ public sealed class ExportPrescreenReportHandler(
         var artifactProgress = progressSession.Start(ReportArtifactKind.PrescreenReport);
         var run = await ReportExportSupport.RequireCurrentRunAsync(
             runStore, projectId, RuleRunKinds.Prescreen, runId, cancellationToken);
+        SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
         var formalWriter = writer as IFormalPlannedPrescreenReportWriter;
@@ -270,6 +276,7 @@ public sealed class ExportPrescreenReportHandler(
                 accountTaxonomyStore,
                 cancellationToken);
         }
+        SupportOperationStage.Enter("report_plan");
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
             Action,
             projectId,
@@ -371,6 +378,7 @@ public sealed class ExportPrescreenReportHandler(
         var result = JetAuditProgram.Finalize(plan, facts);
         var artifact = result.Artifacts.Single();
 
+        SupportOperationStage.Enter("catalog_refresh");
         var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportArtifactStore);
         return new
@@ -404,6 +412,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
         var artifactStore = repositories.ReportArtifactStore;
         var accountTaxonomyStore = repositories.AccountTaxonomy;
         var mappingStore = repositories.MappingStates;
+        SupportOperationStage.Enter("run_read");
         var validationRun = await CompletenessEligibilitySupport.RequireCurrentAsync(
             runStore,
             projectId,
@@ -411,17 +420,21 @@ public sealed class ExportCriteriaSelectionReportHandler(
         ReportExportSupport.RequireRequestedValidationRun(validationRun, validationRunId);
         var progressSession = new ExportProgressSession(eventPublisher, cancellationToken);
         var artifactProgress = progressSession.Start(ReportArtifactKind.CriteriaSelectionReport);
+        SupportOperationStage.Enter("scenario_read");
         var scenarios = await scenarioStore.ListAsync(projectId, cancellationToken);
         var filterRevision = ReportExportSupport.RequireRevisionState(scenarios, revision);
         revision = filterRevision.Revision;
+        SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         // filter.commit 會在同一交易清除上一版命中。正式 Criteria 報告必須先以
         // 目前 revision 的全部情境重新物化，writer 才能輸出可追溯的明細母體。
+        SupportOperationStage.Enter("filter_materialize");
         await materializeService.MaterializeAllAsync(projectId, document, scenarios, cancellationToken);
 
         // 科目配對多選讀回要顯示目前 taxonomy 的顯示名稱，因此條件邏輯以專案 taxonomy 渲染。
+        SupportOperationStage.Enter("condition_render");
         var taxonomy = await accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
         var categoryLabels = taxonomy.Categories.ToDictionary(
             static category => category.CategoryId,
@@ -451,6 +464,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
             }
         }
 
+        SupportOperationStage.Enter("report_plan");
         var formalWriter = writer as IFormalCriteriaSelectionReportWriter;
         ReportWorkbookMetadata? workbookMetadata = null;
         IReadOnlyList<GlRdeFieldMetadata> customFields = [];
@@ -528,6 +542,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
         var result = JetAuditProgram.Finalize(plan, facts);
         var artifact = result.Artifacts.Single();
 
+        SupportOperationStage.Enter("catalog_refresh");
         var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportArtifactStore);
         return new

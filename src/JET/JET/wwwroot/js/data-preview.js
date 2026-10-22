@@ -15,6 +15,7 @@
     作用資料集，收合則待展開再抓。世代訊號只在真實資料落地時跳（非每個 action），故不會對大母體
     高頻打擊。詳見 initDataPreview 的訂閱者。
   - 使用 query.dataPreview 的 limit 與 offset 分頁；不新增後端 action。
+    GL(未納入測試) 另可帶 exclusionReason 只看一種未納入原因，換頁時沿用同一種。
 */
 (function (global) {
   'use strict';
@@ -85,8 +86,17 @@
   // dateDimension 的 dayType 原值（holiday/makeup）→ 中文顯示
   var DAY_TYPE_LABELS = { holiday: '假日', makeup: '補班' };
 
-  // GL(未納入測試) 的排除原因（後端 closed wire value）→ 中文顯示；未登錄值原樣呈現。
-  var EXCLUSION_REASON_LABELS = { period: '日期不符', postingStatus: '過帳狀態不符' };
+  // GL(未納入測試) 的未納入原因（後端 closed wire value）→ 中文顯示與統計鍵；未登錄值原樣呈現。
+  // 使用者 2026-10-21 裁定日期不符分成三種原因並各自計數，資料預覽可以只看其中一種；三種日期原因的名稱逐字照當時的選項。
+  // 原因欄、下方統計列與篩選選項都用這一組名稱。
+  var EXCLUSION_REASONS = [
+    { value: 'blankPostDate', label: '總帳日期空白', countKey: 'blankPostDateCount' },
+    { value: 'beforePeriod', label: '早於查核期間', countKey: 'beforePeriodCount' },
+    { value: 'afterPeriod', label: '晚於查核期間', countKey: 'afterPeriodCount' },
+    { value: 'postingStatus', label: '過帳狀態不符', countKey: 'postingStatusCount' }
+  ];
+  var EXCLUSION_REASON_LABELS = {};
+  EXCLUSION_REASONS.forEach(function (reason) { EXCLUSION_REASON_LABELS[reason.value] = reason.label; });
 
   // 純顯示層的 cell 改寫（不改後端語意）：dayType 原值轉中文；會計金額欄一律走 Ui.money（兩位小數加千分位）。
   function displayCell(dataset, column, cell) {
@@ -116,11 +126,13 @@
   var elTabs = null;
   var elBody = null;   // == Ui.$('data-preview-body')
   var elNote = null;
+  var elFilter = null; // GL(未納入測試) 的未納入原因篩選列
   var elResize = null; // 左邊界拖曳把手
 
   var RESIZE_MIN = 300; // 最窄可拖到的寬度（再窄請用收合鈕）；預設 436、上限依視窗推算。
 
   var activeDataset = MAIN_TABS[0].value; // 預設 PBC-GL
+  var activeExclusionReason = '';         // GL(未納入測試) 只看的原因；空字串是全部
   var activePage = 1;
   var successfulPreview = null;
   var previewBusy = false;
@@ -137,6 +149,7 @@
   function resetDataPreviewState() {
     previewResponseGuard.invalidate();
     activeDataset = MAIN_TABS[0].value;
+    activeExclusionReason = '';
     activePage = 1;
     successfulPreview = null;
     previewBusy = false;
@@ -154,6 +167,7 @@
     }
     if (elNote) { elNote.innerHTML = ''; }
     syncTabs();
+    syncFilter();
   }
 
   Ui.registerWorkflowReset(resetDataPreviewState);
@@ -184,12 +198,14 @@
     elTabs = elAside.querySelector('.data-preview__tabs');
     elBody = Ui.$('data-preview-body');
     elNote = elAside.querySelector('.data-preview__note');
+    elFilter = Ui.$('data-preview-filter');
 
     renderTabs();
     if (elTabs) {
       Ui.bindTabs(elTabs);
       Ui.bindMenus(elTabs);
     }
+    renderFilter();
     if (elBody) {
       elBody.innerHTML = '<p class="data-preview__hint">切換上方資料表以載入預覽。</p>';
     }
@@ -352,11 +368,38 @@
   }
 
   // 切換作用中資料集：更新頁籤態並載入該資料集（使用者動作才呼叫後端）。
+  // 未納入原因只屬於 GL(未納入測試)；換到別的資料表再回來時，從全部開始。
   function selectDataset(dataset) {
     if (!dataset) { return; }
+    if (dataset !== activeDataset) { activeExclusionReason = ''; }
     activeDataset = dataset;
     syncTabs();
+    syncFilter();
     refresh();
+  }
+
+  // GL(未納入測試) 的未納入原因篩選。下拉選單只建立一次，之後只切換顯示與目前的值。
+  function renderFilter() {
+    if (!elFilter) { return; }
+    var options = '<option value="">全部</option>' + EXCLUSION_REASONS.map(function (reason) {
+      return '<option value="' + reason.value + '">' + Ui.esc(reason.label) + '</option>';
+    }).join('');
+    elFilter.innerHTML =
+      '<label class="data-preview__filter-label" for="data-preview-exclusion-reason">' + Ui.esc(COLUMN_LABELS.exclusionReason) + '</label>' +
+      '<select id="data-preview-exclusion-reason">' + options + '</select>';
+    var select = elFilter.querySelector('select');
+    select.addEventListener('change', function () {
+      activeExclusionReason = select.value;
+      refresh();
+    });
+    syncFilter();
+  }
+
+  function syncFilter() {
+    if (!elFilter) { return; }
+    elFilter.hidden = activeDataset !== 'glExcluded';
+    var select = elFilter.querySelector('select');
+    if (select) { select.value = activeExclusionReason; }
   }
 
   // 主要資料表是一組頁籤；其餘的放在「其他資料」選單裡。正在看選單裡的資料表時，沒有頁籤是選中的，
@@ -471,10 +514,11 @@
     loadedOnce = true; // 同步設立，避免訂閱者重入
     dirty = false;     // 本次已抓最新，清掉待補抓標記
     var dataset = activeDataset;
+    var exclusionReason = dataset === 'glExcluded' ? activeExclusionReason : '';
     var requestState = Store.getState();
     var projectId = requestState.project.projectId;
     var dataGeneration = requestState.dataGeneration;
-    var previous = successfulPreview && successfulPreview.dataset === dataset &&
+    var previous = successfulPreview && successfulPreview.dataset === dataset && successfulPreview.exclusionReason === exclusionReason &&
       successfulPreview.projectId === projectId && successfulPreview.dataGeneration === dataGeneration && typeof page === 'number'
       ? successfulPreview : null;
     previewBusy = true;
@@ -484,7 +528,7 @@
       return latest.view === 'workflow' && !!latest.project &&
         latest.project.projectId === projectId &&
         latest.dataGeneration === dataGeneration &&
-        activeDataset === dataset;
+        activeDataset === dataset && activeExclusionReason === exclusionReason;
     });
     if (previous) {
       renderPreview(dataset, previous.data);
@@ -499,16 +543,18 @@
     // 作業的 run 仍持有 busy 期間觸發（匯入／配對提交／載入專案完成後的 bumpData），若走 run 會被
     // single-flight 靜默吞掉而看到陳舊預覽；後端 query.dataPreview 屬 concurrent、可安全併行。
     // 使用者切頁籤發生在非 busy 時（作業進行中右欄已被 inert 擋住），此路徑一致不設整介面遮罩。
+    var request = { dataset: dataset, limit: Ui.TABLE_PAGE_SIZE, offset: (requestedPage - 1) * Ui.TABLE_PAGE_SIZE };
+    if (exclusionReason) { request.exclusionReason = exclusionReason; }
     Ui.runBackground('載入資料預覽', function () {
-      return global.JetApi.queryDataPreview({ dataset: dataset, limit: Ui.TABLE_PAGE_SIZE, offset: (requestedPage - 1) * Ui.TABLE_PAGE_SIZE }).then(function (data) {
+      return global.JetApi.queryDataPreview(request).then(function (data) {
         if (acceptResponse()) {
           previewBusy = false;
           activePage = requestedPage;
-          // 後端只在第一頁計算總列數與概況統計；換頁時沿用同一資料集第一頁的數字。
+          // 後端只在第一頁計算總列數與概況統計；換頁時沿用同一資料集、同一種未納入原因第一頁的數字。
           if (previous && data && data.totalCount == null) {
             data = Object.assign({}, data, { totalCount: previous.data.totalCount, stats: previous.data.stats });
           }
-          successfulPreview = { dataset: dataset, projectId: projectId, dataGeneration: dataGeneration, data: data };
+          successfulPreview = { dataset: dataset, exclusionReason: exclusionReason, projectId: projectId, dataGeneration: dataGeneration, data: data };
           renderPreview(dataset, data);
           elBody.scrollTop = 0;
         }
@@ -602,13 +648,14 @@
     var count = '共 ' + total + unit + '，全 ' + cols + ' 欄';
 
     // stats 的形狀依資料集而異，由後端決定：GL 回金額、日期與傳票概況，
-    // GL(未納入測試) 回兩類排除計數。畫面只複述既有欄位，不跨資料集猜欄位。
+    // GL(未納入測試) 回四種未納入原因各自的筆數，只看一種原因時仍是全部未納入測試分錄的筆數。
+    // 畫面只複述既有欄位，不跨資料集猜欄位，也不在畫面相加或相減。
     var statsHtml = '';
-    if (data.stats && data.stats.excludedByPeriodCount != null) {
-      statsHtml = '<div class="data-preview__stats">' + Ui.esc(
-        '日期不符 ' + Number(data.stats.excludedByPeriodCount).toLocaleString() +
-        ' 筆 ｜ 過帳狀態不符 ' + (data.stats.excludedByPostingStatusCount == null ? '—' : Number(data.stats.excludedByPostingStatusCount).toLocaleString()) + ' 筆'
-      ) + '</div>';
+    if (data.stats && data.stats.postingStatusCount != null) {
+      statsHtml = statsRowHtml(EXCLUSION_REASONS.map(function (reason) {
+        var value = data.stats[reason.countKey];
+        return reason.label + ' ' + (value == null ? '—' : Number(value).toLocaleString()) + ' 筆';
+      }));
     } else if (data.stats) {
       var parts = ['金額（絕對值）' + Ui.money(data.stats.amountAbsMin) +
         ' ～ ' + Ui.money(data.stats.amountAbsMax)];
@@ -616,7 +663,7 @@
         parts.push('總帳日期 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
       }
       parts.push('傳票 ' + Number(data.stats.voucherCount).toLocaleString() + ' 張');
-      statsHtml = '<div class="data-preview__stats">' + Ui.esc(parts.join(' ｜ ')) + '</div>';
+      statsHtml = statsRowHtml(parts);
     }
 
     elNote.innerHTML =
@@ -629,9 +676,20 @@
     elNote.querySelector('[data-page-next]').addEventListener('click', function () { refresh(activePage + 1); });
   }
 
+  // 統計列的每一項包成一段，「｜」接在前一項後面。欄窄時整項移到下一行，
+  // 名稱、金額與日期不從中間斷開（見 app.css 的 .data-preview__stat）。
+  function statsRowHtml(parts) {
+    return '<div class="data-preview__stats">' + parts.map(function (part, index) {
+      return '<span class="data-preview__stat">' + Ui.esc(index < parts.length - 1 ? part + ' ｜' : part) + '</span>';
+    }).join(' ') + '</div>';
+  }
+
   function emptyHint(dataset) {
     switch (dataset) {
       case 'glExcluded':
+        if (activeExclusionReason) {
+          return 'GL(未納入測試) 沒有「' + EXCLUSION_REASON_LABELS[activeExclusionReason] + '」的分錄。';
+        }
         return 'GL(未納入測試) 目前沒有分錄：確認 GL 欄位配對後的分錄都已列入 GL。';
       case 'pbcGl': return '尚未匯入 PBC-GL；完成「匯入資料」後即可預覽。';
       case 'pbcTb': return '尚未匯入 PBC-TB；完成「匯入資料」後即可預覽。';

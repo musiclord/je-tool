@@ -8,10 +8,10 @@ public sealed partial class SqlServerProjectDatabase
 {
     // 目前 schema 版本。Fresh schema 由 SchemaSql 直接寫現行版；既有 schema 的版本則只在
     // MigrateExistingSchemaToCurrentAsync 完成 shape、data rewrite 與結果失效後最後寫回。
-    internal const string SchemaVersion = "14";
+    internal const string SchemaVersion = "15";
 
     internal const string BumpSchemaVersionSql =
-        "UPDATE {s}.schema_info SET [value] = '14' WHERE [key] = 'schema_version';";
+        "UPDATE {s}.schema_info SET [value] = '15' WHERE [key] = 'schema_version';";
 
     /// <summary>
     /// 第 12 版到第 13 版：<c>app_message_log.level</c> 的限制加上 <c>error</c>（使用者 2026-10-13 裁定訊息分三級）。
@@ -201,6 +201,12 @@ public sealed partial class SqlServerProjectDatabase
                     SqlServerProjectSchema.QualifierFor(projectId));
             }
 
+            // 第 14 版到第 15 版：日期不符分成三種原因，和本機第 13 版同一句轉換（使用者 2026-10-21 裁定）。
+            // SQL Server 開發暫緩期間加入，沒有 SQL Server 測試執行到。
+            if (parsedExisting < 15)
+                await GlExclusionReasonMigration.SplitPeriodReasonAsync(connection, tx,
+                    SqlServerProjectSchema.QualifierFor(projectId), cancellationToken);
+
             await using (var bump = CreateCommand(connection, projectId, BumpSchemaVersionSql))
             {
                 bump.Transaction = tx;
@@ -262,7 +268,7 @@ public sealed partial class SqlServerProjectDatabase
         IF OBJECT_ID(N'{s}.schema_info','U') IS NULL
             CREATE TABLE {s}.schema_info ([key] NVARCHAR(450) COLLATE Latin1_General_BIN2 PRIMARY KEY, [value] NVARCHAR(MAX) NOT NULL);
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'schema_version')
-            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '14');
+            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '15');
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'filter_data_revision')
             INSERT INTO {s}.schema_info ([key], [value]) VALUES ('filter_data_revision', '0');
 

@@ -1,0 +1,341 @@
+// JET 架構模型，2026-10-22 重繪。依據提交 07b97b3 的程式快照、Roslyn 呼叫證據與 AppCompositionRoot 的建立位置。
+// 關係種類：calls 是直接呼叫具體方法，viaInterface 只呼叫介面方法，indirect 是 action 名稱、WebMessage 或事先交出的函式，
+// injects 是 AppCompositionRoot 在啟動時建立物件。沒有任何一條是執行紀錄。
+specification {
+  element person { style { shape person color amber } }
+  element system { style { color blue } }
+  element app { style { color blue } }
+  element component { style { color blue } }
+  element contract { style { color secondary border dashed } }
+  element store { style { shape storage color green } }
+  element artifact { style { shape document color muted } }
+  element external { style { color muted border dashed } }
+  deploymentNode workstation { style { color muted } }
+  deploymentNode folder { style { color green } }
+  relationship calls { line solid color gray }
+  relationship viaInterface { line dashed color sky }
+  relationship indirect { line dashed color amber }
+  relationship implements { line dotted color secondary head onormal }
+  relationship injects { line dotted color amber head odiamond }
+  relationship data { line solid color green }
+  relationship uses { line solid color muted }
+}
+
+model {
+  auditor = person '審計員' {
+    description '以一般使用者權限操作 JET。'
+    link ../evidence.html#f-environment '環境限制與來源'
+  }
+  inputs = artifact '來源檔案' {
+    description '總帳、試算表與參考資料；xlsx、xls、CSV 或 Access。圖中不含任何案件內容。'
+    link ../evidence.html#f-tb-import '匯入流程證據'
+  }
+  reports = artifact '報告與正式工作底稿' {
+    technology '報告檔 · 報告清單'
+    description '寫在案件資料夾，先寫暫存檔再改名，並更新報告清單。正式底稿每次另建新版本檔名，不覆寫同名檔；其他報告的覆寫規則不同。'
+    link ../evidence.html#f-workpaper '檔案發布證據'
+  }
+  webview2 = external 'WebView2 執行階段' {
+    description '電腦須事先具備；不能從單檔發布推定已內含。'
+    link ../evidence.html#f-deployment '部署前提'
+  }
+  ace = external 'x64 ACE 16' {
+    description '只有讀取 Access 檔時需要。'
+    link ../evidence.html#f-deployment '部署前提'
+  }
+
+  jet = system 'JET 審計工具' {
+    description 'Windows 桌面程式，C# 與 .NET 10，WinForms 承載 WebView2 畫面。'
+    link ../evidence.html#f-architecture '架構來源與快照識別'
+
+    desktop = app 'JET 桌面程序' {
+      technology 'C# · .NET 10 · WinForms · WebView2'
+      description '畫面與 C# 程式在同一個程序裡；以下分層是程式責任，不是獨立部署的服務。'
+
+      ui = component 'WebView2 畫面' {
+        technology 'HTML · JavaScript · JetApi'
+        description '只負責操作與呈現；把 action 名稱與資料送給 C#，不做審計判斷。'
+        link ../evidence.html#f-bridge '跨語言通道證據'
+      }
+      bridge = component 'Action 通道' {
+        technology 'JetWebMessageBridge · ActionDispatcher'
+        description '接收 WebMessage，依 action 名稱找出處理類別；程式碼裡看不到直接呼叫。'
+        link ../evidence.html#f-bridge '訊息、字串與註冊的核對'
+      }
+      application = component 'Application 應用流程' {
+        description '各 action 的處理類別：檢查前提、規劃、執行與回應。'
+        link ../evidence.html#f-filter-save '篩選儲存流程'
+      }
+      audit = component 'AuditCore 與 Domain' {
+        description 'JetAuditProgram 建立計畫並整理結果；Domain 保存審計規則，以及資料修改後的失效政策。'
+        link ../evidence.html#f-tb-policy '失效政策'
+      }
+      persistence = component '資料庫實作' {
+        technology 'SQLite 與 DuckDB 共用'
+        description '以集合式 SQL 讀寫案件資料庫；也包含 project.json 的讀寫。SQL Server 有程式實作，開發暫緩。'
+        link ../evidence.html#f-filter-commit 'SQL 與交易證據'
+      }
+      fileio = component '檔案讀寫與底稿發布' {
+        description '逐列讀取來源檔；產生工作簿時先寫暫存檔，再改名並更新報告清單。'
+        link ../evidence.html#f-workpaper '發布與失敗處理'
+      }
+      composition = component '啟動時建立物件' {
+        technology 'AppCompositionRoot'
+        description '程式啟動時建立各 action 的處理類別、資料庫實作與檔案元件，再交給使用它們的元件。'
+        link ../evidence.html#f-composition '建立位置的證據'
+      }
+
+      ui -[indirect]-> bridge 'WebMessage：action 與資料' {
+        metadata { evidence 'L01' }
+      }
+      bridge -[viaInterface]-> application '依 action 名稱呼叫 HandleAsync' {
+        metadata { evidence 'L02' }
+      }
+      application -[calls]-> audit 'JetAuditProgram.Plan 與 Finalize' {
+        metadata { evidence 'L03' }
+      }
+      application -[viaInterface]-> persistence '透過介面讀寫資料庫' {
+        metadata { evidence 'L04' }
+      }
+      application -[viaInterface]-> fileio '透過介面讀檔與寫報告' {
+        metadata { evidence 'L05' }
+      }
+      persistence -[calls]-> audit 'AuditDependencyPolicy.For' {
+        metadata { evidence 'L06' }
+      }
+      composition -[injects]-> bridge '建立 ActionDispatcher' {
+        metadata { evidence 'L07' }
+      }
+      composition -[injects]-> application '建立各 action 的處理類別' {
+        metadata { evidence 'L13' }
+      }
+      composition -[injects]-> persistence '建立 SQLite 與 DuckDB 的實作' {
+        metadata { evidence 'L08' }
+      }
+      composition -[injects]-> fileio '建立讀檔器與報告存檔類別' {
+        metadata { evidence 'L09' }
+      }
+    }
+
+    caseData = store '案件資料庫' {
+      technology 'SQLite：jet.db · DuckDB：jet.duckdb'
+      description '大量資料留在資料庫；畫面只取摘要或有界分頁。'
+      link ../evidence.html#f-storage '案件資料與檔名'
+    }
+    projectJson = store '案件進度檔' {
+      technology 'project.json'
+      description '案件的步驟進度與設定，和案件資料庫放在同一個案件資料夾。'
+      link ../evidence.html#f-storage '案件資料與移轉前提'
+    }
+
+    desktop.persistence -[data]-> caseData '集合式 SQL' {
+      metadata { evidence 'L10' }
+    }
+    desktop.persistence -[data]-> projectJson 'project.json' {
+      metadata { evidence 'L11' }
+    }
+  }
+
+  jet.desktop.fileio -[data]-> reports '發布報告檔' {
+    metadata { evidence 'L12' }
+  }
+
+  auditor -[uses]-> jet.desktop.ui '操作' {
+    metadata { evidence 'C01' }
+  }
+  inputs -[data]-> jet.desktop.fileio '讀取來源檔' {
+    metadata { evidence 'C02' }
+  }
+  reports -[uses]-> auditor '檢視與使用' {
+    metadata { evidence 'C03' }
+  }
+  jet.desktop -[uses]-> webview2 '承載畫面' {
+    metadata { evidence 'C04' }
+  }
+  jet.desktop.fileio -[uses]-> ace '讀 Access 檔' {
+    metadata { evidence 'C05' }
+  }
+
+  filterSlice = component '篩選情境儲存的類別' {
+    description '同一個桌面程序裡處理 filter.scenario.save 的類別與介面，以 SQLite 或 DuckDB 案件為準；不是另外部署的系統。'
+    link ../archify/filter-types/filter-types.html '詳細類別與介面圖'
+
+    jetapi = component 'JetApi' { technology 'JavaScript' }
+    bridge = component 'JetWebMessageBridge'
+    dispatcher = component 'ActionDispatcher'
+    handlerContract = contract 'IApplicationActionHandler' { technology 'interface' }
+    handler = component 'FilterScenarioSaveHandler'
+    batch = component 'FilterScenarioBatchWriter' { technology 'internal static' }
+    program = component 'JetAuditProgram' { technology 'static' }
+    factsContract = contract 'IFilterFactsPort' { technology 'interface' }
+    facts = component 'FilterFactsPort'
+    commitContract = contract 'IFilterCommitRepository' { technology 'interface' }
+    commit = component 'LocalFilterCommitRepository'
+    storeContract = contract 'IFilterScenarioStore' { technology 'interface' }
+    store = component 'LocalFilterScenarioStore'
+    root = component 'AppCompositionRoot'
+    db = store '案件資料庫' { technology 'SQLite 或 DuckDB' }
+
+    jetapi -[indirect]-> bridge 'filter.scenario.save' {
+      metadata { evidence 'F01' }
+    }
+    bridge -[calls]-> dispatcher 'DispatchAsync' {
+      metadata { evidence 'F02' }
+    }
+    dispatcher -[viaInterface]-> handlerContract 'HandleAsync' {
+      metadata { evidence 'F03' }
+    }
+    handler -[implements]-> handlerContract '實作' {
+      metadata { evidence 'F04' }
+    }
+    handler -[calls]-> batch 'LoadAsync、PlanSave、PublishAsync' {
+      metadata { evidence 'F05' }
+    }
+    handler -[viaInterface]-> storeContract 'ListAsync' {
+      metadata { evidence 'F06' }
+    }
+    batch -[calls]-> program 'Plan、Finalize' {
+      metadata { evidence 'F07' }
+    }
+    batch -[viaInterface]-> factsContract 'ExecuteAsync：整批合格' {
+      metadata { evidence 'F08' }
+    }
+    batch -[viaInterface]-> storeContract 'ReplaceAllAsync：有不合格' {
+      metadata { evidence 'F09' }
+    }
+    facts -[implements]-> factsContract '實作' {
+      metadata { evidence 'F10' }
+    }
+    facts -[viaInterface]-> commitContract 'CommitAsync' {
+      metadata { evidence 'F11' }
+    }
+    commit -[implements]-> commitContract '實作' {
+      metadata { evidence 'F12' }
+    }
+    store -[implements]-> storeContract '實作' {
+      metadata { evidence 'F13' }
+    }
+    root -[injects]-> handler '建立' {
+      metadata { evidence 'F14' }
+    }
+    root -[injects]-> facts '建立' {
+      metadata { evidence 'F15' }
+    }
+    root -[injects]-> commit '建立' {
+      metadata { evidence 'F16' }
+    }
+    root -[injects]-> store '建立' {
+      metadata { evidence 'F17' }
+    }
+    commit -[data]-> db '同一筆交易寫定義，用 SQL 算出命中' {
+      metadata { evidence 'F18' }
+    }
+    store -[data]-> db '同一筆交易只寫定義並清除命中' {
+      metadata { evidence 'F19' }
+    }
+  }
+}
+
+views {
+  view index {
+    title 'JET 系統情境'
+    description '審計員、來源檔、報告與電腦環境前提；不是正式部署驗收。'
+    include auditor, inputs, jet, reports, webview2, ace
+    autoLayout LeftRight
+  }
+
+  view containers of jet {
+    title 'JET 桌面程序與案件資料'
+    description '一個桌面程序，資料放在案件資料庫與案件資料夾；程式分層沒有畫成多個服務。'
+    include auditor, inputs, jet.desktop, jet.caseData, jet.projectJson, reports, webview2
+    autoLayout LeftRight
+  }
+
+  view components of jet.desktop {
+    title '桌面程序的內部責任'
+    description '灰色實線是直接呼叫，藍色虛線是透過介面呼叫，琥珀色虛線是 action 名稱或 WebMessage。啟動時建立了哪些元件，見「啟動時建立哪些物件」。'
+    include jet.desktop.*, jet.caseData, jet.projectJson, inputs, reports
+    exclude jet.desktop.composition
+    style * { size small textSize large }
+    rank same { jet.desktop.audit, jet.desktop.persistence, jet.desktop.fileio }
+    autoLayout TopBottom 40 80
+  }
+
+  view assembly of jet.desktop {
+    title '啟動時建立哪些物件'
+    description 'AppCompositionRoot 在程式啟動時建立 ActionDispatcher、各 action 的處理類別、資料庫實作與檔案元件，再交給使用它們的元件。點線表示建立，不是執行時的呼叫。'
+    include jet.desktop.composition, jet.desktop.bridge, jet.desktop.application, jet.desktop.persistence, jet.desktop.fileio
+    exclude jet.desktop.bridge -> jet.desktop.application, jet.desktop.application -> jet.desktop.persistence, jet.desktop.application -> jet.desktop.fileio
+    style * { size small textSize large }
+    rank same { jet.desktop.bridge, jet.desktop.application, jet.desktop.persistence, jet.desktop.fileio }
+    autoLayout TopBottom 60 150
+  }
+
+  view filterComponents of filterSlice {
+    title '篩選情境儲存：實際建立的類別'
+    description '虛線框是介面，使用它的類別只依賴介面；AppCompositionRoot 的點線指出實際建立哪個類別。成員簽章見類別與介面圖。'
+    link ../archify/filter-types/filter-types.html '詳細類別與介面圖'
+    include filterSlice.*
+    rank same { filterSlice.handlerContract, filterSlice.factsContract, filterSlice.commitContract, filterSlice.storeContract }
+    rank same { filterSlice.facts, filterSlice.commit, filterSlice.store }
+    rank sink { filterSlice.db }
+    autoLayout TopBottom 40 70
+  }
+
+  dynamic view filterSave {
+    title '篩選情境儲存：整批合格時的呼叫順序'
+    description '從 FilterScenarioSaveHandler 收到呼叫開始，只畫整批都合格的分支。前段的分派，以及仍有情境不合格時改呼叫 IFilterScenarioStore.ReplaceAllAsync 的分支，見 Archify 循序圖。'
+    link ../archify/action-sequence/action-sequence.html '兩個分支的循序圖'
+    variant diagram
+    autoLayout LeftRight 40 80
+    filterSlice.handler -> filterSlice.batch 'LoadAsync' {
+      notes '要求目前驗證結果與 GL 配對；不符就回錯誤，不寫入。'
+    }
+    filterSlice.handler -> filterSlice.store 'IFilterScenarioStore.ListAsync'
+    filterSlice.handler -> filterSlice.batch 'PlanSave' {
+      notes '只檢查本次情境。'
+    }
+    filterSlice.handler -> filterSlice.batch 'PublishAsync' {
+      notes '判斷整批是否都合格；以下是合格的分支。'
+    }
+    filterSlice.batch -> filterSlice.program 'Plan'
+    filterSlice.batch -> filterSlice.facts 'IFilterFactsPort.ExecuteAsync' {
+      notes '透過介面呼叫；實際是 FilterFactsPort。'
+    }
+    filterSlice.facts -> filterSlice.commit 'IFilterCommitRepository.CommitAsync' {
+      notes '透過介面呼叫；SQLite 與 DuckDB 案件實際是 LocalFilterCommitRepository。'
+    }
+    filterSlice.commit -> filterSlice.db '同一筆交易取代定義，算出命中'
+    filterSlice.batch -> filterSlice.program 'Finalize'
+    filterSlice.handler <- filterSlice.batch '情境、命中版本與失效狀態' {
+      notes '提交後讀回，這時不再接受取消。'
+    }
+  }
+
+  deployment view localRuntime {
+    title '本機執行配置'
+    description '一般權限的 Windows 工作站。WebView2 與 ACE 是電腦前提；SQL Server 開發暫緩，不在圖內。公司環境仍待正式部署階段確認。'
+    include *, local.caseFolder.*
+    style * { size small textSize large }
+    autoLayout LeftRight 40 80
+  }
+}
+
+deployment {
+  workstation local 'Windows 工作站' {
+    description '不依賴系統管理員權限或外部 AI 服務。RepoWise、Roslyn、LikeC4 與 Archify 只用於寫文件。'
+    folder release '發布資料夾' {
+      description 'JET.exe、設定、範本與 wwwroot 要一起交付。'
+      instanceOf jet.desktop
+    }
+    folder caseFolder '案件資料夾' {
+      description '使用者可寫入的位置；移轉時先正常離開 JET，再複製整個資料夾。'
+      instanceOf jet.caseData
+      instanceOf jet.projectJson
+      instanceOf reports
+    }
+    instanceOf webview2
+    instanceOf ace
+    instanceOf inputs
+  }
+}

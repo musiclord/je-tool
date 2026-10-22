@@ -316,6 +316,10 @@ internal static class ActionShapeJourney
                 await Send("query.dataPreview", new { dataset });
             }
 
+            // GL(未納入測試) 只看一種未納入原因，換頁時沿用同一種（使用者 2026-10-21 裁定日期不符分成三種原因）。
+            await Send("query.dataPreview", new { dataset = "glExcluded", limit = 200, offset = 0, exclusionReason = "afterPeriod" });
+            await Send("query.dataPreview", new { dataset = "glExcluded", limit = 1, offset = 1, exclusionReason = "afterPeriod" });
+
             // 第二步的行事曆與授權編製人員：import-step.js。行事曆範本第一列是標題，欄名在第二列（同 Batch9MutationStateTests）。
             var holidayFile = Track(TestWorkbookBuilder.WriteWorkbook(sheet =>
             {

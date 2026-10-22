@@ -1,0 +1,333 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "篩選情境儲存：從按下儲存到資料庫交易",
+    "locale": "zh-TW",
+    "output": "archify/action-sequence/action-sequence.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "default": {
+          "label": "直接呼叫"
+        },
+        "dashed": {
+          "label": "介面呼叫"
+        },
+        "emphasis": {
+          "label": "間接觸發"
+        },
+        "return": {
+          "label": "回傳"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "第五步畫面",
+      "sublabel": "JetApi"
+    },
+    {
+      "id": "bridge",
+      "type": "backend",
+      "label": "WebMessage 橋接",
+      "sublabel": "JetWebMessageBridge"
+    },
+    {
+      "id": "dispatcher",
+      "type": "backend",
+      "label": "依 action 分派",
+      "sublabel": "ActionDispatcher"
+    },
+    {
+      "id": "handler",
+      "type": "backend",
+      "label": "情境儲存處理",
+      "sublabel": "FilterScenarioSaveHandler"
+    },
+    {
+      "id": "batch",
+      "type": "backend",
+      "label": "整批規劃與發布",
+      "sublabel": "FilterScenarioBatchWriter"
+    },
+    {
+      "id": "facts",
+      "type": "backend",
+      "label": "篩選執行",
+      "sublabel": "FilterFactsPort"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "案件資料庫",
+      "sublabel": "SQLite 或 DuckDB"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 334,
+      "label": "共用分派：每個 action 都經過"
+    },
+    {
+      "from": 366,
+      "to": 646,
+      "label": "讀取與檢查：不符時回錯誤，不寫入"
+    },
+    {
+      "from": 678,
+      "to": 900,
+      "label": "分支 A：整批都合格"
+    },
+    {
+      "from": 932,
+      "to": 1040,
+      "label": "分支 B：仍有情境不合格"
+    },
+    {
+      "from": 1072,
+      "to": 1280,
+      "label": "提交之後：不再接受取消"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m01",
+      "from": "ui",
+      "to": "bridge",
+      "y": 180,
+      "label": "filter.scenario.save",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m02",
+      "from": "bridge",
+      "to": "dispatcher",
+      "y": 240,
+      "label": "DispatchAsync",
+      "note": "畫面可以取消"
+    },
+    {
+      "id": "m03",
+      "from": "dispatcher",
+      "to": "handler",
+      "y": 300,
+      "label": "IApplicationActionHandler.HandleAsync",
+      "variant": "dashed",
+      "note": "依 action 名稱找處理類別"
+    },
+    {
+      "id": "m04",
+      "from": "handler",
+      "to": "batch",
+      "y": 396,
+      "label": "LoadAsync",
+      "note": "需要目前的驗證結果與 GL 配對"
+    },
+    {
+      "id": "m05",
+      "from": "handler",
+      "to": "db",
+      "y": 456,
+      "label": "IFilterScenarioStore.ListAsync",
+      "variant": "dashed",
+      "note": "讀出已存情境，照原樣保留"
+    },
+    {
+      "id": "m06",
+      "from": "db",
+      "to": "handler",
+      "y": 510,
+      "label": "已存情境",
+      "variant": "return"
+    },
+    {
+      "id": "m07",
+      "from": "handler",
+      "to": "batch",
+      "y": 550,
+      "label": "PlanSave",
+      "note": "只檢查本次情境的上限、位置、名稱與規則"
+    },
+    {
+      "id": "m08",
+      "from": "handler",
+      "to": "batch",
+      "y": 612,
+      "label": "PublishAsync",
+      "note": "判斷整批是否都合格"
+    },
+    {
+      "id": "m09",
+      "from": "batch",
+      "to": "facts",
+      "y": 708,
+      "label": "IFilterFactsPort.ExecuteAsync",
+      "variant": "dashed",
+      "note": "先由 JetAuditProgram 建立計畫"
+    },
+    {
+      "id": "m10",
+      "from": "facts",
+      "to": "db",
+      "y": 770,
+      "label": "IFilterCommitRepository.CommitAsync",
+      "variant": "dashed",
+      "note": "同一筆交易取代定義，用 SQL 算出命中"
+    },
+    {
+      "id": "m11",
+      "from": "db",
+      "to": "facts",
+      "y": 832,
+      "label": "已提交",
+      "variant": "return",
+      "note": "提交前檢查取消"
+    },
+    {
+      "id": "m12",
+      "from": "facts",
+      "to": "batch",
+      "y": 884,
+      "label": "FilterFacts",
+      "variant": "return"
+    },
+    {
+      "id": "m13",
+      "from": "batch",
+      "to": "db",
+      "y": 962,
+      "label": "IFilterScenarioStore.ReplaceAllAsync",
+      "variant": "dashed",
+      "note": "同一筆交易只寫定義、清除命中並標成失效"
+    },
+    {
+      "id": "m14",
+      "from": "db",
+      "to": "batch",
+      "y": 1024,
+      "label": "已提交",
+      "variant": "return"
+    },
+    {
+      "id": "m15",
+      "from": "batch",
+      "to": "handler",
+      "y": 1102,
+      "label": "情境、命中版本與失效狀態",
+      "variant": "return",
+      "note": "讀回資料庫的最新狀態"
+    },
+    {
+      "id": "m16",
+      "from": "handler",
+      "to": "dispatcher",
+      "y": 1154,
+      "label": "回應",
+      "variant": "return"
+    },
+    {
+      "id": "m17",
+      "from": "dispatcher",
+      "to": "bridge",
+      "y": 1194,
+      "label": "回應",
+      "variant": "return",
+      "note": "例外改回固定錯誤碼；已取消時一律回報成取消"
+    },
+    {
+      "id": "m18",
+      "from": "bridge",
+      "to": "ui",
+      "y": 1246,
+      "label": "PostWebMessageAsJson",
+      "variant": "return",
+      "note": "依 requestId 把結果交回畫面"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "情境與前提",
+      "items": [
+        "審計員在第五步按「儲存」，畫面送出本次情境、位置與名稱。",
+        "前提：案件使用 SQLite 或 DuckDB，驗證結果是目前版本，GL 欄位已確認配對。",
+        "整批都合格走分支 A，否則走分支 B，一次只會走其中一支。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "實際執行的類別",
+      "items": [
+        "畫面送來的 action 名稱對應到 FilterScenarioSaveHandler。會修改資料的作業同一時間只執行一項，並在背景執行。",
+        "虛線呼叫的是介面。案件用 SQLite 或 DuckDB 時，實際執行的是 LocalFilterCommitRepository 與 LocalFilterScenarioStore；FilterFactsPort 不分資料庫。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "沒有畫出的路徑",
+      "items": [
+        "前提不符或本次情境不合格時回錯誤，不寫入；細節見「儲存篩選情境」流程圖。",
+        "至少發布一個情境，案件才推進到第五步；推進失敗只記警告。"
+      ]
+    }
+  ],
+  "activations": [
+    {
+      "participant": "bridge",
+      "from": 180,
+      "to": 1246
+    },
+    {
+      "participant": "dispatcher",
+      "from": 240,
+      "to": 1194
+    },
+    {
+      "participant": "handler",
+      "from": 300,
+      "to": 1154
+    },
+    {
+      "participant": "batch",
+      "from": 396,
+      "to": 420
+    },
+    {
+      "participant": "batch",
+      "from": 550,
+      "to": 574
+    },
+    {
+      "participant": "batch",
+      "from": 612,
+      "to": 1102
+    },
+    {
+      "participant": "facts",
+      "from": 708,
+      "to": 884
+    },
+    {
+      "participant": "db",
+      "from": 456,
+      "to": 510
+    },
+    {
+      "participant": "db",
+      "from": 770,
+      "to": 832
+    },
+    {
+      "participant": "db",
+      "from": 962,
+      "to": 1024
+    }
+  ]
+}

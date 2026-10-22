@@ -55,7 +55,7 @@ internal static class FormalWorkbookTypography
             {
                 runFont.Val = CanonicalFontName;
             }
-            worksheetPart.Worksheet.Save();
+            ExcelText.SaveWorksheet(worksheetPart);
         }
     }
 }

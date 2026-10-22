@@ -3183,7 +3183,9 @@ test('excluded data stays available through the sidebar without a duplicate popu
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'steps/validate-step.js'), 'utf8'), /populationSummaryHtml|preview-excluded-entries/);
   f.ui.openDataPreview('glExcluded');
   assert.deepEqual(plain(f.requests[0].payload), { dataset: 'glExcluded', offset: 0, limit: 200 }); // 使用者 2026-10-08 裁定資料名稱全系統統一
-  f.requests[0].resolve({ columns: [], rows: [], totalCount: 0, stats: { excludedByPeriodCount: 15, excludedByPostingStatusCount: 5 } }); await settle();
+  // 使用者 2026-10-21 裁定「日期不符」分成三種原因，正式後端改回四個計數；這裡照正式的形狀改假資料，斷言不動。
+  f.requests[0].resolve({ columns: [], rows: [], totalCount: 0,
+    stats: { blankPostDateCount: 4, beforePeriodCount: 5, afterPeriodCount: 6, postingStatusCount: 5 } }); await settle();
   assert.match(f.previewDom.node('note').innerHTML, /過帳狀態不符/);
   assert.equal(f.window.batch8Preview.displayCell('glExcluded', 'exclusionReason', 'postingStatus'), '過帳狀態不符');
   const request = f.v.DETAIL_PAGE_SPECS.sourceQuality.fetchPage('cursor-2', { key: 'sourceRowNumber', direction: 'asc' }, 'JV');
@@ -3259,7 +3261,8 @@ test('acceptance feedback overview labels legacy flag like side without changing
     f.store.setMappingCommitted('gl', { mapping: {}, mode, projectedRowCount: 5 });
     const html = f.app.overviewStepFactsHtml(state, 2);
     assert.match(html, /金額與借貸別/);
-    assert.match(html, /直接變動金額欄/);
+    // 原本斷言「直接變動金額欄」；使用者 2026-10-21 要求 TB 金額方式改用 legacy 名稱。
+    assert.match(html, /設定年度變動金額/);
     assert.doesNotMatch(html, /尚未設定|尚未完成/);
     assert.equal(state.mapping.gl.committed.mode, mode);
   }

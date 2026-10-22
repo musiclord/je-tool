@@ -41,10 +41,10 @@ internal sealed record FilterResultQuerySnapshot(
                 }
                 innerRequest = request with { Cursor = cursor.Key };
             }
-            catch (JsonException)
+            catch (JsonException exception)
             {
                 // 不是這個外包格式的 token（例如其他查詢的游標或被改動的字串）一律回第一頁，不猜測其來源。
-                throw Stale();
+                throw Stale(exception);
             }
         }
         return new(dataRevision, scenarioRevision, queryRevision, innerRequest);
@@ -53,8 +53,8 @@ internal sealed record FilterResultQuerySnapshot(
     internal string? WrapCursor(string? innerCursor) => innerCursor is null ? null
         : PageCursor.Encode(JsonSerializer.Serialize(new CursorEnvelope(QueryRevision, innerCursor)));
 
-    internal static JetActionException Stale() => new(JetErrorCodes.StaleResult,
-        "資料或情境已變更，請從第一頁重新載入，不能接續先前的結果。");
+    internal static JetActionException Stale(Exception? innerException = null) => new(JetErrorCodes.StaleResult,
+        "資料或情境已變更，請從第一頁重新載入，不能接續先前的結果。", innerException: innerException);
 
     private sealed record CursorEnvelope(string QueryRevision, string Key);
 }

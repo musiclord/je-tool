@@ -61,6 +61,52 @@ public static class DataPreviewDatasetNames
     }
 }
 
+/// <summary>
+/// GL(未納入測試) 每一列的未納入原因。日期不符分成前三種（使用者 2026-10-21 裁定分開標示並各自計數，
+/// 資料預覽可以只看其中一種）；GL 範圍與審計結果不變。
+/// </summary>
+public enum GlExclusionReason
+{
+    BlankPostDate,
+    BeforePeriod,
+    AfterPeriod,
+    PostingStatus
+}
+
+public static class GlExclusionReasonNames
+{
+    public static bool TryParse(string? wireName, out GlExclusionReason reason)
+    {
+        switch (wireName)
+        {
+            case "blankPostDate":
+                reason = GlExclusionReason.BlankPostDate;
+                return true;
+            case "beforePeriod":
+                reason = GlExclusionReason.BeforePeriod;
+                return true;
+            case "afterPeriod":
+                reason = GlExclusionReason.AfterPeriod;
+                return true;
+            case "postingStatus":
+                reason = GlExclusionReason.PostingStatus;
+                return true;
+            default:
+                reason = default;
+                return false;
+        }
+    }
+
+    public static string ToWireName(GlExclusionReason reason) => reason switch
+    {
+        GlExclusionReason.BlankPostDate => "blankPostDate",
+        GlExclusionReason.BeforePeriod => "beforePeriod",
+        GlExclusionReason.AfterPeriod => "afterPeriod",
+        GlExclusionReason.PostingStatus => "postingStatus",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "未知的 GL 未納入原因。")
+    };
+}
+
 /// <summary>資料集專屬統計的 closed typed contract。</summary>
 public abstract record DataPreviewStats;
 
@@ -76,17 +122,31 @@ public sealed record GlPreviewStats(
     long VoucherCount) : DataPreviewStats;
 
 /// <summary>
-/// glExcluded（GL(未納入測試)）的互斥排除原因總數。兩值在空 dataset 時仍明示為 0。
+/// glExcluded（GL(未納入測試)）四種互斥未納入原因的筆數，空 dataset 時仍明示為 0。
+/// 只看一種原因時，這四個數字仍描述全部未納入測試的分錄。
 /// </summary>
 public sealed record GlExcludedPreviewStats(
-    long ExcludedByPeriodCount,
-    long ExcludedByPostingStatusCount) : DataPreviewStats;
+    long BlankPostDateCount,
+    long BeforePeriodCount,
+    long AfterPeriodCount,
+    long PostingStatusCount) : DataPreviewStats
+{
+    public long CountOf(GlExclusionReason reason) => reason switch
+    {
+        GlExclusionReason.BlankPostDate => BlankPostDateCount,
+        GlExclusionReason.BeforePeriod => BeforePeriodCount,
+        GlExclusionReason.AfterPeriod => AfterPeriodCount,
+        GlExclusionReason.PostingStatus => PostingStatusCount,
+        _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "未知的 GL 未納入原因。")
+    };
+}
 
 /// <summary>
 /// 有界預覽結果：rows ≤ limit、cell 一律字串（NULL → null）。
 /// 一般資料集無資料 = 空 Columns/Rows + TotalCount 0（不是錯誤）；
 /// glExcluded 仍保留固定 Columns 與非 null 的零值 Stats。
 /// TotalCount 與 Stats 只在第一頁（offset 0）計算；之後的頁為 null，由畫面沿用第一頁的數字。
+/// glExcluded 只看一種原因時，TotalCount 是這種原因的筆數。
 /// </summary>
 public sealed record DataPreviewResult(
     IReadOnlyList<string> Columns,
@@ -96,11 +156,13 @@ public sealed record DataPreviewResult(
 
 public interface IDataPreviewRepository
 {
+    /// <param name="exclusionReason">只用於 <see cref="DataPreviewDataset.GlExcluded"/>：只回這種原因的分錄。</param>
     Task<DataPreviewResult> GetPreviewAsync(
         string projectId,
         DataPreviewDataset dataset,
         int moneyScale,
         int limit,
         CancellationToken cancellationToken,
-        int offset = 0);
+        int offset = 0,
+        GlExclusionReason? exclusionReason = null);
 }

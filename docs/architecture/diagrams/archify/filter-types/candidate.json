@@ -1,0 +1,312 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "篩選情境儲存的類別與介面",
+    "locale": "zh-TW",
+    "output": "archify/filter-types/filter-types.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "dependency": {
+          "label": "依賴：呼叫或建立，線上寫方法"
+        },
+        "realization": {
+          "label": "實作介面"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "layout": {
+    "mode": "grid",
+    "typeW": 180,
+    "typeMaxW": 280,
+    "gapX": 84,
+    "gapY": 84
+  },
+  "types": [
+    {
+      "id": "handler",
+      "label": "FilterScenarioSaveHandler",
+      "kind": "class",
+      "row": 0,
+      "col": 0,
+      "sublabel": "filter.scenario.save 的處理器",
+      "methods": [
+        {
+          "name": "HandleAsync",
+          "parameters": "JsonElement",
+          "returns": "Task<object?>",
+          "visibility": "public"
+        }
+      ]
+    },
+    {
+      "id": "batch",
+      "label": "FilterScenarioBatchWriter",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "internal static，協調整批寫入",
+      "methods": [
+        {
+          "name": "LoadAsync",
+          "parameters": "IProjectStore, string, FilterScenarioStores, JsonElement",
+          "returns": "Task<Prepared>",
+          "visibility": "package",
+          "static": true
+        },
+        {
+          "name": "PlanSave",
+          "parameters": "Prepared, IReadOnlyList<SavedFilterScenario>, JsonElement, DateTimeOffset",
+          "returns": "Change",
+          "visibility": "package",
+          "static": true
+        },
+        {
+          "name": "PublishAsync",
+          "parameters": "string, IProjectStore, …",
+          "returns": "Task<object>",
+          "visibility": "package",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "program",
+      "label": "JetAuditProgram",
+      "kind": "class",
+      "row": 0,
+      "col": 2.5,
+      "sublabel": "AuditCore 的規劃與彙整",
+      "methods": [
+        {
+          "name": "Plan",
+          "parameters": "FilterRequest",
+          "returns": "FilterPlan",
+          "visibility": "package",
+          "static": true
+        },
+        {
+          "name": "Finalize",
+          "parameters": "FilterPlan, FilterFacts",
+          "returns": "FilterResult",
+          "visibility": "package",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "storeContract",
+      "label": "IFilterScenarioStore",
+      "kind": "interface",
+      "row": 1,
+      "col": 0,
+      "sublabel": "情境定義的讀寫",
+      "methods": [
+        {
+          "name": "ListAsync",
+          "parameters": "string",
+          "returns": "Task<IReadOnlyList<SavedFilterScenario>>",
+          "visibility": "public",
+          "abstract": true
+        },
+        {
+          "name": "ReplaceAllAsync",
+          "parameters": "string, IReadOnlyList<SavedFilterScenario>",
+          "returns": "Task",
+          "visibility": "public",
+          "abstract": true
+        }
+      ],
+      "width": 350
+    },
+    {
+      "id": "factsContract",
+      "label": "IFilterFactsPort",
+      "kind": "interface",
+      "row": 1,
+      "col": 1,
+      "sublabel": "執行篩選計畫",
+      "methods": [
+        {
+          "name": "ExecuteAsync",
+          "parameters": "FilterPlan",
+          "returns": "Task<FilterFacts>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "facts",
+      "label": "FilterFactsPort",
+      "kind": "class",
+      "row": 1,
+      "col": 2,
+      "sublabel": "依 action 選預覽或發布"
+    },
+    {
+      "id": "localStore",
+      "label": "LocalFilterScenarioStore",
+      "kind": "class",
+      "row": 2,
+      "col": 0,
+      "sublabel": "SQLite 與 DuckDB 共用"
+    },
+    {
+      "id": "root",
+      "label": "AppCompositionRoot",
+      "kind": "class",
+      "row": 2,
+      "col": 1.5,
+      "sublabel": "啟動時建立物件",
+      "methods": [
+        {
+          "name": "CreateLocalProjectRepositories",
+          "parameters": "string, ILocalProjectDatabase, ProjectRepositoryAssembly",
+          "returns": "ProjectRepositories",
+          "visibility": "private",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "commitContract",
+      "label": "IFilterCommitRepository",
+      "kind": "interface",
+      "row": 1,
+      "col": 3,
+      "sublabel": "發布定義與命中",
+      "methods": [
+        {
+          "name": "CommitAsync",
+          "parameters": "string, IReadOnlyList<FilterCommitItem>, FilterRuleContext",
+          "returns": "Task",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "local",
+      "label": "LocalFilterCommitRepository",
+      "kind": "class",
+      "row": 2,
+      "col": 3,
+      "sublabel": "SQLite 與 DuckDB 共用"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "handler_batch",
+      "from": "handler",
+      "to": "batch",
+      "kind": "dependency",
+      "label": "三個靜態方法"
+    },
+    {
+      "id": "handler_store",
+      "from": "handler",
+      "to": "storeContract",
+      "kind": "dependency",
+      "label": "ListAsync"
+    },
+    {
+      "id": "batch_program",
+      "from": "batch",
+      "to": "program",
+      "kind": "dependency",
+      "label": "Plan、Finalize"
+    },
+    {
+      "id": "batch_facts",
+      "from": "batch",
+      "to": "factsContract",
+      "kind": "dependency",
+      "label": "ExecuteAsync"
+    },
+    {
+      "id": "batch_store",
+      "from": "batch",
+      "to": "storeContract",
+      "kind": "dependency",
+      "label": "ReplaceAllAsync"
+    },
+    {
+      "id": "facts_contract",
+      "from": "facts",
+      "to": "factsContract",
+      "kind": "realization"
+    },
+    {
+      "id": "facts_commit",
+      "from": "facts",
+      "to": "commitContract",
+      "kind": "dependency",
+      "label": "CommitAsync"
+    },
+    {
+      "id": "local_commit",
+      "from": "local",
+      "to": "commitContract",
+      "kind": "realization"
+    },
+    {
+      "id": "localStore_store",
+      "from": "localStore",
+      "to": "storeContract",
+      "kind": "realization"
+    },
+    {
+      "id": "root_localStore",
+      "from": "root",
+      "to": "localStore",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_facts",
+      "from": "root",
+      "to": "facts",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_local",
+      "from": "root",
+      "to": "local",
+      "kind": "dependency",
+      "label": "建立"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "實際執行哪個類別",
+      "items": [
+        "依賴線指向介面時，編譯時只知道呼叫的是介面方法，例如 IFilterFactsPort.ExecuteAsync。",
+        "實際執行哪個類別，看 AppCompositionRoot 的「建立」線：案件用 SQLite 或 DuckDB 時，建立 FilterFactsPort、LocalFilterCommitRepository 與 LocalFilterScenarioStore，再交給使用它們的類別。",
+        "本圖不表示每次儲存都會走到每一條線。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "這張圖省略了什麼",
+      "items": [
+        "方法區只列這條流程用到的方法；SQL Server 版本的類別不在圖內。",
+        "FilterScenarioBatchWriter 另外呼叫 MappingCommitShared.AdvanceStepAsync 推進步驟，見業務流程圖。",
+        "預覽時，用整張傳票計數的情境另向 IFilterRunRepository 取整張命中傳票的分錄數；本圖只畫儲存。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "成員寫法",
+      "items": [
+        "成員只寫參數型別與回傳型別，省略參數名稱、CancellationToken 與有預設值的參數；超過四個參數只列前兩個。package 表示 internal。實作類別不重複列出介面已有的成員。"
+      ]
+    }
+  ]
+}

@@ -97,7 +97,7 @@ internal sealed class CaseCreateFactsPort(
                 lockAcquiredThisCall,
                 backendAttempt);
         }
-        catch (CaseCreateBackendDifferentOwnerException)
+        catch (CaseCreateBackendDifferentOwnerException exception)
         {
             // Another serialized SQL attempt has become authoritative；Begin 尚未取得工作鎖。
             await RollbackCoreAsync(
@@ -109,7 +109,8 @@ internal sealed class CaseCreateFactsPort(
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
                 SqlServerMessages.CaseNameTakenOnServer(document.ProjectId),
-                plan.HasUserSuppliedCaseName ? JetErrorFields.CaseName : null);
+                plan.HasUserSuppliedCaseName ? JetErrorFields.CaseName : null,
+                innerException: exception);
         }
         catch
         {

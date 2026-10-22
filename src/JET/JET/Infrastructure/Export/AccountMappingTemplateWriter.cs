@@ -19,7 +19,6 @@ public sealed class AccountMappingTemplateWriter :
     private const string SpreadsheetNamespace =
         "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     private static readonly XNamespace Spreadsheet = SpreadsheetNamespace;
-    private static readonly XNamespace Xml = XNamespace.Xml;
     private readonly ReportTemplateCatalog _templates;
 
     public AccountMappingTemplateWriter()
@@ -264,12 +263,7 @@ public sealed class AccountMappingTemplateWriter :
         }
 
         cell.SetAttributeValue("t", "inlineStr");
-        cell.Add(new XElement(
-            Spreadsheet + "is",
-            new XElement(
-                Spreadsheet + "t",
-                new XAttribute(Xml + "space", "preserve"),
-                value)));
+        cell.Add(ExcelText.InlineStringElement(Spreadsheet, value));
         return cell;
     }
 

@@ -517,10 +517,13 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
                 cell => Assert.True(cell.ValueKind is JsonValueKind.String or JsonValueKind.Null));
         });
 
+        // 使用者 2026-10-21 裁定日期不符分成三種原因，兩個計數改成四個；第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
         var stats = JsonShape.Obj(data, "stats");
-        JsonShape.HasExactKeys(stats, "excludedByPeriodCount", "excludedByPostingStatusCount");
-        JsonShape.Number(stats, "excludedByPeriodCount");
-        JsonShape.Number(stats, "excludedByPostingStatusCount");
+        JsonShape.HasExactKeys(stats, "blankPostDateCount", "beforePeriodCount", "afterPeriodCount", "postingStatusCount");
+        JsonShape.Number(stats, "blankPostDateCount");
+        JsonShape.Number(stats, "beforePeriodCount");
+        JsonShape.Number(stats, "afterPeriodCount");
+        JsonShape.Number(stats, "postingStatusCount");
     }
 
     [Fact]

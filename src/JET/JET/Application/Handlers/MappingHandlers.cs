@@ -142,6 +142,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         var amountMode = JetAuditProgram.ParseGlAmountMode(amountModeName);
         var postingStatusPolicy = MappingV2CommitPayloadPrerequisite.ReadPostingStatusPolicy(payload);
 
+        SupportOperationStage.Enter("state_read");
         var batch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
@@ -170,9 +171,11 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             mapping,
             postingStatusPolicy,
             permittedRdeIds);
+        SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
+        SupportOperationStage.Enter("plan");
         var plan = JetAuditProgram.Plan(
             new GlMappingRequest(
                 projectId,
@@ -196,6 +199,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             plan.Spec.Options.RdeFields,
             existingRdeIds);
 
+        SupportOperationStage.Enter("projection");
         var projection = await Task.Run(
             () => repositories.MappingFacts.ExecuteAsync(
                 plan,
@@ -211,6 +215,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         var result = JetAuditProgram.Finalize(plan, projection);
         restoreAuthorizations.Clear(projectId, batch.BatchId);
 
+        SupportOperationStage.Enter("after_commit");
         await MappingCommitShared.AdvanceStepAsync(
             projectStore,
             document,
@@ -303,6 +308,7 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
         var changeModeName = PayloadReader.GetRequiredString(payload, "changeMode");
         var changeMode = JetAuditProgram.ParseTbChangeMode(changeModeName);
 
+        SupportOperationStage.Enter("state_read");
         var batch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
@@ -316,9 +322,11 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
             ? true
             : await repositories.ProjectAuditLog.TryRequiresMappingRecommitAuditAsync(projectId, "tb", cancellationToken);
 
+        SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
+        SupportOperationStage.Enter("plan");
         var plan = JetAuditProgram.Plan(
             new TbMappingRequest(
                 projectId,
@@ -329,6 +337,7 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
                 document.MoneyScale,
                 DateTimeOffset.UtcNow));
 
+        SupportOperationStage.Enter("projection");
         var projection = await Task.Run(
             () => repositories.MappingFacts.ExecuteAsync(
                 plan,
@@ -343,6 +352,7 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
 
         var result = JetAuditProgram.Finalize(plan, projection);
 
+        SupportOperationStage.Enter("after_commit");
         await MappingCommitShared.AdvanceStepAsync(
             projectStore,
             document,
@@ -393,7 +403,8 @@ internal static class MappingCommitShared
         catch (Exception exception)
         {
             // Only a navigation milestone failed after data commit. Do not repeat the completed operation or expose paths.
-            logger?.LogWarning("workflow.milestone: 已完成資料儲存，但案件步驟未更新。錯誤類型：{exceptionType}", exception.GetType().Name);
+            // 先前只寫一般警告，支援日誌收不到；改成支援日誌事件，記下例外型別與位置（2026-10-21）。
+            if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "workflow.milestone", exception);
         }
     }
 }

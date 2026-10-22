@@ -56,7 +56,8 @@ public sealed class MessageLogLevelMigrationTests
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
             command.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version'";
-            Assert.Equal("12", await command.ExecuteScalarAsync() as string);
+            // 使用者 2026-10-21 裁定日期不符分成三種原因，本機 schema 再升到第 13 版。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+            Assert.Equal("13", await command.ExecuteScalarAsync() as string);
         }
 
         var store = new LocalMessageLogStore(database);

@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "正式底稿規劃與發布的類別與介面",
+    "locale": "zh-TW",
+    "output": "archify/export-classes/export-classes.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "dependency": {
+          "label": "依賴：呼叫或建立，線上寫方法"
+        },
+        "realization": {
+          "label": "實作介面"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "layout": {
+    "mode": "grid",
+    "typeW": 180,
+    "typeMaxW": 280,
+    "gapX": 84,
+    "gapY": 84
+  },
+  "types": [
+    {
+      "id": "handler",
+      "label": "ExportWorkpaperStreamHandler",
+      "kind": "class",
+      "row": 0,
+      "col": 1.5,
+      "sublabel": "export.workpaperStream",
+      "methods": [
+        {
+          "name": "HandleAsync",
+          "parameters": "JsonElement",
+          "returns": "Task<object?>",
+          "visibility": "public"
+        }
+      ]
+    },
+    {
+      "id": "materialize",
+      "label": "FilterRunMaterializeService",
+      "kind": "class",
+      "row": 0,
+      "col": 0,
+      "sublabel": "重算選取的情境",
+      "methods": [
+        {
+          "name": "MaterializeSelectedAsync",
+          "parameters": "string, ProjectDocument, IReadOnlyList<SavedFilterScenario>, IReadOnlyCollection<int>",
+          "returns": "Task",
+          "visibility": "public"
+        }
+      ]
+    },
+    {
+      "id": "program",
+      "label": "JetAuditProgram",
+      "kind": "class",
+      "row": 0,
+      "col": 3,
+      "sublabel": "規劃底稿並整理結果",
+      "methods": [
+        {
+          "name": "Plan",
+          "parameters": "WorkpaperRequest",
+          "returns": "WorkpaperPlan",
+          "visibility": "package",
+          "static": true
+        },
+        {
+          "name": "Finalize",
+          "parameters": "WorkpaperPlan, WorkpaperPlanningFacts",
+          "returns": "WorkpaperPlan",
+          "visibility": "package",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "factsContract",
+      "label": "IWorkpaperPlanningFactsPort",
+      "kind": "interface",
+      "row": 1,
+      "col": 0,
+      "sublabel": "讀規劃需要的資料",
+      "methods": [
+        {
+          "name": "ExecuteAsync",
+          "parameters": "WorkpaperPlan",
+          "returns": "Task<WorkpaperPlanningFacts>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "writerContract",
+      "label": "IWorkpaperPlanWriter",
+      "kind": "interface",
+      "row": 1,
+      "col": 1,
+      "sublabel": "寫入工作簿",
+      "methods": [
+        {
+          "name": "WriteAsync",
+          "parameters": "Stream, WorkpaperContext, WorkpaperPlan",
+          "returns": "Task<ExportStats>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "auditedContract",
+      "label": "IAuditedReportPublishingStore",
+      "kind": "interface",
+      "row": 1,
+      "col": 2,
+      "sublabel": "發布並回操作紀錄的提醒",
+      "methods": [
+        {
+          "name": "WriteAuditedAsync",
+          "parameters": "string, ReportArtifactWriteRequest, Action<ReportArtifactKind>",
+          "returns": "Task<AuditedReportPublication>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "publishContract",
+      "label": "IReportArtifactPublishingStore",
+      "kind": "interface",
+      "row": 1,
+      "col": 3,
+      "sublabel": "寫檔並通知發布",
+      "methods": [
+        {
+          "name": "WriteWithPublishingAsync",
+          "parameters": "string, ReportArtifactWriteRequest, Action<ReportArtifactKind>",
+          "returns": "Task<ReportArtifact>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "facts",
+      "label": "WorkpaperPlanningFactsPort",
+      "kind": "class",
+      "row": 2,
+      "col": 0,
+      "sublabel": "不分資料庫"
+    },
+    {
+      "id": "writer",
+      "label": "WorkpaperWriter",
+      "kind": "class",
+      "row": 2,
+      "col": 1,
+      "sublabel": "分頁讀取並寫出"
+    },
+    {
+      "id": "audited",
+      "label": "AuditedReportArtifactStore",
+      "kind": "class",
+      "row": 2,
+      "col": 2,
+      "sublabel": "外層：寫操作紀錄"
+    },
+    {
+      "id": "files",
+      "label": "ProjectReportArtifactStore",
+      "kind": "class",
+      "row": 2,
+      "col": 3,
+      "sublabel": "內層：暫存檔、改名與清單"
+    },
+    {
+      "id": "root",
+      "label": "AppCompositionRoot",
+      "kind": "class",
+      "row": 3,
+      "col": 1,
+      "sublabel": "啟動時建立物件",
+      "methods": [
+        {
+          "name": "CreateRuntimeCore",
+          "parameters": "IHostShell, string, …",
+          "returns": "JetApplicationRuntime",
+          "visibility": "private",
+          "static": true
+        },
+        {
+          "name": "CreateLocalProjectRepositories",
+          "parameters": "string, ILocalProjectDatabase, ProjectRepositoryAssembly",
+          "returns": "ProjectRepositories",
+          "visibility": "private",
+          "static": true
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "handler_materialize",
+      "from": "handler",
+      "to": "materialize",
+      "kind": "dependency",
+      "label": "MaterializeSelectedAsync"
+    },
+    {
+      "id": "handler_program",
+      "from": "handler",
+      "to": "program",
+      "kind": "dependency",
+      "label": "Plan、Finalize"
+    },
+    {
+      "id": "handler_facts",
+      "from": "handler",
+      "to": "factsContract",
+      "kind": "dependency",
+      "label": "ExecuteAsync"
+    },
+    {
+      "id": "handler_writer",
+      "from": "handler",
+      "to": "writerContract",
+      "kind": "dependency",
+      "label": "寫檔函式內 WriteAsync"
+    },
+    {
+      "id": "handler_audited",
+      "from": "handler",
+      "to": "auditedContract",
+      "kind": "dependency",
+      "label": "WriteAuditedAsync"
+    },
+    {
+      "id": "facts_contract",
+      "from": "facts",
+      "to": "factsContract",
+      "kind": "realization"
+    },
+    {
+      "id": "writer_contract",
+      "from": "writer",
+      "to": "writerContract",
+      "kind": "realization"
+    },
+    {
+      "id": "audited_contract",
+      "from": "audited",
+      "to": "publishContract",
+      "kind": "realization"
+    },
+    {
+      "id": "files_contract",
+      "from": "files",
+      "to": "publishContract",
+      "kind": "realization"
+    },
+    {
+      "id": "root_audited",
+      "from": "root",
+      "to": "audited",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_files",
+      "from": "root",
+      "to": "files",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_facts",
+      "from": "root",
+      "to": "facts",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "audited_auditedContract",
+      "from": "audited",
+      "to": "auditedContract",
+      "kind": "realization"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "實際執行哪個類別",
+      "items": [
+        "ExportWorkpaperStreamHandler 對規劃資料、寫出器與報告存檔類別都只呼叫介面。存檔類別有實作 IAuditedReportPublishingStore 才走 WriteAuditedAsync，回應才帶得到寫不進操作紀錄的提醒；否則退回 IReportArtifactPublishingStore.WriteWithPublishingAsync 或 IReportArtifactStore.WriteAsync。",
+        "AppCompositionRoot 先建立 ProjectReportArtifactStore，再交給 AuditedReportArtifactStore。外層只把內層當成 IReportArtifactStore 持有，呼叫前才轉型，所以兩者之間沒有依賴線；內層是哪個類別，看兩條「建立」線。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "這張圖省略了什麼",
+      "items": [
+        "兩個存檔類別也都實作 IReportArtifactStore，負責報告清單、路徑與失效標記；圖只畫發布用的介面。",
+        "WorkpaperWriter 由 CreateWorkpaperWriter 建立；內層透過 ReportArtifactContentWriter，執行匯出處理事先交出的寫檔函式。",
+        "外層寫操作紀錄經 CommittedAuditLog 與 IProjectAuditLog；本機案件實際寫入的類別與失敗時的提醒，見底稿匯出循序圖。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "成員寫法",
+      "items": [
+        "成員只寫參數型別與回傳型別，省略參數名稱、CancellationToken 與有預設值的參數；超過四個參數只列前兩個。package 表示 internal。實作類別不重複列出介面已有的成員。"
+      ]
+    }
+  ]
+}

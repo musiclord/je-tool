@@ -170,11 +170,15 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
                    COALESCE(SUM(CASE WHEN is_effective = 1 THEN credit_amount_scaled ELSE 0 END), 0),
                    COALESCE(SUM(CASE WHEN is_effective = 1 THEN amount_scaled ELSE 0 END), 0),
                    COALESCE(SUM(CASE WHEN is_effective = 0 THEN 1 ELSE 0 END), 0),
-                   COALESCE(SUM(CASE WHEN exclusion_reason = @periodReason THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN exclusion_reason IN (@blankPostDateReason, @beforePeriodReason, @afterPeriodReason)
+                                     THEN 1 ELSE 0 END), 0),
                    COALESCE(SUM(CASE WHEN exclusion_reason = @postingStatusReason THEN 1 ELSE 0 END), 0)
             FROM target_gl_entry;
             """;
-        command.AddWithValue("@periodReason", GlEffectivePopulation.PeriodStorageReason);
+        // 日期不符是三種日期原因的合計（使用者 2026-10-21 裁定分開標示，驗證摘要的數字不變）。
+        command.AddWithValue("@blankPostDateReason", GlEffectivePopulation.BlankPostDateStorageReason);
+        command.AddWithValue("@beforePeriodReason", GlEffectivePopulation.BeforePeriodStorageReason);
+        command.AddWithValue("@afterPeriodReason", GlEffectivePopulation.AfterPeriodStorageReason);
         command.AddWithValue("@postingStatusReason", GlEffectivePopulation.PostingStatusStorageReason);
 
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken);

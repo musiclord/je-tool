@@ -142,9 +142,12 @@ public sealed class QueryDataPreviewHandlerTests
             data.GetProperty("columns").EnumerateArray().Select(column => column.GetString()).ToList());
         Assert.Equal(0, data.GetProperty("rows").GetArrayLength());
         Assert.Equal(0, data.GetProperty("totalCount").GetInt64());
+        // 使用者 2026-10-21 裁定日期不符分成三種原因，兩個計數改成四個；第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
         var stats = data.GetProperty("stats");
-        Assert.Equal(0, stats.GetProperty("excludedByPeriodCount").GetInt64());
-        Assert.Equal(0, stats.GetProperty("excludedByPostingStatusCount").GetInt64());
+        Assert.Equal(0, stats.GetProperty("blankPostDateCount").GetInt64());
+        Assert.Equal(0, stats.GetProperty("beforePeriodCount").GetInt64());
+        Assert.Equal(0, stats.GetProperty("afterPeriodCount").GetInt64());
+        Assert.Equal(0, stats.GetProperty("postingStatusCount").GetInt64());
     }
 
     [Fact]
@@ -275,10 +278,160 @@ public sealed class QueryDataPreviewHandlerTests
         var firstRow = excluded.GetProperty("rows")[0];
         Assert.Equal("JV-200", firstRow[0].GetString());
         Assert.Equal("VOID", firstRow[3].GetString());
-        Assert.Equal("period", firstRow[9].GetString());
+        // 使用者 2026-10-21 裁定日期不符分成三種原因：JV-200 的總帳日期在 2024 年查核期間之後，讀成 afterPeriod；
+        // 兩個計數改成四個。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+        Assert.Equal("afterPeriod", firstRow[9].GetString());
         var stats = excluded.GetProperty("stats");
-        Assert.Equal(1, stats.GetProperty("excludedByPeriodCount").GetInt64());
-        Assert.Equal(1, stats.GetProperty("excludedByPostingStatusCount").GetInt64());
+        Assert.Equal(0, stats.GetProperty("blankPostDateCount").GetInt64());
+        Assert.Equal(0, stats.GetProperty("beforePeriodCount").GetInt64());
+        Assert.Equal(1, stats.GetProperty("afterPeriodCount").GetInt64());
+        Assert.Equal(1, stats.GetProperty("postingStatusCount").GetInt64());
+    }
+
+    /// <summary>
+    /// 使用者 2026-10-21 裁定 GL(未納入測試) 的「日期不符」分成總帳日期空白、早於查核期間、晚於查核期間三種原因，
+    /// 各自計數，資料預覽可以只看其中一種；GL 範圍與審計結果不變。
+    /// oracle：查核期間 2025-01-01 到 2025-12-31，下列 12 列逐列手算原因。日期先於過帳狀態判斷，
+    /// 所以日期不符又是草稿的列算日期原因。四種原因的筆數刻意各不相同（1、2、3、4），計數放錯欄位就會失敗。
+    /// </summary>
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task Preview_GlExcluded_SplitsDateMismatchIntoThreeReasons_AndFiltersByReason(string provider)
+    {
+        using var host = new HandlerTestHost();
+        var builder = new InlineGlWorkbookBuilder()
+            .WithColumns(
+                "傳票號碼", "傳票項次", "傳票日期", "科目代號", "科目名稱", "摘要",
+                "金額", "借方旗標", "過帳狀態")
+            .AddRow("JV-01", "1", "2025-01-01", "1101", "合成科目", "期初當日", 100m, "1", "POSTED")
+            .AddRow("JV-02", "1", "2025-12-31", "1101", "合成科目", "期末當日", 100m, "0", "POSTED")
+            .AddRow("JV-03", "1", null, "1101", "合成科目", "日期空白", 100m, "1", "DRAFT")
+            .AddRow("JV-04", "1", "2024-12-31", "1101", "合成科目", "期初前一日", 100m, "1", "POSTED")
+            .AddRow("JV-05", "1", "2026-01-01", "1101", "合成科目", "期末後一日", 100m, "1", "POSTED")
+            .AddRow("JV-06", "1", "2025-06-30", "1101", "合成科目", "期中草稿", 100m, "1", "DRAFT")
+            .AddRow("JV-07", "1", "2024-06-30", "1101", "合成科目", "期前草稿", 100m, "1", "DRAFT")
+            .AddRow("JV-08", "1", "2026-02-01", "1101", "合成科目", "期後", 100m, "1", "POSTED")
+            .AddRow("JV-09", "1", "2027-03-15", "1101", "合成科目", "期後草稿", 100m, "1", "DRAFT")
+            .AddRow("JV-10", "1", "2025-03-01", "1101", "合成科目", "期中草稿", 100m, "1", "DRAFT")
+            .AddRow("JV-11", "1", "2025-09-30", "1101", "合成科目", "期中作廢", 100m, "1", "VOID")
+            .AddRow("JV-12", "1", "2025-11-15", "1101", "合成科目", "期中草稿", 100m, "1", "DRAFT");
+
+        await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
+        {
+            projectCode = "SPLIT-2025-001",
+            entityName = "合成案件",
+            operatorId = "tester",
+            periodStart = "2025-01-01",
+            periodEnd = "2025-12-31",
+            databaseProvider = provider
+        }));
+        var filePath = builder.WriteWorkbook();
+        try
+        {
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath }));
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(filePath);
+        }
+
+        var mapping = builder.BuildFlagModeMapping();
+        mapping[GlMappingKeys.PostingStatus] = "過帳狀態";
+        await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
+        {
+            mapping,
+            amountMode = "flag",
+            postingStatusPolicy = new
+            {
+                acceptedValues = new[] { "POSTED" },
+                includeBlank = false
+            }
+        }));
+
+        // GL 範圍不變：只有期初與期末當日兩列。
+        var effective = await host.DispatchAsync("query.dataPreview", """{ "dataset": "gl" }""");
+        Assert.Equal(2, effective.GetProperty("totalCount").GetInt64());
+        Assert.Equal(new string?[] { "JV-01", "JV-02" }, DocumentNumbers(effective));
+
+        var excluded = await host.DispatchAsync("query.dataPreview", """{ "dataset": "glExcluded" }""");
+        Assert.Equal(10, excluded.GetProperty("totalCount").GetInt64());
+        Assert.Equal(
+            new (string?, string?)[]
+            {
+                ("JV-03", "blankPostDate"), ("JV-04", "beforePeriod"), ("JV-05", "afterPeriod"),
+                ("JV-06", "postingStatus"), ("JV-07", "beforePeriod"), ("JV-08", "afterPeriod"),
+                ("JV-09", "afterPeriod"), ("JV-10", "postingStatus"), ("JV-11", "postingStatus"),
+                ("JV-12", "postingStatus")
+            },
+            excluded.GetProperty("rows").EnumerateArray()
+                .Select(row => (row[0].GetString(), row[9].GetString())));
+        AssertExclusionReasonCounts(excluded.GetProperty("stats"));
+
+        // 只看一種原因：總筆數是這種原因的筆數，四種計數仍描述全部未納入測試的分錄。
+        foreach (var (reason, documents) in new (string, string?[])[]
+        {
+            ("blankPostDate", new string?[] { "JV-03" }),
+            ("beforePeriod", new string?[] { "JV-04", "JV-07" }),
+            ("afterPeriod", new string?[] { "JV-05", "JV-08", "JV-09" }),
+            ("postingStatus", new string?[] { "JV-06", "JV-10", "JV-11", "JV-12" })
+        })
+        {
+            var filtered = await host.DispatchAsync(
+                "query.dataPreview",
+                JsonSerializer.Serialize(new { dataset = "glExcluded", exclusionReason = reason }));
+            Assert.Equal(documents.Length, filtered.GetProperty("totalCount").GetInt64());
+            Assert.Equal(documents, DocumentNumbers(filtered));
+            Assert.All(
+                filtered.GetProperty("rows").EnumerateArray(),
+                row => Assert.Equal(reason, row[9].GetString()));
+            AssertExclusionReasonCounts(filtered.GetProperty("stats"));
+        }
+
+        // 換頁時沿用同一種原因。
+        var firstPage = await host.DispatchAsync(
+            "query.dataPreview",
+            """{ "dataset": "glExcluded", "exclusionReason": "postingStatus", "limit": 3 }""");
+        Assert.Equal(4, firstPage.GetProperty("totalCount").GetInt64());
+        Assert.Equal(new string?[] { "JV-06", "JV-10", "JV-11" }, DocumentNumbers(firstPage));
+        var secondPage = await host.DispatchAsync(
+            "query.dataPreview",
+            """{ "dataset": "glExcluded", "exclusionReason": "postingStatus", "limit": 3, "offset": 3 }""");
+        Assert.Equal(new string?[] { "JV-12" }, DocumentNumbers(secondPage));
+
+        // 原因只能是四種之一，也只適用於 GL(未納入測試)；改版前的 period 不再接受。
+        foreach (var payload in new[]
+        {
+            """{ "dataset": "glExcluded", "exclusionReason": "period" }""",
+            """{ "dataset": "gl", "exclusionReason": "beforePeriod" }"""
+        })
+        {
+            var rejected = await Assert.ThrowsAsync<JetActionException>(
+                () => host.DispatchAsync("query.dataPreview", payload));
+            Assert.Equal(JetErrorCodes.InvalidPayload, rejected.Code);
+            Assert.Equal("preview_exclusion_reason_invalid", JetPayloadRejection.CheckOf(rejected));
+        }
+
+        // 審計結果不變：驗證摘要的日期不符仍是三種原因的合計。
+        var validation = await host.DispatchAsync("validate.run");
+        var excludedSummary = validation.GetProperty("populationSummary").GetProperty("excluded");
+        Assert.Equal(10, excludedSummary.GetProperty("rowCount").GetInt64());
+        Assert.Equal(6, excludedSummary.GetProperty("byPeriodCount").GetInt64());
+        Assert.Equal(4, excludedSummary.GetProperty("byPostingStatusCount").GetInt64());
+    }
+
+    private static List<string?> DocumentNumbers(JsonElement preview) =>
+        preview.GetProperty("rows").EnumerateArray().Select(row => row[0].GetString()).ToList();
+
+    private static void AssertExclusionReasonCounts(JsonElement stats)
+    {
+        Assert.Equal(
+            new[] { "afterPeriodCount", "beforePeriodCount", "blankPostDateCount", "postingStatusCount" },
+            stats.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(1, stats.GetProperty("blankPostDateCount").GetInt64());
+        Assert.Equal(2, stats.GetProperty("beforePeriodCount").GetInt64());
+        Assert.Equal(3, stats.GetProperty("afterPeriodCount").GetInt64());
+        Assert.Equal(4, stats.GetProperty("postingStatusCount").GetInt64());
     }
 
     [Fact]

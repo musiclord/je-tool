@@ -1,0 +1,18 @@
+/* JET 圖表頁的畫布配色：與入口頁同一組淺色與深色底色；節點與連線顏色在 likec4.config.json。
+   LikeC4 1.59.4 的 customCss 設定在本機試用時無法註冊，所以由 package-redraw.py 在封裝時插入匯出的 HTML。
+   React Flow 在 .react-flow 元素上自己設定背景變數，所以這裡同時覆寫根元素與 .react-flow。 */
+html:root[data-mantine-color-scheme=light],
+html:root[data-mantine-color-scheme=light] .react-flow {
+  --mantine-color-body: #f4f1ec;
+  --xy-background-color: #f4f1ec;
+  --xy-background-pattern-color: #cfc9bf;
+}
+html:root[data-mantine-color-scheme=dark],
+html:root[data-mantine-color-scheme=dark] .react-flow {
+  --mantine-color-body: #182125;
+  --xy-background-color: #182125;
+  --xy-background-pattern-color: #2c3a3f;
+}
+html:root {
+  --likec4-app-font: "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", sans-serif;
+}

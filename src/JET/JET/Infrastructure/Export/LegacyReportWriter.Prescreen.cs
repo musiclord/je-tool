@@ -395,7 +395,7 @@ public sealed partial class LegacyReportWriter
                         PrescreenReportDetailKind.BlankDescription));
                 cells.PatchColumn(3, PrescreenDescriptionColumnWrap);
                 cells.EnsureAllAllowedCellsWereEdited();
-                part.Worksheet.Save();
+                ExcelText.SaveWorksheet(part);
                 ct.ThrowIfCancellationRequested();
             },
             cancellationToken);

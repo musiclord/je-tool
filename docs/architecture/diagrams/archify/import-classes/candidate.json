@@ -1,0 +1,342 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "TB 匯入的類別與介面",
+    "locale": "zh-TW",
+    "output": "archify/import-classes/import-classes.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "dependency": {
+          "label": "依賴：呼叫或建立，線上寫方法"
+        },
+        "realization": {
+          "label": "實作介面"
+        },
+        "inheritance": {
+          "label": "繼承"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "layout": {
+    "mode": "grid",
+    "typeW": 180,
+    "typeMaxW": 280,
+    "gapX": 84,
+    "gapY": 84
+  },
+  "types": [
+    {
+      "id": "tb",
+      "label": "ImportTbFromFileHandler",
+      "kind": "class",
+      "row": 0,
+      "col": 0,
+      "sublabel": "import.tb.fromFile",
+      "attributes": [
+        {
+          "name": "Action = \"import.tb.fromFile\"",
+          "type": "string",
+          "visibility": "public"
+        }
+      ],
+      "width": 330
+    },
+    {
+      "id": "base",
+      "label": "ImportFromFileHandler",
+      "kind": "abstract",
+      "row": 0,
+      "col": 1.5,
+      "sublabel": "GL 與 TB 共用流程",
+      "methods": [
+        {
+          "name": "HandleAsync",
+          "parameters": "JsonElement",
+          "returns": "Task<object?>",
+          "visibility": "public"
+        }
+      ]
+    },
+    {
+      "id": "program",
+      "label": "JetAuditProgram",
+      "kind": "class",
+      "row": 0,
+      "col": 3,
+      "sublabel": "規劃匯入並整理結果",
+      "methods": [
+        {
+          "name": "Plan",
+          "parameters": "IntakeRequest",
+          "returns": "IntakePlan",
+          "visibility": "package",
+          "static": true
+        },
+        {
+          "name": "Finalize",
+          "parameters": "IntakePlan, IntakeFacts",
+          "returns": "IntakeResult",
+          "visibility": "package",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "readerContract",
+      "label": "ITabularFileReader",
+      "kind": "interface",
+      "row": 1,
+      "col": 0,
+      "sublabel": "讀標頭與資料列",
+      "methods": [
+        {
+          "name": "ReadColumnsAsync",
+          "parameters": "TabularSourceRequest",
+          "returns": "Task<IReadOnlyList<string>>",
+          "visibility": "public",
+          "abstract": true
+        },
+        {
+          "name": "ReadRowsAsync",
+          "parameters": "TabularSourceRequest",
+          "returns": "IAsyncEnumerable<StagingRow>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "intakeContract",
+      "label": "IIntakeFactsPort",
+      "kind": "interface",
+      "row": 1,
+      "col": 1,
+      "sublabel": "執行匯入計畫",
+      "methods": [
+        {
+          "name": "ExecuteAsync",
+          "parameters": "IntakePlan, IReadOnlyList<ImportSourceInput>",
+          "returns": "Task<IntakeFacts>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "projectContract",
+      "label": "IProjectStore",
+      "kind": "interface",
+      "row": 1,
+      "col": 3,
+      "sublabel": "案件進度檔",
+      "methods": [
+        {
+          "name": "FindAsync",
+          "parameters": "string",
+          "returns": "Task<ProjectDocument?>",
+          "visibility": "public",
+          "abstract": true
+        },
+        {
+          "name": "SaveAsync",
+          "parameters": "ProjectDocument",
+          "returns": "Task",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "reader",
+      "label": "CompositeTabularFileReader",
+      "kind": "class",
+      "row": 2,
+      "col": 0,
+      "sublabel": "依副檔名交給四種讀取器"
+    },
+    {
+      "id": "intake",
+      "label": "IntakeFactsPort",
+      "kind": "class",
+      "row": 2,
+      "col": 1,
+      "sublabel": "依計畫取代或追加"
+    },
+    {
+      "id": "project",
+      "label": "JsonFileProjectStore",
+      "kind": "class",
+      "row": 2,
+      "col": 3,
+      "sublabel": "project.json"
+    },
+    {
+      "id": "importContract",
+      "label": "IImportRepository",
+      "kind": "interface",
+      "row": 1,
+      "col": 2,
+      "sublabel": "批次與原始列",
+      "methods": [
+        {
+          "name": "GetLatestBatchAsync",
+          "parameters": "string, DatasetKind",
+          "returns": "Task<ImportBatchInfo?>",
+          "visibility": "public",
+          "abstract": true
+        },
+        {
+          "name": "ReplaceBatchAsync",
+          "parameters": "string, DatasetKind, IReadOnlyList<ImportSourceInput>",
+          "returns": "Task<ImportBatchResult>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "localImport",
+      "label": "LocalImportRepository",
+      "kind": "class",
+      "row": 2,
+      "col": 2,
+      "sublabel": "SQLite 與 DuckDB 共用"
+    },
+    {
+      "id": "root",
+      "label": "AppCompositionRoot",
+      "kind": "class",
+      "row": 3,
+      "col": 1.5,
+      "sublabel": "啟動時建立物件",
+      "methods": [
+        {
+          "name": "CreateLocalProjectRepositories",
+          "parameters": "string, ILocalProjectDatabase, ProjectRepositoryAssembly",
+          "returns": "ProjectRepositories",
+          "visibility": "private",
+          "static": true
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "tb_base",
+      "from": "tb",
+      "to": "base",
+      "kind": "inheritance"
+    },
+    {
+      "id": "base_program",
+      "from": "base",
+      "to": "program",
+      "kind": "dependency",
+      "label": "Plan、Finalize"
+    },
+    {
+      "id": "base_reader",
+      "from": "base",
+      "to": "readerContract",
+      "kind": "dependency",
+      "label": "讀標頭與資料列"
+    },
+    {
+      "id": "base_intake",
+      "from": "base",
+      "to": "intakeContract",
+      "kind": "dependency",
+      "label": "ExecuteAsync"
+    },
+    {
+      "id": "base_project",
+      "from": "base",
+      "to": "projectContract",
+      "kind": "dependency",
+      "label": "FindAsync、SaveAsync"
+    },
+    {
+      "id": "base_import",
+      "from": "base",
+      "to": "importContract",
+      "kind": "dependency",
+      "label": "GetLatestBatchAsync"
+    },
+    {
+      "id": "reader_contract",
+      "from": "reader",
+      "to": "readerContract",
+      "kind": "realization"
+    },
+    {
+      "id": "intake_contract",
+      "from": "intake",
+      "to": "intakeContract",
+      "kind": "realization"
+    },
+    {
+      "id": "project_contract",
+      "from": "project",
+      "to": "projectContract",
+      "kind": "realization"
+    },
+    {
+      "id": "intake_import",
+      "from": "intake",
+      "to": "importContract",
+      "kind": "dependency",
+      "label": "ReplaceBatchAsync"
+    },
+    {
+      "id": "local_import",
+      "from": "localImport",
+      "to": "importContract",
+      "kind": "realization"
+    },
+    {
+      "id": "root_local",
+      "from": "root",
+      "to": "localImport",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_intake",
+      "from": "root",
+      "to": "intake",
+      "kind": "dependency",
+      "label": "建立"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "實際執行哪個類別",
+      "items": [
+        "ImportFromFileHandler 的依賴線都指向介面，編譯時只知道呼叫的是介面方法。",
+        "案件用 SQLite 或 DuckDB 時，AppCompositionRoot.CreateLocalProjectRepositories 建立 LocalImportRepository，再交給新建的 IntakeFactsPort；CompositeTabularFileReader 與 JsonFileProjectStore 由 CreateRuntimeCore 建立，不分資料庫。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "這張圖省略了什麼",
+      "items": [
+        "操作紀錄由 CommittedAuditLog.AppendAsync 經 IProjectAuditLog 寫入，本機案件實際是 BestEffortProjectAuditLog 交給 LocalProjectAuditLog；寫入失敗時回應附提醒，見 TB 匯入循序圖。",
+        "CompositeTabularFileReader 內部再交給 OpenXmlSaxTableReader、CsvTableReader、BinaryExcelTableReader 與 AccessTableReader。",
+        "追加匯入時 IntakeFactsPort 呼叫 AppendToBatchAsync；SQL Server 版本不在圖內。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "成員寫法",
+      "items": [
+        "成員只寫參數型別與回傳型別，省略參數名稱、CancellationToken 與有預設值的參數；超過四個參數只列前兩個。package 表示 internal。實作類別不重複列出介面已有的成員。"
+      ]
+    }
+  ]
+}

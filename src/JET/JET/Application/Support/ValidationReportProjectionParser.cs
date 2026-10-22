@@ -47,7 +47,8 @@ internal static class ValidationReportProjectionParser
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
-                "資料驗證結果不完整，請重新執行資料驗證後再產生報告。");
+                "資料驗證結果不完整，請重新執行資料驗證後再產生報告。",
+                innerException: exception);
         }
     }
 

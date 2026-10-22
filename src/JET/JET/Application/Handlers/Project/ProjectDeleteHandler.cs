@@ -1,5 +1,6 @@
 using System.Text.Json;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -16,19 +17,25 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
     private readonly IProjectRegistry registry;
     private readonly CurrentPrincipal principal;
     private readonly ProjectSession session;
+    private readonly ILogger? logger;
+    private readonly ISupportCaseHistory? supportHistory;
 
     internal ProjectDeleteHandler(
         IProjectStore projectStore,
         ProjectRepositoryCatalog repositoryCatalog,
         IProjectRegistry registry,
         CurrentPrincipal principal,
-        ProjectSession session)
+        ProjectSession session,
+        ILogger<ProjectDeleteHandler>? logger = null,
+        ISupportCaseHistory? supportHistory = null)
     {
         this.projectStore = projectStore;
         this.repositoryCatalog = repositoryCatalog;
         this.registry = registry;
         this.principal = principal;
         this.session = session;
+        this.logger = logger;
+        this.supportHistory = supportHistory;
     }
 
     public string Action => "project.delete";
@@ -37,6 +44,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
     {
         var projectId = PayloadReader.GetRequiredString(payload, "projectId");
         ProjectDocument? found;
+        SupportOperationStage.Enter("metadata_read");
         try
         {
             found = await projectStore.FindAsync(projectId, cancellationToken);
@@ -90,6 +98,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
 
         // 本地案件以與 project.load 相同的 OS 檔案鎖做非阻塞試取；SQL Server arm 維持 no-op，
         // 其租約仍只由既有刪案交易處理。Held 時在 artifact／DB／folder 任何變更之前止步。
+        SupportOperationStage.Enter("deletion_lock");
         var deletionLockOutcome = await deletionLockService.TryAcquireAsync(
             projectId,
             principal.Name,
@@ -106,6 +115,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
 
         // 授權通過後才取得案件外的 artifact lease。刪案路徑只排除其他 artifact reader/writer，不先
         // 讀取或復原即將一併刪除的 journal；lease 一路保持到 provider 資料與案件資料夾處理完成。
+        SupportOperationStage.Enter("report_lease");
         await using var artifactDeletionLease = await reportArtifactStore.AcquireProjectDeletionLeaseAsync(
             projectId,
             cancellationToken);
@@ -118,22 +128,28 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         var databaseDeleted = false;
         try
         {
+            SupportOperationStage.Enter("database_delete");
             await databaseDeleter.DeleteAsync(projectId, cancellationToken);
             databaseDeleted = true;
 
             // 2) 刪整個案件資料夾，包含報告、工作底稿及其他檔案。DB 刪除交易已 commit 時，
             // folder-cleanup 失敗只回 message，不把已成功的硬刪誤報為失敗。
+            SupportOperationStage.Enter("folder_delete");
             try
             {
+                // 支援紀錄跟著案件資料夾刪除（使用者 2026-10-21 裁定保留到刪除案件）。先停止寫入這個案件，
+                // 紀錄檔不會在刪除時被占用；之後這個案件的事件只留在記憶體。
+                if (supportHistory is not null) await supportHistory.ForgetAsync(projectId, CancellationToken.None);
                 await projectStore.DeleteAsync(projectId, cancellationToken);
             }
             catch (OperationCanceledException)
             {
                 throw;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // 使用者 2026-10-13 勾選頁確認的句子。
+                // 使用者 2026-10-13 勾選頁確認的句子。支援日誌記下刪不掉的原因，例如檔案正被開啟（2026-10-21）。
+                if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "folder_delete", exception);
                 cleanupMessage = "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。";
             }
         }

@@ -112,12 +112,16 @@ public sealed class SqlServerDataPreviewRepositoryTests
             result.Columns);
         Assert.Equal(2, result.TotalCount);
         var row = Assert.Single(result.Rows);
+        // 使用者 2026-10-21 裁定日期不符分成三種原因：總帳日期空白的列讀成 blankPostDate，兩個計數改成四個。
+        // SQL Server 開發暫緩，這次只改不執行；改名前的建置失敗收據 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
         Assert.Equal(
-            ["JV-300", "1", null, "POSTED", "5200", "一般費用", "期外", "10", "DEBIT", "period"],
+            ["JV-300", "1", null, "POSTED", "5200", "一般費用", "期外", "10", "DEBIT", "blankPostDate"],
             row);
         var stats = Assert.IsType<GlExcludedPreviewStats>(result.Stats);
-        Assert.Equal(1, stats.ExcludedByPeriodCount);
-        Assert.Equal(1, stats.ExcludedByPostingStatusCount);
+        Assert.Equal(1, stats.BlankPostDateCount);
+        Assert.Equal(0, stats.BeforePeriodCount);
+        Assert.Equal(0, stats.AfterPeriodCount);
+        Assert.Equal(1, stats.PostingStatusCount);
     }
 
     [SqlServerFact]
@@ -137,9 +141,12 @@ public sealed class SqlServerDataPreviewRepositoryTests
         Assert.Equal(10, result.Columns.Count);
         Assert.Empty(result.Rows);
         Assert.Equal(0, result.TotalCount);
+        // 使用者 2026-10-21 裁定日期不符分成三種原因，兩個計數改成四個；SQL Server 開發暫緩，這次只改不執行。
         var stats = Assert.IsType<GlExcludedPreviewStats>(result.Stats);
-        Assert.Equal(0, stats.ExcludedByPeriodCount);
-        Assert.Equal(0, stats.ExcludedByPostingStatusCount);
+        Assert.Equal(0, stats.BlankPostDateCount);
+        Assert.Equal(0, stats.BeforePeriodCount);
+        Assert.Equal(0, stats.AfterPeriodCount);
+        Assert.Equal(0, stats.PostingStatusCount);
     }
 
     [SqlServerFact]
@@ -289,7 +296,7 @@ public sealed class SqlServerDataPreviewRepositoryTests
                  '1101', N'現金', N'借方', 123456, 123456, 0, 'DEBIT', 1),
                 ('gl-target', 3, 'JV-200', '1', '2024-01-31', 'POSTED', 1, NULL,
                  '4101', N'銷貨', N'貸方', -2500, 0, 2500, 'CREDIT', 0),
-                ('gl-target', 4, 'JV-300', '1', NULL, 'POSTED', 0, 'period',
+                ('gl-target', 4, 'JV-300', '1', NULL, 'POSTED', 0, 'blank_post_date',
                  '5200', N'一般費用', N'期外', 1000, 1000, 0, 'DEBIT', NULL),
                 ('gl-target', 5, 'JV-400', '1', '2024-02-01', 'DRAFT', 0, 'posting_status',
                  '6100', N'其他費用', N'未過帳', -750, 0, 750, 'CREDIT', NULL);

@@ -9,23 +9,28 @@ internal enum GlEffectivePopulationDisposition
     ExcludedByPostingStatus
 }
 
-internal readonly record struct GlEffectivePopulationClassification(
-    GlEffectivePopulationDisposition Disposition)
+/// <summary>
+/// 一列 GL 的分類：<see cref="Reason"/> 是 null 表示列入 GL，否則是未納入原因。
+/// GL 範圍、控制總數與驗證摘要只看由原因推出的 <see cref="Disposition"/>；日期不符的三種原因合計就是日期不符
+/// （使用者 2026-10-21 裁定分開標示）。
+/// </summary>
+internal readonly record struct GlEffectivePopulationClassification(GlExclusionReason? Reason)
 {
-    internal bool IsEffective => Disposition == GlEffectivePopulationDisposition.Effective;
+    internal static GlEffectivePopulationClassification Effective => default;
 
-    internal string? StorageReason => Disposition switch
+    internal GlEffectivePopulationDisposition Disposition => Reason switch
     {
-        GlEffectivePopulationDisposition.Effective => null,
-        GlEffectivePopulationDisposition.ExcludedByPeriod =>
-            GlEffectivePopulation.PeriodStorageReason,
-        GlEffectivePopulationDisposition.ExcludedByPostingStatus =>
-            GlEffectivePopulation.PostingStatusStorageReason,
-        _ => throw new ArgumentOutOfRangeException(
-            nameof(Disposition),
-            Disposition,
+        null => GlEffectivePopulationDisposition.Effective,
+        GlExclusionReason.BlankPostDate or GlExclusionReason.BeforePeriod or GlExclusionReason.AfterPeriod =>
+            GlEffectivePopulationDisposition.ExcludedByPeriod,
+        GlExclusionReason.PostingStatus => GlEffectivePopulationDisposition.ExcludedByPostingStatus,
+        _ => throw new InvalidOperationException(
             "未知的 GL 分類：每一列只能列入 GL 或 GL(未納入測試)。")
     };
+
+    internal bool IsEffective => Reason is null;
+
+    internal string? StorageReason => Reason is { } reason ? GlEffectivePopulation.StorageReasonOf(reason) : null;
 }
 
 /// <summary>投影熱路徑重用的 posting-status matcher；建構一次，逐列 O(1) 查找。</summary>
@@ -53,8 +58,31 @@ internal sealed class GlEffectivePopulationMatcher
 /// </summary>
 internal static class GlEffectivePopulation
 {
-    internal const string PeriodStorageReason = "period";
+    internal const string BlankPostDateStorageReason = "blank_post_date";
+    internal const string BeforePeriodStorageReason = "before_period";
+    internal const string AfterPeriodStorageReason = "after_period";
     internal const string PostingStatusStorageReason = "posting_status";
+
+    /// <summary><c>target_gl_entry.exclusion_reason</c> 的儲存值；四種原因各一個，列入 GL 的列存 NULL。</summary>
+    internal static string StorageReasonOf(GlExclusionReason reason) => reason switch
+    {
+        GlExclusionReason.BlankPostDate => BlankPostDateStorageReason,
+        GlExclusionReason.BeforePeriod => BeforePeriodStorageReason,
+        GlExclusionReason.AfterPeriod => AfterPeriodStorageReason,
+        GlExclusionReason.PostingStatus => PostingStatusStorageReason,
+        _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "未知的 GL 未納入原因。")
+    };
+
+    /// <summary>讀回儲存值；不是四種之一就是資料庫被改壞，直接丟出，不猜測原因。</summary>
+    internal static GlExclusionReason ReasonOfStorage(string? storageReason) => storageReason switch
+    {
+        BlankPostDateStorageReason => GlExclusionReason.BlankPostDate,
+        BeforePeriodStorageReason => GlExclusionReason.BeforePeriod,
+        AfterPeriodStorageReason => GlExclusionReason.AfterPeriod,
+        PostingStatusStorageReason => GlExclusionReason.PostingStatus,
+        _ => throw new InvalidOperationException(
+            $"未知的 GL 排除原因 storage token '{storageReason ?? "<null>"}'。")
+    };
 
     /// <summary>
     /// 下游查詢共用的唯一有效母體 SQL 述詞。Alias 只接受呼叫端持有的 bare table alias。
@@ -123,7 +151,7 @@ internal static class GlEffectivePopulation
     }
 
     /// <summary>
-    /// 先判斷空白／期外過帳日，再判斷過帳狀態，確保每列只落入一個 disposition。
+    /// 先判斷總帳日期空白、早於查核起日或晚於查核迄日，再判斷過帳狀態，確保每列只落入一個 disposition。
     /// 日期邊界為閉區間；未配對過帳狀態欄位時，期內列一律有效。
     /// </summary>
     internal static GlEffectivePopulationClassification Classify(
@@ -187,16 +215,24 @@ internal static class GlEffectivePopulation
                 nameof(matcher));
         }
 
-        if (postDate is null || postDate.Value < periodStart || postDate.Value > periodEnd)
+        if (postDate is null)
         {
-            return new GlEffectivePopulationClassification(
-                GlEffectivePopulationDisposition.ExcludedByPeriod);
+            return new GlEffectivePopulationClassification(GlExclusionReason.BlankPostDate);
+        }
+
+        if (postDate.Value < periodStart)
+        {
+            return new GlEffectivePopulationClassification(GlExclusionReason.BeforePeriod);
+        }
+
+        if (postDate.Value > periodEnd)
+        {
+            return new GlEffectivePopulationClassification(GlExclusionReason.AfterPeriod);
         }
 
         if (!postingStatusMapped)
         {
-            return new GlEffectivePopulationClassification(
-                GlEffectivePopulationDisposition.Effective);
+            return GlEffectivePopulationClassification.Effective;
         }
 
         var normalizedStatus = rawPostingStatus?.Trim() ?? string.Empty;
@@ -204,9 +240,8 @@ internal static class GlEffectivePopulation
             ? matcher!.IncludeBlank
             : matcher!.Accepts(normalizedStatus);
 
-        return new GlEffectivePopulationClassification(
-            accepted
-                ? GlEffectivePopulationDisposition.Effective
-                : GlEffectivePopulationDisposition.ExcludedByPostingStatus);
+        return accepted
+            ? GlEffectivePopulationClassification.Effective
+            : new GlEffectivePopulationClassification(GlExclusionReason.PostingStatus);
     }
 }

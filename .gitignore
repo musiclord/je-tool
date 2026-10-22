@@ -45,6 +45,10 @@ packages/
 project.lock.json
 .dotnet/
 
+# Python bytecode written when harness scripts run.
+__pycache__/
+*.py[cod]
+
 # ===== JET runtime data =====
 projects/
 *.db

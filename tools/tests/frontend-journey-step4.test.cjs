@@ -411,9 +411,16 @@ test('journey 7: with no blank GL dates the item reads as nothing found and has 
   assert.ok(item.querySelector('.rule-detail') === null, 'no detail table');
 });
 
-test('journey 7: entries left out of the test are their own preview dataset and their reasons read as dates or posting status, not keys', async () => {
+// 使用者 2026-10-21 裁定 GL(未納入測試) 的「日期不符」分成三種原因，選項原文：「分別標成「總帳日期空白」「早於查核期間」「晚於查核期間」
+// 並各自計數，資料預覽可只看其中一種。GL 範圍與審計結果都不變。」（現行計畫「總帳日期在期末之後的分錄」一節）。
+// 這個測試原本斷言改版前的 period 讀成日期不符與兩個計數，依這個裁定改成四種原因、四個計數與依原因篩選；
+// 改之前的第一次失敗收據記在計畫。
+test('journey 7: entries left out of the test are their own preview dataset, each reason has its own count, and one reason can be viewed alone', async () => {
   const f = await openStep4({ validation: validationResult() });
   const aside = f.dom.content.querySelector('[data-bind="data-preview"]');
+  const filterRow = aside.querySelector('[data-bind="data-preview-filter"]');
+  assert.ok(filterRow !== null, 'reason filter row is part of the panel markup');
+  assert.equal(filterRow.hidden, true, 'no reason filter while PBC-GL is shown');
   aside.querySelector('[data-more-toggle]').dispatch('click');
   const menuItem = aside.querySelector('[data-ds="glExcluded"]');
   assert.ok(menuItem !== null, 'GL(未納入測試) offered under other data');
@@ -425,17 +432,74 @@ test('journey 7: entries left out of the test are their own preview dataset and 
   const added = f.requests.slice(before);
   assert.deepEqual(added.map(r => r.action), ['queryDataPreview']);
   assert.deepEqual(plain(added[0].payload), { dataset: 'glExcluded', limit: 200, offset: 0 });
-  added[0].resolve({ columns: ['documentNumber', 'exclusionReason'], rows: [['JV-21', 'period'], ['JV-22', 'postingStatus']], totalCount: 2,
-    stats: { excludedByPeriodCount: 15, excludedByPostingStatusCount: 5 } });
+  assert.equal(filterRow.hidden, false, 'reason filter offered for GL(未納入測試)');
+  const select = filterRow.querySelector('select');
+  assert.ok(select !== null, 'reason filter is a select');
+  // 三種日期原因逐字照選項原文；「全部」表示不篩選。
+  assert.deepEqual(select.querySelectorAll('option').map(option => option.textContent),
+    ['全部', '總帳日期空白', '早於查核期間', '晚於查核期間', '過帳狀態不符']);
+  assert.equal(select.value, '');
+
+  // 第一頁還沒回來就改看晚於查核期間：晚到的全部原因那一頁不能蓋掉篩選後的結果。
+  select.value = 'afterPeriod'; select.dispatch('change');
+  const filtered = f.requests.slice(before + 1);
+  assert.deepEqual(filtered.map(r => r.action), ['queryDataPreview']);
+  assert.deepEqual(plain(filtered[0].payload), { dataset: 'glExcluded', limit: 200, offset: 0, exclusionReason: 'afterPeriod' });
+  const stats = { blankPostDateCount: 3, beforePeriodCount: 5, afterPeriodCount: 207, postingStatusCount: 11 };
+  added[0].resolve({ columns: ['documentNumber', 'exclusionReason'],
+    rows: [['JV-21', 'blankPostDate'], ['JV-22', 'beforePeriod'], ['JV-23', 'afterPeriod'], ['JV-24', 'postingStatus']],
+    totalCount: 226, stats });
   await flush();
   const body = aside.querySelector('[data-bind="data-preview-body"]');
-  const reasons = body.querySelectorAll('tbody tr').map(tr => tr.querySelectorAll('td')[1].textContent);
-  // 原因只比對意思（找不到使用者逐字裁定）：period 讀成日期不符、postingStatus 讀成過帳狀態不符，不顯示 wire 值。
-  assert.match(reasons[0], /日期/); assert.doesNotMatch(reasons[0], /period/);
-  assert.match(reasons[1], /過帳狀態/); assert.doesNotMatch(reasons[1], /postingStatus/);
-  // 註記照後端的兩個計數寫出筆數，不在畫面相加或相減。
-  const note = aside.querySelector('.data-preview__note').textContent;
-  assert.match(note, /日期[^｜]*15/); assert.match(note, /過帳狀態[^｜]*5/);
+  const reasons = () => body.querySelectorAll('tbody tr').map(tr => tr.querySelectorAll('td')[1].textContent);
+  assert.deepEqual(reasons(), [], 'the late unfiltered page is not shown');
+  filtered[0].resolve({ columns: ['documentNumber', 'exclusionReason'], rows: [['JV-23', 'afterPeriod']], totalCount: 207, stats });
+  await flush();
+  assert.deepEqual(reasons(), ['晚於查核期間']);
+  // 註記照後端的四個計數寫出筆數，不在畫面相加或相減；篩選時四個計數仍是全部未納入測試的分錄，總筆數是這種原因的筆數。
+  const note = () => aside.querySelector('.data-preview__note').textContent;
+  assert.match(note(), /總帳日期空白 3 筆/); assert.match(note(), /早於查核期間 5 筆/);
+  assert.match(note(), /晚於查核期間 207 筆/); assert.match(note(), /過帳狀態不符 11 筆/);
+  assert.doesNotMatch(note(), /日期不符/);
+  assert.match(note(), /共 207 筆/);
+
+  // 換頁仍只看同一種原因；續頁不回總筆數與計數，沿用第一頁的。
+  const beforeNext = f.requests.length;
+  aside.querySelector('[data-page-next]').dispatch('click');
+  const next = f.requests.slice(beforeNext);
+  assert.deepEqual(next.map(r => r.action), ['queryDataPreview']);
+  assert.deepEqual(plain(next[0].payload), { dataset: 'glExcluded', limit: 200, offset: 200, exclusionReason: 'afterPeriod' });
+  next[0].resolve({ columns: ['documentNumber', 'exclusionReason'], rows: [['JV-99', 'afterPeriod']], totalCount: null, stats: null });
+  await flush();
+  assert.equal(aside.querySelector('[data-page-position]').textContent, '2/2');
+  assert.match(note(), /晚於查核期間 207 筆/); assert.match(note(), /共 207 筆/);
+
+  // 改回全部：不帶原因，從第一頁讀。
+  const beforeAll = f.requests.length;
+  select.value = ''; select.dispatch('change');
+  const all = f.requests.slice(beforeAll);
+  assert.deepEqual(all.map(r => r.action), ['queryDataPreview']);
+  assert.deepEqual(plain(all[0].payload), { dataset: 'glExcluded', limit: 200, offset: 0 });
+  all[0].resolve({ columns: ['documentNumber', 'exclusionReason'],
+    rows: [['JV-21', 'blankPostDate'], ['JV-22', 'beforePeriod'], ['JV-23', 'afterPeriod'], ['JV-24', 'postingStatus']],
+    totalCount: 226, stats });
+  await flush();
+  assert.deepEqual(reasons(), ['總帳日期空白', '早於查核期間', '晚於查核期間', '過帳狀態不符']);
+
+  // 換到 GL 時收起篩選，請求不帶原因；再回到 GL(未納入測試) 從全部開始。
+  select.value = 'beforePeriod'; select.dispatch('change');
+  for (const r of f.pending('queryDataPreview').slice(-1)) r.resolve({ columns: ['documentNumber', 'exclusionReason'], rows: [['JV-22', 'beforePeriod']], totalCount: 5, stats });
+  await flush();
+  const beforeGl = f.requests.length;
+  aside.querySelector('[data-ds="gl"]').dispatch('click');
+  assert.deepEqual(plain(f.requests.slice(beforeGl)[0].payload), { dataset: 'gl', limit: 200, offset: 0 });
+  assert.equal(filterRow.hidden, true, 'no reason filter on GL');
+  const beforeBack = f.requests.length;
+  aside.querySelector('[data-more-toggle]').dispatch('click');
+  aside.querySelector('[data-ds="glExcluded"]').dispatch('click');
+  assert.deepEqual(plain(f.requests.slice(beforeBack)[0].payload), { dataset: 'glExcluded', limit: 200, offset: 0 });
+  assert.equal(filterRow.hidden, false);
+  assert.equal(select.value, '');
 });
 
 test('journey 7: the sampled entries table takes its columns from the backend and reads RDE amounts from customValues', async () => {

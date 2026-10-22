@@ -52,6 +52,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
         var artifactStore = repositories.ReportArtifactStore;
         var mappingStore = repositories.MappingStates;
         var accountTaxonomyStore = repositories.AccountTaxonomy;
+        SupportOperationStage.Enter("run_read");
         var validationRun = await CompletenessEligibilitySupport.RequireCurrentAsync(
             runStore,
             projectId,
@@ -60,6 +61,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
         var progressSession = new ExportProgressSession(eventPublisher, cancellationToken);
         var artifactProgress = progressSession.Start(ReportArtifactKind.WorkingPaper);
 
+        SupportOperationStage.Enter("scenario_read");
         var latestPrescreen = await runStore.FindLatestAsync(
             projectId,
             RuleRunKinds.Prescreen,
@@ -85,10 +87,12 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             artifactStore,
             cancellationToken,
             filterDataRevision);
+        SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         // 本次只重算使用者選定的情境；未選情境仍保存，且不因此取得「全案已更新」狀態。
+        SupportOperationStage.Enter("filter_materialize");
         await materializeService.MaterializeSelectedAsync(projectId, document, scenarios, selectedPositions, cancellationToken);
         var filterResultsCurrent = !(await resultStaleStateStore.ReadAsync(projectId, cancellationToken)).Filter;
 
@@ -100,6 +104,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
         IReadOnlyDictionary<string, string>? conditionCategoryLabels = null;
         IReadOnlyDictionary<string, string>? conditionFieldLabels = null;
         IReadOnlyList<AccountTaxonomyCategory>? conditionCategories = null;
+        SupportOperationStage.Enter("condition_render");
         foreach (var scenario in selectedScenarios)
         {
             using var definition = JsonDocument.Parse(scenario.DefinitionJson);
@@ -135,6 +140,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
             ScenarioPositions: selectedPositions,
             PopulationScope: filterRevision.PopulationScope);
 
+        SupportOperationStage.Enter("report_plan");
         var workbookMetadata = await ReportWorkbookMetadataFactory.LoadAsync(
             projectId,
             document,
@@ -205,6 +211,7 @@ public sealed class ExportWorkpaperStreamHandler : IApplicationActionHandler
                 : await artifactStore.WriteAsync(projectId, request, cancellationToken);
         }
 
+        SupportOperationStage.Enter("catalog_refresh");
         var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportArtifactStore);
         return new

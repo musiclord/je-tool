@@ -76,7 +76,8 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                "無法讀取欄位配對報告；檔案可能損壞、被鎖定或不是有效的 xlsx。");
+                "無法讀取欄位配對報告；檔案可能損壞、被鎖定或不是有效的 xlsx。",
+                innerException: ex);
         }
     }
 
@@ -110,9 +111,10 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
             return null;
         }
 
+        // JET 寫出與 Excel 另存的文字都用 _xHHHH_ 跳脫格式，讀回時還原，配對資訊裡的欄名才與匯入的欄名相同。
         if (cell.DataType?.Value == CellValues.InlineString)
         {
-            return cell.InlineString?.InnerText;
+            return cell.InlineString?.InnerText is { } inline ? ExcelText.Decode(inline) : null;
         }
 
         var raw = cell.CellValue?.InnerText;
@@ -120,7 +122,9 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
             && int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var index))
         {
             return workbookPart.SharedStringTablePart?.SharedStringTable
-                .Elements<SharedStringItem>().ElementAtOrDefault(index)?.InnerText;
+                .Elements<SharedStringItem>().ElementAtOrDefault(index)?.InnerText is { } shared
+                ? ExcelText.Decode(shared)
+                : null;
         }
 
         return raw;

@@ -96,7 +96,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
                 if (parsed is null || parsed.QueryRevision != queryRevision || parsed.DocumentNumber != documentNumber) throw Stale();
                 key = parsed.Key;
             }
-            catch (JsonException) { throw Stale(); }
+            catch (JsonException exception) { throw Stale(exception); }
         }
         // 傳票摘要頁可排序、可依傳票號碼查看；展開分錄頁固定依分錄順序，不吃 sort 與 search。
         var catalog = ResultPageSorting.FilterVoucher;
@@ -161,5 +161,6 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
     }
 
     private sealed record VoucherCursor(string QueryRevision, string? DocumentNumber, string Key);
-    private static JetActionException Stale() => new(JetErrorCodes.StaleResult, "資料或條件已改變，請重新預覽再查看傳票。");
+    private static JetActionException Stale(Exception? innerException = null) =>
+        new(JetErrorCodes.StaleResult, "資料或條件已改變，請重新預覽再查看傳票。", innerException: innerException);
 }

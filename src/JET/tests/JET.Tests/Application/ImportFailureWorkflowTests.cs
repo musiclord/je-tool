@@ -94,9 +94,14 @@ public sealed class ImportFailureWorkflowTests
             var log = string.Join('\n', lines);
             Assert.DoesNotContain("PRIVATE_", log);
             Assert.DoesNotContain(host.ProjectsRoot, log);
+            // 原本取消也記成 action.error。2026-10-21 補足支援日誌時把取消另記成 action.cancelled，不佔失敗的保留名額；
+            // 匯入階段、原因與回復結果的斷言不變。第一次失敗收據：20261021-102227415-b178106f4d7f43cb902a4a7c246f3c6d。
+            var expectedEvent = trigger == "cancel" ? "action.cancelled" : "action.error";
             var entryLog = lines.Select(line => JsonDocument.Parse(line).RootElement.Clone())
-                .Single(entry => entry.GetProperty("eventName").GetString() == "action.error");
+                .Single(entry => entry.GetProperty("eventName").GetString() == expectedEvent);
             var fields = entryLog.GetProperty("fields");
+            // 進度通知丟出的取消例外不是使用者要求的取消。
+            if (trigger == "cancel") Assert.False(fields.GetProperty("cancellation_requested").GetBoolean());
             Assert.Equal(stage, fields.GetProperty("import_stage").GetString());
             Assert.Equal(cause, fields.GetProperty("failure_cause").GetString());
             Assert.NotEqual("inspect_error_code_and_stack", fields.GetProperty("recovery_action").GetString());

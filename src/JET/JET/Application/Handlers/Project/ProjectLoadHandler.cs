@@ -15,6 +15,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
     private readonly ProjectSession session;
     private readonly IProjectDatabaseRetention? databaseRetention;
     private readonly ILogger? logger;
+    private readonly ISupportCaseHistory? supportHistory;
 
     internal ProjectLoadHandler(
         IProjectStore projectStore,
@@ -24,9 +25,11 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         CurrentPrincipal principal,
         ProjectSession session,
         IProjectDatabaseRetention? databaseRetention = null,
-        ILogger<ProjectLoadHandler>? logger = null)
+        ILogger<ProjectLoadHandler>? logger = null,
+        ISupportCaseHistory? supportHistory = null)
     {
         this.logger = logger;
+        this.supportHistory = supportHistory;
         this.projectStore = projectStore;
         this.repositoryCatalog = repositoryCatalog;
         this.registry = registry;
@@ -41,6 +44,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var projectId = PayloadReader.GetRequiredString(payload, "projectId");
+        SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken);
         var materializedFromServer = false;
 
@@ -77,6 +81,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
 
         // 授權通過後、進入 session 前取工作鎖。sqlServer 走租約表，本地走跨程序檔案鎖。
         // Held → project_locked；不設 session、不進 workflow、不戳 last_opened。
+        SupportOperationStage.Enter("lock_acquire");
         var lockOutcome = await lockService.AcquireAsync(document.ProjectId, principal.Name, cancellationToken);
         if (lockOutcome is LockOutcome.Held held)
         {
@@ -94,11 +99,13 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
 
             // 載入時完整檢查一次建表與升版；之後同一程序內的讀寫只確認檔案仍在。
             // 程式開著時用備份覆蓋已關閉的案件，這裡會重新升版。
+            SupportOperationStage.Enter("database_open");
             await repositories.DatabaseInitializer.EnsureCreatedAsync(document.ProjectId, cancellationToken);
 
             // 心跳間隔（供前端計時器；伺服器驅動）：sqlServer 讀 app_config、缺鍵/失敗回程式常數；本地回預設。
             var heartbeatSeconds = await ResolveHeartbeatSecondsAsync(document, cancellationToken);
 
+            SupportOperationStage.Enter("state_read");
             var glBatch = await repositories.Imports.GetLatestBatchAsync(document.ProjectId, DatasetKind.Gl, cancellationToken);
             var tbBatch = await repositories.Imports.GetLatestBatchAsync(document.ProjectId, DatasetKind.Tb, cancellationToken);
             var accountMappingState = await repositories.AccountMappings.FindStateAsync(document.ProjectId, cancellationToken);
@@ -125,6 +132,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             // 定義與名稱不變，只更新版本與母體欄位並換新保存時間，舊命中在同一交易清除，
             // 下面依新 revision 標記過期的步驟就會把依舊規則產生的報告與底稿標成過期。
             // 改版寫在戳記上次開啟時間之前；之後載入失敗時改版仍保留，重做的結果相同。
+            SupportOperationStage.Enter("scenario_check");
             var scenarioUpgrade = await EvaluateScenarioUpgradeAsync(
                 document, repositories, savedScenarios, glMapping, accountMappingState, taxonomy, cancellationToken);
             // 損毀的條件在清單上只寫「條件內容無法讀取」，哪一條、哪一種記進支援日誌。
@@ -152,6 +160,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             }
             var filterPositions = currentResults.ScenarioPositions;
 
+            SupportOperationStage.Enter("report_state");
             await reportArtifactStore.MarkStaleAsync(
                 document.ProjectId,
                 artifact => ReportExportSupport.IsSourceStale(
@@ -301,6 +310,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             // response 已完整物化後才發布兩個可見副作用。SaveAsync 是 LastOpened 的 commit point；其後不再
             // 使用 caller cancellation，避免已戳記卻因後置 best-effort 工作取消而回報載入失敗。
             var openedDocument = document with { LastOpenedUtc = DateTimeOffset.UtcNow };
+            SupportOperationStage.Enter("metadata_save");
             await projectStore.SaveAsync(openedDocument, cancellationToken);
 
             if (document.DatabaseProvider == ProjectDocument.SqlServerDatabaseProvider)
@@ -316,6 +326,9 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             }
 
             session.Enter(document.ProjectId, repositories);
+            // 持有工作鎖時才建立案件的支援紀錄資料夾，並記下這次開啟。
+            SupportCaseDiagnostics.CaseOpened(
+                supportHistory, logger, document.ProjectId, document.DatabaseProvider, createdNow: false);
             return response;
         }
         catch
@@ -327,9 +340,11 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                     await lockService.ReleaseAsync(document.ProjectId, principal.Name, CancellationToken.None);
                 }
             }
-            catch (Exception)
+            catch (Exception releaseError)
             {
-                // 補償失敗不得遮蔽原始 resume／LastOpened 失敗。
+                // 補償失敗不得遮蔽原始 resume／LastOpened 失敗。工作鎖沒放掉時，下次開案可能顯示已被開啟，
+                // 支援日誌另記一筆（2026-10-21）。
+                if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "lock_release", releaseError);
             }
 
             throw;
@@ -448,11 +463,12 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         {
             await projectStore.CreateAsync(registered.Document, cancellationToken);
         }
-        catch (ProjectStoreCollisionException)
+        catch (ProjectStoreCollisionException exception)
         {
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
-                SqlServerMessages.LocalCaseWithSameName(projectId));
+                SqlServerMessages.LocalCaseWithSameName(projectId),
+                innerException: exception);
         }
 
         return registered.Document;

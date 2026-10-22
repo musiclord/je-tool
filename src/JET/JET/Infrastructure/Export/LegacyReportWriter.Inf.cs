@@ -359,7 +359,7 @@ public sealed partial class LegacyReportWriter
 
         // The fixed template clips T51 when rendered; reuse the proven M width.
         SetExactColumnWidth(part.Worksheet, 20, 22.453125D);
-        part.Worksheet.Save();
+        ExcelText.SaveWorksheet(part);
     }
 
     private static IReadOnlySet<uint> InfTextColumns(

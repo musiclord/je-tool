@@ -1,0 +1,42 @@
+/* JET 圖表頁的 Archify 配色：沿用 editorial 預設風格的版面與元件，只換顏色變數與標題字型，
+   讓圖面和入口頁同一組淺色與深色。顏色語意與 LikeC4 一致：
+   石墨是元件與類別、鋼藍是資料庫與介面呼叫的虛線、青銅是畫面與介面型別、琥珀是間接觸發、暖灰是外部與回傳。 */
+html:root[data-preset="editorial"][data-theme="light"] {
+  --bg: #eae5e1; --grid: #ddd7ce; --canvas-dot: #d3cdc4;
+  --panel: rgba(244, 241, 236, 0.97); --panel-border: #cdc7bd;
+  --lane-fill: rgba(227, 222, 215, 0.45); --lane-stroke: #b9b3a8;
+  --text: #0f1110; --text-muted: #5f5d56; --text-dim: #9b978e; --text-faint: #6b6961; --mask: #f4f1ec;
+  --frontend-fill: rgba(138, 106, 62, 0.08); --frontend-stroke: #8a6a3e;
+  --backend-fill: rgba(74, 72, 67, 0.06); --backend-stroke: #4a4843;
+  --database-fill: rgba(63, 108, 140, 0.08); --database-stroke: #3f6c8c;
+  --cloud-fill: rgba(185, 119, 46, 0.09); --cloud-stroke: #b9772e;
+  --security-fill: rgba(168, 71, 58, 0.08); --security-stroke: #a8473a;
+  --messagebus-fill: rgba(176, 101, 42, 0.08); --messagebus-stroke: #b0652a;
+  --external-fill: rgba(119, 117, 109, 0.08); --external-stroke: #77756d;
+  --arrow: #77756d; --arrow-emphasis: #b9772e;
+  --toolbar-bg: rgba(244, 241, 237, 0.94); --toolbar-border: #cdc7bd; --toolbar-text: #2c2b27;
+  --toolbar-hover: #fbf9f6; --toolbar-menu-bg: #f4f1ed;
+}
+html:root[data-preset="editorial"][data-theme="dark"] {
+  --bg: #11181b; --grid: #1f2a2e; --canvas-dot: #26333a;
+  --panel: rgba(24, 33, 37, 0.96); --panel-border: #2f3d43;
+  --lane-fill: rgba(30, 40, 45, 0.45); --lane-stroke: #435257;
+  --text: #e0e3dc; --text-muted: #a6b0b1; --text-dim: #5d6b70; --text-faint: #8a9597; --mask: #182125;
+  --frontend-fill: rgba(207, 168, 116, 0.08); --frontend-stroke: #cfa874;
+  --backend-fill: rgba(185, 188, 182, 0.07); --backend-stroke: #b9bcb6;
+  --database-fill: rgba(127, 176, 212, 0.08); --database-stroke: #7fb0d4;
+  --cloud-fill: rgba(216, 165, 101, 0.08); --cloud-stroke: #d8a565;
+  --security-fill: rgba(224, 138, 122, 0.08); --security-stroke: #e08a7a;
+  --messagebus-fill: rgba(217, 154, 91, 0.08); --messagebus-stroke: #d99a5b;
+  --external-fill: rgba(152, 163, 164, 0.08); --external-stroke: #98a3a4;
+  --arrow: #8a9597; --arrow-emphasis: #d8a565;
+  --toolbar-bg: rgba(21, 30, 34, 0.92); --toolbar-border: #2f3d43; --toolbar-text: #e0e3dc;
+  --toolbar-hover: #1b262a; --toolbar-menu-bg: #182125;
+}
+html:root[data-preset="editorial"] h1,
+html:root[data-preset="editorial"] .card h3 {
+  font-family: Bahnschrift, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", sans-serif;
+  letter-spacing: 0.02em;
+}
+html:root[data-preset="editorial"] .header-row::after { display: none; }
+html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-shadow: none; }

@@ -130,17 +130,20 @@
   var TABLE_PAGE_SIZE = 200;
   var REPORT_HISTORY_PAGE_SIZE = 50;
 
+  // 金額方式名稱不用「＋」連接，免得被讀成相加（使用者 2026-10-21）：TB 沿用 legacy 的按鈕名稱，GL 只有雙欄方式改用 legacy 名稱。
+  // note 是選取後顯示的計算說明，只給要相減或依正負號判斷的方式；直接取用一欄的方式沒有說明。
   var GL_MODES = [
-    { value: 'dual', label: '借方欄＋貸方欄' },
-    { value: 'signed', label: '單一帶號金額欄' },
-    { value: 'side', label: '金額與借貸別' }
+    { value: 'dual', label: '分別設定借貸金額', note: '配對借方與貸方金額欄位後，以借方減去貸方，計算金額。' },
+    { value: 'signed', label: '單一帶號金額欄', note: '配對金額欄位後，正數視為借方，負數視為貸方。' },
+    { value: 'side', label: '金額與借貸別', note: '配對金額與借貸別欄位後，依借貸別決定正負號，借方為正數，貸方為負數。' }
   ];
 
   var TB_MODES = [
-    { value: 'debitCredit', label: '借方欄−貸方欄' },
-    { value: 'direct', label: '直接變動金額欄' },
-    { value: 'openClose', label: '期初＋期末餘額' },
-    { value: 'openCloseBySide', label: '期初借貸＋期末借貸' }
+    { value: 'debitCredit', label: '設定借方與貸方金額', note: '配對借方與貸方金額欄位後，以借方減去貸方，計算本期變動金額。' },
+    { value: 'direct', label: '設定年度變動金額' },
+    { value: 'openClose', label: '設定期初與期末金額', note: '配對期初與期末金額欄位後，以期末減去期初，計算本期變動金額。' },
+    { value: 'openCloseBySide', label: '設定借方貸方之期初期末金額',
+      note: '配對期初與期末的借方、貸方金額欄位後，各以借方減去貸方，再以期末減去期初，計算本期變動金額。' }
   ];
 
   // 進階篩選的條件型別。label 逐鍵鏡像 Domain FilterConditionLabels.RuleTypes；

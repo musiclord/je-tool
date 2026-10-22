@@ -992,9 +992,29 @@
     return draftKeys.every(function (k) { return mappingState.draft[k] === committed.mapping[k]; });
   }
 
+  function selectedMode(modes, mode) {
+    return modes.filter(function (m) { return m.value === (mode === 'flag' ? 'side' : mode); })[0];
+  }
+
   function modeLabel(modes, mode) {
-    var hit = modes.filter(function (m) { return m.value === (mode === 'flag' ? 'side' : mode); })[0];
+    var hit = selectedMode(modes, mode);
     return hit ? hit.label : mode;
+  }
+
+  // 金額方式的單選群組。選取的方式要相減或依正負號判斷時，下方說明金額怎麼算（使用者 2026-10-21），
+  // 報讀器也從群組讀到這句說明；直接取用一欄的方式沒有說明。
+  function modeGroupHtml(kind, modes, mode) {
+    var radios = modes.map(function (m) {
+      return '<label class="mode-option">' +
+        '<input type="radio" name="mode-' + kind + '" value="' + m.value + '"' +
+          ((mode === 'flag' ? 'side' : mode) === m.value ? ' checked' : '') + ' data-focus-key="mode-' + kind + '-' + m.value + '">' +
+        '<span>' + m.label + '</span></label>';
+    }).join('');
+    var hit = selectedMode(modes, mode);
+    var noteId = 'mapping-' + kind + '-mode-note';
+    return '<div class="mode-group" role="radiogroup" aria-label="金額欄位格式"' +
+        (hit && hit.note ? ' aria-describedby="' + noteId + '"' : '') + '>' + radios + '</div>' +
+      (hit && hit.note ? '<p class="mode-group__note" id="' + noteId + '">' + Ui.esc(hit.note) + '</p>' : '');
   }
 
   /* ---- 渲染 ------------------------------------------------------------------ */
@@ -1406,13 +1426,6 @@
   function gridEditSection(kind, title, fields, modes, importInfo, mappingState, mode, committed, matches) {
     var banner = mappingBannerHtml(kind, mappingState, committed, matches);
 
-    var modeRadios = modes.map(function (m) {
-      return '<label class="mode-option">' +
-        '<input type="radio" name="mode-' + kind + '" value="' + m.value + '"' +
-          ((mode === 'flag' ? 'side' : mode) === m.value ? ' checked' : '') + ' data-focus-key="mode-' + kind + '-' + m.value + '">' +
-        '<span>' + m.label + '</span></label>';
-    }).join('');
-
     var literalHtml = literalFieldFor(fields, mode).map(function (litField) {
       var litVal = mappingState.draft[litField.key] || '';
       var litId = 'mapping-' + kind + '-' + litField.key + '-literal';
@@ -1445,7 +1458,7 @@
         '<div class="mapping-section__toolbar"><h3 class="mapping-section__title">' + title + '</h3>' +
           uiModeToggleHtml(kind) + '</div>' +
         banner +
-        '<div class="mode-group" role="radiogroup" aria-label="金額欄位格式">' + modeRadios + '</div>' +
+        modeGroupHtml(kind, modes, mode) +
         '<div class="map-layout map-layout--grid" data-motion-key="map-layout-' + kind + '"' + mapLayoutPanelAttributes(kind) + '>' +
           '<div class="map-layout__main">' +
             twoDimMappingTable(kind, fields, importInfo, mappingState, mode) +
@@ -1463,13 +1476,6 @@
 
   function classicEditSection(kind, title, fields, modes, importInfo, mappingState, mode, committed, matches) {
     var banner = mappingBannerHtml(kind, mappingState, committed, matches);
-
-    var modeRadios = modes.map(function (m) {
-      return '<label class="mode-option">' +
-        '<input type="radio" name="mode-' + kind + '" value="' + m.value + '"' +
-          ((mode === 'flag' ? 'side' : mode) === m.value ? ' checked' : '') + ' data-focus-key="mode-' + kind + '-' + m.value + '">' +
-        '<span>' + m.label + '</span></label>';
-    }).join('');
 
     var eligibility = mappingCommitEligibility(fields, mode, mappingState, kind);
     var rows = fieldsForMode(fields, mode).map(function (field) {
@@ -1523,7 +1529,7 @@
         '<div class="mapping-section__toolbar"><h3 class="mapping-section__title">' + title + '</h3>' +
           uiModeToggleHtml(kind) + '</div>' +
         banner +
-        '<div class="mode-group" role="radiogroup" aria-label="金額欄位格式">' + modeRadios + '</div>' +
+        modeGroupHtml(kind, modes, mode) +
         '<div class="map-layout" data-motion-key="map-layout-' + kind + '"' + mapLayoutPanelAttributes(kind) + '>' +
           '<div class="map-layout__main mapping-table-wrap" data-preserve-scroll="mapping-table-' + kind + '"><table class="mapping-table">' +
             '<thead><tr><th>JET 欄位</th><th>來源欄位</th></tr></thead>' +

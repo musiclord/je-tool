@@ -13,10 +13,12 @@ namespace JET.Infrastructure;
 internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
 {
     private readonly string _name;
+    private readonly WorksheetPart _part;
     private readonly OpenXmlWriter _writer;
     private readonly IReadOnlyList<OpenXmlElement> _afterSheetData;
     private readonly bool _ensureProtection;
     private bool _closed;
+    private bool _faulted;
     private bool _disposed;
     private long _dataRows;
 
@@ -34,6 +36,7 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
         }
 
         _name = name;
+        _part = part;
         _ensureProtection = ensureProtection;
         var source = (Worksheet)part.Worksheet.CloneNode(true);
         var sheetData = source.GetFirstChild<SheetData>()
@@ -93,8 +96,28 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
             row.CustomHeight = true;
         }
         row.Append(cells);
-        _writer.WriteElement(row);
+        try
+        {
+            _writer.WriteElement(row);
+        }
+        catch (Exception error) when (Fault(error, cells))
+        {
+            throw;
+        }
+
         _dataRows++;
+    }
+
+    /// <summary>寫到一半的輸出之後不再補結束標記。取消不是寫入失敗，不記工作表位置。</summary>
+    private bool Fault(Exception error, IEnumerable<Cell> cells)
+    {
+        _faulted = true;
+        if (error is not OperationCanceledException)
+        {
+            ExcelText.MarkWriteFailure(error, _part, cells);
+        }
+
+        return false;
     }
 
     internal SheetStat CloseAndSummarize(CancellationToken cancellationToken)
@@ -112,7 +135,8 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
             return;
         }
 
-        if (!_closed)
+        // 寫列時丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，蓋掉原本的失敗原因。
+        if (!_closed && !_faulted)
         {
             _writer.WriteEndElement();
             if (_ensureProtection

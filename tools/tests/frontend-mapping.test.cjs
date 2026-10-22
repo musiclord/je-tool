@@ -26,6 +26,59 @@ test('acceptance comments remove permanent date notes and unify the debit-credit
   }
 });
 
+// 使用者 2026-10-21 要求欄位配對沿用 legacy 的金額方式名稱，避免「＋」被讀成相加；同日在視窗選項裁定 GL 只改有「＋」的雙欄方式，
+// 選取後只有要相減或依正負號判斷的方式顯示計算說明，直接取用一欄的「設定年度變動金額」不顯示。
+// 第一次失敗收據：20261021-092821092-e99dc35410974ca196efe503496c51ab。
+test('oct21 amount modes use legacy names and explain only calculated modes in both views', () => {
+  const f = fixture(), ui = f.window.JetUi;
+  f.store.setImportResult('tb', { batchId: 'tb-1', columns: ['Opening', 'Closing'], rowCount: 2 });
+  assert.deepEqual(copy(ui.GL_MODES.map(mode => [mode.value, mode.label])),
+    [['dual', '分別設定借貸金額'], ['signed', '單一帶號金額欄'], ['side', '金額與借貸別']]);
+  assert.deepEqual(copy(ui.TB_MODES.map(mode => [mode.value, mode.label])),
+    [['debitCredit', '設定借方與貸方金額'], ['direct', '設定年度變動金額'],
+      ['openClose', '設定期初與期末金額'], ['openCloseBySide', '設定借方貸方之期初期末金額']]);
+  const notes = {
+    gl: {
+      dual: '配對借方與貸方金額欄位後，以借方減去貸方，計算金額。',
+      signed: '配對金額欄位後，正數視為借方，負數視為貸方。',
+      side: '配對金額與借貸別欄位後，依借貸別決定正負號，借方為正數，貸方為負數。'
+    },
+    tb: {
+      debitCredit: '配對借方與貸方金額欄位後，以借方減去貸方，計算本期變動金額。',
+      direct: '',
+      openClose: '配對期初與期末金額欄位後，以期末減去期初，計算本期變動金額。',
+      openCloseBySide: '配對期初與期末的借方、貸方金額欄位後，各以借方減去貸方，再以期末減去期初，計算本期變動金額。'
+    }
+  };
+  for (const view of ['classic', 'grid']) {
+    f.store.setMappingUiMode(view);
+    for (const kind of ['gl', 'tb']) for (const [mode, note] of Object.entries(notes[kind])) {
+      f.store.setMappingMode(kind, mode);
+      const html = f.render().html, where = view + ' ' + kind + ' ' + mode;
+      const section = html.slice(html.indexOf('data-bind="mapping-' + kind + '"'),
+        kind === 'gl' ? html.indexOf('data-bind="mapping-tb"') : undefined);
+      const labels = [...section.matchAll(/<label class="mode-option">[\s\S]*?<span>([^<]*)<\/span><\/label>/g)].map(match => match[1]);
+      assert.equal(labels.length, Object.keys(notes[kind]).length, where);
+      assert.ok(labels.every(label => !/[＋+]/.test(label)), where + '：' + labels.join('、'));
+      assert.match(section, new RegExp('value="' + mode + '" checked'), where);
+      const id = 'mapping-' + kind + '-mode-note';
+      if (note) {
+        assert.ok(section.includes('role="radiogroup" aria-label="金額欄位格式" aria-describedby="' + id + '"'), where);
+        assert.ok(section.includes('<p class="mode-group__note" id="' + id + '">' + note + '</p>'), where);
+      } else {
+        assert.doesNotMatch(section, /mode-group__note|aria-describedby=/, where);
+      }
+    }
+  }
+  // 已確認的摘要沿用方式名稱，不重複計算說明。
+  f.store.setMappingMode('tb', 'openClose');
+  f.store.setMappingCommitted('tb', { mapping: {}, mode: 'openClose', projectedRowCount: 2 });
+  const summary = f.render().html;
+  const tbSummary = summary.slice(summary.indexOf('data-bind="mapping-tb"'));
+  assert.match(tbSummary, /已確認配對<span class="mapping-summary__facts">設定期初與期末金額，共 2 筆/);
+  assert.doesNotMatch(tbSummary, /mode-group__note/);
+});
+
 for (const mode of ['side', 'flag']) for (const codeKey of ['dcDebitCode', 'dcCreditCode']) {
   test('acceptance single ' + codeKey + ' enables confirmation for ' + mode + ' without inventing the opposite code', () => {
     const f = fixture(), ui = f.window.JetUi;

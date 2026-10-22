@@ -31,6 +31,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
+        SupportOperationStage.Enter("state_read");
         await CompletenessEligibilitySupport.RequireCurrentAsync(
             repositories.RuleRuns,
             projectId,
@@ -73,7 +74,9 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 HasCounterpart: accountMappingState?.HasCounterpart ?? false,
                 HasAuthorizedPreparers: hasAuthorizedPreparers,
                 NonWorkingDays: document.NonWorkingDays));
+        SupportOperationStage.Enter("prescreen_facts");
         var facts = await repositories.PrescreenFacts.ExecuteAsync(plan, cancellationToken);
+        SupportOperationStage.Enter("summary");
         var prescreen = JetAuditProgram.Finalize(plan, facts);
         var positioning = JetAuditProgram.RenderPrescreenPositioning();
         var runManifest = prescreen.Manifest;
@@ -166,11 +169,13 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         };
 
         var summaryJson = JsonSerializer.Serialize(dto, JetJsonStorage.Options);
+        SupportOperationStage.Enter("run_save");
         await repositories.RuleRuns.SaveAsync(
             projectId,
             new RuleRunRecord(runId, RuleRunKinds.Prescreen, generatedUtc, summaryJson),
             CancellationToken.None);
 
+        SupportOperationStage.Enter("after_commit");
         await MappingCommitShared.AdvanceStepAsync(
             projectStore,
             document,

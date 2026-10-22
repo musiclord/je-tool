@@ -1,0 +1,37 @@
+{
+  "name": "jet",
+  "styles": {
+    "theme": {
+      "colors": {
+        "blue": {
+          "elements": { "fill": "#343a3d", "stroke": "#22272a", "hiContrast": "#f2efea", "loContrast": "#c3c6c1" },
+          "relationships": { "line": "#5b8db3", "label": "#a9c9e2", "labelBg": "#1b2124" }
+        },
+        "secondary": {
+          "elements": { "fill": "#7a5f3a", "stroke": "#5b4529", "hiContrast": "#f7f0e4", "loContrast": "#e3d5c0" },
+          "relationships": { "line": "#a07a45", "label": "#dcc099", "labelBg": "#1b2124" }
+        },
+        "green": {
+          "elements": { "fill": "#3f6c8c", "stroke": "#2c4f68", "hiContrast": "#f2efea", "loContrast": "#cfdce6" },
+          "relationships": { "line": "#5f7f96", "label": "#b5c8d6", "labelBg": "#1b2124" }
+        },
+        "muted": {
+          "elements": { "fill": "#6b675f", "stroke": "#4f4c46", "hiContrast": "#f2efea", "loContrast": "#dad6ce" },
+          "relationships": { "line": "#8b867c", "label": "#d2cec6", "labelBg": "#1b2124" }
+        },
+        "amber": {
+          "elements": { "fill": "#c08a3e", "stroke": "#946628", "hiContrast": "#17120b", "loContrast": "#3a2c18" },
+          "relationships": { "line": "#c99a4e", "label": "#e7c088", "labelBg": "#1b2124" }
+        },
+        "sky": {
+          "elements": { "fill": "#3f6c8c", "stroke": "#2c4f68", "hiContrast": "#f2efea", "loContrast": "#cfdce6" },
+          "relationships": { "line": "#5b8db3", "label": "#a9c9e2", "labelBg": "#1b2124" }
+        },
+        "gray": {
+          "elements": { "fill": "#4a4843", "stroke": "#33312d", "hiContrast": "#f2efea", "loContrast": "#d0ccc4" },
+          "relationships": { "line": "#7d7a73", "label": "#e0ddd6", "labelBg": "#1b2124" }
+        }
+      }
+    }
+  }
+}

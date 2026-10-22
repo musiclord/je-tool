@@ -37,7 +37,7 @@ const { mappingRenderFixture, plain, settle, readWwwroot } = require('./support/
 
 const GL_COLUMNS = ['Doc', 'Date', 'Account', 'Name', 'Memo', 'Debit', 'Credit', 'Amount', 'Side', 'Manual', 'Posting', 'Approve', 'Dept', 'Region'];
 const TB_COLUMNS = ['TbAccount', 'TbName', 'TbDebit', 'TbCredit'];
-// 借方欄＋貸方欄格式的全部必填欄位。
+// 分別設定借貸金額格式的全部必填欄位。
 const DUAL = { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', debitAmount: 'Debit', creditAmount: 'Credit' };
 const DEFAULT_MANUAL = { manualValues: ['1'], automaticValues: ['0'] };
 // 單欄金額加借貸別格式、而且借方代碼已填的完整草稿。

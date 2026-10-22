@@ -16,6 +16,8 @@ public sealed class ActionDispatcher
     private readonly Func<Exception, JetActionException?>? _engineErrorTranslator;
     private readonly ActionExecutionGate _executionGate;
     private readonly IProjectDatabaseRetention? _databaseRetention;
+    // 同一案件同一動作上一次失敗或取消的操作識別碼，下一次開始時記成 retry_of；成功後清除（2026-10-21）。
+    private readonly ConcurrentDictionary<string, string> _lastUnsuccessful = new(StringComparer.Ordinal);
 
     public ActionDispatcher(
         IEnumerable<IApplicationActionHandler> handlers,
@@ -61,8 +63,9 @@ public sealed class ActionDispatcher
     /// <summary>
     /// 每次 dispatch 生成 correlation_id 並以 <see cref="ILogger.BeginScope"/> 建立 scope——
     /// 同一 LoggerFactory 的子層 logger（Handler/Repository）在該 async 流程內自動帶入（AsyncLocal）。
-    /// 記錄 action 生命週期（start/end/error、duration_ms、result_status）；Debug provider 保存完整診斷，
-    /// Release provider 只接收已去識別的 allowlist 支援事件。
+    /// 記錄 action 生命週期（start/end/error/cancelled、duration_ms、result_status）；Debug provider 保存完整診斷，
+    /// Release provider 只接收已去識別的 allowlist 支援事件。開始時另記輸入結構與重試對象，成功時記結果版本，
+    /// 失敗或取消時把 handler 最後進入的步驟記到例外上。
     /// </summary>
     public async Task<object?> DispatchAsync(
         string action,
@@ -74,16 +77,28 @@ public sealed class ActionDispatcher
             ? Guid.NewGuid().ToString("N")
             : correlationId;
         var supportProjectId = TryReadSupportProjectId(payload);
+        var currentProjectId = _session.CurrentProjectId;
         using var scope = _logger.BeginScope(new Dictionary<string, object?>
         {
             ["correlation_id"] = correlationId,
             ["action"] = action,
-            ["project_id"] = _session.CurrentProjectId,
+            ["project_id"] = currentProjectId,
             ["support_project_id"] = supportProjectId,
         });
 
+        var retryKey = (supportProjectId ?? currentProjectId ?? "") + "\n" + action;
+        var stage = SupportOperationStage.Begin();
         var stopwatch = Stopwatch.StartNew();
-        DispatcherDiagnostics.ActionStart(_logger, action);
+        var startFields = new Dictionary<string, object?> { ["payload_shape"] = SupportPayloadShape.Describe(payload) };
+        if (_lastUnsuccessful.TryGetValue(retryKey, out var retryOf))
+        {
+            startFields["retry_of"] = retryOf;
+        }
+
+        using (_logger.BeginScope(startFields))
+        {
+            DispatcherDiagnostics.ActionStart(_logger, action);
+        }
 
         var exclusive = ActionExecutionPolicy.IsExclusive(action);
         IDisposable? executionLease = null;
@@ -109,19 +124,47 @@ public sealed class ActionDispatcher
             var result = ActionExecutionPolicy.RunsInBackground(action)
                 ? await Task.Run(() => HandleWithRetentionAsync(handler, payload, cancellationToken), cancellationToken).ConfigureAwait(false)
                 : await HandleWithRetentionAsync(handler, payload, cancellationToken).ConfigureAwait(false);
-            DispatcherDiagnostics.ActionEnd(_logger, action, "ok", stopwatch.ElapsedMilliseconds);
+            _lastUnsuccessful.TryRemove(retryKey, out _);
+            var resultRefs = SupportResultRefs.Describe(result);
+            using (resultRefs is null ? null : _logger.BeginScope(new Dictionary<string, object?> { ["result_refs"] = resultRefs }))
+            {
+                DispatcherDiagnostics.ActionEnd(_logger, action, "ok", stopwatch.ElapsedMilliseconds);
+            }
+
             return result;
         }
         catch (Exception exception)
         {
-            DispatcherDiagnostics.ActionError(
-                _logger,
-                action,
-                stopwatch.ElapsedMilliseconds,
-                exception is JetActionException actionException
-                    ? actionException.Code
-                    : JetErrorCodes.BridgeError,
-                exception);
+            _lastUnsuccessful[retryKey] = correlationId;
+            if (stage.Stage is { } failedStage)
+            {
+                SupportFailureDiagnostics.Mark(exception, failedStage);
+            }
+
+            // 取消不是失敗：例外本身是取消，或已要求取消後資料庫中止語句丟出的例外（下方同樣改回報成取消）。
+            // cancellation_requested 分辨使用者或關窗要求的取消，和程式內部丟出的取消例外。
+            if (exception is OperationCanceledException
+                || (exception is not JetActionException && cancellationToken.IsCancellationRequested))
+            {
+                DispatcherDiagnostics.ActionCancelled(
+                    _logger,
+                    action,
+                    stopwatch.ElapsedMilliseconds,
+                    cancellationToken.IsCancellationRequested,
+                    exception);
+            }
+            else
+            {
+                DispatcherDiagnostics.ActionError(
+                    _logger,
+                    action,
+                    stopwatch.ElapsedMilliseconds,
+                    exception is JetActionException actionException
+                        ? actionException.Code
+                        : JetErrorCodes.BridgeError,
+                    exception);
+            }
+
             if (JetPayloadRejection.CheckOf(exception) is { } payloadCheck)
             {
                 // 畫面只看到非預期錯誤那一句；沒過的檢查代號記進支援日誌。
@@ -208,6 +251,16 @@ internal static partial class DispatcherDiagnostics
         string action,
         long duration_ms,
         string error_code,
+        Exception exception);
+
+    /// <summary>操作被取消；不算失敗，不佔支援日誌保留的失敗名額（2026-10-21）。</summary>
+    [LoggerMessage(EventId = 1004, EventName = "action.cancelled", Level = LogLevel.Information,
+        Message = "action {action} cancelled in {duration_ms} ms requested={cancellation_requested}")]
+    public static partial void ActionCancelled(
+        ILogger logger,
+        string action,
+        long duration_ms,
+        bool cancellation_requested,
         Exception exception);
 
     /// <summary>畫面送出的資料沒過後端格式檢查；payload_check 是程式寫死的檢查代號，不含資料內容。</summary>

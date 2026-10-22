@@ -266,9 +266,17 @@ public sealed class GlEffectivePopulationProjectionProviderTests
             Assert.Equal(900, await ScalarAsync(
                 connection,
                 $"SELECT COUNT(*) FROM {target} WHERE is_effective = 1;"));
-            Assert.Equal(40, await ScalarAsync(
+            // 使用者 2026-10-21 裁定日期不符分成三種原因：40 筆日期不符是 20 筆總帳日期空白與 20 筆晚於查核期間。
+            // 原本斷言 40 筆都記成 period；第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+            Assert.Equal(20, await ScalarAsync(
                 connection,
-                $"SELECT COUNT(*) FROM {target} WHERE exclusion_reason = 'period';"));
+                $"SELECT COUNT(*) FROM {target} WHERE exclusion_reason = 'blank_post_date';"));
+            Assert.Equal(0, await ScalarAsync(
+                connection,
+                $"SELECT COUNT(*) FROM {target} WHERE exclusion_reason = 'before_period';"));
+            Assert.Equal(20, await ScalarAsync(
+                connection,
+                $"SELECT COUNT(*) FROM {target} WHERE exclusion_reason = 'after_period';"));
             Assert.Equal(60, await ScalarAsync(
                 connection,
                 $"SELECT COUNT(*) FROM {target} WHERE exclusion_reason = 'posting_status';"));
@@ -278,7 +286,8 @@ public sealed class GlEffectivePopulationProjectionProviderTests
                 SELECT COUNT(*) FROM {target}
                 WHERE (is_effective = 1 AND exclusion_reason IS NOT NULL)
                    OR (is_effective = 0 AND exclusion_reason IS NULL)
-                   OR (is_effective = 0 AND exclusion_reason NOT IN ('period', 'posting_status'));
+                   OR (is_effective = 0 AND exclusion_reason NOT IN
+                       ('blank_post_date', 'before_period', 'after_period', 'posting_status'));
                 """));
             Assert.Equal(1_000, await ScalarAsync(
                 connection,
@@ -388,18 +397,20 @@ public sealed class GlEffectivePopulationProjectionProviderTests
             Assert.Equal(900, await ScalarAsync(
                 connection,
                 $"SELECT COUNT(*) FROM {target} WHERE is_effective = 1;"));
+            // 使用者 2026-10-21 裁定日期不符分成三種原因；原本這四行都比對 period。
+            // 第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
             Assert.Equal(40, await ScalarAsync(
                 connection,
-                $"SELECT COUNT(*) FROM {target} WHERE exclusion_reason = 'period';"));
+                $"SELECT COUNT(*) FROM {target} WHERE exclusion_reason IN ('blank_post_date', 'before_period', 'after_period');"));
             Assert.Equal(60, await ScalarAsync(
                 connection,
                 $"SELECT COUNT(*) FROM {target} WHERE exclusion_reason = 'posting_status';"));
             Assert.Equal(20, await ScalarAsync(
                 connection,
-                $"SELECT COUNT(*) FROM {target} WHERE post_date IS NULL AND exclusion_reason = 'period';"));
+                $"SELECT COUNT(*) FROM {target} WHERE post_date IS NULL AND exclusion_reason = 'blank_post_date';"));
             Assert.Equal(20, await ScalarAsync(
                 connection,
-                $"SELECT COUNT(*) FROM {target} WHERE post_date = '2026-01-01' AND exclusion_reason = 'period';"));
+                $"SELECT COUNT(*) FROM {target} WHERE post_date = '2026-01-01' AND exclusion_reason = 'after_period';"));
 
             await using var command = connection.CreateCommand();
             command.CommandText =

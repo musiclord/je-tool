@@ -2155,7 +2155,8 @@ input[type="radio"] {
 .page-search__input,
 .pending-row__detail select,
 .map-grid__select,
-.account-editor__table select {
+.account-editor__table select,
+.data-preview__filter select {
   min-height: var(--control-height-sm);
   padding: 3px var(--space-2);
   font-size: var(--text-sm);
@@ -2164,7 +2165,8 @@ input[type="radio"] {
 select.inline-select,
 .pending-row__detail select,
 select.map-grid__select,
-.account-editor__table select {
+.account-editor__table select,
+.data-preview__filter select {
   height: var(--control-height-sm);
   padding-block: 0;
 }
@@ -5066,6 +5068,37 @@ body.is-resizing-preview {
   color: var(--color-ink);
 }
 
+/* GL(未納入測試) 的未納入原因篩選列：在頁籤下方、表格上方，只有這份資料才出現。
+   換資料表時照共用的 data-collapsible 長出與收回。字的淡入和頁籤、表格一樣晚 180ms，
+   整欄由收合展開時，篩選列才不會比頁籤先出現在還很窄的欄裡。 */
+.data-preview__filter {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border-row);
+}
+
+.data-preview__filter[data-collapsible] {
+  transition:
+    height var(--motion-open) var(--ease-spring),
+    padding-block var(--motion-open) var(--ease-spring),
+    opacity var(--motion-fade) var(--ease-soft) 180ms,
+    display var(--motion-open) allow-discrete;
+}
+
+.data-preview__filter select {
+  max-width: 100%;
+}
+
+.data-preview__filter-label {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
 /* 表格捲動區（data-preview-body）：撐滿剩餘高度，橫向＋縱向捲動。 */
 .data-preview__body {
   flex: 1;
@@ -5122,6 +5155,12 @@ body.is-resizing-preview {
   font-size: var(--text-xs);
   color: var(--color-muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* 統計列的每一項整項換行；只有一項就比整列還寬時，才在這一項裡面換行。 */
+.data-preview__stat {
+  display: inline-block;
+  max-width: 100%;
 }
 
 .data-preview__note-row {
@@ -5189,6 +5228,7 @@ body.is-resizing-preview .data-preview {
 
 .data-preview--collapsed .data-preview__head,
 .data-preview--collapsed .data-preview__tabs,
+.data-preview--collapsed .data-preview__filter,
 .data-preview--collapsed .data-preview__body,
 .data-preview--collapsed .data-preview__note,
 .data-preview--collapsed .data-preview__resize {
@@ -6195,7 +6235,8 @@ body.is-resizing-preview .data-preview {
     padding-inline: clamp(8px, 2vw, 14px);
   }
 
-  .data-preview__tabs {
+  .data-preview__tabs,
+  .data-preview__filter {
     padding-inline: clamp(8px, 2vw, 14px);
   }
 
@@ -7085,7 +7126,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* 操作說明共用一個字級與行高，原有類別只保留各自的版面間距。 */
-.help-text, .rule-field__hint, .map-options__hint, .map-options__note, .rule-explanation,
+.help-text, .rule-field__hint, .map-options__hint, .map-options__note, .mode-group__note, .rule-explanation,
 .rule-card__gate, .rule-card__sub, .scenario-export-selection__hint, .filter-check__note, .report-output__hint {
   color: var(--color-muted);
   font-size: var(--text-sm);
@@ -7177,6 +7218,13 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .mapping-section__toolbar .mapping-section__title, .mapping-section__toolbar .seg-toggle { margin: 0; }
 /* 金額格式的外觀見共用的「分段切換」；這裡只放位置。 */
 .mapping-section > .mode-group { max-width: 100%; margin: 0 0 var(--space-4); }
+/* 金額方式的計算說明緊接在選項下方，對照表與說明之間保留原本和選項的距離。 */
+.mapping-section > .mode-group:has(+ .mode-group__note) { margin-bottom: var(--space-2); }
+.mode-group__note { margin: 0 0 var(--space-4); }
+/* TB 的四個金額方式名稱較長，工作面不足 780px 時排成兩列等寬，不讓最後一個單獨落到第二列。 */
+@container (max-width: 779px) {
+  .mapping-section > .mode-group:has(> .mode-option:nth-child(4)) { display: inline-grid; grid-template-columns: repeat(2, 1fr); }
+}
 .map-date-purpose { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); font-size: var(--text-sm); }
 .map-options__settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: var(--space-4); }
 .map-options__field > label { display: grid; gap: var(--space-2); font-size: var(--text-sm); }
@@ -8681,7 +8729,7 @@ html.window-inactive .messages {
   .jet-menu__items,
   .data-preview,
   .data-preview--collapsed,
-  .data-preview :is(.data-preview__head, .data-preview__tabs, .data-preview__body, .data-preview__note, .data-preview__resize, .data-preview__rail),
+  .data-preview :is(.data-preview__head, .data-preview__tabs, .data-preview__filter, .data-preview__body, .data-preview__note, .data-preview__resize, .data-preview__rail),
   .messages--collapsed .messages__panel,
   .modal,
   .modal[hidden],
