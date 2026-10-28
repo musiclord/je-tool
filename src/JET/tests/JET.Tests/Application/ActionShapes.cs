@@ -196,6 +196,17 @@ internal sealed class ActionShapeRecorder(IReadOnlySet<string> mapPaths)
 
     public void Record(string action, JsonElement request, JsonElement response)
     {
+        var shapes = ShapesOf(action);
+        shapes.Request.Add(request, mapPaths.Contains, action + " request");
+        shapes.Response.Add(response, mapPaths.Contains, action + " response");
+    }
+
+    /// <summary>後端擋下、沒有回應的送出只記收到的資料；畫面在那種情形送出的欄位，前端測試才核對得到。</summary>
+    public void RecordRejectedRequest(string action, JsonElement request) =>
+        ShapesOf(action).Request.Add(request, mapPaths.Contains, action + " request");
+
+    private (ShapeNode Request, ShapeNode Response) ShapesOf(string action)
+    {
         if (!_actions.TryGetValue(action, out var shapes))
         {
             shapes = (new ShapeNode { IsMap = mapPaths.Contains(action + " request") },
@@ -203,8 +214,7 @@ internal sealed class ActionShapeRecorder(IReadOnlySet<string> mapPaths)
             _actions.Add(action, shapes);
         }
 
-        shapes.Request.Add(request, mapPaths.Contains, action + " request");
-        shapes.Response.Add(response, mapPaths.Contains, action + " response");
+        return shapes;
     }
 
     /// <summary>路徑格式是「action request|response」加上 .欄位與 []；在那一層加上流程走不到、但正式後端會回的型別。</summary>

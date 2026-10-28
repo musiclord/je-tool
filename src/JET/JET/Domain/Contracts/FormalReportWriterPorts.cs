@@ -1,29 +1,6 @@
 namespace JET.Domain;
 
-/// <summary>六報表 metadata 與 INF dynamic RDE 的 production-only typed seams。</summary>
-internal interface IFormalInfReportWriter : IInfReportWriter
-{
-    Task<ExportStats> WriteFormalAsync(
-        Stream output,
-        InfReportContext context,
-        ReportWorkbookMetadata workbookMetadata,
-        IReadOnlyList<GlRdeFieldMetadata> customFields,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null);
-}
-
-internal interface IFormalCriteriaSelectionReportWriter : ICriteriaSelectionReportWriter
-{
-    Task<ExportStats> WriteFormalAsync(
-        Stream output,
-        CriteriaSelectionReportContext context,
-        ReportWorkbookMetadata workbookMetadata,
-        IReadOnlyList<GlRdeFieldMetadata> customFields,
-        string operatorId,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null);
-}
-
+/// <summary>科目配對範本是工作檔，不走報告生命週期；正式寫出時仍帶工作簿中繼資料。</summary>
 internal interface IFormalAccountMappingTemplateWriter : IAccountMappingTemplateWriter
 {
     Task WriteFormalAsync(

@@ -44,10 +44,6 @@ public sealed class SqlServerFilterRunMaterializer(SqlServerProjectDatabase data
             await clear.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
         }
 
-        // 連續零尾數條件的模數與 filter.preview / prescreen.run 同源（固定預設 Domain 門檻）。
-        var zeroModulus = TrailingZeroThreshold.UnitModulus(
-            TrailingZeroThreshold.DefaultZerosThreshold);
-
         foreach (var saved in scenarios)
         {
             if (!replaceAll)
@@ -63,7 +59,6 @@ public sealed class SqlServerFilterRunMaterializer(SqlServerProjectDatabase data
             var plan = WhereBuilder.BuildPlan(
                 saved.Spec,
                 context,
-                zeroModulus,
                 SqlServerProjectSchema.QualifierFor(projectId));
             plan.BindParametersTo(insert);
             insert.Parameters.AddWithValue("@scenarioPosition", saved.Position);

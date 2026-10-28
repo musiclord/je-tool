@@ -20,13 +20,10 @@ public sealed class ExportValidationArtifactsHandler(
         var infWriter = repositories.InfReportWriter;
         var runStore = repositories.RuleRuns;
         var artifactStore = repositories.ReportArtifactStore;
-        // 正式組裝的資料庫組一定有下列 typed 依賴；直接建構 handler 的測試可以不放（維持 null），
-        // 這時沿用原本的退回路徑，改走 writer 的 public 介面。
-        IValidationReportPlanningFactsPort? validationReportPlanningFactsPort =
-            repositories.ValidationReportPlanningFacts;
-        ILegacyFieldDefinitionFactsPort? fieldDefinitionFactsPort = repositories.FieldDefinitionFacts;
-        IAccountTaxonomyStore? accountTaxonomyStore = repositories.AccountTaxonomy;
-        IMappingStateStore? mappingStateStore = repositories.MappingStates;
+        var validationReportPlanningFactsPort = repositories.ValidationReportPlanningFacts;
+        var fieldDefinitionFactsPort = repositories.FieldDefinitionFacts;
+        var accountTaxonomyStore = repositories.AccountTaxonomy;
+        var mappingStateStore = repositories.MappingStates;
         var progressSession = new ExportProgressSession(eventPublisher, cancellationToken);
         var progressByKind = new Dictionary<ReportArtifactKind, ExportArtifactProgress>
         {
@@ -39,26 +36,13 @@ public sealed class ExportValidationArtifactsHandler(
         SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
-        var requiresFormalMetadata = validationWriter is IFormalPlannedValidationReportWriter
-            || infWriter is IFormalInfReportWriter;
-        if (requiresFormalMetadata
-            && (accountTaxonomyStore is null || mappingStateStore is null))
-        {
-            throw new InvalidOperationException(
-                "Formal validation artifacts require mapping and taxonomy metadata stores.");
-        }
-        ReportWorkbookMetadata? workbookMetadata = null;
-        IReadOnlyList<GlRdeFieldMetadata> allRdeFields = [];
-        if (accountTaxonomyStore is not null && mappingStateStore is not null)
-        {
-            workbookMetadata = await ReportWorkbookMetadataFactory.LoadAsync(
-                projectId,
-                document,
-                mappingStateStore,
-                accountTaxonomyStore,
-                cancellationToken);
-            allRdeFields = ReportWorkbookMetadataFactory.AllRdeFields(workbookMetadata);
-        }
+        var workbookMetadata = await ReportWorkbookMetadataFactory.LoadAsync(
+            projectId,
+            document,
+            mappingStateStore,
+            accountTaxonomyStore,
+            cancellationToken);
+        var allRdeFields = ReportWorkbookMetadataFactory.AllRdeFields(workbookMetadata);
         SupportOperationStage.Enter("report_plan");
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
             Action,
@@ -72,51 +56,35 @@ public sealed class ExportValidationArtifactsHandler(
             run.RunId,
             run.GeneratedUtc,
             run.SummaryJson);
-        var plannedValidationWriter = validationWriter as IPlannedValidationReportWriter;
-        var formalValidationWriter = validationWriter as IFormalPlannedValidationReportWriter;
-        var typedValidationWriter = validationWriter as ITypedValidationReportWriter;
-        ValidationReportProjection? reportProjection = null;
-        ValidationReportPlan? validationReportPlan = null;
-        FieldInfoProjection? fieldInfoProjection = null;
-
-        if (plannedValidationWriter is not null
-            && validationReportPlanningFactsPort is not null
-            && fieldDefinitionFactsPort is not null)
-        {
-            reportProjection = ValidationReportProjectionParser.Parse(run.SummaryJson);
-            var unfinalizedReportPlan = JetAuditProgram.Plan(new ValidationReportRequest(
-                projectId,
-                document.PeriodStart,
-                document.PeriodEnd,
-                reportProjection.CompletenessDiffAccountCount,
-                reportProjection.NullAccountCount,
-                reportProjection.NullDocumentCount,
-                reportProjection.NullDescriptionCount,
-                reportProjection.OutOfRangeDateCount));
-            var planningFacts = await validationReportPlanningFactsPort.ExecuteAsync(
-                unfinalizedReportPlan,
-                cancellationToken);
-            validationReportPlan = JetAuditProgram.Finalize(
-                unfinalizedReportPlan,
-                planningFacts);
-            var targetTbDefinitions = await fieldDefinitionFactsPort.ReadAsync(
-                projectId,
-                DatasetKind.Tb,
-                LegacyFieldDefinitionScope.Target,
-                cancellationToken);
-            var targetGlDefinitions = await fieldDefinitionFactsPort.ReadAsync(
-                projectId,
-                DatasetKind.Gl,
-                LegacyFieldDefinitionScope.Target,
-                cancellationToken);
-            fieldInfoProjection = JetAuditProgram.ProjectFieldInfo(
-                targetTbDefinitions,
-                targetGlDefinitions);
-        }
-        else if (typedValidationWriter is not null)
-        {
-            reportProjection = ValidationReportProjectionParser.Parse(run.SummaryJson);
-        }
+        var reportProjection = ValidationReportProjectionParser.Parse(run.SummaryJson);
+        var unfinalizedReportPlan = JetAuditProgram.Plan(new ValidationReportRequest(
+            projectId,
+            document.PeriodStart,
+            document.PeriodEnd,
+            reportProjection.CompletenessDiffAccountCount,
+            reportProjection.NullAccountCount,
+            reportProjection.NullDocumentCount,
+            reportProjection.NullDescriptionCount,
+            reportProjection.OutOfRangeDateCount));
+        var planningFacts = await validationReportPlanningFactsPort.ExecuteAsync(
+            unfinalizedReportPlan,
+            cancellationToken);
+        var validationReportPlan = JetAuditProgram.Finalize(
+            unfinalizedReportPlan,
+            planningFacts);
+        var targetTbDefinitions = await fieldDefinitionFactsPort.ReadAsync(
+            projectId,
+            DatasetKind.Tb,
+            LegacyFieldDefinitionScope.Target,
+            cancellationToken);
+        var targetGlDefinitions = await fieldDefinitionFactsPort.ReadAsync(
+            projectId,
+            DatasetKind.Gl,
+            LegacyFieldDefinitionScope.Target,
+            cancellationToken);
+        var fieldInfoProjection = JetAuditProgram.ProjectFieldInfo(
+            targetTbDefinitions,
+            targetGlDefinitions);
         var requests = new ReportArtifactWriteRequest[]
         {
             new(
@@ -125,56 +93,16 @@ public sealed class ExportValidationArtifactsHandler(
                 async (stream, ct) =>
                 {
                     var progress = progressByKind[ReportArtifactKind.ValidationReport];
-                    if (formalValidationWriter is not null
-                        && validationReportPlan is not null
-                        && fieldInfoProjection is not null)
-                    {
-                        await formalValidationWriter.WriteFormalPlannedAsync(
-                            stream,
-                            reportContext,
-                            reportProjection!,
-                            validationReportPlan,
-                            fieldInfoProjection,
-                            plan.WorkbookMetadata!,
-                            document.OperatorId,
-                            ct,
-                            progress.WriterProgress);
-                    }
-                    else if (plannedValidationWriter is not null
-                             && validationReportPlan is not null
-                             && fieldInfoProjection is not null)
-                    {
-                        await plannedValidationWriter.WritePlannedAsync(
-                            stream,
-                            reportContext,
-                            reportProjection!,
-                            validationReportPlan,
-                            fieldInfoProjection,
-                            document.OperatorId,
-                            ct,
-                            progress.WriterProgress);
-                    }
-                    else if (typedValidationWriter is not null)
-                    {
-                        await typedValidationWriter.WriteTypedAsync(
-                            stream,
-                            reportContext,
-                            reportProjection!,
-                            document.OperatorId,
-                            ct,
-                            progress.WriterProgress);
-                    }
-                    else
-                    {
-                        // 外部自訂 writer 仍走既有 public contract；context 的 public
-                        // constructor、deconstruction、equality 與 hash semantics 均未改。
-                        await validationWriter.WriteAsync(
-                            stream,
-                            reportContext,
-                            ct,
-                            progress.WriterProgress);
-                    }
-
+                    await validationWriter.WriteAsync(
+                        stream,
+                        reportContext,
+                        reportProjection,
+                        validationReportPlan,
+                        fieldInfoProjection,
+                        plan.WorkbookMetadata!,
+                        document.OperatorId,
+                        ct,
+                        progress.WriterProgress);
                     progress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd),
             new(
@@ -184,24 +112,13 @@ public sealed class ExportValidationArtifactsHandler(
                 {
                     var progress = progressByKind[ReportArtifactKind.InfReport];
                     var infContext = new InfReportContext(project, run.RunId, run.GeneratedUtc);
-                    if (infWriter is IFormalInfReportWriter formalWriter)
-                    {
-                        await formalWriter.WriteFormalAsync(
-                            stream,
-                            infContext,
-                            plan.WorkbookMetadata!,
-                            plan.CustomFields,
-                            ct,
-                            progress.WriterProgress);
-                    }
-                    else
-                    {
-                        await infWriter.WriteAsync(
-                            stream,
-                            infContext,
-                            ct,
-                            progress.WriterProgress);
-                    }
+                    await infWriter.WriteAsync(
+                        stream,
+                        infContext,
+                        plan.WorkbookMetadata!,
+                        plan.CustomFields,
+                        ct,
+                        progress.WriterProgress);
                     progress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd)
         };
@@ -241,12 +158,10 @@ public sealed class ExportPrescreenReportHandler(
         var writer = repositories.PrescreenReportWriter;
         var runStore = repositories.RuleRuns;
         var artifactStore = repositories.ReportArtifactStore;
-        // 正式組裝的資料庫組一定有下列 typed 依賴；直接建構 handler 的測試可以不放（維持 null），
-        // 這時沿用原本的退回路徑，改走 writer 的 public 介面。
-        IPrescreenReportPlanningFactsPort? prescreenReportPlanningFactsPort =
+        IPrescreenReportPlanningFactsPort prescreenReportPlanningFactsPort =
             repositories.PrescreenReportPlanningFacts;
-        IMappingStateStore? mappingStateStore = repositories.MappingStates;
-        IAccountTaxonomyStore? accountTaxonomyStore = repositories.AccountTaxonomy;
+        var mappingStateStore = repositories.MappingStates;
+        var accountTaxonomyStore = repositories.AccountTaxonomy;
         SupportOperationStage.Enter("run_read");
         await CompletenessEligibilitySupport.RequireCurrentAsync(
             runStore,
@@ -259,23 +174,12 @@ public sealed class ExportPrescreenReportHandler(
         SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
-        var formalWriter = writer as IFormalPlannedPrescreenReportWriter;
-        if (formalWriter is not null
-            && (mappingStateStore is null || accountTaxonomyStore is null))
-        {
-            throw new InvalidOperationException(
-                "Formal prescreen report requires mapping and taxonomy metadata stores.");
-        }
-        ReportWorkbookMetadata? workbookMetadata = null;
-        if (mappingStateStore is not null && accountTaxonomyStore is not null)
-        {
-            workbookMetadata = await ReportWorkbookMetadataFactory.LoadAsync(
-                projectId,
-                document,
-                mappingStateStore,
-                accountTaxonomyStore,
-                cancellationToken);
-        }
+        var workbookMetadata = await ReportWorkbookMetadataFactory.LoadAsync(
+            projectId,
+            document,
+            mappingStateStore,
+            accountTaxonomyStore,
+            cancellationToken);
         SupportOperationStage.Enter("report_plan");
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
             Action,
@@ -288,88 +192,42 @@ public sealed class ExportPrescreenReportHandler(
             run.RunId,
             run.GeneratedUtc,
             run.SummaryJson);
-        var plannedWriter = writer as IPlannedPrescreenReportWriter;
-        var typedWriter = writer as ITypedPrescreenReportWriter;
-        var reportProjection = plannedWriter is null && typedWriter is null
-            ? null
-            : PrescreenReportProjectionParser.Parse(run.SummaryJson);
-        PrescreenReportPlan? prescreenReportPlan = null;
-        if (plannedWriter is not null
-            && prescreenReportPlanningFactsPort is not null)
-        {
-            var ruleContext = new FilterRuleContext(
-                project.MoneyScale,
-                project.LastPeriodStart,
-                project.PeriodStart,
-                project.PeriodEnd);
-            var unfinalizedReportPlan = JetAuditProgram.Plan(
-                new PrescreenReportRequest(
-                    projectId,
-                    ruleContext,
-                    reportProjection!.PostPeriodApproval.NaReason,
-                    reportProjection.SuspiciousKeywords.NaReason,
-                    reportProjection.UnexpectedAccountPair.NaReason,
-                    reportProjection.TrailingZeros.NaReason,
-                    reportProjection.BlankDescription.NaReason));
-            var planningFacts = await prescreenReportPlanningFactsPort.ExecuteAsync(
-                unfinalizedReportPlan,
-                cancellationToken);
-            prescreenReportPlan = JetAuditProgram.Finalize(
-                unfinalizedReportPlan,
-                planningFacts);
-        }
+        var reportProjection = PrescreenReportProjectionParser.Parse(run.SummaryJson);
+        var ruleContext = new FilterRuleContext(
+            project.MoneyScale,
+            project.LastPeriodStart,
+            project.PeriodStart,
+            project.PeriodEnd);
+        var unfinalizedReportPlan = JetAuditProgram.Plan(
+            new PrescreenReportRequest(
+                projectId,
+                ruleContext,
+                reportProjection.PostPeriodApproval.NaReason,
+                reportProjection.SuspiciousKeywords.NaReason,
+                reportProjection.UnexpectedAccountPair.NaReason,
+                reportProjection.TrailingZeros.NaReason,
+                reportProjection.BlankDescription.NaReason));
+        var planningFacts = await prescreenReportPlanningFactsPort.ExecuteAsync(
+            unfinalizedReportPlan,
+            cancellationToken);
+        var prescreenReportPlan = JetAuditProgram.Finalize(
+            unfinalizedReportPlan,
+            planningFacts);
 
         var request = new ReportArtifactWriteRequest(
                 plan.ArtifactKinds[0],
                 plan.SourceRef,
                 async (stream, ct) =>
                 {
-                    if (formalWriter is not null
-                        && prescreenReportPlan is not null)
-                    {
-                        await formalWriter.WriteFormalPlannedAsync(
-                            stream,
-                            reportContext,
-                            reportProjection!,
-                            prescreenReportPlan,
-                            plan.WorkbookMetadata!,
-                            document.OperatorId,
-                            ct,
-                            artifactProgress.WriterProgress);
-                    }
-                    else if (plannedWriter is not null
-                             && prescreenReportPlan is not null)
-                    {
-                        await plannedWriter.WritePlannedAsync(
-                            stream,
-                            reportContext,
-                            reportProjection!,
-                            prescreenReportPlan,
-                            document.OperatorId,
-                            ct,
-                            artifactProgress.WriterProgress);
-                    }
-                    else if (typedWriter is not null)
-                    {
-                        await typedWriter.WriteTypedAsync(
-                            stream,
-                            reportContext,
-                            reportProjection!,
-                            document.OperatorId,
-                            ct,
-                            artifactProgress.WriterProgress);
-                    }
-                    else
-                    {
-                        // 外部自訂 writer 仍走既有 public contract；context 的 public
-                        // constructor、deconstruction、equality 與 hash semantics 均未改。
-                        await writer.WriteAsync(
-                            stream,
-                            reportContext,
-                            ct,
-                            artifactProgress.WriterProgress);
-                    }
-
+                    await writer.WriteAsync(
+                        stream,
+                        reportContext,
+                        reportProjection,
+                        prescreenReportPlan,
+                        plan.WorkbookMetadata!,
+                        document.OperatorId,
+                        ct,
+                        artifactProgress.WriterProgress);
                     artifactProgress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd);
         var facts = await new ReportArtifactExecutionPort(artifactStore, [request],
@@ -465,22 +323,16 @@ public sealed class ExportCriteriaSelectionReportHandler(
         }
 
         SupportOperationStage.Enter("report_plan");
-        var formalWriter = writer as IFormalCriteriaSelectionReportWriter;
-        ReportWorkbookMetadata? workbookMetadata = null;
-        IReadOnlyList<GlRdeFieldMetadata> customFields = [];
-        if (formalWriter is not null)
-        {
-            workbookMetadata = await ReportWorkbookMetadataFactory.LoadAsync(
-                projectId,
-                document,
-                mappingStore,
-                accountTaxonomyStore,
-                cancellationToken);
-            customFields = FormalReportRdeFieldSelection.ForScenarios(
-                scenarios,
-                workbookMetadata,
-                document.MoneyScale);
-        }
+        var workbookMetadata = await ReportWorkbookMetadataFactory.LoadAsync(
+            projectId,
+            document,
+            mappingStore,
+            accountTaxonomyStore,
+            cancellationToken);
+        var customFields = FormalReportRdeFieldSelection.ForScenarios(
+            scenarios,
+            workbookMetadata,
+            document.MoneyScale);
 
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
             Action,
@@ -499,41 +351,19 @@ public sealed class ExportCriteriaSelectionReportHandler(
             conditionLogic,
             filterRevision.PopulationScope,
             wholeVoucherSummaryPositions);
-        var typedWriter = writer as ITypedCriteriaSelectionReportWriter;
         var request = new ReportArtifactWriteRequest(
                 plan.ArtifactKinds[0],
                 plan.SourceRef,
                 async (stream, ct) =>
                 {
-                    if (formalWriter is not null)
-                    {
-                        await formalWriter.WriteFormalAsync(
-                            stream,
-                            reportContext,
-                            plan.WorkbookMetadata!,
-                            plan.CustomFields,
-                            document.OperatorId,
-                            ct,
-                            artifactProgress.WriterProgress);
-                    }
-                    else if (typedWriter is not null)
-                    {
-                        await typedWriter.WriteTypedAsync(
-                            stream,
-                            reportContext,
-                            document.OperatorId,
-                            ct,
-                            artifactProgress.WriterProgress);
-                    }
-                    else
-                    {
-                        await writer.WriteAsync(
-                            stream,
-                            reportContext,
-                            ct,
-                            artifactProgress.WriterProgress);
-                    }
-
+                    await writer.WriteAsync(
+                        stream,
+                        reportContext,
+                        plan.WorkbookMetadata!,
+                        plan.CustomFields,
+                        document.OperatorId,
+                        ct,
+                        artifactProgress.WriterProgress);
                     artifactProgress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd);
         var facts = await new ReportArtifactExecutionPort(artifactStore, [request],

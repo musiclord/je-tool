@@ -25,8 +25,10 @@ public sealed class QueryDataPreviewHandlerTests
         Assert.Equal(new[] { "documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr", "manualAuto" },
             data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
         Assert.Equal(new string?[] { "manual", "automatic", null }, data.GetProperty("rows").EnumerateArray().Select(r => r[8].GetString()));
+        // 使用者 2026-10-22 裁定資料預覽的 GL 與 GL(未納入測試) 列同一組欄位，人工或自動分錄有配對就兩頁都列
+        // （預篩選收斂計畫階段五）。原本斷言 GL(未納入測試) 不列這一欄；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
         var excluded = await host.DispatchAsync("query.dataPreview", """{"dataset":"glExcluded"}""");
-        Assert.DoesNotContain("manualAuto", excluded.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
+        Assert.Contains("manualAuto", excluded.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
     }
 
     internal static void K5ManualFixture(InlineGlWorkbookBuilder b) => b
@@ -134,9 +136,11 @@ public sealed class QueryDataPreviewHandlerTests
             "query.dataPreview",
             """{ "dataset": "glExcluded" }""");
 
+        // 使用者 2026-10-22 裁定資料預覽依配對列欄位（預篩選收斂計畫階段五）：還沒確認 GL 配對時只列核心欄位與未納入原因，
+        // 過帳狀態要有配對才列。原本斷言固定十欄、過帳狀態排第四；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
         Assert.Equal(
             [
-                "documentNumber", "lineItem", "postDate", "postingStatus", "accountCode", "accountName",
+                "documentNumber", "lineItem", "postDate", "accountCode", "accountName",
                 "documentDescription", "amount", "drCr", "exclusionReason"
             ],
             data.GetProperty("columns").EnumerateArray().Select(column => column.GetString()).ToList());
@@ -215,9 +219,11 @@ public sealed class QueryDataPreviewHandlerTests
             Assert.Equal("DEBIT", rows[0][7].GetString());
 
             // stats（手算 oracle）：|金額| ∈ [50, 250]、日期 01-01～01-05、傳票 2 張
+            // 使用者 2026-10-22 裁定資料預覽的金額固定顯示四位小數（預篩選收斂計畫階段五）：統計列的金額改用字串照存下的值傳，
+            // 畫面補四位時不經過浮點數。原本斷言數字；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
             var stats = data.GetProperty("stats");
-            Assert.Equal(50m, stats.GetProperty("amountAbsMin").GetDecimal());
-            Assert.Equal(250m, stats.GetProperty("amountAbsMax").GetDecimal());
+            Assert.Equal("50", stats.GetProperty("amountAbsMin").GetString());
+            Assert.Equal("250", stats.GetProperty("amountAbsMax").GetString());
             Assert.Equal("2024-01-01", stats.GetProperty("postDateMin").GetString());
             Assert.Equal("2024-01-05", stats.GetProperty("postDateMax").GetString());
             Assert.Equal(2, stats.GetProperty("voucherCount").GetInt64());
@@ -277,7 +283,9 @@ public sealed class QueryDataPreviewHandlerTests
         Assert.Equal(1, excluded.GetProperty("rows").GetArrayLength());
         var firstRow = excluded.GetProperty("rows")[0];
         Assert.Equal("JV-200", firstRow[0].GetString());
-        Assert.Equal("VOID", firstRow[3].GetString());
+        // 使用者 2026-10-22 裁定資料預覽依配對列欄位（預篩選收斂計畫階段五）：過帳狀態是選填欄位，接在核心八欄後面。
+        // 原本過帳狀態排第四欄；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
+        Assert.Equal("VOID", firstRow[8].GetString());
         // 使用者 2026-10-21 裁定日期不符分成三種原因：JV-200 的總帳日期在 2024 年查核期間之後，讀成 afterPeriod；
         // 兩個計數改成四個。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
         Assert.Equal("afterPeriod", firstRow[9].GetString());

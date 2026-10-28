@@ -124,7 +124,8 @@ public sealed class SchemaV7MigrationTests
 
         // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 12 版加上 error。第一次失敗收據 20261013-095718626-0edd56e525f6453997c4d1952148ce33。
         // 使用者 2026-10-21 裁定日期不符分成三種原因，本機 schema 再升到第 13 版。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-        Assert.Equal("13", await env.TextAsync(
+        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，本機 schema 升到第 14 版。第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+        Assert.Equal("14", await env.TextAsync(
             "SELECT value FROM schema_info WHERE key = 'schema_version';"));
         Assert.Equal(4, await env.V7TableCountAsync());
         Assert.Equal(
@@ -175,7 +176,8 @@ public sealed class SchemaV7MigrationTests
 
         // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 12 版加上 error。第一次失敗收據 20261013-095718626-0edd56e525f6453997c4d1952148ce33。
         // 使用者 2026-10-21 裁定日期不符分成三種原因，本機 schema 再升到第 13 版。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-        Assert.Equal("13", await env.TextAsync(
+        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，本機 schema 升到第 14 版。第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+        Assert.Equal("14", await env.TextAsync(
             "SELECT value FROM schema_info WHERE key='schema_version';"));
         Assert.Equal(0, await env.TableCountAsync("config_field_mapping_v7"));
         Assert.Equal(MappingMetadataFormat.CurrentVersion, await env.ScalarAsync(
@@ -209,7 +211,8 @@ public sealed class SchemaV7MigrationTests
 
         // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 12 版加上 error。第一次失敗收據 20261013-095718626-0edd56e525f6453997c4d1952148ce33。
         // 使用者 2026-10-21 裁定日期不符分成三種原因，本機 schema 再升到第 13 版。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-        Assert.Equal("13", await env.TextAsync(
+        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，本機 schema 升到第 14 版。第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+        Assert.Equal("14", await env.TextAsync(
             "SELECT value FROM schema_info WHERE key = 'schema_version';"));
         Assert.Equal(1, await env.ColumnCountAsync("target_gl_entry", "posting_status"));
         Assert.Equal(1, await env.ColumnCountAsync("target_gl_entry", "is_effective"));
@@ -244,7 +247,8 @@ public sealed class SchemaV7MigrationTests
         await reopened.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
         // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 12 版加上 error。第一次失敗收據 20261013-095718626-0edd56e525f6453997c4d1952148ce33。
         // 使用者 2026-10-21 裁定日期不符分成三種原因，本機 schema 再升到第 13 版。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-        Assert.Equal("13", await env.TextAsync(
+        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，本機 schema 升到第 14 版。第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+        Assert.Equal("14", await env.TextAsync(
             "SELECT value FROM schema_info WHERE key = 'schema_version';"));
     }
 
@@ -312,7 +316,8 @@ public sealed class SchemaV7MigrationTests
         Assert.True(await reader.ReadAsync());
         // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 12 版加上 error。第一次失敗收據 20261013-095718626-0edd56e525f6453997c4d1952148ce33。
         // 使用者 2026-10-21 裁定日期不符分成三種原因，本機 schema 再升到第 13 版。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-        Assert.Equal("13", reader.GetString(0));
+        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，本機 schema 升到第 14 版。第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+        Assert.Equal("14", reader.GetString(0));
         Assert.Equal(1, reader.GetInt64(1));
     }
 

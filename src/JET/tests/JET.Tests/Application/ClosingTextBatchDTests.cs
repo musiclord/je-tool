@@ -38,7 +38,7 @@ public sealed class ClosingTextBatchDTests
             new FilterGroupSpec(FilterJoin.And, [Rule(TextFieldId, "Beta"), Rule(RemovedFieldId, "Synthetic secret value")])
         ]);
 
-        var exception = Assert.Throws<JetActionException>(() => builder.BuildPlan(scenario, Context, zeroModulus: 1_000_000));
+        var exception = Assert.Throws<JetActionException>(() => builder.BuildPlan(scenario, Context));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
         Assert.Equal(UnexpectedErrorSentence, exception.Message);
@@ -54,7 +54,7 @@ public sealed class ClosingTextBatchDTests
         var scenario = new FilterScenarioSpec("合成", "compile check", [
             new FilterGroupSpec(FilterJoin.And, [Rule(RemovedFieldId, "Synthetic secret value")])
         ]);
-        var exception = Assert.Throws<JetActionException>(() => builder.BuildPlan(scenario, Context, zeroModulus: 1_000_000));
+        var exception = Assert.Throws<JetActionException>(() => builder.BuildPlan(scenario, Context));
         using var support = new SupportRingBufferLoggerProvider(64);
         using var factory = LoggerFactory.Create(logging => logging.AddProvider(support));
 

@@ -204,12 +204,23 @@ internal static class ValidationSummaryShapeValidator
         RequireExactObject(
             value,
             "status", "nullAccountCount", "nullDocumentCount", "nullDescriptionCount",
-            "outOfRangeDateCount", "nullRows");
+            "outOfRangeDateCount", "outOfRangeDateNaReason", "nullRows");
         RequireStatus(value);
         RequireNonNegativeLong(value, "nullAccountCount");
         RequireNonNegativeLong(value, "nullDocumentCount");
         RequireNonNegativeLong(value, "nullDescriptionCount");
-        RequireNonNegativeLong(value, "outOfRangeDateCount");
+        // 「核准日不在期間」能檢查時是筆數、原因是 null；傳票核准日不可用時筆數是 null，原因寫缺什麼。
+        var outOfRangeDateNaReason = Property(value, "outOfRangeDateNaReason");
+        if (outOfRangeDateNaReason.ValueKind == JsonValueKind.Null)
+        {
+            RequireNonNegativeLong(value, "outOfRangeDateCount");
+        }
+        else if (outOfRangeDateNaReason.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(outOfRangeDateNaReason.GetString())
+            || Property(value, "outOfRangeDateCount").ValueKind != JsonValueKind.Null)
+        {
+            throw Invalid("outOfRangeDateNaReason");
+        }
         RequireArray(value, "nullRows");
     }
 

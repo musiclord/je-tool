@@ -52,8 +52,8 @@ public sealed class WorkpaperWriterStep3Step4Tests
     }
 
     /// <summary>
-    /// WorkingPaper 的 step3 可見情境表固定止於 E 欄；即使 public compatibility
-    /// context 帶入舊 ConditionLogic，F 欄也不得再鏡射條件布林式。
+    /// WorkingPaper 的 step3 可見情境表固定止於 E 欄；計畫裡的條件文字不得鏡射到 F 欄。
+    /// 2026-10-22 起 WorkpaperContext 沒有舊的 ScenarioConditionLogic 欄位，條件文字只在計畫裡。
     /// </summary>
     [Fact]
     public async Task Step3_VisibleConditionTable_EndsAtColumnE()
@@ -62,21 +62,9 @@ public sealed class WorkpaperWriterStep3Step4Tests
         var ctx = await DemoProjectPipeline.SetupAsync(host);
         await host.DispatchAsync("filter.commit", MatrixScenarioPayload());
 
-        // 真 store 列出已存情境 → 真渲染器 → position→條件邏輯（鏡射 ExportWorkpaperStreamHandler 的計算）。
-        var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
-        var saved = await new LocalFilterScenarioStore(database).ListAsync(ctx.ProjectId, CancellationToken.None);
-        var conditionLogic = saved.ToDictionary(s => s.Position, s =>
-        {
-            using var definition = JsonDocument.Parse(s.DefinitionJson);
-            return FilterConditionRenderer.Render(definition.RootElement);
-        });
-
-        var context = (await CurrentContextForAsync(host, ctx.ProjectId)) with
-        {
-            ScenarioConditionLogic = conditionLogic
-        };
+        var context = await CurrentContextForAsync(host, ctx.ProjectId);
         var stream = new MemoryStream();
-        await BuildWriter(host).WriteAsync(stream, context, CancellationToken.None);
+        await WriteWithCurrentPlanAsync(host, BuildWriter(host), stream, context, CancellationToken.None);
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
         var sheet = workbook.Worksheet(Step3Sheet);
@@ -156,8 +144,9 @@ public sealed class WorkpaperWriterStep3Step4Tests
         {
             ScenarioPositions = [c2Position]
         };
+        var plan = await CurrentPlanForAsync(host, context);
         await using var stream = new MemoryStream();
-        await BuildWriter(host).WriteAsync(stream, context, CancellationToken.None);
+        await ((IWorkpaperPlanWriter)BuildWriter(host)).WriteAsync(stream, context, plan, CancellationToken.None);
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
 
@@ -183,9 +172,13 @@ public sealed class WorkpaperWriterStep3Step4Tests
             .Where(row => details.Cell(row, 1).GetString() == "DOC-C2")
             .ToList();
         Assert.Equal(3, c2Rows.Count); // 命中傳票的三條 GL 行要完整列出。
-        Assert.Equal("C1_Tag", details.Cell("Q5").GetString());
-        Assert.Equal("C2_Tag", details.Cell("R5").GetString());
-        Assert.Equal(1, c2Rows.Count(row => details.Cell(row, 18).GetString() == "Y"));
+        // 2026-10-22 技術債一輪：沒有計畫的舊寫出路徑已刪除，step4-1 依計畫只列所選集合裡有行層命中的位置，
+        // 標記欄緊接在計畫的欄位之後（第一次失敗：Public 收據 20261022-075335566-9bd5ebf8423944be8298ad73cb7ee242）。
+        var tagColumn = plan.Step41Columns.Count + 1;
+        Assert.Equal(new[] { c2Position }, plan.RowHitScenarioPositions);
+        Assert.Equal("C2_TAG", details.Cell(5, tagColumn).GetString());
+        Assert.True(details.Cell(5, tagColumn + 1).IsEmpty());
+        Assert.Equal(1, c2Rows.Count(row => details.Cell(row, tagColumn).GetString() == "Y"));
     }
 
     [Fact]
@@ -200,7 +193,7 @@ public sealed class WorkpaperWriterStep3Step4Tests
         };
 
         await using var stream = new MemoryStream();
-        await BuildWriter(host).WriteAsync(stream, context, CancellationToken.None);
+        await WriteWithCurrentPlanAsync(host, BuildWriter(host), stream, context, CancellationToken.None);
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
         var sheet = workbook.Worksheet(Step4Sheet);

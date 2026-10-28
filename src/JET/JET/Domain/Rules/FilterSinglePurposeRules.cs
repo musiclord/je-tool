@@ -11,6 +11,18 @@ internal static class FilterSinglePurposeRules
     internal const string Keywords = "舊式摘要關鍵字條件已停用。請改用「傳票摘要」的「包含任一文字」，填入原本的關鍵字。";
     internal const string TrailingZeros = "舊式連續零尾數條件已停用。請在同一個子條件組加入「金額」的「整數尾數符合」及「大於或等於 1」，尾數填入原位數的 0。";
     internal const string TrailingDigits = "舊式金額尾數條件已停用。請改用「金額」的「整數尾數符合」，填入原本的尾數清單。";
+    internal const string PreparerEntryCount = "舊式編製人員分錄筆數條件已停用。請改用「科目與人員統計」條件：統計對象選「傳票建立人員」，計算單位選「分錄筆數」，比較方式選「小於或等於」，填入原本的筆數。";
+    internal const string AccountEntryCount = "舊式科目分錄筆數條件已停用。請改用「科目與人員統計」條件：統計對象選「會計科目編號」，計算單位選「分錄筆數」，比較方式選「小於或等於」，填入原本的筆數。";
+
+    /// <summary>
+    /// 整個型別已停用的條件（預篩選收斂計畫階段九把兩種筆數條件收進「科目與人員統計」）：第五步的型別表不再列出，
+    /// 舊情境裡的這幾條仍可讀回；前端 ui-core.js 的 RETIRED_RULE_TYPES 鏡像這一份。
+    /// </summary>
+    internal static readonly IReadOnlySet<FilterRuleType> RetiredTypes = new HashSet<FilterRuleType>
+    {
+        FilterRuleType.CustomKeywords, FilterRuleType.CustomTrailingZeros, FilterRuleType.TrailingDigits,
+        FilterRuleType.CustomPreparerEntryCount, FilterRuleType.CustomAccountEntryCount
+    };
 
     internal static string? Reason(FilterRuleSpec rule) => rule.Type switch
     {
@@ -24,6 +36,8 @@ internal static class FilterSinglePurposeRules
         FilterRuleType.CustomKeywords => Keywords,
         FilterRuleType.CustomTrailingZeros => TrailingZeros,
         FilterRuleType.TrailingDigits => TrailingDigits,
+        FilterRuleType.CustomPreparerEntryCount => PreparerEntryCount,
+        FilterRuleType.CustomAccountEntryCount => AccountEntryCount,
         _ => null
     };
 }

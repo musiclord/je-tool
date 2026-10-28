@@ -62,7 +62,7 @@ public sealed class SupportRingBufferLoggerProvider :
                 Sequence = Interlocked.Increment(ref _received),
             };
             _buffer.Add(sequenced);
-            if (sequenced.EventName == "action.error") _failures.Add(sequenced);
+            if (sequenced.EventName == SupportEventNames.ActionError) _failures.Add(sequenced);
             if (sequenced.InternalProjectId is not null) _caseHistory?.Enqueue(sequenced);
         }
     }
@@ -77,14 +77,14 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
 {
     private static readonly HashSet<string> AllowedEvents = new(StringComparer.Ordinal)
     {
-        "action.start",
-        "action.end",
-        "action.error",
+        SupportEventNames.ActionStart,
+        SupportEventNames.ActionEnd,
+        SupportEventNames.ActionError,
         // 取消不是失敗，另記一筆，不佔失敗摘要的保留名額（2026-10-21）。
-        "action.cancelled",
+        SupportEventNames.ActionCancelled,
         // 主要工作已完成或已失敗後，附帶步驟（更新案件步驟、刪資料夾、放工作鎖）也失敗。
-        "action.step_failed",
-        "action.payload_rejected",
+        SupportEventNames.ActionStepFailed,
+        SupportEventNames.ActionPayloadRejected,
         "import.milestone",
         "import.inspect",
         "import.account_mapping.summary_failed",
@@ -101,7 +101,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "filter.scenario_unreadable",
         "filter.compile_check_failed",
         // 每次建立或載入案件記一筆，帶 JET 版本與資料庫種類，不記電腦、帳號或路徑（使用者 2026-10-21 裁定）。
-        "support.case_opened",
+        SupportEventNames.CaseOpened,
     };
 
     private static readonly HashSet<string> AllowedFields = new(StringComparer.Ordinal)
@@ -273,12 +273,12 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         var action = fields.GetValueOrDefault("action")?.ToString() ?? "unknown";
         return eventName switch
         {
-            "action.start" => $"action {action} start",
-            "action.end" => $"action {action} {fields.GetValueOrDefault("result_status") ?? "ok"} in {fields.GetValueOrDefault("duration_ms") ?? 0} ms",
-            "action.error" => $"action {action} failed in {fields.GetValueOrDefault("duration_ms") ?? 0} ms",
-            "action.cancelled" => $"action {action} cancelled in {fields.GetValueOrDefault("duration_ms") ?? 0} ms",
-            "action.step_failed" => $"action {action} step {fields.GetValueOrDefault("step") ?? "unknown"} failed",
-            "action.payload_rejected" => $"action {action} payload rejected by check {fields.GetValueOrDefault("payload_check") ?? "unknown"}",
+            SupportEventNames.ActionStart => $"action {action} start",
+            SupportEventNames.ActionEnd => $"action {action} {fields.GetValueOrDefault("result_status") ?? "ok"} in {fields.GetValueOrDefault("duration_ms") ?? 0} ms",
+            SupportEventNames.ActionError => $"action {action} failed in {fields.GetValueOrDefault("duration_ms") ?? 0} ms",
+            SupportEventNames.ActionCancelled => $"action {action} cancelled in {fields.GetValueOrDefault("duration_ms") ?? 0} ms",
+            SupportEventNames.ActionStepFailed => $"action {action} step {fields.GetValueOrDefault("step") ?? "unknown"} failed",
+            SupportEventNames.ActionPayloadRejected => $"action {action} payload rejected by check {fields.GetValueOrDefault("payload_check") ?? "unknown"}",
             "import.milestone" => $"import milestone {fields.GetValueOrDefault("phase") ?? "unknown"}",
             "import.inspect" => $"import inspect {fields.GetValueOrDefault("file_format") ?? "unknown"} columns={fields.GetValueOrDefault("column_count") ?? "n/a"}",
             "import.account_mapping.summary_failed" => "account mapping saved; difference summary unavailable",
@@ -294,7 +294,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
                 + $"unreadable: {fields.GetValueOrDefault("reason_code") ?? "unknown"}",
             "filter.compile_check_failed" => $"action {action} filter group {fields.GetValueOrDefault("group_no") ?? "n/a"} "
                 + $"rule {fields.GetValueOrDefault("rule_no") ?? "n/a"} compile check failed: {fields.GetValueOrDefault("compile_check") ?? "unknown"}",
-            "support.case_opened" => $"case opened by {fields.GetValueOrDefault("opened_by") ?? "unknown"} "
+            SupportEventNames.CaseOpened => $"case opened by {fields.GetValueOrDefault("opened_by") ?? "unknown"} "
                 + $"provider={fields.GetValueOrDefault("database_provider") ?? "unknown"}",
             _ => eventName,
         };

@@ -113,14 +113,11 @@ public sealed class LocalFilterCommitRepository(
         FilterRuleContext context,
         CancellationToken cancellationToken)
     {
-        var zeroModulus = TrailingZeroThreshold.UnitModulus(
-            TrailingZeroThreshold.DefaultZerosThreshold);
-
         foreach (var item in items)
         {
             await using var insert = connection.CreateCommand();
             insert.Transaction = transaction;
-            var plan = _whereBuilder.BuildPlan(item.Spec, context, zeroModulus);
+            var plan = _whereBuilder.BuildPlan(item.Spec, context);
             plan.BindParametersTo(insert);
             insert.AddWithValue("@scenarioPosition", item.Definition.Position);
             insert.CommandText = FilterRunHitInsertSql.Build(

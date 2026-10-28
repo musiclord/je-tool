@@ -9,7 +9,7 @@ namespace JET.Infrastructure;
 
 public sealed partial class LegacyReportWriter
 {
-    private const int InfReportSampleSize = 59;
+    private const int InfReportSampleSize = InfSampling.DefaultSampleSize;
     private const string InfMainSheet = "INF Testing 可靠性測試";
     private const string InfAllFieldsSheet = "可靠性樣本_所有欄位";
 
@@ -38,20 +38,7 @@ public sealed partial class LegacyReportWriter
             ["傳票核准人員_JE"] = 12
         };
 
-    public async Task<ExportStats> WriteAsync(
-        Stream output,
-        InfReportContext context,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null)
-        => await WriteInfCoreAsync(
-            output,
-            context,
-            workbookMetadata: null,
-            customFields: [],
-            cancellationToken,
-            progress).ConfigureAwait(false);
-
-    Task<ExportStats> IFormalInfReportWriter.WriteFormalAsync(
+    Task<ExportStats> IInfReportWriter.WriteAsync(
         Stream output,
         InfReportContext context,
         ReportWorkbookMetadata workbookMetadata,
@@ -69,7 +56,7 @@ public sealed partial class LegacyReportWriter
     private async Task<ExportStats> WriteInfCoreAsync(
         Stream output,
         InfReportContext context,
-        ReportWorkbookMetadata? workbookMetadata,
+        ReportWorkbookMetadata workbookMetadata,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress)
@@ -116,7 +103,7 @@ public sealed partial class LegacyReportWriter
         var rdeValues = await ReadReportRdeValuesAsync(
             context.Project.ProjectId,
             sampleEntryIds,
-            workbookMetadata?.GlMapping.GlOptions?.RdeFields ?? customFields,
+            workbookMetadata.GlMapping.GlOptions?.RdeFields ?? customFields,
             customFields,
             context.Project.MoneyScale,
             cancellationToken).ConfigureAwait(false);
@@ -180,7 +167,7 @@ public sealed partial class LegacyReportWriter
         IReadOnlyDictionary<long, string> raw,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         IReadOnlyDictionary<long, IReadOnlyDictionary<string, string?>> rdeValues,
-        ReportWorkbookMetadata? workbookMetadata,
+        ReportWorkbookMetadata workbookMetadata,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress)
     {
@@ -214,10 +201,7 @@ public sealed partial class LegacyReportWriter
                 AddStat(stats, stat, progress);
             },
             cancellationToken);
-        if (workbookMetadata is not null)
-        {
-            ReportWorkbookMetadataWorksheet.Append(editor.Document, workbookMetadata, cancellationToken);
-        }
+        ReportWorkbookMetadataWorksheet.Append(editor.Document, workbookMetadata, cancellationToken);
         return stats;
     }
 
@@ -523,37 +507,15 @@ public sealed partial class LegacyReportWriter
         IReadOnlyDictionary<long, string> raw,
         CommittedMapping? glMapping)
     {
-        string? directionColumn = null;
-        string? sourceModuleColumn = null;
-        if (glMapping is not null)
-        {
-            glMapping.Mapping.TryGetValue(GlMappingKeys.DcField, out directionColumn);
-            glMapping.Mapping.TryGetValue(GlMappingKeys.JeSource, out sourceModuleColumn);
-        }
-
+        var values = new InfSampleDisplayValues(glMapping);
         var result = new List<InfTemplateSample>(samples.Count);
         foreach (var sample in samples)
         {
             using var document = JsonDocument.Parse(raw[sample.EntryId]);
-            result.Add(new InfTemplateSample(
-                sample,
-                ReadRawValue(document.RootElement, directionColumn),
-                ReadRawValue(document.RootElement, sourceModuleColumn)));
+            var (direction, sourceModule) = values.For(document.RootElement, sample);
+            result.Add(new InfTemplateSample(sample, direction, sourceModule));
         }
         return result;
-    }
-
-    private static string? ReadRawValue(JsonElement row, string? sourceColumn)
-    {
-        if (string.IsNullOrWhiteSpace(sourceColumn)
-            || !row.TryGetProperty(sourceColumn, out var value)
-            || value.ValueKind == JsonValueKind.Null)
-        {
-            return null;
-        }
-        return value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : value.GetRawText();
     }
 
     private sealed record InfTemplateSample(

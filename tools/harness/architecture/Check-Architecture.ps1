@@ -120,6 +120,152 @@ function Get-JetDiagramBindingErrors {
     return $problems.ToArray()
 }
 
+# LikeC4 模型的最小解析，只處理 jet.c4 一直維持的寫法：一行一個敘述，區塊在行尾開啟。
+# 讀出三樣東西：元件宣告（完整識別字對標題）、帶證據編號的關係，以及動態視圖的步驟。
+function Get-JetLikeC4Model([string]$Text) {
+    $elements = @{}
+    $relations = [Collections.Generic.List[object]]::new()
+    $views = @{}
+    $scope = [Collections.Generic.List[object]]::new()
+    $depth = 0
+    $view = $null
+    $viewCloseAt = 0
+    $relation = $null
+    foreach ($line in ($Text -split "`r?`n")) {
+        $code = [regex]::Replace([regex]::Replace($line, "'[^']*'", "''"), '//.*$', '')
+        $after = $depth + ([regex]::Matches($code, '\{')).Count - ([regex]::Matches($code, '\}')).Count
+        $path = @($scope | ForEach-Object { $_.name }) -join '.'
+        if ($null -ne $view) {
+            $step = [regex]::Match($line, "^\s*([\w.]+)\s+(->|<-)\s+([\w.]+)\s+'([^']*)'")
+            if ($step.Success) {
+                $reverse = $step.Groups[2].Value -ceq '<-'
+                $views[$view].Add(@{
+                    source = $step.Groups[$(if ($reverse) { 3 } else { 1 })].Value
+                    target = $step.Groups[$(if ($reverse) { 1 } else { 3 })].Value
+                    label = $step.Groups[4].Value
+                    isReturn = $reverse })
+            }
+            if ($after -le $viewCloseAt) { $view = $null }
+        } else {
+            $dynamic = [regex]::Match($line, '^\s*dynamic view (\w+)\s*\{')
+            if ($dynamic.Success) {
+                $view = $dynamic.Groups[1].Value
+                $views[$view] = [Collections.Generic.List[object]]::new()
+                $viewCloseAt = $depth
+            }
+            $declaration = [regex]::Match($line, "^\s*(\w+)\s*=\s*\w+\s+'([^']*)'")
+            if ($declaration.Success) {
+                $id = $declaration.Groups[1].Value
+                $elements[$(if ($path) { "$path.$id" } else { $id })] = $declaration.Groups[2].Value
+                if ($after -gt $depth) { $scope.Add(@{ name = $id; closeAt = $depth }) }
+            }
+            $arrow = [regex]::Match($line, "^\s*([\w.]+)\s+-\[(\w+)\]->\s+([\w.]+)\s+'([^']*)'")
+            if ($arrow.Success) {
+                $relation = @{ scope = $path; from = $arrow.Groups[1].Value; kind = $arrow.Groups[2].Value
+                               to = $arrow.Groups[3].Value; label = $arrow.Groups[4].Value; evidence = $null }
+                $relations.Add($relation)
+            }
+            $evidence = [regex]::Match($line, "evidence '(\w+)'")
+            if ($evidence.Success -and $null -ne $relation) { $relation.evidence = $evidence.Groups[1].Value; $relation = $null }
+        }
+        $depth = $after
+        while ($scope.Count -and $scope[$scope.Count - 1].closeAt -ge $depth) { $scope.RemoveAt($scope.Count - 1) }
+    }
+    # 關係兩端寫的是所在區塊裡的短名稱，或從外層算起的路徑；由內往外找第一個宣告過的元件。
+    function Resolve-Reference([string]$Scope, [string]$Reference) {
+        $parts = @(if ($Scope) { $Scope.Split('.') } else { @() })
+        for ($i = $parts.Count; $i -gt 0; $i--) {
+            $candidate = (($parts[0..($i - 1)]) -join '.') + '.' + $Reference
+            if ($elements.ContainsKey($candidate)) { return $candidate }
+        }
+        return $Reference
+    }
+    $resolved = @(foreach ($item in $relations) {
+        @{ from = Resolve-Reference $item.scope $item.from; to = Resolve-Reference $item.scope $item.to
+           kind = $item.kind; label = $item.label; evidence = $item.evidence }
+    })
+    return @{ elements = $elements; relations = $resolved; dynamicViews = $views }
+}
+
+# 畫同一個流程的 LikeC4 動態視圖與 Archify 循序圖，逐步比對呼叫順序、呼叫對象與程式位置。
+# 動態視圖的每一步經元件對應找到模型關係，再從連線證據取 Roslyn 呼叫位置；循序圖那邊取範圍內的呼叫訊息。
+# 沒對到的步驟要列在 skippedSteps，範圍外的呼叫訊息要列在 sequenceOutOfScope，兩邊都要寫原因。
+function Get-JetDynamicViewPairErrors {
+    param([Parameter(Mandatory=$true)][hashtable]$Pair,
+          [Parameter(Mandatory=$true)][hashtable]$Model,
+          [Parameter(Mandatory=$true)][hashtable]$Connections,
+          [Parameter(Mandatory=$true)][AllowEmptyCollection()][object[]]$Messages)
+    $problems = [Collections.Generic.List[object]]::new()
+    function Add-Problem([string]$Code, [string]$Detail) { $problems.Add([pscustomobject]@{ Code = $Code; Detail = $Detail }) }
+    function Get-Locations($Edges, [string]$Method) {
+        return @($Edges | Where-Object { $null -ne $_ -and (Get-JetMemberName ([string]$_.target)) -ceq $Method } |
+            ForEach-Object { "$($_.location.path):$($_.location.line)" } | Sort-Object -Unique)
+    }
+    function Get-Method([string]$Label) { return $Label.Split('.')[-1] }
+    $steps = $Model.dynamicViews[[string]$Pair.dynamicView]
+    if ($null -eq $steps) { Add-Problem 'dynamic_view_missing' ([string]$Pair.dynamicView); return $problems.ToArray() }
+    $skips = @{}
+    foreach ($skip in @($Pair['skippedSteps'] | Where-Object { $null -ne $_ })) { $skips[[string]$skip.label] = $false }
+    $participants = $Pair['participants']
+    if ($null -eq $participants) { $participants = @{} }
+    $left = [Collections.Generic.List[object]]::new()
+    foreach ($step in $steps) {
+        $label = [string]$step.label
+        if ($skips.ContainsKey($label)) { $skips[$label] = $true; continue }
+        $method = Get-Method $label
+        if ($step.isReturn -or $method -cnotmatch '^[A-Za-z_]\w*$') { Add-Problem 'dynamic_step_unmatched' $label; continue }
+        $interface = if ($label.Contains('.')) { $label.Substring(0, $label.LastIndexOf('.')) } else { $null }
+        $matching = @($Model.relations | Where-Object {
+            $_.from -ceq $step.source -and $_.kind -cin @('calls','viaInterface') -and
+            $(if ($interface) { $Model.elements[$_.to] -ceq $interface } else { $_.to -ceq $step.target }) })
+        if ($matching.Count -ne 1) { Add-Problem 'dynamic_step_relation_missing' $label; continue }
+        $evidence = $Connections["likec4:$($matching[0].evidence)"]
+        if ($null -eq $evidence) { Add-Problem 'dynamic_step_evidence_missing' $label; continue }
+        if ($method -cnotin @($evidence['members'] | Where-Object { $null -ne $_ })) { Add-Problem 'dynamic_step_member_missing' $label; continue }
+        $locations = @(Get-Locations @($evidence['roslyn']) $method)
+        if (-not $locations.Count) { Add-Problem 'dynamic_step_location_missing' $label; continue }
+        $from = $participants[[string]$step.source]
+        $to = $participants[[string]$step.target]
+        if (-not $from -or -not $to) { Add-Problem 'participant_unmapped' $label; continue }
+        $left.Add(@{ name = $label; from = [string]$from; to = [string]$to; method = $method; locations = $locations })
+    }
+    foreach ($label in @($skips.Keys | Where-Object { -not $skips[$_] })) { Add-Problem 'skipped_step_not_drawn' $label }
+    $scope = @($Pair['sequenceMessages'] | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ })
+    $outOfScope = @{}
+    foreach ($item in @($Pair['sequenceOutOfScope'] | Where-Object { $null -ne $_ })) { $outOfScope[[string]$item.message] = $true }
+    $byId = @{}
+    foreach ($message in @($Messages | Where-Object { $null -ne $_ })) { $byId[[string]$message.id] = $message }
+    $right = [Collections.Generic.List[object]]::new()
+    foreach ($id in $scope) {
+        if ($outOfScope.ContainsKey($id)) { Add-Problem 'sequence_scope_conflict' $id }
+        $message = $byId[$id]
+        if ($null -eq $message) { Add-Problem 'sequence_message_missing' $id; continue }
+        $evidence = $Connections["$($Pair.sequence):$id"]
+        if ($null -eq $evidence) { Add-Problem 'sequence_evidence_missing' $id; continue }
+        if ($evidence.kind -cnotin @('calls','viaInterface')) { Add-Problem 'sequence_message_not_call' $id; continue }
+        $method = Get-Method ([string]$message.label)
+        $locations = @(Get-Locations @($evidence['roslyn']) $method)
+        if (-not $locations.Count) { Add-Problem 'sequence_location_missing' $id; continue }
+        $right.Add(@{ name = $id; from = [string]$message.from; to = [string]$message.to; method = $method; locations = $locations })
+    }
+    foreach ($id in @($outOfScope.Keys)) { if (-not $byId.ContainsKey($id)) { Add-Problem 'sequence_message_missing' $id } }
+    foreach ($message in @($Messages | Where-Object { $null -ne $_ })) {
+        $id = [string]$message.id
+        $evidence = $Connections["$($Pair.sequence):$id"]
+        if ($null -ne $evidence -and $evidence.kind -cin @('calls','viaInterface') -and $id -cnotin $scope -and -not $outOfScope.ContainsKey($id)) {
+            Add-Problem 'sequence_call_not_in_scope' $id
+        }
+    }
+    if ($left.Count -ne $right.Count) { Add-Problem 'step_count_differs' "dynamic $($left.Count), sequence $($right.Count)" }
+    for ($i = 0; $i -lt [Math]::Min($left.Count, $right.Count); $i++) {
+        $l = $left[$i]; $r = $right[$i]; $where = "$($i + 1):$($l.name)/$($r.name)"
+        if ($l.method -cne $r.method) { Add-Problem 'step_method_differs' $where }
+        elseif ($l.from -cne $r.from -or $l.to -cne $r.to) { Add-Problem 'step_participants_differ' $where }
+        elseif (($l.locations -join '|') -cne ($r.locations -join '|')) { Add-Problem 'step_location_differs' $where }
+    }
+    return $problems.ToArray()
+}
+
 function Invoke-JetArchitectureCheck {
     param([Parameter(Mandatory=$true)][string]$RepositoryRoot,
           [Parameter(Mandatory=$true)][string]$ManifestPath)
@@ -271,6 +417,24 @@ function Invoke-JetArchitectureCheck {
             if ($null -eq $call -or $call.reverse -cne $drawn[$key].ends) { Problem 'return_does_not_reverse_call' $key }
         }
     }
+    # Dynamic views and sequence diagrams that draw the same flow must agree step by step (pairs declared in the package).
+    $pairCount = 0
+    if (-not $manifest.ContainsKey('dynamicViewPairs')) {
+        Problem 'dynamic_view_pairs_missing' $ManifestPath
+    } else {
+        $pairs = @((Read-ArchiveJson $manifest.dynamicViewPairs).pairs | Where-Object { $null -ne $_ })
+        $model = Get-JetLikeC4Model $c4
+        foreach ($pair in $pairs) {
+            $pairCount++
+            $sequence = @($manifest.diagrams | Where-Object { $_.id -ceq $pair.sequence -and $_.type -ceq 'sequence' })
+            if ($sequence.Count -ne 1) { Problem 'dynamic_view_pair_sequence_missing' $pair.id; continue }
+            $candidate = Read-ArchiveJson $sequence[0].candidate
+            foreach ($problem in @(Get-JetDynamicViewPairErrors -Pair $pair -Model $model -Connections $byKey -Messages @($candidate.messages))) {
+                Problem $problem.Code "$($pair.id):$($problem.Detail)"
+            }
+        }
+        if ($pairCount -ne $manifest.checkedDynamicViewPairs) { Problem 'dynamic_view_pair_count_changed' $manifest.dynamicViewPairs }
+    }
     foreach ($file in Get-ChildItem -LiteralPath $archive -File -Recurse -Include '*.html','*.json','*.md','*.c4') {
         if ([Uri]::UnescapeDataString([IO.File]::ReadAllText($file.FullName)) -match '(?i)\b[a-z]:[\\/]{1,2}users[\\/]') {
             Problem 'local_path_in_package' ([IO.Path]::GetRelativePath($archive,$file.FullName).Replace('\','/'))
@@ -285,6 +449,7 @@ function Invoke-JetArchitectureCheck {
         checkedClassRelations=$proofs.Count
         checkedConnections=$entries.Count
         checkedMembers=$memberCount
+        checkedDynamicViewPairs=$pairCount
         sourceExcerpts=$excerpts.Count
         runtimeObserved=$false
         completeSemanticCoverage=$false

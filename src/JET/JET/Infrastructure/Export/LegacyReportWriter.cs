@@ -24,16 +24,10 @@ public sealed partial class LegacyReportWriter(
     ICreatorSummaryExportRepository creatorSummaries,
     IAccountUsageExportRepository accountUsage,
     ITagMatrixScenariosRepository tagMatrixCounts,
+    ISourceQualityPageRepository sourceQualityPages,
     ITagMatrixRowPageRepository? tagMatrixRows = null,
-    IResultPageRdeValuesPort? resultPageRdeValues = null,
-    ISourceQualityPageRepository? sourceQualityPages = null)
-    : IValidationReportWriter, ITypedValidationReportWriter, IPlannedValidationReportWriter,
-      IFormalPlannedValidationReportWriter,
-      IInfReportWriter, IFormalInfReportWriter,
-      IPrescreenReportWriter, ITypedPrescreenReportWriter,
-      IPlannedPrescreenReportWriter, IFormalPlannedPrescreenReportWriter,
-      ICriteriaSelectionReportWriter, ITypedCriteriaSelectionReportWriter,
-      IFormalCriteriaSelectionReportWriter
+    IResultPageRdeValuesPort? resultPageRdeValues = null)
+    : IValidationReportWriter, IInfReportWriter, IPrescreenReportWriter, ICriteriaSelectionReportWriter
 {
     private const int DefaultProgressRowInterval = 10_000;
     private const uint ExcelMaxRow = ExcelWorksheetConstraints.MaxRows;
@@ -58,6 +52,7 @@ public sealed partial class LegacyReportWriter(
         ICreatorSummaryExportRepository creatorSummaries,
         IAccountUsageExportRepository accountUsage,
         ITagMatrixScenariosRepository tagMatrixCounts,
+        ISourceQualityPageRepository sourceQualityPages,
         LegacyReportWriterOptions options,
         int progressRowInterval = DefaultProgressRowInterval)
         : this(
@@ -72,7 +67,8 @@ public sealed partial class LegacyReportWriter(
             mappings,
             creatorSummaries,
             accountUsage,
-            tagMatrixCounts)
+            tagMatrixCounts,
+            sourceQualityPages)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
         if (progressRowInterval <= 0)
@@ -95,6 +91,7 @@ public sealed partial class LegacyReportWriter(
         ICreatorSummaryExportRepository creatorSummaries,
         IAccountUsageExportRepository accountUsage,
         ITagMatrixScenariosRepository tagMatrixCounts,
+        ISourceQualityPageRepository sourceQualityPages,
         ITagMatrixRowPageRepository tagMatrixRows,
         LegacyReportWriterOptions options,
         int progressRowInterval = DefaultProgressRowInterval)
@@ -111,6 +108,7 @@ public sealed partial class LegacyReportWriter(
             creatorSummaries,
             accountUsage,
             tagMatrixCounts,
+            sourceQualityPages,
             tagMatrixRows)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
@@ -134,10 +132,10 @@ public sealed partial class LegacyReportWriter(
         ICreatorSummaryExportRepository creatorSummaries,
         IAccountUsageExportRepository accountUsage,
         ITagMatrixScenariosRepository tagMatrixCounts,
+        ISourceQualityPageRepository sourceQualityPages,
         ITagMatrixRowPageRepository tagMatrixRows,
         ILegacyFieldDefinitionFactsPort fieldDefinitionFactsPort,
-        IResultPageRdeValuesPort? resultPageRdeValues = null,
-        ISourceQualityPageRepository? sourceQualityPages = null)
+        IResultPageRdeValuesPort? resultPageRdeValues = null)
         : this(
             completenessAccounts,
             completenessDiffs,
@@ -151,9 +149,9 @@ public sealed partial class LegacyReportWriter(
             creatorSummaries,
             accountUsage,
             tagMatrixCounts,
+            sourceQualityPages,
             tagMatrixRows,
-            resultPageRdeValues,
-            sourceQualityPages)
+            resultPageRdeValues)
     {
         ArgumentNullException.ThrowIfNull(fieldDefinitionFactsPort);
         _fieldDefinitionFactsPort = fieldDefinitionFactsPort;
@@ -172,12 +170,12 @@ public sealed partial class LegacyReportWriter(
         ICreatorSummaryExportRepository creatorSummaries,
         IAccountUsageExportRepository accountUsage,
         ITagMatrixScenariosRepository tagMatrixCounts,
+        ISourceQualityPageRepository sourceQualityPages,
         ITagMatrixRowPageRepository tagMatrixRows,
         ILegacyFieldDefinitionFactsPort fieldDefinitionFactsPort,
         LegacyReportWriterOptions options,
         int progressRowInterval = DefaultProgressRowInterval,
-        IResultPageRdeValuesPort? resultPageRdeValues = null,
-        ISourceQualityPageRepository? sourceQualityPages = null)
+        IResultPageRdeValuesPort? resultPageRdeValues = null)
         : this(
             completenessAccounts,
             completenessDiffs,
@@ -191,10 +189,10 @@ public sealed partial class LegacyReportWriter(
             creatorSummaries,
             accountUsage,
             tagMatrixCounts,
+            sourceQualityPages,
             tagMatrixRows,
             fieldDefinitionFactsPort,
-            resultPageRdeValues,
-            sourceQualityPages)
+            resultPageRdeValues)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
         if (progressRowInterval <= 0)
@@ -206,21 +204,6 @@ public sealed partial class LegacyReportWriter(
 
     private static readonly ReportPageMargins StandardMargins =
         new(0.7, 0.7, 0.75, 0.75, 0.3, 0.3);
-
-
-
-
-    private static SpreadsheetDocument CreateWorkbook(Stream output, out Sheets sheets)
-    {
-        var document = SpreadsheetDocument.Create(output, SpreadsheetDocumentType.Workbook);
-        var workbookPart = document.AddWorkbookPart();
-        workbookPart.Workbook = new Workbook();
-        var stylesPart = workbookPart.AddNewPart<WorkbookStylesPart>();
-        stylesPart.Stylesheet = LegacyReportStyles.Build();
-        stylesPart.Stylesheet.Save();
-        sheets = workbookPart.Workbook.AppendChild(new Sheets());
-        return document;
-    }
 
     private static ReportSheetWriter OpenSheet(
         SpreadsheetDocument document,
@@ -661,54 +644,8 @@ public sealed partial class LegacyReportWriter(
             ? "N/A"
             : string.Concat(lastPeriodStart.Where(char.IsDigit));
 
-    private static long RuleCount(JsonElement root, string section, string property = "count") =>
-        root.TryGetProperty(section, out var value) ? GetLong(value, property) : 0;
-
-    private static string RuleStatus(JsonElement root, string section) =>
-        root.TryGetProperty(section, out var value) ? GetString(value, "status") ?? "N/A" : "N/A";
-
-    private static long ArrayLength(JsonElement root, string section, string property)
-    {
-        return root.TryGetProperty(section, out var value)
-            && value.TryGetProperty(property, out var array)
-            && array.ValueKind == JsonValueKind.Array
-            ? array.GetArrayLength()
-            : 0;
-    }
-
-    /// <summary>欄位存在而且是整數時回傳值；舊結果沒有這個欄位或值是 null 時回 null，讓呼叫端自己決定替代來源。</summary>
-    private static long? OptionalLong(JsonElement root, string section, string property) =>
-        root.TryGetProperty(section, out var value)
-        && value.TryGetProperty(property, out var number)
-        && number.ValueKind == JsonValueKind.Number
-        && number.TryGetInt64(out var result)
-            ? result
-            : null;
-
-    private static long GetLong(JsonElement element, string property)
-    {
-        if (!element.TryGetProperty(property, out var value))
-        {
-            return 0;
-        }
-        return value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number) ? number : 0;
-    }
-
-    private static decimal GetDecimal(JsonElement element, string property)
-    {
-        if (!element.TryGetProperty(property, out var value)
-            || value.ValueKind != JsonValueKind.Number
-            || !value.TryGetDecimal(out var number))
-        {
-            return 0;
-        }
-
-        return number;
-    }
-
     private static string? GetString(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;
-
 }

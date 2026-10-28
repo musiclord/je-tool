@@ -68,9 +68,10 @@
       calendar: null           // { holidayCount, makeupDayCount, calendarImported, nonWorkingDays, nonWorkingDaysConfigured }
     },
     // committed = 已提交快照 { projectedRowCount, committedUtc, mapping, mode }（resume 時 projectedRowCount 可為 null）；
+    // GL 另帶 options 與後端算好的 availableGlFields（第五步依它停用用到未配對欄位的入口）。
     // invalidatedByImport = 來源變更使配對失效（顯示說明橫幅，重新提交後解除）。
     // droppedFields = 來源變更後，草稿裡被拿掉的欄位（新資料沒有那個來源欄），提示審計員重新選。
-    // options = GL 專有的投影政策草稿（核准日三態、過帳狀態政策、人工／自動代碼、攸關資料元素欄位）。
+    // options = GL 專有的投影政策草稿（核准日三態、過帳狀態政策、人工／自動代碼、攸關資料元素欄位、往下填補的欄位）。
     mapping: {
       gl: {
         draft: {}, amountMode: 'dual', options: freshGlOptions(),
@@ -130,7 +131,8 @@
       approvalDateMode: 'unmapped',
       postingStatusPolicy: null,
       manualAutoPolicy: freshManualAutoPolicy(),
-      rdeFields: []
+      rdeFields: [],
+      fillDownFields: []
     };
   }
 
@@ -169,6 +171,30 @@
     });
   }
 
+  // 往下填補只對有來源欄的欄位有意義（階段六）：欄位的來源欄被拿掉時，勾選跟著消失；借方、貸方代碼是字面值，不會在清單裡。
+  function removeUnmappedFillDownFields() {
+    var draft = state.mapping.gl.draft;
+    state.mapping.gl.options.fillDownFields = (state.mapping.gl.options.fillDownFields || []).filter(function (key) {
+      return key !== 'dcDebitCode' && key !== 'dcCreditCode' && !!draft[key];
+    });
+  }
+
+  // 往下填補是對來源欄做的（使用者 2026-10-28 裁定依來源欄成組），畫面上和已勾欄位配同一個來源欄的欄位也顯示勾選。
+  // 改某個欄位的來源欄之前，先把清單補成畫面上看到的勾選，勾選才會跟著那個欄位走，不因為先勾哪一個欄位而不同。
+  // 借方、貸方代碼是字面值，不算來源欄。
+  function expandFillDownFieldsByColumn() {
+    var draft = state.mapping.gl.draft;
+    var keys = (state.mapping.gl.options.fillDownFields || []).slice();
+    var columns = Object.create(null);
+    keys.forEach(function (key) { if (draft[key]) { columns[draft[key]] = true; } });
+    Object.keys(draft).forEach(function (key) {
+      if (key !== 'dcDebitCode' && key !== 'dcCreditCode' && draft[key] && columns[draft[key]] && keys.indexOf(key) < 0) {
+        keys.push(key);
+      }
+    });
+    state.mapping.gl.options.fillDownFields = keys;
+  }
+
   function syncApprovalSource() {
     var gl = state.mapping.gl;
     if (gl.draft.docDate) {
@@ -188,6 +214,7 @@
       resetManualAutoPolicyIfSourceChanged(previousManualSource);
       resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
       removeCoreMappedRdeFields();
+      removeUnmappedFillDownFields();
     }
   }
 
@@ -224,6 +251,7 @@
         dropped.push({ rde: true, column: field.sourceColumn, label: field.label });
         return false;
       });
+      removeUnmappedFillDownFields();
     }
     mapping.droppedFields = dropped;
   }
@@ -587,15 +615,6 @@
       bump();
     },
 
-    // 相容既有 caller 的單一入口；查核母體固定為 auditPeriod。
-    setFilterPopulationScope: function () {
-      if (state.filter.populationScope === 'auditPeriod') { return; }
-      state.filter.populationScope = 'auditPeriod';
-      state.filter.preview = null;
-      filterDraftRev++;
-      bump();
-    },
-
     setReportArtifacts: function (artifacts) {
       state.reportArtifacts = (artifacts || []).slice();
       bump();
@@ -787,6 +806,7 @@
     setMappingDraft: function (kind, key, column) {
       var previousManualSource = kind === 'gl' ? state.mapping.gl.draft.manual : null;
       var previousPostingSource = kind === 'gl' ? state.mapping.gl.draft.postingStatus : null;
+      if (kind === 'gl') { expandFillDownFieldsByColumn(); }
       if (column) {
         state.mapping[kind].draft[key] = column;
       } else {
@@ -797,6 +817,7 @@
         resetManualAutoPolicyIfSourceChanged(previousManualSource);
         resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
         removeCoreMappedRdeFields();
+        removeUnmappedFillDownFields();
       }
       // 草稿餵給必填鐵軌、「確認配對」可用性與 GL 政策區的分支顯示，依通知慣例必須 bump；
       // 重繪後的焦點與捲動由 renderContent 統一還原，不在此犧牲衍生畫面的即時性。
@@ -811,6 +832,7 @@
       var previousApprovalColumn = draft.docDate;
       var previousManualSource = kind === 'gl' ? draft.manual : null;
       var previousPostingSource = kind === 'gl' ? draft.postingStatus : null;
+      if (kind === 'gl') { expandFillDownFieldsByColumn(); }
       Object.keys(draft).forEach(function (k) {
         if (skip.indexOf(k) < 0 && draft[k] === column) { delete draft[k]; }
       });
@@ -820,6 +842,7 @@
         resetManualAutoPolicyIfSourceChanged(previousManualSource);
         resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
         removeCoreMappedRdeFields();
+        removeUnmappedFillDownFields();
       }
       bump(); // 指派會牽動其他標頭的選取狀態，需重建面板
     },
@@ -858,7 +881,8 @@
         manualAutoPolicy: bundle.gl.manualAutoPolicy || {
           manualValues: ['1'], automaticValues: ['0']
         },
-        rdeFields: (bundle.gl.rdeFields || []).slice()
+        rdeFields: (bundle.gl.rdeFields || []).slice(),
+        fillDownFields: (bundle.gl.fillDownFields || []).slice()
       };
       state.mapping.tb.draft = Object.assign({}, bundle.tb.mapping || {});
       state.mapping.tb.changeMode = bundle.tb.changeMode;

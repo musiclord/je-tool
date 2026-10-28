@@ -80,16 +80,19 @@
   // 按下的控制項跟著重繪不見或變成不能按時，焦點交給接替它的控制項（使用者 2026-10-13 交接）：
   // 依序找畫面上第一個能拿焦點的，都沒有就不動。收起中的舊元素是重繪前的複本，不算。
   function deferFocusFirst(selectors) {
-    deferFocus(function () {
-      for (var i = 0; i < selectors.length; i++) {
-        if (!selectors[i]) { continue; }
-        var found = Array.prototype.find.call(document.querySelectorAll(selectors[i]), function (element) {
-          return !element.closest('[data-motion-leaving], [inert]') && !element.disabled && element.getClientRects().length > 0;
-        });
-        if (found) { return found; }
-      }
-      return null;
-    });
+    deferFocus(function () { return firstFocusable(document, selectors); });
+  }
+
+  // 依序找第一個看得到、能按的元素：deferFirst 與 data-focus-successor 的接替者都用這一條規則。
+  function firstFocusable(root, selectors) {
+    for (var i = 0; i < selectors.length; i++) {
+      if (!selectors[i]) { continue; }
+      var found = Array.prototype.find.call(root.querySelectorAll(selectors[i]), function (element) {
+        return !element.closest('[data-motion-leaving], [inert]') && !element.disabled && element.getClientRects().length > 0;
+      });
+      if (found) { return found; }
+    }
+    return null;
   }
 
   function dialogFocusableElements(dialog) {
@@ -124,11 +127,60 @@
     return false;
   }
 
+  // 對話框堆疊（預篩選收斂計畫階段八，使用者 2026-10-22 裁定「Escape 一次關兩層」）：刪除案件對話框、「尚未儲存」對話框與流程總覽
+  // 開啟時登記元素與關閉函式，關閉時移除；整個頁面只有這一個捕獲階段的鍵盤監聽，Escape 與 Tab 只交給最上層。
+  // 原生 <dialog> 開著時不處理，這是防衛用：目前畫面沒有原生對話框，日後若加入用 showModal 開的對話框，鍵盤交給它。登記的元素已經不在畫面上（例如清單重繪把對話框一起換掉）時這筆不算；
+  // entry.active 回 false 時也不處理，總覽用它在作業進行中把鍵盤留給作業遮罩的「取消作業」。
+  var dialogStack = [];
+  var dialogStackListening = false;
+
+  function listenDialogStack(on) {
+    if (on === dialogStackListening) { return; }
+    dialogStackListening = on;
+    if (on) { document.addEventListener('keydown', dialogStackKeydown, true); } else { document.removeEventListener('keydown', dialogStackKeydown, true); }
+  }
+
+  function pruneDialogStack() {
+    for (var i = dialogStack.length - 1; i >= 0; i--) {
+      if (!document.contains(dialogStack[i].element)) { dialogStack.splice(i, 1); }
+    }
+    listenDialogStack(dialogStack.length > 0);
+  }
+
+  function dialogStackKeydown(event) {
+    if (event.key !== 'Escape' && event.key !== 'Tab') { return; }
+    pruneDialogStack();
+    var top = dialogStack[dialogStack.length - 1];
+    if (!top || document.querySelector('dialog[open]') || (top.active && !top.active())) { return; }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      top.close();
+      return;
+    }
+    trapDialogTab(top.element, event);
+  }
+
+  function openDialog(entry) {
+    if (!entry || !entry.element || typeof entry.close !== 'function') { return null; }
+    pruneDialogStack();
+    dialogStack.push(entry);
+    listenDialogStack(true);
+    return entry;
+  }
+
+  function closeDialog(entry) {
+    var index = dialogStack.indexOf(entry);
+    if (index >= 0) { dialogStack.splice(index, 1); }
+    listenDialogStack(dialogStack.length > 0);
+  }
+
   var Focus = {
     move: focusElement,
     defer: deferFocus,
     deferFirst: deferFocusFirst,
-    trapDialogTab: trapDialogTab
+    trapDialogTab: trapDialogTab,
+    openDialog: openDialog,
+    closeDialog: closeDialog
   };
   global.JetFocus = Focus;
 
@@ -626,6 +678,8 @@
 
   // 待確認刪除的目標（modal 開啟期間）；確認後清空。
   var pendingDelete = null;
+  // 開著時在共用對話框堆疊的登記（階段八）；關閉時移除。
+  var deleteDialog = null;
 
   function bindPicker(container) {
     var modal = container.querySelector('[data-bind="delete-modal"]');
@@ -683,6 +737,7 @@
       var target = pendingDelete;
       pendingDelete = null;
       if (modal) { modal.hidden = true; }
+      if (deleteDialog) { Focus.closeDialog(deleteDialog); deleteDialog = null; }
       if (restoreFocus && target) { restoreProjectDeleteFocus(target); }
     }
 
@@ -713,6 +768,8 @@
           modal.querySelector('[data-bind="delete-modal-name"]').textContent = pendingDelete.name;
           modal.hidden = false;
           loadDeletePreview(pendingDelete);
+          // Escape 關閉並把焦點放回刪除鈕，Tab 只在對話框裡循環；總覽同時開著時鍵盤只交給最上層（階段八，使用者 2026-10-22 裁定）。
+          deleteDialog = Focus.openDialog({ element: modal.querySelector('.modal__card'), close: function () { closeModal(true); } });
           Focus.move(modal.querySelector('button[data-action="modal-cancel"]'));
         }
       });
@@ -765,16 +822,6 @@
     if (modal) {
       modal.querySelectorAll('[data-action="modal-cancel"]').forEach(function (el) {
         el.addEventListener('click', function () { closeModal(true); });
-      });
-
-      modal.addEventListener('keydown', function (event) {
-        if (modal.hidden) { return; }
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          closeModal(true);
-          return;
-        }
-        Focus.trapDialogTab(modal, event);
       });
 
       modal.querySelector('[data-action="modal-confirm"]').addEventListener('click', function () {
@@ -1158,6 +1205,8 @@
   // 標籤、type、role、aria-label、name、id 與 data- 屬性；這樣仍有兩個以上一樣時，再加上按鈕上的字（數字不算，筆數會變）。
   // 重繪前後都只有一個符合時才放回去，有兩個以上就不猜，避免把焦點送到同名的另一個控制項。
   // 原本只認 data-focus-key，沒標的按鈕與勾選框重繪後焦點都落到整個頁面（使用者 2026-10-13 交接）。
+  // 控制項可以用 data-focus-successor 宣告接替者（分號分開的選擇器，依序找第一個看得到且能按的）：重繪後找不到它時，
+  // 焦點交給接替者並把接替者捲進畫面，例如第三步「讀取來源值」先交給讀取中的提示，再交給讀出的值清單（階段八，使用者 2026-10-22 裁定）。
   var FOCUS_CANDIDATES = 'button, summary, a[href], input:not([type="hidden"]), select, textarea, [tabindex]';
   var FOCUS_TRANSIENT = /^data-(?:focus-key|motion-(?:leaving|rendering|revealing|folding))$/;
 
@@ -1184,27 +1233,50 @@
     });
   }
 
+  function focusSuccessors(element) {
+    var declared = typeof element.getAttribute === 'function' ? element.getAttribute('data-focus-successor') : null;
+    if (!declared) { return null; }
+    var selectors = declared.split(';').map(function (part) { return part.trim(); }).filter(Boolean);
+    return selectors.length ? selectors : null;
+  }
+
   function captureContentFocus(container) {
     var active = document.activeElement;
     if (!active || active === container || !container.contains(active)) { return null; }
+    var successors = focusSuccessors(active);
     var key = active.getAttribute('data-focus-key');
-    if (key) { return { selector: '[data-focus-key="' + global.CSS.escape(key) + '"]' }; }
+    if (key) { return { selector: '[data-focus-key="' + global.CSS.escape(key) + '"]', successors: successors }; }
     var candidates = focusCandidates(container);
+    var signature = null;
     for (var level = 0; level < 2; level++) {
-      var signature = focusSignature(active, level > 0);
+      signature = focusSignature(active, level > 0);
       var same = candidates.filter(function (element) { return focusSignature(element, level > 0) === signature; });
-      if (same.length === 1) { return { signature: signature, withText: level > 0 }; }
+      if (same.length === 1) { return { signature: signature, withText: level > 0, successors: successors }; }
     }
-    return null;
+    // 重繪前就有兩個以上一樣的控制項：不猜要放回哪一個；它們都不見了而且宣告了接替者時，才交給接替者。
+    return successors ? { signature: signature, withText: true, successors: successors } : null;
   }
 
   function findContentFocus(container, memory) {
     if (!memory) { return null; }
-    if (memory.selector) { return container.querySelector(memory.selector); }
-    var same = focusCandidates(container).filter(function (element) {
-      return focusSignature(element, memory.withText) === memory.signature;
-    });
-    return same.length === 1 ? same[0] : null;
+    if (memory.selector) {
+      var exact = container.querySelector(memory.selector);
+      if (exact) { return exact; }
+    } else if (memory.signature) {
+      var same = focusCandidates(container).filter(function (element) {
+        return focusSignature(element, memory.withText) === memory.signature;
+      });
+      if (same.length > 0) { return same.length === 1 ? same[0] : null; }
+    }
+    return memory.successors ? firstFocusable(container, memory.successors) : null;
+  }
+
+  // 焦點是交給接替者（不是放回同一個控制項）時回 true：接替者可能在內容捲軸還原後跑出畫面，呼叫端再把它捲進來。
+  function focusHandedOver(element, memory) {
+    if (!element || !memory || !memory.successors) { return false; }
+    if (memory.selector) { return typeof element.matches === 'function' ? !element.matches(memory.selector) : true; }
+    if (memory.signature) { return focusSignature(element, memory.withText) !== memory.signature; }
+    return true;
   }
 
   function captureContentTextSelection(container) {
@@ -1377,8 +1449,9 @@
       //（新步驟由 focusCurrentStepHeading 設定起始焦點，捲動另由上方捲頂邏輯處理）。
       if (!stepChanged) {
         restoreContentScrollPositions(container, scrollPositions);
+        var focused = null;
         if (focusMemory && !preserveStepHeadingFocus) {
-          var focused = findContentFocus(container, focusMemory);
+          focused = findContentFocus(container, focusMemory);
           focusElement(focused);
           restoreContentTextSelection(focused, textSelection);
         }
@@ -1387,6 +1460,10 @@
         restoreContentScrollPositions(container, scrollPositions);
         container.scrollTop = contentScrollTop;
         container.scrollLeft = contentScrollLeft;
+        // 焦點交給接替者時，捲軸還原後接替者可能不在畫面裡，再把它捲進來；已經看得到時 nearest 不會動（階段八）。
+        if (focused && focusHandedOver(focused, focusMemory) && typeof focused.scrollIntoView === 'function') {
+          focused.scrollIntoView({ block: 'nearest' });
+        }
       }
 
       bindStepFlow(container);
@@ -1642,6 +1719,8 @@
   var overviewExpandedSections = {};
   var overviewSelectedStepIndex = null;
   var overviewReturnFocus = null;
+  // 開著時在共用對話框堆疊的登記（階段八）；關閉時移除。
+  var overviewDialog = null;
   var overviewWasOpen = false;
 
   // 開關與內容渲染：關閉即隱藏並讓 key 失效（下次開啟一律重讀當下 state 重繪）。
@@ -1655,8 +1734,8 @@
         global.setTimeout(function () {
           if (!Store.getState().overviewOpen) { global.JetOverviewBi.dispose(); }
         }, motionAllowed() ? 200 : 0);
-        // 關上後不再接 Escape 與 Tab（打開時在下方掛上）。
-        if (overviewKeydown) { document.removeEventListener('keydown', overviewKeydown, true); }
+        // 關上後從對話框堆疊移除（打開時在下方登記）。
+        if (overviewDialog) { Focus.closeDialog(overviewDialog); overviewDialog = null; }
       } else {
         global.JetOverviewBi.dispose();
       }
@@ -1676,8 +1755,15 @@
     modal.hidden = false;
     var firstOpen = !overviewWasOpen;
     overviewWasOpen = true;
-    // 開著時才在 document 接 Escape 與 Tab（見 bindOverviewDialog）。
-    if (firstOpen && overviewKeydown) { document.addEventListener('keydown', overviewKeydown, true); }
+    // 打開時登記在共用的對話框堆疊：Escape 關閉、Tab 只在卡片裡循環；作業進行中鍵盤留給作業遮罩，
+    // 待確認對話框或刪除案件對話框疊在上面時交給它們（階段八，使用者 2026-10-22 裁定）。
+    if (firstOpen) {
+      overviewDialog = Focus.openDialog({
+        element: modal.querySelector('.overview-modal__card'),
+        close: function () { Store.setOverviewOpen(false); },
+        active: function () { return !Store.getState().busy; }
+      });
+    }
     if (overviewSelectedStepIndex == null ||
         overviewSelectedStepIndex < 0 ||
         overviewSelectedStepIndex >= Store.STEPS.length) {
@@ -2166,19 +2252,9 @@
     });
   }
 
-  // 總覽開著時在 document 的捕獲階段接 Escape 與 Tab，和第四步、第五步的待確認對話框同一套（使用者 2026-10-13 選定）：
-  // 焦點跑到總覽外面（例如點了卡片的空白處）時，Tab 由共用的 JetFocus.trapDialogTab 拉回總覽，Escape 也照樣關閉。
-  // 作業進行中整個畫面是 inert，鍵盤留給作業遮罩的「取消作業」；待確認對話框直接加在 <body>，疊在總覽上面，開著時鍵盤交給它。
-  var overviewKeydown = null;
-
-  function overviewCoveredByDialog() {
-    // 用 showModal 開在最上層的原生對話框（第五步的日期多選）也算在上面，鍵盤交給它。
-    if (document.querySelector('dialog[open]')) { return true; }
-    return Array.prototype.some.call(document.querySelectorAll('.modal'), function (dialog) {
-      return !dialog.hidden && !dialog.inert && !dialog.closest('[data-jet-root]');
-    });
-  }
-
+  // 總覽開著時登記在共用的對話框堆疊（JetFocus.openDialog，見 renderOverview）：Escape 關閉、Tab 只在卡片裡循環，
+  // 焦點跑到總覽外面（例如點了卡片的空白處）時 Tab 拉回來；作業進行中鍵盤留給作業遮罩的「取消作業」；
+  // 待確認對話框或刪除案件對話框疊在總覽上面時，鍵盤交給最上層的那一個（階段八，使用者 2026-10-22 裁定）。
   function bindOverviewDialog() {
     var modal = document.querySelector('.overview-modal');
     if (!modal) { return; }
@@ -2188,17 +2264,6 @@
     if (backdrop) {
       backdrop.addEventListener('click', function () { Store.setOverviewOpen(false); });
     }
-
-    overviewKeydown = function (event) {
-      var state = Store.getState();
-      if (!state.overviewOpen || state.busy || overviewCoveredByDialog()) { return; }
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        Store.setOverviewOpen(false);
-        return;
-      }
-      Focus.trapDialogTab(modal.querySelector('.overview-modal__card'), event);
-    };
   }
 
   function bindOverviewConcentrationTabs(card) {
@@ -4446,7 +4511,7 @@
      - 到了標題上，標籤的字剛好疊在新的一列的標題上一起淡掉，玻璃也淡掉，像標籤被放進去。
      新的一列先向 JetMotion 預約：它照一般的方式長出來、內容淡入，只有標題空著，等標籤放下才出現。
      新的一列在中欄看得到的範圍外時（例如第二條以後的條件常在畫面下方），中欄跟著標籤用同一條曲線平順捲到新的一列，
-     標籤飛向捲完之後的位置，兩者同時到；原本由移焦點造成的瞬間捲動因此不再發生（見 filter-step.js 的 revealAddedRule）。
+     標籤飛向捲完之後的位置，兩者同時到；原本由移焦點造成的瞬間捲動因此不再發生（見 filter-step-view.js 的 revealAddedRule）。
      飛行途中使用者自己捲動時，標籤改跟著新的一列走，不再搶捲軸。減少動態或 Windows 高對比佈景時不飛，也不捲。
      這裡只畫一個不接收滑鼠的標籤與帶著中欄捲動，不改 state、不送 action，也不移動任何元件的位置。 */
   var ARRIVAL_SOURCES = [
@@ -4707,10 +4772,11 @@
      按鈕不在要拿掉的東西裡面（例如再按一次 KCT 卡片），或要先確認、等 JetApi 回來才重繪（例如刪除案件）時，
      由畫面程式在確認的那一刻呼叫 JetMotion.removing。這裡只記下，不改 state、不送 action。 */
   var REMOVAL_SOURCES = [
-    // 第五步：移除一條條件或子條件組、清除一組的條件、移除整組，以及確認移除已儲存的情境（等 JetApi 回來才重繪）。
+    // 第五步：移除一條條件或子條件組、清除一組的條件、移除整組、移除舊情境的排除區，以及確認移除已儲存的情境（等 JetApi 回來才重繪）。
     { trigger: '[data-action="remove-rule"], [data-compound-remove]', scope: '.rule-row' },
     { trigger: '[data-action="clear-set"]', scope: '.scenario-set', inside: true, only: '.rule-row' },
     { trigger: '[data-action="remove-set"]', scope: '.scenario-set' },
+    { trigger: '[data-action="remove-legacy-exclusions"]', scope: '.filter-legacy-exclusions' },
     { trigger: '[data-action="confirm-remove-scenario"]', scope: '.saved-scenario', wait: 15000 },
     // 第二步：移除待匯入的檔案。第三步：移除接受的過帳值。第四步：移除分類（有子分類時要先確認，確認由 validate-step.js 說明）。
     { trigger: '[data-action="pending-remove"]', scope: '.pending-row' },

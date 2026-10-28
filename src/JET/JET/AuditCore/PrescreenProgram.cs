@@ -4,7 +4,7 @@ namespace JET.AuditCore;
 
 /// <summary>
 /// Prescreen typed lifecycle 的 Application 輸入。只攜帶有界案件事實與 run identity，
-/// 不攜帶 GL 完整列集。
+/// 不攜帶 GL 完整列集。可用欄位與分類名稱的意義同 <see cref="AuditCaseSnapshot"/>。
 /// </summary>
 internal sealed record PrescreenRequest(
     string ProjectId,
@@ -16,23 +16,22 @@ internal sealed record PrescreenRequest(
     string RunId,
     DateTimeOffset GeneratedUtc,
     string? LastPeriodStart,
-    bool HasApprovalDate,
-    bool HasCreatedBy,
+    IReadOnlyList<string>? AvailableGlFields,
     bool HasHolidays,
     bool HasAccountMapping,
     bool HasRevenue,
     bool HasCounterpart,
     bool HasAuthorizedPreparers,
-    IReadOnlyList<int>? NonWorkingDays);
+    IReadOnlyList<int>? NonWorkingDays,
+    AccountCategoryLabels? CategoryLabels = null);
 
 /// <summary>
 /// Prescreen typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
-/// 各規則要不要執行，都從同一份程序適用性判定衍生。
+/// 各規則要不要執行，都從同一份程序適用性判定衍生。尾零門檻是規則定義的一部分（TrailingZeroThreshold），計畫不再另帶一份。
 /// </summary>
 internal sealed record PrescreenPlan(
     PrescreenRequest Request,
-    AuditExecutionPlan ReviewPlan,
-    int ZerosThreshold)
+    AuditExecutionPlan ReviewPlan)
 {
     internal bool RunPostPeriodApproval => IsApplicable("post_period_approval");
 
@@ -142,13 +141,15 @@ internal static class ConcentrationLimits
 /// <summary>
 /// AuditCore Finalize 的 typed prescreen 產物。Data 保留既有 wire／report compatibility
 /// shape；Manifest 保留每項程序的適用性判定、狀態與計數；
-/// Concentration 與 RulePeriod 是流程總覽的有界呈現事實。
+/// Concentration 與 RulePeriod 是流程總覽的有界呈現事實；兩張成對卡片的原因由同一個方法合併。
 /// </summary>
 internal sealed record PrescreenResult(
     PrescreenRunResult Data,
     AuditRunManifest Manifest,
     PrescreenConcentration Concentration,
-    PrescreenRulePeriod RulePeriod);
+    PrescreenRulePeriod RulePeriod,
+    PrescreenActivityReasons WeekendActivity,
+    PrescreenActivityReasons HolidayActivity);
 
 /// <summary>
 /// Prescreen 的 typed Infrastructure port。實作只執行 parameterized set-based SQL
@@ -181,29 +182,26 @@ public static partial class JetAuditProgram
                 MoneyScale: request.MoneyScale,
                 SampleSeed: request.SampleSeed,
                 LastPeriodStart: request.LastPeriodStart,
-                HasApprovalDate: request.HasApprovalDate,
-                HasCreatedBy: request.HasCreatedBy,
+                AvailableGlFields: request.AvailableGlFields,
                 HasHolidays: request.HasHolidays,
                 HasAccountMapping: request.HasAccountMapping,
                 HasRevenue: request.HasRevenue,
                 HasCounterpart: request.HasCounterpart,
                 HasAuthorizedPreparers: request.HasAuthorizedPreparers,
-                NonWorkingDays: request.NonWorkingDays),
+                NonWorkingDays: request.NonWorkingDays,
+                CategoryLabels: request.CategoryLabels),
             new AuditUserParameters(
                 RunId: request.RunId,
                 GeneratedUtc: request.GeneratedUtc,
                 SampleSize: 0,
                 ActionName: PrescreenAction));
 
-        return new PrescreenPlan(
-            request,
-            reviewPlan,
-            TrailingZeroThreshold.DefaultZerosThreshold);
+        return new PrescreenPlan(request, reviewPlan);
     }
 
     /// <summary>
-    /// Prescreen typed Finalize：AuditCore 依 plan 丟棄不適用規則的 raw facts、套用固定
-    /// 尾零門檻，再沿用既有 public manifest finalizer 產生 status 與 N/A 證據。
+    /// Prescreen typed Finalize：AuditCore 依 plan 的適用性判定丟棄不適用規則的 raw facts，每條規則都讀規則需求表的同一個判定，
+    /// 再沿用既有 public manifest finalizer 產生 status 與 N/A 證據。
     /// </summary>
     internal static PrescreenResult Finalize(
         PrescreenPlan plan,
@@ -212,47 +210,39 @@ public static partial class JetAuditProgram
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(facts);
 
+        // 每條規則都讀同一份適用性判定（規則需求表）；不適用的規則不帶計數出去，核准側沒有判定時留 null，和回應的寫法一致。
+        // 階段四查到只需要必填欄的六條規則即使判定不適用，計數也照傳；現在十四條都照同一個判定。
+        bool Runs(string key) => plan.IsApplicable(PrescreenRuleDefinitions.ByKey[key].Slug);
         var data = new PrescreenRunResult(
-            PostPeriodApprovalCount: plan.RunPostPeriodApproval
-                ? facts.PostPeriodApprovalCount
-                : 0,
-            SuspiciousKeywordsCount: facts.SuspiciousKeywordsCount,
-            UnexpectedAccountPairCount: plan.RunUnexpectedAccountPair
-                ? facts.UnexpectedAccountPairCount
-                : 0,
-            TrailingZerosCount: facts.TrailingZerosCount,
-            ZerosThreshold: plan.ZerosThreshold,
-            Creators: plan.RunCreatorSummary
-                ? facts.Creators
-                : Array.Empty<CreatorSummaryRow>(),
-            DistinctAccountCount: facts.DistinctAccountCount,
-            Accounts: facts.Accounts,
-            WeekendPostingCount: facts.WeekendPostingCount,
-            WeekendApprovalCount: plan.RunWeekendApproval
-                ? facts.WeekendApprovalCount
-                : null,
-            HolidayPostingCount: plan.RunHolidayPosting
-                ? facts.HolidayPostingCount
-                : 0,
-            HolidayApprovalCount: plan.RunHolidayApproval
-                ? facts.HolidayApprovalCount
-                : null,
-            BlankDescriptionCount: facts.BlankDescriptionCount,
-            NonAuthorizedPreparerCount: plan.RunNonAuthorizedPreparer
-                ? facts.NonAuthorizedPreparerCount
-                : 0,
-            LowFrequencyPreparerCount: plan.RunLowFrequencyPreparer ? facts.LowFrequencyPreparerCount : 0,
-            LowFrequencyAccountCount: facts.LowFrequencyAccountCount)
+            PostPeriodApprovalCount: Runs(PrescreenRuleKeys.PostPeriodApproval) ? facts.PostPeriodApprovalCount : 0,
+            SuspiciousKeywordsCount: Runs(PrescreenRuleKeys.SuspiciousKeywords) ? facts.SuspiciousKeywordsCount : 0,
+            UnexpectedAccountPairCount: Runs(PrescreenRuleKeys.UnexpectedAccountPair) ? facts.UnexpectedAccountPairCount : 0,
+            TrailingZerosCount: Runs(PrescreenRuleKeys.TrailingZeros) ? facts.TrailingZerosCount : 0,
+            ZerosThreshold: TrailingZeroThreshold.DefaultZerosThreshold,
+            Creators: Runs(JetRuleRequirements.CreatorSummary) ? facts.Creators : Array.Empty<CreatorSummaryRow>(),
+            DistinctAccountCount: Runs(JetRuleRequirements.RareAccounts) ? facts.DistinctAccountCount : 0,
+            Accounts: Runs(JetRuleRequirements.RareAccounts) ? facts.Accounts : Array.Empty<AccountUsageRow>(),
+            WeekendPostingCount: Runs(PrescreenRuleKeys.WeekendPosting) ? facts.WeekendPostingCount : 0,
+            WeekendApprovalCount: Runs(PrescreenRuleKeys.WeekendApproval) ? facts.WeekendApprovalCount : null,
+            HolidayPostingCount: Runs(PrescreenRuleKeys.HolidayPosting) ? facts.HolidayPostingCount : 0,
+            HolidayApprovalCount: Runs(PrescreenRuleKeys.HolidayApproval) ? facts.HolidayApprovalCount : null,
+            BlankDescriptionCount: Runs(PrescreenRuleKeys.BlankDescription) ? facts.BlankDescriptionCount : 0,
+            NonAuthorizedPreparerCount: Runs(PrescreenRuleKeys.NonAuthorizedPreparer) ? facts.NonAuthorizedPreparerCount : 0,
+            LowFrequencyPreparerCount: Runs(PrescreenRuleKeys.LowFrequencyPreparer) ? facts.LowFrequencyPreparerCount : 0,
+            LowFrequencyAccountCount: Runs(PrescreenRuleKeys.LowFrequencyAccount) ? facts.LowFrequencyAccountCount : 0)
         {
-            LowFrequencyDistinctAccountCount = facts.LowFrequencyDistinctAccountCount
+            LowFrequencyDistinctAccountCount = Runs(PrescreenRuleKeys.LowFrequencyAccount) ? facts.LowFrequencyDistinctAccountCount : null
         };
         var manifest = Finalize(plan.ReviewPlan, new AuditOutcome(Prescreen: data));
 
+        var snapshot = plan.ReviewPlan.CaseSnapshot;
         return new PrescreenResult(
             data,
             manifest,
             Concentrate(manifest, data, facts),
-            BuildRulePeriod(manifest, data, facts));
+            BuildRulePeriod(manifest, data, facts),
+            PrescreenProcedures.ActivityReasons(snapshot, "weekend_posting", "weekend_approval"),
+            PrescreenProcedures.ActivityReasons(snapshot, "holiday_posting", "holiday_approval"));
     }
 
     /// <summary>

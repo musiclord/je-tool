@@ -47,13 +47,16 @@ public sealed record StagingRow(
 /// 批次內單一來源的描述（寫入 import_batch_source）。
 /// FilePath 只供本次讀檔；FileName 是可持久化／顯示的 leaf name。
 /// SheetName / EncodingName / Delimiter 記錄呼叫時指定的值，null = 交由偵測鏈判定。
+/// HeaderRow 是審計員指定的「欄名在第幾列」（1 起算），沒有指定或指定第 1 列時是 null；
+/// 和其他選項一樣跟著來源保存，匯入回應與重開案件都帶回去，審計員才知道這份來源是怎麼讀的。
 /// </summary>
 public sealed record ImportSourceDescriptor(
     string FilePath,
     string FileName,
     string? SheetName,
     string? EncodingName,
-    string? Delimiter);
+    string? Delimiter,
+    int? HeaderRow = null);
 
 /// <summary>
 /// 將 host 提供的顯示名稱收斂為單一 leaf name。呼叫端傳入的 fileName 不是路徑權威；
@@ -111,7 +114,7 @@ public sealed record ImportSourceInput(
     IReadOnlyList<string> Columns,
     IAsyncEnumerable<StagingRow> Rows);
 
-/// <summary>批次內單一來源的持久化資訊（回應中的 sources 形狀）。</summary>
+/// <summary>批次內單一來源的持久化資訊（回應中的 sources 形狀）。HeaderRow 見 <see cref="ImportSourceDescriptor"/>。</summary>
 public sealed record ImportSourceInfo(
     int SourceNo,
     string FileName,
@@ -119,7 +122,8 @@ public sealed record ImportSourceInfo(
     string? Encoding,
     string? Delimiter,
     int RowCount,
-    DateTimeOffset ImportedUtc);
+    DateTimeOffset ImportedUtc,
+    int? HeaderRow = null);
 
 /// <summary>
 /// 匯入批次。一個 GL/TB 資料集對應一個批次，可由多個來源組成。
@@ -144,14 +148,18 @@ public sealed record ImportBatchResult(
 /// SheetName 選取 .xlsx、.xlsm 或 .xls 工作表，或 Access .mdb、.accdb 的一般資料表；
 /// EncodingName 和 Delimiter 僅 .csv 或 .txt 有效，
 /// null 表示交由 reader 偵測。欄位適用性驗證在 handler，reader 只消費。
-/// LeadingRowsToSkip 在 Excel 以實際列號計算，包含空白列；不對一般匯入開放新的前置處理選項。
+/// LeadingRowsToSkip 在 Excel 以實際列號計算、文字檔以記錄計，都包含空白列；一般匯入的「欄名在第幾列」
+/// 由 handler 換算成這個值（欄名在第 N 列就是略過 N-1 列），Access 讀取器不使用它。
+/// FixedLeadingRows 表示略過列數是匯入版面固定的，不是審計員指定的欄名列，例如行事曆範本的欄名在第 2 列、
+/// 科目配對舊範本在第 3 列；這時找不到欄名照舊說檔案或工作表是空的，不叫審計員去改畫面上沒有的欄名列（2026-10-28 複審）。
 /// </summary>
 public sealed record TabularSourceRequest(
     string FilePath,
     string? SheetName = null,
     string? EncodingName = null,
     char? Delimiter = null,
-    int LeadingRowsToSkip = 0);
+    int LeadingRowsToSkip = 0,
+    bool FixedLeadingRows = false);
 
 /// <summary>
 /// 單一工作表或 Access 一般資料表的檢視結果（空工作表 Columns 為空清單）。
@@ -166,10 +174,13 @@ public sealed record WorksheetInspection(
 /// <summary>給審計員看的來源檔提醒文字；檢視與預覽共用，前端原樣顯示。</summary>
 public static class TabularSourceNotices
 {
-    /// <summary>文字檔只讀到一欄時的提醒；報表格式的文字檔多半會落到這裡。不擋匯入。</summary>
+    /// <summary>
+    /// 文字檔只讀到一欄時的提醒；報表格式的文字檔多半會落到這裡。不擋匯入。
+    /// 標題列在欄名前面時，待匯入清單的「欄名在第幾列」就能處理（階段六）；用空白對齊的報表格式才需要先在 Excel 整理。
+    /// </summary>
     public const string SingleColumn =
-        "只讀到一欄。若檔案上方有公司名稱或報表標題列，或欄位是用空白對齊的報表格式，" +
-        "請先在 Excel 整理成第一列是欄名、一列一筆資料的表格，另存成 CSV 後再匯入。";
+        "只讀到一欄。若檔案上方有公司名稱或報表標題列，請把這一列的「欄名在第幾列」改成欄名所在的列；" +
+        "若欄位是用空白對齊的報表格式，請先在 Excel 整理成第一列是欄名、一列一筆資料的表格，另存成 CSV 後再匯入。";
 }
 
 /// <summary>
@@ -193,7 +204,7 @@ public sealed record TabularFileInspection(
 /// </summary>
 public interface ITabularFileReader
 {
-    // Excel 的 LeadingRowsToSkip 是實際列數，包含空白列；Open XML 與二進位讀取器必須一致。
+    // Excel 的 LeadingRowsToSkip 是實際列數、文字檔是記錄數，都包含空白列；Open XML、二進位與文字檔讀取器必須一致。
     // 略過後仍取第一個有內容的列當欄名，不以有內容列數重新計算略過範圍。
     bool Supports(string filePath);
 

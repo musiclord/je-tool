@@ -307,6 +307,8 @@
   "checkedConnections": 174,
   "memberSources": "evidence/member-sources.json",
   "checkedMembers": 44,
+  "dynamicViewPairs": "evidence/dynamic-view-pairs.json",
+  "checkedDynamicViewPairs": 1,
   "facts": "evidence/verified-facts.json",
   "sourceExcerpts": "evidence/source-excerpts.json",
   "files": [
@@ -477,6 +479,10 @@
     {
       "path": "evidence/diagram-bindings.json",
       "sha256": "d99a46b9eee26a3c6c7bcfb37aee634ccb61091d5abf08b82ee26eab3822b373"
+    },
+    {
+      "path": "evidence/dynamic-view-pairs.json",
+      "sha256": "e8ebd3882e72e09908a0ae5c56ab56908937f384a1e60d812857a17f8f6f0f57"
     },
     {
       "path": "evidence/member-sources.json",

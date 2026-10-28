@@ -206,6 +206,12 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         postingStatusPolicy = glOptions!.PostingStatusPolicy,
                         manualAutoPolicy = glOptions!.ManualAutoPolicy,
                         rdeFields = glOptions!.RdeFields,
+                        // 確認配對時往下填補空白的欄位（階段六），重開案件帶回摘要與草稿。
+                        fillDownFields = glOptions!.FillDownFields,
+                        // 確認配對時填了幾格（使用者 2026-10-28 裁定隨配對保存），第三步摘要列出來。
+                        fillDownCount = glOptions!.FillDownCount,
+                        // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
+                        availableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glOptions),
                         sourceBatchId = glMapping.SourceBatchId,
                         committedUtc = glMapping.CommittedUtc
                     },
@@ -542,6 +548,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             postingStatusPolicy = options.PostingStatusPolicy,
             manualAutoPolicy = options.ManualAutoPolicy,
             rdeFields = options.RdeFields,
+            fillDownFields = options.FillDownFields,
             committedUtc = previous.CommittedUtc
         };
     }

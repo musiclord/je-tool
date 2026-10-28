@@ -231,6 +231,46 @@ public sealed class CrossDatabaseConsistencyTests
             SqlServerProjectSchema.QualifierFor(project.ProjectId));
     }
 
+    // 預篩選收斂計畫階段四：GL 必填文字欄整欄空白的提醒改由欄位目錄產生查詢（2026-10-23）。三種資料庫給同一組提醒，
+    // 依欄位配對畫面的順序列出；只有空白字元的欄也算空白，有值的必填欄不提醒。
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task GlProjection_BlankRequiredTextColumns_WarnInCatalogOrder(string provider)
+    {
+        using var root = new TempProjectRoot();
+        var (database, projectId) = await CreateLocalAsync(root, provider, seedSql: null);
+        await AssertBlankColumnWarningsAsync(new LocalImportRepository(database), new LocalGlRepository(database), projectId);
+    }
+
+    [SqlServerFact]
+    public async Task GlProjection_BlankRequiredTextColumns_WarnInCatalogOrder_SqlServer()
+    {
+        await using var project = await TempSqlServerProject.TryCreateAsync()
+            ?? throw new InvalidOperationException("SQL Server test project could not be created.");
+        await AssertBlankColumnWarningsAsync(
+            new SqlServerImportRepository(project.Database),
+            new SqlServerGlRepository(project.Database),
+            project.ProjectId);
+    }
+
+    private static async Task AssertBlankColumnWarningsAsync(IImportRepository imports, IGlRepository gl, string projectId)
+    {
+        var result = await ProjectGlAsync(imports, gl, projectId,
+            GlLengthRow(2, accountName: "   ", description: ""),
+            GlLengthRow(3, accountName: "", description: " "));
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(2, result.ProjectedRowCount);
+        Assert.Equal(
+            new[]
+            {
+                "「會計科目名稱」對應的來源欄「accountName」整欄空白，請確認對應是否正確。",
+                "「傳票摘要」對應的來源欄「description」整欄空白，請確認對應是否正確。"
+            },
+            result.Warnings.ToArray());
+    }
+
     private static readonly string[] GlLengthColumns =
         ["doc", "line", "post", "account", "accountName", "description", "source", "creator", "approver", "amount"];
 

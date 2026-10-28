@@ -23,11 +23,22 @@ public sealed class RuleLogicVersionsTests
     {
         // 2026-10-04 R1、R2 排除空白傳票號碼的整張傳票條件，舊預篩選與篩選結果必須重算。
         // 第9批R3/R10；Public首敗100911120：空白號碼計數與同號多日期摘要使validation升v5；仍鎖定三個完整字面值。
-        Assert.Equal("validation-2026-10-04-v5", RuleLogicVersions.Validation);
+        // 使用者 2026-10-23 裁定傳票核准日不可用時「核准日不在期間」改成無法執行，不再寫 0 筆，validation 因此升 v6，預期值跟著改。
+        // 第一次失敗收據 20261023-101120680-815f0e4797004774973c3c5070a61854。
+        Assert.Equal("validation-2026-10-23-v6", RuleLogicVersions.Validation);
         // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：預篩選升 v10、篩選升 v19。第一次失敗收據 20261008-042044720-73933024e0f84158a07081513d017018。
         Assert.Equal("prescreen-2026-10-08-v10", RuleLogicVersions.Prescreen);
         // 第九節 G5 停用重複寫法，推進 v20；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
         Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
+    }
+
+    [Fact]
+    public void BeforeApprovalDateNaDecision_ValidationResultIsStale()
+    {
+        // 使用者 2026-10-23 裁定前的驗證結果在傳票核准日沒有配對時寫 0 筆，畫面顯示「通過」，不能當成目前結果。
+        // 第一次失敗收據 20261023-101120680-815f0e4797004774973c3c5070a61854。
+        var summary = """{"resultRef":{"logicVersion":"validation-2026-10-04-v5"}}""";
+        Assert.False(RuleLogicVersions.IsCurrent(new RuleRunRecord("old", RuleRunKinds.Validate, DateTimeOffset.UnixEpoch, summary)));
     }
 
     [Fact]

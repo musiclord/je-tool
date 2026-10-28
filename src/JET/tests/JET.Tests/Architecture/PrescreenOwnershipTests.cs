@@ -37,7 +37,7 @@ public sealed class PrescreenOwnershipTests
             "JET.AuditCore.PrescreenPlan",
             "JET.AuditCore.PrescreenRequest",
             "JET.AuditCore.PrescreenResult",
-            "JET.Domain.ITypedPrescreenReportWriter",
+            "JET.AuditCore.IPrescreenReportWriter",
             "JET.Domain.PrescreenReportProjection",
             "JET.Domain.PrescreenReportRuleProjection",
             "JET.Infrastructure.PrescreenExecutionInput"
@@ -63,9 +63,9 @@ public sealed class PrescreenOwnershipTests
         Assert.True(type!.IsPublic);
     }
 
+    // 2026-10-22 技術債一輪：IPrescreenRunRepository 與 PrescreenRunInput 隨相容路徑刪除
+    //（CompatibilityPathOwnershipTests 確認它們不存在），這裡只剩 AuditCore 仍在用的 PrescreenRunResult。
     [Theory]
-    [InlineData("JET.Domain.IPrescreenRunRepository")]
-    [InlineData("JET.Domain.PrescreenRunInput")]
     [InlineData("JET.Domain.PrescreenRunResult")]
     public void PublicCompatibilityContracts_RemainAvailable(string name)
     {

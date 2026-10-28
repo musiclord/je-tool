@@ -152,8 +152,9 @@ public abstract class GlPopulationScopeGoldenTests
             RunId: "effective-prescreen-run",
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             LastPeriodStart: "2025-12-31",
-            HasApprovalDate: true,
-            HasCreatedBy: true,
+            // 預篩選收斂計畫階段四把核准日與建立人員兩個旗標換成可用欄位清單（2026-10-23）；不帶清單就不檢查欄位，
+            // 等同原本兩個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+            AvailableGlFields: null,
             HasHolidays: false,
             HasAccountMapping: true,
             HasRevenue: true,

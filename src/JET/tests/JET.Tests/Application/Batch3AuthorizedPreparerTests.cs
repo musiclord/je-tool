@@ -1,5 +1,6 @@
 using System.Text.Json;
 using JET.Domain;
+using JET.Infrastructure;
 using JET.Tests.Infrastructure;
 using Xunit;
 
@@ -200,6 +201,31 @@ public sealed class Batch3AuthorizedPreparerTests
         finally { TestWorkbookBuilder.Delete(path); }
     }
 
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task GlMatch_CountsEffectivePopulationOnly_IgnoresCreatorsOnlyInExcludedEntries(string provider)
+    {
+        // 2026-10-22 預篩選收斂計畫主題一：比對人數只算 GL。E09 只出現在一筆總帳日期早於查核期間的分錄，
+        // 投影後落在 GL(未納入測試)，不能算進「出現在 GL 傳票建立人員」。第一次失敗的收據 20261022-062415992：兩種資料庫都算成 3 位。
+        using var host = new HandlerTestHost();
+        var gl = CreateGlBuilder()
+            .AddRow("AUTH-5", "2024-12-31", "1101", "合成科目", "1", 1, "E09", "OTHER", "Synthetic before period");
+        var projectId = await SetupMappedGlAsync(host, provider, gl: gl);
+        var path = WriteList();
+        try
+        {
+            Assert.Equal(1, await QueryScalarAsync(host, provider, projectId,
+                "SELECT COUNT(*) FROM target_gl_entry WHERE is_effective = 0 AND created_by = 'E09';"));
+            var imported = await ImportAsync(host, path);
+            Assert.Equal(3, imported.GetProperty("rowCount").GetInt32());
+            Assert.Equal(2, imported.GetProperty("matchedPreparerCount").GetInt64());
+            var reloaded = await LoadAuthorizedStateAsync(host, projectId);
+            Assert.Equal(2, reloaded.GetProperty("matchedPreparerCount").GetInt64());
+        }
+        finally { TestWorkbookBuilder.Delete(path); }
+    }
+
     private static void AssertCounts(JsonElement state)
     {
         Assert.Equal(3, state.GetProperty("rowCount").GetInt32());
@@ -218,6 +244,18 @@ public sealed class Batch3AuthorizedPreparerTests
         return loaded.GetProperty("importState").GetProperty("authorizedPreparer");
     }
 
+    private static async Task<long> QueryScalarAsync(HandlerTestHost host, string provider, string projectId, string sql)
+    {
+        var folder = new JetProjectFolder(host.ProjectsRoot);
+        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        var result = await command.ExecuteScalarAsync();
+        return result is null or DBNull ? 0L : Convert.ToInt64(result);
+    }
+
     private static InlineGlWorkbookBuilder CreateGlBuilder() => new InlineGlWorkbookBuilder()
         .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "金額", "借方旗標", "建立人員", "另一識別欄", "摘要")
         .AddRow("AUTH-1", "2025-03-01", "1101", "合成科目", "1", 1, " e01 ", "E09", "Synthetic 1")
@@ -225,14 +263,15 @@ public sealed class Batch3AuthorizedPreparerTests
         .AddRow("AUTH-3", "2025-03-01", "1101", "合成科目", "1", 1, "E02", "OTHER", "Synthetic 3")
         .AddRow("AUTH-4", "2025-03-01", "1101", "合成科目", "1", 1, "E03", "OTHER", "Synthetic 4");
 
-    private static async Task<string> SetupMappedGlAsync(HandlerTestHost host, string provider, bool mapCreator = true)
+    private static async Task<string> SetupMappedGlAsync(
+        HandlerTestHost host, string provider, bool mapCreator = true, InlineGlWorkbookBuilder? gl = null)
     {
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             caseName = "Synthetic authorization statistics",
             periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
-        var path = CreateGlBuilder().WriteWorkbook();
+        var path = (gl ?? CreateGlBuilder()).WriteWorkbook();
         try
         {
             await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path }));

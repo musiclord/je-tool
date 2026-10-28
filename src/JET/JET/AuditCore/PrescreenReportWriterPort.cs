@@ -3,16 +3,17 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// Production Pre-screening workbook 的 finalized internal seam。Application 先完成
-/// provider-neutral planning，Infrastructure 只依 plan 填入固定範本。
+/// 預篩選報告的唯一寫出入口。Application 先完成跨資料庫的規劃與工作簿中繼資料，
+/// Infrastructure 只依計畫填固定範本。
 /// </summary>
-internal interface IPlannedPrescreenReportWriter
+internal interface IPrescreenReportWriter
 {
-    Task<ExportStats> WritePlannedAsync(
+    Task<ExportStats> WriteAsync(
         Stream output,
         PrescreenReportContext context,
         PrescreenReportProjection projection,
         PrescreenReportPlan plan,
+        ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress = null);

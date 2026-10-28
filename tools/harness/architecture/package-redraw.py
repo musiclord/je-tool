@@ -417,6 +417,11 @@ def main():
     save(out / "evidence/connection-evidence.json", connections)
     save(out / "evidence/member-sources.json", member_sources)
     save(out / "evidence/source-excerpts.json", snippets)
+    # The dynamic view to sequence diagram pairs come from the redraw spec; Documentation compares each pair step by step.
+    pairs = spec.get("dynamicViewPairs")
+    if not pairs or not pairs.get("pairs"):
+        raise ValueError("evidence-spec.json needs dynamicViewPairs with at least one dynamic view to sequence diagram pair.")
+    save(out / "evidence/dynamic-view-pairs.json", pairs)
 
     commit = source_manifest.get("commit")
     snapshot_label = f"提交 {commit[:7]} " if commit else "2026-10-15 與 2026-10-16 的未提交工作檔"
@@ -439,6 +444,7 @@ def main():
         bindings="evidence/diagram-bindings.json", checkedClassRelations=len(bindings),
         connections="evidence/connection-evidence.json", checkedConnections=len(connections),
         memberSources="evidence/member-sources.json", checkedMembers=sum(len(v) for v in member_sources.values()),
+        dynamicViewPairs="evidence/dynamic-view-pairs.json", checkedDynamicViewPairs=len(pairs["pairs"]),
         facts="evidence/verified-facts.json", sourceExcerpts="evidence/source-excerpts.json", files=files,
         limitations=["No runtime observation.", "Connection evidence proves sources and drawn line kinds, not business correctness.",
                      "Source excerpts and declarations belong to the snapshot named above, not to the working tree."]))

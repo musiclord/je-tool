@@ -31,11 +31,13 @@ internal static class ProjectionErrorReasons
     public const string AmountInvalid =
         "不是有效的金額。請確認來源的金額格式，或改選正確的金額欄";
 
+    // 金額保留到小數第四位，超過的位數在確認配對時四捨五入，不會因此失敗；案件也沒有調整位數的設定（使用者 2026-10-22 裁定一併改寫，
+    // 預篩選收斂計畫階段五）。超出範圍多半是選錯了欄，所以請審計員確認來源金額或改選欄位。
     public const string AmountOutOfRange =
-        "金額超出可儲存的範圍。請確認金額是否正確，或調整案件的金額小數位數";
+        "金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄";
 
     public const string ControlTotalOutOfRange =
-        "加總後的金額超出可儲存的範圍。請確認金額是否正確，或調整案件的金額小數位數";
+        "加總後的金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄";
 
     public const string DateInvalid =
         "無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄";
@@ -44,7 +46,7 @@ internal static class ProjectionErrorReasons
         "無法辨識為日期。請確認來源的日期格式，或將此攸關資料元素欄位改為文字";
 
     public const string RdeMoneyInvalid =
-        "不是有效的金額，或小數位數超過案件設定。請確認來源資料，或將此攸關資料元素欄位改為文字";
+        "不是有效的金額，或超出可儲存的範圍。請確認來源資料，或將此攸關資料元素欄位改為文字";
 
     public static string RdeTextTooLong(int limit) =>
         $"文字超過 {limit} 個字。請縮短來源資料，或取消保留此欄位";

@@ -14,7 +14,8 @@ const vm = require('node:vm');
 // 共用夾具（假 DOM、usageJourneyFixture、第四步與第五步的夾具與合成資料）在 support/frontend-fixtures.cjs。
 // 第 11 批（2026-10-14）刪掉本檔的副本改用模組；remapAppFixture 的根節點結構和模組不同，本檔保留自己那一份。
 const { root, settle, plain, batch9TreeDom, batch7Dom, batch7ControlDom, validationFixture, batch8Fixture, batch8ValidationData, batch8Artifacts,
-  savedG, usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, overviewDialogFixture, remapPaper, remapPrescreen } = require('./support/frontend-fixtures.cjs');
+  savedG, usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, overviewDialogFixture, remapPaper, remapPrescreen,
+  FILTER_STEP_FILES, FILTER_STEP_PARTS, readFilterStep, filterStepExposure } = require('./support/frontend-fixtures.cjs');
 // 本檔自己組的假後端也包進 contractJetApi，送出的資料與假回應照樣和正式後端的形狀核對（2026-10-15）。
 const { contractJetApi, unchecked } = require('./support/action-contract.cjs');
 // 上游修改清除篩選情境時的訊息。使用者 2026-10-13 勾選頁確認 12，原本是「前面的資料已更改，請重新設定篩選情境。」
@@ -46,10 +47,11 @@ function scenarioLifecycleFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
-    "  window.workflow = { completeScenarioSave, savedFeedbackText, filterCommitSnapshot, syncViewState, toWireDraft, addKctToDraft, removeKctFromActiveGroup, refreshAutomaticMetadata, kctPickerHtml, draftRuleProblems, ruleSummaryLabel, kctDescriptionHtml, bind, view: () => viewState };"), context);
+    filterStepExposure('workflow', ['completeScenarioSave', 'savedFeedbackText', 'filterCommitSnapshot', 'syncViewState', 'toWireDraft', 'addKctToDraft', 'removeKctFromActiveGroup', 'refreshAutomaticMetadata', 'kctPickerHtml', 'draftRuleProblems', 'ruleSummaryLabel', 'kctDescriptionHtml', 'bind'], 'view: () => FilterStep.viewState')), context);
   const store = window.JetStore, api = window.workflow;
   store.setProject({ projectId: 'sequence-fixture' }); api.syncViewState(store.getState());
   const item = letter => window.JetUi.FILTER_KCT_CHECKLIST.find(x => x.letter === letter);
@@ -382,7 +384,7 @@ test('successful operations clear only their own stale state and workpaper does 
   assert.equal(window.JetUi.stepGate(store.getState(), 3).ok, false, 'TB mapping is still required by the user');
   store.getState().mapping.tb.committed = {};
   assert.equal(window.JetUi.stepGate(store.getState(), 3).ok, true);
-  for (const file of ['steps/validate-step.js', 'steps/filter-step.js']) {
+  for (const file of ['steps/validate-step.js', ...FILTER_STEP_FILES]) {
     assert.doesNotMatch(fs.readFileSync(path.join(root, file), 'utf8'), /Ui\.staleNoticeHtml/);
   }
 });
@@ -467,9 +469,10 @@ test('account range selection drags both ways, reverses, cancels and keeps chang
 test('condition group selection handles the outer group but not nested rule events', () => {
   const window = { setTimeout, clearTimeout }, calls = [];
   const context = vm.createContext({ window });
-  for (const file of ['state.js', 'ui-core.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  // 第五步拆成五個檔案（階段十）：前四個先載入，bindGroupSelection 從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const file of ['state.js', 'ui-core.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
-  vm.runInContext(source.replace("  Ui.registerStep('filter', render);", '  window.bindGroupTest = bindGroupSelection;'), context);
+  vm.runInContext(source.replace("  Ui.registerStep('filter', render);", '  window.bindGroupTest = FilterStep.bindGroupSelection;'), context);
   const handlers = {}, well = { isConnected: true, dataset: { groupIndex: '1' }, addEventListener(k, fn) { handlers[k] = fn; } };
   const outer = { closest: s => s === '[data-group-index]' ? well : null };
   well.closest = outer.closest;
@@ -504,12 +507,13 @@ test('auditor wording identifies the actual workbook field and the result being 
   const product = path.resolve(root, '../..');
   const template = fs.readFileSync(path.join(product, 'Infrastructure/Export/AccountMappingTemplateWriter.cs'), 'utf8');
   assert.match(template, /"GL_Number", "GL_Name", "Standardized Account Name\*"/);
-  const domain = fs.readFileSync(path.join(product, 'Domain/Rules/FilterConditionLabels.cs'), 'utf8');
+  // 預篩選收斂計畫階段九：規則的第四步名稱與第五步標籤只登錄在 Domain PrescreenRuleDefinitions（RowTag 的第三個參數是名稱，第四個是標籤），
+  // FilterConditionLabels 與 RuleCatalog 改由它衍生；原本讀那兩個檔案字面值的斷言改讀登錄，門檻常數的代換不變。
+  // 第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
+  const definitions = fs.readFileSync(path.join(product, 'Domain/Rules/PrescreenRuleDefinitions.cs'), 'utf8');
   const rules = fs.readFileSync(path.join(product, 'Domain/Rules/PrescreenRules.cs'), 'utf8');
-  function domainLabel(key) {
-    const declaration = domain.match(new RegExp('\\[PrescreenRuleKeys\\.' + key + '\\]\\s*=\\s*\\$?"([^"\\r\\n]*)"'));
-    assert.ok(declaration, 'Domain label declaration: ' + key);
-    const value = declaration[1].replace(/\{(PreparerFrequency|AccountFrequency)\.DefaultMaxEntries\}/g, (_, className) => {
+  function interpolate(raw) {
+    const value = raw.replace(/\{(PreparerFrequency|AccountFrequency)\.DefaultMaxEntries\}/g, (_, className) => {
       const body = rules.match(new RegExp('class\\s+' + className + '\\b[\\s\\S]*?\\{([^}]+)\\}'));
       assert.ok(body, className + ' definition');
       const constant = body[1].match(/const\s+int\s+DefaultMaxEntries\s*=\s*(\d+)\s*;/);
@@ -518,11 +522,17 @@ test('auditor wording identifies the actual workbook field and the result being 
     assert.doesNotMatch(value, /[{}]/, 'only the two declared frequency constants may be interpolated');
     return value;
   }
+  function domainLabel(key) {
+    const declaration = definitions.match(new RegExp('RowTag\\(PrescreenRuleKeys\\.' + key + ',\\s*"[a-z_]+",\\s*\\$?"([^"\\r\\n]*)",\\s*\\$?"([^"\\r\\n]*)"'));
+    assert.ok(declaration, 'Domain label declaration: ' + key);
+    assert.equal(interpolate(declaration[1]), interpolate(declaration[2]), key + ': the fourth-step name and the fifth-step label are the same sentence');
+    return interpolate(declaration[2]);
+  }
   assert.equal(domainLabel('LowFrequencyPreparer'), '編製分錄較少的人員（11 筆以下）');
   assert.equal(domainLabel('LowFrequencyAccount'), '使用較少的科目（11 筆以下）');
   const catalog = fs.readFileSync(path.join(product, 'AuditCore/RuleCatalog.cs'), 'utf8');
-  assert.match(catalog, /"編製分錄較少的人員（11 筆以下）"/);
-  assert.match(catalog, /"使用較少的科目（11 筆以下）"/);
+  assert.match(catalog, /PrescreenRuleDefinitions\.All/);
+  assert.doesNotMatch(catalog, /低頻/);
 });
 
 test('step navigation focus and selected filter conditions have different visual meanings', () => {
@@ -538,11 +548,13 @@ test('saving clears the submitted draft and preview, preserves later drafts, and
   const window = { setTimeout: () => 0, clearTimeout() {} };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取；completeScenarioSave 在已存情境那一塊，
+  // 改在五個檔案合起來的原始碼裡找。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const file of ['state.js', 'ui-core.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
-  assert.match(source, /function completeScenarioSave\(/);
+  assert.match(readFilterStep(), /function completeScenarioSave\(/);
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
-    "  window.testSave = { completeScenarioSave, savedFeedbackText, filterCommitSnapshot, syncViewState, toWireDraft, pane: function () { return viewState.workspacePane; } };"), context);
+    filterStepExposure('testSave', ['completeScenarioSave', 'savedFeedbackText', 'filterCommitSnapshot', 'syncViewState', 'toWireDraft'], 'pane: function () { return FilterStep.viewState.workspacePane; }')), context);
   const store = window.JetStore;
   store.setProject({ projectId: 'synthetic-save' });
   window.testSave.syncViewState(store.getState());
@@ -1211,7 +1223,8 @@ test('left-side examples and actions use normal page flow without sticky overlay
     assert.doesNotMatch(rule[1], /position:\s*(?:sticky|fixed)|overflow-y:\s*auto/);
   }
   assert.match(css, /\.filter-entry \.picker-card:not\(\.picker-card--kct\)[^{]*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
-  const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
+  // 第五步拆成五個檔案（階段十）：字樣檢查改讀五個檔案合起來的原始碼。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  const source = readFilterStep();
   // 使用者 2026-10-08 要求重新設計自訂篩選條件：範例移到右側「從範例開始」，需要部門欄位的範例就地選欄位，不再有範例專用下拉。
   assert.match(source, /template\.pickField === 'text'/);
   assert.doesNotMatch(source, /data-legacy-example-field/);
@@ -1250,7 +1263,9 @@ test('missing document and account details have independent searchable sorted ta
   assert.match(accountTable, /account only/); assert.doesNotMatch(accountTable, /document only/);
   assert.match(documentTable, /both missing/); assert.match(accountTable, /both missing/);
   assert.doesNotMatch(html, /空白傳票號碼／科目/);
-  for (const idx of [1, 2]) {
+  // 預篩選收斂計畫階段九：空白摘要不再是資料缺漏輔助檢視的第一項，空白傳票號碼與空白科目編號成為第 0、1 項。
+  // 第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
+  for (const idx of [0, 1]) {
     const detail = html.match(new RegExp('data-bind="rule-detail-pn-' + idx + '"[^>]*>([\\s\\S]*?)(?=<li|$)'));
     assert.ok(detail, 'separate detail panel ' + idx);
     assert.match(detail[1], /data-page-search/);
@@ -1542,7 +1557,8 @@ test('all report kinds use the same path-free metadata and preserve unavailable 
 
 test('explanations stay visible and shared typography and focus rules cover the workflow and overview', () => {
   const read = file => fs.readFileSync(path.join(root, file), 'utf8');
-  const filter = read('steps/filter-step.js'), vouchers = read('filter-vouchers.js');
+  // 第五步拆成五個檔案（階段十）：改讀五個檔案合起來的原始碼。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  const filter = readFilterStep(), vouchers = read('filter-vouchers.js');
   assert.doesNotMatch(filter, /<details class="filter-(readback|rule-notes)"/);
   assert.doesNotMatch(vouchers, /<details/);
   // 上方改成兩個數字後，「上方筆數」指不清楚，改寫成「分錄筆數」（使用者 2026-10-16 要求分開顯示）；
@@ -1895,10 +1911,11 @@ function kctFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer(fn) { window.deferred = fn; } } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
-    "  window.kct = { addKctToDraft, removeKctFromActiveGroup, refreshAutomaticMetadata, toWireDraft, kctCardState, readBackHtml, applyTemplate, scenarioGate, setActiveGroup, syncViewState, bind, kctPickerHtml };"), context);
+    filterStepExposure('kct', ['addKctToDraft', 'removeKctFromActiveGroup', 'refreshAutomaticMetadata', 'toWireDraft', 'kctCardState', 'readBackHtml', 'applyTemplate', 'scenarioGate', 'setActiveGroup', 'syncViewState', 'bind', 'kctPickerHtml'])), context);
   const store = window.JetStore, api = window.kct;
   store.setProject({ projectId: 'kct-i-fixture' }); api.syncViewState(store.getState());
   const item = letter => window.JetUi.FILTER_KCT_CHECKLIST.find(x => x.letter === letter);
@@ -2253,6 +2270,108 @@ test('a single-column text file shows the report-layout notice next to the sourc
   assert.match(w.render().html(), /synthetic notice about 報表格式/);
 });
 
+// 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：來源檔前面有標題列時，審計員在待匯入清單指定「欄名在第幾列」，
+// 預覽與匯入都帶這個值；匯入後的來源清單寫出「欄名在第 N 列」。第一次失敗：Contract FrontendMapping 收據 20261023-201807485-4e9d37982bac42228c3b6fc55cbb1333。
+test('a worksheet whose column names sit below a title row takes the header row in the pending list and sends it with the preview and the import', async () => {
+  const previews = [], calls = [];
+  const w = importWizardFixture(api => {
+    api.hostSelectFiles = async () => ({ files: [{ filePath: 'C:\\in\\titled.xlsx', fileName: 'titled.xlsx' }] });
+    api.importInspectFile = async () => ({ fileType: 'xlsx', worksheets: [{ name: '總帳', columns: ['合成標題'], rowCountEstimate: 6 }] });
+    api.importPreviewFile = async payload => {
+      previews.push(payload);
+      return payload.headerRow === 3
+        ? { columns: ['doc', 'amount'], sampleRows: [['JV-1', '10']] }
+        : { columns: ['合成標題'], sampleRows: [['合成公司']] };
+    };
+    api.importGlFromFile = payload => new Promise(resolve => calls.push({ payload, resolve }));
+  });
+  w.open();
+  w.render().click('wizard-pick'); await settle();
+  assert.match(w.render().html(), /data-pending-bind="headerRow" data-index="0" value="1"/, 'the header row starts at 1');
+  assert.match(w.render().html(), /1 欄/);
+  const headerRow = w.render().control('bind:headerRow:0');
+  headerRow.value = '3'; headerRow.fire('change'); await settle();
+  assert.deepEqual(plain(previews.at(-1)), { filePath: 'C:\\in\\titled.xlsx', limit: 10, sheetName: '總帳', headerRow: 3 });
+  const html = w.render().html();
+  assert.match(html, /data-pending-bind="headerRow" data-index="0" value="3"/);
+  assert.match(html, /2 欄/, 'the column count follows the chosen header row');
+  w.render().click('wizard-confirm');
+  assert.deepEqual(plain(calls[0].payload), { mode: 'replace', sources: [
+    { filePath: 'C:\\in\\titled.xlsx', fileName: 'titled.xlsx', sheetName: '總帳', headerRow: 3 }] });
+  calls[0].resolve({ batchId: 'h', rowCount: 5, addedRowCount: 5, columns: ['doc', 'amount'], sources: [
+    { sourceNo: 1, fileName: 'titled.xlsx', sheetName: '總帳', encoding: null, delimiter: null, headerRow: 3, rowCount: 5, importedUtc: '2026-01-01T00:00:00Z' }] });
+  await settle();
+  assert.match(w.render().html(), /欄名在第 3 列/, 'the source list keeps the choice');
+});
+
+test('a text source takes the header row too, and a header row of 1 is the default that is not sent', async () => {
+  const previews = [];
+  const w = importWizardFixture(api => {
+    api.hostSelectFiles = async () => ({ files: [{ filePath: 'C:\\in\\titled.csv', fileName: 'titled.csv' }] });
+    api.importInspectFile = async () => ({ fileType: 'csv', columns: ['合成標題'], encoding: 'utf-8', delimiter: ',' });
+    api.importPreviewFile = async payload => { previews.push(payload); return { columns: ['doc', 'amount'], sampleRows: [] }; };
+  });
+  w.open();
+  w.render().click('wizard-pick'); await settle();
+  const headerRow = w.render().control('bind:headerRow:0');
+  assert.ok(headerRow, 'a text source offers the header row');
+  headerRow.value = '2'; headerRow.fire('change'); await settle();
+  assert.deepEqual(plain(previews.at(-1)), { filePath: 'C:\\in\\titled.csv', limit: 10, encoding: 'utf-8', delimiter: ',', headerRow: 2 });
+  const back = w.render().control('bind:headerRow:0');
+  back.value = '1'; back.fire('change'); await settle();
+  assert.deepEqual(plain(previews.at(-1)), { filePath: 'C:\\in\\titled.csv', limit: 10, encoding: 'utf-8', delimiter: ',' });
+});
+
+test('an Access table offers no header row because its column names come from the table itself', async () => {
+  const w = importWizardFixture(api => {
+    api.hostSelectFiles = async () => ({ files: [{ filePath: 'C:\\in\\ledger.accdb', fileName: 'ledger.accdb' }] });
+    api.importInspectFile = async () => ({ fileType: 'access', worksheets: [{ name: '總帳', columns: ['doc', 'amount'], rowCountEstimate: null }] });
+  });
+  w.open();
+  w.render().click('wizard-pick'); await settle();
+  assert.doesNotMatch(w.render().html(), /data-pending-bind="headerRow"/);
+  assert.match(w.render().html(), /2 欄/);
+});
+
+// 預篩選收斂計畫複審（2026-10-28）：欄名列填得比工作表內容還多時讀取失敗，那一格照樣留在這一列，改小之後自動恢復；
+// 「重新檢視」沿用這一列的欄名列，不把選擇清回第 1 列；超過 Excel 列數上限的值不送出。改程式之後才補，沒有第一次失敗的收據。
+test('a worksheet whose header row is set past its content keeps the header row in place so a smaller value recovers it', async () => {
+  const previews = [];
+  let inspections = 0;
+  const w = importWizardFixture(api => {
+    api.hostSelectFiles = async () => ({ files: [{ filePath: 'C:\\in\\titled.xlsx', fileName: 'titled.xlsx' }] });
+    api.importInspectFile = async () => { inspections++; return { fileType: 'xlsx', worksheets: [{ name: '總帳', columns: ['合成標題'], rowCountEstimate: 6 }] }; };
+    api.importPreviewFile = async payload => {
+      previews.push(payload);
+      if (payload.headerRow === 90) {
+        const error = new Error('檔案「titled.xlsx」從第 90 列起沒有內容，找不到欄名。請確認欄名所在的列。'); error.code = 'empty_workbook'; throw error;
+      }
+      return { columns: ['doc', 'amount'], sampleRows: [] };
+    };
+  });
+  w.open();
+  w.render().click('wizard-pick'); await settle();
+  const tooFar = w.render().control('bind:headerRow:0');
+  tooFar.value = '90'; tooFar.fire('change'); await settle();
+  let html = w.render().html();
+  assert.match(html, /從第 90 列起沒有內容/);
+  assert.match(html, /可在同一列改「欄名在第幾列」後重試/);
+  assert.match(html, /data-pending-bind="headerRow" data-index="0" value="90"/, 'the header row stays on the failed row');
+  w.render().click('pending-retry:0'); await settle();
+  assert.deepEqual(plain(previews.at(-1)), { filePath: 'C:\\in\\titled.xlsx', limit: 10, sheetName: '總帳', headerRow: 90 }, 'retry rereads with the same header row');
+  assert.equal(inspections, 1, 'retry does not inspect the workbook again');
+  const smaller = w.render().control('bind:headerRow:0');
+  smaller.value = '3'; smaller.fire('change'); await settle();
+  html = w.render().html();
+  assert.doesNotMatch(html, /讀不出這個檔案/);
+  assert.match(html, /2 欄/, 'the row recovers with the smaller header row');
+  const beyond = w.render().control('bind:headerRow:0');
+  const sent = previews.length;
+  beyond.value = '1048577'; beyond.fire('change'); await settle();
+  assert.equal(previews.length, sent, 'a header row past the Excel row limit is not sent');
+  assert.equal(beyond.value, '3', 'the control goes back to the last header row');
+});
+
 function projectMetadataFixture(project = null) {
   const f = fixture(), creates = [], updates = [];
   f.store.resetWorkflow(); if (project) f.store.setProject(project);
@@ -2458,7 +2577,8 @@ test('project update has a JetApi method and missing preparation dates point to 
   const f = scenarioLifecycleFixture();
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   const context = vm.createContext({ window: f.window, document: { querySelector: () => null } });
-  vm.runInContext(source.replace("  Ui.registerStep('filter', render);", '  window.reviewMetadataRule = ruleControlsHtml;'), context);
+  // 第五步拆成五個檔案（階段十）：ruleControlsHtml 在條件列那一塊，f 的 window 已載入五個檔案，從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  vm.runInContext(source.replace("  Ui.registerStep('filter', render);", '  window.reviewMetadataRule = FilterStep.ruleControlsHtml;'), context);
   const rule = { type: 'prescreen', prescreenKey: 'postPeriodApproval' };
   const html = f.window.reviewMetadataRule(rule, 0, 0);
   // 使用者 2026-10-14 第三輪勾選頁確認 R3-17（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
@@ -2501,10 +2621,11 @@ function taxonomyReviewFixture() {
   const source = fs.readFileSync(path.join(root, 'steps/validate-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('validate', render);",
     '  window.taxonomyReview = { html: taxonomyCardHtml, rows: taxonomyRows, bind: bindTaxonomyCard, bindAll: bind };'), context);
-  for (const name of ['filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, name), 'utf8'), context);
+  // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const name of ['filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, name), 'utf8'), context);
   const filter = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(filter.replace("  Ui.registerStep('filter', render);",
-    '  window.taxonomyFilterReview = { summary: ruleSummaryLabel, controls: ruleControlsHtml, subject: ruleSubjectHtml, wire: toWireDraft };'), context);
+    '  window.taxonomyFilterReview = { summary: FilterStep.ruleSummaryLabel, controls: FilterStep.ruleControlsHtml, subject: FilterStep.ruleSubjectHtml, wire: FilterStep.toWireDraft };'), context);
   function render() {
     const html = f.window.taxonomyReview.html(f.store.getState()); currentDom = taxonomyReviewDom(html);
     f.window.taxonomyReview.bind(currentDom);
@@ -2798,9 +2919,10 @@ function batch7Fixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    '  window.batch7 = { bind, customPickerHtml, addFieldCondition, addCommonCheck, conditionFromSpec, findCommonCheck, bindCompoundRule, compoundRuleHtml, ruleRowHtml, ruleSubjectHtml, ruleProblem, readBackHtml, toWireDraft, syncViewState, getView: () => viewState };'), context);
+    filterStepExposure('batch7', ['bind', 'customPickerHtml', 'addFieldCondition', 'addCommonCheck', 'conditionFromSpec', 'findCommonCheck', 'bindCompoundRule', 'compoundRuleHtml', 'ruleRowHtml', 'ruleSubjectHtml', 'ruleProblem', 'readBackHtml', 'toWireDraft', 'syncViewState'], 'getView: () => FilterStep.viewState')), context);
   // 替換字串跟著正式匯出改：2026-10-16 加了 countText，2026-10-19 刪掉只給備用畫面用的 countText（第一次失敗：
   // 20261019-090901211-9e9ec7ffcbf34596ae2d8476cf613b45）。只多匯出 matchStatusHtml 供下面的測試使用。
   vm.runInContext(fs.readFileSync(path.join(root, 'filter-vouchers.js'), 'utf8').replace('Ui.FilterVouchers = { summary: summary, mount: mount };',
@@ -2868,9 +2990,14 @@ test('batch7 single-value comparisons retain their literal operand and warn abou
 
 test('batch7 filter dates use GL formats and the project ROC setting without changing month-day numbers', () => {
   const f = batch7Fixture(), state = f.store.getState(), value = f.ui.FilterValues;
-  const rule = { type: 'fieldValue', field: 'postDate', operator: 'in', values: ['2025/6/1', '2025.6.2', '20250603', '114/6/4', '1140605', '45814'] };
-  assert.deepEqual(plain(value.wire(rule, state).values), ['2025-06-01', '2025-06-02', '2025-06-03', '2025-06-04', '2025-06-05', '2025-06-06']);
+  const rule = { type: 'fieldValue', field: 'postDate', operator: 'in', values: ['2025/6/1', '2025.6.2', '20250603', '114/6/4', '1140605'] };
+  assert.deepEqual(plain(value.wire(rule, state).values), ['2025-06-01', '2025-06-02', '2025-06-03', '2025-06-04', '2025-06-05']);
   assert.equal(value.problem(rule, state), '');
+  // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：純數字 45814 原本在上面的清單裡換成 2025-06-06，現在保留原文並寫出無法辨識。
+  // 第一次失敗：FrontendMapping 收據 20261024-045131921-2a00c186343c4fde945aa8eaaaea8da7。
+  const plainNumber = { ...rule, values: ['45814'] };
+  assert.deepEqual(plain(value.wire(plainNumber, state).values), ['45814']);
+  assert.match(value.problem(plainNumber, state), /日期「45814」無法辨識/);
   state.project.rocDateEnabled = false;
   const disabled = { ...rule, values: ['114/6/4'] };
   assert.match(value.problem(disabled, state), /日期/);
@@ -2882,6 +3009,10 @@ test('batch7 filter dates use GL formats and the project ROC setting without cha
 // 第九節 G1 的分類子條件不再繼承方向。首次失敗：20261014-132501058-ef503fecc9824f3b9e6f009a7b154327。
 test('batch7 classification children have no hidden direction and personnel/account bracket fields default to exact lists', () => {
   const f = batch7Fixture();
+  // 預篩選收斂計畫階段四（2026-10-23）：「加入子條件」不再加入選單上停用的項目。這個夾具沒有匯入科目配對，「科目分類」本來就是停用的，
+  // 原本仍會被加入；這裡要看的是分類子條件的方向，所以先匯入有分類的科目配對。
+  // 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（沒有加入子條件）。
+  f.store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
   for (const [type, choice, expected] of [['voucher', 'type:accountSide', { drCr: undefined }], ['group', 'field:approveBy', { operator: 'in', field: 'approveBy' }], ['group', 'field:createBy', { operator: 'in', field: 'createBy' }], ['group', 'field:accNum', { operator: 'in', field: 'accNum' }]]) {
     const rule = { type, side: 'credit', quantifier: 'any', rules: [] }, draft = { groups: [{ rules: [rule] }] };
     f.store.setFilterDraft(draft);
@@ -2903,12 +3034,16 @@ test('batch7 same-row bracket and voucher child menus do not offer voucher-wide 
   assert.match(f.api.ruleRowHtml({ ...child, categoryMode: 'absent' }, { rules: [child] }, 0, 0, false), /option value="absent" selected disabled/);
 });
 
-test('batch7 unavailable saved risk and deleted-field selections show selected explanatory placeholders', () => {
+// 預篩選收斂計畫階段四（2026-10-23）把不能用的已存條件的原因移到卡片上：每一種條件的原因都寫在卡片同一個位置，
+// 樣態選單照樣寫條件名稱，不再用原因取代名稱。句子不變。
+// 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（選單上寫的是條件名稱）。
+test('batch7 unavailable saved risk selections keep their name and explain on the card, and deleted fields show a selected placeholder', () => {
   const f = batch7Fixture();
-  for (const key of ['nonAuthorizedPreparer', 'unexpectedAccountPair']) {
-    const html = f.api.ruleSubjectHtml({ type: 'prescreen', prescreenKey: key }, 'pattern');
+  for (const [key, label] of [['nonAuthorizedPreparer', '非授權編製人員'], ['unexpectedAccountPair', '未預期借貸組合']]) {
+    const rule = { type: 'prescreen', prescreenKey: key };
+    assert.match(f.api.ruleSubjectHtml(rule, 'pattern'), new RegExp('<option[^>]*value="prescreen:' + key + '"[^>]*selected[^>]*>' + label + '<'));
     // 使用者 2026-10-14 第三輪勾選頁確認 R3-15（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。 授權編製人員改稱「清單」。
-    assert.match(html, new RegExp('<option[^>]*value="prescreen:' + key + '"[^>]*selected[^>]*>[^<]*(?:清單|科目配對)'));
+    assert.match(f.api.ruleRowHtml(rule, { rules: [rule] }, 0, 0), /<p class="rule-field__hint">[^<]*(?:清單|科目配對)/);
   }
   assert.match(f.ui.FilterValues.fieldOptionsHtml(f.store.getState(), 'deleted-rde', []), /<option[^>]*value="deleted-rde"[^>]*selected[^>]*>[^<]*(?:未配對|重新選擇)/);
 });
@@ -3128,14 +3263,20 @@ test('batch8 overview uses the same tiny net display while ordinary debit and cr
   assert.equal(data.stats.net, -0.003);
 });
 
-test('batch8 empty remedies are omitted and all blank-source category labels are consistent', () => {
+// 原本的標題是「batch8 empty remedies are omitted…」，第二個斷言鎖住「有補救文字時要顯示」。使用者 2026-10-22 裁定把第四步
+// 不適用原因與補救文字的矛盾併入預篩選收斂計畫階段四：後端的原因句已寫出缺什麼、到哪裡補，畫面不再另接補救文字，
+// 所以改成明細只有後端那一句；分類名稱的斷言不變。第一次失敗：FrontendMapping 收據 20261023-040728600-18091b6ae0d84af79ad7e9b38853c84a。
+test('batch8 a reason detail shows only the backend sentence and all blank-source category labels are consistent', () => {
   const f = batch8Fixture();
   assert.doesNotMatch(f.v.detailHtml({ kind: 'reason', text: 'Synthetic reason', remedy: null }), /rule-detail__remedy/);
-  assert.match(f.v.detailHtml({ kind: 'reason', text: 'Synthetic reason', remedy: 'Synthetic next step' }), /Synthetic next step/);
+  assert.equal(f.v.detailHtml({ kind: 'reason', text: 'Synthetic reason', remedy: 'Synthetic next step' }),
+    '<p class="rule-detail__reason">Synthetic reason</p>');
   const data = batch8ValidationData(), item = f.v.VALIDATION_ITEMS.find(item => item.title === '總帳日期空白');
   assert.equal(item.detail(data).rows[0][0], '總帳日期空白');
   assert.equal(f.v.DETAIL_PAGE_SPECS.sourceQuality.columns[0]({ category: 'nullPostDate' }), '總帳日期空白');
-  for (const [key, label] of [['nullDescription', '空白摘要'], ['nullDocument', '空白傳票號碼'], ['nullAccount', '空白科目編號']]) {
+  // 預篩選收斂計畫階段九：第四步不再註冊空白摘要的明細頁（空白摘要只留預篩選訊號那一處），這裡只剩兩類。
+  // 第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
+  for (const [key, label] of [['nullDocument', '空白傳票號碼'], ['nullAccount', '空白科目編號']]) {
     assert.equal(f.v.DETAIL_PAGE_SPECS['null-' + key].columns[4]({}), label);
   }
   assert.deepEqual(plain(item.detail(data).columns.slice(3, 5)), ['傳票號碼', '科目編號']);
@@ -3350,14 +3491,20 @@ for (const entry of JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/ba
     const scenario = { name: entry.id, rationale: 'Synthetic preparation-date readback', __preserveJoins: true, ...plain(entry.scenario) };
     assert.equal(f.text(f.filter.readBackHtml(scenario, false)).replace(/^篩選條件：/, ''), entry.expected);
     assert.equal(f.filter.toWireDraft(scenario).groups[0].rules[0].preparationDate, undefined, 'project date is not frozen into the AST');
-    if (entry.ruleTypeLabel) assert.equal(f.ui.FILTER_RULE_TYPES.find(item => item.value === scenario.groups[0].rules[0].type).label, entry.ruleTypeLabel);
+    if (entry.ruleTypeLabel) {
+      // 預篩選收斂計畫階段九：已停用的型別不在型別表裡，讀回的標題在 RETIRED_RULE_TYPE_LABELS；標題文字不變。
+      // 第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
+      const type = scenario.groups[0].rules[0].type;
+      assert.equal((f.ui.FILTER_RULE_TYPES.find(item => item.value === type) || {}).label || f.ui.RETIRED_RULE_TYPE_LABELS[type], entry.ruleTypeLabel);
+    }
     if (entry.preparationDate === null) assert.match(f.filter.ruleControlsHtml(scenario.groups[0].rules[0], 0, 0), /修改案件資料/);
   });
 }
 
 function batch9Fixture() {
   const requests = [], window = { setTimeout, clearTimeout, addEventListener() {}, JetFocus: { defer() {}, move() {}, trapDialogTab() {} }, JetApi: contractJetApi({}) };
-  const document = { readyState: 'loading', addEventListener() {}, querySelector: () => null,
+  // 階段八起 app.js 的對話框堆疊在 document 上掛、拆鍵盤監聽，並用 contains 確認登記的對話框還在畫面上；假 document 補上瀏覽器本來就有的這兩個成員。
+  const document = { readyState: 'loading', addEventListener() {}, removeEventListener() {}, contains: () => true, querySelector: () => null,
     createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   for (const action of ['projectDeletePreview', 'projectDelete', 'mappingValueProfile', 'mappingCommitGl', 'mappingCommitTb']) {
     window.JetApi[action] = payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject }));
@@ -3799,7 +3946,8 @@ test('batch9 medium successful import shows backend duplicate-source warnings wi
 test('batch9 constants keep separate fixed audit thresholds and unchanged full labels and custom defaults', () => {
   const f = batch8Fixture();
   assert.deepEqual(f.ui.PRESCREEN_DEFAULTS && plain(f.ui.PRESCREEN_DEFAULTS), { preparerMaxEntries: 11, accountMaxEntries: 11, trailingZeroDigits: 6 });
-  const labels = Object.fromEntries(f.ui.PRESCREEN_KEY_OPTIONS.map(item => [item.value, item.label]));
+  // 預篩選收斂計畫階段九：前端只留一份 PRESCREEN_RULES。第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
+  const labels = Object.fromEntries(f.ui.PRESCREEN_RULES.map(item => [item.value, item.label]));
   assert.equal(labels.trailingZeros, '金額尾數連續 6 個 0');
   assert.equal(labels.lowFrequencyPreparer, '編製分錄較少的人員（11 筆以下）');
   assert.equal(labels.lowFrequencyAccount, '使用較少的科目（11 筆以下）');
@@ -4065,7 +4213,10 @@ test('K2 B card creates empty subtree selections and blocks preview with positio
   assert.equal(wire.source, 'kct'); assert.equal(rule.type, 'specialAccountCategoryPair');
   assert.equal(rule.pairMode, 'drAndCr'); assert.equal(rule.categorySelection, 'subtree');
   assert.deepEqual(Array.from(rule.debitCategoryIds), []); assert.deepEqual(Array.from(rule.creditCategoryIds), []);
-  assert.match(f.api.draftRuleProblems(draft)[0].text, /第 1 組第 1 條.*借方分類/);
+  // 預篩選收斂計畫階段四（2026-10-23）：就近檢查先寫條件缺的前置條件，和後端第五步同一句。這個夾具還沒匯入科目配對，
+  // 第一個問題改成科目配對；「尚未選擇借方分類」的引導移到下面匯入有分類的科目配對之後核對。
+  // 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（第一個問題寫的是科目配對）。
+  assert.equal(f.api.draftRuleProblems(draft)[0].text, '第 1 組第 1 條：科目配對中尚無任何科目設定分類，請先在第四步設定');
   assert.match(f.api.kctPickerHtml(draft), /尚不可用/);
   f.store.getState().importState.accountMapping = { hasAnyCategory: false };
   // 使用者 2026-10-14 第三輪勾選頁確認 R3-15（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
@@ -4073,6 +4224,7 @@ test('K2 B card creates empty subtree selections and blocks preview with positio
   f.store.getState().importState.accountMapping = { hasAnyCategory: true };
   const b = f.api.kctPickerHtml(draft).match(/<button[^>]*data-kct-letter="B"[^>]*>/)[0];
   assert.doesNotMatch(b, /disabled/);
+  assert.match(f.api.draftRuleProblems(draft)[0].text, /第 1 組第 1 條.*借方分類/);
   draft.groups[0].rules[0].debitCategoryIds = ['ppe'];
   assert.match(f.api.draftRuleProblems(draft)[0].text, /貸方分類/);
   draft.groups[0].rules[0].creditCategoryIds = ['expense'];
@@ -4367,10 +4519,11 @@ for (const [letter, input, expected] of [
 ]) test('K9 KCT ' + letter + ' displays and updates the actual keyword list count in place', () => {
   const dom = batch9TreeDom(), window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const context = vm.createContext({ window, document: dom.document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js'])
+  // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    '  window.k9 = { addKctToDraft, syncViewState, ruleControlsHtml, render, toWireDraft };'), context);
+    filterStepExposure('k9', ['addKctToDraft', 'syncViewState', 'ruleControlsHtml', 'render', 'toWireDraft'])), context);
   const store = window.JetStore, api = window.k9;
   store.setProject({ projectId: 'k9-entry-synthetic' }); api.syncViewState(store.getState());
   const draft = store.getState().filter.draft;
@@ -5118,9 +5271,10 @@ function namingFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    '  window.naming = { refreshAutomaticMetadata, addKctToDraft, removeKctFromActiveGroup, applyTemplate, toWireScenario, toWireDraft, syncViewState };'), context);
+    filterStepExposure('naming', ['refreshAutomaticMetadata', 'addKctToDraft', 'removeKctFromActiveGroup', 'applyTemplate', 'toWireScenario', 'toWireDraft', 'syncViewState'])), context);
   const store = window.JetStore, api = window.naming;
   store.setProject({ projectId: 'naming-synthetic' }); api.syncViewState(store.getState());
   const card = letter => window.JetUi.FILTER_KCT_CHECKLIST.find(x => x.letter === letter);
@@ -5533,7 +5687,7 @@ test('overview Escape and Tab use the shared document trap while open and yield 
   assert.ok(f.dom.document.activeElement === f.dom.document.body, 'focus is not moved into the inert overview');
   f.key('Escape'); assert.equal(f.state.overviewOpen, true, 'Escape does not close the overview during an operation');
   f.store.setBusy(false);
-  // 原生對話框（第五步的日期多選用 showModal 開在最上層）開著時，Escape 與 Tab 交給它。
+  // 防衛用：用 showModal 開的原生對話框開著時，Escape 與 Tab 交給它。目前畫面沒有這種對話框。
   const nativeDialog = f.dom.document.body.appendChild(f.dom.element('dialog', { open: '' }));
   const dialogTab = f.key('Tab', { target: nativeDialog }); assert.equal(dialogTab.defaultPrevented, false, 'Tab is left to the native dialog on top');
   f.key('Escape', { target: nativeDialog }); assert.equal(f.state.overviewOpen, true, 'Escape is left to the native dialog on top');
@@ -5573,6 +5727,65 @@ test('overview yields Escape to the unsaved-category dialog that the window clos
   assert.ok(f.dom.document.activeElement === close, 'focus returns to the overview');
   f.key('Escape'); assert.equal(f.state.overviewOpen, false, 'the second Escape closes the overview');
   assert.ok(f.dom.document.activeElement === opener, 'focus returns to the overview button');
+});
+
+// 預篩選收斂計畫階段八（使用者 2026-10-22 裁定「Escape 一次關兩層」）：app.js 的 JetFocus 擴成對話框堆疊，整個頁面只有一個捕獲階段的鍵盤監聽，
+// Escape 與 Tab 只交給最上層；登記的元素已經不在畫面上時這筆登記不算；原生對話框開著時不處理。第一次失敗：FrontendMapping 收據 20261024-144702429-ebf33c64aa474c5bb12ca3afb1c2df7f。
+test('JetFocus dialog stack: one document listener, Escape and Tab reach the top dialog only, detached dialogs are skipped', () => {
+  const f = overviewDialogFixture(), Focus = f.window.JetFocus, before = f.keyListeners();
+  const dialogHtml = id => '<div class="modal__card"><button type="button" id="' + id + '-a">a</button><button type="button" id="' + id + '-b">b</button></div>';
+  const lower = f.dom.document.body.appendChild(f.dom.element('div')); lower.innerHTML = dialogHtml('lower');
+  const upper = f.dom.document.body.appendChild(f.dom.element('div')); upper.innerHTML = dialogHtml('upper');
+  const closed = [];
+  const lowerEntry = Focus.openDialog({ element: lower.querySelector('.modal__card'), close: () => closed.push('lower') });
+  const upperEntry = Focus.openDialog({ element: upper.querySelector('.modal__card'), close: () => closed.push('upper') });
+  assert.equal(f.keyListeners(), before + 1, 'two dialogs share one document listener');
+  upper.querySelector('#upper-b').focus();
+  const tab = f.key('Tab');
+  assert.equal(tab.defaultPrevented, true, 'Tab is handled by the top dialog');
+  assert.ok(f.dom.document.activeElement === upper.querySelector('#upper-a'), 'Tab wraps inside the top dialog');
+  f.key('Escape'); assert.deepEqual(closed, ['upper'], 'Escape reaches the top dialog only');
+  Focus.closeDialog(upperEntry);
+  f.key('Escape'); assert.deepEqual(closed, ['upper', 'lower'], 'after the top closes, Escape reaches the next one');
+  // 登記的元素不在畫面上（例如清單重繪把對話框一起換掉）時，這筆登記不接鍵盤，也不擋住下面的。
+  const stale = f.dom.document.body.appendChild(f.dom.element('div')); stale.innerHTML = dialogHtml('stale');
+  Focus.openDialog({ element: stale.querySelector('.modal__card'), close: () => closed.push('stale') });
+  stale.remove();
+  f.key('Escape'); assert.deepEqual(closed, ['upper', 'lower', 'lower'], 'a detached dialog is skipped');
+  // 防衛用：用 showModal 開的原生對話框開著時，鍵盤交給它。目前畫面沒有這種對話框。
+  const nativeDialog = f.dom.document.body.appendChild(f.dom.element('dialog', { open: '' }));
+  const left = f.key('Escape');
+  assert.equal(left.defaultPrevented, false); assert.deepEqual(closed, ['upper', 'lower', 'lower'], 'Escape is left to the native dialog');
+  nativeDialog.removeAttribute('open');
+  Focus.closeDialog(lowerEntry);
+  assert.equal(f.keyListeners(), before, 'the listener goes away with the last dialog');
+  f.key('Escape'); assert.deepEqual(closed, ['upper', 'lower', 'lower'], 'nothing listens once the stack is empty');
+});
+
+// 「尚未儲存」對話框（ui-core.js）有 app 殼層時登記到同一個堆疊：疊在總覽上面時一次 Escape 只關它，總覽留著，焦點回到原處。
+// 這則測試是階段八程式改完後補的，第一次執行就通過，沒有第一次失敗的收據；
+// 既有的「尚未儲存」測試用的夾具沒有 app.js，只走沒有堆疊時自己接鍵盤的退路。
+test('JetFocus dialog stack: the unsaved-changes dialog on top of the overview joins the same stack and Escape closes it alone', async () => {
+  const f = overviewDialogFixture(), opener = f.$('[data-action="overview-open"]'), overview = f.$('.overview-modal'), before = f.keyListeners();
+  opener.focus(); opener.fire('click');
+  const overviewClose = f.dom.document.activeElement;
+  assert.ok(overviewClose && overviewClose.classList.contains('overview__close'), 'the overview close button has focus');
+  assert.equal(f.keyListeners(), before + 1);
+  const pending = f.window.JetUi.confirmUnsaved({ id: 'phase8', title: '尚未儲存', body: '條件還沒儲存。', continueLabel: '放棄變更' });
+  const card = f.$('[data-bind="phase8-modal"] .modal__card');
+  assert.ok(card, 'the unsaved dialog is on the page');
+  assert.equal(f.keyListeners(), before + 1, 'the unsaved dialog shares the one document listener');
+  assert.ok(f.dom.document.activeElement && card.contains(f.dom.document.activeElement), 'focus moves into the unsaved dialog');
+  const escape = f.key('Escape');
+  assert.equal(escape.defaultPrevented, true);
+  assert.equal(await pending, false, 'Escape means stay');
+  assert.equal(f.$('[data-bind="phase8-modal"]'), null, 'the unsaved dialog is gone');
+  assert.equal(f.state.overviewOpen, true); assert.equal(overview.hidden, false, 'the overview stays open');
+  assert.ok(f.dom.document.activeElement === overviewClose, 'focus returns to where it was inside the overview');
+  f.key('Escape');
+  assert.equal(f.state.overviewOpen, false); assert.equal(overview.hidden, true, 'the next Escape closes the overview');
+  assert.ok(f.dom.document.activeElement === opener, 'focus returns to the overview button');
+  assert.equal(f.keyListeners(), before, 'no listener is left once both are closed');
 });
 
 test('remap S6-06 cancellation through the actual export button retains a completed prescreen report and stops the workpaper', async () => {
@@ -5790,7 +6003,7 @@ test('custom pane lists every core field by type, marks relevant data element fi
   assert.equal(deferred.at(-1)(), f.$('.rule-row[data-gi="1"][data-ri="1"]').querySelector('[data-value-key="value"]'), 'an empty threshold receives focus');
   f.click('[data-add-field="rde.t"]');
   assert.deepEqual(plain([groups[1].rules[2].fieldId, groups[1].rules[2].field ?? null, groups[1].rules[2].operator]), ['rde.t', null, 'contains']);
-  assert.doesNotMatch(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8'), /[✦★]/, 'no decorative star markers');
+  assert.doesNotMatch(readFilterStep(), /[✦★]/, 'no decorative star markers'); // 第五步拆成五個檔案（階段十），讀五個檔案合起來的原始碼。
 });
 
 test('field buttons follow the active group join rules: same voucher always AND, row groups keep their combinator', () => {
@@ -5883,6 +6096,12 @@ test('common checks are disabled only when the backend would reject them and say
     return { html, disabled: Object.keys(result).filter(key => result[key]) };
   };
   const note = (html, key) => (new RegExp('id="filter-check-note-' + key + '">([^<]*)<').exec(html) || [])[1];
+  // 預篩選收斂計畫階段四（2026-10-23）改了兩處：前端改讀後端算好的可用欄位，原本靠「沒有確認 GL 配對」表示傳票建立人員與
+  // 傳票核准人員未配對，改成給一份沒有這兩個欄位的清單；欄位的原因接上和第四步相同的下一步（使用者 2026-10-22 裁定）。
+  // 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（「編製分錄較少的人員」沒有停用）。
+  const everyField = ['docNum', 'lineID', 'postDate', 'docDate', 'accNum', 'accName', 'description', 'jeSource', 'createBy', 'approveBy', 'manual', 'amount'];
+  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {},
+    availableGlFields: everyField.filter(field => field !== 'createBy' && field !== 'approveBy') });
   let page = state();
   assert.deepEqual(page.disabled, ['postPeriodApproval', 'accountCategory', 'categoryPair', 'unexpectedAccountPair', 'rarePreparers']);
   // 使用者 2026-10-14 第三輪勾選頁確認 R3-15、R3-17（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
@@ -5890,7 +6109,7 @@ test('common checks are disabled only when the backend would reject them and say
   assert.equal(note(page.html, 'accountCategory'), '科目配對中尚無任何科目設定分類，請先在第四步設定');
   assert.equal(note(page.html, 'categoryPair'), '科目配對中尚無任何科目設定分類，請先在第四步設定');
   assert.equal(note(page.html, 'unexpectedAccountPair'), '科目配對中尚無任何科目設定分類，請先在第四步設定');
-  assert.equal(note(page.html, 'rarePreparers'), '「傳票建立人員」尚未選擇來源欄');
+  assert.equal(note(page.html, 'rarePreparers'), '「傳票建立人員」尚未選擇來源欄，請回第三步欄位配對補上');
   assert.equal(note(page.html, 'postDateHoliday'), undefined, 'a missing holiday list does not disable the check');
   const before = JSON.stringify(f.store.getState().filter.draft);
   f.api.addCommonCheck('rarePreparers');
@@ -5906,7 +6125,7 @@ test('common checks are disabled only when the backend would reject them and say
   assert.doesNotMatch(page.html, /案件沒有查核截止日/);
   f.store.getState().project.periodEnd = '2025-12-31'; f.store.getState().project.lastPeriodStart = '2025-12-01';
   f.store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
-  f.store.setMappingCommitted('gl', { mapping: { createBy: 'Maker' }, mode: 'signed', options: {} });
+  f.store.setMappingCommitted('gl', { mapping: { createBy: 'Maker' }, mode: 'signed', options: {}, availableGlFields: everyField });
   assert.deepEqual(state().disabled, []);
 });
 
@@ -5953,17 +6172,24 @@ test('examples start hidden, list ten plain names with a one-line notice and app
 test('examples disable for missing approver mapping, preparation date or period end and leave the draft untouched', () => {
   const f = filterOperationFixture();
   f.store.setProject({ projectId: 'example-requirements', periodEnd: '' });
+  // 預篩選收斂計畫階段四（2026-10-23）改了兩處：前端改讀後端算好的可用欄位，原本靠「沒有確認 GL 配對」表示傳票核准人員與
+  // 傳票建立人員未配對，改成給一份沒有這兩個欄位的清單；欄位的原因接上和第四步相同的下一步（使用者 2026-10-22 裁定）。
+  // 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（「空白摘要或空白核准人員」沒有停用）。
+  const everyField = ['docNum', 'lineID', 'postDate', 'docDate', 'accNum', 'accName', 'description', 'jeSource', 'createBy', 'approveBy', 'manual', 'amount'];
+  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {},
+    availableGlFields: everyField.filter(field => field !== 'createBy' && field !== 'approveBy') });
   f.click('[data-action="toggle-examples"]');
   const note = key => f.$('#filter-example-note-' + key)?.textContent;
   assert.equal(f.$('[data-template-key="blankDescriptionOrApprover"]').disabled, true);
   // 使用者 2026-10-14 第三輪勾選頁確認 R3-17（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
-  assert.equal(note('blankDescriptionOrApprover'), '「傳票核准人員」尚未選擇來源欄');
+  assert.equal(note('blankDescriptionOrApprover'), '「傳票核准人員」尚未選擇來源欄，請回第三步欄位配對補上');
   assert.equal(note('preparationManualHoliday'), '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫');
   // 使用者 2026-10-14 第三輪勾選頁同意刪除「案件沒有查核截止日」分支：建立案件必填查核截止日，範例不再因此停用。
   assert.equal(note('periodEndManual'), undefined);
   assert.equal(f.$('[data-template-key="periodEndManual"]').disabled, false);
   assert.equal(note('weekendManualDescription'), undefined);
-  f.store.setMappingCommitted('gl', { mapping: { approveBy: 'Checker' }, mode: 'signed', options: {} });
+  f.store.setMappingCommitted('gl', { mapping: { approveBy: 'Checker' }, mode: 'signed', options: {},
+    availableGlFields: everyField.filter(field => field !== 'createBy') });
   assert.equal(f.$('[data-template-key="blankDescriptionOrApprover"]').disabled, false);
 });
 
@@ -6016,6 +6242,24 @@ test('saved scenarios with retired count rule types still display their label, v
   // 新條件不再提供這兩種型別。
   assert.doesNotMatch(f.api.ruleSubjectHtml({ type: 'customTrailingZeros', digits: '6' }, 'pattern'), /customPreparerEntryCount|customAccountEntryCount/);
   assert.doesNotMatch(f.api.customPickerHtml(), /customPreparerEntryCount|customAccountEntryCount/);
+});
+
+// 預篩選收斂計畫階段九：前端型別表拿掉已停用的舊型別，只留一份 RETIRED_RULE_TYPES 給舊情境讀回；讀回的標題照舊。
+// 第一次失敗：收據 20261024-190820658-e1f6ec57c899499f8f9f3d0be434178e。
+test('the condition type table no longer lists retired types, and saved conditions of those types still read back under their old heading', () => {
+  const f = batch7Fixture();
+  const retired = ['customKeywords', 'customTrailingZeros', 'trailingDigits', 'customPreparerEntryCount', 'customAccountEntryCount'];
+  assert.deepEqual(plain(f.ui.RETIRED_RULE_TYPES), retired);
+  for (const type of retired) assert.ok(!f.ui.FILTER_RULE_TYPES.some(item => item.value === type), type + ' is not in the type table');
+  for (const [rule, heading] of [
+    [{ type: 'customKeywords', keywords: 'ADJ', join: 'AND' }, '自訂關鍵字'],
+    [{ type: 'customTrailingZeros', digits: '6', join: 'AND' }, '金額尾數連續 0 的位數'],
+    [{ type: 'trailingDigits', keywords: '000000', join: 'AND' }, '特定金額尾數'],
+    [{ type: 'customPreparerEntryCount', maxEntries: '11', join: 'AND' }, 'GL 中編製人員分錄筆數 ≤'],
+    [{ type: 'customAccountEntryCount', maxEntries: '11', join: 'AND' }, 'GL 中科目分錄筆數 ≤']]) {
+    const row = f.api.ruleRowHtml(rule, { rules: [rule] }, 0, 0);
+    assert.ok(row.includes('<strong>' + heading + '</strong>'), rule.type + ' keeps its heading');
+  }
 });
 
 // 舊目錄（只留在測試夾具）代號與新選單的對照。keys 列出比較的鍵；null 表示整條規則結構相同（只比較舊目錄寫到的鍵）。
@@ -6077,25 +6321,29 @@ test('common checks and examples keep the rule structure of the matching retired
   assert.equal(ui.FILTER_SCENARIO_TEMPLATES.some(t => t.groups.some(g => g.rules.some(r => r.prescreenKey === 'trailingZeros'))), false);
 });
 
-test('common checks and examples use only rule types, operators and requirements the screen already knows', () => {
+// 預篩選收斂計畫階段四（2026-10-23）拿掉常用查核條件與範例各自寫的 requires 和 FILTER_CONDITION_REQUIREMENTS，
+// 前置條件改由條件內容查和後端同一張需求表（計畫階段四做法第 3 點，三套寫法收成一套）。原本兩行 requires 斷言因此一次也不會執行：
+// 這則測試沒有失敗，所以沒有第一次失敗的收據，但已經變成空轉。改成鎖住新的做法：不再另寫 requires，也不再匯出另一份需求詞彙。
+test('common checks and examples use only rule types and operators the screen already knows, and carry no requirement list of their own', () => {
   const f = batch7Fixture(), ui = f.ui;
   const types = new Set(ui.FILTER_RULE_TYPES.map(type => type.value));
   const operators = new Set(['in', 'notIn', 'contains', 'between', 'greaterThan', 'greaterThanOrEqual', 'isBlank', 'isWeekend', 'isHoliday', 'isNonBusinessDay', 'isNotMakeupDay', 'dayOfMonthNotIn', 'endsWithDigits']);
-  const prescreenKeys = new Set(ui.PRESCREEN_KEY_OPTIONS.map(option => option.value));
+  // 預篩選收斂計畫階段九：前端只留一份 PRESCREEN_RULES。第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
+  const prescreenKeys = new Set(ui.PRESCREEN_RULES.map(option => option.value));
   function visit(rule, where) {
     assert.ok(types.has(rule.type), where + ' type ' + rule.type);
     if (rule.operator) assert.ok(operators.has(rule.operator), where + ' operator ' + rule.operator);
     if (rule.prescreenKey) assert.ok(prescreenKeys.has(rule.prescreenKey), where + ' prescreen ' + rule.prescreenKey);
     (rule.rules || []).forEach(child => visit(child, where));
   }
-  const requirements = new Set(ui.FILTER_CONDITION_REQUIREMENTS);
+  assert.equal('FILTER_CONDITION_REQUIREMENTS' in ui, false);
   for (const check of ui.FILTER_COMMON_CHECK_GROUPS.flatMap(group => group.checks)) {
-    if (check.requires) assert.ok(requirements.has(check.requires), check.key);
+    assert.equal('requires' in check, false, check.key);
     check.rules.forEach(rule => visit(rule, check.key));
   }
   assert.equal(ui.FILTER_SCENARIO_TEMPLATES.length, 10);
   for (const template of ui.FILTER_SCENARIO_TEMPLATES) {
-    if (template.requires) assert.ok(requirements.has(template.requires), template.key);
+    assert.equal('requires' in template, false, template.key);
     if (template.pickField) assert.equal(template.pickField, 'text', template.key);
     template.groups.forEach(group => group.rules.forEach(rule => visit(rule, template.key)));
   }

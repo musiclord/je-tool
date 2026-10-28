@@ -6,6 +6,9 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 2026-10-22 技術債一輪：預篩選報告寫出器只剩一個正式入口，handler 一定先規劃並載入工作簿中繼資料，
+// 原本依 writer 型別退回的 typed 與 public 路徑都刪除；兩則測試各自守住投影與計畫的內容。
+// 第一次失敗是刪掉入口後測試專案建置失敗，那次沒有保存收據。
 public sealed class ExportPrescreenReportTypedSeamTests
 {
     [Fact]
@@ -100,16 +103,17 @@ public sealed class ExportPrescreenReportTypedSeamTests
             new FixedProjectStore(Project(projectId)),
             artifactStore,
             session,
-            new NullEventPublisher());
+            new NullEventPublisher(),
+            new RecordingPlanningFactsPort());
         using var payload = JsonDocument.Parse($$"""{"runId":"{{runId}}"}""");
 
         var response = await handler.HandleAsync(payload.RootElement, cancellation.Token);
         Assert.True(cancellation.IsCancellationRequested);
         AssertPublishedCatalog(response, artifactStore);
 
-        Assert.Equal(1, writer.TypedCalls);
-        Assert.Equal(0, writer.PlannedCalls);
-        Assert.Equal(0, writer.PublicCalls);
+        Assert.Equal(1, writer.Calls);
+        Assert.NotNull(writer.Plan);
+        Assert.NotNull(writer.WorkbookMetadata);
         Assert.Equal(
             new PrescreenReportProjection(
                 PostPeriodApproval: new("na", null),
@@ -202,9 +206,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
         AssertPublishedCatalog(response, artifactStore);
 
         Assert.Equal(1, factsPort.Calls);
-        Assert.Equal(1, writer.PlannedCalls);
-        Assert.Equal(0, writer.TypedCalls);
-        Assert.Equal(0, writer.PublicCalls);
+        Assert.Equal(1, writer.Calls);
         var plan = Assert.IsType<PrescreenReportPlan>(writer.Plan);
         Assert.True(plan.IsFinalized);
         Assert.Equal(
@@ -232,7 +234,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
     }
 
     // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 repository，建構式只剩案件 store、
-    // session 與事件。原本逐一傳給建構式的替身改放進資料庫組；沒傳的 typed 依賴維持 null，handler 照舊走退回路徑。
+    // session 與事件。2026-10-22 技術債一輪：退回路徑已刪除，規劃替身與中繼資料用的 store 都必須提供。
     private static ExportPrescreenReportHandler CreateHandler(
         string projectId,
         IPrescreenReportWriter writer,
@@ -241,7 +243,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
         IReportArtifactStore artifactStore,
         ProjectSession session,
         IJetEventPublisher eventPublisher,
-        IPrescreenReportPlanningFactsPort? prescreenReportPlanningFactsPort = null)
+        IPrescreenReportPlanningFactsPort prescreenReportPlanningFactsPort)
     {
         session.Enter(
             projectId,
@@ -250,10 +252,12 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 PrescreenReportWriter = writer,
                 RuleRuns = runStore,
                 ReportArtifactStore = artifactStore,
-                // 第9批高3；Public首敗100911120後補目前來源的明示空替身，維持原planned/typed/public writer斷言。
+                // 第9批高3；Public首敗100911120後補目前來源的明示空替身。
                 ResultStaleStates = EmptyReportStateTestData.StaleStates,
                 FilterScenarios = EmptyReportStateTestData.Scenarios,
-                PrescreenReportPlanningFacts = prescreenReportPlanningFactsPort!,
+                PrescreenReportPlanningFacts = prescreenReportPlanningFactsPort,
+                MappingStates = new ReportWriterTestSupport.FixedMetadataMappingStore(),
+                AccountTaxonomy = new ReportWriterTestSupport.BuiltInAccountTaxonomyStore(),
             });
         return new ExportPrescreenReportHandler(projectStore, session, eventPublisher);
     }
@@ -281,16 +285,9 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 "validation-run",
                 generatedUtc));
 
-    private sealed class RecordingPrescreenWriter :
-        IPrescreenReportWriter,
-        ITypedPrescreenReportWriter,
-        IPlannedPrescreenReportWriter
+    private sealed class RecordingPrescreenWriter : IPrescreenReportWriter
     {
-        internal int PublicCalls { get; private set; }
-
-        internal int TypedCalls { get; private set; }
-
-        internal int PlannedCalls { get; private set; }
+        internal int Calls { get; private set; }
 
         internal PrescreenReportContext? Context { get; private set; }
 
@@ -300,45 +297,23 @@ public sealed class ExportPrescreenReportTypedSeamTests
 
         internal PrescreenReportPlan? Plan { get; private set; }
 
+        internal ReportWorkbookMetadata? WorkbookMetadata { get; private set; }
+
         public Task<ExportStats> WriteAsync(
-            Stream output,
-            PrescreenReportContext context,
-            CancellationToken cancellationToken,
-            Action<WorkpaperProgress>? progress = null)
-        {
-            PublicCalls++;
-            throw new InvalidOperationException(
-                "Production export must use the typed prescreen writer seam.");
-        }
-
-        public Task<ExportStats> WriteTypedAsync(
-            Stream output,
-            PrescreenReportContext context,
-            PrescreenReportProjection projection,
-            string operatorId,
-            CancellationToken cancellationToken,
-            Action<WorkpaperProgress>? progress = null)
-        {
-            TypedCalls++;
-            Context = context;
-            Projection = projection;
-            OperatorId = operatorId;
-            return Task.FromResult(new ExportStats(0, []));
-        }
-
-        public Task<ExportStats> WritePlannedAsync(
             Stream output,
             PrescreenReportContext context,
             PrescreenReportProjection projection,
             PrescreenReportPlan plan,
+            ReportWorkbookMetadata workbookMetadata,
             string operatorId,
             CancellationToken cancellationToken,
             Action<WorkpaperProgress>? progress = null)
         {
-            PlannedCalls++;
+            Calls++;
             Context = context;
             Projection = projection;
             Plan = plan;
+            WorkbookMetadata = workbookMetadata;
             OperatorId = operatorId;
             return Task.FromResult(new ExportStats(0, []));
         }

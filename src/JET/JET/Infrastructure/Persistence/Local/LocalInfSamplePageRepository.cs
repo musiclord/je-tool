@@ -32,7 +32,8 @@ public sealed class LocalInfSamplePageRepository(ILocalProjectDatabase database)
         command.CommandText =
             "SELECT g.document_number, g.account_code, g.account_name, " +
             "       g.debit_amount_scaled, g.credit_amount_scaled, " +
-            "       g.post_date, g.approval_date, g.created_by, g.approved_by, g.document_description, g.entry_id" + paging.SelectSuffix + " " +
+            "       g.post_date, g.approval_date, g.created_by, g.approved_by, g.document_description, g.entry_id, " +
+            "       g.source_module, g.dr_cr" + paging.SelectSuffix + " " +
             "FROM result_inf_sampling_test_sample s " +
             "JOIN target_gl_entry g ON g.entry_id = s.entry_id " +
             "WHERE " + InfSamplePageSql.RunFilter +
@@ -56,8 +57,10 @@ public sealed class LocalInfSamplePageRepository(ILocalProjectDatabase database)
                     reader.IsDBNull(7) ? null : reader.GetString(7),
                     reader.IsDBNull(8) ? null : reader.GetString(8),
                     reader.IsDBNull(9) ? null : reader.GetString(9),
-                    reader.GetInt64(10)),
-                paging.HasSort ? reader.GetValue(11) : null);
+                    reader.GetInt64(10),
+                    reader.IsDBNull(11) ? null : reader.GetString(11),
+                    reader.GetString(12)),
+                paging.HasSort ? reader.GetValue(13) : null);
         }
 
         return buffer.ToPage(request, paging, static row => row.EntryId, totalCount);

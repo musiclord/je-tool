@@ -30,7 +30,7 @@
   ];
 
   // 精靈區域狀態：一次只開一個資料集的精靈。
-  // pending item = { filePath, fileName, fileType, sheetName, include, encoding, delimiter, columnCount,
+  // pending item = { filePath, fileName, fileType, sheetName, include, encoding, delimiter, headerRow（欄名在第幾列，第 1 列是 null）, columnCount,
   //                  notices（後端提醒文字）, inspectError（檢視失敗原因，有值時這一列不能送出） }
   var wizard = { kind: null, mode: null, pending: [] };
   var preparerDraft = null;
@@ -577,6 +577,8 @@
       var detail = [];
       if (s.encoding) { detail.push('編碼 ' + Ui.esc(encodingLabel(s.encoding))); }
       if (s.delimiter) { detail.push('分隔符 ' + Ui.esc(s.delimiter === '\t' ? 'Tab' : s.delimiter)); }
+      // 階段六：審計員指定過欄名在第幾列時，來源清單一直看得到這個選擇；沒指定（第 1 列）不寫。
+      if (s.headerRow) { detail.push('欄名在第 ' + Number(s.headerRow) + ' 列'); }
 
       return (
         '<tr>' +
@@ -687,7 +689,8 @@
           '</div>' +
           (failed
             ? '<p class="pending-row__error" role="alert" data-motion-key="' + Ui.esc('pending-error-' + pendingMotionKey(item)) + '">讀不出這個檔案：' + Ui.esc(item.inspectError) +
-                (item.fileType === 'csv' ? ' 可在同一列改選編碼或分隔符後重試。' : '') + '</p>'
+                (item.fileType === 'csv' ? ' 可在同一列改選編碼或分隔符後重試。'
+                  : (keepsHeaderRowOnError(item) ? ' 可在同一列改「欄名在第幾列」後重試。' : '')) + '</p>'
             : '') +
           // 失敗原因與提醒帶著來源自己的 key，重試成功或改選設定後原地長出、收起。
           // 提醒用文字本身區分（同一段文字重複時再加上第幾次），不用位置，前面的提醒消失時後面的不會被當成換掉。
@@ -724,14 +727,37 @@
             encodingOptions + '</select></label>' +
           '<label>分隔符 <select data-pending-bind="delimiter" data-index="' + index + '">' +
             delimiterOptions + '</select></label>' +
+          headerRowControlHtml(item, index) +
         '</span>'
       );
     }
 
-    if (item.inspectError) { return ''; }
+    if (item.inspectError) {
+      return keepsHeaderRowOnError(item) ? '<span class="pending-row__detail">' + headerRowControlHtml(item, index) + '</span>' : '';
+    }
     var estimate = item.rowCountEstimate != null
       ? '，約 ' + Number(item.rowCountEstimate).toLocaleString() + ' 列' : '';
-    return '<span class="pending-row__detail">' + item.columnCount + ' 欄' + estimate + '</span>';
+    return '<span class="pending-row__detail">' + item.columnCount + ' 欄' + estimate + headerRowControlHtml(item, index) + '</span>';
+  }
+
+  // 欄名在第幾列（預篩選收斂計畫階段六，使用者 2026-10-22 裁定開放給 GL 與 TB 的一般匯入）：來源檔前面有標題列時，
+  // 審計員在這一格填欄名所在的列，Excel 與文字檔都有；Access 資料表的欄名來自資料表本身，沒有這一格。
+  // 改了就重新讀前 10 列，欄數、提醒與預覽跟著換；它只解決表頭，表尾的合計列仍要在 Excel 刪。
+  // 上限是 Excel 一張工作表的列數；超過的值不送出。
+  var MAX_HEADER_ROW = 1048576;
+
+  function headerRowControlHtml(item, index) {
+    if (item.fileType === 'access') { return ''; }
+    return '<label class="pending-row__header-row">欄名在第 ' +
+      '<input class="form__input form__input--tiny" type="number" inputmode="numeric" min="1" max="' + MAX_HEADER_ROW + '" step="1" ' +
+        'data-pending-bind="headerRow" data-index="' + index + '" value="' + (item.headerRow || 1) + '">' +
+      ' 列</label>';
+  }
+
+  // 工作表先前檢視成功過（有 sheetName），失敗來自改了欄名列或重新讀取：那一格照樣留在這一列，改小之後自動重新讀取；
+  // 從來沒檢視成功的來源沒有工作表可選，維持只顯示「重新檢視」。
+  function keepsHeaderRowOnError(item) {
+    return item.fileType !== 'csv' && item.fileType !== 'access' && !!item.sheetName;
   }
 
   // JetMotion 用的識別：同一個來源（檔案路徑不分大小寫加上工作表）在重繪之間都是同一列。
@@ -892,9 +918,19 @@
           Store.touch(); // 重建以更新「開始匯入（n）」計數
           return;
         }
-        wizard.pending[index][key] = control.value || null;
-        // 只有文字檔有編碼與分隔符：改選後重新讀前 10 列，失敗的列也在這裡重試。
-        refreshTextSource(wizard.pending[index], '重新讀取來源檔');
+        if (key === 'headerRow') {
+          // 第 1 列是預設，不送；填成 1 以下或不是數字時也當成預設。
+          var headerRow = parseInt(control.value, 10);
+          if (headerRow > MAX_HEADER_ROW) {
+            control.value = String(wizard.pending[index].headerRow || 1);
+            return;
+          }
+          wizard.pending[index].headerRow = headerRow >= 2 ? headerRow : null;
+        } else {
+          wizard.pending[index][key] = control.value || null;
+        }
+        // 文字檔的編碼與分隔符，以及每個來源的欄名在第幾列：改選後重新讀前 10 列，失敗的列也在這裡重試。
+        refreshSource(wizard.pending[index], '重新讀取來源檔');
       });
     });
   }
@@ -986,6 +1022,7 @@
         fileName: file.fileName,
         fileType: isTextFile(file.fileName) ? 'csv' : 'other',
         sheetName: null,
+        headerRow: null,
         include: false,
         encoding: null,
         delimiter: null,
@@ -1011,6 +1048,7 @@
           include: true,
           encoding: null,
           delimiter: null,
+          headerRow: null,
           columnCount: ws.columns.length,
           rowCountEstimate: ws.rowCountEstimate != null ? ws.rowCountEstimate : null,
           previewOpen: false,
@@ -1030,6 +1068,7 @@
       include: true,
       encoding: info.encoding,
       delimiter: info.delimiter,
+      headerRow: null,
       columnCount: (info.columns || []).length,
       previewOpen: false,
       previewData: null,
@@ -1037,16 +1076,18 @@
     });
   }
 
-  // 文字檔重新讀前 10 列。只有 import.previewFile 接受這一列選的編碼與分隔符，所以重試檢視與改選都走這裡；
+  // 重新讀來源的前 10 列。只有 import.previewFile 接受這一列選的編碼、分隔符與欄名在第幾列，所以重試檢視與改選都走這裡；
   // 欄數、提醒與預覽一起換新，「只讀到一欄」這類提醒才會跟著改選出現或消失（低嚴重度事項 A2，使用者 2026-10-19 要求處理）。
   // 連續改選時只採用最後一次的結果。
-  function refreshTextSource(item, label) {
+  function refreshSource(item, label) {
     var recovering = !!item.inspectError;
     Ui.run(label, function () {
       var token = item.refreshToken = (item.refreshToken || 0) + 1;
       var payload = { filePath: item.filePath, limit: 10 };
+      if (item.sheetName) { payload.sheetName = item.sheetName; }
       if (item.encoding) { payload.encoding = item.encoding; }
       if (item.delimiter) { payload.delimiter = item.delimiter; }
+      if (item.headerRow) { payload.headerRow = item.headerRow; }
       item.previewData = null;
       Store.touch();
       return global.JetApi.importPreviewFile(payload).then(function (data) {
@@ -1068,13 +1109,13 @@
     });
   }
 
-  // 檢視失敗的來源重試。文字檔走 refreshTextSource；
+  // 檢視失敗的來源重試。文字檔與先前檢視成功過的工作表走 refreshSource，保留這一列的編碼、分隔符與欄名列；
   // 其他格式重新 import.inspectFile，成功後以檢視結果取代這一列（活頁簿會展開成多個工作表）。
   function retryInspect(kind, label, index) {
     var item = wizard.pending[index];
     if (!item) { return; }
-    if (item.fileType === 'csv') {
-      refreshTextSource(item, '重新檢視來源檔');
+    if (item.fileType === 'csv' || keepsHeaderRowOnError(item)) {
+      refreshSource(item, '重新檢視來源檔');
       return;
     }
 
@@ -1114,6 +1155,7 @@
       if (item.sheetName) { payload.sheetName = item.sheetName; }
       if (item.encoding) { payload.encoding = item.encoding; }
       if (item.delimiter) { payload.delimiter = item.delimiter; }
+      if (item.headerRow) { payload.headerRow = item.headerRow; }
 
       return global.JetApi.importPreviewFile(payload).then(function (data) {
         item.previewData = { columns: data.columns || [], sampleRows: data.sampleRows || [] };
@@ -1146,6 +1188,8 @@
       if (item.sheetName) { source.sheetName = item.sheetName; }
       if (item.encoding) { source.encoding = item.encoding; }
       if (item.delimiter) { source.delimiter = item.delimiter; }
+      // 欄名在第幾列只在審計員改成第 2 列以後才送；第 1 列是後端的預設。
+      if (item.headerRow) { source.headerRow = item.headerRow; }
       return source;
     });
 

@@ -82,15 +82,13 @@ public sealed partial class WorkpaperWriter
     // ================= 三張「自動化工具」參考資料表 emitter(結構各異,各自處理)=================
 
     /// <summary>
-    /// 「自動化工具-檔案欄位資訊」：typed production path 只接受 AuditCore
-    /// finalized 的完整 target Field Info projection；TB 完整列後保留兩個
-    /// physical blank rows，再以動態列號接 GL。public writer 的舊 mapping renderer
-    /// 僅留作相容 fallback，不參與 production handler。
+    /// 「自動化工具-檔案欄位資訊」：只接受 AuditCore finalized 的完整 target Field Info projection；
+    /// TB 完整列後保留兩個 physical blank rows，再以動態列號接 GL。
     /// </summary>
 
     private async Task EmitFieldInfoSheetAsync(
         WorkpaperWriteSession session, List<SheetStat> stats,
-        WorkpaperContext context, FieldInfoProjection? projection,
+        WorkpaperContext context, FieldInfoProjection projection,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress)
     {
@@ -99,19 +97,6 @@ public sealed partial class WorkpaperWriter
         var metadata = glMapping is not null && tbMapping is not null
             ? MappingMetadataCodec.Encode(glMapping, tbMapping)
             : null;
-
-        if (projection is null)
-        {
-            EmitCompatibilityFieldInfoSheet(
-                session,
-                stats,
-                tbMapping,
-                glMapping,
-                metadata,
-                cancellationToken,
-                progress);
-            return;
-        }
 
         EmitCanonicalFieldInfoSheet(
             session,
@@ -210,76 +195,6 @@ public sealed partial class WorkpaperWriter
         AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
     }
 
-    private static void EmitCompatibilityFieldInfoSheet(
-        WorkpaperWriteSession session,
-        List<SheetStat> stats,
-        CommittedMapping? tbMapping,
-        CommittedMapping? glMapping,
-        string? metadata,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
-    {
-        var tbFields = ResolveTbFields(tbMapping?.Mapping, cancellationToken);
-        var glFields = ResolveGlFields(glMapping?.Mapping, cancellationToken);
-        var allFields = tbFields.Concat(glFields).ToArray();
-        var headers = new[]
-        {
-            "配對前欄位名稱", "欄位型態", "文字長度", "小數位數", "配對後欄位名稱"
-        };
-        var widths = new[]
-        {
-            FieldInfoAutoFitWidth(new[]
-            {
-                "V.2019",
-                "TB檔案配對前後欄位對照表",
-                "GL檔案配對前後欄位對照表",
-                headers[0]
-            }.Concat(allFields.Select(field => field.SourceColumn))),
-            FieldInfoAutoFitWidth(new[] { headers[1] }.Concat(allFields.Select(field => field.KindLabel))),
-            FieldInfoAutoFitWidth([headers[2]]),
-            FieldInfoAutoFitWidth([headers[3]]),
-            FieldInfoAutoFitWidth(new[] { headers[4] }.Concat(allFields.Select(field => field.CanonicalName)))
-        };
-
-        using var sheet = session.OpenSheet(
-            WorkpaperSheetCatalog.FieldInfo,
-            FieldInfoAppearance(glHeaderRow: 19));
-        for (uint column = 1; column <= 5; column++)
-        {
-            sheet.SetColumnWidth(column, column, widths[column - 1], bestFit: true);
-        }
-        sheet.SetColumnWidth(6, 8, 2, hidden: true);
-
-        var versionRow = new List<Cell> { sheet.TextCell(1, 1, "V.2019", WorkpaperStyles.Bold) };
-        if (metadata is not null)
-        {
-            versionRow.Add(sheet.TextCell(1, 6, MappingMetadataFormat.Marker));
-            versionRow.Add(sheet.TextCell(1, 7, MappingMetadataFormat.CurrentVersion.ToString(
-                CultureInfo.InvariantCulture)));
-            versionRow.Add(sheet.TextCell(1, 8, metadata));
-        }
-        sheet.WriteFixedRow(1, versionRow);
-        sheet.AddMerge("A1:E1");
-
-        WriteFieldSection(
-            sheet, titleRow: 2, "TB檔案配對前後欄位對照表",
-            tbFields, cancellationToken);
-
-        var glDataRows = WriteFieldSection(
-            sheet, titleRow: 18, "GL檔案配對前後欄位對照表",
-            glFields, cancellationToken);
-
-        var flagRow = (uint)(20 + glDataRows);
-        foreach (var flag in DerivedFieldFlags)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            sheet.WriteFixedRow(flagRow, [sheet.TextCell(flagRow, 1, flag, WorkpaperStyles.Default)]);
-            flagRow++;
-        }
-
-        AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
-    }
-
     private static void WriteCanonicalFieldInfoHeader(
         SheetWriter sheet,
         uint rowIndex,
@@ -322,120 +237,6 @@ public sealed partial class WorkpaperWriter
             .Max();
         return ExcelDisplayWidth.ToColumnWidth(maximum);
     }
-
-    /// <summary>
-    /// 寫一段欄位對照(標題列 + 欄標列 + 資料列),回資料列數。TB/GL 兩段結構相同故共用
-    /// (業務分支只在「哪些欄、什麼 kind、有無正準名」,已由 <paramref name="fields"/> data structure 表達)。
-    /// 標題列下一列為欄標、再下一列起為資料(對齊樣本:TB 標題 2/標頭 3/資料 4;GL 標題 18/標頭 19/資料 20)。
-    /// </summary>
-    private static int WriteFieldSection(
-        SheetWriter sheet, uint titleRow, string title, IReadOnlyList<FieldMappingLine> fields,
-        CancellationToken cancellationToken)
-    {
-        sheet.WriteFixedRow(titleRow, [sheet.TextCell(titleRow, 1, title, WorkpaperStyles.Bold)]);
-
-        var headerRow = titleRow + 1;
-        sheet.WriteFixedRow(headerRow,
-        [
-            sheet.TextCell(headerRow, 1, "配對前欄位名稱", WorkpaperStyles.Bold),
-            sheet.TextCell(headerRow, 2, "欄位型態", WorkpaperStyles.Bold),
-            sheet.TextCell(headerRow, 3, "文字長度", WorkpaperStyles.Bold),
-            sheet.TextCell(headerRow, 4, "小數位數", WorkpaperStyles.Bold),
-            sheet.TextCell(headerRow, 5, "配對後欄位名稱", WorkpaperStyles.Bold)
-        ]);
-
-        var dataRow = headerRow + 1;
-        foreach (var field in fields)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            sheet.WriteFixedRow(dataRow,
-            [
-                sheet.TextCell(dataRow, 1, field.SourceColumn),
-                sheet.TextCell(dataRow, 2, field.KindLabel),
-                sheet.BlankCell(dataRow, 3), // 文字長度:JET 未精確追蹤 → 留空
-                sheet.BlankCell(dataRow, 4), // 小數位數:同上
-                sheet.TextCell(dataRow, 5, field.CanonicalName ?? string.Empty)
-            ]);
-            dataRow++;
-        }
-
-        return fields.Count;
-    }
-
-    /// <summary>
-    /// GL 已配對欄 → 欄位對照列。可見列集合、型態與順序由 Domain 欄位目錄提供；
-    /// canonical name 仍走既有相容字典，因此未定義名稱保持空白。
-    /// </summary>
-    private static IReadOnlyList<FieldMappingLine> ResolveGlFields(
-        IReadOnlyDictionary<string, string>? mapping,
-        CancellationToken cancellationToken)
-    {
-        if (mapping is null)
-        {
-            return [];
-        }
-
-        var lines = new List<FieldMappingLine>();
-        foreach (var slot in JetFieldCatalog.GlMappingSlots)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            // 保留既有 GL Field Info 列集合：manual 與 amount-mode 輔助位置不列。
-            if (slot.IncludeInFieldInfo
-                && mapping.TryGetValue(slot.Key, out var source)
-                && !string.IsNullOrWhiteSpace(source))
-            {
-                var field = JetFieldCatalog.FindGlSemanticFieldByMappingKey(slot.Key);
-                lines.Add(new FieldMappingLine(
-                    source, KindLabel(field.Kind), GlCanonicalNames.Gl.GetValueOrDefault(slot.Key)));
-            }
-        }
-
-        return lines;
-    }
-
-    /// <summary>
-    /// TB 已配對欄 → 欄位對照列。所有 mapping slots 仍依既有順序列出；
-    /// <c>changeAmount</c> 是 semantic identity 而非 mapping key，所以各金額位置的
-    /// compatibility canonical lookup 仍為空白，避免改動既有 Excel。
-    /// </summary>
-    private static IReadOnlyList<FieldMappingLine> ResolveTbFields(
-        IReadOnlyDictionary<string, string>? mapping,
-        CancellationToken cancellationToken)
-    {
-        if (mapping is null)
-        {
-            return [];
-        }
-
-        var lines = new List<FieldMappingLine>();
-        foreach (var slot in JetFieldCatalog.TbMappingSlots)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (slot.IncludeInFieldInfo
-                && mapping.TryGetValue(slot.Key, out var source)
-                && !string.IsNullOrWhiteSpace(source))
-            {
-                var field = JetFieldCatalog.FindTbSemanticFieldByMappingKey(slot.Key);
-                lines.Add(new FieldMappingLine(
-                    source, KindLabel(field.Kind), GlCanonicalNames.Tb.GetValueOrDefault(slot.Key)));
-            }
-        }
-
-        return lines;
-    }
-
-    /// <summary>Semantic field kind → 樣本中文型態標籤。</summary>
-    private static string KindLabel(JetFieldValueKind kind) => kind switch
-    {
-        JetFieldValueKind.Text => "文字型態",
-        JetFieldValueKind.Date => "日期型態",
-        JetFieldValueKind.Boolean => "布林型態",
-        JetFieldValueKind.Amount => "數字型態",
-        _ => string.Empty
-    };
-
-    /// <summary>欄位對照的一列:配對前來源欄 + 中文型態標籤 + 配對後正準名(無則 null)。</summary>
-    private readonly record struct FieldMappingLine(string SourceColumn, string KindLabel, string? CanonicalName);
 
     /// <summary>
     /// 「自動化工具-假期假日資訊」:固定週末表 + 假日表(calendar store holiday)+ 補班段(makeup)。

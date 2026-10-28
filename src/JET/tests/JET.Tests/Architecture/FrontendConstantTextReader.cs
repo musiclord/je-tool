@@ -25,6 +25,20 @@ internal static class FrontendConstantTextReader
         return result;
     }
 
+    /// <summary>讀 <c>var NAME = [ { value: 'key', ..., property: '...' }, ... ]</c> 裡某一筆的某個文字屬性。</summary>
+    internal static string ValueProperty(string source, string arrayName, string key, string property)
+    {
+        var array = Regex.Match(source, Regex.Escape(arrayName) + @"\s*=\s*\[(?<body>.*?)\];", RegexOptions.Singleline);
+        Assert.True(array.Success, "找不到前端標籤陣列" + arrayName);
+        var item = Regex.Match(array.Groups["body"].Value,
+            @"\{\s*value:\s*'" + Regex.Escape(key) + @"'(?<rest>[^{}]*)\}", RegexOptions.Singleline);
+        Assert.True(item.Success, "找不到前端陣列項目" + arrayName + "." + key);
+        var value = Regex.Match(item.Groups["rest"].Value,
+            @"\b" + Regex.Escape(property) + @"\s*:\s*(?<expression>" + Expression + @")\s*(?:,|\z)", RegexOptions.Singleline);
+        Assert.True(value.Success, "找不到完整前端文字運算式" + arrayName + "." + key + "." + property);
+        return Evaluate(source, value.Groups["expression"].Value);
+    }
+
     internal static string ObjectString(string source, string objectName, string key)
     {
         var body = Regex.Match(source, @"\bvar\s+" + Regex.Escape(objectName) + @"\s*=\s*\{(?<body>.*?)\};", RegexOptions.Singleline);

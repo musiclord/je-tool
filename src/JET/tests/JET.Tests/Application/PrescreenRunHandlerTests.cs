@@ -249,25 +249,33 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
 
         var data = await host.DispatchAsync("prescreen.run");
 
+        // 預篩選收斂計畫階段四第 4 項（2026-10-23）：兩張卡用同一個方法合併兩側的原因。缺傳票核准日的配對時，
+        // 兩張卡都照常顯示總帳日期那一側，「只檢查了總帳日期」改放在 approvalNaReason，naReason 只在整張卡無法執行時才有。
+        // 原本週末卡把核准側的說明放進 naReason，假日卡則沒有說明；狀態、筆數與優先序斷言不變。
+        // 第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
+        const string onlyPostDateChecked = "只檢查了總帳日期。「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。";
         var weekendActivity = data.GetProperty("weekendActivity");
         Assert.Equal("na", weekendActivity.GetProperty("status").GetString());
-        Assert.Equal(
-            // 2026-10-04 第 8 批 Q8：確認配對用語統一；複合狀態與優先序斷言不變。
-            // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
-            "尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。",
-            weekendActivity.GetProperty("naReason").GetString());
+        // 2026-10-04 第 8 批 Q8：確認配對用語統一；複合狀態與優先序斷言不變。
+        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
+        Assert.Equal(JsonValueKind.Null, weekendActivity.GetProperty("naReason").ValueKind);
+        Assert.Equal(onlyPostDateChecked, weekendActivity.GetProperty("approvalNaReason").GetString());
         Assert.Equal(0, weekendActivity.GetProperty("postingCount").GetInt64());
         Assert.Equal(JsonValueKind.Null, weekendActivity.GetProperty("approvalCount").ValueKind);
 
         var holidayActivity = data.GetProperty("holidayActivity");
         Assert.Equal("V", holidayActivity.GetProperty("status").GetString());
         Assert.Equal(JsonValueKind.Null, holidayActivity.GetProperty("naReason").ValueKind);
+        Assert.Equal(onlyPostDateChecked, holidayActivity.GetProperty("approvalNaReason").GetString());
         Assert.Equal(2, holidayActivity.GetProperty("postingCount").GetInt64());
         Assert.Equal(JsonValueKind.Null, holidayActivity.GetProperty("approvalCount").ValueKind);
     }
 
+    // 預篩選收斂計畫階段四第 4 項（2026-10-23）：整張卡無法執行時，原因列出兩側缺的每一項，一項一句、依表列順序，
+    // 假日檔排在最前面；原本只寫假日檔那一句，測試名稱也從「假日檔原因勝出」改成「假日檔原因排在最前面」。
+    // 狀態與筆數斷言不變。第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
     [Fact]
-    public async Task PrescreenRun_MissingApprovalDateWithoutHolidayCalendar_HolidayCalendarReasonWins()
+    public async Task PrescreenRun_MissingApprovalDateWithoutHolidayCalendar_HolidayCalendarReasonComesFirst()
     {
         // 決策表：缺 docDate＋缺假日曆，複合 wire 的 N/A 原因以假日曆前置為準。
         using var host = new HandlerTestHost();
@@ -287,8 +295,9 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var holidayActivity = data.GetProperty("holidayActivity");
         Assert.Equal("na", holidayActivity.GetProperty("status").GetString());
         Assert.Equal(
-            "請先上傳事務所假日檔。",
+            "尚未上傳假日檔，請先在第二步「假日與補班日」上傳。「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。",
             holidayActivity.GetProperty("naReason").GetString());
+        Assert.Equal(JsonValueKind.Null, holidayActivity.GetProperty("approvalNaReason").ValueKind);
         Assert.Equal(0, holidayActivity.GetProperty("postingCount").GetInt64());
         Assert.Equal(JsonValueKind.Null, holidayActivity.GetProperty("approvalCount").ValueKind);
     }
@@ -447,8 +456,9 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     [Fact]
     public async Task FilterPreview_CustomPreparerEntryCount_MatchesRecount()
     {
-        // 低頻編製者自訂門檻軌：filter.preview 的 customPreparerEntryCount(maxEntries=200)命中數
-        // 須等於同述詞的獨立 recount(handler 與獨立 SQL 同源,不另設命中量級假設)。
+        // 編製人員分錄筆數 200 以下：filter.preview 的命中數須等於同述詞的獨立 recount（handler 與獨立 SQL 同源，不另設命中量級假設）。
+        // 預篩選收斂計畫階段九把舊式 customPreparerEntryCount 列為停用寫法，情境改成等價的「科目與人員統計」；斷言不變。
+        // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（預覽回「已停用」）。
         const int maxEntries = 200;
         var payload = JsonSerializer.Serialize(new
         {
@@ -460,7 +470,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
                 {
                     new { join = "AND", rules = new[]
                     {
-                        new { join = "AND", type = "customPreparerEntryCount", maxEntries }
+                        new { join = "AND", type = "entityFrequency", field = "createBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = maxEntries }
                     } }
                 }
             }
@@ -479,8 +489,9 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     [Fact]
     public async Task FilterPreview_CustomAccountEntryCount_MatchesRecount()
     {
-        // C9 自訂門檻軌:filter.preview 的 customAccountEntryCount(maxEntries=11)命中數
-        // 須等於同述詞的獨立 recount(述詞同 lowFrequencyAccount,門檻取代固定預設 11)。
+        // 科目分錄筆數 11 以下：filter.preview 的命中數須等於同述詞的獨立 recount（述詞同 lowFrequencyAccount）。
+        // 預篩選收斂計畫階段九把舊式 customAccountEntryCount 列為停用寫法，情境改成等價的「科目與人員統計」；斷言不變。
+        // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（預覽回「已停用」）。
         const int maxEntries = 11;
         var payload = JsonSerializer.Serialize(new
         {
@@ -492,7 +503,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
                 {
                     new { join = "AND", rules = new[]
                     {
-                        new { join = "AND", type = "customAccountEntryCount", maxEntries }
+                        new { join = "AND", type = "entityFrequency", field = "accNum", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = maxEntries }
                     } }
                 }
             }
@@ -529,6 +540,8 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var factsPort = new RecordingPrescreenFactsPort(
             new LocalPrescreenRunRepository(database));
         // handler 從作用中案件的資料庫組取 repository，把這些物件放進 SQLite 資料庫組後再進入 session。
+        // 預篩選收斂計畫階段四起預篩選多讀科目分類設定，取原因裡的分類名稱，資料庫組一併放進去。
+        // 第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7（處理器讀分類設定時遇到空參考）。
         var session = new ProjectSession();
         session.Enter(
             fixture.ProjectId,
@@ -538,6 +551,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
                 MappingStates = new LocalMappingStateStore(database),
                 Calendar = new LocalCalendarStore(database),
                 AccountMappings = new LocalAccountMappingRepository(database),
+                AccountTaxonomy = new LocalAccountTaxonomyStore(database),
                 AuthorizedPreparers = new LocalAuthorizedPreparerRepository(database),
                 RuleRuns = runStore,
             });

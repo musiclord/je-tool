@@ -141,14 +141,17 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Number(inf, "seed");
 
         var nullRecords = JsonShape.Obj(data, "nullRecordsTest");
+        // 使用者 2026-10-23 裁定傳票核准日不可用時「核准日不在期間」改成無法執行，回應多一個原因欄，所以預期的欄位多列一項。
+        // 這個示範案件有配對傳票核准日，筆數仍是數字、原因是 null。第一次失敗收據 20261023-101645559-0f1f5a2c47644dfd9f035d23db690993。
         JsonShape.HasExactKeys(nullRecords,
             "status", "nullAccountCount", "nullDocumentCount", "nullDescriptionCount", "outOfRangeDateCount",
-            "nullRows");
+            "outOfRangeDateNaReason", "nullRows");
         JsonShape.Str(nullRecords, "status");
         JsonShape.Number(nullRecords, "nullAccountCount");
         JsonShape.Number(nullRecords, "nullDocumentCount");
         JsonShape.Number(nullRecords, "nullDescriptionCount");
         JsonShape.Number(nullRecords, "outOfRangeDateCount");
+        Assert.Equal(JsonValueKind.Null, nullRecords.GetProperty("outOfRangeDateNaReason").ValueKind);
         JsonShape.Arr(nullRecords, "nullRows"); // 元素形狀見 ValidateRun_DetailArrays
 
         var sourceQuality = JsonShape.Obj(data, "sourceQuality");
@@ -276,12 +279,16 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             JsonShape.Number(e, "creditTotal");
         });
 
+        // 預篩選收斂計畫階段四（2026-10-23）：週末與假日卡分開「整張卡無法執行」與「只檢查了總帳日期」，
+        // 回應多一個 approvalNaReason；原有四個鍵與型別檢查不變。第一次失敗：Focused 收據
+        // 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
         foreach (var key in new[] { "weekendActivity", "holidayActivity" })
         {
             var rule = JsonShape.Obj(data, key);
-            JsonShape.HasExactKeys(rule, "status", "naReason", "postingCount", "approvalCount");
+            JsonShape.HasExactKeys(rule, "status", "naReason", "approvalNaReason", "postingCount", "approvalCount");
             JsonShape.Str(rule, "status");
             JsonShape.Str(rule, "naReason", nullable: true);
+            JsonShape.Str(rule, "approvalNaReason", nullable: true);
             JsonShape.Number(rule, "postingCount");
             JsonShape.Number(rule, "approvalCount", nullable: true);
         }
@@ -478,17 +485,31 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         var data = await fixture.Host.DispatchAsync(
             "query.dataPreview", JsonSerializer.Serialize(new { dataset = "gl" }));
 
-        JsonShape.HasExactKeys(data, "dataset", "columns", "rows", "totalCount", "stats");
+        // 使用者 2026-10-22 裁定資料預覽依配對列欄位、欄名和欄位配對畫面相同（預篩選收斂計畫階段五）：回應多帶 columnDetails，
+        // 和 columns 同順序寫出每欄的名稱與型別。原本的五個鍵不變；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
+        JsonShape.HasExactKeys(data, "dataset", "columns", "columnDetails", "rows", "totalCount", "stats");
         JsonShape.Str(data, "dataset");
         JsonShape.Number(data, "totalCount");
         JsonShape.Element(JsonShape.Arr(data, "columns"), c => Assert.Equal(JsonValueKind.String, c.ValueKind));
+        JsonShape.Element(JsonShape.Arr(data, "columnDetails"), detail =>
+        {
+            JsonShape.HasExactKeys(detail, "key", "label", "valueType");
+            JsonShape.Str(detail, "key");
+            JsonShape.Str(detail, "label");
+            Assert.Contains(detail.GetProperty("valueType").GetString(), new[] { "text", "date", "money" });
+        });
+        Assert.Equal(
+            data.GetProperty("columns").EnumerateArray().Select(column => column.GetString()),
+            data.GetProperty("columnDetails").EnumerateArray().Select(detail => detail.GetProperty("key").GetString()));
         JsonShape.Element(JsonShape.Arr(data, "rows"), r => Assert.Equal(JsonValueKind.Array, r.ValueKind));
 
         // gl（GL）一律帶 stats(非 null)。
+        // 使用者 2026-10-22 裁定資料預覽的金額固定顯示四位小數：統計列的金額改用字串照存下的值傳，畫面補四位時不經過浮點數。
+        // 原本斷言數字；第一次失敗同上。
         var stats = JsonShape.Obj(data, "stats");
         JsonShape.HasExactKeys(stats, "amountAbsMin", "amountAbsMax", "postDateMin", "postDateMax", "voucherCount");
-        JsonShape.Number(stats, "amountAbsMin");
-        JsonShape.Number(stats, "amountAbsMax");
+        JsonShape.Str(stats, "amountAbsMin");
+        JsonShape.Str(stats, "amountAbsMax");
         JsonShape.Str(stats, "postDateMin", nullable: true);
         JsonShape.Str(stats, "postDateMax", nullable: true);
         JsonShape.Number(stats, "voucherCount");
@@ -500,18 +521,21 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         var data = await fixture.Host.DispatchAsync(
             "query.dataPreview", JsonSerializer.Serialize(new { dataset = "glExcluded", limit = 1 }));
 
-        JsonShape.HasExactKeys(data, "dataset", "columns", "rows", "totalCount", "stats");
+        // 使用者 2026-10-22 裁定資料預覽依配對列欄位（預篩選收斂計畫階段五）：示範案件配對了傳票核准日、傳票建立人員與
+        // 人工或自動分錄，沒有配對過帳狀態，所以列核心八欄、這三欄與未納入原因，共十二欄；回應多帶 columnDetails。
+        // 原本斷言固定十欄；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
+        JsonShape.HasExactKeys(data, "dataset", "columns", "columnDetails", "rows", "totalCount", "stats");
         Assert.Equal(
             [
-                "documentNumber", "lineItem", "postDate", "postingStatus", "accountCode", "accountName",
-                "documentDescription", "amount", "drCr", "exclusionReason"
+                "documentNumber", "lineItem", "postDate", "accountCode", "accountName",
+                "documentDescription", "amount", "drCr", "approvalDate", "createdBy", "manualAuto", "exclusionReason"
             ],
             data.GetProperty("columns").EnumerateArray().Select(column => column.GetString()!).ToArray());
         JsonShape.Number(data, "totalCount");
         JsonShape.Element(JsonShape.Arr(data, "rows"), row =>
         {
             Assert.Equal(JsonValueKind.Array, row.ValueKind);
-            Assert.Equal(10, row.GetArrayLength());
+            Assert.Equal(12, row.GetArrayLength());
             Assert.All(
                 row.EnumerateArray(),
                 cell => Assert.True(cell.ValueKind is JsonValueKind.String or JsonValueKind.Null));
@@ -585,10 +609,21 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(JsonValueKind.Null, previousMapping.GetProperty("tb").ValueKind);
         var mapping = JsonShape.Obj(data, "mapping");
         var glMapping = JsonShape.Obj(mapping, "gl");
+        // 預篩選收斂計畫階段四（2026-10-23）：前端依後端算好的可用欄位停用第五步的入口，GL 配對多帶 availableGlFields；
+        // 原有八個鍵不變。第一次失敗：Focused 收據 20261023-034722896-edea6c2e6490491690174ff6552e60f8。
+        // 階段六（2026-10-23）：確認配對時往下填補空白的欄位跟著配對保存，GL 配對多帶 fillDownFields；
+        // 第一次失敗：Focused 收據 20261023-194740297-3ae629d46df04e06861cacc3aaccf1e9。
+        // 2026-10-28：使用者裁定往下填補的格數隨配對保存，GL 配對多帶 fillDownCount，第三步摘要在重開案件後也列得出來；
+        // 第一次失敗：Focused 收據 20261028-030052458-976ecec7163e46888ef1157effd56baf。
         JsonShape.HasExactKeys(
             glMapping,
             "mapping", "amountMode", "approvalDateMode", "postingStatusPolicy",
-            "manualAutoPolicy", "rdeFields", "sourceBatchId", "committedUtc");
+            "manualAutoPolicy", "rdeFields", "fillDownFields", "fillDownCount", "sourceBatchId", "committedUtc", "availableGlFields");
+        JsonShape.Element(JsonShape.Arr(glMapping, "fillDownFields"), field =>
+            Assert.Equal(JsonValueKind.String, field.ValueKind));
+        Assert.Equal(JsonValueKind.Number, glMapping.GetProperty("fillDownCount").ValueKind);
+        JsonShape.Element(JsonShape.Arr(glMapping, "availableGlFields"), field =>
+            Assert.Equal(JsonValueKind.String, field.ValueKind));
         var tbMapping = JsonShape.Obj(mapping, "tb");
         JsonShape.HasExactKeys(
             tbMapping, "mapping", "changeMode", "sourceBatchId", "committedUtc");

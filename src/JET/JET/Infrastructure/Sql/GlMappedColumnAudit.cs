@@ -1,3 +1,5 @@
+using System.Data.Common;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Infrastructure;
@@ -10,6 +12,7 @@ namespace JET.Infrastructure;
 /// 內容，正規化後成「摘要_2」）。description 若配到空的那欄，blank_description 會對全列誤命中，
 /// 而症狀要到資料驗證才浮現。此提醒在「欄位配對提交」當下就點出哪個必填欄空、配到哪個來源欄。
 /// 金額欄不在此（退化母體守門已擋全 0）、日期欄不在此（期外日期另計）。純呈現，不阻斷投影。
+/// 欄位清單與查詢都由欄位目錄產生，本機與 SQL Server 的 GL 倉儲共用，和 TB 的 <see cref="TbMappedColumnAudit"/> 同一個寫法。
 /// </summary>
 internal static class GlMappedColumnAudit
 {
@@ -27,27 +30,27 @@ internal static class GlMappedColumnAudit
             .ToArray();
 
     /// <summary>
-    /// allEmptyTargetColumns：投影後整欄空白的 target 欄名集合（由各 provider 以 COUNT 查得）。
-    /// 依此與 spec.Mapping 組出每欄的提交警示（含使用者實際所配的來源欄名）。
+    /// 在確認配對的同一個交易裡，查投影後整欄空白的必填文字欄，回傳每欄的提醒（含使用者實際所配的來源欄名）。
+    /// 空母體不偵測：沒有資料可判，避免把「沒資料」誤報成每一欄都配錯。計數轉成 BIGINT，避免大母體溢位。
     /// </summary>
-    public static IReadOnlyList<string> Build(GlMappingSpec spec, IReadOnlySet<string> allEmptyTargetColumns)
+    internal static async Task<IReadOnlyList<string>> ReadAsync(DbConnection connection, DbTransaction transaction,
+        GlMappingSpec spec, long rowCount, IProviderSqlDialect dialect, CancellationToken ct, string prefix = "")
     {
-        if (allEmptyTargetColumns.Count == 0)
-        {
-            return [];
-        }
-
+        if (rowCount == 0 || RequiredTextColumns.Length == 0) return [];
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT " + string.Join(", ", RequiredTextColumns.Select(column =>
+            $"CAST(SUM(CASE WHEN {SqlBlankText.IsNotBlank(dialect, column.TargetColumn)} THEN CAST(1 AS BIGINT) ELSE CAST(0 AS BIGINT) END) AS BIGINT)"))
+            + $" FROM {prefix}target_gl_entry;";
         var warnings = new List<string>();
-        foreach (var (fieldKey, targetColumn, friendly) in RequiredTextColumns)
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return warnings;
+        for (var index = 0; index < RequiredTextColumns.Length; index++)
         {
-            if (!allEmptyTargetColumns.Contains(targetColumn))
-            {
-                continue;
-            }
-
+            if (Convert.ToInt64(reader.GetValue(index)) != 0) continue;
+            var (fieldKey, _, friendly) = RequiredTextColumns[index];
             warnings.Add(BlankColumnWarning(friendly, spec.Mapping.GetValueOrDefault(fieldKey)));
         }
-
         return warnings;
     }
 

@@ -1,12 +1,15 @@
+using System.Text.Json;
 using JET.Domain;
+using JET.Tests.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Domain;
 
 /// <summary>
 /// DateNormalizer 規格測試（guide §3.1.3）。
-/// oracle：規格手算——民國年 = 西元年 − 1911（114 + 1911 = 2025）；OADate 45292 = 2024-01-01。
-/// 設計技術：決策表（格式 × RocYearEnabled）＋ BVA（OADate、ROC 年、sanity guard 年份邊界）。
+/// oracle：規格手算——民國年 = 西元年 − 1911（114 + 1911 = 2025）。純數字不當日期（使用者 2026-10-22 裁定），
+/// 45292 以前是 OADate 2024-01-01。前後端共用的固定答案在 tools/tests/fixtures/date-normalization.json。
+/// 設計技術：決策表（格式 × RocYearEnabled）＋ BVA（ROC 年、sanity guard 年份邊界、以前的序列值邊界）。
 /// </summary>
 public sealed class DateNormalizerTests
 {
@@ -19,7 +22,6 @@ public sealed class DateNormalizerTests
     [InlineData("2025/6/11", "2025-06-11")]    // yyyy/M/d
     [InlineData("2025.06.11", "2025-06-11")]   // yyyy.M.d
     [InlineData("20250611", "2025-06-11")]     // yyyyMMdd
-    [InlineData("45292", "2024-01-01")]        // Excel 序列值
     [InlineData("2024/06/30", "2024-06-30")]   // 顯式西元（原寬鬆 fallback 案例，結果不變）
     public void TryNormalize_UniversalFormats_SameForBothRocSettings(string raw, string expected)
     {
@@ -30,11 +32,29 @@ public sealed class DateNormalizerTests
         Assert.Equal(expected, offResult);
     }
 
+    // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：純數字不再當成 Excel 序列值換成日期，兩種開關都拒絕。
+    // 「45292」原本在上面的通用格式裡期待 2024-01-01；改成拒絕的第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
+    [Theory]
+    [InlineData("2025")]      // 以前換成 1905-07-17
+    [InlineData("2025.12")]   // 以前也是 1905 年
+    [InlineData("45292")]     // 以前是 2024-01-01
+    [InlineData("2")]         // 以前是 1900-01-01
+    [InlineData("73415")]     // 以前是 2100-12-31
+    [InlineData("73415.5")]
+    [InlineData("050315")]    // 六位數日期，2026-10-19 曾選維持現狀，當時換成 2037-10-05；現在同屬純數字
+    public void TryNormalize_PlainNumbers_Rejected(string raw)
+    {
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out var onResult));
+        Assert.Null(onResult);
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOff, out var offResult));
+        Assert.Null(offResult);
+    }
+
     // 決策表：民國年格式 × 開關
     [Theory]
     [InlineData("114/6/11", "2025-06-11")]   // 斜線分隔
     [InlineData("114.6.11", "2025-06-11")]   // 點分隔
-    [InlineData("1140611", "2025-06-11")]    // 7 位數（與 Excel 序列值範圍重疊，民國年優先）
+    [InlineData("1140611", "2025-06-11")]    // 7 位數（開啟時是民國年；關閉時是純數字而拒絕）
     [InlineData("100/1/1", "2011-01-01")]    // BVA：ROC 年下界 100（100 + 1911 = 2011）
     [InlineData("199/12/31", "2110-12-31")]  // BVA：ROC 年上界 199（199 + 1911 = 2110）
     public void TryNormalize_RocFormats_ConvertWhenEnabled(string raw, string expected)
@@ -48,6 +68,7 @@ public sealed class DateNormalizerTests
     {
         // 2026-10-04 第 9 批高4：序列值限 1900–2100，關閉民國年後不能接受原先的 5022 年日期。
         // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592；原始輸入不變。
+        // 預篩選收斂計畫階段七（2026-10-22）後純數字一律拒絕，這一則的結果不變。
         Assert.False(DateNormalizer.TryNormalize("1140611", RocOff, out var isoDate));
         Assert.Null(isoDate);
     }
@@ -60,15 +81,18 @@ public sealed class DateNormalizerTests
     }
 
     // 2026-10-04 第 9 批高4：改驗 1900–2100 的固定邊界，未呼叫被測程式反算答案。
+    // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：序列值邊界「2」與「73415」不再換成 1900-01-01 與 2100-12-31，
+    // 和其他純數字一樣拒絕；原始輸入不變。第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
     [Theory]
-    [InlineData("2", "1900-01-01")]
-    [InlineData("73415", "2100-12-31")]
-    public void TryNormalize_OaDateSerialBoundaries_Accepted(string raw, string expected)
+    [InlineData("2")]
+    [InlineData("73415")]
+    public void TryNormalize_FormerOaDateSerialBoundaries_Rejected(string raw)
     {
-        Assert.True(DateNormalizer.TryNormalize(raw, RocOn, out var isoDate));
-        Assert.Equal(expected, isoDate);
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out var isoDate));
+        Assert.Null(isoDate);
     }
 
+    // 以前是序列值範圍外而拒絕；階段七（2026-10-22）後所有純數字都拒絕，這些值的結果不變。
     [Theory]
     [InlineData("0")]        // BVA：序列值下鄰
     [InlineData("2958466")]  // BVA：序列值上鄰
@@ -185,4 +209,59 @@ public sealed class DateNormalizerTests
         Assert.True(DateNormalizer.TryNormalize("   ", RocOn, out var isoDate));
         Assert.Null(isoDate);
     }
+
+    // 讀取器對超出 1900 到 2100 年的日期型儲存格，交給投影帶小數點的序列文字；拿掉序列值關卡後它仍是純數字而拒絕，
+    // 投影照舊報「無法辨識為日期」並寫出列號（工作流程見 Batch9ExcelDateWorkflowTests）。改程式前後都通過，沒有可保存的第一次失敗。
+    [Theory]
+    [InlineData(73416d, "73416.0")]       // 2101-01-01
+    [InlineData(1140611d, "1140611.0")]   // 小數點讓它不會被讀成民國 114 年 6 月 11 日
+    [InlineData(-1d, "-1.0")]
+    public void TryNormalize_ReaderSerialText_IsRejectedUnderBothRocSettings(double serial, string expectedText)
+    {
+        var text = DateNormalizer.ExcelSerialText(serial);
+        Assert.Equal(expectedText, text);
+        Assert.False(DateNormalizer.TryNormalize(text, RocOn, out _));
+        Assert.False(DateNormalizer.TryNormalize(text, RocOff, out _));
+    }
+
+    // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定「共用固定答案」）：前後端讀同一份日期固定答案
+    // tools/tests/fixtures/date-normalization.json，前端 frontend-shared-controls 的日期清單測試讀同一份；一邊改了規則另一邊就失敗。
+    // 第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d（純數字那一組當時仍換成日期）。
+    public static TheoryData<string> SharedFixtureRaws()
+    {
+        var data = new TheoryData<string>();
+        foreach (var raw in SharedDateFixture.Cases.Keys) data.Add(raw);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(SharedFixtureRaws))]
+    public void TryNormalize_SharedDateFixture_MatchesBothRocSettings(string raw)
+    {
+        var expected = SharedDateFixture.Cases[raw];
+        Assert.Equal(expected.RocEnabled, DateNormalizer.TryNormalize(raw, RocOn, out var onResult) ? onResult : null);
+        Assert.Equal(expected.RocDisabled, DateNormalizer.TryNormalize(raw, RocOff, out var offResult) ? offResult : null);
+    }
+}
+
+/// <summary>前後端共用的日期固定答案；每個原文對應民國年開啟與關閉兩種設定的結果，null 是無法辨識。</summary>
+internal static class SharedDateFixture
+{
+    internal static IReadOnlyDictionary<string, (string? RocEnabled, string? RocDisabled)> Cases { get; } = Load();
+
+    private static Dictionary<string, (string? RocEnabled, string? RocDisabled)> Load()
+    {
+        var path = Path.Combine(TestRepositoryPaths.RepositoryRoot, "tools", "tests", "fixtures", "date-normalization.json");
+        using var json = JsonDocument.Parse(File.ReadAllText(path));
+        var cases = new Dictionary<string, (string? RocEnabled, string? RocDisabled)>(StringComparer.Ordinal);
+        foreach (var item in json.RootElement.GetProperty("cases").EnumerateArray())
+        {
+            cases.Add(item.GetProperty("raw").GetString()!, (Text(item, "rocEnabled"), Text(item, "rocDisabled")));
+        }
+
+        return cases;
+    }
+
+    private static string? Text(JsonElement item, string name) =>
+        item.GetProperty(name).ValueKind == JsonValueKind.Null ? null : item.GetProperty(name).GetString();
 }

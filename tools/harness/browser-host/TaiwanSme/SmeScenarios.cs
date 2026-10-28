@@ -130,7 +130,9 @@ internal static class SmeScenarios
                     line.Credit > 0m && oracle.InSubtree(line, SmeChart.Cash) && SmeOracle.IsBlank(line.Description))),
             CustomScenario("分錄 20 筆以下的編製人員",
                 "全年分錄很少的編製人員不熟悉入帳流程，或是不應入帳的人員。",
-                [[Rule("customPreparerEntryCount", rule => rule["maxEntries"] = "20")]],
+                // 預篩選收斂計畫階段九把舊式 customPreparerEntryCount 列為停用寫法，改成等價的「科目與人員統計」；獨立答案不變。
+                // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（TaiwanSmeLargeCaseTests 的 custom 情境組儲存時回「已停用」）。
+                [[EntityFrequency("createBy", "entries", "lessThanOrEqual", "20")]],
                 oracle =>
                 {
                     var counts = oracle.PreparerCounts();
@@ -205,6 +207,18 @@ internal static class SmeScenarios
         overrides?.Invoke(rule);
         return rule;
     }
+
+    /// <summary>前端 newFilterRule('entityFrequency') 的形狀：統計對象、計算單位、比較方式與次數。</summary>
+    private static JsonObject EntityFrequency(string field, string countUnit, string countOperator, string countFrom) => new()
+    {
+        ["join"] = "AND",
+        ["type"] = "entityFrequency",
+        ["field"] = field,
+        ["countUnit"] = countUnit,
+        ["countOperator"] = countOperator,
+        ["countFrom"] = countFrom,
+        ["countTo"] = string.Empty,
+    };
 
     /// <summary>前端 FilterValues.wire 的送出形狀：只帶比較方式實際用到的值。</summary>
     private static JsonObject FieldValue(string field, string op, string[]? values = null, string? drCr = null, string? value = null)

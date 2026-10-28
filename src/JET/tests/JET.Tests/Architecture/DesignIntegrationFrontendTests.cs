@@ -2,6 +2,9 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
+// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
+
 /// <summary>
 /// Claude Design 前端整合的邊界守衛：案件摘要不重複目前步驟、總覽維持唯讀，以及已裁定的外觀
 /// （設計資源全在本機、品牌字樣、頂部玻璃帶、可按的操作與一致的動畫）。
@@ -324,7 +327,7 @@ public sealed class DesignIntegrationFrontendTests
         // 所以樣式改掛在 .btn--add。這條原本鎖 .btn:is([data-add-check], [data-action="add-set"], ...)，改版後依預期失敗，
         // 首敗收據 20261015-015426320-016be01c6d8140758d9bd5ddebf012ad。意圖不變：會新增東西的按鈕是淡藍底藍字加號。
         Assert.Contains(".btn.btn--add {", css, StringComparison.Ordinal);
-        Assert.Contains("class=\"btn btn--ghost btn--add\" data-action=\"add-set\"", ReadFrontend("js", "steps", "filter-step.js"), StringComparison.Ordinal);
+        Assert.Contains("class=\"btn btn--ghost btn--add\" data-action=\"add-set\"", ProductSources.FilterStepFrontend(), StringComparison.Ordinal);
         Assert.Contains("../assets/icons/fluent/add_20_regular.svg", css, StringComparison.Ordinal);
         var lowKey = css[css.IndexOf(".btn--tiny,\n.btn--ghost.btn--tiny,\n.filter-workspace .rule-row__remove,", StringComparison.Ordinal)..];
         lowKey = lowKey[..(lowKey.IndexOf('}') + 1)];
@@ -384,7 +387,7 @@ public sealed class DesignIntegrationFrontendTests
         var app = ReadFrontend("js", "app.js");
         var css = ReadFrontend("css", "app.css");
         var index = ReadFrontend("index.html");
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
         var core = ReadFrontend("js", "ui-core.js");
 
         Assert.Contains("var Motion = (function () {", app, StringComparison.Ordinal);
@@ -443,7 +446,7 @@ public sealed class DesignIntegrationFrontendTests
         // 收合目前的步驟一瞬間消失；設為主要條件沒有動態。這裡鎖住修正後的做法。
         var app = ReadFrontend("js", "app.js");
         var css = ReadFrontend("css", "app.css");
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
 
         // 加入的條件由標籤帶過去時，中欄跟著標籤用同一條曲線捲到新的一列，移焦點不再瞬間捲動。
@@ -481,9 +484,11 @@ public sealed class DesignIntegrationFrontendTests
         // 使用者 2026-10-12 要求切換流暢後，頁籤底下換窗格改由 JetMotion.swap 原地淡換、高度平順改變，新的窗格仍用 setShown 顯示。
         // 這三條原本鎖 showPane，改版後一併改寫（同一個測試的首敗收據 20261012-120406121-bdf6303c521e434c91f652b5bbd1ab4e，當時先停在前面的斷言）。
         // 意圖不變：三組頁籤都經過同一個原地切換，已打開的展開區不重播。
-        Assert.Contains("showOnly(container.querySelectorAll('[data-filter-pane]'), function (pane) { return pane.dataset.filterPane === viewState.workspacePane; },", filter, StringComparison.Ordinal);
-        Assert.Contains("showOnly(container.querySelectorAll('[data-condition-pane]'), function (pane) { return pane.dataset.conditionPane === viewState.conditionSource; });", filter, StringComparison.Ordinal);
-        Assert.Contains("showOnly(boxes, function (box) { return box.getAttribute('data-bind') === 'matrix-' + viewState.matrixView; }, function () {", filter, StringComparison.Ordinal);
+        // 階段十拆檔後，第五步共用的檢視狀態改成 FilterStep.viewState，這三段程式的字樣跟著改；意圖不變：分頁切換用 showOnly 就地顯示。
+        // 第一次失敗：Focused 收據 20261025-054418803-4444ed5f35bb41ed9612e92a68d20dac。
+        Assert.Contains("showOnly(container.querySelectorAll('[data-filter-pane]'), function (pane) { return pane.dataset.filterPane === FilterStep.viewState.workspacePane; },", filter, StringComparison.Ordinal);
+        Assert.Contains("showOnly(container.querySelectorAll('[data-condition-pane]'), function (pane) { return pane.dataset.conditionPane === FilterStep.viewState.conditionSource; });", filter, StringComparison.Ordinal);
+        Assert.Contains("showOnly(boxes, function (box) { return box.getAttribute('data-bind') === 'matrix-' + FilterStep.viewState.matrixView; }, function () {", filter, StringComparison.Ordinal);
         Assert.Contains("if (to && global.JetMotion && global.JetMotion.swap) { global.JetMotion.swap(from, to, fill); return; }", filter, StringComparison.Ordinal);
         var swap = app[app.IndexOf("function swap(from, to, fill) {", StringComparison.Ordinal)..];
         swap = swap[..swap.IndexOf("swap.count = 0;", StringComparison.Ordinal)];
@@ -536,7 +541,7 @@ public sealed class DesignIntegrationFrontendTests
         var css = ReadFrontend("css", "app.css");
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
         var validate = ReadFrontend("js", "steps", "validate-step.js");
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
 
         // 全部的動態是同一組 Apple 的彈簧（WWDC23「Animate with springs」），CSS 的曲線與時間由同樣的參數算出來。
         // 使用者 2026-10-13 指出淡入淡出太緩慢、要求加快，長出來與收起改成 0.34 秒與 0.27 秒；
@@ -694,7 +699,7 @@ public sealed class DesignIntegrationFrontendTests
         // 這裡鎖住共用的做法：晃動由 JetMotion 統一處理，按下移除的地方只說明要拿掉的是什麼。
         var app = ReadFrontend("js", "app.js");
         var css = ReadFrontend("css", "app.css");
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
 
         // 淡入淡出比長出來與收起短，淡出又比淡入短一點。
         Assert.Contains("--motion-fade: 150ms;", css, StringComparison.Ordinal);

@@ -12,18 +12,19 @@ public sealed class TrailingZeroThresholdTests
         Assert.Equal(6, TrailingZeroThreshold.DefaultZerosThreshold);
     }
 
+    // 預篩選收斂計畫階段九：尾零規則改由尾數述詞比對全 0 樣態，UnitModulus 隨之移除，原本兩則模數測試改鎖住樣態與位數範圍。
+    // 第一次失敗：Build 收據 20261024-195205380-7ff4a86d8e454b30b80f473242fceabd（找不到 UnitModulus）。
     [Fact]
-    public void UnitModulus_UsesOnlyPowerOfTen()
+    public void ZeroPattern_HasOneZeroPerDigit()
     {
-        // threshold 3 → 主單位整數 % 1,000；MoneyScale 不屬尾數模數。
-        Assert.Equal(1_000L, TrailingZeroThreshold.UnitModulus(3));
+        Assert.Equal("000", TrailingZeroThreshold.ZeroPattern(3));
+        Assert.Equal("000000", TrailingZeroThreshold.ZeroPattern(TrailingZeroThreshold.DefaultZerosThreshold));
     }
 
     [Fact]
-    public void UnitModulus_DefaultThreshold_IsOneMillion()
+    public void ZeroPattern_RejectsDigitsOutsideTheAllowedRange()
     {
-        Assert.Equal(
-            1_000_000L,
-            TrailingZeroThreshold.UnitModulus(TrailingZeroThreshold.DefaultZerosThreshold));
+        Assert.Throws<ArgumentOutOfRangeException>(() => TrailingZeroThreshold.ZeroPattern(TrailingZeroThreshold.MinCustomDigits - 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => TrailingZeroThreshold.ZeroPattern(TrailingZeroThreshold.MaxCustomDigits + 1));
     }
 }

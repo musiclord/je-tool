@@ -34,7 +34,7 @@ public sealed class ValidationOwnershipTests
             "JET.AuditCore.ValidationPlan",
             "JET.AuditCore.ValidationRequest",
             "JET.AuditCore.ValidationResult",
-            "JET.Domain.ITypedValidationReportWriter",
+            "JET.AuditCore.IValidationReportWriter",
             "JET.Domain.ValidationReportProjection"
         };
 

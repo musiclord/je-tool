@@ -50,6 +50,15 @@ internal static class SourceFileErrors
             innerException: error);
     }
 
+    /// <summary>
+    /// 審計員指定的欄名列之後沒有任何內容。錯誤代碼和空白檔相同；三個讀取器在略過列數大於 0 又找不到欄名時都回這一句，
+    /// 不說成檔案是空的。一般匯入的畫面另外提示可以在同一列改「欄名在第幾列」。略過列數是匯入版面固定的
+    /// （<see cref="TabularSourceRequest.FixedLeadingRows"/>，行事曆與科目配對舊範本）時不用這一句。
+    /// </summary>
+    public static JetActionException HeaderRowBeyondContent(string filePath, int leadingRowsToSkip) => new(
+        JetErrorCodes.EmptyWorkbook,
+        $"檔案「{Path.GetFileName(filePath)}」從第 {leadingRowsToSkip + 1} 列起沒有內容，找不到欄名。請確認欄名所在的列。");
+
     public static JetActionException UnbalancedQuote(string filePath, CsvStructureException error)
     {
         return new JetActionException(

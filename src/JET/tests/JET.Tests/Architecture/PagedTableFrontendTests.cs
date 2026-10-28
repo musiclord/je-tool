@@ -4,6 +4,9 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
+// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
+
 /// <summary>
 /// 明細表排序與搜尋的前端守衛（2026-09-07 工作包 G）：畫面上每個可排序表頭的鍵名都要在後端該查詢的白名單裡。
 /// 排序與搜尋一律送回後端從第一頁重載、前端不自己排序也不自己過濾，2026-10-14 起改由
@@ -38,7 +41,7 @@ public sealed class PagedTableFrontendTests
 
     private static string AllFrontend() => string.Join("\n",
         Read("js", "ui-core.js"), Read("js", "filter-vouchers.js"),
-        Read("js", "steps", "validate-step.js"), Read("js", "steps", "filter-step.js"));
+        Read("js", "steps", "validate-step.js"), ProductSources.FilterStepFrontend());
 
     [Fact]
     public void EverySortableHeader_UsesAKeyFromTheBackendWhitelist()

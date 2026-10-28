@@ -20,7 +20,7 @@ public sealed class InfSamplingPrfTests
     {
         Assert.Equal(
             expected,
-            JetAuditProgram.ComputeInfSamplingOrderingKey(seed, sourceRowNumber));
+            InfSamplingPrf.ComputeOrderingKey(seed, sourceRowNumber));
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class InfSamplingPrfTests
 
         for (var sourceRowNumber = 1L; sourceRowNumber <= populationSize; sourceRowNumber++)
         {
-            var key = JetAuditProgram.ComputeInfSamplingOrderingKey(seed, sourceRowNumber);
+            var key = InfSamplingPrf.ComputeOrderingKey(seed, sourceRowNumber);
             var bucket = (int)((decimal)key * bucketCount
                 / JetAuditProgram.InfSamplingOrderingDomainSize);
             counts[bucket]++;

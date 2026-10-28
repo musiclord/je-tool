@@ -76,7 +76,7 @@
     }).join('');
     return '<section class="account-editor" data-bind="account-editor" aria-label="本案科目分類">' +
       Ui.searchBoxHtml('搜尋科目編號或名稱', { className: 'account-editor__search', attributes: { 'data-account-search': true },
-        inputAttributes: { name: 'search', 'data-focus-key': 'account-search' }, maxLength: 400, value: m.searchDraft, disabled: m.loading }) +
+        inputAttributes: { name: 'search', 'data-focus-key': 'account-search' }, maxLength: Ui.SEARCH_TEXT_MAX_LENGTH, value: m.searchDraft, disabled: m.loading }) +
       '<div class="account-editor__batch"><div class="account-editor__selection"><span role="status" data-account-selection-count>' + selectionText(m) + '</span>' +
       // 「全部取消」只在有勾選時出現；標 data-collapsible-inline，出現與消失時左右收放，旁邊的字跟著平順移動
       // （app.css，使用者 2026-10-13 要求展開與收合一致）。

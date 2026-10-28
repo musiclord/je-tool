@@ -115,7 +115,7 @@
     { value: 'money', label: '金額' }
   ];
 
-  // 後端 GlMappingOptionRules 的 UI 鏡像上限；後端仍是權威。
+  // 後端 GlRdeStorageLimits.LabelUtf16CodeUnits 的 UI 鏡像上限；後端仍是權威。
   var RDE_MAX_LABEL_LENGTH = 400;
 
   // 人工／自動代碼的後端預設（manualAutoPolicy 未提供時的值）。
@@ -123,6 +123,10 @@
 
   // mapping.valueProfile 的有界取樣上限（action 的 limit 允許 1 到 100）。
   var VALUE_PROFILE_LIMIT = 50;
+  // 後端 MappingValueProfileHandler.MaxLimit 的 UI 鏡像：一次送去比對的來源值上限；後端仍是權威。
+  var VALUE_PROFILE_MAX_VALUES = 100;
+  // 後端 TextStorageLimits.TextUtf16CodeUnits 的 UI 鏡像：搜尋文字輸入框的字數上限；後端仍是權威。
+  var SEARCH_TEXT_MAX_LENGTH = 400;
   // Domain各規則的既定門檻鏡像；只供預設值與文案使用，不在前端判斷命中。
   var PRESCREEN_DEFAULTS = { preparerMaxEntries: 11, accountMaxEntries: 11, trailingZeroDigits: 6 };
   // 三種展示用途各自命名，不改後端query.*Page預設200列，也不共用審計門檻。
@@ -146,41 +150,47 @@
       note: '配對期初與期末的借方、貸方金額欄位後，各以借方減去貸方，再以期末減去期初，計算本期變動金額。' }
   ];
 
-  // 進階篩選的條件型別。label 逐鍵鏡像 Domain FilterConditionLabels.RuleTypes；
-  // quickLabel、group 與 accountMappingRequirement 是前端呈現／可用性 metadata。
-  // accountMappingRequirement 逐條鏡像 target 內容資格，不以來源檔存在代替（權威驗證仍在後端）。
+  // 進階篩選的條件型別。label 逐鍵鏡像 Domain FilterConditionLabels.RuleTypes，已停用的型別不列（見下面的 RETIRED_RULE_TYPES）；
+  // quickLabel 與 group 是前端呈現 metadata。
+  // 每種型別需要什麼前置條件寫在下面的 FILTER_RULE_PREREQUISITES。
   // group 只剩 'kct' 有意義（風險樣態下拉的「KCT 專屬」分組）；其餘分組與 quickLabel 是舊挑選區的遺留 metadata，
   // 2026-09-07 改版後畫面改用三個家族（filter-step 的 RULE_FAMILIES）。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
   var FILTER_RULE_TYPES = [
     { value: 'fieldValue', label: '欄位值比較', quickLabel: '指定值與排除', group: 'field' },
-    { value: 'accountSide', label: '借貸科目分類', group: 'nature', accountMappingRequirement: 'any' },
+    { value: 'accountSide', label: '借貸科目分類', group: 'nature' },
     { value: 'prescreen', label: '預篩選', quickLabel: '選擇預篩選條件', group: 'risk' },
     { value: 'text', label: '文字條件', group: 'field' },
     { value: 'textSet', label: '文字值清單', group: 'field' },
     { value: 'numRange', label: '金額區間', group: 'field' },
     { value: 'dateRange', label: '日期區間', group: 'field' },
-    { value: 'customKeywords', label: '自訂關鍵字', group: 'field' },
     { value: 'drCrOnly', label: '借貸限定', group: 'nature' },
     { value: 'manualAuto', label: '人工/自動', group: 'nature' },
-    { value: 'customTrailingZeros', label: '金額尾數連續 0 的位數', group: 'pattern' },
     // 借貸科目組合：畫面上只有一張卡（specialAccountCategoryPair 為預設 wire 型別），五種白話模式跨兩個
     // wire 型別（ACCOUNT_COMBINATION_OPTIONS）；accountPair 只在型別下拉與舊情境讀回出現，不進快速加入。
-    { value: 'accountPair', label: '借貸科目組合（看對方科目）', group: 'pattern', accountMappingRequirement: 'any', pickerHidden: true },
-    { value: 'specialAccountCategoryPair', label: '借貸科目組合', group: 'pattern', accountMappingRequirement: 'any' },
-    { value: 'customPreparerEntryCount', label: '自訂編製人員分錄筆數', group: 'pattern' },
-    { value: 'customAccountEntryCount', label: '自訂科目分錄筆數', group: 'pattern' },
+    { value: 'accountPair', label: '借貸科目組合（看對方科目）', group: 'pattern', pickerHidden: true },
+    { value: 'specialAccountCategoryPair', label: '借貸科目組合', group: 'pattern' },
     { value: 'entityFrequency', label: '科目與人員統計', group: 'pattern' },
     { value: 'group', label: '條件括號', group: 'compound' },
     { value: 'voucher', label: '傳票分錄條件', group: 'compound' },
     // 攸關資料元素條件：舊式條件，只在舊情境讀回與編輯時出現，畫面不提供新增。
     { value: 'typed', label: '攸關資料元素條件', quickLabel: '攸關資料元素欄位條件', group: 'field' },
-    // KCT 小組條件（清單 A/C/D/H/J；分組獨立於其他四組）。Revenue 型依內容事實逐條解鎖。
-    { value: 'revenueDebitNearQuarterEnd', label: '季末前借記收入', group: 'kct', accountMappingRequirement: 'revenue' },
-    { value: 'revenueWithoutNormalCounterpart', label: '收入無一般對方科目', group: 'kct', accountMappingRequirement: 'revenueAndCounterpart' },
-    { value: 'manualRevenueEntry', label: '收入之人工分錄', group: 'kct', accountMappingRequirement: 'revenue' },
-    { value: 'trailingDigits', label: '特定金額尾數', group: 'kct' },
+    // KCT 小組條件（清單 A/C/D/J；分組獨立於其他四組）。H 改用欄位條件的預設值（FILTER_KCT_PRESETS）。
+    { value: 'revenueDebitNearQuarterEnd', label: '季末前借記收入', group: 'kct' },
+    { value: 'revenueWithoutNormalCounterpart', label: '收入無一般對方科目', group: 'kct' },
+    { value: 'manualRevenueEntry', label: '收入之人工分錄', group: 'kct' },
     { value: 'preparerEqualsApprover', label: '編製與核准同一人', group: 'kct' }
   ];
+
+  // 已停用的條件型別（後端 FilterSinglePurposeRules.RetiredTypes 寫出每一種的重建方式）：型別表不再列出，新條件加不進來；
+  // 舊情境裡的這幾條照原標題讀回，標題只在這裡寫一次（filter-step 的樣態標題與已儲存筆數條件的選項都讀這一份）。
+  var RETIRED_RULE_TYPES = ['customKeywords', 'customTrailingZeros', 'trailingDigits', 'customPreparerEntryCount', 'customAccountEntryCount'];
+  var RETIRED_RULE_TYPE_LABELS = {
+    customKeywords: '自訂關鍵字',
+    customTrailingZeros: '金額尾數連續 0 的位數',
+    trailingDigits: '特定金額尾數',
+    customPreparerEntryCount: 'GL 中編製人員分錄筆數 ≤',
+    customAccountEntryCount: 'GL 中科目分錄筆數 ≤'
+  };
 
   // 條件型別的分組（依審計意圖，非資料格式）。顯示順序即此陣列順序；
   // 每組約 3–4 項，讓使用者只看自己要的那一塊，不必一次面對全部選項。
@@ -240,46 +250,64 @@
     { letter: 'J', kind: 'type', ref: 'preparerEqualsApprover', label: '編製人員與核准人員相同' }
   ];
 
-  // 預篩選 row-tag 鍵與中文名（代號已退役，一律用具體名稱）。
-  // 本表的 value/label 鏡像 Domain FilterConditionLabels.PrescreenKeys（正本在 Domain），
-  // 由 FilterConditionLabelMirrorTests 雙向守衛；新增鍵須同步 Domain 標籤表。
-  var PRESCREEN_KEY_OPTIONS = [
-    { value: 'postPeriodApproval', label: '財報準備日起核准' },
-    { value: 'suspiciousKeywords', label: '摘要特定描述' },
-    { value: 'unexpectedAccountPair', label: '未預期借貸組合', requiresAccountMapping: true },
-    { value: 'trailingZeros', label: '金額尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0' },
-    { value: 'weekendPosting', label: '週末過帳' },
-    { value: 'weekendApproval', label: '週末核准' },
-    { value: 'holidayPosting', label: '假日過帳' },
-    { value: 'holidayApproval', label: '假日核准' },
-    { value: 'blankDescription', label: '空白摘要' },
-    // requiresCreateBy：後端要求「傳票建立人員」已配對來源欄（FilterScenario 的欄位前置檢查）。
-    { value: 'nonAuthorizedPreparer', label: '非授權編製人員', requiresAuthorizedPreparers: true, requiresCreateBy: true },
-    { value: 'lowFrequencyPreparer', label: '編製分錄較少的人員（' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下）', requiresCreateBy: true },
-    { value: 'lowFrequencyAccount', label: '使用較少的科目（' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下）' }
+  // 十二條逐筆預篩選規則的畫面鏡像，一條一筆（使用者 2026-10-22 裁定「一條規則一個定義」；後端正本是 Domain PrescreenRuleDefinitions）：
+  //   value 與 label 鏡像 Domain FilterConditionLabels.PrescreenKeys，FilterConditionLabelMirrorTests 雙向守衛；
+  //   prerequisites 逐項鏡像 Domain JetRuleRequirements，順序相同，FilterBackendRuleMirrorFrontendTests 逐項比對，
+  //   'gl:' 開頭的是 GL 語意欄位，其他是案件資料；description 是第四步卡片與第五步條件共用的說明。
+  // 述詞與需求的正本都在後端；第五步的欄位按鈕、常用查核條件、範例、KCT 卡、預篩選分頁與條件卡片都依需求和後端算好的
+  // 可用欄位停用並寫原因（使用者 2026-10-22 裁定第五步不能用 GL 沒有配對的欄位），前端不自己推。
+  var PRESCREEN_RULES = [
+    { value: 'postPeriodApproval', label: '財報準備日起核准', prerequisites: ['gl:docDate', 'lastPeriodStart'],
+      description: '傳票核准日在案件設定的期末財報準備日當日或之後。檢查範圍為本次測試的分錄。' },
+    { value: 'suspiciousKeywords', label: '摘要特定描述', prerequisites: ['gl:description'],
+      description: '摘要包含預設的 25 個中英文關鍵字之一，包含繁體與簡體文字。在進階篩選加入「摘要含特定字詞」可檢視及調整整份清單。' },
+    { value: 'unexpectedAccountPair', label: '未預期借貸組合', prerequisites: ['accountMapping', 'revenueCategory', 'counterpartCategory'],
+      description: '列出貸方為收入，但同張傳票沒有應收款項、現金或預收款借方的分錄。需先完成科目配對。' },
+    { value: 'trailingZeros', label: '金額尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0', prerequisites: ['gl:amount'],
+      description: '依本次測試的分錄，找出金額整數部分尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0 的分錄；不含小數，整數部分為 0 不列入。' },
+    { value: 'weekendPosting', label: '週末過帳', prerequisites: ['gl:postDate'],
+      description: '總帳日期落在案件設定的週末日；補班日仍納入。' },
+    { value: 'weekendApproval', label: '週末核准', prerequisites: ['gl:docDate'],
+      description: '傳票核准日落在案件設定的週末日；補班日仍納入。' },
+    { value: 'holidayPosting', label: '假日過帳', prerequisites: ['holidayCalendar', 'gl:postDate'],
+      description: '總帳日期落在已匯入假日清單的日期。' },
+    { value: 'holidayApproval', label: '假日核准', prerequisites: ['holidayCalendar', 'gl:docDate'],
+      description: '傳票核准日落在已匯入假日清單的日期。' },
+    { value: 'blankDescription', label: '空白摘要', prerequisites: ['gl:description'],
+      description: '摘要欄位空白的分錄；可在下一步直接作為篩選條件。' },
+    { value: 'nonAuthorizedPreparer', label: '非授權編製人員', prerequisites: ['authorizedPreparers', 'gl:createBy'],
+      description: '傳票建立人員的識別值非空白，且未列在匯入的授權清單中。請使用與 GL 相同的姓名或員工代碼欄位；這個差異本身不代表已判定越權。' },
+    { value: 'lowFrequencyPreparer', label: '編製分錄較少的人員（' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下）', prerequisites: ['gl:createBy'],
+      description: '依本次測試的分錄，按傳票建立人員計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下的人員分錄。同張傳票有多筆分錄時每筆都計入；空白人員不列入。要改筆數門檻，在第五步用「科目與人員統計」條件。' },
+    { value: 'lowFrequencyAccount', label: '使用較少的科目（' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下）', prerequisites: ['gl:accNum'],
+      description: '依本次測試的分錄，按科目編號計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下的科目分錄。同張傳票有多筆分錄時每筆都計入；空白科目不列入。要改筆數門檻，在第五步用「科目與人員統計」條件。' }
   ];
+  function prescreenRule(key) { return PRESCREEN_RULES.find(function (item) { return item.value === key; }); }
+  function prescreenConditionDescription(key) { var rule = prescreenRule(key); return rule ? rule.description : ''; }
+  function prescreenConditionLabel(key) { var rule = prescreenRule(key); return rule ? rule.label : key; }
 
-  // Shared presentation copy for the fourth-step cards and fifth-step condition controls.
-  // The predicates and prerequisites remain backend-owned.
-  var PRESCREEN_DESCRIPTIONS = {
-    postPeriodApproval: '傳票核准日在案件設定的期末財報準備日當日或之後。檢查範圍為本次測試的分錄。',
-    suspiciousKeywords: '摘要包含預設的 25 個中英文關鍵字之一，包含繁體與簡體文字。在進階篩選加入「摘要含特定字詞」可檢視及調整整份清單。',
-    unexpectedAccountPair: '列出貸方為收入，但同張傳票沒有應收款項、現金或預收款借方的分錄。需先完成科目配對。',
-    trailingZeros: '依本次測試的分錄，找出金額整數部分尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0 的分錄；不含小數，整數部分為 0 不列入。',
-    weekendPosting: '總帳日期落在案件設定的週末日；補班日仍納入。',
-    weekendApproval: '傳票核准日落在案件設定的週末日；補班日仍納入。',
-    holidayPosting: '總帳日期落在已匯入假日清單的日期。',
-    holidayApproval: '傳票核准日落在已匯入假日清單的日期。',
-    blankDescription: '摘要欄位空白的分錄；可在下一步直接作為篩選條件。',
-    nonAuthorizedPreparer: '傳票建立人員的識別值非空白，且未列在匯入的授權清單中。請使用與 GL 相同的姓名或員工代碼欄位；這個差異本身不代表已判定越權。',
-    lowFrequencyPreparer: '依本次測試的分錄，按傳票建立人員計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.preparerMaxEntries + ' 筆以下的人員分錄。同張傳票有多筆分錄時每筆都計入；空白人員不列入。自訂條件可另設分錄筆數上限。',
-    lowFrequencyAccount: '依本次測試的分錄，按科目編號計算分錄筆數，列出 ' + PRESCREEN_DEFAULTS.accountMaxEntries + ' 筆以下的科目分錄。同張傳票有多筆分錄時每筆都計入；空白科目不列入。自訂條件可另設分錄筆數上限。'
+  // 每種條件型別需要什麼：逐項鏡像後端 Domain JetRuleRequirements.ForFilterRule（正本在後端，FilterBackendRuleMirrorFrontendTests 逐項比對，順序也相同）。
+  // 'gl:' 開頭的是 GL 語意欄位，其他是案件資料；預篩選條件的需求寫在上面 PRESCREEN_RULES 的 prerequisites。
+  // 已停用的型別（RETIRED_RULE_TYPES）不在表上：後端在查需求前就回報停用原因與重建方式。
+  var FILTER_RULE_PREREQUISITES = {
+    drCrOnly: ['gl:amount'],
+    manualAuto: ['gl:manual'],
+    accountSide: ['anyAccountCategory'],
+    accountPair: ['anyAccountCategory'],
+    specialAccountCategoryPair: ['anyAccountCategory'],
+    revenueDebitNearQuarterEnd: ['revenueCategory'],
+    revenueWithoutNormalCounterpart: ['revenueCategory', 'counterpartCategory'],
+    manualRevenueEntry: ['revenueCategory', 'gl:manual'],
+    preparerEqualsApprover: ['gl:createBy', 'gl:approveBy']
   };
-  function prescreenConditionDescription(key) { return PRESCREEN_DESCRIPTIONS[key] || ''; }
-  function prescreenConditionLabel(key) {
-    var option = PRESCREEN_KEY_OPTIONS.find(function (item) { return item.value === key; });
-    return option ? option.label : key;
-  }
+  // 這幾種條件需要的是條件自己選的 GL 欄位；欄位值比較用攸關資料元素欄位，或欄位已不在欄位目錄時，由各自的檢查說明。
+  var FILTER_FIELD_RULE_TYPES = ['fieldValue', 'text', 'textSet', 'dateRange', 'numRange', 'entityFrequency'];
+  // 欄位目錄的 GL 語意欄位（後端 JetFieldCatalog.GlFields），依目錄順序。
+  var GL_SEMANTIC_FIELDS = ['docNum', 'lineID', 'postDate', 'docDate', 'accNum', 'accName', 'description', 'jeSource',
+    'createBy', 'approveBy', 'manual', 'amount', 'postingStatus'];
+  // GL 欄位的原因句。後端第五步的句子不帶下一步，前端停用說明接上和第四步同一條規則相同的下一步。
+  var GL_FIELD_UNMAPPED = '尚未選擇來源欄';
+  var GL_FIELD_NEXT_STEP = '，請回第三步欄位配對補上';
 
   // AuditCore PrescreenPositioningRenderer 的逐字鏡像。新 prescreen.run 會回 positioning；
   // 舊摘要沒有此加法欄位時才使用本 fallback。文字由 mirror 守衛逐欄比對，前端不得自行改寫審計定位。
@@ -330,17 +358,16 @@
 
   // 第五步「從範例開始」的範例：一鍵把草稿換成常見的審計問題，審計員再改數值或直接預覽。
   // 純前端資料；套用時由 filter-step 的 applyTemplate 深拷貝規則，不打 KCT 標記。
-  // requires 只用 FILTER_CONDITION_REQUIREMENTS 列出的幾種，停用原因由 filter-step 依案件狀態產生。
+  // 前置條件不另外標：filter-step 依範例裡每一條條件查上面的規則需求表，停用並寫原因。
   // 查核截止日在建立案件時必填，不列為前置條件（使用者 2026-10-14 同意刪除沒有作用的「案件沒有查核截止日」分支）。
   // pickField: 'text' 表示條件裡 fieldId 空白的那一條，要換成一個文字型攸關資料元素欄位。
   // 兩個現金範本和新建條件一樣用「包含下層分類」。
-  var FILTER_CONDITION_REQUIREMENTS = ['accountMapping', 'preparationDate', 'approveByMapped', 'createByMapped', 'unexpectedAccountPair'];
   var FILTER_SCENARIO_TEMPLATES = [
-    { key: 'cashDebitNonCashCredit', label: '借現金、貸非現金', requires: 'accountMapping',
+    { key: 'cashDebitNonCashCredit', label: '借現金、貸非現金',
       rationale: '借方為現金，而整張傳票沒有貸方現金的分錄。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'specialAccountCategoryPair', pairMode: 'drNotCr', categorySelection: 'subtree', debitCategoryIds: ['builtin.cash'], creditCategoryIds: ['builtin.cash'] }] }] },
-    { key: 'cashCreditNonCashDebit', label: '貸現金、借非現金', requires: 'accountMapping',
+    { key: 'cashCreditNonCashDebit', label: '貸現金、借非現金',
       rationale: '貸方為現金，而整張傳票沒有借方現金的分錄。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'specialAccountCategoryPair', pairMode: 'notDrCr', categorySelection: 'subtree', debitCategoryIds: ['builtin.cash'], creditCategoryIds: ['builtin.cash'] }] }] },
@@ -353,7 +380,7 @@
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'fieldValue', field: 'postDate', operator: 'between', from: '', to: '', values: [], includeBlank: false, __valueType: 'date', __periodEndDays: 7 },
         { type: 'manualAuto', isManual: 'true' }] }] },
-    { key: 'blankDescriptionOrApprover', label: '空白摘要或空白核准人員', requires: 'approveByMapped',
+    { key: 'blankDescriptionOrApprover', label: '空白摘要或空白核准人員',
       rationale: '缺少說明或缺少核准人員的分錄。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'fieldValue', field: 'description', operator: 'isBlank', values: [], includeBlank: false, __valueType: 'text' },
@@ -385,7 +412,7 @@
             { type: 'drCrOnly', drCr: 'credit' },
             { type: 'fieldValue', field: 'accNum', operator: 'in', values: ['5550', '5551', '6501'], includeBlank: false, __valueType: 'text' }] }] },
         { type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '300000', values: [], includeBlank: false, amountBasis: 'absolute', __valueType: 'money' }] }] },
-    { key: 'preparationManualHoliday', label: '財報準備期間的人工假日分錄', requires: 'preparationDate',
+    { key: 'preparationManualHoliday', label: '財報準備期間的人工假日分錄',
       rationale: '財報準備日起核准、在假日以人工入帳的分錄，可能是期末的不當調整，並排除每月 1 到 3 日。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'prescreen', prescreenKey: 'postPeriodApproval' },
@@ -397,7 +424,7 @@
   ];
 
   // 第五步「常用查核條件」：依審計目的分類，按「加入」把 rules 加入目前作用中的條件組。
-  // 型別與比較方式都是後端既有的；requires 同上，只有後端一定會擋的情況才標。
+  // 型別與比較方式都是後端既有的；前置條件和範例一樣，由 filter-step 依條件內容查規則需求表。
   // __periodEndDays 與範例相同，加入時由查核截止日往前算出起訖日期。
   var FILTER_COMMON_CHECK_GROUPS = [
     { key: 'dates', label: '日期與時點', checks: [
@@ -405,7 +432,7 @@
       { key: 'postDateHoliday', label: '總帳日期在國定假日', rules: [{ type: 'fieldValue', field: 'postDate', operator: 'isHoliday' }] },
       { key: 'postDateNonBusinessDay', label: '總帳日期在非營業日', rules: [{ type: 'fieldValue', field: 'postDate', operator: 'isNonBusinessDay' }] },
       { key: 'docDateNonBusinessDay', label: '傳票核准日在非營業日', rules: [{ type: 'fieldValue', field: 'docDate', operator: 'isNonBusinessDay' }] },
-      { key: 'postPeriodApproval', label: '財報準備日起核准的分錄', requires: 'preparationDate', rules: [{ type: 'prescreen', prescreenKey: 'postPeriodApproval' }] },
+      { key: 'postPeriodApproval', label: '財報準備日起核准的分錄', rules: [{ type: 'prescreen', prescreenKey: 'postPeriodApproval' }] },
       { key: 'postDateRange', label: '指定日期區間', focusValue: true, rules: [{ type: 'fieldValue', field: 'postDate', operator: 'between', from: '', to: '' }] },
       { key: 'periodEndDays', label: '查核期末最後幾天', rules: [{ type: 'fieldValue', field: 'postDate', operator: 'between', from: '', to: '', __periodEndDays: 7 }] }
     ] },
@@ -421,23 +448,23 @@
     ] },
     { key: 'accounts', label: '科目與借貸', checks: [
       { key: 'debitOrCreditOnly', label: '只看借方或貸方', rules: [{ type: 'drCrOnly', drCr: 'debit' }] },
-      { key: 'accountCategory', label: '科目屬於指定分類', requires: 'accountMapping', rules: [{ type: 'group', rules: [
+      { key: 'accountCategory', label: '科目屬於指定分類', rules: [{ type: 'group', rules: [
         { type: 'drCrOnly', drCr: 'debit' }, { type: 'accountSide', categoryMode: 'is', categoryIds: ['builtin.cash'], categorySelection: 'subtree' }] }] },
-      { key: 'categoryPair', label: '借方與貸方分類組合', requires: 'accountMapping', rules: [{ type: 'specialAccountCategoryPair' }] },
+      { key: 'categoryPair', label: '借方與貸方分類組合', rules: [{ type: 'specialAccountCategoryPair' }] },
       { key: 'accountCodePair', label: '借方與貸方科目編號組合', rules: [{ type: 'group', rules: [
         { type: 'voucher', quantifier: 'any', rules: [{ type: 'drCrOnly', drCr: 'debit' }, { type: 'fieldValue', field: 'accNum', operator: 'in', values: [] }] },
         { type: 'voucher', quantifier: 'any', rules: [{ type: 'drCrOnly', drCr: 'credit' }, { type: 'fieldValue', field: 'accNum', operator: 'in', values: [] }] }] }] },
-      { key: 'unexpectedAccountPair', label: '未預期的借貸組合', requires: 'unexpectedAccountPair', rules: [{ type: 'prescreen', prescreenKey: 'unexpectedAccountPair' }] },
+      { key: 'unexpectedAccountPair', label: '未預期的借貸組合', rules: [{ type: 'prescreen', prescreenKey: 'unexpectedAccountPair' }] },
       { key: 'rareAccounts', label: '較少使用的科目', rules: [{ type: 'entityFrequency', field: 'accNum', countUnit: 'entries', countOperator: 'lessThanOrEqual',
         countFrom: String(PRESCREEN_DEFAULTS.accountMaxEntries) }] }
     ] },
     { key: 'people', label: '人員與分錄性質', checks: [
       { key: 'manualEntries', label: '人工分錄', rules: [{ type: 'manualAuto', isManual: 'true' }] },
-      { key: 'rarePreparers', label: '編製分錄較少的人員', requires: 'createByMapped', rules: [{ type: 'entityFrequency', field: 'createBy', countUnit: 'entries',
+      { key: 'rarePreparers', label: '編製分錄較少的人員', rules: [{ type: 'entityFrequency', field: 'createBy', countUnit: 'entries',
         countOperator: 'lessThanOrEqual', countFrom: String(PRESCREEN_DEFAULTS.preparerMaxEntries) }] }
     ] }
     // 原本最後一類「預篩選結果」只有「沿用第四步預篩選規則」，加入後要到條件卡片改選；2026-10-16 改成條件總覽的
-    // 「預篩選」分頁，直接列出每一條預篩選規則（見 filter-step.js 的 prescreenPickerHtml）。
+    // 「預篩選」分頁，直接列出每一條預篩選規則（見 filter-step-sources.js 的 prescreenPickerHtml）。
   ];
 
   // 特殊科目類別配對三模式（specialAccountCategoryPair；A=借方類別、B=貸方類別）。
@@ -610,8 +637,10 @@
       .replace(/'/g, '&#39;');
   }
 
-  // 畫面上所有金額的唯一顯示格式：兩位小數加千分位（使用者 2026-10-02 裁定 P3-4「畫面統一兩位小數加千分位；
-  // 報表與底稿不變」）。純顯示格式化，非計算——前端不得計算金額（見 AGENTS.md 前端邊界）；
+  // 畫面上金額的共用顯示格式：兩位小數加千分位（使用者 2026-10-02 裁定 P3-4「畫面統一兩位小數加千分位；
+  // 報表與底稿不變」）。唯一的例外是右側資料預覽：使用者 2026-10-22 裁定那裡的金額固定顯示四位，
+  // 由 data-preview.js 的 previewMoney 照後端給的十進位字串補零，不經過這裡。
+  // 純顯示格式化，非計算——前端不得計算金額（見 AGENTS.md 前端邊界）；
   // 輸入框、篩選條件值與送給後端的值不經過這裡。
   // 空值或無效值一律 '—'（含 null、undefined、空字串、NaN）；其餘一律兩位小數（0 → 0.00、35920.33 → 35,920.33）。
   function money(value) {
@@ -958,6 +987,89 @@
   function glFieldReadback(state, key) {
     var hit = GL_FIELDS.filter(function (f) { return f.key === key; })[0];
     return hit ? hit.label : missingConditionFieldName(state, { field: key }, 'readback');
+  }
+
+  /* ---- 第五步條件的前置條件（鏡像後端 JetRuleRequirements，權威驗證在後端） -------------- */
+
+  // 後端算好的可用 GL 欄位：project.load 與 mapping.commit.gl 回傳的 availableGlFields，存在已確認的 GL 配對上。
+  // 沒有已確認的 GL 配對時是 null，不檢查欄位，和後端沒有清單時一樣；第五步要先確認 GL 配對才進得來。
+  function availableGlFields(state) {
+    var committed = state && state.mapping && state.mapping.gl ? state.mapping.gl.committed : null;
+    return committed && Array.isArray(committed.availableGlFields) ? committed.availableGlFields : null;
+  }
+
+  function glFieldAvailable(state, key) {
+    var available = availableGlFields(state);
+    return !available || available.indexOf(key) >= 0;
+  }
+
+  // 一條條件自己需要的前置條件，不含子條件；和後端 JetRuleRequirements.ForFilterRule 相同。
+  function filterRulePrerequisites(rule) {
+    if (!rule) { return []; }
+    if (rule.type === 'prescreen') { var prescreen = prescreenRule(rule.prescreenKey); return prescreen ? prescreen.prerequisites : []; }
+    if (FILTER_FIELD_RULE_TYPES.indexOf(rule.type) >= 0) {
+      if (rule.type === 'fieldValue' && rule.fieldId) { return []; }
+      return GL_SEMANTIC_FIELDS.indexOf(rule.field) >= 0 ? ['gl:' + rule.field] : [];
+    }
+    return FILTER_RULE_PREREQUISITES[rule.type] || [];
+  }
+
+  // 第五步的案件事實。假日檔照使用者 2026-10-04 的裁定不檢查，和後端第五步相同。
+  function rulePrerequisiteMet(state, prerequisite) {
+    var imp = (state && state.importState) || {}, mapping = imp.accountMapping;
+    if (prerequisite.indexOf('gl:') === 0) { return glFieldAvailable(state, prerequisite.slice(3)); }
+    switch (prerequisite) {
+      case 'lastPeriodStart': return !!(state && state.project && state.project.lastPeriodStart);
+      case 'accountMapping': return !!mapping;
+      case 'anyAccountCategory': return !!(mapping && mapping.hasAnyCategory);
+      case 'revenueCategory': return !!(mapping && mapping.hasRevenue);
+      case 'counterpartCategory': return !!(mapping && mapping.hasCounterpart);
+      case 'authorizedPreparers': return !!imp.authorizedPreparer;
+      case 'holidayCalendar': return true;
+    }
+    return true;
+  }
+
+  // 原因句逐字照後端 JetRuleRequirements.Reason，不含句號；分類名稱用第四步分類設定裡這個用途的內建分類目前的名稱。
+  function rulePrerequisiteReason(state, prerequisite) {
+    if (prerequisite.indexOf('gl:') === 0) { return '「' + glFieldLabel(prerequisite.slice(3)) + '」' + GL_FIELD_UNMAPPED; }
+    function label(role) { return taxonomyCategoryLabel(state, 'builtin.' + role); }
+    switch (prerequisite) {
+      case 'lastPeriodStart': return '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫';
+      case 'accountMapping':
+      case 'anyAccountCategory': return '科目配對中尚無任何科目設定分類，請先在第四步設定';
+      case 'revenueCategory': return '科目配對中尚無歸類為「' + label('revenue') + '」的科目，請先在第四步設定';
+      case 'counterpartCategory':
+        return '科目配對中尚無歸類為「' + label('receivables') + '」「' + label('cash') + '」或「' + label('receipt_in_advance') + '」的科目，請先在第四步設定';
+      case 'authorizedPreparers': return '尚未匯入授權編製人員清單，請先在第二步匯入';
+      case 'holidayCalendar': return '尚未上傳假日檔，請先在第二步「假日與補班日」上傳';
+    }
+    return '';
+  }
+
+  // 一組條件還缺什麼，沒有缺項時回空字串。括號與整張傳票條件連子條件一起查；ownOnly 時只查條件本身。
+  // 每條條件照後端 Unmet：科目配對還沒匯入時只寫這一項，不再寫分類。原因依出現的順序、同一項只寫一次，
+  // 缺的 GL 欄位寫在同一句，接上和第四步相同的下一步。
+  function ruleRequirementNote(state, rules, ownOnly) {
+    var unmet = [];
+    function visit(rule) {
+      var accountMappingMissing = false;
+      filterRulePrerequisites(rule).forEach(function (prerequisite) {
+        if ((accountMappingMissing && /Category$/.test(prerequisite)) || rulePrerequisiteMet(state, prerequisite)) { return; }
+        if (unmet.indexOf(prerequisite) < 0) { unmet.push(prerequisite); }
+        if (prerequisite === 'accountMapping') { accountMappingMissing = true; }
+      });
+      if (!ownOnly && rule && Array.isArray(rule.rules)) { rule.rules.forEach(visit); }
+    }
+    (rules || []).forEach(visit);
+    var fields = unmet.filter(function (prerequisite) { return prerequisite.indexOf('gl:') === 0; });
+    var parts = [];
+    unmet.forEach(function (prerequisite) {
+      if (prerequisite.indexOf('gl:') !== 0) { parts.push(rulePrerequisiteReason(state, prerequisite)); return; }
+      if (prerequisite !== fields[0]) { return; }
+      parts.push(fields.map(function (field) { return '「' + glFieldLabel(field.slice(3)) + '」'; }).join('') + GL_FIELD_UNMAPPED + GL_FIELD_NEXT_STEP);
+    });
+    return parts.join('；');
   }
 
   /* ---- 專案層契約鏡像的讀取輔助（純讀取，不重算任何審計語意） -------------- */
@@ -1638,8 +1750,10 @@
         unsavedDialogOpen = false;
         resolve(result);
       }
+      var dialogEntry = null;
       function close() {
-        document.removeEventListener('keydown', onKey, true);
+        // 有 app 殼層時從共用的對話框堆疊移除；沒有時（只載入步驟模組的測試）拿掉自己掛的監聽。
+        if (dialogEntry) { global.JetFocus.closeDialog(dialogEntry); dialogEntry = null; } else { document.removeEventListener('keydown', onKey, true); }
         // 對話框淡出後才移除（見 app.js 的 JetMotion.dismiss），不一瞬間消失。
         if (global.JetMotion) { global.JetMotion.dismiss(modal); } else { modal.remove(); }
       }
@@ -1669,8 +1783,15 @@
             finish(saved);
           });
       });
-      document.addEventListener('keydown', onKey, true);
       document.body.appendChild(modal);
+      // 預篩選收斂計畫階段八（使用者 2026-10-22 裁定）：Escape 與 Tab 交給 app.js 的對話框堆疊，疊在總覽上面時只關這一層；
+      // 沒有 app 殼層時退回自己在 document 接鍵盤（onKey）。
+      if (global.JetFocus && typeof global.JetFocus.openDialog === 'function') {
+        dialogEntry = global.JetFocus.openDialog({ element: modal.querySelector('.modal__card'),
+          close: function () { close(); returnFocus(); finish(false); } });
+      } else {
+        document.addEventListener('keydown', onKey, true);
+      }
       var primary = modal.querySelector(options.focusStay || !saveable
         ? '.modal__actions [data-pending-choice="stay"]' : '[data-pending-choice="save"]');
       if (primary) { primary.focus(); }
@@ -2177,7 +2298,9 @@
               valueType: field.valueType
             };
           })
-        : []
+        : [],
+      // 確認配對時往下填補空白的欄位（階段六）；改版前確認的配對沒有這一項，是空清單。
+      fillDownFields: Array.isArray(source.fillDownFields) ? source.fillDownFields.slice() : []
     };
   }
 
@@ -2245,11 +2368,15 @@
       Store.setMappingMode('gl', data.mapping.gl.amountMode || 'dual');
       Store.replaceGlMappingOptions(glMappingOptionsFrom(data.mapping.gl));
       // 完整快照供配對步驟判定「草稿是否偏離已提交版本」；resume 無標準化列數（null）。
+      // 可用欄位由後端依欄位目錄算好，第五步照它停用入口，不由配對內容自己推。
       Store.setMappingCommitted('gl', {
         committedUtc: data.mapping.gl.committedUtc,
         mapping: data.mapping.gl.mapping || {},
         mode: data.mapping.gl.amountMode || 'dual',
         options: glMappingOptionsFrom(data.mapping.gl),
+        availableGlFields: data.mapping.gl.availableGlFields || null,
+        // 確認配對時往下填補了幾格，跟著配對保存（使用者 2026-10-28 裁定），重開案件後第三步摘要照樣列出。
+        fillDownCount: data.mapping.gl.fillDownCount || 0,
         projectedRowCount: null
       });
     } else if (previousMapping.gl && data.importState && data.importState.gl) {
@@ -2632,7 +2759,9 @@
     FILTER_KCT_PRESETS: FILTER_KCT_PRESETS,
     FILTER_KCT_ATOM_LABELS: FILTER_KCT_ATOM_LABELS,
     FILTER_KCT_CHECKLIST: FILTER_KCT_CHECKLIST,
-    PRESCREEN_KEY_OPTIONS: PRESCREEN_KEY_OPTIONS,
+    PRESCREEN_RULES: PRESCREEN_RULES,
+    RETIRED_RULE_TYPES: RETIRED_RULE_TYPES,
+    RETIRED_RULE_TYPE_LABELS: RETIRED_RULE_TYPE_LABELS,
     prescreenConditionDescription: prescreenConditionDescription,
     prescreenConditionLabel: prescreenConditionLabel,
     PRESCREEN_POSITIONING_COPY: PRESCREEN_POSITIONING_COPY,
@@ -2644,7 +2773,6 @@
     ACCOUNT_COMBINATION_OPTIONS: ACCOUNT_COMBINATION_OPTIONS,
     FILTER_SCENARIO_TEMPLATES: FILTER_SCENARIO_TEMPLATES,
     FILTER_COMMON_CHECK_GROUPS: FILTER_COMMON_CHECK_GROUPS,
-    FILTER_CONDITION_REQUIREMENTS: FILTER_CONDITION_REQUIREMENTS,
     FILTER_CATEGORY_LIST_SEPARATOR: FILTER_CATEGORY_LIST_SEPARATOR,
     TEXT_MODE_OPTIONS: TEXT_MODE_OPTIONS,
     FILTER_MATCH_SCOPE_OPTIONS: FILTER_MATCH_SCOPE_OPTIONS,
@@ -2660,6 +2788,8 @@
     RDE_MAX_LABEL_LENGTH: RDE_MAX_LABEL_LENGTH,
     MANUAL_AUTO_DEFAULTS: MANUAL_AUTO_DEFAULTS,
     VALUE_PROFILE_LIMIT: VALUE_PROFILE_LIMIT,
+    VALUE_PROFILE_MAX_VALUES: VALUE_PROFILE_MAX_VALUES,
+    SEARCH_TEXT_MAX_LENGTH: SEARCH_TEXT_MAX_LENGTH,
     PRESCREEN_DEFAULTS: PRESCREEN_DEFAULTS,
     RESULT_PREVIEW_PAGE_SIZE: RESULT_PREVIEW_PAGE_SIZE,
     TABLE_PAGE_SIZE: TABLE_PAGE_SIZE,
@@ -2710,6 +2840,11 @@
     runBackground: runBackground,
     isRequired: isRequired,
     glFieldLabel: glFieldLabel,
+    availableGlFields: availableGlFields,
+    glFieldAvailable: glFieldAvailable,
+    ruleRequirementNote: ruleRequirementNote,
+    GL_FIELD_UNMAPPED: GL_FIELD_UNMAPPED,
+    GL_FIELD_NEXT_STEP: GL_FIELD_NEXT_STEP,
     glFieldReadback: glFieldReadback,
     missingConditionFieldName: missingConditionFieldName,
     RETIRED_CONDITION_LABEL: RETIRED_CONDITION_LABEL,

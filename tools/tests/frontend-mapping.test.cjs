@@ -1596,7 +1596,10 @@ test('oct9 followup a source-list failure keeps the code editor and changing sou
   f.render().click('manual-entry-codes');
   f.store.setMappingDraft('gl', 'manual', 'Other');
   assert.match(f.render().html, /data-action="load-manual-profile"/);
-  assert.doesNotMatch(f.render().html, /data-manual-assign/);
+  // 階段八起「讀取來源值」按鈕的 data-focus-successor 寫著接替焦點的選擇器，文字裡有 [data-manual-assign]；
+  // 這條斷言要查的是沒有畫出指派控制項，所以改成比對屬性本身（前面是空白、後面接 ="）。
+  // 第一次失敗收據 20261024-145925646-5545e64ab6884797a601353a0e31d800。
+  assert.doesNotMatch(f.render().html, / data-manual-assign="/);
 });
 
 test('oct9 followup GL and TB required rails use matched wording without implying a committed mapping', () => {

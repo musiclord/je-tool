@@ -37,17 +37,20 @@ public sealed class Batch9MoneyDateParsingTests
     public void Money_MalformedGroupingOrMultipleSigns_IsRejected(string raw) =>
         Assert.False(MoneyScaling.TryParseAmount(raw, out _));
 
+    // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：純數字不再當成 Excel 序列值。這四個值以前分別是
+    // 1900-01-01、2024-01-01、2100-12-31、2100-12-31，現在兩種民國年開關都拒絕；原始輸入不變。第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
     [Theory]
-    [InlineData("2", "1900-01-01")]
-    [InlineData("45292", "2024-01-01")]
-    [InlineData("73415", "2100-12-31")]
-    [InlineData("73415.5", "2100-12-31")]
-    public void ExcelSerial_WithinYearBoundary_HasFixedAnswer(string raw, string expected)
+    [InlineData("2")]
+    [InlineData("45292")]
+    [InlineData("73415")]
+    [InlineData("73415.5")]
+    public void ExcelSerial_FormerlyWithinYearBoundary_IsNoLongerADate(string raw)
     {
-        Assert.True(DateNormalizer.TryNormalize(raw, DateParseOptions.Default, out var actual));
-        Assert.Equal(expected, actual);
+        Assert.False(DateNormalizer.TryNormalize(raw, DateParseOptions.Default, out _));
+        Assert.False(DateNormalizer.TryNormalize(raw, new DateParseOptions(false), out _));
     }
 
+    // 以前是超出 1900 到 2100 年的序列值而拒絕；階段七後所有純數字都拒絕，結果不變。
     [Theory]
     [InlineData("1")]
     [InlineData("73416")]

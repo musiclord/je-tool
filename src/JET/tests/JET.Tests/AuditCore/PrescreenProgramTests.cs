@@ -22,7 +22,8 @@ public sealed class PrescreenProgramTests
         Assert.Equal(request.RunId, plan.ReviewPlan.UserParameters.RunId);
         Assert.Equal(request.GeneratedUtc, plan.ReviewPlan.UserParameters.GeneratedUtc);
         Assert.Equal("prescreen.run", plan.ReviewPlan.UserParameters.ActionName);
-        Assert.Equal(TrailingZeroThreshold.DefaultZerosThreshold, plan.ZerosThreshold);
+        // 預篩選收斂計畫階段九：尾零門檻是規則定義的一部分（TrailingZeroThreshold），計畫不再另帶一份，這一行斷言因此拿掉；
+        // 回應仍回報固定門檻，Finalize 的斷言保留。第一次失敗：收據 20261024-201207068-a0dbf5041d56436d812778236956c48e（編譯失敗）。
         // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
         Assert.Equal(14, plan.ReviewPlan.Procedures.Count);
         Assert.All(plan.ReviewPlan.Procedures, verdict => Assert.True(verdict.IsApplicable));
@@ -60,34 +61,42 @@ public sealed class PrescreenProgramTests
             TrailingZeroThreshold.DefaultZerosThreshold,
             result.Data.ZerosThreshold);
 
+        // 預篩選收斂計畫階段四把第四步的原因改由規則需求表產生（2026-10-23），原因常數已拿掉，預期值改寫成常數原本的固定文字。
+        // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+        // 同一階段第 3、4 項要求第四步與第五步對同一條規則給同一個原因，畫面只顯示後端一句寫出缺什麼、到哪裡補的原因，
+        // 預期值因此換成規則需求表的句子；一條規則缺幾項就依表列順序各寫一句，科目配對沒有匯入時只寫這一項。
+        // 第一次失敗：Focused 收據 20261023-032905578-e71aa86f3fec4304a919d55f3db25598。
+        const string approvalDateMissing = "「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。";
+        const string createdByMissing = "「傳票建立人員」尚未選擇來源欄，請回第三步欄位配對補上。";
+        const string holidayCalendarMissing = "尚未上傳假日檔，請先在第二步「假日與補班日」上傳。";
         AssertSkipped(
             result,
             "post_period_approval",
-            PrescreenProcedures.MissingApprovalDateMappingReason);
+            approvalDateMissing + "尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫。");
         AssertSkipped(
             result,
             "unexpected_account_pair",
-            PrescreenProcedures.MissingAccountMappingReason);
+            "科目配對中尚無任何科目設定分類，請先在第四步設定。");
         AssertSkipped(
             result,
             "creator_summary",
-            PrescreenProcedures.MissingCreatedByMappingReason);
+            createdByMissing);
         AssertSkipped(
             result,
             "weekend_approval",
-            PrescreenProcedures.MissingApprovalDateForActivityReason);
+            approvalDateMissing);
         AssertSkipped(
             result,
             "holiday_posting",
-            PrescreenProcedures.MissingHolidayCalendarReason);
+            holidayCalendarMissing);
         AssertSkipped(
             result,
             "holiday_approval",
-            PrescreenProcedures.MissingHolidayCalendarReason);
+            holidayCalendarMissing + approvalDateMissing);
         AssertSkipped(
             result,
             "non_authorized_preparer",
-            PrescreenProcedures.MissingAuthorizedPreparersReason);
+            "尚未匯入授權編製人員清單，請先在第二步匯入。" + createdByMissing);
     }
 
     [Fact]
@@ -110,18 +119,8 @@ public sealed class PrescreenProgramTests
         Assert.Equal(0, result.Data.HolidayApprovalCount);
     }
 
-    [Fact]
-    public void Finalize_UsesThresholdOwnedByPlan()
-    {
-        var plan = JetAuditProgram.Plan(Request()) with
-        {
-            ZerosThreshold = 3
-        };
-
-        var result = JetAuditProgram.Finalize(plan, Facts());
-
-        Assert.Equal(3, result.Data.ZerosThreshold);
-    }
+    // 預篩選收斂計畫階段九：尾零門檻是規則定義的一部分，計畫不再帶它；原本「Finalize 用計畫的門檻」那則隨之移除，
+    // 回應固定回報六個 0 的斷言留在上面那則（第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf 之後的建置）。
 
     [Fact]
     public void Finalize_AllApplicable_PreservesRawCountsAndBoundedSummaries()
@@ -230,7 +229,11 @@ public sealed class PrescreenProgramTests
         var result = JetAuditProgram.Finalize(plan, facts);
 
         Assert.Equal("na", result.Concentration.Status);
-        Assert.Equal(PrescreenProcedures.MissingCreatedByMappingReason, result.Concentration.NaReason);
+        // 預篩選收斂計畫階段四拿掉原因常數（2026-10-23），預期值改寫成常數原本的固定文字。
+        // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+        // 同一階段要求第四步與第五步給同一個原因，預期值換成規則需求表的句子。
+        // 第一次失敗：Focused 收據 20261023-032905578-e71aa86f3fec4304a919d55f3db25598。
+        Assert.Equal("「傳票建立人員」尚未選擇來源欄，請回第三步欄位配對補上。", result.Concentration.NaReason);
         Assert.Null(result.Concentration.Preparers);
         Assert.Null(result.Concentration.RareAccounts);
         Assert.Null(result.Concentration.DistinctAccountCount);
@@ -266,8 +269,13 @@ public sealed class PrescreenProgramTests
             RunId: "run",
             GeneratedUtc: new DateTimeOffset(2025, 12, 31, 0, 0, 0, TimeSpan.Zero),
             LastPeriodStart: lastPeriodStart,
-            HasApprovalDate: hasApprovalDate,
-            HasCreatedBy: hasCreatedBy,
+            // 預篩選收斂計畫階段四把核准日與建立人員兩個旗標換成可用欄位清單（2026-10-23）。
+            // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+            AvailableGlFields: JetFieldCatalog.GlFields
+                .Select(static field => field.SemanticIdentity)
+                .Where(field => (hasApprovalDate || field != JetFieldCatalog.GlDocDate)
+                    && (hasCreatedBy || field != JetFieldCatalog.GlCreateBy))
+                .ToArray(),
             HasHolidays: hasHolidays,
             HasAccountMapping: hasAccountMapping,
             HasRevenue: hasRevenue,

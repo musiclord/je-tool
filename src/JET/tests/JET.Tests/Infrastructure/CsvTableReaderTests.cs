@@ -408,6 +408,47 @@ public sealed class CsvTableReaderTests
         }
     }
 
+    // 預篩選收斂計畫階段六：使用者 2026-10-22 裁定「欄名在第幾列」開放給 GL 與 TB 的一般匯入，含文字檔。
+    // 文字檔和 Excel 讀取器同一規則：先略過指定的列數（以記錄計，空白列也算），再取第一個有內容的列當欄名；列號照檔案實際列數。
+    // 第一次失敗：Focused 收據 20261023-193734239-f6249c3be1e046cfa0c55b4181d2cabd（略過列數被忽略，標題列被當成欄名）。
+    [Fact]
+    public async Task HeaderRowSkip_SkipsTitleRows_ThenFirstContentRowIsHeader_AndRowNumbersCountThem()
+    {
+        var path = TestCsvBuilder.WriteFile("合成公司 總帳明細\n\n傳票號碼,金額\nV1,10\n,20\n", TestCsvBuilder.Utf8NoBom);
+        try
+        {
+            var reader = new CsvTableReader();
+            foreach (var skip in new[] { 1, 2 })
+            {
+                // 略過 1 列後第 2 列是空白列，仍往下找到第 3 列當欄名；略過 2 列直接落在欄名列。
+                var request = new TabularSourceRequest(path, LeadingRowsToSkip: skip);
+                Assert.Equal(["傳票號碼", "金額"], await reader.ReadColumnsAsync(request, CancellationToken.None));
+
+                var rows = new List<StagingRow>();
+                await foreach (var row in reader.ReadRowsAsync(request, CancellationToken.None))
+                {
+                    rows.Add(row);
+                }
+
+                Assert.Equal([4, 5], rows.Select(row => row.SourceRowNumber).ToArray());
+                Assert.Equal("V1", rows[0].Values["傳票號碼"]);
+                Assert.False(rows[1].Values.ContainsKey("傳票號碼"));
+                Assert.Equal("20", rows[1].Values["金額"]);
+            }
+
+            // 略過到檔尾就是找不到欄名列，和整檔空白同一個錯誤代碼。
+            var tooFar = await Assert.ThrowsAsync<JetActionException>(() =>
+                reader.ReadColumnsAsync(new TabularSourceRequest(path, LeadingRowsToSkip: 5), CancellationToken.None));
+            Assert.Equal(JetErrorCodes.EmptyWorkbook, tooFar.Code);
+            // 2026-10-28 複審新增的斷言：訊息寫那一列起沒有內容，不說成檔案找不到標頭列。改程式之後才補，沒有第一次失敗的收據。
+            Assert.Equal($"檔案「{Path.GetFileName(path)}」從第 6 列起沒有內容，找不到欄名。請確認欄名所在的列。", tooFar.Message);
+        }
+        finally
+        {
+            TestCsvBuilder.Delete(path);
+        }
+    }
+
     // 低嚴重度事項 A3（使用者 2026-10-19 要求處理）：有 BOM 的 UTF-8 與 UTF-16 檔，StreamReader 認得 BOM 後
     // 換成 .NET 預設的編碼，壞位元組被默默換成替代字元匯入。改成嚴格編碼後，和沒有 BOM 的 UTF-8 一樣以讀檔錯誤回報。
     public static TheoryData<string, byte[]> BomFilesWithBadBytes() => new()
@@ -528,6 +569,9 @@ public sealed class CsvTableReaderTests
             var notice = Assert.Single(inspection.Notices ?? []);
             Assert.Contains("報表", notice, StringComparison.Ordinal);
             Assert.Contains("Excel", notice, StringComparison.Ordinal);
+            // 預篩選收斂計畫階段六：待匯入清單有了「欄名在第幾列」，標題列在欄名前面時提醒要指到那一格，不再只叫審計員去 Excel 整理。
+            // 第一次失敗收據 20261024-035009182-d65b0b7be7854c92a2263a9c18ab810f。
+            Assert.Contains("欄名在第幾列", notice, StringComparison.Ordinal);
         }
         finally
         {

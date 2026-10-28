@@ -20,19 +20,10 @@ internal sealed partial class GlRulePredicates(
         return $"g.approval_date >= {p}";
     }
 
-    /// <summary>摘要特定描述（suspicious_keywords）：摘要含任一預設關鍵字。</summary>
+    /// <summary>摘要特定描述（suspicious_keywords）：摘要含任一預設關鍵字，和第五步「傳票摘要」的「包含任一文字」同一個比對。</summary>
     public string SuspiciousKeywords(FilterSqlParameterPlanBuilder command)
     {
-        return TextContainsAny(command, "g.document_description", SuspiciousKeywordDefaults.Defaults);
-    }
-
-    /// <summary>連續零尾數（trailing_zeros）：主單位整數為 10^N 倍數；小數位不參與，0 不命中。</summary>
-    public string TrailingZeros(FilterSqlParameterPlanBuilder command, long unitModulus, int moneyScale)
-    {
-        var scale = NextParam(command, (long)moneyScale);
-        var modulus = NextParam(command, unitModulus);
-        var intAmount = dialect.IntegerQuotient("ABS(g.amount_scaled)", scale);
-        return $"({intAmount} <> 0 AND {intAmount} % {modulus} = 0)";
+        return ContainsAnyKeyword(command, "g.document_description", SuspiciousKeywordDefaults.Defaults);
     }
 
     /// <summary>
@@ -435,29 +426,26 @@ internal sealed partial class GlRulePredicates(
     // 檢查代號記進支援日誌（使用者 2026-10-14 第三輪勾選頁確認 R3-62）。check 只能是程式寫死的代號。
     private static JetActionException Invalid(string check) => FilterCompileCheck.Create(check);
 
-    /// <summary>週末過帳/核准（weekend_*）：依設定的星期判斷，補班日仍納入。dateColumn 僅接受本層常數。</summary>
-    public string Weekend(string dateColumn, IReadOnlyList<int>? nonWorkingDays, string schemaPrefix = "")
+    /// <summary>週末（weekend_*）：日期落在案件設定的週末日，補班日仍納入。dateExpr 只接受本層常數或欄位目錄解析出的欄位。</summary>
+    public string Weekend(string dateExpr, IReadOnlyList<int>? nonWorkingDays)
     {
-        return dialect.WeekendPredicate(
-            $"g.{dateColumn}",
-            NonWorkingDays.Resolve(nonWorkingDays));
+        return dialect.WeekendPredicate(dateExpr, NonWorkingDays.Resolve(nonWorkingDays));
     }
 
-    /// <summary>假日過帳/核准（holiday_*）：日期落在已上傳的假日曆。</summary>
-    public string Holiday(string dateColumn, string schemaPrefix = "")
-    {
-        return $"""
-            EXISTS (
-                SELECT 1 FROM {schemaPrefix}staging_calendar_raw_day d
-                WHERE d.day_type = 'holiday' AND d.date = g.{dateColumn})
-            """;
-    }
+    /// <summary>假日（holiday_*）：日期落在已上傳假日檔的假日。</summary>
+    public string Holiday(string dateExpr, string schemaPrefix = "") => CalendarDay(dateExpr, "holiday", schemaPrefix);
 
-    /// <summary>摘要空白（blank_description）。去空白的字元集合和 .NET 相同（dialect.Trim），兩個本地資料庫結果一致。</summary>
-    public string BlankDescription()
-    {
-        return $"(g.document_description IS NULL OR {dialect.Trim("g.document_description")} = '')";
-    }
+    /// <summary>補班日：日期落在已上傳假日檔的補班日。</summary>
+    public string MakeupDay(string dateExpr, string schemaPrefix = "") => CalendarDay(dateExpr, "makeup", schemaPrefix);
+
+    private static string CalendarDay(string dateExpr, string dayType, string schemaPrefix) =>
+        $"EXISTS (SELECT 1 FROM {schemaPrefix}staging_calendar_raw_day d WHERE d.day_type = '{dayType}' AND d.date = {dateExpr})";
+
+    /// <summary>文字欄位空白：NULL 或去空白後為空。去空白的字元集合和 .NET 相同（dialect.Trim），兩個本地資料庫結果一致。</summary>
+    public string BlankText(string columnExpr) => SqlBlankText.IsBlank(dialect, columnExpr);
+
+    /// <summary>摘要空白（blank_description）：和第五步「傳票摘要」的「空白」同一個判斷。</summary>
+    public string BlankDescription() => BlankText("g.document_description");
 
     /// <summary>非授權編製人員（non_authorized_preparer）：created_by 非空白且不在授權清單。
     /// 人員識別值的比對去頭尾空白、不分大小寫，和人員清單、編製等於核准同一規則（2026-10-04 裁定 C3）。
@@ -466,41 +454,8 @@ internal sealed partial class GlRulePredicates(
     /// 即便 validator 或 handler 的前置檢查被繞過仍安全。</summary>
     public string NonAuthorizedPreparer(string schemaPrefix = "") =>
         $"(EXISTS (SELECT 1 FROM {schemaPrefix}target_authorized_preparer) " +
-        $"AND g.created_by IS NOT NULL AND {dialect.Trim("g.created_by")} <> '' " +
+        $"AND {SqlBlankText.IsNotBlank(dialect, "g.created_by")} " +
         $"AND {dialect.Upper(dialect.Trim("g.created_by"))} NOT IN (SELECT {dialect.Upper(dialect.Trim("name"))} FROM {schemaPrefix}target_authorized_preparer))";
-
-    /// <summary>低頻編製者（low_frequency_preparer）：created_by 在所選母體內的分錄筆數 ≤ maxEntries。
-    /// 人員依去空白、不分大小寫的識別值分組，空白人員不列入（和畫面「空白人員不列入」一致，2026-10-04 裁定 C3）。
-    /// 門檻參數綁定;子查詢與外層共用 scope, GROUP BY/HAVING/COUNT(*) 皆 ANSI 共通。</summary>
-    public string LowFrequencyPreparer(
-        FilterSqlParameterPlanBuilder command,
-        int maxEntries,
-        FilterRuleContext context,
-        string schemaPrefix = "")
-    {
-        var p = NextParam(command, maxEntries);
-        var outer = dialect.Upper(dialect.Trim("g.created_by"));
-        var inner = dialect.Upper(dialect.Trim("f.created_by"));
-        return $"{outer} IN (SELECT {inner} FROM {schemaPrefix}target_gl_entry f "
-            + $"WHERE {populationScopePredicate(context, "f")} "
-            + $"AND f.created_by IS NOT NULL AND {dialect.Trim("f.created_by")} <> '' "
-            + $"GROUP BY {inner} HAVING COUNT(*) <= {p})";
-    }
-
-    /// <summary>低頻科目(low_frequency_account,C9):account_code 在所選母體內的分錄筆數 ≤ maxEntries。
-    /// 門檻參數綁定;子查詢與外層共用 scope, GROUP BY/HAVING/COUNT(*) 皆 ANSI 共通。
-    /// 與 rareAccounts(R6 彙總)並存,本述詞為其可作列述詞的版本。</summary>
-    public string LowFrequencyAccount(
-        FilterSqlParameterPlanBuilder command,
-        int maxEntries,
-        FilterRuleContext context,
-        string schemaPrefix = "")
-    {
-        var p = NextParam(command, maxEntries);
-        return $"g.account_code IN (SELECT a.account_code FROM {schemaPrefix}target_gl_entry a "
-            + $"WHERE {populationScopePredicate(context, "a")} "
-            + $"GROUP BY a.account_code HAVING COUNT(*) <= {p})";
-    }
 
     /// <summary>filter text 條件：關鍵字以 OR 串接；NOT 模式整體取反（COALESCE 保住 NULL 列）。</summary>
     public string TextMatch(
@@ -510,18 +465,12 @@ internal sealed partial class GlRulePredicates(
         TextMatchMode mode)
     {
         var positive = mode is TextMatchMode.Contains or TextMatchMode.NotContains
-            ? TextContainsAny(command, $"g.{column}", keywords)
+            ? ContainsAnyKeyword(command, $"g.{column}", keywords)
             : TextEqualsAny(command, $"g.{column}", keywords);
 
         return mode is TextMatchMode.NotContains or TextMatchMode.NotExact
             ? $"NOT {positive}"
             : positive;
-    }
-
-    /// <summary>filter 自訂關鍵字條件（custom_keywords）：同摘要特定描述述詞，關鍵字為使用者輸入。</summary>
-    public string CustomKeywords(FilterSqlParameterPlanBuilder command, IReadOnlyList<string> keywords)
-    {
-        return TextContainsAny(command, "g.document_description", keywords);
     }
 
     /// <summary>filter dateRange 條件（單邊界允許；ISO 字串比較）。</summary>
@@ -719,11 +668,15 @@ internal sealed partial class GlRulePredicates(
     /// 純 ANSI 欄位比較,雙 provider 相同。
     /// </summary>
     public string PreparerEqualsApprover() =>
-        $"(g.created_by IS NOT NULL AND {dialect.Trim("g.created_by")} <> '' " +
+        $"({SqlBlankText.IsNotBlank(dialect, "g.created_by")} " +
         "AND g.approved_by IS NOT NULL " +
         $"AND {dialect.Upper(dialect.Trim("g.created_by"))} = {dialect.Upper(dialect.Trim("g.approved_by"))})";
 
-    private string TextContainsAny(
+    /// <summary>
+    /// 文字欄位包含任一關鍵字：逐字比對、不分大小寫、關鍵字去頭尾空白，NULL 視為空字串。摘要特定描述、第五步「包含任一文字」
+    /// 與舊式自訂關鍵字條件都用這一個方法；沒有可用的關鍵字時不命中。
+    /// </summary>
+    public string ContainsAnyKeyword(
         FilterSqlParameterPlanBuilder command,
         string columnExpr,
         IReadOnlyList<string> keywords)
@@ -731,9 +684,10 @@ internal sealed partial class GlRulePredicates(
         var clauses = keywords
             .Where(k => !string.IsNullOrWhiteSpace(k))
             .Select(k => dialect.ContainsIgnoreCase(
-                columnExpr, NextParam(command, k.Trim().ToUpperInvariant())));
+                columnExpr, NextParam(command, k.Trim().ToUpperInvariant())))
+            .ToList();
 
-        return $"({string.Join(" OR ", clauses)})";
+        return clauses.Count == 0 ? "1 = 0" : $"({string.Join(" OR ", clauses)})";
     }
 
     private string TextEqualsAny(

@@ -5,7 +5,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 空值/期外日期紀錄 keyset 分頁(SQL Server,鏡像 <see cref="LocalNullRecordsPageRepository"/>)。
-/// 空白判定用 LTRIM(RTRIM(x))='';排序鍵 entry_id ASC、游標展開布林式(@cursor 綁 long)、
+/// 空白判定由方言的去空白方法產生;排序鍵 entry_id ASC、游標展開布林式(@cursor 綁 long)、
 /// limit 由 <see cref="SqlServerDialect"/> 出 OFFSET/FETCH(ORDER BY entry_id 已具備)。
 /// </summary>
 public sealed class SqlServerNullRecordsPageRepository(SqlServerProjectDatabase database)

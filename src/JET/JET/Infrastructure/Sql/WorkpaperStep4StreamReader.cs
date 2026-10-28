@@ -42,11 +42,7 @@ internal static class WorkpaperStep4StreamReader
             scenarioScope.Predicate("r.scenario_position") +
             "), hit_voucher AS (" +
             "    SELECT document_number, blank_entry_id, " +
-            "           SUM(CASE scenario_position " +
-            "               WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 4 " +
-            "               WHEN 4 THEN 8 WHEN 5 THEN 16 WHEN 6 THEN 32 " +
-            "               WHEN 7 THEN 64 WHEN 8 THEN 128 WHEN 9 THEN 256 " +
-            "               WHEN 10 THEN 512 ELSE 0 END) AS tag_mask " +
+            $"           {ScenarioTagMask.SumSql("scenario_position")} AS tag_mask " +
             "    FROM hit_position " +
             "    GROUP BY document_number, blank_entry_id" +
             "), voucher_rows AS (" +
@@ -87,25 +83,7 @@ internal static class WorkpaperStep4StreamReader
                 };
             yield return new WorkpaperStep4VoucherRow(
                 voucher,
-                DecodePositions(tagMask));
+                ScenarioTagMask.DecodePositions(tagMask));
         }
-    }
-
-    private static IReadOnlyList<int> DecodePositions(long tagMask)
-    {
-        if (tagMask == 0)
-        {
-            return [];
-        }
-
-        var positions = new List<int>(10);
-        for (var position = 1; position <= 10; position++)
-        {
-            if ((tagMask & (1L << (position - 1))) != 0)
-            {
-                positions.Add(position);
-            }
-        }
-        return positions;
     }
 }

@@ -204,13 +204,21 @@ public sealed class WorkpaperDirectTemplatePackageTests
                 committed.GetProperty("resultRef").GetProperty("revision").GetString()!,
                 [1]);
             await using var output = new MemoryStream();
-            var stats = await BuildWriter(
+            ICompletenessDiffPageRepository completenessDiffs = hasCompletenessDifference
+                ? new FixedCompletenessDiffPageRepository()
+                : new LocalCompletenessDiffPageRepository(new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)));
+            var stats = await WorkpaperWriterTestSupport.WriteWithCurrentPlanAsync(
+                host,
+                BuildWriter(
                     host,
                     continuationRowLimit is uint rowLimit
                         ? new WorkpaperWriterOptions(rowLimit)
                         : new WorkpaperWriterOptions(),
-                    hasCompletenessDifference)
-                .WriteAsync(output, context, CancellationToken.None);
+                    completenessDiffs),
+                output,
+                context,
+                CancellationToken.None,
+                completenessDiffsOverride: completenessDiffs);
             Assert.Equal(output.Length, stats.BytesWritten);
             return output.ToArray();
         }
@@ -243,12 +251,9 @@ public sealed class WorkpaperDirectTemplatePackageTests
     private static WorkpaperWriter BuildWriter(
         HandlerTestHost host,
         WorkpaperWriterOptions options,
-        bool hasCompletenessDifference)
+        ICompletenessDiffPageRepository completenessDiffs)
     {
         var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
-        ICompletenessDiffPageRepository completenessDiffs = hasCompletenessDifference
-            ? new FixedCompletenessDiffPageRepository()
-            : new LocalCompletenessDiffPageRepository(database);
         return new WorkpaperWriter(
             new LocalCompletenessAccountPageRepository(database),
             completenessDiffs,

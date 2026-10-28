@@ -41,7 +41,7 @@ public sealed class ValidationDirectTemplatePackageTests
             outOfRangeDateCount: savedCount);
         var plan = Plan(projection, unbalancedDetailRowCount: 0);
 
-        var bytes = await WritePlannedAsync(
+        var bytes = await WriteReportAsync(
             repositories,
             projection,
             plan,
@@ -79,7 +79,7 @@ public sealed class ValidationDirectTemplatePackageTests
         var projection = Projection(unbalancedDocumentCount: 2);
         var plan = Plan(projection, rawDetailRowCount);
 
-        var bytes = await WritePlannedAsync(
+        var bytes = await WriteReportAsync(
             repositories,
             projection,
             plan,
@@ -111,7 +111,7 @@ public sealed class ValidationDirectTemplatePackageTests
         var plan = Plan(projection, unbalancedDetailRowCount: 1);
         var templateBytes = await ValidationTemplateBytesAsync();
 
-        var outputBytes = await WritePlannedAsync(
+        var outputBytes = await WriteReportAsync(
             repositories,
             projection,
             plan,
@@ -131,7 +131,9 @@ public sealed class ValidationDirectTemplatePackageTests
                     "V_Report 4",
                     "V_Report 5",
                     "V_Report 6",
-                    "Source_Quality"
+                    "Source_Quality",
+                    // 2026-10-22 技術債一輪：正式入口一定寫出隱藏的中繼資料工作表（第一次失敗：Public 收據 20261022-080541492）。
+                    ReportWorkbookMetadataFormat.WorksheetName
                 },
                 workbook.Worksheets.Select(sheet => sheet.Name).ToArray());
             Assert.Equal("Validation Report", workbook.Worksheet("ValidationReport").Cell("B1").GetString());
@@ -202,7 +204,6 @@ public sealed class ValidationDirectTemplatePackageTests
                 "blank posting date",
                 index))
             .ToArray();
-        var summarySample = fullFindings.Take(50).ToArray();
         var repositories = new ValidationRepositoryFakes
         {
             SourceQualityRows = fullFindings,
@@ -217,12 +218,13 @@ public sealed class ValidationDirectTemplatePackageTests
                     null)
             ]
         };
-        var projection = Projection(
-            sourceQualityFindingCount: fullFindings.Length,
-            sourceQualitySampleRows: summarySample);
+        // 2026-10-22 使用者裁定刪掉投影裡沒人讀的來源品質樣本列，報告的來源品質工作表只從倉儲分頁讀；
+        // 摘要 JSON 仍只存 50 筆樣本給前端，所以這則測試照舊確認報告讀到倉儲的全部 51 筆。
+        // 第一次失敗：Focused 收據 20261022-084228771-7b2316c36ab54315bf1eb067bdad7939（建置失敗）。
+        var projection = Projection(sourceQualityFindingCount: fullFindings.Length);
         var plan = Plan(projection, unbalancedDetailRowCount: 0);
 
-        var result = await WriteFormalPlannedResultAsync(
+        var result = await WriteReportWithDocDateMappingResultAsync(
             repositories,
             projection,
             plan,
@@ -230,7 +232,6 @@ public sealed class ValidationDirectTemplatePackageTests
             new LegacyReportWriterOptions(17));
         var bytes = result.Bytes;
 
-        Assert.Equal(50, projection.SourceQualitySampleRows.Count);
         Assert.Equal(1, repositories.SourceQualityPageCalls);
         using var workbook = Workbook(bytes);
         string[] headers =
@@ -342,7 +343,7 @@ public sealed class ValidationDirectTemplatePackageTests
                 null)
         ]);
 
-        var bytes = await WritePlannedAsync(
+        var bytes = await WriteReportAsync(
             repositories,
             projection,
             Plan(projection, unbalancedDetailRowCount: 1),
@@ -419,7 +420,7 @@ public sealed class ValidationDirectTemplatePackageTests
         var repositories = new ValidationRepositoryFakes();
         var projection = Projection(unbalancedDocumentCount: 0);
 
-        var bytes = await WritePlannedAsync(
+        var bytes = await WriteReportAsync(
             repositories,
             projection,
             Plan(projection, unbalancedDetailRowCount: 1),
@@ -443,7 +444,7 @@ public sealed class ValidationDirectTemplatePackageTests
         var repositories = new ValidationRepositoryFakes();
         var projection = Projection();
         var templateBytes = await ValidationTemplateBytesAsync();
-        var outputBytes = await WritePlannedAsync(
+        var outputBytes = await WriteReportAsync(
             repositories,
             projection,
             Plan(projection, unbalancedDetailRowCount),
@@ -516,7 +517,7 @@ public sealed class ValidationDirectTemplatePackageTests
         var plan = Plan(projection, unbalancedDetailRowCount: 0);
         var progress = new List<WorkpaperProgress>();
 
-        var bytes = await WritePlannedAsync(
+        var bytes = await WriteReportAsync(
             repositories,
             projection,
             plan,
@@ -597,12 +598,14 @@ public sealed class ValidationDirectTemplatePackageTests
         };
         await using var output = new MemoryStream();
 
-        await repositories.CreateWriter().WriteAsync(
+        await ((IInfReportWriter)repositories.CreateWriter()).WriteAsync(
             output,
             new InfReportContext(
                 Context().Project,
                 "inf-run",
                 new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero)),
+            ReportWriterTestSupport.SyntheticMetadata(),
+            [],
             CancellationToken.None);
 
         var bytes = output.ToArray();
@@ -656,12 +659,14 @@ public sealed class ValidationDirectTemplatePackageTests
         };
         await using var output = new MemoryStream();
 
-        await repositories.CreateWriter().WriteAsync(
+        await ((IInfReportWriter)repositories.CreateWriter()).WriteAsync(
             output,
             new InfReportContext(
                 Context().Project,
                 "inf-run",
                 new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero)),
+            ReportWriterTestSupport.SyntheticMetadata(),
+            [],
             CancellationToken.None);
 
         var bytes = output.ToArray();
@@ -753,12 +758,14 @@ public sealed class ValidationDirectTemplatePackageTests
         };
         await using var output = new MemoryStream();
 
-        await repositories.CreateWriter().WriteAsync(
+        await ((IInfReportWriter)repositories.CreateWriter()).WriteAsync(
             output,
             new InfReportContext(
                 Context().Project,
                 "inf-run",
                 new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero)),
+            ReportWriterTestSupport.SyntheticMetadata(),
+            [],
             CancellationToken.None);
 
         using var document = Open(output.ToArray());
@@ -793,7 +800,7 @@ public sealed class ValidationDirectTemplatePackageTests
         var projection = Projection();
         var plan = Plan(projection, unbalancedDetailRowCount: 0);
 
-        var bytes = await WritePlannedAsync(
+        var bytes = await WriteReportAsync(
             repositories,
             projection,
             plan,
@@ -830,7 +837,7 @@ public sealed class ValidationDirectTemplatePackageTests
         ]);
 
         var projection = Projection();
-        var bytes = await WritePlannedAsync(
+        var bytes = await WriteReportAsync(
             repositories,
             projection,
             Plan(projection, unbalancedDetailRowCount: 0),
@@ -921,7 +928,7 @@ public sealed class ValidationDirectTemplatePackageTests
         AssertOpenXmlValid(bytes);
     }
 
-    private static async Task<byte[]> WritePlannedAsync(
+    private static async Task<byte[]> WriteReportAsync(
         ValidationRepositoryFakes repositories,
         ValidationReportProjection projection,
         ValidationReportPlan plan,
@@ -932,25 +939,26 @@ public sealed class ValidationDirectTemplatePackageTests
     {
         var writer = repositories.CreateWriter(options, progressRowInterval);
         await using var output = new MemoryStream();
-        await ((IPlannedValidationReportWriter)writer).WritePlannedAsync(
+        await ((IValidationReportWriter)writer).WriteAsync(
             output,
             Context(),
             projection,
             plan,
             fieldInfo,
+            ReportWriterTestSupport.SyntheticMetadata(),
             "tester",
             CancellationToken.None,
             progress);
         return output.ToArray();
     }
 
-    private static async Task<byte[]> WriteFormalPlannedAsync(
+    private static async Task<byte[]> WriteReportWithDocDateMappingAsync(
         ValidationRepositoryFakes repositories,
         ValidationReportProjection projection,
         ValidationReportPlan plan,
         FieldInfoProjection fieldInfo)
     {
-        var result = await WriteFormalPlannedResultAsync(
+        var result = await WriteReportWithDocDateMappingResultAsync(
             repositories,
             projection,
             plan,
@@ -958,7 +966,7 @@ public sealed class ValidationDirectTemplatePackageTests
         return result.Bytes;
     }
 
-    private static async Task<(byte[] Bytes, ExportStats Stats)> WriteFormalPlannedResultAsync(
+    private static async Task<(byte[] Bytes, ExportStats Stats)> WriteReportWithDocDateMappingResultAsync(
         ValidationRepositoryFakes repositories,
         ValidationReportProjection projection,
         ValidationReportPlan plan,
@@ -983,7 +991,7 @@ public sealed class ValidationDirectTemplatePackageTests
             TbMapping: null);
 
         await using var output = new MemoryStream();
-        var stats = await ((IFormalPlannedValidationReportWriter)writer).WriteFormalPlannedAsync(
+        var stats = await ((IValidationReportWriter)writer).WriteAsync(
             output,
             Context(),
             projection,
@@ -1014,8 +1022,7 @@ public sealed class ValidationDirectTemplatePackageTests
         long outOfRangeDateCount = 0,
         long unbalancedDocumentCount = 0,
         long completenessDiffAccountCount = 0,
-        long sourceQualityFindingCount = 0,
-        IReadOnlyList<SourceQualityFindingRow>? sourceQualitySampleRows = null) =>
+        long sourceQualityFindingCount = 0) =>
         new(
             Net: 0,
             TotalDebit: 100,
@@ -1027,8 +1034,7 @@ public sealed class ValidationDirectTemplatePackageTests
             NullDocumentCount: nullDocumentCount,
             NullDescriptionCount: nullDescriptionCount,
             OutOfRangeDateCount: outOfRangeDateCount,
-            SourceQualityFindingCount: sourceQualityFindingCount,
-            SourceQualitySampleRows: sourceQualitySampleRows ?? []);
+            SourceQualityFindingCount: sourceQualityFindingCount);
 
     private static ValidationReportPlan Plan(
         ValidationReportProjection projection,
@@ -1323,7 +1329,8 @@ public sealed class ValidationDirectTemplatePackageTests
             $"Removed Validation package parts were: {string.Join(", ", removed.Order(StringComparer.Ordinal))}");
 
         var added = output.PartNames.Except(template.PartNames, StringComparer.Ordinal).ToArray();
-        Assert.Equal(7, added.Length);
+        // 2026-10-22 技術債一輪：正式入口一定寫出隱藏的中繼資料工作表，新增的部件多一個（第一次失敗：Public 收據 20261022-081114521）。
+        Assert.Equal(8, added.Length);
         Assert.All(added, name => Assert.Matches(@"^xl/worksheets/sheet\d+\.xml$", name));
 
         var changedCommon = template.PartNames.Intersect(output.PartNames, StringComparer.Ordinal)
@@ -1705,6 +1712,7 @@ public sealed class ValidationDirectTemplatePackageTests
                 (ICreatorSummaryExportRepository)this,
                 (IAccountUsageExportRepository)this,
                 (ITagMatrixScenariosRepository)this,
+                (ISourceQualityPageRepository)this,
                 writerOptions,
                 progressRowInterval);
         }

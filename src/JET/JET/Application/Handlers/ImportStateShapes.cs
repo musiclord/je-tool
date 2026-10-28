@@ -15,6 +15,8 @@ internal static class ImportStateShapes
                 sheetName = s.SheetName,
                 encoding = s.Encoding,
                 delimiter = s.Delimiter,
+                // 欄名在第幾列（1 起算）；沒有指定或指定第 1 列時是 null。
+                headerRow = s.HeaderRow,
                 rowCount = s.RowCount,
                 importedUtc = s.ImportedUtc
             })

@@ -6,26 +6,29 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// SQLite／DuckDB 共用的 mapping value profile。JSON key 只以參數比對 json_each.key，
-/// 不組成 JSON path 或 SQL identifier；SQL 只回 summary 與最多 limit 筆 group。
+/// 不組成 JSON path 或 SQL identifier；SQL 只回 summary 與最多 limit 筆 group。來源欄勾了往下填補時先填補再計數
+/// （使用者 2026-10-28 裁定），寫法和 SQL Server 共用 <see cref="MappingValueProfileNormalization.FillDownCtes"/>。
 /// </summary>
 public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase database)
     : IMappingValueProfileRepository
 {
-    private const string SqliteSql =
-        """
+    // 勾了往下填補時，去空白之後先接 MappingValueProfileNormalization.FillDownCtes，分組改讀填補後的值。
+    private static string SqliteSql(bool fillDown) =>
+        $"""
         WITH extracted AS (
-            SELECT CAST(j.value AS TEXT) AS raw_value
+            SELECT r.source_no, r.row_number, CAST(j.value AS TEXT) AS raw_value
             FROM staging_gl_raw_row AS r
             LEFT JOIN json_each(r.row_json) AS j ON j.key = @sourceColumn
             WHERE r.batch_id = @batchId
         ),
         normalized AS (
-            SELECT NULLIF(TRIM(raw_value, @trimCharacters), '') AS value
+            SELECT source_no, row_number, NULLIF(TRIM(raw_value, @trimCharacters), '') AS value
             FROM extracted
         ),
+        {(fillDown ? MappingValueProfileNormalization.FillDownCtes("normalized") : "")}
         grouped AS (
             SELECT MIN(value COLLATE BINARY) AS value, COUNT(*) AS value_count
-            FROM normalized
+            FROM {(fillDown ? "filled" : "normalized")}
             GROUP BY jet_mapping_ordinal_key(value) COLLATE BINARY
         ),
         summary AS (
@@ -46,21 +49,22 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         ORDER BY top_values.value_count DESC, top_values.value COLLATE BINARY ASC;
         """;
 
-    private const string DuckDbSql =
-        """
+    private static string DuckDbSql(bool fillDown) =>
+        $"""
         WITH extracted AS (
-            SELECT json_extract_string(j.value, '$') AS raw_value
+            SELECT r.source_no, r.row_number, json_extract_string(j.value, '$') AS raw_value
             FROM staging_gl_raw_row AS r
             LEFT JOIN json_each(r.row_json) AS j ON j.key = @sourceColumn
             WHERE r.batch_id = @batchId
         ),
         normalized AS (
-            SELECT NULLIF(TRIM(raw_value, @trimCharacters), '') AS value
+            SELECT source_no, row_number, NULLIF(TRIM(raw_value, @trimCharacters), '') AS value
             FROM extracted
         ),
+        {(fillDown ? MappingValueProfileNormalization.FillDownCtes("normalized") : "")}
         grouped AS (
             SELECT MIN(value) AS value, COUNT(*) AS value_count
-            FROM normalized
+            FROM {(fillDown ? "filled" : "normalized")}
             GROUP BY jet_mapping_ordinal_key(value)
         ),
         summary AS (
@@ -86,6 +90,7 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         string batchId,
         string sourceColumn,
         int limit,
+        bool fillDown,
         CancellationToken cancellationToken)
     {
         await database.EnsureReadyAsync(projectId, cancellationToken);
@@ -95,7 +100,7 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         MappingValueProfileNormalization.RegisterLocalFunction(connection);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = database.Dialect.ProviderName == "duckdb" ? DuckDbSql : SqliteSql;
+        command.CommandText = database.Dialect.ProviderName == "duckdb" ? DuckDbSql(fillDown) : SqliteSql(fillDown);
         command.AddWithValue("@batchId", batchId);
         command.AddWithValue("@sourceColumn", sourceColumn);
         command.AddWithValue("@trimCharacters", MappingValueProfileNormalization.DotNetTrimCharacters);

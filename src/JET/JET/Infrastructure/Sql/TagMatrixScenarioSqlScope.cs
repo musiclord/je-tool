@@ -1,10 +1,11 @@
 using System.Data.Common;
+using JET.Domain;
 
 namespace JET.Infrastructure;
 
 /// <summary>
 /// tag matrix 的可選情境範圍。null 代表 UI 所需的全情境查詢；非 null 時只允許
-/// filter 契約的 1..10 位置。SQL 只串接由索引產生的參數名，位置值一律綁定。
+/// 已存情境上限以內的位置。SQL 只串接由索引產生的參數名，位置值一律綁定。
 /// </summary>
 internal sealed class TagMatrixScenarioSqlScope
 {
@@ -49,11 +50,13 @@ internal sealed class TagMatrixScenarioSqlScope
         }
 
         var normalized = scenarioPositions.Distinct().Order().ToArray();
-        if (normalized.Length > 10 || normalized.Any(position => position is < 1 or > 10))
+        if (normalized.Length > FilterScenarioLimits.MaxSavedScenarios
+            || normalized.Any(position => position < 1 || position > FilterScenarioLimits.MaxSavedScenarios))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(scenarioPositions),
-                "Tag matrix scenario positions must contain at most ten values in the range 1..10.");
+                $"Tag matrix scenario positions must contain at most {FilterScenarioLimits.MaxSavedScenarios} values "
+                + $"in the range 1..{FilterScenarioLimits.MaxSavedScenarios}.");
         }
 
         return new TagMatrixScenarioSqlScope(true, normalized, parameterNamePrefix);

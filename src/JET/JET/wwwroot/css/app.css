@@ -314,6 +314,7 @@ button, input, select, textarea {
 }
 
 .app-header {
+  anchor-name: --jet-header;
   isolation: isolate;
   display: flex;
   align-items: center;
@@ -478,16 +479,18 @@ button, input, select, textarea {
 
 /* 開啟案件且視窗寬度至少 1536px 時，標題列只有一列；常見的 1920×1080 螢幕縮放 125% 正好是這個寬度。
    案件摘要移到第一列，從中欄的左緣排到操作組前面。名稱特別長時，案件名稱與客戶名稱以刪節號縮短，
-   查核期間完整顯示；完整名稱在第一步看得到。 */
+   查核期間完整顯示；完整名稱在第一步看得到。
+   摘要的上下緣跟著標題列本身，和標誌、操作組置中在同一條水平線上；標題列的高度由標誌兩行字決定，
+   不寫死成固定高度，否則摘要會比另外兩組高出幾個像素（使用者 2026-10-27 指出對齊問題）。 */
 @media (min-width: 1536px) {
   .app-shell:has(.app-body:not([hidden])) .case-summary {
     position: absolute;
-    top: 0;
+    top: anchor(--jet-header top, 0px);
     right: calc(anchor(--jet-first-action left) + var(--space-6));
+    bottom: anchor(--jet-header bottom);
     left: calc(var(--toc-width) + var(--content-inline));
     display: flex;
     align-items: center;
-    height: 64px;
     padding: 0;
     background: transparent;
     box-shadow: none;
@@ -752,11 +755,12 @@ button, input, select, textarea {
   background: var(--color-canvas);
 }
 
-/* 整個流程最寬 1200px：收合列與目前步驟的標題列共用同一條右緣，換步驟時箭頭位置不變。
-   建立案件、匯入資料與匯出底稿的表單本身維持 720px 的閱讀寬度。 */
+/* 流程填滿中欄，左右各留同樣的 --content-inline：視窗放大、資料預覽收合或拖窄時，中欄的兩側間距不變，
+   多出的寬度全部給內容，不會只在右邊空出一塊（使用者 2026-10-27 指出寬視窗右側留白不一致）。
+   收合列與目前步驟的標題列共用同一條右緣，換步驟時箭頭位置不變。
+   建立案件、匯入資料與匯出底稿的表單本身維持 720px 的閱讀寬度；長說明文字各自限制行寬。 */
 .stepflow {
   position: relative;
-  max-width: 1200px;
 }
 
 /* ---- 步驟文件流：左側流程軸線＋四種狀態列 -------------------------------
@@ -765,7 +769,7 @@ button, input, select, textarea {
 .stepflow-item {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;   /* 摘要換成兩行時，名稱仍和左側圓點、右側箭頭留在第一行 */
   flex-wrap: wrap;
   gap: var(--space-3);
   min-width: 0;
@@ -871,12 +875,26 @@ button, input, select, textarea {
 
 .stepflow-item__caret--current { color: var(--color-accent); }
 
-/* 箭頭一律放在列的最右邊。 */
+/* 箭頭一律放在列的最右邊，固定在第一行的中線：名稱或摘要再長、中欄再窄，箭頭都不會被擠到下一行，
+   每一列的箭頭維持在同一條直線上（使用者 2026-10-27 指出窄視窗時箭頭掉到下一行）。
+   列與目前步驟的標題列先在右側讓出箭頭加一個間距，箭頭再貼著右緣擺進去，和左側軸線上的圓點同一種擺法。 */
+.stepflow-item:not(.stepflow-item--current),
+.stepflow-item--current.stepflow-item--collapsed,
+.stepflow-item__head {
+  position: relative;
+  padding-right: calc(16px + var(--space-3));
+}
+
 .stepflow-item__caret,
 .stepflow-item__spacer-caret {
-  order: 9;
-  margin-left: auto;
-  align-self: center;
+  position: absolute;
+  top: calc(var(--space-3) + 3px);
+  right: 0;
+}
+
+/* 目前步驟的標題列是 36px 高的一行，箭頭對齊它的中線。 */
+.stepflow-item__head > .stepflow-item__caret {
+  top: 10px;
 }
 
 .stepflow-item__spacer-caret { width: 16px; flex: none; }
@@ -1082,7 +1100,7 @@ button, input, select, textarea {
 /* 當前步驟收合後，和其他收合列一樣排成一行。 */
 .stepflow-item--current.stepflow-item--collapsed {
   display: flex;
-  padding: var(--space-3) 0 10px var(--rail-width);
+  padding: var(--space-3) calc(16px + var(--space-3)) 10px var(--rail-width);
 }
 
 /* 表單型步驟（建立案件、匯入資料、匯出底稿）維持 720px 的閱讀寬度；表格型步驟用 .panel--wide 填滿流程寬度。 */
@@ -2581,7 +2599,7 @@ dl.kv-list .kv-list__row:last-child {
 }
 
 /* ---- 欄位配對 ------------------------------------------------------------ */
-/* 表格型步驟（欄位配對、資料驗證與測試、進階條件篩選）填滿流程寬度，最寬到 .stepflow 的 1200px；
+/* 表格型步驟（欄位配對、資料驗證與測試、進階條件篩選）填滿流程寬度；
    右側資料預覽展開時跟著中欄縮小。 */
 .panel--wide {
   max-width: none;
@@ -3494,21 +3512,30 @@ dl.kv-list .kv-list__row:last-child {
   margin: 0;
 }
 
-/* 開頭一句說明狀態，之後逐筆列出情境與原因，最後說一次下一步；明細用一般字色，和欄位配對未完成的寫法一致。 */
-.form-notice.filter-scenario-problems {
+/* 開頭一句說明狀態，之後逐筆列出情境與原因，最後說一次下一步；明細用一般字色，和欄位配對未完成的寫法一致。
+   第五步編輯器裡舊情境的「舊排除區」是同一種寫法：標題與「移除」在第一行，接著列出原本的排除條件，最後是原因。 */
+.form-notice.filter-scenario-problems,
+.form-notice.filter-legacy-exclusions {
   flex-wrap: wrap;
 }
 
 .filter-scenario-problems > ul,
-.filter-scenario-problems > p {
+.filter-scenario-problems > p,
+.filter-legacy-exclusions > ul,
+.filter-legacy-exclusions > p {
   flex: 1 0 100%;
   margin: 0;
   color: var(--color-ink);
   line-height: 1.6;
 }
 
-.filter-scenario-problems > ul {
+.filter-scenario-problems > ul,
+.filter-legacy-exclusions > ul {
   padding-left: 1.2em;
+}
+
+.filter-legacy-exclusions > .btn {
+  margin-left: auto;
 }
 
 .population-scope__notice {
@@ -4190,7 +4217,9 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   color: var(--color-ink);
 }
 
+/* 說明最多約 60 個字一行：寬視窗時清單列變長，狀態仍靠右，說明不跟著拉成一整條難讀的長行。 */
 .rule-item__desc {
+  max-width: 60em;
   font-size: var(--text-xs);
   line-height: 1.6;
   color: var(--color-muted);
@@ -4398,7 +4427,7 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 /* 右欄放「檢視」：字後面接展開箭頭，欄寬固定，每一列的按鈕才對齊。 */
 .rule-item__aside {
   display: grid;
-  grid-template-columns: auto 64px;
+  grid-template-columns: minmax(0, auto) 64px;
   justify-items: end;
   align-items: center;
   flex-shrink: 0;
@@ -4410,6 +4439,20 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 
 .rule-item__aside > .rule-status { grid-column: 1; }
 .rule-item__aside > :not(.rule-status) { grid-column: 2; }
+
+/* 狀態文字很長、這一格又很窄時（例如資料預覽展開後的預篩選彙總），標籤裡的字換行，
+   不把「檢視」推出卡片右緣；空間夠時仍是一行。 */
+.rule-item__aside > .rule-status {
+  max-width: 100%;
+  white-space: normal;
+}
+
+/* 整張卡片都沒有「檢視」時（例如還沒執行驗證），不保留那一欄的空位，狀態標籤貼齊右緣，
+   和卡片右上的主要按鈕同一條線（使用者 2026-10-27 指出「未執行」與「執行驗證」沒有對齊）。
+   以卡片為範圍，同一張卡片裡上下幾份清單的狀態欄維持同一條線，不會因其中一份剛好沒有「檢視」而錯開。 */
+.rule-card:not(:has(.rule-item__aside > :not(.rule-status))) .rule-item__aside {
+  grid-template-columns: minmax(0, auto);
+}
 
 /* 清單很窄時，所有項目一起把狀態與「檢視」放到說明下方。 */
 @container rule-list (max-width: 360px) {
@@ -4455,12 +4498,6 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   margin: 0 0 var(--space-1);
   font-size: var(--text-sm);
   color: var(--color-text);
-}
-
-.rule-detail__remedy {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--color-muted);
 }
 
 .rule-detail__prefix {
@@ -4773,6 +4810,14 @@ body.is-busy {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* 欄名在第幾列：只放得下三位數的小格，和同列的編碼、分隔符一樣是細節。 */
+.pending-row__header-row .form__input--tiny {
+  width: 4.5ch;
+  padding-inline: var(--space-1);
+  text-align: right;
+  font-size: var(--text-xs);
 }
 
 /* 待匯入列：主資訊 / 細節 / 預覽鈕同列 */
@@ -6556,6 +6601,13 @@ body.is-resizing-preview .data-preview {
   color: var(--color-faint);
 }
 
+/* 往下填補空白：欄位名稱後面以淡字寫它的來源欄。 */
+.fill-down-field__source {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-faint);
+}
+
 .value-assign {
   display: flex;
   flex-wrap: wrap;
@@ -7190,6 +7242,9 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-chip { min-height: var(--control-height-sm); padding: 3px 10px; border: 1px solid var(--color-border-control); border-bottom-color: var(--color-border-control-strong); border-radius: var(--radius-control); background: var(--color-surface-raised); color: var(--color-text); font: inherit; font-size: var(--text-xs); line-height: 20px; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
 .filter-chip:hover { border-color: var(--color-accent); color: var(--color-accent); }
 .filter-chip--extra { border-style: dashed; }
+/* GL 沒有配對的欄位照樣列出但不能按：和其他停用按鈕一樣是中性灰底灰字，滑過不變色，原因寫在這一區下方。 */
+.filter-chip:disabled { color: var(--color-disabled); background: var(--color-surface-sunken); border-color: var(--color-border-control); cursor: not-allowed; }
+.filter-chip:disabled::before { background: currentColor; }
 .filter-check-group { border-bottom: 1px solid var(--filter-border); }
 .filter-check-group__heading { margin: 0; font: inherit; }
 /* 常用查核條件的分類列：和其他展開說明一樣，細箭頭在左。 */
@@ -7369,10 +7424,20 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   border-bottom-color: var(--color-border-control-strong);
 }
 
-/* 案件基本資料一行排完，項目之間用細線分隔；目前步驟由左側流程表示。 */
-.case-summary__details { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; gap: var(--space-1) 0; }
-.case-summary__details > .case-summary__item { padding-right: var(--space-5); }
-.case-summary__details > .case-summary__item + .case-summary__item { border-left: 1px solid var(--toolbar-rule); padding-left: var(--space-5); }
+/* 案件基本資料一行排完，項目之間用細線分隔；目前步驟由左側流程表示。
+   視窗窄到要換行時，每一行開頭的項目不能帶著分隔線與左內距，否則換下來的「查核期間」會比上一行的「案件名稱」縮進一截
+   （使用者 2026-10-27 指出對齊問題）。每個項目都畫左分隔線，整列往左移出一段「分隔線加內距」，再把移出去的那段裁掉：
+   不論在哪個項目換行，每一行的第一個標籤都落在同一條左緣上。 */
+.case-summary__details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+  gap: var(--space-1) 0;
+  margin-left: calc(-1 * (var(--space-5) + 1px));
+  clip-path: inset(-4px -4px -4px calc(var(--space-5) + 1px));
+}
+.case-summary__details > .case-summary__item { padding: 0 var(--space-5); border-left: 1px solid var(--toolbar-rule); }
 /* 樣式掛在 class 上，不掛在給程式找元素用的 data-bind：收起中的舊卡片（JetMotion 放回去的）會拿掉 data-bind，樣式不能跟著變。 */
 .import-card--calendar > .calendar-nonworking__hint { margin: var(--space-2) 0 var(--space-3); line-height: 1.6; }
 .import-card--calendar > .import-card__actions { gap: var(--space-2); }
@@ -7386,7 +7451,6 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workspace .picker-card[data-kct-letter] .picker-card__label { line-height: 1.6; }
 @media (max-width: 640px) {
   .case-summary__details { flex-direction: column; gap: var(--space-1); }
-  .case-summary__details > .case-summary__item + .case-summary__item { border-left: 0; padding-left: 0; }
 }
 
 .account-editor__range { display: block; margin-top: var(--space-1); color: var(--color-muted); font-size: var(--text-xs); }

@@ -10,16 +10,12 @@ namespace JET.AuditCore;
 /// </summary>
 internal static class PrescreenProcedures
 {
-    public const string MissingApprovalDateMappingReason = "請先確認 GL「傳票核准日」欄位配對。";
-    public const string MissingLastPeriodStartReason = "尚未填期末財報準備日，請到「修改案件資料」填寫後重新執行預篩選。";
-    public const string MissingAccountMappingReason = "需先完成科目配對。";
-    public const string IncompleteAccountMappingReason =
-        "科目配對需包含收入，以及至少一項應收款項、現金或預收款項分類。";
-    public const string MissingCreatedByMappingReason = "請先確認 GL「傳票建立人員」欄位配對。";
-    public const string MissingApprovalDateForActivityReason = "尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。";
-    public const string MissingHolidayCalendarReason = "請先上傳事務所假日檔。";
-    public const string MissingAuthorizedPreparersReason = "需先匯入授權編製人員清單。";
+    /// <summary>週末與假日卡只檢查了總帳日期時，放在核准側原因前面的一句。</summary>
+    internal const string OnlyPostDateChecked = "只檢查了總帳日期。";
 
+    /// <summary>
+    /// 規則需要的案件資料只看規則需求表，和第五步、前端停用說明同一張表；不能執行時一個原因一句，寫出缺什麼、到哪裡補。
+    /// </summary>
     public static ProcedureVerdict Evaluate(
         ProcedureDefinition definition,
         AuditCaseSnapshot snapshot)
@@ -27,26 +23,43 @@ internal static class PrescreenProcedures
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        var reason = definition.Slug switch
-        {
-            "post_period_approval" => PostPeriodApprovalReason(snapshot),
-            "unexpected_account_pair" => UnexpectedAccountPairReason(snapshot),
-            "creator_summary" when !snapshot.HasCreatedBy => MissingCreatedByMappingReason,
-            "weekend_approval" when !snapshot.HasApprovalDate => MissingApprovalDateForActivityReason,
-            "holiday_posting" when !snapshot.HasHolidays => MissingHolidayCalendarReason,
-            "holiday_approval" when !snapshot.HasHolidays => MissingHolidayCalendarReason,
-            "holiday_approval" when !snapshot.HasApprovalDate => MissingApprovalDateForActivityReason,
-            "non_authorized_preparer" when !snapshot.HasAuthorizedPreparers => MissingAuthorizedPreparersReason,
-            "non_authorized_preparer" when !snapshot.HasCreatedBy => MissingCreatedByMappingReason,
-            "low_frequency_preparer" when !snapshot.HasCreatedBy => MissingCreatedByMappingReason,
-            _ => null
-        };
+        var facts = snapshot.RuleFacts();
+        var unmet = JetRuleRequirements.Unmet(JetRuleRequirements.PrescreenRules[WireKey(definition.Slug)], facts);
+        var reason = unmet.Count == 0 ? null : JetRuleRequirements.PrescreenSentences(unmet, facts.CategoryLabels);
 
         return new ProcedureVerdict(
             definition,
             IsApplicable: reason is null,
             NaReason: reason);
     }
+
+    /// <summary>
+    /// 週末與假日卡合併過帳與核准兩側的原因，兩張卡用同一個方法。過帳側不能執行時整張卡無法執行，兩側缺的東西各寫一句、不重複；
+    /// 只有核准側不能執行時，畫面照常顯示過帳側的筆數與明細，另外說明只檢查了總帳日期。
+    /// </summary>
+    internal static PrescreenActivityReasons ActivityReasons(
+        AuditCaseSnapshot snapshot,
+        string postingSlug,
+        string approvalSlug)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var facts = snapshot.RuleFacts();
+        var posting = JetRuleRequirements.Unmet(JetRuleRequirements.PrescreenRules[WireKey(postingSlug)], facts);
+        var approval = JetRuleRequirements.Unmet(JetRuleRequirements.PrescreenRules[WireKey(approvalSlug)], facts);
+        if (posting.Count > 0)
+        {
+            return new PrescreenActivityReasons(
+                JetRuleRequirements.PrescreenSentences(posting.Concat(approval).Distinct().ToArray(), facts.CategoryLabels),
+                null);
+        }
+
+        return new PrescreenActivityReasons(
+            null,
+            approval.Count == 0 ? null : OnlyPostDateChecked + JetRuleRequirements.PrescreenSentences(approval, facts.CategoryLabels));
+    }
+
+    private static string WireKey(string slug) =>
+        RuleCatalog.All.Single(rule => string.Equals(rule.Slug, slug, StringComparison.Ordinal)).WireKey;
 
     /// <summary>
     /// 回放既存 prescreen summary 時補上目前的定位說明。不重算 status、count 或任何審計結果，亦不回寫原紀錄。
@@ -62,26 +75,10 @@ internal static class PrescreenProcedures
         }
         return JsonSerializer.SerializeToElement(root, JetJsonStorage.Options);
     }
-
-    private static string? PostPeriodApprovalReason(AuditCaseSnapshot snapshot)
-    {
-        if (!snapshot.HasApprovalDate)
-        {
-            return MissingApprovalDateMappingReason;
-        }
-
-        return snapshot.LastPeriodStart is null ? MissingLastPeriodStartReason : null;
-    }
-
-    private static string? UnexpectedAccountPairReason(AuditCaseSnapshot snapshot)
-    {
-        if (!snapshot.HasAccountMapping)
-        {
-            return MissingAccountMappingReason;
-        }
-
-        return snapshot.HasRevenue && snapshot.HasCounterpart
-            ? null
-            : IncompleteAccountMappingReason;
-    }
 }
+
+/// <summary>
+/// 週末或假日卡的原因：<see cref="NaReason"/> 只在整張卡無法執行時有值；<see cref="ApprovalNaReason"/> 只在
+/// 過帳側照常執行、核准側不能執行時有值，說明只檢查了總帳日期。
+/// </summary>
+internal sealed record PrescreenActivityReasons(string? NaReason, string? ApprovalNaReason);

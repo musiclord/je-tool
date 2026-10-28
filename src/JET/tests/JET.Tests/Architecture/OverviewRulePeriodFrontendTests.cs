@@ -39,7 +39,8 @@ public sealed class OverviewRulePeriodFrontendTests
                 $"overview-bi.js 未鏡射 rulePeriod wire key '{key}'。");
         }
 
-        Assert.Contains("Ui.PRESCREEN_KEY_OPTIONS", source, StringComparison.Ordinal);
+        // 預篩選收斂計畫階段九：前端只留一份 PRESCREEN_RULES。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        Assert.Contains("Ui.PRESCREEN_RULES", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JetApi", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JetStore", source, StringComparison.Ordinal);
     }

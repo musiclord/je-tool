@@ -10,12 +10,11 @@ public static class EntityFrequencyConditions
         ["lessThanOrEqual"] = "小於或等於", ["greaterThanOrEqual"] = "大於或等於"
     };
 
-    internal static void Validate(FilterRuleSpec rule, FilterValidationContext context, string label, List<string> errors)
+    /// <summary>欄位要有來源欄由規則需求表檢查；這裡只檢查統計方式與次數。</summary>
+    internal static void Validate(FilterRuleSpec rule, string label, List<string> errors)
     {
         if (rule.Field is null || !Fields.Contains(rule.Field))
             FilterScenarioCorruption.Add(errors, label, "entity_frequency_field_invalid");
-        else if (context.AvailableGlFields is { } available && !available.Contains(rule.Field, StringComparer.Ordinal))
-            errors.Add($"{label}：{FilterScenarioValidator.UnmappedFieldReason(rule.Field)}");
         if (rule.CountUnit is not ("entries" or "vouchers")) FilterScenarioCorruption.Add(errors, label, "entity_frequency_unit_invalid");
         if (rule.CountOperator is null || !Operators.ContainsKey(rule.CountOperator)) FilterScenarioCorruption.Add(errors, label, "entity_frequency_operator_invalid");
         if (rule.CountFrom is not (>= 0)) errors.Add($"{label}：次數須為 0 以上的整數");

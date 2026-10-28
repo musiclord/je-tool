@@ -459,7 +459,7 @@ public sealed class SupportCaseHistoryStore : ISupportCaseHistory, IDisposable
     private static SupportDiagnosticLogEntry StartEntry(string? processInstance, bool createdNow) =>
         Generated(
             processInstance,
-            "support.history_started",
+            SupportEventNames.HistoryStarted,
             "case support history starts here",
             new Dictionary<string, object?>(StringComparer.Ordinal)
             {
@@ -489,7 +489,7 @@ public sealed class SupportCaseHistoryStore : ISupportCaseHistory, IDisposable
             fields["error_type"] = failure.GetType().FullName;
         }
 
-        return Generated(processInstance, "support.history_gap", $"{missing} events were not saved", fields);
+        return Generated(processInstance, SupportEventNames.HistoryGap, $"{missing} events were not saved", fields);
     }
 
     // 寫入器自己產生的行沒有事件序號，序號一律為 0。

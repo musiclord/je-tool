@@ -1,17 +1,23 @@
 # JET 架構文件與圖表維護計畫
 
 更新日期：2026-10-22
-狀態：第一次重繪已在 2026-10-21 提交推送（`2ca68b3`）。同日使用者要求重新設計閱讀頁面並逐張重畫全部圖表，圖表改放固定目錄；
+狀態：待使用者驗收。2026-10-22 使用者指示結案，計畫移到歷史文件（2026-10-16 開始），原話是「先把現行的架構文件計畫結案並移到歷史文件，再依清單起草下一階段的計畫。範圍先列給我勾選，不要直接動工。」
+資料預覽的未納入原因、欄位配對的金額方式名稱與第三輪圖表都還等使用者檢視，見文末「結案時留下的事項」。
+
+第一次重繪已在 2026-10-21 提交推送（`2ca68b3`）。同日使用者要求重新設計閱讀頁面並逐張重畫全部圖表，圖表改放固定目錄；
 第二輪與之後的配色、文字收斂與白話改寫已完成。2026-10-22 使用者要求依改進後的方向整個重畫，第三輪改依提交 `07b97b3` 的新快照重繪，
-已通過文件檢查，尚未提交，待使用者檢視。
+已通過文件檢查並提交，圖表內容仍待使用者檢視。
 同日使用者把「財報準備日起核准」條件的複審裁定，以及總帳日期在期末之後的分錄併入本計畫；期後照 legacy 不新增母體，
-「日期不符」已分成三種原因，尚未提交。
+「日期不符」已分成三種原因。
 
 同日使用者要求將支援日誌診斷、跨次開啟的案件紀錄與 XML 報告匯出問題合併排程。第一項支援日誌的診斷資訊、
-第二項跨次開啟的案件紀錄與第三項 XML 字元的報告匯出失敗都已完成，尚未提交。
+第二項跨次開啟的案件紀錄與第三項 XML 字元的報告匯出失敗都已完成。
 
 同日追加欄位配對標註修正，依 legacy 名稱說明金額方式。使用者同日指示先做這一項，再依序做支援日誌的三項；
-欄位配對標註修正已完成，尚未提交。
+欄位配對標註修正已完成。
+
+使用者 2026-10-22 指示提交並推送，第三輪圖表與以上各項都在提交 `f9d232f`。提交前 Gui 完整執行並通過。
+推送不等於驗收通過。
 
 ## 目標與本輪交付
 
@@ -19,7 +25,7 @@
 2026-10-16 的一輪收錄原圖、可編輯模型、來源摘錄與 17 組類別關係的檢查，依當時裁定已提交並推送。
 2026-10-21 的一輪沿用同一份 RepoWise 與 Roslyn 證據和固定快照，重繪全部圖表，分清編譯時目標、可能呼叫與實際執行。
 第一次重繪放在 `docs/architecture/2026-10-21/`，取代原本的 `docs/architecture/2026-10-16/`。同日第二輪重新設計閱讀頁面並逐張重畫，
-成果放在固定目錄 [`docs/architecture/diagrams/`](../architecture/diagrams/README.md)，取代 `2026-10-21/`；
+成果放在固定目錄 [`docs/architecture/diagrams/`](../../architecture/diagrams/README.md)，取代 `2026-10-21/`；
 之後每次重繪都直接覆寫這個目錄，前一版留在 Git 歷史。
 
 前兩輪不重新索引程式，也不更新到快照之後的產品修正；第三輪依 2026-10-22 取自提交 `07b97b3` 的新快照重新索引。
@@ -141,7 +147,7 @@ Claude 用視窗選項提出四題，題目與選項由 Claude 擬定，下表�
 | 目前唯一的現行計畫是「架構文件與圖表維護計畫」，和篩選條件無關。這三項裁定要記在哪裡？ | 沒有選列出的「開發現況與規格（建議）」或「架構文件計畫」，自行輸入：「架構文件的部分已經接近完成了，現在我要直接接續下去，所以目前的事項會合併至當前進行中的工作計畫，直到我說要提交推送為止」。 |
 
 「改為現在處理」取代 2026-10-07 對期末後分錄的「延後處理」；那次的原話記在
-[KCT 需求計畫](../history/specs/2026-10-06-kct-gl-requirements-plan.md)的「使用者對現況回報的裁定（2026-10-07，交接前）」。
+[KCT 需求計畫](2026-10-06-kct-gl-requirements-plan.md)的「使用者對現況回報的裁定（2026-10-07，交接前）」。
 
 同日 Claude 盤點期末之後分錄的現況後，用視窗選項再提出兩題，題目與選項由 Claude 擬定：
 
@@ -224,7 +230,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 使用者 2026-10-21 的裁定：
 
 - 維持比較傳票核准日。範例活頁簿的說明寫「及之後過帳的分錄」。2026-09-18 對照 2024 篩選表時也記下說明寫過帳，
-  [使用者回饋與操作流程一致性修正計畫](../history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md)當時只寫「暫不改成總帳日或查核期末日」，
+  [使用者回饋與操作流程一致性修正計畫](2026-09-17-user-feedback-and-workflow-review-plan.md)當時只寫「暫不改成總帳日或查核期末日」，
   那份計畫裡查不到使用者對這一點的裁定原話。這次由使用者裁定，「過帳」視為舊範本用語，程式、測試與報告範本都不改。
 - 不恢復 legacy IDEA 已停用的「只測準備期間」母體選項。GL 維持整個查核期間；只想看準備期間入帳的分錄時，
   在第五步用常用查核條件「指定日期區間」限定總帳日期，再組合其他條件。
@@ -245,12 +251,12 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 - 驗證、預篩選、第五步條件篩選與 INF 抽樣都只用 GL。驗證報告、INF 報告、預篩選報告、條件篩選報告與工作底稿，
   都不寫這些分錄的筆數、金額或明細。底稿 Step 5「財務報表關帳後調整之分錄」只寫一段說明，由查核團隊手填。
 - legacy IDEA 也沒有期後模式：先用總帳日期與過帳狀態擷取查核期間的分錄，期間外的列不輸出。
-- 使用者先前的回饋提到「期間/期後的底稿名稱預設會長一樣」，記在[使用者回饋與操作流程一致性修正計畫](../history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md)的 D28；
+- 使用者先前的回饋提到「期間/期後的底稿名稱預設會長一樣」，記在[使用者回饋與操作流程一致性修正計畫](2026-09-17-user-feedback-and-workflow-review-plan.md)的 D28；
   當時的處理是五種報告的檔名加上查核起訖日，底稿另存版本。從這句話看，查核團隊會分別產出期間與期後的底稿。
 - INF 範本寫：「若有另外取得次期期初母體(如次年一月JE)作期後事項查核，應於考量其風險後依比例選取樣本(例如全年59筆除以12個月=5筆)對該額外月份之母體進行可靠性測試。」
   JET 每個案件最多抽 59 筆，沒有調整筆數的設定。
 
-盤點時也找到三處和程式不符的文件：開發現況與[測試環境交付說明](../test-environment-notes.md)寫「看不到明細」；
+盤點時也找到三處和程式不符的文件：開發現況與[測試環境交付說明](../../test-environment-notes.md)寫「看不到明細」；
 `jet-frontend-description.md` 仍描述第四步的「GL 與 GL(未納入測試)」區塊，這個區塊已依使用者 2026-10-08 的裁定移除。三處都已改成現況。
 另外查到授權編製人員名單的比對人數也算進 GL(未納入測試) 的分錄，和期後無關，已列進開發現況的「已知但延後的事項」。
 
@@ -297,7 +303,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
   只把第一條命令換回舊的 SQL 與參數，就能算回舊值。之後才把這些測試的預期值改成新的記法，每處都註明原因與收據。
 - 需要 SQL Server 的測試這次都沒有執行。`SqlServerSchemaMigrationTests` 四處要連線的版本預期與 `SqlServerDataPreviewRepositoryTests`
   已改成新的記法；`ValidationRunLoggingTests` 的 SQL Server 摘要值仍是舊值，下一次執行 `Provider` 時預期失敗。
-  這些記在 [SQL Server 封存事項](../history/2026-10-20-sqlserver-archive.md)。
+  這些記在 [SQL Server 封存事項](../2026-10-20-sqlserver-archive.md)。
 - 改完後 FrontendMapping 的 900 個前端測試全部通過，收據是 `20261021-082732873-b7ed8645f5f44e5cb3ef06f1bad7313a`。
   Public 的 5228 個測試全部通過，前端配對與前端預覽兩段也通過，收據是 `20261021-083012976-c6aa678b0acc47a4a38bc5831351ae16`。
   `SqlServerSchemaMigrationTests` 四處要連線的版本預期是在這次 Public 建置之後才改的，另用 Focused 編譯並執行這個測試類別，
@@ -331,14 +337,14 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 - 使用者本次提供的支援日誌記錄版本為 `f70a9ea`：`validate.run` 正常結束，兩次 `export.validationArtifacts`
   都在 `XmlUtf8RawTextWriter.InvalidXmlChar` 失敗。這證明失敗發生於報告文字寫入 XML，沒有證據顯示是借貸不平的操作限制；
   日誌不足以判定是哪份報告、哪個儲存格或哪個字元。附件不複製進儲存庫。
-- [SupportRingBufferLoggerProvider](../../src/JET/JET/Infrastructure/Diagnostics/SupportRingBufferLoggerProvider.cs)
+- [SupportRingBufferLoggerProvider](../../../src/JET/JET/Infrastructure/Diagnostics/SupportRingBufferLoggerProvider.cs)
   只保存有容量上限的記憶體事件，額外保留最近最多 32 次失敗摘要；例外不含原始訊息，每個例外只留前五層方法名稱。
-  [SupportLogExportHandler](../../src/JET/JET/Application/Handlers/DevLogHandlers.cs) 從這份記憶體快照篩選案件事件，
+  [SupportLogExportHandler](../../../src/JET/JET/Application/Handlers/DevLogHandlers.cs) 從這份記憶體快照篩選案件事件，
   沒有讀回上次程序的案件紀錄。重開程式會失去前次事件，同次程序也可能因容量限制省略較早事件。
-- [目前契約](../action-contract-manifest.md)已有匯入階段、失敗列欄與原因代號等診斷資訊。因此問題是診斷覆蓋與歷程保存不足，
+- [目前契約](../../action-contract-manifest.md)已有匯入階段、失敗列欄與原因代號等診斷資訊。因此問題是診斷覆蓋與歷程保存不足，
   不能從這個案例推論每一種錯誤都無法判讀。改善範圍須涵蓋整個操作流程，不能只補這次 XML 錯誤。
 - 已核對 `f70a9ea` 的報告批次寫入與現行
-  [ProjectReportArtifactStore](../../src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs)：
+  [ProjectReportArtifactStore](../../../src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs)：
   ValidationReport 與 INFReport 要全部寫完才產生正式檔案，一份寫入失敗會使這次整批報告無法產出。
 
 ### 排定順序與完成條件
@@ -353,7 +359,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 
 實作時一併處理下列邊界：
 
-- 仍遵守 [AGENTS.md](../../AGENTS.md) 的機敏資料限制。原始值、來源欄名、檔名、私人路徑、SQL 參數與案件識別內容
+- 仍遵守 [AGENTS.md](../../../AGENTS.md) 的機敏資料限制。原始值、來源欄名、檔名、私人路徑、SQL 參數與案件識別內容
   不進可供外部診斷的日誌；需要定位時使用程式固定代號、匿名位置、資料形狀與錯誤碼。不能把完整原始例外文字直接打開來取代設計。
 - 保存位置、分段方式、搬移案件後的續接與清理方式，在實作前對照案件生命週期定案。不得用定期刪除或容量輪替，
   默默把使用者要求的案件開頭裁掉。異常中止、磁碟已滿、權限或紀錄損壞須保留可讀部分，並在匯出明示缺口與原因；
@@ -365,9 +371,9 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 
 先以合成情境建立預期結果，再實作；修改既有測試前記明原因並保留第一次失敗。
 診斷測試從既有
-[日誌測試](../../src/JET/tests/JET.Tests/Infrastructure/SupportRingBufferLoggerProviderTests.cs)與
-[案件無法載入時的日誌匯出測試](../../src/JET/tests/JET.Tests/Application/SupportLogUnavailableProjectTests.cs)延伸；
-報告測試從 [ReportArtifactExportTests](../../src/JET/tests/JET.Tests/Application/ReportArtifactExportTests.cs)延伸。
+[日誌測試](../../../src/JET/tests/JET.Tests/Infrastructure/SupportRingBufferLoggerProviderTests.cs)與
+[案件無法載入時的日誌匯出測試](../../../src/JET/tests/JET.Tests/Application/SupportLogUnavailableProjectTests.cs)延伸；
+報告測試從 [ReportArtifactExportTests](../../../src/JET/tests/JET.Tests/Application/ReportArtifactExportTests.cs)延伸。
 
 - 用獨立程序測試「操作後結束程式，重啟再操作並匯出」，比對事先定義的完整事件順序；
   加入超過舊記憶體容量、跨案件切換、失敗後重試、取消與異常中止，不只測同一程序重新開案。
@@ -381,8 +387,8 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 
 ### 第一項：診斷資訊的實作結果
 
-依使用者同日指示的順序，本項接在欄位配對標註修正之後完成，尚未提交。各欄位的定義寫在
-[action 契約](../action-contract-manifest.md)的「訊息、原生視窗與開發工具」一節，這裡只對照完成條件：
+依使用者同日指示的順序，本項接在欄位配對標註修正之後完成，並在 `f9d232f` 提交。各欄位的定義寫在
+[action 契約](../../action-contract-manifest.md)的「訊息、原生視窗與開發工具」一節，這裡只對照完成條件：
 
 | 完成條件要串起的資訊 | 支援日誌記下的內容 |
 |:---|:---|
@@ -396,7 +402,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 配對、驗證、預篩選、條件篩選、報告、底稿，以及案件建立、載入與刪除，執行時都會記下目前走到哪個處理步驟。
 關閉案件只有放開工作鎖一步，從操作名稱與例外內容就能定位，不另記步驟。
 
-合成失敗情境放在 [SupportLogDiagnosisTests](../../src/JET/tests/JET.Tests/Application/SupportLogDiagnosisTests.cs)。
+合成失敗情境放在 [SupportLogDiagnosisTests](../../../src/JET/tests/JET.Tests/Application/SupportLogDiagnosisTests.cs)。
 每個情境只讀匯出的支援日誌判斷原因，並放入合成敏感標記，確認日誌不含案件名稱、路徑或資料內容：
 
 - 匯入時來源檔被其他程式獨占開著，關閉後重試成功。日誌寫出輸入結構、檔案被占用的系統錯誤碼、重試指回前一次失敗，
@@ -413,7 +419,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 
 - 新測試先在只換回修改前 `ActionDispatcher` 的程式上執行，11 個有 7 個失敗，都失敗在它要補的欄位。
   刪除情境與三個格式測試不依賴它，當時已通過。
-- [ImportFailureWorkflowTests](../../src/JET/tests/JET.Tests/Application/ImportFailureWorkflowTests.cs) 的取消情境原本預期取消記成
+- [ImportFailureWorkflowTests](../../../src/JET/tests/JET.Tests/Application/ImportFailureWorkflowTests.cs) 的取消情境原本預期取消記成
   `action.error`，現在改成 `action.cancelled`；匯入階段、原因與回復結果的斷言不變。修改原因與第一次失敗的收據寫在測試註解。
 - 第一次 `Public` 有 7 個失敗，都是新的輸入結構違反既有的日誌斷言：案件載入的輸入結構寫出了 `projectId` 這個欄位名稱，
   前端送來的未知金額方式也被照記。改成只照記 JET 認得的代碼，案件代號連欄位名稱都不記，既有斷言不變。
@@ -446,8 +452,8 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 
 ### 第二項：案件紀錄的實作結果
 
-依上述裁定實作，尚未提交。檔案位置、各種行的欄位與匯出摘要寫在
-[action 契約](../action-contract-manifest.md)的「訊息、原生視窗與開發工具」一節，這裡只對照完成條件：
+依上述裁定實作，並在 `f9d232f` 提交。檔案位置、各種行的欄位與匯出摘要寫在
+[action 契約](../../action-contract-manifest.md)的「訊息、原生視窗與開發工具」一節，這裡只對照完成條件：
 
 | 完成條件 | 做法 |
 |:---|:---|
@@ -467,8 +473,8 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 - 寫入紀錄檔時允許其他程式刪除，刪除案件不會因為正在附加紀錄而刪不掉。
 - 匯出檔的格式版本維持第一項的第 3 版，因為兩項一起交付，第 3 版還沒有提交過。
 
-合成情境放在 [SupportCaseHistoryProcessTests](../../src/JET/tests/JET.Tests/Application/SupportCaseHistoryProcessTests.cs)
-與 [SupportCaseHistoryTests](../../src/JET/tests/JET.Tests/Application/SupportCaseHistoryTests.cs)，每個情境都先寫出完整的預期事件順序，
+合成情境放在 [SupportCaseHistoryProcessTests](../../../src/JET/tests/JET.Tests/Application/SupportCaseHistoryProcessTests.cs)
+與 [SupportCaseHistoryTests](../../../src/JET/tests/JET.Tests/Application/SupportCaseHistoryTests.cs)，每個情境都先寫出完整的預期事件順序，
 再只讀匯出檔逐行比對：
 
 - 三個獨立程式依序操作同一個案件，子程式就是測試程式本身。第一個建立案件、讀取最近的訊息 1,050 次，第一個程式的事件因此超過
@@ -504,9 +510,9 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 
 ### 第三項：XML 字元的實作結果
 
-依使用者同日指示的順序，本項接在第二項之後完成，尚未提交。失敗欄位的定義寫在
-[action 契約](../action-contract-manifest.md)的「訊息、原生視窗與開發工具」一節，文字的寫法寫在
-[系統規格](../jet-guide.md)第 7 節，這裡只對照完成條件：
+依使用者同日指示的順序，本項接在第二項之後完成，並在 `f9d232f` 提交。失敗欄位的定義寫在
+[action 契約](../../action-contract-manifest.md)的「訊息、原生視窗與開發工具」一節，文字的寫法寫在
+[系統規格](../../jet-guide.md)第 7 節，這裡只對照完成條件：
 
 | 完成條件 | 做法與結果 |
 |:---|:---|
@@ -515,7 +521,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 | 修正 Excel 文字編碼並核對讀回內容 | 報告、底稿與科目配對工作檔的文字儲存格都改由 `ExcelText` 建立，依 Excel 的跳脫格式寫入。兩份報告讀回的摘要、科目名稱、編製人員與欄名，依 Excel 的方式還原後和來源一字不差。 |
 | 不修改來源資料、借貸金額或審計判斷 | 只改變文字寫進 XML 的方式。匯出前後，不平傳票的借方、貸方與差額都相同。 |
 | 有借貸不平仍可產生兩份報告 | 兩種資料庫都產生 ValidationReport 與 INFReport，`V_Report 6` 列出這張傳票的兩列，原始金額是 10 與 9。 |
-| 其他寫入失敗仍保留整批報告的一致性 | 整批寫入與還原的做法沒有改，[ProjectReportArtifactStoreTests](../../src/JET/tests/JET.Tests/Infrastructure/ProjectReportArtifactStoreTests.cs) 既有的寫入失敗情境照常通過。寫入元件失敗後不再補寫結束標記，原本的例外照樣往外丟。 |
+| 其他寫入失敗仍保留整批報告的一致性 | 整批寫入與還原的做法沒有改，[ProjectReportArtifactStoreTests](../../../src/JET/tests/JET.Tests/Infrastructure/ProjectReportArtifactStoreTests.cs) 既有的寫入失敗情境照常通過。寫入元件失敗後不再補寫結束標記，原本的例外照樣往外丟。 |
 
 實作時另外處理三件事：
 
@@ -524,7 +530,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 - 驗證報告記下的欄位配對資訊也經過同樣的編碼。從報告還原欄位配對時以同一規則還原，欄名本身像 `_x0041_` 的案件也能還原。
 - 新增架構測試，擋下在 `ExcelText` 以外直接建立文字儲存格。
 
-合成情境放在 [ReportTextEncodingTests](../../src/JET/tests/JET.Tests/Application/ReportTextEncodingTests.cs)：
+合成情境放在 [ReportTextEncodingTests](../../../src/JET/tests/JET.Tests/Application/ReportTextEncodingTests.cs)：
 
 - 以文字檔匯入含控制字元、`_x0041_` 寫法、Tab 與換行的總帳，摘要欄名也帶 `_x0041_`，SQLite 與 DuckDB 各一次。
   兩份報告都產生，讀回的文字一字不差；不平傳票匯出前後相同；從驗證報告還原的欄位配對，摘要欄名不變。
@@ -576,7 +582,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 是寫不成 JSON 的那個測試假設三筆事件同一批寫入，高負載下寫入器先寫了第一筆。改成不依賴分批的斷言後，
 第三次 `Public` 的 5,278 個測試全部通過，沒有跳過；`Documentation` 通過，警告都是原有的引文。
 
-本節狀態：三項與複審的修正都已完成，尚未提交。
+本節狀態：三項與複審的修正都已完成，並在 `f9d232f` 提交。
 合成失敗情境與診斷欄位清單已在第一項建立，後兩項沿用並補上各自的情境。
 
 ## 併入本計畫的欄位配對標註修正
@@ -585,7 +591,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 
 > 我再加一項要處理的事項:
 >
-> - 在 `欄位配對` 的地方，請維持原本 [legacy](../../legacy/) 那樣的標註方式，例如，原本的 `設定期初與期末金額` 他的邏輯應該是配段好欄位然後計算期末減去期初的變動數為金額，但在現行的 `je-tool` 卻是顯示 `期初+期末餘額` 容易誤解為邏輯符號 "+" 號
+> - 在 `欄位配對` 的地方，請維持原本 [legacy](../../../legacy/) 那樣的標註方式，例如，原本的 `設定期初與期末金額` 他的邏輯應該是配段好欄位然後計算期末減去期初的變動數為金額，但在現行的 `je-tool` 卻是顯示 `期初+期末餘額` 容易誤解為邏輯符號 "+" 號
 
 排入時本項接在支援日誌與報告匯出三項工作之後。使用者同日在原本的工作 session 確認併入並要求接續處理，原話如下：
 
@@ -599,11 +605,11 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 
 目標是讓審計員看懂要配對哪些金額欄位，以及配對後如何計算變動金額。
 
-已核對 [legacy/idea-tool.bas](../../legacy/idea-tool.bas) 第 475 到 479 行的四種 TB 金額設定名稱；
+已核對 [legacy/idea-tool.bas](../../../legacy/idea-tool.bas) 第 475 到 479 行的四種 TB 金額設定名稱；
 `Step1_TB_Amount_Append_2` 第 12725 行的公式是期末欄減期初欄。
-排入時 [ui-core.js](../../src/JET/JET/wwwroot/js/ui-core.js) 的 `TB_MODES` 使用全形「＋」連接期初與期末，
+排入時 [ui-core.js](../../../src/JET/JET/wwwroot/js/ui-core.js) 的 `TB_MODES` 使用全形「＋」連接期初與期末，
 與使用者引文的半形「+」不同，但同樣容易被讀成加法。
-[目前計算程式](../../src/JET/JET/Domain/Rules/TbRowProjector.cs)的 `OpenClose` 仍是 `closing - opening`；
+[目前計算程式](../../../src/JET/JET/Domain/Rules/TbRowProjector.cs)的 `OpenClose` 仍是 `closing - opening`；
 因此本項先修正標註，不把畫面名稱誤解當成計算邏輯已改變。
 
 | 現行 TB 標註 | legacy 原始標註，作為修正依據 |
@@ -619,7 +625,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
   「配對期初與期末金額欄位後，以期末減去期初，計算本期變動金額」。同區其他金額方式及共用摘要一併核對；
   若 GL 也有相同問題，先找到 legacy 對應原文，不能直接套用 TB 名稱。
 - 保留 `openClose` 等既有 action 值、已存配對與計算規則。說明不能暗示會將兩份 TB 檔案自動配成期初與期末。
-- 以既有 [TbRowProjectorTests](../../src/JET/tests/JET.Tests/Domain/TbRowProjectorTests.cs)
+- 以既有 [TbRowProjectorTests](../../../src/JET/tests/JET.Tests/Domain/TbRowProjectorTests.cs)
   核對正變動、負變動與零變動；例如合成資料期初 1,000、期末 1,500，變動金額應為 500。
   先執行相關 `Focused`，再以 `Contract -ContractScenario FrontendMapping` 確認欄位選取及配對流程。
   純標註調整不另外重跑無關的完整測試。
@@ -646,7 +652,7 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 
 實作結果：
 
-- [ui-core.js](../../src/JET/JET/wwwroot/js/ui-core.js) 的 `TB_MODES` 與 `GL_MODES` 依上表改名並加上說明。
+- [ui-core.js](../../../src/JET/JET/wwwroot/js/ui-core.js) 的 `TB_MODES` 與 `GL_MODES` 依上表改名並加上說明。
   `openClose` 等 action 值、已存配對與計算程式都沒有改。
 - 第三步兩種配對介面的金額方式群組改由同一段程式產生。說明放在選項下方，報讀器從單選群組也讀得到；
   已確認配對的摘要與流程總覽只寫方式名稱。
@@ -682,15 +688,15 @@ Archify 的撰寫規範預設不寫副標題，也不用副標題重述標題、
 | 第三輪：重畫 | 完成 | 11 張 Archify 圖依程式差異改畫，18 張都重新通過 finalize；LikeC4 重新建置。封裝後 174 條連線、49 條類別關係、33 項事實、280 處來源摘錄，包內 847 個連結的檔案與錨點都存在；圖上與頁面的文字沒有改寫前的用語。 |
 | 第三輪：實際看圖 | 完成 | 用無頭瀏覽器離線截圖，不操作使用者的電腦：改過的四張圖整頁檢視，入口、已核對事實與連線證據頁看過淺色、深色和手機寬度，沒有頁面錯誤、外部請求或水平捲動；也在內建瀏覽器開過入口。 |
 | 第三輪：Documentation | 完成 | 結果記在本機收據。 |
-| 第三輪：提交與推送 | 未做 | 等使用者檢視後指示。 |
+| 第三輪：提交與推送 | 完成 | 使用者 2026-10-22 指示提交並推送，提交為 `f9d232f`。提交前 Gui 完整執行並通過。圖表內容仍待使用者檢視。 |
 | 財報準備日起核准的複審 | 完成 | 只讀程式、legacy 腳本與範例活頁簿，結論見「併入本計畫的篩選條件事項」一節。 |
 | 複審的裁定 | 完成 | 使用者 2026-10-21 裁定維持比較傳票核准日、不恢復只測準備期間的母體選項，並把期末後分錄改為現在處理。 |
-| 總帳日期在期末之後的分錄 | 完成，未提交 | 期後照 legacy 不新增母體。GL(未納入測試) 分成總帳日期空白、早於查核期間、晚於查核期間與過帳狀態不符四種原因並各自計數，資料預覽可以只看其中一種；既有案件開啟時升到本機第 13 版。SQLite 與 DuckDB 的固定答案、Public 與 FrontendMapping 都通過，收據見上一節。SQL Server 的對應修改沒有執行測試，記在 SQL Server 封存事項。 |
-| 支援日誌診斷資訊 | 完成，未提交 | 每次操作記下輸入結構，主要流程另記處理步驟；成功時記結果版本，取消另記一筆，重試指回前一次。例外列出整條例外鏈與 JET 方法位置，不含例外訊息。合成情境、Focused 與 Public 都通過；尚未涵蓋的部分見專節。 |
-| 跨次開啟的案件紀錄 | 完成，未提交 | 屬於案件的事件持續附加到案件資料夾的支援紀錄；匯出讀整份紀錄，寫出起點、缺口與沒有正常結束的程式。三個獨立程式依序操作同一案件的測試、合成情境、Focused 與 Public 都通過；限制見專節。 |
-| XML 字元與報告匯出 | 完成，未提交 | 報告、底稿與科目配對工作檔的文字依 Excel 的跳脫格式寫入，讀 Excel 檔時依同一規則還原；來源文字含控制字元時兩份驗證報告照常產生，讀回一字不差，不平傳票不變。工作表寫不出去時，支援日誌寫出工作表名稱、儲存格與字元碼位。合成情境、Focused 與 Public 都通過；限制見專節。 |
-| 支援日誌三項的複審 | 完成，未提交 | 使用者裁定的六項修正都已完成：寫入器迴圈保護、改記工作表名稱、取消不記寫入失敗、匯出重複行、匯入時還原跳脫寫法，以及給使用者用 Excel 核對的合成報告。Focused 與 Public 都通過；合成報告的顯示使用者已用 Excel 核對。 |
-| 欄位配對標註修正 | 完成，未提交 | TB 改用 legacy 名稱，GL 依使用者裁定只改雙欄方式；要相減或依正負號判斷的方式選取後顯示計算說明。計算與 action 值不變。相關 Focused、FrontendMapping 與 Documentation 都通過，也在瀏覽器主機看過畫面。 |
+| 總帳日期在期末之後的分錄 | 完成，已提交 | 期後照 legacy 不新增母體。GL(未納入測試) 分成總帳日期空白、早於查核期間、晚於查核期間與過帳狀態不符四種原因並各自計數，資料預覽可以只看其中一種；既有案件開啟時升到本機第 13 版。SQLite 與 DuckDB 的固定答案、Public 與 FrontendMapping 都通過，收據見上一節。SQL Server 的對應修改沒有執行測試，記在 SQL Server 封存事項。 |
+| 支援日誌診斷資訊 | 完成，已提交 | 每次操作記下輸入結構，主要流程另記處理步驟；成功時記結果版本，取消另記一筆，重試指回前一次。例外列出整條例外鏈與 JET 方法位置，不含例外訊息。合成情境、Focused 與 Public 都通過；尚未涵蓋的部分見專節。 |
+| 跨次開啟的案件紀錄 | 完成，已提交 | 屬於案件的事件持續附加到案件資料夾的支援紀錄；匯出讀整份紀錄，寫出起點、缺口與沒有正常結束的程式。三個獨立程式依序操作同一案件的測試、合成情境、Focused 與 Public 都通過；限制見專節。 |
+| XML 字元與報告匯出 | 完成，已提交 | 報告、底稿與科目配對工作檔的文字依 Excel 的跳脫格式寫入，讀 Excel 檔時依同一規則還原；來源文字含控制字元時兩份驗證報告照常產生，讀回一字不差，不平傳票不變。工作表寫不出去時，支援日誌寫出工作表名稱、儲存格與字元碼位。合成情境、Focused 與 Public 都通過；限制見專節。 |
+| 支援日誌三項的複審 | 完成，已提交 | 使用者裁定的六項修正都已完成：寫入器迴圈保護、改記工作表名稱、取消不記寫入失敗、匯出重複行、匯入時還原跳脫寫法，以及給使用者用 Excel 核對的合成報告。Focused 與 Public 都通過；合成報告的顯示使用者已用 Excel 核對。 |
+| 欄位配對標註修正 | 完成，已提交 | TB 改用 legacy 名稱，GL 依使用者裁定只改雙欄方式；要相減或依正負號判斷的方式選取後顯示計算說明。計算與 action 值不變。相關 Focused、FrontendMapping 與 Documentation 都通過，也在瀏覽器主機看過畫面。 |
 
 ## 完成條件與驗證
 
@@ -718,15 +724,16 @@ XML 字元的報告匯出失敗也改了產品程式、測試與文件，執行�
 沒有執行 Gui、Excel、Provider 或 PrivateCase，沒有啟動 SQL Server。
 Archify 3.1.0 執行時提示有 3.2.0 可用，本輪沒有升級。
 
-## 下一步
+## 結案時留下的事項
 
-1. 使用者檢視資料預覽「GL(未納入測試)」的四種未納入原因與篩選，再決定是否提交。
-2. 支援日誌與報告匯出專節的三項與複審的修正都已完成，尚未提交。合成報告的顯示使用者已用 Excel 核對，接著決定是否提交。
-3. 使用者檢視第三步欄位配對的金額方式名稱與計算說明，再決定是否提交。
-4. 使用者從[圖表入口](../architecture/diagrams/index.html)檢視第三輪的頁面與圖表，再決定是否提交。
-5. 要再更新到更新的程式時，照[分析與繪圖流程](../../.agents/harness/architecture-documentation.md)「更新到新版程式」一節另建快照目錄，
+前三項是使用者的檢視，不是開發工作；後兩項是之後再做圖表工作時的做法與可延伸的方向。
+
+1. 使用者檢視資料預覽「GL(未納入測試)」的四種未納入原因與篩選。
+2. 使用者檢視第三步欄位配對的金額方式名稱與計算說明。
+3. 使用者從[圖表入口](../../architecture/diagrams/index.html)檢視第三輪的頁面與圖表。
+4. 要再更新到更新的程式時，照[分析與繪圖流程](../../../.agents/harness/architecture-documentation.md)「更新到新版程式」一節另建快照目錄，
    重繪後直接覆寫 `docs/architecture/diagrams/`，封裝時以 `--run` 指定快照目錄、以 `--redraw-date` 記錄新的重繪日期。
-6. 目前的檢查證明每條線有來源、線型符合證據種類，但不證明業務結果正確。後續可依序補上 LikeC4 動態視圖與 Archify 循序圖的逐步對照，
+5. 目前的檢查證明每條線有來源、線型符合證據種類，但不證明業務結果正確。後續可依序補上 LikeC4 動態視圖與 Archify 循序圖的逐步對照，
    以及關鍵業務分支有固定輸入與預期結果的驗證。
 
-除了總帳日期在期末之後的分錄，以及本次排入的支援日誌、報告匯出與欄位配對標註事項，原本列在[開發現況](../development-status.md)的其他未完成及延後事項維持原裁定，沒有因本計畫一併開工。
+除了總帳日期在期末之後的分錄，以及本次排入的支援日誌、報告匯出與欄位配對標註事項，原本列在[開發現況](../../development-status.md)的其他未完成及延後事項維持原裁定，沒有因本計畫一併開工。

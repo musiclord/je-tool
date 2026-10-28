@@ -9,7 +9,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 匯出底稿(WorkingPaper).xlsx 寫出器。<see cref="IWorkpaperWriter"/> 的實作:
+/// 匯出底稿(WorkingPaper).xlsx 寫出器。<see cref="IWorkpaperPlanWriter"/> 的實作:
 /// 對外只 <see cref="WriteAsync"/>,內部隱藏全部 OpenXML 細節與資料表 keyset 串流。
 ///
 /// 為什麼 SAX(OpenXmlPartWriter)、不用 ClosedXML:
@@ -40,8 +40,8 @@ namespace JET.Infrastructure;
 ///   這是業務分支(對齊樣本的動態 schema):先以 scenarios 算出欄集 list(<see cref="TagColumnSet"/>),再逐列依該列
 ///   matchedPositions 是否含某 position 對映 Y——用 data structure 消特例,不寫「第幾欄特判」。
 ///   step4/4-1 逐頁串流,且每頁回的 matchedPositions 是「另一個 dict」(voucher 以 documentNumber、row 以 entry_id 對齊),
-///   故另備 <see cref="StreamTaggedVoucherRowsAsync"/>／<see cref="StreamTaggedRowDetailRowsAsync"/>
-///   把「列 + 該列命中位置」配對成串流(沿用 keyset 不全載入)。
+///   step4 另備 <see cref="StreamTaggedVoucherRowsAsync"/> 把「列 + 該列命中位置」配對成串流(沿用 keyset 不全載入)；
+///   step4-1 走 prepared session，只往前讀一次。
 /// </summary>
 public sealed partial class WorkpaperWriter(
     ICompletenessAccountPageRepository completenessAccounts,
@@ -56,7 +56,7 @@ public sealed partial class WorkpaperWriter(
     IMappingStateStore mappingStates,
     ICalendarExportRepository calendarDays,
     IAccountMappingExportRepository accountMappings,
-    IResultPageRdeValuesPort? resultPageRdeValues = null) : IWorkpaperWriter, IWorkpaperPlanWriter, IFormalWorkpaperPlanWriter
+    IResultPageRdeValuesPort? resultPageRdeValues = null) : IWorkpaperPlanWriter, IFormalWorkpaperPlanWriter
 {
     private const int DefaultProgressRowInterval = 10_000;
     private static readonly double MaximumAmountDisplayColumnWidth =
@@ -72,8 +72,6 @@ public sealed partial class WorkpaperWriter(
     private readonly IRawGlExportRepository? _rawRows;
     private readonly IWorkpaperStep4StreamRepository? _step4Vouchers =
         tagMatrixVouchers as IWorkpaperStep4StreamRepository;
-    private readonly IWorkpaperStep41PageRepository? _step41Rows =
-        tagMatrixRows as IWorkpaperStep41PageRepository;
     private readonly IWorkpaperStep41PreparedSessionFactory? _step41PreparedSessions =
         tagMatrixRows as IWorkpaperStep41PreparedSessionFactory;
     private readonly IAccountMappingStore? _accountMappingStateStore;
@@ -220,13 +218,6 @@ public sealed partial class WorkpaperWriter(
         _progressRowInterval = progressRowInterval;
     }
 
-    public Task<ExportStats> WriteAsync(
-        Stream output,
-        WorkpaperContext context,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null) =>
-        WriteCoreAsync(output, context, plan: null, cancellationToken, progress);
-
     Task<ExportStats> IWorkpaperPlanWriter.WriteAsync(
         Stream output,
         WorkpaperContext context,
@@ -238,7 +229,7 @@ public sealed partial class WorkpaperWriter(
     private async Task<ExportStats> WriteCoreAsync(
         Stream output,
         WorkpaperContext context,
-        WorkpaperPlan? plan,
+        WorkpaperPlan plan,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress)
     {
@@ -258,7 +249,7 @@ public sealed partial class WorkpaperWriter(
                     editor,
                     styles,
                     editor.StylePatcher,
-                    useFinalStep41Schema: plan is not null,
+                    useFinalStep41Schema: true,
                     ct);
                 var sheetStats = await EmitDirectAsync(
                     session,
@@ -267,7 +258,7 @@ public sealed partial class WorkpaperWriter(
                     ct,
                     progress);
                 session.Complete();
-                if (plan?.Request.WorkbookMetadata is { } workbookMetadata)
+                if (plan.Request.WorkbookMetadata is { } workbookMetadata)
                 {
                     ReportWorkbookMetadataWorksheet.Append(
                         editor.Document,
@@ -282,11 +273,11 @@ public sealed partial class WorkpaperWriter(
     private async Task<IReadOnlyList<SheetStat>> EmitDirectAsync(
         WorkpaperWriteSession session,
         WorkpaperContext context,
-        WorkpaperPlan? plan,
+        WorkpaperPlan plan,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress)
     {
-        if (plan is not null && !plan.IsFinalized)
+        if (!plan.IsFinalized)
         {
             throw new InvalidOperationException("WorkpaperPlan 尚未 Finalize。");
         }
@@ -315,7 +306,7 @@ public sealed partial class WorkpaperWriter(
                 sheetStats,
                 context,
                 step1Plan,
-                hasCompletenessDifferences: plan is null ? null : step13Plan?.Emit == true,
+                hasCompletenessDifferences: step13Plan.Emit,
                 cancellationToken,
                 progress);
         }
@@ -346,8 +337,8 @@ public sealed partial class WorkpaperWriter(
                 sheetStats,
                 context,
                 step2Plan,
-                plan?.Request.WorkbookMetadata,
-                plan?.Request.CustomFields ?? [],
+                plan.Request.WorkbookMetadata,
+                plan.Request.CustomFields ?? [],
                 cancellationToken,
                 progress);
         }
@@ -358,14 +349,7 @@ public sealed partial class WorkpaperWriter(
         var needsTagColumns = ShouldEmit(step3Plan) || ShouldEmit(step4Plan) || ShouldEmit(step41Plan);
         if (needsTagColumns)
         {
-            var tagColumns = plan is null
-                ? await TagColumnSet.LoadAsync(
-                    filterScenarios,
-                    tagMatrixCounts,
-                    context.ProjectId,
-                    context.ScenarioPositions,
-                    cancellationToken)
-                : TagColumnSet.FromPlan(plan, step3Plan!, step4Plan!, step41Plan!);
+            var tagColumns = TagColumnSet.FromPlan(plan, step3Plan, step4Plan, step41Plan);
 
             if (ShouldEmit(step3Plan))
             {
@@ -379,29 +363,16 @@ public sealed partial class WorkpaperWriter(
             }
             if (ShouldEmit(step41Plan))
             {
-                if (plan is null)
-                {
-                    await EmitLegacyStep41Async(
-                        session,
-                        sheetStats,
-                        context,
-                        tagColumns,
-                        cancellationToken,
-                        progress);
-                }
-                else
-                {
-                    await EmitStep41Async(
-                        session,
-                        sheetStats,
-                        context,
-                        plan.Step41Columns,
-                        plan.Request.WorkbookMetadata,
-                        plan.Request.CustomFields ?? [],
-                        tagColumns,
-                        cancellationToken,
-                        progress);
-                }
+                await EmitStep41Async(
+                    session,
+                    sheetStats,
+                    context,
+                    plan.Step41Columns,
+                    plan.Request.WorkbookMetadata,
+                    plan.Request.CustomFields ?? [],
+                    tagColumns,
+                    cancellationToken,
+                    progress);
             }
         }
 
@@ -418,7 +389,7 @@ public sealed partial class WorkpaperWriter(
                 session,
                 sheetStats,
                 context,
-                plan?.FieldInfo,
+                plan.FieldInfo ?? throw new InvalidOperationException("WorkpaperPlan 缺少欄位資訊投影。"),
                 cancellationToken,
                 progress);
         }
@@ -434,12 +405,10 @@ public sealed partial class WorkpaperWriter(
         return sheetStats;
     }
 
-    private static WorkpaperSheetPlan? GetSheetPlan(WorkpaperPlan? plan, string sheetName) =>
-        plan?.Sheets.SingleOrDefault(sheet =>
+    private static WorkpaperSheetPlan GetSheetPlan(WorkpaperPlan plan, string sheetName) =>
+        plan.Sheets.SingleOrDefault(sheet =>
             string.Equals(sheet.SheetName, sheetName, StringComparison.Ordinal))
-        ?? (plan is null
-            ? null
-            : throw new InvalidOperationException($"WorkpaperPlan 缺少工作表 '{sheetName}'。"));
+        ?? throw new InvalidOperationException($"WorkpaperPlan 缺少工作表 '{sheetName}'。");
 
     private static bool ShouldEmit(WorkpaperSheetPlan? sheetPlan) =>
         sheetPlan?.Emit ?? true;
@@ -538,7 +507,6 @@ public sealed partial class WorkpaperWriter(
     private sealed class TagColumnSet
     {
         private const uint Step4FixedColumns = 5;   // A-E
-        private const uint Step41FixedColumns = 16; // A-P
 
         private readonly IReadOnlyList<int> _allPositions;
         private readonly IReadOnlyList<int> _rowHitPositions;
@@ -580,34 +548,6 @@ public sealed partial class WorkpaperWriter(
         public IReadOnlyList<int> HitVoucherPositions => _hitVoucherPositions;
 
         public bool IsFromPlan { get; }
-
-        public static async Task<TagColumnSet> LoadAsync(
-            IFilterScenarioStore scenarioStore, ITagMatrixScenariosRepository countsRepo,
-            string projectId, IReadOnlyList<int> selectedPositions, CancellationToken cancellationToken)
-        {
-            var saved = await scenarioStore.ListAsync(projectId, cancellationToken);
-            var counts = await countsRepo.GetCountsAsync(projectId, cancellationToken);
-            var selected = new HashSet<int>(selectedPositions);
-
-            var scenarios = saved
-                .Where(s => selected.Contains(s.Position))
-                .OrderBy(s => s.Position)
-                .Select(s =>
-                {
-                    var (voucherHits, rowHits) = counts.GetValueOrDefault(s.Position);
-                    return new ScenarioRow(
-                        s.Position,
-                        s.Name,
-                        s.Rationale,
-                        voucherHits,
-                        rowHits);
-                })
-                .ToList();
-
-            var allPositions = scenarios.Select(s => s.Position).ToList();
-            var rowHitPositions = scenarios.Where(s => s.RowHitCount > 0).Select(s => s.Position).ToList();
-            return new TagColumnSet(scenarios, allPositions, rowHitPositions, []);
-        }
 
         public static TagColumnSet FromPlan(
             WorkpaperPlan plan,
@@ -662,17 +602,9 @@ public sealed partial class WorkpaperWriter(
         public void AppendAllPositionHeaders(SheetWriter sheet, List<Cell> cells, uint row, string suffix) =>
             AppendHeaders(sheet, cells, row, _allPositions, Step4FixedColumns, suffix);
 
-        /// <summary>step4-1 欄標:只 rowHitCount&gt;0 的 position 升冪,標頭 C{position}_TAG。接在固定欄之後。</summary>
-        public void AppendRowHitPositionHeaders(SheetWriter sheet, List<Cell> cells, uint row) =>
-            AppendHeaders(sheet, cells, row, _rowHitPositions, Step41FixedColumns, "_TAG");
-
         /// <summary>step4 列:逐 position 依 matched 是否含之標 Y/空。</summary>
         public void AppendAllPositionMarks(SheetWriter sheet, List<Cell> cells, uint row, IReadOnlyList<int> matched) =>
             AppendMarks(sheet, cells, row, _allPositions, Step4FixedColumns, matched);
-
-        /// <summary>step4-1 列:逐 rowHit position 依 matched 是否含之標 Y/空。</summary>
-        public void AppendRowHitPositionMarks(SheetWriter sheet, List<Cell> cells, uint row, IReadOnlyList<int> matched) =>
-            AppendMarks(sheet, cells, row, _rowHitPositions, Step41FixedColumns, matched);
 
         private static void AppendHeaders(
             SheetWriter sheet, List<Cell> cells, uint row, IReadOnlyList<int> positions, uint fixedColumns, string suffix)

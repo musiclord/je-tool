@@ -10,8 +10,8 @@ namespace JET.Infrastructure;
 /// - 分隔符：CsvDialectDetector 引號感知取樣統計，request.Delimiter 可覆寫。
 /// - 解析：<see cref="CsvRecordReader"/>，一般 CSV 讀法（欄位開頭的引號才是引號，中間的引號是一般字元；
 ///   引號沒有成對時明確失敗並寫出第幾列）。cell 一律字串、由投影階段解析。
-/// - 標頭：略過開頭的空白列，第一個有內容的列是標頭（和 Excel 讀取器相同）；標頭自己讀再交給
-///   TabularHeaderNormalizer，重複欄名走 _2/_3 正規化。
+/// - 標頭：先略過 request.LeadingRowsToSkip 筆記錄（審計員指定的「欄名在第幾列」，空白列也算），再略過空白列，
+///   第一個有內容的列是標頭（和 Excel 讀取器相同）；標頭自己讀再交給 TabularHeaderNormalizer，重複欄名走 _2/_3 正規化。
 /// - 欄數：標頭範圍外有資料的欄合成 COL_n 佔位欄（和 Open XML 讀取器相同，有資料的欄絕不靜默丟棄）；
 ///   少欄視為空。
 /// - SourceRowNumber 以記錄計（空白列也算一列，標頭之前的空白列也算）；引號內含換行時與實體行號可能偏移，屬已知限制。
@@ -32,7 +32,7 @@ public sealed class CsvTableReader : ITabularFileReader
         var dialect = ResolveDialect(request);
         using var textReader = OpenTextReader(request.FilePath, dialect.Encoding);
         var records = new CsvRecordReader(textReader, dialect.Delimiter);
-        var header = ReadHeader(records, request.FilePath, dialect.Encoding);
+        var header = ReadHeader(records, request.FilePath, dialect.Encoding, request.LeadingRowsToSkip, request.FixedLeadingRows);
         return Task.FromResult(header.Columns);
     }
 
@@ -70,7 +70,7 @@ public sealed class CsvTableReader : ITabularFileReader
         var dialect = ResolveDialect(request);
         using var textReader = OpenTextReader(request.FilePath, dialect.Encoding);
         var records = new CsvRecordReader(textReader, dialect.Delimiter);
-        var header = ReadHeader(records, request.FilePath, dialect.Encoding);
+        var header = ReadHeader(records, request.FilePath, dialect.Encoding, request.LeadingRowsToSkip, request.FixedLeadingRows);
         var columns = new List<string>(header.Columns);
         var usedNames = new HashSet<string>(columns, StringComparer.Ordinal);
 
@@ -168,10 +168,12 @@ public sealed class CsvTableReader : ITabularFileReader
     }
 
     /// <summary>
-    /// 略過開頭的空白列，讀第一個有內容的記錄作為標頭並正規化；整個檔都是空白列時以 empty_workbook 回報。
+    /// 先略過 leadingRowsToSkip 筆記錄（空白列也算一筆，和 Excel 讀取器以實際列號計算相同），再略過空白列，
+    /// 讀第一個有內容的記錄作為標頭並正規化；整個檔都是空白列時以 empty_workbook 回報，
+    /// 審計員指定了欄名列卻略過到檔尾時同一個代碼，訊息改說那一列起沒有內容；略過列數是版面固定的就照舊說檔案是空的。
     /// </summary>
     private static (IReadOnlyList<string> Columns, int RowNumber) ReadHeader(
-        CsvRecordReader records, string filePath, Encoding encoding)
+        CsvRecordReader records, string filePath, Encoding encoding, int leadingRowsToSkip = 0, bool fixedLeadingRows = false)
     {
         try
         {
@@ -180,10 +182,12 @@ public sealed class CsvTableReader : ITabularFileReader
                 var fields = records.ReadRecord();
                 if (fields is null)
                 {
-                    throw EmptyFile(filePath);
+                    throw leadingRowsToSkip > 0 && !fixedLeadingRows
+                        ? SourceFileErrors.HeaderRowBeyondContent(filePath, leadingRowsToSkip)
+                        : EmptyFile(filePath);
                 }
 
-                if (CsvRecordReader.IsBlank(fields))
+                if (records.RecordNumber <= leadingRowsToSkip || CsvRecordReader.IsBlank(fields))
                 {
                     continue;
                 }

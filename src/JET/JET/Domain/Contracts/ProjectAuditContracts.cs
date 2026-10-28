@@ -114,23 +114,3 @@ public interface IProjectAuditLog
         CancellationToken cancellationToken) =>
         await RequiresMappingRecommitAuditAsync(projectId, dataset, cancellationToken);
 }
-
-/// <summary>相容舊測試建構子的無副作用實作；production composition 一律注入 provider router。</summary>
-public sealed class NullProjectAuditLog : IProjectAuditLog
-{
-    public static NullProjectAuditLog Instance { get; } = new();
-
-    private NullProjectAuditLog()
-    {
-    }
-
-    public Task AppendAsync(
-        string projectId,
-        ProjectAuditEvent auditEvent,
-        CancellationToken cancellationToken) => Task.CompletedTask;
-
-    public Task<bool> RequiresMappingRecommitAuditAsync(
-        string projectId,
-        string dataset,
-        CancellationToken cancellationToken) => Task.FromResult(false);
-}

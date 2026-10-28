@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Globalization;
 using System.Text.Json;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Infrastructure;
@@ -72,7 +73,7 @@ internal static class AuthorizedPreparerMetadataSql
                 || string.IsNullOrWhiteSpace(sourceColumn)) return null;
         }
 
-        // 名單人員只計一次；GL 僅在資料庫內比對，不把大量識別值帶回記憶體。
+        // 名單人員只計一次；只比對 GL，不算 GL(未納入測試) 的建立人員；GL 僅在資料庫內比對，不把大量識別值帶回記憶體。
         var personKey = dialect.Upper(dialect.Trim("ap.name"));
         var creatorKey = dialect.Upper(dialect.Trim("g.created_by"));
         var count = dialect.ProviderName == "sqlServer" ? "COUNT_BIG" : "COUNT";
@@ -84,7 +85,7 @@ internal static class AuthorizedPreparerMetadataSql
             WHERE {personKey} IN (
                 SELECT {creatorKey}
                 FROM {prefix}target_gl_entry g
-                WHERE g.created_by IS NOT NULL);
+                WHERE {GlEffectivePopulation.SqlPredicate("g")} AND g.created_by IS NOT NULL);
             """;
         var result = await command.ExecuteScalarAsync(ct);
         return result is null or DBNull ? 0L : Convert.ToInt64(result, CultureInfo.InvariantCulture);

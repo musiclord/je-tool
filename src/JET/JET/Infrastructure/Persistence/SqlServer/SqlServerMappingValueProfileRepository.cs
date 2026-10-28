@@ -6,7 +6,8 @@ namespace JET.Infrastructure;
 /// <summary>
 /// SQL Server mapping value profile。OPENJSON 的 key 以參數比對；值去掉和 .NET 相同的空白字元後，
 /// 依方言 <see cref="SqlServerDialect.Upper"/> 不分大小寫分組，顯示值取同組碼位最小的寫法（與本地倉儲同口徑，
-/// 跨資料庫一致性計畫第三節 D）。查詢只回 summary 與最多 limit 筆 group。
+/// 跨資料庫一致性計畫第三節 D）。查詢只回 summary 與最多 limit 筆 group。來源欄勾了往下填補時，
+/// 去空白之後先接和本機共用的 <see cref="MappingValueProfileNormalization.FillDownCtes"/>（使用者 2026-10-28 裁定）。
 /// </summary>
 public sealed class SqlServerMappingValueProfileRepository(SqlServerProjectDatabase database)
     : IMappingValueProfileRepository
@@ -16,6 +17,7 @@ public sealed class SqlServerMappingValueProfileRepository(SqlServerProjectDatab
         string batchId,
         string sourceColumn,
         int limit,
+        bool fillDown,
         CancellationToken cancellationToken)
     {
         await database.EnsureCreatedAsync(projectId, cancellationToken);
@@ -26,7 +28,7 @@ public sealed class SqlServerMappingValueProfileRepository(SqlServerProjectDatab
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
             WITH extracted AS (
-                SELECT j.raw_value
+                SELECT r.source_no, r.row_number, j.raw_value
                 FROM {s}.staging_gl_raw_row AS r
                 OUTER APPLY (
                     SELECT [value] AS raw_value
@@ -36,12 +38,13 @@ public sealed class SqlServerMappingValueProfileRepository(SqlServerProjectDatab
                 WHERE r.batch_id = @batchId
             ),
             normalized AS (
-                SELECT {{TrimmedValue("raw_value")}} AS value
+                SELECT source_no, row_number, {{TrimmedValue("raw_value")}} AS value
                 FROM extracted
             ),
+            {{(fillDown ? MappingValueProfileNormalization.FillDownCtes("normalized") : "")}}
             grouped AS (
                 SELECT MIN(value) AS value, COUNT_BIG(*) AS value_count
-                FROM normalized
+                FROM {{(fillDown ? "filled" : "normalized")}}
                 GROUP BY {{SqlServerDialect.Instance.Upper("value")}}
             ),
             summary AS (

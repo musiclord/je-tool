@@ -125,6 +125,39 @@ public sealed class MappingValueProfileHandlerTests
         Assert.Equal(50, repository.Limit);
     }
 
+    // 使用者 2026-10-28 裁定「讀取來源值」依往下填補的勾選先填補再計數：沒帶時照原樣，帶了才交給資料庫實作。
+    // 處理器先改、這則測試後補，沒有第一次失敗。
+    [Theory]
+    [InlineData("""{ "dataset": "gl", "sourceColumn": "Status" }""", false)]
+    [InlineData("""{ "dataset": "gl", "sourceColumn": "Status", "fillDown": false }""", false)]
+    [InlineData("""{ "dataset": "gl", "sourceColumn": "Status", "fillDown": true }""", true)]
+    [InlineData("""{ "dataset": "gl", "sourceColumn": "Status", "fillDown": true, "comparisonValues": ["A"], "checkSourceValues": true }""", true)]
+    public async Task FillDown_IsForwardedToTheRepository(string payload, bool expected)
+    {
+        var repository = new RecordingProfileRepository();
+
+        await ExecuteAsync(CreateHandler(Batch(["Status"]), repository), payload);
+
+        Assert.Equal(1, repository.Calls);
+        Assert.Equal(expected, repository.FillDown);
+    }
+
+    // 只比對文字時不讀來源，帶往下填補沒有意義；值不是布林也擋下。都不讀來源。處理器先改、這則測試後補，沒有第一次失敗。
+    [Theory]
+    [InlineData("""{ "dataset": "gl", "sourceColumn": "Status", "fillDown": "true" }""")]
+    [InlineData("""{ "dataset": "gl", "sourceColumn": "Status", "fillDown": 1 }""")]
+    [InlineData("""{ "dataset": "gl", "sourceColumn": "Status", "fillDown": true, "comparisonOnly": true, "comparisonValues": ["A"] }""")]
+    public async Task InvalidFillDown_NeverReadsSourceData(string payload)
+    {
+        var repository = new RecordingProfileRepository();
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            ExecuteAsync(CreateHandler(Batch(["Status"]), repository), payload));
+
+        Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
+        Assert.Equal(0, repository.Calls);
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(100)]
@@ -229,12 +262,15 @@ public sealed class MappingValueProfileHandlerTests
         public string? BatchId { get; private set; }
         public string? SourceColumn { get; private set; }
         public int Limit { get; private set; }
+        public bool FillDown { get; private set; }
 
+        // 2026-10-28 介面多了往下填補參數，替身跟著記下它，回傳不變。
         public Task<MappingValueProfile> GetAsync(
             string projectId,
             string batchId,
             string sourceColumn,
             int limit,
+            bool fillDown,
             CancellationToken cancellationToken)
         {
             Calls++;
@@ -242,6 +278,7 @@ public sealed class MappingValueProfileHandlerTests
             BatchId = batchId;
             SourceColumn = sourceColumn;
             Limit = limit;
+            FillDown = fillDown;
             return Task.FromResult(new MappingValueProfile(
                 sourceColumn,
                 2,

@@ -173,6 +173,30 @@ public sealed class ImportCalendarHandlersTests
         Assert.Equal(JetErrorCodes.UnsupportedFileType, ex.Code);
     }
 
+    // 2026-10-28 獨立複審查到：行事曆範本的欄名固定在第 2 列，畫面不能改欄名列，空的工作表卻被說成
+    // 「從第 2 列起沒有內容，找不到欄名。請確認欄名所在的列。」。固定版面的匯入照舊說工作表是空的。
+    // 第一次失敗：Focused 收據 20261028-050846565-1f062061b1a042f9a0c536e2afd51e85。
+    [Fact]
+    public async Task ImportHolidayFromFile_EmptySheet_SaysTheSheetIsEmptyWithoutAskingForAHeaderRow()
+    {
+        using var host = new HandlerTestHost();
+        await host.DispatchAsync("project.create", CreatePayload);
+        var path = TestWorkbookBuilder.WriteWorkbook(_ => { });
+
+        try
+        {
+            var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+                "import.holiday.fromFile", JsonSerializer.Serialize(new { filePath = path })));
+
+            Assert.Equal(JetErrorCodes.EmptyWorkbook, ex.Code);
+            Assert.Equal($"檔案「{Path.GetFileName(path)}」的工作表「Sheet1」是空的。", ex.Message);
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task ImportHolidayFromFile_MissingDateColumn_ThrowsProjectionFailed()
     {

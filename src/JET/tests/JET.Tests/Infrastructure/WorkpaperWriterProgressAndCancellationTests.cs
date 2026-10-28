@@ -39,8 +39,8 @@ public sealed class WorkpaperWriterProgressAndCancellationTests
         var progress = new List<WorkpaperProgress>();
         var context = await CurrentContextForAsync(host, project.ProjectId);
 
-        var stats = await BuildWriter(host).WriteAsync(
-            stream, context, CancellationToken.None, progress.Add);
+        var stats = await WriteWithCurrentPlanAsync(
+            host, BuildWriter(host), stream, context, CancellationToken.None, progress.Add);
 
         for (var index = 0; index < stats.SheetStats.Count; index++)
         {
@@ -65,15 +65,13 @@ public sealed class WorkpaperWriterProgressAndCancellationTests
         var progress = new List<WorkpaperProgress>();
         await using var stream = new MemoryStream();
 
-        var stats = await BuildWriter(
-                host,
-                new WorkpaperWriterOptions(),
-                progressRowInterval: 2)
-            .WriteAsync(
-                stream,
-                await CurrentContextForAsync(host, projectId),
-                CancellationToken.None,
-                progress.Add);
+        var stats = await WriteWithCurrentPlanAsync(
+            host,
+            BuildWriter(host, new WorkpaperWriterOptions(), progressRowInterval: 2),
+            stream,
+            await CurrentContextForAsync(host, projectId),
+            CancellationToken.None,
+            progress.Add);
 
         AssertIntermediateBeforeCompletion(progress, stats, Step1Sheet, checkpointRows: 2);
         AssertIntermediateBeforeCompletion(progress, stats, Step4Sheet, checkpointRows: 2);
@@ -219,15 +217,13 @@ public sealed class WorkpaperWriterProgressAndCancellationTests
             }
         }
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => BuildWriter(
-                host,
-                new WorkpaperWriterOptions(),
-                progressRowInterval: 1)
-            .WriteAsync(
-                stream,
-                context,
-                cancellation.Token,
-                OnProgress));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => WriteWithCurrentPlanAsync(
+            host,
+            BuildWriter(host, new WorkpaperWriterOptions(), progressRowInterval: 1),
+            stream,
+            context,
+            cancellation.Token,
+            OnProgress));
 
         var intermediate = Assert.Single(progress, update =>
             update.SheetName == targetSheet && update.RowsWritten == 1);

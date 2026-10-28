@@ -408,7 +408,7 @@ public static partial class SupportResultRefs
 /// </summary>
 internal static partial class SupportStepDiagnostics
 {
-    [LoggerMessage(EventId = 1005, EventName = "action.step_failed", Level = LogLevel.Warning,
+    [LoggerMessage(EventId = 1005, EventName = SupportEventNames.ActionStepFailed, Level = LogLevel.Warning,
         Message = "action step {step} failed")]
     public static partial void StepFailed(ILogger logger, string step, Exception exception);
 }
@@ -453,7 +453,7 @@ internal static partial class SupportCaseDiagnostics
         }
     }
 
-    [LoggerMessage(EventId = 1006, EventName = "support.case_opened", Level = LogLevel.Information,
+    [LoggerMessage(EventId = 1006, EventName = SupportEventNames.CaseOpened, Level = LogLevel.Information,
         Message = "case opened by {opened_by} provider={database_provider} version={app_version} "
             + "build={informational_version} module={module_version_id} configuration={build_configuration}")]
     private static partial void Opened(

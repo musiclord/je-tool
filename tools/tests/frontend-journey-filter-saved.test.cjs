@@ -1076,6 +1076,59 @@ test('journey 14: without a per-scenario list both steps say once that recheckin
   assert.equal(f.$('[data-action="resave-scenarios"]').textContent, '重新檢查並儲存情境');
 });
 
+// 預篩選收斂計畫階段四（2026-10-23）：2026-09-05 到 06 存下、帶排除區的舊情境。開案的摘要照原樣帶出排除區，編輯器把它畫成
+// 唯讀的「舊排除區」，列出原本的排除條件並寫出後端那句原因，旁邊一顆「移除」按鈕。沒移除就儲存時草稿照原樣送出，
+// 後端擋下、原因寫在儲存鈕上方；按「移除」後區塊拿掉，儲存時不再帶排除區。原本編輯器看不到排除區，存回去就默默丟掉。
+// 原因句逐字照後端 FilterScenarioPayloadParser；KCT 需求計畫記載這句「對審計員有意義，照樣改寫保留」。
+// 第一次失敗：FrontendMapping 收據 20261023-052114546-d067eb70e77c4c4d988e9942eee31a5b（編輯器沒有舊排除區）。
+const REMOVED_EXCLUSIONS = '使用了已移除的「排除區域」，請改用條件中的「不屬於」或「不在區間」';
+test('stage four: an old scenario with an exclusion area shows it read-only with the reason and saves only after it is removed', async () => {
+  const exclusions = [
+    { scope: 'row', rule: { type: 'fieldValue', field: 'postDate', operator: 'in', values: ['2025-03-01'] } },
+    { scope: 'voucher', rule: { type: 'drCrOnly', drCr: 'credit' } }];
+  const old = { ...authored('舊排除情境'), exclusions };
+  const f = savedFixture();
+  await openCase(f, { filterScenarios: [old, savedGNamed('乙')], filterResultRef: null, staleState: { validation: false, prescreen: false, filter: true },
+    filterScenarioCheck: { status: 'needsEdit', recalculatedCount: 0, problems: [{ position: 1, name: '舊排除情境', messages: [REMOVED_EXCLUSIONS] }] } });
+  f.draw('filter');
+  f.click('[data-filter-pane-select="saved"]');
+  f.click('[data-action="edit-scenario"][data-index="1"]');
+  assert.equal(f.$('[data-legacy-exclusions]'), null, 'a scenario without an exclusion area shows none');
+  f.click('[data-action="cancel-edit-scenario"]');
+  f.click('[data-filter-pane-select="saved"]');
+  f.click('[data-action="edit-scenario"][data-index="0"]');
+
+  const area = () => f.$('[data-legacy-exclusions]');
+  assert.ok(area(), 'the editor shows the old exclusion area');
+  assert.equal(area().querySelector('strong').textContent, '舊排除區');
+  const items = area().querySelectorAll('li').map(item => item.textContent);
+  assert.equal(items.length, 2);
+  assert.match(items[0], /^排除符合的分錄：/); assert.match(items[0], /2025-03-01/);
+  assert.match(items[1], /^排除整張傳票：/); assert.match(items[1], /僅貸方/);
+  assert.equal(area().querySelector('p').textContent, REMOVED_EXCLUSIONS + '。');
+  assert.equal(area().querySelectorAll('input, select, textarea').length, 0, 'the area cannot be edited');
+
+  // 沒移除就儲存：排除區照原樣送出，後端擋下，原因寫在儲存鈕上方，區塊還在。
+  f.click('[data-action="save-scenario"]'); await settle();
+  assert.deepEqual(plain(f.request('filterScenarioSave').payload.scenario.exclusions), exclusions);
+  f.request('filterScenarioSave').reject(Object.assign(new Error(REMOVED_EXCLUSIONS), { code: 'invalid_scenario',
+    details: [{ message: REMOVED_EXCLUSIONS, scenarioPosition: 1, scenarioName: '舊排除情境' }] }));
+  await settle(); await settle();
+  assert.equal(f.notice(), '儲存失敗：' + REMOVED_EXCLUSIONS);
+  assert.ok(area(), 'the area stays until the auditor removes it');
+
+  // 按「移除」：區塊拿掉，焦點交給條件組，審計員接著用「不屬於」或「不在區間」改寫；再儲存就不帶排除區。
+  f.click('[data-action="remove-legacy-exclusions"]');
+  assert.equal(area(), null);
+  assert.equal('exclusions' in f.draft(), false);
+  assert.ok(f.dom.document.activeElement === f.$$('.scenario-set').at(-1), 'focus moves to the condition group');
+  f.click('[data-action="save-scenario"]'); await settle();
+  const sent = plain(f.request('filterScenarioSave').payload);
+  assert.equal(sent.position, 1);
+  assert.equal('exclusions' in sent.scenario, false);
+  assertNoScreenKeys(sent, 'the save after removing the exclusion area');
+});
+
 // ================================================================================================
 // 第四部分　情境 15 的編輯部分：舊情境裡的舊式條件
 // ================================================================================================
@@ -1243,9 +1296,11 @@ test('journey 15: an old text value list edits one value per line, keeps commas,
 // （docs/jet-frontend-description.md 第五步：舊情境裡的文字清單、日期區間等歷史型別仍能顯示與編輯，標成「舊式」，不再提供新建）。
 // 案件已確認攸關資料元素欄位、科目配對完整、有授權清單，舊的可用條件都成立，仍不得出現這些型別。
 // 第九節 G2：KCT E、F、G、H 改用欄位條件；舊式型別只保留讀取舊情境。
-const LEGACY_TYPES = ['text', 'textSet', 'dateRange', 'numRange', 'typed', 'customKeywords', 'customTrailingZeros', 'trailingDigits'];
+// 預篩選收斂計畫階段九：兩種舊式筆數條件也停用，歸到舊式清單；這則測試原本就沒加過它們，所以沒有失敗，只是讓清單和現況一致。
+const LEGACY_TYPES = ['text', 'textSet', 'dateRange', 'numRange', 'typed', 'customKeywords', 'customTrailingZeros', 'trailingDigits',
+  'customPreparerEntryCount', 'customAccountEntryCount'];
 const CURRENT_TYPES = ['fieldValue', 'drCrOnly', 'manualAuto', 'accountSide', 'specialAccountCategoryPair', 'accountPair', 'group', 'voucher',
-  'prescreen', 'customPreparerEntryCount', 'customAccountEntryCount', 'entityFrequency',
+  'prescreen', 'entityFrequency',
   'revenueDebitNearQuarterEnd', 'revenueWithoutNormalCounterpart', 'manualRevenueEntry', 'preparerEqualsApprover'];
 function ruleTypes(draft) {
   const found = [];
@@ -1509,4 +1564,45 @@ test('journey 13: 查看結果 and 查看矩陣 keep their labels and report wha
   f.click('[data-action="toggle-matrix"]');
   assert.equal(matrix().getAttribute('aria-expanded'), 'false');
   assert.equal(f.$('#filter-matrix-body').hidden, true);
+});
+
+
+// 2026-10-22 技術債一輪：TB 匯入回應帶後端失效清單時，第五步和 GL 匯入一樣清掉已存情境、草稿、預覽與命中快取
+// （使用者 2026-10-07 裁定改動 TB 視同改動 GL）。走正式匯入步驟套用回應的 applyResponse，不直接呼叫 store。
+// 程式本來就是對的，這則測試第一次執行就通過，只保存行為；一起改的是 filter-step.js 裡寫反的註解。
+test('journey 13: a trial-balance import response that invalidates filter results clears the saved scenarios and the hit cache like a GL import', async () => {
+  const f = savedFixture({ saved: [savedGNamed('甲'), savedGNamed('乙')], pane: 'saved' });
+  const vm = require('node:vm'), fs = require('node:fs'), path = require('node:path');
+  vm.runInContext(fs.readFileSync(path.join(F.root, 'steps/import-step.js'), 'utf8')
+    .replace("  Ui.registerStep('import', render);", '  window.importOps = { applyResponse };'), f.context, { filename: 'steps/import-step.js' });
+  f.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
+  f.request('filterPreview').resolve(scenarioPreview()); await settle();
+  f.request('queryFilterVoucherPage').resolve(voucherPage('OLD-1')); await settle(); await settle();
+  assert.match(f.$('[data-bind="scenario-preview-0"]').textContent, /OLD-1/);
+  const before = f.store.getState();
+  const generation = before.filterResultGeneration;
+  assert.equal(before.filter.savedScenarios.length, 2);
+
+  // 後端對 TB 匯入回的失效清單：驗證、預篩選、篩選命中與情境定義都失效，科目配對清掉（AuditDependencyPolicy 的 TbImport）。
+  f.window.importOps.applyResponse('tb', { batchId: 'tb-synthetic', rowCount: 3, columns: ['科目代號', '科目名稱', '本期變動'],
+    sources: [{ fileName: 'synthetic-tb.xlsx' }],
+    invalidatedResults: { validation: true, prescreen: true, filter: true, filterScenarios: true, accountMapping: true },
+    staleState: { validation: false, prescreen: false, filter: false }, reportArtifacts: [] });
+  await settle();
+
+  const after = f.store.getState();
+  assert.equal(after.importState.tb.rowCount, 3, 'the TB import result is recorded');
+  assert.equal(after.mapping.tb.committed, null, 'the TB mapping is no longer committed');
+  assert.deepEqual(plain(after.filter.savedScenarios), [], 'saved scenarios are cleared like a GL import');
+  assert.equal(after.filter.draft.name, '');
+  assert.equal(after.filter.draft.rationale, '');
+  assert.deepEqual(plain(after.filter.draft.groups), []);
+  assert.equal(after.filter.preview, null);
+  assert.equal(after.filterResultRef, null);
+  assert.equal(after.filterResultGeneration, generation + 1, 'the hit cache generation moves on');
+  assert.equal(after.lastRuns.validate, null);
+  assert.equal(after.lastRuns.prescreen, null);
+  assert.equal(after.importState.accountMapping, null);
+  assert.equal(f.$('[data-action="toggle-scenario"][data-index="0"]'), null, 'no saved scenario is drawn on step 5');
+  assert.doesNotMatch(f.dom.content.textContent, /OLD-1/, 'the outdated hit rows are gone');
 });

@@ -12,11 +12,11 @@ public sealed class ValidationDirectTemplateArchitectureTests
     [Fact]
     public void PlannedProductionWriter_ReachesStreamingDirectFillWithoutGeneratedWorkbook()
     {
-        var interfaceMethod = typeof(IPlannedValidationReportWriter).GetMethod(
-            nameof(IPlannedValidationReportWriter.WritePlannedAsync))
-            ?? throw new InvalidOperationException("Planned validation writer method is missing.");
+        var interfaceMethod = typeof(IValidationReportWriter).GetMethod(
+            nameof(IValidationReportWriter.WriteAsync))
+            ?? throw new InvalidOperationException("Validation writer method is missing.");
         var interfaceMap = typeof(LegacyReportWriter).GetInterfaceMap(
-            typeof(IPlannedValidationReportWriter));
+            typeof(IValidationReportWriter));
         var interfaceIndex = Array.FindIndex(
             interfaceMap.InterfaceMethods,
             candidate => candidate.MetadataToken == interfaceMethod.MetadataToken
@@ -32,9 +32,8 @@ public sealed class ValidationDirectTemplateArchitectureTests
         Assert.DoesNotContain(reachable, method =>
             method.DeclaringType == typeof(ReportTemplatePackage)
             && method.Name == "FillAsync");
-        Assert.DoesNotContain(reachable, method =>
-            method.DeclaringType == typeof(LegacyReportWriter)
-            && method.Name == "CreateWorkbook");
+        // 2026-10-22 使用者裁定刪掉提交版本就沒人呼叫的 LegacyReportWriter.CreateWorkbook，原本擋它的斷言一併移除；
+        // 擋 SpreadsheetDocument.Create 的斷言留著，正式入口仍不能從空白工作簿建報告。
         Assert.DoesNotContain(reachable, method =>
             method.DeclaringType == typeof(SpreadsheetDocument)
             && method.Name == "Create");

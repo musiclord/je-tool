@@ -163,7 +163,8 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
                 File.Exists(filePath),
                 extension));
 
-        var request = new TabularSourceRequest(filePath, SheetName: sheetName, LeadingRowsToSkip: 1);
+        // 欄名固定在第 2 列，畫面不能改欄名列；找不到欄名時照舊說工作表是空的（2026-10-28 複審）。
+        var request = new TabularSourceRequest(filePath, SheetName: sheetName, LeadingRowsToSkip: 1, FixedLeadingRows: true);
 
         var entries = await Task.Run(async () =>
         {

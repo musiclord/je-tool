@@ -125,6 +125,8 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         var insertedCount = 0;
         // V3：只列一側的人工/自動清單代碼有沒有出現在來源裡，逐列記錄，提交後給不擋的提醒。
         var manualAutoCodes = new ManualAutoListedCodeAudit(spec);
+        // 階段六：審計員勾選的欄位把空白補成同一來源內上一列的值；暫存表不動，只改交給投影器的那一列。
+        var fillDown = GlStagingFillDown.Create(spec);
         // 完整性測試的匯入控制總數累計:來源列數（每讀一列 staging）、母體借/貸總額（成功插入後）。
         long sourceRowCount = 0;
         long targetDebit = 0;
@@ -157,7 +159,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                     ?? [];
 
                 // 投影純函式只看來源列號（錯誤指回使用者所見的檔內列）
-                var stagingRow = new StagingRow(sourceRowNumber, values);
+                var stagingRow = new StagingRow(sourceRowNumber, fillDown is null ? values : fillDown.Apply(sourceNo, values));
 
                 if (!GlRowProjector.TryProject(
                         stagingRow,
@@ -366,32 +368,13 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         }
 
         // 必填文字欄整欄空白偵測（非阻斷提醒；疑似配錯欄，如來源重複標頭中的空白欄）。同交易內查 target。
-        // 空母體（insertedCount==0）不偵測：無資料可判，避免把「沒資料」誤報成「四欄全配錯」。
+        // 空母體（insertedCount==0）不偵測：無資料可判，避免把「沒資料」誤報成每一欄都配錯。
         IReadOnlyList<string> warnings = [];
         if (insertedCount > 0)
         {
-            var emptyTextColumns = new HashSet<string>();
-            await using (var probe = connection.CreateCommand())
-            {
-                probe.Transaction = transaction;
-                var dialect = database.Dialect;
-                probe.CommandText =
-                    $"""
-                    SELECT
-                      SUM(CASE WHEN document_number IS NOT NULL AND {dialect.Trim("document_number")} <> '' THEN 1 ELSE 0 END),
-                      SUM(CASE WHEN account_code IS NOT NULL AND {dialect.Trim("account_code")} <> '' THEN 1 ELSE 0 END),
-                      SUM(CASE WHEN account_name IS NOT NULL AND {dialect.Trim("account_name")} <> '' THEN 1 ELSE 0 END),
-                      SUM(CASE WHEN document_description IS NOT NULL AND {dialect.Trim("document_description")} <> '' THEN 1 ELSE 0 END)
-                    FROM target_gl_entry;
-                    """;
-                await using var reader = await probe.ExecuteReaderAsync(cancellationToken);
-                await reader.ReadAsync(cancellationToken);
-                if (reader.GetInt64(0) == 0) { emptyTextColumns.Add("document_number"); }
-                if (reader.GetInt64(1) == 0) { emptyTextColumns.Add("account_code"); }
-                if (reader.GetInt64(2) == 0) { emptyTextColumns.Add("account_name"); }
-                if (reader.GetInt64(3) == 0) { emptyTextColumns.Add("document_description"); }
-            }
-            warnings = [.. GlMappedColumnAudit.Build(spec, emptyTextColumns), .. manualAutoCodes.Warnings()];
+            var blankColumns = await GlMappedColumnAudit.ReadAsync(
+                connection, transaction, spec, insertedCount, database.Dialect, cancellationToken);
+            warnings = [.. blankColumns, .. manualAutoCodes.Warnings()];
         }
 
         await ReplaceRdeProjectionAsync(
@@ -426,7 +409,8 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             batchId,
             committedUtc,
             MappingMetadataFormat.CurrentVersion,
-            projectionOptions);
+            // 填了幾格跟著配對保存（使用者 2026-10-28 裁定），重開案件與報告的配對資訊讀得到。
+            projectionOptions with { FillDownCount = fillDown?.FilledCellCount ?? 0 });
         await LocalMappingStateStore.SaveWithinAsync(
             connection,
             transaction,
@@ -447,7 +431,8 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 excludedByPeriodCount,
                 excludedByPostingStatusCount,
                 effectiveDebit,
-                effectiveCredit)
+                effectiveCredit),
+            FillDownCellCount = fillDown?.FilledCellCount ?? 0
         };
     }
 
@@ -486,15 +471,17 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
 
         var requiredColumns = GlProjectionSourceBuffer.RequiredColumns(spec);
         var pageSize = GlProjectionSourceBuffer.EntryPageSize(requiredColumns.Count);
+        // 第二遍照第一遍的順序（entry_id 就是暫存列的順序）重新餵同一份往下填補，核心欄位才解析得出同一個值。
+        var fillDown = GlStagingFillDown.Create(spec);
         long cursor = 0;
         while (true)
         {
-            var page = new List<(long EntryId, int SourceRowNumber, Dictionary<string, string> Values)>(pageSize);
+            var page = new List<(long EntryId, int SourceNo, int SourceRowNumber, Dictionary<string, string> Values)>(pageSize);
             await using (var select = connection.CreateCommand())
             {
                 select.Transaction = transaction;
                 select.CommandText =
-                    "SELECT g.entry_id, s.source_row_number, s.row_json "
+                    "SELECT g.entry_id, s.source_no, s.source_row_number, s.row_json "
                     + "FROM target_gl_entry g "
                     + "JOIN staging_gl_raw_row s ON s.batch_id = g.batch_id "
                     + "AND s.row_number = g.source_row_number "
@@ -508,12 +495,13 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 while (await reader.ReadAsync(cancellationToken))
                 {
                     var sourceValues = JsonSerializer.Deserialize<Dictionary<string, string>>(
-                                           reader.GetString(2),
+                                           reader.GetString(3),
                                            JsonOptions)
                                        ?? [];
                     page.Add((
                         reader.GetInt64(0),
                         reader.GetInt32(1),
+                        reader.GetInt32(2),
                         GlProjectionSourceBuffer.SelectRequiredValues(sourceValues, requiredColumns)));
                 }
             }
@@ -532,7 +520,9 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             foreach (var item in page)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var staging = new StagingRow(item.SourceRowNumber, item.Values);
+                var staging = new StagingRow(
+                    item.SourceRowNumber,
+                    fillDown is null ? item.Values : fillDown.Apply(item.SourceNo, item.Values));
                 if (!GlRowProjector.TryProject(
                         staging,
                         spec,

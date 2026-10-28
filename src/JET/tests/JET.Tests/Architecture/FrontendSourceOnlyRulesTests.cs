@@ -11,12 +11,16 @@ namespace JET.Tests.Architecture;
 public sealed class FrontendSourceOnlyRulesTests
 {
     [Fact]
-    public void MoneyDisplay_NeverUsesFourDecimalPlacesAnywhereInTheFrontend()
+    public void MoneyDisplay_NeverFormatsNumbersToFourDecimalPlaces()
     {
         // 2026-10-14 從 ScreenBehaviorReviewFrontendTests.Money_ShowsTwoDecimalsWithThousandsSeparatorThroughOneSharedFormatter 原樣搬來。
         // 使用者 2026-10-02 裁定 P3-4：畫面統一兩位小數加千分位；報表與底稿不變。
         // 為什麼行為測試替代不了：tools/tests/frontend-journey-tables.test.cjs 只檢查已知畫面上的金額，
         // 之後新加的格式化程式不會被涵蓋；整個前端都不得出現四位小數，只能掃描全部原始碼。
+        // 2026-10-23 預篩選收斂計畫階段五：使用者 2026-10-22 裁定右側資料預覽的金額固定顯示四位，其他畫面不變。
+        // data-preview.js 的 previewMoney 照後端給的十進位字串補零，不把金額轉成數字再格式化，所以不會碰到這個掃描；
+        // 斷言不變，仍擋住其他畫面用數字格式化出四位小數。方法名原本是 MoneyDisplay_NeverUsesFourDecimalPlacesAnywhereInTheFrontend，
+        // 資料預覽改成四位後名稱不再成立，2026-10-28 複審時改成現名，說明它鎖住的是把數字格式化成四位小數。
         foreach (var file in Directory.GetFiles(Path.Combine(FrontendRoot(), "js"), "*.js", SearchOption.AllDirectories))
         {
             Assert.DoesNotContain("minimumFractionDigits: 4", File.ReadAllText(file), StringComparison.Ordinal);

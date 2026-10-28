@@ -15,7 +15,6 @@ internal sealed partial class GlFilterWhereBuilder(
     public FilterSqlFragmentPlan BuildPlan(
         FilterScenarioSpec scenario,
         FilterRuleContext context,
-        long zeroModulus,
         string schemaPrefix = "",
         bool includePopulationParameters = true,
         bool includeEvidence = false)
@@ -31,7 +30,7 @@ internal sealed partial class GlFilterWhereBuilder(
         for (var groupIndex = 0; groupIndex < scenario.Groups.Count; groupIndex++)
         {
             var group = scenario.Groups[groupIndex];
-            var groupSql = BuildGroup(parameters, group, groupIndex + 1, context, zeroModulus, schemaPrefix);
+            var groupSql = BuildGroup(parameters, group, groupIndex + 1, context, schemaPrefix);
             combined = combined is null
                 ? groupSql
                 : $"({combined} {Op(group.Join)} {groupSql})";
@@ -50,7 +49,7 @@ internal sealed partial class GlFilterWhereBuilder(
                 for (var ri = 0; ri < group.Rules.Count; ri++)
                 {
                     var rule = group.Rules[ri];
-                    var sql = BuildRule(parameters, rule, context, zeroModulus, schemaPrefix);
+                    var sql = BuildRule(parameters, rule, context, schemaPrefix);
                     var voucher = rule.IsVoucherCondition;
                     evidence.Add(new(new(gi + 1, ri + 1), group.MatchScope != FilterGroupMatchScope.SameVoucher || ri == 0,
                         voucher, $"({sql})"));
@@ -65,19 +64,18 @@ internal sealed partial class GlFilterWhereBuilder(
         FilterGroupSpec group,
         int groupNo,
         FilterRuleContext context,
-        long zeroModulus,
         string schemaPrefix)
     {
         if (group.MatchScope == FilterGroupMatchScope.SameVoucher)
         {
-            return BuildSameVoucherGroup(parameters, group, groupNo, context, zeroModulus, schemaPrefix);
+            return BuildSameVoucherGroup(parameters, group, groupNo, context, schemaPrefix);
         }
 
         string? combined = null;
         for (var ruleIndex = 0; ruleIndex < group.Rules.Count; ruleIndex++)
         {
             var rule = group.Rules[ruleIndex];
-            var ruleSql = BuildLocatedRule(parameters, rule, groupNo, ruleIndex + 1, context, zeroModulus, schemaPrefix);
+            var ruleSql = BuildLocatedRule(parameters, rule, groupNo, ruleIndex + 1, context, schemaPrefix);
             combined = combined is null
                 ? ruleSql
                 : $"({combined} {Op(rule.Join)} {ruleSql})";
@@ -97,7 +95,6 @@ internal sealed partial class GlFilterWhereBuilder(
         FilterGroupSpec group,
         int groupNo,
         FilterRuleContext context,
-        long zeroModulus,
         string schemaPrefix)
     {
         if (group.Rules.Count == 0)
@@ -105,7 +102,7 @@ internal sealed partial class GlFilterWhereBuilder(
             return "(1 = 0)";
         }
 
-        var combined = BuildLocatedRule(parameters, group.Rules[0], groupNo, 1, context, zeroModulus, schemaPrefix);
+        var combined = BuildLocatedRule(parameters, group.Rules[0], groupNo, 1, context, schemaPrefix);
         for (var index = 1; index < group.Rules.Count; index++)
         {
             var evidence = BuildLocatedRule(
@@ -114,7 +111,6 @@ internal sealed partial class GlFilterWhereBuilder(
                 groupNo,
                 index + 1,
                 context,
-                zeroModulus,
                 schemaPrefix);
             var voucherSet = $"g.document_number IN ("
                 + $"SELECT g.document_number FROM {schemaPrefix}target_gl_entry g "
@@ -135,12 +131,11 @@ internal sealed partial class GlFilterWhereBuilder(
         int groupNo,
         int ruleNo,
         FilterRuleContext context,
-        long zeroModulus,
         string schemaPrefix)
     {
         try
         {
-            return BuildRule(parameters, rule, context, zeroModulus, schemaPrefix);
+            return BuildRule(parameters, rule, context, schemaPrefix);
         }
         catch (JetActionException exception) when (FilterCompileCheck.Locate(exception, groupNo, ruleNo))
         {
@@ -152,23 +147,21 @@ internal sealed partial class GlFilterWhereBuilder(
         FilterSqlParameterPlanBuilder parameters,
         FilterRuleSpec rule,
         FilterRuleContext context,
-        long zeroModulus,
         string schemaPrefix) => parameters.GetOrAddFragment("rule", rule,
-            () => BuildRuleCore(parameters, rule, context, zeroModulus, schemaPrefix));
+            () => BuildRuleCore(parameters, rule, context, schemaPrefix));
 
     private string BuildRuleCore(
         FilterSqlParameterPlanBuilder parameters,
         FilterRuleSpec rule,
         FilterRuleContext context,
-        long zeroModulus,
         string schemaPrefix)
     {
         switch (rule.Type)
         {
             case FilterRuleType.Group:
-                return BuildChildren(parameters, rule.Rules, context, zeroModulus, schemaPrefix);
+                return BuildChildren(parameters, rule.Rules, context, schemaPrefix);
             case FilterRuleType.Voucher:
-                var body = BuildChildren(parameters, rule.Rules, context, zeroModulus, schemaPrefix);
+                var body = BuildChildren(parameters, rule.Rules, context, schemaPrefix);
                 var side = rule.Side switch { "debit" => "g.amount_scaled >= 0", "credit" => "g.amount_scaled < 0", null or "all" => "1 = 1", _ => throw new InvalidOperationException("傳票判斷範圍無效。") };
                 var population = $"{GlPopulationScopeSql.Predicate(context, "g")} AND {side}";
                 string Set(string predicate) => $"SELECT g.document_number FROM {schemaPrefix}target_gl_entry g WHERE g.document_number IS NOT NULL AND {population} AND ({predicate})";
@@ -190,7 +183,8 @@ internal sealed partial class GlFilterWhereBuilder(
             case FilterRuleType.AccountSide:
                 return predicates.AccountSide(parameters, rule, context, schemaPrefix);
             case FilterRuleType.Prescreen:
-                return BuildPrescreenRule(parameters, rule.PrescreenKey!, context, zeroModulus, schemaPrefix);
+                // 十二條預篩選規則的述詞只在 PrescreenRulePredicates 對應一次，第四步計數與這裡同一個方法。
+                return PrescreenRulePredicates.Build(predicates, rule.PrescreenKey!, parameters, context, schemaPrefix);
 
             case FilterRuleType.Text:
                 GlFieldWhitelist.TryResolve(rule.Field, out var textColumn);
@@ -237,27 +231,27 @@ internal sealed partial class GlFilterWhereBuilder(
                     schemaPrefix, rule.CategorySelection);
 
             case FilterRuleType.CustomKeywords:
-                return predicates.CustomKeywords(parameters, rule.Keywords);
+                // 舊式自訂關鍵字：讀回舊情境用，和摘要特定描述同一個包含比對。
+                return predicates.ContainsAnyKeyword(parameters, "g.document_description", rule.Keywords);
 
             case FilterRuleType.CustomTrailingZeros:
-                // 固定位數取代動態門檻（原 A4 語意）；先取主單位整數，再以 10^N 取模。
-                return predicates.TrailingZeros(
-                    parameters,
-                    TrailingZeroThreshold.UnitModulus(rule.Digits!.Value),
-                    context.MoneyScale);
-
-            case FilterRuleType.CustomPreparerEntryCount:
-                // 自訂低頻編製者門檻：maxEntries 取代固定預設 11，述詞同 lowFrequencyPreparer。
-                return predicates.LowFrequencyPreparer(
-                    parameters, rule.MaxEntries!.Value, context, schemaPrefix);
+                // 舊式連續零尾數：讀回舊情境用。和停用原因寫的重建方式相同：整數尾數符合 N 個 0，且金額絕對值至少 1 元
+                // （整數部分為 0 不命中；位數大於 1 時尾數條件本身就排除 0）。
+                return $"({predicates.TrailingDigits(parameters, [TrailingZeroThreshold.ZeroPattern(rule.Digits!.Value)], context.MoneyScale)}"
+                    + $" AND {predicates.AmountRange(parameters, context.MoneyScale, null)})";
 
             case FilterRuleType.EntityFrequency:
                 return predicates.EntityFrequency(parameters, rule, context, schemaPrefix);
 
+            case FilterRuleType.CustomPreparerEntryCount:
+                // 舊式編製人員分錄筆數：讀回舊情境用，和「科目與人員統計」同一個方法。
+                return predicates.EntityFrequency(parameters, JetFieldCatalog.GlCreateBy, "entries", "lessThanOrEqual",
+                    rule.MaxEntries!.Value, null, context, schemaPrefix);
+
             case FilterRuleType.CustomAccountEntryCount:
-                // 自訂低頻科目門檻（C9 自訂軌）：maxEntries 取代固定預設 11，述詞同 lowFrequencyAccount。
-                return predicates.LowFrequencyAccount(
-                    parameters, rule.MaxEntries!.Value, context, schemaPrefix);
+                // 舊式科目分錄筆數：讀回舊情境用，和「科目與人員統計」同一個方法。
+                return predicates.EntityFrequency(parameters, JetFieldCatalog.GlAccNum, "entries", "lessThanOrEqual",
+                    rule.MaxEntries!.Value, null, context, schemaPrefix);
 
             case FilterRuleType.RevenueDebitNearQuarterEnd:
                 // KCT 清單 A：季底視窗由 Domain 純函式自查核期間 + windowDays 算出（識別字不來自使用者）。
@@ -293,44 +287,15 @@ internal sealed partial class GlFilterWhereBuilder(
     }
 
     private string BuildChildren(FilterSqlParameterPlanBuilder parameters, IReadOnlyList<FilterRuleSpec> rules,
-        FilterRuleContext context, long zeroModulus, string schemaPrefix)
+        FilterRuleContext context, string schemaPrefix)
     {
         string? combined = null;
         foreach (var child in rules)
         {
-            var sql = BuildRule(parameters, child, context, zeroModulus, schemaPrefix);
+            var sql = BuildRule(parameters, child, context, schemaPrefix);
             combined = combined is null ? sql : $"({combined} {Op(child.Join)} {sql})";
         }
         return $"({combined ?? "1 = 0"})";
-    }
-
-    private string BuildPrescreenRule(
-        FilterSqlParameterPlanBuilder parameters,
-        string prescreenKey,
-        FilterRuleContext context,
-        long zeroModulus,
-        string schemaPrefix)
-    {
-        return prescreenKey switch
-        {
-            PrescreenRuleKeys.PostPeriodApproval => predicates.PostPeriodApproval(parameters, context.LastPeriodStart!),
-            PrescreenRuleKeys.SuspiciousKeywords => predicates.SuspiciousKeywords(parameters),
-            PrescreenRuleKeys.UnexpectedAccountPair => predicates.UnexpectedAccountPair(parameters, context, schemaPrefix),
-            PrescreenRuleKeys.TrailingZeros => predicates.TrailingZeros(parameters, zeroModulus, context.MoneyScale),
-            PrescreenRuleKeys.WeekendPosting => predicates.Weekend("post_date", context.NonWorkingDays, schemaPrefix),
-            PrescreenRuleKeys.WeekendApproval => predicates.Weekend("approval_date", context.NonWorkingDays, schemaPrefix),
-            PrescreenRuleKeys.HolidayPosting => predicates.Holiday("post_date", schemaPrefix),
-            PrescreenRuleKeys.HolidayApproval => predicates.Holiday("approval_date", schemaPrefix),
-            PrescreenRuleKeys.BlankDescription => predicates.BlankDescription(),
-            PrescreenRuleKeys.NonAuthorizedPreparer => predicates.NonAuthorizedPreparer(schemaPrefix),
-            PrescreenRuleKeys.LowFrequencyPreparer =>
-                predicates.LowFrequencyPreparer(
-                    parameters, PreparerFrequency.DefaultMaxEntries, context, schemaPrefix),
-            PrescreenRuleKeys.LowFrequencyAccount =>
-                predicates.LowFrequencyAccount(
-                    parameters, AccountFrequency.DefaultMaxEntries, context, schemaPrefix),
-            _ => throw new InvalidOperationException($"未處理的預篩選鍵 {prescreenKey}。")
-        };
     }
 
     private static string Op(FilterJoin join) => join == FilterJoin.Or ? "OR" : "AND";
@@ -405,7 +370,7 @@ internal static class GlPopulationScopeSql
 
 /// <summary>
 /// 空值/期外日期紀錄分頁的 category → WHERE 述詞對映(白名單封閉集合,無任意字串注入)。
-/// 兩 provider 僅空白判定不同:SQLite <c>TRIM(x)=''</c>、SQL Server <c>LTRIM(RTRIM(x))=''</c>;
+/// 空白判定由方言的去空白方法產生，三種資料庫去掉的字元集合和 .NET 相同;
 /// outOfRangeDate 以 @periodStart/@periodEnd 綁參(述詞文字兩 provider 相同);
 /// 「日期區間外」以**核准日 approval_date**判定(2026-06-23 決策,對齊舊 JET 工具的
 /// 「Approval date out of period」;非過帳日)。核准日未配對(NULL)則不命中。
@@ -422,19 +387,16 @@ internal static class NullRecordsCategoryPredicate
     ];
 
     /// <summary>空白判定去掉的字元集合由方言決定（和 .NET Trim 相同），三個 provider 答案一致。</summary>
-    public static string For(NullRecordCategory category, ISqlDialect dialect) => Build(category, dialect.Trim);
+    public static string For(NullRecordCategory category, ISqlDialect dialect) => Build(category, dialect);
 
     public static string Scoped(NullRecordCategory category, ISqlDialect dialect) =>
         Scope(category, For(category, dialect));
 
-    private static string Build(NullRecordCategory category, Func<string, string> trim) => category switch
+    private static string Build(NullRecordCategory category, ISqlDialect dialect) => category switch
     {
-        NullRecordCategory.NullAccount =>
-            $"(account_code IS NULL OR {trim("account_code")} = '')",
-        NullRecordCategory.NullDocument =>
-            $"(document_number IS NULL OR {trim("document_number")} = '')",
-        NullRecordCategory.NullDescription =>
-            $"(document_description IS NULL OR {trim("document_description")} = '')",
+        NullRecordCategory.NullAccount => SqlBlankText.IsBlank(dialect, "account_code"),
+        NullRecordCategory.NullDocument => SqlBlankText.IsBlank(dialect, "document_number"),
+        NullRecordCategory.NullDescription => SqlBlankText.IsBlank(dialect, "document_description"),
         NullRecordCategory.OutOfRangeDate =>
             "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))",
         _ => throw new ArgumentOutOfRangeException(nameof(category), category, "未知的 null 紀錄 category。")

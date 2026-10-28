@@ -33,11 +33,12 @@ public sealed class PrescreenDirectTemplatePackageTests
         var plan = Plan(projectId, projection, plannedRowCount);
         await using var output = new MemoryStream();
 
-        await ((IPlannedPrescreenReportWriter)writer).WritePlannedAsync(
+        await ((IPrescreenReportWriter)writer).WriteAsync(
             output,
             Context(projectId),
             projection,
             plan,
+            ReportWriterTestSupport.SyntheticMetadata(),
             "tester",
             CancellationToken.None);
 
@@ -186,11 +187,12 @@ public sealed class PrescreenDirectTemplatePackageTests
         var plan = Plan("aggregate-width-project", projection, 0);
         await using var output = new MemoryStream();
 
-        await ((IPlannedPrescreenReportWriter)writer).WritePlannedAsync(
+        await ((IPrescreenReportWriter)writer).WriteAsync(
             output,
             Context("aggregate-width-project"),
             projection,
             plan,
+            ReportWriterTestSupport.SyntheticMetadata(),
             "tester",
             CancellationToken.None);
 
@@ -259,11 +261,12 @@ public sealed class PrescreenDirectTemplatePackageTests
         await using (var prescreenOutput = new MemoryStream())
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                ((IPlannedPrescreenReportWriter)writer).WritePlannedAsync(
+                ((IPrescreenReportWriter)writer).WriteAsync(
                     prescreenOutput,
                     Context(projectId),
                     projection,
                     plan,
+                    ReportWriterTestSupport.SyntheticMetadata(),
                     "tester",
                     cancellation.Token));
         }
@@ -282,9 +285,11 @@ public sealed class PrescreenDirectTemplatePackageTests
             [],
             new Dictionary<int, string>());
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            ((ITypedCriteriaSelectionReportWriter)writer).WriteTypedAsync(
+            ((ICriteriaSelectionReportWriter)writer).WriteAsync(
                 criteriaOutput,
                 criteriaContext,
+                ReportWriterTestSupport.SyntheticMetadata(),
+                [],
                 "tester",
                 cancellation.Token));
     }
@@ -370,9 +375,11 @@ public sealed class PrescreenDirectTemplatePackageTests
             });
         await using var output = new MemoryStream();
 
-        await ((ITypedCriteriaSelectionReportWriter)writer).WriteTypedAsync(
+        await ((ICriteriaSelectionReportWriter)writer).WriteAsync(
             output,
             context,
+            ReportWriterTestSupport.SyntheticMetadata(),
+            [],
             "tester",
             CancellationToken.None);
 
@@ -396,7 +403,9 @@ public sealed class PrescreenDirectTemplatePackageTests
                     "#Criteria Select 1",
                     "#Criteria Select 1 (2)",
                     "#Criteria Select 2",
-                    "#Criteria Select 2 (2)"
+                    "#Criteria Select 2 (2)",
+                    // 2026-10-22 技術債一輪：正式入口一定寫出隱藏的中繼資料工作表（第一次失敗：Public 收據 20261022-075335566）。
+                    ReportWorkbookMetadataFormat.WorksheetName
                 },
                 workbook.Worksheets.Select(sheet => sheet.Name).ToArray());
             var summary = workbook.Worksheet("Summary Inforamtion");
@@ -490,12 +499,14 @@ public sealed class PrescreenDirectTemplatePackageTests
         // AuditCore 只會把舊 IDEA 的單一「未預期借貸組合」位置放入此集合。
         // Writer 必須只改該位置的 D 欄，不能把所有情境都改成整張傳票列數。
         await using var wholeVoucherSummaryOutput = new MemoryStream();
-        await ((ITypedCriteriaSelectionReportWriter)writer).WriteTypedAsync(
+        await ((ICriteriaSelectionReportWriter)writer).WriteAsync(
             wholeVoucherSummaryOutput,
             context with
             {
                 WholeVoucherSummaryPositions = new HashSet<int> { 1 }
             },
+            ReportWriterTestSupport.SyntheticMetadata(),
+            [],
             "tester",
             CancellationToken.None);
         using var wholeVoucherSummaryWorkbook = new XLWorkbook(
@@ -579,9 +590,11 @@ public sealed class PrescreenDirectTemplatePackageTests
                 position => $"Stage9 family {position}"));
         await using var output = new MemoryStream();
 
-        await ((ITypedCriteriaSelectionReportWriter)writer).WriteTypedAsync(
+        await ((ICriteriaSelectionReportWriter)writer).WriteAsync(
             output,
             context,
+            ReportWriterTestSupport.SyntheticMetadata(),
+            [],
             "tester",
             CancellationToken.None);
 
@@ -590,7 +603,8 @@ public sealed class PrescreenDirectTemplatePackageTests
         Assert.Equal(
             new[] { "Summary Inforamtion" }
                 .Concat(Enumerable.Range(1, 10).Select(position =>
-                    $"#Criteria Select {position}")),
+                    $"#Criteria Select {position}"))
+                .Append(ReportWorkbookMetadataFormat.WorksheetName),
             workbook.Worksheets.Select(sheet => sheet.Name));
         foreach (var position in Enumerable.Range(7, 4))
         {
@@ -718,6 +732,7 @@ public sealed class PrescreenDirectTemplatePackageTests
             new LocalCreatorSummaryExportRepository(database),
             new LocalAccountUsageExportRepository(database),
             new LocalTagMatrixScenariosRepository(database),
+            new LocalSourceQualityPageRepository(database),
             new LocalTagMatrixRowPageRepository(database));
 
     private static LegacyReportWriter CreateWriter(
@@ -750,6 +765,7 @@ public sealed class PrescreenDirectTemplatePackageTests
             creatorSummaries,
             accountUsage,
             new LocalTagMatrixScenariosRepository(database),
+            new LocalSourceQualityPageRepository(database),
             new LocalTagMatrixRowPageRepository(database),
             options);
 

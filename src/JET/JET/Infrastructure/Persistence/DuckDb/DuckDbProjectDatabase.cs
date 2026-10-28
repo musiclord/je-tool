@@ -61,6 +61,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             sheet_name       TEXT NULL,
             encoding         TEXT NULL,
             delimiter        TEXT NULL,
+            header_row       INTEGER NULL,
             row_count        INTEGER NOT NULL DEFAULT 0,
             imported_utc     TEXT NOT NULL,
             PRIMARY KEY (batch_id, source_no)
@@ -552,41 +553,11 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
         versionCommand.CommandText =
             "SELECT value FROM schema_info WHERE key = 'schema_version';";
         var version = await versionCommand.ExecuteScalarAsync(cancellationToken) as string;
-        var parsedVersion = int.TryParse(version, out var value) ? value : 0;
-        if (parsedVersion == 6)
-        {
-            await MigrateV6ToV7Async(connection, cancellationToken);
-            parsedVersion = 7;
-        }
-
-        if (parsedVersion == 7)
-        {
-            await MigrateV7ToV8Async(connection, cancellationToken);
-            parsedVersion = 8;
-        }
-
-        if (parsedVersion == 8)
-        {
-            await MigrateV8ToV9Async(connection, cancellationToken);
-            parsedVersion = 9;
-        }
-        if (parsedVersion == 9)
-        {
-            await AccountClassificationMigration.UpgradeLocalAsync(connection, cancellationToken);
-            parsedVersion = 10;
-        }
-        if (parsedVersion == 10)
-        {
-            await AccountTaxonomyHierarchy.UpgradeLocalAsync(connection, cancellationToken);
-            parsedVersion = 11;
-        }
-        if (parsedVersion == 11)
-        {
-            await MessageLogLevelMigration.UpgradeLocalAsync(connection, MessageLogTableSql, cancellationToken);
-            parsedVersion = 12;
-        }
-        if (parsedVersion == 12)
-            await GlExclusionReasonMigration.UpgradeLocalAsync(connection, cancellationToken);
+        await LocalSchemaUpgrades.ApplyAsync(
+            connection,
+            int.TryParse(version, out var parsedVersion) ? parsedVersion : 0,
+            new LocalSchemaUpgrades.Steps(MigrateV6ToV7Async, MigrateV7ToV8Async, MigrateV8ToV9Async, MessageLogTableSql),
+            cancellationToken);
     }
 
     /// <summary>

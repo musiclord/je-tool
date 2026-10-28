@@ -613,8 +613,8 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
         await using var command = database.CreateCommand(connection, projectId,
             """
             INSERT INTO {s}.import_batch_source
-                (batch_id, source_no, source_file_path, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc)
-            VALUES (@batchId, @sourceNo, @filePath, @fileName, @sheetName, @encoding, @delimiter, 0, @importedUtc);
+                (batch_id, source_no, source_file_path, source_file_name, sheet_name, encoding, delimiter, header_row, row_count, imported_utc)
+            VALUES (@batchId, @sourceNo, @filePath, @fileName, @sheetName, @encoding, @delimiter, @headerRow, 0, @importedUtc);
             """);
         command.Transaction = transaction;
         command.Parameters.AddWithValue("@batchId", batchId);
@@ -625,6 +625,8 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
         command.Parameters.AddWithValue("@sheetName", (object?)source.SheetName ?? DBNull.Value);
         command.Parameters.AddWithValue("@encoding", (object?)source.EncodingName ?? DBNull.Value);
         command.Parameters.AddWithValue("@delimiter", (object?)source.Delimiter ?? DBNull.Value);
+        // 欄名在第幾列（預篩選收斂計畫階段六）；SQL Server 開發暫緩期間加入，沒有 SQL Server 測試執行到。
+        command.Parameters.AddWithValue("@headerRow", (object?)source.HeaderRow ?? DBNull.Value);
         command.Parameters.AddWithValue("@importedUtc", importedUtc.ToString("O"));
         await command.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
     }
@@ -765,7 +767,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
     {
         await using var command = database.CreateCommand(connection, projectId,
             """
-            SELECT source_no, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc
+            SELECT source_no, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc, header_row
             FROM {s}.import_batch_source
             WHERE batch_id = @batchId
             ORDER BY source_no;
@@ -784,7 +786,8 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
                 reader.GetInt32(5),
-                DateTimeOffset.Parse(reader.GetString(6))));
+                DateTimeOffset.Parse(reader.GetString(6)),
+                HeaderRow: reader.IsDBNull(7) ? null : reader.GetInt32(7)));
         }
 
         return sources;

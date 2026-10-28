@@ -28,7 +28,7 @@ public sealed class BinaryExcelTableReader : ITabularFileReader
         using var reader = Open(request.FilePath);
         SelectSheet(reader, request.SheetName, cancellationToken);
         var columns = FindHeader(reader, request.LeadingRowsToSkip, cancellationToken, out _);
-        if (columns.Count == 0) throw Empty();
+        if (columns.Count == 0) throw NoHeader(request);
         return Task.FromResult(columns);
     }
 
@@ -38,7 +38,7 @@ public sealed class BinaryExcelTableReader : ITabularFileReader
         using var reader = Open(request.FilePath);
         SelectSheet(reader, request.SheetName, cancellationToken);
         var columns = FindHeader(reader, request.LeadingRowsToSkip, cancellationToken, out var rowNumber);
-        if (columns.Count == 0) throw Empty();
+        if (columns.Count == 0) throw NoHeader(request);
         while (Read(() => reader.Read()))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -149,6 +149,10 @@ public sealed class BinaryExcelTableReader : ITabularFileReader
         catch (Exception exception) when (exception is not OperationCanceledException and not OutOfMemoryException)
         { throw Failure(exception); }
     }
+
+    private static JetActionException NoHeader(TabularSourceRequest request) =>
+        request.LeadingRowsToSkip > 0 && !request.FixedLeadingRows
+            ? SourceFileErrors.HeaderRowBeyondContent(request.FilePath, request.LeadingRowsToSkip) : Empty();
 
     private static JetActionException Empty() => new(JetErrorCodes.EmptyWorkbook, "工作表沒有標頭或資料，請重新選擇工作表。");
     private static JetActionException Failure(Exception exception) => new(JetErrorCodes.FileReadError,

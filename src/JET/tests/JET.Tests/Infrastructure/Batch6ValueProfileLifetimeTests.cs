@@ -46,7 +46,8 @@ public sealed class Batch6ValueProfileLifetimeTests
     private static async Task AssertFixedAnswersAsync(ILocalProjectDatabase database, string projectId, string batchId)
     {
         var repository = new LocalMappingValueProfileRepository(database);
-        var profile = await repository.GetAsync(projectId, batchId, "Mode", 10, CancellationToken.None);
+        // 2026-10-28 查詢多了往下填補參數，這裡照原樣計數，帶 false；預期不變。
+        var profile = await repository.GetAsync(projectId, batchId, "Mode", 10, false, CancellationToken.None);
         Assert.Equal(0, profile.BlankCount);
         Assert.Equal(2, profile.DistinctCount);
         Assert.False(profile.Truncated);

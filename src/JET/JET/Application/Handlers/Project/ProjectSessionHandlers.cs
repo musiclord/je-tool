@@ -76,7 +76,7 @@ public sealed class ProjectReleaseLockHandler(
     ProjectSession session,
     ActionExecutionGate executionGate) : IApplicationActionHandler
 {
-    public string Action => "project.releaseLock";
+    public string Action => JetActionNames.ProjectReleaseLock;
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {

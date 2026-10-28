@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
@@ -17,58 +16,7 @@ public sealed partial class LegacyReportWriter
     private static readonly WorkbookStylePatch PrescreenDescriptionColumnWrap =
         new(WrapText: true);
 
-    public async Task<ExportStats> WriteAsync(
-        Stream output,
-        PrescreenReportContext context,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null)
-    {
-        // 保留 assembly 外 caller 的 public contract。Production export 會由
-        // Application 提供 provider counts 與 finalized plan。
-        using var summary = JsonDocument.Parse(context.SummaryJson);
-        return await WriteTypedCoreAsync(
-            output,
-            context,
-            ParseLegacyPrescreenProjection(summary.RootElement),
-            "JET",
-            cancellationToken,
-            progress).ConfigureAwait(false);
-    }
-
-    Task<ExportStats> ITypedPrescreenReportWriter.WriteTypedAsync(
-        Stream output,
-        PrescreenReportContext context,
-        PrescreenReportProjection projection,
-        string operatorId,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
-        WriteTypedCoreAsync(
-            output,
-            context,
-            projection,
-            operatorId,
-            cancellationToken,
-            progress);
-
-    Task<ExportStats> IPlannedPrescreenReportWriter.WritePlannedAsync(
-        Stream output,
-        PrescreenReportContext context,
-        PrescreenReportProjection projection,
-        PrescreenReportPlan plan,
-        string operatorId,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
-        WritePlannedCoreAsync(
-            output,
-            context,
-            projection,
-            plan,
-            workbookMetadata: null,
-            operatorId,
-            cancellationToken,
-            progress);
-
-    Task<ExportStats> IFormalPlannedPrescreenReportWriter.WriteFormalPlannedAsync(
+    Task<ExportStats> IPrescreenReportWriter.WriteAsync(
         Stream output,
         PrescreenReportContext context,
         PrescreenReportProjection projection,
@@ -76,8 +24,10 @@ public sealed partial class LegacyReportWriter
         ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
-        WritePlannedCoreAsync(
+        Action<WorkpaperProgress>? progress)
+    {
+        ReportWorkbookMetadataInvariant.Validate(workbookMetadata);
+        return WritePlannedCoreAsync(
             output,
             context,
             projection,
@@ -86,53 +36,6 @@ public sealed partial class LegacyReportWriter
             operatorId,
             cancellationToken,
             progress);
-
-    private Task<ExportStats> WriteTypedCoreAsync(
-        Stream output,
-        PrescreenReportContext context,
-        PrescreenReportProjection projection,
-        string operatorId,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
-        WritePlannedCoreAsync(
-            output,
-            context,
-            projection,
-            CompatibilityPrescreenPlan(context, projection),
-            workbookMetadata: null,
-            operatorId,
-            cancellationToken,
-            progress);
-
-    private static PrescreenReportPlan CompatibilityPrescreenPlan(
-        PrescreenReportContext context,
-        PrescreenReportProjection projection)
-    {
-        var ruleContext = new FilterRuleContext(
-            context.Project.MoneyScale,
-            context.Project.LastPeriodStart,
-            context.Project.PeriodStart,
-            context.Project.PeriodEnd);
-        var unfinalized = JetAuditProgram.Plan(new PrescreenReportRequest(
-            context.Project.ProjectId,
-            ruleContext,
-            projection.PostPeriodApproval.NaReason,
-            projection.SuspiciousKeywords.NaReason,
-            projection.UnexpectedAccountPair.NaReason,
-            projection.TrailingZeros.NaReason,
-            projection.BlankDescription.NaReason));
-        var facts = unfinalized.Details
-            .Where(detail => detail.IsApplicable)
-            .ToDictionary(
-                detail => detail.Kind,
-                detail =>
-                {
-                    var count = ProjectionFor(projection, detail.Kind).ItemCount;
-                    return new PrescreenHitCounts(count, count);
-                });
-        return JetAuditProgram.Finalize(
-            unfinalized,
-            new PrescreenReportPlanningFacts(facts));
     }
 
     private async Task<ExportStats> WritePlannedCoreAsync(
@@ -140,7 +43,7 @@ public sealed partial class LegacyReportWriter
         PrescreenReportContext context,
         PrescreenReportProjection projection,
         PrescreenReportPlan plan,
-        ReportWorkbookMetadata? workbookMetadata,
+        ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress)
@@ -167,10 +70,7 @@ public sealed partial class LegacyReportWriter
                     operatorId,
                     ct,
                     progress).ConfigureAwait(false);
-                if (workbookMetadata is not null)
-                {
-                    ReportWorkbookMetadataWorksheet.Append(editor.Document, workbookMetadata, ct);
-                }
+                ReportWorkbookMetadataWorksheet.Append(editor.Document, workbookMetadata, ct);
                 return stats;
             },
             cancellationToken).ConfigureAwait(false);
@@ -574,69 +474,6 @@ public sealed partial class LegacyReportWriter
             progress).ConfigureAwait(false);
     }
 
-    private static PrescreenReportProjection ParseLegacyPrescreenProjection(
-        JsonElement root) =>
-        new(
-            PostPeriodApproval: LegacyRule(
-                root,
-                "postPeriodApproval",
-                RuleCount(root, "postPeriodApproval")),
-            SuspiciousKeywords: LegacyRule(
-                root,
-                "suspiciousKeywords",
-                RuleCount(root, "suspiciousKeywords")),
-            UnexpectedAccountPair: LegacyRule(
-                root,
-                "unexpectedAccountPair",
-                RuleCount(root, "unexpectedAccountPair")),
-            TrailingZeros: LegacyRule(
-                root,
-                "trailingZeros",
-                RuleCount(root, "trailingZeros")),
-            // V9：摘要列寫完整人數，和第四步、[R5] 工作表一致；舊的預篩選結果沒有這個欄位時，沿用清單列數。
-            CreatorSummary: LegacyRule(
-                root,
-                "creatorSummary",
-                OptionalLong(root, "creatorSummary", "totalPreparerCount")
-                    ?? ArrayLength(root, "creatorSummary", "creators")),
-            RareAccounts: LegacyRule(
-                root,
-                "rareAccounts",
-                GetLong(root.GetProperty("rareAccounts"), "distinctAccountCount")),
-            BlankDescription: LegacyRule(
-                root,
-                "blankDescription",
-                RuleCount(root, "blankDescription")));
-
-    private static PrescreenReportRuleProjection LegacyRule(
-        JsonElement root,
-        string section,
-        long itemCount = 0) =>
-        new(
-            Status: RuleStatus(root, section),
-            NaReason: RuleNaReason(root, section),
-            ItemCount: itemCount);
-
-    private static PrescreenReportRuleProjection ProjectionFor(
-        PrescreenReportProjection projection,
-        PrescreenReportDetailKind kind) => kind switch
-    {
-        PrescreenReportDetailKind.PostPeriodApproval =>
-            projection.PostPeriodApproval,
-        PrescreenReportDetailKind.SuspiciousKeywords =>
-            projection.SuspiciousKeywords,
-        PrescreenReportDetailKind.UnexpectedAccountPair =>
-            projection.UnexpectedAccountPair,
-        PrescreenReportDetailKind.TrailingZeros =>
-            projection.TrailingZeros,
-        PrescreenReportDetailKind.BlankDescription =>
-            projection.BlankDescription,
-        _ => throw new ArgumentOutOfRangeException(
-            nameof(kind),
-            kind,
-            "未知的 Pre-screening detail kind。")
-    };
-
     private static string SummaryResultText(
         long count,
         string sheetName,
@@ -644,15 +481,6 @@ public sealed partial class LegacyReportWriter
         !string.IsNullOrWhiteSpace(naReason)
             ? $"N/A（{naReason}）"
             : $"彙總 {count:N0} 項；詳 [{sheetName}] 工作表";
-
-    private static string? RuleNaReason(JsonElement root, string section)
-    {
-        return root.TryGetProperty(section, out var value)
-            && value.TryGetProperty("naReason", out var reason)
-            && reason.ValueKind == JsonValueKind.String
-            ? reason.GetString()
-            : null;
-    }
 
     private async Task EmitCreatorSummaryAsync(
         SpreadsheetDocument document,

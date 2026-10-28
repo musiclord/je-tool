@@ -46,6 +46,7 @@ public sealed record PrescreenHitRow(
 /// query.infSamplePage 的單一 INF 抽樣行層明細。
 /// 借/貸以 debit_amount_scaled / credit_amount_scaled 拆欄(scaled 整數,顯示換算由 handler 負責)。
 /// 游標鍵 entry_id 不入此記錄(由 repo 在 reader 末欄另取以編游標)。
+/// SourceModule 與 DrCr 是 GL 整理後的分錄來源與借貸方向，只給 INF 報告主表與底稿第二步用，不進 wire row。
 /// </summary>
 public sealed record InfSampleRow(
     string? DocumentNumber,
@@ -58,7 +59,9 @@ public sealed record InfSampleRow(
     string? CreatedBy,
     string? ApprovedBy,
     string? Description,
-    long EntryId = 0);
+    long EntryId = 0,
+    string? SourceModule = null,
+    string? DrCr = null);
 
 /// <summary>query.tagMatrixVoucherPage 的傳票層矩陣列。matchedPositions 由 handler 另附;
 /// 游標鍵 document_number 由 repo 末欄另取。voucherTotal 為傳票借方總額 scaled。</summary>

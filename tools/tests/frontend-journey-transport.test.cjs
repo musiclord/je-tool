@@ -276,9 +276,10 @@ test('primitives: restoreMappingDrafts swaps both drafts in one change and keeps
   assert.equal(seen[0].version, versionBefore + 1);
   assert.equal(state.mapping.gl.amountMode, 'signed');
   assert.equal(state.mapping.tb.changeMode, 'netChange');
+  // 預篩選收斂計畫階段六：還原的草稿多帶往下填補的欄位，報告沒有這一項時是空清單。第一次失敗收據 20261023-202627448-2cd39694cc43446f9ef415359d61b59a。
   assert.deepEqual(plain(state.mapping.gl.options), {
     approvalDateMode: 'column', postingStatusPolicy: { column: 'SynStatus', postedValues: ['P'] },
-    manualAutoPolicy: { manualValues: ['M'], automaticValues: ['A'] }, rdeFields: rde });
+    manualAutoPolicy: { manualValues: ['M'], automaticValues: ['A'] }, rdeFields: rde, fillDownFields: [] });
   assert.equal(state.mapping.gl.committed, glCommitted, 'the committed GL snapshot object is kept');
   assert.equal(state.mapping.tb.committed, tbCommitted, 'the committed TB snapshot object is kept');
   assert.deepEqual(plain({ gl: state.mapping.gl.committed, tb: state.mapping.tb.committed }), committedBefore,
@@ -290,9 +291,10 @@ test('primitives: restoreMappingDrafts swaps both drafts in one change and keeps
   assert.equal(state.mapping.gl.options.rdeFields.length, 1);
 
   // 舊版報告沒有 v2 選項時，用固定的預設值，不沿用目前草稿的設定。
+  // 預篩選收斂計畫階段六：預設值多一個空的往下填補欄位清單。第一次失敗收據 20261024-032828783-5256aaa759b94e46a25201e84c769add。
   store.restoreMappingDrafts({ gl: { mapping: {}, amountMode: 'dual' }, tb: { mapping: {}, changeMode: 'debitCredit' } });
   assert.deepEqual(plain(state.mapping.gl.options), {
     approvalDateMode: 'unmapped', postingStatusPolicy: null,
-    manualAutoPolicy: { manualValues: ['1'], automaticValues: ['0'] }, rdeFields: [] });
+    manualAutoPolicy: { manualValues: ['1'], automaticValues: ['0'] }, rdeFields: [], fillDownFields: [] });
   assert.equal(seen.length, 2);
 });

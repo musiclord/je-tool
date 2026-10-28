@@ -8,6 +8,7 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using DocumentFormat.OpenXml.Validation;
 using JET.Application;
+using JET.AuditCore;
 using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
@@ -570,14 +571,22 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             projectId, RuleRunKinds.Validate, CancellationToken.None));
         var writer = BuildLegacyReportWriter(host, new LegacyReportWriterOptions(18));
         await using var stream = new MemoryStream();
-        var stats = await writer.WriteAsync(
+        // 2026-10-22 技術債一輪：只讀摘要的公開入口已刪除，測試和 handler 一樣先解析投影、規劃，再走正式入口。
+        var reportContext = new ValidationReportContext(
+            new ReportDocumentContext(
+                projectId, "測試自含案件", "2025-01-01", "2025-12-31", "2024-01-01", 10_000),
+            run.RunId,
+            run.GeneratedUtc,
+            run.SummaryJson);
+        var reportProjection = ValidationReportProjectionParser.Parse(run.SummaryJson);
+        var stats = await ((IValidationReportWriter)writer).WriteAsync(
             stream,
-            new ValidationReportContext(
-                new ReportDocumentContext(
-                    projectId, "測試自含案件", "2025-01-01", "2025-12-31", "2024-01-01", 10_000),
-                run.RunId,
-                run.GeneratedUtc,
-                run.SummaryJson),
+            reportContext,
+            reportProjection,
+            ReportWriterTestSupport.ValidationPlan(reportContext, reportProjection),
+            new FieldInfoProjection([], []),
+            ReportWriterTestSupport.SyntheticMetadata(),
+            "tester",
             CancellationToken.None);
 
         var continuedName = LegacyReportWriter.SeriesName(CompletenessDiffSheet, 2);
@@ -629,8 +638,7 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             NullDocumentCount: 0,
             NullDescriptionCount: 0,
             OutOfRangeDateCount: 0,
-            SourceQualityFindingCount: 0,
-            SourceQualitySampleRows: []);
+            SourceQualityFindingCount: 0);
         var context = new ValidationReportContext(
             new ReportDocumentContext(
                 projectId,
@@ -644,10 +652,13 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             "{ this is deliberately invalid JSON");
         await using var stream = new MemoryStream();
 
-        var export = await ((ITypedValidationReportWriter)writer).WriteTypedAsync(
+        var export = await ((IValidationReportWriter)writer).WriteAsync(
             stream,
             context,
             projection,
+            ReportWriterTestSupport.ValidationPlan(context, projection),
+            new FieldInfoProjection([], []),
+            ReportWriterTestSupport.SyntheticMetadata(),
             "typed-operator",
             CancellationToken.None);
 
@@ -689,10 +700,12 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             "{ this is deliberately invalid JSON");
         await using var stream = new MemoryStream();
 
-        var export = await ((ITypedPrescreenReportWriter)writer).WriteTypedAsync(
+        var export = await ((IPrescreenReportWriter)writer).WriteAsync(
             stream,
             context,
             projection,
+            ReportWriterTestSupport.PrescreenPlan(context, projection),
+            ReportWriterTestSupport.SyntheticMetadata(),
             "typed-operator",
             CancellationToken.None);
 
@@ -704,57 +717,8 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
         Assert.Contains("彙總 9 項", summary.Cell("D13").GetString(), StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task PrescreenReport_PublicWriter_PreservesSummaryJsonCompatibilityEntryPoint()
-    {
-        using var host = new HandlerTestHost();
-        var projectId = await ReportArtifactExportFixture.SetupProjectAsync(host);
-        var writer = BuildLegacyReportWriter(host, new LegacyReportWriterOptions());
-        var summaryJson = JsonSerializer.Serialize(new
-        {
-            postPeriodApproval = new { status = "na", naReason = "compatibility skip" },
-            suspiciousKeywords = new { status = "na", naReason = "compatibility skip" },
-            unexpectedAccountPair = new { status = "na", naReason = "compatibility skip" },
-            trailingZeros = new { status = "na", naReason = "compatibility skip" },
-            creatorSummary = new
-            {
-                status = "V",
-                naReason = (string?)null,
-                creators = new[] { new { createdBy = "A" }, new { createdBy = "B" } }
-            },
-            rareAccounts = new
-            {
-                status = "V",
-                distinctAccountCount = 6L,
-                accounts = Array.Empty<object>()
-            },
-            blankDescription = new { status = "na", naReason = "compatibility skip" }
-        });
-        var context = new PrescreenReportContext(
-            new ReportDocumentContext(
-                projectId,
-                "Public Compatibility Entity",
-                "2025-01-01",
-                "2025-12-31",
-                "2024-12-31",
-                10_000),
-            "public-run",
-            new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero),
-            summaryJson);
-        await using var stream = new MemoryStream();
-
-        var export = await writer.WriteAsync(
-            stream,
-            context,
-            CancellationToken.None);
-
-        Assert.True(export.BytesWritten > 0);
-        stream.Position = 0;
-        using var workbook = new XLWorkbook(stream);
-        var summary = workbook.Worksheet("Pre-screening_Report");
-        Assert.Contains("彙總 2 項", summary.Cell("D12").GetString(), StringComparison.Ordinal);
-        Assert.Contains("彙總 6 項", summary.Cell("D13").GetString(), StringComparison.Ordinal);
-    }
+    // 2026-10-22 技術債一輪：只讀摘要 JSON 的公開預篩選入口已刪除，原本檢查它的測試一併移除；
+    // 彙總列的內容由上一則走正式入口的測試守住（第一次失敗：Focused 收據 20261022-070441801-b717958da6bc461bb272ed374766bb78）。
 
     [Fact]
     public async Task ValidationReport_UnbalancedVoucher_WritesEveryOriginalGlLineNotAggregate()
@@ -991,7 +955,10 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
     public async Task CriteriaUsesApprovedConditionText_WhileWorkpaperStep3EndsAtColumnE()
     {
         using var host = new HandlerTestHost();
-        var projectId = await ReportArtifactExportFixture.SetupProjectAsync(host);
+        // 預篩選收斂計畫階段四（2026-10-23）：第五步不能用 GL 沒有配對的欄位，「編製人員分錄筆數」需要傳票建立人員，
+        // 共用資料沒有這一欄，所以這則測試改用多一欄「建立人員」的同一份資料；情境與斷言不變。
+        // 第一次失敗：Focused 收據 20261023-034759122-0f1124c6ec3e4030ace8fcfd8be8f824（確認情境時回「「傳票建立人員」尚未選擇來源欄」）。
+        var projectId = await ReportArtifactExportFixture.SetupProjectAsync(host, withCreatedBy: true);
         var validation = await host.DispatchAsync("validate.run");
         var prescreen = await host.DispatchAsync("prescreen.run");
         var committed = await host.DispatchAsync(
@@ -1011,17 +978,25 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
                                 join = "AND",
                                 rules = new object[]
                                 {
+                                    // 預篩選收斂計畫階段九把兩種舊式筆數條件列為停用寫法，情境改成等價的「科目與人員統計」，
+                                    // 預期文字跟著變成統計條件的讀回；斷言的位置與結構不變。
                                     new
                                     {
                                         join = "AND",
-                                        type = "customPreparerEntryCount",
-                                        maxEntries = "11"
+                                        type = "entityFrequency",
+                                        field = "createBy",
+                                        countUnit = "entries",
+                                        countOperator = "lessThanOrEqual",
+                                        countFrom = "11"
                                     },
                                     new
                                     {
                                         join = "OR",
-                                        type = "customAccountEntryCount",
-                                        maxEntries = "11"
+                                        type = "entityFrequency",
+                                        field = "accNum",
+                                        countUnit = "entries",
+                                        countOperator = "lessThanOrEqual",
+                                        countFrom = "11"
                                     },
                                     new { join = "AND", type = "drCrOnly", drCr = "debit" }
                                 }
@@ -1055,7 +1030,8 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
         // 2026-10-03 用語統一 T1：條件讀回跟著畫面改成「分錄測試範圍」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         const string expected =
             // 使用者 2026-10-08 裁定資料名稱全系統統一：「分錄測試範圍內」改為「GL 中」。
-            "（（GL 中編製人員分錄筆數 ≤ 11 或 GL 中科目分錄筆數 ≤ 11） 且 僅借方）";
+            // 預篩選收斂計畫階段九改用統計條件後的讀回。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（儲存回「已停用」）。
+            "（（GL 中「傳票建立人員」分錄筆數 小於或等於 11 或 GL 中「會計科目編號」分錄筆數 小於或等於 11） 且 僅借方）";
         var criteriaPath = Path.Combine(
             host.ProjectsRoot,
             projectId,
@@ -1397,6 +1373,7 @@ public sealed class ReportArtifactExportTests(ReportArtifactExportFixture fixtur
             new LocalCreatorSummaryExportRepository(database),
             new LocalAccountUsageExportRepository(database),
             new LocalTagMatrixScenariosRepository(database),
+            new LocalSourceQualityPageRepository(database),
             new LocalTagMatrixRowPageRepository(database),
             options);
     }
@@ -1828,17 +1805,22 @@ public sealed class ReportArtifactExportFixture : IAsyncLifetime
         return ValueTask.CompletedTask;
     }
 
-    internal static Task<string> SetupProjectAsync(HandlerTestHost host) =>
+    // withCreatedBy 在同一份資料後面多一欄「建立人員」。預篩選收斂計畫階段四（2026-10-23）起第五步不能用 GL 沒有配對的欄位，
+    // 用到編製人員的情境需要這一欄；其他測試照舊用原本的欄位。
+    internal static Task<string> SetupProjectAsync(HandlerTestHost host, bool withCreatedBy = false) =>
         InlineWorkbookProject.SetupAsync(
             host,
             builder => builder
-                .WithColumns(OriginalHeaders())
-                .AddRow("JV-001", "2025-03-05", "2026-01-02", "1101", "現金", "調整分錄", "2000000.00", 1)
-                .AddRow("JV-001", "2025-03-05", "2026-01-02", "4101", "收入", null, "2000000.00", 0),
+                .WithColumns(withCreatedBy ? [.. OriginalHeaders(), "建立人員"] : OriginalHeaders())
+                .AddRow(Row(withCreatedBy, "JV-001", "2025-03-05", "2026-01-02", "1101", "現金", "調整分錄", "2000000.00", 1))
+                .AddRow(Row(withCreatedBy, "JV-001", "2025-03-05", "2026-01-02", "4101", "收入", null, "2000000.00", 0)),
             lastPeriodStart: "2025-12-31",
             configureTb: tb => tb
                 .AddRow("1101", "現金", 2_000_000)
                 .AddRow("4101", "收入", -2_000_000));
+
+    private static object?[] Row(bool withCreatedBy, params object?[] cells) =>
+        withCreatedBy ? [.. cells, "合成編製者"] : cells;
 
     internal Task<JsonElement> ExportValidationArtifactsAsync() => Host.DispatchAsync(
         "export.validationArtifacts",

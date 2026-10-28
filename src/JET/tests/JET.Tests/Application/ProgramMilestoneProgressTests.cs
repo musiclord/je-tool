@@ -1,5 +1,4 @@
 using JET.Application;
-using JET.AuditCore;
 using JET.Domain;
 using Xunit;
 
@@ -7,14 +6,16 @@ namespace JET.Tests.Application;
 
 public sealed class ProgramMilestoneProgressTests
 {
+    // 2026-10-22 技術債一輪：動作名對照表 WorkflowMilestones 已刪除（第一次失敗：Focused 收據 20261022-070441801），
+    // 改直接讀各 handler 宣告的 WorkflowStep；案例與期望值不變。
     [Theory]
-    [InlineData(2, "validate.run", 4, 1)]
-    [InlineData(4, "filter.commit", 5, 1)]
-    [InlineData(5, "validate.run", 5, 0)]
-    [InlineData(4, "mapping.commit.gl", 4, 0)]
+    [InlineData(2, ValidateRunHandler.WorkflowStep, 4, 1)]
+    [InlineData(4, FilterCommitHandler.WorkflowStep, 5, 1)]
+    [InlineData(5, ValidateRunHandler.WorkflowStep, 5, 0)]
+    [InlineData(4, MappingCommitGlHandler.WorkflowStep, 4, 0)]
     public async Task MappingCommitShared_UsesMonotonicWorkflowMilestoneOnly(
         int currentStep,
-        string actionName,
+        int workflowStep,
         int expectedStep,
         int expectedSaveCalls)
     {
@@ -24,7 +25,7 @@ public sealed class ProgramMilestoneProgressTests
         await MappingCommitShared.AdvanceStepAsync(
             store,
             document,
-            WorkflowMilestones.For(actionName),
+            workflowStep,
             CancellationToken.None);
 
         Assert.Equal(expectedStep, store.Document.CurrentStep);

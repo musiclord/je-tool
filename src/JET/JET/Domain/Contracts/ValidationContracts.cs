@@ -88,6 +88,7 @@ public sealed record NullRecordRow(
 /// <summary>有效分錄內，同一非空傳票號碼出現在多個總帳日期的非阻擋提醒。</summary>
 public sealed record DocumentDateReuseCounts(long DocumentNumberCount, long EntryCount);
 
+/// <summary>資料驗證的有界結果。<see cref="OutOfRangeDateCount"/> 為 null 表示傳票核准日不可用，「核准日不在期間」沒有檢查。</summary>
 public sealed record ValidationRunResult(
     GlPopulationStats Stats,
     GlPopulationSummary PopulationSummary,
@@ -98,7 +99,7 @@ public sealed record ValidationRunResult(
     long NullAccountCount,
     long NullDocumentCount,
     long NullDescriptionCount,
-    long OutOfRangeDateCount,
+    long? OutOfRangeDateCount,
     long SourceQualityFindingCount,
     IReadOnlyList<UnbalancedDocument> UnbalancedDocuments,
     IReadOnlyList<NullRecordRow> NullRecordRows,

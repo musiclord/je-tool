@@ -759,7 +759,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
-                "傳票核准日、人工與自動分錄或攸關資料元素欄位的設定互相衝突，請檢查這幾項。",
+                "傳票核准日、人工與自動分錄、攸關資料元素欄位或往下填補空白的欄位設定互相衝突，請檢查這幾項。",
                 innerException: exception);
         }
 

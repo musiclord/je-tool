@@ -32,7 +32,8 @@ public sealed class Batch9FrontendConstantsTests
         Assert.Equal("金額尾數連續 6 個 0", FilterConditionLabels.PrescreenKeys[PrescreenRuleKeys.TrailingZeros]);
         Assert.Equal("編製分錄較少的人員（11 筆以下）", FilterConditionLabels.PrescreenKeys[PrescreenRuleKeys.LowFrequencyPreparer]);
         Assert.Equal("使用較少的科目（11 筆以下）", FilterConditionLabels.PrescreenKeys[PrescreenRuleKeys.LowFrequencyAccount]);
-        var source = Read("JET", "Domain", "Rules", "FilterConditionLabels.cs");
+        // 預篩選收斂計畫階段九：標籤正本搬到 Domain PrescreenRuleDefinitions，FilterConditionLabels 由它衍生。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        var source = Read("JET", "Domain", "Rules", "PrescreenRuleDefinitions.cs");
         Assert.Contains("{TrailingZeroThreshold.DefaultZerosThreshold}", source, StringComparison.Ordinal);
         Assert.Contains("{PreparerFrequency.DefaultMaxEntries}", source, StringComparison.Ordinal);
         Assert.Contains("{AccountFrequency.DefaultMaxEntries}", source, StringComparison.Ordinal);

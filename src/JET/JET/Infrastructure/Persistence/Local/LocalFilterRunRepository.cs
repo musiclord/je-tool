@@ -40,16 +40,12 @@ public sealed class LocalFilterRunRepository(ILocalProjectDatabase database, ILo
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 連續零尾數條件的模數與 prescreen.run 同源（固定預設 Domain 門檻）。
-        var zeroModulus = TrailingZeroThreshold.UnitModulus(
-            TrailingZeroThreshold.DefaultZerosThreshold);
-
         var count = await ExecuteScalarAsync(
-            connection, scenario, context, zeroModulus, "COUNT(*)", cancellationToken);
+            connection, scenario, context, "COUNT(*)", cancellationToken);
         var voucherCount = await ExecuteScalarAsync(
-            connection, scenario, context, zeroModulus, "COUNT(DISTINCT g.document_number)", cancellationToken);
+            connection, scenario, context, "COUNT(DISTINCT g.document_number)", cancellationToken);
         var previewRows = await ReadPreviewRowsAsync(
-            connection, scenario, context, zeroModulus, cancellationToken);
+            connection, scenario, context, cancellationToken);
 
         return new FilterPreviewResult(count, voucherCount, previewRows);
     }
@@ -65,10 +61,8 @@ public sealed class LocalFilterRunRepository(ILocalProjectDatabase database, ILo
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        var zeroModulus = TrailingZeroThreshold.UnitModulus(
-            TrailingZeroThreshold.DefaultZerosThreshold);
         await using var command = connection.CreateCommand();
-        var plan = WhereBuilder.BuildPlan(scenario, context, zeroModulus);
+        var plan = WhereBuilder.BuildPlan(scenario, context);
         plan.BindParametersTo(command);
         // 條件的 WHERE plan 只引用子查詢的 g；外層用另一個別名列出同傳票的全部分錄。
         command.CommandText = "SELECT COUNT(*) FROM target_gl_entry whole_row "
@@ -84,12 +78,11 @@ public sealed class LocalFilterRunRepository(ILocalProjectDatabase database, ILo
         DbConnection connection,
         FilterScenarioSpec scenario,
         FilterRuleContext context,
-        long zeroModulus,
         string selectExpression,
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        var plan = WhereBuilder.BuildPlan(scenario, context, zeroModulus);
+        var plan = WhereBuilder.BuildPlan(scenario, context);
         plan.BindParametersTo(command);
         command.CommandText = $"SELECT {selectExpression} FROM target_gl_entry g "
             + $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} AND ({plan.Sql});";
@@ -102,11 +95,10 @@ public sealed class LocalFilterRunRepository(ILocalProjectDatabase database, ILo
         DbConnection connection,
         FilterScenarioSpec scenario,
         FilterRuleContext context,
-        long zeroModulus,
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        var plan = WhereBuilder.BuildPlan(scenario, context, zeroModulus);
+        var plan = WhereBuilder.BuildPlan(scenario, context);
         plan.BindParametersTo(command);
         command.CommandText =
             $"""

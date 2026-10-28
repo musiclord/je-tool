@@ -5,6 +5,11 @@ namespace JET.Tests.Domain;
 
 public sealed class JetFieldCatalogTests
 {
+    // 2026-10-22 技術債一輪：目錄只給測試用的 FindGlMappingSlot 與 FindTbMappingSlot 已刪除，測試直接從槽位清單找。
+    private static JetMappingSlot GlSlot(string key) => JetFieldCatalog.GlMappingSlots.Single(slot => slot.Key == key);
+
+    private static JetMappingSlot TbSlot(string key) => JetFieldCatalog.TbMappingSlots.Single(slot => slot.Key == key);
+
     [Fact]
     public void CatalogTypes_AreInternal()
     {
@@ -220,16 +225,16 @@ public sealed class JetFieldCatalogTests
         var glAmount = JetFieldCatalog.FindGlSemanticFieldByMappingKey(GlMappingKeys.Amount);
         var tbAmount = JetFieldCatalog.FindTbSemanticFieldByMappingKey(TbMappingKeys.Amount);
 
-        Assert.True(JetFieldCatalog.FindGlMappingSlot(GlMappingKeys.DocNum).IsAlwaysRequired);
+        Assert.True(GlSlot(GlMappingKeys.DocNum).IsAlwaysRequired);
         Assert.True(documentNumber.StorageNullable);
-        Assert.True(JetFieldCatalog.FindGlMappingSlot(GlMappingKeys.PostDate).IsAlwaysRequired);
+        Assert.True(GlSlot(GlMappingKeys.PostDate).IsAlwaysRequired);
         Assert.True(postDate.StorageNullable);
-        Assert.True(JetFieldCatalog.FindTbMappingSlot(TbMappingKeys.AccNum).IsAlwaysRequired);
+        Assert.True(TbSlot(TbMappingKeys.AccNum).IsAlwaysRequired);
         Assert.True(accountCode.StorageNullable);
 
-        Assert.False(JetFieldCatalog.FindGlMappingSlot(GlMappingKeys.Amount).IsAlwaysRequired);
+        Assert.False(GlSlot(GlMappingKeys.Amount).IsAlwaysRequired);
         Assert.False(glAmount.StorageNullable);
-        Assert.False(JetFieldCatalog.FindTbMappingSlot(TbMappingKeys.Amount).IsAlwaysRequired);
+        Assert.False(TbSlot(TbMappingKeys.Amount).IsAlwaysRequired);
         Assert.False(tbAmount.StorageNullable);
     }
 
@@ -258,7 +263,7 @@ public sealed class JetFieldCatalogTests
     public void PostingStatus_IsAMappingUiSlotWithSemanticSqlTarget()
     {
         Assert.Contains(GlMappingKeys.PostingStatus, GlMappingKeys.All);
-        var slot = JetFieldCatalog.FindGlMappingSlot(GlMappingKeys.PostingStatus);
+        var slot = GlSlot(GlMappingKeys.PostingStatus);
         var field = JetFieldCatalog.FindGlSemanticFieldByMappingKey(GlMappingKeys.PostingStatus);
 
         // 「前端工作流整合」已接上過帳狀態的配對控制項與 posting policy 編輯器，

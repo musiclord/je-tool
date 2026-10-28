@@ -34,17 +34,6 @@ public static class ValidationProcedures
     }
 
     /// <summary>
-    /// 明示日期窗口的相容片段。不得用作一般 GL 母體；一般母體只走
-    /// <see cref="GlEffectivePopulation.SqlPredicate"/>。
-    /// </summary>
-    public const string PeriodBounds =
-        "post_date >= @periodStart AND post_date <= @periodEnd";
-
-    /// <summary>明示日期窗口的帶前綴相容片段；不得用作一般 GL 母體。</summary>
-    public static string PeriodBoundsWith(string columnPrefix) =>
-        $"({columnPrefix}post_date >= @periodStart AND {columnPrefix}post_date <= @periodEnd)";
-
-    /// <summary>
     /// doc_balance 共用的借貸不平母體核心（自 FROM 起）——有效母體、依傳票彙總、留借貸淨額≠0。
     /// 六處呼叫（validate 計數/明細 × Local/SqlServer + docBalancePage × Local/SqlServer）共用此單一定義；
     /// 投影（COUNT 包裹 vs 明細欄）由各呼叫端在前綴 SELECT 決定，游標 keyset 由 <paramref name="extraFilter"/>
@@ -55,14 +44,18 @@ public static class ValidationProcedures
         "GROUP BY document_number HAVING SUM(amount_scaled) <> 0";
 
     /// <summary>
-    /// 同一號碼跨不同入帳日的提醒，只讀有效分錄。傳票身分與既有程序仍只看號碼。
+    /// 同一號碼跨不同入帳日的提醒，只讀有效分錄。傳票身分與既有程序仍只看號碼；空白的傳票號碼和
+    /// 空白傳票號碼類別用同一個判定（去掉頭尾空白後是空字串也算空白），不列入提醒。
     /// countFunction 只由 provider 傳 COUNT 或 COUNT_BIG，避免 SQL Server 大量列計數溢位。
     /// </summary>
-    internal static string DocumentDateReuseSummary(string schemaPrefix = "", string countFunction = "COUNT") =>
+    internal static string DocumentDateReuseSummary(
+        ISqlDialect dialect,
+        string schemaPrefix = "",
+        string countFunction = "COUNT") =>
         $"SELECT {countFunction}(*), CAST(COALESCE(SUM(entry_count), 0) AS BIGINT) " +
         $"FROM (SELECT document_number, {countFunction}(*) AS entry_count " +
         $"FROM {schemaPrefix}target_gl_entry WHERE {GlEffectivePopulation.SqlPredicate()} " +
-        "AND document_number IS NOT NULL AND document_number <> '' " +
+        $"AND {SqlBlankText.IsNotBlank(dialect, "document_number")} " +
         $"GROUP BY document_number HAVING {countFunction}(DISTINCT post_date) > 1) AS reused;";
 
     /// <summary>
@@ -299,9 +292,6 @@ public static partial class JetAuditProgram
 {
     internal const int CurrentInfSamplingAlgorithmVersion = InfSamplingPrf.CurrentAlgorithmVersion;
     internal const long InfSamplingOrderingDomainSize = InfSamplingPrf.OrderingDomainSize;
-
-    internal static long ComputeInfSamplingOrderingKey(long seed, long sourceRowNumber) =>
-        InfSamplingPrf.ComputeOrderingKey(seed, sourceRowNumber);
 
     internal static InfSamplingSeedResolution ResolveInfSamplingSeed(
         long? persistedSeed,

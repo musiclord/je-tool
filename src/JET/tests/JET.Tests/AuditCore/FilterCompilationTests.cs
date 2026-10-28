@@ -40,7 +40,7 @@ public sealed class FilterCompilationTests
                 ])
             ]);
 
-        var plan = builder.BuildPlan(scenario, Context, zeroModulus: 1_000_000);
+        var plan = builder.BuildPlan(scenario, Context);
 
         Assert.Equal(
             "(((((instr(UPPER(COALESCE(g.document_description, '')), @p0) > 0) OR " +
@@ -102,7 +102,6 @@ public sealed class FilterCompilationTests
         var plan = builder.BuildPlan(
             scenario,
             Context,
-            zeroModulus: 1_000_000,
             includePopulationParameters: false);
 
         Assert.Contains("@p0", plan.Sql, StringComparison.Ordinal);
@@ -181,8 +180,9 @@ public sealed class FilterCompilationTests
         {
             var creator = dialect.Trim("g.created_by");
             var approver = dialect.Trim("g.approved_by");
+            // 2026-10-22 技術債一輪：「不是空白」改走 SqlBlankText，自帶一層括號（第一次失敗：Public 收據 20261022-075335566）。
             Assert.Equal(
-                $"(g.created_by IS NOT NULL AND {creator} <> '' AND g.approved_by IS NOT NULL "
+                $"((g.created_by IS NOT NULL AND {creator} <> '') AND g.approved_by IS NOT NULL "
                 + $"AND UPPER({creator}) = UPPER({approver}))",
                 new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate).PreparerEqualsApprover());
         }
@@ -196,7 +196,7 @@ public sealed class FilterCompilationTests
         var approver = dialect.Trim("g.approved_by");
 
         Assert.Equal(
-            $"(g.created_by IS NOT NULL AND {creator} <> '' AND g.approved_by IS NOT NULL "
+            $"((g.created_by IS NOT NULL AND {creator} <> '') AND g.approved_by IS NOT NULL "
             + $"AND UPPER(({creator}) COLLATE Latin1_General_100_BIN2) = UPPER(({approver}) COLLATE Latin1_General_100_BIN2))",
             new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate).PreparerEqualsApprover());
     }

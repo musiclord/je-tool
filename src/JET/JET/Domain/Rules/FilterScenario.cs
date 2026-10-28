@@ -93,6 +93,13 @@ public static class FilterScenarioLimits
     public const int MaxSavedScenarios = 10;
 
     /// <summary>
+    /// 超過上限時回給畫面的句子。三個會檢查上限的入口都用這一句；前端 ui-core.js 用 FILTER_MAX_SAVED_SCENARIOS
+    /// 拼出相同的句子，由架構測試比對。
+    /// </summary>
+    public static readonly string MaxSavedScenariosMessage =
+        $"最多可儲存 {MaxSavedScenarios} 個篩選情境，請先移除不需要的情境。";
+
+    /// <summary>
     /// 情境名稱上限，和 SQL Server 的 <c>config_filter_scenario.name NVARCHAR(400)</c> 同寬；三種資料庫共用，儲存時超過就回錯誤，
     /// 不讓 SQL Server 默默截斷（使用者 2026-10-19 選「三種共用 400 字上限」）。前端 ui-core.js 的
     /// FILTER_MAX_SCENARIO_NAME_LENGTH 是輸入框的鏡像，由架構測試比對。
@@ -331,9 +338,8 @@ public sealed record FilterScenarioSpec(
     string? Source = null);
 
 /// <summary>
-/// 驗證所需的專案前置條件：期末財報準備日（postPeriodApproval 條件）、
-/// 科目配對 presence（unexpectedAccountPair / accountPair 條件）、
-/// 授權編製人員清單 presence（nonAuthorizedPreparer 條件）。
+/// 驗證所需的案件事實：期末財報準備日、科目配對與分類、授權編製人員清單，以及能使用的 GL 欄位。
+/// 每條條件需要哪些事實由 <see cref="JetRuleRequirements"/> 決定。
 /// </summary>
 public sealed record FilterValidationContext(
     bool HasLastPeriodStart,
@@ -344,26 +350,26 @@ public sealed record FilterValidationContext(
     bool HasRevenueCategory = false,
     bool HasCounterpartCategory = false)
 {
-    public bool HasManualFlag { get; init; }
-
-    public bool HasCreatedBy { get; init; }
-
-    public bool HasApprovedBy { get; init; }
-
-    public bool HasDescription { get; init; }
-
-    /// <summary>正式查詢由已提交配對提供；null 只供沒有配對資料的獨立述詞驗證。</summary>
+    /// <summary>
+    /// 條件能使用的 GL 語意欄位；正式查詢由 <see cref="JetFieldCatalog.AvailableGlFields"/> 依已確認的配對算出。
+    /// null 只供沒有配對資料的獨立述詞驗證，不檢查 GL 欄位。
+    /// </summary>
     public IReadOnlyList<string>? AvailableGlFields { get; init; }
 
-    // 第四步分類設定裡內建分類目前的名稱，依用途對應；審計員改過名稱時原因寫新名稱（使用者 2026-10-13 裁定）。
-    // 沒有帶分類設定的呼叫端用內建名稱。
-    public string RevenueCategoryLabel { get; init; } = AccountMappingCategories.Revenue;
+    /// <summary>原因裡的分類名稱；沒有帶分類設定的呼叫端用內建名稱。</summary>
+    public AccountCategoryLabels CategoryLabels { get; init; } = AccountCategoryLabels.BuiltIn;
 
-    public string ReceivablesCategoryLabel { get; init; } = AccountMappingCategories.Receivables;
-
-    public string CashCategoryLabel { get; init; } = AccountMappingCategories.Cash;
-
-    public string ReceiptInAdvanceCategoryLabel { get; init; } = AccountMappingCategories.ReceiptInAdvance;
+    /// <summary>交給規則需求表的案件事實。第五步照使用者 2026-10-04 的裁定不檢查假日檔。</summary>
+    internal JetRuleFacts RuleFacts => new(
+        AvailableGlFields,
+        HasLastPeriodStart,
+        HasAccountMapping,
+        HasAnyAccountCategory,
+        HasRevenueCategory,
+        HasCounterpartCategory,
+        HasAuthorizedPreparers,
+        HasHolidayCalendar: null,
+        CategoryLabels);
 
     /// <summary>
     /// 目前專案 taxonomy 的全部分類身分，供科目配對多選驗證。預設只含五個內建 ID——
@@ -467,7 +473,6 @@ public static partial class FilterScenarioValidator
                     group.Rules[ruleIndex],
                     $"{groupLabel}第 {ruleIndex + 1} 條",
                     context,
-                    isKct,
                     errors);
             }
         }
@@ -485,7 +490,6 @@ public static partial class FilterScenarioValidator
         FilterRuleSpec rule,
         string label,
         FilterValidationContext context,
-        bool isKct,
         List<string> errors,
         int depth = 0,
         bool insideVoucher = false)
@@ -506,9 +510,17 @@ public static partial class FilterScenarioValidator
             errors.Add($"{label}：{retiredReason}");
             // 括號內仍逐條檢查，讓舊情境一次列出需要修改的條件。
             for (var i = 0; i < rule.Rules.Count; i++)
-                ValidateRule(rule.Rules[i], $"{label} 子條件 {i + 1}", context, isKct, errors,
+                ValidateRule(rule.Rules[i], $"{label} 子條件 {i + 1}", context, errors,
                     depth + 1, insideVoucher || rule.Type == FilterRuleType.Voucher);
             return;
+        }
+
+        // 條件需要的案件資料只看規則需求表，第四步與前端停用說明讀同一張表（使用者 2026-10-22 裁定第五步不能用 GL 沒有配對的欄位）。
+        var facts = context.RuleFacts;
+        var unmet = JetRuleRequirements.Unmet(JetRuleRequirements.ForFilterRule(rule), facts);
+        foreach (var prerequisite in unmet)
+        {
+            errors.Add($"{label}：{JetRuleRequirements.Reason(prerequisite, facts.CategoryLabels)}");
         }
 
         switch (rule.Type)
@@ -523,20 +535,11 @@ public static partial class FilterScenarioValidator
                     if (rule.Quantifier is not ("any" or "all" or "none")) FilterScenarioCorruption.Add(errors, label, "voucher_quantifier_invalid");
                 }
                 for (var i = 0; i < rule.Rules.Count; i++)
-                    ValidateRule(rule.Rules[i], $"{label} 子條件 {i + 1}", context, isKct, errors,
+                    ValidateRule(rule.Rules[i], $"{label} 子條件 {i + 1}", context, errors,
                         depth + 1, insideVoucher || rule.Type == FilterRuleType.Voucher);
                 break;
             case FilterRuleType.FieldValue:
-                ValidateFieldValue(rule, label, context, errors);
-                // KCT E、G 改用欄位條件後仍保留原有配對需求。
-                if (isKct && rule.FieldId is null)
-                {
-                    if (rule.Field == JetFieldCatalog.GlCreateBy && rule.TypedOperator == "in")
-                        RequireMappedField(context.HasCreatedBy, JetFieldCatalog.GlCreateBy, label, errors);
-                    if (rule.Field == JetFieldCatalog.GlDescription && rule.TypedOperator == "isBlank"
-                        && (context.AvailableGlFields is null || context.AvailableGlFields.Contains(JetFieldCatalog.GlDescription, StringComparer.Ordinal)))
-                        RequireMappedField(context.HasDescription, JetFieldCatalog.GlDescription, label, errors);
-                }
+                ValidateFieldValue(rule, label, context, errors, fieldUnavailable: unmet.Count > 0);
                 break;
             case FilterRuleType.AccountSide:
                 ValidateCategorySelectionMode(rule, label, errors);
@@ -544,25 +547,13 @@ public static partial class FilterScenarioValidator
                     FilterScenarioCorruption.Add(errors, label, "account_side_drcr_invalid");
                 if (rule.CategoryMode is not ("is" or "isNot" or "absent"))
                     FilterScenarioCorruption.Add(errors, label, "account_side_category_mode_invalid");
-                if (!context.HasAnyAccountCategory)
-                    errors.Add($"{label}：{NoAccountCategoryReason}");
                 ValidateCategorySelection(rule.CategoryIds, "指定", label, context, errors);
                 break;
             case FilterRuleType.Prescreen:
-                ValidatePrescreen(rule, label, context, isKct, errors);
+                ValidatePrescreen(rule, label, errors);
                 break;
             case FilterRuleType.Text:
                 ValidateText(rule, label, errors);
-                if (isKct
-                    && string.Equals(rule.Field, JetFieldCatalog.GlCreateBy, StringComparison.Ordinal)
-                    && rule.Mode == TextMatchMode.Exact)
-                {
-                    RequireMappedField(
-                        context.HasCreatedBy,
-                        JetFieldCatalog.GlCreateBy,
-                        label,
-                        errors);
-                }
                 break;
             case FilterRuleType.TextSet:
                 ValidateTextSet(rule, label, errors);
@@ -593,41 +584,11 @@ public static partial class FilterScenarioValidator
                 ValidateCategorySelectionMode(rule, label, errors);
                 ValidateSpecialAccountCategoryPair(rule, label, context, errors);
                 break;
-            case FilterRuleType.CustomKeywords:
-                if (rule.Keywords.All(string.IsNullOrWhiteSpace))
-                {
-                    errors.Add($"{label}：尚未輸入關鍵字");
-                }
-                break;
-            case FilterRuleType.CustomTrailingZeros:
-                if (rule.Digits is not (>= TrailingZeroThreshold.MinCustomDigits
-                    and <= TrailingZeroThreshold.MaxCustomDigits))
-                {
-                    errors.Add($"{label}：尾數位數須為 {TrailingZeroThreshold.MinCustomDigits} 到 "
-                        + $"{TrailingZeroThreshold.MaxCustomDigits} 的整數");
-                }
-                break;
-            case FilterRuleType.CustomPreparerEntryCount:
-                if (rule.MaxEntries is not (>= 1))
-                {
-                    errors.Add($"{label}：人員分錄筆數門檻須為 1 以上的整數");
-                }
-                break;
-            case FilterRuleType.CustomAccountEntryCount:
-                if (rule.MaxEntries is not (>= 1))
-                {
-                    errors.Add($"{label}：科目分錄筆數門檻須為 1 以上的整數");
-                }
-                break;
+            // 已停用的型別（FilterSinglePurposeRules.RetiredTypes）在前面就回報原因，不會走到這裡。
             case FilterRuleType.EntityFrequency:
-                EntityFrequencyConditions.Validate(rule, context, label, errors);
+                EntityFrequencyConditions.Validate(rule, label, errors);
                 break;
             case FilterRuleType.RevenueDebitNearQuarterEnd:
-                if (!context.HasRevenueCategory)
-                {
-                    errors.Add($"{label}：{RevenueMissingReason(context)}");
-                }
-
                 if (rule.WindowDays is not (>= QuarterEndWindows.MinWindowDays
                     and <= QuarterEndWindows.MaxWindowDays))
                 {
@@ -636,42 +597,9 @@ public static partial class FilterScenarioValidator
                 }
                 break;
             case FilterRuleType.RevenueWithoutNormalCounterpart:
-                // 缺收入科目與缺對方科目分開說，各寫一句（使用者 2026-10-13 勾選頁確認）。
-                if (!context.HasRevenueCategory)
-                {
-                    errors.Add($"{label}：{RevenueMissingReason(context)}");
-                }
-
-                if (!context.HasCounterpartCategory)
-                {
-                    errors.Add($"{label}：{CounterpartMissingReason(context)}");
-                }
-                break;
             case FilterRuleType.ManualRevenueEntry:
-                if (!context.HasRevenueCategory)
-                {
-                    errors.Add($"{label}：{RevenueMissingReason(context)}");
-                }
-                RequireMappedField(
-                    context.HasManualFlag,
-                    JetFieldCatalog.GlManual,
-                    label,
-                    errors);
-                break;
-            case FilterRuleType.TrailingDigits:
-                ValidateTrailingDigits(rule, label, errors);
-                break;
             case FilterRuleType.PreparerEqualsApprover:
-                RequireMappedField(
-                    context.HasCreatedBy,
-                    JetFieldCatalog.GlCreateBy,
-                    label,
-                    errors);
-                RequireMappedField(
-                    context.HasApprovedBy,
-                    JetFieldCatalog.GlApproveBy,
-                    label,
-                    errors);
+                // 需要的分類與欄位都在規則需求表；缺收入科目與缺對方科目各寫一句（使用者 2026-10-13 勾選頁確認）。
                 break;
             case FilterRuleType.TypedField:
                 ValidateTypedField(rule, label, context, errors);
@@ -934,11 +862,6 @@ public static partial class FilterScenarioValidator
     /// </summary>
     private static void ValidateAccountPair(FilterRuleSpec rule, string label, FilterValidationContext context, List<string> errors)
     {
-        if (!context.HasAnyAccountCategory)
-        {
-            errors.Add($"{label}：{NoAccountCategoryReason}");
-        }
-
         var needDebit = rule.PairMode is AccountPairModes.Exact or AccountPairModes.DebitAnchor;
         var needCredit = rule.PairMode is AccountPairModes.Exact or AccountPairModes.CreditAnchor;
 
@@ -996,11 +919,6 @@ public static partial class FilterScenarioValidator
     /// </summary>
     private static void ValidateSpecialAccountCategoryPair(FilterRuleSpec rule, string label, FilterValidationContext context, List<string> errors)
     {
-        if (!context.HasAnyAccountCategory)
-        {
-            errors.Add($"{label}：{NoAccountCategoryReason}");
-        }
-
         if (rule.PairMode is not (SpecialAccountCategoryPairModes.DrAndCr
             or SpecialAccountCategoryPairModes.DrNotCr
             or SpecialAccountCategoryPairModes.NotDrCr))
@@ -1013,12 +931,11 @@ public static partial class FilterScenarioValidator
         ValidateCategorySelection(rule.EffectiveCreditCategoryIds, "貸方", label, context, errors);
     }
 
-    private static void ValidatePrescreen(
-        FilterRuleSpec rule,
-        string label,
-        FilterValidationContext context,
-        bool isKct,
-        List<string> errors)
+    /// <summary>
+    /// 預篩選條件本身的檢查：已停用或不能當條件的鍵。需要的配對、名單與分類由規則需求表檢查；
+    /// 授權編製人員清單沒有匯入時，空名單會讓 NOT IN 述詞反轉成全命中，所以需求表一定要列這一項。
+    /// </summary>
+    private static void ValidatePrescreen(FilterRuleSpec rule, string label, List<string> errors)
     {
         // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳；舊情境重開時明確說明這條條件要刪除。
         if (string.Equals(rule.PrescreenKey, RetiredBackdatedPostingKey, StringComparison.Ordinal))
@@ -1030,85 +947,8 @@ public static partial class FilterScenarioValidator
         if (rule.PrescreenKey is null || !PrescreenRuleKeys.FilterableKeys.Contains(rule.PrescreenKey))
         {
             FilterScenarioCorruption.Add(errors, label, "prescreen_key_not_filterable");
-            return;
-        }
-
-        if (rule.PrescreenKey == PrescreenRuleKeys.PostPeriodApproval && !context.HasLastPeriodStart)
-        {
-            errors.Add($"{label}：尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫");
-        }
-
-        if (rule.PrescreenKey == PrescreenRuleKeys.UnexpectedAccountPair)
-        {
-            if (!context.HasAccountMapping)
-                errors.Add($"{label}：{NoAccountCategoryReason}");
-            else
-            {
-                if (!context.HasRevenueCategory)
-                    errors.Add($"{label}：{RevenueMissingReason(context)}");
-                if (!context.HasCounterpartCategory)
-                    errors.Add($"{label}：{CounterpartMissingReason(context)}");
-            }
-        }
-
-        // 非授權編製人員前置檢查（比照 unexpectedAccountPair）：授權編製人員清單未匯入時，
-        // 空名單會讓 NOT IN 述詞反轉成全命中，故在驗證層直接擋下。
-        if (rule.PrescreenKey == PrescreenRuleKeys.NonAuthorizedPreparer && !context.HasAuthorizedPreparers)
-        {
-            errors.Add($"{label}：尚未匯入授權編製人員清單，請先在第二步匯入");
-        }
-
-        // 與預篩選的選用來源一致；只指出本條件缺欄，不限制其他可計算的情境。
-        // null 僅供沒有案件配對資訊的獨立述詞測試；正式 action 一律提供完整欄位清單。
-        if (context.AvailableGlFields is { } available)
-        {
-            var required = rule.PrescreenKey switch
-            {
-                PrescreenRuleKeys.LowFrequencyPreparer or PrescreenRuleKeys.NonAuthorizedPreparer => JetFieldCatalog.GlCreateBy,
-                _ => null
-            };
-            if (required is not null)
-                RequireMappedField(available.Contains(required, StringComparer.Ordinal), required, label, errors);
-        }
-
-        if (isKct && rule.PrescreenKey == PrescreenRuleKeys.BlankDescription)
-        {
-            RequireMappedField(
-                context.HasDescription,
-                JetFieldCatalog.GlDescription,
-                label,
-                errors);
         }
     }
-
-    private static void RequireMappedField(
-        bool isAvailable,
-        string semanticIdentity,
-        string label,
-        List<string> errors)
-    {
-        if (isAvailable)
-        {
-            return;
-        }
-
-        errors.Add($"{label}：{UnmappedFieldReason(semanticIdentity)}");
-    }
-
-    // 第五步原因的共用句（使用者 2026-10-13 勾選頁確認）。原因只寫原因，下一步由畫面在清單最後寫一次；
-    // 只有下一步和通用說法不同的幾句自己帶下一步。同一件事只在這裡寫一次。
-    private const string NoAccountCategoryReason = "科目配對中尚無任何科目設定分類，請先在第四步設定";
-
-    private static string RevenueMissingReason(FilterValidationContext context) =>
-        $"科目配對中尚無歸類為「{context.RevenueCategoryLabel}」的科目，請先在第四步設定";
-
-    private static string CounterpartMissingReason(FilterValidationContext context) =>
-        $"科目配對中尚無歸類為「{context.ReceivablesCategoryLabel}」「{context.CashCategoryLabel}」"
-        + $"或「{context.ReceiptInAdvanceCategoryLabel}」的科目，請先在第四步設定";
-
-    /// <summary>條件用到的 GL 欄位在欄位配對裡沒有選來源欄。</summary>
-    internal static string UnmappedFieldReason(string semanticIdentity) =>
-        $"「{JetFieldCatalog.GlSemanticFieldMappingLabel(semanticIdentity)}」尚未選擇來源欄";
 
     /// <summary>
     /// 舊情境的條件用到目前已沒有的欄位。已移除而且認得的欄位寫出名稱，名稱只在

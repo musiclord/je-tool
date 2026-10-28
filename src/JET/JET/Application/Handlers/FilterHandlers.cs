@@ -136,6 +136,9 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
 
     public string Action => "filter.commit";
 
+    /// <summary>存下情境後，案件至少推進到第五步。</summary>
+    internal const int WorkflowStep = 5;
+
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
@@ -164,7 +167,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
         {
             throw new JetActionException(
                 JetErrorCodes.ScenarioLimitReached,
-                $"最多可儲存 {MaxScenarios} 個篩選情境，請先移除不需要的情境。");
+                FilterScenarioLimits.MaxSavedScenariosMessage);
         }
 
         var populationScope = FilterPopulationScopeParser.ReadPayload(payload);
@@ -260,7 +263,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             await MappingCommitShared.AdvanceStepAsync(
                 projectStore,
                 document,
-                WorkflowMilestones.For(Action),
+                WorkflowStep,
                 CancellationToken.None, logger);
         }
 
@@ -282,7 +285,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
 
 /// <summary>
 /// Preview 與 commit 的單一 mapping-aware validation context 組裝點。
-/// 欄位 availability 只由 Domain field catalog 的 semantic-field／mapping-slot 關係判定。
+/// 能使用哪些 GL 欄位只由欄位目錄判定（<see cref="JetFieldCatalog.AvailableGlFields"/>），每條條件需要什麼只由規則需求表判定。
 /// </summary>
 internal static class FilterValidationContextFactory
 {
@@ -302,23 +305,7 @@ internal static class FilterValidationContextFactory
             HasRevenueCategory: accountMappingState?.HasRevenue ?? false,
             HasCounterpartCategory: accountMappingState?.HasCounterpart ?? false)
         {
-            HasManualFlag = JetFieldCatalog.HasMappedGlSemanticField(
-                glMapping.Mapping,
-                JetFieldCatalog.GlManual),
-            HasCreatedBy = JetFieldCatalog.HasMappedGlSemanticField(
-                glMapping.Mapping,
-                JetFieldCatalog.GlCreateBy),
-            HasApprovedBy = JetFieldCatalog.HasMappedGlSemanticField(
-                glMapping.Mapping,
-                JetFieldCatalog.GlApproveBy),
-            HasDescription = JetFieldCatalog.HasMappedGlSemanticField(
-                glMapping.Mapping,
-                JetFieldCatalog.GlDescription),
-            AvailableGlFields = JetFieldCatalog.GlFields
-                .Where(field => JetFieldCatalog.HasMappedGlSemanticField(glMapping.Mapping, field.SemanticIdentity)
-                    || field.SemanticIdentity == JetFieldCatalog.GlDocDate
-                    && glMapping.GlOptions?.ApprovalDateMode == ApprovalDateModeNames.SameAsPostDate)
-                .Select(static field => field.SemanticIdentity).ToArray(),
+            AvailableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glMapping.GlOptions),
             TaxonomyCategoryIds = taxonomy is null
                 ? AccountTaxonomyCatalog.BuiltInSnapshot.Categories
                     .Select(static category => category.CategoryId)
@@ -327,19 +314,6 @@ internal static class FilterValidationContextFactory
             RdeFields = glMapping.GlOptions?.RdeFields ?? [],
             MoneyScale = document.MoneyScale,
             DateParseOptions = document.DateParseOptions,
-            RevenueCategoryLabel = CategoryLabel(taxonomy, AccountTaxonomyBuiltIns.RevenueRole),
-            ReceivablesCategoryLabel = CategoryLabel(taxonomy, AccountTaxonomyBuiltIns.ReceivablesRole),
-            CashCategoryLabel = CategoryLabel(taxonomy, AccountTaxonomyBuiltIns.CashRole),
-            ReceiptInAdvanceCategoryLabel = CategoryLabel(taxonomy, AccountTaxonomyBuiltIns.ReceiptInAdvanceRole)
+            CategoryLabels = AccountCategoryLabels.From(taxonomy)
         };
-
-    /// <summary>
-    /// 第四步分類設定裡這個用途的內建分類目前叫什麼；審計員改過名稱時第五步原因寫新名稱（使用者 2026-10-13 裁定）。
-    /// 內建分類不可刪除，沒有帶分類設定時用內建名稱。
-    /// </summary>
-    private static string CategoryLabel(AccountTaxonomySnapshot? taxonomy, string semanticRole) =>
-        taxonomy?.Categories.FirstOrDefault(category =>
-                category.IsBuiltIn && string.Equals(category.SemanticRole, semanticRole, StringComparison.Ordinal))?.Label
-        ?? AccountTaxonomyBuiltIns.All.Single(category =>
-            string.Equals(category.SemanticRole, semanticRole, StringComparison.Ordinal)).Label;
 }

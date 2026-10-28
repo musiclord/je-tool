@@ -19,8 +19,11 @@ public sealed class ApprovedUxFrontendTests
         Assert.Contains("<button type=\"button\" class=\"project-row__open\"", row, StringComparison.Ordinal);
         Assert.DoesNotContain("<div class=\"project-row\" role=\"button\"", row, StringComparison.Ordinal);
         Assert.Contains("Focus.move", binder, StringComparison.Ordinal);
-        Assert.Contains("Focus.trapDialogTab", binder, StringComparison.Ordinal);
-        Assert.Contains("event.key === 'Escape'", binder, StringComparison.Ordinal);
+        // 預篩選收斂計畫階段八（2026-10-24）：刪除案件對話框不再自己接 Escape 與 Tab，改登記到 app.js 的對話框堆疊
+        //（JetFocus.openDialog 與 closeDialog），鍵盤由堆疊只交給最上層。原本斷言 bindPicker 內含 Focus.trapDialogTab 與
+        // event.key === 'Escape'，第一次失敗收據 20261024-150719374-622a89799ae54dbc9470318f14899ebe。
+        Assert.Contains("Focus.openDialog(", binder, StringComparison.Ordinal);
+        Assert.Contains("Focus.closeDialog(", binder, StringComparison.Ordinal);
         Assert.Contains("restoreProjectDeleteFocus", binder, StringComparison.Ordinal);
     }
 

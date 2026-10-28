@@ -5,7 +5,7 @@ namespace JET.Application;
 
 /// <summary>
 /// 已存篩選情境的條件 AST（前端送出的 wire JSON）→ 中文布林式，與前端藍色 read-back
-/// （filter-step.js <c>readBackHtml</c> 的 <c>.scenario-readback__expr</c> 文字內容）同構。
+/// （filter-step-rules.js <c>readBackHtml</c> 的 <c>.scenario-readback__expr</c> 文字內容）同構。
 /// CriteriaSelection summary 的「條件內容」以本渲染器輸出為值（由
 /// <see cref="ExportCriteriaSelectionReportHandler"/> 計算，經
 /// <see cref="CriteriaSelectionReportContext.ScenarioConditionLogic"/> 傳入 writer）。
@@ -187,7 +187,7 @@ public static class FilterConditionRenderer
     /// 舊週末或假日括號辨識：條件括號（type "group"）恰有兩條子條件，都是預篩選，鍵集合恰為
     /// {weekendPosting, holidayPosting}，且第二條的有效連接是「或」（第一條的 join 沒有左側條件，不算）。
     /// 符合時語意仍是「週末或假日」，不聲稱已排除補班日；
-    /// 「週末 且 假日」語意不同，照一般括號讀回。前端 filter-step.js 的 isNonBusinessDayBracket 逐字鏡像。
+    /// 「週末 且 假日」語意不同，照一般括號讀回。前端 filter-step-rules.js 的 isNonBusinessDayBracket 逐字鏡像。
     /// </summary>
     private static bool IsWeekendOrHolidayBracket(JsonElement rule)
     {

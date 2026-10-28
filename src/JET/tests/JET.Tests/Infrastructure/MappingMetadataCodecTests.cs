@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Nodes;
 using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
@@ -179,6 +180,114 @@ public sealed class MappingMetadataCodecTests
     public void Decode_RejectsUnsupportedVersion(int version)
     {
         Assert.Throws<MappingMetadataFormatException>(() => MappingMetadataCodec.Decode(version, "{}"));
+    }
+
+    // 預篩選收斂計畫階段六：往下填補的欄位跟著配對寫進報告與案件。下面四個測試是新加的，沒有可保存的第一次失敗；
+    // 對外行為由 GlFillDownWorkflowTests 保存第一次失敗。
+    [Fact]
+    public void EncodeDecode_RoundTripsFillDownFields()
+    {
+        var gl = Committed(DatasetKind.Gl, AllGlMappings(), GlAmountModeNames.Flag) with
+        {
+            GlOptions = FullGlOptions() with { FillDownFields = [GlMappingKeys.DocNum, GlMappingKeys.PostDate] }
+        };
+        var tb = Committed(DatasetKind.Tb, AllTbMappings(), TbChangeModeNames.Direct);
+        var json = MappingMetadataCodec.Encode(gl, tb);
+
+        var decoded = MappingMetadataCodec.Decode(MappingMetadataFormat.CurrentVersion, json);
+
+        Assert.Equal([GlMappingKeys.DocNum, GlMappingKeys.PostDate], decoded.Gl.FillDownFields);
+        Assert.Equal([GlMappingKeys.DocNum, GlMappingKeys.PostDate], decoded.Gl.ToOptions().FillDownFields);
+        Assert.Equal(json, MappingMetadataCodec.Encode(gl with { GlOptions = decoded.Gl.ToOptions() }, tb));
+    }
+
+    [Fact]
+    public void Decode_ReportWithoutFillDownFields_ReadsAnEmptyList()
+    {
+        // 改版前寫出的報告沒有 fillDownFields，讀回來視為沒有勾選任何欄位。
+        var json = MappingMetadataCodec.Encode(
+            Committed(DatasetKind.Gl, AllGlMappings(), GlAmountModeNames.Flag),
+            Committed(DatasetKind.Tb, AllTbMappings(), TbChangeModeNames.Direct));
+        var legacy = JsonNode.Parse(json)!.AsObject();
+        Assert.True(legacy["gl"]!.AsObject().Remove("fillDownFields"));
+
+        var decoded = MappingMetadataCodec.Decode(MappingMetadataFormat.CurrentVersion, legacy.ToJsonString());
+
+        Assert.Empty(decoded.Gl.FillDownFields);
+    }
+
+    [Theory]
+    [InlineData("[\"approveBy\"]")]         // 沒有來源欄
+    [InlineData("[\"dcDebitCode\"]")]       // 字面值不是來源欄
+    [InlineData("[\"docNum\",\"docNum\"]")] // 重複
+    [InlineData("[\"notAField\"]")]         // 不是 GL 欄位
+    [InlineData("\"docNum\"")]              // 不是陣列
+    public void Decode_RejectsFillDownFieldsThatCannotBeFilled(string fillDownFields)
+    {
+        var mapping = AllGlMappings();
+        mapping.Remove(GlMappingKeys.ApproveBy);
+        var json = MappingMetadataCodec.Encode(
+            Committed(DatasetKind.Gl, mapping, GlAmountModeNames.Flag),
+            Committed(DatasetKind.Tb, AllTbMappings(), TbChangeModeNames.Direct));
+        var tampered = JsonNode.Parse(json)!.AsObject();
+        tampered["gl"]!.AsObject()["fillDownFields"] = JsonNode.Parse(fillDownFields);
+
+        Assert.Throws<MappingMetadataFormatException>(() =>
+            MappingMetadataCodec.Decode(MappingMetadataFormat.CurrentVersion, tampered.ToJsonString()));
+    }
+
+    [Fact]
+    public void OptionsJson_RoundTripsFillDownFields_AndReadsOldJsonAsEmpty()
+    {
+        // 案件裡保存的 options_json 走另一個入口，同樣帶著往下填補的欄位，舊 JSON 沒有這一項時是空清單。
+        var mapping = AllGlMappings();
+        var json = GlMappingOptionsJsonCodec.Encode(
+            FullGlOptions() with { FillDownFields = [GlMappingKeys.DocNum] },
+            mapping);
+
+        Assert.Equal([GlMappingKeys.DocNum], GlMappingOptionsJsonCodec.Decode(json, mapping).FillDownFields);
+
+        var legacy = JsonNode.Parse(json)!.AsObject();
+        Assert.True(legacy.Remove("fillDownFields"));
+        Assert.Empty(GlMappingOptionsJsonCodec.Decode(legacy.ToJsonString(), mapping).FillDownFields);
+    }
+
+    [Fact]
+    public void FillDownCount_IsSavedInOptionsJsonAndWrittenIntoReports_AndOldJsonReadsZero()
+    {
+        // 填了幾格跟著配對保存，報告的配對資訊也寫出來（使用者 2026-10-28 裁定隨配對保存）；改版前的 JSON 沒有這一項時是 0。
+        // 改程式之後才補，沒有第一次失敗的收據；GlFillDownWorkflowTests 的重開案件測試保存了第一次失敗。
+        var mapping = AllGlMappings();
+        var options = FullGlOptions() with { FillDownCount = 6 };
+        var json = GlMappingOptionsJsonCodec.Encode(options, mapping);
+        Assert.Equal(6, GlMappingOptionsJsonCodec.Decode(json, mapping).FillDownCount);
+
+        var legacy = JsonNode.Parse(json)!.AsObject();
+        Assert.True(legacy.Remove("fillDownCount"));
+        Assert.Equal(0, GlMappingOptionsJsonCodec.Decode(legacy.ToJsonString(), mapping).FillDownCount);
+
+        var report = MappingMetadataCodec.Encode(
+            Committed(DatasetKind.Gl, mapping, GlAmountModeNames.Flag) with { GlOptions = options },
+            Committed(DatasetKind.Tb, AllTbMappings(), TbChangeModeNames.Direct));
+        Assert.Equal(6, JsonNode.Parse(report)!["gl"]!["fillDownCount"]!.GetValue<long>());
+        MappingMetadataCodec.Decode(MappingMetadataFormat.CurrentVersion, report);
+    }
+
+    [Theory]
+    [InlineData("-1")]    // 負數
+    [InlineData("1.5")]   // 不是整數
+    [InlineData("\"6\"")] // 不是數字
+    public void Decode_RejectsFillDownCountThatIsNotANonNegativeInteger(string fillDownCount)
+    {
+        // 改程式之後才補，沒有第一次失敗的收據。
+        var json = MappingMetadataCodec.Encode(
+            Committed(DatasetKind.Gl, AllGlMappings(), GlAmountModeNames.Flag),
+            Committed(DatasetKind.Tb, AllTbMappings(), TbChangeModeNames.Direct));
+        var tampered = JsonNode.Parse(json)!.AsObject();
+        tampered["gl"]!.AsObject()["fillDownCount"] = JsonNode.Parse(fillDownCount);
+
+        Assert.Throws<MappingMetadataFormatException>(() =>
+            MappingMetadataCodec.Decode(MappingMetadataFormat.CurrentVersion, tampered.ToJsonString()));
     }
 
     private static Dictionary<string, string> AllGlMappings() => GlMappingKeys.All.ToDictionary(

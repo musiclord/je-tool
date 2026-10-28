@@ -235,7 +235,6 @@ public sealed class GlRowProjectorTests
 
     [Theory]
     [InlineData("2024-01-01", "2024-01-01")] // ISO 直通
-    [InlineData("45292", "2024-01-01")]      // Excel 序列值 fallback
     [InlineData("2024/06/30", "2024-06-30")] // 一般日期格式 fallback
     public void DateProjection_NormalizesVariants(string raw, string expected)
     {
@@ -306,6 +305,31 @@ public sealed class GlRowProjectorTests
         Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
     }
 
+    // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：總帳日期是純數字時不再當成 Excel 序列值，和其他無法辨識的日期相同，
+    // 確認配對列出列號。「45292」原本在 DateProjection_NormalizesVariants 期待 2024-01-01；第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
+    [Theory]
+    [InlineData("2025")]     // 以前換成 1905-07-17
+    [InlineData("2025.12")]  // 以前也是 1905 年
+    [InlineData("45292")]    // 以前換成 2024-01-01
+    public void DateProjection_PlainNumber_FailsWithRowNumber(string raw)
+    {
+        var row = new StagingRow(13, new Dictionary<string, string>
+        {
+            ["傳票號碼"] = "X",
+            ["日期"] = raw,
+            ["會計項目"] = "1",
+            ["項目名稱"] = "n",
+            ["摘要"] = "d",
+            ["借方金額"] = "1"
+        });
+
+        Assert.False(GlRowProjector.TryProject(row, DualSpec(), Scale, out _, out var error));
+        Assert.Equal(13, error!.SourceRowNumber);
+        Assert.Equal("日期", error.Field);
+        Assert.Equal(raw, error.RawValue);
+        Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
+    }
+
     [Fact]
     public void TryProject_ScaledAmountExceedsLongRange_ReturnsRowProjectionError()
     {
@@ -327,7 +351,9 @@ public sealed class GlRowProjectorTests
         Assert.Equal("amt", error.Field);
         Assert.Equal("922337203685477.5808", error.RawValue);
         // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        Assert.Equal("金額超出可儲存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
+        // 使用者 2026-10-22 裁定一併改寫叫審計員調整小數位數的訊息，案件沒有這個設定（預篩選收斂計畫階段五）；
+        // 第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
+        Assert.Equal("金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 
     [Fact]
@@ -351,7 +377,9 @@ public sealed class GlRowProjectorTests
         Assert.Equal("amt", error.Field);
         Assert.Equal("-922337203685477.5808", error.RawValue);
         // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        Assert.Equal("加總後的金額超出可儲存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
+        // 使用者 2026-10-22 裁定一併改寫叫審計員調整小數位數的訊息，案件沒有這個設定（預篩選收斂計畫階段五）；
+        // 第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
+        Assert.Equal("加總後的金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 
     [Fact]
@@ -466,7 +494,9 @@ public sealed class GlRowProjectorTests
     [Theory]
 // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         [InlineData("date", "2025/13/40", "無法辨識為日期。請確認來源的日期格式，或將此攸關資料元素欄位改為文字")]
-    [InlineData("money", "12.abc", "不是有效的金額，或小數位數超過案件設定。請確認來源資料，或將此攸關資料元素欄位改為文字")]
+    // 使用者 2026-10-22 裁定一併改寫：超過四位小數會四捨五入，不會失敗，案件也沒有小數位數設定；這句改寫成金額無效或超出可儲存的範圍
+    // （預篩選收斂計畫階段五）。第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
+    [InlineData("money", "12.abc", "不是有效的金額，或超出可儲存的範圍。請確認來源資料，或將此攸關資料元素欄位改為文字")]
     public void TypedRde_InvalidValue_ReturnsChineseReasonWithNextStep(string valueType, string raw, string expectedReason)
     {
         var mapping = new Dictionary<string, string> { [GlMappingKeys.Amount] = "amt" };

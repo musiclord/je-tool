@@ -85,6 +85,17 @@ internal static class GlEffectivePopulation
     };
 
     /// <summary>
+    /// 日期不符這組原因的 SQL 述詞：由 <see cref="GlEffectivePopulationClassification.Disposition"/> 是日期不符的原因產生，
+    /// C# 的分組和 SQL 只有這一個來源（使用者 2026-10-21 裁定分開標示，驗證摘要的日期不符仍是三種原因的合計）。
+    /// 儲存值是內部常數，直接嵌成字面值。
+    /// </summary>
+    internal static string ExcludedByPeriodSqlPredicate() =>
+        "exclusion_reason IN (" + string.Join(", ", Enum.GetValues<GlExclusionReason>()
+            .Where(static reason => new GlEffectivePopulationClassification(reason).Disposition
+                == GlEffectivePopulationDisposition.ExcludedByPeriod)
+            .Select(static reason => "'" + StorageReasonOf(reason) + "'")) + ")";
+
+    /// <summary>
     /// 下游查詢共用的唯一有效母體 SQL 述詞。Alias 只接受呼叫端持有的 bare table alias。
     /// </summary>
     internal static string SqlPredicate(string? tableAlias = null)

@@ -17,7 +17,17 @@ public sealed class FilterSinglePurposeListLimitTests
         var node = System.Text.Json.Nodes.JsonNode.Parse(json.GetRawText())!;
         if (op == "isBlank") node["groups"]![0]!["rules"]![0]!.AsObject().Remove("values");
         var scenario = FilterScenarioPayloadParser.Parse(JsonElement.Parse(node.ToJsonString()), 100);
-        var errors = FilterScenarioValidator.Validate(scenario, new FilterValidationContext(true, true, true), forSave: true);
+        // 原本靠四個欄位旗標預設是 false 表示「傳票建立人員」與「傳票摘要」沒有配對。預篩選收斂計畫階段四（2026-10-23）
+        // 拿掉旗標、改讀可用欄位清單，沒帶清單就不檢查欄位，所以改成明確給一份不含這兩欄的清單，斷言不變。
+        // 第一次失敗：Focused 收據 20261023-033450367-efcc5f97968c4691a01ae8ae6018b91a。
+        var context = new FilterValidationContext(true, true, true)
+        {
+            AvailableGlFields = JetFieldCatalog.GlFields
+                .Select(static candidate => candidate.SemanticIdentity)
+                .Where(static candidate => candidate is not (JetFieldCatalog.GlCreateBy or JetFieldCatalog.GlDescription))
+                .ToArray()
+        };
+        var errors = FilterScenarioValidator.Validate(scenario, context, forSave: true);
         Assert.Contains(errors, message => message.Contains($"「{label}」尚未選擇來源欄", StringComparison.Ordinal));
     }
 

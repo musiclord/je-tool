@@ -23,6 +23,12 @@ public sealed record ProjectionResult(
     /// （如重複標頭中的空白欄）。預設空；前端在配對提交成功後一併呈現給使用者。
     /// </summary>
     public IReadOnlyList<string> Warnings { get; init; } = [];
+
+    /// <summary>
+    /// GL 投影時依 <see cref="GlMappingOptions.FillDownFields"/> 把空白補成上一列值的格數（階段六）；
+    /// 沒有勾選欄位、TB 投影及失敗結果都是 0。寫進配對確認的回應，審計員據此記在 CAATs 文件。
+    /// </summary>
+    public long FillDownCellCount { get; init; }
 }
 
 /// <summary>

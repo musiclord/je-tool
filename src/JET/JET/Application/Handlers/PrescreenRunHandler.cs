@@ -28,6 +28,9 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
 
     public string Action => "prescreen.run";
 
+    /// <summary>預篩選跑完後，案件至少推進到第四步。</summary>
+    internal const int WorkflowStep = 4;
+
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
@@ -43,15 +46,14 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
-        var approvalMode = glMapping.GlOptions?.ApprovalDateMode
-                           ?? GlMappingOptions.NormalizeLegacy(glMapping.Mapping).ApprovalDateMode;
-        var hasApprovalDate = approvalMode != ApprovalDateModeNames.Unmapped;
-        var hasCreatedBy = JetFieldCatalog.HasMappedGlSemanticField(glMapping.Mapping, GlMappingKeys.CreateBy);
+        // 能使用的欄位和第五步、前端停用說明讀同一份欄位目錄的答案。
+        var availableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glMapping.GlOptions);
         var hasHolidays = await repositories.Calendar.CountAsync(projectId, CalendarDayType.Holiday, cancellationToken) > 0;
         var lastPeriodStart = document.LastAccountingPeriodDate;
 
         var accountMappingState = await repositories.AccountMappings.FindStateAsync(projectId, cancellationToken);
         var hasAuthorizedPreparers = await repositories.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
+        var taxonomy = await repositories.AccountTaxonomy.ReadAsync(projectId, cancellationToken);
 
         var runId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
@@ -66,14 +68,14 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 runId,
                 generatedUtc,
                 LastPeriodStart: lastPeriodStart,
-                HasApprovalDate: hasApprovalDate,
-                HasCreatedBy: hasCreatedBy,
+                AvailableGlFields: availableGlFields,
                 HasHolidays: hasHolidays,
                 HasAccountMapping: accountMappingState is not null,
                 HasRevenue: accountMappingState?.HasRevenue ?? false,
                 HasCounterpart: accountMappingState?.HasCounterpart ?? false,
                 HasAuthorizedPreparers: hasAuthorizedPreparers,
-                NonWorkingDays: document.NonWorkingDays));
+                NonWorkingDays: document.NonWorkingDays,
+                CategoryLabels: AccountCategoryLabels.From(taxonomy)));
         SupportOperationStage.Enter("prescreen_facts");
         var facts = await repositories.PrescreenFacts.ExecuteAsync(plan, cancellationToken);
         SupportOperationStage.Enter("summary");
@@ -139,14 +141,16 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
             weekendActivity = new
             {
                 status = CombinedStatus(weekendPosting, weekendApproval),
-                naReason = weekendApproval.NaReason,
+                naReason = prescreen.WeekendActivity.NaReason,
+                approvalNaReason = prescreen.WeekendActivity.ApprovalNaReason,
                 postingCount = result.WeekendPostingCount,
                 approvalCount = result.WeekendApprovalCount
             },
             holidayActivity = new
             {
                 status = CombinedStatus(holidayPosting, holidayApproval),
-                naReason = holidayPosting.NaReason,
+                naReason = prescreen.HolidayActivity.NaReason,
+                approvalNaReason = prescreen.HolidayActivity.ApprovalNaReason,
                 postingCount = result.HolidayPostingCount,
                 approvalCount = result.HolidayApprovalCount
             },
@@ -179,7 +183,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         await MappingCommitShared.AdvanceStepAsync(
             projectStore,
             document,
-            WorkflowMilestones.For(Action),
+            WorkflowStep,
             CancellationToken.None, logger);
 
         using var parsed = JsonDocument.Parse(summaryJson);

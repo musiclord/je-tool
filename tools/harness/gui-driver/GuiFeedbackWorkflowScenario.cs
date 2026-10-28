@@ -74,8 +74,9 @@ internal static partial class GuiScenarios
             var selector = $".value-assign:nth-child({offset}) [data-manual-assign][value=manual]";
             // 失敗時記下蓋住這一列的是什麼、GL 與 TB 兩區的位置、還在播的動畫與視窗是否在前景
             // （2026-10-14 四次實跑有兩次被下面的 TB 區蓋住，無頭 Edge 重現不出來）。
-            // 讀取來源值後焦點掉到頁面本身，外層有時會把整份清單捲出畫面；先把清單捲回畫面，再找清單裡的這一列。
-            await FindControlPointAsync(cdp, process, ".value-assign-list", ct);
+            // 預篩選收斂計畫階段八（2026-10-24）：產品改成讀取來源值後焦點交給讀出的清單，清單留在畫面裡，
+            // 2026-10-14 先把清單捲回畫面的繞法拿掉，直接找清單裡的這一列。
+            // 2026-10-28 完整 Gui 在這裡被蓋住一次，查到原因在 FindControlPointAsync 只量一次就送滾輪，已在那裡改成量到兩次一樣才捲。
             JsonElement point;
             try
             {

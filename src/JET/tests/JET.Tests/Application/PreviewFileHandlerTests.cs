@@ -144,4 +144,78 @@ public sealed class PreviewFileHandlerTests
             TestWorkbookBuilder.Delete(path);
         }
     }
+
+    // 預篩選收斂計畫階段六：使用者 2026-10-22 裁定「欄名在第幾列」開放給 GL 與 TB 的一般匯入，Excel 與文字檔都適用。
+    // 預覽帶 headerRow 時，從那一列起找第一個有內容的列當欄名，前面的標題列與空白列都不算資料。
+    // 第一次失敗：Focused 收據 20261023-193734239-f6249c3be1e046cfa0c55b4181d2cabd（headerRow 被忽略，標題列被當成欄名）。
+    [Fact]
+    public async Task PreviewFile_HeaderRow_UsesThatRowAsHeader_ForXlsxAndCsv()
+    {
+        using var host = new HandlerTestHost();
+        var xlsxPath = TestWorkbookBuilder.WriteWorkbook(ws =>
+        {
+            ws.Cell(1, 1).Value = "合成公司 總帳明細";
+            ws.Cell(3, 1).Value = "傳票號碼";
+            ws.Cell(3, 2).Value = "金額";
+            ws.Cell(4, 1).Value = "V1";
+            ws.Cell(4, 2).Value = 10;
+            ws.Cell(5, 1).Value = "V2";
+            ws.Cell(5, 2).Value = 20;
+        });
+        var csvPath = TestCsvBuilder.WriteFile("合成公司 總帳明細\n\n傳票號碼,金額\nV1,10\n", TestCsvBuilder.Utf8NoBom);
+
+        try
+        {
+            var xlsx = await host.DispatchAsync(
+                "import.previewFile",
+                JsonSerializer.Serialize(new { filePath = xlsxPath, sheetName = "Sheet1", headerRow = 3 }));
+            Assert.Equal(["傳票號碼", "金額"], xlsx.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToArray());
+            var xlsxRows = xlsx.GetProperty("sampleRows").EnumerateArray().ToList();
+            Assert.Equal(2, xlsxRows.Count);
+            Assert.Equal("V1", xlsxRows[0][0].GetString());
+
+            var csv = await host.DispatchAsync(
+                "import.previewFile",
+                JsonSerializer.Serialize(new { filePath = csvPath, headerRow = 3 }));
+            Assert.Equal(["傳票號碼", "金額"], csv.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToArray());
+            Assert.Equal("V1", Assert.Single(csv.GetProperty("sampleRows").EnumerateArray())[0].GetString());
+
+            // 不帶 headerRow 時維持原本的行為：第一個有內容的列是欄名，所以標題列會被當成欄名。
+            var plain = await host.DispatchAsync("import.previewFile", JsonSerializer.Serialize(new { filePath = csvPath }));
+            Assert.Equal(["合成公司 總帳明細"], plain.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToArray());
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(xlsxPath);
+            TestCsvBuilder.Delete(csvPath);
+        }
+    }
+
+    // Access 的資料表沒有列的概念，不適用；小於 1 的列號畫面照正常操作送不出來。兩者都走畫面送錯資料的拒絕。
+    [Theory]
+    [InlineData(".accdb", 2, "header_row_not_applicable")]
+    [InlineData(".csv", 0, "header_row_invalid")]
+    [InlineData(".xlsx", -1, "header_row_invalid")]
+    public async Task PreviewFile_HeaderRowNotApplicableOrInvalid_ThrowsInvalidPayload(string extension, int headerRow, string check)
+    {
+        using var host = new HandlerTestHost();
+        // 檢查在開檔之前，所以空檔就夠了；Access 讀取器只看副檔名。
+        var path = Path.Combine(Path.GetTempPath(), $"jet-header-row-{Guid.NewGuid():N}{extension}");
+        await File.WriteAllBytesAsync(path, []);
+
+        try
+        {
+            var ex = await Assert.ThrowsAsync<JetActionException>(
+                () => host.DispatchAsync(
+                    "import.previewFile",
+                    JsonSerializer.Serialize(new { filePath = path, headerRow })));
+
+            Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
+            Assert.Equal(check, JetPayloadRejection.CheckOf(ex));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

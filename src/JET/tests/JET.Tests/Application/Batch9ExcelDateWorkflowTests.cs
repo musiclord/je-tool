@@ -105,8 +105,11 @@ public sealed class Batch9ExcelDateWorkflowTests
         string[] header = ["Document", "Date", "Account", "Name", "Description", "Amount", "NativeDate"];
         if (format == "csv")
         {
+            // 文字檔沒有日期型儲存格，第 3 列原本放純數字 45292 當控制列（以前換成 2024-01-01）。預篩選收斂計畫階段七
+            //（使用者 2026-10-22 裁定）純數字不再當成日期，控制列改寫成文字日期 2024-01-01，第 2 列的 240115 仍是無法辨識；
+            // 第一次失敗：收據 20261024-050001386-bbbc237309534438b5098d3a5bb8efbf（當時第 3 列也被列為錯誤，訊息變成 2 列）。
             var csv = Path.Combine(Path.GetTempPath(), $"jet-batch9-date-{Guid.NewGuid():N}.csv");
-            File.WriteAllText(csv, string.Join(',', header) + "\nV1,2025-03-05,A,Synthetic,Normal,1,240115\nV2,2025-03-05,A,Synthetic,Normal,1,45292\n", new UTF8Encoding(false));
+            File.WriteAllText(csv, string.Join(',', header) + "\nV1,2025-03-05,A,Synthetic,Normal,1,240115\nV2,2025-03-05,A,Synthetic,Normal,1,2024-01-01\n", new UTF8Encoding(false));
             return csv;
         }
         if (format.StartsWith("xls", StringComparison.Ordinal) && !format.StartsWith("xlsx", StringComparison.Ordinal))

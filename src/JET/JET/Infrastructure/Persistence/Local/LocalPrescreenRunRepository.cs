@@ -11,13 +11,11 @@ namespace JET.Infrastructure;
 /// 預篩選規則的 set-based SQL 執行。row-tag 規則一律以同一條
 /// SELECT COUNT(*), COUNT(DISTINCT document_number) FROM target_gl_entry g WHERE 共用述詞片段，
 /// 同時取得命中行與去重傳票數；
-/// 編製者彙總/罕用科目為彙總（各限 50 列）。Production typed path 的連續零尾數
-/// 門檻只消費 AuditCore plan 所提供的 execution input；public compatibility path
-/// 仍依 <see cref="TrailingZeroThreshold.DefaultZerosThreshold"/> 建立相同輸入。
+/// 編製者彙總/罕用科目為彙總（各限 50 列）。每條逐筆規則的述詞都從 <see cref="PrescreenRulePredicates"/> 取，和第五步同一個方法。
 /// 診斷日誌（dev-only）：每個 COUNT/彙總 SELECT 走 <see cref="DiagnosticDb"/> 擴充方法記錄完整 SQL/參數。
 /// </summary>
 public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, ILogger<LocalPrescreenRunRepository>? logger = null)
-    : IPrescreenRunRepository, IPrescreenFactsPort
+    : IPrescreenFactsPort
 {
     private const int SummaryRowLimit = 50;
 
@@ -28,19 +26,6 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         new(database.Dialect, GlPopulationScopeSql.Predicate);
 
     private readonly ILogger _log = logger ?? NullLogger<LocalPrescreenRunRepository>.Instance;
-
-    public async Task<PrescreenRunResult> RunAsync(
-        string projectId,
-        PrescreenRunInput input,
-        CancellationToken cancellationToken)
-    {
-        var executionInput = PrescreenExecutionInput.FromCompatibility(input);
-        var facts = await ExecuteFactsAsync(
-            projectId,
-            executionInput,
-            cancellationToken);
-        return ToCompatibilityResult(input, executionInput, facts);
-    }
 
     async Task<PrescreenFacts> IPrescreenFactsPort.ExecuteAsync(
         PrescreenPlan plan,
@@ -69,31 +54,34 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
             input.PeriodEnd,
             input.NonWorkingDays,
             GlPopulationScope.AuditPeriod);
+        // 每條規則的述詞都從同一張對應表取；第五步「預篩選」條件與傳票明細也是同一個方法。
+        string Rule(string key, FilterSqlParameterPlanBuilder cmd) =>
+            PrescreenRulePredicates.Build(Predicates, key, cmd, filterContext);
 
         (long HitLines, long HitVouchers) postPeriod = (0L, 0L);
         if (input.RunPostPeriodApproval)
         {
             postPeriod = await CountWhereAsync(
                 connection, input, cancellationToken,
-                cmd => Predicates.PostPeriodApproval(cmd, input.LastPeriodStart!));
+                cmd => Rule(PrescreenRuleKeys.PostPeriodApproval, cmd));
         }
 
         var suspicious = await CountWhereAsync(
             connection, input, cancellationToken,
-            cmd => Predicates.SuspiciousKeywords(cmd));
+            cmd => Rule(PrescreenRuleKeys.SuspiciousKeywords, cmd));
 
         (long HitLines, long HitVouchers) unexpectedPair = (0L, 0L);
         if (input.RunUnexpectedAccountPair)
         {
             unexpectedPair = await CountWhereAsync(
                 connection, input, cancellationToken,
-                cmd => Predicates.UnexpectedAccountPair(cmd, filterContext));
+                cmd => Rule(PrescreenRuleKeys.UnexpectedAccountPair, cmd));
         }
 
-        var zeroModulus = TrailingZeroThreshold.UnitModulus(input.ZerosThreshold);
+        // 尾數門檻是規則定義的一部分（固定六個 0），述詞和第五步「整數尾數符合」同一個。
         var trailingZeros = await CountWhereAsync(
             connection, input, cancellationToken,
-            cmd => Predicates.TrailingZeros(cmd, zeroModulus, input.MoneyScale));
+            cmd => Rule(PrescreenRuleKeys.TrailingZeros, cmd));
 
         var creators = input.RunCreatorSummary
             ? await ReadCreatorsAsync(connection, input, cancellationToken)
@@ -109,11 +97,11 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
 
         var weekendPosting = await CountWhereAsync(
             connection, input, cancellationToken,
-            _ => Predicates.Weekend("post_date", input.NonWorkingDays));
+            cmd => Rule(PrescreenRuleKeys.WeekendPosting, cmd));
         var weekendApproval = input.RunWeekendApproval
             ? await CountWhereAsync(
                 connection, input, cancellationToken,
-                _ => Predicates.Weekend("approval_date", input.NonWorkingDays))
+                cmd => Rule(PrescreenRuleKeys.WeekendApproval, cmd))
             : (HitLines: 0L, HitVouchers: 0L);
 
         (long HitLines, long HitVouchers) holidayPosting = (0L, 0L);
@@ -122,18 +110,18 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         {
             holidayPosting = await CountWhereAsync(
                 connection, input, cancellationToken,
-                _ => Predicates.Holiday("post_date"));
+                cmd => Rule(PrescreenRuleKeys.HolidayPosting, cmd));
         }
         if (input.RunHolidayApproval)
         {
             holidayApproval = await CountWhereAsync(
                 connection, input, cancellationToken,
-                _ => Predicates.Holiday("approval_date"));
+                cmd => Rule(PrescreenRuleKeys.HolidayApproval, cmd));
         }
 
         var blankDescription = await CountWhereAsync(
             connection, input, cancellationToken,
-            _ => Predicates.BlankDescription());
+            cmd => Rule(PrescreenRuleKeys.BlankDescription, cmd));
 
 
         // 非授權編製人員：授權清單未匯入時不執行（計 0、handler 標 na）。
@@ -142,20 +130,17 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         {
             nonAuthorizedPreparer = await CountWhereAsync(
                 connection, input, cancellationToken,
-                _ => Predicates.NonAuthorizedPreparer());
+                cmd => Rule(PrescreenRuleKeys.NonAuthorizedPreparer, cmd));
         }
 
-        // 低頻編製者：沒有前置條件、永遠跑（固定預設門檻）。
+        // 編製分錄較少的人員與使用較少的科目：固定門檻 11 由對應表交給「科目與人員統計」同一個方法；
+        // 兩條都永遠計算，收尾再依規則需求表決定要不要帶出去。
         var lowFrequencyPreparer = await CountWhereAsync(
             connection, input, cancellationToken,
-            cmd => Predicates.LowFrequencyPreparer(
-                cmd, PreparerFrequency.DefaultMaxEntries, filterContext));
-
-        // C9 低頻科目:沒有前置條件、永遠跑(固定預設門檻)。
+            cmd => Rule(PrescreenRuleKeys.LowFrequencyPreparer, cmd));
         var lowFrequencyAccount = await CountWhereAsync(
             connection, input, cancellationToken,
-            cmd => Predicates.LowFrequencyAccount(
-                cmd, AccountFrequency.DefaultMaxEntries, filterContext));
+            cmd => Rule(PrescreenRuleKeys.LowFrequencyAccount, cmd));
         var lowFrequencyAccountCount = await CountLowFrequencyAccountsAsync(connection, filterContext, cancellationToken);
 
         return new PrescreenFacts(
@@ -196,40 +181,15 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         };
     }
 
-    private static PrescreenRunResult ToCompatibilityResult(
-        PrescreenRunInput input,
-        PrescreenExecutionInput executionInput,
-        PrescreenFacts facts) =>
-        new(
-            facts.PostPeriodApprovalCount,
-            facts.SuspiciousKeywordsCount,
-            facts.UnexpectedAccountPairCount,
-            facts.TrailingZerosCount,
-            executionInput.ZerosThreshold,
-            facts.Creators,
-            facts.DistinctAccountCount,
-            facts.Accounts,
-            facts.WeekendPostingCount,
-            input.HasApprovalDate ? facts.WeekendApprovalCount : null,
-            facts.HolidayPostingCount,
-            input.HasHolidays && input.HasApprovalDate ? facts.HolidayApprovalCount : null,
-            facts.BlankDescriptionCount,
-            facts.NonAuthorizedPreparerCount,
-            facts.LowFrequencyPreparerCount,
-            facts.LowFrequencyAccountCount)
-        {
-            LowFrequencyDistinctAccountCount = facts.LowFrequencyDistinctAccountCount
-        };
-
     private async Task<long> CountLowFrequencyAccountsAsync(
         DbConnection connection, FilterRuleContext context, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         var parameters = new FilterSqlParameterPlanBuilder(database.Dialect);
-        var predicate = Predicates.LowFrequencyAccount(parameters, AccountFrequency.DefaultMaxEntries, context);
+        var predicate = PrescreenRulePredicates.Build(Predicates, PrescreenRuleKeys.LowFrequencyAccount, parameters, context);
         parameters.Build(predicate).BindParametersTo(command);
-        // 與命中列沿用同一述詞；在完整有效分錄母體計科目，不從前 50 筆摘要推算。
-        command.CommandText = $"SELECT COUNT(DISTINCT g.account_code) FROM target_gl_entry g "
+        // 與命中列沿用同一述詞；在完整有效分錄母體計科目，不從前 50 筆摘要推算。科目和述詞同樣去頭尾空白後算一個。
+        command.CommandText = $"SELECT COUNT(DISTINCT {database.Dialect.Trim("g.account_code")}) FROM target_gl_entry g "
             + $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({predicate});";
         return Convert.ToInt64(await command.ExecuteScalarLoggedAsync(_log, _provider, cancellationToken));
     }

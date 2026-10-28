@@ -39,9 +39,11 @@ internal static class ValidationReportProjectionParser
                 NullAccountCount: GetLong(nullRecords, "nullAccountCount"),
                 NullDocumentCount: GetLong(nullRecords, "nullDocumentCount"),
                 NullDescriptionCount: GetLong(nullRecords, "nullDescriptionCount"),
-                OutOfRangeDateCount: GetLong(nullRecords, "outOfRangeDateCount"),
-                SourceQualityFindingCount: GetLong(sourceQuality, "findingCount"),
-                SourceQualitySampleRows: ParseSourceQualityRows(sourceQuality));
+                // 形狀檢查已確認筆數與原因恰好一個有值；筆數是 null 就是傳票核准日不可用。
+                OutOfRangeDateCount: nullRecords.GetProperty("outOfRangeDateCount").ValueKind == JsonValueKind.Null
+                    ? null
+                    : GetLong(nullRecords, "outOfRangeDateCount"),
+                SourceQualityFindingCount: GetLong(sourceQuality, "findingCount"));
         }
         catch (Exception exception) when (exception is JsonException or FormatException or OverflowException)
         {
@@ -50,30 +52,6 @@ internal static class ValidationReportProjectionParser
                 "資料驗證結果不完整，請重新執行資料驗證後再產生報告。",
                 innerException: exception);
         }
-    }
-
-    private static IReadOnlyList<SourceQualityFindingRow> ParseSourceQualityRows(
-        JsonElement sourceQuality)
-    {
-        if (sourceQuality.ValueKind != JsonValueKind.Object
-            || !sourceQuality.TryGetProperty("sampleRows", out var sampleRows)
-            || sampleRows.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
-
-        return sampleRows.EnumerateArray()
-            .Where(row => row.ValueKind == JsonValueKind.Object)
-            .Select(row => new SourceQualityFindingRow(
-                GetString(row, "category") ?? string.Empty,
-                checked((int)GetLong(row, "sourceRowNumber")),
-                GetString(row, "sourceLabel") ?? string.Empty,
-                GetString(row, "documentNumber"),
-                GetString(row, "accountCode"),
-                GetString(row, "postDate"),
-                GetString(row, "description"),
-                EntryId: 0))
-            .ToArray();
     }
 
     private static long RuleCount(
@@ -108,10 +86,4 @@ internal static class ValidationReportProjectionParser
 
         return number;
     }
-
-    private static string? GetString(JsonElement element, string property) =>
-        element.TryGetProperty(property, out var value)
-            && value.ValueKind == JsonValueKind.String
-                ? value.GetString()
-                : null;
 }

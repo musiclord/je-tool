@@ -31,6 +31,20 @@ public sealed class ValidationReportProgramTests
         Assert.Equal(6, plan.Details.Count);
     }
 
+    [Fact]
+    public void Finalize_OutOfPeriodApprovalNotChecked_ReadsNoDetail()
+    {
+        // 驗證時傳票核准日不可用，筆數是 null；報告不讀這份明細，摘要的 N/A 由寫出器照同一個結果寫（使用者 2026-10-23 裁定）。
+        var plan = JetAuditProgram.Finalize(
+            JetAuditProgram.Plan(Request(nullAccountCount: 2) with { OutOfRangeDateCount = null }),
+            new ValidationReportPlanningFacts(UnbalancedDetailRowCount: 0));
+
+        var detail = plan.RequireDetail(ValidationReportDetailKind.OutOfRangeApprovalDate);
+        Assert.Equal(ValidationReportDetailDisposition.Omit, detail.Disposition);
+        Assert.Equal(0, detail.Count);
+        Assert.Equal(ValidationReportDetailDisposition.Emit, plan.RequireDetail(ValidationReportDetailKind.NullAccount).Disposition);
+    }
+
     [Theory]
     [InlineData(0, (int)ValidationReportDetailDisposition.Omit)]
     [InlineData(1, (int)ValidationReportDetailDisposition.Emit)]

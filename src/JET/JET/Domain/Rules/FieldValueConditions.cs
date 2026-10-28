@@ -114,8 +114,9 @@ public static class FieldValueConditions
 
 public static partial class FilterScenarioValidator
 {
+    /// <param name="fieldUnavailable">核心欄位沒有來源欄；原因已由規則需求表寫出，比較方式與值不必再檢查。</param>
     private static void ValidateFieldValue(FilterRuleSpec rule, string label,
-        FilterValidationContext context, List<string> errors)
+        FilterValidationContext context, List<string> errors, bool fieldUnavailable)
     {
         if (rule.DrCr is not null and not "debit" and not "credit")
             FilterScenarioCorruption.Add(errors, label, "field_value_side_invalid");
@@ -125,12 +126,8 @@ public static partial class FilterScenarioValidator
             errors.Add($"{label}：{MissingFieldReason(rule.Field)}");
             return;
         }
-        // 空白內容與沒有來源配對是兩件事。保留已配對空白值的查核用途，未配對時說明欄位沒有選來源欄。
-        if (rule.FieldId is null && rule.Field is { } coreField
-            && rule.TypedOperator is "isBlank" or "isNotBlank"
-            && context.AvailableGlFields is { } available && !available.Contains(coreField, StringComparer.Ordinal))
+        if (fieldUnavailable)
         {
-            errors.Add($"{label}：{UnmappedFieldReason(coreField)}");
             return;
         }
         if (rule.TypedOperator is null || !FieldValueConditions.Operators(field.ValueType).Contains(rule.TypedOperator))

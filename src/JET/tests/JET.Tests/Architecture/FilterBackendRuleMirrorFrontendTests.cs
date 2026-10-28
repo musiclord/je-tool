@@ -6,6 +6,9 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
+// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
+
 /// <summary>
 /// 前端為了就近提示，持有幾份後端規則的副本。這裡逐份比對副本與後端權威值，任何一邊改了另一邊沒跟上就失敗。
 /// 後端仍是權威；本檔只讀前端原始碼並用正則擷取，不執行 JavaScript。所有資料都是合成值。
@@ -48,7 +51,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     {
         var core = ReadFrontend("js", "ui-core.js");
         var values = ReadFrontend("js", "filter-values.js");
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
 
         Assert.Equal(TrailingZeroThreshold.MaxCustomDigits, ReadIntVar(core, "TAIL_DIGITS_MAX"));
         Assert.Contains("TAIL_DIGITS_MAX: TAIL_DIGITS_MAX", core, StringComparison.Ordinal);
@@ -130,7 +133,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     public void SavedScenarioLimit_IsOneBackendConstantMirroredByTheFrontend()
     {
         var core = ReadFrontend("js", "ui-core.js");
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
 
         Assert.Equal(FilterScenarioLimits.MaxSavedScenarios, ReadIntVar(core, "FILTER_MAX_SAVED_SCENARIOS"));
         Assert.Contains("FILTER_MAX_SAVED_SCENARIOS: FILTER_MAX_SAVED_SCENARIOS", core, StringComparison.Ordinal);
@@ -155,33 +158,143 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     }
 
     /// <summary>
-    /// 前端依 accountMappingRequirement 停用規則；後端驗證器是權威。逐一把前端規則清單裡的每個型別交給
-    /// 後端驗證器，在每一種科目配對資格下比對「前端可用」與「後端不因科目配對擋下」是否一致。
+    /// 預篩選收斂計畫階段四（2026-10-23）：第五步各入口的停用原因讀 ui-core.js 的規則需求表，這張表逐項鏡像後端
+    /// <see cref="JetRuleRequirements"/>，順序也相同，因為原因依表列的順序寫。預篩選比對每一個可篩選的鍵；條件型別比對每一種型別，
+    /// 需要條件自己所選 GL 欄位的型別另列一份清單；GL 語意欄位的清單比對欄位目錄。
+    /// 第一次失敗：Focused 收據 20261023-043250303-106f37c3021445109eac5f58b7560bbc（前端還沒有這張表）。
+    /// </summary>
+    [Fact]
+    public void RulePrerequisiteTables_MirrorTheBackendRequirementTable()
+    {
+        var core = ReadFrontend("js", "ui-core.js");
+
+        var prescreen = ReadPrescreenRuleTable(core);
+        Assert.Equal(
+            PrescreenRuleKeys.FilterableKeys.Order(StringComparer.Ordinal),
+            prescreen.Keys.Order(StringComparer.Ordinal));
+        foreach (var key in PrescreenRuleKeys.FilterableKeys)
+        {
+            Assert.Equal(Wire(JetRuleRequirements.PrescreenRules[key]), prescreen[key]);
+        }
+
+        var types = ReadPrerequisiteTable(core, "FILTER_RULE_PREREQUISITES");
+        var fieldTypes = ReadStringArray(core, "FILTER_FIELD_RULE_TYPES");
+        Assert.Empty(types.Keys.Concat(fieldTypes).Except(FilterConditionLabels.RuleTypes.Keys, StringComparer.Ordinal));
+        foreach (var type in FilterConditionLabels.RuleTypes.Keys.Where(type => type != "prescreen"))
+        {
+            var withoutField = Wire(BackendPrerequisites(new() { ["type"] = type }));
+            var withField = Wire(BackendPrerequisites(new() { ["type"] = type, ["field"] = JetFieldCatalog.GlCreateBy }));
+            if (fieldTypes.Contains(type, StringComparer.Ordinal))
+            {
+                Assert.False(types.ContainsKey(type), type + " 由條件自己選的欄位決定，不另列需求");
+                Assert.Empty(withoutField);
+                Assert.Equal(["gl:" + JetFieldCatalog.GlCreateBy], withField);
+            }
+            else
+            {
+                Assert.True(withoutField.SequenceEqual(withField), type + " 的需求和條件選的欄位無關");
+                Assert.Equal(withoutField, types.TryGetValue(type, out var frontend) ? frontend : []);
+            }
+        }
+
+        // 欄位值比較用攸關資料元素欄位時不要求 GL 欄位；前端同樣跳過帶 fieldId 的條件。
+        Assert.Empty(BackendPrerequisites(new() { ["type"] = "fieldValue", ["fieldId"] = "rde.synthetic", ["operator"] = "isBlank" }));
+        Assert.Equal(
+            JetFieldCatalog.GlFields.Select(field => field.SemanticIdentity),
+            ReadStringArray(core, "GL_SEMANTIC_FIELDS"));
+    }
+
+    /// <summary>
+    /// 同一階段：停用時的文字由後端的原因句決定，前端不另造句（計畫做法第 5 點）。不帶分類名稱的句子逐字出現在前端；
+    /// 帶分類名稱的句子用合成名稱算出後端的句子，名稱前後的文字也逐字出現在前端。GL 欄位的句子加上前端那句下一步再加句號，
+    /// 就是第四步同一條規則的句子；欄位名稱和第三步欄位配對的名稱相同。
+    /// 第一次失敗：同上收據。
+    /// </summary>
+    [Fact]
+    public void RulePrerequisiteReasons_AreTheBackendSentences()
+    {
+        var core = ReadFrontend("js", "ui-core.js");
+        var reasons = ExtractFunctionBody(core, "rulePrerequisiteReason(state, prerequisite)");
+        foreach (var kind in new[]
+                 {
+                     JetRulePrerequisiteKind.LastPeriodStart, JetRulePrerequisiteKind.AccountMapping,
+                     JetRulePrerequisiteKind.AnyAccountCategory, JetRulePrerequisiteKind.AuthorizedPreparers,
+                     JetRulePrerequisiteKind.HolidayCalendar
+                 })
+        {
+            Assert.Contains(
+                "'" + JetRuleRequirements.Reason(new JetRulePrerequisite(kind), AccountCategoryLabels.BuiltIn) + "'",
+                reasons,
+                StringComparison.Ordinal);
+        }
+
+        // 使用者 2026-10-14 第三輪勾選頁確認 R3-15（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）：
+        // 前端和後端同一句，分類名稱取第四步分類設定裡目前的名稱。原本由 AssertFrontendPrescreenEligibilityExpression 核對 filter-step.js。
+        Assert.Contains("function label(role) { return taxonomyCategoryLabel(state, 'builtin.' + role); }", reasons, StringComparison.Ordinal);
+
+        char[] sentinels = ['\u0001', '\u0002', '\u0003', '\u0004'];
+        var labels = new AccountCategoryLabels("\u0001", "\u0002", "\u0003", "\u0004");
+        foreach (var kind in new[] { JetRulePrerequisiteKind.RevenueCategory, JetRulePrerequisiteKind.CounterpartCategory })
+        {
+            foreach (var piece in JetRuleRequirements.Reason(new JetRulePrerequisite(kind), labels)
+                         .Split(sentinels, StringSplitOptions.RemoveEmptyEntries))
+            {
+                Assert.Contains("'" + piece + "'", reasons, StringComparison.Ordinal);
+            }
+        }
+
+        var unmapped = ReadStringVar(core, "GL_FIELD_UNMAPPED");
+        var nextStep = ReadStringVar(core, "GL_FIELD_NEXT_STEP");
+        foreach (var field in JetFieldCatalog.GlFields)
+        {
+            var label = JetFieldCatalog.GlSemanticFieldMappingLabel(field.SemanticIdentity);
+            Assert.Contains("{ key: '" + field.SemanticIdentity + "', label: '" + label + "'", core, StringComparison.Ordinal);
+            var prerequisite = new JetRulePrerequisite(JetRulePrerequisiteKind.GlField, field.SemanticIdentity);
+            var reason = JetRuleRequirements.Reason(prerequisite, AccountCategoryLabels.BuiltIn);
+            Assert.Equal("「" + label + "」" + unmapped, reason);
+            Assert.Equal(reason + nextStep + "。", JetRuleRequirements.PrescreenSentence(prerequisite, AccountCategoryLabels.BuiltIn));
+        }
+    }
+
+    /// <summary>
+    /// 預篩選收斂計畫階段四（2026-10-23）：第五步編輯器把舊情境的排除區畫成唯讀的「舊排除區」，原因照抄後端擋下它的那一句，
+    /// 前端不另造句。第一次失敗：Focused 收據 20261023-052228467-29884e1d40b84f99a4423752f808d8fb（前端還沒有這一句）。
+    /// </summary>
+    [Fact]
+    public void LegacyExclusionsReason_IsTheBackendSentence()
+    {
+        var filter = ProductSources.FilterStepFrontend();
+
+        Assert.Equal(FilterScenarioPayloadParser.RemovedExclusionsMessage, ReadStringVar(filter, "LEGACY_EXCLUSIONS_REASON"));
+    }
+
+    /// <summary>
+    /// 第五步依 ui-core.js 的規則需求表與 rulePrerequisiteMet 停用條件；後端驗證器是權威。逐一把每個條件型別交給
+    /// 後端驗證器，在每一種科目配對狀態下比對「前端可用」與「後端不因科目配對擋下」是否一致。
+    /// 預篩選收斂計畫階段四（2026-10-23）拿掉型別上的 accountMappingRequirement 與 filter-step.js 的 availableRuleTypes，
+    /// 前端可用改由需求表算；比對的型別與科目配對狀態不變。
+    /// 第一次失敗：Focused 收據 20261023-045253734-62b9cd9c0604461dbc4f70ec63236833（filter-step.js 找不到 availableRuleTypes）。
     /// </summary>
     [Fact]
     public void AccountMappingRequirements_AgreeWithBackendValidatorForEveryRuleType()
     {
         var core = ReadFrontend("js", "ui-core.js");
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
-        AssertFrontendEligibilityExpression(filter);
-
-        var requirements = ReadRuleTypeRequirements(core);
-        Assert.Equal(
-            FilterConditionLabels.RuleTypes.Keys.OrderBy(key => key, StringComparer.Ordinal),
-            requirements.Keys.OrderBy(key => key, StringComparer.Ordinal));
+        AssertFrontendPrerequisiteExpression(core);
+        var types = ReadPrerequisiteTable(core, "FILTER_RULE_PREREQUISITES");
 
         var mismatches = new List<string>();
-        foreach (var (type, requirement) in requirements)
+        foreach (var type in FilterConditionLabels.RuleTypes.Keys)
         {
+            var prerequisites = types.TryGetValue(type, out var listed) ? listed : [];
             var rule = new Dictionary<string, object?> { ["type"] = type };
             foreach (var facts in MappingFactStates)
             {
-                var frontendAvailable = FrontendEligible(requirement, facts);
+                var frontendAvailable = FrontendMet(prerequisites, facts);
                 var backendBlocks = BackendBlocksBecauseOfMapping(rule, facts);
                 if (frontendAvailable == backendBlocks)
                 {
-                    mismatches.Add($"{type}（前端需求：{requirement ?? "無"}；科目配對狀態：{facts}；"
-                        + $"前端{(frontendAvailable ? "可用" : "停用")}，後端{(backendBlocks ? "擋下" : "放行")}）");
+                    mismatches.Add($"{type}（前端需求：{(prerequisites.Length == 0 ? "無" : string.Join("、", prerequisites))}；"
+                        + $"科目配對狀態：{facts}；前端{(frontendAvailable ? "可用" : "停用")}，後端{(backendBlocks ? "擋下" : "放行")}）");
                 }
             }
         }
@@ -189,7 +302,10 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.True(mismatches.Count == 0, "前後端科目配對需求不一致：\n" + string.Join("\n", mismatches));
     }
 
-    /// <summary>標了需求的型別，在最低需求成立時，一條完整合成規則要能通過後端驗證。</summary>
+    /// <summary>
+    /// 需求表上要科目分類的型別，在表上列的分類剛好都有時，一條完整合成規則要能通過後端驗證。
+    /// 同一階段把最低需求改由需求表上的分類算，型別不變。第一次失敗：同上收據（型別上已經沒有 accountMappingRequirement）。
+    /// </summary>
     [Theory]
     [InlineData("accountSide")]
     [InlineData("accountPair")]
@@ -199,38 +315,35 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     [InlineData("manualRevenueEntry")]
     public void RequiredAccountMappingFacts_AreSufficientForTheBackend(string type)
     {
-        var requirements = ReadRuleTypeRequirements(ReadFrontend("js", "ui-core.js"));
-        var requirement = requirements[type];
-        Assert.NotNull(requirement);
+        var table = ReadPrerequisiteTable(ReadFrontend("js", "ui-core.js"), "FILTER_RULE_PREREQUISITES");
+        var prerequisites = table.TryGetValue(type, out var listed) ? listed : [];
+        var revenue = prerequisites.Contains("revenueCategory");
+        var counterpart = prerequisites.Contains("counterpartCategory");
+        Assert.True(revenue || counterpart || prerequisites.Contains("anyAccountCategory"), type + " 在需求表上要科目分類");
 
-        var minimal = requirement switch
-        {
-            "any" => new MappingFacts(true, true, false, false),
-            "revenue" => new MappingFacts(true, true, true, false),
-            "revenueAndCounterpart" => new MappingFacts(true, true, true, true),
-            _ => throw new InvalidOperationException($"未知的科目配對需求：{requirement}")
-        };
-        Assert.True(FrontendEligible(requirement, minimal));
+        // 有收入或對方分類時，一定也有任一分類。
+        var minimal = new MappingFacts(true, true, revenue, counterpart);
+        Assert.True(FrontendMet(prerequisites, minimal));
         Assert.Empty(Validate(ValidSample(type), minimal));
     }
 
-    /// <summary>一般預篩選鍵仍看匯入狀態；未預期組合另外需要收入與至少一種對方分類，與第四步相同。</summary>
+    /// <summary>
+    /// 預篩選鍵的科目配對需求：前端依同一張需求表停用，每個鍵在每一種科目配對狀態下和後端驗證器比對。
+    /// 同一階段拿掉 PRESCREEN_KEY_OPTIONS 的 requiresAccountMapping 與 prescreenRequirementNote 裡未預期借貸組合的特例，
+    /// 改由需求表算；比對的鍵與科目配對狀態不變。第一次失敗：同上收據（prescreenRequirementNote 裡找不到 requiresAccountMapping 的判斷）。
+    /// </summary>
     [Fact]
     public void PrescreenKeyAccountMappingRequirements_AgreeWithBackendValidator()
     {
         var core = ReadFrontend("js", "ui-core.js");
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
-        AssertFrontendPrescreenEligibilityExpression(filter);
-        var body = ExtractArrayBody(core, "PRESCREEN_KEY_OPTIONS");
-        var keys = Regex.Matches(body, @"\{\s*value:\s*'(?<key>\w+)'(?<rest>[^{}]*)\}")
-            .ToDictionary(
-                item => item.Groups["key"].Value,
-                item => Regex.IsMatch(item.Groups["rest"].Value, @"requiresAccountMapping:\s*true"));
-        Assert.NotEmpty(keys);
+        AssertFrontendPrerequisiteExpression(core);
+        AssertFrontendPrescreenEligibilityExpression(ProductSources.FilterStepFrontend());
+        var table = ReadPrescreenRuleTable(core);
 
         var mismatches = new List<string>();
-        foreach (var (key, requiresMapping) in keys)
+        foreach (var key in PrescreenRuleKeys.FilterableKeys)
         {
+            var prerequisites = table.TryGetValue(key, out var listed) ? listed : [];
             var rule = new Dictionary<string, object?> { ["type"] = "prescreen", ["prescreenKey"] = key };
             foreach (var facts in MappingFactStates)
             {
@@ -238,9 +351,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
                 // only requiresAccountMapping and therefore missed the new two-summary-flag requirement.
                 // First failures: 20261004-084834579-2436b90e840c4c53bec70aa81bf5a84b,
                 // 20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11. Keep every snapshot and every key.
-                var frontendAvailable = (!requiresMapping || facts.Imported)
-                    && (key != "unexpectedAccountPair" || facts.Imported && facts.HasRevenue && facts.HasCounterpart);
-                if (frontendAvailable == BackendBlocksBecauseOfMapping(rule, facts))
+                if (FrontendMet(prerequisites, facts) == BackendBlocksBecauseOfMapping(rule, facts))
                 {
                     mismatches.Add($"{key}（科目配對狀態：{facts}）");
                 }
@@ -251,54 +362,106 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     }
 
     /// <summary>
-    /// 預篩選鍵的「傳票建立人員已配對」需求：前端 <c>requiresCreateBy</c> 與後端的欄位前置檢查一致。
-    /// 2026-10-16 複審找到第五步「預篩選」分頁在沒有這個欄位時沒有停用「編製分錄較少的人員」與「非授權編製人員」，
-    /// 按下後一預覽就被後端擋下；這裡逐一核對每個鍵，之後新增的鍵也不會漏掉。
+    /// 預篩選鍵與條件型別需要的 GL 欄位：前端需求表和後端驗證器一致。每個鍵、每個型別都逐一拿掉一個 GL 欄位，
+    /// 看後端是否因此擋下；條件自己選欄位的型別，每個 GL 欄位各比對一次。
+    /// 2026-10-16 複審找到第五步「預篩選」分頁在沒有傳票建立人員時沒有停用「編製分錄較少的人員」與「非授權編製人員」，
+    /// 按下後一預覽就被後端擋下，所以原本這裡逐一核對每個預篩選鍵的傳票建立人員需求（PrescreenKeyCreatedByRequirements_AgreeWithBackendValidator）。
+    /// 預篩選收斂計畫階段四（2026-10-23）拿掉 requiresCreateBy，第五步不能用任何 GL 沒有配對的欄位（使用者 2026-10-22 裁定），
+    /// 這裡改成核對每個 GL 欄位，條件型別也一起核對。
+    /// 第一次失敗：同上收據（prescreenRequirementNote 裡找不到 requiresCreateBy 的判斷）。
     /// </summary>
     [Fact]
-    public void PrescreenKeyCreatedByRequirements_AgreeWithBackendValidator()
+    public void GlFieldRequirements_AgreeWithBackendValidator()
     {
         var core = ReadFrontend("js", "ui-core.js");
-        var note = ExtractFunctionBody(ReadFrontend("js", "steps", "filter-step.js"), "prescreenRequirementNote(key)");
-        Assert.Contains("var createByNote = option.requiresCreateBy ? conditionRequirementNote('createByMapped') : '';", note, StringComparison.Ordinal);
-        var keys = Regex.Matches(ExtractArrayBody(core, "PRESCREEN_KEY_OPTIONS"), @"\{\s*value:\s*'(?<key>\w+)'(?<rest>[^{}]*)\}")
-            .ToDictionary(
-                item => item.Groups["key"].Value,
-                item => Regex.IsMatch(item.Groups["rest"].Value, @"requiresCreateBy:\s*true"));
-        Assert.NotEmpty(keys);
-
+        AssertFrontendPrerequisiteExpression(core);
+        AssertFrontendPrescreenEligibilityExpression(ProductSources.FilterStepFrontend());
+        var prescreen = ReadPrescreenRuleTable(core);
+        var types = ReadPrerequisiteTable(core, "FILTER_RULE_PREREQUISITES");
+        var fieldTypes = ReadStringArray(core, "FILTER_FIELD_RULE_TYPES");
         var allFields = JetFieldCatalog.GlFields.Select(field => field.SemanticIdentity).ToArray();
-        var withoutCreateBy = allFields.Where(field => field != JetFieldCatalog.GlCreateBy).ToArray();
-        var mismatches = new List<string>();
-        foreach (var (key, requiresCreateBy) in keys)
+
+        var samples = new List<(string Name, Dictionary<string, object?> Rule, string[] Frontend)>();
+        foreach (var key in PrescreenRuleKeys.FilterableKeys)
         {
-            var rule = new Dictionary<string, object?> { ["type"] = "prescreen", ["prescreenKey"] = key };
-            var backendBlocks = Validate(rule, FullFacts, withoutCreateBy)
-                .Except(Validate(rule, FullFacts, allFields), StringComparer.Ordinal).Any();
-            if (backendBlocks != requiresCreateBy) mismatches.Add(key);
+            samples.Add((key, new Dictionary<string, object?> { ["type"] = "prescreen", ["prescreenKey"] = key },
+                prescreen.TryGetValue(key, out var listed) ? listed : []));
         }
 
-        Assert.True(mismatches.Count == 0, "預篩選鍵的傳票建立人員需求不一致：" + string.Join("、", mismatches));
+        foreach (var type in FilterConditionLabels.RuleTypes.Keys.Where(type => type != "prescreen"))
+        {
+            if (!fieldTypes.Contains(type, StringComparer.Ordinal))
+            {
+                samples.Add((type, new Dictionary<string, object?> { ["type"] = type }, types.TryGetValue(type, out var listed) ? listed : []));
+                continue;
+            }
+
+            // 前端 filterRulePrerequisites：這幾種型別需要的是條件自己選的 GL 欄位。
+            foreach (var field in allFields)
+            {
+                samples.Add((type + "（" + field + "）", new Dictionary<string, object?> { ["type"] = type, ["field"] = field }, ["gl:" + field]));
+            }
+        }
+
+        var mismatches = new List<string>();
+        foreach (var (name, rule, frontend) in samples)
+        {
+            var withEveryField = Validate(rule, FullFacts, allFields);
+            var backend = allFields
+                .Where(field => Validate(rule, FullFacts, allFields.Where(other => other != field).ToArray())
+                    .Except(withEveryField, StringComparer.Ordinal).Any())
+                .Select(field => "gl:" + field)
+                .ToArray();
+            var frontendFields = frontend.Where(prerequisite => prerequisite.StartsWith("gl:", StringComparison.Ordinal)).ToArray();
+            if (!backend.Order(StringComparer.Ordinal).SequenceEqual(frontendFields.Order(StringComparer.Ordinal), StringComparer.Ordinal))
+            {
+                mismatches.Add($"{name}（前端：{string.Join("、", frontendFields)}；後端：{string.Join("、", backend)}）");
+            }
+        }
+
+        Assert.True(mismatches.Count == 0, "前後端 GL 欄位需求不一致：\n" + string.Join("\n", mismatches));
     }
 
+    // ui-core.js rulePrerequisiteMet 的原文；FrontendMet 是它對科目配對的 C# 對應。第五步各入口都經過 ruleRequirementNote，
+    // 它依需求表與這個判斷查每條條件。
+    private static void AssertFrontendPrerequisiteExpression(string core)
+    {
+        var met = ExtractFunctionBody(core, "rulePrerequisiteMet(state, prerequisite)");
+        Assert.Contains("var imp = (state && state.importState) || {}, mapping = imp.accountMapping;", met, StringComparison.Ordinal);
+        Assert.Contains("if (prerequisite.indexOf('gl:') === 0) { return glFieldAvailable(state, prerequisite.slice(3)); }", met, StringComparison.Ordinal);
+        Assert.Contains("case 'accountMapping': return !!mapping;", met, StringComparison.Ordinal);
+        Assert.Contains("case 'anyAccountCategory': return !!(mapping && mapping.hasAnyCategory);", met, StringComparison.Ordinal);
+        Assert.Contains("case 'revenueCategory': return !!(mapping && mapping.hasRevenue);", met, StringComparison.Ordinal);
+        Assert.Contains("case 'counterpartCategory': return !!(mapping && mapping.hasCounterpart);", met, StringComparison.Ordinal);
+        // 每一種前置條件都有自己的判斷：後端新增種類時這裡失敗，前端不會把它當成已成立。原本由
+        // FilterTemplatesFrontendTests.AssertClosedRequirements 核對範例的 requires 只用畫面認得的幾種
+        // （第一次失敗：Focused 收據 20261023-045313479-2a121804a0e04b518609f80bf108ad65）。
+        Assert.Equal(
+            Enum.GetValues<JetRulePrerequisiteKind>()
+                .Where(kind => kind != JetRulePrerequisiteKind.GlField)
+                .SelectMany(kind => Wire([new JetRulePrerequisite(kind)]))
+                .Order(StringComparer.Ordinal),
+            Regex.Matches(met, @"case '(?<kind>\w+)':").Select(match => match.Groups["kind"].Value).Order(StringComparer.Ordinal));
+
+        var note = ExtractFunctionBody(core, "ruleRequirementNote(state, rules, ownOnly)");
+        Assert.Contains("filterRulePrerequisites(rule).forEach(function (prerequisite) {", note, StringComparison.Ordinal);
+        Assert.Contains("rulePrerequisiteMet(state, prerequisite)", note, StringComparison.Ordinal);
+    }
+
+    // 預篩選分頁與預篩選條件卡都依 prescreenRequirementNote 停用；它把鍵交給同一張需求表，沒有任何鍵的特例。
+    // 原本這裡另外鎖住 R3-15 的句子，現在句子和分類名稱的來源由 RulePrerequisiteReasons_AreTheBackendSentences 核對。
     private static void AssertFrontendPrescreenEligibilityExpression(string filter)
     {
         var available = ExtractFunctionBody(filter, "availablePrescreenKeys()");
         Assert.Contains("return !prescreenRequirementNote(o.value);", available, StringComparison.Ordinal);
         var note = ExtractFunctionBody(filter, "prescreenRequirementNote(key)");
-        Assert.Contains("if (option.requiresAccountMapping && !mapping)", note, StringComparison.Ordinal);
-        Assert.Contains("if (key === 'unexpectedAccountPair')", note, StringComparison.Ordinal);
-        Assert.Contains("if (!mapping || !mapping.hasRevenue)", note, StringComparison.Ordinal);
-        Assert.Contains("if (!mapping.hasCounterpart)", note, StringComparison.Ordinal);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-15（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 前端和後端 V8、V9 同一句，
-        // 分類名稱取第四步分類設定裡目前的名稱。
-        Assert.Contains("if (!mapping || !mapping.hasRevenue) { return revenueMissingNote(); }", note, StringComparison.Ordinal);
-        Assert.Contains("if (!mapping.hasCounterpart) { return counterpartMissingNote(); }", note, StringComparison.Ordinal);
-        Assert.Contains("'科目配對中尚無歸類為「' + roleCategoryLabel('revenue') + '」的科目，請先在第四步設定'", filter, StringComparison.Ordinal);
-        Assert.Contains("return '';", note, StringComparison.Ordinal);
+        Assert.Contains("return known ? requirementNote([{ type: 'prescreen', prescreenKey: key }]) : RETIRED_TYPE_NOTE;", note, StringComparison.Ordinal);
+        Assert.Contains(
+            "return Ui.ruleRequirementNote(Store.getState(), rules);",
+            ExtractFunctionBody(filter, "requirementNote(rules)"),
+            StringComparison.Ordinal);
         // A newly introduced special-case key cannot silently evade the complete matrix above.
-        Assert.Equal(["unexpectedAccountPair"], Regex.Matches(note, @"if \(key === '(?<key>\w+)'\)")
-            .Select(match => match.Groups["key"].Value).ToArray());
+        Assert.DoesNotContain("key === '", note, StringComparison.Ordinal);
     }
 
     private static string ExtractFunctionBody(string source, string signature)
@@ -330,31 +493,16 @@ public sealed class FilterBackendRuleMirrorFrontendTests
 
     private static readonly MappingFacts FullFacts = new(true, true, true, true);
 
-    // filter-step.js availableRuleTypes 的判斷式在 C# 端的對應；AssertFrontendEligibilityExpression 鎖住原文。
-    private static bool FrontendEligible(string? requirement, MappingFacts facts) => requirement switch
+    // rulePrerequisiteMet 對科目配對的判斷在 C# 端的對應；AssertFrontendPrerequisiteExpression 鎖住原文。其他前置條件在
+    // Validate 裡都成立：有準備日、有授權編製人員清單、不帶可用欄位清單，第五步也不檢查假日檔。
+    private static bool FrontendMet(IEnumerable<string> prerequisites, MappingFacts facts) => prerequisites.All(prerequisite => prerequisite switch
     {
-        null => true,
-        "any" => facts.Imported && facts.HasAnyCategory,
-        "revenue" => facts.Imported && facts.HasRevenue,
-        "revenueAndCounterpart" => facts.Imported && facts.HasRevenue && facts.HasCounterpart,
-        _ => throw new InvalidOperationException($"未知的科目配對需求：{requirement}")
-    };
-
-    private static void AssertFrontendEligibilityExpression(string filter)
-    {
-        var start = filter.IndexOf("function availableRuleTypes()", StringComparison.Ordinal);
-        var end = filter.IndexOf("\n  function ", start + 1, StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start, "filter-step.js 找不到 availableRuleTypes。");
-        var body = filter[start..end];
-
-        Assert.Contains("var mappingEligible = !requirement || (!!mapping && (", body, StringComparison.Ordinal);
-        Assert.Contains("(requirement === 'any' && mapping.hasAnyCategory) ||", body, StringComparison.Ordinal);
-        Assert.Contains("(requirement === 'revenue' && mapping.hasRevenue) ||", body, StringComparison.Ordinal);
-        Assert.Contains(
-            "(requirement === 'revenueAndCounterpart' && mapping.hasRevenue && mapping.hasCounterpart)",
-            body,
-            StringComparison.Ordinal);
-    }
+        "accountMapping" => facts.Imported,
+        "anyAccountCategory" => facts.Imported && facts.HasAnyCategory,
+        "revenueCategory" => facts.Imported && facts.HasRevenue,
+        "counterpartCategory" => facts.Imported && facts.HasCounterpart,
+        _ => true
+    });
 
     // 後端是否「因為科目配對」擋下：同一條規則在完整資格下沒有、在此狀態下才出現的錯誤。
     private static bool BackendBlocksBecauseOfMapping(Dictionary<string, object?> rule, MappingFacts facts)
@@ -383,10 +531,8 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             HasRevenueCategory: facts.HasRevenue,
             HasCounterpartCategory: facts.HasCounterpart)
         {
-            HasManualFlag = true,
-            HasCreatedBy = true,
-            HasApprovedBy = true,
-            HasDescription = true,
+            // 預篩選收斂計畫階段四拿掉四個欄位旗標，改由規則需求表讀可用欄位清單（2026-10-23）。
+            // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
             AvailableGlFields = availableGlFields
         };
         return FilterScenarioValidator.Validate(spec, context);
@@ -420,28 +566,76 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         _ => new() { ["type"] = type }
     };
 
-    private static Dictionary<string, string?> ReadRuleTypeRequirements(string core)
+    // 後端規則需求表對一條合成條件的答案：條件先經過正式的 payload 解析，再交給 JetRuleRequirements.ForFilterRule。
+    private static IReadOnlyList<JetRulePrerequisite> BackendPrerequisites(Dictionary<string, object?> rule)
     {
-        var body = ExtractArrayBody(core, "FILTER_RULE_TYPES");
-        var result = new Dictionary<string, string?>(StringComparer.Ordinal);
-        foreach (Match item in Regex.Matches(body, @"\{\s*value:\s*'(?<type>\w+)'(?<rest>[^{}]*)\}"))
+        var scenario = new
         {
-            var requirement = Regex.Match(item.Groups["rest"].Value, @"accountMappingRequirement:\s*'(?<value>\w+)'");
-            result.Add(item.Groups["type"].Value, requirement.Success ? requirement.Groups["value"].Value : null);
-        }
-
-        Assert.NotEmpty(result);
-        return result;
+            name = "synthetic scenario",
+            rationale = "synthetic rationale",
+            groups = new[] { new { join = "AND", matchScope = "row", rules = new object[] { rule } } }
+        };
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(scenario));
+        var spec = FilterScenarioPayloadParser.Parse(document.RootElement, moneyScale: 100);
+        return JetRuleRequirements.ForFilterRule(spec.Groups[0].Rules[0]);
     }
 
-    private static string ExtractArrayBody(string source, string arrayName)
+    // 前端表的寫法：GL 欄位寫成「gl:語意欄位」，其他前置條件寫種類名稱，首字母小寫。
+    private static string[] Wire(IEnumerable<JetRulePrerequisite> prerequisites) => prerequisites
+        .Select(prerequisite => prerequisite.Kind == JetRulePrerequisiteKind.GlField
+            ? "gl:" + prerequisite.GlField
+            : char.ToLowerInvariant(prerequisite.Kind.ToString()[0]) + prerequisite.Kind.ToString()[1..])
+        .ToArray();
+
+    // 預篩選收斂計畫階段九：前端只留一份 PRESCREEN_RULES，每條規則的 prerequisites 寫在同一筆。
+    // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+    private static Dictionary<string, string[]> ReadPrescreenRuleTable(string source)
     {
         var match = Regex.Match(
             source,
-            @"var\s+" + arrayName + @"\s*=\s*\[(?<body>.*?)\n  \];",
+            @"var\s+PRESCREEN_RULES\s*=\s*\[(?<body>.*?)\n  \];",
             RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        Assert.True(match.Success, $"ui-core.js 內找不到 {arrayName} 陣列。");
-        return match.Groups["body"].Value;
+        Assert.True(match.Success, "ui-core.js 內找不到 PRESCREEN_RULES。");
+        return Regex.Matches(
+                match.Groups["body"].Value,
+                @"value:\s*'(?<key>\w+)'[^{}]*?prerequisites:\s*\[(?<items>[^\]]*)\]",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant)
+            .ToDictionary(
+                item => item.Groups["key"].Value,
+                item => Regex.Matches(item.Groups["items"].Value, @"'(?<value>[^']+)'")
+                    .Select(value => value.Groups["value"].Value)
+                    .ToArray(),
+                StringComparer.Ordinal);
+    }
+
+    private static Dictionary<string, string[]> ReadPrerequisiteTable(string source, string name)
+    {
+        var match = Regex.Match(
+            source,
+            @"var\s+" + name + @"\s*=\s*\{(?<body>.*?)\n  \};",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(match.Success, $"ui-core.js 內找不到 {name}。");
+        return Regex.Matches(match.Groups["body"].Value, @"(?<key>\w+):\s*\[(?<items>[^\]]*)\]")
+            .ToDictionary(
+                item => item.Groups["key"].Value,
+                item => Regex.Matches(item.Groups["items"].Value, @"'(?<value>[^']+)'")
+                    .Select(value => value.Groups["value"].Value)
+                    .ToArray(),
+                StringComparer.Ordinal);
+    }
+
+    private static string[] ReadStringArray(string source, string name)
+    {
+        var match = Regex.Match(source, @"var\s+" + name + @"\s*=\s*\[(?<body>[^\]]*)\];", RegexOptions.CultureInvariant);
+        Assert.True(match.Success, $"ui-core.js 內找不到 {name}。");
+        return Regex.Matches(match.Groups["body"].Value, @"'(?<value>[^']+)'").Select(value => value.Groups["value"].Value).ToArray();
+    }
+
+    private static string ReadStringVar(string source, string name)
+    {
+        var match = Regex.Match(source, @"var\s+" + name + @"\s*=\s*'(?<value>[^']*)';", RegexOptions.CultureInvariant);
+        Assert.True(match.Success, $"前端原始碼內找不到 {name}。");
+        return match.Groups["value"].Value;
     }
 
     private static int ReadIntVar(string source, string name)

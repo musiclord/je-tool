@@ -11,9 +11,8 @@ namespace JET.Domain;
 ///
 /// 覆蓋範圍＝條件型別顯示名，以及渲染器會用到的標籤表：預篩選鍵、文字比對模式、科目配對模式、
 /// 特殊科目配對模式、可篩選 GL 邏輯欄、非營業日原子，以及 sameVoucher／textSet 的固定結構片語。
-/// <see cref="PrescreenKeys"/> 的鍵集合與
-/// <see cref="PrescreenRuleKeys.FilterableKeys"/> 恆等（<c>FilterConditionLabelMirrorTests</c>
-/// 雙向守衛），任何 row-tag 鍵新增都必須同時給中文標籤，否則這個測試會失敗。
+/// <see cref="PrescreenKeys"/> 與 <see cref="PrescreenRuleKeys.FilterableKeys"/> 都由
+/// <see cref="PrescreenRuleDefinitions"/> 衍生，鍵集合必然相同；新增逐筆規則時在登錄裡給中文標籤即可。
 /// </summary>
 public static class FilterConditionLabels
 {
@@ -50,23 +49,9 @@ public static class FilterConditionLabels
             ["preparerEqualsApprover"] = "編製與核准同一人",
         };
 
-    /// <summary>預篩選 row-tag 鍵 → 中文標籤（前端 <c>PRESCREEN_KEY_OPTIONS</c> 鏡像）。</summary>
+    /// <summary>預篩選 row-tag 鍵 → 中文標籤，由規則登錄衍生（前端 <c>PRESCREEN_RULES</c> 的 label 鏡像）。</summary>
     public static readonly IReadOnlyDictionary<string, string> PrescreenKeys =
-        new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            [PrescreenRuleKeys.PostPeriodApproval] = "財報準備日起核准",
-            [PrescreenRuleKeys.SuspiciousKeywords] = "摘要特定描述",
-            [PrescreenRuleKeys.UnexpectedAccountPair] = "未預期借貸組合",
-            [PrescreenRuleKeys.TrailingZeros] = $"金額尾數連續 {TrailingZeroThreshold.DefaultZerosThreshold} 個 0",
-            [PrescreenRuleKeys.WeekendPosting] = "週末過帳",
-            [PrescreenRuleKeys.WeekendApproval] = "週末核准",
-            [PrescreenRuleKeys.HolidayPosting] = "假日過帳",
-            [PrescreenRuleKeys.HolidayApproval] = "假日核准",
-            [PrescreenRuleKeys.BlankDescription] = "空白摘要",
-            [PrescreenRuleKeys.NonAuthorizedPreparer] = "非授權編製人員",
-            [PrescreenRuleKeys.LowFrequencyPreparer] = $"編製分錄較少的人員（{PreparerFrequency.DefaultMaxEntries} 筆以下）",
-            [PrescreenRuleKeys.LowFrequencyAccount] = $"使用較少的科目（{AccountFrequency.DefaultMaxEntries} 筆以下）",
-        };
+        PrescreenRuleDefinitions.RowTags.ToDictionary(rule => rule.Key, rule => rule.ConditionLabel!, StringComparer.Ordinal);
 
     /// <summary>文字比對模式 → 中文（前端 <c>TEXT_MODE_OPTIONS</c> 鏡像）。</summary>
     public static readonly IReadOnlyDictionary<string, string> TextModes =

@@ -46,7 +46,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
         var detailPath = Slice(
             source,
             "private async Task EmitPrescreenRuleFromPlanAsync(",
-            "private static PrescreenReportProjection ParseLegacyPrescreenProjection(");
+            "private static string SummaryResultText(");
 
         Assert.DoesNotContain(
             "GetCountsAsync",
@@ -157,12 +157,13 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "var unfinalizedReportPlan = JetAuditProgram.Plan(",
             "var request = new ReportArtifactWriteRequest(");
 
+        // 2026-10-22 技術債一輪：報告寫出器只剩一個正式入口，handler 不再依型別挑路徑；確認它把 Finalize 後的計畫交給寫出器。
         Assert.Contains(
-            "IPlannedPrescreenReportWriter",
+            "writer.WriteAsync(",
             handler,
             StringComparison.Ordinal);
         Assert.Contains(
-            "plannedWriter.WritePlannedAsync(",
+            "prescreenReportPlan,",
             handler,
             StringComparison.Ordinal);
         // 2026-10-02 資料庫分流簡化：planning port 不再是 handler 欄位，改成從作用中案件資料庫組取出的區域變數，
@@ -173,7 +174,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             lifecycle,
             StringComparison.Ordinal);
         Assert.Matches(
-            @"IPrescreenReportPlanningFactsPort\? prescreenReportPlanningFactsPort =\s+repositories\.PrescreenReportPlanningFacts;",
+            @"IPrescreenReportPlanningFactsPort prescreenReportPlanningFactsPort =\s+repositories\.PrescreenReportPlanningFacts;",
             handler);
         // 2026-10-02 起 AuditCore 不再提供只轉手給 port 的 ExecuteAsync；中間一項改成直接呼叫 planning port，
         // 仍要求 Plan、執行、Finalize 依序出現。

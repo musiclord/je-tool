@@ -2,6 +2,9 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
+// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
+
 /// <summary>
 /// 2026-10-02 整體複審的畫面文字修正：只改顯示文字與格式，不改 action、識別字或底稿內容。
 /// 每項都鎖住新字樣，並確認舊字樣不再出現在同一個位置。
@@ -28,7 +31,7 @@ public sealed class ScreenWordingReviewFrontendTests
         // 2026-10-03 主線在瀏覽器主機重測 S9 時發現：第五步工作區把 KCT 區塊標頭整個藏起來
         // （app.css 的 .filter-workspace .filter-entry .condition-picker__head），審計員實際看到的是左側分頁鈕。
         // 使用者 2026-10-08 裁定分頁鈕只寫「KCT 條件」：原話「請改名 `KCT條件A到J` 改為 `KCT 條件` 就好」。
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
 
         Assert.Contains("sourceButton('kct', 'KCT 條件')", filter, StringComparison.Ordinal);
         Assert.DoesNotContain("KCT 條件 A 到 J", filter, StringComparison.Ordinal);
@@ -39,7 +42,7 @@ public sealed class ScreenWordingReviewFrontendTests
     public void CriteriaReportAndMatrix_UsePlainActionNames()
     {
         // W13、W21：按鈕與操作名稱不再重複「完成」；矩陣分頁改稱「符合條件摘要」。
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
 
         Assert.Contains("(regenerate ? '重新產生條件篩選報告' : '產生條件篩選報告')", filter, StringComparison.Ordinal);
         Assert.Contains("Ui.run('產生條件篩選報告', function () {", filter, StringComparison.Ordinal);
@@ -88,7 +91,7 @@ public sealed class ScreenWordingReviewFrontendTests
         Assert.Contains("有效授權清單：' + info.rowCount + ' 個人員代號或姓名' +", import, StringComparison.Ordinal);
         Assert.Contains("' 個有效人員代號或姓名。'", import, StringComparison.Ordinal);
         Assert.Contains("preparerName: '人員代號或姓名',", ReadFrontend("js", "data-preview.js"), StringComparison.Ordinal);
-        Assert.Contains("依匯入後的科目或人員分組；空白欄位不列入。", ReadFrontend("js", "steps", "filter-step.js"), StringComparison.Ordinal);
+        Assert.Contains("依匯入後的科目或人員分組；空白欄位不列入。", ProductSources.FilterStepFrontend(), StringComparison.Ordinal);
 
         foreach (var source in new[]
         {
@@ -96,7 +99,7 @@ public sealed class ScreenWordingReviewFrontendTests
             import,
             ReadFrontend("js", "filter-values.js"),
             ReadFrontend("js", "data-preview.js"),
-            ReadFrontend("js", "steps", "filter-step.js")
+            ProductSources.FilterStepFrontend()
         })
         {
             Assert.DoesNotContain("人員識別值", source, StringComparison.Ordinal);

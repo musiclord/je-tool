@@ -1,7 +1,7 @@
 # JET 架構文件的分析與繪圖
 
 這份流程讓不同 agent 使用同一份來源證據繪圖。閱讀入口在[架構文件](../../docs/architecture/README.md)，
-目前工作範圍與計畫入口見[開發現況](../../docs/development-status.md)。既有圖表的研究、重繪與交付範圍見[架構文件計畫](../../docs/specs/2026-10-16-architecture-documentation-plan.md)，不把該次成果當成持續開發的授權。
+目前工作範圍與計畫入口見[開發現況](../../docs/development-status.md)。既有圖表的研究、重繪與交付範圍見已結案的[架構文件計畫](../../docs/history/specs/2026-10-16-architecture-documentation-plan.md)，不把該次成果當成持續開發的授權。
 
 ## 工具分工
 
@@ -39,7 +39,9 @@ RepoWise 與 Roslyn 的結果分開保存，以來源位置及符號身分對照
    同時把重繪規格裡類別圖成員的宣告位置對到新行號。
 5. 看每條線的 Roslyn 證據還綁不綁得上；綁不上的線就是程式改過的地方，依新程式改圖，再補證據。
    讀過的差異也要反映到圖上的文字與卡片，不只修綁不上的線。
-6. 封裝時以 `--run` 指定快照目錄。
+6. 先把圖表目錄 `docs/architecture/diagrams/evidence/dynamic-view-pairs.json` 的內容複製到重繪規格的 `dynamicViewPairs`，
+   再依新圖核對訊息編號、略過的步驟、範圍外的訊息與參與者對應；新增的動態視圖各加一組。
+7. 封裝時以 `--run` 指定快照目錄。
 
 ## 分析與事實核對
 
@@ -99,13 +101,17 @@ Agent 從前端 action 追到 handler、介面、組裝、資料庫與回應，�
 連線證據的規格放在本機工作目錄，由 [`package-redraw.py`](../../tools/harness/architecture/package-redraw.py) 解析 Roslyn 紀錄並封裝成
 `evidence/connection-evidence.json`，全部通過後才覆寫圖表目錄；找不到證據、線型和證據種類不符或有線沒有綁定時，封裝直接停止，圖表目錄維持原樣。
 類別圖上每個成員的宣告位置也寫在同一份規格，封裝成 `evidence/member-sources.json`；畫出的成員和規格不一致時同樣停止。
+畫同一個流程的 LikeC4 動態視圖與 Archify 循序圖怎麼配對，寫在規格的 `dynamicViewPairs`，封裝成 `evidence/dynamic-view-pairs.json`，
+沒有這一節就停止；每一組寫參與者對應、循序圖裡要比的訊息、範圍外的訊息與略過的步驟，略過與範圍外都要附原因。
+規格放在 Git 忽略的目錄，換機或清理後就不在了；已封裝進圖表目錄的那一份才是持久版本，下一次重繪從那裡複製。
 沿用的研究事實不改研究目錄的原檔；要改寫標題或說明時寫在規格的 `researchFactWording`，代號、來源、狀態與結論不變，
 封裝時原文留在 `evidence/verified-facts.json` 的 `researchWording`。
 
 [圖表檢查](../../tools/harness/architecture/Check-Architecture.ps1)已納入 Documentation，並以[合成反例](../../tools/tests/architecture-evidence.tests.ps1)檢查分類。
 它保護圖表目錄的檔案與來源雜湊，並檢查每條線都有證據、類別關係符合 Roslyn 紀錄、
-線型和證據種類一致、回傳對應到呼叫、事實引用存在、類別圖成員都有宣告位置，以及匯出檔沒有本機路徑。
-它不能證明業務結果正確，也不比對 LikeC4 動態視圖與 Archify 循序圖的步驟順序；沒有通過這些檢查的內容不能標成已受完整檢查保護。
+線型和證據種類一致、回傳對應到呼叫、事實引用存在、類別圖成員都有宣告位置，以及匯出檔沒有本機路徑；
+2026-10-25 起也依配對設定逐步比對畫同一個流程的 LikeC4 動態視圖與 Archify 循序圖，比呼叫順序、參與者、方法與程式位置。
+它不能證明業務結果正確；沒有通過這些檢查的內容不能標成已受完整檢查保護。
 
 ## 後續補強
 

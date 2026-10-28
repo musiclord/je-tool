@@ -133,8 +133,10 @@ public sealed class WorkpaperDirectTemplateArchitectureTests
             "private async IAsyncEnumerable<TaggedVoucherRow> StreamFinalizedStep4VoucherRowsAsync(",
             StringComparison.Ordinal);
         Assert.True(start >= 0, "Finalized WorkingPaper Step4 stream adapter is missing.");
+        // 終點原本是緊接在後的 StreamWorkpaperStep41RowsAsync。那個方法只剩已刪的欄寬計算在用，2026-10-28 複審時刪除，
+        // 終點改成同位置的下一個宣告，切到的範圍不變。第一次失敗：Focused 收據 20261028-022333978-ab609c8db9b548b88673ad0ec17f354f。
         var end = source.IndexOf(
-            "private async IAsyncEnumerable<WorkpaperStep41SourceRow> StreamWorkpaperStep41RowsAsync(",
+            "private readonly record struct TaggedVoucherRow(",
             start,
             StringComparison.Ordinal);
         Assert.True(end > start, "Finalized WorkingPaper Step4 stream adapter boundary is missing.");
@@ -156,22 +158,8 @@ public sealed class WorkpaperDirectTemplateArchitectureTests
                          && candidate.Module == interfaceMethod.Module);
         Assert.InRange(interfaceIndex, 0, interfaceMap.InterfaceMethods.Length - 1);
 
-        var publicMethod = typeof(WorkpaperWriter)
-            .GetMethods(BindingFlags.Instance | BindingFlags.Public)
-            .Single(method =>
-                method.Name == nameof(WorkpaperWriter.WriteAsync)
-                && method.GetParameters() is
-                [
-                    { ParameterType: var output },
-                    { ParameterType: var context },
-                    { ParameterType: var cancellation },
-                    { ParameterType: var progress }
-                ]
-                && output == typeof(Stream)
-                && context == typeof(WorkpaperContext)
-                && cancellation == typeof(CancellationToken)
-                && progress == typeof(Action<WorkpaperProgress>));
-        return [interfaceMap.TargetMethods[interfaceIndex], publicMethod];
+        // 2026-10-22 技術債一輪：沒有計畫的公開入口已刪除，正式入口只剩介面實作。
+        return [interfaceMap.TargetMethods[interfaceIndex]];
     }
 
     private static bool IsOpenXmlDescendants(MethodBase method)

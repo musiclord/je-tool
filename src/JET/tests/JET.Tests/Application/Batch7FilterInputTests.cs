@@ -15,7 +15,6 @@ public sealed class Batch7FilterInputTests
     [InlineData("20250611", true)]
     [InlineData("114/6/11", true)]
     [InlineData("1140611", true)]
-    [InlineData("45292", true)]
     [InlineData("2025/6/11", false)]
     public void CoreAndRdeDateOperands_UseTheProjectsGlDateFormats(string value, bool rocEnabled)
     {
@@ -25,6 +24,28 @@ public sealed class Batch7FilterInputTests
             $$"""{"type":"fieldValue","fieldId":"{{DateFieldId}}","operator":"on","value":"{{value}}"}""",
             $$"""{"type":"typed","fieldId":"{{DateFieldId}}","operator":"on","value":"{{value}}"}"""
         }) Assert.Empty(FilterScenarioValidator.Validate(Parse(rule), Context(rocEnabled)));
+    }
+
+    // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：第五步的日期操作元也不再把純數字當成 Excel 序列值。
+    // 「45292」原本在上面的通用格式裡期待三種條件寫法都接受；現在三種寫法、兩種民國年開關都寫出那個值無法辨識。
+    // 第一次失敗：收據 20261024-050001386-bbbc237309534438b5098d3a5bb8efbf（改程式後上面的理論才失敗，當時沒有這一則）。
+    [Theory]
+    [InlineData("45292", true)]
+    [InlineData("45292", false)]
+    [InlineData("2025", true)]
+    [InlineData("2025.12", true)]
+    public void PlainNumberDateOperands_AreRejectedForCoreAndRdeFields(string value, bool rocEnabled)
+    {
+        foreach (var rule in new[]
+        {
+            $$"""{"type":"fieldValue","field":"postDate","operator":"on","value":"{{value}}"}""",
+            $$"""{"type":"fieldValue","fieldId":"{{DateFieldId}}","operator":"on","value":"{{value}}"}""",
+            $$"""{"type":"typed","fieldId":"{{DateFieldId}}","operator":"on","value":"{{value}}"}"""
+        })
+        {
+            var errors = FilterScenarioValidator.Validate(Parse(rule), Context(rocEnabled));
+            Assert.Contains(errors, error => error.Contains($"日期「{value}」無法辨識", StringComparison.Ordinal));
+        }
     }
 
     [Theory]

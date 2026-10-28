@@ -25,7 +25,23 @@ public sealed class Batch7FilterDateWorkflowTests
             databaseProvider: provider, periodStart: "2024-01-01", validateForDownstream: true);
         foreach (var raw in new[] { "2025/6/11", "2025.6.11", "20250611", "114/6/11", "1140611" })
             await AssertPreviewAsync(host, DateScenario(raw), ["D1"]);
-        await AssertPreviewAsync(host, DateScenario("45292"), ["SERIAL"]);
+        // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：第五步的日期也不再把純數字當成 Excel 序列值。
+        // 「45292」原本期待命中 SERIAL 那一列（2024-01-01），現在和 2025、2025.12 一樣是無法辨識的日期，情境無效並寫出那個值。
+        // 第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
+        foreach (var plain in new[] { "45292", "2025", "2025.12" })
+        {
+            var invalid = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview",
+                JsonSerializer.Serialize(new { scenario = DateScenario(plain) })));
+            Assert.Equal(JetErrorCodes.InvalidScenario, invalid.Code);
+            Assert.Contains($"日期「{plain}」無法辨識", invalid.Message, StringComparison.Ordinal);
+        }
+        var list = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview",
+            JsonSerializer.Serialize(new { scenario = DateListScenario("2025", "2025.12", "45292") })));
+        Assert.Equal(JetErrorCodes.InvalidScenario, list.Code);
+        // 清單逐值檢查，三個值都要寫出來。
+        Assert.Contains("清單第 1 個值：日期「2025」無法辨識", list.Message, StringComparison.Ordinal);
+        Assert.Contains("清單第 2 個值：日期「2025.12」無法辨識", list.Message, StringComparison.Ordinal);
+        Assert.Contains("清單第 3 個值：日期「45292」無法辨識", list.Message, StringComparison.Ordinal);
 
         var scenario = DateScenario("114/6/11");
         var committed = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { scenario } }));
@@ -99,6 +115,11 @@ public sealed class Batch7FilterDateWorkflowTests
     private static JsonElement DateScenario(string value) => JsonSerializer.SerializeToElement(new
     {
         name = "合成日期", rationale = "固定答案", groups = new[] { new { rules = new[] { new { type = "fieldValue", field = "postDate", @operator = "on", value } } } }
+    });
+
+    private static JsonElement DateListScenario(params string[] values) => JsonSerializer.SerializeToElement(new
+    {
+        name = "合成日期", rationale = "固定答案", groups = new[] { new { rules = new[] { new { type = "fieldValue", field = "postDate", @operator = "in", values } } } }
     });
 
     private static async Task AssertPreviewAsync(HandlerTestHost host, JsonElement scenario, string[] expected)

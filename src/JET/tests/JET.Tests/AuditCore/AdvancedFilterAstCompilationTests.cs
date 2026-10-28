@@ -28,7 +28,6 @@ public sealed class AdvancedFilterAstCompilationTests
         var plan = Builder().BuildPlan(
             scenario,
             Context,
-            zeroModulus: 1_000_000,
             schemaPrefix: "prj_synthetic.");
 
         Assert.Equal(2, Count(plan.Sql, "g.document_number IN ("));
@@ -55,8 +54,8 @@ public sealed class AdvancedFilterAstCompilationTests
         var omitted = Parse("{\"name\":\"synthetic\",\"rationale\":\"row\",\"groups\":[{" + group + "}]}");
         var explicitRow = Parse("{\"name\":\"synthetic\",\"rationale\":\"row\",\"groups\":[{\"matchScope\":\"row\"," + group + "}]}");
 
-        var omittedPlan = Builder().BuildPlan(omitted, Context, zeroModulus: 1_000_000);
-        var explicitPlan = Builder().BuildPlan(explicitRow, Context, zeroModulus: 1_000_000);
+        var omittedPlan = Builder().BuildPlan(omitted, Context);
+        var explicitPlan = Builder().BuildPlan(explicitRow, Context);
 
         Assert.Equal(omittedPlan.Sql, explicitPlan.Sql);
         Assert.Equal(omittedPlan.Parameters, explicitPlan.Parameters);
@@ -80,11 +79,11 @@ public sealed class AdvancedFilterAstCompilationTests
             rejected,
             new FilterValidationContext(true, false, false)));
 
-        var plan = Builder().BuildPlan(allowed, Context, zeroModulus: 1_000_000);
+        var plan = Builder().BuildPlan(allowed, Context);
         Assert.Equal(FilterScenarioLimits.MaxCompiledParameters, plan.Parameters.Count);
 
         var exception = Assert.Throws<JetActionException>(
-            () => Builder().BuildPlan(rejected, Context, zeroModulus: 1_000_000));
+            () => Builder().BuildPlan(rejected, Context));
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
         Assert.Contains(
             FilterScenarioLimits.MaxCompiledParameters.ToString(),

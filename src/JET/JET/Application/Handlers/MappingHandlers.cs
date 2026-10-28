@@ -103,7 +103,8 @@ public sealed class MappingRestoreDraftHandler(
                 approvalDateMode = glOptions.ApprovalDateMode,
                 postingStatusPolicy = glOptions.PostingStatusPolicy,
                 manualAutoPolicy = glOptions.ManualAutoPolicy,
-                rdeFields = glOptions.RdeFields
+                rdeFields = glOptions.RdeFields,
+                fillDownFields = glOptions.FillDownFields
             },
             tb = new { mapping = metadata.Tb.Mapping, changeMode = metadata.Tb.ChangeMode }
         };
@@ -132,6 +133,9 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
     }
 
     public string Action => "mapping.commit.gl";
+
+    /// <summary>配對確認後，案件至少推進到第三步。</summary>
+    internal const int WorkflowStep = 3;
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
@@ -219,7 +223,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         await MappingCommitShared.AdvanceStepAsync(
             projectStore,
             document,
-            WorkflowMilestones.For(Action),
+            WorkflowStep,
             CancellationToken.None, logger);
 
         var auditLogWarning = await CommittedAuditLog.AppendMappingRecommitAsync(
@@ -229,6 +233,8 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
         // 非阻斷提醒（如必填欄整欄空白，疑似配錯欄）；前端提交成功後一併顯示。多數情況為空陣列。
         var warnings = CommittedAuditLog.WithWarning(result.Projection.Warnings, auditLogWarning);
+        // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
+        var availableGlFields = JetFieldCatalog.AvailableGlFields(result.Spec.Mapping, result.Spec.Options);
         AuthorizedPreparerState? authorizedPreparerState;
         try
         {
@@ -249,8 +255,11 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
                 approvalDateMode = result.Spec.Options.ApprovalDateMode,
                 manualAutoPolicy = result.Spec.Options.ManualAutoPolicy,
                 rdeFields = result.Spec.Options.RdeFields,
+                fillDownFields = result.Spec.Options.FillDownFields,
+                availableGlFields,
                 batchId = batch.BatchId,
                 projectedRowCount = result.Projection.ProjectedRowCount,
+                fillDownCount = result.Projection.FillDownCellCount,
                 warnings,
                 invalidatedResults = unavailable.InvalidatedResults,
                 staleState = unavailable.StaleState,
@@ -268,8 +277,12 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             approvalDateMode = result.Spec.Options.ApprovalDateMode,
             manualAutoPolicy = result.Spec.Options.ManualAutoPolicy,
             rdeFields = result.Spec.Options.RdeFields,
+            // 往下填補的欄位照欄位目錄順序回傳；fillDownCount 是這次投影把空白補成上一列值的格數（階段六）。
+            fillDownFields = result.Spec.Options.FillDownFields,
+            availableGlFields,
             batchId = batch.BatchId,
             projectedRowCount = result.Projection.ProjectedRowCount,
+            fillDownCount = result.Projection.FillDownCellCount,
             warnings,
             authorizedPreparerState,
             invalidatedResults = mutationState.InvalidatedResults,
@@ -299,6 +312,9 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
     }
 
     public string Action => "mapping.commit.tb";
+
+    /// <summary>配對確認後，案件至少推進到第三步。</summary>
+    internal const int WorkflowStep = 3;
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
@@ -356,7 +372,7 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
         await MappingCommitShared.AdvanceStepAsync(
             projectStore,
             document,
-            WorkflowMilestones.For(Action),
+            WorkflowStep,
             CancellationToken.None, logger);
 
         var auditLogWarning = await CommittedAuditLog.AppendMappingRecommitAsync(
@@ -595,11 +611,21 @@ internal static class MappingV2CommitPayloadPrerequisite
             rdeFields = fields;
         }
 
+        // 往下填補的欄位（階段六）：只收形狀，哪些欄位能填由 Domain 的規則裁定。
+        IReadOnlyList<string> fillDownFields = [];
+        if (payload.TryGetProperty("fillDownFields", out var fillDownElement))
+        {
+            fillDownFields = ReadStringArray(fillDownElement, "fillDownFields");
+        }
+
         return new GlMappingOptions(
             approvalDateMode,
             postingStatusPolicy,
             manualPolicy,
-            rdeFields);
+            rdeFields)
+        {
+            FillDownFields = fillDownFields
+        };
     }
 
     internal static GlPostingStatusPolicy? ReadPostingStatusPolicy(JsonElement payload)

@@ -84,5 +84,92 @@ function Test-JetArchitectureRules {
         throw [IO.InvalidDataException]::new('Architecture drawn kind test failed.')
     }
     $count++
+
+    # 動態視圖對循序圖的逐步比對（2026-10-25 起）：合成一個小模型、一張小循序圖與一份配對設定。
+    # 第二步刻意畫到實作類別、標籤寫介面方法，第三步是沒有呼叫位置的資料線，第四步是讀回；和 jet.c4 的 filterSave 一樣。
+    $c4 = @'
+model {
+  slice = component 'Slice' {
+    a = component 'Caller'
+    b = component 'Worker'
+    sContract = contract 'IStore' { technology 'interface' }
+    s = component 'LocalStore'
+    db = store 'Db'
+    a -[calls]-> b 'Run' {
+      metadata { evidence 'S01' }
+    }
+    a -[viaInterface]-> sContract 'Save' {
+      metadata { evidence 'S02' }
+    }
+    s -[implements]-> sContract '實作' {
+      metadata { evidence 'S03' }
+    }
+    s -[data]-> db 'write' {
+      metadata { evidence 'S04' }
+    }
+  }
+}
+views {
+  dynamic view demo {
+    title 'demo'
+    slice.a -> slice.b 'Run' {
+      notes 'first'
+    }
+    slice.a -> slice.s 'IStore.Save'
+    slice.s -> slice.db 'write rows'
+    slice.a <- slice.b 'done'
+  }
+}
+'@
+    $model = Get-JetLikeC4Model $c4
+    if ($model.elements['slice.s'] -cne 'LocalStore' -or $model.elements['slice.sContract'] -cne 'IStore' -or $model.relations.Count -ne 4 -or
+        @($model.relations | Where-Object { $_.evidence -ceq 'S02' -and $_.from -ceq 'slice.a' -and $_.to -ceq 'slice.sContract' }).Count -ne 1 -or
+        $model.dynamicViews['demo'].Count -ne 4 -or -not $model.dynamicViews['demo'][3].isReturn -or $model.dynamicViews['demo'][3].source -cne 'slice.b') {
+        throw [IO.InvalidDataException]::new('Architecture LikeC4 parse test failed.')
+    }
+    $count++
+    function New-Edge([string]$Target,[int]$Line) { @{kind='invokes';dispatch='statically_bound';target=$Target;location=@{path='src/Caller.cs';line=$Line;endLine=$Line}} }
+    $connections=@{
+        'likec4:S01'=@{diagram='likec4';connection='S01';kind='calls';members=@('Run');roslyn=@(New-Edge 'M:Example.Worker.Run' 10)}
+        'likec4:S02'=@{diagram='likec4';connection='S02';kind='viaInterface';members=@('Save');roslyn=@(New-Edge 'M:Example.IStore.Save(System.String)' 12)}
+        'seq:m01'=@{diagram='seq';connection='m01';kind='calls';roslyn=@(New-Edge 'M:Example.Worker.Run' 10)}
+        'seq:m02'=@{diagram='seq';connection='m02';kind='viaInterface';roslyn=@(New-Edge 'M:Example.IStore.Save(System.String)' 12)}
+        'seq:m03'=@{diagram='seq';connection='m03';kind='return';returnOf='m02'}
+        'seq:m04'=@{diagram='seq';connection='m04';kind='calls';roslyn=@(New-Edge 'M:Example.Worker.Stop' 20)}
+    }
+    $messages=@(@{id='m01';from='a';to='b';label='Run'},@{id='m02';from='a';to='db';label='IStore.Save';variant='dashed'},
+        @{id='m03';from='db';to='a';label='saved';variant='return'},@{id='m04';from='a';to='b';label='Stop'})
+    $pair=@{id='demo';dynamicView='demo';sequence='seq';participants=@{'slice.a'='a';'slice.b'='b';'slice.s'='db'}
+        sequenceMessages=@('m01','m02');sequenceOutOfScope=@(@{message='m04';reason='branch'})
+        skippedSteps=@(@{label='write rows';reason='data'},@{label='done';reason='return'})}
+    function Assert-Pair($value,[string]$expected,$connectionSet=$connections,$messageSet=$messages,$modelValue=$model) {
+        $actual=@(Get-JetDynamicViewPairErrors -Pair $value -Model $modelValue -Connections $connectionSet -Messages $messageSet | ForEach-Object Code)
+        if (($expected -ceq 'pass' -and $actual.Count -ne 0) -or ($expected -cne 'pass' -and $expected -cnotin $actual)) {
+            throw [IO.InvalidDataException]::new("Architecture dynamic view pair test failed: $expected")
+        }
+    }
+    Assert-Pair $pair 'pass';$count++
+    $changed=Copy-Binding $pair;$changed.sequenceMessages=@('m02','m01')
+    Assert-Pair $changed 'step_method_differs';$count++
+    $changed=Copy-Binding $pair;$changed.sequenceMessages=@('m01')
+    Assert-Pair $changed 'step_count_differs';$count++
+    $changed=Copy-Binding $pair;$changed.participants['slice.s']='store'
+    Assert-Pair $changed 'step_participants_differ';$count++
+    $changed=Copy-Binding $pair;$changed.skippedSteps=@(@{label='write rows';reason='data'})
+    Assert-Pair $changed 'dynamic_step_unmatched';$count++
+    $changed=Copy-Binding $pair;$changed.skippedSteps=@(@{label='done';reason='return'})
+    Assert-Pair $changed 'dynamic_step_unmatched';$count++
+    $changed=Copy-Binding $pair;$changed.skippedSteps=@($changed.skippedSteps)+@{label='Missing';reason='typo'}
+    Assert-Pair $changed 'skipped_step_not_drawn';$count++
+    $changed=Copy-Binding $pair;$changed.sequenceOutOfScope=@()
+    Assert-Pair $changed 'sequence_call_not_in_scope';$count++
+    $changed=Copy-Binding $pair;$changed.dynamicView='other'
+    Assert-Pair $changed 'dynamic_view_missing';$count++
+    $moved=Copy-Binding $connections;$moved['seq:m02'].roslyn[0].location.line=13
+    Assert-Pair $pair 'step_location_differs' $moved;$count++
+    $renamed=Copy-Binding $connections;$renamed['likec4:S01'].members=@('Start')
+    Assert-Pair $pair 'dynamic_step_member_missing' $renamed;$count++
+    $other=Get-JetLikeC4Model ($c4.Replace("'IStore.Save'","'IOther.Save'"))
+    Assert-Pair $pair 'dynamic_step_relation_missing' $connections $messages $other;$count++
     return $count
 }

@@ -58,7 +58,7 @@ public sealed class ReportExportSupportTests
         };
 
         var exception = Assert.Throws<JetActionException>(() =>
-            ReportExportSupport.RequireRevision(scenarios, savedUtc.ToString("O")));
+            ReportExportSupport.RequireRevisionState(scenarios, savedUtc.ToString("O")));
 
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
     }

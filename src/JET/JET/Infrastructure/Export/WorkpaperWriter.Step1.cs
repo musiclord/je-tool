@@ -394,7 +394,7 @@ public sealed partial class WorkpaperWriter
     /// <summary>
     /// 「step2 可靠性測試」:表頭跨 49-52 列(含多處合併,逐字對齊本機參考樣本);資料第 53 列起,逐頁 infSamplePage。
     /// 借/貸兩欄直接用 InfSampleRow.DebitScaled / CreditScaled(brief 設計決策;scaled→顯示)。
-    /// A 樣本序號為列序 1..N(emitter 自累計);J 來源欄(infSamplePage 無 source_module)、H 核准日、T 說明手填留空。
+    /// A 樣本序號為列序 1..N(emitter 自累計);J 分錄來源與 E 借貸代號由 InfSampleDisplayValues 決定，T 說明手填留空。
     /// </summary>
 
     private static void ConfigureStep1Layout(

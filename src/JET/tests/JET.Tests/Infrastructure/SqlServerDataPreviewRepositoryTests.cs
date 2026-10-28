@@ -66,21 +66,32 @@ public sealed class SqlServerDataPreviewRepositoryTests
         await SeedPreviewDataAsync(project.Database, project.ProjectId);
         var repository = new SqlServerDataPreviewRepository(project.Database);
 
+        // 使用者 2026-10-22 裁定資料預覽依配對列欄位（預篩選收斂計畫階段五）：倉儲改由呼叫端傳入欄位計畫，這裡配對了
+        // 人工或自動分錄、過帳狀態與一個攸關資料元素文字欄。原本欄位固定九欄；SQL Server 開發暫緩，這次只改不執行，
+        // 本機兩個資料庫的第一次失敗：Focused 收據 20261023-112236182-bd560fe8519e41f1b448404a6a45e026，建置失敗。
+        var glColumns = DataPreviewGlColumns.For(DataPreviewDataset.Gl, ManualAndPostingStatusMapping, RdeOptions);
         var result = await repository.GetPreviewAsync(
             project.ProjectId,
             DataPreviewDataset.Gl,
             moneyScale: 100,
             limit: 1,
-            CancellationToken.None);
+            CancellationToken.None,
+            glColumns: glColumns);
 
         Assert.Equal(
-            ["documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr", "manualAuto"],
+            [
+                "documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr",
+                "manualAuto", "postingStatus", RdeTextFieldId
+            ],
             result.Columns);
+        Assert.Equal(result.Columns, result.ColumnDetails!.Select(column => column.Key));
         Assert.Equal(2, result.TotalCount);
         var row = Assert.Single(result.Rows);
-        Assert.Equal(["JV-100", "1", "2024-01-01", "1101", "現金", "借方", "1234.56", "DEBIT", "manual"], row);
-        var both = await repository.GetPreviewAsync(project.ProjectId, DataPreviewDataset.Gl, 100, 2, CancellationToken.None);
+        Assert.Equal(["JV-100", "1", "2024-01-01", "1101", "現金", "借方", "1234.56", "DEBIT", "manual", "POSTED", "財務部"], row);
+        var both = await repository.GetPreviewAsync(
+            project.ProjectId, DataPreviewDataset.Gl, 100, 2, CancellationToken.None, glColumns: glColumns);
         Assert.Equal("automatic", both.Rows[1][8]);
+        Assert.Null(both.Rows[1][10]);
         var stats = Assert.IsType<GlPreviewStats>(result.Stats);
         Assert.Equal(25m, stats.AmountAbsMin);
         Assert.Equal(1234.56m, stats.AmountAbsMax);
@@ -97,17 +108,19 @@ public sealed class SqlServerDataPreviewRepositoryTests
         await SeedPreviewDataAsync(project.Database, project.ProjectId);
         var repository = new SqlServerDataPreviewRepository(project.Database);
 
+        // 兩頁列同一組欄位，GL(未納入測試) 最後多一欄未納入原因（預篩選收斂計畫階段五，只改不執行，第一次失敗同上）。
         var result = await repository.GetPreviewAsync(
             project.ProjectId,
             DataPreviewDataset.GlExcluded,
             moneyScale: 100,
             limit: 1,
-            CancellationToken.None);
+            CancellationToken.None,
+            glColumns: DataPreviewGlColumns.For(DataPreviewDataset.GlExcluded, ManualAndPostingStatusMapping, RdeOptions));
 
         Assert.Equal(
             [
-                "documentNumber", "lineItem", "postDate", "postingStatus", "accountCode", "accountName",
-                "documentDescription", "amount", "drCr", "exclusionReason"
+                "documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr",
+                "manualAuto", "postingStatus", RdeTextFieldId, "exclusionReason"
             ],
             result.Columns);
         Assert.Equal(2, result.TotalCount);
@@ -115,7 +128,7 @@ public sealed class SqlServerDataPreviewRepositoryTests
         // 使用者 2026-10-21 裁定日期不符分成三種原因：總帳日期空白的列讀成 blankPostDate，兩個計數改成四個。
         // SQL Server 開發暫緩，這次只改不執行；改名前的建置失敗收據 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
         Assert.Equal(
-            ["JV-300", "1", null, "POSTED", "5200", "一般費用", "期外", "10", "DEBIT", "blankPostDate"],
+            ["JV-300", "1", null, "5200", "一般費用", "期外", "10", "DEBIT", null, "POSTED", null, "blankPostDate"],
             row);
         var stats = Assert.IsType<GlExcludedPreviewStats>(result.Stats);
         Assert.Equal(1, stats.BlankPostDateCount);
@@ -131,14 +144,16 @@ public sealed class SqlServerDataPreviewRepositoryTests
         Assert.NotNull(project);
         var repository = new SqlServerDataPreviewRepository(project.Database);
 
+        // 還沒確認 GL 配對時只列核心八欄與未納入原因（預篩選收斂計畫階段五，只改不執行，第一次失敗同上）。
         var result = await repository.GetPreviewAsync(
             project.ProjectId,
             DataPreviewDataset.GlExcluded,
             moneyScale: 100,
             limit: 1,
-            CancellationToken.None);
+            CancellationToken.None,
+            glColumns: DataPreviewGlColumns.For(DataPreviewDataset.GlExcluded, mapping: null, options: null));
 
-        Assert.Equal(10, result.Columns.Count);
+        Assert.Equal(9, result.Columns.Count);
         Assert.Empty(result.Rows);
         Assert.Equal(0, result.TotalCount);
         // 使用者 2026-10-21 裁定日期不符分成三種原因，兩個計數改成四個；SQL Server 開發暫緩，這次只改不執行。
@@ -264,6 +279,28 @@ public sealed class SqlServerDataPreviewRepositoryTests
         Assert.Equal((DataPreviewDataset)999, exception.ActualValue);
     }
 
+    private const string RdeTextFieldId = "rde.0123456789abcdef0123456789abcdef";
+
+    /// <summary>必填欄位、人工或自動分錄與過帳狀態都有來源欄的 GL 配對。</summary>
+    private static readonly IReadOnlyDictionary<string, string> ManualAndPostingStatusMapping =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [GlMappingKeys.DocNum] = "doc",
+            [GlMappingKeys.PostDate] = "date",
+            [GlMappingKeys.AccNum] = "account",
+            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.Description] = "description",
+            [GlMappingKeys.Amount] = "amount",
+            [GlMappingKeys.Manual] = "manual",
+            [GlMappingKeys.PostingStatus] = "status"
+        };
+
+    private static readonly GlMappingOptions RdeOptions =
+        GlMappingOptions.NormalizeLegacy(ManualAndPostingStatusMapping) with
+        {
+            RdeFields = [new GlRdeFieldMetadata(RdeTextFieldId, "department", "合成部門", RdeFieldValueTypeNames.Text)]
+        };
+
     private static async Task SeedPreviewDataAsync(SqlServerProjectDatabase database, string projectId)
     {
         await using var connection = database.CreateConnection(projectId);
@@ -300,6 +337,11 @@ public sealed class SqlServerDataPreviewRepositoryTests
                  '5200', N'一般費用', N'期外', 1000, 1000, 0, 'DEBIT', NULL),
                 ('gl-target', 5, 'JV-400', '1', '2024-02-01', 'DRAFT', 0, 'posting_status',
                  '6100', N'其他費用', N'未過帳', -750, 0, 750, 'CREDIT', NULL);
+
+            INSERT INTO {{s}}target_gl_rde_value (entry_id, field_id, value_type, text_value)
+            SELECT entry_id, 'rde.0123456789abcdef0123456789abcdef', 'text', N'財務部'
+            FROM {{s}}target_gl_entry
+            WHERE document_number = 'JV-100';
 
             INSERT INTO {{s}}target_tb_balance (batch_id, source_row_number, account_code, account_name, change_amount_scaled)
             VALUES

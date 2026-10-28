@@ -14,12 +14,6 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 {
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
-    private static readonly string[] GlExcludedColumns =
-    [
-        "documentNumber", "lineItem", "postDate", "postingStatus", "accountCode", "accountName",
-        "documentDescription", "amount", "drCr", "exclusionReason"
-    ];
-
     private static readonly string[] TbBalanceColumns = ["accountCode", "accountName", "changeAmount"];
 
     private static readonly string[] AuthorizedPreparerColumns = ["preparerName"];
@@ -36,11 +30,17 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         int moneyScale,
         int limit,
         CancellationToken cancellationToken, int offset = 0,
-        GlExclusionReason? exclusionReason = null)
+        GlExclusionReason? exclusionReason = null,
+        IReadOnlyList<DataPreviewGlColumn>? glColumns = null)
     {
         if (exclusionReason is not null && dataset != DataPreviewDataset.GlExcluded)
         {
             throw new ArgumentException("只有 GL(未納入測試) 可以依未納入原因篩選。", nameof(exclusionReason));
+        }
+
+        if (glColumns is null && dataset is (DataPreviewDataset.Gl or DataPreviewDataset.GlExcluded))
+        {
+            throw new ArgumentNullException(nameof(glColumns), "GL 與 GL(未納入測試) 的欄位由呼叫端依已確認的配對決定。");
         }
 
         limit = Math.Clamp(limit, 1, 200);
@@ -62,8 +62,9 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         {
             DataPreviewDataset.PbcGl => await StagingPreviewAsync(connection, "gl", "staging_gl_raw_row", limit, cancellationToken, offset),
             DataPreviewDataset.PbcTb => await StagingPreviewAsync(connection, "tb", "staging_tb_raw_row", limit, cancellationToken, offset),
-            DataPreviewDataset.Gl => await GlPreviewAsync(connection, moneyScale, limit, cancellationToken, offset),
-            DataPreviewDataset.GlExcluded => await GlExcludedPreviewAsync(connection, moneyScale, limit, cancellationToken, offset, exclusionReason),
+            DataPreviewDataset.Gl => await GlPreviewAsync(connection, glColumns!, moneyScale, limit, cancellationToken, offset),
+            DataPreviewDataset.GlExcluded => await GlExcludedPreviewAsync(
+                connection, glColumns!, moneyScale, limit, cancellationToken, offset, exclusionReason),
             DataPreviewDataset.Tb => await TbPreviewAsync(connection, moneyScale, limit, cancellationToken, offset),
             DataPreviewDataset.AccountMappings => await AccountMappingsPreviewAsync(connection, limit, cancellationToken, offset),
             DataPreviewDataset.AuthorizedPreparers => await AuthorizedPreparersPreviewAsync(connection, limit, cancellationToken, offset),
@@ -246,6 +247,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 
     private static async Task<DataPreviewResult> GlPreviewAsync(
         DbConnection connection,
+        IReadOnlyList<DataPreviewGlColumn> columns,
         int moneyScale,
         int limit,
         CancellationToken cancellationToken, int offset = 0)
@@ -287,47 +289,17 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 
         if (totalCount == 0)
         {
-            return new DataPreviewResult([], [], 0, null);
+            return new DataPreviewResult([], [], 0, null, []);
         }
 
-        var rows = new List<IReadOnlyList<string?>>();
-        await using (var select = connection.CreateCommand())
-        {
-            select.CommandText =
-                $"""
-                SELECT document_number, line_item, post_date, account_code, account_name,
-                       document_description, amount_scaled, dr_cr, is_manual
-                FROM target_gl_entry
-                WHERE {GlEffectivePopulation.SqlPredicate()}
-                ORDER BY entry_id
-                LIMIT @limit OFFSET @offset;
-                """;
-            select.AddWithValue("@limit", limit);
-            select.AddWithValue("@offset", offset);
-
-            await using var reader = await select.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                rows.Add(
-                [
-                    reader.IsDBNull(0) ? null : reader.GetString(0),
-                    reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.IsDBNull(2) ? null : reader.GetString(2),
-                    reader.IsDBNull(3) ? null : reader.GetString(3),
-                    reader.IsDBNull(4) ? null : reader.GetString(4),
-                    reader.IsDBNull(5) ? null : reader.GetString(5),
-                    ToDisplayAmount(reader.GetInt64(6), moneyScale).ToString(CultureInfo.InvariantCulture),
-                    reader.GetString(7),
-                    DataPreviewColumns.ManualAuto(reader, 8)
-                ]);
-            }
-        }
-
-        return new DataPreviewResult(DataPreviewColumns.Gl, rows, totalCount, stats);
+        var rows = await GlRowsAsync(
+            connection, columns, DataPreviewGlPage.Gl, null, moneyScale, limit, offset, cancellationToken);
+        return new DataPreviewResult(columns.Select(static column => column.Key).ToArray(), rows, totalCount, stats, columns);
     }
 
     private static async Task<DataPreviewResult> GlExcludedPreviewAsync(
         DbConnection connection,
+        IReadOnlyList<DataPreviewGlColumn> columns,
         int moneyScale,
         int limit,
         CancellationToken cancellationToken, int offset = 0,
@@ -362,48 +334,52 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             totalCount = exclusionReason is { } filter ? stats.CountOf(filter) : reader.GetInt64(0);
         }
 
-        var rows = new List<IReadOnlyList<string?>>();
+        var rows = await GlRowsAsync(
+            connection,
+            columns,
+            exclusionReason is null ? DataPreviewGlPage.Excluded : DataPreviewGlPage.ExcludedForOneReason,
+            exclusionReason is { } reason ? GlEffectivePopulation.StorageReasonOf(reason) : null,
+            moneyScale,
+            limit,
+            offset,
+            cancellationToken);
+        return new DataPreviewResult(columns.Select(static column => column.Key).ToArray(), rows, totalCount, stats, columns);
+    }
 
-        await using (var select = connection.CreateCommand())
+    /// <summary>GL 兩頁的當頁分錄：SELECT 清單、攸關資料元素的 LEFT JOIN 與讀值都由欄位計畫產生。</summary>
+    private static async Task<IReadOnlyList<IReadOnlyList<string?>>> GlRowsAsync(
+        DbConnection connection,
+        IReadOnlyList<DataPreviewGlColumn> columns,
+        DataPreviewGlPage page,
+        string? storageReason,
+        int moneyScale,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken)
+    {
+        await using var select = connection.CreateCommand();
+        select.CommandText = DataPreviewGlQuery.Select(columns, string.Empty, page, "LIMIT @limit OFFSET @offset");
+        if (storageReason is not null)
         {
-            select.CommandText =
-                $"""
-                SELECT document_number, line_item, post_date, posting_status, account_code, account_name,
-                       document_description, amount_scaled, dr_cr, exclusion_reason
-                FROM target_gl_entry
-                WHERE is_effective = 0{(exclusionReason is null ? "" : " AND exclusion_reason = @exclusionReason")}
-                ORDER BY entry_id
-                LIMIT @limit OFFSET @offset;
-                """;
-            if (exclusionReason is { } reason)
-            {
-                select.AddWithValue("@exclusionReason", GlEffectivePopulation.StorageReasonOf(reason));
-            }
-
-            select.AddWithValue("@limit", limit);
-            select.AddWithValue("@offset", offset);
-
-            await using var reader = await select.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                rows.Add(
-                [
-                    reader.IsDBNull(0) ? null : reader.GetString(0),
-                    reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.IsDBNull(2) ? null : reader.GetString(2),
-                    reader.IsDBNull(3) ? null : reader.GetString(3),
-                    reader.IsDBNull(4) ? null : reader.GetString(4),
-                    reader.IsDBNull(5) ? null : reader.GetString(5),
-                    reader.IsDBNull(6) ? null : reader.GetString(6),
-                    ToDisplayAmount(reader.GetInt64(7), moneyScale).ToString(CultureInfo.InvariantCulture),
-                    reader.GetString(8),
-                    GlExclusionReasonNames.ToWireName(
-                        GlEffectivePopulation.ReasonOfStorage(reader.IsDBNull(9) ? null : reader.GetString(9)))
-                ]);
-            }
+            select.AddWithValue("@exclusionReason", storageReason);
         }
 
-        return new DataPreviewResult(GlExcludedColumns, rows, totalCount, stats);
+        foreach (var (name, value) in DataPreviewGlQuery.RdeParameters(columns))
+        {
+            select.AddWithValue(name, value);
+        }
+
+        select.AddWithValue("@limit", limit);
+        select.AddWithValue("@offset", offset);
+
+        var rows = new List<IReadOnlyList<string?>>();
+        await using var reader = await select.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            rows.Add(DataPreviewGlQuery.ReadRow(reader, columns, moneyScale));
+        }
+
+        return rows;
     }
 
     private static async Task<DataPreviewResult> TbPreviewAsync(

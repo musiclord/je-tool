@@ -144,11 +144,12 @@ public sealed class PrescreenReportSourceLineageTests
             // 專案沒有 committed GL mapping 時，R6 沒有可沿用的 schema lineage；
             // 必須 fail closed，不得退回固定 alias 標題。
             var exception = await Assert.ThrowsAsync<JetActionException>(() =>
-                ((IPlannedPrescreenReportWriter)writer).WritePlannedAsync(
+                ((IPrescreenReportWriter)writer).WriteAsync(
                     output,
                     Context(projectId),
                     projection,
                     plan,
+                    ReportWriterTestSupport.SyntheticMetadata(),
                     "tester",
                     CancellationToken.None));
             Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
@@ -322,6 +323,7 @@ public sealed class PrescreenReportSourceLineageTests
             new LocalCreatorSummaryExportRepository(database),
             new LocalAccountUsageExportRepository(database),
             new LocalTagMatrixScenariosRepository(database),
+            new LocalSourceQualityPageRepository(database),
             new LocalTagMatrixRowPageRepository(database));
 
     private static PrescreenReportProjection ZeroHitProjection()

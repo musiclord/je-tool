@@ -3,6 +3,9 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
+// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
+
 /// <summary>
 /// 長作業的完成訊息守衛：會寫完成句的工作流程長作業，都要明示選擇加入一則完成摘要。
 /// 完成句與失敗句的寫法、耗時、最後進度、複製最近 100 則與取消時記下的進度，
@@ -15,7 +18,7 @@ public sealed class OperationLogFrontendTests
     {
         var validation = ReadFrontend("js", "steps", "validate-step.js");
         var import = ReadFrontend("js", "steps", "import-step.js");
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
         var export = ReadFrontend("js", "steps", "export-step.js");
         var combined = validation + import + filter + export;
 

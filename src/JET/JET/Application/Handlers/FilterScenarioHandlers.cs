@@ -24,6 +24,9 @@ public sealed class FilterScenarioSaveHandler : IApplicationActionHandler
 
     public string Action => FilterScenarioBatchWriter.SaveAction;
 
+    /// <summary>存下情境後，案件至少推進到第五步。</summary>
+    internal const int WorkflowStep = 5;
+
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
@@ -41,7 +44,7 @@ public sealed class FilterScenarioSaveHandler : IApplicationActionHandler
         var nowUtc = DateTimeOffset.UtcNow;
         var change = FilterScenarioBatchWriter.PlanSave(prepared, saved, payload, nowUtc);
         return await FilterScenarioBatchWriter.PublishAsync(
-            Action, projectStore, stores, prepared, change, skipWhenEmpty: false, nowUtc, logger, cancellationToken);
+            Action, WorkflowStep, projectStore, stores, prepared, change, skipWhenEmpty: false, nowUtc, logger, cancellationToken);
     }
 }
 
@@ -61,6 +64,9 @@ public sealed class FilterScenarioRemoveHandler : IApplicationActionHandler
 
     public string Action => FilterScenarioBatchWriter.RemoveAction;
 
+    /// <summary>移除情境後，案件至少推進到第五步。</summary>
+    internal const int WorkflowStep = 5;
+
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
@@ -77,7 +83,7 @@ public sealed class FilterScenarioRemoveHandler : IApplicationActionHandler
         var saved = await stores.Scenarios.ListAsync(projectId, cancellationToken);
         var change = FilterScenarioBatchWriter.PlanRemove(saved, payload);
         return await FilterScenarioBatchWriter.PublishAsync(
-            Action, projectStore, stores, prepared, change, skipWhenEmpty: false, DateTimeOffset.UtcNow, logger,
+            Action, WorkflowStep, projectStore, stores, prepared, change, skipWhenEmpty: false, DateTimeOffset.UtcNow, logger,
             cancellationToken);
     }
 }
@@ -100,6 +106,9 @@ public sealed class FilterScenarioRecheckHandler : IApplicationActionHandler
 
     public string Action => FilterScenarioBatchWriter.RecheckAction;
 
+    /// <summary>重新檢查後，案件至少推進到第五步。</summary>
+    internal const int WorkflowStep = 5;
+
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
@@ -116,7 +125,7 @@ public sealed class FilterScenarioRecheckHandler : IApplicationActionHandler
         var saved = await stores.Scenarios.ListAsync(projectId, cancellationToken);
         // 清單是空的就不寫入；畫面在沒有情境時本來就不會送出。
         return await FilterScenarioBatchWriter.PublishAsync(
-            Action, projectStore, stores, prepared, FilterScenarioBatchWriter.PlanRecheck(saved), skipWhenEmpty: true,
+            Action, WorkflowStep, projectStore, stores, prepared, FilterScenarioBatchWriter.PlanRecheck(saved), skipWhenEmpty: true,
             DateTimeOffset.UtcNow, logger, cancellationToken);
     }
 }

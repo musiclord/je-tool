@@ -283,7 +283,11 @@ internal static partial class GuiScenarios
         // 改讀「符合條件的分錄筆數」那一格，數字仍是 1。
         const string hit = "Array.from(document.querySelectorAll('[data-bind=scenario-preview-0][data-loaded] .stat-card')).some(card=>card.querySelector('.stat-card__label')?.textContent==='符合條件的分錄筆數' && card.querySelector('.stat-card__value')?.textContent==='1')";
         const string cleared = "state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.some(m=>m.text==='前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。')";
-        const string missingApprover = "state.filter.savedScenarios.length===0 && ((document.querySelector('[data-rule-error]')?.textContent||'') + (document.querySelector('[data-bind=scenario-notice]')?.textContent||'')).includes('核准人員')";
+        // 預篩選收斂計畫階段四（第五步用到 GL 沒有配對的欄位時，使用者 2026-10-22 裁定「停用並寫原因」）：核准人員沒有配對時，J 卡片停用、
+        // 收在「尚不可用」裡並寫出缺的欄位，按不下去，也就不會走到儲存。原本這裡點 J、按儲存，再讀儲存失敗的說明
+        // （第一次失敗收據 20261028-070711231-27d8b512c4dc4ef5ab16939260b93d1f，停用的 J 捲動超過次數上限）。
+        const string missingApprover = "state.filter.savedScenarios.length===0 && (()=>{var j=document.querySelector('.condition-picker--kct .filter-unavailable [data-kct-letter=J]');" +
+            "return !!j && j.disabled && j.getClientRects().length>0 && j.textContent.includes('核准人員');})()";
         async Task SaveJ()
         {
             await Click("[data-condition-source=kct]");
@@ -318,7 +322,8 @@ internal static partial class GuiScenarios
         await MapApprover("");
         await Check(cleared + " && !document.querySelector('[data-bind=downstream-reset-notice]')");
         await Click("[data-filter-pane-select=filter]");
-        await SaveJ();
+        await Click("[data-condition-source=kct]");
+        await Click(".condition-picker--kct .filter-unavailable > summary");
         await Check(missingApprover);
         await CaptureScreenshotAsync(cdp, outcome, ct);
         outcome.RecordStage("kct_remap_fix_resave_and_export");
@@ -353,8 +358,8 @@ internal static partial class GuiScenarios
         Task Click(string selector) => ClickRecoveryControlAsync(cdp, process, selector, outcome, ct);
         Task Check(string expression) => WaitForProbeAsync(cdp, process,
             "(()=>{var state=window.JetStore.getState();return {idle:!state.busy,ok:!!(" + expression +
-            "),documentRows:document.querySelectorAll('[data-bind=rule-detail-pn-1] tbody tr').length," +
-            "accountRows:document.querySelectorAll('[data-bind=rule-detail-pn-2] tbody tr').length};})()",
+            "),documentRows:document.querySelectorAll('[data-bind=rule-detail-pn-0] tbody tr').length," +
+            "accountRows:document.querySelectorAll('[data-bind=rule-detail-pn-1] tbody tr').length};})()",
             value => value, value => ReadBoolean(value, "idle") && ReadBoolean(value, "ok"),
             "null_details_recovery_failed", ct, value => outcome.LastFilterProbe = value.Clone());
         async Task Search(string panel, string text)
@@ -363,8 +368,11 @@ internal static partial class GuiScenarios
             outcome.RecordAction(); await cdp.TypeTextAsync(text, ct);
             await Click(panel + " [data-page-search] [type=submit]");
         }
-        const string doc = "[data-bind=rule-detail-pn-1]";
-        const string account = "[data-bind=rule-detail-pn-2]";
+        // 預篩選收斂計畫階段九把空白摘要移出資料缺漏輔助檢視，空白傳票號碼與空白科目編號改成第 0、1 項；前端測試當時已跟著改，
+        // 這裡沒有，原本的第 1 項變成科目編號的明細，筆數同樣是 206，前半段誤點也沒有失敗
+        // （第一次失敗收據 20261028-070139148-9c30e5c0b6a7443bb601207d4fe6c762，找不到第 2 項）。
+        const string doc = "[data-bind=rule-detail-pn-0]";
+        const string account = "[data-bind=rule-detail-pn-1]";
         // 使用者 2026-10-16 裁定明細一律每頁至多 200 筆、用左右箭頭換頁（資料表分頁與 Agent 文件整理計畫），「載入更多」已移除。
         // 打開明細就讀第一頁 200 列，第 2 頁是剩下的 6 列；原本按兩次「載入更多」累積到 206 列，改成核對頁碼與換頁
         // （第一次失敗收據 20261019-164820528-1585a7eae899498882912269c48d443e，找不到「載入更多」）。
@@ -381,11 +389,11 @@ internal static partial class GuiScenarios
         outcome.RecordStage("null_separate_categories");
         await Check("state.lastRuns.validate.nullRecordsTest.nullDocumentCount===206 && state.lastRuns.validate.nullRecordsTest.nullAccountCount===206");
         await Click(".prescreen-signals > summary");
-        await Click("[data-action=toggle-detail][data-scope=pn][data-idx='1']");
+        await Click("[data-action=toggle-detail][data-scope=pn][data-idx='0']");
         await Check(Rows(doc, 200) + " && " + Page(doc, "1/2") + " && document.querySelector('" + doc + " th[data-sort-key=postDate]').textContent.includes('總帳日期')");
         await Click(docNext);
         await Check(Rows(doc, 6) + " && " + Page(doc, "2/2") + " && document.querySelector('" + docNext + "').disabled");
-        await Click("[data-action=toggle-detail][data-scope=pn][data-idx='2']");
+        await Click("[data-action=toggle-detail][data-scope=pn][data-idx='1']");
         await Check(Rows(account, 200) + " && " + Page(account, "1/2") + " && " + Rows(doc, 6));
         await Click(accountNext);
         await Check(Rows(account, 6) + " && " + Page(account, "2/2"));
@@ -419,7 +427,7 @@ internal static partial class GuiScenarios
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='3']");
         await Click(".prescreen-signals > summary");
-        await Click("[data-action=toggle-detail][data-scope=pn][data-idx='1']");
+        await Click("[data-action=toggle-detail][data-scope=pn][data-idx='0']");
         await Check(Rows(doc, 200) + " && " + Page(doc, "1/2"));
         await Click(docNext);
         await Check(Rows(doc, 6) + " && state.lastRuns.validate.nullRecordsTest.nullAccountCount===206");

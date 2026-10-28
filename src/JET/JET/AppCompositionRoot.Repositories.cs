@@ -419,8 +419,8 @@ public static partial class AppCompositionRoot
             creatorSummaryExport,
             accountUsageExport,
             tagMatrixScenarios,
+            sourceQualityPages,
             tagMatrixRowPages,
             fieldDefinitionFacts,
-            resultPageRdeValues,
-            sourceQualityPages);
+            resultPageRdeValues);
 }

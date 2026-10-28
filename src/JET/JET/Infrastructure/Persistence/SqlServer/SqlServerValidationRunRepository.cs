@@ -114,7 +114,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         SqlConnection connection, string projectId, SqlTransaction transaction, CancellationToken cancellationToken)
     {
         await using var command = database.CreateCommand(connection, projectId,
-            ValidationProcedures.DocumentDateReuseSummary("{s}.", "COUNT_BIG"));
+            ValidationProcedures.DocumentDateReuseSummary(SqlServerDialect.Instance, "{s}.", "COUNT_BIG"));
         command.Transaction = transaction;
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
         await reader.ReadAsync(cancellationToken);
@@ -159,7 +159,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         SqlConnection connection, string projectId, SqlTransaction transaction, CancellationToken cancellationToken)
     {
         await using var command = database.CreateCommand(connection, projectId,
-            """
+            $$"""
             SELECT COUNT_BIG(*),
                    COALESCE(SUM(debit_amount_scaled), 0),
                    COALESCE(SUM(credit_amount_scaled), 0),
@@ -169,16 +169,11 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
                    COALESCE(SUM(CASE WHEN is_effective = 1 THEN credit_amount_scaled ELSE 0 END), 0),
                    COALESCE(SUM(CASE WHEN is_effective = 1 THEN amount_scaled ELSE 0 END), 0),
                    COALESCE(SUM(CAST(CASE WHEN is_effective = 0 THEN 1 ELSE 0 END AS BIGINT)), 0),
-                   COALESCE(SUM(CAST(CASE WHEN exclusion_reason IN (@blankPostDateReason, @beforePeriodReason, @afterPeriodReason)
-                                          THEN 1 ELSE 0 END AS BIGINT)), 0),
+                   COALESCE(SUM(CAST(CASE WHEN {{GlEffectivePopulation.ExcludedByPeriodSqlPredicate()}} THEN 1 ELSE 0 END AS BIGINT)), 0),
                    COALESCE(SUM(CAST(CASE WHEN exclusion_reason = @postingStatusReason THEN 1 ELSE 0 END AS BIGINT)), 0)
             FROM {s}.target_gl_entry;
             """);
         command.Transaction = transaction;
-        // 日期不符是三種日期原因的合計（使用者 2026-10-21 裁定分開標示，驗證摘要的數字不變）。
-        command.Parameters.AddWithValue("@blankPostDateReason", GlEffectivePopulation.BlankPostDateStorageReason);
-        command.Parameters.AddWithValue("@beforePeriodReason", GlEffectivePopulation.BeforePeriodStorageReason);
-        command.Parameters.AddWithValue("@afterPeriodReason", GlEffectivePopulation.AfterPeriodStorageReason);
         command.Parameters.AddWithValue("@postingStatusReason", GlEffectivePopulation.PostingStatusStorageReason);
 
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
@@ -300,7 +295,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         SqlConnection connection, string projectId, SqlTransaction transaction,
         ValidationRequest input, CancellationToken cancellationToken)
     {
-        // 四類述詞走 NullRecordsCategoryPredicate 中心(SqlServer 空白判定 LTRIM(RTRIM);期外日期
+        // 四類述詞走 NullRecordsCategoryPredicate 中心(空白判定由方言的去空白方法產生;期外日期
         // = approval_date)，且全部限有效母體。SUM(CASE→int) 在 SQL Server 回 INT,CAST AS BIGINT 對齊 long。
         // 日期為投影時正規化的 yyyy-MM-dd ISO 字串,文字比較即時間序比較。
         var columns = string.Join(",\n                ",

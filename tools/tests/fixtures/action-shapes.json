@@ -897,7 +897,8 @@
             "items": {
               "kind": "object",
               "optional": [
-                "editorOrigins"
+                "editorOrigins",
+                "exclusions"
               ],
               "fields": {
                 "editorOrigins": {
@@ -919,6 +920,34 @@
                     "nameIsAutomatic": "boolean",
                     "rationaleIsAutomatic": "boolean",
                     "version": "number"
+                  }
+                },
+                "exclusions": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "rule": {
+                        "kind": "object",
+                        "optional": [
+                          "drCr",
+                          "field",
+                          "operator",
+                          "values"
+                        ],
+                        "fields": {
+                          "drCr": "string",
+                          "field": "string",
+                          "operator": "string",
+                          "type": "string",
+                          "values": {
+                            "kind": "array",
+                            "items": "string"
+                          }
+                        }
+                      },
+                      "scope": "string"
+                    }
                   }
                 },
                 "groups": {
@@ -1102,6 +1131,9 @@
             "kind": "array",
             "items": {
               "kind": "object",
+              "optional": [
+                "exclusions"
+              ],
               "fields": {
                 "editorOrigins": {
                   "kind": "object",
@@ -1122,6 +1154,34 @@
                     "nameIsAutomatic": "boolean",
                     "rationaleIsAutomatic": "boolean",
                     "version": "number"
+                  }
+                },
+                "exclusions": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "rule": {
+                        "kind": "object",
+                        "optional": [
+                          "drCr",
+                          "field",
+                          "operator",
+                          "values"
+                        ],
+                        "fields": {
+                          "drCr": "string",
+                          "field": "string",
+                          "operator": "string",
+                          "type": "string",
+                          "values": {
+                            "kind": "array",
+                            "items": "string"
+                          }
+                        }
+                      },
+                      "scope": "string"
+                    }
                   }
                 },
                 "groups": {
@@ -1194,6 +1254,7 @@
             "kind": "object",
             "optional": [
               "editorOrigins",
+              "exclusions",
               "source"
             ],
             "fields": {
@@ -1216,6 +1277,34 @@
                   "nameIsAutomatic": "boolean",
                   "rationaleIsAutomatic": "boolean",
                   "version": "number"
+                }
+              },
+              "exclusions": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "rule": {
+                      "kind": "object",
+                      "optional": [
+                        "drCr",
+                        "field",
+                        "operator",
+                        "values"
+                      ],
+                      "fields": {
+                        "drCr": "string",
+                        "field": "string",
+                        "operator": "string",
+                        "type": "string",
+                        "values": {
+                          "kind": "array",
+                          "items": "string"
+                        }
+                      }
+                    },
+                    "scope": "string"
+                  }
                 }
               },
               "groups": {
@@ -1387,7 +1476,8 @@
             "items": {
               "kind": "object",
               "optional": [
-                "editorOrigins"
+                "editorOrigins",
+                "exclusions"
               ],
               "fields": {
                 "editorOrigins": {
@@ -1409,6 +1499,34 @@
                     "nameIsAutomatic": "boolean",
                     "rationaleIsAutomatic": "boolean",
                     "version": "number"
+                  }
+                },
+                "exclusions": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "rule": {
+                        "kind": "object",
+                        "optional": [
+                          "drCr",
+                          "field",
+                          "operator",
+                          "values"
+                        ],
+                        "fields": {
+                          "drCr": "string",
+                          "field": "string",
+                          "operator": "string",
+                          "type": "string",
+                          "values": {
+                            "kind": "array",
+                            "items": "string"
+                          }
+                        }
+                      },
+                      "scope": "string"
+                    }
                   }
                 },
                 "groups": {
@@ -1846,6 +1964,7 @@
               "optional": [
                 "delimiter",
                 "encoding",
+                "headerRow",
                 "sheetName"
               ],
               "fields": {
@@ -1853,6 +1972,7 @@
                 "encoding": "string",
                 "fileName": "string",
                 "filePath": "string",
+                "headerRow": "number",
                 "sheetName": "string"
               }
             }
@@ -1917,6 +2037,7 @@
                 "delimiter": "null|string",
                 "encoding": "null|string",
                 "fileName": "string",
+                "headerRow": "null|number",
                 "importedUtc": "string",
                 "rowCount": "number",
                 "sheetName": "null|string",
@@ -2109,6 +2230,7 @@
         "optional": [
           "delimiter",
           "encoding",
+          "headerRow",
           "limit",
           "sheetName"
         ],
@@ -2116,6 +2238,7 @@
           "delimiter": "string",
           "encoding": "string",
           "filePath": "string",
+          "headerRow": "number",
           "limit": "number",
           "sheetName": "string"
         }
@@ -2224,6 +2347,7 @@
                 "delimiter": "null|string",
                 "encoding": "null|string",
                 "fileName": "string",
+                "headerRow": "null",
                 "importedUtc": "string",
                 "rowCount": "number",
                 "sheetName": "null|string",
@@ -2292,11 +2416,16 @@
       "request": {
         "kind": "object",
         "optional": [
+          "fillDownFields",
           "postingStatusPolicy"
         ],
         "fields": {
           "amountMode": "string",
           "approvalDateMode": "string",
+          "fillDownFields": {
+            "kind": "array",
+            "items": "string"
+          },
           "manualAutoPolicy": {
             "kind": "object",
             "optional": [
@@ -2391,13 +2520,22 @@
             "fields": {
               "blankRowCount": "number",
               "duplicateRowCount": "number",
-              "matchedPreparerCount": "number",
+              "matchedPreparerCount": "null|number",
               "rowCount": "number",
               "sourceColumn": "string",
               "sourceRowCount": "number"
             }
           },
+          "availableGlFields": {
+            "kind": "array",
+            "items": "string"
+          },
           "batchId": "string",
+          "fillDownCount": "number",
+          "fillDownFields": {
+            "kind": "array",
+            "items": "string"
+          },
           "invalidatedResults": {
             "kind": "object",
             "fields": {
@@ -2663,6 +2801,7 @@
         "optional": [
           "checkSourceValues",
           "comparisonOnly",
+          "fillDown",
           "limit"
         ],
         "fields": {
@@ -2673,6 +2812,7 @@
             "items": "string"
           },
           "dataset": "string",
+          "fillDown": "boolean",
           "limit": "number",
           "sourceColumn": "string"
         }
@@ -2760,10 +2900,10 @@
           "concentration": {
             "kind": "object",
             "fields": {
-              "distinctAccountCount": "number",
-              "naReason": "null",
+              "distinctAccountCount": "null|number",
+              "naReason": "null|string",
               "preparers": {
-                "kind": "object",
+                "kind": "null|object",
                 "fields": {
                   "othersEntryCount": "number",
                   "top": {
@@ -2784,7 +2924,7 @@
                 }
               },
               "rareAccounts": {
-                "kind": "array",
+                "kind": "array|null",
                 "items": {
                   "kind": "object",
                   "fields": {
@@ -2813,16 +2953,17 @@
                   }
                 }
               },
-              "naReason": "null",
+              "naReason": "null|string",
               "status": "string",
-              "totalPreparerCount": "number"
+              "totalPreparerCount": "null|number"
             }
           },
           "holidayActivity": {
             "kind": "object",
             "fields": {
-              "approvalCount": "number",
-              "naReason": "null",
+              "approvalCount": "null|number",
+              "approvalNaReason": "null|string",
+              "naReason": "null|string",
               "postingCount": "number",
               "status": "string"
             }
@@ -2838,7 +2979,7 @@
             "kind": "object",
             "fields": {
               "count": "number",
-              "naReason": "null",
+              "naReason": "null|string",
               "status": "string"
             }
           },
@@ -2846,7 +2987,7 @@
             "kind": "object",
             "fields": {
               "count": "number",
-              "naReason": "null",
+              "naReason": "null|string",
               "status": "string"
             }
           },
@@ -2865,7 +3006,7 @@
             "kind": "object",
             "fields": {
               "count": "number",
-              "naReason": "null",
+              "naReason": "null|string",
               "status": "string"
             }
           },
@@ -2907,11 +3048,11 @@
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "hitLines": "number",
-                    "hitVouchers": "number",
+                    "hitLines": "null|number",
+                    "hitVouchers": "null|number",
                     "key": "string",
-                    "naReason": "null",
-                    "ratePct": "number"
+                    "naReason": "null|string",
+                    "ratePct": "null|number"
                   }
                 }
               }
@@ -2936,14 +3077,15 @@
             "kind": "object",
             "fields": {
               "count": "number",
-              "naReason": "null",
+              "naReason": "null|string",
               "status": "string"
             }
           },
           "weekendActivity": {
             "kind": "object",
             "fields": {
-              "approvalCount": "number",
+              "approvalCount": "null|number",
+              "approvalNaReason": "null|string",
               "naReason": "null",
               "postingCount": "number",
               "status": "string"
@@ -3135,7 +3277,8 @@
             "items": {
               "kind": "object",
               "optional": [
-                "editorOrigins"
+                "editorOrigins",
+                "exclusions"
               ],
               "fields": {
                 "editorOrigins": {
@@ -3157,6 +3300,34 @@
                     "nameIsAutomatic": "boolean",
                     "rationaleIsAutomatic": "boolean",
                     "version": "number"
+                  }
+                },
+                "exclusions": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "rule": {
+                        "kind": "object",
+                        "optional": [
+                          "drCr",
+                          "field",
+                          "operator",
+                          "values"
+                        ],
+                        "fields": {
+                          "drCr": "string",
+                          "field": "string",
+                          "operator": "string",
+                          "type": "string",
+                          "values": {
+                            "kind": "array",
+                            "items": "string"
+                          }
+                        }
+                      },
+                      "scope": "string"
+                    }
                   }
                 },
                 "groups": {
@@ -3337,12 +3508,13 @@
                     "items": {
                       "kind": "object",
                       "fields": {
-                        "delimiter": "null",
-                        "encoding": "null",
+                        "delimiter": "null|string",
+                        "encoding": "null|string",
                         "fileName": "string",
+                        "headerRow": "null|number",
                         "importedUtc": "string",
                         "rowCount": "number",
-                        "sheetName": "string",
+                        "sheetName": "null|string",
                         "sourceNo": "number"
                       }
                     }
@@ -3368,6 +3540,7 @@
                         "delimiter": "string",
                         "encoding": "string",
                         "fileName": "string",
+                        "headerRow": "null",
                         "importedUtc": "string",
                         "rowCount": "number",
                         "sheetName": "null",
@@ -3457,6 +3630,7 @@
                     "kind": "object",
                     "fields": {
                       "approvalCount": "number",
+                      "approvalNaReason": "null",
                       "naReason": "null",
                       "postingCount": "number",
                       "status": "string"
@@ -3579,6 +3753,7 @@
                     "kind": "object",
                     "fields": {
                       "approvalCount": "number",
+                      "approvalNaReason": "null",
                       "naReason": "null",
                       "postingCount": "number",
                       "status": "string"
@@ -3715,6 +3890,7 @@
                         }
                       },
                       "outOfRangeDateCount": "number",
+                      "outOfRangeDateNaReason": "null",
                       "status": "string"
                     }
                   },
@@ -3802,7 +3978,16 @@
                 "fields": {
                   "amountMode": "string",
                   "approvalDateMode": "string",
+                  "availableGlFields": {
+                    "kind": "array",
+                    "items": "string"
+                  },
                   "committedUtc": "string",
+                  "fillDownCount": "number",
+                  "fillDownFields": {
+                    "kind": "array",
+                    "items": null
+                  },
                   "manualAutoPolicy": {
                     "kind": "object",
                     "optional": [
@@ -4388,6 +4573,17 @@
       "response": {
         "kind": "object",
         "fields": {
+          "columnDetails": {
+            "kind": "array|null",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "key": "string",
+                "label": "string",
+                "valueType": "string"
+              }
+            }
+          },
           "columns": {
             "kind": "array",
             "items": "string"
@@ -4415,8 +4611,8 @@
             ],
             "fields": {
               "afterPeriodCount": "number",
-              "amountAbsMax": "number",
-              "amountAbsMin": "number",
+              "amountAbsMax": "string",
+              "amountAbsMin": "string",
               "beforePeriodCount": "number",
               "blankPostDateCount": "number",
               "postDateMax": "string",
@@ -5464,7 +5660,8 @@
                   }
                 }
               },
-              "outOfRangeDateCount": "number",
+              "outOfRangeDateCount": "null|number",
+              "outOfRangeDateNaReason": "null|string",
               "status": "string"
             }
           },

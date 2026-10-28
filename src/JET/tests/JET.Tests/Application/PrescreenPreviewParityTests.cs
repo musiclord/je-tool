@@ -13,7 +13,7 @@ public sealed class PrescreenPreviewParityTests
 {
     /// <summary>
     /// 對單個 prescreenKey 組成「單條件情境」的 filter.preview payload。
-    /// 形狀與 filter-step.js prescreenScenario(key) 完全相同。
+    /// 形狀與第五步「預篩選」分頁加入一條規則後送出的預覽相同（filter-step-sources.js 的 addPrescreenCondition）。
     /// </summary>
     private static string PreviewPayload(string prescreenKey) =>
         JsonSerializer.Serialize(new

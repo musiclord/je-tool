@@ -17,8 +17,8 @@ public sealed class QueryAccountMappingPageHandler(
         if (PageCursor.IsMalformed(cursor))
             throw new JetActionException(JetErrorCodes.InvalidPayload, "科目清單已變更，請重新載入。");
         var search = PayloadReader.GetOptionalString(payload, "search")?.Trim();
-        if (search?.Length > 400)
-            throw new JetActionException(JetErrorCodes.InvalidPayload, "搜尋文字最多 400 字。");
+        if (search?.Length > TextStorageLimits.TextUtf16CodeUnits)
+            throw new JetActionException(JetErrorCodes.InvalidPayload, $"搜尋文字最多 {TextStorageLimits.TextUtf16CodeUnits} 字。");
         var categoryId = PayloadReader.GetOptionalString(payload, "categoryId")?.Trim();
         if (categoryId?.Length > 64)
             throw new JetActionException(JetErrorCodes.InvalidPayload, "分類識別無效，請重新選擇分類。");

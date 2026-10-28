@@ -95,7 +95,9 @@ internal static class MappingMetadataCodec
                 "postingStatusPolicy",
                 "manualAutoPolicy",
                 "rdeFields"
-            ]);
+            ],
+            // 往下填補的欄位（階段六）與填了幾格（2026-10-28）是後來加的，改版前寫出的報告沒有這兩項。
+            ["fillDownFields", "fillDownCount"]);
         var mapping = JsonContractReader.ReadMapping(
             value.GetProperty("mapping"),
             "gl.mapping",
@@ -108,7 +110,10 @@ internal static class MappingMetadataCodec
             options.ApprovalDateMode,
             options.PostingStatusPolicy,
             options.ManualAutoPolicy,
-            options.RdeFields);
+            options.RdeFields)
+        {
+            FillDownFields = options.FillDownFields
+        };
     }
 
     private static string ReadGlAmountMode(JsonElement element)
@@ -230,7 +235,9 @@ internal static class GlMappingOptionsJsonCodec
             var root = JsonContractReader.RequireObject(
                 document.RootElement,
                 "options",
-                ["approvalDateMode", "postingStatusPolicy", "manualAutoPolicy", "rdeFields"]);
+                ["approvalDateMode", "postingStatusPolicy", "manualAutoPolicy", "rdeFields"],
+                // 往下填補的欄位（階段六）與填了幾格（2026-10-28）是後來加的，改版前確認的配對沒有這兩項。
+                ["fillDownFields", "fillDownCount"]);
             return ReadProperties(root, mapping, "options.");
         }
         catch (MappingMetadataFormatException)
@@ -292,11 +299,21 @@ internal static class GlMappingOptionsJsonCodec
         };
 
         var rdeFields = ReadRdeFields(owner.GetProperty("rdeFields"), pathPrefix + "rdeFields");
+        var fillDownFields = owner.TryGetProperty("fillDownFields", out var fillDownElement)
+            ? JsonContractReader.ReadStringArray(fillDownElement, pathPrefix + "fillDownFields")
+            : [];
+        var fillDownCount = owner.TryGetProperty("fillDownCount", out var fillDownCountElement)
+            ? JsonContractReader.RequireInt64(fillDownCountElement, pathPrefix + "fillDownCount")
+            : 0;
         var options = new GlMappingOptions(
             approvalDateMode,
             postingStatusPolicy,
             manualAutoPolicy,
-            rdeFields);
+            rdeFields)
+        {
+            FillDownFields = fillDownFields,
+            FillDownCount = fillDownCount
+        };
         Validate(options, mapping);
         return options;
     }
@@ -337,6 +354,9 @@ internal static class GlMappingOptionsJsonCodec
             writer.WriteEndObject();
         }
         writer.WriteEndArray();
+
+        WriteStringArray(writer, "fillDownFields", options.FillDownFields);
+        writer.WriteNumber("fillDownCount", options.FillDownCount);
     }
 
     internal static void Validate(GlMappingOptions options, IReadOnlyDictionary<string, string> mapping)
@@ -420,6 +440,23 @@ internal static class GlMappingOptionsJsonCodec
             {
                 throw new MappingMetadataFormatException("gl.rdeFields.valueType 不是正準值。");
             }
+        }
+
+        var fillDownSeen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var key in options.FillDownFields)
+        {
+            ValidateString(key, "gl.fillDownFields");
+            if (!JetFieldCatalog.IsGlMappingKey(key) || JetFieldCatalog.IsGlLiteralMappingKey(key)
+                || !mapping.TryGetValue(key, out var fillDownColumn) || string.IsNullOrWhiteSpace(fillDownColumn)
+                || !fillDownSeen.Add(key))
+            {
+                throw new MappingMetadataFormatException(
+                    "gl.fillDownFields 只能是已配對來源欄的 GL 欄位，且不得重複。");
+            }
+        }
+        if (options.FillDownCount < 0)
+        {
+            throw new MappingMetadataFormatException("gl.fillDownCount 不得為負數。");
         }
 
         var postingMapped = mapping.TryGetValue(GlMappingKeys.PostingStatus, out var postingColumn)
@@ -583,6 +620,16 @@ internal static class JsonContractReader
         }
 
         return element.GetBoolean();
+    }
+
+    internal static long RequireInt64(JsonElement element, string path)
+    {
+        if (element.ValueKind != JsonValueKind.Number || !element.TryGetInt64(out var value))
+        {
+            throw new MappingMetadataFormatException($"{path} 必須是整數。");
+        }
+
+        return value;
     }
 
     internal static IReadOnlyList<string> ReadStringArray(JsonElement element, string path)

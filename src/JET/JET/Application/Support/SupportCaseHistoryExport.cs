@@ -94,19 +94,20 @@ internal sealed class SupportCaseHistoryExport
 
                     switch (parsed.EventName)
                     {
-                        case "support.history_started" when start is null:
+                        case SupportEventNames.HistoryStarted when start is null:
                             start = parsed.HistoryStart;
                             startUtc = parsed.Timestamp;
                             break;
-                        case "support.history_gap":
+                        case SupportEventNames.HistoryGap:
                             gapMarkers++;
                             markedMissing += parsed.MissingCount;
                             break;
-                        case "support.case_opened" when parsed.ProcessInstance is not null:
+                        case SupportEventNames.CaseOpened when parsed.ProcessInstance is not null:
                             openings++;
                             stillOpen[parsed.ProcessInstance] = true;
                             break;
-                        case "action.end" when parsed.Action == "project.releaseLock" && parsed.ProcessInstance is not null:
+                        case SupportEventNames.ActionEnd
+                            when parsed.Action == JetActionNames.ProjectReleaseLock && parsed.ProcessInstance is not null:
                             stillOpen[parsed.ProcessInstance] = false;
                             break;
                     }

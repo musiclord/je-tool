@@ -49,6 +49,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             sheet_name       TEXT NULL,
             encoding         TEXT NULL,
             delimiter        TEXT NULL,
+            header_row       INTEGER NULL,
             row_count        INTEGER NOT NULL DEFAULT 0,
             imported_utc     TEXT NOT NULL,
             PRIMARY KEY (batch_id, source_no)
@@ -480,41 +481,11 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         }
 
         var version = await ReadVersionAsync(connection, cancellationToken);
-
-        if (version == "6")
-        {
-            await MigrateV6ToV7Async(connection, cancellationToken);
-            version = "7";
-        }
-
-        if (version == "7")
-        {
-            await MigrateV7ToV8Async(connection, cancellationToken);
-            version = "8";
-        }
-
-        if (version == "8")
-        {
-            await MigrateV8ToV9Async(connection, cancellationToken);
-            version = "9";
-        }
-        if (version == "9")
-        {
-            await AccountClassificationMigration.UpgradeLocalAsync(connection, cancellationToken);
-            version = "10";
-        }
-        if (version == "10")
-        {
-            await AccountTaxonomyHierarchy.UpgradeLocalAsync(connection, cancellationToken);
-            version = "11";
-        }
-        if (version == "11")
-        {
-            await MessageLogLevelMigration.UpgradeLocalAsync(connection, MessageLogTableSql, cancellationToken);
-            version = "12";
-        }
-        if (version == "12")
-            await GlExclusionReasonMigration.UpgradeLocalAsync(connection, cancellationToken);
+        await LocalSchemaUpgrades.ApplyAsync(
+            connection,
+            int.TryParse(version, out var parsedVersion) ? parsedVersion : 0,
+            new LocalSchemaUpgrades.Steps(MigrateV6ToV7Async, MigrateV7ToV8Async, MigrateV8ToV9Async, MessageLogTableSql),
+            cancellationToken);
     }
 
     /// <summary>第 12 版的訊息紀錄表；和 <see cref="SchemaSql"/> 的建表語句相同，升版時用來重建舊表。</summary>

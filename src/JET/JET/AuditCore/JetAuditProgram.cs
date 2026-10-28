@@ -35,26 +35,32 @@ public static partial class JetAuditProgram
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var snapshot = new AuditCaseSnapshot(
+            request.ProjectId,
+            request.HasGlMapping,
+            request.HasTbMapping,
+            request.PeriodStart,
+            request.PeriodEnd,
+            request.MoneyScale,
+            request.SampleSeed,
+            AvailableGlFields: request.AvailableGlFields,
+            SampleSeedVersion: request.SampleSeedVersion);
         var reviewPlan = Plan(
-            new AuditCaseSnapshot(
-                request.ProjectId,
-                request.HasGlMapping,
-                request.HasTbMapping,
-                request.PeriodStart,
-                request.PeriodEnd,
-                request.MoneyScale,
-                request.SampleSeed,
-                SampleSeedVersion: request.SampleSeedVersion),
+            snapshot,
             new AuditUserParameters(
                 request.RunId,
                 request.GeneratedUtc,
                 request.SampleSize,
                 ValidationAction));
 
+        // 「核准日不在期間」以傳票核准日判斷；能不能用只看規則需求表與欄位目錄算出的可用欄位，和預篩選同一套原因句。
+        var facts = snapshot.RuleFacts();
+        var unmet = JetRuleRequirements.Unmet(JetRuleRequirements.OutOfPeriodApproval, facts);
         return new ValidationPlan(
             request,
             reviewPlan,
-            ValidationAmountDistributionCatalog.Plan(request.MoneyScale));
+            ValidationAmountDistributionCatalog.Plan(request.MoneyScale),
+            unmet.Count == 0 ? null : JetRuleRequirements.PrescreenSentences(unmet, facts.CategoryLabels));
     }
 
     /// <summary>
@@ -101,7 +107,8 @@ public static partial class JetAuditProgram
             facts.NullAccountCount,
             facts.NullDocumentCount,
             facts.NullDescriptionCount,
-            facts.OutOfRangeDateCount,
+            // 傳票核准日不可用時不能判斷，筆數是 null，不以 0 冒充通過（使用者 2026-10-23 裁定）。
+            plan.RunOutOfPeriodApproval ? facts.OutOfRangeDateCount : null,
             facts.SourceQualityFindingCount,
             facts.UnbalancedDocuments,
             facts.NullRecordRows,
@@ -266,28 +273,15 @@ public static partial class JetAuditProgram
     private static IReadOnlyList<ProcedureDefinition> BuildProgram()
     {
         // 正式流程只用這張表挑出 validate.run 與 prescreen.run 兩個家族的程序；
-        // 規則 slug 一律取 RuleCatalog。
+        // 規則 slug 一律取 RuleCatalog；預篩選十四條照規則登錄的順序加入，不再另列一份。
         var definitions = new List<ProcedureDefinition>
         {
             ValidationProcedures.Definition,
             ValidationDefinition("doc_balance_test"),
             ValidationDefinition("inf_sampling_test"),
-            ValidationDefinition("null_records_test"),
-            PrescreenDefinition("post_period_approval"),
-            PrescreenDefinition("suspicious_keywords"),
-            PrescreenDefinition("unexpected_account_pair"),
-            PrescreenDefinition("trailing_zeros"),
-            PrescreenDefinition("creator_summary"),
-            PrescreenDefinition("rare_accounts"),
-            PrescreenDefinition("weekend_posting"),
-            PrescreenDefinition("weekend_approval"),
-            PrescreenDefinition("holiday_posting"),
-            PrescreenDefinition("holiday_approval"),
-            PrescreenDefinition("blank_description"),
-            PrescreenDefinition("non_authorized_preparer"),
-            PrescreenDefinition("low_frequency_preparer"),
-            PrescreenDefinition("low_frequency_account")
+            ValidationDefinition("null_records_test")
         };
+        definitions.AddRange(PrescreenRuleDefinitions.All.Select(rule => PrescreenDefinition(rule.Slug)));
 
         return Array.AsReadOnly(definitions.ToArray());
     }
@@ -372,7 +366,7 @@ public static partial class JetAuditProgram
         "doc_balance_test" => result.UnbalancedDocumentCount,
         "inf_sampling_test" => result.InfSampleCount,
         "null_records_test" => result.NullAccountCount + result.NullDocumentCount
-            + result.NullDescriptionCount + result.OutOfRangeDateCount,
+            + result.NullDescriptionCount + (result.OutOfRangeDateCount ?? 0L),
         _ => throw new InvalidOperationException($"Finalize 不支援未登錄的驗證程序 '{slug}'。")
     };
 

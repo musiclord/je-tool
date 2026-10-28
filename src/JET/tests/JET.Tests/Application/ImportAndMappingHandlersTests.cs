@@ -254,6 +254,9 @@ public sealed class ImportAndMappingHandlersTests
     [InlineData("""{"filePath":"C:\\missing.csv","sources":[{"filePath":"C:\\other.csv"}]}""")]
     [InlineData("""{"sources":[]}""")]
     [InlineData("""{"encoding":"utf-8","sources":[{"filePath":"C:\\missing.csv"}]}""")]
+    // 預篩選收斂計畫階段六：欄名在第幾列是每個來源自己的選項，和編碼、分隔符一樣不能放在整批的外層。
+    // 第一次失敗：Focused 收據 20261023-193734239-f6249c3be1e046cfa0c55b4181d2cabd。
+    [InlineData("""{"headerRow":3,"sources":[{"filePath":"C:\\missing.csv"}]}""")]
     public async Task Import_BatchPayload_InvalidShape_ThrowsInvalidPayload(string payload)
     {
         using var host = new HandlerTestHost();

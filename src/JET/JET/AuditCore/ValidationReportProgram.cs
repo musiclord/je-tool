@@ -3,6 +3,7 @@ namespace JET.AuditCore;
 /// <summary>
 /// Validation workbook planning 的 bounded input。各 count 來自已驗證為 current 的
 /// validation run；不攜帶 wire JSON、GL／TB rows 或 OpenXML layout。
+/// <see cref="OutOfRangeDateCount"/> 為 null 表示驗證時傳票核准日不可用，沒有明細可讀。
 /// </summary>
 internal sealed record ValidationReportRequest(
     string ProjectId,
@@ -12,7 +13,7 @@ internal sealed record ValidationReportRequest(
     long NullAccountCount,
     long NullDocumentCount,
     long NullDescriptionCount,
-    long OutOfRangeDateCount);
+    long? OutOfRangeDateCount);
 
 /// <summary>
 /// Workbook detail 的 provider-neutral semantic identity。Legacy 工作表名稱、欄位與
@@ -136,7 +137,7 @@ public static partial class JetAuditProgram
         EnsureNonNegative(request.NullAccountCount, nameof(request.NullAccountCount));
         EnsureNonNegative(request.NullDocumentCount, nameof(request.NullDocumentCount));
         EnsureNonNegative(request.NullDescriptionCount, nameof(request.NullDescriptionCount));
-        EnsureNonNegative(request.OutOfRangeDateCount, nameof(request.OutOfRangeDateCount));
+        EnsureNonNegative(request.OutOfRangeDateCount ?? 0L, nameof(request.OutOfRangeDateCount));
         EnsureNonNegative(facts.UnbalancedDetailRowCount, nameof(facts.UnbalancedDetailRowCount));
 
         var details = new[]
@@ -144,9 +145,10 @@ public static partial class JetAuditProgram
             InclusiveDetail(ValidationReportDetailKind.NullAccount, request.NullAccountCount),
             InclusiveDetail(ValidationReportDetailKind.NullDocument, request.NullDocumentCount),
             InclusiveDetail(ValidationReportDetailKind.NullDescription, request.NullDescriptionCount),
+            // 傳票核准日不可用時沒有檢查，不讀明細；摘要的 N/A 由寫出器依同一個結果寫。
             InclusiveDetail(
                 ValidationReportDetailKind.OutOfRangeApprovalDate,
-                request.OutOfRangeDateCount),
+                request.OutOfRangeDateCount ?? 0L),
             new ValidationReportDetailPlan(
                 ValidationReportDetailKind.CompletenessAccount,
                 request.CompletenessDiffAccountCount,

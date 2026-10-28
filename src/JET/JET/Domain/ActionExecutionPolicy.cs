@@ -70,7 +70,7 @@ public static class ActionExecutionPolicy
     // handler 自行試取共用閘；不得同時放進 ExclusiveActions，否則 dispatcher 先取後會自我阻塞。
     private static readonly HashSet<string> ConditionalGateActions = new(StringComparer.Ordinal)
     {
-        "project.releaseLock",
+        JetActionNames.ProjectReleaseLock,
     };
 
     // 併行：可與變更型作業併行，不佔閘（log.append 是唯一 current-project DB bounded-write 例外）。

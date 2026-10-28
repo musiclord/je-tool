@@ -104,8 +104,18 @@ public sealed class Batch8DisplayTextTests
         Assert.True(decision.IsEligible);
         Assert.Null(decision.Reason);
         Assert.Equal("完整性測試無法執行 GL 與 TB 的逐科目比對：TB 欄位配對尚未確認，補齊後可重新驗證。 審計員可說明差異原因並繼續篩選與匯出。", decision.Warning);
-        Assert.Equal("請先確認 GL「傳票核准日」欄位配對。", PrescreenProcedures.MissingApprovalDateMappingReason);
-        Assert.Equal("請先確認 GL「傳票建立人員」欄位配對。", PrescreenProcedures.MissingCreatedByMappingReason);
-        Assert.Equal("尚未確認 GL「傳票核准日」欄位配對，因此僅檢查總帳日期。", PrescreenProcedures.MissingApprovalDateForActivityReason);
+        // 預篩選收斂計畫階段四把第四步的原因句改由規則需求表產生（2026-10-23），原本的常數已拿掉，改讀表的句子。
+        // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+        // 同一階段要求第四步與第五步給同一個原因，句子寫出缺什麼、到哪裡補，預期值換成新句子；
+        // 「只檢查了總帳日期」放在週末與假日卡的核准側說明前面。第一次失敗：Focused 收據
+        // 20261023-032913610-af3152ec3aad4548b80c4ab69eb34cdc。
+        var labels = AccountCategoryLabels.BuiltIn;
+        Assert.Equal("「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。", JetRuleRequirements.PrescreenSentence(
+            new JetRulePrerequisite(JetRulePrerequisiteKind.GlField, JetFieldCatalog.GlDocDate), labels));
+        Assert.Equal("「傳票建立人員」尚未選擇來源欄，請回第三步欄位配對補上。", JetRuleRequirements.PrescreenSentence(
+            new JetRulePrerequisite(JetRulePrerequisiteKind.GlField, JetFieldCatalog.GlCreateBy), labels));
+        Assert.Equal("只檢查了總帳日期。「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。", PrescreenProcedures.OnlyPostDateChecked
+            + JetRuleRequirements.PrescreenSentence(
+                new JetRulePrerequisite(JetRulePrerequisiteKind.GlField, JetFieldCatalog.GlDocDate), labels));
     }
 }

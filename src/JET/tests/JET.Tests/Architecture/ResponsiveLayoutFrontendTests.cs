@@ -180,6 +180,47 @@ public sealed class ResponsiveLayoutFrontendTests
             @"(?:hidden|clip|auto|scroll)");
     }
 
+    /// <summary>
+    /// 使用者 2026-10-27 指出視窗放大縮小時對不齊：寬視窗中欄右側空出一塊、單列標題列的案件摘要比標誌與操作組高、
+    /// 窄視窗時步驟列的箭頭掉到下一行、案件摘要換行後下一行縮排、驗證清單沒有「檢視」時狀態標籤沒有貼齊右緣、
+    /// 長狀態文字把「檢視」推出卡片。這裡鎖住讓這些對齊線在任何寬度下都不移動的版面原語。
+    /// </summary>
+    [Fact]
+    public void AlignmentLines_StayPutAcrossWindowWidths()
+    {
+        var css = ReadFrontend("css", "app.css");
+
+        // 流程填滿中欄，左右間距相同，不在寬視窗時只在右側空出一塊。
+        Assert.False(
+            HasProperty(RuleBodies(css, ".stepflow"), "max-width", @"[^;]+"),
+            ".stepflow 不設最大寬度，多出的寬度全部給內容。");
+
+        // 步驟列的箭頭固定在右緣第一行，不參與換行；列內各項目對齊第一行。
+        Assert.Matches(
+            new Regex(
+                @"(?ms)^\.stepflow-item__caret,\s*\.stepflow-item__spacer-caret\s*\{[^}]*position:\s*absolute;[^}]*right:\s*0;",
+                RegexOptions.CultureInvariant),
+            css);
+        AssertDeclaration(css, ".stepflow-item", "align-items", @"flex-start");
+
+        // 單列標題列時，案件摘要的上下緣跟著標題列本身，和標誌、操作組置中在同一條水平線上。
+        var wideViewportCss = BlockBodies(css, "@media (min-width: 1536px)");
+        Assert.Matches(new Regex(@"top:\s*anchor\(--jet-header top", RegexOptions.CultureInvariant), wideViewportCss);
+        Assert.Matches(new Regex(@"bottom:\s*anchor\(--jet-header bottom\)", RegexOptions.CultureInvariant), wideViewportCss);
+
+        // 案件摘要換行時，每一行開頭的項目不帶分隔線與縮排。
+        AssertDeclaration(css, ".case-summary__details", "clip-path", @"inset\([^;]*\)");
+
+        // 狀態標籤可以縮窄換行，不把「檢視」推出卡片；整張卡片都沒有「檢視」時不保留那一欄的空位。
+        // 2026-10-28 複審時範圍由清單改成卡片：以清單為範圍時，預篩選卡片的上下清單只要一份有「檢視」就會錯開。
+        AssertDeclaration(css, ".rule-item__aside", "grid-template-columns", @"minmax\(\s*0[^;]*");
+        AssertDeclaration(css, ".rule-item__aside > .rule-status", "white-space", @"normal");
+        Assert.Contains(
+            ".rule-card:not(:has(.rule-item__aside > :not(.rule-status))) .rule-item__aside",
+            css,
+            StringComparison.Ordinal);
+    }
+
     private static string ReadFrontend(params string[] relativeParts) =>
         File.ReadAllText(Path.Combine(
             new[] { AppContext.BaseDirectory, "wwwroot" }.Concat(relativeParts).ToArray()));

@@ -116,7 +116,7 @@ internal static class FilterScenarioBatchWriter
             {
                 throw new JetActionException(
                     JetErrorCodes.ScenarioLimitReached,
-                    $"最多可儲存 {FilterScenarioLimits.MaxSavedScenarios} 個篩選情境，請先移除不需要的情境。");
+                    FilterScenarioLimits.MaxSavedScenariosMessage);
             }
 
             target = saved.Count + 1;
@@ -196,6 +196,7 @@ internal static class FilterScenarioBatchWriter
     /// </summary>
     internal static async Task<object> PublishAsync(
         string action,
+        int workflowStep,
         IProjectStore projectStore,
         FilterScenarioStores stores,
         Prepared prepared,
@@ -236,7 +237,7 @@ internal static class FilterScenarioBatchWriter
                     await MappingCommitShared.AdvanceStepAsync(
                         projectStore,
                         prepared.Document,
-                        WorkflowMilestones.For(action),
+                        workflowStep,
                         CancellationToken.None,
                         logger);
                 }

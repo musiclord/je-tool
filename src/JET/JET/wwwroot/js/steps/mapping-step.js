@@ -90,6 +90,24 @@
     return valueProfileCache;
   }
 
+  // 這個來源欄確認配對時會不會被往下填補。填補是對來源欄做的，看有沒有勾選的欄位配到它（使用者 2026-10-28 裁定）。
+  function columnFilledDown(column) {
+    var draft = Store.getState().mapping.gl.draft;
+    return fillDownByColumn(draft, glOptions().fillDownFields || []).some(function (key) { return draft[key] === column; });
+  }
+
+  // 已讀到的列數和目前的往下填補勾選不一致：值不會變、只有列數會變，所以清單照舊列出並標成重新計數中，
+  // 列數與空白提醒等新的回覆。fillDown 是最近一次請求的勾選，countedFillDown 是畫面上列數所依據的勾選。
+  function profileRecounting(profile, column) {
+    return !!profile && !profile.loading && !profile.error && !profile.metadataOnly &&
+      (!!profile.recounting || profile.fillDown !== columnFilledDown(column));
+  }
+
+  function recountNotice(profile, column) {
+    return profileRecounting(profile, column)
+      ? '<p class="map-options__note" role="status">正在依往下填補的勾選重新計數…</p>' : '';
+  }
+
   function comparisonScope() {
     var state = Store.getState(), draft = state.mapping.gl.draft;
     if (!codeComparisonScope || codeComparisonScope.project !== state.project ||
@@ -192,10 +210,10 @@
     var request = { scope: scope };
     profile.comparing = request;
     profile.comparisonError = null;
-    // 畫面最多 50 個來源值，其餘政策分批補比較。每次最多 100 個文字 metadata，
+    // 畫面最多 50 個來源值，其餘政策分批補比較。每次送去比對的個數不超過後端上限（VALUE_PROFILE_MAX_VALUES），
     // 不重查母體，也不把傳輸上限變成可保存代碼數的限制。
     var anchors = (profile.values || []).map(function (item) { return item.value; });
-    var values = anchors.concat(missing.slice(0, Math.max(1, 100 - anchors.length)));
+    var values = anchors.concat(missing.slice(0, Math.max(1, Ui.VALUE_PROFILE_MAX_VALUES - anchors.length)));
     global.JetApi.mappingValueProfile({ dataset: 'gl', sourceColumn: column,
       comparisonOnly: true, comparisonValues: values }).then(function (data) {
       if (comparisonScope() !== scope || valueProfileCache !== cache || cache[column] !== profile || profile.comparing !== request) { return; }
@@ -255,7 +273,7 @@
     if (!missing.length || (profile.sourceChecking && profile.sourceChecking.scope === scope)) { return; }
     var key = JSON.stringify(missing);
     if (!retry && profile.sourceCheckError && profile.sourceCheckError.scope === scope && profile.sourceCheckError.key === key) { return; }
-    var request = { scope: scope, values: missing.slice(0, 100) };
+    var request = { scope: scope, values: missing.slice(0, Ui.VALUE_PROFILE_MAX_VALUES) };
     profile.sourceChecking = request; profile.sourceCheckError = null;
     global.JetApi.mappingValueProfile({ dataset: 'gl', sourceColumn: column, limit: Ui.VALUE_PROFILE_LIMIT,
       comparisonValues: request.values, checkSourceValues: true }).then(function (data) {
@@ -290,17 +308,22 @@
 
   // 惰性取得來源欄值分布。只發 mapping.valueProfile，載入完成後 touch() 重繪；
   // 值、次數、空白數與是否截斷全部由後端決定，前端不補算 distinct。
-  function ensureValueProfile(kind, column) {
+  // 來源欄會被往下填補時請求帶 fillDown，列數是填補後的；已讀到的清單在勾選改變時就地重新計數（使用者 2026-10-28 裁定）。
+  // quiet 給畫面綁定時用：畫面已經依 profileRecounting 畫成重新計數中，這裡只送請求、不在重繪途中再要求重繪。
+  function ensureValueProfile(kind, column, quiet) {
     if (!column) { return; }
     var cache = valueProfiles(kind);
-    if (cache[column] && !cache[column].error && !cache[column].metadataOnly) { return; }
+    var fillDown = columnFilledDown(column);
+    var previous = cache[column];
+    if (previous && !previous.error && !previous.metadataOnly && previous.fillDown === fillDown) { return; }
     var requestState = Store.getState();
     var project = requestState.project;
     var importInfo = requestState.importState[kind];
     var comparison = comparisonScope();
-    var previous = cache[column];
-    var entry = { loading: true, comparisonGroups: previous && previous.comparisonGroups || [],
-      comparisonKeys: previous && previous.comparisonKeys ? new Map(previous.comparisonKeys) : undefined };
+    var entry = previous && !previous.error && !previous.metadataOnly && !previous.loading
+      ? Object.assign({}, previous, { fillDown: fillDown, recounting: true, comparing: null, sourceChecking: null })
+      : { loading: true, fillDown: fillDown, comparisonGroups: previous && previous.comparisonGroups || [],
+        comparisonKeys: previous && previous.comparisonKeys ? new Map(previous.comparisonKeys) : undefined };
     // 不同欄位可同時完成；同一欄的重試才取代前一次請求。
     function accept() {
       var latest = Store.getState();
@@ -308,22 +331,26 @@
         && valueProfileCache === cache && cache[column] === entry;
     }
     cache[column] = entry;
-    Store.touch();
-    var comparisonValues = policyCodes(column).slice(0, 100);
+    if (!quiet) { Store.touch(); }
+    var comparisonValues = policyCodes(column).slice(0, Ui.VALUE_PROFILE_MAX_VALUES);
     var checkSourceValues = requestState.mapping.gl.draft.manual === column;
-    global.JetApi.mappingValueProfile({
+    var request = {
       dataset: 'gl',
       sourceColumn: column,
       limit: Ui.VALUE_PROFILE_LIMIT,
       comparisonValues: comparisonValues,
       checkSourceValues: checkSourceValues
-    }).then(function (data) {
+    };
+    if (fillDown) { request.fillDown = true; }
+    global.JetApi.mappingValueProfile(request).then(function (data) {
       if (!accept()) { return; }
       cache[column] = {
         blankCount: data.blankCount,
         distinctCount: data.distinctCount,
         values: data.values || [],
         truncated: !!data.truncated,
+        fillDown: fillDown,
+        countedFillDown: fillDown,
         comparisonGroups: comparisonScope() === comparison ? entry.comparisonGroups : [],
         comparisonKeys: comparisonScope() === comparison ? entry.comparisonKeys : undefined
       };
@@ -575,6 +602,7 @@
         dcNotice +
         postingStatusPolicyHtml(options, draft) +
         manualAutoPolicyHtml(options, draft) +
+        fillDownFieldsHtml(options, draft) +
         rdeFieldsHtml(options) +
       '</section>'
     );
@@ -611,6 +639,11 @@
       '</div>';
   }
 
+  // 「讀取來源值」按下後按鈕不見，焦點依序交給：讀取中的提示、讀取失敗的重試鈕、讀出的值清單第一個控制項、值清單本身
+  //（app.js 的 data-focus-successor，預篩選收斂計畫階段八，使用者 2026-10-22 裁定）。提示與清單本身用 tabindex="-1" 才能拿焦點，不進 Tab 順序。
+  var POSTING_VALUES_FOCUS = '[data-values-loading=posting]; [data-load-failure] [data-action=load-posting-profile]; .value-option-list [data-posting-value]; .value-option-list';
+  var MANUAL_VALUES_FOCUS = '[data-values-loading=manual]; [data-load-failure] [data-action=load-manual-profile]; .value-assign-list [data-manual-assign]; .value-assign-list';
+
   function postingStatusPolicyHtml(options, draft) {
     if (!draft.postingStatus) {
       return '<fieldset class="map-options__group">' +
@@ -628,12 +661,13 @@
     // 和其他展開的區塊一樣（app.js 的 JetMotion，使用者 2026-10-13 要求展開與收合一致）。
     // 提示用「state:」、清單用「:欄名」，來源欄剛好叫 loading 或 error 時兩者也不會被當成同一個東西。
     if (!profile || profile.metadataOnly) {
-      body = '<button type="button" class="btn btn--ghost btn--tiny" data-action="load-posting-profile">' +
+      body = '<button type="button" class="btn btn--ghost btn--tiny" data-action="load-posting-profile" data-focus-successor="' + POSTING_VALUES_FOCUS + '">' +
         '讀取來源值</button>';
     } else if (profile.loading) {
-      body = '<p class="map-options__note" data-motion-key="posting-values-state:loading">讀取來源值中…</p>';
+      body = '<p class="map-options__note" data-motion-key="posting-values-state:loading" data-values-loading="posting" tabindex="-1"' +
+        ' data-focus-successor="' + POSTING_VALUES_FOCUS + '">讀取來源值中…</p>';
     } else if (profile.error) {
-      body = Ui.loadFailureHtml('讀取來源值失敗。', { 'data-action': 'load-posting-profile' }, { 'data-motion-key': 'posting-values-state:error' });
+      body = Ui.loadFailureHtml('讀取來源值失敗。', { 'data-action': 'load-posting-profile', 'data-focus-successor': POSTING_VALUES_FOCUS }, { 'data-motion-key': 'posting-values-state:error' });
     } else {
       var postingComparisonReady = missingComparisonCodes(profile, draft.postingStatus).length === 0;
       var checks = profile.values.map(function (item, index) {
@@ -650,13 +684,14 @@
           '</label>';
       }).join('');
       body = '<div class="map-options__values" data-motion-key="' + Ui.esc('posting-values:' + draft.postingStatus) + '">' +
-        '<p class="map-options__note">來源欄「' + Ui.esc(draft.postingStatus) + '」共 ' +
+        '<p class="map-options__note">來源欄「' + Ui.esc(draft.postingStatus) + '」' + (profile.countedFillDown ? '往下填補後' : '') + '共 ' +
           Number(profile.distinctCount).toLocaleString() + ' 種值、空白 ' +
           Number(profile.blankCount).toLocaleString() + ' 列。勾選代表「已過帳」的值。' +
           (profile.truncated ? '值太多，只列出最常出現的幾種；其餘可用下方欄位補上。' : '') +
         '</p>' +
+        recountNotice(profile, draft.postingStatus) +
         comparisonNotice(profile, draft.postingStatus) +
-        '<div class="value-option-list" aria-busy="' + !postingComparisonReady + '" data-preserve-scroll="posting-values-' + Ui.esc(draft.postingStatus) + '">' + checks + '</div>' +
+        '<div class="value-option-list" tabindex="-1" aria-busy="' + !postingComparisonReady + '" data-preserve-scroll="posting-values-' + Ui.esc(draft.postingStatus) + '">' + checks + '</div>' +
         (profile.truncated
           ? '<div class="map-options__inline">' +
               '<label class="map-options__inline-label" for="posting-value-add">補充其他值</label>' +
@@ -755,7 +790,8 @@
       }).join('') + '</select></label>' +
       '<p class="map-options__note">' + modeHint + '</p></div>';
     var profile = valueProfiles('gl')[draft.manual];
-    var knownBlankCount = profile && !profile.metadataOnly && !profile.loading && !profile.error ? Number(profile.blankCount) : null;
+    var knownBlankCount = profile && !profile.metadataOnly && !profile.loading && !profile.error && !profileRecounting(profile, draft.manual)
+      ? Number(profile.blankCount) : null;
     var blankSelector = '<div class="map-options__field"><label>來源空白時<select class="form__select" data-manual-blank data-focus-key="manual-blank">' +
       [['reject', '先補齊來源資料'], ['manual', '視為人工'], ['automatic', '視為自動'],
         ['unclassified', '不判定人工或自動，保留供其他測試使用']].map(function (item) {
@@ -768,13 +804,14 @@
     var body;
     if (!profile || profile.metadataOnly) {
       body = (profile && profile.sourceReadError
-        ? Ui.loadFailureHtml('讀取來源值失敗，仍可修改代碼或重新讀取。', { 'data-action': 'load-manual-profile' })
-        : '<p class="map-options__note"><button type="button" class="btn btn--ghost btn--tiny" data-action="load-manual-profile">讀取來源值</button> 尚未核對來源值，可從清單選擇代碼。</p>') +
+        ? Ui.loadFailureHtml('讀取來源值失敗，仍可修改代碼或重新讀取。', { 'data-action': 'load-manual-profile', 'data-focus-successor': MANUAL_VALUES_FOCUS })
+        : '<p class="map-options__note"><button type="button" class="btn btn--ghost btn--tiny" data-action="load-manual-profile" data-focus-successor="' + MANUAL_VALUES_FOCUS + '">讀取來源值</button> 尚未核對來源值，可從清單選擇代碼。</p>') +
         (profile ? comparisonNotice(profile, draft.manual) : '');
     } else if (profile.loading) {
-      body = '<p class="map-options__note" data-motion-key="manual-values-state:loading">讀取來源值中…</p>';
+      body = '<p class="map-options__note" data-motion-key="manual-values-state:loading" data-values-loading="manual" tabindex="-1"' +
+        ' data-focus-successor="' + MANUAL_VALUES_FOCUS + '">讀取來源值中…</p>';
     } else if (profile.error) {
-      body = Ui.loadFailureHtml('讀取來源值失敗。', { 'data-action': 'load-manual-profile' }, { 'data-motion-key': 'manual-values-state:error' });
+      body = Ui.loadFailureHtml('讀取來源值失敗。', { 'data-action': 'load-manual-profile', 'data-focus-successor': MANUAL_VALUES_FOCUS }, { 'data-motion-key': 'manual-values-state:error' });
     } else {
       var comparisonReady = missingComparisonCodes(profile, draft.manual).length === 0;
       var rows = profile.values.map(function (item, index) {
@@ -809,16 +846,17 @@
       }).join('');
       // 來源值清單整塊有識別（T28、T30）：讀到值或從輸入代碼切回來時整塊長出來，切去輸入代碼時整塊收起來。
       body = '<div class="map-options__values" data-motion-key="' + Ui.esc('manual-values:' + draft.manual) + '">' +
-        '<p class="map-options__note">來源欄「' + Ui.esc(draft.manual) + '」共 ' +
+        '<p class="map-options__note">來源欄「' + Ui.esc(draft.manual) + '」' + (profile.countedFillDown ? '往下填補後' : '') + '共 ' +
           Number(profile.distinctCount).toLocaleString() + ' 種值、空白 ' +
           Number(profile.blankCount).toLocaleString() + ' 列。' +
           (profile.truncated ? (mode === 'reject'
             ? '值太多，只列出最常出現的幾種；可以改用只列一側，其餘非空白值依判定方式歸類。'
             : '值太多，只列出最常出現的幾種；沒有列出的值依判定方式歸類。') : '') +
         '</p>' +
+        recountNotice(profile, draft.manual) +
         comparisonNotice(profile, draft.manual) +
         sourcePresenceNotice(profile, draft.manual) +
-        '<ul class="value-assign-list" aria-busy="' + !comparisonReady + '" data-preserve-scroll="manual-values-' + Ui.esc(draft.manual) + '">' + rows + '</ul>' +
+        '<ul class="value-assign-list" tabindex="-1" aria-busy="' + !comparisonReady + '" data-preserve-scroll="manual-values-' + Ui.esc(draft.manual) + '">' + rows + '</ul>' +
         '</div>';
     }
 
@@ -917,6 +955,45 @@
       '<button type="button" class="btn btn--ghost" data-action="cancel-created-date">取消</button></div>';
   }
 
+  // 往下填補是對來源欄做的：配到同一個來源欄的欄位一起勾、一起取消（使用者 2026-10-28 裁定依來源欄成組）。
+  // 回傳照欄位目錄順序排好的清單，和後端正規化的結果相同，草稿與已確認版本才比得出「沒有改」。
+  function fillDownByColumn(draft, keys) {
+    var columns = Object.create(null);
+    keys.forEach(function (key) { if (draft[key]) { columns[draft[key]] = true; } });
+    return Ui.GL_FIELDS.filter(function (field) {
+      return !field.literal && draft[field.key] && columns[draft[field.key]];
+    }).map(function (field) { return field.key; });
+  }
+
+  // 往下填補空白（預篩選收斂計畫階段六，使用者 2026-10-22 裁定放在第三步確認配對時）：列出草稿裡有來源欄的欄位，
+  // 借方、貸方代碼是字面值不列；勾選的欄位在確認配對時由後端把空白補成同一來源內上一列的值，PBC-GL 保持原樣。
+  // 還沒指派任何來源欄時不顯示這一區。
+  function fillDownFieldsHtml(options, draft) {
+    var chosen = fillDownByColumn(draft, options.fillDownFields || []);
+    var candidates = Ui.GL_FIELDS.filter(function (field) { return !field.literal && draft[field.key]; });
+    if (!candidates.length) { return ''; }
+
+    var rows = candidates.map(function (field) {
+      var checked = chosen.indexOf(field.key) >= 0;
+      // 每一列有識別：換來源欄或換金額欄位格式後多出或少掉的欄位各自長出來或收起來（app.js 的 JetMotion）。
+      return '<li class="rde-field fill-down-field' + (checked ? ' is-selected' : '') + '" data-motion-key="' + Ui.esc('fill-down-' + field.key) + '">' +
+        '<label class="value-option">' +
+          '<input type="checkbox" data-fill-down-field="' + Ui.esc(field.key) + '" data-focus-key="fill-down-' + Ui.esc(field.key) + '"' +
+            (checked ? ' checked' : '') + '>' +
+          '<span class="value-option__text">' + Ui.esc(field.label) +
+            '<span class="fill-down-field__source">來源欄 ' + Ui.esc(draft[field.key]) + '</span></span>' +
+        '</label>' +
+        '</li>';
+    }).join('');
+
+    return '<fieldset class="map-options__group" data-motion-key="map-options-fill-down">' +
+      '<legend class="map-options__legend">往下填補空白</legend>' +
+      '<p class="map-options__note map-options__note--wide">傳票號碼或日期只寫在每張傳票第一列時，勾選那些欄位；' +
+        '確認配對時空白格補成同一來源檔內上一列的值，PBC-GL 保持原樣。配到同一個來源欄的欄位一起填補。</p>' +
+      '<ul class="rde-field-list" data-preserve-scroll="fill-down-fields">' + rows + '</ul>' +
+      '</fieldset>';
+  }
+
   function rdeFieldsHtml(options) {
     var selected = options.rdeFields || [];
     var columns = Store.availableGlRdeColumns();
@@ -979,11 +1056,18 @@
   /* ---- 狀態判定 -------------------------------------------------------------- */
 
   // 草稿（非空值）與已提交快照逐鍵相等，且模式一致。
+  function comparableOptions(options, mapping) {
+    if (!options || !Array.isArray(options.fillDownFields)) { return options; }
+    return Object.assign({}, options, { fillDownFields: fillDownByColumn(mapping || {}, options.fillDownFields) });
+  }
+
   function draftMatchesCommitted(mappingState, mode) {
     var committed = mappingState.committed;
     if (!committed || !committed.mapping) { return false; }
     if (committed.mode && committed.mode !== mode) { return false; }
-    if (committed.options && JSON.stringify(mappingState.options) !== JSON.stringify(committed.options)) { return false; }
+    // 往下填補的勾選依來源欄成組後再比：存下的清單可能只有其中一個欄位，畫面與送出的卻是整組（使用者 2026-10-28 裁定）。
+    if (committed.options && JSON.stringify(comparableOptions(mappingState.options, mappingState.draft)) !==
+        JSON.stringify(comparableOptions(committed.options, committed.mapping))) { return false; }
 
     var draftKeys = Object.keys(mappingState.draft).filter(function (k) { return mappingState.draft[k]; });
     var committedKeys = Object.keys(committed.mapping).filter(function (k) { return committed.mapping[k]; });
@@ -1049,6 +1133,10 @@
     if (committed.projectedRowCount != null) {
       facts.push('共 ' + Number(committed.projectedRowCount).toLocaleString() + ' 筆');
     }
+    // 確認配對時往下填補了幾格，跟著配對保存，重開案件也列得出來（使用者 2026-10-28 裁定）；沒有填補時不列。
+    if (committed.fillDownCount) {
+      facts.push('往下填補 ' + Number(committed.fillDownCount).toLocaleString() + ' 格空白');
+    }
     if (committed.committedUtc) {
       facts.push('確認於 ' + new Date(committed.committedUtc).toLocaleString('zh-Hant', { hour12: false }));
     }
@@ -1104,6 +1192,11 @@
     facts.push(rde.length
       ? '攸關資料元素欄位 ' + rde.length + ' 個：' + rde.map(function (f) { return f.label; }).join('、')
       : '未保留額外的攸關資料元素欄位');
+
+    var fill = options.fillDownFields || [];
+    facts.push(fill.length
+      ? '往下填補空白：' + fill.map(Ui.glFieldLabel).join('、')
+      : '未往下填補空白');
 
     return '<ul class="mapping-summary__options" data-bind="gl-committed-options">' +
       facts.map(function (fact) { return '<li>' + Ui.esc(fact) + '</li>'; }).join('') + '</ul>';
@@ -1286,7 +1379,7 @@
     if (profile && !profile.metadataOnly && !profile.loading && !profile.error) {
       var missing = policyCodes(column).filter(function (value) { return missingSourceCode(value, column); });
       if (missing.length) { warnings.push('「' + missing.join('、') + '」：來源裡沒有這個值，請確認是否需要修改。'); }
-      if (profile.blankCount > 0 && (policy.blankValueKind || 'reject') === 'reject') {
+      if (profile.blankCount > 0 && (policy.blankValueKind || 'reject') === 'reject' && !profileRecounting(profile, column)) {
         warnings.push('來源空白有 ' + Number(profile.blankCount).toLocaleString() + ' 列，請在「來源空白時」選擇處理方式。');
       }
       if ((policy.unlistedValueKind || 'reject') === 'reject' && !missingComparisonCodes(profile, column).length) {
@@ -1567,6 +1660,9 @@
         return wire;
       })
     };
+    // 往下填補的欄位只送有來源欄的非字面值欄位，配到同一個來源欄的一起送；沒勾選就不帶這個鍵（階段六）。
+    var fillDown = fillDownByColumn(mapping, options.fillDownFields || []);
+    if (fillDown.length) { payload.fillDownFields = fillDown; }
     if (mapping.postingStatus) {
       var policy = options.postingStatusPolicy || { acceptedValues: [], includeBlank: false };
       payload.postingStatusPolicy = {
@@ -1590,7 +1686,8 @@
           label: field.label,
           valueType: field.valueType
         };
-      })
+      }),
+      fillDownFields: (data.fillDownFields || []).slice()
     };
   }
 
@@ -1626,6 +1723,10 @@
     ensureCodeComparisons(postingSource);
     ensureDcCodeComparisons();
     ensureSourceCodePresence(manualSource);
+    // 改了往下填補的勾選或欄位配對後，已讀到的來源值依新的勾選就地重新計數；畫面已畫成重新計數中，這裡只送請求。
+    [manualSource, postingSource].forEach(function (column) {
+      if (column && profileRecounting(valueProfiles('gl')[column], column)) { ensureValueProfile('gl', column, true); }
+    });
     section.querySelectorAll('[data-retry-source-check]').forEach(function (button) {
       button.addEventListener('click', function () { ensureSourceCodePresence(button.getAttribute('data-retry-source-check'), true); });
     });
@@ -1810,6 +1911,19 @@
           fields.push({ sourceColumn: column, label: column, valueType: 'text' });
         }
         Store.patchGlMappingOptions({ rdeFields: fields });
+      });
+    });
+
+    section.querySelectorAll('[data-fill-down-field]').forEach(function (checkbox) {
+      checkbox.addEventListener('change', function () {
+        var key = checkbox.getAttribute('data-fill-down-field');
+        var draft = Store.getState().mapping.gl.draft;
+        // 取消時，配到同一個來源欄的欄位一起取消；勾選時一起勾。
+        var chosen = fillDownByColumn(draft, glOptions().fillDownFields || []).filter(function (k) {
+          return draft[k] !== draft[key];
+        });
+        if (checkbox.checked) { chosen.push(key); }
+        Store.patchGlMappingOptions({ fillDownFields: fillDownByColumn(draft, chosen) });
       });
     });
 
@@ -2129,13 +2243,20 @@
             // 讓下一次 recommit 沿用同一組欄位身分，不由畫面自行 mint。
             Store.replaceGlMappingOptions(canonicalGlOptions(data));
           }
-          Store.setMappingCommitted(kind, {
+          var committed = {
             projectedRowCount: data.projectedRowCount,
             committedUtc: new Date().toISOString(),
             mapping: mapping,
             mode: mode,
             options: kind === 'gl' ? canonicalGlOptions(data) : null
-          });
+          };
+          if (kind === 'gl') {
+            // 第五步依後端算好的可用欄位停用入口（預篩選收斂計畫階段四），原樣存下。
+            committed.availableGlFields = data.availableGlFields || null;
+            // 這次投影往下填補了幾格（階段六），摘要列出來；審計員據此記在 CAATs 文件。
+            committed.fillDownCount = data.fillDownCount || 0;
+          }
+          Store.setMappingCommitted(kind, committed);
           if (kind === 'gl' && Object.prototype.hasOwnProperty.call(data, 'authorizedPreparerState')) {
             Store.refreshAuthorizedPreparerState(data.authorizedPreparerState);
           }
@@ -2153,7 +2274,11 @@
       }, {
         // 完成句由 Ui.run 接上耗時（共用的秒與分秒寫法）後記一則（使用者 2026-10-13 裁定）。
         completionMessage: function (data) {
-          return data ? label + ' 已確認配對，共 ' + Number(data.projectedRowCount).toLocaleString() + ' 筆。' : '';
+          if (!data) { return ''; }
+          // GL 有往下填補空白時，完成句一起寫出填了幾格（階段六）。
+          var filled = kind === 'gl' && data.fillDownCount
+            ? '，往下填補 ' + Number(data.fillDownCount).toLocaleString() + ' 格空白' : '';
+          return label + ' 已確認配對，共 ' + Number(data.projectedRowCount).toLocaleString() + ' 筆' + filled + '。';
         },
         // 原因寫在配對區的錯誤框，不另外在步驟上方顯示。
         inlineError: true,

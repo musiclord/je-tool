@@ -44,10 +44,6 @@ public sealed class LocalFilterRunMaterializer(ILocalProjectDatabase database, I
             await clear.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
         }
 
-        // 連續零尾數條件的模數與 filter.preview / prescreen.run 同源（固定預設 Domain 門檻）。
-        var zeroModulus = TrailingZeroThreshold.UnitModulus(
-            TrailingZeroThreshold.DefaultZerosThreshold);
-
         foreach (var saved in scenarios)
         {
             if (!replaceAll)
@@ -60,7 +56,7 @@ public sealed class LocalFilterRunMaterializer(ILocalProjectDatabase database, I
             }
             await using var insert = connection.CreateCommand();
             insert.Transaction = transaction;
-            var plan = WhereBuilder.BuildPlan(saved.Spec, context, zeroModulus);
+            var plan = WhereBuilder.BuildPlan(saved.Spec, context);
             plan.BindParametersTo(insert);
             insert.AddWithValue("@scenarioPosition", saved.Position);
             insert.CommandText = FilterRunHitInsertSql.Build(

@@ -170,7 +170,7 @@ public sealed class TypedFieldCompilationTests
             ]}]}
             """);
 
-        var plan = Builder().BuildPlan(scenario, Context, zeroModulus: 1_000_000);
+        var plan = Builder().BuildPlan(scenario, Context);
 
         // 第一條仍是輸出列錨點；typed 佐證規則落在同傳票有效母體子查詢內，
         // 且 typed 述詞的 EXISTS 相關到子查詢的 g（沿用既有 alias 重用同構）。
@@ -227,7 +227,7 @@ public sealed class TypedFieldCompilationTests
             100, null, "2025-01-01", "2025-12-31", PopulationScope: GlPopulationScope.AuditPeriod);
 
         var exception = Assert.Throws<JetActionException>(() => Builder().BuildPlan(
-            Scenario(Rule(TextFieldId, "equals", value: "x")), context, zeroModulus: 1_000_000));
+            Scenario(Rule(TextFieldId, "equals", value: "x")), context));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
     }
@@ -248,7 +248,7 @@ public sealed class TypedFieldCompilationTests
             "typed-budget", "budget", [new FilterGroupSpec(FilterJoin.And, rules)]);
 
         var exception = Assert.Throws<JetActionException>(
-            () => Builder().BuildPlan(scenario, Context, zeroModulus: 1_000_000));
+            () => Builder().BuildPlan(scenario, Context));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
         Assert.Contains(
@@ -305,7 +305,7 @@ public sealed class TypedFieldCompilationTests
             new GlRulePredicates(SqliteDialect.Instance, GlPopulationScopeSql.Predicate));
 
     private static FilterSqlFragmentPlan Compile(FilterRuleSpec rule) =>
-        Builder().BuildPlan(Scenario(rule), Context, zeroModulus: 1_000_000);
+        Builder().BuildPlan(Scenario(rule), Context);
 
     /// <summary>SQLite 方言的去空白寫法（字元集合和 .NET 相同），供 SQL 文字斷言組出預期字串。</summary>
     private static string Trim(string expr) => SqliteDialect.Instance.Trim(expr);

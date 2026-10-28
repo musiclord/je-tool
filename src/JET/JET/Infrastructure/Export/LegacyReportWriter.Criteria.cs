@@ -8,38 +8,10 @@ namespace JET.Infrastructure;
 
 public sealed partial class LegacyReportWriter
 {
-    public async Task<ExportStats> WriteAsync(
-        Stream output,
-        CriteriaSelectionReportContext context,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null)
-    {
-        return await WriteCriteriaDirectAsync(
-            output,
-            context,
-            workbookMetadata: null,
-            customFields: [],
-            "JET",
-            cancellationToken,
-            progress).ConfigureAwait(false);
-    }
+    /// <summary>條件篩選報告的情境列從第 5 列起，一個已存情境一列，列數就是已存情境上限。</summary>
+    private const int CriteriaFirstScenarioRow = 5;
 
-    Task<ExportStats> ITypedCriteriaSelectionReportWriter.WriteTypedAsync(
-        Stream output,
-        CriteriaSelectionReportContext context,
-        string operatorId,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
-        WriteCriteriaDirectAsync(
-            output,
-            context,
-            workbookMetadata: null,
-            customFields: [],
-            operatorId,
-            cancellationToken,
-            progress);
-
-    Task<ExportStats> IFormalCriteriaSelectionReportWriter.WriteFormalAsync(
+    Task<ExportStats> ICriteriaSelectionReportWriter.WriteAsync(
         Stream output,
         CriteriaSelectionReportContext context,
         ReportWorkbookMetadata workbookMetadata,
@@ -59,7 +31,7 @@ public sealed partial class LegacyReportWriter
     private Task<ExportStats> WriteCriteriaDirectAsync(
         Stream output,
         CriteriaSelectionReportContext context,
-        ReportWorkbookMetadata? workbookMetadata,
+        ReportWorkbookMetadata workbookMetadata,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         string operatorId,
         CancellationToken cancellationToken,
@@ -82,7 +54,7 @@ public sealed partial class LegacyReportWriter
     private async Task<IReadOnlyList<SheetStat>> FillCriteriaTemplateAsync(
         DirectTemplateWorkbookEditor editor,
         CriteriaSelectionReportContext context,
-        ReportWorkbookMetadata? workbookMetadata,
+        ReportWorkbookMetadata workbookMetadata,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         string operatorId,
         CancellationToken cancellationToken,
@@ -128,7 +100,7 @@ public sealed partial class LegacyReportWriter
                 cancellationToken,
                 progress,
                 customFields: customFields,
-                registryFields: workbookMetadata?.GlMapping.GlOptions?.RdeFields,
+                registryFields: workbookMetadata.GlMapping.GlOptions?.RdeFields,
                 customFieldMoneyScale: context.Project.MoneyScale).ConfigureAwait(false);
             exportedRowCounts[scenario.Position] = stats
                 .Skip(firstScenarioStatIndex)
@@ -143,10 +115,7 @@ public sealed partial class LegacyReportWriter
             exportedRowCounts,
             operatorId,
             cancellationToken);
-        if (workbookMetadata is not null)
-        {
-            ReportWorkbookMetadataWorksheet.Append(editor.Document, workbookMetadata, cancellationToken);
-        }
+        ReportWorkbookMetadataWorksheet.Append(editor.Document, workbookMetadata, cancellationToken);
         editor.Document.WorkbookPart!.Workbook.Save();
         return stats;
     }
@@ -204,7 +173,9 @@ public sealed partial class LegacyReportWriter
                     "C1", "C2", "D1", "D2",
                     "A4", "C4", "D4"
                 };
-                for (var row = 5; row <= 14; row++)
+                for (var row = CriteriaFirstScenarioRow;
+                     row < CriteriaFirstScenarioRow + FilterScenarioLimits.MaxSavedScenarios;
+                     row++)
                 {
                     allowed.Add($"A{row}");
                     allowed.Add($"B{row}");
@@ -232,7 +203,9 @@ public sealed partial class LegacyReportWriter
                 var scenarios = context.Scenarios
                     .ToDictionary(item => item.Position);
                 var sheetData = part.Worksheet.GetFirstChild<SheetData>()!;
-                var nextConditionRow = Math.Max(16u, sheetData.Elements<Row>().Max(row => row.RowIndex?.Value ?? 0) + 2);
+                var nextConditionRow = Math.Max(
+                    (uint)(CriteriaFirstScenarioRow + FilterScenarioLimits.MaxSavedScenarios + 1),
+                    sheetData.Elements<Row>().Max(row => row.RowIndex?.Value ?? 0) + 2);
                 // 情境列下方的接續列：過長條件的分段與空白傳票號碼的說明，都沿用該情境 B 欄的格式。
                 void AppendContinuationRow(string label, string text, uint? style)
                 {
@@ -247,9 +220,9 @@ public sealed partial class LegacyReportWriter
                     if (dimension is not null) dimension.Reference = $"A1:D{nextConditionRow - 1}";
                 }
 
-                for (var position = 1; position <= 10; position++)
+                for (var position = 1; position <= FilterScenarioLimits.MaxSavedScenarios; position++)
                 {
-                    var row = position + 4;
+                    var row = CriteriaFirstScenarioRow + position - 1;
                     if (!scenarios.TryGetValue(position, out var scenario))
                     {
                         cells.Clear($"A{row}");

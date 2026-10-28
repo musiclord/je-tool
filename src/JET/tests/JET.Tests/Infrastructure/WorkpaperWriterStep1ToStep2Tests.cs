@@ -133,7 +133,9 @@ public sealed class WorkpaperWriterStep1ToStep2Tests
         var projectId = await SetupBalancedAsync(host);
 
         await using var datedStream = new MemoryStream();
-        await BuildWriter(host).WriteAsync(
+        await WriteWithCurrentPlanAsync(
+            host,
+            BuildWriter(host),
             datedStream,
             ContextFor(projectId) with { LastPeriodStart = "2023-01-01" },
             CancellationToken.None);
@@ -146,7 +148,9 @@ public sealed class WorkpaperWriterStep1ToStep2Tests
         }
 
         await using var missingStream = new MemoryStream();
-        await BuildWriter(host).WriteAsync(
+        await WriteWithCurrentPlanAsync(
+            host,
+            BuildWriter(host),
             missingStream,
             ContextFor(projectId) with { LastPeriodStart = null },
             CancellationToken.None);

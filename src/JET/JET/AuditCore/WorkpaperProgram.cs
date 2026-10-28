@@ -157,10 +157,10 @@ internal interface IWorkpaperPlanningFactsPort
 }
 
 /// <summary>
-/// Production writer 的 internal typed seam。既有 public <see cref="IWorkpaperWriter"/>
-/// 保持相容；layout、style、SAX、keyset paging、cancellation 與 progress 仍由實作負責。
+/// 底稿寫出器的唯一入口：依已 Finalize 的計畫把整份底稿串流寫進輸出；layout、style、SAX、
+/// keyset paging、cancellation 與 progress 仍由實作負責。
 /// </summary>
-internal interface IWorkpaperPlanWriter : IWorkpaperWriter
+internal interface IWorkpaperPlanWriter
 {
     Task<ExportStats> WriteAsync(
         Stream output,

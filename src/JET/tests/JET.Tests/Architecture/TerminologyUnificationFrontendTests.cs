@@ -6,6 +6,9 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
+// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
+
 /// <summary>
 /// 2026-10-03 跨前後端用語統一：畫面、條件讀回與系統端訊息使用同一組用語，只改顯示文字，
 /// 不改 action、識別字、wire 欄位或資料庫內容。每項鎖住新字樣，並確認舊字樣不再出現在畫面程式。
@@ -17,10 +20,12 @@ public sealed class TerminologyUnificationFrontendTests
     public void T1_TestScope_ReplacesPopulationWordingOnScreenAndInReadback()
     {
         // 使用者 2026-09-22：「我覺得你可以重新考慮有沒有測試母體以外的名詞，這不管怎麼聽都不太對勁」。
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
         // 使用者 2026-10-08 裁定資料名稱全系統統一：指納入測試的分錄時，「分錄測試範圍」改為 GL。
-        Assert.Contains("label: 'GL 中編製人員分錄筆數 ≤'", filter, StringComparison.Ordinal);
-        Assert.Contains("label: 'GL 中科目分錄筆數 ≤'", filter, StringComparison.Ordinal);
+        // 預篩選收斂計畫階段九：已停用型別的標題只在 ui-core.js 的 RETIRED_RULE_TYPE_LABELS 寫一次。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        var core = ReadFrontend("js", "ui-core.js");
+        Assert.Contains("customPreparerEntryCount: 'GL 中編製人員分錄筆數 ≤'", core, StringComparison.Ordinal);
+        Assert.Contains("customAccountEntryCount: 'GL 中科目分錄筆數 ≤'", core, StringComparison.Ordinal);
         Assert.Contains("在 GL 中依匯入後的科目或人員分組；空白欄位不列入。", filter, StringComparison.Ordinal);
         // 使用者 2026-10-08 要求重新設計自訂篩選條件：舊目錄的說明不再上畫面，留在測試夾具，用語隨更名改成 GL；
         // 畫面上的統計條件說明由上面「在 GL 中依匯入後的科目或人員分組」那一句承擔。
@@ -52,7 +57,7 @@ public sealed class TerminologyUnificationFrontendTests
         Assert.Contains("function rdeFieldOptionLabel(field) {", core, StringComparison.Ordinal);
         Assert.DoesNotContain("withKind", core, StringComparison.Ordinal);
         Assert.Contains("Ui.rdeFieldOptionLabel(item)", ReadFrontend("js", "filter-values.js"), StringComparison.Ordinal);
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
         // 使用者 2026-10-08 要求重新設計自訂篩選條件：範例專用的欄位下拉移除；欄位按鈕與範例就地選欄位的完整說明
         // 只加註來源欄（rdeFieldOptionLabel）。
         Assert.DoesNotContain("請選已配對的文字型攸關資料元素欄位", filter, StringComparison.Ordinal);
@@ -73,7 +78,7 @@ public sealed class TerminologyUnificationFrontendTests
     [Fact]
     public void T5_VoucherCount_SaysSameNumberCountsOnce_OnBothSides()
     {
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
         Assert.Contains("['vouchers', '傳票張數（同號只算一張）']", filter, StringComparison.Ordinal);
         Assert.Contains("(rule.countUnit === 'vouchers' ? '傳票張數（同號只算一張）' : '分錄筆數')", filter, StringComparison.Ordinal);
         // 使用者 2026-10-08 要求重新設計自訂篩選條件：舊目錄說明移到測試夾具，原文不變；畫面上的計算單位選項仍是上面那一句。
@@ -95,7 +100,7 @@ public sealed class TerminologyUnificationFrontendTests
     public void T6_TrailingDigits_ReadsAsIntegerPartWithoutDecimals_OnBothSides()
     {
         Assert.Contains("return prefix + '金額整數部分（不含小數）' + tdAtoms.join(' 或 ');",
-            ReadFrontend("js", "steps", "filter-step.js"), StringComparison.Ordinal);
+            ProductSources.FilterStepFrontend(), StringComparison.Ordinal);
         // L59 fixes the six-zero wording and shares the fourth/fifth-step explanation without changing tails.
         // First failure: 20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d.
         Assert.Contains("desc: Ui.prescreenConditionDescription('trailingZeros')",
@@ -103,7 +108,8 @@ public sealed class TerminologyUnificationFrontendTests
         // 第9批僅集中門檻，完整句不變；原source literal斷言在插值處截斷。
         // 首次失敗：20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
         Assert.Equal("依本次測試的分錄，找出金額整數部分尾數連續 6 個 0 的分錄；不含小數，整數部分為 0 不列入。",
-            FrontendConstantTextReader.ObjectString(ReadFrontend("js", "ui-core.js"), "PRESCREEN_DESCRIPTIONS", "trailingZeros"));
+            // 預篩選收斂計畫階段九：說明文字搬進 PRESCREEN_RULES 的 description。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+            FrontendConstantTextReader.ValueProperty(ReadFrontend("js", "ui-core.js"), "PRESCREEN_RULES", "trailingZeros", "description"));
         Assert.Equal("金額整數部分（不含小數）末 6 位 = 000000 或 末 2 位 = 99",
             RenderAtom("""{"join":"AND","type":"trailingDigits","keywords":"000000,99"}"""));
     }
@@ -112,7 +118,7 @@ public sealed class TerminologyUnificationFrontendTests
     public void W10_SaveWording_UsesStoreVerb_AndBlankSummaryIsOneName()
     {
         // 使用者裁定以「已儲存」為準；KCT G 卡片與空值項目已經叫「空白摘要」。
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
         Assert.Contains("'已儲存「' + Ui.esc(draft.name) + '」。' : '條件或說明已變更，尚未儲存。'", filter, StringComparison.Ordinal);
         Assert.Contains("(editing ? '儲存變更' : '儲存情境')", filter, StringComparison.Ordinal);
         Assert.Contains("paneButton('saved', '已儲存情境與矩陣（'", filter, StringComparison.Ordinal);
@@ -121,7 +127,8 @@ public sealed class TerminologyUnificationFrontendTests
         Assert.Contains("條件儲存時間：", ReadFrontend("js", "steps", "export-step.js"), StringComparison.Ordinal);
 
         Assert.Equal("空白摘要", FilterConditionLabels.PrescreenKeys[PrescreenRuleKeys.BlankDescription]);
-        Assert.Contains("{ value: 'blankDescription', label: '空白摘要' }", ReadFrontend("js", "ui-core.js"), StringComparison.Ordinal);
+        // 預篩選收斂計畫階段九：預篩選規則一條一筆寫在 PRESCREEN_RULES，標籤後面接需求與說明。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        Assert.Contains("{ value: 'blankDescription', label: '空白摘要', prerequisites:", ReadFrontend("js", "ui-core.js"), StringComparison.Ordinal);
         Assert.Equal("預篩選：空白摘要",
             RenderAtom("""{"join":"AND","type":"prescreen","prescreenKey":"blankDescription"}"""));
 
@@ -177,7 +184,7 @@ public sealed class TerminologyUnificationFrontendTests
             RenderAtom("""{"join":"AND","type":"accountPair","pairMode":"exact","debitCategoryIds":["builtin.receivables"],"creditCategoryIds":["builtin.revenue"]}"""));
         Assert.Equal("貸方為收入，借方非應收或預收",
             RenderAtom("""{"join":"AND","type":"revenueWithoutNormalCounterpart"}"""));
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
         Assert.Contains("return prefix + '貸方為收入，借方非應收或預收';", filter, StringComparison.Ordinal);
         Assert.Contains(": '借方 ' + pairDebit + '，貸方 ' + pairCredit);", filter, StringComparison.Ordinal);
     }
@@ -221,7 +228,7 @@ public sealed class TerminologyUnificationFrontendTests
         }
 
         // 防止移除註解時誤吞整段程式：去註解後仍看得到各檔後段的畫面字樣。
-        var strippedFilter = StripComments(ReadFrontend("js", "steps", "filter-step.js"), js: true);
+        var strippedFilter = StripComments(ProductSources.FilterStepFrontend(), js: true);
         // 使用者 2026-10-08 要求重新設計自訂篩選條件：原檢查點所在的舊目錄範例已移除，改用綁定區段後段仍在的提示字樣。
         // 2026-10-13 第五步一次只存或刪一個情境：「重新檢查並儲存情境」的完成句改寫，原檢查點字樣已不存在
         // （第一次失敗：Public 收據 20261013-103826650-632ded11dde247d0b97d4e5ea6dd63bf）。改用同樣位在綁定區段後段、

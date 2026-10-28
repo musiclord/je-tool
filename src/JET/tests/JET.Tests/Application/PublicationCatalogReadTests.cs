@@ -1,5 +1,6 @@
 using System.Text.Json;
 using JET.Application;
+using JET.AuditCore;
 using JET.Domain;
 using Xunit;
 
@@ -145,8 +146,8 @@ public sealed class PublicationCatalogReadTests
         var session = new ProjectSession();
         var runs = new TestRunStore(
             new("validation-current", RuleRunKinds.Validate, time, CurrentValidationSummaryTestData.Create("validation-current", time)),
-            new("prescreen-current", RuleRunKinds.Prescreen, time,
-                JsonSerializer.Serialize(new { resultRef = new { logicVersion = RuleLogicVersions.Prescreen } })));
+            // 2026-10-22 技術債一輪：handler 一定會解析預篩選摘要再規劃，所以摘要要能解析。
+            new("prescreen-current", RuleRunKinds.Prescreen, time, ReportWriterTestSupport.PrescreenSummaryJson()));
         var project = ProjectDocument.CreateNew("synthetic-project", "", "", "synthetic-user", "2025-01-01", "2025-12-31",
             null, ProjectDocument.DefaultDatabaseProvider, time, 1, 2);
         // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 store，替身放進資料庫組後再進入 session。
@@ -160,6 +161,9 @@ public sealed class PublicationCatalogReadTests
                 // 第9批高3；Public首敗100911120後補必要來源讀取，發布前後IO錯誤与次數斷言均保留。
                 ResultStaleStates = EmptyReportStateTestData.StaleStates,
                 FilterScenarios = EmptyReportStateTestData.Scenarios,
+                PrescreenReportPlanningFacts = new ReportWriterTestSupport.ZeroPrescreenPlanningFactsPort(),
+                MappingStates = new ReportWriterTestSupport.FixedMetadataMappingStore(),
+                AccountTaxonomy = new ReportWriterTestSupport.BuiltInAccountTaxonomyStore(),
             });
         return new ExportPrescreenReportHandler(new TestProjectStore(project), session, new TestEvents());
     }
@@ -167,7 +171,8 @@ public sealed class PublicationCatalogReadTests
     private sealed class TestWriter(Exception? failure = null) : IPrescreenReportWriter
     {
         public int Calls;
-        public Task<ExportStats> WriteAsync(Stream output, PrescreenReportContext context, CancellationToken cancellationToken,
+        public Task<ExportStats> WriteAsync(Stream output, PrescreenReportContext context, PrescreenReportProjection projection,
+            PrescreenReportPlan plan, ReportWorkbookMetadata workbookMetadata, string operatorId, CancellationToken cancellationToken,
             Action<WorkpaperProgress>? progress = null)
         {
             Calls++;

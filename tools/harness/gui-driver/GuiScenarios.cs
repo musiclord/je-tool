@@ -1168,6 +1168,10 @@ internal static partial class GuiScenarios
         var obscuredPolls = 0;
         var previousX = double.NaN;
         var previousY = double.NaN;
+        // 滾輪和點擊一樣，要落點與捲動量連續兩次量到一樣才送出。讀完來源值時清單上方的輸入區還在收起，清單一路往上滑；
+        // 只量一次就送滾輪，落點會掉到清單下面，捲動的是整個中欄，清單被捲出畫面（2026-10-28 完整 Gui 的回饋流程，
+        // 第一次失敗收據 20261028-063837442-9aad252488b74d15ac7e785c9d3124d3；2026-10-14 被 TB 區蓋住的症狀相同，很可能同因）。
+        var previousScroll = (X: double.NaN, Y: double.NaN, DeltaX: double.NaN, DeltaY: double.NaN);
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1196,10 +1200,18 @@ internal static partial class GuiScenarios
                 && double.IsFinite(ReadDouble(probe, "deltaY"))
                 && (ReadDouble(probe, "deltaX") != 0 || ReadDouble(probe, "deltaY") != 0))
             {
-                if (++scrollCount > 12) { throw new GuiCheckException("control_scroll_limit_exceeded"); }
-                await cdp.ScrollAsync(ReadDouble(probe, "x"), ReadDouble(probe, "y"),
-                    ReadDouble(probe, "deltaX"), ReadDouble(probe, "deltaY"), cancellationToken).ConfigureAwait(false);
+                var scroll = (X: ReadDouble(probe, "x"), Y: ReadDouble(probe, "y"),
+                    DeltaX: ReadDouble(probe, "deltaX"), DeltaY: ReadDouble(probe, "deltaY"));
+                if (Math.Abs(scroll.X - previousScroll.X) < 0.5 && Math.Abs(scroll.Y - previousScroll.Y) < 0.5
+                    && Math.Abs(scroll.DeltaX - previousScroll.DeltaX) < 0.5 && Math.Abs(scroll.DeltaY - previousScroll.DeltaY) < 0.5)
+                {
+                    if (++scrollCount > 12) { throw new GuiCheckException("control_scroll_limit_exceeded"); }
+                    await cdp.ScrollAsync(scroll.X, scroll.Y, scroll.DeltaX, scroll.DeltaY, cancellationToken).ConfigureAwait(false);
+                    previousScroll = (double.NaN, double.NaN, double.NaN, double.NaN);
+                }
+                else { previousScroll = scroll; }
             }
+            else { previousScroll = (double.NaN, double.NaN, double.NaN, double.NaN); }
             await Task.Delay(100, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -1216,17 +1228,26 @@ internal static partial class GuiScenarios
         string value, GuiRunOutcome outcome, CancellationToken cancellationToken)
     {
         await ClickControlAsync(cdp, process, selector, outcome, cancellationToken).ConfigureAwait(false);
-        var optionIndex = await cdp.EvaluateAsync("(function () { var select = document.querySelector(" +
-            JsonSerializer.Serialize(selector) + "); return select ? Array.prototype.findIndex.call(select.options, function (option) { return option.value === " +
-            JsonSerializer.Serialize(value) + "; }) : -1; })()", cancellationToken).ConfigureAwait(false);
-        if (!optionIndex.TryGetInt32(out var index) || index is < 0 or > 40)
+        // 方向鍵會跳過停用的選項，所以要按幾次是目標前面「能選的」選項個數，不是目標的位置。
+        // 預篩選收斂計畫階段四讓 GL 沒有配對的欄位在選單裡停用，原本照位置按，子條件選單選到後面的選項
+        // （2026-10-28 跨月與巢狀傳票兩個情境，第一次失敗收據 20261028-071425870-02f055e1dbe949d9a7e96007a028cd4b
+        // 與 20261028-071837262-5a7dde054ed848f094853b061a0a3894）。目標本身停用時直接回報，不選到別的選項。
+        var optionPosition = await cdp.EvaluateAsync("(function () { var select = document.querySelector(" +
+            JsonSerializer.Serialize(selector) + "); if (!select) { return -1; } var enabled = Array.prototype.filter.call(select.options, function (option) { return !option.disabled; });" +
+            " var target = Array.prototype.find.call(select.options, function (option) { return option.value === " + JsonSerializer.Serialize(value) + "; });" +
+            " return !target ? -1 : target.disabled ? -2 : enabled.indexOf(target); })()", cancellationToken).ConfigureAwait(false);
+        if (optionPosition.TryGetInt32(out var position) && position == -2)
+        {
+            throw new GuiCheckException("closed_select_option_disabled");
+        }
+        if (!optionPosition.TryGetInt32(out position) || position is < 0 or > 40)
         {
             throw new GuiCheckException("closed_select_option_missing");
         }
         // One bounded keyboard selection gesture, like the existing TypeDate multi-key gesture.
         outcome.RecordAction();
         await cdp.PressKeyAsync("Home", cancellationToken).ConfigureAwait(false);
-        for (var step = 0; step < index; step++)
+        for (var step = 0; step < position; step++)
         {
             await cdp.PressKeyAsync("ArrowDown", cancellationToken).ConfigureAwait(false);
         }

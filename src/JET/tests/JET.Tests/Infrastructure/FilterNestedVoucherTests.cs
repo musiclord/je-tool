@@ -119,7 +119,9 @@ public sealed class FilterNestedVoucherTests
         foreach (var (rule, expected) in cases)
         {
             var scenario = FilterScenarioPayloadParser.Parse(JsonElement.Parse($$"""{"name":"合成量詞","rationale":"固定答案","groups":[{"rules":[{{rule}}]}]}"""), 100);
-            Assert.Empty(FilterScenarioValidator.Validate(scenario, new(false, true, true) { HasDescription = true }));
+            // 預篩選收斂計畫階段四拿掉欄位旗標（2026-10-23）；不帶可用欄位清單就不檢查欄位，等同原本摘要旗標是 true。
+            // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+            Assert.Empty(FilterScenarioValidator.Validate(scenario, new(false, true, true)));
             var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, scenario, context, CancellationToken.None);
             Assert.Equal(expected, result.PreviewRows.Select(row => row.DocumentNumber + "|" + row.LineItem).Order().ToArray());
         }

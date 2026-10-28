@@ -26,9 +26,10 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
         this.logger = logger;
     }
 
-    private const int DefaultSampleSize = 59;
-
     public string Action => "validate.run";
+
+    /// <summary>驗證跑完後，案件至少推進到第四步。</summary>
+    internal const int WorkflowStep = 4;
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
@@ -67,6 +68,8 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
         }
         var sampleSeed = sampleSeedResolution.Seed;
 
+        // 「核准日不在期間」能不能檢查，和第四步預篩選、第五步讀同一份欄位目錄的答案。
+        var availableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glMapping.GlOptions);
         var plan = JetAuditProgram.Plan(
             new ValidationRequest(
                 projectId,
@@ -78,14 +81,15 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 sampleSeed,
                 runId,
                 generatedUtc,
-                DefaultSampleSize,
-                sampleSeedResolution.AlgorithmVersion));
+                InfSampling.DefaultSampleSize,
+                sampleSeedResolution.AlgorithmVersion,
+                availableGlFields));
         SupportOperationStage.Enter("validation_facts");
         var record = await repositories.ValidationFacts.ExecuteAsync(
             plan, facts => CreateRecord(plan, facts, document), cancellationToken);
         SupportOperationStage.Enter("after_commit");
         await MappingCommitShared.AdvanceStepAsync(projectStore, document,
-            WorkflowMilestones.For(Action), CancellationToken.None, logger);
+            WorkflowStep, CancellationToken.None, logger);
         using var parsed = JsonDocument.Parse(record.SummaryJson);
         return parsed.RootElement.Clone();
     }
@@ -239,7 +243,9 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 nullAccountCount = result.NullAccountCount,
                 nullDocumentCount = result.NullDocumentCount,
                 nullDescriptionCount = result.NullDescriptionCount,
+                // 傳票核准日不可用時筆數是 null，原因寫缺什麼、到哪裡補，畫面只顯示這一句（使用者 2026-10-23 裁定）。
                 outOfRangeDateCount = result.OutOfRangeDateCount,
+                outOfRangeDateNaReason = plan.OutOfPeriodApprovalNaReason,
                 nullRows = result.NullRecordRows.Select(r => (object)new
                 {
                     documentNumber = r.DocumentNumber,

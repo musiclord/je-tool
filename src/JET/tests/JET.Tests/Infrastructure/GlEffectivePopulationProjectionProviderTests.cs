@@ -210,7 +210,9 @@ public sealed class GlEffectivePopulationProjectionProviderTests
         Assert.Equal(3, error.SourceRowNumber);
         Assert.Equal("amount", error.Field);
         // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        Assert.Equal("加總後的金額超出可儲存的範圍。請確認金額是否正確，或調整案件的金額小數位數", error.Reason);
+        // 使用者 2026-10-22 裁定一併改寫叫審計員調整小數位數的訊息，案件沒有這個設定（預篩選收斂計畫階段五）；
+        // 第一次失敗：Focused 收據 20261023-112041173-c7f4d8ed17aa453d851bc2a95d0a2590。
+        Assert.Equal("加總後的金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
         Assert.Null(result.EffectivePopulation);
 
         await using (connection)

@@ -8,10 +8,10 @@ public sealed partial class SqlServerProjectDatabase
 {
     // 目前 schema 版本。Fresh schema 由 SchemaSql 直接寫現行版；既有 schema 的版本則只在
     // MigrateExistingSchemaToCurrentAsync 完成 shape、data rewrite 與結果失效後最後寫回。
-    internal const string SchemaVersion = "15";
+    internal const string SchemaVersion = "16";
 
     internal const string BumpSchemaVersionSql =
-        "UPDATE {s}.schema_info SET [value] = '15' WHERE [key] = 'schema_version';";
+        "UPDATE {s}.schema_info SET [value] = '16' WHERE [key] = 'schema_version';";
 
     /// <summary>
     /// 第 12 版到第 13 版：<c>app_message_log.level</c> 的限制加上 <c>error</c>（使用者 2026-10-13 裁定訊息分三級）。
@@ -207,6 +207,9 @@ public sealed partial class SqlServerProjectDatabase
                 await GlExclusionReasonMigration.SplitPeriodReasonAsync(connection, tx,
                     SqlServerProjectSchema.QualifierFor(projectId), cancellationToken);
 
+            // 第 15 版到第 16 版：匯入來源表多一欄 header_row（欄名在第幾列），由上方守欄冪等的 SchemaSql 補欄，
+            // 和本機第 14 版相同；既有來源的欄名列是空值。SQL Server 開發暫緩期間加入，沒有 SQL Server 測試執行到。
+
             await using (var bump = CreateCommand(connection, projectId, BumpSchemaVersionSql))
             {
                 bump.Transaction = tx;
@@ -268,7 +271,7 @@ public sealed partial class SqlServerProjectDatabase
         IF OBJECT_ID(N'{s}.schema_info','U') IS NULL
             CREATE TABLE {s}.schema_info ([key] NVARCHAR(450) COLLATE Latin1_General_BIN2 PRIMARY KEY, [value] NVARCHAR(MAX) NOT NULL);
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'schema_version')
-            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '15');
+            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '16');
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'filter_data_revision')
             INSERT INTO {s}.schema_info ([key], [value]) VALUES ('filter_data_revision', '0');
 
@@ -294,10 +297,13 @@ public sealed partial class SqlServerProjectDatabase
                 sheet_name       NVARCHAR(400) NULL,
                 encoding         NVARCHAR(400) NULL,
                 delimiter        NVARCHAR(400) NULL,
+                header_row       INT NULL,
                 row_count        INT NOT NULL DEFAULT 0,
                 imported_utc     NVARCHAR(40) NOT NULL,
                 PRIMARY KEY (batch_id, source_no)
             );
+        IF COL_LENGTH('{s}.import_batch_source','header_row') IS NULL
+            ALTER TABLE {s}.import_batch_source ADD header_row INT NULL;
 
         IF OBJECT_ID(N'{s}.import_field_definition','U') IS NULL
             CREATE TABLE {s}.import_field_definition (

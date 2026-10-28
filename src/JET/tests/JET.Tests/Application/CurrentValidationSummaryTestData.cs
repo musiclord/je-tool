@@ -6,8 +6,9 @@ using JET.Domain;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 只供 Application tests 使用的 current validation-v5 合法摘要。
+/// 只供 Application tests 使用的 current validation-v6 合法摘要。
 /// 需要測 malformed carrier 時，先建立這份完整 shape，再只變異該案例的目標欄位。
+/// 2026-10-23 升 v6：空值紀錄多了「核准日不在期間」的原因欄，預設是能檢查的 0 筆、原因 null，其他欄位不變。
 /// </summary>
 internal static class CurrentValidationSummaryTestData
 {
@@ -26,7 +27,8 @@ internal static class CurrentValidationSummaryTestData
         long nullAccountCount = 0,
         long nullDocumentCount = 0,
         long nullDescriptionCount = 0,
-        long outOfRangeDateCount = 0,
+        long? outOfRangeDateCount = 0,
+        string? outOfRangeDateNaReason = null,
         long sourceQualityFindingCount = 0,
         IReadOnlyList<SourceQualityFindingRow>? sourceQualitySampleRows = null)
     {
@@ -113,6 +115,7 @@ internal static class CurrentValidationSummaryTestData
                     nullDocumentCount,
                     nullDescriptionCount,
                     outOfRangeDateCount,
+                    outOfRangeDateNaReason,
                     nullRows = Array.Empty<object>()
                 },
                 sourceQuality = new

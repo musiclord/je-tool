@@ -129,33 +129,11 @@ public sealed class WorkpaperOwnershipTests
         Assert.Null(ProductionAssembly.GetType("JET.AuditCore.ProgramMigrationState"));
     }
 
-    [Fact]
-    public void PublicWorkpaperCompatibilityContract_RemainsAvailable()
-    {
-        var writer = ProductionAssembly.GetType("JET.Domain.IWorkpaperWriter");
-        var context = ProductionAssembly.GetType("JET.Domain.WorkpaperContext");
-        var implementation = ProductionAssembly.GetType("JET.Infrastructure.WorkpaperWriter");
-
-        Assert.NotNull(writer);
-        Assert.True(writer!.IsPublic);
-        Assert.NotNull(context);
-        Assert.True(context!.IsPublic);
-        Assert.NotNull(implementation);
-        Assert.True(implementation!.IsPublic);
-        Assert.True(writer.IsAssignableFrom(implementation));
-
-        var write = Assert.Single(writer.GetMethods());
-        Assert.Equal("WriteAsync", write.Name);
-        Assert.Equal(
-            new[]
-            {
-                typeof(Stream),
-                context,
-                typeof(CancellationToken),
-                typeof(Action<global::JET.Domain.WorkpaperProgress>)
-            },
-            write.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
-    }
+    // 2026-10-22 技術債一輪依使用者裁定「全部刪，測試改走正式入口」刪除沒有計畫的公開寫出入口 IWorkpaperWriter，
+    // 原本鎖住它還在的 PublicWorkpaperCompatibilityContract_RemainsAvailable 一併移除，改由
+    // CompatibilityPathOwnershipTests.WorkpaperWriter_OnlyWritesFromAPlan 鎖住它不存在。這一輪新斷言的第一次失敗是 Focused 收據
+    // 20261022-070441801-b717958da6bc461bb272ed374766bb78（篩選 OwnershipTests，18 則失敗；收據只記筆數與第一則名稱，看不出含不含這一項）；
+    // 刪掉介面後測試專案建置失敗，那次沒有保存收據。
 
     [Fact]
     public void ProductionWorkpaperPath_UsesTypedLifecycleAndExistingStaleRefresh()

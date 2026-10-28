@@ -237,7 +237,7 @@ internal sealed class WorkpaperStep41PreparedSession : IWorkpaperStep41PreparedS
                 throw MissingWorkpaperNumericLineItemSortKey();
             }
 
-            var matchedPositions = DecodePositions(tagMask);
+            var matchedPositions = ScenarioTagMask.DecodePositions(tagMask);
             Metrics.RowsRead = checked(Metrics.RowsRead + 1);
             yield return new WorkpaperStep41SourceRow(
                 entryId,
@@ -592,18 +592,7 @@ internal sealed class WorkpaperStep41PreparedSession : IWorkpaperStep41PreparedS
         return $"""
                INSERT INTO {_tagTable} (entry_id, tag_mask)
                SELECT tag_source.entry_id,
-                      SUM(CASE tag_source.scenario_position
-                          WHEN 1 THEN 1
-                          WHEN 2 THEN 2
-                          WHEN 3 THEN 4
-                          WHEN 4 THEN 8
-                          WHEN 5 THEN 16
-                          WHEN 6 THEN 32
-                          WHEN 7 THEN 64
-                          WHEN 8 THEN 128
-                          WHEN 9 THEN 256
-                          WHEN 10 THEN 512
-                          ELSE 0 END)
+                      {ScenarioTagMask.SumSql("tag_source.scenario_position")}
                FROM (
                    SELECT r.entry_id, r.scenario_position
                    FROM {_schemaPrefix}result_filter_run r
@@ -668,24 +657,6 @@ internal sealed class WorkpaperStep41PreparedSession : IWorkpaperStep41PreparedS
         _sqlServer
             ? $"({expression}) COLLATE Latin1_General_BIN2"
             : expression;
-
-    private static IReadOnlyList<int> DecodePositions(long tagMask)
-    {
-        if (tagMask == 0)
-        {
-            return [];
-        }
-
-        var positions = new List<int>(10);
-        for (var position = 1; position <= 10; position++)
-        {
-            if ((tagMask & (1L << (position - 1))) != 0)
-            {
-                positions.Add(position);
-            }
-        }
-        return positions;
-    }
 
     private void ThrowIfDisposed()
     {

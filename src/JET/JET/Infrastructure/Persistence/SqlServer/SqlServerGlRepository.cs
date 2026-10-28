@@ -229,31 +229,14 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             await ct.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        // 必填文字欄整欄空白偵測（非阻斷提醒；疑似配錯欄）。語意對齊 SQLite；空白判定用 LTRIM(RTRIM)、
-        // 計數 CAST AS BIGINT 避免大母體 INT 溢位。空母體不偵測。
+        // 必填文字欄整欄空白偵測（非阻斷提醒；疑似配錯欄）。和本機 GL 倉儲共用同一段由欄位目錄產生的查詢。空母體不偵測。
         IReadOnlyList<string> warnings = [];
         if (projectionReader.ValidRowCount > 0)
         {
-            var emptyTextColumns = new HashSet<string>();
-            await using (var probe = database.CreateCommand(writeConnection, projectId,
-                $$"""
-                    SELECT
-                      SUM(CAST(CASE WHEN document_number IS NOT NULL AND {{SqlServerDialect.Instance.Trim("document_number")}} <> '' THEN 1 ELSE 0 END AS BIGINT)),
-                      SUM(CAST(CASE WHEN account_code IS NOT NULL AND {{SqlServerDialect.Instance.Trim("account_code")}} <> '' THEN 1 ELSE 0 END AS BIGINT)),
-                      SUM(CAST(CASE WHEN account_name IS NOT NULL AND {{SqlServerDialect.Instance.Trim("account_name")}} <> '' THEN 1 ELSE 0 END AS BIGINT)),
-                      SUM(CAST(CASE WHEN document_description IS NOT NULL AND {{SqlServerDialect.Instance.Trim("document_description")}} <> '' THEN 1 ELSE 0 END AS BIGINT))
-                    FROM {s}.target_gl_entry;
-                    """))
-            {
-                probe.Transaction = transaction;
-                await using var reader = await probe.ExecuteReaderAsync(cancellationToken);
-                await reader.ReadAsync(cancellationToken);
-                if (reader.GetInt64(0) == 0) { emptyTextColumns.Add("document_number"); }
-                if (reader.GetInt64(1) == 0) { emptyTextColumns.Add("account_code"); }
-                if (reader.GetInt64(2) == 0) { emptyTextColumns.Add("account_name"); }
-                if (reader.GetInt64(3) == 0) { emptyTextColumns.Add("document_description"); }
-            }
-            warnings = [.. GlMappedColumnAudit.Build(spec, emptyTextColumns), .. projectionReader.ManualAutoCodes.Warnings()];
+            var blankColumns = await GlMappedColumnAudit.ReadAsync(
+                writeConnection, transaction, spec, projectionReader.ValidRowCount, SqlServerDialect.Instance,
+                cancellationToken, SqlServerProjectSchema.QualifierFor(projectId));
+            warnings = [.. blankColumns, .. projectionReader.ManualAutoCodes.Warnings()];
         }
 
         await ReplaceRdeProjectionAsync(
@@ -293,7 +276,8 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             batchId,
             committedUtc,
             MappingMetadataFormat.CurrentVersion,
-            projectionOptions);
+            // 填了幾格跟著配對保存（使用者 2026-10-28 裁定），重開案件與報告的配對資訊讀得到。
+            projectionOptions with { FillDownCount = projectionReader.FillDownCellCount });
         await SqlServerMappingStateStore.SaveWithinAsync(
             database,
             writeConnection,
@@ -317,7 +301,8 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
                 projectionReader.ExcludedByPeriodCount,
                 projectionReader.ExcludedByPostingStatusCount,
                 projectionReader.EffectiveDebitScaled,
-                projectionReader.EffectiveCreditScaled)
+                projectionReader.EffectiveCreditScaled),
+            FillDownCellCount = projectionReader.FillDownCellCount
         };
     }
 
@@ -359,14 +344,16 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
         var requiredColumns = GlProjectionSourceBuffer.RequiredColumns(spec);
         var pageSize = GlProjectionSourceBuffer.EntryPageSize(requiredColumns.Count);
         var schema = SqlServerProjectSchema.For(projectId);
+        // 第二遍照第一遍的順序重新餵同一份往下填補（階段六，與本機 GL 倉儲相同）。SQL Server 開發暫緩期間加入，沒有 SQL Server 測試執行到。
+        var fillDown = GlStagingFillDown.Create(spec);
         long cursor = 0;
         while (true)
         {
-            var page = new List<(long EntryId, int SourceRowNumber, Dictionary<string, string> Values)>(pageSize);
+            var page = new List<(long EntryId, int SourceNo, int SourceRowNumber, Dictionary<string, string> Values)>(pageSize);
             await using (var select = database.CreateCommand(
                              connection,
                              projectId,
-                             "SELECT g.entry_id, s.source_row_number, s.row_json "
+                             "SELECT g.entry_id, s.source_no, s.source_row_number, s.row_json "
                              + "FROM {s}.target_gl_entry g "
                              + "JOIN {s}.staging_gl_raw_row s ON s.batch_id = g.batch_id "
                              + "AND s.row_number = g.source_row_number "
@@ -382,12 +369,13 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
                 while (await reader.ReadAsync(cancellationToken))
                 {
                     var sourceValues = JsonSerializer.Deserialize<Dictionary<string, string>>(
-                                           reader.GetString(2),
+                                           reader.GetString(3),
                                            JsonOptions)
                                        ?? [];
                     page.Add((
                         reader.GetInt64(0),
                         reader.GetInt32(1),
+                        reader.GetInt32(2),
                         GlProjectionSourceBuffer.SelectRequiredValues(sourceValues, requiredColumns)));
                 }
             }
@@ -430,7 +418,9 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             foreach (var item in page)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var staging = new StagingRow(item.SourceRowNumber, item.Values);
+                var staging = new StagingRow(
+                    item.SourceRowNumber,
+                    fillDown is null ? item.Values : fillDown.Apply(item.SourceNo, item.Values));
                 if (!GlRowProjector.TryProject(
                         staging,
                         spec,

@@ -67,7 +67,8 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
                 {
                     // 正式 legacy AccountMapping 的標頭在第 3 列、資料自第 4 列；
                     // 舊版 JET 產物／一般 CSV 仍維持第 1 列標頭。只在第 1 列無法辨識時回退兩列。
-                    effectiveRequest = request with { LeadingRowsToSkip = 2 };
+                    // 這兩列是舊範本固定的版面，不是審計員指定的欄名列（2026-10-28 複審）。
+                    effectiveRequest = request with { LeadingRowsToSkip = 2, FixedLeadingRows = true };
                     columns = await reader.ReadColumnsAsync(effectiveRequest, cancellationToken);
                     projection = JetAuditProgram.PrepareAccountMappingProjection(columns, taxonomy);
                 }

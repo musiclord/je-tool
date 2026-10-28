@@ -98,11 +98,6 @@ internal static class ReportExportSupport
         return current;
     }
 
-    public static string RequireRevision(
-        IReadOnlyList<SavedFilterScenario> scenarios,
-        string requestedRevision) =>
-        RequireRevisionState(scenarios, requestedRevision).Revision;
-
     public static CurrentFilterRevision RequireRevisionState(
         IReadOnlyList<SavedFilterScenario> scenarios,
         string requestedRevision)

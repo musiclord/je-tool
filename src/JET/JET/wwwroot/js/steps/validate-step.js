@@ -1,7 +1,8 @@
 /*
-  Step 3：資料驗證與測試（四項資料驗證 + 預篩選合併步驟）。
+  第四步：資料驗證與測試，四項資料驗證與預篩選在同一步。
   規則名稱對齊後端 RuleCatalog（V/R 代號已退役）；
   標題與說明只是 presentation，權威規則一律在後端 SQL。
+  規則無法執行時只顯示後端寫的一句原因，句子已寫出缺什麼、到哪裡補，畫面不另接補救文字。
 */
 (function (global) {
   'use strict';
@@ -48,7 +49,8 @@
       : { tone: 'ok', text: '未發現', tip: tip };
   }
 
-  // 過帳／核准成對計數（週末／假日規則）。approvalCount 為 null 表示核准日未配對。
+  // 過帳／核准成對計數（週末／假日規則）。naReason 只在整張卡無法執行時才有；只有核准側沒有檢查時
+  // approvalCount 為 null，提示用後端的 approvalNaReason，說明只檢查了總帳日期。
   // rule 缺漏（resume 舊版結果）→「未執行」，理由同 hitCountStatus。
   function pairCountStatus(rule) {
     if (!rule) { return null; }
@@ -59,8 +61,22 @@
     return {
       tone: any ? 'hit' : 'ok',
       text: '過帳 ' + countText(rule.postingCount) + '，核准 ' + approval,
-      tip: rule.approvalCount == null ? '未配對「傳票核准日」欄位，無法檢查核准日期。' : undefined
+      tip: rule.approvalNaReason || undefined
     };
+  }
+
+  // 週末與假日卡的明細用同一個方法：整張卡無法執行時只顯示後端的原因；只有核准側沒有檢查時，
+  // 照常列出總帳日期那一側的分錄，前面放後端那句「只檢查了總帳日期」的說明。
+  function activityDetail(activity, postingKey, approvalKey) {
+    if (activity.naReason) { return { kind: 'reason', text: activity.naReason }; }
+    var previews = [];
+    if (Number(activity.postingCount) > 0) { previews.push({ label: '過帳側', key: postingKey }); }
+    if (activity.approvalCount != null && Number(activity.approvalCount) > 0) { previews.push({ label: '核准側', key: approvalKey }); }
+    var sections = [];
+    if (activity.approvalNaReason) { sections.push({ kind: 'reason', text: activity.approvalNaReason }); }
+    if (previews.length > 0) { sections.push({ kind: 'prescreenPreview', previews: previews }); }
+    if (sections.length === 0) { return null; }
+    return sections.length === 1 ? sections[0] : { kind: 'sections', sections: sections };
   }
 
   // 預篩選命中首頁快取：以 runId + '|' + prescreenKey 為鍵；完整明細仍由使用者以 keyset 逐頁載入。
@@ -253,8 +269,7 @@
     if (!detail) { return ''; }
     if (detail.kind === 'sections') { return detail.sections.map(function (section, index) { return detailHtml(section, (scrollKey || 'detail') + '-' + index); }).join(''); }
     if (detail.kind === 'reason') {
-      return '<p class="rule-detail__reason">' + Ui.esc(detail.text) + '</p>' +
-             (detail.remedy ? '<p class="rule-detail__remedy">' + Ui.esc(detail.remedy) + '</p>' : '');
+      return '<p class="rule-detail__reason">' + Ui.esc(detail.text) + '</p>';
     }
     if (detail.kind === 'table') {
       // detail.pageQuery 是這張表分頁查詢的識別（DETAIL_PAGE_SPECS 的鍵）；有分頁查詢的表才提供排序與搜尋。
@@ -341,8 +356,8 @@
   // 分頁數字欄靠右，和 detailHtml 的 numeric 對齊。
   function amountColumn(cell) { return { cell: cell, className: 'preview-table__amount' }; }
 
-  // 空值四子項共對應五個後端 category 與固定的「異常類別」顯示字;
-  // id 形如 null-<category>,動態註冊進 DETAIL_PAGE_SPECS（columns 與既有空值 table 欄序對齊）。
+  // 空值子項對應後端 category 與固定的「異常類別」顯示字；id 形如 null-<category>，動態註冊進 DETAIL_PAGE_SPECS
+  // （columns 與既有空值 table 欄序對齊）。空白摘要只在預篩選訊號那一處呈現，這裡不再註冊它的明細頁。
   function nullPageSpec(category, categoryLabel) {
     return {
       fetchPage: function (cursor, sort, search) {
@@ -361,7 +376,6 @@
   // 後端 nullRecordsPage 白名單四 category → 「異常類別」顯示字(對齊 issuesCn map)。
   // 空白總帳日期已改由來源品質承載，不再屬於空值紀錄測試。
   DETAIL_PAGE_SPECS['null-outOfRangeDate'] = nullPageSpec('outOfRangeDate', '核准日不在期間');
-  DETAIL_PAGE_SPECS['null-nullDescription'] = nullPageSpec('nullDescription', '空白摘要');
   DETAIL_PAGE_SPECS['null-nullDocument'] = nullPageSpec('nullDocument', '空白傳票號碼');
   DETAIL_PAGE_SPECS['null-nullAccount'] = nullPageSpec('nullAccount', '空白科目編號');
 
@@ -413,21 +427,22 @@
   // 每個子項讀對應子計數作徽章，詳情用 nullRows 的 issues 標籤過濾出該類列
   // 摘要樣本只供尚未展開的初始結構；展開後直接讀取該類別第一頁，不以樣本判斷是否有明細。
   // categories 只放一個 nullRecordsPage 的 category 白名單值，對應 DETAIL_PAGE_SPECS 的 null-<category>。
-  function nullSubItem(title, desc, issueKeys, countOf, categories) {
+  // naReasonOf：後端判定這一類無法檢查時回傳它寫的原因（例如傳票核准日不可用），畫面只顯示這一句，不寫「通過」。
+  function nullSubItem(title, desc, issueKeys, countOf, categories, naReasonOf) {
+    function naReason(v) { return naReasonOf ? naReasonOf(v.nullRecordsTest) : null; }
     return {
       title: title,
       desc: desc,
       status: function (v) {
         if (!v) { return null; }
-        if (categories && categories.length === 1 && categories[0] === 'nullDescription') {
-          return hitCountStatus({ count: v.nullRecordsTest.nullDescriptionCount });
-        }
+        if (naReason(v)) { return naStatus({ naReason: naReason(v) }); }
         var n = countOf(v.nullRecordsTest);
         return n > 0
           ? { tone: 'alert', text: n.toLocaleString() + ' 筆異常' }
           : { tone: 'ok', text: '通過' };
       },
       detail: function (v) {
+        if (v && naReason(v)) { return { kind: 'reason', text: naReason(v) }; }
         if (!v || countOf(v.nullRecordsTest) <= 0) { return null; }
         var rows = (v.nullRecordsTest.nullRows || []).filter(function (r) {
           return (r.issues || []).some(function (k) { return issueKeys.indexOf(k) >= 0; });
@@ -495,11 +510,7 @@
           });
         }
         if (!eligibility.isEligible || eligibility.warning) {
-          return withControlTotals(v, {
-            kind: 'reason',
-            text: eligibility.reason || eligibility.warning,
-            remedy: eligibility.isEligible ? null : '請重新執行「資料驗證」。'
-          });
+          return withControlTotals(v, { kind: 'reason', text: eligibility.reason || eligibility.warning });
         }
         return withControlTotals(v, null);
       }
@@ -556,8 +567,10 @@
         return { kind: 'dynamicPage', pageKey: 'inf' };
       }
     },
+    // 傳票核准日不可用時後端不檢查，筆數是 null 並寫原因（使用者 2026-10-23 裁定）。
     nullSubItem('核准日不在期間', '傳票核准日落在查核期間之外的分錄。', ['date'],
-      function (nrt) { return Number(nrt.outOfRangeDateCount); }, ['outOfRangeDate']),
+      function (nrt) { return Number(nrt.outOfRangeDateCount); }, ['outOfRangeDate'],
+      function (nrt) { return nrt.outOfRangeDateNaReason || null; }),
     {
       // 來源品質是 validate.run 的獨立區塊，不是第五條資料驗證規則：它看的是 PBC-GL，
       // 不套查核期間，因此筆數不與空值紀錄的四類相加。
@@ -595,13 +608,12 @@
     }
   ];
 
-  // 空值紀錄測試的「空白摘要」「空白傳票號碼／科目」兩個子項改列在「風險預篩選」卡呈現
+  // 空值紀錄測試的「空白傳票號碼」「空白科目編號」兩個子項列在「風險預篩選」卡的資料缺漏輔助檢視
   // （呈現位置移動，資料來源不變）。兩者仍是後端單一 null_records_test 規則的子計數，
   // 由 validate.run 產生，因此它們的 runData 一律吃 state.lastRuns.validate（不是 prescreen）。
+  // 空白摘要只留預篩選訊號那一處（預篩選收斂計畫階段九），驗證報告照舊由後端寫出；
   // 「核准日不在期間」留在資料驗證卡，因為它是資料品質面（期間界定）而非風險候選面。
   var NULL_PRESCREEN_ITEMS = [
-    nullSubItem('空白摘要', Ui.prescreenConditionDescription('blankDescription'), ['description'],
-      function (nrt) { return Number(nrt.nullDescriptionCount); }, ['nullDescription']),
     nullSubItem('空白傳票號碼', '傳票號碼空白的分錄。與空白科目編號分開列示；傳票號碼與科目編號都空白的分錄，兩份明細都會列出。', ['document'],
       function (nrt) { return Number(nrt.nullDocumentCount); }, ['nullDocument']),
     nullSubItem('空白科目編號', '科目編號空白的分錄。各類筆數分別計算，不將兩類相加當作分錄總數。', ['account'],
@@ -615,9 +627,7 @@
       status: function (p) { return p ? hitCountStatus(p.postPeriodApproval) : null; },
       detail: function (p) {
         if (!p) { return null; }
-        if (p.postPeriodApproval.naReason) {
-          return { kind: 'reason', text: p.postPeriodApproval.naReason, remedy: '確認查核期間與核准日欄位配對正確' };
-        }
+        if (p.postPeriodApproval.naReason) { return { kind: 'reason', text: p.postPeriodApproval.naReason }; }
         if (Number(p.postPeriodApproval.count) > 0) {
           return { kind: 'prescreenPreview', previews: [{ label: '符合條件的分錄', key: 'postPeriodApproval' }] };
         }
@@ -630,9 +640,6 @@
       status: function (p) { return p ? hitCountStatus(p.suspiciousKeywords) : null; },
       detail: function (p) {
         if (!p) { return null; }
-        if (p.suspiciousKeywords.naReason) {
-          return { kind: 'reason', text: p.suspiciousKeywords.naReason, remedy: '確認摘要欄位配對正確' };
-        }
         if (Number(p.suspiciousKeywords.count) > 0) {
           return { kind: 'prescreenPreview', previews: [{ label: '符合條件的分錄', key: 'suspiciousKeywords' }] };
         }
@@ -645,9 +652,7 @@
       status: function (p) { return p ? hitCountStatus(p.unexpectedAccountPair) : null; },
       detail: function (p) {
         if (!p) { return null; }
-        if (p.unexpectedAccountPair.naReason) {
-          return { kind: 'reason', text: p.unexpectedAccountPair.naReason, remedy: '在本步驟的「科目配對」區匯入配對檔' };
-        }
+        if (p.unexpectedAccountPair.naReason) { return { kind: 'reason', text: p.unexpectedAccountPair.naReason }; }
         if (Number(p.unexpectedAccountPair.count) > 0) {
           return { kind: 'prescreenPreview', previews: [{ label: '符合條件的分錄', key: 'unexpectedAccountPair' }] };
         }
@@ -663,9 +668,6 @@
       },
       detail: function (p) {
         if (!p) { return null; }
-        if (p.trailingZeros.naReason) {
-          return { kind: 'reason', text: p.trailingZeros.naReason, remedy: '確認金額欄位配對正確' };
-        }
         if (Number(p.trailingZeros.count) > 0) {
           return { kind: 'prescreenPreview', previews: [{ label: '符合條件的分錄', key: 'trailingZeros' }] };
         }
@@ -687,9 +689,7 @@
       },
       detail: function (p) {
         if (!p) { return null; }
-        if (p.creatorSummary.naReason) {
-          return { kind: 'reason', text: p.creatorSummary.naReason, remedy: '確認建立者欄位配對正確' };
-        }
+        if (p.creatorSummary.naReason) { return { kind: 'reason', text: p.creatorSummary.naReason }; }
         if (p.creatorSummary.creators && p.creatorSummary.creators.length > 0) {
           var rows = p.creatorSummary.creators.map(function (c) {
             return [
@@ -740,39 +740,13 @@
       title: '週末過帳／核准之分錄',
       desc: '總帳日期或傳票核准日落在設定週末日的分錄（補班日仍納入）。',
       status: function (p) { return p ? pairCountStatus(p.weekendActivity) : null; },
-      detail: function (p) {
-        if (!p) { return null; }
-        if (p.weekendActivity.naReason) {
-          return { kind: 'reason', text: p.weekendActivity.naReason, remedy: '確認總帳日期欄位配對正確' };
-        }
-        var previews = [];
-        if (Number(p.weekendActivity.postingCount) > 0) {
-          previews.push({ label: '過帳側', key: 'weekendPosting' });
-        }
-        if (p.weekendActivity.approvalCount != null && Number(p.weekendActivity.approvalCount) > 0) {
-          previews.push({ label: '核准側', key: 'weekendApproval' });
-        }
-        return previews.length > 0 ? { kind: 'prescreenPreview', previews: previews } : null;
-      }
+      detail: function (p) { return p ? activityDetail(p.weekendActivity, 'weekendPosting', 'weekendApproval') : null; }
     },
     {
       title: '假日過帳／核准之分錄',
       desc: '總帳日期或傳票核准日落在國定假日的分錄（需先匯入假日清單）。',
       status: function (p) { return p ? pairCountStatus(p.holidayActivity) : null; },
-      detail: function (p) {
-        if (!p) { return null; }
-        if (p.holidayActivity.naReason) {
-          return { kind: 'reason', text: p.holidayActivity.naReason, remedy: '先匯入假日清單' };
-        }
-        var previews = [];
-        if (Number(p.holidayActivity.postingCount) > 0) {
-          previews.push({ label: '過帳側', key: 'holidayPosting' });
-        }
-        if (p.holidayActivity.approvalCount != null && Number(p.holidayActivity.approvalCount) > 0) {
-          previews.push({ label: '核准側', key: 'holidayApproval' });
-        }
-        return previews.length > 0 ? { kind: 'prescreenPreview', previews: previews } : null;
-      }
+      detail: function (p) { return p ? activityDetail(p.holidayActivity, 'holidayPosting', 'holidayApproval') : null; }
     },
     {
       title: '空白摘要',
@@ -780,9 +754,6 @@
       status: function (p) { return p ? hitCountStatus(p.blankDescription) : null; },
       detail: function (p) {
         if (!p) { return null; }
-        if (p.blankDescription.naReason) {
-          return { kind: 'reason', text: p.blankDescription.naReason, remedy: '確認摘要欄位配對正確' };
-        }
         if (Number(p.blankDescription.count) > 0) {
           return { kind: 'prescreenPreview', previews: [{ label: '符合條件的分錄', key: 'blankDescription' }] };
         }
@@ -795,10 +766,7 @@
       status: function (p) { return p ? hitCountStatus(p.nonAuthorizedPreparer) : null; },
       detail: function (p) {
         if (!p) { return null; }
-        if (p.nonAuthorizedPreparer.naReason) {
-          return { kind: 'reason', text: p.nonAuthorizedPreparer.naReason,
-            remedy: '先到「匯入資料」上傳授權編製人員清單' };
-        }
+        if (p.nonAuthorizedPreparer.naReason) { return { kind: 'reason', text: p.nonAuthorizedPreparer.naReason }; }
         if (Number(p.nonAuthorizedPreparer.count) > 0) {
           return { kind: 'prescreenPreview', previews: [{ label: '符合條件的分錄', key: 'nonAuthorizedPreparer' }] };
         }
@@ -811,9 +779,7 @@
       status: function (p) { return p ? hitCountStatus(p.lowFrequencyPreparer) : null; },
       detail: function (p) {
         if (!p) { return null; }
-        if (p.lowFrequencyPreparer.naReason) {
-          return { kind: 'reason', text: p.lowFrequencyPreparer.naReason, remedy: '確認建立者欄位配對正確' };
-        }
+        if (p.lowFrequencyPreparer.naReason) { return { kind: 'reason', text: p.lowFrequencyPreparer.naReason }; }
         if (Number(p.lowFrequencyPreparer.count) > 0) {
           return { kind: 'prescreenPreview', previews: [{ label: '符合條件的分錄', key: 'lowFrequencyPreparer' }] };
         }

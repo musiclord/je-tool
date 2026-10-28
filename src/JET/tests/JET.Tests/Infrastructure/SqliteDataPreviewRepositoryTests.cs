@@ -105,12 +105,15 @@ public sealed class SqliteDataPreviewRepositoryTests
         await SeedGlPopulationAsync(fixture);
 
         // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
+        // 使用者 2026-10-22 裁定資料預覽依配對列欄位（預篩選收斂計畫階段五）：倉儲改由呼叫端傳入欄位計畫，
+        // 這裡用配對了過帳狀態的計畫。原本不傳計畫、欄位固定；第一次失敗：Focused 收據 20261023-112236182-bd560fe8519e41f1b448404a6a45e026，建置失敗。
         var effective = await fixture.Repository.GetPreviewAsync(
             fixture.ProjectId,
             DataPreviewDataset.Gl,
             moneyScale: 100,
             limit: 100,
-            CancellationToken.None);
+            CancellationToken.None,
+            glColumns: DataPreviewGlColumns.For(DataPreviewDataset.Gl, PostingStatusMapping, options: null));
 
         Assert.Equal(1, effective.TotalCount);
         Assert.Equal("JV-100", Assert.Single(effective.Rows)[0]);
@@ -124,20 +127,23 @@ public sealed class SqliteDataPreviewRepositoryTests
             DataPreviewDataset.GlExcluded,
             moneyScale: 100,
             limit: 1,
-            CancellationToken.None);
+            CancellationToken.None,
+            glColumns: DataPreviewGlColumns.For(DataPreviewDataset.GlExcluded, PostingStatusMapping, options: null));
 
+        // 過帳狀態是選填欄位，接在核心八欄後面；原本固定十欄、過帳狀態排第四（第一次失敗同上）。
         Assert.Equal(
             [
-                "documentNumber", "lineItem", "postDate", "postingStatus", "accountCode", "accountName",
-                "documentDescription", "amount", "drCr", "exclusionReason"
+                "documentNumber", "lineItem", "postDate", "accountCode", "accountName",
+                "documentDescription", "amount", "drCr", "postingStatus", "exclusionReason"
             ],
             excluded.Columns);
+        Assert.Equal(excluded.Columns, excluded.ColumnDetails!.Select(column => column.Key));
         Assert.Equal(3, excluded.TotalCount);
         var row = Assert.Single(excluded.Rows);
         // 使用者 2026-10-21 裁定日期不符分成三種原因：總帳日期空白的列記成 blank_post_date，讀成 blankPostDate。
         // 種子原本是改版前的 period，第一次失敗是讀不出這個值（收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a）。
         Assert.Equal(
-            ["JV-200", "1", null, "POSTED", "5200", "一般費用", "期外", "10", "DEBIT", "blankPostDate"],
+            ["JV-200", "1", null, "5200", "一般費用", "期外", "10", "DEBIT", "POSTED", "blankPostDate"],
             row);
         // 使用者 2026-10-21 裁定日期不符分成三種原因，兩個計數改成四個；改名前的建置失敗收據
         // 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
@@ -156,14 +162,16 @@ public sealed class SqliteDataPreviewRepositoryTests
         using var fixture = new Fixture(provider);
         await fixture.Database.EnsureCreatedAsync(fixture.ProjectId, CancellationToken.None);
 
+        // 還沒確認 GL 配對時只列核心八欄與未納入原因（預篩選收斂計畫階段五）；原本固定十欄，第一次失敗同上一個測試。
         var result = await fixture.Repository.GetPreviewAsync(
             fixture.ProjectId,
             DataPreviewDataset.GlExcluded,
             moneyScale: 100,
             limit: 1,
-            CancellationToken.None);
+            CancellationToken.None,
+            glColumns: DataPreviewGlColumns.For(DataPreviewDataset.GlExcluded, mapping: null, options: null));
 
-        Assert.Equal(10, result.Columns.Count);
+        Assert.Equal(9, result.Columns.Count);
         Assert.Empty(result.Rows);
         Assert.Equal(0, result.TotalCount);
         // 使用者 2026-10-21 裁定日期不符分成三種原因，兩個計數改成四個；改名前的建置失敗收據
@@ -173,6 +181,21 @@ public sealed class SqliteDataPreviewRepositoryTests
         Assert.Equal(0, stats.BeforePeriodCount);
         Assert.Equal(0, stats.AfterPeriodCount);
         Assert.Equal(0, stats.PostingStatusCount);
+    }
+
+    [Theory]
+    [InlineData(DataPreviewDataset.Gl)]
+    [InlineData(DataPreviewDataset.GlExcluded)]
+    public async Task GetPreviewAsync_GlPagesWithoutColumnPlan_Throw(DataPreviewDataset dataset)
+    {
+        // GL 兩頁的欄位由呼叫端依配對決定，倉儲不自己猜；漏傳時明確失敗（預篩選收斂計畫階段五，第一次失敗同上）。
+        using var fixture = new Fixture();
+        await fixture.Database.EnsureCreatedAsync(fixture.ProjectId, CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(() => fixture.Repository.GetPreviewAsync(
+            fixture.ProjectId, dataset, moneyScale: 100, limit: 1, CancellationToken.None));
+
+        Assert.Equal("glColumns", exception.ParamName);
     }
 
     [Fact]
@@ -248,6 +271,19 @@ public sealed class SqliteDataPreviewRepositoryTests
         Assert.Equal("—", overview[4]);
         Assert.Equal("StructureOnly", overview[3]);
     }
+
+    /// <summary>必填欄位與過帳狀態都有來源欄、其他選填欄位沒有配對的 GL 配對。</summary>
+    private static readonly IReadOnlyDictionary<string, string> PostingStatusMapping =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [GlMappingKeys.DocNum] = "doc",
+            [GlMappingKeys.PostDate] = "date",
+            [GlMappingKeys.AccNum] = "account",
+            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.Description] = "description",
+            [GlMappingKeys.Amount] = "amount",
+            [GlMappingKeys.PostingStatus] = "status"
+        };
 
     private static async Task SeedGlPopulationAsync(Fixture fixture)
     {

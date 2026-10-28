@@ -6,7 +6,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 常用情境範本（FILTER_SCENARIO_TEMPLATES）的守衛：每筆範本的規則型別都是後端認得的 wire 型別、模式在 Domain
-/// 標籤表內、需要科目配對的範本有標記。範本的套用入口與組合卡，2026-10-14 起改由
+/// 標籤表內，範本與常用查核條件不另寫前置條件。範本的套用入口與組合卡，2026-10-14 起改由
 /// <c>tools/tests/frontend-journey-filter-build.test.cjs</c> 的行為測試核對；這裡只留前後端型別與模式的原始碼比對。
 /// </summary>
 public sealed class FilterTemplatesFrontendTests
@@ -36,16 +36,20 @@ public sealed class FilterTemplatesFrontendTests
         Assert.Equal(10, keys.Length);
         Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
         AssertKnownRuleShapes(body, "範本");
-        // 借現金貸非現金與貸現金借非現金一定要標需要科目配對，否則沒有配對時套用會在預覽才失敗。
-        Assert.Matches(new Regex(@"key:\s*'cashDebitNonCashCredit'[^}]*requires:\s*'accountMapping'"), body);
-        Assert.Matches(new Regex(@"key:\s*'cashCreditNonCashDebit'[^}]*requires:\s*'accountMapping'"), body);
-        // 後端對未配對核心欄位的空白比較會擋，財報準備日起核准沒有準備日也會擋，所以這兩個範例要標前置條件。
-        Assert.Matches(new Regex(@"key:\s*'blankDescriptionOrApprover'[^}]*requires:\s*'approveByMapped'"), body);
-        Assert.Matches(new Regex(@"key:\s*'preparationManualHoliday'[^}]*requires:\s*'preparationDate'"), body);
+        // 原本這裡核對四個範例標了前置條件：兩個現金範例要科目配對，空白核准人員要傳票核准人員，財報準備日起核准要準備日，
+        // 否則缺這些時套用後要到預覽才被後端擋下。預篩選收斂計畫階段四（2026-10-23）拿掉範例上的 requires，範例的前置條件改由
+        // 條件內容查和後端同一張需求表；表和後端驗證器的一致由 FilterBackendRuleMirrorFrontendTests 核對，範例停用並寫原因由
+        // frontend-journey-filter-build.test.cjs 的階段四測試（兩個現金範例另有一則）與 frontend-workflow.test.cjs 的範例測試操作核對。
+        // 第一次失敗：Focused 收據 20261023-045313479-2a121804a0e04b518609f80bf108ad65（範例上已經沒有 requires）。
+        Assert.DoesNotContain("requires:", body, StringComparison.Ordinal);
         // 只有部門範例要選文字型攸關資料元素欄位。
         Assert.Equal(new[] { "text" }, Regex.Matches(body, @"pickField:\s*'(?<field>[^']+)'").Select(m => m.Groups["field"].Value).ToArray());
         Assert.Matches(new Regex(@"key:\s*'manualDepartment'[^}]*pickField:\s*'text'"), body);
-        AssertClosedRequirements(core, body);
+        // 前端也不再匯出另一份前置條件詞彙；每一種前置條件都有判斷，改由 FilterBackendRuleMirrorFrontendTests 核對。
+        // 使用者 2026-10-14 第三輪勾選頁確認刪除的「案件沒有查核截止日」分支與 periodEnd 前置條件維持刪除
+        // （第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）：後端需求表沒有這一種，
+        // 範例不因此停用由 frontend-workflow.test.cjs 的範例測試核對。
+        Assert.DoesNotContain("FILTER_CONDITION_REQUIREMENTS", core, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -57,7 +61,8 @@ public sealed class FilterTemplatesFrontendTests
         Assert.True(match.Success, "ui-core.js 找不到 FILTER_COMMON_CHECK_GROUPS");
         var body = match.Groups["body"].Value;
         AssertKnownRuleShapes(body, "常用查核條件");
-        AssertClosedRequirements(core, body);
+        // 同一階段拿掉常用查核條件上的 requires，前置條件改由條件內容查同一張需求表（第一次失敗：同上收據）。
+        Assert.DoesNotContain("requires:", body, StringComparison.Ordinal);
         foreach (Match key in Regex.Matches(body, @"prescreenKey:\s*'(?<key>[^']+)'"))
         {
             Assert.True(FilterConditionLabels.PrescreenKeys.ContainsKey(key.Groups["key"].Value), key.Groups["key"].Value);
@@ -88,27 +93,6 @@ public sealed class FilterTemplatesFrontendTests
         foreach (Match op in Regex.Matches(body, @"countOperator:\s*'(?<op>[^']+)'"))
         {
             Assert.True(EntityFrequencyConditions.Operators.ContainsKey(op.Groups["op"].Value), op.Groups["op"].Value);
-        }
-    }
-
-    // requires 只能是 ui-core.js 的 FILTER_CONDITION_REQUIREMENTS 列出的幾種，filter-step 對每一種都有停用原因。
-    private static void AssertClosedRequirements(string core, string body)
-    {
-        var list = Regex.Match(core, @"var FILTER_CONDITION_REQUIREMENTS = \[(?<body>[^\]]*)\];").Groups["body"].Value;
-        var allowed = Regex.Matches(list, @"'(?<value>[^']+)'").Select(m => m.Groups["value"].Value).ToHashSet(StringComparer.Ordinal);
-        // 使用者 2026-10-14 第三輪勾選頁確認 第 2 節刪除沒有作用的程式（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
-        // 查核截止日在建立案件時必填，「案件沒有查核截止日」的分支與 periodEnd 前置條件一起刪除。
-        Assert.Equal(new[] { "accountMapping", "approveByMapped", "createByMapped", "preparationDate", "unexpectedAccountPair" },
-            allowed.Order(StringComparer.Ordinal).ToArray());
-        Assert.DoesNotContain("'periodEnd'", list, StringComparison.Ordinal);
-        var filter = Read("js", "steps", "filter-step.js");
-        foreach (var value in allowed)
-        {
-            Assert.Contains("if (requires === '" + value + "')", filter, StringComparison.Ordinal);
-        }
-        foreach (Match requires in Regex.Matches(body, @"requires:\s*'(?<value>[^']+)'"))
-        {
-            Assert.Contains(requires.Groups["value"].Value, allowed);
         }
     }
 }

@@ -36,16 +36,12 @@ public sealed class SqlServerFilterRunRepository(SqlServerProjectDatabase databa
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 連續零尾數條件的模數與 prescreen.run 同源（固定預設 Domain 門檻）。
-        var zeroModulus = TrailingZeroThreshold.UnitModulus(
-            TrailingZeroThreshold.DefaultZerosThreshold);
-
         var count = await ExecuteScalarAsync(
-            connection, projectId, scenario, context, zeroModulus, "COUNT_BIG(*)", cancellationToken);
+            connection, projectId, scenario, context, "COUNT_BIG(*)", cancellationToken);
         var voucherCount = await ExecuteScalarAsync(
-            connection, projectId, scenario, context, zeroModulus, "COUNT_BIG(DISTINCT g.document_number)", cancellationToken);
+            connection, projectId, scenario, context, "COUNT_BIG(DISTINCT g.document_number)", cancellationToken);
         var previewRows = await ReadPreviewRowsAsync(
-            connection, projectId, scenario, context, zeroModulus, cancellationToken);
+            connection, projectId, scenario, context, cancellationToken);
 
         return new FilterPreviewResult(count, voucherCount, previewRows);
     }
@@ -61,13 +57,10 @@ public sealed class SqlServerFilterRunRepository(SqlServerProjectDatabase databa
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        var zeroModulus = TrailingZeroThreshold.UnitModulus(
-            TrailingZeroThreshold.DefaultZerosThreshold);
         await using var command = connection.CreateCommand();
         var plan = WhereBuilder.BuildPlan(
             scenario,
             context,
-            zeroModulus,
             SqlServerProjectSchema.QualifierFor(projectId));
         plan.BindParametersTo(command);
         // 條件的 WHERE plan 只引用子查詢的 g；外層用另一個別名列出同傳票的全部分錄。
@@ -89,7 +82,6 @@ public sealed class SqlServerFilterRunRepository(SqlServerProjectDatabase databa
         string projectId,
         FilterScenarioSpec scenario,
         FilterRuleContext context,
-        long zeroModulus,
         string selectExpression,
         CancellationToken cancellationToken)
     {
@@ -97,7 +89,6 @@ public sealed class SqlServerFilterRunRepository(SqlServerProjectDatabase databa
         var plan = WhereBuilder.BuildPlan(
             scenario,
             context,
-            zeroModulus,
             SqlServerProjectSchema.QualifierFor(projectId));
         plan.BindParametersTo(command);
         // {s} 由命令工廠收斂;WhereBuilder 需先綁到 command,故借工廠展開 token 後回填本命令。
@@ -117,14 +108,12 @@ public sealed class SqlServerFilterRunRepository(SqlServerProjectDatabase databa
         string projectId,
         FilterScenarioSpec scenario,
         FilterRuleContext context,
-        long zeroModulus,
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         var plan = WhereBuilder.BuildPlan(
             scenario,
             context,
-            zeroModulus,
             SqlServerProjectSchema.QualifierFor(projectId));
         plan.BindParametersTo(command);
         // {s} 由命令工廠收斂;WhereBuilder 需先綁到 command,故借工廠展開 token 後回填本命令。

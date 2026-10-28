@@ -172,6 +172,12 @@ SQLite 與 DuckDB 案件不送。這個 action 本身與 `project.load` 回應�
 `{ "voucherDate": "傳票日期" }`，內容來自 `JetFieldCatalog.RetiredGlFieldLabels`。舊情境用到這些欄位時，
 前端用它寫出「傳票日期（已移除）」與「已移除的「傳票日期」」，不印程式代號（使用者 2026-10-14 第三輪勾選頁確認）。
 
+`project.load` 回應的 `mapping.gl` 另含 `availableGlFields`，是已確認的 GL 配對裡有來源的 GL 語意欄位，例如 `docNum`、`createBy`。
+清單由 `JetFieldCatalog.AvailableGlFields` 算出：欄位有來源欄，或欄位目錄標示它有衍生來源，就列入。傳票文件項次 `lineID`
+一律列入，因為沒有來源時由系統自動編號；傳票核准日 `docDate` 在 `approvalDateMode` 為 `sameAsPostDate` 時也列入。
+`mapping.commit.gl` 的成功回應在最上層帶同一份清單。前端把它存在已確認的 GL 配對上，第五步凡是用到清單外欄位的入口，一律停用；
+清單只供畫面呈現，第五步的驗證與預篩選在後端用同一個方法重新算，不讀前端送的資料。
+
 `project.load` 回應另含 `filterScenarioCheck: { status, recalculatedCount, problems }`，說明開案時用目前篩選規則
 檢查已儲存情境的結果。已是目前規則版本的情境也逐一檢查（使用者 2026-10-13 裁定）。`status` 為 `current`（沒有情境，或都已是目前規則而且檢查合格）、`recalculated`（整批已改用目前規則，
 `recalculatedCount` 是情境數，舊命中已清除，條件篩選報告與底稿依新的 revision 標為過期）、`needsEdit`
@@ -292,6 +298,13 @@ GL 與 TB 匯入成功回應的 `warnings` 為字串陣列。追加來源的實�
 另記一筆 `import.inspect` 事件，只含格式、欄數、工作表數、編碼與分隔符。解碼失敗時，診斷欄位的 `encoding`
 寫實際用來解碼的編碼；自動偵測編碼時也一樣，不寫 `unknown`。
 
+`import.previewFile` 的 payload 與 `import.gl.fromFile`、`import.tb.fromFile` 的每個來源都可以帶 `headerRow`，指欄名在第幾列，
+從 1 起算，以檔案的實際列號計算，空白列也算；省略時是 1，和以前一樣取第一個有內容的列當欄名。Excel 與文字檔都接受；
+Access 資料表的欄名來自資料表本身，帶了以 `invalid_payload` 拒絕，不是正整數也拒絕。欄名列起沒有任何內容時以 `empty_workbook` 拒絕，
+訊息寫從第幾列起沒有內容。它只解決表頭：欄名列之前的列全部略過，
+表尾的合計列仍會被當成資料。匯入成功回應與 `project.load` 的 `importState` 裡，每個來源的 `sources[].headerRow` 寫回審計員指定的列號，
+沒指定時是 null。這是預篩選收斂計畫階段六，使用者 2026-10-22 裁定開放給 GL 與 TB 的一般匯入。
+
 授權清單匯入可傳入 `sheetName`，`sourceColumn` 必填並須精確對應來源標頭；畫面要求審計員選取與 GL
 傳票建立人員相同的識別欄。省略欄位或所選欄沒有有效識別值時回 `invalid_payload`，`field` 為 `sourceColumn`，
 並說明如何改選欄位或換檔重試；失敗不取代原名單與相依結果。
@@ -339,9 +352,12 @@ GL 的 `side` 與 `flag` 金額模式共用判定，畫面合併為「金額與�
 舊案已投影資料不自動重寫。重新確認 GL 配對才按目前設定投影；還原草稿接受有效的單邊代碼，但不猜另一側代碼，也不改寫已確認配對。
 千分位逗號只接受每組三位；括號可表示負數，不可再疊加正負號。正負號放在尾端時，前面可以有空白，有沒有千分位都讀成同一個值。
 GL、TB、RDE 金額與篩選運算值共用相同解析。
-Excel 序列值只接受 1900 到 2100 年，原生日期儲存格及 1904 日期制同樣檢查；明確西元或民國文字日期的原範圍不變，Access 原生日期不套 Excel 限制。
-帶逗號的數字不當成序列值，也不交給寬鬆解析；不論逗號是否三位一組（例如 `1,234`、`12,31`），都視為無法辨識的日期，
-確認配對時寫出列號。第五步貼上的日期清單同樣保留原文，由後端寫出格式錯誤。這是使用者 2026-10-19 的裁定。
+純數字不當成日期（使用者 2026-10-22 裁定）：沒套日期格式的數字儲存格與文字檔裡的 `2025`、`2025.12`、`45292` 這類值，
+以前被當成 Excel 序列值換算，現在都視為無法辨識的日期，確認配對時寫出列號。日期型儲存格由讀取器依儲存格格式換成 ISO，
+只接受 1900 到 2100 年，1904 日期制同樣檢查，超出範圍的儲存格也以無法辨識列出列號；明確西元或民國文字日期的原範圍不變，
+Access 原生日期不套 Excel 限制。帶逗號的數字不當成日期，也不交給寬鬆解析；不論逗號是否三位一組（例如 `1,234`、`12,31`），
+都視為無法辨識的日期，確認配對時寫出列號。第五步貼上的日期清單同樣保留原文，由後端寫出格式錯誤。這是使用者 2026-10-19 的裁定。
+前後端的日期規則共用 `tools/tests/fixtures/date-normalization.json` 的固定答案，一邊改了規則，另一邊的測試就會失敗。
 年份在後的數字三段式日期不猜月日順序，帶時間也一樣拒絕。
 交給寬鬆解析的值，原文要寫出四位數年份與日：`12/31`、`2025-12`、`Dec 2025`、`31 Dec`、`Dec 31, 25` 這類缺年份、缺日
 或只寫兩位數年份的值，不再補成今年、補成 1 日或猜年份，同樣視為無法辨識的日期，確認配對時寫出列號，日期清單也由後端寫出格式錯誤。
@@ -353,6 +369,9 @@ Excel 序列值只接受 1900 到 2100 年，原生日期儲存格及 1904 日�
 同時回傳 `comparisonKeys`，每項為 `{ value, key }`，保留每個原始字串及後端產生的比對鍵。前端用這個鍵連接不同請求的等價關係，
 不能自行把代碼轉大寫；空白的鍵為 null，表示已核對為空白，不是缺少資料，也不等於字串 `"null"`。
 每份回應最多包含當次有界顯示值與最多 100 個請求字串，不把完整來源清單傳給前端。
+可選的 `fillDown` 是布林值，前端在這個來源欄確認配對時會被往下填補時帶 `true`：三種資料庫在每份來源內依列序把空白補成上一列的值，
+再計算常見值、`blankCount` 與 `distinctCount`，每份來源開頭的空白仍算空白，和確認配對時的填補同一規則（使用者 2026-10-28 裁定依勾選先填補再計數）。
+來源存在性的核對照原樣做，填補只複製已有的值；`fillDown` 不是布林值，或和 `comparisonOnly: true` 一起送，都以 `invalid_payload` 拒絕。
 SQLite 和 DuckDB 在資料庫內先用相同的 .NET 比對鍵彙總全部來源，再取常見值與計算不同值數量，大小寫等價的值不分成兩組。
 SQL Server 在資料庫內去掉相同的空白字元後，用方言的轉大寫彙總，大小寫等價的值同樣不分組；罕用字元的已知差異見
 [`jet-guide.md`](jet-guide.md) 第 8 節。
@@ -375,6 +394,16 @@ SQL Server 自 2026-10-19 起也核對完整來源，比對鍵和它的分組相
 清除上一欄的代碼政策。RDE 全選只建立草稿；來源欄、型別、名稱、後端產生並沿用的欄位識別碼，以及核心欄位
 不可重用等規則，仍由後端驗證。`rdeFields[].fieldId` 只能沿用目前已確認配對發出的識別碼；重新匯入後還沒重新確認時，
 改為沿用 `previousMapping` 那一份發出的識別碼，已儲存情境裡指到這些欄位的條件才對得上。其他識別碼照舊拒絕。
+
+`mapping.commit.gl` 另可帶 `fillDownFields`，是要「往下填補空白」的 GL 欄位鍵清單，例如 `docNum`、`postDate`；省略或空陣列表示不填。
+只能是這次配對有來源欄的欄位，借方與貸方代碼是字面值不能填；沒有來源欄、重複或不是 GL 欄位的鍵以 `invalid_payload` 拒絕。
+填補是對來源欄做的，後端把配到同一個來源欄的其他可填欄位一起列入（使用者 2026-10-28 裁定依來源欄成組）。
+確認配對時，JET 在投影每一列之前把這些欄位來源欄的空白補成同一來源內上一列的值，PBC-GL 原樣不動；多個來源追加時不跨來源延續，
+每個來源的第一列空白就是空白；以列序為準，只填勾選欄位的來源欄。成功回應帶 `fillDownFields`（照欄位目錄順序，含一起列入的欄位）
+與 `fillDownCount`（這次補了幾格，沒勾選是 0）。清單與格數跟著配對保存：`project.load` 回應的 `mapping.gl` 帶 `fillDownFields`
+與 `fillDownCount`（格數隨配對保存是使用者 2026-10-28 的裁定）；`previousMapping.gl` 與 `mapping.restoreDraft` 回應的 `gl`
+是草稿，只帶 `fillDownFields`。報告的配對資訊兩項都寫入；改版前的案件與報告沒有時，清單視為空、格數視為 0。
+改選擇只要重新確認配對，走既有的失效規則。這是預篩選收斂計畫階段六，使用者 2026-10-22 裁定放在第三步確認配對時。
 
 過帳狀態的接受值同樣只適用於當時指派的來源欄；取消或更換欄位時清除政策，再由使用者選擇接受值。
 值摘要可分別讀取，失敗後可以重試；快取與配對錯誤都隨案件或匯入來源變更失效，不能沿用舊資料的回應。
@@ -410,6 +439,13 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 驗證的 INF 樣本、來源品質有界樣本與摘要由同一交易取得並保存，摘要寫入失敗會回滾本次樣本與失效狀態變更。
 後端不再把「存在 INF 樣本」視為已完成驗證的證據。
 
+`nullRecordsTest` 另帶可為 null 的字串 `outOfRangeDateNaReason`，對應畫面的「核准日不在期間」。能檢查時，
+`outOfRangeDateCount` 是筆數，原因是 null。傳票核准日不可用時這一項無法執行，`outOfRangeDateCount` 是 null，
+原因由 `JetRuleRequirements` 產生，寫出缺什麼、到哪裡補，前端照原樣顯示。可不可用照 `JetFieldCatalog.AvailableGlFields` 判斷，
+和預篩選、第五步讀同一份答案。存下的摘要裡，筆數與原因必須恰好一個有值。2026-10-23 以前存下的摘要沒有原因欄，
+當成無效結果，需要重新執行資料驗證。
+驗證報告讀同一份摘要，筆數是 null 時主表寫 N/A，也不建立核准日不在期間的明細表。
+
 ### 預篩選
 
 - `prescreen.run`
@@ -418,6 +454,13 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 未配對傳票建立人員時，人員彙總、編製分錄較少的人員及非授權人員測試無法執行。
 這些原因只影響相依規則，不阻擋其他程序；補回配對後重新驗證及預篩選即可。
 進階篩選選用編製分錄較少的人員或非授權人員條件時，也依目前配對指出必要來源缺漏，保留條件供修正，不能把無來源當成零筆。
+
+`naReason` 由 `JetRuleRequirements` 依缺少的前置條件產生，缺幾項接幾句，每句以句號結尾，寫出缺什麼、到哪裡補；
+前端照原樣顯示，不另接補救文字。未預期借貸組合的句子寫科目分類設定裡內建分類目前的名稱，所以 `prescreen.run` 也讀分類設定。
+`weekendActivity` 與 `holidayActivity` 各合併過帳與核准兩側，另帶可為 null 的字串 `approvalNaReason`。
+總帳日期那一側不能執行時，`naReason` 列出兩側的原因，同一句只寫一次，`approvalNaReason` 為 null。
+只有核准側不能執行時，`naReason` 為 null，`approvalNaReason` 是「只檢查了總帳日期。」再接核准側的原因，
+`postingCount` 照常計算，`approvalCount` 為 null。兩側都能執行時，兩個原因都是 null。
 2026-10-08 使用者裁定移除回溯過帳，`prescreen.run` 不再回傳 `backdatedPosting`，`query.prescreenPage` 也不再接受這個規則鍵。
 舊情境含回溯過帳條件時，開案的規則版本檢查會列出這條條件已停用，審計員刪除這條條件後再儲存即可。
 `rareAccounts.lowFrequencyAccountCount` 是整個 GL 中，出現 11 筆以下分錄的相異科目數，不是前 50 個科目摘要的列數。
@@ -426,6 +469,11 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 `creatorSummary.creators` 最多 50 列；`creatorSummary.totalPreparerCount` 是查核期間的完整人數，空白人員組算一位，
 和 `concentration.preparers.totalPreparerCount` 相同。這項不適用時為 null。畫面的「N 位人員」與預篩選報告的摘要列都用這個數字；
 舊結果沒有這個欄位時，畫面請使用者重新執行預篩選，報告沿用清單列數。
+
+`prescreen.run` 的 14 條規則與第五步 `prescreen` 條件的 12 個 `prescreenKey`，都登錄在 Domain 的 `PrescreenRuleDefinitions`；
+`RuleCatalog`、`FilterConditionLabels` 與前端的 `PRESCREEN_RULES` 由它衍生或鏡像，架構測試逐項比對。
+回應裡的 `zerosThreshold` 固定為 6，是「金額尾數連續 6 個 0」規則定義的一部分。
+`lowFrequencyAccount.count` 與 `rareAccounts.lowFrequencyAccountCount` 先去掉科目編號頭尾空白再算，空白科目不列入，和第五步「科目與人員統計」同一個方法。
 
 ### 進階篩選
 
@@ -447,8 +495,8 @@ KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 空值明細的 `query.nullRecordsPage` 保留類別、排序與游標契約；搜尋文字現在比對傳票號碼、科目編號或摘要，
 因此缺傳票號碼的資料也能搜尋。各類結果分別排序及分頁，同筆缺兩欄時在各類明細中各出現一次。
 
-- `query.dataPreview`（`dataset: "gl"` 的 `columns` 最後新增 `manualAuto`，對應值是 `manual`、`automatic` 或 null；
-  既有八欄及順序不變。`glExcluded` 與 `filter.preview` 不加此欄。）
+- `query.dataPreview`（`gl` 與 `glExcluded` 的欄位依已確認的 GL 配對決定，見本節後面的說明。人工或自動分錄有配對時，
+  兩頁都列 `manualAuto`，值是 `manual`、`automatic` 或 null。`filter.preview` 不加此欄。）
   使用者 2026-10-08 裁定資料名稱全系統統一，`dataset` 的值同步改名：`glStaging` 改為 `pbcGl`（PBC-GL），
   `glEntries` 改為 `gl`（GL），`tbStaging` 改為 `pbcTb`（PBC-TB），`tbBalances` 改為 `tb`（TB），
   `glExcludedEntries` 改為 `glExcluded`（GL(未納入測試)）。舊值不再接受，會回 `InvalidPayload`。
@@ -493,7 +541,24 @@ KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 `query.dataPreview` 接受 `dataset`、`limit` 與 `offset`。`limit` 預設 200，上限也是 200；`offset` 預設 0，
 負值視為 0。資料庫依固定順序只讀當頁資料。`offset` 為 0 時，`totalCount` 和 `stats` 描述完整資料集；
 `offset` 大於 0 時兩者為 null，前端沿用第一頁的值。
-回應維持 `dataset`、`columns`、`rows`、`totalCount` 與 `stats`，欄位配對及右側預覽共用這個查詢。
+回應有 `dataset`、`columns`、`columnDetails`、`rows`、`totalCount` 與 `stats`，欄位配對及右側預覽共用這個查詢。
+`columnDetails` 只有 `gl` 與 `glExcluded` 會給，其他資料集是 null。
+
+`dataset` 為 `gl` 或 `glExcluded` 時，兩頁依已確認的 GL 配對列同一組欄位（使用者 2026-10-22 裁定）。
+最前面是固定的八欄：`documentNumber`、`lineItem`、`postDate`、`accountCode`、`accountName`、`documentDescription`、
+`amount` 與 `drCr`。接著依欄位目錄的順序列出已配對的選填欄位，可能有 `approvalDate`、`sourceModule`、`createdBy`、
+`approvedBy`、`manualAuto` 與 `postingStatus`。再來是已配對的攸關資料元素欄位，鍵是欄位識別
+`rde.<32 個小寫十六進位字元>`。`glExcluded` 最後另加 `exclusionReason`。
+選填欄位算不算已配對，和第四步、第五步讀同一份可用欄位，所以傳票核准日選「與總帳日期相同」時也列出 `approvalDate`。
+`lineItem` 是固定欄位，傳票文件項次自動編號時照樣列出。
+未配對的欄位不列，借方與貸方金額也不分欄。`gl` 沒有分錄時，`columns`、`columnDetails` 與 `rows` 都是空陣列；
+`glExcluded` 沒有分錄時照樣列出欄位，只有 `rows` 是空陣列。
+
+`columnDetails` 和 `columns` 順序相同，每一欄是 `{ key, label, valueType }`。`label` 和欄位配對畫面上的名稱相同，
+攸關資料元素用審計員取的名稱；`valueType` 是 `text`、`date` 或 `money`。前端用 `label` 當欄名，只把 `money` 欄靠右對齊。
+`rows` 裡的金額是照資料庫存值換算的十進位字串，例如 `1234.5678` 或 `-1000`，前端補成四位小數加千分位顯示。
+`gl` 的 `stats` 是 `{ amountAbsMin, amountAbsMax, postDateMin, postDateMax, voucherCount }`。兩個金額原本是數字，
+現在改成同樣的十進位字串，因為金額大到約 5,497 億以上時，經過浮點數會讓第四位小數失真。
 
 `dataset` 為 `glExcluded` 時，`rows` 的 `exclusionReason` 欄是 `blankPostDate`（總帳日期空白）、`beforePeriod`
 （早於查核期間）、`afterPeriod`（晚於查核期間）或 `postingStatus`（過帳狀態不符）。使用者 2026-10-21 裁定日期不符分成這三種日期原因，
@@ -557,7 +622,7 @@ KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 | `text`、`textSet` | `keywords`（逗號分隔）、`mode`、`values[]`、`normalization` | `mode` 為 `contains`、`exact`、`notContains`、`notExact`；舊情境讀回與編輯用，不提供新建 |
 | `numRange`、`dateRange` | `field`、`from`、`to` | 金額以顯示值字串，日期為 ISO 字串；區間含兩端 |
 | `drCrOnly`、`manualAuto` | `drCr`、`isManual` | `debit` 或 `credit`；布林 |
-| `customPreparerEntryCount`、`customAccountEntryCount`、`revenueDebitNearQuarterEnd` | `maxEntries`、`windowDays` | 整數門檻，範圍由 Domain 驗證；兩種自訂筆數條件只供舊情境讀回與編輯 |
+| `revenueDebitNearQuarterEnd` | `windowDays` | 整數門檻，範圍由 Domain 驗證 |
 | `revenueWithoutNormalCounterpart`、`manualRevenueEntry`、`preparerEqualsApprover` | 無 | 固定規則 |
 | `typed` | `fieldId`、`operator`、`value`、`values`、`from`、`to`、`amountBasis` | 2026-08-14 凍結的攸關資料元素欄位條件，契約不變 |
 
@@ -572,18 +637,24 @@ KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 金額另支援 `endsWithDigits`、`notEndsWithDigits`，`value` 為逗號分隔尾數，最多 100 組、每組最多 12 位。
 比較整數部分的絕對值，不看正負或小數，保留前導零的位數；核心欄位與攸關資料元素欄位共用相同規則。
 
-情境根層不再接受 `exclusions`；舊情境帶這個欄位時回 `invalid_scenario`，訊息說改用條件的否定模式重新
-儲存。`filter.preview` 回 `count`、`voucherCount` 與 `previewRows`，沒有待判定計數。
+情境根層不再接受非空的 `exclusions`；預覽或儲存帶它時回 `invalid_scenario`，訊息是
+「使用了已移除的「排除區域」，請改用條件中的「不屬於」或「不在區間」」，開案時同一句列進待修正清單。
+存下的定義帶 `exclusions` 時，`project.load.filterScenarios` 與三個情境 action 回應的 `scenarios` 照原樣帶出它，
+後端不解讀內容；沒有這個欄位的情境不帶。前端畫成唯讀的「舊排除區」，每項可以是 `{ scope, rule }`，`scope` 為 `row` 或 `voucher`，
+也可以直接是一條條件，當成 `row`。審計員按「移除」後，儲存才不再送出它。`filter.preview` 回 `count`、`voucherCount` 與 `previewRows`，沒有待判定計數。
 `count` 是直接符合條件的分錄筆數。2026-10-16 起另回 `summaryRowCount` 與 `countsWholeVoucherRows`，
 畫面的「符合條件的分錄筆數」用 `summaryRowCount`。情境只有一組，而且這組只有一條預篩選條件「未預期借貸組合」時，
 `countsWholeVoucherRows` 為 true，`summaryRowCount` 是命中傳票在查核期間內的全部分錄數，和 Criteria Selection 摘要的列數及
 Working Paper Step 4-1 的整張傳票標記相同；其他情境為 false，`summaryRowCount` 等於 `count`。
 `query.tagMatrixScenarios` 的每個情境也回這兩個欄位，判斷相同；`voucherHitCount` 與 `rowHitCount` 的意思不變，`rowHitCount` 仍是直接命中列。
 
-`fieldValue` 的 `isBlank`、`isNotBlank` 若選到沒有來源配對的核心欄位，回 `invalid_scenario` 與條件列
-`details`，引導回「欄位配對」指派或改選欄位；已配對欄位的空白資料仍可正常篩選。
-`docDate` 採 `sameAsPostDate` 時是有來源的衍生欄位，不因未直接配對 `docDate` 而拒絕。
-這項修正當時的規則版本為 `filter-2026-09-07-v12`；文字讀回仍用「且」「或」，不改變條件的左至右合併順序。
+條件用到沒有來源的核心 GL 欄位時，不論哪一種比較方式，預覽或儲存都回 `invalid_scenario` 與條件列 `details`，
+原因是「第 N 組第 M 條：「欄位名稱」尚未選擇來源欄」；有來源的欄位，空白資料仍可正常篩選。
+哪些欄位有來源，和 `availableGlFields` 用同一個方法算，`docDate` 採 `sameAsPostDate` 與 `lineID` 自動編號都算有來源。
+期末財報準備日、授權編製人員清單與科目分類這些前置條件也由同一張 `JetRuleRequirements` 表決定，原因句和第四步讀同一張表。
+這項檢查 2026-09-07 起只用在 `isBlank`、`isNotBlank`，當時的規則版本為 `filter-2026-09-07-v12`；
+使用者 2026-10-22 裁定擴大到所有比較方式，篩選版本沒有推進，因為能存下的情境命中不變，舊情境由開案的逐筆檢查列為待修正。
+文字讀回仍用「且」「或」，不改變條件的左至右合併順序。
 2026-09-18 新增欄位內的借貸方向限制及每月月初、月底天數後，篩選版本為 `filter-2026-09-18-v15`。
 加入條件括號、傳票量詞與分類階層時的篩選版本為 `filter-2026-09-18-v16`。
 2026-10-04 落實空白號碼不屬於任何傳票的裁定，篩選版本推進為 `filter-2026-10-04-v17`，預篩選版本為 `prescreen-2026-10-04-v9`。
@@ -607,9 +678,11 @@ KCT E、F、G、H 分別使用人員、摘要與金額的 `fieldValue`，卡片�
 要保留原結果，須再加一個 `any` 確認該側至少有一筆，並留意空白值是否列入反向條件。
 
 已停用的寫法包括 `sameVoucher`、欄位附帶借貸方向、分類附帶方向或 `absent`、傳票附帶 `side`、核心金額 `signed`，
-以及 `customKeywords`、`customTrailingZeros`、`trailingDigits`。預覽或儲存回 `invalid_scenario`，原因指出位置與替代操作。
+以及 `customKeywords`、`customTrailingZeros`、`trailingDigits`、`customPreparerEntryCount`、`customAccountEntryCount`。預覽或儲存回 `invalid_scenario`，原因指出位置與替代操作。
 開案時經既有待修正檢查列出問題，保留原定義，不自動轉換。舊格式仍可解析與如實讀回，不能當成現行可儲存的格式。
 `customTrailingZeros` 的替代條件是同組的金額尾數與絕對值至少 1 元，維持整數部分為零不命中的結果。
+`customPreparerEntryCount` 與 `customAccountEntryCount` 的替代條件是 `entityFrequency`：`field` 為 `createBy` 或 `accNum`，`countUnit` 為 `entries`，
+`countOperator` 為 `lessThanOrEqual`，`countFrom` 填原本的 `maxEntries`；停用原因裡就寫這個做法。
 
 `accountSide`、`accountPair` 和 `specialAccountCategoryPair` 的 `categorySelection` 可選 `role`、`node`、`subtree`，
 依序表示相同分類用途、僅分類本身、包含下層分類。借貸組合的兩側使用同一選取方式；兩側要各自選取時可組合單側條件。

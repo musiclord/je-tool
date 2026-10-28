@@ -74,7 +74,8 @@ public sealed class ReportExportOwnershipTests
             "JET.AuditCore.ReportExportResult",
             "JET.AuditCore.IReportExportFactsPort",
             "JET.Application.ReportArtifactExecutionPort",
-            "JET.Domain.ITypedCriteriaSelectionReportWriter"
+            "JET.Domain.IInfReportWriter",
+            "JET.Domain.ICriteriaSelectionReportWriter"
         };
 
         foreach (var name in expected)

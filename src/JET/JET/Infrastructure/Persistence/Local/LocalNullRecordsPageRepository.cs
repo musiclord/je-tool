@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 空值/期外日期紀錄 keyset 分頁(本地引擎)。category 由白名單列舉決定 WHERE 述詞(空白判定 TRIM(x)='');
+/// 空值/期外日期紀錄 keyset 分頁(本地引擎)。category 由白名單列舉決定 WHERE 述詞(空白判定由方言的去空白方法產生);
 /// 排序鍵 entry_id ASC、游標展開布林式 <c>AND entry_id &gt; @cursor</c>(@cursor 綁 long,首頁省略)、
 /// limit 由注入的 <see cref="ISqlDialect"/> 出。SELECT 末欄取 entry_id 供編游標,不放進 wire row。
 /// </summary>

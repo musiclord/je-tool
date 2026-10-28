@@ -16,7 +16,9 @@ python tools/harness/architecture/package-redraw.py --research-root <研究目�
 2026-10-16 的研究快照把 Roslyn 紀錄與代表呼叫對照放在研究目錄最上層的 `evidence/`，腳本找不到快照目錄自己的那一份時才讀那裡。
 重繪工作目錄放在 Git 忽略的 `artifacts/` 下，內含各圖的候選 JSON 與 finalize 紀錄、LikeC4 模型與離線輸出，以及
 `evidence-spec.json`。這份規格列出每條連線依據的呼叫、實作、AppCompositionRoot 的建立位置或事實，類別圖上每個成員的宣告位置，
-以及重繪時另外補充、快照目錄還沒有的事實。腳本核對來源檔雜湊，再產生連線證據、四張類別圖的關係證據、成員宣告位置、來源摘錄、閱讀頁面與檔案清單。
+以及重繪時另外補充、快照目錄還沒有的事實；`dynamicViewPairs` 寫畫同一個流程的 LikeC4 動態視圖與 Archify 循序圖怎麼配對，少了就停止；
+內容從已封裝的 `docs/architecture/diagrams/evidence/dynamic-view-pairs.json` 複製，再依新圖修改。
+腳本核對來源檔雜湊，再產生連線證據、四張類別圖的關係證據、成員宣告位置、配對設定、來源摘錄、閱讀頁面與檔案清單。
 
 腳本先在重繪工作目錄裡組好整個目錄，全部檢查通過後，才刪除 `docs/architecture/` 下原有的圖表目錄並放入新目錄；前一版留在 Git 歷史。
 輸出目錄已存在但不是圖表目錄時會停止，不覆寫。下列情況也會直接停止，輸出目錄維持原樣：找不到某條連線的 Roslyn 證據、
@@ -36,7 +38,7 @@ python tools/harness/architecture/package-redraw.py --research-root <研究目�
 ## 正式檢查
 
 執行 `pwsh -NoProfile -File tools/verify.ps1 -Command Documentation`。
-`JetDocumentationCheck.ps1` 依政策檔 `architectureManifest` 指定的清單載入 `Check-Architecture.ps1`，並執行 30 個小型合成案例。
+`JetDocumentationCheck.ps1` 依政策檔 `architectureManifest` 指定的清單載入 `Check-Architecture.ps1`，並執行 43 個小型合成案例。
 一般文件檢查不需要 Python、RepoWise、Roslyn、LikeC4 或 Archify。
 
 檢查內容：
@@ -48,13 +50,17 @@ python tools/harness/architecture/package-redraw.py --research-root <研究目�
 - 循序圖的線型與 LikeC4 的關係種類，要和證據種類一致。直接呼叫只接受具體方法，介面呼叫只接受介面方法；
   畫出實作類別時要同時有實作紀錄與 AppCompositionRoot 的建立位置。
 - 回傳對應到同一張圖裡方向相反的呼叫；事實引用存在，事實的來源雜湊相符。
+- 畫同一個流程的 LikeC4 動態視圖與 Archify 循序圖，依 `evidence/dynamic-view-pairs.json` 逐步比對：動態視圖每一步經元件對應找到模型關係與
+  Roslyn 呼叫位置，和循序圖範圍內的呼叫訊息比順序、參與者、方法與位置；沒對到的步驟與範圍外的訊息都要在設定裡寫明原因，少一筆就失敗。
 - 類別圖上每個成員都有一筆宣告位置與來源摘錄，不重複，也沒有圖上不存在的成員。
 - 固定快照未觀察執行期行為，不能把關係改標為一定執行或已觀察。
 - HTML、JSON、Markdown 與模型檔不含本機使用者目錄的絕對路徑。
 
 `architecture-evidence.tests.ps1` 包含正常依賴、實作、繼承與各種連線，以及錯誤種類、錯誤目標、缺少證據、
 缺少執行狀態、無證據的執行宣稱、方法不在證據裡、缺少組裝證據與不認得的證據種類，
-以及成員少了宣告位置、重複列出、列出圖上沒有的成員與摘錄不存在。資料均為獨立的小型合成符號，不啟動 JET。
+以及成員少了宣告位置、重複列出、列出圖上沒有的成員與摘錄不存在。動態視圖對循序圖的配對另有 13 個案例：解析合成的 LikeC4 模型，
+以及順序顛倒、步驟數不同、參與者對不上、呼叫位置不同、步驟沒有寫明略過、寫明略過的步驟不存在、範圍外的呼叫訊息沒有登記、
+找不到視圖、方法不在證據裡與找不到模型關係。資料均為獨立的小型合成符號，不啟動 JET。
 
 圖表自帶的檢查記錄仍有原來的用途。這項檢查不取代 LikeC4 模型檢查、Archify finalize、
 實際看圖或業務流程驗證，也不證明業務結果正確。

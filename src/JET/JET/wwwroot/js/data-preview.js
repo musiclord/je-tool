@@ -16,6 +16,8 @@
     高頻打擊。詳見 initDataPreview 的訂閱者。
   - 使用 query.dataPreview 的 limit 與 offset 分頁；不新增後端 action。
     GL(未納入測試) 另可帶 exclusionReason 只看一種未納入原因，換頁時沿用同一種。
+  - GL 與 GL(未納入測試) 的欄位由後端依已確認的配對決定，欄名與型別讀回應的 columnDetails；
+    金額固定顯示四位小數（使用者 2026-10-22 裁定，預篩選收斂計畫階段五）。
 */
 (function (global) {
   'use strict';
@@ -55,19 +57,11 @@
     return !MAIN_TABS.some(function (t) { return t.value === d.value; });
   });
 
-  // 固定欄位 id → 顯示標籤（query.dataPreview）
+  // GL 以外的資料集：固定欄位 id → 顯示標籤（query.dataPreview）。GL 與 GL(未納入測試) 的欄名由回應的 columnDetails 提供，
+  // 和欄位配對畫面同名，不在這裡另寫一份。
   var COLUMN_LABELS = {
-    documentNumber: '傳票號碼',
-    lineItem: '項次',
-    postDate: '總帳日期',
     accountCode: '科目編號',
     accountName: '科目名稱',
-    documentDescription: '摘要',
-    amount: '金額',
-    drCr: '借貸',
-    manualAuto: '人工/自動',
-    postingStatus: '過帳狀態',
-    exclusionReason: '未納入原因',
     changeAmount: '變動金額',
     standardizedCategory: '科目分類',
     preparerName: '人員代號或姓名',
@@ -97,26 +91,39 @@
   ];
   var EXCLUSION_REASON_LABELS = {};
   EXCLUSION_REASONS.forEach(function (reason) { EXCLUSION_REASON_LABELS[reason.value] = reason.label; });
+  var EXCLUSION_REASON_FILTER_LABEL = '未納入原因';
 
-  // 純顯示層的 cell 改寫（不改後端語意）：dayType 原值轉中文；會計金額欄一律走 Ui.money（兩位小數加千分位）。
-  function displayCell(dataset, column, cell) {
+  function isGlDataset(dataset) { return dataset === 'gl' || dataset === 'glExcluded'; }
+
+  // 資料預覽的金額固定顯示四位小數加千分位，例如 1,234.5000（使用者 2026-10-22 裁定，只改資料預覽；其他畫面維持 Ui.money 的兩位）。
+  // 後端照存下的整數換算成精確的十進位字串，這裡只補零與加千分位，不轉成數字，超大金額的第四位小數也不會跑掉。
+  function previewMoney(value) {
+    if (value === null || value === undefined || value === '') { return '—'; }
+    var text = String(value);
+    var match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(text);
+    if (!match) { return text; }
+    var fraction = match[3] || '';
+    if (fraction.length < 4) { fraction += '0000'.slice(fraction.length); }
+    return match[1] + match[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + fraction;
+  }
+
+  // 純顯示層的 cell 改寫（不改後端語意）：代碼轉中文；金額欄補成四位小數加千分位。
+  // detail 是 GL 兩頁 columnDetails 裡的那一欄，其他資料集沒有。
+  function displayCell(dataset, column, cell, detail) {
     if (cell === null) { return null; }
-    if (dataset === 'gl' && column === 'manualAuto') { return { manual: '人工', automatic: '自動' }[cell] || cell; }
+    if (isGlDataset(dataset) && column === 'manualAuto') { return { manual: '人工', automatic: '自動' }[cell] || cell; }
     // 借貸別和結果表格一樣寫「借」「貸」，不顯示資料庫存的英文值（使用者 2026-10-19 要求前端不露出系統用詞）。
-    if ((dataset === 'gl' || dataset === 'glExcluded') && column === 'drCr') { return { DEBIT: '借', CREDIT: '貸' }[cell] || cell; }
+    if (isGlDataset(dataset) && column === 'drCr') { return { DEBIT: '借', CREDIT: '貸' }[cell] || cell; }
     if (dataset === 'dateDimension' && column === 'dayType') {
       return DAY_TYPE_LABELS[cell] || cell;
     }
-    // 標準化資料集的會計金額欄（GL amount、TB changeAmount）一律兩位小數加千分位，與左側篩選預覽同一 Ui.money 呈現。
-    // 明確綁定資料集＋欄 id：PBC-GL（pbcGl）用來源欄名保真呈現、其數值欄可能是項次等非金額，故不套此格式，
-    // 也不會因某來源欄剛好叫 amount 而誤中。
     if (dataset === 'glExcluded' && column === 'exclusionReason') {
       return EXCLUSION_REASON_LABELS[cell] || cell;
     }
-    if ((dataset === 'gl' && column === 'amount') ||
-        (dataset === 'glExcluded' && column === 'amount') ||
-        (dataset === 'tb' && column === 'changeAmount')) {
-      return Ui.money(cell);
+    // 金額欄：GL 兩頁看回應標示的型別，含攸關資料元素的金額欄；TB 綁定變動金額這一欄。
+    // PBC-GL 與 PBC-TB 照來源文字呈現，來源欄剛好叫 amount 也不會誤中。
+    if ((detail && detail.valueType === 'money') || (dataset === 'tb' && column === 'changeAmount')) {
+      return previewMoney(cell);
     }
     return cell;
   }
@@ -385,7 +392,7 @@
       return '<option value="' + reason.value + '">' + Ui.esc(reason.label) + '</option>';
     }).join('');
     elFilter.innerHTML =
-      '<label class="data-preview__filter-label" for="data-preview-exclusion-reason">' + Ui.esc(COLUMN_LABELS.exclusionReason) + '</label>' +
+      '<label class="data-preview__filter-label" for="data-preview-exclusion-reason">' + Ui.esc(EXCLUSION_REASON_FILTER_LABEL) + '</label>' +
       '<select id="data-preview-exclusion-reason">' + options + '</select>';
     var select = elFilter.querySelector('select');
     select.addEventListener('change', function () {
@@ -577,7 +584,7 @@
     });
   }
 
-  // 判斷各欄是否為數字欄（純顯示層：預覽列全非空值皆為數字才右對齊）。
+  // GL 以外的資料集沒有欄位型別，判斷各欄是否為數字欄（純顯示層：預覽列全非空值皆為數字才右對齊）。
   function isNumericValue(v) {
     if (typeof v === 'number') { return true; }
     if (typeof v === 'string' && v !== '') { return /^-?[\d,]+(\.\d+)?$/.test(v); }
@@ -613,15 +620,20 @@
       return;
     }
 
-    var numeric = detectNumericColumns(columns, rows);
+    // GL 兩頁的欄名與對齊讀回應的 columnDetails（和 columns 同順序）：只有金額欄靠右，項次、科目編號這類文字照樣靠左。
+    var details = isGlDataset(dataset) && Array.isArray(data.columnDetails) ? data.columnDetails : null;
+    var numeric = details
+      ? columns.map(function (c, i) { return !!details[i] && details[i].valueType === 'money'; })
+      : detectNumericColumns(columns, rows);
 
     var head = '<tr>' + columns.map(function (c, i) {
-      return '<th' + (numeric[i] ? ' class="num"' : '') + '>' + Ui.esc(COLUMN_LABELS[c] || c) + '</th>';
+      var label = details ? (details[i] && details[i].label) || c : COLUMN_LABELS[c] || c;
+      return '<th' + (numeric[i] ? ' class="num"' : '') + '>' + Ui.esc(label) + '</th>';
     }).join('') + '</tr>';
 
     var body = rows.map(function (row) {
       return '<tr>' + row.map(function (cell, i) {
-        var shown = displayCell(dataset, columns[i], cell);
+        var shown = displayCell(dataset, columns[i], cell, details && details[i]);
         if (shown === null || shown === undefined) {
           return '<td class="is-null' + (numeric[i] ? ' num' : '') + '">—</td>';
         }
@@ -657,8 +669,8 @@
         return reason.label + ' ' + (value == null ? '—' : Number(value).toLocaleString()) + ' 筆';
       }));
     } else if (data.stats) {
-      var parts = ['金額（絕對值）' + Ui.money(data.stats.amountAbsMin) +
-        ' ～ ' + Ui.money(data.stats.amountAbsMax)];
+      var parts = ['金額（絕對值）' + previewMoney(data.stats.amountAbsMin) +
+        ' ～ ' + previewMoney(data.stats.amountAbsMax)];
       if (data.stats.postDateMin) {
         parts.push('總帳日期 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
       }

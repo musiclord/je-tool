@@ -58,7 +58,7 @@ public sealed record AccountTaxonomySnapshot(
 /// </summary>
 public static class AccountTaxonomyInvariant
 {
-    public const int MaxLabelLength = 400;
+    public const int MaxLabelLength = TextStorageLimits.TextUtf16CodeUnits;
     public const int MaxSemanticRoleLength = 64;
 
     public static void ValidateReplacement(IReadOnlyList<AccountTaxonomyCategory> categories)

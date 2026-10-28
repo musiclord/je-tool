@@ -57,9 +57,6 @@ public sealed record WorkpaperContext(
     string ValidationRunId,
     string ScenarioRevision,
     IReadOnlyList<int> ScenarioPositions,
-    // Public compatibility carrier retained so older callers keep the same record shape.
-    // Production finalized plans and writers ignore it; visible step3 is fixed to B:E.
-    IReadOnlyDictionary<int, string>? ScenarioConditionLogic = null,
     GlPopulationScope PopulationScope = GlPopulationScope.AuditPeriod);
 
 /// <summary>匯出底稿單張工作表的寫出統計:工作表名與資料列數(表頭/固定文字列不計入 RowsWritten)。</summary>
@@ -98,7 +95,7 @@ public static class CreatorSummaryDisplay
 /// 不截斷的全編製人員彙總查詢(匯出底稿 step1-2)。鏡射既有 prescreen creator 彙總 SQL 但去掉 LIMIT 50:
 /// step1-2 要列出每一位編製人員。distinct created_by 基數有界(人員數 + 自動拋轉傳票類型,實務數十~數百),
 /// 故回完整清單即可、**不需分頁**——對有界基數加分頁是過度工程化。
-/// 與 <see cref="IPrescreenRunRepository"/> 同樣放 Domain(查詢 row + 介面相鄰);實作三 provider 在 Infrastructure。
+/// 查詢 row 與介面相鄰放在 Domain;實作三 provider 在 Infrastructure。
 /// </summary>
 public interface ICreatorSummaryExportRepository
 {

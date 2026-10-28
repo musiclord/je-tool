@@ -83,10 +83,7 @@ public sealed class WorkpaperWriterCoverAndReferenceSheetTests
         var projectId = await SetupBalancedAsync(host);
         await using var stream = new MemoryStream();
 
-        await BuildWriter(host).WriteAsync(
-            stream,
-            ContextFor(projectId),
-            CancellationToken.None);
+        await WriteWithCurrentPlanAsync(host, BuildWriter(host), stream, ContextFor(projectId), CancellationToken.None);
 
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
@@ -361,7 +358,7 @@ public sealed class WorkpaperWriterCoverAndReferenceSheetTests
         using var stream = new MemoryStream();
         var context = await CurrentContextForAsync(host, project.ProjectId);
 
-        var stats = await BuildWriter(host).WriteAsync(stream, context, CancellationToken.None);
+        var stats = await WriteWithCurrentPlanAsync(host, BuildWriter(host), stream, context, CancellationToken.None);
 
         var stat = Assert.IsType<SheetStat>(stats.SheetStats[0]);
         Assert.Equal(CoverSheet, stat.SheetName);

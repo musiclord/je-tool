@@ -203,10 +203,12 @@ public sealed class SixReportWorkflowJourneyTests
         Assert.Equal(
             ["formatVersion", "gl", "tb"],
             fromValidation.EnumerateObject().Select(property => property.Name).ToArray());
+        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：報告的 GL 配對資訊多寫往下填補的欄位 fillDownFields。
+        // 第一次失敗收據 20261024-033416453-dac33b94f62345b59d864aac174b51c2（Public）。
         Assert.Equal(
             [
                 "mapping", "amountMode", "approvalDateMode", "postingStatusPolicy",
-                "manualAutoPolicy", "rdeFields"
+                "manualAutoPolicy", "rdeFields", "fillDownFields"
             ],
             fromValidation.GetProperty("gl").EnumerateObject().Select(property => property.Name).ToArray());
         Assert.Equal(

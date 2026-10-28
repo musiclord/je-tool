@@ -36,8 +36,10 @@ public sealed class PrescreenExecutionInputTests
             RunId: "run",
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             LastPeriodStart: "2025-12-31",
-            HasApprovalDate: true,
-            HasCreatedBy: true,
+            // 預篩選收斂計畫階段四把核准日與建立人員兩個旗標換成可用欄位清單（2026-10-23）；不帶清單就不檢查欄位，
+            // 等同原本兩個旗標都是 true，缺兩欄時改傳扣掉這兩欄的清單。
+            // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+            AvailableGlFields: null,
             HasHolidays: true,
             HasAccountMapping: true,
             HasRevenue: true,
@@ -54,8 +56,7 @@ public sealed class PrescreenExecutionInputTests
                 MoneyScale: 10_000,
                 SampleSeed: 48_271,
                 LastPeriodStart: null,
-                HasApprovalDate: false,
-                HasCreatedBy: false,
+                AvailableGlFields: WithoutApprovalDateAndCreatedBy,
                 HasHolidays: false,
                 HasAccountMapping: false,
                 HasRevenue: false,
@@ -68,13 +69,9 @@ public sealed class PrescreenExecutionInputTests
                 SampleSize: 0,
                 ActionName: "prescreen.run"));
 
-        var execution = PrescreenExecutionInput.FromPlan(
-            new PrescreenPlan(
-                request,
-                reviewPlan,
-                ZerosThreshold: 3));
+        // 預篩選收斂計畫階段九：尾零門檻是規則定義的一部分，計畫與執行輸入不再帶它（第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf 之後的建置）。
+        var execution = PrescreenExecutionInput.FromPlan(new PrescreenPlan(request, reviewPlan));
 
-        Assert.Equal(3, execution.ZerosThreshold);
         Assert.False(execution.RunPostPeriodApproval);
         Assert.False(execution.RunCreatorSummary);
         Assert.False(execution.RunUnexpectedAccountPair);
@@ -84,36 +81,13 @@ public sealed class PrescreenExecutionInputTests
         Assert.False(execution.RunNonAuthorizedPreparer);
     }
 
-    [Fact]
-    public void FromCompatibility_PreservesLegacyGateSemantics()
-    {
-        var execution = PrescreenExecutionInput.FromCompatibility(
-            new PrescreenRunInput(
-                LastPeriodStart: "2025-12-31",
-                PeriodStart: "2025-01-01",
-                PeriodEnd: "2025-12-31",
-                HasApprovalDate: true,
-                HasCreatedBy: false,
-                HasHolidays: true,
-                RunUnexpectedAccountPair: false,
-                HasAuthorizedPreparers: true,
-                MoneyScale: 10_000,
-                NonWorkingDays: [0, 6]));
-
-        Assert.True(execution.RunPostPeriodApproval);
-        Assert.False(execution.RunCreatorSummary);
-        Assert.False(execution.RunUnexpectedAccountPair);
-        Assert.True(execution.RunWeekendApproval);
-        Assert.True(execution.RunHolidayPosting);
-        Assert.True(execution.RunHolidayApproval);
-        Assert.True(execution.RunNonAuthorizedPreparer);
-        Assert.Equal(TrailingZeroThreshold.DefaultZerosThreshold, execution.ZerosThreshold);
-    }
+    // 2026-10-22 技術債一輪：FromCompatibility 隨公開的相容入口刪除，原本檢查它的測試一併移除
+    //（第一次失敗：Focused 收據 20261022-070441801-b717958da6bc461bb272ed374766bb78）。
 
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task LocalTypedExecution_ConsumesThresholdFromPlan(string provider)
+    public async Task LocalTypedExecution_UsesTheRegisteredSixZeroRule(string provider)
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -140,7 +114,7 @@ public sealed class PrescreenExecutionInputTests
     }
 
     [SqlServerFact]
-    public async Task SqlServerTypedExecution_ConsumesThresholdFromPlan()
+    public async Task SqlServerTypedExecution_UsesTheRegisteredSixZeroRule()
     {
         await using var sql = Assert.IsType<TempSqlServerProject>(
             await TempSqlServerProject.TryCreateAsync());
@@ -178,20 +152,23 @@ public sealed class PrescreenExecutionInputTests
             RunId: "threshold-run",
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             LastPeriodStart: null,
-            HasApprovalDate: false,
-            HasCreatedBy: false,
+            AvailableGlFields: WithoutApprovalDateAndCreatedBy,
             HasHolidays: false,
             HasAccountMapping: false,
             HasRevenue: false,
             HasCounterpart: false,
             HasAuthorizedPreparers: false,
-            NonWorkingDays: [0, 6])) with
-        {
-            ZerosThreshold = 3
-        };
+            NonWorkingDays: [0, 6]));
 
         var facts = await port.ExecuteAsync(plan, CancellationToken.None);
 
-        Assert.Equal(2, facts.TrailingZerosCount);
+        // 預篩選收斂計畫階段九：尾零規則固定六個 0 且由登錄的述詞產生，計畫不再帶可改的門檻；夾具裡只有 Z6（1,000,000.1234）命中，
+        // Z3（1,000.99）三個 0 不算。原本用門檻 3 期望兩筆都命中，第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        Assert.Equal(1, facts.TrailingZerosCount);
     }
+
+    private static readonly string[] WithoutApprovalDateAndCreatedBy = JetFieldCatalog.GlFields
+        .Select(static field => field.SemanticIdentity)
+        .Where(static field => field != JetFieldCatalog.GlDocDate && field != JetFieldCatalog.GlCreateBy)
+        .ToArray();
 }

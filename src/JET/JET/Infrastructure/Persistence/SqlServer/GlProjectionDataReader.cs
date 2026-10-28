@@ -52,6 +52,8 @@ internal sealed class GlProjectionDataReader : DbDataReader
     private readonly CancellationToken _cancellationToken;
     private readonly Action<ProjectionProgress>? _progress;
     private readonly int _progressRowInterval;
+    // 階段六：審計員勾選的欄位把空白補成同一來源內上一列的值（與本機 GL 倉儲同一份 Domain 狀態）。
+    private readonly GlStagingFillDown? _fillDown;
     private readonly object[] _current = new object[ColumnNames.Length];
 
     public GlProjectionDataReader(
@@ -116,7 +118,11 @@ internal sealed class GlProjectionDataReader : DbDataReader
         _progress = progress;
         _progressRowInterval = progressRowInterval;
         ManualAutoCodes = new ManualAutoListedCodeAudit(spec);
+        _fillDown = GlStagingFillDown.Create(spec);
     }
+
+    /// <summary>這次投影把空白補成上一列值的格數；沒有勾選欄位時是 0。</summary>
+    public long FillDownCellCount => _fillDown?.FilledCellCount ?? 0;
 
     public IReadOnlyList<RowProjectionError> Errors => errorCollector.Samples;
 
@@ -163,7 +169,7 @@ internal sealed class GlProjectionDataReader : DbDataReader
             var values = JsonSerializer.Deserialize<Dictionary<string, string>>(_staging.GetString(3), _jsonOptions)
                 ?? [];
 
-            var stagingRow = new StagingRow(sourceRowNumber, values);
+            var stagingRow = new StagingRow(sourceRowNumber, _fillDown is null ? values : _fillDown.Apply(sourceNo, values));
 
             if (!GlRowProjector.TryProject(
                     stagingRow,

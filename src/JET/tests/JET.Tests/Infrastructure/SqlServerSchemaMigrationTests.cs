@@ -28,9 +28,10 @@ public sealed class SqlServerSchemaMigrationTests
         // 第一次失敗收據 20261019-022312081-22a88a3e48db46cdbad3a14059471cd9。
         // 使用者 2026-10-21 裁定日期不符分成三種原因，第 15 版轉換舊的 period 列，預期版本由 14 改成 15；
         // 第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-        Assert.Equal("15", SqlServerProjectDatabase.SchemaVersion);
-        Assert.Contains("'schema_version', '15')", SqlServerProjectDatabase.SchemaSql);
-        Assert.Contains("SET [value] = '15'", SqlServerProjectDatabase.BumpSchemaVersionSql);
+        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，預期版本由 15 改成 16；第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+        Assert.Equal("16", SqlServerProjectDatabase.SchemaVersion);
+        Assert.Contains("'schema_version', '16')", SqlServerProjectDatabase.SchemaSql);
+        Assert.Contains("SET [value] = '16'", SqlServerProjectDatabase.BumpSchemaVersionSql);
         Assert.Contains("config_field_mapping_previous", SqlServerProjectDatabase.SchemaSql);
     }
 
@@ -57,7 +58,8 @@ public sealed class SqlServerSchemaMigrationTests
             // 版本常數的失敗收據是 20261019-022312081-22a88a3e48db46cdbad3a14059471cd9。
             // 使用者 2026-10-21 裁定日期不符分成三種原因，第 15 版轉換舊的 period 列，本檔四處要連線的版本預期一起改成 15，沒有執行；
             // 版本常數的失敗收據是 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-            Assert.Equal("15", await VersionAsync(connection, q));
+            // 預篩選收斂計畫階段六：import_batch_source 加 header_row 欄，現行版本升到第 16 版，本檔四處要連線的版本預期一起改成 16，沒有執行（SQL Server 開發暫緩）；版本常數的失敗收據是 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+            Assert.Equal("16", await VersionAsync(connection, q));
             Assert.Equal(1, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
             Assert.Equal(1, await ScalarLongAsync(connection, $"SELECT COUNT(*) FROM {q}schema_info WHERE [key] = 'batch9-sentinel' AND [value] = 'preserved';"));
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -86,7 +88,8 @@ public sealed class SqlServerSchemaMigrationTests
     {
         // 使用者 2026-10-21 裁定日期不符分成三種原因，現行版本升到 15；定序仍在第 14 版改。
         // 第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-        Assert.Equal("15", SqlServerProjectDatabase.SchemaVersion);
+        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，預期版本由 15 改成 16；第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+        Assert.Equal("16", SqlServerProjectDatabase.SchemaVersion);
         var declarations = Regex.Matches(
             SqlServerProjectDatabase.SchemaSql,
             $@"\b{column}\s+NVARCHAR\((\d+|MAX)\)(?<collation>\s+COLLATE Latin1_General_BIN2)?");
@@ -215,7 +218,8 @@ public sealed class SqlServerSchemaMigrationTests
             // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
             // 使用者 2026-10-21 裁定日期不符分成三種原因，現行版本升到第 15 版，沒有執行；
             // 版本常數的失敗收據是 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-            Assert.Equal("15", await VersionAsync(baseConn, q));
+            // 預篩選收斂計畫階段六：import_batch_source 加 header_row 欄，現行版本升到第 16 版，本檔四處要連線的版本預期一起改成 16，沒有執行（SQL Server 開發暫緩）；版本常數的失敗收據是 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+            Assert.Equal("16", await VersionAsync(baseConn, q));
             Assert.Equal(1, await TablePresentAsync(baseConn, q, "audit_event_log"));
             // 2026-10-19 跨資料庫一致性計畫第三節 F：第 14 版的文字比對遷移清除既有結果並標成待重跑，從第 7 版升級一定經過這一步。
             // 這個測試原名 EnsureCreated_OnV7_AddsAuditTableWithoutClearingExistingResults，原本預期第 7 版的驗證結果保留 1 筆。
@@ -258,7 +262,8 @@ public sealed class SqlServerSchemaMigrationTests
             // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
             // 使用者 2026-10-21 裁定日期不符分成三種原因，現行版本升到第 15 版，沒有執行；
             // 版本常數的失敗收據是 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-            Assert.Equal("15", await VersionAsync(baseConn, q));
+            // 預篩選收斂計畫階段六：import_batch_source 加 header_row 欄，現行版本升到第 16 版，本檔四處要連線的版本預期一起改成 16，沒有執行（SQL Server 開發暫緩）；版本常數的失敗收據是 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+            Assert.Equal("16", await VersionAsync(baseConn, q));
             foreach (var column in new[] { "posting_status", "is_effective", "exclusion_reason" })
             {
                 Assert.Equal(1, await ColumnPresentAsync(baseConn, q, "target_gl_entry", column));
@@ -320,7 +325,8 @@ public sealed class SqlServerSchemaMigrationTests
             // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
             // 使用者 2026-10-21 裁定日期不符分成三種原因，現行版本升到第 15 版，沒有執行；
             // 版本常數的失敗收據是 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-            Assert.Equal("15", await VersionAsync(baseConn, q));
+            // 預篩選收斂計畫階段六：import_batch_source 加 header_row 欄，現行版本升到第 16 版，本檔四處要連線的版本預期一起改成 16，沒有執行（SQL Server 開發暫緩）；版本常數的失敗收據是 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+            Assert.Equal("16", await VersionAsync(baseConn, q));
             Assert.Equal(1, await ScalarLongAsync(baseConn,
                 $"SELECT COUNT(*) FROM {q}target_gl_entry WHERE document_number='DOC-V6';"));
             Assert.Equal(0, await ScalarLongAsync(baseConn,

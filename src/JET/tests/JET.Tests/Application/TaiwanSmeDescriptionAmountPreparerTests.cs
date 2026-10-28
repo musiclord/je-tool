@@ -207,13 +207,15 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
         // 編製者彙總：李大華、Amy（含 amy），以及空白人員一組。
         Assert.Equal(3, prescreen.GetProperty("creatorSummary").GetProperty("totalPreparerCount").GetInt64());
 
-        var tenEntries = OneRule("編製者 10 筆以下", """{"type":"customPreparerEntryCount","maxEntries":10}""");
+        // 預篩選收斂計畫階段九把兩種舊式筆數條件列為停用寫法，這裡改成等價的「科目與人員統計」；預期命中不變。
+        // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（預覽回「已停用」）。
+        var tenEntries = OneRule("編製者 10 筆以下", """{"type":"entityFrequency","field":"createBy","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":10}""");
         // Amy 有 11 列，李大華 12 列，門檻 10 時沒有人命中。
         Assert.Equal((0L, 0L), await PreviewAsync(host, tenEntries));
         var hits = await CommitAndReadHitsAsync(host,
             OneRule("使用較少的科目", """{"type":"prescreen","prescreenKey":"lowFrequencyAccount"}"""),
             OneRule("編製分錄較少的人員", """{"type":"prescreen","prescreenKey":"lowFrequencyPreparer"}"""),
-            OneRule("科目 10 筆以下", """{"type":"customAccountEntryCount","maxEntries":10}"""),
+            OneRule("科目 10 筆以下", """{"type":"entityFrequency","field":"accNum","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":10}"""),
             OneRule("編製者剛好 12 筆", """{"type":"entityFrequency","field":"createBy","countUnit":"entries","countOperator":"equals","countFrom":12}"""),
             OneRule("科目出現在 12 張以上傳票", """{"type":"entityFrequency","field":"accNum","countUnit":"vouchers","countOperator":"greaterThanOrEqual","countFrom":12}"""));
         // 6120 的 11 列（L01 到 L11 第 1 列）與 1101 的 1 列（L12 第 2 列）。

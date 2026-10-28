@@ -46,7 +46,7 @@ internal interface IWorkpaperStep41PageRepository
 /// <summary>
 /// Finalized WorkingPaper step4-1 的 provider-neutral prepared export session。
 /// Production 以一條連線／一個交易完成 set materialization，並只允許一次 ordered
-/// forward-only reader；舊 page port 僅保留給 plan-less 相容路徑與 frozen baseline。
+/// forward-only reader；舊的分頁讀取介面只留給 frozen baseline 與跨資料庫一致性測試。
 /// </summary>
 internal interface IWorkpaperStep41PreparedSessionFactory
 {

@@ -160,8 +160,9 @@ public sealed class Batch6ValueProfileTests
 
     private sealed class ProfileOnlyStub : IMappingValueProfileRepository
     {
+        // 2026-10-28 介面多了往下填補參數，替身跟著加，回傳不變。
         public Task<MappingValueProfile> GetAsync(string projectId, string batchId, string sourceColumn, int limit,
-            CancellationToken cancellationToken) => Task.FromResult(new MappingValueProfile("Mode", 0, 1,
+            bool fillDown, CancellationToken cancellationToken) => Task.FromResult(new MappingValueProfile("Mode", 0, 1,
                 [new MappingValueProfileValue("A", 2)], false));
     }
 

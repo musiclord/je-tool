@@ -126,6 +126,21 @@ public sealed class GlEffectivePopulationTests
         Assert.Equal(expected, GlEffectivePopulation.SqlPredicate(tableAlias));
     }
 
+    // 2026-10-28 複審：日期不符這組原因原本在兩個驗證倉儲各寫一份，改由分類的處置產生。驗證摘要的數字由
+    // QueryDataPreviewHandlerTests 的三種日期原因案例在 SQLite 與 DuckDB 核對；這裡核對條件涵蓋的原因。
+    // 改程式之後才補，沒有第一次失敗的收據。
+    [Fact]
+    public void ExcludedByPeriodSqlPredicate_CoversExactlyTheReasonsWhoseDispositionIsDateMismatch()
+    {
+        Assert.Equal(
+            "exclusion_reason IN ('blank_post_date', 'before_period', 'after_period')",
+            GlEffectivePopulation.ExcludedByPeriodSqlPredicate());
+        var byPeriod = Enum.GetValues<GlExclusionReason>()
+            .Where(reason => new GlEffectivePopulationClassification(reason).Disposition == GlEffectivePopulationDisposition.ExcludedByPeriod)
+            .ToArray();
+        Assert.Equal([GlExclusionReason.BlankPostDate, GlExclusionReason.BeforePeriod, GlExclusionReason.AfterPeriod], byPeriod);
+    }
+
     [Fact]
     public void Classify_WhenPeriodAndPostingStatusBothExclude_PrioritizesPeriod()
     {

@@ -18,6 +18,7 @@ public sealed record ValidationReportContext(
 /// <summary>
 /// Validation report 實際需要的有界摘要值。此型別不攜帶明細列、wire JSON
 /// 或 provider 資訊，且只在 Application 與 Infrastructure 的內部縫流動。
+/// <see cref="OutOfRangeDateCount"/> 為 null 表示驗證時傳票核准日不可用，報告照這個結果寫 N/A。
 /// </summary>
 internal sealed record ValidationReportProjection(
     decimal Net,
@@ -29,26 +30,8 @@ internal sealed record ValidationReportProjection(
     long NullAccountCount,
     long NullDocumentCount,
     long NullDescriptionCount,
-    long OutOfRangeDateCount,
-    long SourceQualityFindingCount,
-    IReadOnlyList<SourceQualityFindingRow> SourceQualitySampleRows);
-
-/// <summary>
-/// Production validation export 的 internal typed seam。公開
-/// <see cref="IValidationReportWriter"/> 與 <see cref="ValidationReportContext"/>
-/// 保持原有 source、binary 與 record value semantics；Application 僅在 writer
-/// 明確實作此縫時傳入已解析的有界 projection。
-/// </summary>
-internal interface ITypedValidationReportWriter
-{
-    Task<ExportStats> WriteTypedAsync(
-        Stream output,
-        ValidationReportContext context,
-        ValidationReportProjection projection,
-        string operatorId,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null);
-}
+    long? OutOfRangeDateCount,
+    long SourceQualityFindingCount);
 
 public sealed record InfReportContext(
     ReportDocumentContext Project,
@@ -84,23 +67,6 @@ internal sealed record PrescreenReportProjection(
     PrescreenReportRuleProjection RareAccounts,
     PrescreenReportRuleProjection BlankDescription);
 
-/// <summary>
-/// Production prescreen export 的 internal typed seam。公開
-/// <see cref="IPrescreenReportWriter"/> 與 <see cref="PrescreenReportContext"/>
-/// 保持既有 contract；Application 僅在 writer 明確實作此縫時傳入已解析的
-/// 有界 projection。
-/// </summary>
-internal interface ITypedPrescreenReportWriter
-{
-    Task<ExportStats> WriteTypedAsync(
-        Stream output,
-        PrescreenReportContext context,
-        PrescreenReportProjection projection,
-        string operatorId,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null);
-}
-
 public sealed record CriteriaSelectionReportContext(
     ReportDocumentContext Project,
     string Revision,
@@ -111,51 +77,31 @@ public sealed record CriteriaSelectionReportContext(
     IReadOnlySet<int>? WholeVoucherSummaryPositions = null);
 
 /// <summary>
-/// Production Criteria Selection export 的 internal seam。公開 writer contract
-/// 維持不變；Application 只透過此縫補入案件保存的 operator id。
+/// INF 報告的唯一寫出入口。工作簿中繼資料與要一起輸出的攸關資料元素欄位由 Application 決定，
+/// 寫出器只填固定範本。
 /// </summary>
-internal interface ITypedCriteriaSelectionReportWriter
-{
-    Task<ExportStats> WriteTypedAsync(
-        Stream output,
-        CriteriaSelectionReportContext context,
-        string operatorId,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null);
-}
-
-public interface IValidationReportWriter
-{
-    Task<ExportStats> WriteAsync(
-        Stream output,
-        ValidationReportContext context,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null);
-}
-
-public interface IInfReportWriter
+internal interface IInfReportWriter
 {
     Task<ExportStats> WriteAsync(
         Stream output,
         InfReportContext context,
+        ReportWorkbookMetadata workbookMetadata,
+        IReadOnlyList<GlRdeFieldMetadata> customFields,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress = null);
 }
 
-public interface IPrescreenReportWriter
-{
-    Task<ExportStats> WriteAsync(
-        Stream output,
-        PrescreenReportContext context,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null);
-}
-
-public interface ICriteriaSelectionReportWriter
+/// <summary>
+/// 條件篩選報告的唯一寫出入口。條件文字、工作簿中繼資料、攸關資料元素欄位與操作者都由 Application 準備好再傳入。
+/// </summary>
+internal interface ICriteriaSelectionReportWriter
 {
     Task<ExportStats> WriteAsync(
         Stream output,
         CriteriaSelectionReportContext context,
+        ReportWorkbookMetadata workbookMetadata,
+        IReadOnlyList<GlRdeFieldMetadata> customFields,
+        string operatorId,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress = null);
 }

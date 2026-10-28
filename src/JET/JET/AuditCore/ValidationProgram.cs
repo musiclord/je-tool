@@ -4,7 +4,7 @@ namespace JET.AuditCore;
 
 /// <summary>
 /// Validation typed lifecycle 的 Application 輸入。只攜帶有界案件事實、run identity
-/// 與抽樣參數，不攜帶 GL／TB 完整列集。
+/// 與抽樣參數，不攜帶 GL／TB 完整列集。可用欄位的意義同 <see cref="AuditCaseSnapshot"/>。
 /// </summary>
 internal sealed record ValidationRequest(
     string ProjectId,
@@ -17,19 +17,24 @@ internal sealed record ValidationRequest(
     string RunId,
     DateTimeOffset GeneratedUtc,
     int SampleSize,
-    int SampleSeedVersion = InfSamplingPrf.CurrentAlgorithmVersion);
+    int SampleSeedVersion = InfSamplingPrf.CurrentAlgorithmVersion,
+    IReadOnlyList<string>? AvailableGlFields = null);
 
 /// <summary>
 /// Validation typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
 /// 讓 typed production path 與既有 Plan／Finalize 只有一套程序裁定。
+/// <see cref="OutOfPeriodApprovalNaReason"/> 只在傳票核准日不可用、「核准日不在期間」無法執行時有值。
 /// </summary>
 internal sealed record ValidationPlan(
     ValidationRequest Request,
     AuditExecutionPlan ReviewPlan,
-    ValidationAmountDistributionPlan AmountDistributionPlan)
+    ValidationAmountDistributionPlan AmountDistributionPlan,
+    string? OutOfPeriodApprovalNaReason = null)
 {
     internal bool RunCompleteness =>
         CompletenessPartBProcedure.RequirePlan(ReviewPlan).IsApplicable;
+
+    internal bool RunOutOfPeriodApproval => OutOfPeriodApprovalNaReason is null;
 }
 
 /// <summary>

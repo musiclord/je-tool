@@ -6,14 +6,16 @@ namespace JET.Tests.Domain;
 public sealed class FilterScenarioValidatorTests
 {
     /// <summary>一般前置：有期末財報準備日、未匯入科目配對、未匯入授權編製人員清單。</summary>
+    // 預篩選收斂計畫階段四拿掉四個欄位旗標，改由規則需求表讀可用欄位清單（2026-10-23）；不帶清單就不檢查欄位，
+    // 等同原本四個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
     private static readonly FilterValidationContext Ready =
-        new(HasLastPeriodStart: true, HasAccountMapping: false, HasAuthorizedPreparers: false)
-        {
-            HasManualFlag = true,
-            HasCreatedBy = true,
-            HasApprovedBy = true,
-            HasDescription = true
-        };
+        new(HasLastPeriodStart: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
+
+    /// <summary>全部 GL 欄位都能用，只扣掉指定的欄位。</summary>
+    private static string[] GlFieldsWithout(params string[] missing) => JetFieldCatalog.GlFields
+        .Select(static field => field.SemanticIdentity)
+        .Where(field => !missing.Contains(field, StringComparer.Ordinal))
+        .ToArray();
 
     private static FilterRuleSpec TextRule(string field = "description", string keyword = "調整") =>
         new(FilterJoin.And, FilterRuleType.Text, null, field, [keyword], TextMatchMode.Contains,
@@ -613,36 +615,37 @@ public sealed class FilterScenarioValidatorTests
             errors);
     }
 
-    // BVA：自訂低頻編製者門檻 maxEntries ≥ 1(0 下鄰拒、1 邊界收、11 預設收、缺漏拒)。
+    // 預篩選收斂計畫階段九把兩種舊式筆數條件列為停用寫法：不論門檻合不合法，驗證都只回報停用原因與重建方式，
+    // 門檻的邊界檢查由「科目與人員統計」的驗證承接。原本的邊界測試（0 拒、1 與 11 收、缺漏拒）第一次失敗：
+    // Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（1 與 11 不再合格）。
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(1, true)]
-    [InlineData(11, true)]
-    [InlineData(null, false)]
-    public void Validate_CustomPreparerEntryCountMaxEntriesBoundaries(int? maxEntries, bool expectValid)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(11)]
+    [InlineData(null)]
+    public void Validate_CustomPreparerEntryCount_IsRetiredRegardlessOfMaxEntries(int? maxEntries)
     {
         var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.CustomPreparerEntryCount, null, null,
             [], TextMatchMode.Contains, null, null, null, null, null, null, MaxEntries: maxEntries);
 
-        var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), Ready);
+        var error = Assert.Single(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
 
-        Assert.Equal(expectValid, errors.Count == 0);
+        Assert.Contains(FilterSinglePurposeRules.PreparerEntryCount, error, StringComparison.Ordinal);
     }
 
-    // BVA：自訂科目張數門檻 maxEntries ≥ 1(0 下鄰拒、1 邊界收、11 預設收、缺漏拒)。
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(1, true)]
-    [InlineData(11, true)]
-    [InlineData(null, false)]
-    public void Validate_CustomAccountEntryCount_BoundaryOnMaxEntries(int? maxEntries, bool expectValid)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(11)]
+    [InlineData(null)]
+    public void Validate_CustomAccountEntryCount_IsRetiredRegardlessOfMaxEntries(int? maxEntries)
     {
         var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.CustomAccountEntryCount, null, null,
             [], TextMatchMode.Contains, null, null, null, null, null, null, MaxEntries: maxEntries);
 
-        var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), Ready);
+        var error = Assert.Single(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
 
-        Assert.Equal(expectValid, errors.Count == 0);
+        Assert.Contains(FilterSinglePurposeRules.AccountEntryCount, error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -695,10 +698,7 @@ public sealed class FilterScenarioValidatorTests
         HasAnyAccountCategory = true,
         HasRevenueCategory = true,
         HasCounterpartCategory = true,
-        HasManualFlag = true,
-        HasCreatedBy = true,
-        HasApprovedBy = true,
-        HasDescription = true
+        AvailableGlFields = GlFieldsWithout()
     };
 
     // 決策表：D／E／G 各缺自己的 mapping；J 分別缺建立人、核准人與兩欄皆缺。
@@ -719,13 +719,14 @@ public sealed class FilterScenarioValidatorTests
         string expectedField,
         string? secondExpectedField)
     {
-        var context = KctMappingReady with
-        {
-            HasManualFlag = hasManualFlag,
-            HasCreatedBy = hasCreatedBy,
-            HasApprovedBy = hasApprovedBy,
-            HasDescription = hasDescription
-        };
+        // 預篩選收斂計畫階段四拿掉四個欄位旗標（2026-10-23），缺哪一欄就從可用欄位清單扣掉哪一欄。
+        // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+        var missing = new List<string>();
+        if (!hasManualFlag) missing.Add(JetFieldCatalog.GlManual);
+        if (!hasCreatedBy) missing.Add(JetFieldCatalog.GlCreateBy);
+        if (!hasApprovedBy) missing.Add(JetFieldCatalog.GlApproveBy);
+        if (!hasDescription) missing.Add(JetFieldCatalog.GlDescription);
+        var context = KctMappingReady with { AvailableGlFields = GlFieldsWithout([.. missing]) };
 
         var errors = FilterScenarioValidator.Validate(KctMappingScenario(letter), context);
         var combined = string.Join("；", errors);
@@ -751,18 +752,23 @@ public sealed class FilterScenarioValidatorTests
             KctMappingReady));
     }
 
+    // 原本鎖住「不是 KCT 來源的一般條件不檢查欄位配對」。使用者 2026-10-22 裁定第五步遇到 GL 沒有配對的欄位時
+    // 「停用並寫原因」，取代 2026-10-04 的「不修」，所以不論來源都要擋下並寫出欄位名稱；測試名稱與斷言照新裁定改寫。
+    // 第一次失敗：Focused 收據 20261023-032924364-4f3864a9ba70481b9e50cf02d0305c2c（兩組資料都得到欄位尚未選擇來源欄的錯誤）。
     [Theory]
-    [InlineData("E")]
-    [InlineData("G")]
-    public void Validate_ReusedRuleWithoutKctSource_DoesNotApplyKctOnlyMappingGate(string letter)
+    [InlineData("E", "「傳票建立人員」尚未選擇來源欄")]
+    [InlineData("G", "「傳票摘要」尚未選擇來源欄")]
+    public void Validate_ReusedRuleWithoutKctSource_StillRequiresTheMappedField(string letter, string expectedReason)
     {
+        // 預篩選收斂計畫階段四拿掉欄位旗標（2026-10-23），缺欄位改從可用欄位清單扣掉。
+        // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
         var context = letter == "E"
-            ? KctMappingReady with { HasCreatedBy = false }
-            : KctMappingReady with { HasDescription = false };
+            ? KctMappingReady with { AvailableGlFields = GlFieldsWithout(JetFieldCatalog.GlCreateBy) }
+            : KctMappingReady with { AvailableGlFields = GlFieldsWithout(JetFieldCatalog.GlDescription) };
 
-        Assert.Empty(FilterScenarioValidator.Validate(
-            Scenario(rules: KctMappingRule(letter)),
-            context));
+        Assert.Equal(
+            [$"第 1 組第 1 條：{expectedReason}"],
+            FilterScenarioValidator.Validate(Scenario(rules: KctMappingRule(letter)), context));
     }
 
     public static TheoryData<FilterValidationContext, bool, bool, bool, bool, bool> AccountMappingEligibilityCases =>

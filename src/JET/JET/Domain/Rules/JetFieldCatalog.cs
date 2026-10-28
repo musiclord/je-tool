@@ -24,6 +24,21 @@ internal enum JetFieldValueKind
 }
 
 /// <summary>
+/// 欄位沒有來源欄時，系統另外產生值的方式。使用者 2026-10-22 裁定：傳票文件項次自動編號、
+/// 傳票核准日選「與總帳日期相同」，都算已配對。
+/// </summary>
+internal enum JetFieldDerivedSource
+{
+    None,
+
+    /// <summary>沒有來源欄時，投影後逐張傳票自動編號。</summary>
+    AutoNumber,
+
+    /// <summary>傳票核准日選「與總帳日期相同」時，取總帳日期。</summary>
+    SameAsPostDate
+}
+
+/// <summary>
 /// 正規化後的 GL／TB 語意欄。多個來源位置可以共同產生同一個語意欄；
 /// 例如 TB 的各種金額表示法最後都產生 <c>changeAmount</c>。
 /// </summary>
@@ -44,6 +59,9 @@ internal sealed record JetFieldDefinition(
     /// 兩者刻意分離，避免本階段提前改變既有 Field Info writer 的可見輸出。
     /// </summary>
     internal string? LegacyFieldName { get; init; }
+
+    /// <summary>沒有來源欄時，系統是否另外產生值；有的話這個欄位在條件與規則裡算已配對。</summary>
+    internal JetFieldDerivedSource DerivedSource { get; init; }
 }
 
 /// <summary>
@@ -103,7 +121,10 @@ internal static class JetFieldCatalog
         Field(
             DatasetKind.Gl, GlLineId, JetFieldValueKind.Text, 1, storageNullable: true, "line_item",
             "傳票文件項次_JE_S", canonicalOrder: 1, isGenericFilterField: true,
-            Slot(GlLineId, "傳票文件項次", 1, fieldInfo: true)),
+            Slot(GlLineId, "傳票文件項次", 1, fieldInfo: true)) with
+        {
+            DerivedSource = JetFieldDerivedSource.AutoNumber
+        },
         Field(
             DatasetKind.Gl, GlPostDate, JetFieldValueKind.Date, 2, storageNullable: true, "post_date",
             "總帳日期_JE", canonicalOrder: 2, isGenericFilterField: true,
@@ -113,7 +134,8 @@ internal static class JetFieldCatalog
             canonicalName: null, canonicalOrder: null, isGenericFilterField: true,
             Slot(GlDocDate, "傳票核准日", 3, fieldInfo: true)) with
         {
-            LegacyFieldName = "傳票核准日_JE"
+            LegacyFieldName = "傳票核准日_JE",
+            DerivedSource = JetFieldDerivedSource.SameAsPostDate
         },
         // 使用者 2026-10-08 裁定移除新版自行加入的傳票日期（voucherDate）；其餘欄位的順序值不重排。
         // 名稱留在 RetiredGlFieldLabels，舊情境用到它時第五步原因寫得出名稱。
@@ -243,12 +265,6 @@ internal static class JetFieldCatalog
     private static readonly IReadOnlyDictionary<string, JetFieldDefinition> GlFieldsBySemanticIdentity =
         GlFields.ToDictionary(static field => field.SemanticIdentity, StringComparer.Ordinal);
 
-    private static readonly IReadOnlyDictionary<string, JetMappingSlot> GlSlotsByKey =
-        GlMappingSlots.ToDictionary(static slot => slot.Key, StringComparer.Ordinal);
-
-    private static readonly IReadOnlyDictionary<string, JetMappingSlot> TbSlotsByKey =
-        TbMappingSlots.ToDictionary(static slot => slot.Key, StringComparer.Ordinal);
-
     /// <summary>
     /// 取得指定來源位置所產生的 GL semantic field。回傳欄位的 SQL target 與 filterability
     /// 描述 semantic output，不表示該來源位置可直接拿去查詢 SQL 欄。
@@ -262,12 +278,6 @@ internal static class JetFieldCatalog
     /// </summary>
     internal static JetFieldDefinition FindTbSemanticFieldByMappingKey(string key) =>
         TbFieldsByMappingKey[key];
-
-    internal static JetMappingSlot FindGlMappingSlot(string key) =>
-        GlSlotsByKey[key];
-
-    internal static JetMappingSlot FindTbMappingSlot(string key) =>
-        TbSlotsByKey[key];
 
     /// <summary>
     /// 判斷目前已提交 mapping 是否真的提供指定 GL semantic field 的來源位置。
@@ -284,6 +294,27 @@ internal static class JetFieldCatalog
             .Where(static slot => !slot.IsLiteral)
             .Any(slot => mapping.TryGetValue(slot.Key, out var value)
                 && !string.IsNullOrWhiteSpace(value));
+    }
+
+    /// <summary>
+    /// 已確認的 GL 配對下，條件與規則能使用的語意欄位，依目錄順序：欄位有來源欄，或目錄標示的衍生來源成立。
+    /// 第四步、第五步與前端停用說明都讀這一份。沒有帶投影設定的舊配對，依配對本身推出傳票核准日的模式。
+    /// </summary>
+    internal static IReadOnlyList<string> AvailableGlFields(
+        IReadOnlyDictionary<string, string> mapping,
+        GlMappingOptions? options)
+    {
+        ArgumentNullException.ThrowIfNull(mapping);
+        var approvalDateMode = (options ?? GlMappingOptions.NormalizeLegacy(mapping)).ApprovalDateMode;
+        return GlFields
+            .Where(field => HasMappedGlSemanticField(mapping, field.SemanticIdentity) || field.DerivedSource switch
+            {
+                JetFieldDerivedSource.AutoNumber => true,
+                JetFieldDerivedSource.SameAsPostDate => approvalDateMode == ApprovalDateModeNames.SameAsPostDate,
+                _ => false
+            })
+            .Select(static field => field.SemanticIdentity)
+            .ToArray();
     }
 
     /// <summary>取得 semantic field 的主要使用者可見 mapping label。</summary>
@@ -312,6 +343,14 @@ internal static class JetFieldCatalog
 
     internal static IReadOnlyList<string> RequiredTbMappingKeys(TbChangeMode mode) =>
         RequiredMappingKeys(TbMappingSlots, TbModeName(mode));
+
+    private static readonly IReadOnlyDictionary<string, JetMappingSlot> GlSlotsByKey =
+        GlMappingSlots.ToDictionary(static slot => slot.Key, StringComparer.Ordinal);
+
+    private static readonly IReadOnlyDictionary<string, JetMappingSlot> TbSlotsByKey =
+        TbMappingSlots.ToDictionary(static slot => slot.Key, StringComparer.Ordinal);
+
+    internal static bool IsGlMappingKey(string key) => GlSlotsByKey.ContainsKey(key);
 
     internal static bool IsGlLiteralMappingKey(string key) =>
         GlSlotsByKey.TryGetValue(key, out var slot) && slot.IsLiteral;

@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// Production Working Paper 的唯一 constructor 必須走完整 typed lifecycle，沒有
-/// rollback fallback；公開 writer contract 僅保留相容用途。此測試同時鎖定惰性
+/// rollback fallback；底稿只經由依計畫寫出的正式入口寫出，公開的相容入口已於 2026-10-22 刪除。此測試同時鎖定惰性
 /// stale refresh 的既有 predicate 路徑。
 /// </summary>
 public sealed class ExportWorkpaperTypedSeamTests
@@ -91,7 +91,8 @@ public sealed class ExportWorkpaperTypedSeamTests
         Assert.True(cancellation.IsCancellationRequested);
 
         Assert.Equal(1, writer.TypedCalls);
-        Assert.Equal(0, writer.PublicCalls);
+        // 原本另斷言公開入口沒被呼叫。2026-10-22 技術債一輪刪掉公開入口，替身不再計次；改由 CompatibilityPathOwnershipTests
+        // 斷言它不存在。第一次失敗是刪掉介面後測試專案建置失敗，那次沒有保存收據。
         Assert.Equal(1, factsPort.Calls);
         Assert.False(factsPort.InitialPlan?.IsFinalized);
         Assert.True(writer.Plan?.IsFinalized);
@@ -124,7 +125,8 @@ public sealed class ExportWorkpaperTypedSeamTests
         Assert.Null(typeof(WorkpaperContext).GetProperty("PrescreenRunId"));
         Assert.Equal(revision, writer.Context?.ScenarioRevision);
         Assert.Equal(new[] { 1 }, writer.Context?.ScenarioPositions);
-        Assert.Null(writer.Context?.ScenarioConditionLogic);
+        // 原本另斷言 ScenarioConditionLogic 是 null。2026-10-22 技術債一輪刪掉這個屬性，改由 CompatibilityPathOwnershipTests
+        // 斷言它不存在。第一次失敗是刪掉屬性後測試專案建置失敗，那次沒有保存收據。
 
         var plan = Assert.IsType<WorkpaperPlan>(writer.Plan);
         Assert.Equal(validationRunId, plan.Request.ValidationRunId);
@@ -253,24 +255,11 @@ public sealed class ExportWorkpaperTypedSeamTests
 
     private sealed class RecordingPlanWriter(List<string> order) : IWorkpaperPlanWriter
     {
-        public int PublicCalls { get; private set; }
-
         public int TypedCalls { get; private set; }
 
         public WorkpaperContext? Context { get; private set; }
 
         public WorkpaperPlan? Plan { get; private set; }
-
-        public Task<ExportStats> WriteAsync(
-            Stream output,
-            WorkpaperContext context,
-            CancellationToken cancellationToken,
-            Action<WorkpaperProgress>? progress = null)
-        {
-            PublicCalls++;
-            throw new InvalidOperationException(
-                "Production Workpaper export must not use the public compatibility writer.");
-        }
 
         public Task<ExportStats> WriteAsync(
             Stream output,

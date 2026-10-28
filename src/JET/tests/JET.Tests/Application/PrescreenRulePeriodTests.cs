@@ -265,12 +265,14 @@ public sealed class PrescreenRulePeriodTests
             AssertApplicable(rules[key], expected);
         }
 
+        // 預篩選收斂計畫階段四（2026-10-23）要求第四步與第五步對同一條規則給同一個原因，句子寫出缺什麼、到哪裡補，
+        // 預期值換成規則需求表的句子。第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
         AssertNotApplicable(
             rules["unexpectedAccountPair"],
-            "需先完成科目配對。");
+            "科目配對中尚無任何科目設定分類，請先在第四步設定。");
         AssertNotApplicable(
             rules["nonAuthorizedPreparer"],
-            "需先匯入授權編製人員清單。");
+            "尚未匯入授權編製人員清單，請先在第二步匯入。");
     }
 
     private static IReadOnlyDictionary<string, JsonElement> ReadRules(JsonElement rulePeriod) =>

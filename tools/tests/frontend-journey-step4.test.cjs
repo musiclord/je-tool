@@ -49,7 +49,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { root, settle, plain, batch9TreeDom, recordingJetApi, timerQueue, fakeMatchMedia, cssEscape, exposeAt, indexMarkup, readWwwroot,
-  remapPrescreen, noDunderKeys } = require('./support/frontend-fixtures.cjs');
+  remapPrescreen, noDunderKeys, FILTER_STEP_FILES } = require('./support/frontend-fixtures.cjs');
 const { unchecked } = require('./support/action-contract.cjs');
 
 const VALIDATE_INDEX = 3;
@@ -68,9 +68,10 @@ function step4Fixture({ mapped = true, validation = null, taxonomy = null } = {}
     getComputedStyle: () => ({ gridTemplateColumns: 'none', position: 'static', display: 'block' }) };
   const context = vm.createContext({ window, document: dom.document, setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout });
   dom.document.body = dom.element('body');
+  // 第五步拆成五個檔案（階段十），照 index.html 的順序載入。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-vouchers.js',
     'steps/create-step.js', 'steps/import-step.js', 'steps/mapping-step.js', 'steps/validate-step.js',
-    'account-mapping-editor.js', 'steps/filter-step.js', 'steps/export-step.js', 'data-preview.js'])
+    'account-mapping-editor.js', ...FILTER_STEP_FILES, 'steps/export-step.js', 'data-preview.js'])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   vm.runInContext(exposeAt(readWwwroot('js/app.js'), "  if (document.readyState === 'loading') {",
     '  window.step4App = { renderStepNav: renderStepNav, renderContent: renderContent, overviewStepFactsHtml: overviewStepFactsHtml };\n'), context, { filename: 'app.js' });
@@ -630,6 +631,136 @@ test('journey 8: running the prescreen lists the two aggregates first, keeps the
   assert.match(report.textContent, /預篩選報告/);
   assert.match(report.textContent, /尚未產生/);
   assert.ok(report.querySelector('[data-action="export-prescreen-report"]') !== null, 'report can be produced on request');
+});
+
+// 預篩選收斂計畫階段九（使用者 2026-10-22 裁定）：第四步的空白摘要只留預篩選訊號那一處，「資料缺漏輔助檢視」只列空白傳票號碼與
+// 空白科目編號；驗證報告 V_Report 3 照舊由後端寫出。第一次失敗：收據 20261024-190820658-e1f6ec57c899499f8f9f3d0be434178e。
+test('journey 8: the data-gap view lists blank voucher numbers and blank account codes only, and blank descriptions appear once as a prescreen signal', async () => {
+  const f = await openStep4({ validation: validationResult() });
+  f.click('[data-action="run-prescreen"]');
+  f.request('prescreenRun').resolve(remapPrescreen('p-gap')); await flush();
+  const signals = f.$('.rule-card--prescreen details.prescreen-signals');
+  const lists = signals.querySelectorAll('.rule-list');
+  assert.equal(lists.length, 2, 'the filter results and the data-gap view');
+  const titles = list => list.querySelectorAll('.rule-item__title').map(node => node.textContent);
+  assert.deepEqual(titles(lists[1]), ['空白傳票號碼', '空白科目編號']);
+  assert.equal(titles(lists[0]).filter(title => title === '空白摘要').length, 1, 'blank descriptions stay one prescreen signal');
+  assert.equal(signals.querySelectorAll('.rule-item__title').filter(node => node.textContent === '空白摘要').length, 1);
+});
+
+// ---- 預篩選收斂計畫階段四第 4 項：規則無法執行時只顯示後端的一句原因（使用者 2026-10-22 裁定併入階段四） ----
+// 後端的句子已寫出缺什麼、到哪裡補，畫面不再另接補救文字；週末與假日卡只有核准側不能檢查時，照常顯示總帳日期那一側。
+
+// 每條規則都是 0 筆的預篩選結果，再依測試覆寫個別規則。
+function prescreenResult(runId, overrides) { return Object.assign(remapPrescreen(runId), overrides); }
+
+async function runPrescreen(f, result) {
+  f.click('[data-action="run-prescreen"]');
+  f.request('prescreenRun').resolve(result);
+  await flush();
+}
+
+// 按一條規則的「檢視」，回傳展開後的明細。
+function openDetail(f, title) {
+  const item = ruleItem(f, title);
+  assert.ok(item !== null, title + ' listed');
+  item.querySelector('[data-action="toggle-detail"]').dispatch('click');
+  const panel = ruleItem(f, title).querySelector('.rule-detail');
+  assert.ok(panel !== null && panel.hidden === false, title + ' detail open');
+  return panel;
+}
+
+test('journey 8: a prescreen rule that cannot run shows only the backend sentence, on its badge and in its opened detail', async () => {
+  const f = await openStep4({ validation: validationResult() });
+  const lowFrequencyPreparer = f.ui.prescreenConditionLabel('lowFrequencyPreparer');
+  const cases = [
+    ['期末財報準備日起核准之分錄', 'postPeriodApproval', '合成原因：甲欄尚未選擇來源欄，請回第三步欄位配對補上。'],
+    ['未預期出現之特定借貸組合', 'unexpectedAccountPair', '合成原因：科目配對中尚無乙分類的科目，請先在第四步設定。'],
+    ['依分錄編製者彙總', 'creatorSummary', '合成原因：丙欄尚未選擇來源欄，請回第三步欄位配對補上。'],
+    ['假日過帳／核准之分錄', 'holidayActivity', '合成原因：尚未上傳丁檔，請先在第二步上傳。'],
+    ['非授權編製人員之分錄', 'nonAuthorizedPreparer', '合成原因：尚未匯入戊清單，請先在第二步匯入。'],
+    [lowFrequencyPreparer, 'lowFrequencyPreparer', '合成原因：己欄尚未選擇來源欄，請回第三步欄位配對補上。']
+  ];
+  const overrides = {};
+  for (const [, key, naReason] of cases) {
+    overrides[key] = key === 'creatorSummary' ? { status: 'na', naReason, creators: [], totalPreparerCount: null }
+      : key === 'holidayActivity' ? { status: 'na', naReason, approvalNaReason: null, postingCount: 0, approvalCount: null }
+        : { status: 'na', naReason, count: 0 };
+  }
+  await runPrescreen(f, prescreenResult('p-step4-na', overrides));
+  for (const [title, , naReason] of cases) {
+    const badge = ruleItem(f, title).querySelector('.rule-status');
+    assert.equal(badge.textContent, '無法執行', title);
+    assert.equal(badge.getAttribute('title'), naReason, title);
+    const panel = openDetail(f, title);
+    assert.equal(panel.textContent, naReason, title + ' detail is the backend sentence alone');
+    assert.ok(panel.querySelector('.rule-detail__remedy') === null, title + ' has no screen-written next step');
+  }
+});
+
+test('journey 8: without the approval date mapping, the weekend and holiday cards keep the posting side, open its entries and say only the posting date was checked', async () => {
+  const note = '合成說明：只檢查了總帳日期。庚欄尚未選擇來源欄，請回第三步欄位配對補上。';
+  const f = await openStep4({ validation: validationResult() });
+  await runPrescreen(f, prescreenResult('p-step4-activity', {
+    weekendActivity: { status: 'V', naReason: null, approvalNaReason: note, postingCount: 2, approvalCount: null },
+    holidayActivity: { status: 'V', naReason: null, approvalNaReason: note, postingCount: 1, approvalCount: null } }));
+  for (const [title, postingKey, count] of [['週末過帳／核准之分錄', 'weekendPosting', '2'], ['假日過帳／核准之分錄', 'holidayPosting', '1']]) {
+    const badge = ruleItem(f, title).querySelector('.rule-status');
+    // 狀態照常寫兩側的筆數，核准側沒有檢查寫成「—」；提示是後端那一句，不是畫面自己寫的句子。
+    assert.equal(badge.textContent, '過帳 ' + count + '，核准 —', title);
+    assert.equal(badge.getAttribute('title'), note, title);
+    f.requests.length = 0;
+    const panel = openDetail(f, title);
+    assert.deepEqual(panel.querySelectorAll('.rule-detail__reason').map(node => node.textContent), [note], title);
+    assert.ok(panel.querySelector('.rule-detail__remedy') === null, title + ' has no screen-written next step');
+    assert.deepEqual(panel.querySelectorAll('[data-prescreen-key]').map(node => node.getAttribute('data-prescreen-key')), [postingKey], title);
+    assert.deepEqual(f.pending('queryPrescreenPage').map(r => plain(r.payload).ruleKey), [postingKey], title + ' loads the posting side entries');
+  }
+});
+
+// ---- 預篩選收斂計畫階段四追加：傳票核准日不可用時「核准日不在期間」無法執行（使用者 2026-10-23 裁定併入階段四） ----
+// 後端的筆數是 null、原因寫缺什麼與到哪裡補；畫面和預篩選規則卡一樣只顯示這一句，不寫「通過」，也沒有分錄明細可載入。
+// 第一次失敗：FrontendMapping 收據 20261023-102604534-70863c25b29d45eda2c9504cb762cc77（狀態顯示「通過」）。
+test('journey 7: without the approval date mapping, the out-of-period approval item cannot run and shows only the backend sentence', async () => {
+  const reason = '合成原因：辛欄尚未選擇來源欄，請回第三步欄位配對補上。';
+  const data = validationResult({ runId: 'v-step4-no-approval' });
+  data.nullRecordsTest = { status: 'na', nullDocumentCount: 0, nullAccountCount: 0, nullDescriptionCount: 0,
+    outOfRangeDateCount: null, outOfRangeDateNaReason: reason, nullRows: [] };
+  const f = await openStep4();
+  await runValidation(f, data);
+  const badge = ruleItem(f, '核准日不在期間').querySelector('.rule-status');
+  assert.equal(badge.textContent, '無法執行');
+  assert.equal(badge.getAttribute('title'), reason);
+  f.requests.length = 0;
+  const panel = openDetail(f, '核准日不在期間');
+  assert.equal(panel.textContent, reason, 'detail is the backend sentence alone');
+  assert.deepEqual(f.pending('queryNullRecordsPage').map(r => plain(r.payload)), [], 'no entries to load');
+});
+
+test('journey 7: when the approval date can be checked and nothing is out of period, the item still reads as passed', async () => {
+  const data = validationResult({ runId: 'v-step4-approval-ok' });
+  data.nullRecordsTest = { status: 'na', nullDocumentCount: 0, nullAccountCount: 0, nullDescriptionCount: 0,
+    outOfRangeDateCount: 0, outOfRangeDateNaReason: null, nullRows: [] };
+  const f = await openStep4();
+  await runValidation(f, data);
+  const badge = ruleItem(f, '核准日不在期間').querySelector('.rule-status');
+  assert.equal(badge.textContent, '通過');
+  assert.equal(badge.getAttribute('title'), null);
+});
+
+test('journey 8: when the backend says the validation must run again, the completeness detail shows that one sentence and the screen adds nothing', async () => {
+  const reason = '合成原因：目前的驗證結果已過期，請重新執行資料驗證。';
+  const f = await openStep4({ validation: validationResult({ eligibility: { isEligible: false, reason } }) });
+  const panel = openDetail(f, '完整性測試');
+  assert.deepEqual(panel.querySelectorAll('.rule-detail__reason').map(node => node.textContent), [reason]);
+  assert.ok(panel.querySelector('.rule-detail__remedy') === null, 'no screen-written next step');
+});
+
+test('validate-step.js names itself the fourth step and the next-step paragraph style is gone', () => {
+  const header = readWwwroot('js/steps/validate-step.js').split('*/')[0];
+  assert.match(header, /第四步/);
+  assert.doesNotMatch(header, /Step 3/);
+  assert.doesNotMatch(readWwwroot('css/app.css'), /rule-detail__remedy/);
 });
 
 // ---- 情境 9：科目分類與科目配對 ----

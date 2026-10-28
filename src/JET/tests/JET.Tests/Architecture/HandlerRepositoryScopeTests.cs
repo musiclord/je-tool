@@ -30,7 +30,9 @@ public sealed partial class HandlerRepositoryScopeTests
         ("QueryAccountMappingDifferencePageHandler", "Query/QueryAccountMappingDifferencePageHandler.cs", "AccountMappingDifferences"),
         ("QueryAccountMappingBlankPageHandler", "Query/QueryAccountMappingBlankPageHandler.cs", "AccountMappingBlankPages"),
         ("QueryCompletenessDiffPageHandler", "Query/QueryCompletenessDiffPageHandler.cs", "CompletenessDiffPages"),
-        ("QueryDataPreviewHandler", "Query/QueryDataPreviewHandler.cs", "DataPreview"),
+        // 預篩選收斂計畫階段五（2026-10-22 使用者裁定）：GL 與 GL(未納入測試) 依已確認的配對列欄位，資料預覽因此多讀 GL 配對。
+        // 第一次失敗：Focused 收據 20261023-112050227-6678ef4dc9de4804aca3ff0460be86bf。
+        ("QueryDataPreviewHandler", "Query/QueryDataPreviewHandler.cs", "DataPreview,MappingStates"),
         ("QueryDocBalancePageHandler", "Query/QueryDocBalancePageHandler.cs", "DocBalancePages"),
         (
             "QueryFilterHitsPageHandler", "Query/QueryFilterHitsPageHandler.cs",
@@ -74,9 +76,11 @@ public sealed partial class HandlerRepositoryScopeTests
         ("MappingValueProfileHandler", "MappingValueProfileHandler.cs", "Imports,MappingValueProfiles"),
         // 第9批中低9；Public首敗105344715：來源樣本與summary持久化移入正式同交易port，精確移除兩個handler依賴，不放寬整組禁令。
         ("ValidateRunHandler", "ValidateRunHandler.cs", "MappingStates,ValidationFacts"),
+        // 預篩選收斂計畫階段四（2026-10-23）：第四步的原因要和第五步寫同一套分類名稱，預篩選因此多讀科目分類設定，
+        // 第五步的驗證本來就讀它。第一次失敗：Focused 收據 20261023-032741823-a968cacaaf3948e7b0174596698c9d49。
         (
             "PrescreenRunHandler", "PrescreenRunHandler.cs",
-            "AccountMappings,AuthorizedPreparers,Calendar,MappingStates,PrescreenFacts,RuleRuns"
+            "AccountMappings,AccountTaxonomy,AuthorizedPreparers,Calendar,MappingStates,PrescreenFacts,RuleRuns"
         ),
         (
             "FilterPreviewHandler", "FilterHandlers.cs",

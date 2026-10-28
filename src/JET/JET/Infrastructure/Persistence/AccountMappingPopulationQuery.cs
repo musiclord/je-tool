@@ -10,7 +10,7 @@ internal static class AccountMappingPopulationQuery
         , population AS (
             SELECT account_code, MAX(account_name) AS account_name
             FROM diff
-            WHERE account_code IS NOT NULL AND {{dialect.Trim("account_code")}} <> ''
+            WHERE {{SqlBlankText.IsNotBlank(dialect, "account_code")}}
             GROUP BY account_code
         )
         """;

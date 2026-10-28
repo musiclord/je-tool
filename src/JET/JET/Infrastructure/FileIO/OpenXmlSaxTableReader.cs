@@ -34,7 +34,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         var context = CellContext.Create(handle.Document);
 
         var header = FindHeaderRow(part, context, onDimension: null, request.LeadingRowsToSkip)
-            ?? throw EmptySheet(request.FilePath, sheetName);
+            ?? throw NoHeader(request, sheetName);
 
         IReadOnlyList<string> columns = BuildHeaderMap(header.Cells).Select(h => h.Name).ToList();
         return Task.FromResult(columns);
@@ -138,7 +138,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
         if (headerByColumn is null)
         {
-            throw EmptySheet(request.FilePath, sheetName);
+            throw NoHeader(request, sheetName);
         }
 
         await Task.CompletedTask;
@@ -244,6 +244,11 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             JetErrorCodes.SheetNotFound,
             $"檔案「{fileName}」沒有名為「{request.SheetName}」的工作表。");
     }
+
+    private static JetActionException NoHeader(TabularSourceRequest request, string sheetName) =>
+        request.LeadingRowsToSkip > 0 && !request.FixedLeadingRows
+            ? SourceFileErrors.HeaderRowBeyondContent(request.FilePath, request.LeadingRowsToSkip)
+            : EmptySheet(request.FilePath, sheetName);
 
     private static JetActionException EmptySheet(string filePath, string sheetName)
     {

@@ -52,6 +52,14 @@ internal static class FilterScenarioSummaryRenderer
                 summary["editorOrigins"] = origins.Clone();
             }
 
+            // 10 月以前存下的情境可能還帶已移除的排除區：照原樣帶給編輯器畫成唯讀區塊，審計員看得到也能移除；
+            // 沒移除就儲存時由 FilterScenarioPayloadParser 擋下。原本不帶，修改這個情境後存回去就默默丟掉
+            //（預篩選收斂計畫階段四，使用者 2026-10-22 勾選要修）。
+            if (readable && root!.Value.TryGetProperty("exclusions", out var exclusions))
+            {
+                summary["exclusions"] = exclusions.Clone();
+            }
+
             return summary;
         }
     }

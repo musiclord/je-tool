@@ -236,15 +236,15 @@ public sealed class ActionDispatcher
 /// </summary>
 internal static partial class DispatcherDiagnostics
 {
-    [LoggerMessage(EventId = 1000, EventName = "action.start", Level = LogLevel.Information,
+    [LoggerMessage(EventId = 1000, EventName = SupportEventNames.ActionStart, Level = LogLevel.Information,
         Message = "action {action} start")]
     public static partial void ActionStart(ILogger logger, string action);
 
-    [LoggerMessage(EventId = 1001, EventName = "action.end", Level = LogLevel.Information,
+    [LoggerMessage(EventId = 1001, EventName = SupportEventNames.ActionEnd, Level = LogLevel.Information,
         Message = "action {action} {result_status} in {duration_ms} ms")]
     public static partial void ActionEnd(ILogger logger, string action, string result_status, long duration_ms);
 
-    [LoggerMessage(EventId = 1002, EventName = "action.error", Level = LogLevel.Error,
+    [LoggerMessage(EventId = 1002, EventName = SupportEventNames.ActionError, Level = LogLevel.Error,
         Message = "action {action} failed in {duration_ms} ms code={error_code}")]
     public static partial void ActionError(
         ILogger logger,
@@ -254,7 +254,7 @@ internal static partial class DispatcherDiagnostics
         Exception exception);
 
     /// <summary>操作被取消；不算失敗，不佔支援日誌保留的失敗名額（2026-10-21）。</summary>
-    [LoggerMessage(EventId = 1004, EventName = "action.cancelled", Level = LogLevel.Information,
+    [LoggerMessage(EventId = 1004, EventName = SupportEventNames.ActionCancelled, Level = LogLevel.Information,
         Message = "action {action} cancelled in {duration_ms} ms requested={cancellation_requested}")]
     public static partial void ActionCancelled(
         ILogger logger,
@@ -264,7 +264,7 @@ internal static partial class DispatcherDiagnostics
         Exception exception);
 
     /// <summary>畫面送出的資料沒過後端格式檢查；payload_check 是程式寫死的檢查代號，不含資料內容。</summary>
-    [LoggerMessage(EventId = 1003, EventName = "action.payload_rejected", Level = LogLevel.Warning,
+    [LoggerMessage(EventId = 1003, EventName = SupportEventNames.ActionPayloadRejected, Level = LogLevel.Warning,
         Message = "action {action} payload rejected code={error_code} check={payload_check}")]
     public static partial void PayloadRejected(
         ILogger logger,

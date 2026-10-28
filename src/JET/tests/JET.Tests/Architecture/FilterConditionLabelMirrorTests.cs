@@ -4,11 +4,14 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
+// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
+
 /// <summary>
 /// 條件中文標籤的漂移守衛（比照 <see cref="SupportedActionsParityTests"/> 的樣式）：Domain 的
 /// <see cref="FilterConditionLabels"/> 為正本，前端 <c>ui-core.js</c> 的標籤常數必須與之逐鍵相等。
 /// 前端沒有自動測試——標籤只改一邊時，Criteria summary 與前端藍色 read-back
-/// 會漂移；這條守衛把該缺口升級為 CI 可擋。<c>PRESCREEN_KEY_OPTIONS</c> 為雙向比對，故新增 row-tag 鍵卻
+/// 會漂移；這條守衛把該缺口升級為 CI 可擋。<c>PRESCREEN_RULES</c> 為雙向比對，故新增 row-tag 鍵卻
 /// 漏接前端（如 <c>nonAuthorizedPreparer</c>）會立即紅燈。
 /// </summary>
 public sealed class FilterConditionLabelMirrorTests
@@ -16,11 +19,33 @@ public sealed class FilterConditionLabelMirrorTests
     [Fact]
     public void FilterRuleTypes_MirrorDomainLabels_Bidirectional()
     {
+        // 預篩選收斂計畫階段九：前端型別表不再列出已停用的型別（Domain FilterSinglePurposeRules.RetiredTypes），
+        // 其餘型別仍逐鍵相等；Domain 標籤表照舊涵蓋全部型別，舊情境讀回與停用原因還要用。
+        // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
         var frontend = ExtractValueLabelMap("FILTER_RULE_TYPES");
+        var retired = FilterSinglePurposeRules.RetiredTypes.Select(WireKey).ToHashSet(StringComparer.Ordinal);
+        Assert.All(retired, key => Assert.Contains(key, FilterConditionLabels.RuleTypes.Keys));
 
-        Assert.Equal(FilterConditionLabels.RuleTypes, frontend);
+        Assert.Equal(
+            FilterConditionLabels.RuleTypes
+                .Where(pair => !retired.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+            frontend);
         Assert.Equal(Enum.GetValues<FilterRuleType>().Length, FilterConditionLabels.RuleTypes.Count);
+
+        // 已停用的清單前後端相同。
+        var retiredFrontend = Regex.Match(ReadUiCore(), @"var RETIRED_RULE_TYPES = \[(?<body>[^\]]*)\];");
+        Assert.True(retiredFrontend.Success, "ui-core.js 找不到 RETIRED_RULE_TYPES");
+        Assert.Equal(
+            retired.OrderBy(k => k, StringComparer.Ordinal),
+            Regex.Matches(retiredFrontend.Groups["body"].Value, @"'(?<type>[A-Za-z]+)'")
+                .Select(m => m.Groups["type"].Value)
+                .OrderBy(k => k, StringComparer.Ordinal));
     }
+
+    /// <summary>型別列舉對應的 wire 鍵：首字母小寫；typed 條件的列舉名稱是 TypedField。</summary>
+    private static string WireKey(FilterRuleType type) =>
+        type == FilterRuleType.TypedField ? "typed" : char.ToLowerInvariant(type.ToString()[0]) + type.ToString()[1..];
 
     [Fact]
     public void PrescreenKeyOptions_MirrorDomainLabels_Bidirectional()
@@ -28,7 +53,8 @@ public sealed class FilterConditionLabelMirrorTests
         // 第9批共用11/6門檻後，literal-only regex會把串接文字截斷，並非可見標籤變更。
         // 首次失敗：20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
         // 從JS自己的常數求出完整文字；Domain只作另一側比對，全部鍵仍逐一核對。
-        var frontend = FrontendConstantTextReader.ValueLabels(ReadUiCore(), "PRESCREEN_KEY_OPTIONS");
+        // 預篩選收斂計畫階段九：前端只留一份 PRESCREEN_RULES。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        var frontend = FrontendConstantTextReader.ValueLabels(ReadUiCore(), "PRESCREEN_RULES");
         Assert.Equal(FilterConditionLabels.PrescreenKeys, frontend);
         Assert.Equal("金額尾數連續 6 個 0", frontend["trailingZeros"]);
         Assert.Equal("編製分錄較少的人員（11 筆以下）", frontend["lowFrequencyPreparer"]);
@@ -121,7 +147,7 @@ public sealed class FilterConditionLabelMirrorTests
         // 2026-10-14 從 FilterBuilderFrontendTests.EveryRuleRow_IsOneSentenceWithoutATypeDropdown 原樣搬來。
         // 家族只是畫面分類：三個家族合起來正好涵蓋後端認得的全部型別，wire 型別鍵不變。
         // 前端行為測試讀不到後端的 FilterConditionLabels.RuleTypes，後端新增型別而前端漏接時只有這裡看得出來。
-        var filter = File.ReadAllText(Path.Combine(RepoRoot(), "JET", "wwwroot", "js", "steps", "filter-step.js"));
+        var filter = ProductSources.FilterStepFrontend();
         var families = Regex.Match(filter, @"var RULE_FAMILIES = \{(?<body>.*?)\n  \};", RegexOptions.Singleline).Groups["body"].Value;
         var covered = Regex.Matches(families, @"'(?<type>[A-Za-z]+)'").Select(m => m.Groups["type"].Value).ToHashSet(StringComparer.Ordinal);
         foreach (var type in JET.Domain.FilterConditionLabels.RuleTypes.Keys)

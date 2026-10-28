@@ -71,7 +71,7 @@ public sealed class InfSamplingPrfProviderTests
                 await command.ExecuteScalarAsync(CancellationToken.None),
                 CultureInfo.InvariantCulture);
 
-            Assert.Equal(vector.Expected, JetAuditProgram.ComputeInfSamplingOrderingKey(
+            Assert.Equal(vector.Expected, InfSamplingPrf.ComputeOrderingKey(
                 vector.Seed,
                 vector.SourceRow));
             Assert.Equal(vector.Expected, actual);

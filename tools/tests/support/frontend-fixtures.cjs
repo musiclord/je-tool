@@ -76,6 +76,17 @@ function exposeAt(source, anchor, code, options = {}) {
   return source.slice(0, at) + code + source.slice(at);
 }
 
+// 第五步的程式分成五個檔案（預篩選收斂計畫階段十，2026-10-25），照 index.html 的順序載入，主檔 filter-step.js 最後；
+// 前四個檔案把函式掛在 JetUi.FilterStep，主檔透過它轉呼叫。要讀第五步原始碼的測試把五個檔案合起來讀，範圍和拆檔前相同。
+const FILTER_STEP_FILES = ['steps/filter-step-view.js', 'steps/filter-step-sources.js', 'steps/filter-step-rules.js',
+  'steps/filter-step-saved.js', 'steps/filter-step.js'];
+const FILTER_STEP_PARTS = FILTER_STEP_FILES.slice(0, -1);
+function readFilterStep() { return FILTER_STEP_FILES.map(file => fs.readFileSync(path.join(root, file), 'utf8')).join('\n'); }
+// 測試把主檔的內部函式掛到 window 時，列出要用的名稱，從 FilterStep 取；extra 是額外的成員（例如回傳目前檢視狀態的函式）。
+function filterStepExposure(target, names, extra) {
+  return '  window.' + target + ' = { ' + names.map(name => name + ': FilterStep.' + name).join(', ') + (extra ? ', ' + extra : '') + ' };';
+}
+
 // 依 CSSOM 規格的 CSS.escape，給沒有瀏覽器 CSS 物件的 vm 使用（app.js 用它組焦點與捲動的選擇器）。
 function cssEscape(value) {
   const text = String(value);
@@ -265,7 +276,7 @@ function batch9TreeDom(options = {}) {
         else if (['beforebegin', 'afterend'].includes(position)) { const parent = this.parentElement; assert.ok(parent); const index = parent.children.indexOf(this) + (position === 'afterend' ? 1 : 0);
           parent.children.splice(index, 0, ...fragment.children); fragment.children.forEach(child => { child.parentElement = parent; }); }
         else throw new Error('Unsupported synthetic DOM insertion: ' + position); },
-      focus(focusOptions) { this.lastFocusOptions = focusOptions || null; if (document) document.activeElement = this; }, scrollIntoView() {},
+      focus(focusOptions) { this.lastFocusOptions = focusOptions || null; if (document) document.activeElement = this; }, scrollIntoView(options) { this.scrolledIntoView = (this.scrolledIntoView || []).concat([options === undefined ? null : options]); },
       getClientRects() { return this.hidden ? [] : [{ width: 400, height: 30 }]; },
       remove() { if (!this.parentElement) return; const parent = this.parentElement; parent.children.splice(parent.children.indexOf(this), 1); this.parentElement = null; this.isConnected = false; },
       set outerHTML(html) { const parent = this.parentElement; if (!parent) return; const index = parent.children.indexOf(this), fragment = element(); fragment.innerHTML = html;
@@ -321,6 +332,7 @@ function batch9TreeDom(options = {}) {
   // remapAppFixture 改用 data-jet-root，把中欄放成根節點裡的一個區塊，app.js 的 render() 重建中欄時才不會清掉頁首。
   const content = element('main', options.rootAttributes || { 'data-bind': 'content' });
   document = { readyState: 'loading', activeElement: null, createElement: element,
+    contains: node => node === content || content.contains(node),
     // 第 0 批補：記下 document 的監聽（wf 的版本什麼都不做），冒泡到畫面根節點後會呼叫；capture 監聽在目標之前執行。
     addEventListener(type, fn, listenerOptions) {
       const capture = captureOf(listenerOptions);
@@ -366,7 +378,7 @@ function usageJourneyFixture(step = 'export', fixtureOptions = {}) {
   const context = vm.createContext({ window, document: dom.document, setTimeout: setTimer, clearTimeout: clearTimer });
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-vouchers.js',
     'steps/create-step.js', 'steps/import-step.js', 'steps/mapping-step.js', 'steps/validate-step.js',
-    'account-mapping-editor.js', 'steps/filter-step.js', 'steps/export-step.js'])
+    'account-mapping-editor.js', ...FILTER_STEP_FILES, 'steps/export-step.js'])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   const store = window.JetStore, state = store.getState();
   store.setProject({ projectId: 'usage-synthetic', periodStart: '2025-01-01', periodEnd: '2025-11-30', lastPeriodStart: '2025-11-20' });
@@ -394,10 +406,11 @@ function filterOperationFixture({ saved = [] } = {}) {
   const dom = batch9TreeDom(), commits = [];
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const context = vm.createContext({ window, document: dom.document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js'])
+  // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    '  window.ops = { syncViewState, render, view: () => viewState };'), context);
+    filterStepExposure('ops', ['syncViewState', 'render'], 'view: () => FilterStep.viewState')), context);
   const store = window.JetStore, api = window.ops;
   // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。
   // 三個新方法和舊的 filterCommit 都記進 commits 並帶方法名稱。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
@@ -573,10 +586,11 @@ function batch8Fixture() {
     window.JetApi[action] = payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject }));
   }
   const context = vm.createContext({ window, document });
-  for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js', 'filter-values.js', 'overview-bi.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  // 第五步拆成五個檔案（階段十）：前四個先載入，下面的清單再載入主檔。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js', 'filter-values.js', 'overview-bi.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const modules = [
     ['validate', 'window.batch8Validation = { bind, detailView, VALIDATION_ITEMS, PRESCREEN_ITEMS, NULL_PRESCREEN_ITEMS, DETAIL_PAGE_SPECS, detailHtml, validationCardHtml, validationArtifactsHtml, validationOutputStatusHtml, prescreenArtifactHtml, prescreenCardHtml, statsBarHtml, pairCountStatus, hitCountStatus };'],
-    ['filter', 'window.batch8Filter = { customPickerHtml, exampleListHtml, viewState, ruleControlsHtml, ruleSummaryLabel, readBackHtml, toWireDraft, compoundRuleHtml, scenarioBuilderHtml };'],
+    ['filter', filterStepExposure('batch8Filter', ['customPickerHtml', 'exampleListHtml', 'ruleControlsHtml', 'ruleSummaryLabel', 'readBackHtml', 'toWireDraft', 'compoundRuleHtml', 'scenarioBuilderHtml'], 'viewState: FilterStep.viewState').trim()],
     ['mapping', 'window.batch8Mapping = { classicEditSection, summarySection, mappingPreflightHtml };'],
     ['import', 'window.batch8Import = { emptyFaceHtml, wizardBannerHtml, previewTableHtml, datasetCard, getWizard: () => wizard };'],
     ['create', 'window.batch8Create = { render, operatorNoticeHtml };']
@@ -1014,5 +1028,7 @@ module.exports = {
   // 第 0 批新增的夾具
   dataPreviewFixture, mappingRenderFixture, messagePanelFixture,
   // 第 11 批從情境檔收進來的通用能力
-  flush, noDunderKeys, fullAppFixture, bootFullApp
+  flush, noDunderKeys, fullAppFixture, bootFullApp,
+  // 第五步拆成五個檔案後的載入清單、合併讀取與掛到 window 的寫法（階段十）
+  FILTER_STEP_FILES, FILTER_STEP_PARTS, readFilterStep, filterStepExposure
 };

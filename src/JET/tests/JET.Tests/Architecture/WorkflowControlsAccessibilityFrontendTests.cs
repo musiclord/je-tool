@@ -2,6 +2,9 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
+// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
+
 /// <summary>
 /// 前端工作流整合新增控制項的可用性守衛：每個輸入都有可讀名稱、群組選項用 fieldset 與 legend、
 /// 新區塊在窄視窗可收縮或自行捲動。實際縮放與 Windows DPI 仍由人工驗收。
@@ -59,7 +62,7 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
     public void GroupedChoicesUseFieldsetAndLegendInsteadOfBareDivs()
     {
         var mapping = ReadFrontend("js", "steps", "mapping-step.js");
-        var filter = ReadFrontend("js", "steps", "filter-step.js");
+        var filter = ProductSources.FilterStepFrontend();
         var core = ReadFrontend("js", "ui-core.js");
 
         Assert.Contains("<fieldset class=\"map-options__group\">", mapping, StringComparison.Ordinal);

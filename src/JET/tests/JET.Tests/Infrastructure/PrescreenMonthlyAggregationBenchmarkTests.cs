@@ -59,6 +59,10 @@ internal sealed class PrescreenMonthlyAggregationBenchmarkFactAttribute : FactAt
 /// </summary>
 public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper output)
 {
+    // 2026-10-22 技術債一輪：產品不再提供只給基準測試用的明示期間片段，基準自己寫這一句。
+    private static string PeriodBoundsWith(string columnPrefix) =>
+        $"({columnPrefix}post_date >= @periodStart AND {columnPrefix}post_date <= @periodEnd)";
+
     private const long SmallScaleRows = 20_000;
     private const long FirstStageRows = 5_000_000;
     private const long FullScaleRows = 20_000_000;
@@ -489,12 +493,15 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         var session = new ProjectSession();
         session.Enter(
             ProjectId,
+            // 預篩選收斂計畫階段四起預篩選多讀科目分類設定，取原因裡的分類名稱，資料庫組一併放進去。
+            // 第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7（處理器讀分類設定時遇到空參考）。
             TestProjectRepositories.Unconfigured(provider) with
             {
                 PrescreenFacts = new LocalPrescreenRunRepository(database),
                 MappingStates = mappingStore,
                 Calendar = new LocalCalendarStore(database),
                 AccountMappings = new LocalAccountMappingRepository(database),
+                AccountTaxonomy = new LocalAccountTaxonomyStore(database),
                 AuthorizedPreparers = new LocalAuthorizedPreparerRepository(database),
                 RuleRuns = runStore,
             });
@@ -523,12 +530,14 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         var session = new ProjectSession();
         session.Enter(
             projectId,
+            // 同上，SQL Server 版只改不執行。
             TestProjectRepositories.Unconfigured(ProjectDocument.SqlServerDatabaseProvider) with
             {
                 PrescreenFacts = new SqlServerPrescreenRunRepository(database),
                 MappingStates = mappingStore,
                 Calendar = new SqlServerCalendarStore(database),
                 AccountMappings = new SqlServerAccountMappingRepository(database),
+                AccountTaxonomy = new SqlServerAccountTaxonomyStore(database),
                 AuthorizedPreparers = new SqlServerAuthorizedPreparerRepository(database),
                 RuleRuns = runStore,
             });
@@ -575,11 +584,22 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成舊版案件拒絕。
             SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
 
+    // 原本只寫傳票核准日與建立人員兩欄，因為預篩選只看這兩欄有沒有配對。預篩選收斂計畫階段四（2026-10-23）起
+    // 能用的欄位改由整份欄位目錄判斷，必填欄沒有來源欄就算沒配對，總帳日期這一類規則因此變成不適用。正式流程確認配對時
+    // 必填欄一定有來源欄，所以補上必填欄，讓配對和真實案件一樣；資料直接寫進資料庫，來源欄名稱不影響查詢。
+    // 第一次失敗：Focused 收據 20261023-033930413-87a4245a648e47288e7acf0740bcd07a（假日過帳的回應是 0 筆，月份彙總是 220 筆）。
     private static CommittedMapping BenchmarkGlMapping() =>
         new(
             DatasetKind.Gl,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
+                [GlMappingKeys.DocNum] = "document_number",
+                [GlMappingKeys.LineId] = "line_item",
+                [GlMappingKeys.PostDate] = "post_date",
+                [GlMappingKeys.AccNum] = "account_code",
+                [GlMappingKeys.AccName] = "account_name",
+                [GlMappingKeys.Description] = "document_description",
+                [GlMappingKeys.Amount] = "amount",
                 [GlMappingKeys.DocDate] = "approval_date",
                 [GlMappingKeys.CreateBy] = "created_by"
             },
@@ -770,7 +790,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                 command.CommandText =
                     $"SELECT {MonthExpression}, {CountAll}, {CountDistinctDocument} " +
                     $"FROM {Table("target_gl_entry")} g " +
-                    $"WHERE {ValidationProcedures.PeriodBoundsWith("g.")} AND ({rule.Sql}) " +
+                    $"WHERE {PeriodBoundsWith("g.")} AND ({rule.Sql}) " +
                     $"GROUP BY {MonthExpression} ORDER BY {MonthExpression};";
                 Bind(command, CommonParameters.Concat(rule.Parameters));
 
@@ -818,7 +838,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                            g.document_number,
                            {flags}
                     FROM {Table("target_gl_entry")} g
-                    WHERE {ValidationProcedures.PeriodBoundsWith("g.")}
+                    WHERE {PeriodBoundsWith("g.")}
                 ),
                 voucher_flags AS (
                     SELECT month_key,
@@ -868,7 +888,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             command.CommandText =
                 $"SELECT {MonthExpression}, {CountAll} " +
                 $"FROM {Table("target_gl_entry")} g " +
-                $"WHERE {ValidationProcedures.PeriodBoundsWith("g.")} " +
+                $"WHERE {PeriodBoundsWith("g.")} " +
                 $"GROUP BY {MonthExpression} ORDER BY {MonthExpression};";
             Bind(command, CommonParameters);
 
@@ -894,8 +914,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                 var plan = builder.BuildPlan(
                     LocalPrescreenPageRepository.PrescreenScenario(key),
                     _context,
-                    TrailingZeroThreshold.UnitModulus(
-                        TrailingZeroThreshold.DefaultZerosThreshold),
                     _schemaPrefix,
                     includePopulationParameters: false);
                 var replacements = plan.Parameters.ToDictionary(

@@ -60,7 +60,7 @@ public static class RdeFieldValueTypeNames
 public static class GlRdeStorageLimits
 {
     public const int TextValueUtf16CodeUnits = TextStorageLimits.KeyUtf16CodeUnits;
-    public const int LabelUtf16CodeUnits = 400;
+    public const int LabelUtf16CodeUnits = TextStorageLimits.TextUtf16CodeUnits;
 }
 
 public sealed record GlPostingStatusPolicy(
@@ -98,7 +98,7 @@ public sealed record GlRdeFieldMetadata(
     string ValueType);
 
 /// <summary>
-/// GL mapping v2 的正準投影設定。posting、approval、manual/automatic 與 RDE
+/// GL mapping v2 的正準投影設定。posting、approval、manual/automatic、RDE 與往下填補的欄位
 /// 均由同一份 options 驗證、投影並保存，避免 provider 或 metadata reader 各自解讀。
 /// </summary>
 public sealed record GlMappingOptions(
@@ -107,6 +107,19 @@ public sealed record GlMappingOptions(
     GlManualAutoPolicy ManualAutoPolicy,
     IReadOnlyList<GlRdeFieldMetadata> RdeFields)
 {
+    /// <summary>
+    /// 確認配對時要「往下填補空白」的 GL 欄位（mapping key），照欄位目錄的順序、不重複，只能是有來源欄的非字面值欄位。
+    /// 投影時把這些欄位來源欄的空白補成同一來源內上一列的值，PBC-GL 不動；舊配對沒有這份設定時是空清單
+    /// （預篩選收斂計畫階段六，使用者 2026-10-22 裁定放在第三步確認配對時）。
+    /// </summary>
+    public IReadOnlyList<string> FillDownFields { get; init; } = [];
+
+    /// <summary>
+    /// 確認配對時往下填補了幾格。由投影算出，跟著配對保存，重開案件時第三步摘要與報告的配對資訊寫得出來，
+    /// 審計員據此記在 CAATs 文件（使用者 2026-10-28 裁定隨配對保存）。請求不帶這個數字；改版前確認的配對沒有時是 0。
+    /// </summary>
+    public long FillDownCount { get; init; }
+
     public static GlMappingOptions NormalizeLegacy(IReadOnlyDictionary<string, string> mapping)
     {
         ArgumentNullException.ThrowIfNull(mapping);
@@ -241,8 +254,49 @@ public static class GlMappingOptionsRules
         return options with
         {
             ManualAutoPolicy = normalizedManualPolicy,
-            RdeFields = canonicalRde
+            RdeFields = canonicalRde,
+            FillDownFields = NormalizeFillDownFields(mapping, options.FillDownFields)
         };
+    }
+
+    /// <summary>
+    /// 往下填補的欄位只能是有來源欄的 GL 非字面值欄位，不重複；回傳照欄位目錄順序排好的清單。
+    /// 借方、貸方代碼是字面值不是來源欄，傳票文件項次自動編號與「與總帳日期相同」的核准日沒有來源欄，都不能填。
+    /// 填補是對來源欄做的，配到同一個來源欄的其他欄位實際上也被填補，所以一起列入
+    /// （使用者 2026-10-28 裁定依來源欄成組），回應、保存與摘要才寫得出全部被填的欄位。
+    /// </summary>
+    public static IReadOnlyList<string> NormalizeFillDownFields(
+        IReadOnlyDictionary<string, string> mapping,
+        IReadOnlyList<string> fields)
+    {
+        ArgumentNullException.ThrowIfNull(mapping);
+        ArgumentNullException.ThrowIfNull(fields);
+        var chosen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var key in fields)
+        {
+            if (string.IsNullOrWhiteSpace(key) || !JetFieldCatalog.IsGlMappingKey(key) || JetFieldCatalog.IsGlLiteralMappingKey(key))
+            {
+                throw new ArgumentException($"fillDownFields 只能是 GL 的來源欄位：'{key}'。", nameof(fields));
+            }
+
+            if (!HasMappedColumn(mapping, key))
+            {
+                throw new ArgumentException($"fillDownFields 的欄位沒有來源欄：'{key}'。", nameof(fields));
+            }
+
+            if (!chosen.Add(key))
+            {
+                throw new ArgumentException($"fillDownFields 重複：'{key}'。", nameof(fields));
+            }
+        }
+
+        var columns = chosen.Select(key => mapping[key]).ToHashSet(StringComparer.Ordinal);
+        return JetFieldCatalog.GlMappingKeys
+            .Where(key => !JetFieldCatalog.IsGlLiteralMappingKey(key)
+                          && mapping.TryGetValue(key, out var column)
+                          && column is not null
+                          && columns.Contains(column))
+            .ToArray();
     }
 
     public static bool IsCanonicalFieldId(string? fieldId) =>
@@ -289,11 +343,17 @@ public sealed record GlMappingDraftMetadata(
     GlManualAutoPolicy ManualAutoPolicy,
     IReadOnlyList<GlRdeFieldMetadata> RdeFields)
 {
+    /// <summary>往下填補的欄位；報告裡沒有這一項的舊配對是空清單。</summary>
+    public IReadOnlyList<string> FillDownFields { get; init; } = [];
+
     public GlMappingOptions ToOptions() => new(
         ApprovalDateMode,
         PostingStatusPolicy,
         ManualAutoPolicy,
-        RdeFields);
+        RdeFields)
+    {
+        FillDownFields = FillDownFields
+    };
 }
 
 public sealed record TbMappingDraftMetadata(

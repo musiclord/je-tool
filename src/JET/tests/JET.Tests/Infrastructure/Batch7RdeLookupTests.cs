@@ -27,7 +27,7 @@ public sealed class Batch7RdeLookupTests
         var scenario = Batch7SqlSemanticsTests.Scenario(new
         { type = "fieldValue", fieldId = TextId, @operator = "contains", values = Keywords.Take(keywordCount).ToArray() });
         var builder = new GlFilterWhereBuilder(dialect, new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate));
-        var plan = builder.BuildPlan(scenario, Context, 1_000_000);
+        var plan = builder.BuildPlan(scenario, Context);
         Assert.Equal(1, Regex.Matches(plan.Sql, "FROM target_gl_rde_value", RegexOptions.CultureInvariant).Count);
     }
 

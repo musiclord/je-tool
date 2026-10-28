@@ -122,7 +122,8 @@ const VALIDATION_TABLES = [
   ['completeness', 'queryCompletenessDiffPage', 'accountCode', {}],
   ['docBalance', 'queryDocBalancePage', 'documentNumber', {}],
   ['null-outOfRangeDate', 'queryNullRecordsPage', 'documentNumber', { category: 'outOfRangeDate' }],
-  ['null-nullDescription', 'queryNullRecordsPage', 'documentNumber', { category: 'nullDescription' }],
+  // 預篩選收斂計畫階段九：第四步的空白摘要只留預篩選訊號那一處，資料缺漏輔助檢視不再有它的明細頁；其餘三張空值明細照舊。
+  // 第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
   ['null-nullDocument', 'queryNullRecordsPage', 'documentNumber', { category: 'nullDocument' }],
   ['null-nullAccount', 'queryNullRecordsPage', 'documentNumber', { category: 'nullAccount' }],
   ['sourceQuality', 'querySourceQualityPage', 'sourceRowNumber', {}]
@@ -639,6 +640,67 @@ test('the GL preview shows debit and credit as 借 and 貸 instead of the stored
   }
 });
 
+// 使用者 2026-10-22 裁定資料預覽依配對列欄位、欄名和欄位配對畫面相同，金額固定顯示四位小數（預篩選收斂計畫階段五）。
+// GL 與 GL(未納入測試) 的欄名與型別讀回應的 columnDetails：金額欄靠右並補成四位小數，傳票文件項次、科目編號這類
+// 看起來像數字的文字照樣靠左；人工或自動分錄兩頁都寫中文。第一次失敗：FrontendMapping 收據 20261023-113338743-9460c2825756428082a55c788b6229eb。
+test('the GL pages take column names and alignment from the column details and show amounts with four decimals', async () => {
+  const f = await previewOpened();
+  f.request('queryDataPreview').resolve({ columns: ['documentNumber'], rows: [['FIRST']], totalCount: 1 }); await settle();
+  const columnDetails = [
+    { key: 'documentNumber', label: '傳票號碼', valueType: 'text' },
+    { key: 'lineItem', label: '傳票文件項次', valueType: 'text' },
+    { key: 'postDate', label: '總帳日期', valueType: 'date' },
+    { key: 'accountCode', label: '會計科目編號', valueType: 'text' },
+    { key: 'amount', label: '金額', valueType: 'money' },
+    { key: 'manualAuto', label: '人工/自動分錄', valueType: 'text' },
+    { key: 'rde.0123456789abcdef0123456789abcdef', label: '合成外幣金額', valueType: 'money' }
+  ];
+  const rows = [
+    ['JV-1', '1', '2025-03-01', '1101', '1234.5678', 'manual', '12.34'],
+    ['JV-1', '2', '2025-03-01', '4101', '-1000', 'automatic', null]
+  ];
+  const stats = { amountAbsMin: '1000', amountAbsMax: '1234.5678', postDateMin: '2025-03-01', postDateMax: '2025-03-01', voucherCount: 1 };
+  for (const dataset of ['gl', 'glExcluded']) {
+    tab(f, dataset).fire('click');
+    previewRequests(f).at(-1).resolve({ dataset, columns: columnDetails.map(column => column.key), columnDetails, rows, totalCount: 2,
+      stats: dataset === 'gl' ? stats : null });
+    await settle();
+    const headers = f.body().querySelectorAll('th');
+    assert.deepEqual(headers.map(header => header.textContent),
+      ['傳票號碼', '傳票文件項次', '總帳日期', '會計科目編號', '金額', '人工/自動分錄', '合成外幣金額'], dataset);
+    const alignedRight = [false, false, false, false, true, false, true];
+    assert.deepEqual(headers.map(header => header.classList.contains('num')), alignedRight, dataset);
+    const bodyRows = f.body().querySelectorAll('tbody tr');
+    assert.deepEqual(bodyRows.map(row => row.querySelectorAll('td').map(cell => cell.textContent)), [
+      ['JV-1', '1', '2025-03-01', '1101', '1,234.5678', '人工', '12.3400'],
+      ['JV-1', '2', '2025-03-01', '4101', '-1,000.0000', '自動', '—']
+    ], dataset);
+    assert.deepEqual(bodyRows[0].querySelectorAll('td').map(cell => cell.classList.contains('num')), alignedRight, dataset);
+    if (dataset === 'gl') {
+      // 統計列的金額也固定四位小數。
+      assert.match(f.aside().querySelector('.data-preview__note').textContent, /金額（絕對值）1,000\.0000 ～ 1,234\.5678/);
+    }
+  }
+});
+
+// 2026-10-28 複審：前端說明寫人工或自動分錄沒有判定時顯示「—」，這裡鎖住畫面實際的寫法。程式本來就這樣顯示，第一次就通過，沒有第一次失敗的收據。
+test('the GL pages show an undetermined manual or automatic entry as a dash', async () => {
+  const f = await previewOpened();
+  f.request('queryDataPreview').resolve({ columns: ['documentNumber'], rows: [['FIRST']], totalCount: 1 }); await settle();
+  const columnDetails = [
+    { key: 'documentNumber', label: '傳票號碼', valueType: 'text' },
+    { key: 'manualAuto', label: '人工/自動分錄', valueType: 'text' }
+  ];
+  for (const dataset of ['gl', 'glExcluded']) {
+    tab(f, dataset).fire('click');
+    previewRequests(f).at(-1).resolve({ dataset, columns: ['documentNumber', 'manualAuto'], columnDetails,
+      rows: [['JV-1', 'manual'], ['JV-2', null]], totalCount: 2, stats: null });
+    await settle();
+    const cells = f.body().querySelectorAll('tbody tr').map(row => row.querySelectorAll('td').map(cell => cell.textContent));
+    assert.deepEqual(cells, [['JV-1', '人工'], ['JV-2', '—']], dataset);
+  }
+});
+
 test('a failed preview shows the escaped reason in place and retry asks again for the same dataset', async () => {
   const f = await previewOpened();
   tab(f, 'tb').fire('click');
@@ -686,7 +748,9 @@ test('a preview continuation page without a total or stats keeps the first page 
   const f = await previewOpened();
   f.request('queryDataPreview').resolve({ columns: ['documentNumber'], rows: [['PBC-ROW']], totalCount: 1 }); await settle();
   tab(f, 'gl').fire('click');
-  const stats = { amountAbsMin: 1, amountAbsMax: 9, postDateMin: '2025-01-01', postDateMax: '2025-12-31', voucherCount: 3 };
+  // 使用者 2026-10-22 裁定資料預覽的金額固定四位小數，統計列的金額改用字串照存下的值傳（預篩選收斂計畫階段五）；
+  // 原本這裡給數字，第一次失敗是假回應和正式後端的形狀對不上：FrontendMapping 收據 20261023-113338743-9460c2825756428082a55c788b6229eb。
+  const stats = { amountAbsMin: '1', amountAbsMax: '9', postDateMin: '2025-01-01', postDateMax: '2025-12-31', voucherCount: 3 };
   previewRequests(f)[1].resolve({ columns: ['documentNumber'], rows: Array.from({ length: 200 }, (_, i) => ['GL-' + (i + 1)]), totalCount: 401, stats }); await settle();
   const note = () => f.aside().querySelector('.data-preview__note');
   const firstNote = note().textContent;
@@ -801,17 +865,21 @@ test('asking twice for the same dataset shows only the latest answer, and a re-i
   assert.deepEqual(plain(previewRequests(f).at(-1).payload), { dataset: 'pbcGl', offset: 0, limit: 200 }, 'expanding reads the new case from the first tab');
 });
 
-test('preview amounts on standardized data show two decimals while PBC source values stay as imported', async () => {
-  // 金額格式出處同上：使用者 2026-10-02 裁定 P3-4。
+// 使用者 2026-10-22 裁定資料預覽的金額固定顯示四位小數，例如 1,234.5000，只改資料預覽（預篩選收斂計畫階段五）。
+// 原本這裡斷言兩位小數，出處是使用者 2026-10-02 裁定 P3-4「畫面統一兩位小數加千分位」，其他畫面維持兩位。
+// 後端照存下的值傳精確的字串，超大金額補零時不經過浮點數。第一次失敗：FrontendMapping 收據 20261023-113338743-9460c2825756428082a55c788b6229eb。
+test('preview amounts on standardized data show four decimals exactly as stored while PBC source values stay as imported', async () => {
   const f = await previewOpened();
-  // 資料預覽的每一格都是字串，和正式後端相同（2026-10-15 前後端契合前這裡給數字）；Ui.money 會先轉成數字。
+  // 資料預覽的每一格都是字串，和正式後端相同（2026-10-15 前後端契合前這裡給數字）。
   f.request('queryDataPreview').resolve({ columns: ['documentNumber', 'amount'], rows: [['JV-1', '1234.5']], totalCount: 1 }); await settle();
-  assert.match(f.body().textContent, /1234\.5/); assert.doesNotMatch(f.body().textContent, /1,234\.50/);
+  assert.match(f.body().textContent, /1234\.5/); assert.doesNotMatch(f.body().textContent, /1,234\.5/);
+  const columnDetails = [{ key: 'documentNumber', label: '傳票號碼', valueType: 'text' }, { key: 'amount', label: '金額', valueType: 'money' }];
   for (const [dataset, column] of [['gl', 'amount'], ['glExcluded', 'amount'], ['tb', 'changeAmount']]) {
     f.ui.openDataPreview(dataset);
-    f.request('queryDataPreview').resolve({ columns: ['documentNumber', column], rows: [['JV-1', '1234.5'], ['JV-2', '-10']], totalCount: 2 }); await settle();
-    const text = f.body().textContent;
-    assert.match(text, /1,234\.50/, dataset); assert.match(text, /-10\.00/, dataset);
+    f.request('queryDataPreview').resolve({ columns: ['documentNumber', column], ...(dataset === 'tb' ? {} : { columnDetails }),
+      rows: [['JV-1', '1234.5'], ['JV-2', '-10'], ['JV-3', '922337203685477.5807']], totalCount: 3 }); await settle();
+    const amounts = f.body().querySelectorAll('tbody tr').map(row => row.querySelectorAll('td')[1].textContent);
+    assert.deepEqual(amounts, ['1,234.5000', '-10.0000', '922,337,203,685,477.5807'], dataset);
   }
 });
 

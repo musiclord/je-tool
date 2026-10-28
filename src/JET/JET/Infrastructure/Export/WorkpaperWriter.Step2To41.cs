@@ -147,14 +147,7 @@ public sealed partial class WorkpaperWriter
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        string? directionColumn = null;
-        string? sourceModuleColumn = null;
-        if (glMapping is not null)
-        {
-            glMapping.Mapping.TryGetValue(GlMappingKeys.DcField, out directionColumn);
-            glMapping.Mapping.TryGetValue(GlMappingKeys.JeSource, out sourceModuleColumn);
-        }
-
+        var values = new InfSampleDisplayValues(glMapping);
         string? cursor = null;
         var ordinal = 0L;
         do
@@ -168,22 +161,18 @@ public sealed partial class WorkpaperWriter
                 cancellationToken);
             var entryIds = page.Rows.Select(sample => sample.EntryId).ToArray();
 
-            IReadOnlyDictionary<long, string>? rawPage = null;
-            if (_rawRows is not null)
+            if (_rawRows is null || entryIds.Any(entryId => entryId <= 0))
             {
-                if (entryIds.Any(entryId => entryId <= 0))
-                {
-                    throw MissingStep2RawSource();
-                }
+                throw MissingStep2RawSource();
+            }
 
-                rawPage = await _rawRows.FetchJsonByEntryIdsAsync(
-                    context.ProjectId,
-                    entryIds,
-                    cancellationToken);
-                if (entryIds.Any(entryId => !rawPage.ContainsKey(entryId)))
-                {
-                    throw MissingStep2RawSource();
-                }
+            var rawPage = await _rawRows.FetchJsonByEntryIdsAsync(
+                context.ProjectId,
+                entryIds,
+                cancellationToken);
+            if (entryIds.Any(entryId => !rawPage.ContainsKey(entryId)))
+            {
+                throw MissingStep2RawSource();
             }
             var rdePage = await ReadWorkpaperRdeValuesAsync(
                 context.ProjectId,
@@ -196,21 +185,8 @@ public sealed partial class WorkpaperWriter
             foreach (var sample in page.Rows)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                string? direction;
-                string? sourceModule;
-                if (rawPage is null)
-                {
-                    // public plan-less compatibility path 沒有 raw-row port；以既有 normalized side
-                    // 補上可覆核代號，不臆造來源模組。
-                    direction = sample.CreditScaled > 0 ? "CREDIT" : "DEBIT";
-                    sourceModule = null;
-                }
-                else
-                {
-                    using var raw = JsonDocument.Parse(rawPage[sample.EntryId]);
-                    direction = ReadStep2RawValue(raw.RootElement, directionColumn);
-                    sourceModule = ReadStep2RawValue(raw.RootElement, sourceModuleColumn);
-                }
+                using var raw = JsonDocument.Parse(rawPage[sample.EntryId]);
+                var (direction, sourceModule) = values.For(raw.RootElement, sample);
 
                 yield return ProjectStep2Sample(
                     checked(++ordinal),
@@ -224,20 +200,6 @@ public sealed partial class WorkpaperWriter
 
             cursor = page.NextCursor;
         } while (cursor is not null);
-    }
-
-    private static string? ReadStep2RawValue(JsonElement row, string? sourceColumn)
-    {
-        if (string.IsNullOrWhiteSpace(sourceColumn)
-            || !row.TryGetProperty(sourceColumn, out var value)
-            || value.ValueKind == JsonValueKind.Null)
-        {
-            return null;
-        }
-
-        return value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : value.GetRawText();
     }
 
     private static JetActionException MissingStep2RawSource() => new(
@@ -462,54 +424,6 @@ public sealed partial class WorkpaperWriter
 
         sheet.Protect();
         return sheet.CloseAndSummarizeWith(rows, cancellationToken);
-    }
-
-    /// <summary>
-    /// 「step4-1 符合高風險條件傳票明細」:第 5 列欄標(A-P legacy JE 欄)+ 固定 C*_TAG 槽位
-    /// (欄集 = 只 rowHitCount>0 的 position 升冪;標頭 C{position}_TAG);資料第 6 列起,逐頁 tagMatrixRowPage。
-    /// 每行以該行 matchedPositions(PositionsByEntry 以 index 對齊)含某 position 標 'Y' 否則空。
-    /// </summary>
-    private async Task EmitLegacyStep41Async(
-        WorkpaperWriteSession session, List<SheetStat> stats,
-        WorkpaperContext context, TagColumnSet tagColumns, CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
-    {
-        const uint firstDataRow = 6;
-        var pageCapacity = (long)_continuationRowLimit - firstDataRow + 1;
-        var pageNumber = 1;
-        var pageRows = 0L;
-        var sheet = CreateLegacyStep41Page(session, context, tagColumns, pageNumber);
-
-        try
-        {
-            await foreach (var tagged in StreamTaggedRowDetailRowsAsync(
-                               context,
-                               tagColumns.IsFromPlan ? tagColumns.AllPositions : context.ScenarioPositions,
-                               cancellationToken))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (pageRows == pageCapacity)
-                {
-                    AddStat(stats, CloseStep41Page(sheet, pageRows, cancellationToken), progress);
-                    sheet.Dispose();
-                    pageNumber = checked(pageNumber + 1);
-                    sheet = CreateLegacyStep41Page(session, context, tagColumns, pageNumber);
-                    pageRows = 0;
-                }
-
-                var row = checked((uint)(firstDataRow + pageRows));
-                sheet.WriteRow(row, Step41RowCells(
-                    sheet, row, tagged.Detail, tagColumns, tagged.MatchedPositions, context.MoneyScale));
-                pageRows++;
-                ReportIntermediateRows(stats, progress, sheet.Name, pageRows);
-            }
-
-            AddStat(stats, CloseStep41Page(sheet, pageRows, cancellationToken), progress);
-        }
-        finally
-        {
-            sheet.Dispose();
-        }
     }
 
     /// <summary>
@@ -765,83 +679,6 @@ public sealed partial class WorkpaperWriter
                 bestFit: true);
         }
         sheet.SetRowHeight(5, 42);
-    }
-
-    private async Task<Step41Measurement> MeasureStep41WidthsAsync(
-        WorkpaperContext context,
-        IReadOnlyList<WorkpaperStep41Column> columns,
-        IReadOnlyList<int> rowHitPositions,
-        LegacyFieldKind lineItemKind,
-        CancellationToken cancellationToken)
-    {
-        var maximums = columns
-            .Select(column => ExcelDisplayWidth.Measure(column.Header))
-            .Concat(rowHitPositions.Select(position =>
-                ExcelDisplayWidth.Measure($"C{position}_TAG")))
-            .ToArray();
-        var rowCount = 0L;
-
-        await foreach (var source in StreamWorkpaperStep41RowsAsync(
-                           context,
-                           context.ScenarioPositions,
-                           lineItemKind,
-                           cancellationToken))
-        {
-            rowCount = checked(rowCount + 1);
-            var projected = ProjectStep41Values(source, columns, context.MoneyScale);
-            for (var index = 0; index < projected.Count; index++)
-            {
-                maximums[index] = Math.Max(
-                    maximums[index],
-                    ExcelDisplayWidth.Measure(projected[index].RenderedText));
-            }
-            for (var index = 0; index < rowHitPositions.Count; index++)
-            {
-                if (source.MatchedPositions.Contains(rowHitPositions[index]))
-                {
-                    maximums[columns.Count + index] = Math.Max(
-                        maximums[columns.Count + index],
-                        1);
-                }
-            }
-        }
-
-        var widths = maximums
-            .Select(ExcelDisplayWidth.ToColumnWidth)
-            .ToArray();
-        return new Step41Measurement(widths, rowCount);
-    }
-
-    private static IReadOnlyList<Cell> Step41ProjectedCells(
-        SheetWriter sheet,
-        uint row,
-        WorkpaperStep41SourceRow source,
-        IReadOnlyList<WorkpaperStep41Column> columns,
-        IReadOnlyList<int> rowHitPositions,
-        int moneyScale)
-    {
-        var values = ProjectStep41Values(source, columns, moneyScale);
-        var cells = new List<Cell>(columns.Count + rowHitPositions.Count);
-        for (var index = 0; index < values.Count; index++)
-        {
-            var column = checked((uint)index + 1);
-            var value = values[index];
-            cells.Add(value.NumberLiteral is { } numberLiteral
-                ? sheet.NumberLiteralCell(
-                    row,
-                    column,
-                    numberLiteral,
-                    value.Style)
-                : sheet.TextCell(row, column, value.Text, value.Style));
-        }
-        for (var index = 0; index < rowHitPositions.Count; index++)
-        {
-            var column = checked((uint)(columns.Count + index + 1));
-            cells.Add(source.MatchedPositions.Contains(rowHitPositions[index])
-                ? sheet.TextCell(row, column, "Y", WorkpaperStyles.Step41Text)
-                : sheet.BlankCell(row, column, WorkpaperStyles.Step41Text));
-        }
-        return cells;
     }
 
     private static IReadOnlyList<Cell> Step41SpoolCells(
@@ -1139,10 +976,6 @@ public sealed partial class WorkpaperWriter
         uint Style,
         string RenderedText);
 
-    private readonly record struct Step41Measurement(
-        IReadOnlyList<double> Widths,
-        long RowCount);
-
     private readonly record struct Step41SpoolRow(
         IReadOnlyList<Step41ProjectedValue> Values,
         int TagMask);
@@ -1314,7 +1147,7 @@ public sealed partial class WorkpaperWriter
                 : (bool?)null;
             var rawJson = reader.ReadString();
             var positionCount = reader.ReadInt32();
-            if (positionCount is < 0 or > 10)
+            if (positionCount < 0 || positionCount > FilterScenarioLimits.MaxSavedScenarios)
             {
                 throw new InvalidDataException(
                     $"Step4-1 source spool tag count '{positionCount}' 無效。");
@@ -1596,39 +1429,6 @@ public sealed partial class WorkpaperWriter
         }
     }
 
-    private static SheetWriter CreateLegacyStep41Page(
-        WorkpaperWriteSession session,
-        WorkpaperContext context,
-        TagColumnSet tagColumns,
-        int pageNumber)
-    {
-        var sheet = session.OpenSheet(
-            ExcelWorksheetConstraints.ContinuationSheetName(WorkpaperSheetCatalog.Step41, pageNumber));
-        ConfigureLegacyStep41Layout(sheet);
-
-        sheet.WriteFixedRow(1, [sheet.TextCell(1, 1, $"公司名稱 : {context.CompanyName}", WorkpaperStyles.Bold)]);
-        sheet.WriteFixedRow(2, [sheet.TextCell(2, 1,
-            $"財務報表期間 :  {DigitsOnly(context.PeriodStart)} ~ {DigitsOnly(context.PeriodEnd)}", WorkpaperStyles.Bold)]);
-        sheet.WriteFixedRow(3, [sheet.TextCell(3, 1, "符合高風險範圍條件之傳票明細", WorkpaperStyles.Bold)]);
-
-        var headerCells = new List<Cell>();
-        var fixedLabels = new[]
-        {
-            "DOCUMENT_NUM_JE", "DOCUMENT_LINE_ID_JE", "POSTING_DATE_JE", "DOCUMENT_DATE_JE",
-            "ACCOUNT_NUM_JE", "ACCOUNT_DESC_JE", "DESC_JE", "CREATE_BY_JE",
-            "APPROVE_BY_JE", "DEBIT_AMOUNT_JE", "CREDIT_AMOUNT_JE", "MANUAL_JE",
-            "SOURCE_JE", "自建欄位1", "自建欄位2", "自建欄位3"
-        };
-        for (var index = 0; index < fixedLabels.Length; index++)
-        {
-            headerCells.Add(sheet.TextCell(5, (uint)(index + 1), fixedLabels[index], WorkpaperStyles.Bold));
-        }
-
-        tagColumns.AppendRowHitPositionHeaders(sheet, headerCells, 5);
-        sheet.WriteFixedRow(5, headerCells);
-        return sheet;
-    }
-
     private static SheetStat CloseStep41Page(
         SheetWriter sheet,
         long rows,
@@ -1687,26 +1487,6 @@ public sealed partial class WorkpaperWriter
         sheet.SetRowHeight(11, 42);
         sheet.SetRowHeight(12, 32);
     }
-
-    private static void ConfigureLegacyStep41Layout(SheetWriter sheet)
-    {
-        sheet.SetDefaultRowHeight(18);
-        sheet.SetColumnWidth(1, 1, 18);
-        sheet.SetColumnWidth(2, 2, 11);
-        sheet.SetColumnWidth(3, 3, 14);
-        sheet.SetColumnWidth(4, 5, 18);
-        sheet.SetColumnWidth(6, 6, 15);
-        sheet.SetColumnWidth(7, 7, 24);
-        sheet.SetColumnWidth(8, 8, 15);
-        sheet.SetColumnWidth(9, 9, 38);
-        sheet.SetColumnWidth(10, 19, 9);
-        sheet.SetColumnWidth(20, 21, 14);
-        sheet.SetColumnWidth(22, 23, 22);
-        sheet.SetColumnWidth(24, 26, 14);
-        sheet.SetRowHeight(5, 42);
-    }
-
-    // ---- step2/3/4 共用表頭 + 固定文字寫入 ----
 
     /// <summary>
     /// 證實測試表頭(step2/3/4 共用前三列):A1 公司名 / A2 財務報表期間 / A3 副標題。
@@ -1804,8 +1584,8 @@ public sealed partial class WorkpaperWriter
 
     /// <summary>
     /// step2 資料列:A 樣本序號(列序,emitter 給) / B 傳票號 / C 科目編號 / D 名稱 /
-    /// E 原始借貸代號（若有）/ F 帶號金額(DebitScaled-CreditScaled→顯示) / G 總帳日 / H 核准日 /
-    /// I 編製人員 / J 原始來源模組（若有）/ K 摘要 / L 核准人員；M-S 結果A-G、T 說明(手填留空)；
+    /// E 借貸代號（若有，規則見 InfSampleDisplayValues）/ F 帶號金額(DebitScaled-CreditScaled→顯示) / G 總帳日 / H 核准日 /
+    /// I 編製人員 / J 分錄來源（GL 整理後的值）/ K 摘要 / L 核准人員；M-S 結果A-G、T 說明(手填留空)；
     /// U 起依 committed ordinal 附加所選情境引用的 RDE union。
     /// </summary>
     private static IReadOnlyList<WorkpaperDisplayCell> ProjectStep2Sample(
@@ -1994,42 +1774,8 @@ public sealed partial class WorkpaperWriter
     }
 
     /// <summary>
-    /// step4-1 行層:逐頁 tagMatrixRowPage，命中傳票母體與 matchedPositions 都限定在
-    /// context.ScenarioPositions；但入選傳票的完整 GL 行仍全數列出。每動態 C*_TAG 欄依該行
-    /// 是否含該 position 標 Y。
-    /// </summary>
-    private async IAsyncEnumerable<TaggedRowDetail> StreamTaggedRowDetailRowsAsync(
-        WorkpaperContext context,
-        IReadOnlyList<int> scenarioPositions,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        var populationContext = new GlPopulationContext(
-            context.PopulationScope,
-            context.PeriodStart,
-            context.PeriodEnd);
-        string? cursor = null;
-        do
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var (page, entryIds, positionsByEntry) = await tagMatrixRows.GetPageAsync(
-                context.ProjectId, populationContext, new PageRequest(cursor, PageRequest.DefaultPageSize),
-                scenarioPositions, cancellationToken);
-
-            for (var i = 0; i < page.Rows.Count; i++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var detail = page.Rows[i];
-                var matched = positionsByEntry.TryGetValue(entryIds[i], out var p) ? p : (IReadOnlyList<int>)[];
-                yield return new TaggedRowDetail(detail, matched);
-            }
-
-            cursor = page.NextCursor;
-        } while (cursor is not null);
-    }
-
-    /// <summary>
     /// Finalized step4 production path：一次 ordered forward-only stream 取回全部命中傳票；
-    /// 公開 query 的 200-row paging 僅保留給 plan-less compatibility 與 UI。
+    /// 公開 query 的 200-row paging 只給畫面用。
     /// </summary>
     private async IAsyncEnumerable<TaggedVoucherRow> StreamFinalizedStep4VoucherRowsAsync(
         WorkpaperContext context,
@@ -2062,50 +1808,10 @@ public sealed partial class WorkpaperWriter
         }
     }
 
-    private async IAsyncEnumerable<WorkpaperStep41SourceRow> StreamWorkpaperStep41RowsAsync(
-        WorkpaperContext context,
-        IReadOnlyList<int> scenarioPositions,
-        LegacyFieldKind lineItemKind,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        if (_step41Rows is null)
-        {
-            throw new InvalidOperationException(
-                "WorkingPaper step4-1 typed page repository 未設定。");
-        }
-
-        var populationContext = new GlPopulationContext(
-            context.PopulationScope,
-            context.PeriodStart,
-            context.PeriodEnd);
-        string? cursor = null;
-        do
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var page = await _step41Rows.GetPageAsync(
-                context.ProjectId,
-                populationContext,
-                new PageRequest(cursor, PageRequest.DefaultPageSize),
-                scenarioPositions,
-                lineItemKind,
-                cancellationToken);
-            foreach (var row in page.Rows)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return row;
-            }
-            cursor = page.NextCursor;
-        } while (cursor is not null);
-    }
-
     private readonly record struct TaggedVoucherRow(
         VoucherTagRow Voucher,
         IReadOnlyList<int> MatchedPositions,
         long Ordinal);
-
-    private readonly record struct TaggedRowDetail(
-        RowTagRow Detail,
-        IReadOnlyList<int> MatchedPositions);
 
     private static IReadOnlyList<string?> Step4DisplayHeaders(TagColumnSet tagColumns)
     {
@@ -2200,42 +1906,6 @@ public sealed partial class WorkpaperWriter
         }
 
         return values;
-    }
-
-    /// <summary>
-    /// step4-1 行列依 legacy 範本固定 A-P：借貸金額由 signed amount 拆至 J/K，
-    /// L-P 無來源欄位時保持空白；Q-Z 依 scenario position 固定槽位標記。
-    /// </summary>
-    private static IReadOnlyList<Cell> Step41RowCells(
-        SheetWriter sheet, uint row, RowTagRow detail,
-        TagColumnSet tagColumns, IReadOnlyList<int> matched, int moneyScale)
-    {
-        var amount = Display(detail.AmountScaled, moneyScale);
-        var cells = new List<Cell>
-        {
-            sheet.TextCell(row, 1, detail.DocumentNumber),
-            sheet.TextCell(row, 2, detail.LineItem),
-            sheet.TextCell(row, 3, detail.PostDate),
-            sheet.TextCell(row, 4, detail.ApprovalDate),
-            sheet.TextCell(row, 5, detail.AccountCode),
-            sheet.TextCell(row, 6, detail.AccountName),
-            sheet.TextCell(row, 7, detail.Description),
-            sheet.TextCell(row, 8, detail.CreatedBy),
-            sheet.TextCell(row, 9, detail.ApprovedBy),
-            detail.AmountScaled >= 0
-                ? sheet.NumberCell(row, 10, amount, WorkpaperStyles.Amount)
-                : sheet.BlankCell(row, 10),
-            detail.AmountScaled < 0
-                ? sheet.NumberCell(row, 11, -amount, WorkpaperStyles.Amount)
-                : sheet.BlankCell(row, 11),
-            sheet.BlankCell(row, 12),
-            sheet.BlankCell(row, 13),
-            sheet.BlankCell(row, 14, WorkpaperStyles.Editable),
-            sheet.BlankCell(row, 15, WorkpaperStyles.Editable),
-            sheet.BlankCell(row, 16, WorkpaperStyles.Editable)
-        };
-        tagColumns.AppendRowHitPositionMarks(sheet, cells, row, matched);
-        return cells;
     }
 
     // ================= 資料表共用骨架(DRY=3)=================

@@ -638,6 +638,34 @@ public sealed class OpenXmlSaxTableReaderTests
     }
 
     [Fact]
+    public async Task LeadingRowsToSkip_BeyondContent_SaysTheHeaderRowHasNoContent()
+    {
+        // 預篩選收斂計畫複審（2026-10-28）：欄名列填得比內容還多時，不說成工作表是空的，改寫那一列起沒有內容。
+        // 改程式之後才補，沒有第一次失敗的收據。
+        var path = TestWorkbookBuilder.WriteWorkbook(ws =>
+        {
+            ws.Cell(1, 1).Value = "Title";
+            ws.Cell(2, 1).Value = "Code";
+            ws.Cell(3, 1).Value = "A";
+        });
+        try
+        {
+            var reader = new OpenXmlSaxTableReader();
+            var request = new TabularSourceRequest(path, LeadingRowsToSkip: 9);
+            var expected = $"檔案「{Path.GetFileName(path)}」從第 10 列起沒有內容，找不到欄名。請確認欄名所在的列。";
+            var columns = await Assert.ThrowsAsync<JetActionException>(() => reader.ReadColumnsAsync(request, CancellationToken.None));
+            Assert.Equal(JetErrorCodes.EmptyWorkbook, columns.Code);
+            Assert.Equal(expected, columns.Message);
+            var rows = await Assert.ThrowsAsync<JetActionException>(async () =>
+            {
+                await foreach (var _ in reader.ReadRowsAsync(request, CancellationToken.None)) { }
+            });
+            Assert.Equal(expected, rows.Message);
+        }
+        finally { TestWorkbookBuilder.Delete(path); }
+    }
+
+    [Fact]
     public async Task LeadingRowsToSkip_DefaultZero_TreatsFirstContentRowAsHeader()
     {
         // 回歸:預設 0 與現狀位元等價(GL/TB/科目配對熱路徑不受影響)。

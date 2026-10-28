@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "purpose": "畫同一個流程的 LikeC4 動態視圖與 Archify 循序圖，由 Documentation 的架構檢查逐步比對呼叫順序、呼叫對象與程式位置。",
+  "rules": [
+    "動態視圖的每一步，要麼對到循序圖的一條呼叫訊息，要麼列在 skippedSteps 並寫原因。",
+    "循序圖裡每一條直接呼叫或介面呼叫的訊息，要麼依序列在 sequenceMessages，要麼列在 sequenceOutOfScope 並寫原因。",
+    "對到的步驟依序比對三件事：參與者（動態視圖的元件經 participants 對應到循序圖的參與者）、方法名稱（標籤最後一個點之後）、Roslyn 呼叫位置（檔案與行號）。",
+    "步驟標籤帶介面名稱時，模型關係的目標是標題等於那個介面的元件；否則目標就是步驟畫到的元件。"
+  ],
+  "pairs": [
+    {
+      "id": "filterSave",
+      "dynamicView": "filterSave",
+      "sequence": "action-sequence",
+      "participants": {
+        "filterSlice.handler": "handler",
+        "filterSlice.batch": "batch",
+        "filterSlice.facts": "facts",
+        "filterSlice.store": "db",
+        "filterSlice.commit": "db"
+      },
+      "sequenceMessages": ["m04", "m05", "m07", "m08", "m09", "m10"],
+      "sequenceOutOfScope": [
+        { "message": "m02", "reason": "共用分派，動態視圖從處理類別收到呼叫開始畫。" },
+        { "message": "m03", "reason": "共用分派，同上。" },
+        { "message": "m13", "reason": "分支 B，仍有情境不合格；動態視圖只畫整批合格。" }
+      ],
+      "skippedSteps": [
+        { "label": "Plan", "reason": "循序圖只在 ExecuteAsync 的註解提到 JetAuditProgram 建立計畫，沒有畫成訊息。" },
+        { "label": "同一筆交易取代定義，算出命中", "reason": "資料線，沒有呼叫位置；循序圖把提交畫成篩選執行到案件資料庫一條訊息。" },
+        { "label": "Finalize", "reason": "循序圖沒有畫 JetAuditProgram 整理結果。" },
+        { "label": "情境、命中版本與失效狀態", "reason": "提交後讀回，對應循序圖的回傳 m15；這項檢查只比呼叫。" }
+      ]
+    }
+  ]
+}

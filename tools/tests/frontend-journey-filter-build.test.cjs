@@ -9,7 +9,7 @@ require('./support/resource-guard.cjs');
 // 移除一條，用「新增條件到」換加入的組，改成 OR 再改成同一傳票，加借貸科目組合並切換五種查找方式，
 // 在分類清單勾選分類，最後預覽，預覽的錯誤標在條件列上。
 //
-// 每個測試都執行正式的 state.js、ui-core.js、filter-values.js、filter-vouchers.js 與 steps/filter-step.js，
+// 每個測試都執行正式的 state.js、ui-core.js、filter-values.js、filter-vouchers.js 與第五步的五個檔案（steps/filter-step-*.js 與 filter-step.js），
 // 在假 DOM 上畫出第五步並用點擊與選單操作；合成資料只控制邊界。
 // 第五步的儲存、另存、移除與重新檢查屬於情境 12、13（第 9 批），這個檔不寫那些流程的斷言。
 // 訊息面板的句子（例如「已加入 KCT 條件」）與後端原因句子不寫斷言，它們會在第 1、4 項改寫。
@@ -27,7 +27,7 @@ require('./support/resource-guard.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { batch9TreeDom, readWwwroot, exposeAt, plain, settle, bootFullApp, flush } = require('./support/frontend-fixtures.cjs');
+const { batch9TreeDom, readWwwroot, exposeAt, plain, settle, bootFullApp, flush, FILTER_STEP_PARTS } = require('./support/frontend-fixtures.cjs');
 const { contractJetApi } = require('./support/action-contract.cjs');
 
 const ALL_MAPPED = { hasAnyCategory: true, hasRevenue: true, hasCounterpart: true };
@@ -35,13 +35,16 @@ const ALL_MAPPED = { hasAnyCategory: true, hasRevenue: true, hasCounterpart: tru
 // 本檔自己的夾具：和共用模組的 filterOperationFixture 相同，執行正式腳本並訂閱重繪；
 // 另外掛出 toWireDraft（情境 11 要看草稿送出的形狀），並記下預覽與傳票分頁的請求。
 // 依計畫第 7 節第 5 點，只服務這個檔的夾具留在這裡，第 11 批整併時再決定要不要收進共用模組。
+// availableGlFields 是後端 project.load 與 mapping.commit.gl 回傳的可用欄位清單（預篩選收斂計畫階段四，2026-10-23 加入）；
+// 沒給時已確認的配對不帶清單，畫面不檢查欄位，和後端沒有清單時相同。
 function buildFixture(options = {}) {
-  const { accountMapping = ALL_MAPPED, glMapping = null, rdeFields = [], taxonomy = null, saved = [],
+  const { accountMapping = ALL_MAPPED, glMapping = null, rdeFields = [], taxonomy = null, saved = [], availableGlFields = null,
     project = { projectId: 'filter-build-synthetic', periodStart: '2025-01-01', periodEnd: '2025-12-31', lastPeriodStart: '2025-12-01' } } = options;
   const dom = batch9TreeDom(), requests = [];
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const context = vm.createContext({ window, document: dom.document });
-  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-vouchers.js'])
+  // 第五步拆成五個檔案（階段十）：前四個先載入，主檔再掛三個函式；syncViewState 在主檔是轉呼叫，名稱仍看得到。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-vouchers.js', ...FILTER_STEP_PARTS])
     vm.runInContext(readWwwroot('js/' + file), context, { filename: file });
   vm.runInContext(exposeAt(readWwwroot('js/steps/filter-step.js'), "  Ui.registerStep('filter', render);",
     '  window.filterBuild = { syncViewState: syncViewState, render: render, toWireDraft: toWireDraft };\n'), context, { filename: 'steps/filter-step.js' });
@@ -51,7 +54,8 @@ function buildFixture(options = {}) {
   const store = window.JetStore, api = window.filterBuild;
   store.setProject(project);
   store.setAccountMappingState(accountMapping);
-  if (glMapping || rdeFields.length) store.setMappingCommitted('gl', { mapping: glMapping || {}, mode: 'signed', options: { rdeFields } });
+  if (glMapping || rdeFields.length || availableGlFields) store.setMappingCommitted('gl', { mapping: glMapping || {}, mode: 'signed', options: { rdeFields },
+    ...(availableGlFields ? { availableGlFields } : {}) });
   if (taxonomy) store.setTaxonomy(taxonomy);
   store.setSavedScenarios(saved);
   let version = -1;
@@ -124,11 +128,15 @@ test('KCT cards A to D follow the account mapping content and explain whether ma
   const noCategory = '科目配對中尚無任何科目設定分類，請先在第四步設定';
   const noRevenue = '科目配對中尚無歸類為「Revenue」的科目，請先在第四步設定';
   const noCounterpart = '科目配對中尚無歸類為「Receivables」「Cash」或「Receipt in advance」的科目，請先在第四步設定';
-  // 還沒匯入：四張卡同一句。
-  for (const letter of ['A', 'B', 'C', 'D']) assert.equal(notes['not imported' + letter], noCategory, letter);
-  // 匯入了但沒有任何分類：B 同一句；A、C、D 先檢查收入分類，寫出缺的分類名稱。
+  // 預篩選收斂計畫階段四（2026-10-23）改寫這兩段：停用原因改由前端照抄後端的規則需求表。後端對 A、C、D 一直只看收入與對方分類
+  //（改動前的 FilterScenario.cs 也是），原本前端在還沒匯入時另寫「尚無任何科目設定分類」，兩邊不同句；C 缺收入與對方分類時，
+  // 後端照使用者 2026-10-13 確認的「分開說，各寫一句」寫兩句，前端原本只寫第一句。
+  // 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（A 寫成缺收入分類的句子）。
+  // 改後每張卡在「還沒匯入」與「匯入了但沒有任何分類」寫同一句，仍是 R3-15 那筆紀錄說的情形。
+  for (const letter of ['A', 'B', 'C', 'D']) assert.equal(notes['not imported' + letter], notes['imported without categories' + letter], letter);
   assert.equal(notes['imported without categoriesB'], noCategory);
-  for (const letter of ['A', 'C', 'D']) assert.equal(notes['imported without categories' + letter], noRevenue, letter);
+  for (const letter of ['A', 'D']) assert.equal(notes['imported without categories' + letter], noRevenue, letter);
+  assert.equal(notes['imported without categoriesC'], noRevenue + '；' + noCounterpart, 'C names both missing categories, one sentence each');
   for (const letter of ['A', 'C', 'D']) assert.equal(notes['only general categories' + letter], noRevenue, letter + ' names the missing revenue category');
   assert.equal(notes['revenue without counterpartC'], noCounterpart, 'C names the missing counterpart categories');
 });
@@ -626,7 +634,7 @@ test('every common check is added by its own button with the exact type, opens o
 
 // 使用者 2026-10-16 指出審計員習慣直接套用預篩選條件，原本要先加入「沿用第四步預篩選規則」，再到條件卡片的下拉改選。
 // 條件總覽改成「KCT 條件、預篩選、自訂篩選條件」三個分頁，預篩選分頁條列每一條規則，按「加入」直接帶入那一條。
-// 名稱逐字照預篩選規則的畫面名稱（ui-core.js 的 PRESCREEN_KEY_OPTIONS，鏡像 Domain 標籤表），不從畫面推導。
+// 名稱逐字照預篩選規則的畫面名稱（ui-core.js 的 PRESCREEN_RULES，鏡像 Domain 標籤表），不從畫面推導。
 const PRESCREEN_RULES = [
   ['postPeriodApproval', '財報準備日起核准'], ['suspiciousKeywords', '摘要特定描述'], ['unexpectedAccountPair', '未預期借貸組合'],
   ['trailingZeros', '金額尾數連續 6 個 0'], ['weekendPosting', '週末過帳'], ['weekendApproval', '週末核准'],
@@ -660,8 +668,12 @@ test('the prescreen tab lists every prescreen rule and each add button brings in
 });
 
 // 前置不足時按鈕停用，原因寫在該項下方並由 aria-describedby 連到按鈕，和常用查核條件同一種做法；後端一定會擋的條件不會被帶入。
+// 預篩選收斂計畫階段四（2026-10-23）改了兩處：前端改讀後端算好的可用欄位，原本靠「沒有確認 GL 配對」表示傳票建立人員未配對，
+// 改成給一份沒有傳票建立人員的可用欄位清單；欄位的原因接上和第四步相同的下一步（使用者 2026-10-22 裁定寫出可以回欄位配對補上）。
+// 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（「編製分錄較少的人員」沒有停用）。
+const WITHOUT_CREATED_BY = ['docNum', 'lineID', 'postDate', 'docDate', 'accNum', 'accName', 'description', 'jeSource', 'approveBy', 'manual', 'amount'];
 test('a prescreen rule the backend would reject is disabled with its reason and adds nothing when pressed', () => {
-  const f = buildFixture({ accountMapping: { hasAnyCategory: true, hasRevenue: false, hasCounterpart: true },
+  const f = buildFixture({ accountMapping: { hasAnyCategory: true, hasRevenue: false, hasCounterpart: true }, availableGlFields: WITHOUT_CREATED_BY,
     project: { projectId: 'filter-build-synthetic', periodStart: '2025-01-01', periodEnd: '2025-12-31', lastPeriodStart: null } });
   f.click('[data-condition-source="prescreen"]');
   // 這個夾具沒有配對傳票建立人員，後端會擋「編製分錄較少的人員」與「非授權編製人員」（2026-10-16 複審找到原本沒有停用）。
@@ -672,14 +684,14 @@ test('a prescreen rule the backend would reject is disabled with its reason and 
   assert.equal(reason('postPeriodApproval'), '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫');
   assert.match(reason('unexpectedAccountPair'), /Revenue.*第四步/);
   assert.match(reason('nonAuthorizedPreparer'), /授權編製人員清單/);
-  assert.equal(reason('lowFrequencyPreparer'), '「傳票建立人員」尚未選擇來源欄');
+  assert.equal(reason('lowFrequencyPreparer'), '「傳票建立人員」尚未選擇來源欄，請回第三步欄位配對補上');
   f.$('[data-add-prescreen="unexpectedAccountPair"]').fire('click');
   f.$('[data-add-prescreen="lowFrequencyPreparer"]').fire('click');
   assert.equal(f.draft().groups.flatMap(group => group.rules).length, 0, 'a disabled rule adds nothing');
   // 授權清單匯入後，「非授權編製人員」仍缺傳票建立人員，原因改寫這一項。
   f.store.setAuthorizedPreparerState({ rowCount: 2 });
   assert.equal(f.$('[data-add-prescreen="nonAuthorizedPreparer"]').disabled, true);
-  assert.equal(reason('nonAuthorizedPreparer'), '「傳票建立人員」尚未選擇來源欄');
+  assert.equal(reason('nonAuthorizedPreparer'), '「傳票建立人員」尚未選擇來源欄，請回第三步欄位配對補上');
 });
 
 // 使用者 2026-10-16 的兩項要求一起走一遍：從預篩選分頁一次加入「未預期借貸組合」，再查看符合的傳票。
@@ -723,4 +735,174 @@ test('a pasted comma list keeps the value list at its fixed height instead of st
   const css = readWwwroot('css/app.css');
   assert.match(css, /\.filter-workspace \.value-editor__values \{ flex: 1 1 100%; height: calc\(5 \* 20px \+ 14px\);/,
     'the list is five lines tall on its own row');
+});
+
+// ------------------------------------------------------------------------------------------------
+// 預篩選收斂計畫階段四（2026-10-23）：第五步不能用 GL 沒有配對的欄位
+// ------------------------------------------------------------------------------------------------
+
+// 使用者 2026-10-22 用視窗選項裁定「停用並寫原因」，選項說明是欄位按鈕照樣列出但不能按，下方寫出原因以及可以回欄位配對補上，
+// 常用查核條件與範例用同一套判斷（docs/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md 附錄一）。
+// 可用欄位照後端在「傳票核准日、分錄來源模組、傳票建立人員、傳票核准人員與人工/自動分錄都沒有選來源欄」時送的清單寫死；
+// 傳票文件項次沒有來源欄時系統自動編號，使用者 2026-10-22 裁定算已配對，所以在清單裡。
+// 原因是後端第五步的句子；GL 欄位的句子接上和第四步相同的下一步，同一個入口缺幾個欄位就寫在同一句。
+const PARTLY_MAPPED = ['docNum', 'lineID', 'postDate', 'accNum', 'accName', 'description', 'amount'];
+const EVERY_GL_FIELD = ['docNum', 'lineID', 'postDate', 'docDate', 'accNum', 'accName', 'description', 'jeSource', 'createBy', 'approveBy', 'manual', 'amount'];
+const DEPARTMENT = [{ fieldId: 'rde.dept', sourceColumn: 'Dept', label: '部門', valueType: 'text' }];
+const unmapped = (...names) => names.map(name => '「' + name + '」').join('') + '尚未選擇來源欄，請回第三步欄位配對補上';
+const KCT_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+function describedText(f, node) {
+  const id = node.getAttribute('aria-describedby');
+  assert.ok(id, 'the disabled control is described');
+  return f.$('#' + id).textContent;
+}
+const disabledKeys = (f, attribute) => f.$$('[' + attribute + ']').filter(button => button.disabled).map(button => button.getAttribute(attribute));
+// 審計員回第三步把欄位都配好、按「確認配對」：後端回傳完整的可用欄位清單，其他配對設定不變。
+function mapEverything(f) {
+  const committed = plain(f.store.getState().mapping.gl.committed);
+  f.store.setMappingCommitted('gl', { ...committed, availableGlFields: EVERY_GL_FIELD });
+}
+
+test('stage four: every field button stays listed, the unmapped ones cannot be pressed and the note under them names each field and where to fill it', () => {
+  const f = customPane({ availableGlFields: PARTLY_MAPPED });
+  assert.deepEqual(f.$$('[data-add-field]').map(button => button.getAttribute('data-add-field')),
+    ['postDate', 'docDate', 'amount', 'description', 'accNum', 'accName', 'createBy', 'approveBy', 'docNum', 'jeSource', 'lineID'], 'every core field is still listed');
+  assert.deepEqual(disabledKeys(f, 'data-add-field'), ['docDate', 'createBy', 'approveBy', 'jeSource']);
+  const notes = [...new Set(f.$$('[data-add-field]').filter(button => button.disabled).map(button => describedText(f, button)))];
+  assert.deepEqual(notes, [unmapped('傳票核准日', '傳票建立人員', '傳票核准人員', '分錄來源模組')], 'one note under the buttons names every unmapped field');
+  const note = f.$('#' + f.$('[data-add-field="docDate"]').getAttribute('aria-describedby'));
+  assert.equal(note.closest('.filter-custom-block'), f.$('[data-add-field="docDate"]').closest('.filter-custom-block'), 'the note sits under the field buttons');
+  // 傳票文件項次沒有來源欄也能用：系統自動編號。
+  assert.equal(f.$('[data-add-field="lineID"]').disabled, false);
+  assert.equal(f.$('[data-add-field="lineID"]').getAttribute('aria-describedby'), null);
+  f.$('[data-add-field="createBy"]').fire('click');
+  assert.deepEqual(rulesOf(f), [], 'an unmapped field adds nothing');
+  f.click('[data-add-field="lineID"]');
+  assert.deepEqual(plain(f.draft().groups.flatMap(group => group.rules.map(rule => [rule.type, rule.field]))), [['fieldValue', 'lineID']]);
+
+  mapEverything(f);
+  assert.deepEqual(disabledKeys(f, 'data-add-field'), [], 'after mapping every button can be pressed');
+  assert.equal(f.$('[data-add-field="docDate"]').getAttribute('aria-describedby'), null);
+  assert.doesNotMatch(screenTexts(f.$('[data-condition-pane="custom"]')).join('\n'), /尚未選擇來源欄/);
+});
+
+test('stage four: common checks, examples, KCT cards and prescreen rules that need an unmapped field are disabled with the same reason until it is mapped', () => {
+  const f = customPane({ availableGlFields: PARTLY_MAPPED, rdeFields: DEPARTMENT });
+  assert.deepEqual(disabledKeys(f, 'data-add-check'), ['docDateNonBusinessDay', 'postPeriodApproval', 'manualEntries', 'rarePreparers']);
+  const checkNote = key => describedText(f, f.$('[data-add-check="' + key + '"]'));
+  assert.equal(checkNote('docDateNonBusinessDay'), unmapped('傳票核准日'));
+  assert.equal(checkNote('postPeriodApproval'), unmapped('傳票核准日'));
+  assert.equal(checkNote('manualEntries'), unmapped('人工/自動分錄'));
+  assert.equal(checkNote('rarePreparers'), unmapped('傳票建立人員'));
+  f.$('[data-add-check="manualEntries"]').fire('click');
+  assert.deepEqual(rulesOf(f), [], 'a disabled check adds nothing');
+
+  // 範例缺兩個欄位時寫在同一句。
+  f.click('[data-action="toggle-examples"]');
+  assert.deepEqual(disabledKeys(f, 'data-template-key'),
+    ['periodEndManual', 'blankDescriptionOrApprover', 'preparerLargeAmount', 'weekendManualDescription', 'manualDepartment', 'preparationManualHoliday']);
+  const exampleNote = key => describedText(f, f.$('[data-template-key="' + key + '"]'));
+  assert.equal(exampleNote('periodEndManual'), unmapped('人工/自動分錄'));
+  assert.equal(exampleNote('blankDescriptionOrApprover'), unmapped('傳票核准人員'));
+  assert.equal(exampleNote('preparerLargeAmount'), unmapped('傳票建立人員'));
+  assert.equal(exampleNote('weekendManualDescription'), unmapped('人工/自動分錄'));
+  assert.equal(exampleNote('manualDepartment'), unmapped('人工/自動分錄'));
+  assert.equal(exampleNote('preparationManualHoliday'), unmapped('傳票核准日', '人工/自動分錄'));
+
+  f.click('[data-condition-source="kct"]');
+  assert.deepEqual(KCT_LETTERS.filter(letter => card(f, letter).disabled), ['D', 'E', 'J']);
+  assert.equal(cardReason(f, 'D'), unmapped('人工/自動分錄'));
+  assert.equal(cardReason(f, 'E'), unmapped('傳票建立人員'));
+  assert.equal(cardReason(f, 'J'), unmapped('傳票建立人員', '傳票核准人員'));
+
+  // 預篩選分頁：週末核准與假日核准也要傳票核准日；缺授權編製人員清單的句子照後端的順序排在欄位前面。
+  f.click('[data-condition-source="prescreen"]');
+  assert.deepEqual(disabledKeys(f, 'data-add-prescreen'), ['postPeriodApproval', 'weekendApproval', 'holidayApproval', 'nonAuthorizedPreparer', 'lowFrequencyPreparer']);
+  const prescreenNote = key => describedText(f, f.$('[data-add-prescreen="' + key + '"]'));
+  for (const key of ['postPeriodApproval', 'weekendApproval', 'holidayApproval']) assert.equal(prescreenNote(key), unmapped('傳票核准日'), key);
+  assert.equal(prescreenNote('nonAuthorizedPreparer'), '尚未匯入授權編製人員清單，請先在第二步匯入；' + unmapped('傳票建立人員'));
+  assert.equal(prescreenNote('lowFrequencyPreparer'), unmapped('傳票建立人員'));
+  f.$('[data-add-prescreen="weekendApproval"]').fire('click');
+  assert.deepEqual(rulesOf(f), [], 'a disabled prescreen rule adds nothing');
+
+  // 回第三步配好欄位、匯入授權編製人員清單之後，每個入口都能用。
+  mapEverything(f);
+  f.store.setAuthorizedPreparerState({ rowCount: 2 });
+  assert.deepEqual(disabledKeys(f, 'data-add-prescreen'), []);
+  assert.deepEqual(disabledKeys(f, 'data-add-check'), []);
+  assert.deepEqual(disabledKeys(f, 'data-template-key'), []);
+  assert.deepEqual(KCT_LETTERS.filter(letter => card(f, letter).disabled), []);
+  f.click('[data-add-prescreen="weekendApproval"]');
+  assert.deepEqual(prescreenWire(f), [[['prescreen', 'weekendApproval']]]);
+});
+
+test('stage four: the field menus on condition cards disable unmapped fields and a condition already using one says why and is not previewed', async () => {
+  const f = customPane({ availableGlFields: PARTLY_MAPPED });
+  f.click('[data-add-compound="group"]');
+  const option = value => f.$('[data-child-kind]').querySelectorAll('option').find(node => node.getAttribute('value') === value);
+  for (const [value, label] of [['field:docDate', '傳票核准日'], ['field:createBy', '傳票建立人員'], ['field:approveBy', '傳票核准人員'], ['field:jeSource', '分錄來源模組']]) {
+    assert.equal(option(value).disabled, true, value);
+    assert.equal(option(value).textContent, label + '（尚未選擇來源欄，請回第三步欄位配對補上）', value);
+  }
+  assert.equal(option('type:manualAuto').disabled, true);
+  assert.equal(option('type:manualAuto').textContent, '人工或自動（' + unmapped('人工/自動分錄') + '）');
+  for (const value of ['field:postDate', 'field:lineID', 'type:drCrOnly']) assert.equal(option(value).disabled, false, value);
+  assert.equal(option('field:postDate').textContent, '總帳日期');
+  // 就算選到停用的項目再按「加入」，也不會加入子條件。
+  for (const value of ['field:createBy', 'type:manualAuto']) {
+    f.$('[data-child-kind]').value = value;
+    f.click('[data-child-add]');
+    assert.deepEqual(plain(f.draft().groups[0].rules[0].rules), [], value + ' adds nothing');
+  }
+
+  // 草稿裡已經有用到未配對欄位的條件（例如舊情境，或改了配對之後）：條件卡片寫出原因，預覽前就擋下、不送出。
+  f.store.setFilterDraft({ name: '合成條件', rationale: '合成', groups: [{ join: 'AND', matchScope: 'row', rules: [
+    { type: 'fieldValue', join: 'AND', field: 'approveBy', operator: 'isBlank', values: [] },
+    { type: 'dateRange', join: 'AND', field: 'docDate', from: '2025-01-01', to: '2025-01-31' },
+    { type: 'prescreen', join: 'AND', prescreenKey: 'weekendApproval' }] }] });
+  const row = index => f.$('.rule-row[data-gi="0"][data-ri="' + index + '"]');
+  assert.ok(screenTexts(row(0)).includes(unmapped('傳票核准人員')), 'the field condition says why');
+  const dateOption = value => row(1).querySelector('[data-rule-bind="field"]').querySelectorAll('option').find(node => node.getAttribute('value') === value);
+  assert.equal(dateOption('docDate').disabled, true);
+  assert.notEqual(dateOption('docDate').getAttribute('selected'), null, 'the saved field stays chosen');
+  assert.equal(dateOption('postDate').disabled, false);
+  assert.ok(screenTexts(row(1)).includes(unmapped('傳票核准日')), 'the old date range condition says why');
+  // 預篩選條件也一樣：樣態選單照樣寫條件的名稱，原因寫在卡片上。
+  const chosen = row(2).querySelector('[data-pattern-subject]').querySelectorAll('option').find(node => node.getAttribute('selected') !== null);
+  assert.equal(chosen.getAttribute('value'), 'prescreen:weekendApproval');
+  assert.equal(chosen.textContent, '週末核准');
+  assert.ok(screenTexts(row(2)).includes(unmapped('傳票核准日')), 'the prescreen condition says why');
+
+  f.click('[data-action="preview-scenario"]'); await settle();
+  assert.equal(f.requests.filter(request => request.action === 'filterPreview').length, 0, 'nothing is sent');
+  const notice = f.$('[data-bind="scenario-notice"]');
+  assert.equal(notice.hidden, false);
+  for (const text of ['第 1 組第 1 條：' + unmapped('傳票核准人員'), '第 1 組第 2 條：' + unmapped('傳票核准日'), '第 1 組第 3 條：' + unmapped('傳票核准日')])
+    assert.ok(notice.textContent.includes(text), text + ' in ' + notice.textContent);
+
+  mapEverything(f);
+  for (const index of [0, 1, 2]) assert.doesNotMatch(screenTexts(row(index)).join('\n'), /尚未選擇來源欄/, 'row ' + index);
+  f.click('[data-action="preview-scenario"]'); await settle();
+  assert.equal(f.requests.filter(request => request.action === 'filterPreview').length, 1, 'once mapped the scenario can be previewed');
+});
+
+// 接手 FilterTemplatesFrontendTests 原本核對兩個現金範例標了 requires: 'accountMapping' 的斷言：同一階段拿掉範例上的 requires，
+// 範例的前置條件改由條件內容查和後端同一張需求表。沒有科目分類時停用，原因和 KCT B 卡同一句，否則套用後要到預覽才被後端擋下。
+// 現有程式已經這樣做，這則測試沒有第一次失敗。
+test('stage four: the two cash examples stay disabled until the account mapping has categories and give the KCT B card reason', () => {
+  for (const mapping of [null, { hasAnyCategory: false, hasRevenue: false, hasCounterpart: false }]) {
+    const f = customPane({ accountMapping: mapping });
+    f.click('[data-action="toggle-examples"]');
+    for (const key of ['cashDebitNonCashCredit', 'cashCreditNonCashDebit']) {
+      const button = f.$('[data-template-key="' + key + '"]');
+      assert.equal(button.disabled, true, key);
+      assert.equal(describedText(f, button), cardReason(f, 'B'), key + ' gives the KCT B card reason');
+      button.fire('click');
+      assert.deepEqual(rulesOf(f), [], key + ' adds nothing');
+    }
+  }
+  const f = customPane({ accountMapping: { hasAnyCategory: true, hasRevenue: false, hasCounterpart: false } });
+  f.click('[data-action="toggle-examples"]');
+  f.click('[data-template-key="cashDebitNonCashCredit"]');
+  assert.deepEqual(rulesOf(f), [['specialAccountCategoryPair']]);
 });

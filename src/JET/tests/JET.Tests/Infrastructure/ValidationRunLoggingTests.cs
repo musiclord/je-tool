@@ -32,8 +32,13 @@ public sealed class ValidationRunLoggingTests
     // 2026-10-21 使用者裁定日期不符分成三種原因：第 1 條命令的日期不符筆數改成三種日期原因的合計，參數跟著改。
     // 第一次失敗：Public 收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a；只把第 1 條換回舊 SQL 與參數即可重算出兩個舊 digest。
     // SQL Server 的同一條命令也改了，這次沒有執行 Provider，digest 沿用舊值，下次執行 Provider 時預期先失敗一次。
-    private const string SqliteSnapshotDigest = "B54F6595F7D2827ABBD732DB0A1715570418304650CEF016C6CFE957BB75760F";
-    private const string DuckDbSnapshotDigest = "E5D23830A7783CE59AC64EF92AF05761A833D0685970C271EEB57255DCD8AF5A";
+    // 2026-10-22 技術債一輪：傳票號碼跨日重用的檢查改走 AuditCore 的 SqlBlankText，「不是空白」的片段多了一層外括號，
+    // 命令數與參數不變。第一次失敗：Public 收據 20261022-075335566-9bd5ebf8423944be8298ad73cb7ee242。
+    // SQL Server 未執行，維持原值待核對。
+    // 2026-10-28 複審：日期不符這組原因改由 GlEffectivePopulation.ExcludedByPeriodSqlPredicate 產生，第 1 條命令的三個日期參數
+    // 換成嵌入的原因清單，命令數不變。第一次失敗：Focused 收據 20261028-023757070-4d23b285ab774acea3df4e8eea2e21a2。SQL Server 未執行，維持原值待核對。
+    private const string SqliteSnapshotDigest = "C44D0A48268149ABAE640B71B5A663320C4F023BD13ADA8DE73BD5691DBD1EAC";
+    private const string DuckDbSnapshotDigest = "0AC22C0596A99022855FF5721519D52F5BADCE91851B76107646276FC0B3FFC1";
     // 2026-10-19 第一次在本機 SQL Server 2022 執行，依實際命令序列更新：12 條命令和本機版一一對應，漂移來自開發暫緩期間只經編譯的
     // 共用 SQL 修改（空白傳票號碼排除、第 12 條摘要計數與方言的去空白）。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
     private const string SqlServerSnapshotDigest = "E123F4F14083CDA051149B40A1FEFB9D126FE5E87AE1A11EB55D5944F9512EA9";

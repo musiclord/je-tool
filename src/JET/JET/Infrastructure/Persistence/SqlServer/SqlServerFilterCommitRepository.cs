@@ -124,8 +124,6 @@ public sealed class SqlServerFilterCommitRepository(
         FilterRuleContext context,
         CancellationToken cancellationToken)
     {
-        var zeroModulus = TrailingZeroThreshold.UnitModulus(
-            TrailingZeroThreshold.DefaultZerosThreshold);
         var schemaPrefix = SqlServerProjectSchema.QualifierFor(projectId);
 
         foreach (var item in items)
@@ -133,7 +131,6 @@ public sealed class SqlServerFilterCommitRepository(
             var plan = WhereBuilder.BuildPlan(
                 item.Spec,
                 context,
-                zeroModulus,
                 schemaPrefix);
             await using var insert = database.CreateCommand(
                 connection,

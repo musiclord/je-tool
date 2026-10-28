@@ -24,8 +24,7 @@ internal static class FilterVoucherPageReader
         bool countWholeVoucherRows, CancellationToken ct)
     {
         var builder = new GlFilterWhereBuilder(dialect, new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate));
-        var modulus = TrailingZeroThreshold.UnitModulus(TrailingZeroThreshold.DefaultZerosThreshold);
-        var plan = builder.BuildPlan(scenario, context, modulus, prefix, includeEvidence: documentNumber is not null);
+        var plan = builder.BuildPlan(scenario, context, prefix, includeEvidence: documentNumber is not null);
         await using var command = connection.CreateCommand();
         plan.BindParametersTo(command);
         var size = request.ClampedPageSize;

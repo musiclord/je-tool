@@ -212,7 +212,6 @@ public sealed class AccountPairCategorySelectionCompilationTests
         return builder.BuildPlan(
             scenario,
             Context,
-            zeroModulus: 1_000_000,
             includePopulationParameters: false);
     }
 }

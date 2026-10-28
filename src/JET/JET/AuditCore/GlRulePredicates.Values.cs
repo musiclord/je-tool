@@ -7,7 +7,8 @@ internal sealed partial class GlRulePredicates
     /// <summary>
     /// 通用值條件（fieldValue）。欄位空白（文字 NULL 或 TRIM 為空、日期與金額 NULL）預設不列入，除非
     /// `includeBlank` 為真（2026-09-04 裁定）；其餘比較都在 UPPER(TRIM()) 文字、ISO 日期字串或 scaled 金額上進行，
-    /// 值全部參數綁定。每月幾日用 <see cref="ISqlDialect.DayOfMonth"/>；文字的包含比對接受多個關鍵字（OR 串接）。
+    /// 值全部參數綁定。每月幾日用 <see cref="ISqlDialect.DayOfMonth"/>；文字的包含比對接受多個關鍵字（OR 串接），
+/// 空白、週末、假日、補班日與包含都呼叫預篩選規則同一組方法。
     /// </summary>
     public string FieldValue(FilterSqlParameterPlanBuilder parameters, FilterRuleSpec rule,
         FilterRuleContext context, string schemaPrefix)
@@ -33,7 +34,7 @@ internal sealed partial class GlRulePredicates
             : $"(COALESCE((SELECT CASE WHEN ({predicate}) THEN 1 ELSE 0 END "
               + $"FROM {schemaPrefix}target_gl_rde_value v WHERE v.entry_id = g.entry_id "
               + $"AND v.field_id = {rdeFieldParameter}), {(missingMatches ? 1 : 0)}) = 1)";
-        var blank = field.ValueType == "text" ? $"({column} IS NULL OR {dialect.Trim(column)} = '')" : $"{column} IS NULL";
+        var blank = field.ValueType == "text" ? BlankText(column) : $"{column} IS NULL";
         if (op == "isBlank") return Complete($"({blank})", missingMatches: true);
         if (op == "isNotBlank") return Complete($"NOT ({blank})", missingMatches: false);
 
@@ -60,9 +61,10 @@ internal sealed partial class GlRulePredicates
         }
         else if (FieldValueConditions.IsCalendar(op))
         {
-            var weekend = dialect.WeekendPredicate(column, NonWorkingDays.Resolve(context.NonWorkingDays));
-            var holiday = $"EXISTS (SELECT 1 FROM {schemaPrefix}staging_calendar_raw_day d WHERE d.day_type = 'holiday' AND d.date = {column})";
-            var makeup = $"EXISTS (SELECT 1 FROM {schemaPrefix}staging_calendar_raw_day d WHERE d.day_type = 'makeup' AND d.date = {column})";
+            // 和第四步的週末、假日規則同一組方法；補班日是同一張假日檔的另一種日期。
+            var weekend = Weekend(column, context.NonWorkingDays);
+            var holiday = Holiday(column, schemaPrefix);
+            var makeup = MakeupDay(column, schemaPrefix);
             positive = op switch
             {
                 "isWeekend" or "isNotWeekend" => weekend,
@@ -101,22 +103,23 @@ internal sealed partial class GlRulePredicates
             positive = $"({column} >= {Param(rule.TypedFrom)} AND {column} <= {Param(rule.TypedTo)})";
             if (op == "notBetween") positive = $"NOT ({positive})";
         }
-        else if (op is "contains" or "notContains" or "startsWith" or "notStartsWith" or "endsWith" or "notEndsWith")
+        else if (op is "contains" or "notContains")
         {
-            var keywords = FieldValueConditions.IsContains(op) ? FieldValueConditions.ContainsKeywords(rule) : [rule.TypedValue ?? string.Empty];
+            var keywords = FieldValueConditions.ContainsKeywords(rule);
             if (keywords.Count == 0) throw Invalid("field_value_keywords_empty");
-            var likes = keywords.Select(keyword =>
-            {
-                var value = (string)Normalize(keyword);
-                // Escape literal wildcard characters for all supported providers, including SQL Server's brackets.
-                var escaped = value.Replace("\\", "\\\\", StringComparison.Ordinal)
-                    .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal)
-                    .Replace("[", "\\[", StringComparison.Ordinal);
-                var pattern = (op is "startsWith" or "notStartsWith" ? "" : "%") + escaped
-                    + (op is "endsWith" or "notEndsWith" ? "" : "%");
-                return $"{column} LIKE {NextParam(parameters, pattern)} ESCAPE '\\'";
-            }).ToArray();
-            positive = likes.Length == 1 ? likes[0] : "(" + string.Join(" OR ", likes) + ")";
+            // 和第四步摘要特定描述同一個比對：逐字、不分大小寫、關鍵字去頭尾空白。
+            positive = ContainsAnyKeyword(parameters, originalColumn, keywords);
+            if (op == "notContains") positive = $"NOT ({positive})";
+        }
+        else if (op is "startsWith" or "notStartsWith" or "endsWith" or "notEndsWith")
+        {
+            var value = (string)Normalize(rule.TypedValue);
+            // Escape literal wildcard characters for all supported providers, including SQL Server's brackets.
+            var escaped = value.Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal)
+                .Replace("[", "\\[", StringComparison.Ordinal);
+            var pattern = op is "startsWith" or "notStartsWith" ? escaped + "%" : "%" + escaped;
+            positive = $"{column} LIKE {NextParam(parameters, pattern)} ESCAPE '\\'";
             if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
         }
         else

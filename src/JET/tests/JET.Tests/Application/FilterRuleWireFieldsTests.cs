@@ -49,8 +49,8 @@ public sealed class FilterRuleWireFieldsTests
         """{"join":"AND","type":"manualAuto","isManual":"false"}""",
         """{"join":"AND","type":"accountPair","pairMode":"debitAnchor","categorySelection":"subtree","debitCategoryIds":["builtin.cash"],"creditCategoryIds":["builtin.revenue"]}""",
         """{"join":"AND","type":"specialAccountCategoryPair","pairMode":"drNotCr","categorySelection":"subtree","debitCategoryIds":["builtin.cash"],"creditCategoryIds":["builtin.cash"]}""",
-        """{"join":"AND","type":"customPreparerEntryCount","maxEntries":"5"}""",
-        """{"join":"AND","type":"customAccountEntryCount","maxEntries":"7"}""",
+        // 預篩選收斂計畫階段九把兩種舊式筆數條件列為停用寫法，不再是可儲存的條件；精簡寫法的檢查仍涵蓋「科目與人員統計」。
+        // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（驗證回「已停用」）。
         """{"join":"AND","type":"entityFrequency","field":"accNum","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":"11","countTo":""}""",
         """{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":"10"}""",
         """{"join":"AND","type":"revenueWithoutNormalCounterpart"}""",
@@ -231,17 +231,15 @@ public sealed class FilterRuleWireFieldsTests
         HasRevenueCategory: mapped,
         HasCounterpartCategory: mapped)
     {
-        HasManualFlag = true,
-        HasCreatedBy = true,
-        HasApprovedBy = true,
-        HasDescription = true,
+        // 預篩選收斂計畫階段四拿掉四個欄位旗標，改由規則需求表讀可用欄位清單（2026-10-23）；這裡不帶清單就不檢查欄位，
+        // 等同原本四個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
         RdeFields = RdeFields,
         MoneyScale = 100
     };
 
     private static FilterSqlFragmentPlan Compile(IProviderSqlDialect dialect, FilterScenarioSpec spec) =>
         new GlFilterWhereBuilder(dialect, new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate))
-            .BuildPlan(spec, RuleContext, zeroModulus: 1_000_000, includeEvidence: true);
+            .BuildPlan(spec, RuleContext, includeEvidence: true);
 
     private static string[] Describe(IReadOnlyList<FilterSqlParameter> parameters) =>
         parameters.Select(parameter => parameter.Name + "=" + JsonSerializer.Serialize(parameter.Value)).ToArray();

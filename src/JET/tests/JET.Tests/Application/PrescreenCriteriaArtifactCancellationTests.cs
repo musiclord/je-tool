@@ -40,14 +40,15 @@ public sealed class PrescreenCriteriaArtifactCancellationTests
                     PrescreenRunId: InitialPrescreenRunId),
                 async (output, cancellationToken) =>
                 {
-                    _ = await ((IPlannedPrescreenReportWriter)CreateWriter(
+                    _ = await ((IPrescreenReportWriter)CreateWriter(
                             database,
                             new LocalPrescreenPageRepository(database)))
-                        .WritePlannedAsync(
+                        .WriteAsync(
                             output,
                             context,
                             projection,
                             plan,
+                            ReportWriterTestSupport.SyntheticMetadata(),
                             "tester",
                             cancellationToken);
                 }),
@@ -67,12 +68,13 @@ public sealed class PrescreenCriteriaArtifactCancellationTests
                 PrescreenRunId: ReplacementPrescreenRunId),
             async (output, cancellationToken) =>
             {
-                _ = await ((IPlannedPrescreenReportWriter)replacementWriter)
-                    .WritePlannedAsync(
+                _ = await ((IPrescreenReportWriter)replacementWriter)
+                    .WriteAsync(
                         output,
                         context,
                         projection,
                         plan,
+                        ReportWriterTestSupport.SyntheticMetadata(),
                         "replacement-operator",
                         cancellationToken);
             });
@@ -177,10 +179,12 @@ public sealed class PrescreenCriteriaArtifactCancellationTests
                     [1]),
                 async (output, cancellationToken) =>
                 {
-                    _ = await ((ITypedCriteriaSelectionReportWriter)writer)
-                        .WriteTypedAsync(
+                    _ = await ((ICriteriaSelectionReportWriter)writer)
+                        .WriteAsync(
                             output,
                             context,
+                            ReportWriterTestSupport.SyntheticMetadata(),
+                            [],
                             "tester",
                             cancellationToken);
                 }),
@@ -200,10 +204,12 @@ public sealed class PrescreenCriteriaArtifactCancellationTests
                 [2]),
             async (output, cancellationToken) =>
             {
-                _ = await ((ITypedCriteriaSelectionReportWriter)writer)
-                    .WriteTypedAsync(
+                _ = await ((ICriteriaSelectionReportWriter)writer)
+                    .WriteAsync(
                         output,
                         context,
+                        ReportWriterTestSupport.SyntheticMetadata(),
+                        [],
                         "replacement-operator",
                         cancellationToken,
                         progress =>
@@ -247,6 +253,7 @@ public sealed class PrescreenCriteriaArtifactCancellationTests
             new LocalCreatorSummaryExportRepository(database),
             new LocalAccountUsageExportRepository(database),
             new LocalTagMatrixScenariosRepository(database),
+            new LocalSourceQualityPageRepository(database),
             new LocalTagMatrixRowPageRepository(database),
             options ?? new LegacyReportWriterOptions());
 

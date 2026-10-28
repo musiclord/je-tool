@@ -34,6 +34,9 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
 
     public abstract string Action { get; }
 
+    /// <summary>匯入成功後，案件至少推進到第二步。推進只增不減，由 <see cref="AdvanceStepAsync"/> 決定要不要存檔。</summary>
+    internal const int WorkflowStep = 2;
+
     protected abstract DatasetKind Kind { get; }
 
     /// <summary>import.progress 事件節奏：每讀滿 20,000 列推播一次。</summary>
@@ -121,7 +124,9 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                         item.Payload.FileName,
                         item.Request.SheetName,
                         item.Request.EncodingName,
-                        item.Request.Delimiter?.ToString());
+                        item.Request.Delimiter?.ToString(),
+                        // 欄名在第幾列：只有審計員指定第 2 列以後才記下來；第 1 列就是預設的讀法，不另外記。
+                        HeaderRow: item.Request.LeadingRowsToSkip > 0 ? item.Request.LeadingRowsToSkip + 1 : null);
 
                     // 串流途中推播 import.progress（完成以本 action 的 response 為準，無完成事件）；
                     // sourceNo/sourceCount 是本 action 內的位置，不是批次累積的 source ordinal。
@@ -158,7 +163,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
 
         // repository 已完成 transaction commit 後即跨過取消邊界；必要的 workflow metadata
         // 必須完成，不能因晚到的取消把已匯入資料留在舊步驟。
-        await AdvanceStepAsync(projectId, WorkflowMilestones.For(Action), CancellationToken.None);
+        await AdvanceStepAsync(projectId, WorkflowStep, CancellationToken.None);
 
         var batch = result.Data.Batch;
         string? auditLogWarning = null;
@@ -378,7 +383,8 @@ internal sealed record ImportFromFilePayload(
             && (payload.TryGetProperty("fileName", out _)
                 || payload.TryGetProperty("sheetName", out _)
                 || payload.TryGetProperty("encoding", out _)
-                || payload.TryGetProperty("delimiter", out _));
+                || payload.TryGetProperty("delimiter", out _)
+                || payload.TryGetProperty("headerRow", out _));
 
         if (hasFilePath == hasSources || (hasSources && hasRootSourceOptions))
         {

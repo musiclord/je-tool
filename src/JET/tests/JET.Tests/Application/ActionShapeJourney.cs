@@ -96,6 +96,24 @@ internal static class ActionShapeJourney
             return response;
         }
 
+        // 後端會擋下的送出：只記收到的資料，畫面在那種情形送出的欄位才有紀錄（例如舊情境沒移除排除區就儲存）。
+        async Task SendRejected(string action, JsonObject payload, string expectedCode)
+        {
+            var json = payload.ToJsonString();
+            try
+            {
+                await host.DispatchAsync(action, json);
+            }
+            catch (JetActionException error) when (error.Code == expectedCode)
+            {
+                using var request = JsonDocument.Parse(json);
+                recorder.RecordRejectedRequest(action, request.RootElement);
+                return;
+            }
+
+            throw new InvalidOperationException($"{action} 應該以 {expectedCode} 擋下，卻成功了。");
+        }
+
         async Task<JsonElement> Demo(string action)
         {
             var response = await DemoProjectPipeline.DispatchDemoFixtureAsync(action);
@@ -183,6 +201,23 @@ internal static class ActionShapeJourney
                 mode = "replace",
                 sources = new[] { new { filePath = glCsvPath, fileName = "合成總帳.csv", encoding = "utf-8", delimiter = "," } },
             });
+            // 階段六：來源檔前面有標題列時，審計員在待匯入清單指定「欄名在第幾列」，預覽與匯入都帶這個值（Access 不適用）。
+            var glTitledCsvPath = Track(Path.Combine(Path.GetTempPath(), $"jet-shape-titled-{Guid.NewGuid():N}.csv"));
+            File.WriteAllText(
+                glTitledCsvPath,
+                "合成總帳標題\n" + File.ReadAllText(glCsvPath, new UTF8Encoding(false)),
+                new UTF8Encoding(false));
+            await Send("import.previewFile", new { filePath = glTitledCsvPath, limit = 10, encoding = "utf-8", delimiter = ",", headerRow = 2 });
+            await Send("import.gl.fromFile", new
+            {
+                mode = "replace",
+                sources = new[]
+                {
+                    new { filePath = glTitledCsvPath, fileName = "合成總帳（有標題列）.csv", encoding = "utf-8", delimiter = ",", headerRow = 2 },
+                },
+            });
+            // 重開案件時來源清單也帶欄名在第幾列。
+            await Send("project.load", new { projectId });
             await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx");
             await ImportAsync("import.tb.fromFile", tbPath, tbExport.GetProperty("fileName").GetString()!);
 
@@ -221,10 +256,11 @@ internal static class ActionShapeJourney
                 dataset = "gl", sourceColumn = profileColumn, limit = 50, comparisonValues = Array.Empty<string>(),
                 checkSourceValues = false,
             });
+            // 來源欄勾了往下填補時，mapping-step.js 另帶 fillDown，列數照填補後計數（使用者 2026-10-28 裁定）。
             await Send("mapping.valueProfile", new
             {
                 dataset = "gl", sourceColumn = profileColumn, limit = 50, comparisonValues = new[] { "1", "0" },
-                checkSourceValues = true,
+                checkSourceValues = true, fillDown = true,
             });
             await Send("mapping.valueProfile", new
             {
@@ -277,7 +313,10 @@ internal static class ActionShapeJourney
             };
             await Send("mapping.commit.gl", dualCommit);
             await Send("project.load", new { projectId });
-            var glCommit = await Send("mapping.commit.gl", GlCommit(syntheticGlMapping, amountMode, rdeFields));
+            // 階段六：審計員勾選傳票號碼與總帳日期往下填補空白；回應帶回勾選的欄位與填了幾格。
+            var glCommit = await Send(
+                "mapping.commit.gl",
+                GlCommit(syntheticGlMapping, amountMode, rdeFields, fillDownFields: new JsonArray(GlMappingKeys.DocNum, GlMappingKeys.PostDate)));
             var moneyFieldId = glCommit.GetProperty("rdeFields").EnumerateArray()
                 .Single(field => field.GetProperty("valueType").GetString() == "money")
                 .GetProperty("fieldId").GetString()!;
@@ -319,6 +358,11 @@ internal static class ActionShapeJourney
             // GL(未納入測試) 只看一種未納入原因，換頁時沿用同一種（使用者 2026-10-21 裁定日期不符分成三種原因）。
             await Send("query.dataPreview", new { dataset = "glExcluded", limit = 200, offset = 0, exclusionReason = "afterPeriod" });
             await Send("query.dataPreview", new { dataset = "glExcluded", limit = 1, offset = 1, exclusionReason = "afterPeriod" });
+
+            // 預篩選收斂計畫階段四（2026-10-23）：審計員還沒上傳假日檔、匯入授權編製人員清單與科目配對，就先跑一次驗證與預篩選。
+            // 需要這些資料的規則無法執行，回應帶後端寫的原因，畫面只顯示這一句（validate-step.js）。
+            await Send("validate.run");
+            await Send("prescreen.run");
 
             // 第二步的行事曆與授權編製人員：import-step.js。行事曆範本第一列是標題，欄名在第二列（同 Batch9MutationStateTests）。
             var holidayFile = Track(TestWorkbookBuilder.WriteWorkbook(sheet =>
@@ -366,6 +410,13 @@ internal static class ActionShapeJourney
             {
                 await Send("query.dataPreview", new { dataset });
             }
+
+            // 同一階段：審計員改用前面那份沒有傳票核准日與傳票建立人員的借貸分欄配對，再跑一次驗證與預篩選。
+            // 用到這兩欄的規則無法執行；週末與假日卡照常有總帳日期那一側，核准側只帶「只檢查了總帳日期」的說明。看完改回原本的配對。
+            await Send("mapping.commit.gl", dualCommit);
+            await Send("validate.run");
+            await Send("prescreen.run");
+            await Send("mapping.commit.gl", GlCommit(syntheticGlMapping, amountMode, rdeFields));
 
             // 第四步科目配對與驗證：validate-step.js、account-mapping-editor.js。科目配對檔匯入前，科目清單的分類都是空的。
             await Send("query.accountMappingPage", new { cursor = (string?)null, pageSize = 100, search = "" });
@@ -572,7 +623,7 @@ internal static class ActionShapeJourney
             });
             await PreviewAsync(olderRulesDraft);
             await SaveAsync(olderRulesDraft, null);
-            // 常用查核條件「人工分錄」：filter-step.js conditionFromSpec 以 ui-core.js newFilterRule('manualAuto') 為底再套上規格，
+            // 常用查核條件「人工分錄」：filter-step-sources.js conditionFromSpec 以 ui-core.js newFilterRule('manualAuto') 為底再套上規格，
             // 其他類型的預設鍵也一起送出（frontend-journey-filter-build 的 filler 逐字斷言同一份資料）。
             var manualCheck = new JsonObject
             {
@@ -667,10 +718,18 @@ internal static class ActionShapeJourney
                 scenarioPosition = 1, cursor = (string?)null, pageSize = 200, sort = (object?)null, search = (string?)null,
             });
 
-            // 舊案件：第三個情境改成舊版規則存下、條件用到已拿掉的攸關金額欄。開案、重新檢查、新增與修改其他情境時
-            // 都列在條件失效提示；審計員先移除新增的情境，最後移除失效的情境。
+            // 舊案件：第三個情境改成舊版規則存下、條件用到已拿掉的攸關金額欄，另帶已移除的排除區。開案、重新檢查、
+            // 新增與修改其他情境時都列在條件失效提示；審計員先移除新增的情境，最後移除失效的情境。
             await RewriteAsOlderScenarioAsync(projectId, 3, moneyFieldId);
-            await Send("project.load", new { projectId });
+            var reopened = await Send("project.load", new { projectId });
+            // 審計員打開這個舊情境，沒移除「舊排除區」就按儲存：畫面照原樣送出排除區，後端擋下並寫出原因。
+            var olderScenario = reopened.GetProperty("filterScenarios")[2];
+            await SendRejected("filter.scenario.save", new JsonObject
+            {
+                ["populationScope"] = Scope, ["position"] = 3,
+                ["expectedName"] = olderScenario.GetProperty("name").GetString(),
+                ["scenario"] = EditedScenarioWire(olderScenario),
+            }, JetErrorCodes.InvalidScenario);
             await Send("filter.scenario.recheck", new { populationScope = Scope });
             await SaveAsync(Scenario("合成貸方大額", "合成：貸方大額分錄。", new JsonArray
             {
@@ -848,6 +907,8 @@ internal static class ActionShapeJourney
 
         // 模擬舊版 JET 存下的情境（同 FilterScenarioRuleUpgradeOnLoadTests）：把資料庫裡這個位置的情境定義改成舊的
         // 規則版本，再加一條指向已不存在的攸關資料元素的條件。這是畫面送不出來的狀態，只能直接改資料庫。
+        // 2026-09-05 到 06 存下的情境還可能帶已移除的排除區，開案與儲存的情境摘要會照原樣帶出（預篩選收斂計畫階段四，2026-10-23；
+        // 形狀檔的第一次失敗：Focused 收據 20261023-051331694-f416519f1b4d42c49555311415ed4735）。
         async Task RewriteAsOlderScenarioAsync(string projectId, int position, string missingFieldId)
         {
             var folder = new JetProjectFolder(host.ProjectsRoot);
@@ -868,6 +929,20 @@ internal static class ActionShapeJourney
             {
                 ["join"] = "AND", ["type"] = "typed", ["fieldId"] = missingFieldId, ["operator"] = "isBlank",
             });
+            definition["exclusions"] = new JsonArray(
+                new JsonObject
+                {
+                    ["scope"] = "row",
+                    ["rule"] = new JsonObject
+                    {
+                        ["type"] = "fieldValue", ["field"] = "postDate", ["operator"] = "in", ["values"] = new JsonArray("2025-01-15"),
+                    },
+                },
+                new JsonObject
+                {
+                    ["scope"] = "voucher",
+                    ["rule"] = new JsonObject { ["type"] = "drCrOnly", ["drCr"] = "credit" },
+                });
             await using var write = connection.CreateCommand();
             write.CommandText = "UPDATE config_filter_scenario SET definition_json = @definition WHERE position = @position;";
             write.AddWithValue("@definition", definition.ToJsonString());
@@ -891,6 +966,40 @@ internal static class ActionShapeJourney
         }
     }
 
+    /// <summary>
+    /// 畫面修改已存情境後送出的形狀（filter-step.js 的 projectWireScenario）：名稱、動機、有條件的組、編輯來源與來源標記，
+    /// 以及舊情境照原樣帶著的排除區。
+    /// </summary>
+    private static JsonObject EditedScenarioWire(JsonElement summary)
+    {
+        var wire = new JsonObject
+        {
+            ["name"] = summary.GetProperty("name").GetString(),
+            ["rationale"] = summary.GetProperty("rationale").GetString(),
+            ["groups"] = new JsonArray(summary.GetProperty("groups").EnumerateArray()
+                .Where(group => group.TryGetProperty("rules", out var rules) && rules.GetArrayLength() > 0)
+                .Select(group => JsonNode.Parse(group.GetRawText()))
+                .ToArray()),
+        };
+        if (summary.TryGetProperty("editorOrigins", out var origins) && origins.ValueKind == JsonValueKind.Object)
+        {
+            wire["editorOrigins"] = JsonNode.Parse(origins.GetRawText());
+        }
+
+        if (summary.TryGetProperty("exclusions", out var exclusions)
+            && exclusions.ValueKind == JsonValueKind.Array && exclusions.GetArrayLength() > 0)
+        {
+            wire["exclusions"] = JsonNode.Parse(exclusions.GetRawText());
+        }
+
+        if (summary.TryGetProperty("source", out var source) && source.ValueKind == JsonValueKind.String)
+        {
+            wire["source"] = source.GetString();
+        }
+
+        return wire;
+    }
+
     private static readonly string[] SourceExtensions = [".xlsx", ".xlsm", ".xls", ".csv", ".txt", ".mdb", ".accdb"];
 
     /// <summary>import-step.js 預設選 import.inspectFile 回應的第一個工作表；文字檔沒有工作表。</summary>
@@ -901,14 +1010,24 @@ internal static class ActionShapeJourney
 
     /// <summary>mapping-step.js glCommitPayload。示範資料有配對傳票核准日，approvalDateMode 預設送 mapped。</summary>
     private static JsonObject GlCommit(IReadOnlyDictionary<string, string> mapping, string amountMode, JsonArray rdeFields,
-        string approvalDateMode = "mapped") => new()
+        string approvalDateMode = "mapped", JsonArray? fillDownFields = null)
     {
-        ["mapping"] = new JsonObject(mapping.Select(pair => KeyValuePair.Create(pair.Key, (JsonNode?)pair.Value))),
-        ["amountMode"] = amountMode,
-        ["approvalDateMode"] = approvalDateMode,
-        ["manualAutoPolicy"] = new JsonObject { ["manualValues"] = new JsonArray("1"), ["automaticValues"] = new JsonArray("0") },
-        ["rdeFields"] = rdeFields.DeepClone(),
-    };
+        var payload = new JsonObject
+        {
+            ["mapping"] = new JsonObject(mapping.Select(pair => KeyValuePair.Create(pair.Key, (JsonNode?)pair.Value))),
+            ["amountMode"] = amountMode,
+            ["approvalDateMode"] = approvalDateMode,
+            ["manualAutoPolicy"] = new JsonObject { ["manualValues"] = new JsonArray("1"), ["automaticValues"] = new JsonArray("0") },
+            ["rdeFields"] = rdeFields.DeepClone(),
+        };
+        // 階段六：mapping-step.js 只在審計員勾選了往下填補的欄位時才送 fillDownFields；沒勾選時不帶這個鍵。
+        if (fillDownFields is not null)
+        {
+            payload["fillDownFields"] = fillDownFields.DeepClone();
+        }
+
+        return payload;
+    }
 
     /// <summary>確認配對的回應裡，後端替攸關資料元素配置的識別；mapping-step.js 之後送出時沿用。</summary>
     private static JsonArray CommittedRdeFields(JsonElement commit) => new(commit.GetProperty("rdeFields").EnumerateArray()

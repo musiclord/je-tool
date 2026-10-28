@@ -603,6 +603,52 @@ public sealed class FilterScenarioSingleChangeTests
         Assert.Equal("情境乙", problem.GetProperty("name").GetString());
     }
 
+    // 預篩選收斂計畫階段四（2026-10-23）：10 月以前存下、帶排除區的舊情境，開案的摘要照原樣帶出排除區，編輯器才看得到。
+    // 審計員沒移除就儲存，畫面照原樣送回，後端照既有行為擋下並寫出原因；移除後才能儲存，存回去的定義不再有排除區。
+    // 原本摘要不帶排除區，修改這個情境後存回去就默默丟掉（KCT 需求計畫第八節操作測試 F10）。
+    // 第一次失敗：Focused 收據 20261023-051033801-effa418fbc1c4f11bcd21566413ea49e（開案的摘要沒有排除區）。
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task OldScenarioWithExclusions_ShowsThemToTheEditorAndSavesOnlyAfterTheyAreRemoved(string provider)
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
+        await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
+        {
+            scenarios = new[] { Scenario("情境甲", "debit"), Scenario("情境乙", "credit") }
+        }));
+        var exclusions = JsonNode.Parse(
+            """[{"scope":"voucher","rule":{"type":"fieldValue","field":"postDate","operator":"in","values":["2025-01-15"]}}]""")!;
+        await RewriteDefinitionAsync(host, context.ProjectId, provider, 2, definition =>
+        {
+            definition["logicVersion"] = OlderVersion;
+            definition["exclusions"] = exclusions.DeepClone();
+        });
+        var before = await ReadScenariosAsync(host, context.ProjectId, provider);
+        var screen = await OpenAsync(host, context.ProjectId);
+
+        Assert.True(screen.Saved[1].TryGetProperty("exclusions", out var shown), "開案的摘要要帶出排除區");
+        Assert.True(JsonNode.DeepEquals(exclusions, JsonNode.Parse(shown.GetRawText())));
+        Assert.False(screen.Saved[0].TryGetProperty("exclusions", out _));
+        var edited = Wire(screen.Saved[1]);
+        edited["rationale"] = "改動機";
+        var error = await Assert.ThrowsAsync<JetActionException>(() =>
+            SaveLikeTheScreenAsync(host, screen, 2, (JsonObject)edited.DeepClone()));
+        Assert.Equal(JetErrorCodes.InvalidScenario, error.Code);
+        Assert.Contains("使用了已移除的「排除區域」，請改用條件中的「不屬於」或「不在區間」", error.Message, StringComparison.Ordinal);
+        Assert.Equal(before, await ReadScenariosAsync(host, context.ProjectId, provider));
+
+        edited.Remove("exclusions");
+        var response = await SaveLikeTheScreenAsync(host, screen, 2, edited);
+
+        var stored = await ReadScenariosAsync(host, context.ProjectId, provider);
+        Assert.DoesNotContain("\"exclusions\"", stored[1].DefinitionJson, StringComparison.Ordinal);
+        Assert.Equal("改動機", stored[1].Rationale);
+        Assert.Equal("current", response.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
+        Assert.False(screen.Saved[1].TryGetProperty("exclusions", out _));
+    }
+
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
@@ -887,6 +933,14 @@ public sealed class FilterScenarioSingleChangeTests
         if (summary.TryGetProperty("source", out var source) && source.ValueKind == JsonValueKind.String)
         {
             wire["source"] = source.GetString();
+        }
+
+        // 前端 projectWireScenario 把草稿上的舊排除區原樣送出，讓後端擋下並寫出原因。預篩選收斂計畫階段四（2026-10-23）起
+        // 開案的摘要會帶出排除區，這裡跟著前端補上這一條；在那之前摘要沒有這個欄位，這一條不會作用。
+        if (summary.TryGetProperty("exclusions", out var exclusions)
+            && exclusions.ValueKind == JsonValueKind.Array && exclusions.GetArrayLength() > 0)
+        {
+            wire["exclusions"] = JsonNode.Parse(exclusions.GetRawText());
         }
 
         return wire;

@@ -5,7 +5,7 @@ namespace JET.Domain;
 /// 科目清單寫成三欄 .xlsx(A=科目編號、B=科目名稱、C=空白＋分類下拉),供審計員填 C 欄後
 /// 經 <c>import.accountMapping.fromFile</c> 原檔上傳(標頭與匯入契約反向對齊,round-trip 由測試鎖)。
 ///
-/// 為什麼介面在 Domain、實作在 Infrastructure:比照 <see cref="IWorkpaperWriter"/> 的放法——
+/// 為什麼介面在 Domain、實作在 Infrastructure:比照底稿寫出器的放法——
 /// 由 Infrastructure 以 ClosedXML 實作,走正常的 Infrastructure→Domain 方向,故**不需**新增 AGENTS
 /// 反向依賴例外(勿誤放 Application/Ports,那才是 IDemoFileWriter 需要例外的原因)。範本體積小(科目數百),
 /// ClosedXML 直接支援 DataValidation 下拉,故沿用 ClosedXML 而非 WorkpaperWriter 的 OpenXML SAX 串流。

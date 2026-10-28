@@ -111,7 +111,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.ScenarioLimitReached,
-                $"最多可儲存 {MaxFilterScenarios} 個篩選情境，請先移除不需要的情境。");
+                FilterScenarioLimits.MaxSavedScenariosMessage);
         }
 
         foreach (var document in request.Documents)

@@ -14,8 +14,10 @@ public sealed record DateParseOptions(bool RocYearEnabled)
 /// <summary>
 /// 日期字串正規化的權威實作。純函式、provider 無關；輸出一律 "yyyy-MM-dd"。
 /// 判定順序固定：ISO → 顯式西元（yyyy/M/d、yyyy.M.d、yyyyMMdd）→ 民國年（開關）→
-/// Excel 序列值 → 寬鬆 fallback（年份 1900–2100 sanity guard，且原文要寫出四位數年份與日）。
-/// 7 位數民國年與 Excel 序列值範圍重疊，民國年判定必須在序列值之前。
+/// 純數字一律拒絕 → 寬鬆 fallback（年份 1900 到 2100 的 sanity guard，且原文要寫出四位數年份與日）。
+/// 純數字不再當成 Excel 序列值（使用者 2026-10-22 裁定）：日期型儲存格由讀取器依儲存格格式換成 ISO，
+/// 走到這裡的數字是沒套日期格式的儲存格或文字檔裡的數字，分不出是年份還是序列值，一律視為無法辨識。
+/// 前端 filter-values.js 的日期清單鏡像同一套規則；兩邊共用 tools/tests/fixtures/date-normalization.json 的固定答案。
 /// </summary>
 public static partial class DateNormalizer
 {
@@ -87,7 +89,7 @@ public static partial class DateNormalizer
             return true;
         }
 
-        // 3. 民國年（必須先於 Excel 序列值：7 位數 1140611 落在 OADate 範圍內）
+        // 3. 民國年（開關關閉時，7 位數 1140611 落到下面的純數字而拒絕）
         if (options.RocYearEnabled)
         {
             var rocSeparated = RocSeparatedPattern().Match(text);
@@ -111,20 +113,12 @@ public static partial class DateNormalizer
             }
         }
 
-        // 4. Excel 序列值（reader 通常已轉 ISO，這裡涵蓋未套日期格式的數字 cell）
-        // 帶千分位的數字不當序列值（使用者 2026-10-19 裁定）：「1,234」以前會換成 1903 年再以期間外排除，
-        // 現在和其他無法辨識的日期一樣，在確認配對時列出列號。前端 filter-values.js 的日期清單照同一規則。
-        if (decimal.TryParse(text, NumberStyles.Number & ~NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var serial))
-        {
-            if (serial < 1 || serial > 2_958_465) return false;
-            var date = DateTime.FromOADate((double)serial);
-            if (!IsSupportedExcelDate(date)) return false;
-            isoDate = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-            return true;
-        }
-
-        // 同一裁定：逗號不在三位一組位置的數字（「12,31」「1,2024」）也是帶千分位的數字，
-        // 不能交給下面的寬鬆解析讀成今年的月日或某年的 1 月 1 日。
+        // 4. 純數字一律拒絕（使用者 2026-10-22 裁定）：以前這裡把 1 到 2,958,465 的數字當 Excel 序列值換算，
+        // 所以 2025 變成 1905-07-17、2025.12 也是 1905 年。現在沒套日期格式的數字儲存格與文字檔裡的數字，
+        // 都在確認配對時列為無法辨識並寫出列號，審計員在 Excel 把欄位設成日期格式後重新匯入。
+        // 帶千分位的數字（使用者 2026-10-19 裁定）與逗號不在三位一組位置的數字（「12,31」「1,2024」）同樣在這裡拒絕，
+        // 不能交給下面的寬鬆解析讀成今年的月日或某年的 1 月 1 日。讀取器對超出 1900 到 2100 年的日期型儲存格
+        // 交給投影的序列文字（例如 73416.0）也在這裡拒絕。前端 filter-values.js 的日期清單照同一規則。
         if (decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
         {
             return false;
@@ -185,10 +179,11 @@ public static partial class DateNormalizer
             number.Length <= 2 && int.Parse(number, CultureInfo.InvariantCulture) == value;
     }
 
-    // 僅限制 Excel 序列值；明確西元與民國文字日期仍依上面的格式規則處理。
+    // 讀取器把日期型儲存格換成 ISO 時只接受 1900 到 2100 年；明確西元與民國文字日期仍依上面的格式規則處理。
     internal static bool IsSupportedExcelDate(DateTime date) => date.Year is >= 1900 and <= 2100;
 
-    // 小數點保留數值身分，避免超限的七位序列在下一層被誤讀成民國年月日文字。
+    // 讀取器對超出範圍的日期型儲存格交給投影的文字。小數點保留數值身分，避免超限的七位序列被讀成民國年月日文字；
+    // TryNormalize 把它當成純數字拒絕，投影因此報「無法辨識為日期」並寫出列號。
     internal static string ExcelSerialText(double serial) => serial.ToString("0.0################", CultureInfo.InvariantCulture);
 
     private static bool TryBuildIsoDate(int year, int month, int day, out string? isoDate)

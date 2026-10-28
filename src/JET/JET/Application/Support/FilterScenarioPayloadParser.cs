@@ -15,6 +15,9 @@ namespace JET.Application;
 /// </summary>
 public static class FilterScenarioPayloadParser
 {
+    /// <summary>舊情境帶已移除的排除區時的原因；第五步編輯器的唯讀「舊排除區」區塊照抄這一句。</summary>
+    internal const string RemovedExclusionsMessage = "使用了已移除的「排除區域」，請改用條件中的「不屬於」或「不在區間」";
+
     internal static CanonicalFilterDocument ParseDocument(
         JsonElement scenario,
         int moneyScale,
@@ -52,7 +55,7 @@ public static class FilterScenarioPayloadParser
         // 時 fail-loud，讓審計員把它改成一般條件，而不是靜默忽略讓命中變多。
         if (scenario.TryGetProperty("exclusions", out var exclusionElements)
             && exclusionElements.ValueKind == JsonValueKind.Array && exclusionElements.GetArrayLength() > 0)
-            throw Invalid("使用了已移除的「排除區域」，請改用條件中的「不屬於」或「不在區間」");
+            throw Invalid(RemovedExclusionsMessage);
         ValidateEditorOrigins(scenario, groups);
         return new FilterScenarioSpec(name.Trim(), rationale.Trim(), groups, source);
     }

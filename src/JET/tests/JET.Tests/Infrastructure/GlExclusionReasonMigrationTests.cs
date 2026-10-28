@@ -61,7 +61,8 @@ public sealed class GlExclusionReasonMigrationTests
         await using (var version = connection.CreateCommand())
         {
             version.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version'";
-            Assert.Equal("13", await version.ExecuteScalarAsync() as string);
+            // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，本機 schema 升到第 14 版。第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+            Assert.Equal("14", await version.ExecuteScalarAsync() as string);
         }
 
         var rows = new List<(string?, long, string?)>();

@@ -6,6 +6,9 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
+// 2026-10-22 技術債一輪：驗證報告寫出器只剩一個正式入口，handler 一定先規劃、投影欄位資訊並載入工作簿中繼資料，
+// 原本依 writer 型別退回的 typed 與 public 路徑都刪除，對應的替身與「公開 writer 不必解析摘要」的測試一併移除。
+// 第一次失敗是刪掉入口後測試專案建置失敗，那次沒有保存收據。
 public sealed class ExportValidationArtifactsTypedSeamTests
 {
     [Fact]
@@ -62,9 +65,8 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         var response = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
         AssertPublishedCatalog(response, artifactStore);
 
-        Assert.Equal(1, validationWriter.PlannedCalls);
-        Assert.Equal(0, validationWriter.TypedCalls);
-        Assert.Equal(0, validationWriter.PublicCalls);
+        Assert.Equal(1, validationWriter.Calls);
+        Assert.NotNull(validationWriter.WorkbookMetadata);
         Assert.Equal(1, planningFacts.Calls);
         var unfinalizedPlan = Assert.IsType<ValidationReportPlan>(planningFacts.Plan);
         Assert.False(unfinalizedPlan.IsFinalized);
@@ -151,7 +153,7 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             ]);
         var document = Project(projectId);
         var session = new ProjectSession();
-        var validationWriter = new RecordingValidationWriter();
+        var validationWriter = new RecordingPlannedValidationWriter();
         using var cancellation = new CancellationTokenSource();
         var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc, cancellation.Cancel);
         var handler = CreateHandler(
@@ -166,15 +168,18 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             new FixedProjectStore(document),
             artifactStore,
             session,
-            new NullEventPublisher());
+            new NullEventPublisher(),
+            new RecordingPlanningFactsPort(unbalancedDetailRowCount: 4L),
+            new RecordingFieldDefinitionFactsPort([], []),
+            new BuiltInAccountTaxonomyStore(),
+            new FixedMetadataMappingStore());
         using var payload = JsonDocument.Parse($$"""{"runId":"{{runId}}"}""");
 
         var response = await handler.HandleAsync(payload.RootElement, cancellation.Token);
         Assert.True(cancellation.IsCancellationRequested);
         AssertPublishedCatalog(response, artifactStore);
 
-        Assert.Equal(1, validationWriter.TypedCalls);
-        Assert.Equal(0, validationWriter.PublicCalls);
+        Assert.Equal(1, validationWriter.Calls);
         var expectedProjection = new ValidationReportProjection(
             Net: 1.25m,
             TotalDebit: 10.50m,
@@ -186,19 +191,11 @@ public sealed class ExportValidationArtifactsTypedSeamTests
             NullDocumentCount: 6L,
             NullDescriptionCount: 7L,
             OutOfRangeDateCount: 8L,
-            SourceQualityFindingCount: 9L,
-            SourceQualitySampleRows:
-            [
-                new SourceQualityFindingRow(
-                    "nullPostDate", 12, "source.xlsx [GL]", "JV-1", "1000", null, "blank", 0)
-            ]);
+            SourceQualityFindingCount: 9L);
+        // 2026-10-22 使用者裁定刪掉投影裡沒人讀的來源品質樣本列：投影只留計數，摘要 JSON 的 sampleRows 照舊留給前端，
+        // 上面仍把樣本列寫進摘要，確認解析器會略過它。第一次失敗：Focused 收據 20261022-084228771-7b2316c36ab54315bf1eb067bdad7939（建置失敗）。
         var actualProjection = Assert.IsType<ValidationReportProjection>(validationWriter.Projection);
-        Assert.Equal(
-            expectedProjection with { SourceQualitySampleRows = actualProjection.SourceQualitySampleRows },
-            actualProjection);
-        Assert.Equal(
-            expectedProjection.SourceQualitySampleRows.ToArray(),
-            actualProjection.SourceQualitySampleRows.ToArray());
+        Assert.Equal(expectedProjection, actualProjection);
         Assert.Equal(summaryJson, validationWriter.Context?.SummaryJson);
         Assert.Equal(runId, validationWriter.Context?.RunId);
         Assert.Equal("tester", validationWriter.OperatorId);
@@ -211,54 +208,6 @@ public sealed class ExportValidationArtifactsTypedSeamTests
                 ReportArtifactKind.InfReport
             },
             artifactStore.Requests.Select(request => request.Kind).ToArray());
-    }
-
-    [Fact]
-    public async Task PublicOnlyWriter_DoesNotRequireTypedProjectionSummaryShape()
-    {
-        const string projectId = "public-validation-export";
-        const string runId = "validation-run";
-        var generatedUtc = new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero);
-        var summaryJson = JsonSerializer.Serialize(
-            new
-            {
-                opaquePublicWriterData = new { value = "preserved" },
-                resultRef = new { logicVersion = RuleLogicVersions.Validation }
-            },
-            JetJsonStorage.Options);
-        var document = Project(projectId);
-        var session = new ProjectSession();
-        var validationWriter = new RecordingPublicValidationWriter();
-        var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc);
-        var planningFacts = new RecordingPlanningFactsPort(unbalancedDetailRowCount: 1L);
-        var fieldDefinitions = new RecordingFieldDefinitionFactsPort([], []);
-        var handler = CreateHandler(
-            projectId,
-            validationWriter,
-            new NoOpInfWriter(),
-            new FixedRunStore(new RuleRunRecord(
-                runId,
-                RuleRunKinds.Validate,
-                generatedUtc,
-                summaryJson)),
-            new FixedProjectStore(document),
-            artifactStore,
-            session,
-            new NullEventPublisher(),
-            planningFacts,
-            fieldDefinitions,
-            new BuiltInAccountTaxonomyStore(),
-            new FixedMetadataMappingStore());
-        using var payload = JsonDocument.Parse($$"""{"runId":"{{runId}}"}""");
-
-        var response = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
-        AssertPublishedCatalog(response, artifactStore);
-
-        Assert.Equal(1, validationWriter.Calls);
-        Assert.Equal(summaryJson, validationWriter.Context?.SummaryJson);
-        Assert.Equal(runId, validationWriter.Context?.RunId);
-        Assert.Equal(0, planningFacts.Calls);
-        Assert.Empty(fieldDefinitions.Requests);
     }
 
     [Fact]
@@ -290,7 +239,7 @@ public sealed class ExportValidationArtifactsTypedSeamTests
     }
 
     // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 repository，建構式只剩案件 store、
-    // session 與事件。原本逐一傳給建構式的替身改放進資料庫組；沒傳的 typed 依賴維持 null，handler 照舊走退回路徑。
+    // session 與事件。2026-10-22 技術債一輪：退回路徑已刪除，規劃、欄位定義、科目分類與欄位配對的替身都必須提供。
     private static ExportValidationArtifactsHandler CreateHandler(
         string projectId,
         IValidationReportWriter validationWriter,
@@ -300,10 +249,10 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         IReportArtifactStore artifactStore,
         ProjectSession session,
         IJetEventPublisher eventPublisher,
-        IValidationReportPlanningFactsPort? validationReportPlanningFactsPort = null,
-        ILegacyFieldDefinitionFactsPort? fieldDefinitionFactsPort = null,
-        IAccountTaxonomyStore? accountTaxonomyStore = null,
-        IMappingStateStore? mappingStateStore = null)
+        IValidationReportPlanningFactsPort validationReportPlanningFactsPort,
+        ILegacyFieldDefinitionFactsPort fieldDefinitionFactsPort,
+        IAccountTaxonomyStore accountTaxonomyStore,
+        IMappingStateStore mappingStateStore)
     {
         session.Enter(
             projectId,
@@ -313,13 +262,13 @@ public sealed class ExportValidationArtifactsTypedSeamTests
                 InfReportWriter = infWriter,
                 RuleRuns = runStore,
                 ReportArtifactStore = artifactStore,
-                // 第9批高3；Public首敗100911120的null是Unconfigured省略新必需依賴，非可恢復IO；opaque public-writer摘要及原斷言保留。
+                // 第9批高3；Public首敗100911120的null是Unconfigured省略新必需依賴，非可恢復IO；原斷言保留。
                 ResultStaleStates = EmptyReportStateTestData.StaleStates,
                 FilterScenarios = EmptyReportStateTestData.Scenarios,
-                ValidationReportPlanningFacts = validationReportPlanningFactsPort!,
-                FieldDefinitionFacts = fieldDefinitionFactsPort!,
-                AccountTaxonomy = accountTaxonomyStore!,
-                MappingStates = mappingStateStore!,
+                ValidationReportPlanningFacts = validationReportPlanningFactsPort,
+                FieldDefinitionFacts = fieldDefinitionFactsPort,
+                AccountTaxonomy = accountTaxonomyStore,
+                MappingStates = mappingStateStore,
             });
         return new ExportValidationArtifactsHandler(projectStore, session, eventPublisher);
     }
@@ -338,16 +287,11 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         CurrentStep: 4,
         SchemaVersion: ProjectDocument.CurrentSchemaVersion);
 
-    private sealed class RecordingPlannedValidationWriter :
-        IValidationReportWriter,
-        ITypedValidationReportWriter,
-        IPlannedValidationReportWriter
+    private sealed class RecordingPlannedValidationWriter : IValidationReportWriter
     {
-        internal int PublicCalls { get; private set; }
+        internal int Calls { get; private set; }
 
-        internal int TypedCalls { get; private set; }
-
-        internal int PlannedCalls { get; private set; }
+        internal ValidationReportContext? Context { get; private set; }
 
         internal ValidationReportPlan? Plan { get; private set; }
 
@@ -355,44 +299,27 @@ public sealed class ExportValidationArtifactsTypedSeamTests
 
         internal ValidationReportProjection? Projection { get; private set; }
 
+        internal ReportWorkbookMetadata? WorkbookMetadata { get; private set; }
+
         internal string? OperatorId { get; private set; }
 
         public Task<ExportStats> WriteAsync(
             Stream output,
             ValidationReportContext context,
-            CancellationToken cancellationToken,
-            Action<WorkpaperProgress>? progress = null)
-        {
-            PublicCalls++;
-            throw new InvalidOperationException("Production export must use the planned seam.");
-        }
-
-        public Task<ExportStats> WriteTypedAsync(
-            Stream output,
-            ValidationReportContext context,
-            ValidationReportProjection projection,
-            string operatorId,
-            CancellationToken cancellationToken,
-            Action<WorkpaperProgress>? progress = null)
-        {
-            TypedCalls++;
-            throw new InvalidOperationException("Production export must prefer the planned seam.");
-        }
-
-        public Task<ExportStats> WritePlannedAsync(
-            Stream output,
-            ValidationReportContext context,
             ValidationReportProjection projection,
             ValidationReportPlan plan,
             FieldInfoProjection fieldInfo,
+            ReportWorkbookMetadata workbookMetadata,
             string operatorId,
             CancellationToken cancellationToken,
             Action<WorkpaperProgress>? progress = null)
         {
-            PlannedCalls++;
+            Calls++;
+            Context = context;
             Plan = plan;
             FieldInfo = fieldInfo;
             Projection = projection;
+            WorkbookMetadata = workbookMetadata;
             OperatorId = operatorId;
             return Task.FromResult(new ExportStats(0, []));
         }
@@ -430,65 +357,6 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         {
             Requests.Add((projectId, kind, scope));
             return Task.FromResult(kind == DatasetKind.Tb ? tb : gl);
-        }
-    }
-
-    private sealed class RecordingValidationWriter :
-        IValidationReportWriter,
-        ITypedValidationReportWriter
-    {
-        internal int PublicCalls { get; private set; }
-
-        internal int TypedCalls { get; private set; }
-
-        internal ValidationReportContext? Context { get; private set; }
-
-        internal ValidationReportProjection? Projection { get; private set; }
-
-        internal string? OperatorId { get; private set; }
-
-        public Task<ExportStats> WriteAsync(
-            Stream output,
-            ValidationReportContext context,
-            CancellationToken cancellationToken,
-            Action<WorkpaperProgress>? progress = null)
-        {
-            PublicCalls++;
-            throw new InvalidOperationException(
-                "Production export must use the typed validation writer seam.");
-        }
-
-        public Task<ExportStats> WriteTypedAsync(
-            Stream output,
-            ValidationReportContext context,
-            ValidationReportProjection projection,
-            string operatorId,
-            CancellationToken cancellationToken,
-            Action<WorkpaperProgress>? progress = null)
-        {
-            TypedCalls++;
-            Context = context;
-            Projection = projection;
-            OperatorId = operatorId;
-            return Task.FromResult(new ExportStats(0, []));
-        }
-    }
-
-    private sealed class RecordingPublicValidationWriter : IValidationReportWriter
-    {
-        internal int Calls { get; private set; }
-
-        internal ValidationReportContext? Context { get; private set; }
-
-        public Task<ExportStats> WriteAsync(
-            Stream output,
-            ValidationReportContext context,
-            CancellationToken cancellationToken,
-            Action<WorkpaperProgress>? progress = null)
-        {
-            Calls++;
-            Context = context;
-            return Task.FromResult(new ExportStats(0, []));
         }
     }
 
@@ -535,6 +403,8 @@ public sealed class ExportValidationArtifactsTypedSeamTests
         public Task<ExportStats> WriteAsync(
             Stream output,
             InfReportContext context,
+            ReportWorkbookMetadata workbookMetadata,
+            IReadOnlyList<GlRdeFieldMetadata> customFields,
             CancellationToken cancellationToken,
             Action<WorkpaperProgress>? progress = null) =>
             Task.FromResult(new ExportStats(0, []));

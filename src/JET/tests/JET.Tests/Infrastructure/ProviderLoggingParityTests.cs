@@ -83,8 +83,10 @@ public sealed class ProviderLoggingParityTests
 
     private static void AssertLocalImportSourceQuery(RingBufferLoggerProvider diagnostic)
     {
+        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源多存欄名在第幾列，這一句查詢多讀 header_row。
+        // 第一次失敗收據 20261024-033416453-dac33b94f62345b59d864aac174b51c2（Public）。
         const string expectedSourceQuery = """
-            SELECT source_no, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc
+            SELECT source_no, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc, header_row
             FROM import_batch_source
             WHERE batch_id = @batchId
             ORDER BY source_no;

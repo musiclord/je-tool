@@ -903,24 +903,28 @@ public sealed class ProviderParityJourneyTests
     /// <summary>門檻取母體列數(≥ 任一科目筆數)→ demo 所有科目全命中,跨頁命中 > pageSize 擋偽綠。</summary>
     private const int AllMatchingMaxEntries = DemoDataFactory.GlVoucherCount * DemoDataFactory.LinesPerVoucher;
 
-    /// <summary>customAccountEntryCount 情境(maxEntries=母體列數 → demo 所有科目全命中),供 C9 自訂軌 parity 共用。</summary>
+    /// <summary>科目分錄筆數不超過母體列數的情境（demo 所有科目全命中），供低頻科目的 parity 共用。
+    /// 預篩選收斂計畫階段九把舊式 customAccountEntryCount 列為停用寫法，改成等價的「科目與人員統計」；
+    /// 這則只在有 SQL Server 時執行，暫緩期間只改不跑，沒有第一次失敗的收據。</summary>
     private static string CustomAccountEntryCountScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
                 name = "低頻科目(自訂)", rationale = "雙 provider 等價",
                 groups = new[] { new { join = "and", rules = new[] {
-                    new { join = "and", type = "customAccountEntryCount", maxEntries = AllMatchingMaxEntries } } } } } }
+                    new { join = "and", type = "entityFrequency", field = "accNum", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = AllMatchingMaxEntries } } } } } }
         });
 
-    /// <summary>customPreparerEntryCount 情境（maxEntries=母體列數 → demo 編製者全命中），供低頻編製者自訂軌 parity 共用。</summary>
+    /// <summary>編製人員分錄筆數不超過母體列數的情境（demo 編製者全命中），供低頻編製者的 parity 共用。
+    /// 預篩選收斂計畫階段九把舊式 customPreparerEntryCount 列為停用寫法，改成等價的「科目與人員統計」；
+    /// 這則只在有 SQL Server 時執行，暫緩期間只改不跑，沒有第一次失敗的收據。</summary>
     private static string CustomPreparerEntryCountScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
                 name = "低頻編製者(自訂)", rationale = "雙 provider 等價",
                 groups = new[] { new { join = "and", rules = new[] {
-                    new { join = "and", type = "customPreparerEntryCount", maxEntries = AllMatchingMaxEntries } } } } } }
+                    new { join = "and", type = "entityFrequency", field = "createBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = AllMatchingMaxEntries } } } } } }
         });
 
     /// <summary>nonAuthorizedPreparer 情境(demo 母體確有命中；使用者 2026-10-08 裁定移除傳票日期與回溯過帳，原為 backdatedPosting),供 filterHits parity 兩 provider 共用。</summary>

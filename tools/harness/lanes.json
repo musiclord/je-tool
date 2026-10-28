@@ -64,6 +64,8 @@
       "JET_LEGACY_PARITY_STOP_AFTER",
       "JET_PRESCREEN_MONTHLY_BENCHMARK",
       "JET_PRESCREEN_MONTHLY_BENCHMARK_OUTPUT",
+      "JET_PRESCREEN_POSTPERIOD_PROBE",
+      "JET_PRESCREEN_POSTPERIOD_PROBE_OUTPUT",
       "JET_PRIVATE_CASE_MANIFEST",
       "JET_PRIVATE_CASE_PROVIDER",
       "JET_PRIVATE_CASE_ROOT",
@@ -84,6 +86,8 @@
       "JET_LEGACY_PARITY_STOP_AFTER",
       "JET_PRESCREEN_MONTHLY_BENCHMARK",
       "JET_PRESCREEN_MONTHLY_BENCHMARK_OUTPUT",
+      "JET_PRESCREEN_POSTPERIOD_PROBE",
+      "JET_PRESCREEN_POSTPERIOD_PROBE_OUTPUT",
       "JET_PRIVATE_CASE_MANIFEST",
       "JET_PRIVATE_CASE_PROVIDER",
       "JET_PRIVATE_CASE_ROOT",
@@ -192,8 +196,8 @@
       {
         "name": "kct-remap-recovery",
         "timeoutSeconds": 240,
-        "actionBudget": 49,
-        "expectedActionCount": 49,
+        "actionBudget": 48,
+        "expectedActionCount": 48,
         "screenshotBudget": 1
       },
       {

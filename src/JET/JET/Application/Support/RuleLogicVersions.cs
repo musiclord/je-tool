@@ -11,7 +11,8 @@ namespace JET.Application;
 /// </summary>
 internal static class RuleLogicVersions
 {
-    public const string Validation = "validation-2026-10-04-v5";
+    // 2026-10-23 使用者裁定傳票核准日不可用時「核准日不在期間」改成無法執行，不再寫 0 筆，舊結果要重新驗證。
+    public const string Validation = "validation-2026-10-23-v6";
     // 2026-10-08 使用者裁定移除傳票日期與回溯過帳：預篩選少一條規則，篩選不再接受回溯過帳條件，兩者都推進版本。
     public const string Prescreen = "prescreen-2026-10-08-v10";
     // 第九節：每條條件只表達一件事；停用的寫法列為待修正，保留原文。

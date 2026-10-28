@@ -18,7 +18,7 @@ public sealed class FilterRunMaterializeServiceGateTests
             materializer,
             projectStore,
             new StubScenarioStore([Scenario()]),
-            new NullMappingStore(),
+            new AmountMappedGlStore(),
             gate,
             session,
             resultStaleStateStore: new FixedStaleStore(true));
@@ -50,7 +50,7 @@ public sealed class FilterRunMaterializeServiceGateTests
             materializer,
             new StubProjectStore(Document()),
             new StubScenarioStore([Scenario()]),
-            new NullMappingStore(),
+            new AmountMappedGlStore(),
             gate,
             session,
             resultStaleStateStore: new FixedStaleStore(true));
@@ -77,7 +77,7 @@ public sealed class FilterRunMaterializeServiceGateTests
             materializer,
             projectStore,
             new StubScenarioStore([Scenario()]),
-            new NullMappingStore(),
+            new AmountMappedGlStore(),
             new ActionExecutionGate());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -99,7 +99,7 @@ public sealed class FilterRunMaterializeServiceGateTests
             materializer,
             projectStore,
             new StubScenarioStore([Scenario()]),
-            new NullMappingStore(),
+            new AmountMappedGlStore(),
             gate,
             session,
             resultStaleStateStore: new FixedStaleStore(true));
@@ -129,7 +129,7 @@ public sealed class FilterRunMaterializeServiceGateTests
             materializer,
             projectStore,
             new StubScenarioStore([Scenario("filter-2026-08-04-v6")]),
-            new NullMappingStore(),
+            new AmountMappedGlStore(),
             new ActionExecutionGate(),
             ActiveSession(),
             resultStaleStateStore: new FixedStaleStore(true));
@@ -150,7 +150,7 @@ public sealed class FilterRunMaterializeServiceGateTests
         var projectStore = new StubProjectStore(Document());
         var materializer = new RecordingMaterializer();
         var service = new FilterRunMaterializeService(materializer, projectStore,
-            new StubScenarioStore([Scenario()]), new NullMappingStore(), gate, ActiveSession(),
+            new StubScenarioStore([Scenario()]), new AmountMappedGlStore(), gate, ActiveSession(),
             resultStaleStateStore: new FixedStaleStore(false));
 
         Assert.Null(await service.MaterializeForConcurrentQueryAsync("project-1", CancellationToken.None));
@@ -165,7 +165,7 @@ public sealed class FilterRunMaterializeServiceGateTests
         var materializer = new RecordingMaterializer();
         var staleStore = new SequenceStaleStore();
         var service = new FilterRunMaterializeService(materializer, projectStore,
-            new StubScenarioStore([Scenario()]), new NullMappingStore(), new ActionExecutionGate(), ActiveSession(),
+            new StubScenarioStore([Scenario()]), new AmountMappedGlStore(), new ActionExecutionGate(), ActiveSession(),
             resultStaleStateStore: staleStore);
 
         Assert.NotNull(await service.MaterializeForConcurrentQueryAsync("project-1", CancellationToken.None));
@@ -188,7 +188,7 @@ public sealed class FilterRunMaterializeServiceGateTests
         var gate = new ActionExecutionGate();
         using var held = Assert.IsAssignableFrom<IDisposable>(gate.TryAcquire());
         var service = new FilterRunMaterializeService(materializer, projectStore,
-            scenarioStore, new NullMappingStore(), gate, session, resultStaleStateStore: staleStore);
+            scenarioStore, new AmountMappedGlStore(), gate, session, resultStaleStateStore: staleStore);
         var repository = new CountReadRepository(() =>
         {
             if (change == "data") { staleStore.DataRevision = "2"; }
@@ -414,7 +414,11 @@ public sealed class FilterRunMaterializeServiceGateTests
             throw new NotSupportedException();
     }
 
-    private sealed class NullMappingStore : IMappingStateStore
+    // 原本不提供任何配對。預篩選收斂計畫階段四（2026-10-23）起，第五步不論比較方式都要求條件用到的欄位已配對，
+    // 情境的「借方」條件需要金額；這組測試檢查的是並行鎖，所以替身改成提供只配對金額的 GL 配對，讓情境照舊通過驗證。
+    // 正式流程重新配對 GL 會清掉已存情境，不會有沒有 GL 配對卻有情境的案件。
+    // 第一次失敗：Focused 收據 20261023-033450367-efcc5f97968c4691a01ae8ae6018b91a。
+    private sealed class AmountMappedGlStore : IMappingStateStore
     {
         public Task SaveAsync(
             string projectId,
@@ -426,6 +430,13 @@ public sealed class FilterRunMaterializeServiceGateTests
             string projectId,
             DatasetKind kind,
             CancellationToken cancellationToken) =>
-            Task.FromResult<CommittedMapping?>(null);
+            Task.FromResult<CommittedMapping?>(kind == DatasetKind.Gl
+                ? new CommittedMapping(
+                    DatasetKind.Gl,
+                    new Dictionary<string, string> { [JetFieldCatalog.GlAmount] = "金額" },
+                    string.Empty,
+                    string.Empty,
+                    DateTimeOffset.MinValue)
+                : null);
     }
 }

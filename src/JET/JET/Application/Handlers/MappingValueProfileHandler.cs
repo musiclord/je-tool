@@ -11,7 +11,8 @@ public sealed class MappingValueProfileHandler(
     ProjectSession session) : IApplicationActionHandler
 {
     private const int DefaultLimit = 50;
-    private const int MaxLimit = 100;
+    // 一次最多比對幾個來源值；前端 ui-core.js 的 VALUE_PROFILE_MAX_VALUES 是鏡像，由架構測試比對。
+    internal const int MaxLimit = 100;
 
     public string Action => "mapping.valueProfile";
 
@@ -47,6 +48,16 @@ public sealed class MappingValueProfileHandler(
         }
         if (checkSourceValues && (comparisonOnly || !hasComparisonValues))
             throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "check_source_values_shape");
+        // 來源欄勾了往下填補時，值概況照填補後的值計數（使用者 2026-10-28 裁定）；只比對文字時不讀來源，帶它沒有意義。
+        var fillDown = false;
+        if (payload.TryGetProperty("fillDown", out var fillDownElement))
+        {
+            if (fillDownElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "fill_down_not_boolean");
+            fillDown = fillDownElement.GetBoolean();
+        }
+        if (fillDown && comparisonOnly)
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "fill_down_shape");
         if (comparisonOnly)
         {
             if (!hasComparisonValues)
@@ -81,6 +92,7 @@ public sealed class MappingValueProfileHandler(
             batch.BatchId,
             sourceColumn,
             limit,
+            fillDown,
             cancellationToken);
 
         var values = profile.Values.Select(item => new { value = item.Value, count = item.Count }).ToArray();

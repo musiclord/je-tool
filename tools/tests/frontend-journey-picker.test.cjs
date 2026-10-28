@@ -286,3 +286,60 @@ test('journey 1: switching to another program flattens the glass, coming back re
   await flush();
   assert.equal(f.posted.length, sentBefore, 'switching programs only changes the look and sends no action');
 });
+
+// 預篩選收斂計畫階段八（使用者 2026-10-22 裁定「Escape 一次關兩層」）：流程總覽與刪除案件對話框同時開著時，一次 Escape 只關最上層，
+// Tab 只在最上層循環，關閉後焦點回原處。原本總覽與刪除對話框各自接鍵盤，總覽又把案件清單裡的對話框排除在「上面有別的對話框」之外，
+// 所以一次 Escape 兩個都關。目前操作上碰不到這個情形（總覽開著時蓋住刪除鈕），測試直接按下被蓋住的刪除鈕。
+// 第一次失敗：FrontendMapping 收據 20261024-144702429-ebf33c64aa474c5bb12ca3afb1c2df7f。
+test('journey 1: with the overview open, the delete dialog opened on top takes Escape and Tab alone and hands focus back when it closes', async () => {
+  const f = await boot([LOCAL_A, LOCAL_B]);
+  const opener = f.$('[data-action="overview-open"]'); opener.focus(); opener.dispatch('click');
+  assert.equal(f.state().overviewOpen, true); assert.equal(f.$('.overview-modal').hidden, false);
+  const overviewClose = f.$('.overview-modal__card button[data-action="overview-close"]');
+  assert.ok(f.dom.document.activeElement === overviewClose, 'the overview has focus');
+  const deleteButton = f.$('[data-action="picker-delete"][data-project-id="合成甲案"]');
+  deleteButton.focus(); deleteButton.dispatch('click');
+  const modal = f.$('[data-bind="delete-modal"]'); assert.equal(modal.hidden, false, 'the delete dialog opens on top');
+  const cancel = modal.querySelector('button[data-action="modal-cancel"]'), confirm = modal.querySelector('[data-action="modal-confirm"]');
+  assert.ok(f.dom.document.activeElement === cancel, 'focus moves into the delete dialog');
+  // Tab 只在最上層循環：從最後一顆按鈕回到第一顆，不會被下面的總覽拉走。
+  confirm.focus();
+  const tab = f.dom.document.dispatch('keydown', { key: 'Tab', shiftKey: false });
+  assert.equal(tab.defaultPrevented, true, 'Tab is handled by the dialog on top');
+  assert.ok(f.dom.document.activeElement === cancel, 'Tab wraps inside the delete dialog');
+  // 一次 Escape 只關最上層，焦點回到打開它的刪除鈕。
+  f.dom.document.dispatch('keydown', { key: 'Escape' }); f.timers.run();
+  assert.equal(modal.hidden, true, 'Escape closes the delete dialog');
+  assert.equal(f.state().overviewOpen, true, 'the overview below stays open');
+  assert.ok(f.dom.document.activeElement === deleteButton, 'focus returns to the delete button that opened the dialog');
+  // 現在最上層是總覽：Tab 把跑到外面的焦點拉回總覽，Escape 關掉它，焦點回到「總覽」按鈕。
+  const pull = f.dom.document.dispatch('keydown', { key: 'Tab' });
+  assert.equal(pull.defaultPrevented, true); assert.ok(f.dom.document.activeElement === overviewClose, 'Tab pulls focus back into the overview');
+  f.dom.document.dispatch('keydown', { key: 'Escape' });
+  assert.equal(f.state().overviewOpen, false, 'the second Escape closes the overview');
+  assert.ok(f.dom.document.activeElement === opener, 'focus returns to the overview button');
+});
+
+// 反過來：刪除對話框先開，總覽開在上面。Escape 只關總覽，刪除對話框回到最上層後 Tab 拉回它、Escape 關掉它。
+// 第一次失敗：FrontendMapping 收據 20261024-144702429-ebf33c64aa474c5bb12ca3afb1c2df7f。
+test('journey 1: with the delete dialog open, the overview opened on top takes Escape alone and the dialog takes the keyboard back afterwards', async () => {
+  const f = await boot([LOCAL_A, LOCAL_B]);
+  const deleteButton = f.$('[data-action="picker-delete"][data-project-id="合成甲案"]'); deleteButton.focus(); deleteButton.dispatch('click');
+  const modal = f.$('[data-bind="delete-modal"]'), cancel = modal.querySelector('button[data-action="modal-cancel"]');
+  assert.equal(modal.hidden, false); assert.ok(f.dom.document.activeElement === cancel);
+  const opener = f.$('[data-action="overview-open"]'); opener.focus(); opener.dispatch('click');
+  assert.equal(f.state().overviewOpen, true);
+  const card = f.$('.overview-modal__card'), overviewClose = card.querySelector('button[data-action="overview-close"]');
+  assert.ok(f.dom.document.activeElement === overviewClose, 'the overview on top has focus');
+  const tab = f.dom.document.dispatch('keydown', { key: 'Tab', shiftKey: true });
+  assert.equal(tab.defaultPrevented, true); assert.ok(card.contains(f.dom.document.activeElement), 'Tab stays inside the overview on top');
+  f.dom.document.dispatch('keydown', { key: 'Escape' });
+  assert.equal(f.state().overviewOpen, false, 'Escape closes the overview on top');
+  assert.equal(modal.hidden, false, 'the delete dialog below stays open');
+  assert.ok(f.dom.document.activeElement === opener, 'focus returns to the overview button');
+  const pull = f.dom.document.dispatch('keydown', { key: 'Tab' });
+  assert.equal(pull.defaultPrevented, true); assert.ok(f.dom.document.activeElement === cancel, 'Tab pulls focus back into the delete dialog');
+  f.dom.document.dispatch('keydown', { key: 'Escape' }); f.timers.run();
+  assert.equal(modal.hidden, true, 'Escape closes the delete dialog');
+  assert.ok(f.dom.document.activeElement === deleteButton, 'focus returns to the delete button');
+});

@@ -199,6 +199,20 @@ internal static class WorkpaperWriterTestSupport
         return JetAuditProgram.Finalize(initial, facts);
     }
 
+    /// <summary>沒有計畫的公開入口已刪除（2026-10-22）；測試和正式路徑一樣先算出目前的計畫再寫出。</summary>
+    internal static async Task<ExportStats> WriteWithCurrentPlanAsync(
+        HandlerTestHost host,
+        WorkpaperWriter writer,
+        Stream stream,
+        WorkpaperContext context,
+        CancellationToken cancellationToken,
+        Action<WorkpaperProgress>? progress = null,
+        ICompletenessDiffPageRepository? completenessDiffsOverride = null)
+    {
+        var plan = await CurrentPlanForAsync(host, context, completenessDiffsOverride);
+        return await ((IWorkpaperPlanWriter)writer).WriteAsync(stream, context, plan, cancellationToken, progress);
+    }
+
     internal static async Task<XLWorkbook> WriteAndReadAsync(HandlerTestHost host, string projectId)
     {
         var bytes = await WriteToBytesAsync(host, projectId);
@@ -208,8 +222,8 @@ internal static class WorkpaperWriterTestSupport
     internal static async Task<byte[]> WriteToBytesAsync(HandlerTestHost host, string projectId)
     {
         await using var stream = new MemoryStream();
-        var stats = await BuildWriter(host).WriteAsync(
-            stream, await CurrentContextForAsync(host, projectId), CancellationToken.None);
+        var context = await CurrentContextForAsync(host, projectId);
+        var stats = await WriteWithCurrentPlanAsync(host, BuildWriter(host), stream, context, CancellationToken.None);
         Assert.Equal(stream.Length, stats.BytesWritten);
 
         return stream.ToArray();
@@ -483,8 +497,8 @@ internal static class WorkpaperWriterTestSupport
     internal static async Task<XLWorkbook> WriteDemoAndReadAsync(HandlerTestHost host, string projectId)
     {
         var stream = new MemoryStream();
-        await BuildWriter(host).WriteAsync(
-            stream, await CurrentContextForAsync(host, projectId), CancellationToken.None);
+        var context = await CurrentContextForAsync(host, projectId);
+        await WriteWithCurrentPlanAsync(host, BuildWriter(host), stream, context, CancellationToken.None);
         stream.Position = 0;
         return new XLWorkbook(stream);
     }

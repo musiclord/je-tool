@@ -157,6 +157,52 @@ for (const kind of ['posting', 'manual']) test('section 9 F: ' + kind + ' source
   assert.equal(f.sent('mappingValueProfile').length, before + 1);
 });
 
+// 預篩選收斂計畫階段八（使用者 2026-10-22 裁定）：按「讀取來源值」後按鈕換成讀取中的提示，焦點原本掉到頁面本身，外層有時把讀出的清單捲出畫面
+//（2026-10-14 正式整合時在 Gui 查到）。現在按鈕用 data-focus-successor 宣告接替者：焦點先交給能拿焦點的讀取中提示，讀完交給值清單的第一個控制項，
+// 接替的控制項在內容捲軸還原之後再捲進畫面。第一次失敗：FrontendMapping 收據 20261024-144702429-ebf33c64aa474c5bb12ca3afb1c2df7f。
+for (const kind of ['manual', 'posting']) test('mapping: reading ' + kind + ' source values hands focus to the loading hint, then to the first value control, and keeps the list in view', async () => {
+  const f = journey({ draft: { ...DUAL, postingStatus: 'Posting', manual: 'Manual' } });
+  const button = f.need('[data-action="load-' + kind + '-profile"]');
+  button.focus();
+  f.press('[data-action="load-' + kind + '-profile"]');
+  const hint = f.need('[data-motion-key="' + kind + '-values-state:loading"]');
+  assert.equal(hint.getAttribute('tabindex'), '-1', 'the loading hint can take focus without joining the Tab order');
+  assert.ok(f.dom.document.activeElement === hint, 'focus moves to the loading hint while reading');
+  f.last('mappingValueProfile').resolve(kind === 'manual'
+    ? { blankCount: 0, distinctCount: 2, truncated: false, values: [{ value: '1', count: 3 }, { value: '0', count: 1 }], comparisonGroups: [['1'], ['0']], missingComparisonValues: [] }
+    : { blankCount: 0, distinctCount: 2, truncated: false, values: [{ value: 'P', count: 9 }, { value: 'U', count: 1 }], comparisonGroups: [['P'], ['U']], missingComparisonValues: [] });
+  await settleAll();
+  const list = f.need(kind === 'manual' ? '.value-assign-list' : '.value-option-list');
+  const first = f.need(kind === 'manual' ? '.value-assign-list [data-manual-assign]' : '.value-option-list [data-posting-value]');
+  assert.ok(list.contains(first));
+  assert.ok(f.dom.document.activeElement === first, 'focus moves to the first control of the value list');
+  // 假 DOM 沒有版面，只能看接替的控制項在內容捲軸還原之後被捲進畫面（block: nearest 在已經看得到時不會動）；實機位置由瀏覽器主機確認。
+  assert.deepEqual(plain(first.scrolledIntoView), [{ block: 'nearest' }]);
+});
+
+// 2026-10-28 複審補的兩條接替路線：讀取失敗時焦點交給「重新載入」，讀出空清單時交給清單本身，兩者都捲進畫面。
+// 實作在階段八已經寫好，這兩則是事後補的，第一次就通過，沒有第一次失敗的收據。
+for (const kind of ['manual', 'posting']) test('mapping: when reading ' + kind + ' source values fails or finds none, focus goes to the reload button or the empty list and stays in view', async () => {
+  const failed = journey({ draft: { ...DUAL, postingStatus: 'Posting', manual: 'Manual' } });
+  failed.need('[data-action="load-' + kind + '-profile"]').focus();
+  failed.press('[data-action="load-' + kind + '-profile"]');
+  assert.ok(failed.dom.document.activeElement === failed.need('[data-values-loading="' + kind + '"]'), 'focus waits on the loading hint');
+  failed.last('mappingValueProfile').reject(new Error('synthetic read failure'));
+  await settleAll();
+  const reload = failed.need('[data-load-failure] [data-action="load-' + kind + '-profile"]');
+  assert.ok(failed.dom.document.activeElement === reload, 'focus moves to the reload button');
+  assert.deepEqual(plain(reload.scrolledIntoView), [{ block: 'nearest' }]);
+
+  const empty = journey({ draft: { ...DUAL, postingStatus: 'Posting', manual: 'Manual' } });
+  empty.need('[data-action="load-' + kind + '-profile"]').focus();
+  empty.press('[data-action="load-' + kind + '-profile"]');
+  empty.last('mappingValueProfile').resolve({ blankCount: 0, distinctCount: 0, truncated: false, values: [], comparisonGroups: [], missingComparisonValues: [] });
+  await settleAll();
+  const list = empty.need(kind === 'manual' ? '.value-assign-list' : '.value-option-list');
+  assert.ok(empty.dom.document.activeElement === list, 'focus moves to the empty list itself');
+  assert.deepEqual(plain(list.scrolledIntoView), [{ block: 'nearest' }]);
+});
+
 test('mapping: every control has a distinguishable name, the preview button reads 預覽 and the list uses the ruled field names', async () => {
   const f = journey({ tb: TB_COLUMNS, mode: 'side', draft: { manual: 'Manual', postingStatus: 'Posting' } });
 
@@ -578,6 +624,24 @@ test('mapping: the confirmed summary and the classification gate both say the ma
   assert.doesNotMatch(status, /完成於/);
   assert.equal(f.window.JetUi.accountMappingEditor.html(f.store.getState(), false),
     '<p class="rule-card__gate">GL 確認配對後，即可設定科目分類。</p>');
+});
+
+// 預篩選收斂計畫階段四（2026-10-23）：第五步依後端算好的可用欄位停用入口。開案與確認配對的回應都帶 availableGlFields，
+// 畫面原樣存進已確認的配對，不由配對內容自己推。清單照後端在對應情況下會送的內容寫死。
+test('mapping: the confirmed GL mapping keeps the available fields the backend sends when the case opens and when the mapping is confirmed', async () => {
+  const f = journey();
+  const onOpen = ['docNum', 'lineID', 'postDate', 'accNum', 'accName', 'description', 'amount'];
+  f.window.JetUi.applyLoadedProject({ project: { projectId: 'available', currentStep: 2 },
+    importState: { gl: { batchId: 'gl-a', columns: GL_COLUMNS, rowCount: 3 } },
+    mapping: { gl: { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', committedUtc: '2025-12-31T00:00:00Z', availableGlFields: onOpen } } },
+  { stayOnCurrentStep: true });
+  assert.deepEqual(plain(f.store.getState().mapping.gl.committed).availableGlFields, onOpen);
+  const onConfirm = ['docNum', 'lineID', 'postDate', 'docDate', 'accNum', 'accName', 'description', 'amount'];
+  f.press('[data-action="remap-gl"]');
+  f.press('[data-action="commit-gl"]');
+  f.last('mappingCommitGl').resolve(commitReply({ availableGlFields: onConfirm }));
+  await settleAll();
+  assert.deepEqual(plain(f.store.getState().mapping.gl.committed).availableGlFields, onConfirm);
 });
 
 test('mapping: cancelling changes restores a separate copy of the confirmed settings', () => {
@@ -1157,4 +1221,179 @@ test('the confirmed mapping summary keeps preview and remap side by side', async
   assert.ok(actions.getAttribute('class').split(/\s+/).includes('panel__actions--start'), 'both buttons start from the left');
   assert.deepEqual(actions.children.map(node => node.textContent), ['預覽', '重新配對']);
   assert.equal(actions.querySelector('.panel__action--start'), null, 'no button pushes the other to the far side');
+});
+
+/* ---- 階段六：確認配對時往下填補空白 ------------------------------------------------ */
+
+// 預篩選收斂計畫階段六（使用者 2026-10-22 裁定放在第三步確認配對時）：審計員勾選已配對的欄位，確認配對時只送勾選的欄位，
+// 沒勾選就不帶這個鍵（配到同一個來源欄的欄位算一起勾選，見後面成組的那則）；後端回填了幾格，摘要與完成訊息寫出來；拿掉欄位的來源欄時勾選跟著消失。借方、貸方代碼是字面值，不在清單裡。
+// 第一次失敗：Contract FrontendMapping 收據 20261023-201807485-4e9d37982bac42228c3b6fc55cbb1333。
+test('mapping: fill-down ticks follow the mapped fields, go out only when chosen and come back with the filled count', async () => {
+  const f = journey({ draft: DUAL });
+  assert.ok(f.legendGroup('往下填補空白') !== null, 'the fill-down group is rendered');
+  const offered = () => f.$$('[data-fill-down-field]').map(box => box.getAttribute('data-fill-down-field'));
+  assert.deepEqual(offered(), ['docNum', 'postDate', 'accNum', 'accName', 'description', 'debitAmount', 'creditAmount'],
+    'only fields with a source column, in field order');
+  const row = f.need('[data-fill-down-field="docNum"]').closest('li');
+  assert.match(row.textContent, /傳票號碼/); assert.match(row.textContent, /Doc/);
+
+  f.tick('[data-fill-down-field="postDate"]', true);
+  f.tick('[data-fill-down-field="docNum"]', true);
+  assert.deepEqual(f.optionsNow().fillDownFields, ['docNum', 'postDate'], 'ticks are kept in field order');
+  f.press('[data-action="commit-gl"]');
+  const first = plain(f.last('mappingCommitGl').payload);
+  assertNoInternalKeys(first);
+  assert.deepEqual(first, { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [],
+    fillDownFields: ['docNum', 'postDate'] });
+  f.last('mappingCommitGl').resolve(commitReply({ fillDownFields: ['docNum', 'postDate'], fillDownCount: 6 }));
+  await settleAll();
+  f.timers.run();
+  const facts = f.$$('[data-bind="gl-committed-options"] li').map(item => item.textContent);
+  assert.ok(facts.includes('往下填補空白：傳票號碼、總帳日期'), facts.join(' | '));
+  assert.match(f.need('.mapping-summary__facts').textContent, /往下填補 6 格空白/);
+  const messages = f.store.getState().messages.map(message => message.text);
+  assert.ok(messages.some(text => /已確認配對/.test(text) && /往下填補 6 格空白/.test(text)), messages.join(' | '));
+
+  // 重新配對後全部取消：送出時不帶 fillDownFields。
+  f.press('[data-action="remap-gl"]');
+  f.tick('[data-fill-down-field="docNum"]', false);
+  f.tick('[data-fill-down-field="postDate"]', false);
+  f.press('[data-action="commit-gl"]');
+  const second = plain(f.last('mappingCommitGl').payload);
+  assert.ok(!Object.hasOwn(second, 'fillDownFields'), 'nothing chosen, nothing sent');
+  f.last('mappingCommitGl').reject(new Error('synthetic'));
+  await settleAll();
+
+  // 拿掉欄位的來源欄，勾選跟著消失，清單也不再列它。
+  f.tick('[data-fill-down-field="accNum"]', true);
+  assert.deepEqual(f.optionsNow().fillDownFields, ['accNum']);
+  f.choose('select[data-mapping-key="accNum"]', '');
+  assert.deepEqual(f.optionsNow().fillDownFields, []);
+  assert.ok(!offered().includes('accNum'));
+});
+
+// 2026-10-28 複審：前端說明改寫成和程式一致後補的兩則。改選另一個來源欄時勾選保留，改填新的來源欄；
+// 重新匯入後新資料沒有那個來源欄時勾選跟著消失。程式本來就這樣處理，第一次就通過，沒有第一次失敗的收據。
+test('mapping: a fill-down tick stays when the field moves to another source column and goes when a reimport drops the column', () => {
+  const f = journey({ draft: DUAL });
+  f.tick('[data-fill-down-field="accName"]', true);
+  f.choose('select[data-mapping-key="accName"]', 'Dept');
+  assert.deepEqual(f.optionsNow().fillDownFields, ['accName'], 'the tick follows the field to its new source column');
+  assert.equal(f.need('[data-fill-down-field="accName"]').checked, true);
+  f.store.setImportResult('gl', { batchId: 'gl-2', columns: GL_COLUMNS.filter(column => column !== 'Dept'), rowCount: 3 });
+  assert.deepEqual(f.optionsNow().fillDownFields, [], 'a reimport without the source column drops the tick');
+});
+
+test('mapping: a reopened case shows its fill-down choices ticked', () => {
+  const f = journey({ draft: DUAL, options: { fillDownFields: ['postDate'] } });
+  assert.equal(f.need('[data-fill-down-field="postDate"]').checked, true);
+  assert.equal(f.need('[data-fill-down-field="docNum"]').checked, false);
+});
+
+// 使用者 2026-10-28 裁定依來源欄成組：填補是對來源欄做的，配到同一個來源欄的欄位一起勾、一起取消，送出時也一起送。
+// 改程式之後才補，沒有第一次失敗的收據；後端的成組規則在 GlFillDownWorkflowTests 保存了第一次失敗。
+test('mapping: fields sharing one source column are ticked, unticked and sent together for fill-down', async () => {
+  const f = journey({ draft: { ...DUAL, docDate: 'Date' } });
+  f.tick('[data-fill-down-field="postDate"]', true);
+  assert.deepEqual(f.optionsNow().fillDownFields, ['postDate', 'docDate'], 'the other field on the same source column joins');
+  assert.equal(f.need('[data-fill-down-field="docDate"]').checked, true);
+  f.press('[data-action="commit-gl"]');
+  assert.deepEqual(plain(f.last('mappingCommitGl').payload).fillDownFields, ['postDate', 'docDate']);
+  f.last('mappingCommitGl').reject(new Error('synthetic'));
+  await settleAll();
+  f.tick('[data-fill-down-field="docDate"]', false);
+  assert.deepEqual(f.optionsNow().fillDownFields, [], 'unticking one unticks the other on the same source column');
+  assert.equal(f.need('[data-fill-down-field="postDate"]').checked, false);
+});
+
+// 使用者 2026-10-28 裁定填補格數隨配對保存：重開案件時第三步摘要照樣列出填了幾格。
+// 改程式之後才補，沒有第一次失敗的收據；後端保存格數在 GlFillDownWorkflowTests 保存了第一次失敗。
+test('mapping: a reopened case lists how many blank cells the confirmed mapping filled', () => {
+  const f = journey();
+  f.window.JetUi.applyLoadedProject({ project: { projectId: 'filled', currentStep: 2 },
+    importState: { gl: { batchId: 'gl-f', columns: GL_COLUMNS, rowCount: 3 } },
+    mapping: { gl: { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', fillDownFields: ['docNum'], fillDownCount: 4,
+      committedUtc: '2025-12-31T00:00:00Z' } } },
+  { stayOnCurrentStep: true });
+  assert.match(f.need('.mapping-summary__facts').textContent, /往下填補 4 格空白/);
+  const facts = f.$$('[data-bind="gl-committed-options"] li').map(item => item.textContent);
+  assert.ok(facts.includes('往下填補空白：傳票號碼'), facts.join(' | '));
+});
+
+// 使用者 2026-10-28 裁定「讀取來源值」依勾選先填補再計數：來源欄勾了往下填補時請求帶 fillDown，畫面寫填補後的列數與空白提醒；
+// 改勾選時就地重新計數，清單留在原處並說明正在重新計數，回覆到了才換成新的列數。沒勾時請求不帶這一項，和以前相同。
+// 第一次失敗：Contract FrontendMapping 收據 20261028-044026868-403677e2f35346af9b622d4fbd8c2689，這則與下一則都失敗。
+test('mapping: reading source values of a filled-down column counts after filling and recounts in place when the tick changes', async () => {
+  const f = journey({ draft: { ...DUAL, manual: 'Manual' } });
+  const manual = () => f.legendGroup('人工/自動分錄代碼');
+  f.tick('[data-fill-down-field="manual"]', true);
+  f.press('[data-action="load-manual-profile"]');
+  assert.deepEqual(plain(f.last('mappingValueProfile').payload),
+    { dataset: 'gl', sourceColumn: 'Manual', limit: 50, comparisonValues: ['1', '0'], checkSourceValues: true, fillDown: true });
+  f.last('mappingValueProfile').resolve({ blankCount: 1, distinctCount: 2, truncated: false,
+    values: [{ value: '1', count: 5 }, { value: '0', count: 4 }], comparisonGroups: [['1'], ['0']], missingComparisonValues: [] });
+  await settleAll();
+  assert.match(manual().textContent, /往下填補後共 2 種值、空白 1 列/);
+  assert.match(manual().textContent, /來源有 1 列空白/);
+
+  const before = f.sent('mappingValueProfile').length;
+  f.tick('[data-fill-down-field="manual"]', false);
+  await settleAll();
+  const recounts = f.sent('mappingValueProfile').slice(before).filter(request => !plain(request.payload).comparisonOnly);
+  assert.equal(recounts.length, 1, 'unticking asks for the counts again once');
+  assert.deepEqual(plain(recounts[0].payload),
+    { dataset: 'gl', sourceColumn: 'Manual', limit: 50, comparisonValues: ['1', '0'], checkSourceValues: true });
+  assert.equal(manual().querySelectorAll('.value-assign').length, 2, 'the value list stays while recounting');
+  assert.match(manual().textContent, /重新計數/);
+  assert.ok(!/來源有 1 列空白/.test(manual().textContent), 'the old blank warning is not shown while recounting');
+
+  recounts[0].resolve({ blankCount: 6, distinctCount: 2, truncated: false,
+    values: [{ value: '1', count: 2 }, { value: '0', count: 2 }], comparisonGroups: [['1'], ['0']], missingComparisonValues: [] });
+  await settleAll();
+  assert.match(manual().textContent, /共 2 種值、空白 6 列/);
+  assert.ok(!/往下填補後/.test(manual().textContent));
+  assert.ok(!/重新計數/.test(manual().textContent));
+  assert.match(manual().textContent, /來源有 6 列空白/);
+});
+
+// 同一裁定：過帳狀態的來源欄被往下填補時，讀取來源值同樣要填補後的列數；填補是對來源欄做的，所以看的是來源欄有沒有被填。
+test('mapping: reading posting-status values asks for filled counts when its source column is filled down', () => {
+  const f = journey({ draft: DUAL });
+  f.choose('select[data-mapping-key="postingStatus"]', 'Posting');
+  f.tick('[data-fill-down-field="postingStatus"]', true);
+  f.press('[data-action="load-posting-profile"]');
+  assert.deepEqual(plain(f.last('mappingValueProfile').payload),
+    { dataset: 'gl', sourceColumn: 'Posting', limit: 50, comparisonValues: [], checkSourceValues: false, fillDown: true });
+});
+
+// 2026-10-28 獨立複審查到：改配對時存下的往下填補勾選沒有依來源欄展開，結果會因為先勾哪一個欄位而不同，
+// 把配對改回已確認的樣子也被當成有修改。畫面上看到的勾選，就是送出與比對時的勾選。
+// 第一次失敗：Contract FrontendMapping 收據 20261028-050548378-facf6e078ba443adb910bfb55c40719c，這則與下一則都失敗。
+test('mapping: remapping a field that shares a filled-down source column keeps what the screen showed ticked', async () => {
+  // 先勾傳票號碼，再把總帳日期也配到同一個來源欄，畫面兩個都勾；把總帳日期配回原本的來源欄，勾選跟著它過去。
+  const f = journey({ draft: DUAL });
+  f.tick('[data-fill-down-field="docNum"]', true);
+  f.choose('select[data-mapping-key="postDate"]', 'Doc');
+  assert.equal(f.need('[data-fill-down-field="postDate"]').checked, true, 'the field on the same source column shows ticked');
+  f.choose('select[data-mapping-key="postDate"]', 'Date');
+  assert.equal(f.need('[data-fill-down-field="postDate"]').checked, true, 'the tick follows the field to its new source column');
+  f.press('[data-action="commit-gl"]');
+  assert.deepEqual(plain(f.last('mappingCommitGl').payload).fillDownFields, ['docNum', 'postDate']);
+});
+
+test('mapping: taking a field off a filled-down source column and putting it back matches the confirmed mapping again', async () => {
+  const f = journey({ draft: { ...DUAL, postDate: 'Doc' } });
+  f.tick('[data-fill-down-field="docNum"]', true);
+  f.press('[data-action="commit-gl"]');
+  assert.deepEqual(plain(f.last('mappingCommitGl').payload).fillDownFields, ['docNum', 'postDate']);
+  f.last('mappingCommitGl').resolve(commitReply({ fillDownFields: ['docNum', 'postDate'], fillDownCount: 2 }));
+  await settleAll();
+  f.timers.run();
+  f.press('[data-action="remap-gl"]');
+  f.timers.run();
+  f.choose('select[data-mapping-key="postDate"]', '');
+  assert.match(f.need('[data-bind="mapping-banner-gl"]').textContent, /修改/);
+  f.choose('select[data-mapping-key="postDate"]', 'Doc');
+  assert.ok(f.$('[data-bind="mapping-banner-gl"]') === null, 'putting the field back on the same source column is no change');
+  assert.equal(f.need('[data-fill-down-field="postDate"]').checked, true);
 });

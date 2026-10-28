@@ -1,3 +1,4 @@
+using JET.AuditCore;
 using JET.Domain;
 using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
@@ -7,7 +8,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// Prescreen repo 診斷日誌（TDD #1：完整 SQL、參數值、duration、provider）。
-/// oracle：規格——RunAsync 對 target_gl_entry 下多條 row-tag COUNT(*) WHERE（述詞動態落地）
+/// oracle：規格——facts 介面對 target_gl_entry 下多條 row-tag COUNT(*) WHERE（述詞動態落地）
 /// 與編製者/科目彙總；後期核准述詞綁定期末日值。斷言鎖「SQL 內容＋綁定值身分」。
 /// 事件數為小常數（無 per-row 執行），不隨母體列數成長。SQL Server 由
 /// <see cref="SqlServerFactAttribute"/> 的 2022 非 Express gate 控制。
@@ -39,18 +40,43 @@ public sealed class PrescreenRunLoggingTests
     // 首次失敗：Public 20261008-055710957-f16e3981f37d4c25957debd27340b1d9。把這條查詢依空白摘要同一樣板、
     // 換成 `(g.voucher_date IS NOT NULL AND g.post_date < g.voucher_date)` 插回實際命令序列後，兩個 digest 都精確回到原值，
     // 其餘 17 條命令與參數未變。SQL Server 同樣未執行，維持原值待核對。
-    private const string SqliteSnapshotDigest = "847BAFE0A6F3930C007CC233A7CC16CCDD9CD6CC2FD3F3E51D62F29070BCBFB5";
-    private const string DuckDbSnapshotDigest = "AF944C136750118DE969727193752237EF2EC8FCAC5424AB5046AC8F2677FAE3";
+    // 2026-10-22 技術債一輪：空白判定改走 AuditCore 的 SqlBlankText，「不是空白」的片段多了一層外括號，非授權編製人員、
+    // 低頻編製者、編製等於核准與低頻人員分組的查詢文字因此改變，命令數與參數不變。第一次失敗：Focused 收據
+    // 20261022-071617852-2c5d12311ddc49d7957b8cffedee0125。同一輪刪掉公開的 RunAsync 相容入口，測試改走 facts 介面，
+    // 由 AuditCore 建立全規則適用的計畫，命令序列和原本的相容輸入相同。SQL Server 未執行，維持原值待核對。
+    // 預篩選收斂計畫階段九（一條規則一個述詞）：第 4 條尾零查詢改走尾數述詞（整數至少 10^5 且末六位為 0，參數多一個下界），
+    // 第 15、16 條低頻人員與低頻科目改走「科目與人員統計」同一個方法（科目去頭尾空白分組並排除空白），第 17 條低頻科目數
+    // 也改成去空白後計相異科目；其餘命令與參數未動，命令數仍為 17。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+    // SQL Server 同樣未執行，維持原值待核對。
+    private const string SqliteSnapshotDigest = "D4C4F4F556E740AE9AA58528EA737F2F21E9CBF9226C039EA3BD1ED59C3C990D";
+    private const string DuckDbSnapshotDigest = "56C59E062D671DE4E720360A06ED6656EB80626C014E215FC2176750AAD8D797";
     // 2026-10-19 第一次在本機 SQL Server 2022 執行，依實際命令序列更新：命令數和本機版相同，漂移來自開發暫緩期間只經編譯的共用 SQL 修改
     // 與這輪 SQL Server 轉大寫改走方言。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
     private const string SqlServerSnapshotDigest = "E2A19883500A0386EF903F72FF32E9FD2889D5AD9EA85C8EEE5EFC6DA6E73D3B";
 
     private const string PeriodStart = "2025-09-30"; // 可辨識的期末日，後期核准述詞綁定後應現身於 parameters
 
-    private static PrescreenRunInput FullInput() =>
-        new(PeriodStart, PeriodStart: "2025-01-01", PeriodEnd: "2025-12-31",
-            HasApprovalDate: true, HasCreatedBy: true, HasHolidays: true,
-            RunUnexpectedAccountPair: true, HasAuthorizedPreparers: true, MoneyScale: 100);
+    // 全部規則都適用的計畫：核准日、建立人員、假日、科目配對、授權清單都有，和原本的相容輸入同一組條件。
+    private static PrescreenPlan FullPlan(string projectId) =>
+        JetAuditProgram.Plan(new PrescreenRequest(
+            ProjectId: projectId,
+            HasGlMapping: true,
+            PeriodStart: "2025-01-01",
+            PeriodEnd: "2025-12-31",
+            MoneyScale: 100,
+            SampleSeed: 0,
+            RunId: "logging-run",
+            GeneratedUtc: DateTimeOffset.UnixEpoch,
+            LastPeriodStart: PeriodStart,
+            // 預篩選收斂計畫階段四把核准日與建立人員兩個旗標換成可用欄位清單（2026-10-23）；不帶清單就不檢查欄位，
+            // 等同原本兩個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+            AvailableGlFields: null,
+            HasHolidays: true,
+            HasAccountMapping: true,
+            HasRevenue: true,
+            HasCounterpart: true,
+            HasAuthorizedPreparers: true,
+            NonWorkingDays: null));
 
     private static (RingBufferLoggerProvider Diagnostic, ILoggerFactory Factory) NewDiagnostic()
     {
@@ -152,7 +178,7 @@ public sealed class PrescreenRunLoggingTests
         using (factory)
         {
             var repo = new LocalPrescreenRunRepository(database, factory.CreateLogger<LocalPrescreenRunRepository>());
-            await repo.RunAsync(projectId, FullInput(), CancellationToken.None);
+            await ((IPrescreenFactsPort)repo).ExecuteAsync(FullPlan(projectId), CancellationToken.None);
         }
 
         AssertPrescreenSql(diagnostic, "sqlite");
@@ -173,7 +199,7 @@ public sealed class PrescreenRunLoggingTests
             var repo = new LocalPrescreenRunRepository(
                 database,
                 factory.CreateLogger<LocalPrescreenRunRepository>());
-            await repo.RunAsync(projectId, FullInput(), CancellationToken.None);
+            await ((IPrescreenFactsPort)repo).ExecuteAsync(FullPlan(projectId), CancellationToken.None);
         }
 
         AssertPrescreenSql(diagnostic, "duckdb");
@@ -192,7 +218,7 @@ public sealed class PrescreenRunLoggingTests
         using (factory)
         {
             var repo = new SqlServerPrescreenRunRepository(temp.Database, factory.CreateLogger<SqlServerPrescreenRunRepository>());
-            await repo.RunAsync(temp.ProjectId, FullInput(), CancellationToken.None);
+            await ((IPrescreenFactsPort)repo).ExecuteAsync(FullPlan(temp.ProjectId), CancellationToken.None);
         }
 
         AssertPrescreenSql(diagnostic, "sqlServer", SqlServerProjectSchema.QualifierFor(temp.ProjectId));

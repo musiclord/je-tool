@@ -7,7 +7,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 條件 AST → 中文布林式渲染器（<see cref="FilterConditionRenderer"/>）。
 ///
-/// oracle 策略（規格 oracle）：預期值以前端 <c>filter-step.js</c> 的 <c>readBackHtml</c> ＋
+/// oracle 策略（規格 oracle）：預期值以前端 <c>filter-step-rules.js</c> 的 <c>readBackHtml</c> ＋
 /// <c>ruleSummaryLabel(rule, 0)</c> 為權威，逐一手算成字面斷言——渲染器必須與前端藍色 read-back
 /// 的 <c>.scenario-readback__expr</c> 文字內容同構。標籤（週末過帳、假日過帳…）來自 Domain
 /// FilterConditionLabels（前端鏡像，另有 FilterConditionLabelMirrorTests 守衛），此處不重測標籤內容，

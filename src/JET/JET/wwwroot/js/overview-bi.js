@@ -128,7 +128,7 @@
 
   function prescreenLabel(key) {
     var label = key;
-    Ui.PRESCREEN_KEY_OPTIONS.forEach(function (option) {
+    Ui.PRESCREEN_RULES.forEach(function (option) {
       if (option.value === key) { label = option.label; }
     });
     return label;

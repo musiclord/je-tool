@@ -33,12 +33,17 @@
   }
   function isCalendar(op) { return /^is(Not)?(Weekend|Holiday|MakeupDay|NonBusinessDay)$/.test(op); }
   function isTail(op) { return op === 'endsWithDigits' || op === 'notEndsWithDigits'; }
+  // 條件可用的欄位。核心欄位全部列出，mapped 照後端算好的可用欄位（Ui.glFieldAvailable）；攸關資料元素欄位都已配對。
   function fields(state) {
     return Ui.FILTER_DATE_FIELDS.map(function (key) { return { id: key, label: Ui.glFieldLabel(key), type: 'date' }; })
       .concat(Ui.FILTER_TEXT_FIELDS.map(function (key) { return { id: key, label: Ui.glFieldLabel(key), type: 'text' }; }))
       .concat([{ id: 'amount', label: '金額', type: 'money' }])
       .concat(Ui.committedRdeFields(state).map(function (field) { return { id: field.fieldId, label: field.label, type: field.valueType, sourceColumn: field.sourceColumn, extra: true }; }))
-      .map(function (item) { item.optionLabel = item.extra ? Ui.rdeFieldOptionLabel(item) : item.label; return item; });
+      .map(function (item) {
+        item.optionLabel = item.extra ? Ui.rdeFieldOptionLabel(item) : item.label;
+        item.mapped = !!item.extra || Ui.glFieldAvailable(state, item.id);
+        return item;
+      });
   }
   function field(rule, state) { return fields(state).find(function (item) { return item.id === (rule.fieldId || rule.field); }); }
   function fieldType(rule, state) { var selected = field(rule, state); return selected ? selected.type : (rule.__valueType || 'date'); }
@@ -69,14 +74,9 @@
       var expected = match[1].padStart(4, '0') + '-' + match[2].padStart(2, '0') + '-' + match[3].padStart(2, '0');
       return Number(match[1]) >= 1 && Number(match[1]) <= 9999 && iso(day(Number(match[1]), Number(match[2]), Number(match[3]))) === expected ? expected : text;
     }
-    // 帶千分位的數字不當序列值（使用者 2026-10-19 裁定），和後端 DateNormalizer 相同，保留原文由後端寫出格式錯誤。
-    var serial = text.indexOf(',') < 0 ? moneyNumber(text) : null;
-    if (serial !== null && serial >= 1 && serial <= 2958465) {
-      // 和後端 DateNormalizer 相同，序列值換算後只接受 1900 到 2100 年；範圍外保留原文，由後端寫出格式錯誤。
-      var converted = iso(new Date(day(1899, 12, 30).getTime() + Math.floor(serial * 86400000 + 0.5)));
-      var year = Number(converted.slice(0, 4));
-      if (year >= 1900 && year <= 2100) { return converted; }
-    }
+    // 純數字不當成日期（使用者 2026-10-22 裁定），帶千分位的也一樣（使用者 2026-10-19 裁定）：和後端 DateNormalizer 相同，
+    // 保留原文由 problem() 與後端寫出無法辨識；以前這裡把 1 到 2958465 的數字當 Excel 序列值換算。
+    // 兩邊共用 tools/tests/fixtures/date-normalization.json 的固定答案。
     return text;
   }
   function values(rule, state) {
@@ -138,7 +138,9 @@
   function fieldOptionsHtml(state, selectedId) {
     var groups = groupedFields(state).map(function (group) {
       return '<optgroup label="' + group.label + '">' + group.fields.map(function (item) {
-        return '<option value="' + Ui.esc(item.id) + '"' + (item.id === selectedId ? ' selected' : '') + '>' + Ui.esc(item.optionLabel) + '</option>';
+        var suffix = item.mapped || item.id === selectedId ? '' : '（' + Ui.GL_FIELD_UNMAPPED + Ui.GL_FIELD_NEXT_STEP + '）';
+        return '<option value="' + Ui.esc(item.id) + '"' + (item.id === selectedId ? ' selected' : '') + (item.mapped ? '' : ' disabled') + '>' +
+          Ui.esc(item.optionLabel + suffix) + '</option>';
       }).join('') + '</optgroup>';
     }).join('');
     var available = fields(state).some(function (item) { return item.id === selectedId; });
@@ -209,7 +211,7 @@
     return '<details class="value-editor__options" data-account-tree' + (tree.open ? ' open' : '') + '><summary>從科目樹選取</summary>' +
       '<div class="value-editor__aux" data-motion-list="account-tree">' +
       Ui.searchBoxHtml('搜尋科目編號或名稱', { attributes: { 'data-account-tree-search-form': true },
-        inputAttributes: { 'data-account-tree-search': true, 'data-focus-key': focusKey + '-account-search' }, maxLength: 400, value: tree.searchDraft }) +
+        inputAttributes: { 'data-account-tree-search': true, 'data-focus-key': focusKey + '-account-search' }, maxLength: Ui.SEARCH_TEXT_MAX_LENGTH, value: tree.searchDraft }) +
       '<p class="rule-field__hint">選分類時包含下層分類的科目；勾選後寫入上方科目編號清單，不改變保留或排除方式。</p>' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-category="">查看全部科目</button>' + categoryRows +
       '<p data-account-tree-status data-motion-key="' + Ui.esc('acct-status-' + motionId(rule)) + '" role="status">' + status + '</p>' + accounts +
@@ -431,7 +433,7 @@
           dateChipsHtml(rule, state) + '</div>';
         extra.push('<label>貼上日期清單' + list + '</label>');
       } else { main += list; }
-      extra.push('<p class="rule-field__hint">最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同值，空行不列入。' + (type === 'date' ? '日期可用 2025-08-01、2025/8/1、2025.8.1、20250801 或 Excel 序列值；民國年依案件設定。' : '保留文字前置零；金額千分位逗號不拆開。') + '</p>');
+      extra.push('<p class="rule-field__hint">最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同值，空行不列入。' + (type === 'date' ? '日期可用 2025-08-01、2025/8/1、2025.8.1 或 20250801；民國年依案件設定。純數字不當成日期。' : '保留文字前置零；金額千分位逗號不拆開。') + '</p>');
       if (current.length) { extra.push('<button type="button" class="btn btn--ghost btn--tiny" data-values-clear data-motion-key="' + Ui.esc('values-clear-' + motionId(rule)) + '">清空所有值</button>'); }
     }
     if (type === 'money' && selected && selected.extra && !isTail(rule.operator)) {
@@ -648,6 +650,7 @@
       if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) {
         // Recognizable invalid dates can be corrected here. Other invariant-culture formats
         // are forwarded unchanged to DateNormalizer; browser parsing must not redefine GL dates.
+        // 純數字不是日期（使用者 2026-10-22 裁定），在這裡就寫出無法辨識。
         return /^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(input) || moneyNumber(input) !== null;
       }
       var p = input.split('-').map(Number); return p[0] < 1 || iso(day(p[0], p[1], p[2])) !== input;

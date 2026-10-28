@@ -8,10 +8,9 @@ namespace JET.Tests.Application;
 
 public sealed class FilterSinglePurposeRetirementTests
 {
-    private static readonly FilterValidationContext Context = new(true, true, true, HasAnyAccountCategory: true)
-    {
-        HasCreatedBy = true, HasDescription = true
-    };
+    // 預篩選收斂計畫階段四拿掉欄位旗標，改由規則需求表讀可用欄位清單（2026-10-23）；不帶清單就不檢查欄位，
+    // 等同原本兩個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+    private static readonly FilterValidationContext Context = new(true, true, true, HasAnyAccountCategory: true);
 
     public static TheoryData<string, string> RetiredRules => new()
     {
@@ -25,7 +24,11 @@ public sealed class FilterSinglePurposeRetirementTests
         { """{"type":"fieldValue","field":"amount","operator":"greaterThan","value":"10","amountBasis":"signed"}""", "金額條件的「含正負號」已停用" },
         { """{"type":"customKeywords","keywords":"調整"}""", "舊式摘要關鍵字條件已停用" },
         { """{"type":"customTrailingZeros","digits":1}""", "舊式連續零尾數條件已停用" },
-        { """{"type":"trailingDigits","keywords":"001"}""", "舊式金額尾數條件已停用" }
+        { """{"type":"trailingDigits","keywords":"001"}""", "舊式金額尾數條件已停用" },
+        // 預篩選收斂計畫階段九（使用者 2026-10-22 裁定低頻人員與低頻科目的三種寫法收成一個方法）：兩種舊式筆數條件列為停用寫法，
+        // 原因寫出改用「科目與人員統計」怎麼重建。第一次失敗：收據 20261024-190913880-a45e823f31e745139f977c5c3481bdb3。
+        { """{"type":"customPreparerEntryCount","maxEntries":11}""", "舊式編製人員分錄筆數條件已停用" },
+        { """{"type":"customAccountEntryCount","maxEntries":11}""", "舊式科目分錄筆數條件已停用" }
     };
 
     [Theory]

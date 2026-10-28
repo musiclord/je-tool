@@ -14,71 +14,7 @@ public sealed partial class LegacyReportWriter
     private static readonly WorkbookStylePatch ValidationSummaryDifferenceFill =
         new(FillForegroundArgb: "FFFFFF00");
 
-    public async Task<ExportStats> WriteAsync(
-        Stream output,
-        ValidationReportContext context,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null)
-    {
-        // 保留 assembly 外 caller 的既有 public writer contract。Production export
-        // 走 IPlannedValidationReportWriter；相容入口仍不改 public context/wire。
-        using var summary = JsonDocument.Parse(context.SummaryJson);
-        var projection = ParseLegacyProjection(summary.RootElement);
-        var plan = CompatibilityPlan(context, projection);
-        return await WritePlannedCoreAsync(
-            output,
-            context,
-            projection,
-            plan,
-            new FieldInfoProjection([], []),
-            null,
-            "JET",
-            cancellationToken,
-            progress);
-    }
-
-    Task<ExportStats> ITypedValidationReportWriter.WriteTypedAsync(
-        Stream output,
-        ValidationReportContext context,
-        ValidationReportProjection projection,
-        string operatorId,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
-    {
-        var plan = CompatibilityPlan(context, projection);
-        return WritePlannedCoreAsync(
-            output,
-            context,
-            projection,
-            plan,
-            new FieldInfoProjection([], []),
-            null,
-            operatorId,
-            cancellationToken,
-            progress);
-    }
-
-    Task<ExportStats> IPlannedValidationReportWriter.WritePlannedAsync(
-        Stream output,
-        ValidationReportContext context,
-        ValidationReportProjection projection,
-        ValidationReportPlan plan,
-        FieldInfoProjection fieldInfo,
-        string operatorId,
-        CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
-        WritePlannedCoreAsync(
-            output,
-            context,
-            projection,
-            plan,
-            fieldInfo,
-            null,
-            operatorId,
-            cancellationToken,
-            progress);
-
-    Task<ExportStats> IFormalPlannedValidationReportWriter.WriteFormalPlannedAsync(
+    Task<ExportStats> IValidationReportWriter.WriteAsync(
         Stream output,
         ValidationReportContext context,
         ValidationReportProjection projection,
@@ -102,30 +38,13 @@ public sealed partial class LegacyReportWriter
             progress);
     }
 
-    private static ValidationReportPlan CompatibilityPlan(
-        ValidationReportContext context,
-        ValidationReportProjection projection) =>
-        JetAuditProgram.Finalize(
-            JetAuditProgram.Plan(new ValidationReportRequest(
-                context.Project.ProjectId,
-                context.Project.PeriodStart,
-                context.Project.PeriodEnd,
-                projection.CompletenessDiffAccountCount,
-                projection.NullAccountCount,
-                projection.NullDocumentCount,
-                projection.NullDescriptionCount,
-                projection.OutOfRangeDateCount)),
-            // 此值只服務 assembly 內舊 typed/public 相容入口；production 一律由
-            // provider-neutral facts port 提供 raw joined detail count。
-            new ValidationReportPlanningFacts(projection.UnbalancedDocumentCount));
-
     private async Task<ExportStats> WritePlannedCoreAsync(
         Stream output,
         ValidationReportContext context,
         ValidationReportProjection projection,
         ValidationReportPlan plan,
         FieldInfoProjection fieldInfo,
-        ReportWorkbookMetadata? workbookMetadata,
+        ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress)
@@ -145,10 +64,6 @@ public sealed partial class LegacyReportWriter
             context.Project.ProjectId, DatasetKind.Gl, cancellationToken).ConfigureAwait(false);
         var tbMapping = await mappings.FindAsync(
             context.Project.ProjectId, DatasetKind.Tb, cancellationToken).ConfigureAwait(false);
-        var hasApprovalDate = glMapping is not null
-                              && (glMapping.GlOptions?.ApprovalDateMode
-                                  ?? GlMappingOptions.NormalizeLegacy(glMapping.Mapping).ApprovalDateMode)
-                              != ApprovalDateModeNames.Unmapped;
         var metadata = glMapping is not null && tbMapping is not null
             ? MappingMetadataCodec.Encode(glMapping, tbMapping)
             : null;
@@ -166,68 +81,12 @@ public sealed partial class LegacyReportWriter
                 fieldInfo,
                 glBatch,
                 tbBatch,
-                hasApprovalDate,
                 metadata,
                 workbookMetadata,
                 operatorId,
                 ct,
                 progress),
             cancellationToken).ConfigureAwait(false);
-    }
-
-    private static ValidationReportProjection ParseLegacyProjection(JsonElement root)
-    {
-        var stats = root.GetProperty("stats");
-        var nullRecords = root.GetProperty("nullRecordsTest");
-        var docBalance = root.GetProperty("docBalanceTest");
-        var sourceQuality = root.TryGetProperty("sourceQuality", out var sourceQualityValue)
-            ? sourceQualityValue
-            : default;
-
-        return new ValidationReportProjection(
-            Net: GetDecimal(stats, "net"),
-            TotalDebit: GetDecimal(stats, "totalDebit"),
-            TotalCredit: GetDecimal(stats, "totalCredit"),
-            GlRowCount: GetLong(stats, "glRowCount"),
-            CompletenessDiffAccountCount: RuleCount(
-                root,
-                "completenessTest",
-                "diffAccountCount"),
-            UnbalancedDocumentCount: GetLong(
-                docBalance,
-                "unbalancedDocumentCount"),
-            NullAccountCount: GetLong(nullRecords, "nullAccountCount"),
-            NullDocumentCount: GetLong(nullRecords, "nullDocumentCount"),
-            NullDescriptionCount: GetLong(nullRecords, "nullDescriptionCount"),
-            OutOfRangeDateCount: GetLong(nullRecords, "outOfRangeDateCount"),
-            SourceQualityFindingCount: sourceQuality.ValueKind == JsonValueKind.Object
-                ? GetLong(sourceQuality, "findingCount")
-                : 0,
-            SourceQualitySampleRows: ParseLegacySourceQualityRows(sourceQuality));
-    }
-
-    private static IReadOnlyList<SourceQualityFindingRow> ParseLegacySourceQualityRows(
-        JsonElement sourceQuality)
-    {
-        if (sourceQuality.ValueKind != JsonValueKind.Object
-            || !sourceQuality.TryGetProperty("sampleRows", out var sampleRows)
-            || sampleRows.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
-
-        return sampleRows.EnumerateArray()
-            .Where(row => row.ValueKind == JsonValueKind.Object)
-            .Select(row => new SourceQualityFindingRow(
-                GetString(row, "category") ?? string.Empty,
-                checked((int)GetLong(row, "sourceRowNumber")),
-                GetString(row, "sourceLabel") ?? string.Empty,
-                GetString(row, "documentNumber"),
-                GetString(row, "accountCode"),
-                GetString(row, "postDate"),
-                GetString(row, "description"),
-                EntryId: 0))
-            .ToArray();
     }
 
     private async Task<IReadOnlyList<SheetStat>> FillValidationTemplateAsync(
@@ -238,9 +97,8 @@ public sealed partial class LegacyReportWriter
         FieldInfoProjection fieldInfo,
         ImportBatchInfo? glBatch,
         ImportBatchInfo? tbBatch,
-        bool hasApprovalDate,
         string? mappingMetadata,
-        ReportWorkbookMetadata? workbookMetadata,
+        ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress)
@@ -257,7 +115,6 @@ public sealed partial class LegacyReportWriter
             plan.RequireDetail(ValidationReportDetailKind.UnbalancedGlEntry).Emit,
             glBatch,
             tbBatch,
-            hasApprovalDate,
             operatorId,
             cancellationToken);
         AddStat(stats, new SheetStat("ValidationReport", 0), progress);
@@ -297,15 +154,13 @@ public sealed partial class LegacyReportWriter
             ValidationReportDetailKind.NullDescription, NullRecordCategory.NullDescription,
             "V_Report 3", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
             cancellationToken, progress).ConfigureAwait(false);
-        if (hasApprovalDate)
-        {
-            await EmitNullDetailFromPlanAsync(
-                document, sheets, stats, context.Project, plan,
-                ValidationReportDetailKind.OutOfRangeApprovalDate,
-                NullRecordCategory.OutOfRangeDate,
-                "V_Report 4", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
-                cancellationToken, progress).ConfigureAwait(false);
-        }
+        // 驗證時傳票核准日不可用，計畫就不讀這份明細。
+        await EmitNullDetailFromPlanAsync(
+            document, sheets, stats, context.Project, plan,
+            ValidationReportDetailKind.OutOfRangeApprovalDate,
+            NullRecordCategory.OutOfRangeDate,
+            "V_Report 4", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
+            cancellationToken, progress).ConfigureAwait(false);
 
         // V5 是 Legacy 固定全科目調節表，不受異常明細門檻影響。
         await EmitCompletenessReportAsync(
@@ -334,16 +189,11 @@ public sealed partial class LegacyReportWriter
             sheets,
             stats,
             context.Project.ProjectId,
-            projection.SourceQualitySampleRows,
-            requireCurrentPopulation: workbookMetadata is not null,
             legacyStyles,
             cancellationToken,
             progress).ConfigureAwait(false);
 
-        if (workbookMetadata is not null)
-        {
-            ReportWorkbookMetadataWorksheet.Append(document, workbookMetadata, cancellationToken);
-        }
+        ReportWorkbookMetadataWorksheet.Append(document, workbookMetadata, cancellationToken);
 
         document.WorkbookPart!.Workbook.Save();
         return stats;
@@ -390,10 +240,11 @@ public sealed partial class LegacyReportWriter
         bool emitUnbalancedDetail,
         ImportBatchInfo? glBatch,
         ImportBatchInfo? tbBatch,
-        bool hasApprovalDate,
         string operatorId,
         CancellationToken cancellationToken)
     {
+        // 「核准日不在期間」照驗證結果寫：筆數是 null 表示驗證時傳票核准日不可用，報告寫 N/A，不再自己看配對。
+        var outOfRangeDateCount = projection.OutOfRangeDateCount;
         editor.RewriteWorksheetPart(
             "ValidationReport",
             (part, ct) =>
@@ -404,7 +255,7 @@ public sealed partial class LegacyReportWriter
                     "E9", "E10", "E11", "E12", "E13", "E14", "E15",
                     "D20", "D21", "D22", "D23", "D24", "D25"
                 };
-                if (!hasApprovalDate)
+                if (outOfRangeDateCount is null)
                 {
                     allowed.Add("E23");
                 }
@@ -455,12 +306,12 @@ public sealed partial class LegacyReportWriter
                     projection.NullDescriptionCount > 0
                         ? ValidationSummaryDifferenceFill
                         : null);
-                if (hasApprovalDate)
+                if (outOfRangeDateCount is { } count)
                 {
                     cells.SetNumber(
                         "D23",
-                        projection.OutOfRangeDateCount,
-                        projection.OutOfRangeDateCount > 0
+                        count,
+                        count > 0
                             ? ValidationSummaryDifferenceFill
                             : null);
                 }
@@ -877,8 +728,6 @@ public sealed partial class LegacyReportWriter
         Sheets sheets,
         List<SheetStat> stats,
         string projectId,
-        IReadOnlyList<SourceQualityFindingRow> compatibilityRows,
-        bool requireCurrentPopulation,
         WorkbookStyleMap legacyStyles,
         CancellationToken cancellationToken,
         Action<WorkpaperProgress>? progress)
@@ -894,40 +743,23 @@ public sealed partial class LegacyReportWriter
             "POST_DATE",
             "DESCRIPTION"
         ];
-        if (requireCurrentPopulation && sourceQualityPages is null)
-        {
-            throw new InvalidOperationException(
-                "Formal Validation Source_Quality export requires the source-quality page repository.");
-        }
-
         ReportSheetStarted(stats, baseName, progress);
         using var spool = RawReportSpool.Create(headers);
-        if (sourceQualityPages is null)
+        string? cursor = null;
+        do
         {
-            foreach (var row in compatibilityRows)
+            cancellationToken.ThrowIfCancellationRequested();
+            var page = await sourceQualityPages.GetPageAsync(
+                projectId,
+                new PageRequest(cursor, PageRequest.DefaultPageSize),
+                cancellationToken).ConfigureAwait(false);
+            foreach (var row in page.Rows)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 spool.Append(SourceQualityValues(row));
             }
-        }
-        else
-        {
-            string? cursor = null;
-            do
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var page = await sourceQualityPages.GetPageAsync(
-                    projectId,
-                    new PageRequest(cursor, PageRequest.DefaultPageSize),
-                    cancellationToken).ConfigureAwait(false);
-                foreach (var row in page.Rows)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    spool.Append(SourceQualityValues(row));
-                }
-                cursor = page.NextCursor;
-            } while (cursor is not null);
-        }
+            cursor = page.NextCursor;
+        } while (cursor is not null);
         spool.Complete();
 
         var columns = headers.Select((header, index) => new ReportColumn(

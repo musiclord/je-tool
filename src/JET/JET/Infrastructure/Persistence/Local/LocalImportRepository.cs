@@ -719,8 +719,8 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         command.CommandText =
             """
             INSERT INTO import_batch_source
-                (batch_id, source_no, source_file_path, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc)
-            VALUES (@batchId, @sourceNo, @filePath, @fileName, @sheetName, @encoding, @delimiter, 0, @importedUtc);
+                (batch_id, source_no, source_file_path, source_file_name, sheet_name, encoding, delimiter, header_row, row_count, imported_utc)
+            VALUES (@batchId, @sourceNo, @filePath, @fileName, @sheetName, @encoding, @delimiter, @headerRow, 0, @importedUtc);
             """;
         command.AddWithValue("@batchId", batchId);
         command.AddWithValue("@sourceNo", sourceNo);
@@ -729,6 +729,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         command.AddWithValue("@sheetName", (object?)source.SheetName ?? DBNull.Value);
         command.AddWithValue("@encoding", (object?)source.EncodingName ?? DBNull.Value);
         command.AddWithValue("@delimiter", (object?)source.Delimiter ?? DBNull.Value);
+        command.AddWithValue("@headerRow", (object?)source.HeaderRow ?? DBNull.Value);
         command.AddWithValue("@importedUtc", importedUtc.ToString("O"));
         await command.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
     }
@@ -764,7 +765,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         command.Transaction = transaction;
         command.CommandText =
             """
-            SELECT source_no, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc
+            SELECT source_no, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc, header_row
             FROM import_batch_source
             WHERE batch_id = @batchId
             ORDER BY source_no;
@@ -782,7 +783,8 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
                 reader.GetInt32(5),
-                DateTimeOffset.Parse(reader.GetString(6))));
+                DateTimeOffset.Parse(reader.GetString(6)),
+                HeaderRow: reader.IsDBNull(7) ? null : Convert.ToInt32(reader.GetValue(7))));
         }
 
         return sources;
@@ -795,7 +797,8 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         DateTimeOffset importedUtc)
     {
         return new ImportSourceInfo(
-            sourceNo, source.FileName, source.SheetName, source.EncodingName, source.Delimiter, rowCount, importedUtc);
+            sourceNo, source.FileName, source.SheetName, source.EncodingName, source.Delimiter, rowCount, importedUtc,
+            source.HeaderRow);
     }
 
     internal static string StagingTableFor(DatasetKind kind) => kind switch

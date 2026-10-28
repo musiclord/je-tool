@@ -1,4 +1,5 @@
 using System.Data.Common;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Infrastructure;
@@ -21,7 +22,7 @@ internal static class TbMappedColumnAudit
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = "SELECT " + string.Join(", ", RequiredTextColumns.Select(column =>
-            $"CAST(SUM(CASE WHEN {column.TargetColumn} IS NOT NULL AND {dialect.Trim(column.TargetColumn)} <> '' THEN CAST(1 AS BIGINT) ELSE CAST(0 AS BIGINT) END) AS BIGINT)"))
+            $"CAST(SUM(CASE WHEN {SqlBlankText.IsNotBlank(dialect, column.TargetColumn)} THEN CAST(1 AS BIGINT) ELSE CAST(0 AS BIGINT) END) AS BIGINT)"))
             + $" FROM {prefix}target_tb_balance;";
         var warnings = new List<string>();
         await using var reader = await command.ExecuteReaderAsync(ct);

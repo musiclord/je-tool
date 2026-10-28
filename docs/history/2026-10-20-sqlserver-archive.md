@@ -262,3 +262,81 @@ SQL Server 與管理政策再設計及驗收：
 原本尚未實作的兩項，SQL Server 的值概況不分大小寫與清單代碼的完整來源存在性核對，2026-10-19 已由跨資料庫一致性計畫補上，
 並在 `Provider` 通過固定答案；罕用字元的大小寫仍和本機不同，規格見 `jet-guide.md` 第 8 節。`ValidationRunLoggingTests` 與 `PrescreenRunLoggingTests`
 的 SQL Server digest 原本仍是舊值，2026-10-19 第二階段依實際 SQL 更新，並在 `Provider` 通過。
+
+2026-10-22 技術債一輪把空白判定收成 AuditCore 的 `SqlBlankText`，共用的 `FilterCompilation`、`GlRulePredicates`、`ValidationProcedures`、
+`AccountMappingPopulationQuery` 與 `TbMappedColumnAudit` 都改呼叫它，三種資料庫經由共用程式產生的 SQL 文字都跟著變。
+SQL Server 專屬倉儲這輪只改了三處：`SqlServerNullRecordsPageRepository` 一句舊註解改成現況、`SqlServerValidationRunRepository`
+把方言傳給共用的傳票號碼跨日重用查詢、`SqlServerPrescreenRunRepository` 刪掉只有測試在用的 `RunAsync` 相容入口；
+倉儲裡手寫的空白判定沒有動。同類的舊註解還有一句，在 `SqlServerValidationRunRepository` 的空白紀錄計數，這輪的清單漏列，
+2026-10-28 複審時改成現況。SQLite 與 DuckDB 的驗證與預篩選 SQL 快照摘要值已依第一次失敗重算；SQL Server 的沿用 2026-10-19 的值，沒有啟動服務，
+`ValidationRunLoggingTests` 與 `PrescreenRunLoggingTests` 的註解寫明維持原值待核對，下次執行 `Provider` 時預期先失敗一次。
+使用者 2026-10-22 裁定：「sql server 的部分要先繼續擱置了，目前都不會回去處理他的相關事項，如果你開發途中有什麼發現都請記錄在 sql server 相關的部分」，
+所以從這一輪起，開發途中和 SQL Server 有關的發現都記在這一節。
+
+2026-10-23 預篩選收斂計畫階段四和 SQL Server 有關的修改如下，都沒有啟動服務執行：
+
+- `SqlServerGlRepository` 確認配對時的必填文字欄整欄空白偵測，原本手寫傳票號碼、會計科目編號、會計科目名稱與傳票摘要四欄，
+  改成呼叫和本機 GL 倉儲共用的 `GlMappedColumnAudit.ReadAsync`，欄位清單由欄位目錄產生，SQL 文字因此和原本不同。
+  `CrossDatabaseConsistencyTests` 新增的合成資料測試在 SQLite 與 DuckDB 核對了提醒內容與順序；
+  同一則測試另寫了 SQL Server 版，下次執行 `Provider` 才會跑到。
+- 預篩選改讀科目分類設定，讓未預期借貸組合的原因句寫內建分類目前的名稱。`PrescreenMonthlyAggregationBenchmarkTests`
+  的 SQL Server 版因此補上 `SqlServerAccountTaxonomyStore`，只改測試的組裝，沒有執行。
+- 第五步改成條件用到未配對的欄位一律擋下、第四步的原因句改由同一張需求表產生，都在三種資料庫共用的程式裡，
+  SQL Server 的行為隨共用程式改變，沒有 SQL Server 測試核對。
+- 使用者 2026-10-23 裁定併入階段四的「核准日不在期間」：傳票核准日不可用時改成無法執行，筆數由 0 改成 null 並寫原因，
+  驗證報告改讀驗證結果寫 N/A。判斷寫在三種資料庫共用的驗證規劃與報告程式，`SqlServerValidationRunRepository` 與它的 SQL 沒有改；
+  SQL Server 的行為隨共用程式改變，沒有 SQL Server 測試核對。驗證邏輯版本推進到 `validation-2026-10-23-v6`，
+  SQL Server 案件的舊驗證結果同樣要重新驗證。
+
+2026-10-23 預篩選收斂計畫階段五和 SQL Server 有關的修改如下，也都沒有啟動服務執行：
+
+- `SqlServerDataPreviewRepository` 的 GL 與 GL(未納入測試) 頁改成依已確認的 GL 配對列欄位。查詢的欄位清單、攸關資料元素值的
+  `LEFT JOIN` 與逐欄讀值，都由和本機共用的 `DataPreviewGlQuery` 依欄位計畫產生；表名帶 schema 前綴，分頁用 `OFFSET … FETCH NEXT`。
+  原本手寫的 GL 九欄與 GL(未納入測試) 十欄查詢已移除，只共用 GL 九欄的 `DataPreviewColumns` 也刪掉了。
+  過帳狀態與人工或自動分錄都改成有配對才列，兩頁一致。GL 頁統計列的兩個金額改由三種資料庫共用的處理器轉成十進位字串，
+  SQL Server 倉儲的統計查詢沒有改。
+- `SqlServerDataPreviewRepositoryTests` 的欄位與列預期隨新的欄序修改，種子資料另寫入一個文字型攸關資料元素值，核對它出現在 GL 頁；
+  這些修改都沒有執行。SQLite 與 DuckDB 由新增的合成資料測試核對三種配對情況與三種攸關資料元素型別，SQL Server 的同一段查詢沒有測試執行到。
+
+2026-10-24 預篩選收斂計畫階段六和 SQL Server 有關的修改如下，也都沒有啟動服務執行：
+
+- 匯入來源表 `import_batch_source` 加 `header_row` 欄，保存審計員指定的欄名在第幾列；SQL Server 的建表與既有結構補欄都寫了，
+  版本常數升到第 16 版。版本常數與 SQL 文字有不連線的測試核對，其餘沒有 SQL Server 測試執行到。
+- 往下填補空白在 `GlProjectionDataReader` 與攸關資料元素第二遍的 SQL Server 路徑都包了同一層 Domain 狀態，和本機倉儲相同，
+  沒有 SQL Server 測試執行到。
+
+2026-10-24 預篩選收斂計畫階段七和 SQL Server 有關的修改如下，也都沒有啟動服務執行：
+
+- 三種資料庫共用的 `DateNormalizer` 拿掉 Excel 序列值那一關，純數字不再當成日期。SQL Server 確認配對時的兩條投影路徑，
+  `GlProjectionDataReader` 和 `SqlServerGlRepository`，都經由 `GlRowProjector` 用它；第五步的日期操作元走 `TypedFieldConditions`，同樣受影響。
+  SQL Server 專屬的程式沒有改，行為隨共用程式改變，沒有 SQL Server 測試核對；SQLite 與 DuckDB 由 `PlainNumberDateWorkflowTests`
+  與共用的日期固定答案核對。
+
+2026-10-25 預篩選收斂計畫階段九和 SQL Server 有關的修改如下，也都沒有啟動服務執行：
+
+- `SqlServerPrescreenRunRepository` 的 12 條逐筆規則改經 `PrescreenRulePredicates.Build` 依規則鍵取述詞，和本機倉儲同一張對應表；
+  較少使用的科目的相異科目數改成去掉頭尾空白後計數並排除空白科目。`SqlServerFilterCommitRepository`、`SqlServerFilterRunMaterializer`、
+  `SqlServerFilterRunRepository` 與 `SqlServerPrescreenPageRepository` 呼叫 `GlFilterWhereBuilder.BuildPlan` 時不再帶尾零模數；
+  `PrescreenExecutionInput` 不再帶尾零門檻，門檻是規則定義的一部分。
+- `ProviderParityJourneyTests` 裡兩種舊式筆數條件的情境改成 `entityFrequency`，`PrescreenExecutionInputTests` 的 SQL Server 測試改名並改預期；
+  `PrescreenRunLoggingTests` 的 SQL Server 診斷摘要值沒有更新，重啟 SQL Server 時第一次執行會失敗，依當時輸出更新即可。
+  以上都只改沒有執行，SQLite 與 DuckDB 的同一段改動由新增的固定答案測試核對。
+
+2026-10-28 預篩選收斂計畫整體複審和 SQL Server 有關的修改如下，也都沒有啟動服務執行：
+
+- `SqlServerDataPreviewRepository` 的 GL 與 GL(未納入測試) 頁改成把頁別交給共用的 `DataPreviewGlQuery`，分錄表名直接寫在 SQL 裡，
+  母體條件由頁別決定，不再由呼叫端用字串傳入表名。GL 範圍的掃描檢查因此看得到這段查詢。
+- `SqlServerValidationRunRepository` 的母體摘要，日期不符那組未納入原因改用 `GlEffectivePopulation.ExcludedByPeriodSqlPredicate`，
+  和本機驗證倉儲同一份定義。SQLite 與 DuckDB 的驗證 SQL 快照摘要值已依第一次失敗重算；SQL Server 的維持原值，
+  `ValidationRunLoggingTests` 的註解寫明待核對，下次執行 `Provider` 時預期先失敗一次。同一個倉儲空白紀錄計數的舊註解也在這次改成現況，
+  見上面 2026-10-22 那一段。
+- `SqlServerFilterRunRepository` 與 `SqlServerFilterRunMaterializer` 刪掉描述已移除的尾零模數的舊註解，只改註解。
+- 第三步的往下填補改成配到同一個來源欄的欄位一起填補並一起列出，正規化寫在三種資料庫共用的配對選項；
+  `SqlServerGlRepository` 確認配對時把填了幾格存進配對選項，和本機 GL 倉儲相同。
+- `SqlServerInfSamplePageRepository` 多讀 `source_module` 與 `dr_cr` 兩欄。INF Report 主表與底稿 Step 2 經由共用的
+  `InfSampleDisplayValues` 寫整理後的分錄來源與借貸代號，SQL Server 案件的報告隨共用程式改變。
+- `SqlServerMappingValueProfileRepository` 的值概況多收往下填補參數，勾了時接上和本機共用的 `MappingValueProfileNormalization.FillDownCtes`，
+  用 `COUNT … OVER` 與 `MAX … OVER` 在每份來源內依列序填補後再計數。`MappingValueProfileProviderParityTests` 新增的 SQL Server 版
+  和本機同一組固定答案，下次執行 `Provider` 才會跑到；值是 `NVARCHAR(MAX)` 時視窗函數的寫法也要在那時確認。
+- 以上 SQL Server 的部分都沒有測試執行到；SQLite 與 DuckDB 由 `GlFillDownWorkflowTests`、`MappingMetadataCodecTests`、
+  `MappingValueProfileProviderParityTests` 與 GL 範圍的掃描檢查核對。

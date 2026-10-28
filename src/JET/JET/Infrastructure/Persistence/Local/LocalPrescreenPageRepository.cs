@@ -26,7 +26,6 @@ public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
         var plan = _whereBuilder.BuildPlan(
             PrescreenScenario(ruleKey),
             context,
-            TrailingZeroThreshold.UnitModulus(TrailingZeroThreshold.DefaultZerosThreshold),
             includePopulationParameters: false);
         plan.BindParametersTo(command);
         GlPopulationScopeSql.Plan(database.Dialect, context, "g").BindParametersTo(command);
@@ -61,7 +60,6 @@ public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
         var plan = _whereBuilder.BuildPlan(
             PrescreenScenario(ruleKey),
             context,
-            TrailingZeroThreshold.UnitModulus(TrailingZeroThreshold.DefaultZerosThreshold),
             includePopulationParameters: false);
         plan.BindParametersTo(command);
         GlPopulationScopeSql.Plan(database.Dialect, context, "g").BindParametersTo(command);

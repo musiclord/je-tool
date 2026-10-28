@@ -27,7 +27,6 @@ public sealed class SqlServerPrescreenPageRepository(SqlServerProjectDatabase da
         var plan = WhereBuilder.BuildPlan(
             LocalPrescreenPageRepository.PrescreenScenario(ruleKey),
             context,
-            TrailingZeroThreshold.UnitModulus(TrailingZeroThreshold.DefaultZerosThreshold),
             schemaPrefix,
             includePopulationParameters: false);
         plan.BindParametersTo(command);
@@ -70,7 +69,6 @@ public sealed class SqlServerPrescreenPageRepository(SqlServerProjectDatabase da
         var plan = WhereBuilder.BuildPlan(
             LocalPrescreenPageRepository.PrescreenScenario(ruleKey),
             context,
-            TrailingZeroThreshold.UnitModulus(TrailingZeroThreshold.DefaultZerosThreshold),
             schemaPrefix,
             includePopulationParameters: false);
         plan.BindParametersTo(command);
