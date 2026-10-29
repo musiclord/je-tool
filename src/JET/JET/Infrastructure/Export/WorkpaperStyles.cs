@@ -82,10 +82,17 @@ internal static class WorkpaperStyles
     public const uint EditableNoFill =
         Step41GroupedNumberStyleFirst + MaximumDecimalPlaces + 1;
 
+    /// <summary>一般字、靠左靠上並自動換行。欄寬有上限的長文字用，例如欄位資訊頁的欄位名稱與 step3 的條件。</summary>
+    public const uint Wrap = EditableNoFill + 1;
+
     private const uint FontStep41 = 3;
 
     private const string FontName = "微軟正黑體";
     private const double BannerFontSize = 12d;
+
+    /// <summary>底稿一般內文的字級；step4-1 用 <see cref="Step41FontSize"/>。</summary>
+    internal const double RegularFontSize = 11d;
+    internal const double Step41FontSize = 12d;
     private const string YellowHex = "FFFFFF00"; // ARGB:不透明黃(對齊樣本 bg#FFFF00)
 
     /// <summary>組出整份 Stylesheet。一次性建構(styles.xml 恆小,DOM 即可,不需串流)。</summary>
@@ -173,11 +180,11 @@ internal static class WorkpaperStyles
     private static Fonts BuildFonts()
     {
         // 索引必須與 FontRegular/FontBold/FontBanner 一致
-        var regular = new SpreadsheetFont(new FontSize { Val = 11d }, new FontName { Val = FontName });
-        var bold = new SpreadsheetFont(new Bold(), new FontSize { Val = 11d }, new FontName { Val = FontName });
+        var regular = new SpreadsheetFont(new FontSize { Val = RegularFontSize }, new FontName { Val = FontName });
+        var bold = new SpreadsheetFont(new Bold(), new FontSize { Val = RegularFontSize }, new FontName { Val = FontName });
         var banner = new SpreadsheetFont(new FontSize { Val = BannerFontSize }, new FontName { Val = FontName });
         var step41 = new SpreadsheetFont(
-            new FontSize { Val = 12d },
+            new FontSize { Val = Step41FontSize },
             new FontName { Val = FontName });
         return new Fonts(regular, bold, banner, step41) { Count = 4 };
     }
@@ -283,6 +290,8 @@ internal static class WorkpaperStyles
             horizontalLeft: true,
             wrap: false,
             unlocked: true));
+
+        formats.Append(TopAligned(FontRegular, fillId: 0, horizontalLeft: true, wrap: true));
 
         formats.Count = checked((uint)formats.ChildElements.Count);
         return formats;

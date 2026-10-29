@@ -852,6 +852,8 @@ public sealed class ValidationDirectTemplatePackageTests
                 new[] { "配對前欄位名稱", "欄位型態", "文字長度", "小數位數", "配對後欄位名稱" },
                 Row(sheet, 3));
             Assert.Equal(longDescription, sheet.Cell("A4").GetString());
+            Assert.True(sheet.Cell("A4").Style.Alignment.WrapText);
+            Assert.False(sheet.Cell("A5").Style.Alignment.WrapText);
             Assert.Equal(
                 new[] { "文字型態", "數字型態", "日期型態", "時間型態" },
                 sheet.Range("B4:B7").Cells().Select(cell => cell.GetString()).ToArray());
@@ -921,7 +923,14 @@ public sealed class ValidationDirectTemplatePackageTests
             Assert.True(column.CustomWidth?.Value == true);
             Assert.InRange(column.Width?.Value ?? 0, 1, 255);
         });
-        Assert.Equal(255d, visibleColumns[0].Width?.Value);
+        // 原本欄位名稱欄依全部資料撐到 Excel 上限 255。使用者 2026-10-29 要求工作表外觀對齊舊流程後，
+        // 這欄上限改為 40 並換行：300 個全形字約 600 字寬，扣掉留白後每行約 33 字寬，換成 19 行，10 點字每行 15 點。
+        // 第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
+        Assert.Equal(40d, visibleColumns[0].Width?.Value);
+        var longNameRow = worksheet.GetFirstChild<SheetData>()!.Elements<Row>()
+            .Single(row => row.RowIndex?.Value == 4U);
+        Assert.Equal(285d, longNameRow.Height?.Value);
+        Assert.True(longNameRow.CustomHeight?.Value);
         var hiddenMetadata = ColumnFor(columns, 6);
         Assert.Equal(8U, hiddenMetadata.Max?.Value);
         Assert.True(hiddenMetadata.Hidden?.Value == true);
@@ -1362,11 +1371,14 @@ public sealed class ValidationDirectTemplatePackageTests
         var expectedDeltas = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             // Stage 9 appends the closed ExportDatabase raw-page family. The
-            // Field Info repair adds a two-style borderless base plus its
-            // shared version/TB/GL appearance patches.
+            // Field Info repair adds a borderless regular/bold/wrapped base plus
+            // the shared TB/GL header patches. 2026-10-29: the validation copy
+            // no longer patches a blue version banner (user ruling: follow the
+            // host report), so one font and one fill fewer than before.
+            // First failure: Public receipt 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67.
             ["numFmts"] = 30,
-            ["fonts"] = 14,
-            ["fills"] = 16,
+            ["fonts"] = 13,
+            ["fills"] = 15,
             ["borders"] = 3,
             ["cellStyleXfs"] = 2,
             // Generated writer formats plus the Stage-8 component patches

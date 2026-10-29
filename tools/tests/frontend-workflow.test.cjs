@@ -14,7 +14,7 @@ const vm = require('node:vm');
 // 共用夾具（假 DOM、usageJourneyFixture、第四步與第五步的夾具與合成資料）在 support/frontend-fixtures.cjs。
 // 第 11 批（2026-10-14）刪掉本檔的副本改用模組；remapAppFixture 的根節點結構和模組不同，本檔保留自己那一份。
 const { root, settle, plain, batch9TreeDom, batch7Dom, batch7ControlDom, validationFixture, batch8Fixture, batch8ValidationData, batch8Artifacts,
-  savedG, usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, overviewDialogFixture, remapPaper, remapPrescreen,
+  savedBlankDescription, usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, overviewDialogFixture, remapPaper, remapPrescreen,
   FILTER_STEP_FILES, FILTER_STEP_PARTS, readFilterStep, filterStepExposure } = require('./support/frontend-fixtures.cjs');
 // 本檔自己組的假後端也包進 contractJetApi，送出的資料與假回應照樣和正式後端的形狀核對（2026-10-15）。
 const { contractJetApi, unchecked } = require('./support/action-contract.cjs');
@@ -43,6 +43,15 @@ function chooseAccountCategory(f, category) {
   f.change('[data-account-bulk-category]', category);
 }
 
+// 本檔常點的兩張卡與它們的名稱（卡片名稱逐字照 ui-core.js 的 FILTER_COMMON_CONDITIONS）。
+// 2026-10-29 拿掉卡片字母：卡片改用代號識別，自動名稱改用卡片名稱、動機每行不再以字母開頭（使用者裁定，
+// docs/history/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md「2026-10-29 合併常用篩選條件」）。
+// 本檔因此改的選擇器、測試名稱與期望值，第一次失敗都是 FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+const BLANK = 'blankDescription', TRAILING = 'specificTrailingDigits', NON_BUSINESS = 'nonBusinessDay';
+const FIXED_ASSET = 'fixedAssetDebitExpenseCredit', KEYWORDS = 'specificKeywords', REVENUE = 'revenueDebitNearQuarterEnd';
+const BLANK_NAME = '空白摘要', TRAILING_NAME = '特定尾數(如 999999/000000 結尾)';
+const cardSelector = key => '[data-common-card="' + key + '"]';
+
 function scenarioLifecycleFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
@@ -51,13 +60,14 @@ function scenarioLifecycleFixture() {
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('workflow', ['completeScenarioSave', 'savedFeedbackText', 'filterCommitSnapshot', 'syncViewState', 'toWireDraft', 'addKctToDraft', 'removeKctFromActiveGroup', 'refreshAutomaticMetadata', 'kctPickerHtml', 'draftRuleProblems', 'ruleSummaryLabel', 'kctDescriptionHtml', 'bind'], 'view: () => FilterStep.viewState')), context);
+    filterStepExposure('workflow', ['completeScenarioSave', 'savedFeedbackText', 'filterCommitSnapshot', 'syncViewState', 'toWireDraft', 'addCommonToDraft', 'removeCommonFromActiveGroup', 'refreshAutomaticMetadata', 'commonPickerHtml', 'draftRuleProblems', 'ruleSummaryLabel', 'commonDescriptionHtml', 'bind'], 'view: () => FilterStep.viewState')), context);
   const store = window.JetStore, api = window.workflow;
   store.setProject({ projectId: 'sequence-fixture' }); api.syncViewState(store.getState());
-  const item = letter => window.JetUi.FILTER_KCT_CHECKLIST.find(x => x.letter === letter);
-  function toggle(letter, remove = false) {
+  // 卡片以代號識別（2026-10-29 拿掉卡片字母，函式與常數也改名，原本依字母找卡片）。
+  const item = key => window.JetUi.FILTER_COMMON_CONDITIONS.find(x => x.key === key);
+  function toggle(key, remove = false) {
     const draft = store.getState().filter.draft;
-    api[remove ? 'removeKctFromActiveGroup' : 'addKctToDraft'](draft, item(letter));
+    api[remove ? 'removeCommonFromActiveGroup' : 'addCommonToDraft'](draft, item(key));
     api.refreshAutomaticMetadata(draft, true); store.setFilterDraft(draft);
   }
   function bindRemoval(index, action = 'confirm-remove-scenario') {
@@ -86,7 +96,7 @@ function scenarioLifecycleFixture() {
 }
 
 test('removing the saved scenario clears its linked editor and preview only after success', async () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const draft = f.store.getState().filter.draft, saved = f.api.toWireDraft(draft);
   const list = [saved]; f.store.setSavedScenarios(list);
   f.store.patchFilterDraftMeta({ __editingIndex: 0, __editingSavedRef: list });
@@ -100,24 +110,25 @@ test('removing the saved scenario clears its linked editor and preview only afte
   assert.equal(f.store.getState().filter.preview, null);
 });
 
-test('automatic KCT names follow the next draft after saving without changing the saved G', () => {
+// 原名用小組名稱與卡片字母稱呼；名稱期望值原本是字母串接（例如兩張卡寫成字母加號字母），2026-10-29 改成依加入順序以頓號接卡片名稱。
+test('automatic card names follow the next draft after saving without changing the saved blank description scenario', () => {
   const f = scenarioLifecycleFixture();
-  f.toggle('G');
+  f.toggle(BLANK);
   const saved = f.api.toWireDraft(f.store.getState().filter.draft);
   f.api.completeScenarioSave(f.api.filterCommitSnapshot(f.store.getState()),
     { scenarios: [saved], resultRef: { revision: 'r1' }, savedCount: 1 }, 0, saved);
   const draft = f.store.getState().filter.draft;
   assert.equal(draft.name, '');
-  f.toggle('H'); assert.equal(draft.name, 'H');
-  f.toggle('G', true); assert.equal(draft.name, 'H');
-  f.toggle('G'); assert.equal(draft.name, 'G+H');
-  f.toggle('H', true); assert.equal(draft.name, 'G 2', 'the next draft avoids the saved name');
-  f.toggle('G', true); assert.equal(draft.name, '');
-  assert.equal(f.store.getState().filter.savedScenarios[0].name, 'G');
+  f.toggle(TRAILING); assert.equal(draft.name, TRAILING_NAME);
+  f.toggle(BLANK, true); assert.equal(draft.name, TRAILING_NAME);
+  f.toggle(BLANK); assert.equal(draft.name, TRAILING_NAME + '、' + BLANK_NAME, 'cards are named in the order they were added');
+  f.toggle(TRAILING, true); assert.equal(draft.name, BLANK_NAME + ' 2', 'the next draft avoids the saved name');
+  f.toggle(BLANK, true); assert.equal(draft.name, '');
+  assert.equal(f.store.getState().filter.savedScenarios[0].name, BLANK_NAME);
 });
 
 test('late save does not overwrite a later name or rationale edit', () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const draft = f.store.getState().filter.draft, saved = f.api.toWireDraft(draft);
   const snapshot = f.api.filterCommitSnapshot(f.store.getState());
   f.store.patchFilterDraftMeta({ name: '手動新名稱', rationale: '後來補上的動機', __nameDirty: true, __rationaleDirty: true });
@@ -128,15 +139,16 @@ test('late save does not overwrite a later name or rationale edit', () => {
 });
 
 test('retyping the same name during save still transfers naming ownership to the user', () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const snapshot = f.api.filterCommitSnapshot(f.store.getState()), saved = f.api.toWireDraft(snapshot.draft);
-  f.store.patchFilterDraftMeta({ name: 'G', __nameDirty: true });
+  // 重打的是當時的自動名稱：2026-10-29 起是卡片名稱（原本是字母）。
+  f.store.patchFilterDraftMeta({ name: BLANK_NAME, __nameDirty: true });
   f.api.completeScenarioSave(snapshot, { scenarios: [saved], resultRef: { revision: 'r1' }, savedCount: 1 }, 0, saved);
-  f.toggle('H'); assert.equal(snapshot.draft.name, 'G');
+  f.toggle(TRAILING); assert.equal(snapshot.draft.name, BLANK_NAME);
 });
 
 test('saved feedback compares JSON content rather than backend property order', () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const snapshot = f.api.filterCommitSnapshot(f.store.getState()), authored = f.api.toWireDraft(snapshot.draft);
   const saved = JSON.parse(JSON.stringify(authored, (_, value) => value && typeof value === 'object' && !Array.isArray(value)
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value));
@@ -147,7 +159,7 @@ test('saved feedback compares JSON content rather than backend property order', 
 });
 
 for (const removed of [0, 2]) test('removing another scenario rebases the linked editor: ' + removed, async () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const draft = f.store.getState().filter.draft, saved = f.api.toWireDraft(draft);
   const list = ['first', 'edited', 'last'].map(name => ({ ...saved, name }));
   f.store.setSavedScenarios(list); f.store.patchFilterDraftMeta({ __editingIndex: 1, __editingSavedRef: list });
@@ -163,18 +175,19 @@ for (const removed of [0, 2]) test('removing another scenario rebases the linked
 });
 
 test('deleting a saved scenario preserves an independent new draft', async () => {
-  const f = scenarioLifecycleFixture(); f.toggle('H');
+  const f = scenarioLifecycleFixture(); f.toggle(TRAILING);
   const draft = f.store.getState().filter.draft;
   f.store.setSavedScenarios([{ ...f.api.toWireDraft(draft), name: 'saved' }]);
   const op = f.bindRemoval(0); op.click(); await settle();
   op.pending[0].resolve({ scenarios: [], savedCount: 0 }); await Promise.all(op.actions);
   assert.equal(f.store.getState().filter.draft, draft);
-  assert.equal(draft.name, 'H');
+  // 自動名稱 2026-10-29 起是卡片名稱（原本是字母）。
+  assert.equal(draft.name, TRAILING_NAME);
   assert.equal(draft.__editingIndex, undefined);
 });
 
 test('failed removal preserves the saved definition, linked draft and preview', async () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const draft = f.store.getState().filter.draft, list = [f.api.toWireDraft(draft)];
   f.store.setSavedScenarios(list); f.store.patchFilterDraftMeta({ __editingIndex: 0, __editingSavedRef: list });
   const preview = { count: 4 }; f.store.setFilterPreview(preview);
@@ -186,30 +199,33 @@ test('failed removal preserves the saved definition, linked draft and preview', 
 });
 
 for (const automatic of [true, false, undefined]) test('reopening respects recorded naming ownership: ' + automatic, () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const saved = f.api.toWireDraft(f.store.getState().filter.draft);
   if (automatic === undefined) { delete saved.editorOrigins.nameIsAutomatic; delete saved.editorOrigins.rationaleIsAutomatic; }
   else { saved.editorOrigins.nameIsAutomatic = automatic; saved.editorOrigins.rationaleIsAutomatic = automatic; }
   f.store.setSavedScenarios([saved]);
   f.bindRemoval(0, 'edit-scenario').click();
-  f.toggle('H');
-  assert.equal(f.store.getState().filter.draft.name, automatic === true ? 'G+H' : 'G');
+  f.toggle(TRAILING);
+  // 自動名稱 2026-10-29 起依加入順序以頓號接卡片名稱（原本是字母串接）。
+  assert.equal(f.store.getState().filter.draft.name, automatic === true ? BLANK_NAME + '、' + TRAILING_NAME : BLANK_NAME);
   assert.equal(f.store.getState().filter.draft.__editingIndex, 0);
 });
 
 test('copying a saved scenario preserves its copy name without linking the original', () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   f.store.setSavedScenarios([f.api.toWireDraft(f.store.getState().filter.draft)]);
-  f.bindRemoval(0, 'copy-scenario').click(); f.toggle('H');
+  f.bindRemoval(0, 'copy-scenario').click(); f.toggle(TRAILING);
   const draft = f.store.getState().filter.draft;
-  assert.equal(draft.name, 'G（副本）'); assert.equal(draft.__editingIndex, undefined);
+  // 原名 2026-10-29 起是卡片名稱（原本是字母），副本名稱的寫法不變。
+  assert.equal(draft.name, BLANK_NAME + '（副本）'); assert.equal(draft.__editingIndex, undefined);
   assert.equal(f.api.toWireDraft(draft).editorOrigins.nameIsAutomatic, false);
 });
 
-test('manual names survive repeated G H toggles before saving and remain in the saved scenario', () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+// 原名以兩個卡片字母稱呼這兩張卡（2026-10-29 改名）。
+test('manual names survive repeated blank description and trailing digit toggles before saving and remain in the saved scenario', () => {
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   f.store.patchFilterDraftMeta({ name: '人工命名', rationale: '人工動機', __nameDirty: true, __rationaleDirty: true });
-  f.toggle('H'); f.toggle('G', true); f.toggle('H', true); f.toggle('G');
+  f.toggle(TRAILING); f.toggle(BLANK, true); f.toggle(TRAILING, true); f.toggle(BLANK);
   const snapshot = f.api.filterCommitSnapshot(f.store.getState()), saved = f.api.toWireDraft(snapshot.draft);
   assert.equal(snapshot.draft.name, '人工命名'); assert.equal(snapshot.draft.rationale, '人工動機');
   f.api.completeScenarioSave(snapshot, { scenarios: [saved], resultRef: { revision: 'r1' }, savedCount: 1 }, 0, saved);
@@ -219,18 +235,19 @@ test('manual names survive repeated G H toggles before saving and remain in the 
 });
 
 test('late save binds but does not replace newer conditions or their automatic name', () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const snapshot = f.api.filterCommitSnapshot(f.store.getState()), saved = f.api.toWireDraft(snapshot.draft);
-  f.toggle('H');
+  f.toggle(TRAILING);
   f.api.completeScenarioSave(snapshot, { scenarios: [saved], resultRef: { revision: 'r1' }, savedCount: 1 }, 0, saved);
-  assert.equal(snapshot.draft.name, 'G+H'); assert.equal(snapshot.draft.groups[0].rules.length, 2);
+  // 自動名稱 2026-10-29 起依加入順序以頓號接卡片名稱（原本是字母串接）。
+  assert.equal(snapshot.draft.name, BLANK_NAME + '、' + TRAILING_NAME); assert.equal(snapshot.draft.groups[0].rules.length, 2);
   assert.equal(snapshot.draft.__editingIndex, 0);
   // 2026-10-03 用語統一 W10：使用者裁定以「已儲存」為準（第一次失敗：收據 20261003-024908090-6beccb9968d64a549df8acb53f0c5ff6）。
   assert.match(f.api.savedFeedbackText(snapshot.draft), /尚未儲存/, 'feedback must show newer unsaved edits');
 });
 
 for (const mutation of ['same-project-reopen', 'source', 'taxonomy', 'saved-list']) test('late save ignores replaced context: ' + mutation, () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const snapshot = f.api.filterCommitSnapshot(f.store.getState()), saved = f.api.toWireDraft(snapshot.draft);
   if (mutation === 'same-project-reopen') f.store.setProject({ projectId: 'sequence-fixture' });
   if (mutation === 'source') f.store.setImportResult('gl', { batchId: 'next', columns: [], rowCount: 0 });
@@ -242,7 +259,7 @@ for (const mutation of ['same-project-reopen', 'source', 'taxonomy', 'saved-list
 });
 
 test('commit observers see the new list and cleared draft in the same notification', () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const snapshot = f.api.filterCommitSnapshot(f.store.getState()), saved = f.api.toWireDraft(snapshot.draft), list = [saved];
   let committed = 0;
   f.store.subscribe(state => {
@@ -259,7 +276,7 @@ test('commit observers see the new list and cleared draft in the same notificati
 });
 
 for (const phase of ['summary', 'vouchers']) test('preview ignores taxonomy changes during ' + phase, async () => {
-  const f = scenarioLifecycleFixture(); f.toggle('G');
+  const f = scenarioLifecycleFixture(); f.toggle(BLANK);
   const op = f.bindRemoval(0);
   op.clickSelector('[data-action="preview-scenario"]'); await settle();
   assert.equal(op.pending[0].method, 'filterPreview');
@@ -1222,14 +1239,18 @@ test('left-side examples and actions use normal page flow without sticky overlay
   for (const rule of css.matchAll(/[^{}]*\.filter-(?:primary-actions|entry|entry-scroll)[^{}]*\{([^{}]*)\}/g)) {
     assert.doesNotMatch(rule[1], /position:\s*(?:sticky|fixed)|overflow-y:\s*auto/);
   }
-  assert.match(css, /\.filter-entry \.picker-card:not\(\.picker-card--kct\)[^{]*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  // 常用篩選條件卡片的 class 2026-10-29 從帶小組名稱的修飾改成 picker-card--common（第一次失敗見本檔開頭 BLANK 上方的收據）。
+  assert.match(css, /\.filter-entry \.picker-card:not\(\.picker-card--common\)[^{]*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
   // 第五步拆成五個檔案（階段十）：字樣檢查改讀五個檔案合起來的原始碼。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
   const source = readFilterStep();
   // 使用者 2026-10-08 要求重新設計自訂篩選條件：範例移到右側「從範例開始」，需要部門欄位的範例就地選欄位，不再有範例專用下拉。
   assert.match(source, /template\.pickField === 'text'/);
   assert.doesNotMatch(source, /data-legacy-example-field/);
   // 2026-10-03 用語統一 W10：使用者裁定以「已儲存」為準（第一次失敗：收據 20261003-024908090-6beccb9968d64a549df8acb53f0c5ff6）。
-  assert.match(source, /套用後會替換目前的條件，已儲存的情境不受影響。/);
+  // 2026-10-29 使用者指出常駐說明太多，後半句「已儲存的情境不受影響」拿掉，
+  // 這條依預期失敗，首敗收據 20261029-042349219-80cd18acb17f46b19cd7967d9b7a0b55。意圖不變：範例清單先說套用的後果。
+  assert.match(source, /套用後會替換目前的條件。/);
+  assert.doesNotMatch(source, /已儲存的情境不受影響/);
   assert.doesNotMatch(source, /沿用 2024 JE 篩選表的代號/);
 });
 
@@ -1905,9 +1926,10 @@ test('authorized list selects an identifier, keeps the draft on failure, cancels
   assert.doesNotMatch(render().html(),/data-action="clear-authorized-preparer"/);
 });
 
-// 2026-10-02 使用者裁定移除「情境層級」（W12）：KCT I 是加入目前條件組的一條條件括號，內含週末或假日。
+// 2026-10-02 使用者裁定移除「情境層級」（W12）：非營業日那張卡（當時以字母稱呼）是加入目前條件組的一條條件括號，內含週末或假日。
 // 2026-10-02 範例缺值時要說明第幾組第幾條（W20）。以下直接執行正式前端腳本核對草稿形狀、送出形狀、舊情境重開與提示文字。
-function kctFixture() {
+// 2026-10-29 夾具改名、函式與常數照前端改名，卡片改用代號識別（原本依字母找卡片）。
+function commonCardFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer(fn) { window.deferred = fn; } } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
@@ -1915,13 +1937,13 @@ function kctFixture() {
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('kct', ['addKctToDraft', 'removeKctFromActiveGroup', 'refreshAutomaticMetadata', 'toWireDraft', 'kctCardState', 'readBackHtml', 'applyTemplate', 'scenarioGate', 'setActiveGroup', 'syncViewState', 'bind', 'kctPickerHtml'])), context);
-  const store = window.JetStore, api = window.kct;
-  store.setProject({ projectId: 'kct-i-fixture' }); api.syncViewState(store.getState());
-  const item = letter => window.JetUi.FILTER_KCT_CHECKLIST.find(x => x.letter === letter);
-  function toggle(letter, remove = false) {
+    filterStepExposure('commonCards', ['addCommonToDraft', 'removeCommonFromActiveGroup', 'refreshAutomaticMetadata', 'toWireDraft', 'commonCardState', 'readBackHtml', 'applyTemplate', 'scenarioGate', 'setActiveGroup', 'syncViewState', 'bind', 'commonPickerHtml'])), context);
+  const store = window.JetStore, api = window.commonCards;
+  store.setProject({ projectId: 'non-business-day-fixture' }); api.syncViewState(store.getState());
+  const item = key => window.JetUi.FILTER_COMMON_CONDITIONS.find(x => x.key === key);
+  function toggle(key, remove = false) {
     const draft = store.getState().filter.draft;
-    api[remove ? 'removeKctFromActiveGroup' : 'addKctToDraft'](draft, item(letter));
+    api[remove ? 'removeCommonFromActiveGroup' : 'addCommonToDraft'](draft, item(key));
     api.refreshAutomaticMetadata(draft, true); store.setFilterDraft(draft);
     return draft;
   }
@@ -1948,51 +1970,57 @@ function kctFixture() {
   return { window, store, api, item, toggle, text, editSaved, gate };
 }
 
-// R5 now excludes makeup days but retains the existing bracket, group position and KCT identity.
+// R5 now excludes makeup days but retains the existing bracket, group position and card identity.
 // First post-change failures: 20261004-085250643-d905022f18374b579c7dabd630a8f646.
-test('KCT I joins the active group as one condition bracket of nonbusiness days excluding makeup days', () => {
-  const f = kctFixture();
-  const draft = f.toggle('G'); f.toggle('I');
+// 2026-10-29：測試名稱原本以字母稱呼這張卡；身分標記改記卡片代號；自動名稱依加入順序以頓號接卡片名稱、動機每行不再以字母開頭
+//（原本兩者都以字母開頭，動機期望值原本由卡片資料組出，改成寫死）；原本核對「作用中組已選 2 項」的計數標題已刪，改數被標成已選的卡片。
+test('the non-business-day card joins the active group as one condition bracket of nonbusiness days excluding makeup days', () => {
+  const f = commonCardFixture();
+  const draft = f.toggle(BLANK); f.toggle(NON_BUSINESS);
   assert.equal(draft.groups.length, 1);
   const [blank, bracket] = draft.groups[0].rules;
-  assert.equal(blank.__kctLetter, 'G');
+  assert.equal(blank.__commonCard, BLANK);
   assert.equal(bracket.type, 'group');
-  assert.equal(bracket.__kctLetter, 'I');
+  assert.equal(bracket.__commonCard, NON_BUSINESS);
   assert.equal(bracket.join, 'AND');
   assert.deepEqual(plain(bracket.rules), [
     { type: 'fieldValue', field: 'postDate', operator: 'isNonBusinessDay', join: 'AND' }]);
-  assert.ok(bracket.rules.every(child => !child.__kctLetter));
-  assert.equal(f.api.kctCardState(draft, f.item('I')), 'selected');
-  assert.equal(draft.name, 'G+I');
-  assert.equal(draft.rationale, 'G：' + f.item('G').label + '\nI：' + f.item('I').label);
-  // 第九節 G2 的 G 卡使用欄位文字；首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+  assert.ok(bracket.rules.every(child => !child.__commonCard));
+  assert.equal(f.api.commonCardState(draft, f.item(NON_BUSINESS)), 'selected');
+  assert.equal(draft.name, '空白摘要、非營業日之分錄');
+  assert.equal(draft.rationale, '空白摘要\n非營業日之分錄');
+  // 第九節 G2 的空白摘要卡使用欄位文字；首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
   assert.match(f.text(f.api.readBackHtml(draft)), /傳票摘要 空白 且 非營業日（排除補班日）/);
-  const picker = f.api.kctPickerHtml(draft);
+  const picker = f.api.commonPickerHtml(draft);
   assert.doesNotMatch(picker, /情境層級|適用整個情境|picker-card--preset/);
-  assert.match(picker, /作用中組已選 2 項/);
+  assert.equal((picker.match(/aria-pressed="true"/g) || []).length, 2, 'two cards are marked as chosen in the active group');
+  assert.doesNotMatch(picker, /作用中組已選/);
 });
 
 // 2026-10-02 使用者裁定移除「情境層級」：整個第五步畫面與樣式表都不再有這個區塊。
-test('KCT I leaves no scenario-level block on the rendered filter step or in the stylesheet', () => {
+// 2026-10-29：測試名稱原本以字母稱呼這張卡；卡片改用代號點選、身分標記改記代號；預設清單常數改名。
+// 原本點名檢查的舊分組標記帶小組名稱，改成檢查任何以 PresetGroup 結尾的鍵與字樣都不存在（涵蓋原本那一個）。
+test('the non-business-day card leaves no scenario-level block on the rendered filter step or in the stylesheet', () => {
   const f = filterOperationFixture();
-  f.click('[data-kct-letter="G"]'); f.click('[data-kct-letter="I"]');
+  f.click(cardSelector(BLANK)); f.click(cardSelector(NON_BUSINESS));
   assert.equal(f.draft().groups.length, 1);
-  assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => rule.__kctLetter)), ['G', 'I']);
-  assert.ok(f.draft().groups.every(group => !('__kctPresetGroup' in group)));
-  assert.ok(f.window.JetUi.FILTER_KCT_PRESETS.every(preset => !('newGroup' in preset)), 'no preset opens a separate group');
+  assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => rule.__commonCard)), [BLANK, NON_BUSINESS]);
+  assert.ok(f.draft().groups.every(group => !Object.keys(group).some(key => /PresetGroup$/.test(key))));
+  assert.ok(f.window.JetUi.FILTER_COMMON_PRESETS.every(preset => !('newGroup' in preset)), 'no preset opens a separate group');
   assert.doesNotMatch(f.dom.content.innerHTML, /情境層級|適用整個情境|remove-preset-group|scenario-preset|picker-card--preset/);
   const css = fs.readFileSync(path.join(root, '../css/app.css'), 'utf8');
-  for (const removed of ['情境層級', '適用整個情境', '__kctPresetGroup', 'remove-preset-group', 'scenario-preset', 'picker-card--preset', 'isPresetNewGroup'])
+  for (const removed of ['情境層級', '適用整個情境', 'PresetGroup', 'remove-preset-group', 'scenario-preset', 'picker-card--preset', 'isPresetNewGroup'])
     assert.equal(css.includes(removed), false, removed);
 });
 
-test('adding KCT I twice never shares the bracket, its children or the preset definition', () => {
-  const f = kctFixture();
-  const draft = f.toggle('I');
+// 2026-10-29：測試名稱原本以字母稱呼這張卡；預設清單常數與鍵改名；名稱期望值原本是字母串接，改成兩項卡片名稱以頓號相接。
+test('adding the non-business-day card twice never shares the bracket, its children or the preset definition', () => {
+  const f = commonCardFixture();
+  const draft = f.toggle(NON_BUSINESS);
   const second = { join: 'AND', matchScope: 'row', rules: [] };
-  draft.groups.push(second); f.api.setActiveGroup(draft, second); f.toggle('I');
+  draft.groups.push(second); f.api.setActiveGroup(draft, second); f.toggle(NON_BUSINESS);
   const one = draft.groups[0].rules[0], two = draft.groups[1].rules[0];
-  const preset = f.window.JetUi.FILTER_KCT_PRESETS.find(p => p.key === 'kctNonBusinessDay').overrides;
+  const preset = f.window.JetUi.FILTER_COMMON_PRESETS.find(p => p.key === 'nonBusinessDay').overrides;
   assert.notEqual(one, two);
   assert.notEqual(one.rules, two.rules);
   assert.notEqual(one.rules[0], two.rules[0]);
@@ -2005,40 +2033,46 @@ test('adding KCT I twice never shares the bracket, its children or the preset de
   one.rules[0].join = 'OR';
   assert.equal(two.rules[0].join, 'AND');
   assert.equal(preset.rules[0].join, 'AND');
-  assert.equal(draft.name, 'I｜I');
+  assert.equal(draft.name, '非營業日之分錄、非營業日之分錄');
 });
 
-test('removing KCT I only touches the active group and keeps the other group bracket', () => {
-  const f = kctFixture();
-  const draft = f.toggle('I'); f.toggle('G');
+// 2026-10-29：測試名稱原本以字母稱呼這張卡；身分標記改記代號；名稱期望值原本是依卡片順序的字母串接，改成依加入順序以頓號接卡片名稱。
+test('removing the non-business-day card only touches the active group and keeps the other group bracket', () => {
+  const f = commonCardFixture();
+  const draft = f.toggle(NON_BUSINESS); f.toggle(BLANK);
   const second = { join: 'OR', matchScope: 'row', rules: [] };
-  draft.groups.push(second); f.api.setActiveGroup(draft, second); f.toggle('I');
-  assert.equal(f.api.kctCardState(draft, f.item('I')), 'selected');
-  f.toggle('I', true);
+  draft.groups.push(second); f.api.setActiveGroup(draft, second); f.toggle(NON_BUSINESS);
+  assert.equal(f.api.commonCardState(draft, f.item(NON_BUSINESS)), 'selected');
+  f.toggle(NON_BUSINESS, true);
   assert.equal(second.rules.length, 0);
-  assert.deepEqual(plain(draft.groups[0].rules.map(rule => rule.__kctLetter)), ['I', 'G']);
-  assert.equal(f.api.kctCardState(draft, f.item('I')), 'elsewhere');
-  assert.equal(draft.name, 'G+I');
+  assert.deepEqual(plain(draft.groups[0].rules.map(rule => rule.__commonCard)), [NON_BUSINESS, BLANK]);
+  assert.equal(f.api.commonCardState(draft, f.item(NON_BUSINESS)), 'elsewhere');
+  assert.equal(draft.name, '非營業日之分錄、空白摘要');
 });
 
+// 2026-10-29：來源代碼改成 common，編輯來源改成第 2 版逐條記卡片代號（原本是舊來源代碼與字母）。
 test('the wire keeps the group order, strips UI keys and records no new preset group origin', () => {
-  const f = kctFixture();
-  const draft = f.toggle('I'); f.toggle('G');
+  const f = commonCardFixture();
+  const draft = f.toggle(NON_BUSINESS); f.toggle(BLANK);
   const wire = f.api.toWireDraft(draft);
-  assert.equal(wire.source, 'kct');
+  assert.equal(wire.source, 'common');
   assert.equal(wire.groups.length, 1);
-  // 第九節 G2 保留身分與順序，只改 G 的型別。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+  // 第九節 G2 保留身分與順序，只改空白摘要卡的型別。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
   assert.deepEqual(plain(wire.groups[0].rules.map(rule => rule.type)), ['group', 'fieldValue']);
   assert.equal(JSON.stringify(wire).includes('__'), false);
   assert.deepEqual(plain(wire.groups[0].rules[0].rules), [{ type: 'fieldValue', join: 'AND', field: 'postDate', operator: 'isNonBusinessDay', includeBlank: false }]);
-  assert.deepEqual(plain(wire.editorOrigins.groups), [{ letters: ['I', 'G'] }]);
+  assert.equal(wire.editorOrigins.version, 2);
+  assert.deepEqual(plain(wire.editorOrigins.groups), [{ cards: [NON_BUSINESS, BLANK] }]);
   assert.equal(JSON.stringify(wire).includes('presetGroup'), false);
 });
 
+// 2026-10-29：這個舊情境的編輯來源是第 1 版（逐條記字母，欄位照舊資料原樣保留），舊來源代碼後端讀回時已不認得，所以來源是 null；
+// 名稱原本是字母串接，改成合成名稱。第 1 版對應不回卡片：原本斷言非營業日卡標在另一組，改成沒有任何卡片、草稿標成舊版；
+// 重新送出的編輯來源原本照抄字母，改成第 2 版、每條都沒有卡片。計算樹與讀回句子的斷言不變。
 test('a scenario saved with the old separate non-business-day group reopens as ordinary conditions with the same tree', () => {
-  const f = kctFixture();
+  const f = commonCardFixture();
   const old = {
-    name: 'G｜I', rationale: 'old', source: 'kct',
+    name: '舊版非營業日情境', rationale: 'old', source: null,
     editorOrigins: { version: 1, legacyKctSource: false, nameIsAutomatic: true, rationaleIsAutomatic: true,
       groups: [{ presetGroup: false, letters: ['G'] }, { presetGroup: true, letters: ['I', 'I'] }] },
     groups: [
@@ -2050,23 +2084,28 @@ test('a scenario saved with the old separate non-business-day group reopens as o
   f.store.setSavedScenarios([old]);
   const draft = f.editSaved(0);
   assert.equal(draft.groups.length, 2);
-  assert.ok(draft.groups.every(group => !('__kctPresetGroup' in group)));
+  assert.ok(draft.groups.every(group => !Object.keys(group).some(key => /PresetGroup$/.test(key))));
   assert.equal(draft.groups[0].__active, true);
-  assert.equal(f.api.kctCardState(draft, f.item('I')), 'elsewhere');
+  assert.equal(draft.__legacyCards, true, 'the draft is marked as an old-version scenario');
+  assert.equal(f.api.commonCardState(draft, f.item(NON_BUSINESS)), 'none');
+  assert.ok(draft.groups.every(group => group.rules.every(rule => !rule.__commonCard)), 'no card maps back from the old origin');
   assert.equal(f.text(f.api.readBackHtml(draft)), '篩選條件：預篩選：空白摘要 且 （預篩選：週末過帳 或 預篩選：假日過帳）');
   const wire = f.api.toWireDraft(draft);
   assert.deepEqual(plain(wire.groups), old.groups, 'reopening and saving keeps the calculation tree');
-  assert.deepEqual(plain(wire.editorOrigins.groups), [{ letters: ['G'] }, { letters: ['I', 'I'] }]);
+  assert.equal(wire.editorOrigins.version, 2);
+  assert.deepEqual(plain(wire.editorOrigins.groups), [{ cards: [null] }, { cards: [null, null] }]);
+  assert.equal(Object.hasOwn(wire, 'source'), false);
   assert.equal(f.gate().ok, true);
 });
 
 test('the non-business-day example puts both conditions in group 1 and names the missing value position', () => {
-  const f = kctFixture();
+  const f = commonCardFixture();
   f.api.applyTemplate('nonBusinessDayExcludingDates');
   const draft = f.store.getState().filter.draft;
   assert.equal(draft.groups.length, 1);
   assert.deepEqual(plain(draft.groups[0].rules.map(rule => rule.type)), ['group', 'fieldValue']);
-  assert.equal(draft.groups[0].rules[0].__kctLetter, 'I');
+  // 身分標記 2026-10-29 改記卡片代號（原本記字母）。
+  assert.equal(draft.groups[0].rules[0].__commonCard, NON_BUSINESS);
   assert.equal(draft.groups[0].rules[1].join, 'AND');
   assert.deepEqual(plain(draft.groups[0].rules[1].values), [], 'the example never fills dates for the auditor');
   assert.equal(typeof f.window.deferred, 'function', 'focus moves to the value that still needs input');
@@ -2077,8 +2116,8 @@ test('the non-business-day example puts both conditions in group 1 and names the
 });
 
 test('missing values inside a condition bracket name the item within the condition', () => {
-  const f = kctFixture();
-  const draft = f.toggle('G');
+  const f = commonCardFixture();
+  const draft = f.toggle(BLANK);
   draft.groups[0].rules.push({ type: 'group', join: 'AND', rules: [
     { type: 'prescreen', prescreenKey: 'weekendPosting', join: 'AND' },
     { type: 'fieldValue', join: 'OR', field: 'createBy', operator: 'in', values: [], includeBlank: false }] });
@@ -2089,11 +2128,12 @@ test('missing values inside a condition bracket name the item within the conditi
     f.window.JetUi.glFieldLabel('createBy') + '」請填 1 到 100 個值、第 2 組第 1 條「日期區間」起日晚於迄日' });
 });
 
-// 2026-10-03 主線審查加的防護：範例併進 KCT 組只在語意不變時做。組內有「或」時併進去會把「I 且 (a 或 b)」
-// 變成「(I 且 a) 或 b」，所以另開一組。目前的正式範例都不是這種形狀，這裡用合成範例鎖住。
-test('an example whose first group uses OR stays a separate group after the KCT group', () => {
-  const f = kctFixture();
-  f.window.JetUi.FILTER_SCENARIO_TEMPLATES.push({ key: 'syntheticOrExample', label: '合成範例', kct: 'I', rationale: 'synthetic',
+// 2026-10-03 主線審查加的防護：範例併進卡片那一組只在語意不變時做。組內有「或」時併進去會把「非營業日 且 (a 或 b)」
+// 變成「(非營業日 且 a) 或 b」，所以另開一組。目前的正式範例都不是這種形狀，這裡用合成範例鎖住。
+// 2026-10-29：測試名稱原本帶小組名稱；範例指定卡片的欄位改成 commonCard、值改成卡片代號，身分標記改記代號。
+test('an example whose first group uses OR stays a separate group after the card group', () => {
+  const f = commonCardFixture();
+  f.window.JetUi.FILTER_SCENARIO_TEMPLATES.push({ key: 'syntheticOrExample', label: '合成範例', commonCard: NON_BUSINESS, rationale: 'synthetic',
     groups: [{ join: 'AND', matchScope: 'row', rules: [
       { type: 'prescreen', prescreenKey: 'blankDescription' },
       { type: 'prescreen', prescreenKey: 'weekendPosting', join: 'OR' }] }] });
@@ -2101,7 +2141,7 @@ test('an example whose first group uses OR stays a separate group after the KCT 
   const draft = f.store.getState().filter.draft;
   assert.equal(draft.groups.length, 2);
   assert.deepEqual(plain(draft.groups[0].rules.map(rule => rule.type)), ['group']);
-  assert.equal(draft.groups[0].rules[0].__kctLetter, 'I');
+  assert.equal(draft.groups[0].rules[0].__commonCard, NON_BUSINESS);
   assert.deepEqual(plain(draft.groups[1].rules.map(rule => rule.prescreenKey)), ['blankDescription', 'weekendPosting']);
   assert.equal(draft.groups[1].join, 'AND');
   assert.equal(draft.groups[1].rules[1].join, 'OR');
@@ -2462,7 +2502,9 @@ test('project metadata editor sends only editable fields and failed saves and ca
   assert.deepEqual(Object.keys(page.form.elements).sort(), ['entityName', 'lastPeriodStart', 'projectCode']);
   assert.equal(page.form.entityName.value, 'Original client');
   assert.match(page.html(), /案件名稱.*查核期間.*不能修改/);
-  assert.match(page.html(), /已匯出.*不.*改寫/);
+  // 原本也鎖「已匯出的報告與工作底稿不會改寫」。2026-10-29 使用者指出常駐說明太多後拿掉，
+  // 這條依預期失敗，首敗收據 20261029-042349219-80cd18acb17f46b19cd7967d9b7a0b55；不能修改的欄位仍要寫出。
+  assert.doesNotMatch(page.html(), /已匯出.*不.*改寫/);
   page.input('entityName', ' New client '); page.input('projectCode', ' NEW-02 '); page.input('lastPeriodStart', '2025-03-01');
   assert.match(page.node('[data-bind="preparation-date-warning"]').textContent, /確認年份/);
   page.submit();
@@ -2742,7 +2784,8 @@ test('new classification cards and the category pair check default to subtree wh
   const f = taxonomyReviewFixture(), ui = f.window.JetUi;
   for (const type of ['accountSide', 'accountPair', 'specialAccountCategoryPair']) assert.equal(ui.newFilterRule(type).categorySelection, 'subtree');
   // 使用者 2026-10-08 要求重新設計自訂篩選條件：原本由目錄 P 帶入的分類組合，改由常用查核條件「借方與貸方分類組合」加入，同樣包含下層分類。
-  const checks = ui.FILTER_COMMON_CHECK_GROUPS.flatMap(group => group.checks);
+  // 這份清單的常數 2026-10-29 跟著畫面改名「依審計目的」（原本的常數名稱改給常用篩選條件用）；第一次失敗見本檔開頭 BLANK 上方的收據。
+  const checks = ui.FILTER_PURPOSE_CHECK_GROUPS.flatMap(group => group.checks);
   for (const key of ['categoryPair', 'accountCategory']) {
     // 第九節 G1 把借方與分類分為兩條，仍核對分類預設包含下層。首次失敗：20261014-132501058-ef503fecc9824f3b9e6f009a7b154327。
     const root = checks.find(check => check.key === key).rules[0];
@@ -2922,7 +2965,7 @@ function batch7Fixture() {
   // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('batch7', ['bind', 'customPickerHtml', 'addFieldCondition', 'addCommonCheck', 'conditionFromSpec', 'findCommonCheck', 'bindCompoundRule', 'compoundRuleHtml', 'ruleRowHtml', 'ruleSubjectHtml', 'ruleProblem', 'readBackHtml', 'toWireDraft', 'syncViewState'], 'getView: () => FilterStep.viewState')), context);
+    filterStepExposure('batch7', ['bind', 'customPickerHtml', 'addFieldCondition', 'addPurposeCheck', 'conditionFromSpec', 'findPurposeCheck','bindCompoundRule', 'compoundRuleHtml', 'ruleRowHtml', 'ruleSubjectHtml', 'ruleProblem', 'readBackHtml', 'toWireDraft', 'syncViewState'], 'getView: () => FilterStep.viewState')), context);
   // 替換字串跟著正式匯出改：2026-10-16 加了 countText，2026-10-19 刪掉只給備用畫面用的 countText（第一次失敗：
   // 20261019-090901211-9e9ec7ffcbf34596ae2d8476cf613b45）。只多匯出 matchStatusHtml 供下面的測試使用。
   vm.runInContext(fs.readFileSync(path.join(root, 'filter-vouchers.js'), 'utf8').replace('Ui.FilterVouchers = { summary: summary, mount: mount };',
@@ -3091,8 +3134,19 @@ test('batch7 voucher match label changes without altering hit flags, hit count o
   assert.match(counts, /標示為參考的分錄不計入分錄筆數/);
 });
 
-test('batch7 KCT I adds the shared nonbusiness predicate while old weekend-or-holiday AST remains untouched and honestly named', () => {
-  const f = kctFixture(), draft = f.toggle('I');
+// 2026-10-30 結案前的獨立複審查到：狀態欄 2026-10-29 改成只寫符合哪一組的哪一條、完整的條件說明放在滑鼠提示，沒有測試。這是新增的測試。
+test('voucher status names the matching group and condition and keeps the full reason only in the tooltip', () => {
+  const f = batch7Fixture(), ui = f.ui.FilterVouchers;
+  const html = ui.matchStatusHtml({ isHit: true, matchDescription: '第 1 組第 2 條：摘要為空白', primaryConditions: [{ group: 1, rule: 2 }] });
+  assert.match(html, /<strong>符合條件的分錄<\/strong>/);
+  assert.match(html, /<p>主要：第 1 組條件 2<\/p>/);
+  assert.match(html, /title="第 1 組第 2 條：摘要為空白"/);
+  assert.doesNotMatch(html.replace(/title="[^"]*"/, ''), /摘要為空白/, 'the full reason is not repeated in the cell');
+});
+
+// 測試名稱原本以小組名稱與字母稱呼這張卡（2026-10-29 改名，第一次失敗見本檔開頭 BLANK 上方的收據）。
+test('batch7 non-business-day card adds the shared nonbusiness predicate while old weekend-or-holiday AST remains untouched and honestly named', () => {
+  const f = commonCardFixture(), draft = f.toggle(NON_BUSINESS);
   const wire = plain(f.api.toWireDraft(draft));
   assert.equal(wire.groups[0].rules[0].type, 'group');
   assert.deepEqual(wire.groups[0].rules[0].rules.map(rule => [rule.type, rule.field, rule.operator]), [['fieldValue', 'postDate', 'isNonBusinessDay']]);
@@ -3955,7 +4009,7 @@ test('batch9 constants keep separate fixed audit thresholds and unchanged full l
   assert.equal(f.ui.newFilterRule('customPreparerEntryCount').maxEntries, '11');
   assert.equal(f.ui.newFilterRule('customAccountEntryCount').maxEntries, '11');
   assert.equal(f.ui.newFilterRule('customTrailingZeros').digits, '3', 'the custom-card default is not the fixed six-zero rule');
-  assert.equal(f.ui.newFilterRule('trailingDigits').keywords, '000000', 'KCT H is an exact literal pattern, not an audit threshold alias');
+  assert.equal(f.ui.newFilterRule('trailingDigits').keywords, '000000', 'the trailing digit card is an exact literal pattern, not an audit threshold alias');
 });
 
 test('batch9 detail first page and later pages use two hundred while value profiles stay fifty', async () => {
@@ -4180,7 +4234,7 @@ test('V7 loaded validation detail pages survive a text-only metadata edit', () =
 
 // 2026-10-05 W2 裁定：兩個現金常用範本和新建條件一樣用「包含下層分類」（Q4），套用後的草稿與讀回都照實寫出。
 test('W2 both cash templates select the cash category including its subcategories', () => {
-  const f = kctFixture();
+  const f = commonCardFixture();
   for (const [key, mode] of [['cashDebitNonCashCredit', 'drNotCr'], ['cashCreditNonCashDebit', 'notDrCr']]) {
     f.api.applyTemplate(key);
     const rule = f.store.getState().filter.draft.groups[0].rules[0];
@@ -4205,25 +4259,26 @@ for(const row of JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/quarte
  });
 }
 
-test('K2 B card creates empty subtree selections and blocks preview with positioned guidance', () => {
-  const f = scenarioLifecycleFixture(), item = f.window.JetUi.FILTER_KCT_CHECKLIST.find(x => x.letter === 'B');
+// 2026-10-29：測試名稱原本以字母稱呼這張卡；來源代碼改成 common、卡片常數與畫面屬性改名（第一次失敗見本檔開頭 BLANK 上方的收據）。
+test('K2 the fixed-asset card creates empty subtree selections and blocks preview with positioned guidance', () => {
+  const f = scenarioLifecycleFixture(), item = f.window.JetUi.FILTER_COMMON_CONDITIONS.find(x => x.key === FIXED_ASSET);
   assert.ok(!item.disabled);
-  f.toggle('B');
+  f.toggle(FIXED_ASSET);
   const draft = f.store.getState().filter.draft, wire = f.api.toWireDraft(draft), rule = wire.groups[0].rules[0];
-  assert.equal(wire.source, 'kct'); assert.equal(rule.type, 'specialAccountCategoryPair');
+  assert.equal(wire.source, 'common'); assert.equal(rule.type, 'specialAccountCategoryPair');
   assert.equal(rule.pairMode, 'drAndCr'); assert.equal(rule.categorySelection, 'subtree');
   assert.deepEqual(Array.from(rule.debitCategoryIds), []); assert.deepEqual(Array.from(rule.creditCategoryIds), []);
   // 預篩選收斂計畫階段四（2026-10-23）：就近檢查先寫條件缺的前置條件，和後端第五步同一句。這個夾具還沒匯入科目配對，
   // 第一個問題改成科目配對；「尚未選擇借方分類」的引導移到下面匯入有分類的科目配對之後核對。
   // 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（第一個問題寫的是科目配對）。
   assert.equal(f.api.draftRuleProblems(draft)[0].text, '第 1 組第 1 條：科目配對中尚無任何科目設定分類，請先在第四步設定');
-  assert.match(f.api.kctPickerHtml(draft), /尚不可用/);
+  assert.match(f.api.commonPickerHtml(draft), /尚不可用/);
   f.store.getState().importState.accountMapping = { hasAnyCategory: false };
   // 使用者 2026-10-14 第三輪勾選頁確認 R3-15（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
-  assert.match(f.api.kctPickerHtml(draft), /科目配對中尚無任何科目設定分類，請先在第四步設定/);
+  assert.match(f.api.commonPickerHtml(draft), /科目配對中尚無任何科目設定分類，請先在第四步設定/);
   f.store.getState().importState.accountMapping = { hasAnyCategory: true };
-  const b = f.api.kctPickerHtml(draft).match(/<button[^>]*data-kct-letter="B"[^>]*>/)[0];
-  assert.doesNotMatch(b, /disabled/);
+  const fixedAsset = f.api.commonPickerHtml(draft).match(/<button[^>]*data-common-card="fixedAssetDebitExpenseCredit"[^>]*>/)[0];
+  assert.doesNotMatch(fixedAsset, /disabled/);
   assert.match(f.api.draftRuleProblems(draft)[0].text, /第 1 組第 1 條.*借方分類/);
   draft.groups[0].rules[0].debitCategoryIds = ['ppe'];
   assert.match(f.api.draftRuleProblems(draft)[0].text, /貸方分類/);
@@ -4232,25 +4287,34 @@ test('K2 B card creates empty subtree selections and blocks preview with positio
 });
 
 
-test('K3 approved C explanation is rendered on both card and editor without changing readback', () => {
- const f = scenarioLifecycleFixture(), card = f.window.JetUi.FILTER_KCT_CHECKLIST.find(x => x.letter === 'C');
- assert.match(f.api.kctPickerHtml(f.store.getState().filter.draft), /現金不算一般對方科目/);
- assert.match(f.api.kctDescriptionHtml({type:card.ref}), /現金不算一般對方科目/);
+// 原本斷言卡片與編輯區都有這句。2026-10-29 使用者裁定「拿掉卡片上的」，只留編輯區；卡片那條依預期失敗，
+// 首敗收據 20261029-051153423-e931c5bb9d694a55bd6463da1ca0aa64。編輯區與讀回的斷言不變。
+// 2026-10-29：測試名稱原本以字母稱呼這張卡；卡片常數與說明函式改名（第一次失敗見本檔開頭 BLANK 上方的收據）。
+test('K3 approved revenue counterpart explanation is rendered in the editor only, without changing readback', () => {
+ const f = scenarioLifecycleFixture(), card = f.window.JetUi.FILTER_COMMON_CONDITIONS.find(x => x.key === 'revenueWithoutNormalCounterpart');
+ assert.doesNotMatch(f.api.commonPickerHtml(f.store.getState().filter.draft), /現金不算一般對方科目/);
+ assert.match(f.api.commonDescriptionHtml({type:card.ref}), /現金不算一般對方科目/);
  assert.doesNotMatch(f.api.ruleSummaryLabel({type:card.ref},0), /現金/);
 });
 
 
-test('K10 A to E automatic rationales reproduce the approved assessment text verbatim', () => {
+// 2026-10-29：測試名稱原本以字母範圍稱呼這五張卡。需求文件的表格仍以當時的項次欄列出這五列，順序和卡片清單的前五張相同，
+// 原本依項次欄找列，改成取表格的前五列依序對到前五張卡。動機的期望值原本由卡片資料組出、每行以字母開頭，
+// 改成需求文件的五句評估說明依序以換行相接（使用者裁定動機不再加字母開頭）。第一次失敗見本檔開頭 BLANK 上方的收據。
+test('K10 the five cards with a default rationale reproduce the approved assessment text verbatim', () => {
  const f = scenarioLifecycleFixture();
- const doc = fs.readFileSync(path.resolve(__dirname, '../../docs/kct-gl-workflow.md'), 'utf8');
- for (const letter of ['A','B','C','D','E']) {
-  const card = f.window.JetUi.FILTER_KCT_CHECKLIST.find(x=>x.letter===letter);
-  const expected = doc.split('\n').find(line=>line.startsWith('| '+letter+' |')).split('|')[3].trim();
-  assert.equal(card.defaultRationale, expected); f.toggle(letter);
- }
+ const doc = fs.readFileSync(path.resolve(__dirname, '../../docs/kct-gl-workflow.md'), 'utf8').split('\n');
+ const header = doc.findIndex(line => line.startsWith('| 項次 | 高風險分錄篩選條件 | 評估說明 |'));
+ assert.ok(header >= 0, 'the requirement table is found');
+ const docRationales = doc.slice(header + 2, header + 7).map(line => line.split('|')[3].trim());
+ const keys = [REVENUE, FIXED_ASSET, 'revenueWithoutNormalCounterpart', 'manualRevenueEntry', 'specificPreparer'];
+ keys.forEach((key, index) => {
+  const card = f.window.JetUi.FILTER_COMMON_CONDITIONS.find(x => x.key === key);
+  assert.equal(card.defaultRationale, docRationales[index], key); f.toggle(key);
+ });
  const draft=f.store.getState().filter.draft;
- assert.equal(draft.rationale, f.window.JetUi.FILTER_KCT_CHECKLIST.filter(c=>'ABCDE'.includes(c.letter)).map(c=>c.letter+'：'+c.defaultRationale).join('\n'));
- draft.__rationaleDirty=true; draft.rationale='手寫保留'; f.toggle('F'); assert.equal(draft.rationale,'手寫保留');
+ assert.equal(draft.rationale, docRationales.join('\n'));
+ draft.__rationaleDirty=true; draft.rationale='手寫保留'; f.toggle(KEYWORDS); assert.equal(draft.rationale,'手寫保留');
 });
 
 
@@ -4512,29 +4576,31 @@ test('every Store.addMessage level literal is one the message log accepts',()=>{
 
 // 第九節 G2 改用共用欄位條件，沿用清單去重、即時數量及焦點斷言；使用者同意每條 100 值上限。
 // 首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
-for (const [letter, input, expected] of [
-  ['E', ' A，B、A\nC\t B ', 'A,B,C'],
-  ['F', ' Alpha，Beta、Alpha\nGamma\t Beta ', 'Alpha,Beta,Gamma'],
-  ['H', ' 001，002、001\n003\t002 ', '001,002,003']
-]) test('K9 KCT ' + letter + ' displays and updates the actual keyword list count in place', () => {
+// 2026-10-29：測試名稱原本以小組名稱與字母稱呼這三張卡，改用卡片代號；加入卡片的函式與常數照前端改名。
+// 第一次失敗見本檔開頭 BLANK 上方的收據。
+for (const [card, input, expected] of [
+  ['specificPreparer', ' A，B、A\nC\t B ', 'A,B,C'],
+  [KEYWORDS, ' Alpha，Beta、Alpha\nGamma\t Beta ', 'Alpha,Beta,Gamma'],
+  [TRAILING, ' 001，002、001\n003\t002 ', '001,002,003']
+]) test('K9 the ' + card + ' card displays and updates the actual keyword list count in place', () => {
   const dom = batch9TreeDom(), window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const context = vm.createContext({ window, document: dom.document });
   // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('k9', ['addKctToDraft', 'syncViewState', 'ruleControlsHtml', 'render', 'toWireDraft'])), context);
+    filterStepExposure('k9', ['addCommonToDraft', 'syncViewState', 'ruleControlsHtml', 'render', 'toWireDraft'])), context);
   const store = window.JetStore, api = window.k9;
   store.setProject({ projectId: 'k9-entry-synthetic' }); api.syncViewState(store.getState());
   const draft = store.getState().filter.draft;
-  api.addKctToDraft(draft, window.JetUi.FILTER_KCT_CHECKLIST.find(card => card.letter === letter));
+  api.addCommonToDraft(draft, window.JetUi.FILTER_COMMON_CONDITIONS.find(item => item.key === card));
   const rule = draft.groups[0].rules[0]; assert.equal(rule.type, 'fieldValue');
-  assert.match(api.ruleControlsHtml(rule, 0, 0), /data-value-count/, 'KCT entry must render its count');
+  assert.match(api.ruleControlsHtml(rule, 0, 0), /data-value-count/, 'the card entry must render its count');
   api.render(dom.content, store.getState());
-  const selector = '[data-value-key="' + (letter === 'H' ? 'value' : 'values') + '"]';
+  const selector = '[data-value-key="' + (card === TRAILING ? 'value' : 'values') + '"]';
   const control = dom.content.querySelector(selector);
   const counter = dom.content.querySelector('[data-value-count]');
-  const submitted = () => { const wire = api.toWireDraft(draft).groups[0].rules[0]; return letter === 'H' ? wire.value : wire.values.join(','); };
+  const submitted = () => { const wire = api.toWireDraft(draft).groups[0].rules[0]; return card === TRAILING ? wire.value : wire.values.join(','); };
   const initial = submitted();
   assert.equal(counter.textContent, '已輸入 ' + (initial ? initial.split(',').length : 0) + ' 個值，上限 100');
   control.focus(); control.value = input; control.fire('input');
@@ -4551,19 +4617,21 @@ for (const [letter, input, expected] of [
   control.value = '  \n\t '; control.fire('input');
   assert.equal(counter.textContent, '已輸入 0 個值，上限 100');
   assert.equal(submitted(), '');
-  if (letter !== 'H') {
+  if (card !== TRAILING) {
     control.value = 'Alpha,alpha,Alpha'; control.fire('input');
     assert.equal(counter.textContent, '已輸入 2 個值，上限 100');
     assert.equal(submitted(), 'Alpha,alpha');
   }
 });
 
-const KCT_A_RATIONALE = 'A：期末前 X天內收入科目有迴轉分錄，表示收入認列過程中可能存在不適當的調整或更正(案件團隊須提供天數)';
-const KCT_B_RATIONALE = 'B：借記固定資產科目(如不動產、廠房和設備(PPE))但貸記營業費用或維修費用等費用科目之分錄組合不符合公司營業流程的瞭解，因此屬於為非預期的過帳，可能為舞弊類型分錄及其他調整的特質。';
-// C、D、E 的動機逐字照 docs/kct-gl-workflow.md，和 Gui 的 filter-kct-editing 情境原本寫死的文字相同（2026-10-15 S5 搬到這裡）。
-const KCT_C_RATIONALE = 'C：查核團隊已發現與收入科目相關的未預期或不尋常過帳(貸方為收入，但借方科目非為應收票據/帳款、預收貨款/合約負債)';
-const KCT_D_RATIONALE = 'D：根據查核核團隊的瞭解，收入科目的過帳一般是自動產生，如為人工分錄非屬正常營業流程的會計分錄';
-const KCT_E_RATIONALE = 'E：執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。';
+// 前五張卡的動機。2026-10-29 使用者裁定動機每行不再以字母開頭，原本每句前面有「字母：」；常數原本以小組名稱與字母命名。
+// 第一次失敗見本檔開頭 BLANK 上方的收據。
+const REVENUE_RATIONALE = '期末前 X天內收入科目有迴轉分錄，表示收入認列過程中可能存在不適當的調整或更正(案件團隊須提供天數)';
+const FIXED_ASSET_RATIONALE = '借記固定資產科目(如不動產、廠房和設備(PPE))但貸記營業費用或維修費用等費用科目之分錄組合不符合公司營業流程的瞭解，因此屬於為非預期的過帳，可能為舞弊類型分錄及其他調整的特質。';
+// 後三張卡的動機逐字照 docs/kct-gl-workflow.md，和 Gui 編輯常用篩選條件的情境原本寫死的文字相同（2026-10-15 S5 搬到這裡）。
+const COUNTERPART_RATIONALE = '查核團隊已發現與收入科目相關的未預期或不尋常過帳(貸方為收入，但借方科目非為應收票據/帳款、預收貨款/合約負債)';
+const MANUAL_REVENUE_RATIONALE = '根據查核核團隊的瞭解，收入科目的過帳一般是自動產生，如為人工分錄非屬正常營業流程的會計分錄';
+const PREPARER_RATIONALE = '執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。';
 test('acceptance comments remove duplicate period and population cards but preserve validation results', () => {
   const f = usageJourneyFixture('validate'), data = batch8ValidationData();
   f.store.setLastRun('validate', data); f.draw();
@@ -4820,7 +4888,7 @@ test('cancelling project metadata editing sends no write and preserves saved sce
 });
 
 test('editing then applying an example creates a new scenario, keeps metadata visible and preserves the original', async () => {
-  const f = filterOperationFixture({ saved: [savedG()] });
+  const f = filterOperationFixture({ saved: [savedBlankDescription()] });
   f.click('[data-action="edit-scenario"][data-index="0"]');
   assert.equal(f.draft().__editingIndex, 0);
   assert.equal(f.$('[data-save-panel]').hidden, false, 'metadata is always visible');
@@ -4832,106 +4900,116 @@ test('editing then applying an example creates a new scenario, keeps metadata vi
   // 現在看這次是新增（position 為 null）、請求不帶原情境，原情境在畫面清單裡不變。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
   assert.equal(f.commits.length, 1); assert.equal(f.commits[0].method, 'filterScenarioSave');
   assert.equal(f.commits[0].payload.position, null); assert.equal('scenarios' in f.commits[0].payload, false);
-  assert.equal(f.store.getState().filter.savedScenarios[0].name, 'G');
-  assert.deepEqual(plain(f.store.getState().filter.savedScenarios[0].groups), plain(savedG().groups));
+  // 共用夾具的預設名稱 2026-10-29 從字母改成卡片名稱（第一次失敗見本檔開頭 BLANK 上方的收據）。
+  assert.equal(f.store.getState().filter.savedScenarios[0].name, BLANK_NAME);
+  assert.deepEqual(plain(f.store.getState().filter.savedScenarios[0].groups), plain(savedBlankDescription().groups));
 });
 
 test('copying identical conditions and removing the copy resets and reloads matrix columns without changing the original', async () => {
-  const f = filterOperationFixture({ saved: [savedG()] }), matrix = [];
+  const f = filterOperationFixture({ saved: [savedBlankDescription()] }), matrix = [];
   f.store.setLastRun('validate', { resultRef: { runId: 'v1' }, completenessTest: { eligibility: { isEligible: true } } });
   f.store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' });
   f.window.JetApi.queryTagMatrixScenarios = payload => new Promise(resolve => matrix.push({ payload, resolve }));
   f.window.JetApi.queryTagMatrixVoucherPage = async () => ({ rows: [], nextCursor: null });
   f.window.JetApi.queryTagMatrixRowPage = async () => ({ rows: [], nextCursor: null });
   const answer = async names => { matrix.at(-1).resolve({ scenarios: names.map((name, i) => ({ position: i + 1, name, voucherHitCount: 1, rowHitCount: 2, summaryRowCount: 2 })) }); await settle(); };
-  f.click('[data-action="toggle-matrix"]'); await answer(['G']);
+  // 共用夾具的預設名稱 2026-10-29 從字母改成卡片名稱，合成矩陣與副本名稱跟著改（第一次失敗見本檔開頭 BLANK 上方的收據）。
+  f.click('[data-action="toggle-matrix"]'); await answer([BLANK_NAME]);
   assert.equal(f.$('[data-bind="matrix-body"]').getAttribute('data-loaded'), '1');
   f.click('[data-action="copy-scenario"][data-index="0"]'); f.click('[data-action="save-scenario"]'); await settle();
   // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。原本看整批的名稱與條件；
   // 現在看另存只送副本（加在最後），條件和原情境相同；合成回應照後端的形狀帶回整批。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
   assert.equal(f.commits[0].method, 'filterScenarioSave'); assert.equal(f.commits[0].payload.position, null);
-  assert.equal(f.commits[0].payload.scenario.name, 'G（副本）');
-  assert.deepEqual(plain(f.commits[0].payload.scenario.groups), plain(savedG().groups));
-  f.commits[0].resolve({ position: 2, savedCount: 2, scenarios: [savedG(), f.commits[0].payload.scenario],
+  assert.equal(f.commits[0].payload.scenario.name, BLANK_NAME + '（副本）');
+  assert.deepEqual(plain(f.commits[0].payload.scenario.groups), plain(savedBlankDescription().groups));
+  f.commits[0].resolve({ position: 2, savedCount: 2, scenarios: [savedBlankDescription(), f.commits[0].payload.scenario],
     resultRef: { revision: 'r2', populationScope: 'auditPeriod' } }); await settle();
   assert.equal(f.$('[data-bind="matrix-body"]').hidden, true);
   assert.equal(f.$('[data-bind="matrix-body"]').getAttribute('data-loaded'), null);
   assert.match(f.dom.content.textContent, /尚未產生目前版本的報告/);
-  f.click('[data-action="toggle-matrix"]'); await answer(['G', 'G（副本）']);
+  f.click('[data-action="toggle-matrix"]'); await answer([BLANK_NAME, BLANK_NAME + '（副本）']);
   f.click('[data-matrix-view="vouchers"]'); await settle();
   assert.equal(f.dom.content.querySelectorAll('[data-bind="matrix-vouchers"] .filter-matrix-name').length, 2);
   f.click('[data-action="remove-scenario"][data-index="1"]'); f.click('[data-action="confirm-remove-scenario"][data-index="1"]'); await settle();
   assert.equal(f.commits[1].method, 'filterScenarioRemove'); assert.equal(f.commits[1].payload.position, 2);
-  f.commits[1].resolve({ position: null, savedCount: 1, scenarios: [savedG()], resultRef: { revision: 'r3', populationScope: 'auditPeriod' } }); await settle();
+  f.commits[1].resolve({ position: null, savedCount: 1, scenarios: [savedBlankDescription()], resultRef: { revision: 'r3', populationScope: 'auditPeriod' } }); await settle();
   assert.equal(f.$('[data-bind="matrix-body"]').hidden, true);
   assert.equal(f.$('[data-bind="matrix-body"]').getAttribute('data-loaded'), null);
-  f.click('[data-action="toggle-matrix"]'); await answer(['G']);
+  f.click('[data-action="toggle-matrix"]'); await answer([BLANK_NAME]);
   f.click('[data-matrix-view="vouchers"]'); await settle();
   assert.equal(f.dom.content.querySelectorAll('[data-bind="matrix-vouchers"] .filter-matrix-name').length, 1);
-  assert.deepEqual(plain(f.store.getState().filter.savedScenarios[0].groups), plain(savedG().groups));
+  assert.deepEqual(plain(f.store.getState().filter.savedScenarios[0].groups), plain(savedBlankDescription().groups));
   assert.equal(matrix.length, 3);
 });
 
 test('removing the active condition group keeps the other group and leaves saved scenarios unchanged', () => {
-  const f = filterOperationFixture({ saved: [savedG()] });
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="add-set"]'); f.click('[data-kct-letter="H"]');
+  const f = filterOperationFixture({ saved: [savedBlankDescription()] });
+  f.click(cardSelector(BLANK)); f.click('[data-action="add-set"]'); f.click(cardSelector(TRAILING));
   assert.equal(f.draft().groups.length, 2);
   f.click('[data-action="remove-set"][data-gi="1"]');
-  // 第九節 G2：用欄位與比較方式辨識 G。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+  // 第九節 G2：用欄位與比較方式辨識空白摘要卡的條件。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
   assert.equal(f.draft().groups.length, 1); assert.equal(f.draft().groups[0].rules[0].field, 'description');
   assert.equal(f.draft().groups[0].rules[0].operator, 'isBlank');
   assert.equal(f.dom.content.querySelectorAll('[data-action="remove-set"]').length, 0);
   assert.equal(f.store.getState().filter.savedScenarios.length, 1); assert.equal(f.commits.length, 0);
 });
 
-test('clicking A off, B on, B off and A on keeps the card, name and rationale inputs in step', () => {
+// 2026-10-29：測試名稱原本以字母稱呼這兩張卡；卡片改用代號點選；名稱期望值原本是字母與字母串接，改成卡片名稱與依加入順序以頓號相接；
+// 動機原本每行以字母開頭，改成不加字母。第一次失敗見本檔開頭 BLANK 上方的收據。
+const REVENUE_NAME = '在該季度前 X 天借記收入的會計分錄', FIXED_ASSET_NAME = '借記固定資產(PPE，不含在建)且貸記費用之分錄';
+test('clicking the revenue card off, the fixed-asset card on and off, and the revenue card on again keeps the card, name and rationale inputs in step', () => {
   const f = filterOperationFixture();
-  f.click('[data-kct-letter="A"]'); 
+  f.click(cardSelector(REVENUE));
   // 合成 DOM 的文字區塊以內文呈現，重繪後尚未被程式改寫時讀內文。
   const shown = node => node.value || node.textContent;
-  const read = () => [f.pressed('A'), f.pressed('B'), f.$('[data-bind="scenario-name"]').value, shown(f.$('[data-bind="scenario-rationale"]'))];
-  assert.deepEqual(read(), [true, false, 'A', KCT_A_RATIONALE]);
-  f.click('[data-kct-letter="A"]'); assert.deepEqual(read(), [false, false, '', '']);
-  f.click('[data-kct-letter="B"]'); assert.deepEqual(read(), [false, true, 'B', KCT_B_RATIONALE]);
-  f.click('[data-kct-letter="B"]'); assert.deepEqual(read(), [false, false, '', '']);
-  f.click('[data-kct-letter="A"]'); assert.deepEqual(read(), [true, false, 'A', KCT_A_RATIONALE]);
-  f.click('[data-kct-letter="B"]'); assert.deepEqual(read(), [true, true, 'A+B', KCT_A_RATIONALE + '\n' + KCT_B_RATIONALE]);
+  const read = () => [f.pressed(REVENUE), f.pressed(FIXED_ASSET), f.$('[data-bind="scenario-name"]').value, shown(f.$('[data-bind="scenario-rationale"]'))];
+  assert.deepEqual(read(), [true, false, REVENUE_NAME, REVENUE_RATIONALE]);
+  f.click(cardSelector(REVENUE)); assert.deepEqual(read(), [false, false, '', '']);
+  f.click(cardSelector(FIXED_ASSET)); assert.deepEqual(read(), [false, true, FIXED_ASSET_NAME, FIXED_ASSET_RATIONALE]);
+  f.click(cardSelector(FIXED_ASSET)); assert.deepEqual(read(), [false, false, '', '']);
+  f.click(cardSelector(REVENUE)); assert.deepEqual(read(), [true, false, REVENUE_NAME, REVENUE_RATIONALE]);
+  f.click(cardSelector(FIXED_ASSET)); assert.deepEqual(read(), [true, true, REVENUE_NAME + '、' + FIXED_ASSET_NAME, REVENUE_RATIONALE + '\n' + FIXED_ASSET_RATIONALE]);
 });
 
-// 使用者 2026-10-15 在待決事項勾選頁選 S5：Gui 的 filter-kct-editing 情境原本逐張點 A 到 E 核對單張動機，B 卡另外核對加入的條件，
+// 使用者 2026-10-15 在待決事項勾選頁選 S5：Gui 編輯常用篩選條件的情境原本逐張點前五張卡核對單張動機，固定資產與費用那張卡另外核對加入的條件，
 // 再點一次取消，共 10 次操作。改在這裡逐張點擊核對同一件事，之後刪掉那 10 次 Gui 操作。
-test('clicking each KCT card A to E alone fills its own rationale, B adds its account category pair, and clicking again removes it', () => {
+// 2026-10-29：測試名稱原本以小組名稱與字母稱呼這些卡，改名照 GuiScenarioCoverageTests 鎖住的新名稱；卡片改用代號點選、身分標記改記代號，
+// 動機期望值不再以字母開頭。第一次失敗見本檔開頭 BLANK 上方的收據。
+test('clicking each card with a default rationale alone fills its own rationale, the fixed-asset card adds its account category pair, and clicking again removes it', () => {
   const f = filterOperationFixture();
-  const expected = { A: KCT_A_RATIONALE, B: KCT_B_RATIONALE, C: KCT_C_RATIONALE, D: KCT_D_RATIONALE, E: KCT_E_RATIONALE };
-  for (const letter of ['A', 'B', 'C', 'D', 'E']) {
-    f.click('[data-kct-letter="' + letter + '"]');
-    assert.equal(f.draft().rationale, expected[letter], letter);
-    assert.equal(f.pressed(letter), true, letter + ' is marked as added');
-    if (letter === 'B') {
+  const expected = { [REVENUE]: REVENUE_RATIONALE, [FIXED_ASSET]: FIXED_ASSET_RATIONALE, revenueWithoutNormalCounterpart: COUNTERPART_RATIONALE,
+    manualRevenueEntry: MANUAL_REVENUE_RATIONALE, specificPreparer: PREPARER_RATIONALE };
+  for (const key of Object.keys(expected)) {
+    f.click(cardSelector(key));
+    assert.equal(f.draft().rationale, expected[key], key);
+    assert.equal(f.pressed(key), true, key + ' is marked as added');
+    if (key === FIXED_ASSET) {
       const rule = f.draft().groups[0].rules[0];
-      assert.deepEqual([rule.__kctLetter, rule.type], ['B', 'specialAccountCategoryPair']);
+      assert.deepEqual([rule.__commonCard, rule.type], [FIXED_ASSET, 'specialAccountCategoryPair']);
     }
-    f.click('[data-kct-letter="' + letter + '"]');
-    assert.equal(f.draft().groups.flatMap(group => group.rules).length, 0, letter + ' is removed by the second click');
-    assert.equal(f.pressed(letter), false, letter);
+    f.click(cardSelector(key));
+    assert.equal(f.draft().groups.flatMap(group => group.rules).length, 0, key + ' is removed by the second click');
+    assert.equal(f.pressed(key), false, key);
   }
 });
 
-test('F1 an automatic KCT name already used by a saved scenario gets a number and saves', async () => {
-  const f = filterOperationFixture({ saved: [savedG()] });
-  f.click('[data-kct-letter="G"]'); 
-  assert.equal(f.$('[data-bind="scenario-name"]').value, 'G 2');
+// 2026-10-29：測試名稱原本帶小組名稱，改名照 GuiScenarioCoverageTests 鎖住的新名稱；名稱期望值原本是字母加數字，改成卡片名稱加數字。
+// 第一次失敗見本檔開頭 BLANK 上方的收據。
+test('F1 an automatic card name already used by a saved scenario gets a number and saves', async () => {
+  const f = filterOperationFixture({ saved: [savedBlankDescription()] });
+  f.click(cardSelector(BLANK));
+  assert.equal(f.$('[data-bind="scenario-name"]').value, BLANK_NAME + ' 2');
   f.click('[data-action="save-scenario"]'); await settle();
   assert.equal(f.commits.length, 1);
-  // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。原本看整批名稱是 G 與 G 2；
-  // 現在看新增的這一個叫 G 2、加在最後。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
+  // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。原本看整批名稱是原名與原名加 2；
+  // 現在看新增的這一個叫原名加 2、加在最後。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
   assert.equal(f.commits[0].method, 'filterScenarioSave'); assert.equal(f.commits[0].payload.position, null);
-  assert.equal(f.commits[0].payload.scenario.name, 'G 2');
+  assert.equal(f.commits[0].payload.scenario.name, BLANK_NAME + ' 2');
 });
 
 test('F2 a duplicate name is explained beside the save button and nothing is sent', async () => {
-  const f = filterOperationFixture({ saved: [savedG('季底檢查')] });
-  f.click('[data-kct-letter="G"]'); 
+  const f = filterOperationFixture({ saved: [savedBlankDescription('季底檢查')] });
+  f.click(cardSelector(BLANK));
   f.type('[data-bind="scenario-name"]', ' 季底檢查 ');
   f.click('[data-action="save-scenario"]'); await settle();
   assert.equal(f.commits.length, 0);
@@ -4939,8 +5017,8 @@ test('F2 a duplicate name is explained beside the save button and nothing is sen
 });
 
 test('F2 the ten-scenario limit is shown beside the save button without a completed message', async () => {
-  const f = filterOperationFixture({ saved: Array.from({ length: 10 }, (_, i) => savedG('S' + (i + 1))) });
-  f.click('[data-kct-letter="G"]'); 
+  const f = filterOperationFixture({ saved: Array.from({ length: 10 }, (_, i) => savedBlankDescription('S' + (i + 1))) });
+  f.click(cardSelector(BLANK));
   f.click('[data-action="save-scenario"]'); await settle(); await settle();
   assert.equal(f.commits.length, 0);
   assert.equal(f.notice(), SCENARIO_LIMIT_MESSAGE);
@@ -4949,21 +5027,23 @@ test('F2 the ten-scenario limit is shown beside the save button without a comple
 
 test('F2 a backend failure without a row position is shown beside the save button', async () => {
   const f = filterOperationFixture();
-  f.click('[data-kct-letter="G"]'); 
+  f.click(cardSelector(BLANK));
   f.click('[data-action="save-scenario"]'); await settle();
-  f.commits[0].reject(Object.assign(new Error('情境名稱重複：「G」。'), { code: 'invalid_scenario', details: null }));
+  // 合成的後端原因句裡的名稱 2026-10-29 跟著自動名稱從字母改成卡片名稱。
+  f.commits[0].reject(Object.assign(new Error('情境名稱重複：「' + BLANK_NAME + '」。'), { code: 'invalid_scenario', details: null }));
   await settle(); await settle();
-  assert.equal(f.notice(), '儲存失敗：情境名稱重複：「G」。');
+  assert.equal(f.notice(), '儲存失敗：情境名稱重複：「' + BLANK_NAME + '」。');
 });
 
-// 第九節 G2：換比較方式後撤銷 G 身分，原本的身分與命名斷言不變。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
-test('F3 changing the G row to another field comparison stops counting it as card G', () => {
+// 第九節 G2：換比較方式後撤銷空白摘要卡的身分，原本的身分與命名斷言不變。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+// 2026-10-29：測試名稱原本以字母稱呼這張卡；身分標記改記代號；名稱比對的舊自動名稱原本是字母，改成卡片名稱（第一次失敗見本檔開頭 BLANK 上方的收據）。
+test('F3 changing the blank description row to another field comparison stops counting it as that card', () => {
   const f = filterOperationFixture();
-  f.click('[data-kct-letter="G"]'); 
+  f.click(cardSelector(BLANK));
   f.choose('.rule-row[data-gi="0"][data-ri="0"] [data-value-kind]', 'contains');
-  assert.equal(f.pressed('G'), false);
-  assert.equal(f.draft().groups[0].rules[0].__kctLetter, undefined);
-  assert.notEqual(f.$('[data-bind="scenario-name"]').value, 'G');
+  assert.equal(f.pressed(BLANK), false);
+  assert.equal(f.draft().groups[0].rules[0].__commonCard, undefined);
+  assert.notEqual(f.$('[data-bind="scenario-name"]').value, BLANK_NAME);
   const rationale = f.$('[data-bind="scenario-rationale"]');
   assert.doesNotMatch(rationale.value || rationale.textContent, /空白摘要/);
 });
@@ -4971,7 +5051,7 @@ test('F3 changing the G row to another field comparison stops counting it as car
 test('F6 a backend error after an empty group is marked on the row the auditor sees', async () => {
   const f = filterOperationFixture();
   f.click('[data-action="add-set"]');
-  f.click('[data-kct-letter="G"]');
+  f.click(cardSelector(BLANK));
   assert.equal(f.draft().groups.length, 2); assert.equal(f.draft().groups[0].rules.length, 0);
   f.click('[data-action="save-scenario"]'); await settle();
   f.commits[0].reject(Object.assign(new Error('第 1 組第 1 條：合成錯誤。'), { code: 'invalid_scenario',
@@ -4986,7 +5066,7 @@ test('F6 a backend error after an empty group is marked on the row the auditor s
 // 2026-10-13 第五步一次只存或刪一個情境（使用者對「情境卡住」選「本計畫內修好」）：儲存、移除與重新檢查只送正在處理的
 // 那一個情境，其他情境由後端照資料庫原樣保留；錯誤只標在它所屬的情境。這幾支記錄每個送出的請求與方法名稱。
 function oneAtATimeFixture() {
-  const f = filterOperationFixture({ saved: [savedG('情境甲'), savedG('情境乙'), savedG('情境丙')] });
+  const f = filterOperationFixture({ saved: [savedBlankDescription('情境甲'), savedBlankDescription('情境乙'), savedBlankDescription('情境丙')] });
   const sent = [];
   f.window.JetApi = contractJetApi(new Proxy({}, { get: (_, method) => payload =>
     new Promise((resolve, reject) => sent.push({ method, payload, resolve, reject })) }));
@@ -5141,7 +5221,7 @@ test('one at a time: a screen list that no longer matches is explained beside th
 
 // 以下取代 2026-10-13 刪除的四個原始碼比對測試（依第一項測試計畫第 3.2 節：產品改動弄壞已排定行為化的字串測試時，
 // 當場寫行為測試再刪除）：FilterAstFrontendContractTests.SharedWireProjection_PreservesMatchScopeAndValuesArrayWhileRemovingUiMetadata、
-// FilterKctMetadataFrontendTests.PreviewCommitResaveAndRemove_AllUseTheSharedScenarioProjection、
+// 當時檢查卡片情境名稱與來源的 C# 測試類別的 PreviewCommitResaveAndRemove_AllUseTheSharedScenarioProjection、
 // FilterPopulationScopeMirrorTests.FilterActions_AlwaysSendAuditScopeAndRejectLatePreviewAcrossDraftChanges、
 // FilterTemplatesFrontendTests.InvalidScenarioDetails_AreMarkedOnTheRuleRow。四個方法的第一次失敗：Public 收據
 // 20261013-103826650-632ded11dde247d0b97d4e5ea6dd63bf。儲存、移除與重新檢查的送出形狀見上面幾支 one at a time 測試。
@@ -5176,8 +5256,9 @@ test('shared projection: draft preview, saving and saved-scenario preview keep m
   assert.notEqual(savedPreview, preview, 'opening a saved scenario previews it');
   assert.equal(savedPreview.payload.populationScope, 'auditPeriod');
   assert.equal(savedPreview.payload.scenario.name, '情境甲');
-  assert.equal(savedPreview.payload.scenario.source, 'kct');
-  assert.deepEqual(plain(savedPreview.payload.scenario.groups), plain(savedG().groups));
+  // 來源代碼 2026-10-29 改成 common（第一次失敗見本檔開頭 BLANK 上方的收據）。
+  assert.equal(savedPreview.payload.scenario.source, 'common');
+  assert.deepEqual(plain(savedPreview.payload.scenario.groups), plain(savedBlankDescription().groups));
   assert.equal(JSON.stringify(savedPreview.payload).includes('"__'), false);
 });
 
@@ -5274,13 +5355,14 @@ function namingFixture() {
   // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('naming', ['refreshAutomaticMetadata', 'addKctToDraft', 'removeKctFromActiveGroup', 'applyTemplate', 'toWireScenario', 'toWireDraft', 'syncViewState'])), context);
+    filterStepExposure('naming', ['refreshAutomaticMetadata', 'addCommonToDraft', 'removeCommonFromActiveGroup', 'applyTemplate', 'toWireScenario', 'toWireDraft', 'syncViewState'])), context);
   const store = window.JetStore, api = window.naming;
   store.setProject({ projectId: 'naming-synthetic' }); api.syncViewState(store.getState());
-  const card = letter => window.JetUi.FILTER_KCT_CHECKLIST.find(x => x.letter === letter);
-  function toggle(letter, remove = false) {
+  // 卡片以代號識別（2026-10-29 拿掉卡片字母，函式與常數也改名，原本依字母找卡片）。
+  const card = key => window.JetUi.FILTER_COMMON_CONDITIONS.find(x => x.key === key);
+  function toggle(key, remove = false) {
     const draft = store.getState().filter.draft;
-    api[remove ? 'removeKctFromActiveGroup' : 'addKctToDraft'](draft, card(letter));
+    api[remove ? 'removeCommonFromActiveGroup' : 'addCommonToDraft'](draft, card(key));
     api.refreshAutomaticMetadata(draft, true); store.setFilterDraft(draft);
     return draft;
   }
@@ -5292,25 +5374,30 @@ function namingFixture() {
   return { window, store, api, toggle, amountAbove };
 }
 
-test('a KCT card and a custom condition in one group are both named (2026-10-07 ruling)', () => {
-  const f = namingFixture(), draft = f.toggle('G');
+// 使用者 2026-10-07 裁定卡片與自訂條件同組時兩者都要寫進名稱與動機；當時名稱寫成字母加「+自訂」，動機每行以字母開頭。
+// 使用者 2026-10-29 裁定名稱改用和自訂條件相同的寫法（依加入順序列出前兩項，超過兩項加總數），動機不再加字母。
+// 測試名稱原本帶小組名稱與舊裁定日期，名稱與動機的期望值改成新寫法；第一次失敗見本檔開頭 BLANK 上方的收據。
+test('a card and a custom condition in one group are both named (2026-10-29 ruling)', () => {
+  const f = namingFixture(), draft = f.toggle(BLANK);
   draft.groups[0].rules.push(f.amountAbove('40000')); f.api.refreshAutomaticMetadata(draft, true);
-  assert.equal(draft.name, 'G+自訂');
-  assert.equal(draft.rationale, 'G：空白摘要\n自訂：金額絕對值 大於「40000」；空白不列入');
-  f.toggle('H');
-  assert.equal(draft.name, 'G+H+自訂');
+  assert.equal(draft.name, BLANK_NAME + '、金額絕對值 大於「40000」');
+  assert.equal(draft.rationale, BLANK_NAME + '\n自訂：金額絕對值 大於「40000」；空白不列入');
+  f.toggle(TRAILING);
+  assert.equal(draft.name, BLANK_NAME + '、金額絕對值 大於「40000」等3項條件');
 });
 
-test('F3 changing the I bracket child stops counting it as card I, filled values keep A and H', () => {
-  const f = namingFixture(), draft = f.toggle('I');
+// 2026-10-29：測試名稱原本以字母稱呼這三張卡；身分標記與編輯來源改記代號（原本記字母）；名稱期望值原本是字母串接，
+// 改成依加入順序以頓號接卡片名稱。第一次失敗見本檔開頭 BLANK 上方的收據。
+test('F3 changing the non-business-day bracket child stops counting it as that card, filled values keep the revenue and trailing digit cards', () => {
+  const f = namingFixture(), draft = f.toggle(NON_BUSINESS);
   draft.groups[0].rules[0].rules[0].operator = 'isWeekend'; f.api.refreshAutomaticMetadata(draft, false);
-  assert.equal(draft.groups[0].rules[0].__kctLetter, undefined);
-  assert.equal(f.api.toWireDraft(draft).editorOrigins.groups[0].letters[0], null);
-  const kept = namingFixture(), values = kept.toggle('A'); kept.toggle('H');
+  assert.equal(draft.groups[0].rules[0].__commonCard, undefined);
+  assert.equal(f.api.toWireDraft(draft).editorOrigins.groups[0].cards[0], null);
+  const kept = namingFixture(), values = kept.toggle(REVENUE); kept.toggle(TRAILING);
   values.groups[0].rules[0].windowDays = '10'; values.groups[0].rules[1].keywords = '999999';
   kept.api.refreshAutomaticMetadata(values, false);
-  assert.deepEqual(plain(values.groups[0].rules.map(r => r.__kctLetter)), ['A', 'H']);
-  assert.equal(values.name, 'A+H');
+  assert.deepEqual(plain(values.groups[0].rules.map(r => r.__commonCard)), [REVENUE, TRAILING]);
+  assert.equal(values.name, '在該季度前 X 天借記收入的會計分錄、' + TRAILING_NAME);
 });
 
 test('example text stays while values are filled and turns automatic once conditions are added or removed', () => {
@@ -5321,13 +5408,13 @@ test('example text stays while values are filled and turns automatic once condit
   draft.groups[0].rules[1].values = ['2025-12-31']; f.api.refreshAutomaticMetadata(draft, false);
   assert.equal(draft.name, '非營業日且排除指定日期');
   assert.equal(draft.rationale, '非營業日過帳的分錄，另排除個案已知的例外日期。');
-  f.toggle('I', true);
+  f.toggle(NON_BUSINESS, true);
   assert.notEqual(draft.name, '非營業日且排除指定日期');
   assert.notEqual(draft.rationale, '非營業日過帳的分錄，另排除個案已知的例外日期。');
   f.api.applyTemplate('nonBusinessDayExcludingDates');
   const edited = f.store.getState().filter.draft;
   f.store.patchFilterDraftMeta({ name: '審計員自訂名稱', __nameDirty: true, __templateName: false });
-  f.toggle('G');
+  f.toggle(BLANK);
   assert.equal(edited.name, '審計員自訂名稱');
   assert.notEqual(edited.rationale, '非營業日過帳的分錄，另排除個案已知的例外日期。');
 });
@@ -5347,7 +5434,7 @@ test('F4 an old saved scenario without naming origins is sent back without inven
 });
 
 test('F7 a replaced draft starts without the changed-conditions hint', () => {
-  const f = namingFixture(), draft = f.toggle('G');
+  const f = namingFixture(), draft = f.toggle(BLANK);
   f.store.setFilterPreview({ count: 1 });
   f.store.setFilterDraft(draft);
   assert.equal(f.store.getState().filter.previewExpired, true, 'the same draft changed after a preview');
@@ -5357,9 +5444,9 @@ test('F7 a replaced draft starts without the changed-conditions hint', () => {
 
 // 使用者 2026-10-07 裁定：會讓篩選結果過期的上游修改清除後面步驟的篩選情境，前面步驟只用一句話提醒。
 test('an upstream change that clears filter scenarios resets step 5 and logs one short message', () => {
-  const f = namingFixture(), draft = f.toggle('G');
-  f.store.setSavedScenarios([savedG()]);
-  f.store.applyFilterCommit({ scenarios: [savedG()], resultRef: { revision: 'r1' } }, null, false);
+  const f = namingFixture(), draft = f.toggle(BLANK);
+  f.store.setSavedScenarios([savedBlankDescription()]);
+  f.store.applyFilterCommit({ scenarios: [savedBlankDescription()], resultRef: { revision: 'r1' } }, null, false);
   f.store.setFilterPreview({ count: 2 });
   assert.equal(draft.groups.length, 1);
   f.store.applyMutationEffects({ invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true } });
@@ -5378,8 +5465,8 @@ test('an upstream change that clears filter scenarios resets step 5 and logs one
 
 // TB now follows GL by the 2026-10-07 ruling; initial policy failure: 20261007-082053783-19b83716af8c44478af22300b8a3d95c.
 test('a trial-balance change clears the saved filter scenarios and draft', () => {
-  const f = namingFixture(); f.toggle('G');
-  f.store.setSavedScenarios([savedG()]);
+  const f = namingFixture(); f.toggle(BLANK);
+  f.store.setSavedScenarios([savedBlankDescription()]);
   f.store.applyMutationEffects({ invalidatedResults: { validation: true, prescreen: true, filter: true, filterScenarios: true } });
   assert.equal(f.store.getState().filter.savedScenarios.length, 0);
   assert.equal(f.store.getState().filter.draft.groups.length, 0);
@@ -5388,7 +5475,7 @@ test('a trial-balance change clears the saved filter scenarios and draft', () =>
 test('earlier steps show one plain sentence only while filter scenarios exist', () => {
   const f = namingFixture();
   assert.equal(f.window.JetUi.downstreamResetNoticeHtml(f.store.getState()), '');
-  f.store.setSavedScenarios([savedG()]);
+  f.store.setSavedScenarios([savedBlankDescription()]);
   assert.match(f.window.JetUi.downstreamResetNoticeHtml(f.store.getState()), />更改已設定好的資料，會清除後面步驟的設定。</);
   for (const file of ['steps/import-step.js', 'steps/mapping-step.js', 'steps/validate-step.js', 'steps/create-step.js'])
     assert.match(fs.readFileSync(path.join(root, file), 'utf8'), /Ui\.downstreamResetNoticeHtml\(/, file);
@@ -5462,7 +5549,7 @@ test('remap S2-02 TB card and both import modes explain the same-period boundary
 test('remap X-05 mutation handlers do not duplicate the reset message or log one for an empty step five', async () => {
   const f = usageJourneyFixture('mapping'); f.store.setSavedScenarios([]); prepareUsageMapping(f, 'tb');
   for (let pass = 0; pass < 3; pass++) {
-    if (pass === 1) f.store.setSavedScenarios([savedG()]);
+    if (pass === 1) f.store.setSavedScenarios([savedBlankDescription()]);
     f.draw(); if (f.$('[data-action="remap-tb"]')) { f.click('[data-action="remap-tb"]'); f.draw(); }
     f.click('[data-action="commit-tb"]'); f.request('mappingCommitTb').resolve({ projectedRowCount: 2, ...usageEffects(true) }); await settle();
     assert.equal(f.state.filter.savedScenarios.length, 0); assert.equal(f.state.filter.draft.groups.length, 0);
@@ -5471,7 +5558,7 @@ test('remap X-05 mutation handlers do not duplicate the reset message or log one
 });
 
 test('remap X-06 preparation date form consumes the authoritative clearing response', async () => {
-  const f = projectMetadataFixture(syntheticMetadata()); f.store.setSavedScenarios([savedG()]);
+  const f = projectMetadataFixture(syntheticMetadata()); f.store.setSavedScenarios([savedBlankDescription()]);
   let page = f.render(); page.click('edit-project-metadata'); page = f.render();
   page.input('lastPeriodStart', '2024-02-20'); page.submit(); assert.equal(f.updates.length, 1);
   assert.equal(f.updates[0].payload.lastPeriodStart, '2024-02-20');
@@ -5623,7 +5710,7 @@ test('remap overview uses the same completed progress as the sidebar and does no
   const f = remapAppFixture(); f.store.setProject({ projectId: 'Synthetic case', caseName: 'Synthetic case', entityName: '', periodStart: '2025-01-01', periodEnd: '2025-11-30' });
   for (const kind of ['gl', 'tb']) { f.store.setImportResult(kind, { batchId: kind, rowCount: 2, columns: ['Account'] }); f.store.setMappingCommitted(kind, { mapping: {}, mode: kind === 'gl' ? 'signed' : 'direct' }); }
   f.store.setLastRun('validate', { resultRef: { runId: 'v1' }, completenessTest: { eligibility: { isEligible: true } } });
-  f.store.setSavedScenarios([savedG()]); f.store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' });
+  f.store.setSavedScenarios([savedBlankDescription()]); f.store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' });
   for (const stale of [false, true]) {
     f.store.setReportArtifacts([remapPaper('current', stale)]); const overview = f.dom.element(); overview.innerHTML = f.app.overviewHtml(f.state); f.app.renderStepNav(f.state, f.store.STEPS);
     const completed = stale ? 5 : 6; assert.match(f.$('.toc-progress').textContent, new RegExp('進度 ' + completed + '/6'));
@@ -5802,7 +5889,7 @@ test('remap S6-06 cancellation through the actual export button retains a comple
 
 test('remap S5-18 applying an example replaces all existing conditions and focuses the first missing value', () => {
   const f = filterOperationFixture(), deferred = []; f.window.JetFocus.defer = fn => deferred.push(fn);
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="add-set"]'); f.click('[data-kct-letter="H"]'); assert.equal(f.draft().groups.length, 2); const oldRationale = f.draft().rationale;
+  f.click(cardSelector(BLANK)); f.click('[data-action="add-set"]'); f.click(cardSelector(TRAILING)); assert.equal(f.draft().groups.length, 2); const oldRationale = f.draft().rationale;
   // 使用者 2026-10-11 裁定：還沒儲存的條件被範例換掉前先詢問。這裡選「不儲存，直接套用」，其餘核對不變。
   // 第一次失敗：20261011-032026332-6d4b2b2cebce4d8eaf343a490c8b8c46。
   f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
@@ -5820,8 +5907,10 @@ test('remap S5-18 applying an example replaces all existing conditions and focus
 
 test('remap S5-22 an unavailable department example preserves a populated draft and explains the missing field locally', () => {
   // 使用者 2026-10-08 要求重新設計自訂篩選條件：範例移到「從範例開始」；沒有文字型攸關資料元素欄位時直接停用並在該項下方寫原因。
-  const f = filterOperationFixture(); f.click('[data-kct-letter="G"]'); const before = f.draft(), json = JSON.stringify(before);
-  f.click('[data-action="toggle-examples"]');
+  const f = filterOperationFixture(); f.click(cardSelector(BLANK)); const before = f.draft(), json = JSON.stringify(before);
+  // 2026-10-29 拿掉「從範例開始」按鈕，範例一直列在「常用篩選條件」分頁；原本先按那顆按鈕，改成確認清單已經列出。
+  // 第一次失敗見本檔開頭 BLANK 上方的收據。
+  assert.equal(f.$('[data-example-list]').hidden, false, 'the examples are listed without opening anything');
   const example = f.$('[data-template-key="manualDepartment"]');
   assert.equal(example.disabled, true); assert.equal(example.getAttribute('data-action'), null);
   example.fire('click');
@@ -5830,7 +5919,7 @@ test('remap S5-22 an unavailable department example preserves a populated draft 
 });
 
 for (const action of ['copy-scenario', 'edit-scenario']) test('remap S5-27 ten saved scenarios ' + (action === 'copy-scenario' ? 'block a copy locally' : 'still allow updating one existing scenario'), async () => {
-  const f = filterOperationFixture({ saved: Array.from({ length: 10 }, (_, i) => savedG('S' + (i + 1))) });
+  const f = filterOperationFixture({ saved: Array.from({ length: 10 }, (_, i) => savedBlankDescription('S' + (i + 1))) });
   f.click('[data-action="' + action + '"][data-index="0"]'); 
   if (action === 'edit-scenario') f.type('[data-bind="scenario-name"]', 'Renamed existing');
   f.click('[data-action="save-scenario"]'); await settle();
@@ -5845,18 +5934,18 @@ for (const action of ['copy-scenario', 'edit-scenario']) test('remap S5-27 ten s
 });
 
 async function remapSuccessfulPreview(f) {
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="preview-scenario"]');
+  f.click(cardSelector(BLANK)); f.click('[data-action="preview-scenario"]');
   f.request('filterPreview').resolve({ scenario: { count: 123, voucherCount: 1, summaryRowCount: 123, populationScope: 'auditPeriod' } }); await settle();
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [{ documentNumber: 'SYNTHETIC-JV', postDate: '2025-01-01', hitRowCount: 123, totalRowCount: 124, voucherTotal: 0 }], nextCursor: null }); await settle();
 }
 
 test('remap S5-23 changed conditions replace old preview counts with an update reminder', async () => {
   const f = remapFilterPreviewFixture(); await remapSuccessfulPreview(f); assert.match(f.dom.content.textContent, /123/);
-  f.click('[data-kct-letter="H"]'); assert.match(f.dom.content.textContent, /條件已變更.*更新結果/); assert.doesNotMatch(f.$('[data-bind="preview-pane-body"]').textContent, /123/);
+  f.click(cardSelector(TRAILING)); assert.match(f.dom.content.textContent, /條件已變更.*更新結果/); assert.doesNotMatch(f.$('[data-bind="preview-pane-body"]').textContent, /123/);
 });
 
 test('remap S5-23 a rejected preview marks the backend identified rule and reason', async () => {
-  const f = remapFilterPreviewFixture(); f.click('[data-kct-letter="G"]'); f.click('[data-action="preview-scenario"]');
+  const f = remapFilterPreviewFixture(); f.click(cardSelector(BLANK)); f.click('[data-action="preview-scenario"]');
   f.request('filterPreview').reject({ code: 'invalid_scenario', message: '合成預覽拒絕', details: [{ group: 1, rule: 1, message: '合成錯誤。' }] }); await settle();
   const row = f.$('.rule-row[data-gi="0"][data-ri="0"]'); assert.equal(row.classList.contains('rule-row--invalid'), true); assert.equal(row.querySelector('[data-rule-error]').textContent, '合成錯誤。');
 });
@@ -5868,6 +5957,33 @@ test('remap S5-23 expanding a voucher requests two hundred rows and labels hits 
   req.resolve({ rows: [{ lineItem: '1', isHit: true, amount: 10 }, { lineItem: '2', isHit: false, amount: -10 }], nextCursor: null }); await settle();
   const rows = f.dom.content.querySelectorAll('.voucher-details tbody tr'); assert.equal(rows.length, 2);
   assert.match(rows[0].textContent, /符合條件的分錄/); assert.match(rows[1].textContent, /參考分錄/);
+});
+
+// 2026-10-30 結案前的獨立複審查到：2026-10-29「查看分錄」改成開關、明細標題本身可以收合、拿掉明細底部的收合按鈕，
+// 焦點在列上的按鈕與明細標題之間移動，這些都沒有測試。這是新增的測試；JetFocus 改成重畫之後才聚焦，才看得到焦點落點。
+test('remap S5-23 the voucher entries open and close from the row button or the detail title, and focus follows', async () => {
+  const f = remapFilterPreviewFixture(); await remapSuccessfulPreview(f);
+  f.window.JetFocus = { defer(target) { Promise.resolve().then(() => { const node = target(); if (node && node.focus) node.focus(); }); } };
+  const rowButton = () => f.$('[data-voucher-open="0"]');
+  const openEntries = async () => {
+    rowButton().onclick();
+    f.request('queryFilterVoucherRowsPage').resolve({ rows: [{ lineItem: '1', isHit: true, amount: 10 }], nextCursor: null }); await settle();
+  };
+  await openEntries();
+  const title = f.$('[data-detail-close]');
+  assert.equal(title.textContent, '傳票 SYNTHETIC-JV 的分錄');
+  assert.equal(title.getAttribute('aria-expanded'), 'true');
+  assert.equal(rowButton().getAttribute('aria-expanded'), 'true');
+  assert.equal(f.dom.document.activeElement, title, 'opening moves focus to the detail title');
+  assert.equal(f.dom.content.querySelectorAll('.voucher-details button').filter(button => /收合/.test(button.textContent)).length, 0, 'no separate collapse button');
+  title.onclick(); await settle();
+  assert.ok(!f.$('.voucher-details'), 'the detail title collapses the entries');
+  assert.equal(rowButton().getAttribute('aria-expanded'), 'false');
+  assert.equal(f.dom.document.activeElement, rowButton(), 'focus returns to the row button');
+  await openEntries();
+  rowButton().onclick(); await settle();
+  assert.ok(!f.$('.voucher-details'), 'pressing 查看分錄 again collapses the entries');
+  assert.equal(f.requests.filter(request => request.action === 'queryFilterVoucherRowsPage').length, 2, 'closing does not query again');
 });
 
 test('remap S5-36 switching between filter and saved panes preserves the existing preview and draft without requests', async () => {
@@ -5979,7 +6095,9 @@ test('custom pane lists every core field by type, marks relevant data element fi
   const f = customPaneFixture({ rdeFields: [{ fieldId: 'rde.d', sourceColumn: 'DocDay', label: '單據日', valueType: 'date' },
     { fieldId: 'rde.m', sourceColumn: 'Tax', label: '稅額', valueType: 'money' }, { fieldId: 'rde.t', sourceColumn: 'Dept', label: '部門', valueType: 'text' }] });
   const pane = f.$('[data-condition-pane="custom"]');
-  assert.deepEqual(pane.querySelectorAll('.filter-custom-block__title').map(node => node.textContent), ['依欄位設定', '常用查核條件']);
+  // 2026-10-29 區塊改用三個分頁共用的 filter-source-block，「常用查核條件」改名「依審計目的」（使用者裁定）。
+  // 第一次失敗見本檔開頭 BLANK 上方的收據。
+  assert.deepEqual(pane.querySelectorAll('.filter-source-block__title').map(node => node.textContent), ['依欄位設定', '依審計目的']);
   assert.doesNotMatch(pane.innerHTML, /<h3|data-custom-subject|data-legacy|data-template-key|舊表|範例/);
   const rows = pane.querySelectorAll('.filter-chip-row');
   assert.deepEqual(rows.map(row => row.querySelector('.filter-chip-row__label').textContent), ['日期', '數字', '文字']);
@@ -6073,11 +6191,12 @@ test('every common check adds its fixed rule shape to the active group', () => {
     rarePreparers: { type: 'entityFrequency', field: 'createBy', countUnit: 'entries', countOperator: 'lessThanOrEqual', countFrom: '11' }
     // prescreenResult 已由「預篩選」分頁取代（使用者 2026-10-16 要求）；第一次失敗：常用查核條件的鍵少了 prescreenResult。
   };
-  const keys = f.ui.FILTER_COMMON_CHECK_GROUPS.flatMap(group => group.checks.map(check => check.key));
+  // 清單常數與加入函式 2026-10-29 跟著「依審計目的」改名（第一次失敗見本檔開頭 BLANK 上方的收據）。
+  const keys = f.ui.FILTER_PURPOSE_CHECK_GROUPS.flatMap(group => group.checks.map(check => check.key));
   assert.deepEqual(plain(keys), Object.keys(expected));
   for (const [key, shape] of Object.entries(expected)) {
     f.store.setFilterDraft({ name: '', rationale: '', groups: [] });
-    f.api.addCommonCheck(key);
+    f.api.addPurposeCheck(key);
     const rules = f.store.getState().filter.draft.groups[0].rules;
     assert.equal(rules.length, 1, key);
     assert.deepEqual(plain(pickShape(rules[0], shape)), shape, key);
@@ -6112,7 +6231,7 @@ test('common checks are disabled only when the backend would reject them and say
   assert.equal(note(page.html, 'rarePreparers'), '「傳票建立人員」尚未選擇來源欄，請回第三步欄位配對補上');
   assert.equal(note(page.html, 'postDateHoliday'), undefined, 'a missing holiday list does not disable the check');
   const before = JSON.stringify(f.store.getState().filter.draft);
-  f.api.addCommonCheck('rarePreparers');
+  f.api.addPurposeCheck('rarePreparers');
   assert.equal(JSON.stringify(f.store.getState().filter.draft), before, 'a disabled check never changes the draft');
   // 使用者 2026-10-14 第三輪勾選頁同意刪除「案件沒有查核截止日」這個停用分支：建立案件必填查核截止日
   // （create-step.js），畫面走不到這個狀態。原本「沒有截止日就停用」的核對改成鎖住刪除後的行為：
@@ -6146,12 +6265,16 @@ test('the group heading adds a bracket or a voucher condition to its own group e
   assert.deepEqual(plain([groups[0].rules[1].side, groups[0].rules[1].quantifier]), [null, 'any']);
 });
 
-test('examples start hidden, list ten plain names with a one-line notice and apply under the example name', () => {
+// 使用者 2026-10-29 裁定拿掉「從範例開始」按鈕，範例一直列在「常用篩選條件」分頁下半的「情境範例」。原本斷言清單一開始收起、
+// 按鈕展開後才列出、套用後收起；改成斷言清單一開始就在那個分頁列出、沒有展開按鈕、套用後清單仍在。測試名稱跟著改（原名說範例一開始隱藏）。
+// 第一次失敗見本檔開頭 BLANK 上方的收據。
+test('examples are listed on the common tab from the start with ten plain names and a one-line notice, and apply under the example name', () => {
   const f = filterOperationFixture(), list = () => f.$('[data-example-list]');
-  assert.equal(list().hidden, true);
-  f.click('[data-action="toggle-examples"]');
-  assert.equal(list().hidden, false); assert.equal(f.$('[data-action="toggle-examples"]').getAttribute('aria-expanded'), 'true');
-  assert.equal(f.$('.filter-example-list__hint').textContent, '套用後會替換目前的條件，已儲存的情境不受影響。');
+  assert.equal(list().hidden, false);
+  assert.equal(list().closest('[data-condition-pane]').getAttribute('data-condition-pane'), 'common');
+  assert.equal(f.$('[data-action="toggle-examples"]'), null, 'there is no button to open the examples');
+  // 後半句「已儲存的情境不受影響」在 2026-10-29 拿掉，首敗收據 20261029-042349219-80cd18acb17f46b19cd7967d9b7a0b55。
+  assert.equal(f.$('.filter-example-list__hint').textContent, '套用後會替換目前的條件。');
   const buttons = list().querySelectorAll('[data-template-key]');
   assert.deepEqual(buttons.map(button => button.textContent), CUSTOM_EXAMPLE_NAMES);
   for (const button of buttons) {
@@ -6162,7 +6285,7 @@ test('examples start hidden, list ten plain names with a one-line notice and app
   assert.doesNotMatch(list().textContent, /舊表|A 到 U|範例 \d|[A-U](?:\+[A-U])+/);
   f.click('[data-action="apply-template"][data-template-key="weekendManualDescription"]');
   assert.equal(f.draft().name, '週末人工分錄的特定摘要');
-  assert.equal(list().hidden, true, 'applying closes the example list');
+  assert.equal(list().hidden, false, 'applying leaves the example list on the common tab');
   assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => [rule.type, rule.field, rule.operator, rule.values])), [
     ['manualAuto', null, null, null], ['fieldValue', 'postDate', 'isWeekend', []], ['fieldValue', 'description', 'contains', ['迴轉']]]);
   f.click('[data-add-field="docNum"]');
@@ -6178,7 +6301,8 @@ test('examples disable for missing approver mapping, preparation date or period 
   const everyField = ['docNum', 'lineID', 'postDate', 'docDate', 'accNum', 'accName', 'description', 'jeSource', 'createBy', 'approveBy', 'manual', 'amount'];
   f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {},
     availableGlFields: everyField.filter(field => field !== 'createBy' && field !== 'approveBy') });
-  f.click('[data-action="toggle-examples"]');
+  // 2026-10-29 拿掉「從範例開始」按鈕；原本先按它，改成確認範例已經列出（第一次失敗見本檔開頭 BLANK 上方的收據）。
+  assert.equal(f.$('[data-example-list]').hidden, false);
   const note = key => f.$('#filter-example-note-' + key)?.textContent;
   assert.equal(f.$('[data-template-key="blankDescriptionOrApprover"]').disabled, true);
   // 使用者 2026-10-14 第三輪勾選頁確認 R3-17（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
@@ -6200,7 +6324,9 @@ for (const count of [1, 2]) test('the department example with ' + count + ' text
   f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
   f.click('[data-add-field="description"]');
   const before = f.draft(), json = JSON.stringify(before);
-  f.click('[data-action="toggle-examples"]');
+  // 2026-10-29 拿掉「從範例開始」按鈕，範例在「常用篩選條件」分頁；原本按那顆按鈕，改成切到那個分頁（第一次失敗見本檔開頭 BLANK 上方的收據）。
+  f.click('[data-condition-source="common"]');
+  assert.equal(f.$('[data-example-list]').hidden, false);
   f.click('[data-action="apply-template"][data-template-key="manualDepartment"]');
   if (count === 2) {
     const pick = f.$('[data-example-pick="manualDepartment"]');
@@ -6297,7 +6423,7 @@ test('common checks and examples keep the rule structure of the matching retired
   const f = batch7Fixture(), ui = f.ui;
   const catalogue = JSON.parse(fs.readFileSync(path.join(__dirname, '../../src/JET/tests/JET.Tests/Fixtures/legacy-form-2024-1210.json'), 'utf8'));
   const workflowTests = fs.readFileSync(path.join(__dirname, '../../src/JET/tests/JET.Tests/Application/LegacyFormWorkflowTests.cs'), 'utf8');
-  const checks = ui.FILTER_COMMON_CHECK_GROUPS.flatMap(group => group.checks);
+  const checks = ui.FILTER_PURPOSE_CHECK_GROUPS.flatMap(group => group.checks);
   function legacyRules(entry) {
     const item = catalogue.conditions.find(c => c.letter === entry.code) || catalogue.examples.find(e => e.key === entry.code);
     assert.ok(item, entry.code); return item[entry.source || 'rules'];
@@ -6337,7 +6463,7 @@ test('common checks and examples use only rule types and operators the screen al
     (rule.rules || []).forEach(child => visit(child, where));
   }
   assert.equal('FILTER_CONDITION_REQUIREMENTS' in ui, false);
-  for (const check of ui.FILTER_COMMON_CHECK_GROUPS.flatMap(group => group.checks)) {
+  for (const check of ui.FILTER_PURPOSE_CHECK_GROUPS.flatMap(group => group.checks)) {
     assert.equal('requires' in check, false, check.key);
     check.rules.forEach(rule => visit(rule, check.key));
   }
@@ -6351,20 +6477,22 @@ test('common checks and examples use only rule types and operators the screen al
 
 
 test('oct9 examples belong to the condition catalog and still replace only the draft', () => {
-  const f = filterOperationFixture({ saved: [savedG()] });
-  assert.ok(f.$('.filter-entry [data-action="toggle-examples"]'));
-  assert.equal(!!f.$('.scenario-builder [data-action="toggle-examples"]'), false);
-  f.click('[data-action="toggle-examples"]');
+  const f = filterOperationFixture({ saved: [savedBlankDescription()] });
+  // 2026-10-29 拿掉「從範例開始」按鈕：原本核對按鈕在條件總覽、不在條件組合，改成核對範例清單本身在條件總覽、不在條件組合，
+  // 而且不用按任何按鈕就列出。第一次失敗見本檔開頭 BLANK 上方的收據。
+  assert.ok(f.$('.filter-entry [data-example-list]'));
+  assert.equal(!!f.$('.scenario-builder [data-example-list]'), false);
+  assert.equal(f.$('[data-action="toggle-examples"]'), null);
   assert.equal(f.$('.filter-entry [data-example-list]').hidden, false);
   f.click('[data-action="apply-template"][data-template-key="weekendManualDescription"]');
   assert.equal(f.draft().name, '週末人工分錄的特定摘要');
-  assert.deepEqual(plain(f.store.getState().filter.savedScenarios), [savedG()]);
+  assert.deepEqual(plain(f.store.getState().filter.savedScenarios), [savedBlankDescription()]);
   assert.equal(f.commits.length, 0);
 });
 
 // 第九節 G3 移除比對範圍；首次失敗：20261014-135637069-066eb7e965824f89bf2b8671156595f1。
 test('oct9 group actions stay visible without a scope menu and allow either join', () => {
-  const f = filterOperationFixture(); f.click('[data-kct-letter="G"]'); f.click('[data-kct-letter="H"]');
+  const f = filterOperationFixture(); f.click(cardSelector(BLANK)); f.click(cardSelector(TRAILING));
   assert.equal(!!f.$('.filter-relations'), false);
   assert.equal(f.$('.filter-group-menu'), null);
   f.choose('[data-set-combinator]', 'OR');
@@ -6375,8 +6503,8 @@ test('oct9 group actions stay visible without a scope menu and allow either join
 });
 
 test('oct9 clear group leaves an empty reusable group, preserves other groups and never changes saved scenarios', () => {
-  const f = filterOperationFixture({ saved: [savedG()] });
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="add-set"]'); f.click('[data-kct-letter="H"]');
+  const f = filterOperationFixture({ saved: [savedBlankDescription()] });
+  f.click(cardSelector(BLANK)); f.click('[data-action="add-set"]'); f.click(cardSelector(TRAILING));
   f.store.patchFilterDraftMeta({ name: '手寫情境', rationale: '手寫動機', __nameDirty: true, __rationaleDirty: true });
   const first = plain(f.draft().groups[0]);
   f.click('[data-action="clear-set"][data-gi="1"]');
@@ -6385,8 +6513,8 @@ test('oct9 clear group leaves an empty reusable group, preserves other groups an
   assert.equal(f.draft().groups[1].rules.length, 0);
   assert.equal(f.draft().groups[1].matchScope, 'row');
   assert.equal(f.draft().name, '手寫情境'); assert.equal(f.draft().rationale, '手寫動機');
-  f.click('[data-kct-letter="H"]');
-  // 第九節 G2 的 H 卡改用欄位尾數；首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+  f.click(cardSelector(TRAILING));
+  // 第九節 G2 的特定尾數卡（當時的卡片字母是 H）改用欄位尾數；首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
   assert.equal(f.draft().groups[1].rules[0].type, 'fieldValue');
   assert.equal(f.draft().groups[1].rules[0].operator, 'endsWithDigits');
   assert.equal(f.draft().groups[1].rules[0].value, '000000');
@@ -6395,12 +6523,12 @@ test('oct9 clear group leaves an empty reusable group, preserves other groups an
   f.click('[data-action="clear-set"][data-gi="0"]');
   assert.equal(f.draft().groups.length, 1); assert.equal(f.draft().groups[0].rules.length, 0);
   assert.equal(f.$('[data-action="clear-set"]').disabled, true);
-  assert.deepEqual(plain(f.store.getState().filter.savedScenarios), [savedG()]);
+  assert.deepEqual(plain(f.store.getState().filter.savedScenarios), [savedBlankDescription()]);
   assert.equal(f.commits.length, 0);
 });
 
 test('oct9 account-pair notes are available on demand and nested conditions have a purpose-based title', () => {
-  const f = filterOperationFixture(); f.click('[data-kct-letter="B"]');
+  const f = filterOperationFixture(); f.click(cardSelector(FIXED_ASSET));
   const help = f.$('.rule-row--account [data-rule-help]');
   assert.ok(help); assert.equal(help.hasAttribute('open'), false);
   assert.match(help.textContent, /結果列出同傳票/); assert.match(help.textContent, /未在配對檔/);
@@ -6515,7 +6643,7 @@ test('oct9 GUI options-only edit targets a rendered editable code and preserves 
 // 第九節 G3 更新腳本的入口，但本輪依使用者指示不執行 Gui。
 // 舊選單斷言首次失敗：20261014-135637069-066eb7e965824f89bf2b8671156595f1。
 test('oct9 GUI fixture uses visible compound actions instead of a retired scope selector', () => {
-  const f = filterOperationFixture(); f.click('[data-kct-letter="G"]'); f.click('[data-kct-letter="H"]');
+  const f = filterOperationFixture(); f.click(cardSelector(BLANK)); f.click(cardSelector(TRAILING));
   const source = fs.readFileSync(path.join(__dirname, '../harness/gui-driver/GuiSideMonthWorkflow.cs'), 'utf8');
   assert.doesNotMatch(source, /data-group-bind=matchScope|data-value-key=drCr|data-action=open-save|data-action=new-scenario/);
   assert.match(source, /data-add-compound/);
@@ -6528,7 +6656,7 @@ test('oct9 GUI fixture uses visible compound actions instead of a retired scope 
 
 
 test('oct9 followup group buttons use short visible names and distinguish their targets for assistive reading', () => {
-  const f = filterOperationFixture(); f.click('[data-kct-letter="G"]'); f.click('[data-action="add-set"]');
+  const f = filterOperationFixture(); f.click(cardSelector(BLANK)); f.click('[data-action="add-set"]');
   for (const [action, text, label] of [['clear-set', '清除', '清除第 1 組的條件'], ['remove-set', '移除', '移除第 1 組']]) {
     const button = f.$('[data-action="' + action + '"][data-gi="0"]');
     assert.equal(button.textContent, text); assert.equal(button.getAttribute('aria-label'), label);
@@ -6576,8 +6704,8 @@ test('oct9 layout followup keeps the visible current step in the navigation and 
 
 // 使用者 2026-10-11 裁定：第五步目前的情境有修改還沒儲存時，編輯或複製已存情境、新增情境與套用範例都先詢問，
 // 按鈕比照第四步科目分類；沒有修改時照舊直接換，取消編輯不問。對話框文字與按鈕逐字寫死，不由被測程式算出。
-const savedManual = name => ({ ...savedG(name), rationale: name + '：合成動機',
-  editorOrigins: { ...savedG(name).editorOrigins, nameIsAutomatic: false, rationaleIsAutomatic: false } });
+const savedManual = name => ({ ...savedBlankDescription(name), rationale: name + '：合成動機',
+  editorOrigins: { ...savedBlankDescription(name).editorOrigins, nameIsAutomatic: false, rationaleIsAutomatic: false } });
 
 function pendingScenarioFixture(saved = [savedManual('甲情境'), savedManual('乙情境')], fixture = filterOperationFixture) {
   const f = fixture({ saved });
@@ -6621,7 +6749,7 @@ test('oct11 drafts without changes switch at once from every entry point', () =>
 
 test('oct11 opening a saved scenario over unsaved conditions asks first and staying keeps everything', () => {
   const f = pendingScenarioFixture();
-  f.click('[data-kct-letter="G"]');
+  f.click(cardSelector(BLANK));
   const draft = f.draft(), json = JSON.stringify(draft);
   f.click('[data-action="edit-scenario"][data-index="1"]');
   assert.equal(f.modals().length, 1);
@@ -6670,7 +6798,7 @@ test('oct11 save and open updates the edited scenario first and opens the next o
 
 test('oct11 save and open stays when the save is blocked by the ten scenario limit', async () => {
   const f = pendingScenarioFixture(Array.from({ length: 10 }, (_, i) => savedManual('情境' + (i + 1))));
-  f.click('[data-kct-letter="G"]');
+  f.click(cardSelector(BLANK));
   f.click('[data-action="edit-scenario"][data-index="0"]'); f.choose('save'); await settle(); await settle();
   assert.equal(f.commits.length, 0); assert.equal(f.modal(), null);
   assert.equal(f.draft().__editingIndex, undefined, 'the new draft stays on screen');
@@ -6699,7 +6827,7 @@ test('oct11 copy and examples ask with their own wording; saving clears the draf
 
 test('oct11 a saved scenario starts a new one at once until it changes again', async () => {
   const f = pendingScenarioFixture([]);
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="save-scenario"]');
+  f.click(cardSelector(BLANK)); f.click('[data-action="save-scenario"]');
   f.resolveCommit(0); await settle(); await settle();
   assert.equal(f.$('[data-action="new-scenario"]'), null);
   assert.equal(f.modal(), null); assert.equal(f.draft().groups.length, 0);
@@ -6720,7 +6848,9 @@ test('oct11 an example that needs a field asks only when the chosen field is abo
   const f = pendingScenarioFixture([], () => customPaneFixture({ rdeFields }));
   f.click('[data-add-field="description"]');
   const before = f.draft(), json = JSON.stringify(before);
-  f.click('[data-action="toggle-examples"]');
+  // 2026-10-29 拿掉「從範例開始」按鈕，範例在「常用篩選條件」分頁；原本按那顆按鈕，改成切到那個分頁（第一次失敗見本檔開頭 BLANK 上方的收據）。
+  f.click('[data-condition-source="common"]');
+  assert.equal(f.$('[data-example-list]').hidden, false);
   f.click('[data-action="apply-template"][data-template-key="manualDepartment"]');
   assert.ok(f.$('[data-example-pick="manualDepartment"]')); assert.equal(f.modal(), null, 'choosing the field comes first');
   f.click('[data-example-field="rde.unit"]');
@@ -6801,7 +6931,7 @@ test('items2 an operation with its own error box does not add a step notice', as
   f.show(); assert.ok(f.failureNotice() === null, 'no step notice');
   // 儲存情境失敗時，原因寫在儲存按鈕上方。
   const g = filterOperationFixture(); g.store.setView('workflow'); g.store.setStepIndex(4);
-  g.click('[data-kct-letter="G"]'); g.click('[data-action="save-scenario"]'); await settle();
+  g.click(cardSelector(BLANK)); g.click('[data-action="save-scenario"]'); await settle();
   g.commits[0].reject(new Error('合成儲存失敗。')); await settle(); await settle();
   assert.equal(g.notice(), '儲存失敗：合成儲存失敗。');
   assert.equal(g.store.getState().messages[0].level, 'error'); assert.equal(g.store.getState().operationFailure, null);
@@ -6982,9 +7112,9 @@ test('items2 a successful long operation leaves one completion message with seco
 });
 
 test('items2 the save-button reminders for a changed saved list and the ten-scenario limit are amber', async () => {
-  const saved = Array.from({ length: 10 }, (_, i) => savedG('合成情境' + (i + 1)));
+  const saved = Array.from({ length: 10 }, (_, i) => savedBlankDescription('合成情境' + (i + 1)));
   const f = filterOperationFixture({ saved });
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="save-scenario"]'); await settle();
+  f.click(cardSelector(BLANK)); f.click('[data-action="save-scenario"]'); await settle();
   assert.equal(f.notice(), SCENARIO_LIMIT_MESSAGE);
   assert.match(f.$('[data-bind="scenario-notice"]').className, /form-notice--warning/);
   assert.equal(f.store.getState().messages[0].level, 'warn');
@@ -7064,7 +7194,7 @@ test('text-d opening a case keeps the removed field names from project.load and 
 // 使用者 2026-10-14 第三輪勾選頁確認 R3-08：清單超過上限時提示框逐條寫出位置，原因和欄位條件同一句，
 // 不再另列「文字值清單每組最多…」「攸關資料元素欄位的值清單每組最多…」。
 test('text-d an oversized value list is named at its own position with the shared reason', () => {
-  const f = kctFixture();
+  const f = commonCardFixture();
   const draft = f.store.getState().filter.draft;
   const many = Array.from({ length: 101 }, (_, i) => 'V' + i);
   draft.groups = [{ join: 'AND', matchScope: 'row', rules: [{ type: 'fieldValue', field: 'description', operator: 'in', values: ['A'] }] },

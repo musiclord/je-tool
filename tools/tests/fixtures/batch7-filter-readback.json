@@ -96,7 +96,7 @@
     "expected": "僅貸方 或 自動分錄"
   },
   {
-    "id": "kct-i-new-excludes-makeup-days",
+    "id": "non-business-day-card-excludes-makeup-days",
     "scenario": { "groups": [{ "rules": [{ "type": "group", "rules": [{ "type": "fieldValue", "field": "postDate", "operator": "isNonBusinessDay", "join": "AND" }] }] }] },
     "rdeFields": [],
     "expected": "非營業日（排除補班日）"

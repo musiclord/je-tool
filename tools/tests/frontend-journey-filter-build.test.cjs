@@ -2,8 +2,9 @@
 require('./support/resource-guard.cjs');
 // 第五步組條件的情境測試（收尾四項第一項第 5 批，2026-10-13）。
 //
-// 情境 10「第五步 KCT 卡片與範例」：審計員在四種科目配對狀態下看 KCT 卡片與常用查核條件，加入 C 卡看說明，
-// 展開「從範例開始」並套用每一個範例。2026-10-16 起另在「預篩選」分頁逐一加入每一條預篩選規則，
+// 情境 10「第五步常用篩選條件的卡片與範例」：審計員在四種科目配對狀態下看常用篩選條件的卡片與依審計目的的條件，
+// 加入「貸方為收入但借方非一般對方科目」那張卡看說明，並套用每一個情境範例。2026-10-29 卡片與範例合併成「常用篩選條件」分頁、
+// 拿掉卡片字母，原本要先展開「從範例開始」。2026-10-16 起另在「預篩選」分頁逐一加入每一條預篩選規則，
 // 看前置不足的停用原因，並從分頁加入「未預期借貸組合」後查看傳票數量與分錄筆數。
 // 情境 11「第五步自訂條件與條件組」：審計員在自訂分頁從各家族各加一條、組成兩組，看組內條件的組合方式，
 // 移除一條，用「新增條件到」換加入的組，改成 OR 再改成同一傳票，加借貸科目組合並切換五種查找方式，
@@ -12,14 +13,14 @@ require('./support/resource-guard.cjs');
 // 每個測試都執行正式的 state.js、ui-core.js、filter-values.js、filter-vouchers.js 與第五步的五個檔案（steps/filter-step-*.js 與 filter-step.js），
 // 在假 DOM 上畫出第五步並用點擊與選單操作；合成資料只控制邊界。
 // 第五步的儲存、另存、移除與重新檢查屬於情境 12、13（第 9 批），這個檔不寫那些流程的斷言。
-// 訊息面板的句子（例如「已加入 KCT 條件」）與後端原因句子不寫斷言，它們會在第 1、4 項改寫。
+// 訊息面板的句子（例如當時加入卡片時的訊息）與後端原因句子不寫斷言，它們會在第 1、4 項改寫。
 //
 // 斷言規則照 artifacts/review/closing-four-items-20261013/plan-item1-tests.md 第 1 節：
 // 只有使用者裁定過的文字逐字比對，出處寫在該斷言旁；其他文字只比對意思；預期值寫死，不由被測程式算出；
 // 送出的 payload 精確比對，而且不得帶 `__` 開頭的鍵。
 //
 // 取代的 C# 方法（src/JET/tests/JET.Tests/Architecture/，由每波結束時統一刪除）：
-//   FilterAccountMappingEligibilityFrontendTests 的三個方法、ScreenWordingReviewFrontendTests.K3_… 與 KctLetters…、
+//   FilterAccountMappingEligibilityFrontendTests 的三個方法、ScreenWordingReviewFrontendTests.K3_… 與核對當時卡片字母的方法、
 //   FilterAstFrontendContractTests.GroupMatchScope_…、FilterBuilderFrontendTests 兩個方法、FilterCategorySelectFrontendTests 兩個方法、
 //   FilterTemplatesFrontendTests.FilterStep_OffersTemplatesAndTheCombinationCard、FilterWorkspaceFrontendTests 兩個方法、
 //   AccountTaxonomyFrontendTests.RuleControls_UseTaxonomyIdentitiesInsteadOfLegacyCategoryLabels。
@@ -74,9 +75,11 @@ function buildFixture(options = {}) {
 }
 
 const customPane = options => { const f = buildFixture(options); f.click('[data-condition-source="custom"]'); return f; };
-const card = (f, letter) => f.$('[data-kct-letter="' + letter + '"]');
-// 停用的卡最後一段說明是停用原因（B、C 卡另有固定的判定說明排在前面）。
-const cardReason = (f, letter) => card(f, letter).querySelectorAll('.picker-card__note').at(-1).textContent;
+// 卡片以代號識別（Ui.FILTER_COMMON_CONDITIONS 的 key）。2026-10-29 拿掉卡片字母，原本以記字母的屬性找卡片；
+// 本檔因此改的選擇器、測試名稱與期望值，第一次失敗都是 FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+const card = (f, key) => f.$('[data-common-card="' + key + '"]');
+// 停用的卡最後一段說明是停用原因。固定資產與費用、收入對方科目兩張卡原本另有固定的判定說明排在前面，2026-10-29 拿掉，只剩停用原因。
+const cardReason = (f, key) => card(f, key).querySelectorAll('.picker-card__note').at(-1).textContent;
 const rulesOf = f => plain(f.draft().groups.map(group => group.rules.map(rule => rule.type)));
 
 // 畫面上的文字與 title、aria-label 逐項列出（用換行隔開，避免相鄰節點的字黏在一起湊出代號）；skip 內的節點略過。
@@ -92,82 +95,89 @@ function screenTexts(node, skip) {
 }
 
 // ------------------------------------------------------------------------------------------------
-// 情境 10：KCT 卡片與範例
+// 情境 10：常用篩選條件的卡片與範例
 // ------------------------------------------------------------------------------------------------
 
 // 取代 FilterAccountMappingEligibilityFrontendTests.RuleMetadata_DeclaresPerRuleAccountMappingRequirements 與
-// KctDisabledNotes_DistinguishMissingImportAndMissingTargetContent 的 KCT 卡部分。
+// 當時區分停用原因的 C# 方法裡卡片的部分。
 // 使用者 2026-10-14 第三輪勾選頁確認 R3-15 的逐字句：還沒匯入與匯入了但沒有任何分類同一句，缺收入或對方分類時寫出分類名稱
 // （第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
-const KCT_TYPES = { A: 'revenueDebitNearQuarterEnd', B: 'specialAccountCategoryPair', C: 'revenueWithoutNormalCounterpart', D: 'manualRevenueEntry' };
-test('KCT cards A to D follow the account mapping content and explain whether mapping is missing or incomplete', () => {
+// 測試名稱原本用當時的卡片字母稱呼這四張卡（2026-10-29 改名，原因見上面的 card()）。
+const REVENUE = 'revenueDebitNearQuarterEnd', FIXED_ASSET = 'fixedAssetDebitExpenseCredit', COUNTERPART = 'revenueWithoutNormalCounterpart', MANUAL_REVENUE = 'manualRevenueEntry';
+const MAPPING_CARD_TYPES = { [REVENUE]: 'revenueDebitNearQuarterEnd', [FIXED_ASSET]: 'specialAccountCategoryPair',
+  [COUNTERPART]: 'revenueWithoutNormalCounterpart', [MANUAL_REVENUE]: 'manualRevenueEntry' };
+const OTHER_CARDS = ['specificPreparer', 'specificKeywords', 'blankDescription', 'specificTrailingDigits', 'nonBusinessDay', 'preparerEqualsApprover'];
+test('the four cards that need account mapping follow its content and explain whether mapping is missing or incomplete', () => {
   const states = [
     { name: 'not imported', mapping: null, enabled: [] },
     { name: 'imported without categories', mapping: { hasAnyCategory: false, hasRevenue: false, hasCounterpart: false }, enabled: [] },
-    { name: 'only general categories', mapping: { hasAnyCategory: true, hasRevenue: false, hasCounterpart: true }, enabled: ['B'] },
-    { name: 'revenue without counterpart', mapping: { hasAnyCategory: true, hasRevenue: true, hasCounterpart: false }, enabled: ['A', 'B', 'D'] },
-    { name: 'revenue and counterpart', mapping: ALL_MAPPED, enabled: ['A', 'B', 'C', 'D'] }
+    { name: 'only general categories', mapping: { hasAnyCategory: true, hasRevenue: false, hasCounterpart: true }, enabled: [FIXED_ASSET] },
+    { name: 'revenue without counterpart', mapping: { hasAnyCategory: true, hasRevenue: true, hasCounterpart: false }, enabled: [REVENUE, FIXED_ASSET, MANUAL_REVENUE] },
+    { name: 'revenue and counterpart', mapping: ALL_MAPPED, enabled: [REVENUE, FIXED_ASSET, COUNTERPART, MANUAL_REVENUE] }
   ];
   const notes = {};
   for (const state of states) {
     const f = buildFixture({ accountMapping: state.mapping });
-    for (const letter of ['A', 'B', 'C', 'D']) {
-      const button = card(f, letter), on = state.enabled.includes(letter);
-      assert.equal(button.disabled, !on, state.name + ' ' + letter + ' disabled');
-      assert.equal(button.getAttribute('aria-disabled'), on ? null : 'true', state.name + ' ' + letter + ' aria-disabled');
-      assert.equal(!!button.closest('.filter-unavailable'), !on, state.name + ' ' + letter + ' listed under unavailable cards');
-      notes[state.name + letter] = on ? '' : cardReason(f, letter);
-      if (!on) assert.ok(notes[state.name + letter], state.name + ' ' + letter + ' explains why');
+    for (const key of Object.keys(MAPPING_CARD_TYPES)) {
+      const button = card(f, key), on = state.enabled.includes(key);
+      assert.equal(button.disabled, !on, state.name + ' ' + key + ' disabled');
+      assert.equal(button.getAttribute('aria-disabled'), on ? null : 'true', state.name + ' ' + key + ' aria-disabled');
+      assert.equal(!!button.closest('.filter-unavailable'), !on, state.name + ' ' + key + ' listed under unavailable cards');
+      notes[state.name + key] = on ? '' : cardReason(f, key);
+      if (!on) assert.ok(notes[state.name + key], state.name + ' ' + key + ' explains why');
       // 停用的卡按了不會加入條件。
       button.fire('click');
-      assert.deepEqual(plain(f.draft().groups.flatMap(group => group.rules.map(rule => rule.type))), on ? [KCT_TYPES[letter]] : [], state.name + ' ' + letter + ' click');
-      if (on) f.click('[data-kct-letter="' + letter + '"]');
+      assert.deepEqual(plain(f.draft().groups.flatMap(group => group.rules.map(rule => rule.type))), on ? [MAPPING_CARD_TYPES[key]] : [], state.name + ' ' + key + ' click');
+      if (on) f.click('[data-common-card="' + key + '"]');
     }
-    for (const letter of ['E', 'F', 'G', 'H', 'I', 'J']) assert.equal(card(f, letter).disabled, false, state.name + ' ' + letter + ' never depends on mapping');
+    for (const key of OTHER_CARDS) assert.equal(card(f, key).disabled, false, state.name + ' ' + key + ' never depends on mapping');
   }
   const noCategory = '科目配對中尚無任何科目設定分類，請先在第四步設定';
   const noRevenue = '科目配對中尚無歸類為「Revenue」的科目，請先在第四步設定';
   const noCounterpart = '科目配對中尚無歸類為「Receivables」「Cash」或「Receipt in advance」的科目，請先在第四步設定';
-  // 預篩選收斂計畫階段四（2026-10-23）改寫這兩段：停用原因改由前端照抄後端的規則需求表。後端對 A、C、D 一直只看收入與對方分類
-  //（改動前的 FilterScenario.cs 也是），原本前端在還沒匯入時另寫「尚無任何科目設定分類」，兩邊不同句；C 缺收入與對方分類時，
+  // 預篩選收斂計畫階段四（2026-10-23）改寫這兩段：停用原因改由前端照抄後端的規則需求表。後端對三張收入卡一直只看收入與對方分類
+  //（改動前的 FilterScenario.cs 也是），原本前端在還沒匯入時另寫「尚無任何科目設定分類」，兩邊不同句；收入對方科目那張卡缺收入與對方分類時，
   // 後端照使用者 2026-10-13 確認的「分開說，各寫一句」寫兩句，前端原本只寫第一句。
-  // 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（A 寫成缺收入分類的句子）。
+  // 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（季末前借記收入那張卡寫成缺收入分類的句子）。
   // 改後每張卡在「還沒匯入」與「匯入了但沒有任何分類」寫同一句，仍是 R3-15 那筆紀錄說的情形。
-  for (const letter of ['A', 'B', 'C', 'D']) assert.equal(notes['not imported' + letter], notes['imported without categories' + letter], letter);
-  assert.equal(notes['imported without categoriesB'], noCategory);
-  for (const letter of ['A', 'D']) assert.equal(notes['imported without categories' + letter], noRevenue, letter);
-  assert.equal(notes['imported without categoriesC'], noRevenue + '；' + noCounterpart, 'C names both missing categories, one sentence each');
-  for (const letter of ['A', 'C', 'D']) assert.equal(notes['only general categories' + letter], noRevenue, letter + ' names the missing revenue category');
-  assert.equal(notes['revenue without counterpartC'], noCounterpart, 'C names the missing counterpart categories');
+  for (const key of Object.keys(MAPPING_CARD_TYPES)) assert.equal(notes['not imported' + key], notes['imported without categories' + key], key);
+  assert.equal(notes['imported without categories' + FIXED_ASSET], noCategory);
+  for (const key of [REVENUE, MANUAL_REVENUE]) assert.equal(notes['imported without categories' + key], noRevenue, key);
+  assert.equal(notes['imported without categories' + COUNTERPART], noRevenue + '；' + noCounterpart, 'the counterpart card names both missing categories, one sentence each');
+  for (const key of [REVENUE, COUNTERPART, MANUAL_REVENUE]) assert.equal(notes['only general categories' + key], noRevenue, key + ' names the missing revenue category');
+  assert.equal(notes['revenue without counterpart' + COUNTERPART], noCounterpart, 'the counterpart card names the missing counterpart categories');
 });
 
 // 取代 FilterAccountMappingEligibilityFrontendTests.AvailableTypes_EvaluateTargetContentFacts_NotImportPresence：
-// 樣態下拉的 KCT 專屬收入選項看配對內容，不看有沒有匯入科目配對檔。
-test('the pattern menu offers revenue-only KCT conditions only when the mapping has revenue and counterpart content', () => {
+// 樣態下拉「常用篩選條件」分組的收入選項看配對內容，不看有沒有匯入科目配對檔。
+// 2026-10-29 這個分組改名「常用篩選條件」（原本的分組名稱帶小組名稱），測試名稱跟著改。
+// 第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+test('the pattern menu offers revenue-only common conditions only when the mapping has revenue and counterpart content', () => {
   // 第九節 G2：尾數不再是樣態型別，以預篩選卡檢查同一選單與收入資格。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
-  const kctOptions = mapping => {
+  const commonOptions = mapping => {
     const f = buildFixture({ accountMapping: mapping });
     // 2026-10-16 預篩選條件改成條件總覽的分頁（使用者要求縮短套用預篩選條件的操作），改從分頁加入一條；
     // 第一次失敗：缺少 [data-check-category="prescreen"]。
     f.click('[data-condition-source="prescreen"]'); f.click('[data-add-prescreen="suspiciousKeywords"]');
     const select = f.$('.rule-row [data-pattern-subject]');
     assert.ok(select, 'the pattern row offers a pattern menu');
-    const group = select.querySelectorAll('optgroup').find(node => node.getAttribute('label') === 'KCT 專屬');
+    const group = select.querySelectorAll('optgroup').find(node => node.getAttribute('label') === '常用篩選條件');
     return group ? group.querySelectorAll('option').map(option => option.getAttribute('value')).sort() : [];
   };
   const always = ['preparerEqualsApprover'];
-  assert.deepEqual(kctOptions(null), always);
-  assert.deepEqual(kctOptions({ hasAnyCategory: true, hasRevenue: false, hasCounterpart: true }), always, 'imported but no revenue');
-  assert.deepEqual(kctOptions({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: false }),
-    ['manualRevenueEntry', 'preparerEqualsApprover', 'revenueDebitNearQuarterEnd'], 'C still needs a counterpart');
-  assert.deepEqual(kctOptions(ALL_MAPPED),
+  assert.deepEqual(commonOptions(null), always);
+  assert.deepEqual(commonOptions({ hasAnyCategory: true, hasRevenue: false, hasCounterpart: true }), always, 'imported but no revenue');
+  assert.deepEqual(commonOptions({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: false }),
+    ['manualRevenueEntry', 'preparerEqualsApprover', 'revenueDebitNearQuarterEnd'], 'the revenue counterpart condition still needs a counterpart');
+  assert.deepEqual(commonOptions(ALL_MAPPED),
     ['manualRevenueEntry', 'preparerEqualsApprover', 'revenueDebitNearQuarterEnd', 'revenueWithoutNormalCounterpart']);
 });
 
-// 取代 KctDisabledNotes_DistinguishMissingImportAndMissingTargetContent 的常用查核條件部分（2026-10-08 使用者要求重新設計自訂篩選條件：
-// 停用時按鈕帶 disabled，原因寫在該項下方並以 aria-describedby 連到按鈕；原因和 KCT 卡用同一個判斷）。
+// 取代當時區分停用原因的 C# 方法裡常用查核條件（2026-10-29 改稱「依審計目的」）的部分（2026-10-08 使用者要求重新設計自訂篩選條件：
+// 停用時按鈕帶 disabled，原因寫在該項下方並以 aria-describedby 連到按鈕；原因和固定資產與費用那張卡用同一個判斷）。
 // 第一次失敗收據（原 C# 註解）：20260907-135727110、20260908-024320083。
-test('disabled common checks point to their reason, share the KCT card reason and add nothing when pressed', () => {
+// 2026-10-29 區塊改名、卡片拿掉字母，測試名稱跟著改；第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+test('disabled purpose checks point to their reason, share the fixed-asset card reason and add nothing when pressed', () => {
   for (const mapping of [null, { hasAnyCategory: false, hasRevenue: false, hasCounterpart: false }]) {
     const f = customPane({ accountMapping: mapping });
     f.click('[data-check-category="accounts"]');
@@ -179,7 +189,7 @@ test('disabled common checks point to their reason, share the KCT card reason an
       const note = f.$('#' + describedBy);
       assert.ok(note, key + ' reason exists');
       assert.equal(note.closest('.filter-check'), button.closest('.filter-check'), key + ' reason sits under the same check');
-      assert.equal(note.textContent, cardReason(f, 'B'), key + ' uses the same reason as the KCT B card');
+      assert.equal(note.textContent, cardReason(f, FIXED_ASSET), key + ' uses the same reason as the fixed-asset card');
       button.fire('click');
       assert.deepEqual(rulesOf(f), [], key + ' adds nothing');
     }
@@ -196,55 +206,101 @@ test('disabled common checks point to their reason, share the KCT card reason an
 });
 
 // 取代 ScreenWordingReviewFrontendTests.K3_CashCounterpartExplanation_UsesExactApprovedText。
-// 逐字出處：docs/history/specs/2026-10-06-kct-gl-requirements-plan.md「#### K3：KCT C 的卡片說明」寫明 C 的說明逐字是這一句，
+// 逐字出處：docs/history/specs/2026-10-06-kct-gl-requirements-plan.md「#### K3」一節寫明收入對方科目那張卡（當時以字母稱呼）的說明逐字是這一句，
 // 同檔處理方式表「K1、K2、K3、K10 | 照建議 | 第一批實作」是使用者的裁定。
 // 第一次失敗收據（計畫檔 K3 的實作紀錄）：20261006-030038300-b79b8f5c1edd404f880a2c56319d2a7c。
 const K3_CASH_NOTE = '現金不算一般對方科目；要排除現金銷貨，改用預篩選條件『未預期借貸組合』。';
-test('the C card and its condition row explain cash with the approved sentence', () => {
+// 原本 K3 定下這句同時放在卡片與條件列，這裡斷言卡片、停用卡片與條件列都有它。條件列和卡片同在第五步的畫面上，
+// 同一句出現兩次，使用者 2026-10-29 裁定「拿掉卡片上的」（原文見預篩選收斂計畫附錄一）。卡片與停用卡片的斷言依預期失敗，
+// 首敗收據 20261029-051153423-e931c5bb9d694a55bd6463da1ca0aa64。條件列逐字顯示這句的斷言不變。
+// 同日拿掉卡片字母，測試名稱原本以字母稱呼這張卡，改用條件名稱（第一次失敗見上面的 card()）。
+test('the revenue counterpart condition row explains cash with the approved sentence; the card no longer repeats it', () => {
   const f = buildFixture();
-  assert.ok(card(f, 'C').querySelectorAll('.picker-card__note').some(node => node.textContent === K3_CASH_NOTE), 'card shows the approved sentence');
-  f.click('[data-kct-letter="C"]');
+  assert.equal(card(f, COUNTERPART).querySelectorAll('.picker-card__note').length, 0, 'the card shows only its name');
+  f.click('[data-common-card="' + COUNTERPART + '"]');
   const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
   assert.ok(row.querySelectorAll('.rule-explanation').some(node => node.textContent === K3_CASH_NOTE), 'condition row shows the approved sentence');
-  // 停用時說明仍在，原因另列。
+  // 停用時卡片只寫停用原因。
   const blocked = buildFixture({ accountMapping: { hasAnyCategory: true, hasRevenue: true, hasCounterpart: false } });
-  const blockedNotes = card(blocked, 'C').querySelectorAll('.picker-card__note').map(node => node.textContent);
-  assert.equal(blockedNotes[0], K3_CASH_NOTE); assert.equal(blockedNotes.length, 2);
+  const blockedNotes = card(blocked, COUNTERPART).querySelectorAll('.picker-card__note').map(node => node.textContent);
+  assert.equal(blockedNotes.length, 1); assert.notEqual(blockedNotes[0], K3_CASH_NOTE);
 });
 
-// 取代 ScreenWordingReviewFrontendTests.KctLettersStayOnKctCards_AndCustomConditionsUseNoCatalogueCodes 的 KCT 卡部分。
-// 「KCT 條件」逐字出處：docs/history/specs/2026-10-06-kct-gl-requirements-plan.md「驗收發現與裁定（2026-10-08）」使用者原話：
-// 「請改名 `KCT條件A到J` 改為 `KCT 條件` 就好」。
-test('the KCT tab and heading read KCT 條件 and each card letter is hidden from screen readers', () => {
+// 同一次裁定也涵蓋固定資產與費用那張卡：先新增並配對分類的說明不寫在卡片上，加入後在條件列寫一次。這則是新增的測試，沒有第一次失敗。
+// 同日拿掉卡片字母，測試名稱原本以字母稱呼這張卡，改用條件名稱（第一次失敗見上面的 card()）。
+test('the fixed-asset card no longer repeats its setup note; the condition row still shows it', () => {
   const f = buildFixture();
-  assert.equal(f.$('[data-condition-source="kct"]').textContent, 'KCT 條件');
-  assert.equal(f.$('[data-condition-pane="kct"] .condition-picker__title').textContent, 'KCT 條件');
-  const cards = f.$$('[data-condition-pane="kct"] [data-kct-letter]');
-  assert.deepEqual(cards.map(node => node.getAttribute('data-kct-letter')), ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']);
-  for (const node of cards) {
-    const letters = node.querySelectorAll('.picker-card__letter');
-    assert.equal(letters.length, 1);
-    assert.equal(letters[0].textContent, node.getAttribute('data-kct-letter'));
-    assert.equal(letters[0].getAttribute('aria-hidden'), 'true');
-  }
-  assert.doesNotMatch(screenTexts(f.$('[data-condition-pane="kct"]')).join('\n'), /A 到 J/);
+  const note = f.window.JetUi.FILTER_COMMON_CONDITIONS.find(item => item.key === FIXED_ASSET).description;
+  assert.ok(note, 'the fixed-asset card keeps a setup note for the condition row');
+  assert.equal(card(f, FIXED_ASSET).querySelectorAll('.picker-card__note').length, 0, 'the card shows only its name');
+  f.click('[data-common-card="' + FIXED_ASSET + '"]');
+  const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
+  assert.ok(row.querySelectorAll('.rule-explanation').some(node => node.textContent === note), 'condition row shows the fixed-asset note');
 });
 
-// 使用者 2026-10-07 裁定（計畫檔 2026-10-07 那一輪：「同組有 KCT 與自訂條件時名稱寫「G+自訂」，動機每條自訂條件多一行「自訂：」」）。
-// 第一次失敗收據（原 C# 註解）：20261007-035823939-41943206b5f747f1b7fb8dfe79f987d7。
-test('KCT letters name the draft and a group that also has custom conditions reads G+自訂', () => {
+// 2026-10-30 結案前的獨立複審查到：拿掉卡片上的說明後，另一張卡的說明在條件列直接看得到，這張卡的說明卻只在「查找說明」裡，
+// 上面那則測試分不出來。借貸組合的說明收進「查找說明」，是使用者在 KCT 需求計畫第一批第 13 則說「下方多出來的註解顯得整體排版很雜亂」後的處理，
+// 固定資產與在建工程的說明也在其中，所以維持收在「查找說明」、只出現一次。這是新增的測試，鎖住現在的做法，沒有第一次失敗。
+test('the fixed-asset setup note appears once in the condition row, inside the lookup help folded for account pairs', () => {
   const f = buildFixture();
-  f.click('[data-kct-letter="G"]'); f.click('[data-kct-letter="H"]');
-  assert.equal(f.draft().name, 'G+H');
-  f.click('[data-kct-letter="H"]');
+  const note = f.window.JetUi.FILTER_COMMON_CONDITIONS.find(item => item.key === FIXED_ASSET).description;
+  f.click('[data-common-card="' + FIXED_ASSET + '"]');
+  const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
+  const shown = row.querySelectorAll('.rule-explanation').filter(node => node.textContent === note);
+  assert.equal(shown.length, 1, 'the note appears once in the condition row');
+  assert.ok(shown[0].closest('details[data-rule-help]'), 'the note sits in the lookup help');
+});
+
+// 原本取代 ScreenWordingReviewFrontendTests 裡核對卡片字母的方法：分頁與標題逐字是使用者 2026-10-08 定的名稱
+//（原話見 docs/history/specs/2026-10-06-kct-gl-requirements-plan.md「驗收發現與裁定（2026-10-08）」），每張卡前面有一個對讀屏軟體隱藏的字母。
+// 使用者 2026-10-29 裁定合併成「常用篩選條件」分頁、拿掉卡片字母，分頁上半「單項條件」是十張卡片
+//（docs/history/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md「2026-10-29 合併常用篩選條件」）。
+// 原本核對分頁與標題文字、十個字母依序出現且對讀屏軟體隱藏；改成核對新的分頁文字、區塊標題、十張卡依序出現、
+// 卡片只寫條件名稱且沒有字母。卡片名稱逐字照 ui-core.js 的 FILTER_COMMON_CONDITIONS。
+// 第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2（找不到原本的分頁）。
+const COMMON_CARDS = [
+  ['revenueDebitNearQuarterEnd', '在該季度前 X 天借記收入的會計分錄'],
+  ['fixedAssetDebitExpenseCredit', '借記固定資產(PPE，不含在建)且貸記費用之分錄'],
+  ['revenueWithoutNormalCounterpart', '貸方為收入但借方非一般對方科目之分錄'],
+  ['manualRevenueEntry', '收入之人工分錄'],
+  ['specificPreparer', '特定人員(財務長/執行長/高階主管等)建立之分錄'],
+  ['specificKeywords', '特定摘要(如迴轉、調整等)'],
+  ['blankDescription', '空白摘要'],
+  ['specificTrailingDigits', '特定尾數(如 999999/000000 結尾)'],
+  ['nonBusinessDay', '非營業日之分錄'],
+  ['preparerEqualsApprover', '編製人員與核准人員相同']
+];
+test('the common tab reads 常用篩選條件, lists the ten cards in order under 單項條件 and shows no card letters', () => {
+  const f = buildFixture();
+  assert.equal(f.$('[data-condition-source="common"]').textContent, '常用篩選條件');
+  assert.equal(f.$('[data-condition-pane="common"]').hidden, false, 'the common tab is the first one shown');
+  assert.equal(f.$('[data-condition-pane="common"] [data-common-cards] .filter-source-block__title').textContent, '單項條件');
+  const cards = f.$$('[data-condition-pane="common"] [data-common-card]');
+  assert.deepEqual(cards.map(node => [node.getAttribute('data-common-card'), node.textContent]), COMMON_CARDS);
+  for (const node of cards) assert.equal(node.querySelectorAll('.picker-card__letter').length, 0, node.getAttribute('data-common-card') + ' has no letter');
+  assert.equal(f.$('.condition-picker__title'), null, 'the old heading is gone');
+  assert.doesNotMatch(screenTexts(f.$('[data-condition-pane="common"]')).join('\n'), /A 到 J/);
+});
+
+// 使用者 2026-10-07 裁定動機每條自訂條件多一行「自訂：」；當時名稱用卡片字母串接，同組有自訂條件時加「+自訂」
+//（第一次失敗收據，原 C# 註解：20261007-035823939-41943206b5f747f1b7fb8dfe79f987d7）。
+// 使用者 2026-10-29 裁定名稱改用和自訂條件相同的寫法：依加入順序列出前兩項條件，卡片帶入的用卡片名稱，超過兩項加上總數；
+// 動機每行不再以字母開頭（docs/history/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md「2026-10-29 合併常用篩選條件」）。
+// 原本名稱期望值是字母串接，改成新寫法的寫死字串；第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+test('card names name the draft, a custom condition in the same group is named after it and the rationale adds a 自訂 line', () => {
+  const f = buildFixture();
+  f.click('[data-common-card="blankDescription"]'); f.click('[data-common-card="specificTrailingDigits"]');
+  assert.equal(f.draft().name, '空白摘要、特定尾數(如 999999/000000 結尾)');
+  f.click('[data-common-card="specificTrailingDigits"]');
+  assert.equal(f.draft().name, '空白摘要');
   f.click('[data-condition-source="custom"]'); f.click('[data-add-field="description"]');
-  assert.equal(f.draft().name, 'G+自訂');
+  assert.equal(f.draft().name, '空白摘要、傳票摘要 包含任一文字「」');
   const lines = f.draft().rationale.split('\n');
   assert.equal(lines.length, 2);
-  assert.match(lines[0], /^G：/); assert.match(lines[0], /空白摘要/);
+  assert.equal(lines[0], '空白摘要');
   assert.match(lines[1], /^自訂：/);
   f.click('[data-action="add-set"]'); f.click('[data-add-field="docNum"]');
-  assert.equal(f.draft().name, 'G+自訂｜自訂');
+  assert.equal(f.draft().name, '空白摘要、傳票摘要 包含任一文字「」等3項條件');
 });
 
 // 範例全部可用的案件狀態：查核截止日、期末財報準備日、核准人員與建立人員都已配對，有一個文字型攸關資料元素欄位。
@@ -256,35 +312,43 @@ const EXAMPLE_KEYS = ['cashDebitNonCashCredit', 'cashCreditNonCashDebit', 'nonBu
 // 「名稱 `舊表 X:XXX` 可以改為其他名稱，因為 "舊表" 聽起來非常不恰當且不專業」，以及「一下子有範例1範例2的，一下子註解顯示什麼 "舊表P+S"」。
 const CATALOGUE_CODES = /舊表|A 到 U|A–U|範例 ?\d|工作簿範例|[A-U](\+[A-U])+/;
 
-// 取代 KctLettersStayOnKctCards_… 的自訂分頁與範例部分，以及 FilterTemplatesFrontendTests.FilterStep_OffersTemplatesAndTheCombinationCard。
+// 原本取代 ScreenWordingReviewFrontendTests 裡核對卡片字母的方法的自訂分頁與範例部分，以及 FilterTemplatesFrontendTests.FilterStep_OffersTemplatesAndTheCombinationCard。
 // 自訂分頁沒有收合鈕的第一次失敗收據（原 C# 註解）：20261012-060708654-d3fdcf4d785843d3b09ab6fadd009c5c。
 // 每個範例都在新的案件畫面套用（空白草稿直接套用，不會跳出「還沒儲存」的詢問，那屬於第 9 批的儲存流程）。
-test('every example applies under its own name and the custom screen never shows catalogue codes or KCT letters', () => {
-  const offered = customPane(EXAMPLE_READY);
-  assert.equal(offered.$('[data-example-list]').hidden, true, 'examples start closed');
-  offered.click('[data-action="toggle-examples"]');
-  assert.equal(offered.$('[data-action="toggle-examples"]').getAttribute('aria-expanded'), 'true');
+// 使用者 2026-10-29 裁定拿掉「從範例開始」按鈕，範例一直列在「常用篩選條件」分頁下半的「情境範例」。原本斷言清單一開始收起、
+// 按鈕展開後才列出、套用後收起；改成斷言清單一開始就在常用篩選條件分頁列出、沒有展開按鈕、套用後清單仍在。
+// 原本略過的是放卡片字母的分頁，現在範例和卡片同一頁且卡片不再有字母，所以整個條件總覽都不能出現目錄代號。
+// 第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2（examples start closed）。
+test('every example applies under its own name and the condition screens never show catalogue codes or card letters', () => {
+  const offered = buildFixture(EXAMPLE_READY);
+  const list = offered.$('[data-example-list]');
+  assert.equal(list.hidden, false, 'examples are listed from the start');
+  assert.equal(list.closest('[data-condition-pane]').getAttribute('data-condition-pane'), 'common', 'examples sit on the common tab');
+  assert.equal(list.closest('.filter-source-block').querySelector('.filter-source-block__title').textContent, '情境範例');
+  assert.equal(offered.$('[data-condition-pane="common"]').hidden, false);
+  assert.equal(offered.$('[data-action="toggle-examples"]'), null, 'there is no button to open the examples');
   assert.deepEqual(offered.$$('[data-template-key]').map(button => button.getAttribute('data-template-key')), EXAMPLE_KEYS);
+  assert.doesNotMatch(screenTexts(offered.$('[data-filter-pane="filter"]')).join('\n'), CATALOGUE_CODES);
   // 自訂分頁沒有收合鈕，也沒有退場的排除區或待判定說法。
+  offered.click('[data-condition-source="custom"]');
   assert.equal(offered.$('[data-action="toggle-custom-picker"]'), null);
   assert.doesNotMatch(screenTexts(offered.$('[data-filter-pane="filter"]')).join('\n'), /排除區域|待判定/);
-  assert.doesNotMatch(screenTexts(offered.$('[data-filter-pane="filter"]'), '[data-condition-pane="kct"]').join('\n'), CATALOGUE_CODES);
+  assert.doesNotMatch(screenTexts(offered.$('[data-filter-pane="filter"]')).join('\n'), CATALOGUE_CODES);
 
   for (const key of EXAMPLE_KEYS) {
-    const f = customPane(EXAMPLE_READY);
-    f.click('[data-action="toggle-examples"]');
+    const f = buildFixture(EXAMPLE_READY);
     const button = f.$('[data-template-key="' + key + '"]');
     assert.equal(button.disabled, false, key + ' is available');
     const label = button.textContent;
     button.fire('click');
     assert.equal(f.draft().name, label, key + ' is named after the example');
     assert.ok(f.draft().groups.some(group => group.rules.length), key + ' brings conditions');
-    assert.equal(f.$('[data-example-list]').hidden, true, key + ' closes the list');
-    const texts = screenTexts(f.$('[data-filter-pane="filter"]'), '[data-condition-pane="kct"]');
+    assert.equal(f.$('[data-example-list]').hidden, false, key + ' leaves the list on the common tab');
+    const texts = screenTexts(f.$('[data-filter-pane="filter"]'));
     assert.doesNotMatch(texts.join('\n'), CATALOGUE_CODES, key);
     assert.doesNotMatch(f.draft().name + '\n' + f.draft().rationale, CATALOGUE_CODES, key);
-    // 條件組裡沒有 KCT 卡片、欄位按鈕或常用查核條件的按鈕。
-    assert.equal(f.dom.content.querySelectorAll('.scenario-set [data-kct-letter], .scenario-set [data-add-field], .scenario-set [data-add-check]').length, 0, key);
+    // 條件組裡沒有常用篩選條件的卡片、欄位按鈕或依審計目的的條件按鈕。
+    assert.equal(f.dom.content.querySelectorAll('.scenario-set [data-common-card], .scenario-set [data-add-field], .scenario-set [data-add-check]').length, 0, key);
     if (key === 'manualDepartment') {
       // 只有一個文字型攸關資料元素欄位時直接帶入它。
       assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => [rule.type, rule.fieldId ?? null])), [['manualAuto', null], ['fieldValue', 'rde.dept']]);
@@ -292,8 +356,8 @@ test('every example applies under its own name and the custom screen never shows
   }
 
   // 已有同名情境時，範例名稱後面加數字，不加任何代號。
-  const named = customPane({ ...EXAMPLE_READY, saved: [{ name: '借現金、貸非現金', rationale: 'r', groups: [] }] });
-  named.click('[data-action="toggle-examples"]'); named.click('[data-template-key="cashDebitNonCashCredit"]');
+  const named = buildFixture({ ...EXAMPLE_READY, saved: [{ name: '借現金、貸非現金', rationale: 'r', groups: [] }] });
+  named.click('[data-template-key="cashDebitNonCashCredit"]');
   assert.equal(named.draft().name, '借現金、貸非現金 2');
 });
 
@@ -376,9 +440,10 @@ test('each family adds a one-sentence row without a type menu, and removing one 
 // 取代 FilterWorkspaceFrontendTests.GroupEditor_DoesNotRelocateTheConditionCatalog。
 test('"add conditions to" moves the target group and the groups never embed the condition catalogue', () => {
   const f = buildFixture();
-  f.click('[data-kct-letter="G"]');
+  // 卡片改用代號識別（2026-10-29 拿掉卡片字母，第一次失敗見本檔的 card()）。
+  f.click('[data-common-card="blankDescription"]');
   assert.equal(f.$('[data-condition-target]'), null, 'one group needs no target choice');
-  // 第九節 G2：G、H 都以欄位條件加入，分組與隔離斷言不變。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+  // 第九節 G2：空白摘要與特定尾數兩張卡都以欄位條件加入，分組與隔離斷言不變。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
   assert.match(f.$('.rule-row[data-gi="0"][data-ri="0"] .filter-rule-heading').textContent, /傳票摘要/);
   f.click('[data-action="add-set"]');
   const target = f.$('[data-condition-target]');
@@ -388,11 +453,11 @@ test('"add conditions to" moves the target group and the groups never embed the 
   assert.equal(target.value, '1', 'the new group is the target');
   assert.doesNotMatch(screenTexts(f.$('[data-filter-pane="filter"]')).join('\n'), /目前加入目標/);
   f.choose('[data-condition-target]', '0');
-  f.click('[data-kct-letter="H"]');
+  f.click('[data-common-card="specificTrailingDigits"]');
   assert.deepEqual(rulesOf(f), [['fieldValue', 'fieldValue'], []]);
   f.click('[data-condition-source="custom"]'); f.click('[data-add-field="docNum"]');
   assert.deepEqual(rulesOf(f), [['fieldValue', 'fieldValue', 'fieldValue'], []]);
-  assert.equal(f.dom.content.querySelectorAll('.scenario-set [data-kct-letter], .scenario-set [data-add-field], .scenario-set [data-add-check], .scenario-set [data-template-key]').length, 0);
+  assert.equal(f.dom.content.querySelectorAll('.scenario-set [data-common-card], .scenario-set [data-add-field], .scenario-set [data-add-check], .scenario-set [data-template-key]').length, 0);
   assert.equal(f.$('[data-inline-picker]'), null); assert.equal(f.$('[data-pick-for-group]'), null);
   assert.equal(f.dom.content.querySelectorAll('.scenario-set [data-select-group]').length, 0);
 });
@@ -493,10 +558,10 @@ test('category ticks store each identity once and a renamed category keeps the c
 // 那個方法已由第五步修正（第 3 項）寫好取代的行為測試後刪除（artifacts/review/closing-four-items-20261013/impl-scenario-save.md 第 4 節），這裡只補預覽這一條路的行為。
 test('preview sends the composed groups exactly and marks a rejected condition on its row', async () => {
   const f = buildFixture();
-  f.click('[data-kct-letter="G"]');
+  f.click('[data-common-card="blankDescription"]');
   f.click('[data-action="add-set"]');
   f.click('[data-action="add-set"]');
-  f.click('[data-kct-letter="H"]');
+  f.click('[data-common-card="specificTrailingDigits"]');
   f.click('[data-condition-source="custom"]'); f.click('[data-check-category="people"]'); f.click('[data-add-check="manualEntries"]');
   f.choose('[data-set-combinator][data-gi="2"]', 'OR');
   f.choose('[data-set-join][data-set-join-index="2"]', 'AND');
@@ -509,24 +574,28 @@ test('preview sends the composed groups exactly and marks a rejected condition o
   const filler = { field: 'description', values: [], mode: 'contains', normalization: 'preserve', from: '', to: '', drCr: 'debit', isManual: 'true',
     pairMode: 'exact', debitCategoryIds: ['builtin.receivables'], creditCategoryIds: ['builtin.revenue'], fieldId: '', operator: '',
     amountBasis: 'absolute', value: '', digits: '3', maxEntries: '', windowDays: '' };
+  // 2026-10-29 拿掉卡片字母：名稱改用條件名稱的新寫法、動機每行不再以字母開頭、編輯來源改送第 2 版的卡片代號、
+  // 來源代碼改成 common（原本是字母串接的名稱、第 1 版字母來源與舊來源代碼）。
+  // 第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
   assert.deepEqual(plain(request[0].payload), {
     populationScope: 'auditPeriod',
     scenario: {
-      name: 'G｜H+自訂',
-      rationale: 'G：空白摘要\nH：特定尾數(如 999999/000000 結尾)\n自訂：人工分錄',
+      name: '空白摘要、特定尾數(如 999999/000000 結尾)等3項條件',
+      rationale: '空白摘要\n特定尾數(如 999999/000000 結尾)\n自訂：人工分錄',
       groups: [
         { join: 'AND', matchScope: 'row', rules: [{ join: 'AND', type: 'fieldValue', field: 'description', operator: 'isBlank', includeBlank: false }] },
         { join: 'AND', matchScope: 'row', rules: [
           { join: 'OR', type: 'fieldValue', field: 'amount', operator: 'endsWithDigits', value: '000000', amountBasis: 'absolute', includeBlank: false },
           { join: 'OR', type: 'manualAuto', prescreenKey: 'suspiciousKeywords', keywords: '', ...filler }] }],
-      editorOrigins: { version: 1, legacyKctSource: false, nameIsAutomatic: true, rationaleIsAutomatic: true, groups: [{ letters: ['G'] }, { letters: ['H', null] }] },
-      source: 'kct'
+      editorOrigins: { version: 2, nameIsAutomatic: true, rationaleIsAutomatic: true,
+        groups: [{ cards: ['blankDescription'] }, { cards: ['specificTrailingDigits', null] }] },
+      source: 'common'
     }
   });
   assert.doesNotMatch(JSON.stringify(request[0].payload), /"__/);
   // 草稿本身沒有被送出的投影改動：空的第 2 組還在，標記仍在草稿裡。
   assert.deepEqual(rulesOf(f), [['fieldValue'], [], ['fieldValue', 'manualAuto']]);
-  assert.equal(f.draft().groups[0].rules[0].__kctLetter, 'G');
+  assert.equal(f.draft().groups[0].rules[0].__commonCard, 'blankDescription');
 
   // 後端說送出的第 2 組第 2 條有問題：畫面上是第 3 組（空的第 2 組沒有送出）的第 2 條。
   const error = new Error('synthetic'); error.details = [{ group: 2, rule: 2, message: '合成原因' }];
@@ -633,7 +702,8 @@ test('every common check is added by its own button with the exact type, opens o
 // ------------------------------------------------------------------------------------------------
 
 // 使用者 2026-10-16 指出審計員習慣直接套用預篩選條件，原本要先加入「沿用第四步預篩選規則」，再到條件卡片的下拉改選。
-// 條件總覽改成「KCT 條件、預篩選、自訂篩選條件」三個分頁，預篩選分頁條列每一條規則，按「加入」直接帶入那一條。
+// 條件總覽改成三個分頁，預篩選分頁條列每一條規則，按「加入」直接帶入那一條。第一個分頁 2026-10-29 改名「常用篩選條件」
+//（使用者裁定合併卡片與範例、拿掉小組名稱），原本的期望值是舊分頁名稱；第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
 // 名稱逐字照預篩選規則的畫面名稱（ui-core.js 的 PRESCREEN_RULES，鏡像 Domain 標籤表），不從畫面推導。
 const PRESCREEN_RULES = [
   ['postPeriodApproval', '財報準備日起核准'], ['suspiciousKeywords', '摘要特定描述'], ['unexpectedAccountPair', '未預期借貸組合'],
@@ -648,7 +718,7 @@ test('the prescreen tab lists every prescreen rule and each add button brings in
   // 「編製分錄較少的人員」與「非授權編製人員」要用傳票建立人員，這裡配好欄位，十二條都能加入。
   const f = buildFixture({ glMapping: { createBy: 'Maker' } });
   f.store.setAuthorizedPreparerState({ rowCount: 2 });
-  assert.deepEqual(f.$$('[data-condition-source]').map(button => button.textContent), ['KCT 條件', '預篩選', '自訂篩選條件']);
+  assert.deepEqual(f.$$('[data-condition-source]').map(button => button.textContent), ['常用篩選條件', '預篩選', '自訂篩選條件']);
   f.click('[data-condition-source="prescreen"]');
   assert.equal(f.$('[data-condition-pane="prescreen"]').hidden, false);
   assert.deepEqual(f.$$('[data-add-prescreen]').map(button =>
@@ -711,7 +781,9 @@ test('an auditor adds the unexpected account pair from the prescreen tab and see
   await settle(); await settle();
   const pane = f.$('[data-bind="preview-pane-body"]').textContent;
   assert.match(pane, /1符合條件的傳票數量7符合條件的分錄筆數/);
-  assert.match(pane, /整張傳票的分錄都計入分錄筆數/);
+  // 口徑說明 2026-10-29 改成只在這種情形出現的一句（使用者指出常駐說明太多），意思不變；
+  // 原本比對舊句，改版後依預期失敗，首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。
+  assert.match(pane, /分錄筆數包含整張傳票的分錄/);
   assert.doesNotMatch(pane, /標示為參考的分錄不計入/);
   assert.match(pane, /SYN-1/);
 });
@@ -742,7 +814,7 @@ test('a pasted comma list keeps the value list at its fixed height instead of st
 // ------------------------------------------------------------------------------------------------
 
 // 使用者 2026-10-22 用視窗選項裁定「停用並寫原因」，選項說明是欄位按鈕照樣列出但不能按，下方寫出原因以及可以回欄位配對補上，
-// 常用查核條件與範例用同一套判斷（docs/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md 附錄一）。
+// 常用查核條件與範例用同一套判斷（docs/history/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md 附錄一）。
 // 可用欄位照後端在「傳票核准日、分錄來源模組、傳票建立人員、傳票核准人員與人工/自動分錄都沒有選來源欄」時送的清單寫死；
 // 傳票文件項次沒有來源欄時系統自動編號，使用者 2026-10-22 裁定算已配對，所以在清單裡。
 // 原因是後端第五步的句子；GL 欄位的句子接上和第四步相同的下一步，同一個入口缺幾個欄位就寫在同一句。
@@ -750,7 +822,7 @@ const PARTLY_MAPPED = ['docNum', 'lineID', 'postDate', 'accNum', 'accName', 'des
 const EVERY_GL_FIELD = ['docNum', 'lineID', 'postDate', 'docDate', 'accNum', 'accName', 'description', 'jeSource', 'createBy', 'approveBy', 'manual', 'amount'];
 const DEPARTMENT = [{ fieldId: 'rde.dept', sourceColumn: 'Dept', label: '部門', valueType: 'text' }];
 const unmapped = (...names) => names.map(name => '「' + name + '」').join('') + '尚未選擇來源欄，請回第三步欄位配對補上';
-const KCT_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+const CARD_KEYS = COMMON_CARDS.map(([key]) => key);
 function describedText(f, node) {
   const id = node.getAttribute('aria-describedby');
   assert.ok(id, 'the disabled control is described');
@@ -771,7 +843,10 @@ test('stage four: every field button stays listed, the unmapped ones cannot be p
   const notes = [...new Set(f.$$('[data-add-field]').filter(button => button.disabled).map(button => describedText(f, button)))];
   assert.deepEqual(notes, [unmapped('傳票核准日', '傳票建立人員', '傳票核准人員', '分錄來源模組')], 'one note under the buttons names every unmapped field');
   const note = f.$('#' + f.$('[data-add-field="docDate"]').getAttribute('aria-describedby'));
-  assert.equal(note.closest('.filter-custom-block'), f.$('[data-add-field="docDate"]').closest('.filter-custom-block'), 'the note sits under the field buttons');
+  // 區塊的 class 2026-10-29 從 filter-custom-block 改成 filter-source-block（三個分頁共用）；舊選擇器找不到節點時兩邊都是 null，
+  // 這個斷言不會失敗，所以另確認找得到區塊。FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2 沒有因此失敗。
+  assert.ok(note.closest('.filter-source-block'), 'the note sits inside a source block');
+  assert.equal(note.closest('.filter-source-block'), f.$('[data-add-field="docDate"]').closest('.filter-source-block'), 'the note sits under the field buttons');
   // 傳票文件項次沒有來源欄也能用：系統自動編號。
   assert.equal(f.$('[data-add-field="lineID"]').disabled, false);
   assert.equal(f.$('[data-add-field="lineID"]').getAttribute('aria-describedby'), null);
@@ -786,7 +861,9 @@ test('stage four: every field button stays listed, the unmapped ones cannot be p
   assert.doesNotMatch(screenTexts(f.$('[data-condition-pane="custom"]')).join('\n'), /尚未選擇來源欄/);
 });
 
-test('stage four: common checks, examples, KCT cards and prescreen rules that need an unmapped field are disabled with the same reason until it is mapped', () => {
+// 2026-10-29 範例移到「常用篩選條件」分頁並一直列出（原本要先按「從範例開始」），卡片改用代號識別，測試名稱跟著改；
+// 範例的停用斷言改在常用篩選條件分頁核對。第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+test('stage four: purpose checks, examples, common cards and prescreen rules that need an unmapped field are disabled with the same reason until it is mapped', () => {
   const f = customPane({ availableGlFields: PARTLY_MAPPED, rdeFields: DEPARTMENT });
   assert.deepEqual(disabledKeys(f, 'data-add-check'), ['docDateNonBusinessDay', 'postPeriodApproval', 'manualEntries', 'rarePreparers']);
   const checkNote = key => describedText(f, f.$('[data-add-check="' + key + '"]'));
@@ -798,7 +875,7 @@ test('stage four: common checks, examples, KCT cards and prescreen rules that ne
   assert.deepEqual(rulesOf(f), [], 'a disabled check adds nothing');
 
   // 範例缺兩個欄位時寫在同一句。
-  f.click('[data-action="toggle-examples"]');
+  f.click('[data-condition-source="common"]');
   assert.deepEqual(disabledKeys(f, 'data-template-key'),
     ['periodEndManual', 'blankDescriptionOrApprover', 'preparerLargeAmount', 'weekendManualDescription', 'manualDepartment', 'preparationManualHoliday']);
   const exampleNote = key => describedText(f, f.$('[data-template-key="' + key + '"]'));
@@ -809,11 +886,10 @@ test('stage four: common checks, examples, KCT cards and prescreen rules that ne
   assert.equal(exampleNote('manualDepartment'), unmapped('人工/自動分錄'));
   assert.equal(exampleNote('preparationManualHoliday'), unmapped('傳票核准日', '人工/自動分錄'));
 
-  f.click('[data-condition-source="kct"]');
-  assert.deepEqual(KCT_LETTERS.filter(letter => card(f, letter).disabled), ['D', 'E', 'J']);
-  assert.equal(cardReason(f, 'D'), unmapped('人工/自動分錄'));
-  assert.equal(cardReason(f, 'E'), unmapped('傳票建立人員'));
-  assert.equal(cardReason(f, 'J'), unmapped('傳票建立人員', '傳票核准人員'));
+  assert.deepEqual(CARD_KEYS.filter(key => card(f, key).disabled), ['manualRevenueEntry', 'specificPreparer', 'preparerEqualsApprover']);
+  assert.equal(cardReason(f, 'manualRevenueEntry'), unmapped('人工/自動分錄'));
+  assert.equal(cardReason(f, 'specificPreparer'), unmapped('傳票建立人員'));
+  assert.equal(cardReason(f, 'preparerEqualsApprover'), unmapped('傳票建立人員', '傳票核准人員'));
 
   // 預篩選分頁：週末核准與假日核准也要傳票核准日；缺授權編製人員清單的句子照後端的順序排在欄位前面。
   f.click('[data-condition-source="prescreen"]');
@@ -831,7 +907,7 @@ test('stage four: common checks, examples, KCT cards and prescreen rules that ne
   assert.deepEqual(disabledKeys(f, 'data-add-prescreen'), []);
   assert.deepEqual(disabledKeys(f, 'data-add-check'), []);
   assert.deepEqual(disabledKeys(f, 'data-template-key'), []);
-  assert.deepEqual(KCT_LETTERS.filter(letter => card(f, letter).disabled), []);
+  assert.deepEqual(CARD_KEYS.filter(key => card(f, key).disabled), []);
   f.click('[data-add-prescreen="weekendApproval"]');
   assert.deepEqual(prescreenWire(f), [[['prescreen', 'weekendApproval']]]);
 });
@@ -887,22 +963,22 @@ test('stage four: the field menus on condition cards disable unmapped fields and
 });
 
 // 接手 FilterTemplatesFrontendTests 原本核對兩個現金範例標了 requires: 'accountMapping' 的斷言：同一階段拿掉範例上的 requires，
-// 範例的前置條件改由條件內容查和後端同一張需求表。沒有科目分類時停用，原因和 KCT B 卡同一句，否則套用後要到預覽才被後端擋下。
+// 範例的前置條件改由條件內容查和後端同一張需求表。沒有科目分類時停用，原因和固定資產與費用那張卡同一句，否則套用後要到預覽才被後端擋下。
 // 現有程式已經這樣做，這則測試沒有第一次失敗。
-test('stage four: the two cash examples stay disabled until the account mapping has categories and give the KCT B card reason', () => {
+// 2026-10-29 範例改在「常用篩選條件」分頁一直列出（原本在自訂分頁按「從範例開始」展開），卡片拿掉字母，測試名稱跟著改；
+// 第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+test('stage four: the two cash examples stay disabled until the account mapping has categories and give the fixed-asset card reason', () => {
   for (const mapping of [null, { hasAnyCategory: false, hasRevenue: false, hasCounterpart: false }]) {
-    const f = customPane({ accountMapping: mapping });
-    f.click('[data-action="toggle-examples"]');
+    const f = buildFixture({ accountMapping: mapping });
     for (const key of ['cashDebitNonCashCredit', 'cashCreditNonCashDebit']) {
       const button = f.$('[data-template-key="' + key + '"]');
       assert.equal(button.disabled, true, key);
-      assert.equal(describedText(f, button), cardReason(f, 'B'), key + ' gives the KCT B card reason');
+      assert.equal(describedText(f, button), cardReason(f, FIXED_ASSET), key + ' gives the fixed-asset card reason');
       button.fire('click');
       assert.deepEqual(rulesOf(f), [], key + ' adds nothing');
     }
   }
-  const f = customPane({ accountMapping: { hasAnyCategory: true, hasRevenue: false, hasCounterpart: false } });
-  f.click('[data-action="toggle-examples"]');
+  const f = buildFixture({ accountMapping: { hasAnyCategory: true, hasRevenue: false, hasCounterpart: false } });
   f.click('[data-template-key="cashDebitNonCashCredit"]');
   assert.deepEqual(rulesOf(f), [['specialAccountCategoryPair']]);
 });

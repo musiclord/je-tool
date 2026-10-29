@@ -51,7 +51,7 @@ internal static class SmeCalendar
 
     public static bool IsMakeupDay(DateOnly date) => MakeupSet.Contains(date);
 
-    /// <summary>非營業日：週末或假日，但補班日照常上班。KCT I 用這個定義。</summary>
+    /// <summary>非營業日：週末或假日，但補班日照常上班。非營業日的卡片用這個定義。</summary>
     public static bool IsNonBusinessDay(DateOnly date) =>
         (IsWeekend(date) || IsHoliday(date)) && !IsMakeupDay(date);
 

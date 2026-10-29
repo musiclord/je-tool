@@ -19,10 +19,10 @@ internal static partial class GuiScenarios
 
     // 使用者 2026-10-08 要求重新設計自訂篩選條件。各情境加入自訂條件時共用這裡：
     // 「field:欄位識別」點「依欄位設定」的欄位按鈕；「check:項目」先展開所屬分類再按「加入」；
-    // 「compound:group」或「compound:voucher」從第一組的「⋯」選單加入。分類對照照 ui-core.js 的常用查核條件逐字寫死。
+    // 「compound:group」或「compound:voucher」從第一組的「⋯」選單加入。分類對照照 ui-core.js 的依審計目的條件逐字寫死。
     // 「prescreen:規則」在條件總覽的「預篩選」分頁直接按「加入」（使用者 2026-10-16 要求縮短套用預篩選條件的操作，
     // 取代原本的「預篩選結果：沿用第四步預篩選規則」）。
-    private static readonly IReadOnlyDictionary<string, string> CommonCheckCategories = new Dictionary<string, string>(StringComparer.Ordinal)
+    private static readonly IReadOnlyDictionary<string, string> PurposeCheckCategories = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["postDateWeekend"] = "dates", ["postDateHoliday"] = "dates", ["postDateNonBusinessDay"] = "dates",
         ["docDateNonBusinessDay"] = "dates", ["postPeriodApproval"] = "dates", ["postDateRange"] = "dates", ["periodEndDays"] = "dates",
@@ -49,7 +49,7 @@ internal static partial class GuiScenarios
                 await click($"[data-add-prescreen=\"{key}\"]");
                 return;
             case "check":
-                if (!CommonCheckCategories.TryGetValue(key, out var category)) throw new GuiCheckException("custom_check_unknown");
+                if (!PurposeCheckCategories.TryGetValue(key, out var category)) throw new GuiCheckException("custom_check_unknown");
                 var open = await cdp.EvaluateAsync($"document.querySelector('[data-check-category=\"{category}\"]').getAttribute('aria-expanded')==='true'", ct);
                 if (!open.GetBoolean()) await click($"[data-check-category=\"{category}\"]");
                 await click($"[data-add-check=\"{key}\"]");
@@ -62,11 +62,11 @@ internal static partial class GuiScenarios
         }
     }
 
-    // 「從範例開始」清單收起時先展開；已展開就不再點，避免把清單收回去。
+    // 情境範例放在「常用篩選條件」分頁（2026-10-29 併進來，不再收合）：目前在別的分頁才切過去，已在這個分頁就不再點。
     private static async Task OpenExampleListAsync(CdpSession cdp, Func<string, Task> click, CancellationToken ct)
     {
-        var open = await cdp.EvaluateAsync("document.querySelector('[data-action=\"toggle-examples\"]').getAttribute('aria-expanded')==='true'", ct);
-        if (!open.GetBoolean()) await click("[data-action=\"toggle-examples\"]");
+        var open = await cdp.EvaluateAsync("document.querySelector('[data-condition-source=\"common\"]').getAttribute('aria-selected')==='true'", ct);
+        if (!open.GetBoolean()) await click("[data-condition-source=\"common\"]");
     }
 
     // 套用範例、開啟或新增情境會換掉目前的草稿。草稿有還沒儲存的內容時，JET 先問要不要儲存；
@@ -95,7 +95,7 @@ internal static partial class GuiScenarios
             value => outcome.LastFilterProbe = value.Clone());
         async Task Fill(string selector, string value) { await Click(selector); outcome.RecordAction(); await cdp.TypeTextAsync(value, ct); }
         Task Add(string subject) => AddCustomConditionAsync(cdp, subject, Click, ct);
-        // 選取欄位原有內容後輸入，取代預設值（例如常用查核條件帶入的門檻）。
+        // 選取欄位原有內容後輸入，取代預設值（例如依審計目的條件帶入的門檻）。
         // select() 沒有回傳值，EvaluateAsync 會把沒有值當成執行失敗，所以另外回傳 true。
         async Task Replace(string selector, string value)
         {
@@ -132,7 +132,7 @@ internal static partial class GuiScenarios
         await Click("[data-bind=step-nav] [data-step-index='4']");
         ResizeFilterWindow(920, 760);
         outcome.RecordStage("extended_distinct_voucher_frequency");
-        // 使用者 2026-10-08 要求重新設計自訂篩選條件：統計條件改由常用查核條件「編製分錄較少的人員」加入，
+        // 使用者 2026-10-08 要求重新設計自訂篩選條件：統計條件改由依審計目的條件（當時叫常用查核條件）的「編製分錄較少的人員」加入，
         // 再改成原本驗證的傳票張數介於 1 到 100，條件內容與改版前相同。
         await Add("check:rarePreparers");
         await Choose("[data-rule-bind=field]", "createBy"); await Choose("[data-rule-bind=countUnit]", "vouchers");
@@ -201,8 +201,8 @@ internal static partial class GuiScenarios
         // 所以先存一個情境，之後核對取消與匯入失敗保留情境、匯入成功才清除（上游修改清除下游）。
         outcome.RecordStage("authorized_saved_scenario");
         await Click("[data-bind=step-nav] [data-step-index='4']");
-        await Click("[data-condition-source=kct]");
-        await Click("[data-kct-letter=G]");
+        await Click("[data-condition-source=common]");
+        await Click("[data-common-card=blankDescription]");
         
         await Click("[data-action=save-scenario]");
         await Check("state.filter.savedScenarios.length===1");
@@ -253,7 +253,7 @@ internal static partial class GuiScenarios
         outcome.Assertions.ExitRequested = true;
     }
 
-    private static async Task ExecuteKctRemapRecoveryAsync(CdpSession cdp, OwnedGuiRun ownedRun,
+    private static async Task ExecuteCommonRemapRecoveryAsync(CdpSession cdp, OwnedGuiRun ownedRun,
         Process process, GuiRunOutcome outcome, CancellationToken ct)
     {
         Task Click(string selector) => ClickRecoveryControlAsync(cdp, process, selector, outcome, ct);
@@ -261,7 +261,7 @@ internal static partial class GuiScenarios
             "(()=>{var state=window.JetStore.getState();return {idle:!state.busy,ok:!!(" + expression +
             "),step:state.currentStepIndex,saved:state.filter.savedScenarios.length,preview:document.querySelector('[data-bind=scenario-preview-0]')?.textContent};})()",
             value => value, value => ReadBoolean(value, "idle") && ReadBoolean(value, "ok"),
-            "kct_remap_recovery_failed", ct, value => outcome.LastFilterProbe = value.Clone());
+            "common_remap_recovery_failed", ct, value => outcome.LastFilterProbe = value.Clone());
         async Task Result()
         {
             await Click("[data-filter-pane-select=saved]");
@@ -283,15 +283,15 @@ internal static partial class GuiScenarios
         // 改讀「符合條件的分錄筆數」那一格，數字仍是 1。
         const string hit = "Array.from(document.querySelectorAll('[data-bind=scenario-preview-0][data-loaded] .stat-card')).some(card=>card.querySelector('.stat-card__label')?.textContent==='符合條件的分錄筆數' && card.querySelector('.stat-card__value')?.textContent==='1')";
         const string cleared = "state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.some(m=>m.text==='前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。')";
-        // 預篩選收斂計畫階段四（第五步用到 GL 沒有配對的欄位時，使用者 2026-10-22 裁定「停用並寫原因」）：核准人員沒有配對時，J 卡片停用、
-        // 收在「尚不可用」裡並寫出缺的欄位，按不下去，也就不會走到儲存。原本這裡點 J、按儲存，再讀儲存失敗的說明
-        // （第一次失敗收據 20261028-070711231-27d8b512c4dc4ef5ab16939260b93d1f，停用的 J 捲動超過次數上限）。
-        const string missingApprover = "state.filter.savedScenarios.length===0 && (()=>{var j=document.querySelector('.condition-picker--kct .filter-unavailable [data-kct-letter=J]');" +
+        // 預篩選收斂計畫階段四（第五步用到 GL 沒有配對的欄位時，使用者 2026-10-22 裁定「停用並寫原因」）：核准人員沒有配對時，
+        // 「編製人員與核准人員相同」的卡片停用、收在「尚不可用」裡並寫出缺的欄位，按不下去，也就不會走到儲存。原本這裡點這張卡、
+        // 按儲存，再讀儲存失敗的說明（第一次失敗收據 20261028-070711231-27d8b512c4dc4ef5ab16939260b93d1f，停用的卡片捲動超過次數上限）。
+        const string missingApprover = "state.filter.savedScenarios.length===0 && (()=>{var j=document.querySelector('[data-common-cards] .filter-unavailable [data-common-card=preparerEqualsApprover]');" +
             "return !!j && j.disabled && j.getClientRects().length>0 && j.textContent.includes('核准人員');})()";
-        async Task SaveJ()
+        async Task SaveApproverCard()
         {
-            await Click("[data-condition-source=kct]");
-            await Click("[data-kct-letter=J]");
+            await Click("[data-condition-source=common]");
+            await Click("[data-common-card=preparerEqualsApprover]");
             
             await Click("[data-action=save-scenario]");
         }
@@ -299,13 +299,13 @@ internal static partial class GuiScenarios
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
-        outcome.RecordStage("kct_save_and_result");
-        await SaveJ();
-        await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].source==='kct'");
+        outcome.RecordStage("common_save_and_result");
+        await SaveApproverCard();
+        await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].source==='common'");
         var definition = await cdp.EvaluateAsync("JSON.stringify(window.JetStore.getState().filter.savedScenarios[0])", ct);
         await Result();
         await Check(hit);
-        outcome.RecordStage("kct_cancel_mapping_preserves_scenario");
+        outcome.RecordStage("common_cancel_mapping_preserves_scenario");
         await Click("[data-bind=step-nav] [data-step-index='2']");
         await Check("!!document.querySelector('[data-bind=downstream-reset-notice]')");
         await Click(GlSection + "[data-action=remap-gl]");
@@ -315,24 +315,24 @@ internal static partial class GuiScenarios
         await Result();
         await Check(hit + " && JSON.stringify(state.filter.savedScenarios[0])===" + definition.GetRawText());
         // 使用者 2026-10-07 裁定上游修改清除下游：確認配對後已存情境清空，第五步回到預設；
-        // 沒有核准人員欄位時 J 存不進去，畫面就地說明缺的欄位。原本這裡驗證情境保留並提示缺欄、重試與返回補欄，
+        // 沒有核准人員欄位時這張卡存不進去，畫面就地說明缺的欄位。原本這裡驗證情境保留並提示缺欄、重試與返回補欄，
         // 第一次失敗收據 20261007-041919444-f03fb3816dec4d5f9758ebd9b5d2a1f2。
-        outcome.RecordStage("kct_remap_clears_scenarios");
+        outcome.RecordStage("common_remap_clears_scenarios");
         await Click("[data-bind=step-nav] [data-step-index='2']");
         await MapApprover("");
         await Check(cleared + " && !document.querySelector('[data-bind=downstream-reset-notice]')");
         await Click("[data-filter-pane-select=filter]");
-        await Click("[data-condition-source=kct]");
-        await Click(".condition-picker--kct .filter-unavailable > summary");
+        await Click("[data-condition-source=common]");
+        await Click("[data-common-cards] .filter-unavailable > summary");
         await Check(missingApprover);
         await CaptureScreenshotAsync(cdp, outcome, ct);
-        outcome.RecordStage("kct_remap_fix_resave_and_export");
+        outcome.RecordStage("common_remap_fix_resave_and_export");
         await Click("[data-bind=step-nav] [data-step-index='2']");
         await MapApprover("GUI核准人員");
         await Check(cleared);
         await Click("[data-filter-pane-select=filter]");
-        await SaveJ();
-        await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].source==='kct'");
+        await SaveApproverCard();
+        await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].source==='common'");
         var resaved = await cdp.EvaluateAsync("JSON.stringify(window.JetStore.getState().filter.savedScenarios[0])", ct);
         await Result();
         await Check(hit);
@@ -341,13 +341,13 @@ internal static partial class GuiScenarios
         await Click("[data-bind=step-nav] [data-step-index='5']");
         await Click("[data-action=export-workpaper]");
         await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]})");
-        outcome.RecordStage("kct_reopen_result_and_report");
+        outcome.RecordStage("common_reopen_result_and_report");
         await Click("[data-action=app-back-picker]");
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Result();
         await Check(hit + " && state.reportArtifacts.some(a=>a.kind==='workingPaper') && JSON.stringify(state.filter.savedScenarios[0])===" + resaved.GetRawText());
-        outcome.Assertions.KctRemapRecoveryVerified = true;
+        outcome.Assertions.CommonRemapRecoveryVerified = true;
         await Click("[data-action=app-exit]");
         outcome.Assertions.ExitRequested = true;
     }

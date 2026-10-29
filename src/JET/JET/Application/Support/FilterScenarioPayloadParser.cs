@@ -38,7 +38,7 @@ public static class FilterScenarioPayloadParser
         var rationale = ReadString(scenario, "rationale") ?? string.Empty;
 
         // 選填來源標記（wire 欄位 scenario.source）：ReadString 已 trim 並把空白正規化為 null，
-        // 故未知/空白來源自然落為「查核員手寫」（Domain 只認得 "kct"，其餘等同 null）。
+        // 故未知/空白來源自然落為「查核員手寫」（Domain 只認得 "common"，其餘等同 null，包括 2026-10-29 以前的舊代碼）。
         var source = ReadString(scenario, "source");
 
         var groups = new List<FilterGroupSpec>();
@@ -61,35 +61,44 @@ public static class FilterScenarioPayloadParser
     }
 
     // Editing provenance is structurally checked, but never used by the rule compiler.
+    // 第 2 版（2026-10-29 起）逐條記卡片代號；第 1 版逐條記字母，這一版只檢查結構、原樣保留，不再解讀。
     private static void ValidateEditorOrigins(JsonElement scenario, IReadOnlyList<FilterGroupSpec> groups)
     {
         if (!scenario.TryGetProperty("editorOrigins", out var origins)) return;
         if (origins.ValueKind != JsonValueKind.Object || !origins.TryGetProperty("version", out var version)
-            || !version.TryGetInt32(out var number) || number != 1
+            || !version.TryGetInt32(out var number) || number is not (1 or 2)
             || !origins.TryGetProperty("groups", out var items) || items.ValueKind != JsonValueKind.Array
             || items.GetArrayLength() != groups.Count) throw FilterScenarioCorruption.Exception(null, "editor_origins_incomplete");
-        if (origins.TryGetProperty("legacyKctSource", out var legacy)
-            && legacy.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-            throw FilterScenarioCorruption.Exception(null, "editor_origins_legacy_source_invalid");
         foreach (var key in new[] { "nameIsAutomatic", "rationaleIsAutomatic" })
             if (origins.TryGetProperty(key, out var automatic)
                 && automatic.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
                 throw FilterScenarioCorruption.Exception(null, "editor_origins_automatic_flag_invalid");
+        var positionsKey = number == 1 ? "letters" : "cards";
         for (var i = 0; i < groups.Count; i++)
         {
             var item = items[i];
-            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("letters", out var letters)
-                || letters.ValueKind != JsonValueKind.Array || letters.GetArrayLength() != groups[i].Rules.Count)
+            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty(positionsKey, out var positions)
+                || positions.ValueKind != JsonValueKind.Array || positions.GetArrayLength() != groups[i].Rules.Count)
                 throw FilterScenarioCorruption.Exception(null, "editor_origins_positions_mismatch");
-            foreach (var letter in letters.EnumerateArray())
-                if (letter.ValueKind != JsonValueKind.Null && (letter.ValueKind != JsonValueKind.String
-                    || letter.GetString() is not { Length: 1 } value || value[0] < 'A' || value[0] > 'J'))
-                    throw FilterScenarioCorruption.Exception(null, "editor_origins_kct_letter_invalid");
-            // presetGroup 只會出現在 2026-10-02 以前儲存的情境：當時非營業日 I 自成一組。新版前端不再產生、
+            foreach (var position in positions.EnumerateArray())
+                if (position.ValueKind != JsonValueKind.Null && !IsCardPosition(position, number))
+                    throw FilterScenarioCorruption.Exception(null, "editor_origins_card_invalid");
+            // presetGroup 只會出現在 2026-10-02 以前儲存的情境：當時非營業日的卡片自成一組。新版前端不再產生、
             // 也不再讀它，但已儲存的定義會原樣送回，所以仍接受並只檢查型別，不轉換舊情境。
             if (item.TryGetProperty("presetGroup", out var preset) && preset.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
                 throw FilterScenarioCorruption.Exception(null, "editor_origins_preset_group_invalid");
         }
+    }
+
+    // 第 2 版是卡片代號（前端 FILTER_COMMON_CONDITIONS 的 key，只有英文字母）；第 1 版是 A 到 J 的單一字母。
+    private static bool IsCardPosition(JsonElement position, int version)
+    {
+        if (position.ValueKind != JsonValueKind.String || position.GetString() is not { Length: > 0 } value) return false;
+        if (version == 1) return value.Length == 1 && value[0] is >= 'A' and <= 'J';
+        if (value.Length > 64) return false;
+        foreach (var character in value)
+            if (!char.IsAsciiLetter(character)) return false;
+        return true;
     }
 
     private static FilterGroupSpec ParseGroup(JsonElement group, int moneyScale, string groupLabel)

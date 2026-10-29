@@ -219,18 +219,38 @@ public sealed partial class WorkpaperWriter
         Action<WorkpaperProgress>? progress)
     {
         var dataWidths = MeasureDisplayWidths(
-            [null, "高風險範圍條件", "選擇此篩選條件的原因", "符合條件之傳票數目"],
-            [9D, 30D, 42D, MaximumCountDisplayColumnWidth],
-            tagColumns.Scenarios.Select(scenario =>
-                (IReadOnlyList<string?>)new string?[]
-                {
-                    $"C{scenario.Position}",
-                    scenario.Description,
-                    scenario.Rationale,
-                    scenario.VoucherHitCount.ToString("#,##0", CultureInfo.InvariantCulture)
-                }));
+                [null, "高風險範圍條件", "選擇此篩選條件的原因", "符合條件之傳票數目"],
+                [9D, 30D, 42D, MaximumCountDisplayColumnWidth],
+                tagColumns.Scenarios.Select(scenario =>
+                    (IReadOnlyList<string?>)new string?[]
+                    {
+                        $"C{scenario.Position}",
+                        scenario.Description,
+                        scenario.Rationale,
+                        scenario.VoucherHitCount.ToString("#,##0", CultureInfo.InvariantCulture)
+                    }))
+            .ToArray();
+        dataWidths[1] = Math.Min(dataWidths[1], Step3ConditionMaxWidth);
+        dataWidths[2] = Math.Min(dataWidths[2], Step3RationaleMaxWidth);
+        var dataRows = tagColumns.Scenarios
+            .SelectMany(scenario => FilterConditionExcelText.Parts(scenario.Description)
+                .Select((part, index) => (Scenario: scenario, Part: part, Index: index)))
+            .ToArray();
         using var sheet = session.OpenSheet(WorkpaperSheetCatalog.Step3);
         ConfigureStep3Layout(sheet, dataWidths);
+        for (var position = 0; position < dataRows.Length; position++)
+        {
+            var (scenario, part, index) = dataRows[position];
+            var lines = Math.Max(
+                ExcelDisplayWidth.WrappedLineCount(part, dataWidths[1]),
+                ExcelDisplayWidth.WrappedLineCount(index == 0 ? scenario.Rationale : null, dataWidths[2]));
+            if (lines > 1)
+            {
+                sheet.SetRowHeight(
+                    checked(Step3FirstDataRow + (uint)position),
+                    FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize, lines));
+            }
+        }
         WriteSubstantiveHeader(sheet, context, "證實測試 - 會計分錄及其他調整", omitSubtitle: true);
 
         var headerLines = PlannedLines(sheetPlan, Step3HeaderLines(context));
@@ -256,28 +276,29 @@ public sealed partial class WorkpaperWriter
             sheet.TextCell(18, 5, "符合條件之傳票數目", WorkpaperStyles.Bold)
         ]);
 
-        var rowIndex = 19u;
-        long dataRows = 0;
-        foreach (var scenario in tagColumns.Scenarios)
+        var rowIndex = Step3FirstDataRow;
+        foreach (var (scenario, part, index) in dataRows)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var parts = FilterConditionExcelText.Parts(scenario.Description);
-            for (var index = 0; index < parts.Count; index++)
-            {
-                sheet.WriteRow(rowIndex,
-                [
-                    sheet.TextCell(rowIndex, 2, $"C{scenario.Position}" + (index == 0 ? "" : "（續）")),
-                    sheet.TextCell(rowIndex, 3, parts[index]),
-                    sheet.TextCell(rowIndex, 4, index == 0 ? scenario.Rationale : ""),
-                    index == 0 ? sheet.NumberCell(rowIndex, 5, scenario.VoucherHitCount) : sheet.BlankCell(rowIndex, 5)
-                ]);
-                rowIndex++;
-                dataRows++;
-            }
+            sheet.WriteRow(rowIndex,
+            [
+                sheet.TextCell(rowIndex, 2, $"C{scenario.Position}" + (index == 0 ? "" : "（續）")),
+                sheet.TextCell(rowIndex, 3, part, WorkpaperStyles.Wrap),
+                sheet.TextCell(rowIndex, 4, index == 0 ? scenario.Rationale : "", WorkpaperStyles.Wrap),
+                index == 0 ? sheet.NumberCell(rowIndex, 5, scenario.VoucherHitCount) : sheet.BlankCell(rowIndex, 5)
+            ]);
+            rowIndex++;
         }
 
-        AddStat(stats, sheet.CloseAndSummarizeWith(dataRows, cancellationToken), progress);
+        AddStat(stats, sheet.CloseAndSummarizeWith(dataRows.Length, cancellationToken), progress);
     }
+
+    private const uint Step3FirstDataRow = 19;
+
+    // 條件與原因欄的寬度上限，參考舊流程底稿約 50 與 34 個字元的欄寬；超過時換行並加高該列，
+    // 不再依最長的一段條件把欄寬撐到 255（使用者 2026-10-29 要求工作表外觀對齊舊流程）。
+    private const double Step3ConditionMaxWidth = 60D;
+    private const double Step3RationaleMaxWidth = 50D;
 
     /// <summary>
     /// 「step4 符合高風險條件傳票」:第 11 列欄標(A 編號/B 傳票號碼/C 總帳日期/D 編製者/E 傳票總金額)
@@ -668,7 +689,7 @@ public sealed partial class WorkpaperWriter
         SheetWriter sheet,
         IReadOnlyList<double> widths)
     {
-        sheet.SetDefaultRowHeight(18);
+        sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkpaperStyles.Step41FontSize));
         for (var index = 0; index < widths.Count; index++)
         {
             var column = checked((uint)index + 1);
@@ -1459,7 +1480,7 @@ public sealed partial class WorkpaperWriter
         SheetWriter sheet,
         IReadOnlyList<double> dataWidths)
     {
-        sheet.SetDefaultRowHeight(18);
+        sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize));
         ApplyDisplayWidths(sheet, firstColumn: 1, widths: dataWidths);
         sheet.SetRowHeight(49, 38);
         sheet.SetRowHeight(50, 28);
@@ -1471,7 +1492,7 @@ public sealed partial class WorkpaperWriter
         SheetWriter sheet,
         IReadOnlyList<double> dataWidths)
     {
-        sheet.SetDefaultRowHeight(18);
+        sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize));
         sheet.SetColumnWidth(1, 1, 12);
         ApplyDisplayWidths(sheet, firstColumn: 2, widths: dataWidths);
         sheet.SetRowHeight(18, 34);
@@ -1481,7 +1502,7 @@ public sealed partial class WorkpaperWriter
         SheetWriter sheet,
         IReadOnlyList<double> dataWidths)
     {
-        sheet.SetDefaultRowHeight(18);
+        sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize));
         ApplyDisplayWidths(sheet, firstColumn: 1, widths: dataWidths);
         sheet.SetRowHeight(10, 32);
         sheet.SetRowHeight(11, 42);

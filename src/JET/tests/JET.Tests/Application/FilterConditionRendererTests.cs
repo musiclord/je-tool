@@ -363,7 +363,7 @@ public sealed class FilterConditionRendererTests
     [Fact]
     public void NonBusinessDayBracket_InsideGroup_RendersAtomInPlace()
     {
-        // KCT I 加入目前條件組，成為第 2 條：讀回留在原位置，不搬到最後、不另加「情境」字樣。
+        // 非營業日卡片加入目前條件組，成為第 2 條：讀回留在原位置，不搬到最後、不另加「情境」字樣。
         var result = Render(new
         {
             groups = new[] { new { join = "AND", rules = new object[]
@@ -497,7 +497,7 @@ public sealed class FilterConditionRendererTests
     public void ManualOrCombinator_SingleSameShapeGroup_RendersAsNormalGroup()
     {
         // 手動 或 同形組（單組情境）：wire 上 group join 經 toWireDraft 收斂為 "OR"（scenarioJoin 預設），
-        // 與 KCT 預設的固定 "AND" 可分。保存當下 read-back 把它當一般可編輯組渲染
+        // 與當時非營業日卡片預設組固定的 "AND" 可分。保存當下 read-back 把它當一般可編輯組渲染
         // （「預篩選：週末過帳 或 預篩選：假日過帳」，無預設區塊）——渲染器同構照渲。
         var result = Render(new
         {

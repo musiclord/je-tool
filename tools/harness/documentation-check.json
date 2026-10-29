@@ -6,7 +6,8 @@
     "docs/architecture/README.md",
     "docs/architecture/diagrams/README.md",
     "docs/history/specs/2026-10-16-architecture-documentation-plan.md",
-    "docs/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md",
+    "docs/history/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md",
+    "docs/specs/2026-10-29-records-and-judgment-basis-plan.md",
     "docs/history/specs/2026-10-16-table-pagination-and-agent-docs-plan.md",
     "docs/history/specs/2026-10-19-cross-database-consistency-plan.md",
     "docs/history/specs/2026-10-19-deferred-items-cleanup-plan.md",
@@ -102,10 +103,6 @@
     {
       "id": "stale-history-by-source-repo",
       "text": "docs/history/je-testing/"
-    },
-    {
-      "id": "stale-billion-rows-target",
-      "text": "10 億 row 等級仍是設計目標"
     },
     {
       "id": "delivery-notes-extra-field-wording",

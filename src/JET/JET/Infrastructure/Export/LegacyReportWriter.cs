@@ -367,7 +367,7 @@ public sealed partial class LegacyReportWriter(
             styles,
             resolvedAutoFitMode,
             headerStyles,
-            appearanceMode == RawSheetAppearanceMode.ExportDatabase ? 12.5D : null);
+            appearanceMode == RawSheetAppearanceMode.ExportDatabase ? LegacyReportStyles.ExportDatabaseRowHeight : null);
         try
         {
             foreach (var values in spool.ReadRows(cancellationToken))
@@ -389,7 +389,7 @@ public sealed partial class LegacyReportWriter(
                         styles,
                         resolvedAutoFitMode,
                         headerStyles,
-                        appearanceMode == RawSheetAppearanceMode.ExportDatabase ? 12.5D : null);
+                        appearanceMode == RawSheetAppearanceMode.ExportDatabase ? LegacyReportStyles.ExportDatabaseRowHeight : null);
                 }
 
                 sheet.WriteDataRow(rowIndex, TextCells(sheet, rowIndex, values, bodyStyles));

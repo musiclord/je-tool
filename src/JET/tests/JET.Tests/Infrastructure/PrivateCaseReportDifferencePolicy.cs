@@ -38,7 +38,7 @@ internal static class PrivateCaseReportDifferencePolicy
     internal const string DeepCellStyleCovered = "deep-cell-style-covered";
     internal const string Step41Borderless = "step4-1-borderless";
     internal const string Step41ProtectionLayout = "step4-1-protection-layout";
-    internal const string ReadableCompletenessRows = "validation-completeness-18-point-rows";
+    internal const string FontScaledRowHeights = "font-scaled-row-heights";
 
     private static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> DirectPhysicalPages =
         new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal)
@@ -177,6 +177,15 @@ internal static class PrivateCaseReportDifferencePolicy
             new LegacyAuditParityContentDifference("working-paper", sheet, LegacyAuditParityContentDimension.RowValues, 1)] };
     }
 
+    private static string? ApprovedFontScaledRowHeight(string reportSlug, string sheetName) => reportSlug switch
+    {
+        "validation-report" when sheetName is "V_Report 3" or "V_Report 4" or "V_Report 5" => "15",
+        "prescreen-report" when sheetName.Length == 2 && sheetName[0] == 'R' && char.IsAsciiDigit(sheetName[1]) => "15",
+        "criteria-selection-report" when sheetName.StartsWith("#Criteria Select ", StringComparison.Ordinal) => "15",
+        "inf-report" when sheetName == "可靠性樣本_所有欄位" => "18",
+        _ => null
+    };
+
     internal static string? ResolveAppearance(
         string reportSlug,
         SpreadsheetAppearanceDifferenceGroup group,
@@ -186,12 +195,15 @@ internal static class PrivateCaseReportDifferencePolicy
         ArgumentNullException.ThrowIfNull(group);
         ArgumentNullException.ThrowIfNull(allGroups);
 
-        // 2026-09-17 D26：只接受 V_Report 5 已核定的 18 點，其他頁或其他高度仍須處理。
-        if (reportSlug == "validation-report" && group.SheetName == "V_Report 5"
-            && group.ActualValue == "18"
+        // 2026-10-29 使用者裁定 10 點明細頁統一 15 點，11 點與 12 點用 16.5 與 18 點，取代 2026-09-17 D26 只放行 V_Report 5 的 18 點。
+        // 放行的高度由 PrivateCaseReportComparatorTests 核對，第一次失敗：Public 收據 20261029-033535234-ec60c658035b41ddba9416ad92c94a33。
+        // 10 點的明細頁只接受 15 點，12 點的可靠性樣本只接受 18 點；其他頁或其他高度仍須處理。
+        // 底稿各頁疊在範本上寫，列高沿用範本，不在此放行。
+        if (ApprovedFontScaledRowHeight(reportSlug, group.SheetName) is { } approvedHeight
+            && group.ActualValue == approvedHeight
             && ((group.ScopeKind == "row" && group.Property == "height")
                 || (group.ScopeKind == "sheetFormat" && group.Property == "defaultRowHeight")))
-            return ReadableCompletenessRows;
+            return FontScaledRowHeights;
 
         if (group.Property.EndsWith("font.name", StringComparison.Ordinal))
         {

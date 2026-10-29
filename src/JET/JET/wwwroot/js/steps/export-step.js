@@ -16,6 +16,8 @@
   var historyNewestId = null;
   var HISTORY_PAGE_SIZE = Ui.REPORT_HISTORY_PAGE_SIZE;
   var NO_SCENARIO_NOTICE = '還沒有已儲存的篩選情境，請先到「進階條件篩選」儲存，再匯出工作底稿。';
+  // 只在第五步真的有尚未儲存的條件時出現，取代原本常駐的「草稿不會自動納入」（使用者 2026-10-29 指出常駐說明太多）。
+  var UNSAVED_DRAFT_NOTICE = '「進階條件篩選」還有尚未儲存的條件，儲存成情境後才會納入底稿。';
   // Pre-screening Report 預設納入輸出家族；使用者可取消，取消後只影響這一份。
   var includePrescreenReport = true;
 
@@ -30,10 +32,6 @@
 
   function runId(run) {
     return run && run.resultRef ? run.resultRef.runId : null;
-  }
-
-  function populationScopeLabel() {
-    return '查核期間';
   }
 
   /* Pre-screening Report 的匯出面決策。文案一律取自後端 renderer（Ui.prescreenPositioningCopy）；
@@ -84,6 +82,13 @@
     return plan.included ? '產生工作底稿與預篩選報告' : '產生工作底稿';
   }
 
+  // 動機照列；只用自訂條件時自動產生的動機只是把條件再念一次，改列條件本身，和第五步的已儲存情境一致。
+  function scenarioOptionMetaHtml(scenario) {
+    if (!Ui.isGeneratedRationale(scenario.rationale)) { return Ui.esc(scenario.rationale); }
+    var readBack = Ui.FilterStep && Ui.FilterStep.readBackExpressionHtml;
+    return (readBack && readBack({ groups: scenario.groups || [], __preserveJoins: true }, true)) || '已儲存篩選情境';
+  }
+
   function filterRevision(state) {
     var resultRef = state.filterResultRef;
     if (!resultRef || resultRef.populationScope !== 'auditPeriod') { return null; }
@@ -120,7 +125,7 @@
           '<input type="checkbox" data-scenario-position="' + position + '"' + checked + '>' +
           '<span class="scenario-export-option__copy">' +
             '<span class="scenario-export-option__name">C' + position + '，' + Ui.esc(scenario.name) + '</span>' +
-            '<span class="scenario-export-option__meta">' + Ui.esc(scenario.rationale || '已儲存篩選情境') + '</span>' +
+            '<span class="scenario-export-option__meta">' + scenarioOptionMetaHtml(scenario) + '</span>' +
           '</span>' +
         '</label>'
       );
@@ -132,10 +137,11 @@
         '<div class="scenario-export-selection__head">' +
           '<div>' +
             '<h3 class="scenario-export-selection__title" id="scenario-export-heading">納入底稿的篩選情境</h3>' +
-            '<p class="scenario-export-selection__hint">預設全選。底稿會標示符合所選情境的分錄，並保留同傳票參考分錄。</p>' +
             '<p class="scenario-export-selection__hint">條件儲存時間：' +
-              Ui.esc(filterRevision(state) ? Ui.formatDateTime(filterRevision(state)) : '尚未套用目前規則') + '。' +
-              '使用目前資料及已儲存條件；草稿不會自動納入。</p>' +
+              Ui.esc(filterRevision(state) ? Ui.formatDateTime(filterRevision(state)) : '尚未套用目前規則') + '。</p>' +
+            (Ui.FilterStep && Ui.FilterStep.hasUnsavedScenarioChanges && Ui.FilterStep.hasUnsavedScenarioChanges()
+              ? '<p class="form-notice form-notice--warning" data-bind="export-unsaved-draft">' + Ui.esc(UNSAVED_DRAFT_NOTICE) + '</p>'
+              : '') +
           '</div>' +
           '<div class="panel__actions panel__actions--start">' +
             '<button type="button" class="btn btn--ghost btn--tiny" data-action="select-all-scenarios">全選</button>' +
@@ -202,8 +208,6 @@
     ensureScenarioSelection(state);
 
     var validationRunId = runId(state.lastRuns.validate);
-    var rawScope = state.filterResultRef ? state.filterResultRef.populationScope : null;
-    var populationScope = rawScope === 'auditPeriod' ? rawScope : null;
     var scenarioRevision = filterRevision(state);
     var needsScenarioResave = state.filter.savedScenarios.length > 0 && !scenarioRevision;
     // 沒有已儲存的情境時，第六步仍可因既有版本紀錄而進入查看，但不能匯出。
@@ -229,9 +233,6 @@
     container.innerHTML =
       '<div class="panel" data-motion-key="export-panel">' +
         '<h2 class="panel__title">匯出底稿</h2>' +
-        (populationScope
-          ? '<p class="panel__hint">已儲存的 GL：' + Ui.esc(populationScopeLabel(populationScope)) + '內的分錄。</p>'
-          : '') +
         (needsScenarioResave ? Ui.filterScenarioProblemsHtml(state) : '') +
         // 還沒儲存情境是使用者接下來要去做的事，用琥珀色；紅色只留給執行失敗與資料錯誤（使用者 2026-10-11 裁定）。
         (noScenario ? '<p class="form-notice form-notice--warning" data-bind="export-no-scenario">' + Ui.esc(NO_SCENARIO_NOTICE) + '</p>' : '') +
@@ -247,7 +248,6 @@
           '<div class="report-output__head">' +
             '<h3 class="report-output__title">工作底稿版本紀錄</h3>' +
           '</div>' +
-          '<p class="panel__hint">每次匯出會新增版本，不覆蓋既有底稿。</p>' +
           // 翻頁是整頁換掉：新的一頁只淡入，不讓五十份文件卡一起收起又長出來；同一頁裡新產生的底稿才長出來。
           '<div data-motion="fade" data-motion-key="workpapers-page-' + historyPage + '">' +
           Ui.reportArtifactListHtml(visibleWorkpapers, '尚未產生工作底稿。', { history: true, reveal: true, motion: 'workpapers' }) +

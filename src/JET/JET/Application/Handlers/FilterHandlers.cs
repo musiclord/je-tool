@@ -205,7 +205,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
 
         foreach (var scenarioElement in scenariosElement.EnumerateArray())
         {
-            // 留痕替補唯一收斂點：legacy KCT 來源豁免名稱/動機必填，但
+            // 留痕替補唯一收斂點：常用篩選條件來源豁免名稱/動機必填，但
             // config_filter_scenario.name/.rationale NOT NULL。先取得一基 position，讓同批空名
             // 得到穩定且不同的替補；去重與持久化都用替補後的有效名稱。
             var position = saved.Count + 1;

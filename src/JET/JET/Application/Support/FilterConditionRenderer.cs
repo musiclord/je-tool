@@ -15,7 +15,7 @@ namespace JET.Application;
 /// 顯示原文遺失；要真正同構就必須讀原始 wire。層級：JSON 形狀處理與 <see cref="FilterScenarioPayloadParser"/>
 /// 同屬 Application；中文標籤的唯一正本在 Domain <see cref="FilterConditionLabels"/>（前端鏡像、測試守衛）。
 ///
-/// 非營業日 KCT I 保留條件括號，內含排除補班日的日期條件。舊版「週末過帳 或 假日過帳」
+/// 非營業日卡片保留條件括號，內含排除補班日的日期條件。舊版「週末過帳 或 假日過帳」
 /// 仍按原樹描述，不改成新版定義，也不搬到其他位置；本類只影響顯示文字。
 /// </summary>
 public static class FilterConditionRenderer

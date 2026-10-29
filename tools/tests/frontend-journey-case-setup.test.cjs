@@ -282,12 +282,12 @@ const calendarMeta = f => calendarRow(f).querySelector('.import-task__meta').tex
 
 test('journey 4: choosing GL and TB source files offers exactly the seven supported file types and the guidance names them', async () => {
   const f = importFixture();
-  // 只比對意思（計畫第 2 節情境 4）：說明列出 Excel、CSV、文字檔與 Access，試算表要同一查核期間。
-  const hint = f.$('.panel__hint').textContent;
-  for (const word of [/Excel/, /CSV/, /文字檔/, /Access/, /同一查核期間/]) assert.match(hint, word);
   // 已撤下的舊說明不再出現在第二步。
   const panel = f.$('[data-motion-key="import-panel"]').textContent;
   assert.doesNotMatch(panel, /完整資料直接匯入案件資料庫|解鎖「非授權編製人員」/);
+  // 使用者 2026-10-29 指出常駐說明太多：頁首不再常駐支援的檔案類型，改在選檔畫面說一次。
+  // 這裡原本讀頁首的 .panel__hint，改版後依預期失敗，首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。
+  assert.doesNotMatch(panel, /支援 Excel/);
 
   for (const [kind, name] of [['gl', /PBC-GL/], ['tb', /TB/]]) {
     f.click('[data-task-toggle="' + kind + '"]');
@@ -298,6 +298,10 @@ test('journey 4: choosing GL and TB source files offers exactly the seven suppor
     assert.deepEqual(plain(pick.payload.extensions), ['.xlsx', '.xlsm', '.xls', '.csv', '.txt', '.mdb', '.accdb']);
     assert.match(pick.payload.title, name);
     pick.resolve({ files: [] }); await settle();
+    // 只比對意思（計畫第 2 節情境 4）：選檔畫面列出 Excel、CSV、文字檔與 Access，試算表要同一查核期間。
+    const guidance = f.$('.wizard-pane__hint').textContent;
+    for (const word of [/Excel/, /CSV/, /文字檔/, /Access/]) assert.match(guidance, word);
+    if (kind === 'tb') assert.match(guidance, /同一查核期間/);
     f.click('[data-action="wizard-cancel"]');
   }
   assert.equal(f.requests.filter(r => r.action === 'hostSelectFiles').length, 2);

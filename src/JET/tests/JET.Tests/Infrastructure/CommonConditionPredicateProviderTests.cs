@@ -4,11 +4,12 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// KCT D/E/G/J ready-state predicate matrix. Every assertion executes the production
+/// Ready-state predicate matrix for the four common filter cards that need GL fields
+/// (manual revenue entry, specific preparer, blank description, preparer equals approver). Every assertion executes the production
 /// filter repository against a real SQLite, DuckDB, or gated SQL Server database.
 /// The fixture is hand-calculated and locks exact row identity rather than count alone.
 /// </summary>
-public sealed class KctReadyPredicateProviderTests
+public sealed class CommonConditionPredicateProviderTests
 {
     private const string ManualRevenue = "manualRevenueEntry";
     private const string SpecificPreparer = "specificPreparer";
@@ -22,19 +23,19 @@ public sealed class KctReadyPredicateProviderTests
              account_code, account_name, document_description, source_module, created_by, approved_by,
              is_manual, is_effective, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
         VALUES
-            ('kct', 1,  'D1', '1', '2025-03-01', '2025-03-02', '4101', 'Revenue', 'manual revenue', NULL, 'Clerk',  'Reviewer',   1, 1,  10000, 10000, 0,     'DEBIT'),
-            ('kct', 2,  'D1', '2', '2025-03-01', '2025-03-02', '1101', 'Cash',    'counter row',    NULL, 'Clerk',  'Reviewer',   1, 1, -10000, 0,     10000, 'CREDIT'),
+            ('cards', 1,  'D1', '1', '2025-03-01', '2025-03-02', '4101', 'Revenue', 'manual revenue', NULL, 'Clerk',  'Reviewer',   1, 1,  10000, 10000, 0,     'DEBIT'),
+            ('cards', 2,  'D1', '2', '2025-03-01', '2025-03-02', '1101', 'Cash',    'counter row',    NULL, 'Clerk',  'Reviewer',   1, 1, -10000, 0,     10000, 'CREDIT'),
 
-            ('kct', 3,  'E1', '1', '2025-04-01', '2025-04-02', '5101', 'Others',  'target creator', NULL, ' TARGET ', NULL,        0, 1,  20000, 20000, 0,     'DEBIT'),
-            ('kct', 4,  'E1', '2', '2025-04-01', '2025-04-02', '1101', 'Cash',    'other creator',  NULL, 'Staff',    NULL,        0, 1, -20000, 0,     20000, 'CREDIT'),
+            ('cards', 3,  'E1', '1', '2025-04-01', '2025-04-02', '5101', 'Others',  'target creator', NULL, ' TARGET ', NULL,        0, 1,  20000, 20000, 0,     'DEBIT'),
+            ('cards', 4,  'E1', '2', '2025-04-01', '2025-04-02', '1101', 'Cash',    'other creator',  NULL, 'Staff',    NULL,        0, 1, -20000, 0,     20000, 'CREDIT'),
 
-            ('kct', 5,  'G1', '1', '2025-05-01', '2025-05-02', '5101', 'Others',  NULL,             NULL, 'G',        'Reviewer',  0, 1,  10100, 10100, 0,     'DEBIT'),
-            ('kct', 6,  'G1', '2', '2025-05-01', '2025-05-02', '5101', 'Others',  '',               NULL, 'G',        'Reviewer',  0, 1,  20200, 20200, 0,     'DEBIT'),
-            ('kct', 7,  'G1', '3', '2025-05-01', '2025-05-02', '5101', 'Others',  '   ',            NULL, 'G',        'Reviewer',  0, 1,  30300, 30300, 0,     'DEBIT'),
-            ('kct', 8,  'G1', '4', '2025-05-01', '2025-05-02', '1101', 'Cash',    'not blank',      NULL, 'G',        'Reviewer',  0, 1, -60600, 0,     60600, 'CREDIT'),
+            ('cards', 5,  'G1', '1', '2025-05-01', '2025-05-02', '5101', 'Others',  NULL,             NULL, 'G',        'Reviewer',  0, 1,  10100, 10100, 0,     'DEBIT'),
+            ('cards', 6,  'G1', '2', '2025-05-01', '2025-05-02', '5101', 'Others',  '',               NULL, 'G',        'Reviewer',  0, 1,  20200, 20200, 0,     'DEBIT'),
+            ('cards', 7,  'G1', '3', '2025-05-01', '2025-05-02', '5101', 'Others',  '   ',            NULL, 'G',        'Reviewer',  0, 1,  30300, 30300, 0,     'DEBIT'),
+            ('cards', 8,  'G1', '4', '2025-05-01', '2025-05-02', '1101', 'Cash',    'not blank',      NULL, 'G',        'Reviewer',  0, 1, -60600, 0,     60600, 'CREDIT'),
 
-            ('kct', 9,  'J1', '1', '2025-06-01', '2025-06-02', '5101', 'Others',  'same people',    NULL, ' Maker ',  'maker',     0, 1,  30000, 30000, 0,     'DEBIT'),
-            ('kct', 10, 'J1', '2', '2025-06-01', '2025-06-02', '1101', 'Cash',    'different',      NULL, 'Maker',    'Controller',0, 1, -30000, 0,     30000, 'CREDIT');
+            ('cards', 9,  'J1', '1', '2025-06-01', '2025-06-02', '5101', 'Others',  'same people',    NULL, ' Maker ',  'maker',     0, 1,  30000, 30000, 0,     'DEBIT'),
+            ('cards', 10, 'J1', '2', '2025-06-01', '2025-06-02', '1101', 'Cash',    'different',      NULL, 'Maker',    'Controller',0, 1, -30000, 0,     30000, 'CREDIT');
 
         -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
         INSERT INTO target_account_mapping
@@ -100,7 +101,7 @@ public sealed class KctReadyPredicateProviderTests
 
     private static FilterScenarioSpec SingleRule(FilterRuleSpec rule) =>
         new(
-            "KCT ready predicate matrix",
+            "Common card ready predicate matrix",
             "hand-calculated row identity oracle",
             [new FilterGroupSpec(FilterJoin.And, [rule])]);
 
@@ -136,7 +137,7 @@ public sealed class KctReadyPredicateProviderTests
                 PrescreenKey = PrescreenRuleKeys.BlankDescription
             },
             SamePreparerAndApprover => empty,
-            _ => throw new ArgumentOutOfRangeException(nameof(condition), condition, "Unknown KCT condition.")
+            _ => throw new ArgumentOutOfRangeException(nameof(condition), condition, "Unknown common card condition.")
         };
     }
 
@@ -146,6 +147,6 @@ public sealed class KctReadyPredicateProviderTests
         SpecificPreparer => ["E1|1"],
         BlankDescription => ["G1|1", "G1|2", "G1|3"],
         SamePreparerAndApprover => ["J1|1"],
-        _ => throw new ArgumentOutOfRangeException(nameof(condition), condition, "Unknown KCT condition.")
+        _ => throw new ArgumentOutOfRangeException(nameof(condition), condition, "Unknown common card condition.")
     };
 }

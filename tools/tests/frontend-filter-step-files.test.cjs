@@ -82,7 +82,8 @@ test('依序載入五個檔案後第五步照常註冊，共用的檢視狀態�
   const step = window.JetUi.FilterStep;
   assert.equal(typeof step, 'object');
   assert.equal(registered.filter, step.render, '主檔把 FilterStep.render 註冊成第五步');
-  for (const name of ['render', 'bind', 'toWireDraft', 'syncViewState', 'kctPickerHtml', 'ruleSummaryLabel', 'readBackHtml', 'scenarioBuilderHtml'])
+  // 常用篩選條件分頁的函式 2026-10-29 改名為 commonPickerHtml（舊名以當時的條件分頁名稱命名）。第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+  for (const name of ['render', 'bind', 'toWireDraft', 'syncViewState', 'commonPickerHtml', 'ruleSummaryLabel', 'readBackHtml', 'scenarioBuilderHtml'])
     assert.equal(typeof step[name], 'function', 'FilterStep.' + name + ' 是函式');
   assert.equal(typeof step.viewState, 'object', '共用的檢視狀態放在 FilterStep.viewState');
   assert.equal(step.viewState.workspacePane, 'filter', '檢視狀態的起始分頁');

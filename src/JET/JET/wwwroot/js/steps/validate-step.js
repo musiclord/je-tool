@@ -880,9 +880,14 @@
       (status.tip ? ' title="' + Ui.esc(status.tip) + '"' : '') + '>' + Ui.esc(status.text) + '</span>';
   }
 
-  function ruleListHtml(items, runData, scope) {
+  // 每條規則一列：標題、狀態與「檢視」。規則在做什麼不再常駐在標題下方：滑鼠停在標題上時出現，
+  // 展開「檢視」後寫在明細最上方一次（使用者 2026-10-29 指出常駐說明太多）。
+  // detailsBelow：並排的兩項彙總把明細接在整張清單下方、佔滿整寬，展開一邊時另一邊不會被撐高（同日指出濫用置中會讓並排的區塊對不齊）。
+  function ruleListHtml(items, runData, scope, options) {
     var view = detailView(detailRunKind(scope));
-    return '<ul class="rule-list">' + items.map(function (item, idx) {
+    var detailsBelow = !!(options && options.detailsBelow);
+    var detailsAfterList = [];
+    var rows = items.map(function (item, idx) {
       // status 為 null = 未執行（無 runData 或 resume 舊結果缺此規則鍵）→ 不算 detail,
       // 避免 detail 去取缺漏子物件而丟例外拖垮整步;詳情只在規則確有結果時才存在。
       var status = item.status(runData);
@@ -895,20 +900,24 @@
         : '';
       var detailContainer = detail
         ? '<div class="rule-detail" id="' + Ui.esc('rule-detail-' + scope + '-' + idx) + '" data-bind="rule-detail-' + Ui.esc(scope) + '-' + idx + '" data-collapsible' + (expanded ? '' : ' hidden') + '>' +
+            (detailsBelow ? '<h4 class="rule-detail__title">' + Ui.esc(item.title) + '</h4>' : '') +
+            (item.desc ? '<p class="rule-detail__about">' + Ui.esc(item.desc) + '</p>' : '') +
             detailHtml(detail, scope + '-' + idx) +
           '</div>'
         : '';
+      if (detailsBelow) { detailsAfterList.push(detailContainer); }
       return (
         '<li class="rule-item">' +
           '<div class="rule-item__main">' +
-            '<span class="rule-item__title">' + Ui.esc(item.title) + '</span>' +
-            '<span class="rule-item__desc">' + Ui.esc(item.desc) + '</span>' +
+            '<span class="rule-item__title"' + (item.desc ? ' title="' + Ui.esc(item.desc) + '"' : '') + '>' + Ui.esc(item.title) + '</span>' +
           '</div>' +
           '<div class="rule-item__aside">' + ruleBadge(status) + toggleBtn + '</div>' +
-          detailContainer +
+          (detailsBelow ? '' : detailContainer) +
         '</li>'
       );
-    }).join('') + '</ul>';
+    }).join('');
+    return '<ul class="rule-list">' + rows + '</ul>' +
+      detailsAfterList.join('');
   }
 
   function lastRunLineHtml(runData) {
@@ -1745,7 +1754,7 @@
         gate +
         lastRunLineHtml(p) +
         '<section class="prescreen-primary" aria-labelledby="prescreen-primary-title">' +
-          ruleListHtml(PRESCREEN_AGGREGATE_ITEMS, p, 'pa') +
+          ruleListHtml(PRESCREEN_AGGREGATE_ITEMS, p, 'pa', { detailsBelow: true }) +
         '</section>' +
         '<details class="prescreen-signals"' + (prescreenSignalsOpen ? ' open' : '') + '>' +
           '<summary class="prescreen-signals__summary">' +

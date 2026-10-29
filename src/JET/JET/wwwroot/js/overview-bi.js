@@ -609,7 +609,7 @@
       : '';
     var note = '符合比例＝符合條件的分錄數 ÷ GL 分錄數 ' + fmtNum(rulePeriod.population) +
       ' 筆。長條依各規則符合比例呈現，僅供比較規則間分布。' +
-      zeroPopulationNote + '此為分布描述，非風險評估。';
+      zeroPopulationNote;
 
     return (
       (applicable.length > 0
@@ -671,7 +671,7 @@
       '<p class="overview-bi__note">' +
         'X 軸為絕對金額的 1–2–5 對數級距；零元另計、不納入對數軸。' +
         '累積分布由系統計算，並以 GL 中的非零金額分錄為分母；沒有累積比例的級距不連線。' +
-        '完整區間請查看圖形提示。未設重要性門檻線。此為分布描述，非風險評估。' +
+        '完整區間請查看圖形提示。未設重要性門檻線。' +
       '</p>'
     );
   }
@@ -712,7 +712,7 @@
         '<span class="overview-bi__key overview-bi__key--manual"></span>其中人工分錄' +
         '<span class="overview-bi__key overview-bi__key--line"></span>累積占比' +
       '</p>' +
-      '<p class="overview-bi__note">' + Ui.esc(lead) + '此為分布描述，非風險評估。</p>'
+      '<p class="overview-bi__note">' + Ui.esc(lead) + '</p>'
     );
   }
 

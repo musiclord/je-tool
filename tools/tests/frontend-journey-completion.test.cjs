@@ -22,7 +22,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { usageJourneyFixture, remapAppFixture: baseRemapAppFixture, settle, plain, savedG, batch8ValidationData, remapPaper, readWwwroot } = require('./support/frontend-fixtures.cjs');
+const { usageJourneyFixture, remapAppFixture: baseRemapAppFixture, settle, plain, savedBlankDescription, batch8ValidationData, remapPaper, readWwwroot } = require('./support/frontend-fixtures.cjs');
 
 // remapAppFixture 加上這個檔需要的兩件事（只服務這個檔，先寫在這裡，第 11 批再決定要不要收進支援模組）：
 // 流程總覽的分析區要 overview-bi.js；renderContent 排統計數字時會讀 getComputedStyle，vm 沒有版面，回傳不影響結果的固定值。
@@ -66,7 +66,7 @@ function buildState(f, { level, stalePaper = false }) {
   if (level >= 2) for (const kind of ['gl', 'tb']) store.setImportResult(kind, { batchId: kind, rowCount: 2, columns: ['Account'] });
   if (level >= 3) for (const kind of ['gl', 'tb']) store.setMappingCommitted(kind, { mapping: {}, mode: kind === 'gl' ? 'dual' : 'debitCredit' });
   if (level >= 4) store.setLastRun('validate', batch8ValidationData('v1'));
-  if (level >= 5) { store.setSavedScenarios([savedG('第一個'), savedG('第二個'), savedG('第三個')]); store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' }); }
+  if (level >= 5) { store.setSavedScenarios([savedBlankDescription('第一個'), savedBlankDescription('第二個'), savedBlankDescription('第三個')]); store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' }); }
   if (level >= 6) store.setReportArtifacts([paper('current')]);
   if (stalePaper) store.setReportArtifacts([paper('outdated', { stale: true })]);
   store.setView('workflow');

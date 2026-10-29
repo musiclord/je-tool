@@ -124,6 +124,63 @@ public sealed class FormalReportRdeProjectionTests
         Assert.DoesNotContain(MoneyLabel, valueHeaders);
     }
 
+    // 2026-10-30 結案前的獨立複審查到：2026-10-29 改的列高，只有 V_Report 5、驗證報告的欄位資訊頁與底稿 step3 有測試。
+    // 這則補上其他 JET 自己寫的工作表。使用者 2026-10-29 選「統一 15 點」：10 點的明細頁，例如 R1 到 R7、各張 #Criteria Select
+    // 與 Source_Quality，列高 15 點；12 點的「可靠性樣本_所有欄位」是 18 點。程式用字級的 1.5 倍算出這些值，這個算法是 Claude 的歸納。
+    // 這是新增的測試。
+    [Fact]
+    public async Task FormalReports_JetWrittenDetailSheets_UseTheRowHeightOfTheirFontSize()
+    {
+        using var host = new HandlerTestHost();
+        var setup = await SetupAsync(host);
+        var validationArtifacts = await host.DispatchAsync(
+            "export.validationArtifacts",
+            JsonSerializer.Serialize(new { runId = setup.ValidationRunId }));
+        var artifacts = validationArtifacts.GetProperty("artifacts");
+        using (var inf = new XLWorkbook(ArtifactPath(host, setup.ProjectId, artifacts, "infReport")))
+        {
+            Assert.Equal(18D, inf.Worksheet("可靠性樣本_所有欄位").RowHeight);
+        }
+
+        using (var validation = new XLWorkbook(ArtifactPath(host, setup.ProjectId, artifacts, "validationReport")))
+        {
+            Assert.Equal(15D, validation.Worksheet("Source_Quality").RowHeight);
+        }
+
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var prescreenReport = await host.DispatchAsync(
+            "export.prescreenReport",
+            JsonSerializer.Serialize(new { runId = prescreenRunId }));
+        var prescreenPath = Path.Combine(
+            host.ProjectsRoot,
+            setup.ProjectId,
+            prescreenReport.GetProperty("artifact").GetProperty("fileName").GetString()!);
+        using (var report = new XLWorkbook(prescreenPath))
+        {
+            var detailNames = new[] { "R1", "R2", "R3", "R4", "R5", "R6", "R7" };
+            // 這份合成案件只有部分預篩選有命中，沒有命中的明細頁不產生；出現的明細頁都要是 15 點。
+            var detailSheets = report.Worksheets.Where(sheet => detailNames.Contains(sheet.Name)).ToArray();
+            Assert.NotEmpty(detailSheets);
+            Assert.All(detailSheets, sheet => Assert.Equal(15D, sheet.RowHeight));
+        }
+
+        var committed = await host.DispatchAsync("filter.commit", ScenarioPayload(setup));
+        var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()!;
+        var criteria = await host.DispatchAsync(
+            "export.criteriaSelectionReport",
+            JsonSerializer.Serialize(new { validationRunId = setup.ValidationRunId, prescreenRunId, revision }));
+        var criteriaPath = Path.Combine(
+            host.ProjectsRoot,
+            setup.ProjectId,
+            criteria.GetProperty("artifact").GetProperty("fileName").GetString()!);
+        using var criteriaWorkbook = new XLWorkbook(criteriaPath);
+        foreach (var position in new[] { 1, 2 })
+        {
+            Assert.Equal(15D, criteriaWorkbook.Worksheet($"#Criteria Select {position}").RowHeight);
+        }
+    }
+
     private static async Task<RdeSetup> SetupAsync(HandlerTestHost host)
     {
         InlineGlWorkbookBuilder? builder = null;

@@ -58,8 +58,8 @@ internal static partial class GuiScenarios
         await Click("[data-action=run-validate]");
         await Check("state.lastRuns.validate?.completenessTest.diffAccountCount===0");
         await Click("[data-bind=step-nav] [data-step-index='4']");
-        await Click("[data-kct-letter=G]"); await Click("[data-action=save-scenario]");
-        await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].name==='G'");
+        await Click("[data-common-card=blankDescription]"); await Click("[data-action=save-scenario]");
+        await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].name==='空白摘要'");
         await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
         await Check("!!window.JetUi.currentWorkpaperArtifact(state) && state.reportArtifacts.some(a=>a.kind==='workingPaper' && !a.stale) && document.querySelector('.toc-progress').textContent.includes('進度 6/6')");
         await CaptureScreenshotAsync(cdp, outcome, ct);
@@ -117,9 +117,9 @@ internal static partial class GuiScenarios
         await Check("state.lastRuns.validate?.completenessTest.diffAccountCount===0 && state.importState.calendar?.holidayCount===1");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-filter-pane-select=filter]");
-        await Click("[data-condition-source=kct]");
-        await Click("[data-kct-letter=G]"); await Click("[data-action=save-scenario]");
-        await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].name==='G'");
+        await Click("[data-condition-source=common]");
+        await Click("[data-common-card=blankDescription]"); await Click("[data-action=save-scenario]");
+        await Check("state.filter.savedScenarios.length===1 && state.filter.savedScenarios[0].name==='空白摘要'");
         await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
         await Check("!!window.JetUi.currentWorkpaperArtifact(state) && state.reportArtifacts.filter(a=>a.kind==='workingPaper').length===2 && state.reportArtifacts.filter(a=>a.kind==='workingPaper' && !a.stale).length===1");
         await CaptureScreenshotAsync(cdp, outcome, ct);

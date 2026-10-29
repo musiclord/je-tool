@@ -28,15 +28,18 @@ public sealed class FilterWorkflowPreviewTests
     {
         using var host = new HandlerTestHost();
         var setup = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
+        // 2026-10-29 卡片改稱常用篩選條件、拿掉字母：資料改成現行前端送出的第 2 版編輯來源與 source:common，
+        // 名稱改成卡片名稱，斷言不變。2026-10-29 以前的第 1 版資料能存回，由 FilterNonBusinessDayWorkflowTests 核對。
+        // 這次改的是測試資料，不是因為測試失敗。
         var scenario = JsonDocument.Parse("""
-          {"name":"G","rationale":"Synthetic","source":"kct",
-           "editorOrigins":{"version":1,"nameIsAutomatic":true,"rationaleIsAutomatic":false,
-                            "groups":[{"presetGroup":false,"letters":["G"]}]},
+          {"name":"空白摘要","rationale":"Synthetic","source":"common",
+           "editorOrigins":{"version":2,"nameIsAutomatic":true,"rationaleIsAutomatic":false,
+                            "groups":[{"cards":["blankDescription"]}]},
            "groups":[{"rules":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]}
           """).RootElement;
         var saved = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { scenario } }));
         Assert.True(JsonElement.DeepEquals(scenario.GetProperty("editorOrigins"), saved.GetProperty("scenarios")[0].GetProperty("editorOrigins")));
-        var withoutOrigins = JsonSerializer.SerializeToElement(new { name = "G", rationale = "Synthetic", source = "kct", groups = scenario.GetProperty("groups") });
+        var withoutOrigins = JsonSerializer.SerializeToElement(new { name = "空白摘要", rationale = "Synthetic", source = "common", groups = scenario.GetProperty("groups") });
         var withPreview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
         var withoutPreview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = withoutOrigins }));
         // Demo 的期間內摘要空白固定為 18 筆，編輯來源不得參與審計判定。
@@ -55,8 +58,8 @@ public sealed class FilterWorkflowPreviewTests
         using var host = new HandlerTestHost();
         var setup = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         var scenario = JsonDocument.Parse("""
-          {"name":"Origins","rationale":"Synthetic","source":"kct",
-           "editorOrigins":{"version":1,"groups":[{"presetGroup":false,"letters":["G",null]}]},
+          {"name":"Origins","rationale":"Synthetic","source":"common",
+           "editorOrigins":{"version":2,"groups":[{"cards":["blankDescription",null]}]},
            "groups":[{"rules":[{"type":"prescreen","prescreenKey":"blankDescription"},{"join":"OR","type":"drCrOnly","drCr":"debit"}]}]}
           """).RootElement;
         var saved = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { scenario } }));

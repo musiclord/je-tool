@@ -48,10 +48,10 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
         Assert.Equal(4, prescreen.GetProperty("blankDescription").GetProperty("count").GetInt64());
 
         var hits = await CommitAndReadHitsAsync(host,
-            // KCT F：全形逗號與頓號分隔。
-            OneRule("KCT F 更正補登暫估", """{"type":"fieldValue","field":"description","operator":"contains","values":["更正","補登","暫估"]}"""),
+            // 特定摘要：全形逗號與頓號分隔。
+            OneRule("特定摘要 更正補登暫估", """{"type":"fieldValue","field":"description","operator":"contains","values":["更正","補登","暫估"]}"""),
             OneRule("台灣常見調整字詞", """{"type":"fieldValue","field":"description","operator":"contains","values":["調整","迴轉","沖銷","重分類","更正","補登","暫估"]}"""),
-            OneRule("KCT G 空白摘要", """{"type":"prescreen","prescreenKey":"blankDescription"}"""),
+            OneRule("空白摘要", """{"type":"prescreen","prescreenKey":"blankDescription"}"""),
             OneRule("不含調整與迴轉", """{"type":"fieldValue","field":"description","operator":"notContains","values":["調整","迴轉"]}"""),
             OneRule("不含調整與迴轉含空白", """{"type":"fieldValue","field":"description","operator":"notContains","values":["調整","迴轉"],"includeBlank":true}"""),
             OneRule("小寫英文字詞", """{"type":"fieldValue","field":"description","operator":"contains","values":["adj"]}"""));
@@ -98,7 +98,7 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
         Assert.Equal(8, prescreen.GetProperty("trailingZeros").GetProperty("count").GetInt64());
 
         var hits = await CommitAndReadHitsAsync(host,
-            OneRule("KCT H 999999 或 000000", """{"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"999999、000000","amountBasis":"absolute"}"""),
+            OneRule("特定尾數 999999 或 000000", """{"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"999999、000000","amountBasis":"absolute"}"""),
             OneRule("尾數 3 個 0", """{"type":"group","rules":[{"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"000","amountBasis":"absolute"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}"""),
             OneRule("一百萬以上", """{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1000000","amountBasis":"absolute"}"""),
             OneRule("超過一百萬", """{"type":"fieldValue","field":"amount","operator":"greaterThan","value":"1000000","amountBasis":"absolute"}"""),
@@ -164,8 +164,8 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
 
         var hits = await CommitAndReadHitsAsync(host,
             OneRule("非授權編製人員", """{"type":"prescreen","prescreenKey":"nonAuthorizedPreparer"}"""),
-            OneRule("KCT J 編製與核准同一人", """{"type":"preparerEqualsApprover"}"""),
-            OneRule("KCT E 財務長與總經理", """{"type":"text","field":"createBy","mode":"exact","keywords":"CFO01、gm01"}"""));
+            OneRule("編製與核准同一人", """{"type":"preparerEqualsApprover"}"""),
+            OneRule("特定人員 財務長與總經理", """{"type":"text","field":"createBy","mode":"exact","keywords":"CFO01、gm01"}"""));
         Assert.Equal(Keys("E7:1,2"), hits[0]);
         // E2 同為林經理；E3 的 cfo01 與 CFO01 視為同一人；E5、E6 有空白，不命中。
         Assert.Equal(Keys("E2:1,2;E3:1,2"), hits[1]);

@@ -15,7 +15,6 @@
   var showOnly = forward('showOnly');
   var selectedPopulationScope = forward('selectedPopulationScope');
   var committedPopulationScope = forward('committedPopulationScope');
-  var populationScopeLabel = forward('populationScopeLabel');
   var scenarioResponseGuard = forward('scenarioResponseGuard');
   var dataGeneration = forward('dataGeneration');
   var sameGeneration = forward('sameGeneration');
@@ -29,7 +28,7 @@
   var restoreScenarioRemovalFocus = forward('restoreScenarioRemovalFocus');
   // 其他檔案定義的常數：只讀，定義它的檔案先載入。
   var matrixResponseGuard = FilterStep.matrixResponseGuard;
-  var KCT_LETTER_KEY = FilterStep.KCT_LETTER_KEY;
+  var COMMON_CARD_KEY = FilterStep.COMMON_CARD_KEY;
 
   // JSON 物件屬性順序不是內容；清單或規則的陣列順序則仍有意義。
   function scenarioContentKey(scenario) {
@@ -188,7 +187,7 @@
         FilterStep.selectedRule = null;
       }
       // 比對基準的條件用送出時的內容：後端存檔時只保留每種條件用得到的欄位（使用者 2026-10-15 裁定），回應裡的條件
-      // 比草稿精簡，直接拿來比會一直判成尚未儲存。名稱與動機仍用回應，KCT 名稱留白時後端會補上預設名稱。
+      // 比草稿精簡，直接拿來比會一直判成尚未儲存。名稱與動機仍用回應，有卡片的情境名稱留白時後端會補上預設名稱。
       FilterStep.viewState.savedDraftKey = scenarioContentKey(toWireScenario(
         Object.assign({}, authored, { name: saved.name, rationale: saved.rationale })));
     }
@@ -209,7 +208,6 @@
 
   function savedScenariosHtml(state) {
     var saved = state.filter.savedScenarios;
-    var committed = committedPopulationScope(state);
     var items = saved.length === 0
       ? '<p class="empty-state" data-motion-key="saved-empty">尚未儲存情境。請到「篩選與檢視」設定條件並儲存。</p>'
       : saved.map(function (s, i) {
@@ -217,12 +215,15 @@
           // restoreViewState 以快取回填，不重抓）。
           var open = !!FilterStep.viewState.openScenarios[i];
           var confirmingRemoval = FilterStep.viewState.pendingRemovalIndex === i;
+          // 整列標題就是開關，再點一次收起；展開的內容放在下凹的底槽裡和下一個情境分開。使用者 2026-10-29 指出情境之間只有不明顯的分隔線，
+          // 請 Claude 研究改善；點標題就收合原本是使用者對「傳票XXX的分錄」標題的期望，依 2026-10-19 同功能的元件只留一套，情境的整列標題也用同一種開關。
           return (
-            '<article class="saved-scenario" data-motion-key="' + Ui.esc('saved-' + s.name) + '">' +
+            '<article class="saved-scenario' + (open ? ' saved-scenario--open' : '') + '" data-motion-key="' + Ui.esc('saved-' + s.name) + '">' +
               '<div class="saved-scenario__head">' +
-                '<span class="saved-scenario__name">' + (i + 1) + '. ' + Ui.esc(s.name) + '</span>' +
-                '<button type="button" class="btn btn--ghost btn--tiny jet-disclosure" data-action="toggle-scenario" data-index="' + i + '"' +
-                  Ui.disclosureAttributes(open, 'scenario-body-' + i) + '>查看結果</button>' +
+                '<button type="button" class="saved-scenario__toggle" data-action="toggle-scenario" data-index="' + i + '"' +
+                  Ui.disclosureAttributes(open, 'scenario-body-' + i) + '>' +
+                  '<span class="saved-scenario__name">' + (i + 1) + '. ' + Ui.esc(s.name) + '</span>' +
+                '</button>' +
                 // 「操作」是共用選單（ui-core.js 的 bindMenus），和資料預覽的「其他資料」同一套。
                 '<span class="jet-menu">' +
                   '<button type="button" class="btn btn--ghost btn--tiny jet-menu__toggle" aria-haspopup="menu" aria-expanded="false" ' +
@@ -247,7 +248,8 @@
                   '</div>'
                 : '') +
               '<div class="saved-scenario__body" id="scenario-body-' + i + '" data-bind="scenario-body-' + i + '" data-collapsible' + (open ? '' : ' hidden') + '>' +
-                '<p class="rule-card__sub">' + Ui.esc(s.rationale) + '</p>' +
+                // 只用自訂條件時自動產生的動機只是把篩選條件再念一次，下面已經列出條件，所以不列；其他動機照列。
+                (Ui.isGeneratedRationale(s.rationale) ? '' : '<p class="saved-scenario__rationale">' + Ui.esc(s.rationale) + '</p>') +
                 '<div class="scenario-pills">' + scenarioPillsHtml(s.groups) + '</div>' +
                 '<div class="saved-scenario__preview" data-bind="scenario-preview-' + i + '" data-motion-key="' + Ui.esc('saved-preview-' + s.name) + '"></div>' +
               '</div>' +
@@ -261,9 +263,7 @@
           '<span class="check-item__count">' + saved.length + ' / 10</span></h3>' +
         // 有情境無法套用目前規則時，原因、下一步與「重新檢查並儲存情境」只在上方「GL：查核期間內的分錄」說一次；
         // 這裡和下面的矩陣、報告只寫目前狀態（使用者 2026-10-13 選擇處理同一畫面重複的說明）。
-        (committed
-          ? '<p class="rule-card__sub">已儲存版本的 GL：' + Ui.esc(populationScopeLabel(committed)) + '內的分錄。</p>'
-          : '') +
+        // 原本標題下另寫一句已儲存版本的 GL 範圍，使用者 2026-10-29 指出多餘後拿掉；範圍只在上方說一次。
         items +
       '</section>'
     );
@@ -289,8 +289,8 @@
       '<section class="report-output">' +
         '<div class="report-output__head">' +
           '<div>' +
+            // 報告是否為目前版本由按鈕名稱與下方清單表示，標題下不另寫「條件或資料變更後，請重新產生」（使用者 2026-10-29 指出常駐說明太多）。
             '<h3 class="report-output__title">條件篩選報告</h3>' +
-            '<p class="report-output__hint">報告採用已儲存的情境。條件或資料變更後，請重新產生。</p>' +
           '</div>' +
           '<button type="button" class="btn btn--ghost" data-action="export-criteria-report"' +
             (canExport ? '' : ' disabled') + '>' +
@@ -643,19 +643,30 @@
       if (!saved) { return; }
       var draft = JSON.parse(JSON.stringify(saved));
       draft.__preserveJoins = true;
-      if (draft.editorOrigins) {
+      var origins = draft.editorOrigins;
+      if (origins) {
         draft.__restoredOrigins = true;
-        draft.__legacyKctSource = !!draft.editorOrigins.legacyKctSource;
+        // 第 2 版的編輯來源逐條記卡片代號，重開時把卡片標記放回條件上。
         // 舊版前端可能在 editorOrigins 留下 presetGroup；2026-10-02 使用者裁定非營業日不再自成一組，不再讀它；
         // 舊的非營業日組重開後就是一般條件組裡的兩條預篩選，計算與連接方式照原條件樹。
-        draft.groups.forEach(function (group, gi) {
-          var origin = draft.editorOrigins.groups[gi];
-          group.rules.forEach(function (rule, ri) { if (origin.letters[ri]) { rule[KCT_LETTER_KEY] = origin.letters[ri]; } });
-        });
-      } else if (draft.source === 'kct') { draft.__legacyKctSource = true; }
+        if (origins.version === 2) {
+          draft.groups.forEach(function (group, gi) {
+            var origin = origins.groups[gi];
+            group.rules.forEach(function (rule, ri) { if (origin.cards[ri]) { rule[COMMON_CARD_KEY] = origin.cards[ri]; } });
+          });
+        }
+      }
+      // 2026-10-29 以前儲存的情境用第 1 版編輯來源記卡片字母，這一版對應不回卡片：條件照原樣編輯，
+      // 畫面說明一次；重新儲存後改存第 2 版，之後就是一般情境（使用者 2026-10-29 選擇程式內部一起改，舊案件另做相容或重建）。
+      draft.__legacyCards = !!origins && origins.version !== 2 && (origins.groups || []).some(function (group) {
+        return (group.letters || []).some(Boolean);
+      });
       setActiveGroup(draft, draft.groups[0] || null);
-      draft.__nameDirty = !(draft.editorOrigins && draft.editorOrigins.nameIsAutomatic === true);
-      draft.__rationaleDirty = !(draft.editorOrigins && draft.editorOrigins.rationaleIsAutomatic === true);
+      // 第 1 版的自動名稱與動機是用當時的卡片字母產生的，這一版對應不回卡片，重算會換成另一段文字；
+      // 使用者 2026-10-29 選「拿掉字母」時，選項說明寫明已經儲存的情境名稱不會變，所以舊版情境的名稱與動機一律照原樣保留。
+      var keepSavedText = !!origins && origins.version !== 2;
+      draft.__nameDirty = keepSavedText || !(origins && origins.nameIsAutomatic === true);
+      draft.__rationaleDirty = keepSavedText || !(origins && origins.rationaleIsAutomatic === true);
       if (!copy) { draft.__editingIndex = index; draft.__editingSavedRef = state.filter.savedScenarios; }
       else {
         draft.__nameDirty = true;
@@ -734,6 +745,8 @@
 
         body.hidden = !body.hidden;
         btn.setAttribute('aria-expanded', String(!body.hidden));
+        var article = btn.closest('.saved-scenario');
+        if (article) { article.classList.toggle('saved-scenario--open', !body.hidden); }
         FilterStep.viewState.openScenarios[index] = !body.hidden; // 跨 bump 重繪保留展開狀態
         if (body.hidden) { return; }
 

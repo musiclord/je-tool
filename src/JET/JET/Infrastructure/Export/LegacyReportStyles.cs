@@ -68,6 +68,13 @@ internal static class LegacyReportStyles
     public const uint ExportDatabaseDate = 23;
     public const uint ExportDatabaseTime = 24;
 
+    /// <summary>明細頁的字級；最後由 <see cref="FormalWorkbookTypography"/> 統一成微軟正黑體。</summary>
+    internal const double ExportDatabaseFontSize = 10D;
+
+    /// <summary>V_Report、R1 到 R7、#Criteria Select 與 Source_Quality 等明細頁共用的列高。</summary>
+    internal static double ExportDatabaseRowHeight =>
+        FormalWorkbookTypography.RowHeight(ExportDatabaseFontSize);
+
     private const uint AmountFormatId = 164;
     private const int MaximumDecimalPlaces = 28;
     private const uint ExportDatabaseNumberFormatFirstId = 165;
@@ -129,7 +136,7 @@ internal static class LegacyReportStyles
             Font(LegacyFontName, 12, bold: true, color: "FFFF0000"),
             Font(LegacyFontName, 12, bold: true, color: "FFFFFFFF"),
             Font(LegacyFontName, 16, bold: true, color: "FFFF0000"),
-            Font("Arial", 10, bold: false, color: null))
+            Font("Arial", ExportDatabaseFontSize, bold: false, color: null))
         { Count = 9 };
 
         var fills = new Fills(

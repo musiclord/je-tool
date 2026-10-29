@@ -153,7 +153,7 @@
   // 進階篩選的條件型別。label 逐鍵鏡像 Domain FilterConditionLabels.RuleTypes，已停用的型別不列（見下面的 RETIRED_RULE_TYPES）；
   // quickLabel 與 group 是前端呈現 metadata。
   // 每種型別需要什麼前置條件寫在下面的 FILTER_RULE_PREREQUISITES。
-  // group 只剩 'kct' 有意義（風險樣態下拉的「KCT 專屬」分組）；其餘分組與 quickLabel 是舊挑選區的遺留 metadata，
+  // group 只剩 'common' 有意義（風險樣態下拉的「常用篩選條件」分組）；其餘分組與 quickLabel 是舊挑選區的遺留 metadata，
   // 2026-09-07 改版後畫面改用三個家族（filter-step 的 RULE_FAMILIES）。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
   var FILTER_RULE_TYPES = [
     { value: 'fieldValue', label: '欄位值比較', quickLabel: '指定值與排除', group: 'field' },
@@ -174,11 +174,11 @@
     { value: 'voucher', label: '傳票分錄條件', group: 'compound' },
     // 攸關資料元素條件：舊式條件，只在舊情境讀回與編輯時出現，畫面不提供新增。
     { value: 'typed', label: '攸關資料元素條件', quickLabel: '攸關資料元素欄位條件', group: 'field' },
-    // KCT 小組條件（清單 A/C/D/J；分組獨立於其他四組）。H 改用欄位條件的預設值（FILTER_KCT_PRESETS）。
-    { value: 'revenueDebitNearQuarterEnd', label: '季末前借記收入', group: 'kct' },
-    { value: 'revenueWithoutNormalCounterpart', label: '收入無一般對方科目', group: 'kct' },
-    { value: 'manualRevenueEntry', label: '收入之人工分錄', group: 'kct' },
-    { value: 'preparerEqualsApprover', label: '編製與核准同一人', group: 'kct' }
+    // 常用篩選條件專用的四種型別（分組獨立於其他四組）；特定尾數改用欄位條件的預設值（FILTER_COMMON_PRESETS）。
+    { value: 'revenueDebitNearQuarterEnd', label: '季末前借記收入', group: 'common' },
+    { value: 'revenueWithoutNormalCounterpart', label: '收入無一般對方科目', group: 'common' },
+    { value: 'manualRevenueEntry', label: '收入之人工分錄', group: 'common' },
+    { value: 'preparerEqualsApprover', label: '編製與核准同一人', group: 'common' }
   ];
 
   // 已停用的條件型別（後端 FilterSinglePurposeRules.RetiredTypes 寫出每一種的重建方式）：型別表不再列出，新條件加不進來；
@@ -195,66 +195,67 @@
   // 條件型別的分組（依審計意圖，非資料格式）。顯示順序即此陣列順序；
   // 每組約 3–4 項，讓使用者只看自己要的那一塊，不必一次面對全部選項。
 
-  // KCT 小組「重用既有型別」的預設條件（清單 E/F/G/I）：點按鈕即帶入既有型別的預填規則，
+  // 常用篩選條件裡「重用既有型別」的五張卡（特定人員、特定摘要、空白摘要、特定尾數、非營業日）：點卡片即帶入既有型別的預填規則，
   // 不另立 wire 型別（避免重複既有述詞，單一事實在後端述詞）。overrides 套在 newFilterRule 之上，
-  // 加入時整份深拷貝。非營業日 I 是一條「條件括號」，括號內只有「總帳日期是非營業日」（排除補班日）；
-  // 2026-10-02 使用者裁定 I 不再自成一組，和其他單規則 KCT 一樣加入目前條件組。
-  // 鏡像 Domain SuspiciousKeywordDefaults；KCT 與常用查核共用同一份預填清單。
+  // 加入時整份深拷貝。非營業日是一條「條件括號」，括號內只有「總帳日期是非營業日」（排除補班日）；
+  // 2026-10-02 使用者裁定非營業日不再自成一組，和其他單一條件的卡片一樣加入目前條件組。
+  // 鏡像 Domain SuspiciousKeywordDefaults；常用篩選條件與自訂分頁「依審計目的」共用同一份預填清單。
   var SUSPICIOUS_KEYWORD_DEFAULTS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG',
     '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外', '帳外',
     '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外'];
 
-  var FILTER_KCT_PRESETS = [
-    { key: 'kctSpecificPreparer', label: '特定人員建立之分錄',
+  var FILTER_COMMON_PRESETS = [
+    { key: 'specificPreparer', label: '特定人員建立之分錄',
       overrides: { type: 'fieldValue', field: 'createBy', operator: 'in', values: [] } },
-    { key: 'kctSpecificKeywords', label: '特定摘要',
+    { key: 'specificKeywords', label: '特定摘要',
       overrides: { type: 'fieldValue', field: 'description', operator: 'contains', values: SUSPICIOUS_KEYWORD_DEFAULTS.slice() } },
-    { key: 'kctBlankDescription', label: '空白摘要',
+    { key: 'blankDescription', label: '空白摘要',
       overrides: { type: 'fieldValue', field: 'description', operator: 'isBlank' } },
-    { key: 'kctTrailingDigits', label: '特定金額尾數',
+    { key: 'specificTrailingDigits', label: '特定金額尾數',
       overrides: { type: 'fieldValue', field: 'amount', operator: 'endsWithDigits', value: '000000', amountBasis: 'absolute' } },
-    { key: 'kctNonBusinessDay', label: '非營業日分錄',
+    { key: 'nonBusinessDay', label: '非營業日分錄',
       overrides: { type: 'group', rules: [
         { type: 'fieldValue', field: 'postDate', operator: 'isNonBusinessDay', join: 'AND' }
       ] } }
   ];
 
-  // 新 KCT I 的條件括號直接使用日期「非營業日」判斷，排除補班日；舊 AST 不改寫。
+  // 非營業日卡片的條件括號直接使用日期「非營業日」判斷，排除補班日；舊 AST 不改寫。
   // 正本是 Domain FilterConditionLabels.NonBusinessDayAtom，後端 FilterConditionRenderer 以同一規則辨識。
-  var FILTER_KCT_ATOM_LABELS = {
-    kctNonBusinessDay: '非營業日（排除補班日）'
+  var FILTER_COMMON_ATOM_LABELS = {
+    nonBusinessDay: '非營業日（排除補班日）'
   };
 
-  // KCT 小組方法學檢核清單：獨立顯著面板的「單一資料來源」，十顆按鈕由此一份資料驅動，
+  // 常用篩選條件的十張卡片：「常用篩選條件」分頁上半「單項條件」的單一資料來源，十顆按鈕由此一份資料驅動，
   // 而非十段重複 HTML，新增卡片只要加一筆資料。每筆只是「指向既有述詞」的標記：
+  //   key           → 卡片代號：條件上的身分標記與案件檔編輯來源都記它，不顯示在畫面上。
   //   kind:'type'   → ref 是既有 FILTER_RULE_TYPES 的 value；點按帶入一條 newFilterRule(ref)。
-  //   kind:'preset' → ref 是既有 FILTER_KCT_PRESETS 的 key；點按帶入該預設的一條規則（I 是條件括號）。
-  //   kind:'spec' → 使用明確覆寫值，B 不預選分類。
-  // label 為 KCT 清單用語（卡片顯示文字）。每張卡是可複選 toggle：選取即把其規格落地成 rule
-  // 併入草稿、並在每條 rule 打上 __kctLetter 身分標記（UI-only，剝除後才送 wire）；取消即移除帶
-  // 該字母標記的 rule。送出時由 marker 推導 source:'kct'；KCT 名稱／動機可沿用自動值、手改或留白，
-  // 一般自訂情境仍必填。已存情境由 project.load 回傳 canonical source，重存不得遺失。
-  // 不在此引入任何新 wire 型別／述詞；A/C/D/H/J 與 E/F/G/I 全部重用既有 type/preset。
-  var FILTER_KCT_CHECKLIST = [
-    { letter: 'A', defaultRationale: "期末前 X天內收入科目有迴轉分錄，表示收入認列過程中可能存在不適當的調整或更正(案件團隊須提供天數)", kind: 'type', ref: 'revenueDebitNearQuarterEnd', label: '在該季度前 X 天借記收入的會計分錄' },
-    { letter: 'B', defaultRationale: "借記固定資產科目(如不動產、廠房和設備(PPE))但貸記營業費用或維修費用等費用科目之分錄組合不符合公司營業流程的瞭解，因此屬於為非預期的過帳，可能為舞弊類型分錄及其他調整的特質。", kind: 'spec', ref: 'specialAccountCategoryPair', overrides: { type: 'specialAccountCategoryPair', pairMode: 'drAndCr', categorySelection: 'subtree', debitCategoryIds: [], creditCategoryIds: [] },
+  //   kind:'preset' → ref 是既有 FILTER_COMMON_PRESETS 的 key；點按帶入該預設的一條規則（非營業日是條件括號）。
+  //   kind:'spec'   → 使用明確覆寫值，固定資產與費用的組合不預選分類。
+  // label 是卡片顯示文字，沿用最早提出這十個條件時的用語；陣列順序就是畫面、自動名稱與動機的順序。
+  // 每張卡是可複選 toggle：選取即把其規格落地成 rule 併入草稿、並在每條 rule 打上 __commonCard 身分標記
+  //（UI-only，剝除後才送 wire）；取消即移除帶該標記的 rule。送出時由標記推導 source:'common'；
+  // 名稱與動機可沿用自動值、手改或留白，一般自訂情境仍必填。已存情境由 project.load 回傳 canonical source，重存不得遺失。
+  // 不在此引入任何新 wire 型別／述詞；十張卡全部重用既有 type 與 preset。
+  var FILTER_COMMON_CONDITIONS = [
+    { key: 'revenueDebitNearQuarterEnd', defaultRationale: "期末前 X天內收入科目有迴轉分錄，表示收入認列過程中可能存在不適當的調整或更正(案件團隊須提供天數)", kind: 'type', ref: 'revenueDebitNearQuarterEnd', label: '在該季度前 X 天借記收入的會計分錄' },
+    { key: 'fixedAssetDebitExpenseCredit', defaultRationale: "借記固定資產科目(如不動產、廠房和設備(PPE))但貸記營業費用或維修費用等費用科目之分錄組合不符合公司營業流程的瞭解，因此屬於為非預期的過帳，可能為舞弊類型分錄及其他調整的特質。", kind: 'spec', ref: 'specialAccountCategoryPair', overrides: { type: 'specialAccountCategoryPair', pairMode: 'drAndCr', categorySelection: 'subtree', debitCategoryIds: [], creditCategoryIds: [] },
       description: '借方選固定資產，貸方選營業費用；請先在第四步「分類設定」新增這兩類並配對科目。在建工程不要配到固定資產，也不要放在固定資產底下，因為預設包含下層分類。',
       label: '借記固定資產(PPE，不含在建)且貸記費用之分錄' },
-    { letter: 'C', defaultRationale: "查核團隊已發現與收入科目相關的未預期或不尋常過帳(貸方為收入，但借方科目非為應收票據/帳款、預收貨款/合約負債)", description: '現金不算一般對方科目；要排除現金銷貨，改用預篩選條件『未預期借貸組合』。', kind: 'type', ref: 'revenueWithoutNormalCounterpart', label: '貸方為收入但借方非一般對方科目之分錄' },
-    { letter: 'D', defaultRationale: "根據查核核團隊的瞭解，收入科目的過帳一般是自動產生，如為人工分錄非屬正常營業流程的會計分錄", kind: 'type', ref: 'manualRevenueEntry', label: '收入之人工分錄' },
-    { letter: 'E', defaultRationale: "執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。", kind: 'preset', ref: 'kctSpecificPreparer', label: '特定人員(財務長/執行長/高階主管等)建立之分錄' },
-    { letter: 'F', kind: 'preset', ref: 'kctSpecificKeywords', label: '特定摘要(如迴轉、調整等)' },
-    { letter: 'G', kind: 'preset', ref: 'kctBlankDescription', label: '空白摘要' },
-    { letter: 'H', kind: 'preset', ref: 'kctTrailingDigits', label: '特定尾數(如 999999/000000 結尾)' },
-    { letter: 'I', kind: 'preset', ref: 'kctNonBusinessDay', label: '非營業日之分錄' },
-    { letter: 'J', kind: 'type', ref: 'preparerEqualsApprover', label: '編製人員與核准人員相同' }
+    { key: 'revenueWithoutNormalCounterpart', defaultRationale: "查核團隊已發現與收入科目相關的未預期或不尋常過帳(貸方為收入，但借方科目非為應收票據/帳款、預收貨款/合約負債)", description: '現金不算一般對方科目；要排除現金銷貨，改用預篩選條件『未預期借貸組合』。', kind: 'type', ref: 'revenueWithoutNormalCounterpart', label: '貸方為收入但借方非一般對方科目之分錄' },
+    { key: 'manualRevenueEntry', defaultRationale: "根據查核核團隊的瞭解，收入科目的過帳一般是自動產生，如為人工分錄非屬正常營業流程的會計分錄", kind: 'type', ref: 'manualRevenueEntry', label: '收入之人工分錄' },
+    { key: 'specificPreparer', defaultRationale: "執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。", kind: 'preset', ref: 'specificPreparer', label: '特定人員(財務長/執行長/高階主管等)建立之分錄' },
+    { key: 'specificKeywords', kind: 'preset', ref: 'specificKeywords', label: '特定摘要(如迴轉、調整等)' },
+    { key: 'blankDescription', kind: 'preset', ref: 'blankDescription', label: '空白摘要' },
+    { key: 'specificTrailingDigits', kind: 'preset', ref: 'specificTrailingDigits', label: '特定尾數(如 999999/000000 結尾)' },
+    { key: 'nonBusinessDay', kind: 'preset', ref: 'nonBusinessDay', label: '非營業日之分錄' },
+    { key: 'preparerEqualsApprover', kind: 'type', ref: 'preparerEqualsApprover', label: '編製人員與核准人員相同' }
   ];
 
   // 十二條逐筆預篩選規則的畫面鏡像，一條一筆（使用者 2026-10-22 裁定「一條規則一個定義」；後端正本是 Domain PrescreenRuleDefinitions）：
   //   value 與 label 鏡像 Domain FilterConditionLabels.PrescreenKeys，FilterConditionLabelMirrorTests 雙向守衛；
   //   prerequisites 逐項鏡像 Domain JetRuleRequirements，順序相同，FilterBackendRuleMirrorFrontendTests 逐項比對，
   //   'gl:' 開頭的是 GL 語意欄位，其他是案件資料；description 是第四步卡片與第五步條件共用的說明。
-  // 述詞與需求的正本都在後端；第五步的欄位按鈕、常用查核條件、範例、KCT 卡、預篩選分頁與條件卡片都依需求和後端算好的
+  // 述詞與需求的正本都在後端；第五步的欄位按鈕、依審計目的的條件、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都依需求和後端算好的
   // 可用欄位停用並寫原因（使用者 2026-10-22 裁定第五步不能用 GL 沒有配對的欄位），前端不自己推。
   var PRESCREEN_RULES = [
     { value: 'postPeriodApproval', label: '財報準備日起核准', prerequisites: ['gl:docDate', 'lastPeriodStart'],
@@ -356,8 +357,9 @@
     { type: 'accountPair', mode: 'exact', label: '借方是 A 且貸方是 B（舊格式）', hint: '同一張傳票同時有 A 借方與 B 貸方；結果列出符合的借方與貸方分錄。', legacy: true }
   ];
 
-  // 第五步「從範例開始」的範例：一鍵把草稿換成常見的審計問題，審計員再改數值或直接預覽。
-  // 純前端資料；套用時由 filter-step 的 applyTemplate 深拷貝規則，不打 KCT 標記。
+  // 第五步「常用篩選條件」分頁下半的情境範例：一鍵把草稿換成常見的審計問題，審計員再改數值或直接預覽。
+  // 純前端資料；套用時由 filter-step 的 applyTemplate 深拷貝規則。範例裡的規則不打卡片標記；
+  // commonCard 指定的卡片照一般點卡片的方式帶入，帶有那張卡的標記。
   // 前置條件不另外標：filter-step 依範例裡每一條條件查上面的規則需求表，停用並寫原因。
   // 查核截止日在建立案件時必填，不列為前置條件（使用者 2026-10-14 同意刪除沒有作用的「案件沒有查核截止日」分支）。
   // pickField: 'text' 表示條件裡 fieldId 空白的那一條，要換成一個文字型攸關資料元素欄位。
@@ -371,7 +373,7 @@
       rationale: '貸方為現金，而整張傳票沒有借方現金的分錄。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'specialAccountCategoryPair', pairMode: 'notDrCr', categorySelection: 'subtree', debitCategoryIds: ['builtin.cash'], creditCategoryIds: ['builtin.cash'] }] }] },
-    { key: 'nonBusinessDayExcludingDates', label: '非營業日且排除指定日期', kct: 'I',
+    { key: 'nonBusinessDayExcludingDates', label: '非營業日且排除指定日期', commonCard: 'nonBusinessDay',
       rationale: '非營業日過帳的分錄，另排除個案已知的例外日期。',
       groups: [{ join: 'AND', matchScope: 'row', rules: [
         { type: 'fieldValue', field: 'postDate', operator: 'notIn', values: [], includeBlank: false, __valueType: 'date' }] }] },
@@ -423,10 +425,10 @@
           { type: 'fieldValue', field: 'postDate', operator: 'dayOfMonthNotIn', values: ['1', '2', '3'], includeBlank: false, __valueType: 'date' }] }] }] }
   ];
 
-  // 第五步「常用查核條件」：依審計目的分類，按「加入」把 rules 加入目前作用中的條件組。
+  // 第五步自訂分頁的「依審計目的」：依審計目的分類，按「加入」把 rules 加入目前作用中的條件組。
   // 型別與比較方式都是後端既有的；前置條件和範例一樣，由 filter-step 依條件內容查規則需求表。
   // __periodEndDays 與範例相同，加入時由查核截止日往前算出起訖日期。
-  var FILTER_COMMON_CHECK_GROUPS = [
+  var FILTER_PURPOSE_CHECK_GROUPS = [
     { key: 'dates', label: '日期與時點', checks: [
       { key: 'postDateWeekend', label: '總帳日期在週末', rules: [{ type: 'fieldValue', field: 'postDate', operator: 'isWeekend' }] },
       { key: 'postDateHoliday', label: '總帳日期在國定假日', rules: [{ type: 'fieldValue', field: 'postDate', operator: 'isHoliday' }] },
@@ -1798,17 +1800,27 @@
     });
   }
 
-  // 展開與收合：按鈕形式的展開區（例如「檢視」「查看結果」「列出科目」「預覽」）文字固定，說明它控制的內容，
+  // 展開與收合：按鈕形式的展開區（例如「檢視」「查看分錄」「列出科目」「預覽」）文字固定，說明它控制的內容，
   // 字後面接同一種細箭頭，收合時朝右、展開時朝下（app.css 的 .jet-disclosure），並寫 aria-expanded 與 aria-controls。
-  // 整列的標題（原生 details 的摘要、常用查核條件的分類）箭頭在字前面，方向相同（使用者 2026-10-19 要求同功能的元件只留一套）。
+  // 整列的標題（原生 details 的摘要、依審計目的的分類、已儲存情境、傳票明細）箭頭在字前面，方向相同，再點一次標題就收起
+  // （使用者 2026-10-19 要求同功能的元件只留一套，2026-10-29 希望點傳票分錄的標題就能收合）。
   function disclosureAttributes(open, panelId) {
     return ' aria-expanded="' + (open ? 'true' : 'false') + '"' + (panelId ? ' aria-controls="' + esc(panelId) + '"' : '');
+  }
+
+  // 只用自訂條件時，第五步自動產生的情境動機只有這兩種開頭，內容是把篩選條件再念一次；有卡片時的動機寫評估說明或卡片名稱，
+  // 是使用者 2026-10-07 指定的寫法，不算在這裡，照樣顯示。產生動機的 automaticMetadata 與判斷用的
+  // isGeneratedRationale 讀同一份；畫面上條件已經列出，只顯示審計員自己寫的動機（使用者 2026-10-29 指出動機和篩選條件是同性質的說明）。
+  var GENERATED_RATIONALE_PREFIXES = ['檢視符合以下條件的分錄：', '依已設定的條件組合篩選分錄，檢視'];
+  function isGeneratedRationale(text) {
+    var value = String(text || '');
+    return !value || GENERATED_RATIONALE_PREFIXES.some(function (prefix) { return value.indexOf(prefix) === 0; });
   }
 
   // 頁籤：同一組裡選一個、切換底下內容的控制項，外觀是底線頁籤或凹槽分段都一樣（使用者 2026-10-19 要求同功能的元件只留一套）。
   // 外層 role="tablist"，每個是 role="tab"，選中的寫 aria-selected="true"，只有它留在 Tab 鍵順序裡。
   // 畫面畫好後呼叫 Ui.bindTabs(範圍)：方向鍵左右、Home、End 直接換到那一個頁籤，等於按下它，所以各組只要處理按下。
-  // 頁籤只決定畫面看哪一頁；要存進案件的設定（例如金額模式）用選項按鈕，開關式的選取（例如 KCT 條件卡）用 aria-pressed。
+  // 頁籤只決定畫面看哪一頁；要存進案件的設定（例如金額模式）用選項按鈕，開關式的選取（例如常用篩選條件的卡片）用 aria-pressed。
   function tabAttributes(selected, panelId, tabId) {
     return (tabId ? ' id="' + esc(tabId) + '"' : '') + ' role="tab"' +
       (panelId ? ' aria-controls="' + esc(panelId) + '"' : '') +
@@ -2682,7 +2694,7 @@
       type: type,
       prescreenKey: 'suspiciousKeywords',
       field: type === 'dateRange' ? 'postDate' : (type === 'numRange' ? 'amount' : 'description'),
-      // 只有 trailingDigits（KCT 條件 H，特定金額尾數）有預設值：H 要求選取後即帶 000000；
+      // 只有已停用的 trailingDigits（特定金額尾數）有預設值：當初要求選取後即帶 000000；
       // 其餘型別無「預設尾數」語意，故維持空字串由使用者自填。
       keywords: type === 'trailingDigits' ? '000000' : (type === 'customKeywords' ? SUSPICIOUS_KEYWORD_DEFAULTS.join(',') : ''),
       values: [],
@@ -2756,9 +2768,9 @@
     GL_MODES: GL_MODES,
     TB_MODES: TB_MODES,
     FILTER_RULE_TYPES: FILTER_RULE_TYPES,
-    FILTER_KCT_PRESETS: FILTER_KCT_PRESETS,
-    FILTER_KCT_ATOM_LABELS: FILTER_KCT_ATOM_LABELS,
-    FILTER_KCT_CHECKLIST: FILTER_KCT_CHECKLIST,
+    FILTER_COMMON_PRESETS: FILTER_COMMON_PRESETS,
+    FILTER_COMMON_ATOM_LABELS: FILTER_COMMON_ATOM_LABELS,
+    FILTER_COMMON_CONDITIONS: FILTER_COMMON_CONDITIONS,
     PRESCREEN_RULES: PRESCREEN_RULES,
     RETIRED_RULE_TYPES: RETIRED_RULE_TYPES,
     RETIRED_RULE_TYPE_LABELS: RETIRED_RULE_TYPE_LABELS,
@@ -2772,7 +2784,7 @@
     ACCOUNT_SIDE_MODE_OPTIONS: ACCOUNT_SIDE_MODE_OPTIONS,
     ACCOUNT_COMBINATION_OPTIONS: ACCOUNT_COMBINATION_OPTIONS,
     FILTER_SCENARIO_TEMPLATES: FILTER_SCENARIO_TEMPLATES,
-    FILTER_COMMON_CHECK_GROUPS: FILTER_COMMON_CHECK_GROUPS,
+    FILTER_PURPOSE_CHECK_GROUPS: FILTER_PURPOSE_CHECK_GROUPS,
     FILTER_CATEGORY_LIST_SEPARATOR: FILTER_CATEGORY_LIST_SEPARATOR,
     TEXT_MODE_OPTIONS: TEXT_MODE_OPTIONS,
     FILTER_MATCH_SCOPE_OPTIONS: FILTER_MATCH_SCOPE_OPTIONS,
@@ -2870,6 +2882,8 @@
     confirmPendingAccountCategories: confirmPendingAccountCategories,
     confirmUnsaved: confirmUnsaved,
     disclosureAttributes: disclosureAttributes,
+    GENERATED_RATIONALE_PREFIXES: GENERATED_RATIONALE_PREFIXES,
+    isGeneratedRationale: isGeneratedRationale,
     tabAttributes: tabAttributes,
     selectTab: selectTab,
     bindTabs: bindTabs,

@@ -602,7 +602,7 @@ public sealed partial class LegacyReportWriter
                 autoFitMode),
             new ReportSheetOptions(
                 PageMargins: StandardMargins,
-                DefaultRowHeight: 12.5D),
+                DefaultRowHeight: LegacyReportStyles.ExportDatabaseRowHeight),
             styles.Map);
         string[] headers = ["CREATED_BY", "ENTRY_COUNT", "DEBIT_TOTAL", "CREDIT_TOTAL"];
         uint[] headerStyles =
@@ -810,7 +810,7 @@ public sealed partial class LegacyReportWriter
                 autoFitMode),
             new ReportSheetOptions(
                 PageMargins: StandardMargins,
-                DefaultRowHeight: 12.5D),
+                DefaultRowHeight: LegacyReportStyles.ExportDatabaseRowHeight),
             styles.Map);
         uint[] headerStyles =
         [

@@ -67,7 +67,8 @@ public sealed class ResponsiveLayoutFrontendTests
             @"[^;]*minmax\(\s*(?:0|min\()[^;]*");
         foreach (var selector in new[]
         {
-            ".condition-picker__grid--kct",
+            // 2026-10-29 卡片區的格線改名為 --common（原本叫小組名稱），規則本身不變。第一次失敗：Focused 收據 20261029-062123410-6be7ae8a47f140af98c112c94ca35612。
+            ".condition-picker__grid--common",
             ".condition-picker__grid--custom",
             ".condition-picker--custom .condition-picker__grid--custom",
             ".stats-bar"

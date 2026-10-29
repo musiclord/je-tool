@@ -109,6 +109,8 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "await EmitRawPagedSheetsAsync(",
             "ReadCriteriaVoucherRowsAsync(",
             "RawSheetAutoFitMode.LegacyFirstTwentyWhenAtMostOneMillion,");
+        // 2026-10-29 使用者裁定 10 點明細頁統一 15 點，寫死的 12.5 改由 LegacyReportStyles.ExportDatabaseRowHeight 提供；
+        // 守衛核對的仍是同一段呼叫順序，只把列高的寫法換成現行的。第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
         AssertAppearsInOrder(
             writerSource,
             "var page = await fetchPage(",
@@ -120,7 +122,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "OpenRawSheet(",
             "resolvedAutoFitMode,",
             "headerStyles,",
-            "appearanceMode == RawSheetAppearanceMode.ExportDatabase ? 12.5D : null);");
+            "appearanceMode == RawSheetAppearanceMode.ExportDatabase ? LegacyReportStyles.ExportDatabaseRowHeight : null);");
         Assert.Contains(
             "spooledRows <= LegacyCriteriaAutoFitMaximumRows",
             writerSource,

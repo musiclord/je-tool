@@ -60,7 +60,7 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
         // 假日核准只有 C4（1/29），共 2 列。
         Assert.Equal(2, holiday.GetProperty("approvalCount").GetInt64());
 
-        var kctI = Scenario("KCT I 非營業日", """
+        var nonBusinessDay = Scenario("非營業日之分錄", """
             [{"join":"AND","matchScope":"row","rules":[
               {"type":"group","rules":[{"type":"fieldValue","field":"postDate","operator":"isNonBusinessDay","join":"AND"}]}]}]
             """);
@@ -78,8 +78,8 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
               {"type":"fieldValue","field":"postDate","operator":"isNonBusinessDay"},
               {"type":"fieldValue","field":"postDate","operator":"notIn","values":["2025-10-11"],"join":"AND"}]}]
             """);
-        var hits = await CommitAndReadHitsAsync(host, kctI, approvalNonBusiness, makeup, weekendPosting, lunarNewYear, overtimeException);
-        // KCT I：週末或假日再排除補班日 → C2、C3、C4、C7、C8；C5 是補班日，不算非營業日。
+        var hits = await CommitAndReadHitsAsync(host, nonBusinessDay, approvalNonBusiness, makeup, weekendPosting, lunarNewYear, overtimeException);
+        // 非營業日之分錄：週末或假日再排除補班日 → C2、C3、C4、C7、C8；C5 是補班日，不算非營業日。
         Assert.Equal(Keys("C2:1,2;C3:1,2;C4:1,2;C7:1,2;C8:1,2"), hits[0]);
         // 核准日在非營業日：C4（初一）、C6（週日）、C9（週六）；C5 的 2/8 是補班日，不算。
         Assert.Equal(Keys("C4:1,2;C6:1,2;C9:1,2"), hits[1]);
@@ -89,7 +89,7 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
         Assert.Equal(Keys("C3:1,2;C5:1,2;C8:1,2"), hits[3]);
         // 春節連假 1/25 到 2/2 之間的非營業日過帳：C3（週六）、C4（初一）。
         Assert.Equal(Keys("C3:1,2;C4:1,2"), hits[4]);
-        // 非營業日且不在核定加班日 10/11：KCT I 的五張去掉 C8。
+        // 非營業日且不在核定加班日 10/11：非營業日之分錄的五張去掉 C8。
         Assert.Equal(Keys("C2:1,2;C3:1,2;C4:1,2;C7:1,2"), hits[5]);
     }
 

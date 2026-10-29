@@ -18,10 +18,10 @@ internal static class GuiScenarioCatalog
     internal const string ApprovalMappingModes = "approval-mapping-modes";
     internal const string ValidationAutoOutputs = "validation-auto-outputs";
     internal const string FilterAuditorJourney = "filter-auditor-journey";
-    internal const string FilterKctEditing = "filter-kct-editing";
+    internal const string FilterCommonEditing = "filter-common-editing";
     internal const string FeedbackWorkflow = "feedback-workflow";
     internal const string NullDetailsRecovery = "null-details-recovery";
-    internal const string KctRemapRecovery = "kct-remap-recovery";
+    internal const string CommonRemapRecovery = "common-remap-recovery";
     internal const string ExtendedConditions = "extended-conditions";
     internal const string SideMonthWorkflow = "side-month-workflow";
     internal const string NestedVoucherWorkflow = "nested-voucher-workflow";
@@ -41,10 +41,10 @@ internal static class GuiScenarioCatalog
         [ApprovalMappingModes] = ["seed-mapping-ready-project"],
         [ValidationAutoOutputs] = ["seed-mapping-ready-project", "fill-template-after-auto-export"],
         [FilterAuditorJourney] = ["seed-export-ready-project", "minimum-window-125"],
-        [FilterKctEditing] = ["seed-export-ready-project", "minimum-window-125", "legacy-kct-scenario"],
+        [FilterCommonEditing] = ["seed-export-ready-project", "minimum-window-125", "legacy-card-scenario"],
         [FeedbackWorkflow] = ["seed-export-ready-project"],
         [NullDetailsRecovery] = ["seed-export-ready-project", "data-recovery-source", "fail-null-search-once"],
-        [KctRemapRecovery] = ["seed-export-ready-project", "data-recovery-source"],
+        [CommonRemapRecovery] = ["seed-export-ready-project", "data-recovery-source"],
         [AuthorizedListRecovery] = ["seed-export-ready-project", "authorized-list-source", "fail-authorized-import-once"],
         [ExtendedConditions] = ["seed-export-ready-project"],
         [SideMonthWorkflow] = ["seed-export-ready-project"],
@@ -217,7 +217,7 @@ internal sealed class GuiAssertions
     internal bool FilterWorkflowVerified { get; set; }
     internal bool FeedbackWorkflowVerified { get; set; }
     internal bool NullDetailsRecoveryVerified { get; set; }
-    internal bool KctRemapRecoveryVerified { get; set; }
+    internal bool CommonRemapRecoveryVerified { get; set; }
     internal bool ExtendedConditionsVerified { get; set; }
     internal bool SideMonthWorkflowVerified { get; set; }
     internal bool NestedVoucherWorkflowVerified { get; set; }
@@ -392,7 +392,7 @@ internal static class ManifestWriter
                 filterWorkflowVerified = outcome.Assertions.FilterWorkflowVerified,
                 feedbackWorkflowVerified = outcome.Assertions.FeedbackWorkflowVerified,
                 nullDetailsRecoveryVerified = outcome.Assertions.NullDetailsRecoveryVerified,
-                kctRemapRecoveryVerified = outcome.Assertions.KctRemapRecoveryVerified,
+                commonRemapRecoveryVerified = outcome.Assertions.CommonRemapRecoveryVerified,
                 extendedConditionsVerified = outcome.Assertions.ExtendedConditionsVerified,
                 sideMonthWorkflowVerified = outcome.Assertions.SideMonthWorkflowVerified,
                 nestedVoucherWorkflowVerified = outcome.Assertions.NestedVoucherWorkflowVerified,

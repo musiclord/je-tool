@@ -5,7 +5,7 @@ namespace JET.Application;
 
 /// <summary>
 /// 已保存 filter scenario 的唯一 wire summary renderer。Commit response 與 project.load
-/// 共用此輸出，避免 KCT source、後端替補名稱／動機及 resume 形狀在同一 session 前後分歧。
+/// 共用此輸出，避免情境來源、後端替補名稱／動機及 resume 形狀在同一 session 前後分歧。
 /// </summary>
 internal static class FilterScenarioSummaryRenderer
 {
@@ -32,8 +32,8 @@ internal static class FilterScenarioSummaryRenderer
             var source = readable
                 && root!.Value.TryGetProperty("source", out var sourceElement)
                 && sourceElement.ValueKind == JsonValueKind.String
-                && FilterScenarioSources.IsKct(sourceElement.GetString())
-                    ? FilterScenarioSources.Kct
+                && FilterScenarioSources.IsCommon(sourceElement.GetString())
+                    ? FilterScenarioSources.Common
                     : null;
 
             var summary = new Dictionary<string, object?>

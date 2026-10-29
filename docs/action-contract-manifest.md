@@ -483,11 +483,11 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 - `filter.scenario.recheck`
 - `filter.commit`：整批取代全部已存情境，每條條件同樣只留用得到的欄位。正式畫面不再呼叫，留給程式化佈置與既有測試使用。
 
-第五步的欄位按鈕、常用查核條件與「從範例開始」都只在前端組出既有 `groups` 和 `rules`，再呼叫上述 action；
+第五步的欄位按鈕、依審計目的條件、常用篩選條件的卡片與情境範例，都只在前端組出既有 `groups` 和 `rules`，再呼叫上述 action；
 送出並儲存的是展開後的條件與使用者參數，沒有新增規則型別或比較方式。2024 篩選表的 A 到 U 與五個填寫範例
 （來源版本 `je-form-2024-1210`）已從正式前端移除，目錄原文只留在測試夾具
 `src/JET/tests/JET.Tests/Fixtures/legacy-form-2024-1210.json`。後端不解讀這些代號，也沒有接收代號的通道，
-KCT 來源不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
+常用篩選條件的來源標記不受影響。目前篩選計算版本為 `filter-2026-10-14-v20`；
 空白傳票號碼與非營業日的裁定見[已歸檔的回饋計畫](history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md)第 7 批。
 
 ### 有界查詢
@@ -658,21 +658,21 @@ Working Paper Step 4-1 的整張傳票標記相同；其他情境為 false，`su
 2026-09-18 新增欄位內的借貸方向限制及每月月初、月底天數後，篩選版本為 `filter-2026-09-18-v15`。
 加入條件括號、傳票量詞與分類階層時的篩選版本為 `filter-2026-09-18-v16`。
 2026-10-04 落實空白號碼不屬於任何傳票的裁定，篩選版本推進為 `filter-2026-10-04-v17`，預篩選版本為 `prescreen-2026-10-04-v9`。
-2026-10-06 KCT 條件 A 加入查核期末視窗，篩選版本推進為 `filter-2026-10-06-v18`。舊命中需重新計算，預篩選版本維持不變。
+2026-10-06 常用篩選條件的「季末前借記收入」加入查核期末視窗，篩選版本推進為 `filter-2026-10-06-v18`。舊命中需重新計算，預篩選版本維持不變。
 2026-10-08 使用者裁定移除傳票日期與回溯過帳，當時篩選版本為 `filter-2026-10-08-v19`，預篩選版本推進為 `prescreen-2026-10-08-v10`。
 舊預篩選結果視為過期，需重新執行預篩選。
 2026-10-14 篩選條件改為每條只表達一件事，現行篩選版本為 `filter-2026-10-14-v20`。已停用的寫法列為待修正，定義不自動轉換。
 日期運算值沿用 GL 匯入的 `DateNormalizer` 與案件 `DateParseOptions`，從預覽、儲存到重開及匯出都使用同一選項。
 摘要關鍵字、尾數、人員代號與科目編號的文字輸入接受換行、半形與全形逗號、頓號及 Tab；已送成 `values` 陣列的文字值不再拆逗號。
 「包含任一文字」依實際送出的清單計算 100 個上限，修剪前後空白後仍區分大小寫，不拿不分大小寫的摘要筆數代替。
-KCT E、F、G、H 分別使用人員、摘要與金額的 `fieldValue`，卡片來源仍保存於 `editorOrigins`。
+特定人員、特定摘要、空白摘要與特定尾數四張卡，分別使用人員、摘要與金額的 `fieldValue`，卡片來源仍保存於 `editorOrigins`。
 超過 100 個值時回報拆成多條並放進「任一符合」子條件組；否定清單則使用「全部符合」。
 條件驗證訊息以「第 N 組第 M 條」指出位置；`FilterScenarioErrorDetails` 同時接受這個寫法與舊訊息，保留逐列錯誤定位。
 
 規則新增 `type: "group"` 和 `type: "voucher"`，兩者以 `rules` 保存子規則。`group` 的欄位條件綁定同一筆分錄；
 各層的 `join` 仍依原有順序左折疊，最多巢狀八層。`voucher` 必填 `quantifier: "any" | "all" | "none"`，不帶 `side`。
 子條件先在每筆分錄上計算，`all` 額外要求整張傳票至少有一筆。`voucher` 內可有 `group`，不可再嵌另一個 `voucher`。
-空白傳票號碼對三種量詞一律不成立；KCT C 和 unexpectedAccountPair 也不命中空白號碼的收入貸方。
+空白傳票號碼對三種量詞一律不成立；revenueWithoutNormalCounterpart 和 unexpectedAccountPair 也不命中空白號碼的收入貸方。
 原分類的 `absent` 改以 `voucher` 的 `none` 組合 `drCrOnly` 與分類 `is`。
 原本限定某側的 `all` 若改成 `none` 加上該側與反向條件，沒有該側分錄時會由不成立變成成立；
 要保留原結果，須再加一個 `any` 確認該側至少有一筆，並留意空白值是否列入反向條件。
@@ -698,7 +698,9 @@ KCT E、F、G、H 分別使用人員、摘要與金額的 `fieldValue`，卡片�
 訊息請審計員先把這些科目改到其他分類。分類只被已存篩選情境使用時不再擋下刪除，因為這次儲存會一併清掉情境。
 
 `filter.preview` 和草稿傳票查詢只檢查條件有效性，不要求名稱或動機；`filter.scenario.save` 與 `filter.commit` 才要求自訂情境的
-名稱與動機，KCT 沿用原有例外。驗證失敗回 `invalid_scenario`，`error.details` 帶每一條的位置與原因。
+名稱與動機；用了常用篩選條件卡片的情境帶 `source: "common"`，沿用原有例外，名稱與動機可以留白。
+其他來源代碼或沒有來源，一律當成審計員自己寫的情境；2026-10-29 以前案件記的舊來源代碼也是如此。
+驗證失敗回 `invalid_scenario`，`error.details` 帶每一條的位置與原因。
 情境名稱最多 400 字，三種資料庫相同；超過時回 `invalid_scenario`，訊息寫出上限，不截斷後儲存。
 只有存檔內容損毀或程式送錯資料才會出現的錯誤，`message` 與 `details[].message` 一律是「此條件內容有誤，無法儲存。請刪除此條件後重新設定。」，
 能歸屬到條件時帶組號與條號，不能歸屬時兩者為 null；原本的檢查只以程式寫死的英文代號記進支援日誌的
@@ -742,14 +744,18 @@ filter.scenario.recheck { populationScope?: "auditPeriod" }
 回應與 `filter.commit` 相同。失敗時資料庫不變。三個 action 都是變更型，同一時間只有一項變更作業。
 SQL Server 沿用同一套整批寫入的資料庫實作，沒有新的 SQL；這部分只經過編譯，沒有實機執行。
 
-情境可帶 `editorOrigins: { version: 1, legacyKctSource?: boolean, nameIsAutomatic?: boolean, rationaleIsAutomatic?: boolean, groups: [{ letters: [...] }] }`。
-每個 group 和 letters 的長度及位置對應原條件；letters 為 A–J 字母或 null。它只還原 KCT 卡片，
-不參與審計判斷。KCT I 是組內的一條 `type: "group"` 條件括號，字母記在括號這一條上。
+情境可帶 `editorOrigins`，現行是第 2 版：`{ version: 2, nameIsAutomatic?: boolean, rationaleIsAutomatic?: boolean, groups: [{ cards: [...] }] }`。
+每個 group 和 cards 的長度及位置對應原條件；cards 記帶入那一條的常用篩選條件卡片代號，例如 `blankDescription`，沒有卡片時記 null。
+卡片代號是 1 到 64 個英文字母，不符時回 `editor_origins_card_invalid`。它只還原卡片，不參與審計判斷。
+「非營業日之分錄」這張卡是組內的一條 `type: "group"` 條件括號，卡片代號記在括號這一條上。
+2026-10-29 以前儲存的情境是第 1 版，位置欄位叫 `letters`，記 A 到 J 的字母，也可能帶 `legacyKctSource`。
+後端仍接受第 1 版，檢查結構與 A 到 J 的字母後原樣保留，不再解讀。前端重開這類情境時不還原卡片，畫面說明一次，名稱與動機照原樣保留，不重算自動文字；
+重新儲存時改送第 2 版，兩個 `IsAutomatic` 記 false，原有條件的 cards 記 null，要對應卡片得由審計員重新點選。
 2026-10-02 以前儲存的情境，group 可能另帶 `presetGroup` 布林值，記錄當時獨立的非營業日組；
-後端仍接受並檢查它是布林值，前端不再產生也不讀取，舊情境不轉換。`legacyKctSource` 記錄舊 KCT 情境中仍無法還原來源的部分；省略表示 false。
+後端仍接受並檢查它是布林值，前端不再產生也不讀取，舊情境不轉換。
 儲存回應與重新載入保留這份資訊。舊情境沒有資訊時不猜卡片，也不改寫原條件、來源或結果。
 兩個 `IsAutomatic` 欄位分別記錄名稱及動機是否自動產生，只供編輯器恢復命名方式，不參與篩選判定。
-省略時保留原文字，不從字母或名稱相似度猜測；提供時必須是布林值。失敗的儲存不替換既有定義。
+省略時保留原文字，不從卡片或名稱相似度猜測；提供時必須是布林值。失敗的儲存不替換既有定義。
 
 ### 匯出
 

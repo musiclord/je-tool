@@ -50,7 +50,7 @@ public sealed class TaiwanSmeLargeCaseTests
     }
 
     [Theory]
-    [InlineData("sqlite", "kct")]
+    [InlineData("sqlite", "common")]
     [InlineData("duckdb", "custom")]
     public async Task FullWorkflow_MatchesIndependentlyComputedAnswers(string provider, string scenarioSet)
     {
@@ -66,7 +66,7 @@ public sealed class TaiwanSmeLargeCaseTests
             provider,
             files,
             oracle,
-            scenarioSet == "kct" ? SmeScenarios.Kct : SmeScenarios.Custom,
+            scenarioSet == "common" ? SmeScenarios.Common : SmeScenarios.Custom,
             log);
 
         // 失敗時訊息列出每一項的預期與 JET 結果，以及雙方各自多出來的前五筆分錄。

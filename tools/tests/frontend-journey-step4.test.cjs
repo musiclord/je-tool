@@ -337,7 +337,10 @@ test('journey 7: running validation shows the backend GL entry count, no populat
   //   資料可靠性測試：U23 與 L42 依 D22 使用者原句「需先確認RDE的可靠性後，方執行高風險篩選條件」還原說明與先後順序，
   //     只寫成說明、不新增擋下；畫面的寫法是「需先確認攸關資料元素（RDE）的可靠性後，再執行高風險篩選條件。」
   //   原 C# 測試的第一次失敗收據：20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022。
-  const desc = title => { const item = ruleItem(f, title); assert.ok(item !== null, title + ' listed'); return item.querySelector('.rule-item__desc').textContent; };
+  // 2026-10-29 使用者指出常駐說明太多：說明不再常駐在標題下方，滑鼠停在標題上時出現，展開「檢視」後寫在明細最上方。
+  // 字沒有改，這裡改讀標題的提示；原本讀 .rule-item__desc，改版後依預期失敗，首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。
+  assert.equal(f.$$('.rule-item__desc').length, 0, 'no description is kept under the titles');
+  const desc = title => { const item = ruleItem(f, title); assert.ok(item !== null, title + ' listed'); return item.querySelector('.rule-item__title').getAttribute('title'); };
   assert.equal(desc('完整性測試'),
     '先確認 JET 存下的分錄筆數與借貸合計，和確認欄位配對時算出的一樣。這一步不和來源檔自己的合計比對。' +
     '再比對各科目的總帳本期借貸淨額與試算表本期變動金額。金額不符代表總帳母體可能缺漏。');
@@ -661,13 +664,19 @@ async function runPrescreen(f, result) {
 }
 
 // 按一條規則的「檢視」，回傳展開後的明細。
+// 並排的兩項彙總把明細放在清單下方（使用者 2026-10-29 指出展開右格時左格被撐高、內容被推到中間），所以依「檢視」的 aria-controls 找明細，不假設明細在同一列裡。
 function openDetail(f, title) {
   const item = ruleItem(f, title);
   assert.ok(item !== null, title + ' listed');
   item.querySelector('[data-action="toggle-detail"]').dispatch('click');
-  const panel = ruleItem(f, title).querySelector('.rule-detail');
+  const panel = f.$('#' + ruleItem(f, title).querySelector('[data-action="toggle-detail"]').getAttribute('aria-controls'));
   assert.ok(panel !== null && panel.hidden === false, title + ' detail open');
   return panel;
+}
+
+// 明細最上方的項目名稱與規則說明（2026-10-29 起），之後才是這一項的結果或原因。
+function detailLead(panel) {
+  return ['.rule-detail__title', '.rule-detail__about'].map(selector => panel.querySelector(selector)).filter(Boolean).map(node => node.textContent).join('');
 }
 
 test('journey 8: a prescreen rule that cannot run shows only the backend sentence, on its badge and in its opened detail', async () => {
@@ -693,7 +702,10 @@ test('journey 8: a prescreen rule that cannot run shows only the backend sentenc
     assert.equal(badge.textContent, '無法執行', title);
     assert.equal(badge.getAttribute('title'), naReason, title);
     const panel = openDetail(f, title);
-    assert.equal(panel.textContent, naReason, title + ' detail is the backend sentence alone');
+    // 2026-10-29 起明細最上方先寫這一項在檢查什麼（原本常駐在標題下方的說明），之後只接後端那一句，畫面不自己寫原因或下一步。
+    // 原本比對整個明細等於後端那一句，改版後依預期失敗，首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。
+    assert.equal(panel.querySelector('.rule-detail__about').textContent, ruleItem(f, title).querySelector('.rule-item__title').getAttribute('title'), title);
+    assert.equal(panel.textContent, detailLead(panel) + naReason, title + ' detail adds only the backend sentence');
     assert.ok(panel.querySelector('.rule-detail__remedy') === null, title + ' has no screen-written next step');
   }
 });
@@ -733,7 +745,8 @@ test('journey 7: without the approval date mapping, the out-of-period approval i
   assert.equal(badge.getAttribute('title'), reason);
   f.requests.length = 0;
   const panel = openDetail(f, '核准日不在期間');
-  assert.equal(panel.textContent, reason, 'detail is the backend sentence alone');
+  // 明細最上方先寫這一項在檢查什麼（2026-10-29 起），之後只接後端那一句；首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。
+  assert.equal(panel.textContent, detailLead(panel) + reason, 'detail adds only the backend sentence');
   assert.deepEqual(f.pending('queryNullRecordsPage').map(r => plain(r.payload)), [], 'no entries to load');
 });
 
@@ -944,7 +957,8 @@ test('journey 7 messages: a finished validation leaves one short completion line
   assert.match(status('空白科目編號'), /^4\D/);
   assert.ok(!f.$$('.rule-status').some(node => /^(?:5|7|9)\D/.test(node.textContent)), 'no item adds the counts together');
   // 空白傳票號碼的說明：使用者 2026-10-14 第三輪勾選頁確認 R3-44（final-wording-r3.json）。
-  assert.equal(ruleItem(f, '空白傳票號碼').querySelector('.rule-item__desc').textContent,
+  // 說明 2026-10-29 起放在標題的提示（首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d），字不變。
+  assert.equal(ruleItem(f, '空白傳票號碼').querySelector('.rule-item__title').getAttribute('title'),
     '傳票號碼空白的分錄。與空白科目編號分開列示；傳票號碼與科目編號都空白的分錄，兩份明細都會列出。');
 });
 

@@ -44,7 +44,7 @@
 const nodeTest = require('node:test');
 const test = (name, fn) => nodeTest(name, { timeout: 30000 }, fn);
 const assert = require('node:assert/strict');
-const { settle, plain, messagePanelFixture, remapPrescreen, usageJourneyFixture, savedG, flush, bootFullApp: boot } = require('./support/frontend-fixtures.cjs');
+const { settle, plain, messagePanelFixture, remapPrescreen, usageJourneyFixture, savedBlankDescription, flush, bootFullApp: boot } = require('./support/frontend-fixtures.cjs');
 const { unchecked } = require('./support/action-contract.cjs');
 
 const CASE = { projectId: '合成案件', databaseProvider: 'sqlite' };
@@ -536,7 +536,8 @@ function assertFailureLine(f, reason, labelMeaning) {
 
 test('step 5 messages: a preview logs the confirmed count line with the elapsed time, and a failed save, removal or criteria report is an error line', async () => {
   let f = filterStepFixture();
-  f.click('[data-kct-letter="G"]');
+  // 卡片改用代號識別（2026-10-29 拿掉卡片字母）。第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+  f.click('[data-common-card="blankDescription"]');
   f.click('[data-action="preview-scenario"]'); await settle();
   f.request('filterPreview').resolve({ scenario: { count: 3, voucherCount: 2, summaryRowCount: 3, populationScope: 'auditPeriod' } }); await settle();
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: [], nextCursor: null }); await settle(); await settle();
@@ -551,7 +552,7 @@ test('step 5 messages: a preview logs the confirmed count line with the elapsed 
   f.request('filterScenarioSave').reject(new Error('合成儲存失敗。')); await settle(); await settle();
   assertFailureLine(f, '合成儲存失敗', /儲存/);
 
-  f = filterStepFixture({ saved: [{ ...savedG(), name: '甲' }, { ...savedG(), name: '乙' }] });
+  f = filterStepFixture({ saved: [{ ...savedBlankDescription(), name: '甲' }, { ...savedBlankDescription(), name: '乙' }] });
   f.click('[data-filter-pane-select="saved"]');
   f.click('[data-action="remove-scenario"][data-index="1"]');
   f.click('[data-action="confirm-remove-scenario"][data-index="1"]'); await settle();

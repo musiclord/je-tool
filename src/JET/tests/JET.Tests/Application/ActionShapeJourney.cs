@@ -523,20 +523,31 @@ internal static class ActionShapeJourney
                 },
             });
             await SaveAsync(cashDraft, null);
-            // KCT 卡片：filter-step.js 在根層送 source:'kct'，editorOrigins 記下每條條件來自哪張卡，名稱與動機由系統產生。
-            var kctDraft = Scenario("KCT F：特定摘要", "合成：特定摘要。", new JsonArray
+            // 常用篩選條件的卡片：filter-step.js 在根層送 source:'common'，editorOrigins 第 2 版逐條記卡片代號，名稱與動機由系統產生。
+            var commonDraft = Scenario("特定摘要(如迴轉、調整等)", "合成：特定摘要。", new JsonArray
             {
                 FieldValue("description", "contains", values: ["迴轉", "調整"]),
-            }, letters: ["F"], automatic: true);
-            kctDraft["source"] = "kct";
-            await PreviewAsync(kctDraft);
-            await SaveAsync(kctDraft, null);
-            // 舊版存下的 KCT 情境沒有命名來源；filter-step.js 預覽它時只帶根層的 source:'kct'。
-            var legacyKct = (JsonObject)kctDraft.DeepClone();
-            legacyKct.Remove("editorOrigins");
-            await Send("filter.preview", new JsonObject { ["populationScope"] = Scope, ["scenario"] = legacyKct.DeepClone() });
-            // 編輯這種舊版 KCT 情境後存回原位置：照樣只帶 source:'kct'，不補命名來源。
-            await SaveAsync(legacyKct, 3);
+            }, cards: ["specificKeywords"], automatic: true);
+            commonDraft["source"] = "common";
+            await PreviewAsync(commonDraft);
+            await SaveAsync(commonDraft, null);
+            // 2026-10-29 以前存下的情境：編輯來源是第 1 版，逐條記卡片字母，欄位照當時的前端；讀回時舊的來源代碼已不認得。
+            // filter-step.js 預覽它時原樣送回第 1 版、不帶來源代碼；更早存下、沒有編輯來源的情境兩者都不帶。
+            var legacyCards = (JsonObject)commonDraft.DeepClone();
+            legacyCards.Remove("source");
+            legacyCards["editorOrigins"] = new JsonObject
+            {
+                ["version"] = 1, ["legacyKctSource"] = false, ["nameIsAutomatic"] = true, ["rationaleIsAutomatic"] = true,
+                ["groups"] = new JsonArray(new JsonObject { ["letters"] = new JsonArray("F") }),
+            };
+            await Send("filter.preview", new JsonObject { ["populationScope"] = Scope, ["scenario"] = legacyCards.DeepClone() });
+            var legacyBare = (JsonObject)legacyCards.DeepClone();
+            legacyBare.Remove("editorOrigins");
+            await Send("filter.preview", new JsonObject { ["populationScope"] = Scope, ["scenario"] = legacyBare.DeepClone() });
+            // 編輯舊情境後存回原位置：改存第 2 版編輯來源，當時的卡片對應不回來所以記 null，也不帶來源代碼。
+            var resaved = (JsonObject)legacyBare.DeepClone();
+            resaved["editorOrigins"] = Origins(false, new string?[] { null });
+            await SaveAsync(resaved, 3);
             // 整張傳票條件與攸關資料元素條件（filter-step.js typedWireRule）。10-14 起「同一傳票」併進整張傳票條件，
             // 條件組一律逐列比對。
             var voucherDraft = new JsonObject
@@ -582,7 +593,7 @@ internal static class ActionShapeJourney
             };
             await PreviewAsync(voucherDraft);
             await SaveAsync(voucherDraft, null);
-            // 「從範例開始」：applyTemplate 照原樣深拷貝範例的條件，條件本身沒有 join（ui-core.js FILTER_SCENARIO_TEMPLATES 的
+            // 情境範例：applyTemplate 照原樣深拷貝範例的條件，條件本身沒有 join（ui-core.js FILTER_SCENARIO_TEMPLATES 的
             // 借現金、貸非現金）；名稱與動機算審計員給的。
             var templateDraft = Scenario("借現金、貸非現金", "借方為現金，而整張傳票沒有貸方現金的分錄。", new JsonArray
             {
@@ -623,7 +634,7 @@ internal static class ActionShapeJourney
             });
             await PreviewAsync(olderRulesDraft);
             await SaveAsync(olderRulesDraft, null);
-            // 常用查核條件「人工分錄」：filter-step-sources.js conditionFromSpec 以 ui-core.js newFilterRule('manualAuto') 為底再套上規格，
+            // 依審計目的「人工分錄」：filter-step-sources.js conditionFromSpec 以 ui-core.js newFilterRule('manualAuto') 為底再套上規格，
             // 其他類型的預設鍵也一起送出（frontend-journey-filter-build 的 filler 逐字斷言同一份資料）。
             var manualCheck = new JsonObject
             {
@@ -705,7 +716,7 @@ internal static class ActionShapeJourney
                 new JsonObject { ["type"] = "drCrOnly", ["join"] = "AND", ["drCr"] = "credit" },
             });
             await SaveAsync(debitDraft, null);
-            await SaveAsync(kctDraft, null);
+            await SaveAsync(commonDraft, null);
             await SaveAsync(creditDraft, null);
             // 原始總帳沒有核准人員欄，抽樣明細、命中明細與矩陣明細的核准人員是空的。
             foreach (var action in new[] { "query.infSamplePage", "query.tagMatrixRowPage" })
@@ -1060,7 +1071,7 @@ internal static class ActionShapeJourney
     };
 
     /// <summary>filter-step.js 的 toWireDraft：名稱、動機、條件組與命名來源。</summary>
-    private static JsonObject Scenario(string name, string rationale, JsonArray rules, string?[]? letters = null, bool automatic = false) => new()
+    private static JsonObject Scenario(string name, string rationale, JsonArray rules, string?[]? cards = null, bool automatic = false) => new()
     {
         ["name"] = name,
         ["rationale"] = rationale,
@@ -1068,19 +1079,18 @@ internal static class ActionShapeJourney
         {
             new JsonObject { ["join"] = "OR", ["matchScope"] = "row", ["rules"] = rules },
         },
-        ["editorOrigins"] = Origins(automatic, letters ?? rules.Select(_ => (string?)null).ToArray()),
+        ["editorOrigins"] = Origins(automatic, cards ?? rules.Select(_ => (string?)null).ToArray()),
     };
 
-    /// <summary>filter-step.js projectWireScenario 的 editorOrigins：每組一份字母清單，不是 KCT 卡帶進來的條件為 null。</summary>
+    /// <summary>filter-step.js projectWireScenario 的 editorOrigins 第 2 版：每組一份卡片代號清單，不是卡片帶進來的條件為 null。</summary>
     private static JsonObject Origins(bool automatic, params string?[][] groups) => new()
     {
-        ["version"] = 1,
-        ["legacyKctSource"] = false,
+        ["version"] = 2,
         ["nameIsAutomatic"] = automatic,
         ["rationaleIsAutomatic"] = automatic,
-        ["groups"] = new JsonArray(groups.Select(letters => (JsonNode?)new JsonObject
+        ["groups"] = new JsonArray(groups.Select(cards => (JsonNode?)new JsonObject
         {
-            ["letters"] = new JsonArray(letters.Select(letter => (JsonNode?)letter).ToArray()),
+            ["cards"] = new JsonArray(cards.Select(card => (JsonNode?)card).ToArray()),
         }).ToArray()),
     };
 

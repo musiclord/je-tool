@@ -27,7 +27,7 @@
 const nodeTest = require('node:test');
 const test = (name, fn) => nodeTest(name, { timeout: 30000 }, fn);
 const assert = require('node:assert/strict');
-const { plain, savedG, remapPrescreen, flush, bootFullApp: boot, noDunderKeys } = require('./support/frontend-fixtures.cjs');
+const { plain, savedBlankDescription, remapPrescreen, flush, bootFullApp: boot, noDunderKeys } = require('./support/frontend-fixtures.cjs');
 
 const CASE = { projectId: '合成匯出案', databaseProvider: 'sqlite' };
 const EXPORT_INDEX = 5;
@@ -54,7 +54,7 @@ async function openExport({ prescreen = 'p1', eligibility } = {}) {
   }
   f.store.setLastRun('validate', validation('v1', eligibility));
   if (prescreen) f.store.setLastRun('prescreen', plain(remapPrescreen(prescreen)));
-  f.store.setSavedScenarios([savedG('第一個'), savedG('第二個')]);
+  f.store.setSavedScenarios([savedBlankDescription('第一個'), savedBlankDescription('第二個')]);
   f.store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' });
   f.store.setStepIndex(EXPORT_INDEX);
   await flush();
@@ -114,7 +114,7 @@ test('journey 16: the prescreen report is ticked by default and named on the but
   f.reply(f.sent('log.recent').at(-1), { messages: [] }); await flush();
   f.store.setLastRun('validate', validation('v1'));
   f.store.setLastRun('prescreen', plain(remapPrescreen('p1')));
-  f.store.setSavedScenarios([savedG('第一個')]);
+  f.store.setSavedScenarios([savedBlankDescription('第一個')]);
   f.store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' });
   f.store.setStepIndex(EXPORT_INDEX); await flush();
   assert.equal(step(f).querySelector('[data-bind="include-prescreen-report"]').checked, true);
@@ -173,7 +173,7 @@ test('journey 16: the sheet table of the last export goes away once an upstream 
   f.reply('export.workpaperStream', { artifact: paper, reportArtifacts: [paper], sheetStats: [{ sheetName: '合成情境表', rowsWritten: 2 }] }); await flush();
   assert.equal(step(f).querySelectorAll('.preview-table tbody tr').length, 1);
   f.store.applyMutationEffects({ invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true } });
-  f.store.setSavedScenarios([savedG('第一個'), savedG('第二個')]);
+  f.store.setSavedScenarios([savedBlankDescription('第一個'), savedBlankDescription('第二個')]);
   f.store.setFilterResultRef({ revision: 'r2', populationScope: 'auditPeriod' });
   f.store.setStepIndex(EXPORT_INDEX); await flush();
   assert.equal(step(f).querySelectorAll('.preview-table tbody tr').length, 0, 'the table belonged to the export of the older scenarios');
@@ -298,11 +298,17 @@ test('journey 16: export progress shows each reported phase on the busy screen w
 test('journey 16: the scenario choice says it uses the saved conditions, exporting needs no criteria report, and the step uses no internal wording', async () => {
   const f = await openExport({ prescreen: 'p1' });
   const text = step(f).textContent;
-  // 「使用目前資料及已儲存條件；草稿不會自動納入。」：「已儲存」是 2026-10-03 用語統一 W10 的使用者裁定（計畫第 4 節 A5）。
-  assert.match(text, /使用目前資料及已儲存條件；草稿不會自動納入。/);
-  // 情境選擇說明底稿會標示符合的分錄並保留同傳票的參考分錄（只比對意思，原 WorkpaperSheetMirrorTests.ExportStep_… 的句子沒有使用者裁定）。
-  assert.match(text, /標示.*符合.*情境.*分錄/);
-  assert.match(text, /同傳票/);
+  // 使用者 2026-10-29 指出常駐說明太多：「使用目前資料及已儲存條件；草稿不會自動納入。」與底稿標示方式的說明
+  // 不再常駐；只有「進階條件篩選」真的有尚未儲存的修改時，才提醒要先儲存成情境。這裡原本比對這兩句，改版後依預期失敗，
+  // 首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。「已儲存」仍沿用 2026-10-03 用語統一 W10 的使用者裁定。
+  assert.doesNotMatch(text, /草稿不會自動納入|同傳票/);
+  assert.equal(step(f).querySelector('[data-bind="export-unsaved-draft"]'), null, 'no reminder without unsaved changes');
+  const hasUnsavedScenarioChanges = f.ui.FilterStep.hasUnsavedScenarioChanges;
+  f.ui.FilterStep.hasUnsavedScenarioChanges = () => true;
+  f.store.touch(); await flush();
+  assert.match(step(f).querySelector('[data-bind="export-unsaved-draft"]').textContent, /尚未儲存.*儲存成情境.*納入底稿/);
+  f.ui.FilterStep.hasUnsavedScenarioChanges = hasUnsavedScenarioChanges;
+  f.store.touch(); await flush();
   // 沒有條件篩選報告也能匯出，不叫審計員回第五步先產生報告。
   assert.equal(f.state().reportArtifacts.some(a => a.kind === 'criteriaSelectionReport'), false);
   assert.equal(exportButton(f).disabled, false);

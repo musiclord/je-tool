@@ -39,6 +39,29 @@ internal static class ExcelDisplayWidth
         return Math.Min(MaximumColumnWidth, Math.Max(MinimumColumnWidth, padded));
     }
 
+    /// <summary>
+    /// 欄寬有上限、文字換行時大約要幾行。和 <see cref="ToColumnWidth"/> 留同樣的字形餘裕，
+    /// 寧可多估一行，也不讓最後一行被切掉。
+    /// </summary>
+    internal static int WrappedLineCount(string? value, double columnWidth)
+    {
+        if (!double.IsFinite(columnWidth) || columnWidth <= HorizontalPadding)
+        {
+            throw new ArgumentOutOfRangeException(nameof(columnWidth));
+        }
+        if (string.IsNullOrEmpty(value))
+        {
+            return 1;
+        }
+
+        var usable = (columnWidth - HorizontalPadding) / GlyphSafetyFactor;
+        return value
+            .Split('\n')
+            .Sum(line => Math.Max(
+                1,
+                (int)Math.Ceiling(line.TrimEnd('\r').EnumerateRunes().Sum(RuneWidth) / usable)));
+    }
+
     private static double RuneWidth(Rune rune) =>
         rune.Value switch
         {

@@ -62,17 +62,20 @@ test('section 9 G1: common account combinations use explicit side children and k
     [null, 'any', [['drCrOnly', 'credit', null], ['fieldValue', null, 'accNum']]]]);
 });
 
-test('section 9 G2: KCT E F G H share field conditions and keep their card identity', () => {
+// 2026-10-29 拿掉卡片字母：測試名稱、選擇器與身分標記改用卡片代號（原名用當時的四個卡片字母稱呼這四張卡，身分標記原本記字母）。
+// 第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+const FIELD_CARDS = ['specificPreparer', 'specificKeywords', 'blankDescription', 'specificTrailingDigits'];
+test('section 9 G2: the preparer, keyword, blank description and trailing digit cards share field conditions and keep their card identity', () => {
   const f = filterOperationFixture();
   f.store.setMappingCommitted('gl', { mapping: { createBy: 'Maker' }, mode: 'signed', options: {} });
-  for (const letter of ['E', 'F', 'G', 'H']) f.click('[data-kct-letter="' + letter + '"]');
+  for (const card of FIELD_CARDS) f.click('[data-common-card="' + card + '"]');
   const rules = f.draft().groups[0].rules;
-  assert.deepEqual(plain(rules.map(rule => [rule.__kctLetter, rule.type, rule.field, rule.operator])), [
-    ['E', 'fieldValue', 'createBy', 'in'], ['F', 'fieldValue', 'description', 'contains'],
-    ['G', 'fieldValue', 'description', 'isBlank'], ['H', 'fieldValue', 'amount', 'endsWithDigits']]);
+  assert.deepEqual(plain(rules.map(rule => [rule.__commonCard, rule.type, rule.field, rule.operator])), [
+    ['specificPreparer', 'fieldValue', 'createBy', 'in'], ['specificKeywords', 'fieldValue', 'description', 'contains'],
+    ['blankDescription', 'fieldValue', 'description', 'isBlank'], ['specificTrailingDigits', 'fieldValue', 'amount', 'endsWithDigits']]);
   assert.equal(rules[3].value, '000000');
-  f.click('[data-kct-letter="F"]');
-  assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => rule.__kctLetter)), ['E', 'G', 'H']);
+  f.click('[data-common-card="specificKeywords"]');
+  assert.deepEqual(plain(f.draft().groups[0].rules.map(rule => rule.__commonCard)), ['specificPreparer', 'blankDescription', 'specificTrailingDigits']);
 });
 
 test('section 9 G2: the trailing-zero preset visibly excludes absolute amounts below one', () => {

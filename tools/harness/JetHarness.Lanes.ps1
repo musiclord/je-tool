@@ -415,9 +415,9 @@ function Invoke-JetGuiScenarioStep {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.authorizedListRecoveryVerified
             }
-            'kct-remap-recovery' {
+            'common-remap-recovery' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
-                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.kctRemapRecoveryVerified
+                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.commonRemapRecoveryVerified
             }
             'upstream-change-after-export' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
@@ -443,7 +443,7 @@ function Invoke-JetGuiScenarioStep {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq 2 -and [bool]$manifest.assertions.feedbackWorkflowVerified
             }
-            { $_ -in @('filter-auditor-journey','filter-kct-editing') } {
+            { $_ -in @('filter-auditor-journey','filter-common-editing') } {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq [int]$Scenario.screenshotBudget -and [bool]$manifest.assertions.filterWorkflowVerified
             }

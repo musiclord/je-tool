@@ -318,20 +318,29 @@ public sealed class DesignIntegrationFrontendTests
     public void Frontend_AddActionsLookPressable_AndArrivalsShowWhereTheyLanded()
     {
         // 使用者 2026-10-11 指出條件總覽的「加入」像一般文字；同日要求多參考 Apple 的設計思路。
-        // 會新增東西的按鈕是淡藍底藍字加號，低調按鈕用藍字；條件從總覽飛進條件組，展開的內容從標題長出來。
+        // 2026-10-29 使用者指出中間操作區不需要到處用強調色，並選擇保留每個工作面唯一的藍色主要按鈕：會新增東西的按鈕與
+        // 列內的低調按鈕都是白底深字的按鍵，新增按鈕的名稱前一個灰色加號；條件從總覽飛進條件組，展開的內容從標題長出來。
         // 這些動態只畫呈現，減少動態與高對比佈景時不做。
         var css = ReadFrontend("css", "app.css");
         var app = ReadFrontend("js", "app.js");
 
         // 使用者 2026-10-15 指出切換第五步頁籤時，淡掉中的「新增條件組」變回白底。JetMotion 的舊複本會拿掉 data-action，
         // 所以樣式改掛在 .btn--add。這條原本鎖 .btn:is([data-add-check], [data-action="add-set"], ...)，改版後依預期失敗，
-        // 首敗收據 20261015-015426320-016be01c6d8140758d9bd5ddebf012ad。意圖不變：會新增東西的按鈕是淡藍底藍字加號。
+        // 首敗收據 20261015-015426320-016be01c6d8140758d9bd5ddebf012ad。意圖不變：會新增東西的按鈕前面有加號。
         Assert.Contains(".btn.btn--add {", css, StringComparison.Ordinal);
         Assert.Contains("class=\"btn btn--ghost btn--add\" data-action=\"add-set\"", ProductSources.FilterStepFrontend(), StringComparison.Ordinal);
         Assert.Contains("../assets/icons/fluent/add_20_regular.svg", css, StringComparison.Ordinal);
-        var lowKey = css[css.IndexOf(".btn--tiny,\n.btn--ghost.btn--tiny,\n.filter-workspace .rule-row__remove,", StringComparison.Ordinal)..];
+        // 低調按鈕原本鎖藍字（.btn--tiny 與 .rule-row__remove 同一段的 color: var(--color-accent)）。2026-10-29 改成白色按鍵後
+        // 依預期失敗，首敗收據 20261029-035013860-df37d794fb10465498db2624d8a576a5。意圖不變：列內按鈕看得出可以按，
+        // 改由白底與細框表達，不用強調色；加號是灰色。
+        var lowKey = css[css.IndexOf(".btn--tiny,\n.btn--ghost.btn--tiny {", StringComparison.Ordinal)..];
         lowKey = lowKey[..(lowKey.IndexOf('}') + 1)];
-        Assert.Contains("color: var(--color-accent);", lowKey, StringComparison.Ordinal);
+        Assert.Contains("background: var(--color-surface-raised);", lowKey, StringComparison.Ordinal);
+        Assert.Contains("border-color: var(--color-border-control);", lowKey, StringComparison.Ordinal);
+        Assert.DoesNotContain("--color-accent", lowKey, StringComparison.Ordinal);
+        var plus = css[css.IndexOf(".btn.btn--add::before {", StringComparison.Ordinal)..];
+        plus = plus[..(plus.IndexOf('}') + 1)];
+        Assert.Contains("background: var(--color-muted);", plus, StringComparison.Ordinal);
 
         // 使用者 2026-10-12 認為加入條件的飛行像廉價的套版，切換常用查核條件時畫面會閃，所以加入改成帶過去的玻璃標籤
         // .arrival-token，原本只處理打開的 bindDisclosureMotion 改成 app.css 的 [data-collapsible]，打開與收起都轉場。

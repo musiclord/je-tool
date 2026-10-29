@@ -148,14 +148,16 @@ public sealed class FilterRuleWireFieldsTests
             {"name":"合成","unknownTop":1e2,"groups":[{"join":"AND","unknownGroup":1.2300,"matchScope":"row","rules":[
               {"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"equals","value":"  Alpha ","unknownRule":1E+02},
               {"join":"AND","type":"customPreparerEntryCount","maxEntries":5.0,"digits":"3"}]}],
-             "editorOrigins":{"version":1,"groups":[{"letters":[null,null]}]},"source":"kct"}
+             "editorOrigins":{"version":2,"groups":[{"cards":[null,null]}]},"source":"common"}
             """);
 
         using var trimmed = JsonDocument.Parse(FilterRuleWireFields.KeepUsedRuleFields(source.RootElement));
         var root = trimmed.RootElement;
         Assert.Equal(["name", "unknownTop", "groups", "editorOrigins", "source"], root.EnumerateObject().Select(property => property.Name));
         Assert.Equal("1e2", root.GetProperty("unknownTop").GetRawText());
-        Assert.Equal("""{"version":1,"groups":[{"letters":[null,null]}]}""", root.GetProperty("editorOrigins").GetRawText());
+        // 2026-10-29 編輯來源改成第 2 版、來源代碼改成 common：輸入與期望的原文一起換成現行形狀，核對的仍是原文照樣保留。
+        // 這次改的是測試資料，不是因為測試失敗。
+        Assert.Equal("""{"version":2,"groups":[{"cards":[null,null]}]}""", root.GetProperty("editorOrigins").GetRawText());
         var group = root.GetProperty("groups")[0];
         Assert.Equal(["join", "unknownGroup", "matchScope", "rules"], group.EnumerateObject().Select(property => property.Name));
         Assert.Equal("1.2300", group.GetProperty("unknownGroup").GetRawText());

@@ -25,7 +25,10 @@
 
 ## 計畫
 
-`specs/` 只放進行中的大型計畫，目前沒有。2026-10-20 使用者指示收尾並提交推送，
+`specs/` 放進行中的大型計畫，以及已經建檔、等現行計畫結案才開始的下一份計畫；
+目前是哪一份，以 `development-status.md` 的「目前大型計畫」為準。
+[預篩選收斂、技術債與延後事項計畫](history/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md)2026-10-30 結案，移到歷史文件。
+2026-10-20 使用者指示收尾並提交推送，
 [資料表分頁與 Agent 文件整理](history/specs/2026-10-16-table-pagination-and-agent-docs-plan.md)、
 [跨資料庫審計結果一致性整合](history/specs/2026-10-19-cross-database-consistency-plan.md)與
 [延後事項清理](history/specs/2026-10-19-deferred-items-cleanup-plan.md)三份計畫移回歷史文件。

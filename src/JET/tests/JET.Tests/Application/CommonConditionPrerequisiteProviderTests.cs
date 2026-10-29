@@ -7,20 +7,20 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// KCT D／E／G／J 的 action-level provider matrix：同一份真匯入、mapping、validation 與
+/// 常用篩選條件裡需要 GL 欄位的四張卡（收入之人工分錄、特定人員、空白摘要、編製與核准同一人）的 action-level provider matrix：同一份真匯入、mapping、validation 與
 /// account mapping 在三個 provider 上驗證「缺欄先拒絕」及「前置齊備後 preview＝commit 命中」。
 /// </summary>
-public sealed class KctPrerequisiteProviderTests
+public sealed class CommonConditionPrerequisiteProviderTests
 {
-    private static readonly KctReadyCase[] ReadyCases =
+    private static readonly CommonReadyCase[] ReadyCases =
     [
         new(
-            "D",
-            KctScenario("KCT D", new { join = "AND", type = "manualRevenueEntry" }),
+            "manualRevenueEntry",
+            CommonScenario("收入之人工分錄", new { join = "AND", type = "manualRevenueEntry" }),
             ["D-1|1"]),
         new(
-            "E",
-            KctScenario("KCT E", new
+            "specificPreparer",
+            CommonScenario("特定人員", new
             {
                 join = "AND",
                 type = "text",
@@ -30,8 +30,8 @@ public sealed class KctPrerequisiteProviderTests
             }),
             ["E-1|1"]),
         new(
-            "G",
-            KctScenario("KCT G", new
+            "blankDescription",
+            CommonScenario("空白摘要", new
             {
                 join = "AND",
                 type = "prescreen",
@@ -39,20 +39,20 @@ public sealed class KctPrerequisiteProviderTests
             }),
             ["G-1|1"]),
         new(
-            "J",
-            KctScenario("KCT J", new { join = "AND", type = "preparerEqualsApprover" }),
+            "preparerEqualsApprover",
+            CommonScenario("編製與核准同一人", new { join = "AND", type = "preparerEqualsApprover" }),
             ["J-1|1"])
     ];
 
-    private static readonly KctMissingCase[] MissingCases =
+    private static readonly CommonMissingCase[] MissingCases =
     [
-        new("D", ReadyCases[0].Scenario, [GlMappingKeys.Manual], ["人工/自動分錄"]),
-        new("E", ReadyCases[1].Scenario, [GlMappingKeys.CreateBy], ["傳票建立人員"]),
-        new("G", ReadyCases[2].Scenario, [GlMappingKeys.Description], ["傳票摘要"]),
-        new("J-createBy", ReadyCases[3].Scenario, [GlMappingKeys.CreateBy], ["傳票建立人員"]),
-        new("J-approveBy", ReadyCases[3].Scenario, [GlMappingKeys.ApproveBy], ["傳票核准人員"]),
+        new("manualRevenueEntry", ReadyCases[0].Scenario, [GlMappingKeys.Manual], ["人工/自動分錄"]),
+        new("specificPreparer", ReadyCases[1].Scenario, [GlMappingKeys.CreateBy], ["傳票建立人員"]),
+        new("blankDescription", ReadyCases[2].Scenario, [GlMappingKeys.Description], ["傳票摘要"]),
+        new("preparerEqualsApprover-createBy", ReadyCases[3].Scenario, [GlMappingKeys.CreateBy], ["傳票建立人員"]),
+        new("preparerEqualsApprover-approveBy", ReadyCases[3].Scenario, [GlMappingKeys.ApproveBy], ["傳票核准人員"]),
         new(
-            "J-both",
+            "preparerEqualsApprover-both",
             ReadyCases[3].Scenario,
             [GlMappingKeys.CreateBy, GlMappingKeys.ApproveBy],
             ["傳票建立人員", "傳票核准人員"])
@@ -204,11 +204,11 @@ public sealed class KctPrerequisiteProviderTests
         }
     }
 
-    private static object KctScenario(string name, object rule) => new
+    private static object CommonScenario(string name, object rule) => new
     {
-        source = "kct",
+        source = "common",
         name,
-        rationale = "KCT mapping prerequisite provider oracle",
+        rationale = "Common card mapping prerequisite provider oracle",
         groups = new object[] { new { join = "AND", rules = new[] { rule } } }
     };
 
@@ -226,7 +226,7 @@ public sealed class KctPrerequisiteProviderTests
                 row.GetProperty("lineItem").GetString()))
             .ToArray();
 
-    private static void AssertMissingField(JetActionException exception, KctMissingCase testCase)
+    private static void AssertMissingField(JetActionException exception, CommonMissingCase testCase)
     {
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
         // 使用者 2026-10-13 勾選頁確認（文字批次 C）：缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
@@ -256,7 +256,7 @@ public sealed class KctPrerequisiteProviderTests
         {
             await host.DispatchAsync(
                 "import.accountMapping.fromFile",
-                JsonSerializer.Serialize(new { filePath = path, fileName = "kct-account-mapping.xlsx" }));
+                JsonSerializer.Serialize(new { filePath = path, fileName = "common-account-mapping.xlsx" }));
         }
         finally
         {
@@ -302,12 +302,12 @@ public sealed class KctPrerequisiteProviderTests
         }
     }
 
-    private sealed record KctReadyCase(
-        string Letter,
+    private sealed record CommonReadyCase(
+        string Card,
         object Scenario,
         string[] ExpectedRows);
 
-    private sealed record KctMissingCase(
+    private sealed record CommonMissingCase(
         string Name,
         object Scenario,
         string[] MissingMappingKeys,

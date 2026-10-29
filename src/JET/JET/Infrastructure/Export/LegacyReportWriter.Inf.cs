@@ -562,7 +562,8 @@ public sealed partial class LegacyReportWriter
                 .ToArray(),
             new ReportSheetOptions(
                 PageMargins: StandardMargins,
-                DefaultRowHeight: 17D));
+                // INF 範本內文是 12 點，列高照字級的 1.5 倍。
+                DefaultRowHeight: FormalWorkbookTypography.RowHeight(12D)));
         sheet.WriteFixedRow(
             1,
             outputColumns.Select((value, index) =>

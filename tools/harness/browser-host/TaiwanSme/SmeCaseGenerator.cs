@@ -1201,7 +1201,7 @@ internal sealed class SmeCaseGenerator
         ConstructionPayment(D(3, 18), 2_000_000m, "廠房整修工程第一期款");
         ConstructionPayment(D(6, 17), 3_500_000m, "廠房整修工程第二期款");
         ConstructionPayment(D(9, 16), 2_380_000m, "廠房整修工程第三期款");
-        // 監造費轉列在建工程：借方是在建工程，不在固定資產分類下，所以 KCT B 不會選入。
+        // 監造費轉列在建工程：借方是在建工程，不在固定資產分類下，所以「借記固定資產且貸記費用」不會選入。
         At(D(6, 30), day => V(SmeSources.Journal, day, SmePeople.ChiefAccountant, SmeDepartments.Admin)
             .Dr("1490", 120_000m, "工程監造費轉列未完工程").Cr("6219", 120_000m, "工程監造費轉列未完工程").Post());
         At(D(11, 28), day => V(SmeSources.Journal, day, SmePeople.ChiefAccountant, SmeDepartments.Admin)
@@ -1214,12 +1214,12 @@ internal sealed class SmeCaseGenerator
             .Cr("7130", 150_000m, "處分舊貨車利益")
             .Cr("2291", 15_000m, $"銷項稅額 {Invoice(D(8, 29))}").Post());
 
-        // KCT B：把已列費用的修繕、廣告、雜費、研發材料轉列固定資產（借固定資產、貸費用）。
-        KctBCapitalization(D(9, 30), "1430", "6207", 680_000m, "射出機大修費用轉列機器設備");
-        KctBCapitalization(D(10, 17), "1470", "6108", 150_000m, "廣告看板轉列其他設備");
-        KctBCapitalization(D(11, 28), "1430", "5143", 425_000m, "模具修繕費轉列機器設備");
-        KctBCapitalization(D(12, 31), "1450", "6224", 186_000m, "電腦周邊轉列辦公設備");
-        KctBCapitalization(D(12, 31), "1470", "6313", 92_000m, "研發治具轉列其他設備");
+        // 借記固定資產且貸記費用：把已列費用的修繕、廣告、雜費、研發材料轉列固定資產（借固定資產、貸費用）。
+        FixedAssetCapitalization(D(9, 30), "1430", "6207", 680_000m, "射出機大修費用轉列機器設備");
+        FixedAssetCapitalization(D(10, 17), "1470", "6108", 150_000m, "廣告看板轉列其他設備");
+        FixedAssetCapitalization(D(11, 28), "1430", "5143", 425_000m, "模具修繕費轉列機器設備");
+        FixedAssetCapitalization(D(12, 31), "1450", "6224", 186_000m, "電腦周邊轉列辦公設備");
+        FixedAssetCapitalization(D(12, 31), "1470", "6313", 92_000m, "研發治具轉列其他設備");
 
         GeneralManagerEntries();
         InternEntries();
@@ -1239,7 +1239,7 @@ internal sealed class SmeCaseGenerator
             .Dr("1490", amount, text).Dr("1268", Vat(amount), "進項稅額 營造廠")
             .Cr(Bank, amount + Vat(amount), text).Post());
 
-    private void KctBCapitalization(DateOnly day, string asset, string expense, decimal amount, string text) =>
+    private void FixedAssetCapitalization(DateOnly day, string asset, string expense, decimal amount, string text) =>
         At(day, posting => V(SmeSources.Journal, posting, SmePeople.ChiefAccountant, SmeDepartments.Finance)
             .Dr(asset, amount, text).Cr(expense, amount, text).Post());
 
@@ -1357,7 +1357,7 @@ internal sealed class SmeCaseGenerator
             .Dr("6212", 30_000m, "捐贈-清寒學生獎學金").Cr(Bank, 30_000m, "捐贈-清寒學生獎學金").Post());
     }
 
-    /// <summary>收入的對方科目不是應收或預收：KCT C 與預篩選「未預期借貸組合」各自選得到哪些。</summary>
+    /// <summary>收入的對方科目不是應收或預收：「收入無一般對方科目」與預篩選「未預期借貸組合」各自選得到哪些。</summary>
     private void RevenueCounterpartEntries()
     {
         // 銷貨直接抵付應付帳款：兩個條件都會選到。
@@ -1411,7 +1411,7 @@ internal sealed class SmeCaseGenerator
             });
         }
 
-        // 季底前客戶退貨，直接扣減銷貨收入（KCT A 借記收入）。
+        // 季底前客戶退貨，直接扣減銷貨收入（季末前借記收入）。
         foreach (var (day, net, customer) in new[] { (D(3, 27), 64_000m, "C0012"), (D(6, 26), 118_000m, "C0089"), (D(9, 25), 47_500m, "C0141"), (D(12, 29), 212_000m, "C0007") })
         {
             At(day, posting => V(SmeSources.Journal, posting, SmePeople.ReceivablesClerk, SmeDepartments.Sales)

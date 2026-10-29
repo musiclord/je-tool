@@ -147,7 +147,7 @@ public enum TextMatchMode
 /// DrCrOnly → DrCr（"debit"|"credit"）；ManualAuto → IsManual；
 /// AccountPair / SpecialAccountCategoryPair → PairMode + DebitCategoryIds/CreditCategoryIds；
 /// CustomKeywords → Keywords；CustomTrailingZeros → Digits；CustomPreparerEntryCount / CustomAccountEntryCount → MaxEntries。
-/// KCT 小組條件（清單 A/C/D/H/J）：RevenueDebitNearQuarterEnd → WindowDays（季末視窗天數）；
+/// 常用篩選條件專用的型別：RevenueDebitNearQuarterEnd → WindowDays（季末視窗天數）；
 /// TrailingDigits → Keywords（尾數樣態清單，重用同欄）；
 /// RevenueWithoutNormalCounterpart / ManualRevenueEntry / PreparerEqualsApprover → 無參數。
 /// UnknownJoin：wire 的 join 有值卻不是 AND/OR 時，解析層把原始值標記在這裡而不擲錯
@@ -289,43 +289,43 @@ internal static class TextSetValueNormalizer
 
 /// <summary>
 /// 篩選情境來源標記（wire 欄位 scenario.source）：標明此情境是查核員手寫，
-/// 還是來自固定方法論清單。空／null／未知值一律視為查核員手寫（原行為）。
-/// 目前唯一具名來源為 KCT 小組方法論檢核清單。
+/// 還是用了「常用篩選條件」的卡片。空／null／未知值一律視為查核員手寫（原行為）；
+/// 2026-10-29 以前的案件記的是另一個來源代碼，這一版不認得，也當成查核員手寫。
 /// </summary>
 public static class FilterScenarioSources
 {
-    /// <summary>KCT 小組方法論檢核條件：固定清單，非查核員自擬，故豁免名稱/動機必填。</summary>
-    public const string Kct = "kct";
+    /// <summary>常用篩選條件：卡片是固定的條件清單，非查核員自擬，故豁免名稱/動機必填。</summary>
+    public const string Common = "common";
 
-    /// <summary>KCT 來源情境留痕用的預設動機（使用者不被要求填寫時的非空替補）。</summary>
-    public const string KctDefaultRationale = "KCT 小組方法論檢核條件";
+    /// <summary>常用篩選條件情境留痕用的預設動機（使用者不被要求填寫時的非空替補）。</summary>
+    public const string CommonDefaultRationale = "常用篩選條件";
 
-    /// <summary>KCT 來源情境名稱留空時的穩定替補前綴（儲存層 name NOT NULL）。</summary>
-    public const string KctDefaultName = "KCT 小組方法論檢核條件";
+    /// <summary>常用篩選條件情境名稱留空時的穩定替補前綴（儲存層 name NOT NULL）。</summary>
+    public const string CommonDefaultName = "常用篩選條件";
 
-    public static bool IsKct(string? source) =>
-        string.Equals(source?.Trim(), Kct, StringComparison.Ordinal);
+    public static bool IsCommon(string? source) =>
+        string.Equals(source?.Trim(), Common, StringComparison.Ordinal);
 
     /// <summary>
-    /// 落地前的留痕替補：唯一收斂點。KCT 來源且名稱/動機留白時補上穩定非空值，
-    /// 其餘來源原樣保留（替補只在 KCT 豁免必填的前提下才有意義）。
+    /// 落地前的留痕替補：唯一收斂點。常用篩選條件來源且名稱/動機留白時補上穩定非空值，
+    /// 其餘來源原樣保留（替補只在豁免必填的前提下才有意義）。
     /// 回傳將寫入 config_filter_scenario.name / .rationale 的有效值。
     /// </summary>
     public static (string Name, string Rationale) ResolvePersistable(
         FilterScenarioSpec scenario,
         int position)
     {
-        if (!IsKct(scenario.Source))
+        if (!IsCommon(scenario.Source))
         {
             return (scenario.Name, scenario.Rationale);
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThan(position, 1);
         var name = string.IsNullOrWhiteSpace(scenario.Name)
-            ? $"{KctDefaultName}（第 {position} 項）"
+            ? $"{CommonDefaultName}（第 {position} 項）"
             : scenario.Name;
         var rationale = string.IsNullOrWhiteSpace(scenario.Rationale)
-            ? KctDefaultRationale
+            ? CommonDefaultRationale
             : scenario.Rationale;
         return (name, rationale);
     }
@@ -405,10 +405,10 @@ public static partial class FilterScenarioValidator
     {
         var errors = new FilterValidationErrors();
 
-        // KCT 來源是固定方法論清單（非查核員自擬），不向使用者索取名稱/動機；
+        // 常用篩選條件的卡片是固定的條件清單（非查核員自擬），不向使用者索取名稱/動機；
         // 留痕的非空替補在落地時由 FilterScenarioSources.ResolvePersistable 補上。
-        var isKct = FilterScenarioSources.IsKct(scenario.Source);
-        var requiresAuthoredMetadata = forSave && !isKct;
+        var usesCommonConditions = FilterScenarioSources.IsCommon(scenario.Source);
+        var requiresAuthoredMetadata = forSave && !usesCommonConditions;
 
         if (requiresAuthoredMetadata && string.IsNullOrWhiteSpace(scenario.Name))
         {
@@ -1054,7 +1054,7 @@ public static partial class FilterScenarioValidator
     }
 
     /// <summary>
-    /// 特定金額尾數（KCT 清單 H，filter type trailingDigits）：尾數樣態重用 Keywords，
+    /// 特定金額尾數（filter type trailingDigits）：尾數樣態重用 Keywords，
     /// 每組須為 1–12 位純數字（位數上限沿用 trailing zeros 的 long 溢位防線）。
     /// </summary>
     private static void ValidateTrailingDigits(FilterRuleSpec rule, string label, List<string> errors)

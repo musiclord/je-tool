@@ -13,7 +13,7 @@ public sealed class LegacyFormCatalogTests
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "JET.slnx"))) root = root.Parent;
         var path = Path.Combine(root!.FullName, "tests", "JET.Tests", "Fixtures", "legacy-form-2024-1210.json");
-        Assert.True(File.Exists(path), "The retired 2024 entry catalogue must stay available as a test fixture, separate from KCT A–J.");
+        Assert.True(File.Exists(path), "The retired 2024 entry catalogue must stay available as a test fixture, separate from the common filter cards.");
         return JsonNode.Parse(File.ReadAllText(path))!.AsObject();
     }
 

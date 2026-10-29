@@ -30,12 +30,12 @@ internal sealed partial class GlRulePredicates(
     /// 未預期借貸組合（unexpected_account_pair，否定面）：本列為 Revenue 貸方
     /// （amount_scaled &lt; 0），但其所在傳票**無任何**「借方（amount_scaled > 0）且分類 ∈
     /// {Receivables, Cash, Receipt in advance}」的分錄——收入貸記卻缺正常對方科目才命中，
-    /// 正常銷售（貸收入、借應收/現金/預收）不命中。tag 只落在 Revenue 貸方列（與 KCT 條件 C
-    /// 標記慣例一致；2026-07-03 裁決）。對方集合含 Cash，故較 KCT C
-    /// （不含 Cash）嚴，命中集 ⊆ C（現銷傳票 C 命中、本規則不命中）。
+    /// 正常銷售（貸收入、借應收/現金/預收）不命中。tag 只落在 Revenue 貸方列（與「收入無一般對方科目」
+    /// 標記慣例一致；2026-07-03 裁決）。對方集合含 Cash，故較「收入無一般對方科目」
+    /// （不含 Cash）嚴，命中集是它的子集（現銷傳票它命中、本規則不命中）。
     /// 零元邊界（本規則專屬）：正常對方科目的借方 counterpart 採 `amount_scaled > 0`，
     /// 0 元分錄不算「已收到對價」，因此不足以消解「收入貸記缺正常對方科目」的疑慮。
-    /// 其他借貸組合規則（accountPair、specialAccountCategoryPair、KCT C）維持
+    /// 其他借貸組合規則（accountPair、specialAccountCategoryPair、收入無一般對方科目）維持
     /// `amount_scaled >= 0` 屬借方側的統一判定（2026-06-11 裁決），本例外只在此處。
     /// 需科目配對已匯入。ANSI 共通（EXISTS + NOT EXISTS）。
     /// </summary>
@@ -522,7 +522,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 季末前借記收入(revenue_debit_near_quarter_end,KCT 清單 A):科目分類 = Revenue 且借方側
+    /// 季末前借記收入(revenue_debit_near_quarter_end):科目分類 = Revenue 且借方側
     /// (amount_scaled >= 0),且 post_date 落在任一季底視窗內。視窗由 Domain QuarterEndWindows 算出,
     /// 邊界參數綁定。視窗為空(X 非法或與期間無交集)→ 零命中。需科目配對已匯入。ANSI 共通。
     /// </summary>
@@ -550,7 +550,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 收入無一般對方科目(revenue_without_normal_counterpart,KCT 清單 C):本列為 Revenue 貸方
+    /// 收入無一般對方科目(revenue_without_normal_counterpart):本列為 Revenue 貸方
     /// (amount_scaled &lt; 0),但其所在傳票無任何「借方側(amount_scaled >= 0)且分類 ∈
     /// {Receivables, Receipt in advance}」的分錄(不含 Cash)——unexpected_account_pair 的否定面。
     /// ANSI 共通(EXISTS + NOT EXISTS)。需科目配對已匯入。
@@ -582,7 +582,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 收入之人工分錄(manual_revenue_entry,KCT 清單 D):科目分類 = Revenue 且 is_manual = 1
+    /// 收入之人工分錄(manual_revenue_entry):科目分類 = Revenue 且 is_manual = 1
     /// (來源未提供人工旗標的列為 NULL,永不匹配,同 manualAuto)。需科目配對已匯入。ANSI 共通。
     /// </summary>
     public string ManualRevenueEntry(FilterSqlParameterPlanBuilder command, string schemaPrefix = "")
@@ -663,7 +663,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 編製與核准同一人(preparer_equals_approver,KCT 清單 J):created_by 與 approved_by 皆非空白
+    /// 編製與核准同一人(preparer_equals_approver):created_by 與 approved_by 皆非空白
     /// 且(忽略大小寫與前後空白)相等。createBy/approveBy 未配對時對應欄為 NULL,零命中。
     /// 純 ANSI 欄位比較,雙 provider 相同。
     /// </summary>

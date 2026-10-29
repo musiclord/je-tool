@@ -22,10 +22,10 @@ internal static partial class GuiScenarios
             value => value, value => ReadBoolean(value, "idle") && ReadBoolean(value, "ok"),
             "upstream_change_after_export_failed", ct, value => outcome.LastFilterProbe = value.Clone());
         async Task Fill(string selector, string value) { await Click(selector); outcome.RecordAction(); await cdp.TypeTextAsync(value, ct); }
-        async Task SaveKct(string letter)
+        async Task SaveCard(string card)
         {
-            await Click("[data-condition-source=kct]");
-            await Click($"[data-kct-letter={letter}]");
+            await Click("[data-condition-source=common]");
+            await Click($"[data-common-card={card}]");
                 await Click("[data-action=save-scenario]");
         }
         const string notice = "!!document.querySelector('[data-bind=downstream-reset-notice]')";
@@ -60,8 +60,8 @@ internal static partial class GuiScenarios
         await Check("!!state.lastRuns.validate && saved.length===0 && " + clearedOnce + "===1");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-filter-pane-select=filter]");
-        await SaveKct("G");
-        await Check("saved.length===1 && saved[0].name==='G' && " + clearedOnce + "===1");
+        await SaveCard("blankDescription");
+        await Check("saved.length===1 && saved[0].name==='空白摘要' && " + clearedOnce + "===1");
         await Click("[data-bind=step-nav] [data-step-index='5']");
         await Click("[data-action=export-workpaper]");
         await Check("state.reportArtifacts.filter(a=>a.kind==='workingPaper').length===2 && " + currentPaperForFirst);
@@ -84,11 +84,11 @@ internal static partial class GuiScenarios
         outcome.RecordStage("upstream_resave_partial_export_and_reopen");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-filter-pane-select=filter]");
-        await SaveKct("G");
-        await Check("saved.length===1 && saved[0].name==='G'");
+        await SaveCard("blankDescription");
+        await Check("saved.length===1 && saved[0].name==='空白摘要'");
         await Check("draft.groups.every(g=>g.rules.length===0) && !preview");
-        await SaveKct("I");
-        await Check("saved.length===2 && saved[1].name==='I'");
+        await SaveCard("nonBusinessDay");
+        await Check("saved.length===2 && saved[1].name==='非營業日之分錄'");
         await Click("[data-bind=step-nav] [data-step-index='5']");
         await Check("document.querySelectorAll('[data-scenario-position]:checked').length===2 && !document.querySelector('[data-bind=export-no-scenario]')");
         await Click("[data-scenario-position='2']");

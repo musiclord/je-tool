@@ -172,7 +172,7 @@ public sealed class SqlServerDialect : IProviderSqlDialect
     public string Upper(string expr) => $"UPPER(({expr}) COLLATE Latin1_General_100_BIN2)";
 
     // TRIM(characters FROM string) 需要相容性層級 140 以上（SQL Server 2017）；值概況查詢已用同一寫法。
-    // 2026-10-19 在本機 SQL Server 2022（相容性層級 160）的 Provider 執行過：KctReadyPredicateProviderTests 與
+    // 2026-10-19 在本機 SQL Server 2022（相容性層級 160）的 Provider 執行過：CommonConditionPredicateProviderTests 與
     // FilterSinglePurposeEquivalenceTests 的 SQL Server 版只用半形空白核對修剪結果；全形空白、不換行空格與 Tab
     // 只有 SQLite 與 DuckDB 的 WhitespaceAndCaseConsistencyTests 核對。
     public string Trim(string expr) => $"TRIM({SqlWhitespaceList.SqlServer} FROM {expr})";

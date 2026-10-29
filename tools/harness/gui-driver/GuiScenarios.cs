@@ -293,11 +293,11 @@ internal static partial class GuiScenarios
             GuiScenarioCatalog.NestedVoucherWorkflow => ExecuteNestedVoucherWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.LegacyFormWorkflow => ExecuteLegacyFormWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.AuthorizedListRecovery => ExecuteAuthorizedListRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
-            GuiScenarioCatalog.KctRemapRecovery => ExecuteKctRemapRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.CommonRemapRecovery => ExecuteCommonRemapRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.UpstreamChangeAfterExport => ExecuteUpstreamChangeAfterExportAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.CaseToWorkpaper => ExecuteCaseToWorkpaperAsync(cdp, ownedRun, process, initialUi, outcome, cancellationToken),
             GuiScenarioCatalog.NullDetailsRecovery => ExecuteNullDetailsRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
-            GuiScenarioCatalog.FilterKctEditing or GuiScenarioCatalog.FilterAuditorJourney =>
+            GuiScenarioCatalog.FilterCommonEditing or GuiScenarioCatalog.FilterAuditorJourney =>
                 ExecuteFilterWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
             _ => throw new GuiInfrastructureException("scenario_not_implemented")
         };

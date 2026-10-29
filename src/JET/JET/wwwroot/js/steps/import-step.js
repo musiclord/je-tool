@@ -82,7 +82,6 @@
     container.innerHTML =
       '<div class="panel" data-motion-key="import-panel">' +
         '<h2 class="panel__title">匯入資料</h2>' +
-        '<p class="panel__hint panel__hint--wide">支援 Excel、CSV、文字檔及 Access。總帳明細可合併欄位相同的來源。試算表請提供同一查核期間的資料，不會自動把期初與期末兩份檔案配成期間變動。</p>' +
         Ui.downstreamResetNoticeHtml(state) +
         '<div class="import-tasklist">' +
           datasetTask('gl', 'GL (總帳明細)', imp.gl) +
@@ -257,7 +256,7 @@
         }).join('') + '</select></label>' +
         '<p>下方是原檔前 10 列。完成匯入後，授權清單只保留選定欄位去除空白及重複後的識別值。</p>' +
         (draft.previewError ? '<p role="alert">原檔預覽失敗：' + Ui.esc(draft.previewError) + '</p>' :
-          previewTableHtml(draft)) +
+          previewTableHtml(draft, false)) +
         '<div class="import-card__actions"><button type="button" class="btn" data-action="commit-authorized-preparer"' +
         (draft.sourceColumn ? '' : ' disabled') + '>匯入選定欄位</button>' +
         '<button type="button" class="btn btn--ghost" data-action="retry-authorized-preparer-preview">重讀原檔預覽</button>' +
@@ -610,15 +609,15 @@
       return '<p class="wizard-pane__hint">加入：新檔的資料會附加到現有 ' +
         Number(info.rowCount).toLocaleString() + ' 列（欄位名稱需與現有一致）。' +
         (wizard.kind === 'tb' ? '請只追加同一查核期間的試算表資料，不會自動配成期初與期末的期間變動。' : '') +
-        '成功加入後，這份資料集需要重新確認配對，受影響的測試結果需要重算。已匯出的底稿檔案不會改寫。</p>';
+        '成功加入後，這份資料集需要重新確認配對，受影響的測試結果需要重算。</p>';
     }
     if (info) {
       return '<p class="form-notice form-notice--warning">匯入後，現有的 ' +
         Number(info.rowCount).toLocaleString() + ' 列會換成新檔，需重新確認欄位配對並重跑測試。</p>';
     }
     return '<p class="wizard-pane__hint">建立資料集 — ' + (wizard.kind === 'tb'
-      ? '選擇同一查核期間的試算表來源；不會自動配成期初與期末的期間變動。'
-      : '選擇一個或多個來源檔，可合併工作表或資料表。') + '</p>';
+      ? '選擇同一查核期間的試算表來源，支援 Excel、CSV、文字檔及 Access；不會自動配成期初與期末的期間變動。'
+      : '選擇一個或多個來源檔，支援 Excel、CSV、文字檔及 Access，可合併工作表或資料表。') + '</p>';
   }
 
   function wizardWorkspaceHtml(kind, info) {
@@ -700,7 +699,7 @@
               Ui.esc('pending-notice-' + pendingMotionKey(item) + '|' + notice + (repeat ? '|' + repeat : '')) + '">' +
               Ui.esc(notice) + '</p>';
           }).join('') +
-          (item.previewOpen && !failed ? previewTableHtml(item) : '') +
+          (item.previewOpen && !failed ? previewTableHtml(item, true) : '') +
         '</li>'
       );
     }).join('');
@@ -766,7 +765,9 @@
   }
 
   // 逐來源預覽：表頭 + 前 10 列原貌（import.previewFile）。有界，絕不載入完整母體。
-  function previewTableHtml(item) {
+  // headerRowAdjustable：GL 與 TB 的來源列有「欄名在第幾列」，欄名不在第一列時改那一格；授權清單沒有這一格，
+  // 仍請審計員先在 Excel 刪掉標題列。Access 資料表的欄名來自資料表本身，不提標題列。
+  function previewTableHtml(item, headerRowAdjustable) {
     var motion = ' data-motion-key="' + Ui.esc('pending-preview-' + pendingMotionKey(item)) + '"';
     if (!item.previewData) {
       return '<div class="pending-preview"' + motion + '><p class="pending-preview__hint">載入預覽中…</p></div>';
@@ -785,8 +786,10 @@
 
     return (
       '<div class="pending-preview"' + motion + '>' +
-        '<p class="pending-preview__hint">預覽只顯示前 10 列資料。最上方一列會作為欄名；這一列是資料而不是欄名時，' +
-          '表示檔案沒有標頭列。欄名上方還有標題列時，請先在 Excel 刪除標題列後重新匯入。</p>' +
+        '<p class="pending-preview__hint">預覽只顯示前 10 列資料，最上方一列會作為欄名。' +
+          (item.fileType === 'access' ? ''
+            : headerRowAdjustable ? '欄名上方還有標題列時，請在上方來源列的「欄名在第幾列」填入欄名所在的列。'
+              : '欄名上方還有標題列時，請先在 Excel 刪除標題列後重新匯入。') + '</p>' +
         '<div class="pending-preview__grid">' +
           '<table class="data-preview__table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>' +
         '</div>' +

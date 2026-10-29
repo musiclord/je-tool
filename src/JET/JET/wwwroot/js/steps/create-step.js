@@ -169,7 +169,8 @@
     var values = metadataDraft.values;
     return '<form class="form" data-bind="project-update-form" data-motion-key="metadata-form">' +
       '<h3>修改案件資料</h3>' +
-      '<p>案件名稱與查核期間不能修改。已匯出的報告與工作底稿不會改寫；之後匯出時使用新資料。</p>' +
+      // 原本另寫「已匯出的報告與工作底稿不會改寫」，使用者 2026-10-29 指出常駐說明太多後拿掉這類保證句。
+      '<p>案件名稱與查核期間不能修改。</p>' +
       formRow('entityName', '客戶名稱', 'text', false, values.entityName) +
       formRow('projectCode', '案件編號', 'text', false, values.projectCode) +
       formRow('lastPeriodStart', '期末財報準備日', 'date', false, values.lastPeriodStart) +

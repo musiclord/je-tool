@@ -678,15 +678,26 @@
             "fields": {
               "editorOrigins": {
                 "kind": "object",
+                "optional": [
+                  "legacyKctSource"
+                ],
                 "fields": {
                   "groups": {
                     "kind": "array",
                     "items": {
                       "kind": "object",
+                      "optional": [
+                        "cards",
+                        "letters"
+                      ],
                       "fields": {
-                        "letters": {
+                        "cards": {
                           "kind": "array",
                           "items": "null|string"
+                        },
+                        "letters": {
+                          "kind": "array",
+                          "items": "string"
                         }
                       }
                     }
@@ -897,7 +908,6 @@
             "items": {
               "kind": "object",
               "optional": [
-                "editorOrigins",
                 "exclusions"
               ],
               "fields": {
@@ -909,14 +919,13 @@
                       "items": {
                         "kind": "object",
                         "fields": {
-                          "letters": {
+                          "cards": {
                             "kind": "array",
                             "items": "null|string"
                           }
                         }
                       }
                     },
-                    "legacyKctSource": "boolean",
                     "nameIsAutomatic": "boolean",
                     "rationaleIsAutomatic": "boolean",
                     "version": "number"
@@ -1143,14 +1152,13 @@
                       "items": {
                         "kind": "object",
                         "fields": {
-                          "letters": {
+                          "cards": {
                             "kind": "array",
                             "items": "null|string"
                           }
                         }
                       }
                     },
-                    "legacyKctSource": "boolean",
                     "nameIsAutomatic": "boolean",
                     "rationaleIsAutomatic": "boolean",
                     "version": "number"
@@ -1253,7 +1261,6 @@
           "scenario": {
             "kind": "object",
             "optional": [
-              "editorOrigins",
               "exclusions",
               "source"
             ],
@@ -1266,14 +1273,13 @@
                     "items": {
                       "kind": "object",
                       "fields": {
-                        "letters": {
+                        "cards": {
                           "kind": "array",
                           "items": "null|string"
                         }
                       }
                     }
                   },
-                  "legacyKctSource": "boolean",
                   "nameIsAutomatic": "boolean",
                   "rationaleIsAutomatic": "boolean",
                   "version": "number"
@@ -1476,7 +1482,6 @@
             "items": {
               "kind": "object",
               "optional": [
-                "editorOrigins",
                 "exclusions"
               ],
               "fields": {
@@ -1488,14 +1493,13 @@
                       "items": {
                         "kind": "object",
                         "fields": {
-                          "letters": {
+                          "cards": {
                             "kind": "array",
                             "items": "null|string"
                           }
                         }
                       }
                     },
-                    "legacyKctSource": "boolean",
                     "nameIsAutomatic": "boolean",
                     "rationaleIsAutomatic": "boolean",
                     "version": "number"
@@ -3277,7 +3281,6 @@
             "items": {
               "kind": "object",
               "optional": [
-                "editorOrigins",
                 "exclusions"
               ],
               "fields": {
@@ -3289,14 +3292,13 @@
                       "items": {
                         "kind": "object",
                         "fields": {
-                          "letters": {
+                          "cards": {
                             "kind": "array",
                             "items": "null|string"
                           }
                         }
                       }
                     },
-                    "legacyKctSource": "boolean",
                     "nameIsAutomatic": "boolean",
                     "rationaleIsAutomatic": "boolean",
                     "version": "number"
@@ -4750,14 +4752,13 @@
                     "items": {
                       "kind": "object",
                       "fields": {
-                        "letters": {
+                        "cards": {
                           "kind": "array",
                           "items": "null|string"
                         }
                       }
                     }
                   },
-                  "legacyKctSource": "boolean",
                   "nameIsAutomatic": "boolean",
                   "rationaleIsAutomatic": "boolean",
                   "version": "number"
@@ -4956,14 +4957,13 @@
                     "items": {
                       "kind": "object",
                       "fields": {
-                        "letters": {
+                        "cards": {
                           "kind": "array",
                           "items": "null|string"
                         }
                       }
                     }
                   },
-                  "legacyKctSource": "boolean",
                   "nameIsAutomatic": "boolean",
                   "rationaleIsAutomatic": "boolean",
                   "version": "number"

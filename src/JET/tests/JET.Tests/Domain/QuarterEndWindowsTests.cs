@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 季末視窗計算（QuarterEndWindows，KCT 清單 A）的純函式測試。
+/// 季末視窗計算（QuarterEndWindows，季末前借記收入）的純函式測試。
 /// oracle：手算曆年四季底（3/31、6/30、9/30、12/31）前 X 天（含季底當日）的視窗，
 /// 並只保留與查核期間有交集者。斷言鎖視窗邊界字串集合（值＋身分），非僅筆數。
 /// </summary>

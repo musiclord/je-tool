@@ -39,7 +39,7 @@ internal static class SmeChart
         new(Taxes, null, "others"),
         new(FixedAssets, null, "others"),
         new(AccumulatedDepreciation, null, "others"),
-        // KCT B 的說明要求在建工程不要放在固定資產底下，因為條件預設包含下層分類。
+        // 「借記固定資產且貸記費用」的說明要求在建工程不要放在固定資產底下，因為條件預設包含下層分類。
         new(ConstructionInProgress, null, "others"),
         new(CostOfSales, null, "others"),
         new(ManufacturingOverhead, CostOfSales, "others"),

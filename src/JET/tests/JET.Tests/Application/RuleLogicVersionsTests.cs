@@ -237,7 +237,7 @@ public sealed class RuleLogicVersionsTests
     }
 
     [Fact]
-    public void IsCurrent_PreKctPrerequisiteFilterVersion_ReturnsFalse()
+    public void IsCurrent_PreCardPrerequisiteFilterVersion_ReturnsFalse()
     {
         var definitionJson = JsonSerializer.Serialize(new
         {
@@ -246,7 +246,7 @@ public sealed class RuleLogicVersionsTests
             groups = Array.Empty<object>()
         });
         var saved = new SavedFilterScenario(
-            1, "舊版 KCT 情境", "需重新保存", definitionJson, DateTimeOffset.UtcNow);
+            1, "舊版卡片情境", "需重新保存", definitionJson, DateTimeOffset.UtcNow);
 
         Assert.False(RuleLogicVersions.IsCurrent(saved));
     }

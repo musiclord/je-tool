@@ -90,6 +90,7 @@
   }
 
   var POPULATION_SCOPE_AUDIT = 'auditPeriod';
+  var POPULATION_SCOPE_DEFINITION = '依本案過帳狀態設定，總帳日期落在查核期間內的分錄列入 GL；日期空白或期間外的分錄列入 GL(未納入測試)。';
 
   function selectedPopulationScope() {
     return POPULATION_SCOPE_AUDIT;
@@ -101,10 +102,6 @@
     return resultRef.populationScope === POPULATION_SCOPE_AUDIT
       ? POPULATION_SCOPE_AUDIT
       : null;
-  }
-
-  function populationScopeLabel() {
-    return '查核期間';
   }
 
   /* ---- 欄位驗證提示（就近顯示在欄位旁，不依賴可收合的訊息欄） -------------
@@ -152,8 +149,7 @@
      純檢視狀態放到重繪之外。放 module 層而非 Store：比照匯入精靈「模組區域狀態」的既有慣例
      （見 state.js touch() 的註解），Store 不需要知道單一步驟的展開細節；生命週期由本模組在每次
      render 時自行對齊（syncViewState）。
-       checkCategory    —— 「常用查核條件」目前展開的分類（一次只展開一類；null 表示全部收起）。
-       examplesOpen     —— 「從範例開始」清單是否展開。
+       checkCategory    —— 自訂分頁「依審計目的」目前展開的分類（一次只展開一類；null 表示全部收起）。
        examplePick      —— 正在選欄位的範例（範例需要文字型攸關資料元素欄位且有兩個以上可選時）。
        openScenarios    —— 已存情境詳情展開狀態（index → true）。
        scenarioPreviews —— 已存情境惰性命中預覽快取（index → filter.preview 回傳的 scenario 物件）。
@@ -161,7 +157,7 @@
                            快取是安全的。
        matrixOpen / matrixData —— 高風險條件矩陣展開狀態與情境摘要（tagMatrixScenarios）快取。
        cleanDraftKey    —— 換成目前這份草稿後，第一次畫好時的內容；之後內容不同才算有還沒存的修改。
-                           換草稿時清成 null，下一次 bind 在自動名稱與 KCT 身分收斂後補記。
+                           換草稿時清成 null，下一次 bind 在自動名稱與卡片身分收斂後補記。
      重置時機（四個訊號、範圍遞減）：
        1. 專案切換或同案重新載入（project 參照變）→ 全重置。
        2. 已存清單被替換（savedScenarios 參照變＝commit 成功、移除情境、resume、resetWorkflow）
@@ -175,9 +171,8 @@
   function freshViewState() {
     return {
       workspacePane: 'filter',
-      conditionSource: 'kct',
-      checkCategory: Ui.FILTER_COMMON_CHECK_GROUPS[0].key,
-      examplesOpen: false,
+      conditionSource: 'common',
+      checkCategory: Ui.FILTER_PURPOSE_CHECK_GROUPS[0].key,
       examplePick: null,
       lastSavedName: null,
       savedDraftKey: null,
@@ -304,7 +299,7 @@
   }
 
   // 一組條件還缺什麼前置條件，沒有缺項時是空字串。判斷與句子都在 ui-core.js 的規則需求表，它逐項鏡像後端（權威驗證在後端）；
-  // 欄位按鈕、常用查核條件、範例、KCT 卡、預篩選分頁與條件卡片都讀這一個函式（使用者 2026-10-22 裁定第五步不能用 GL 沒有配對的欄位）。
+  // 欄位按鈕、依審計目的的條件、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都讀這一個函式（使用者 2026-10-22 裁定第五步不能用 GL 沒有配對的欄位）。
   function requirementNote(rules) {
     return Ui.ruleRequirementNote(Store.getState(), rules);
   }
@@ -315,7 +310,7 @@
   }
 
   // 要拿掉的條件先輕微快速地晃一下再收起來（使用者 2026-10-13，app.js 的 JetMotion.removing）。
-  // 移除鈕在條件列裡的由 app.js 的 REMOVAL_SOURCES 處理；按鈕不在要拿掉的條件裡時（例如再按一次 KCT 卡片），在這裡說明是哪幾條。
+  // 移除鈕在條件列裡的由 app.js 的 REMOVAL_SOURCES 處理；按鈕不在要拿掉的條件裡時（例如再按一次常用篩選條件的卡片），在這裡說明是哪幾條。
   function announceRemoval(rules) {
     if (!rules.length || !global.JetMotion || typeof global.JetMotion.removing !== 'function') { return; }
     global.JetMotion.removing({ keys: rules.map(function (rule) { return motionKey(rule, 'rule'); }) });
@@ -327,7 +322,7 @@
     global.JetMotion.removing({ within: ['filter-panel'], only: '.scenario-set, .rule-row' });
   }
 
-  // 晚一點才讀回來的內容（例如打開「查看結果」後才載入的傳票），整塊從原本的高度平順變成新的高度，
+  // 晚一點才讀回來的內容（例如打開已儲存情境後才載入的傳票），整塊從原本的高度平順變成新的高度，
   // 不在讀回來的那一刻一下子撐開（使用者 2026-10-13 要求展開與收合一致）。element 要有 data-motion-key，app.js 的 JetMotion 才認得是同一塊。
   function fillSmoothly(element, fill) {
     if (element && global.JetMotion && typeof global.JetMotion.morph === 'function' && element.hasAttribute('data-motion-key')) {
@@ -357,10 +352,10 @@
       '<section class="population-scope" aria-labelledby="population-scope-heading">' +
         '<div class="population-scope__head">' +
           '<div>' +
-            '<h3 class="population-scope__title" id="population-scope-heading">GL：查核期間內的分錄</h3>' +
+            // GL 的定義收進標題的提示，常駐的只有狀態與下一步（使用者 2026-10-29 指出常駐說明太多）。
+            '<h3 class="population-scope__title" id="population-scope-heading" title="' + Ui.esc(POPULATION_SCOPE_DEFINITION) + '">GL：查核期間內的分錄</h3>' +
           '</div>' +
         '</div>' +
-        '<p class="population-scope__definition">依本案過帳狀態設定，總帳日期落在查核期間內的分錄列入 GL；日期空白或期間外的分錄列入 GL(未納入測試)。</p>' +
         '<div class="' + statusClass + '"' + (needsResave ? '' : ' hidden') + '>' +
           '<span>' + Ui.esc(statusText) + '</span>' +
           (needsResave
@@ -453,7 +448,6 @@
   FilterStep.POPULATION_SCOPE_AUDIT = POPULATION_SCOPE_AUDIT;
   FilterStep.selectedPopulationScope = selectedPopulationScope;
   FilterStep.committedPopulationScope = committedPopulationScope;
-  FilterStep.populationScopeLabel = populationScopeLabel;
   FilterStep.setFieldError = setFieldError;
   FilterStep.clearFieldError = clearFieldError;
   FilterStep.freshViewState = freshViewState;

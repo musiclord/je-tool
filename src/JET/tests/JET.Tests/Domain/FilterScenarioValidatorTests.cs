@@ -666,33 +666,36 @@ public sealed class FilterScenarioValidatorTests
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
     }
 
-    /* ---- KCT 小組條件（清單 A/C/D/H/J） ---------------------------------- */
+    /* ---- 常用篩選條件的卡片與專用型別 ------------------------------------------- */
 
-    private static FilterRuleSpec KctRule(FilterRuleType type, int? windowDays = null, params string[] keywords) =>
+    // 2026-10-29 卡片改稱常用篩選條件、拿掉字母（使用者裁定程式內部一起改）：來源代碼改成 common，名稱、輔助函式與案例改用卡片代號，斷言不變。
+    // 第一次失敗：Build 收據 20261029-055859529-4f7e4a2a4d624199811e82719d4b37ad（還引用舊常數，編譯不過）。
+
+    private static FilterRuleSpec CommonRule(FilterRuleType type, int? windowDays = null, params string[] keywords) =>
         new(FilterJoin.And, type, null, null, keywords, TextMatchMode.Contains,
             null, null, null, null, null, null, WindowDays: windowDays);
 
-    private static FilterRuleSpec KctMappingRule(string letter) => letter switch
+    private static FilterRuleSpec CommonMappingRule(string card) => card switch
     {
-        "D" => KctRule(FilterRuleType.ManualRevenueEntry),
-        "E" => TextRule(GlMappingKeys.CreateBy, "特定人員") with { Mode = TextMatchMode.Exact },
-        "G" => PrescreenRule(PrescreenRuleKeys.BlankDescription),
-        "J" => KctRule(FilterRuleType.PreparerEqualsApprover),
-        _ => throw new ArgumentOutOfRangeException(nameof(letter), letter, "未知的 KCT mapping prerequisite 案例。")
+        "manualRevenueEntry" => CommonRule(FilterRuleType.ManualRevenueEntry),
+        "specificPreparer" => TextRule(GlMappingKeys.CreateBy, "特定人員") with { Mode = TextMatchMode.Exact },
+        "blankDescription" => PrescreenRule(PrescreenRuleKeys.BlankDescription),
+        "preparerEqualsApprover" => CommonRule(FilterRuleType.PreparerEqualsApprover),
+        _ => throw new ArgumentOutOfRangeException(nameof(card), card, "未知的卡片欄位前置案例。")
     };
 
-    private static FilterScenarioSpec KctMappingScenario(string letter)
+    private static FilterScenarioSpec CommonMappingScenario(string card)
     {
-        var scenario = Scenario(rules: KctMappingRule(letter));
+        var scenario = Scenario(rules: CommonMappingRule(card));
 
-        // E／G 重用一般 text／prescreen 型別，只有 source:kct 能識別為 KCT 預設；
-        // D／J 是專屬 KCT type，即使 legacy caller 沒送 source 也不能繞過欄位前置閘。
-        return letter is "E" or "G"
-            ? scenario with { Source = FilterScenarioSources.Kct }
+        // 特定人員與空白摘要重用一般 text／prescreen 型別，只有 source:common 能看出來自卡片；
+        // 收入之人工分錄與編製核准同一人是卡片專用型別，即使呼叫端沒送 source 也不能繞過欄位前置閘。
+        return card is "specificPreparer" or "blankDescription"
+            ? scenario with { Source = FilterScenarioSources.Common }
             : scenario;
     }
 
-    private static FilterValidationContext KctMappingReady => Ready with
+    private static FilterValidationContext CommonMappingReady => Ready with
     {
         HasAccountMapping = true,
         HasAnyAccountCategory = true,
@@ -701,17 +704,17 @@ public sealed class FilterScenarioValidatorTests
         AvailableGlFields = GlFieldsWithout()
     };
 
-    // 決策表：D／E／G 各缺自己的 mapping；J 分別缺建立人、核准人與兩欄皆缺。
+    // 決策表：收入之人工分錄、特定人員、空白摘要各缺自己的 mapping；編製核准同一人分別缺建立人、核准人與兩欄皆缺。
     // 除指定缺口外其餘前置均齊，讓 oracle 精準鎖定「缺少前置資料」與欄位名稱。
     [Theory]
-    [InlineData("D", false, true, true, true, "人工/自動分錄", null)]
-    [InlineData("E", true, false, true, true, "傳票建立人員", null)]
-    [InlineData("G", true, true, true, false, "傳票摘要", null)]
-    [InlineData("J", true, false, true, true, "傳票建立人員", null)]
-    [InlineData("J", true, true, false, true, "傳票核准人員", null)]
-    [InlineData("J", true, false, false, true, "傳票建立人員", "傳票核准人員")]
-    public void Validate_KctMappingPrerequisite_MissingFieldNamesEveryGap(
-        string letter,
+    [InlineData("manualRevenueEntry", false, true, true, true, "人工/自動分錄", null)]
+    [InlineData("specificPreparer", true, false, true, true, "傳票建立人員", null)]
+    [InlineData("blankDescription", true, true, true, false, "傳票摘要", null)]
+    [InlineData("preparerEqualsApprover", true, false, true, true, "傳票建立人員", null)]
+    [InlineData("preparerEqualsApprover", true, true, false, true, "傳票核准人員", null)]
+    [InlineData("preparerEqualsApprover", true, false, false, true, "傳票建立人員", "傳票核准人員")]
+    public void Validate_CommonCardMappingPrerequisite_MissingFieldNamesEveryGap(
+        string card,
         bool hasManualFlag,
         bool hasCreatedBy,
         bool hasApprovedBy,
@@ -726,9 +729,9 @@ public sealed class FilterScenarioValidatorTests
         if (!hasCreatedBy) missing.Add(JetFieldCatalog.GlCreateBy);
         if (!hasApprovedBy) missing.Add(JetFieldCatalog.GlApproveBy);
         if (!hasDescription) missing.Add(JetFieldCatalog.GlDescription);
-        var context = KctMappingReady with { AvailableGlFields = GlFieldsWithout([.. missing]) };
+        var context = CommonMappingReady with { AvailableGlFields = GlFieldsWithout([.. missing]) };
 
-        var errors = FilterScenarioValidator.Validate(KctMappingScenario(letter), context);
+        var errors = FilterScenarioValidator.Validate(CommonMappingScenario(card), context);
         var combined = string.Join("；", errors);
 
         // 使用者 2026-10-13 勾選頁確認（文字批次 C）：缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
@@ -741,34 +744,34 @@ public sealed class FilterScenarioValidatorTests
     }
 
     [Theory]
-    [InlineData("D")]
-    [InlineData("E")]
-    [InlineData("G")]
-    [InlineData("J")]
-    public void Validate_KctMappingPrerequisite_AllRequiredFieldsMapped_IsValid(string letter)
+    [InlineData("manualRevenueEntry")]
+    [InlineData("specificPreparer")]
+    [InlineData("blankDescription")]
+    [InlineData("preparerEqualsApprover")]
+    public void Validate_CommonCardMappingPrerequisite_AllRequiredFieldsMapped_IsValid(string card)
     {
         Assert.Empty(FilterScenarioValidator.Validate(
-            KctMappingScenario(letter),
-            KctMappingReady));
+            CommonMappingScenario(card),
+            CommonMappingReady));
     }
 
-    // 原本鎖住「不是 KCT 來源的一般條件不檢查欄位配對」。使用者 2026-10-22 裁定第五步遇到 GL 沒有配對的欄位時
+    // 原本鎖住「不是卡片來源的一般條件不檢查欄位配對」。使用者 2026-10-22 裁定第五步遇到 GL 沒有配對的欄位時
     // 「停用並寫原因」，取代 2026-10-04 的「不修」，所以不論來源都要擋下並寫出欄位名稱；測試名稱與斷言照新裁定改寫。
     // 第一次失敗：Focused 收據 20261023-032924364-4f3864a9ba70481b9e50cf02d0305c2c（兩組資料都得到欄位尚未選擇來源欄的錯誤）。
     [Theory]
-    [InlineData("E", "「傳票建立人員」尚未選擇來源欄")]
-    [InlineData("G", "「傳票摘要」尚未選擇來源欄")]
-    public void Validate_ReusedRuleWithoutKctSource_StillRequiresTheMappedField(string letter, string expectedReason)
+    [InlineData("specificPreparer", "「傳票建立人員」尚未選擇來源欄")]
+    [InlineData("blankDescription", "「傳票摘要」尚未選擇來源欄")]
+    public void Validate_ReusedRuleWithoutCommonSource_StillRequiresTheMappedField(string card, string expectedReason)
     {
         // 預篩選收斂計畫階段四拿掉欄位旗標（2026-10-23），缺欄位改從可用欄位清單扣掉。
         // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
-        var context = letter == "E"
-            ? KctMappingReady with { AvailableGlFields = GlFieldsWithout(JetFieldCatalog.GlCreateBy) }
-            : KctMappingReady with { AvailableGlFields = GlFieldsWithout(JetFieldCatalog.GlDescription) };
+        var context = card == "specificPreparer"
+            ? CommonMappingReady with { AvailableGlFields = GlFieldsWithout(JetFieldCatalog.GlCreateBy) }
+            : CommonMappingReady with { AvailableGlFields = GlFieldsWithout(JetFieldCatalog.GlDescription) };
 
         Assert.Equal(
             [$"第 1 組第 1 條：{expectedReason}"],
-            FilterScenarioValidator.Validate(Scenario(rules: KctMappingRule(letter)), context));
+            FilterScenarioValidator.Validate(Scenario(rules: CommonMappingRule(card)), context));
     }
 
     public static TheoryData<FilterValidationContext, bool, bool, bool, bool, bool> AccountMappingEligibilityCases =>
@@ -813,20 +816,20 @@ public sealed class FilterScenarioValidatorTests
             FilterScenarioValidator.Validate(Scenario(rules: specialPair), context).Count == 0);
         Assert.Equal(quarterEndRevenueValid,
             FilterScenarioValidator.Validate(
-                Scenario(rules: KctRule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 5)), context).Count == 0);
+                Scenario(rules: CommonRule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 5)), context).Count == 0);
         Assert.Equal(revenueWithoutCounterpartValid,
             FilterScenarioValidator.Validate(
-                Scenario(rules: KctRule(FilterRuleType.RevenueWithoutNormalCounterpart)), context).Count == 0);
+                Scenario(rules: CommonRule(FilterRuleType.RevenueWithoutNormalCounterpart)), context).Count == 0);
         Assert.Equal(manualRevenueValid,
             FilterScenarioValidator.Validate(
-                Scenario(rules: KctRule(FilterRuleType.ManualRevenueEntry)), context).Count == 0);
+                Scenario(rules: CommonRule(FilterRuleType.ManualRevenueEntry)), context).Count == 0);
     }
 
     [Fact]
     public void Validate_RevenueDebitNearQuarterEnd_WithoutAccountMapping_ReturnsError()
     {
-        // 清單 A 需科目配對已匯入（鏡射 accountPair 閘控）。
-        var rule = KctRule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 5);
+        // 季末前借記收入需科目配對已匯入（鏡射 accountPair 閘控）。
+        var rule = CommonRule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 5);
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
     }
@@ -840,7 +843,7 @@ public sealed class FilterScenarioValidatorTests
     [InlineData(null, false)]
     public void Validate_RevenueDebitNearQuarterEnd_WindowDaysBoundaries(int? windowDays, bool expectValid)
     {
-        var rule = KctRule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: windowDays);
+        var rule = CommonRule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: windowDays);
 
         var errors = FilterScenarioValidator.Validate(
             Scenario(rules: rule), Ready with
@@ -853,13 +856,13 @@ public sealed class FilterScenarioValidatorTests
         Assert.Equal(expectValid, errors.Count == 0);
     }
 
-    // 決策表：清單 C/D 需科目配對（false→錯誤、true→合法）。
+    // 決策表：收入無一般對方科目與收入之人工分錄需科目配對（false→錯誤、true→合法）。
     [Theory]
     [InlineData("revenueWithoutNormalCounterpart", false, false)]
     [InlineData("revenueWithoutNormalCounterpart", true, true)]
     [InlineData("manualRevenueEntry", false, false)]
     [InlineData("manualRevenueEntry", true, true)]
-    public void Validate_KctRevenueConditions_RequireAccountMapping(
+    public void Validate_CommonRevenueConditions_RequireAccountMapping(
         string typeName, bool hasMapping, bool expectValid)
     {
         var type = typeName == "revenueWithoutNormalCounterpart"
@@ -867,7 +870,7 @@ public sealed class FilterScenarioValidatorTests
             : FilterRuleType.ManualRevenueEntry;
 
         var errors = FilterScenarioValidator.Validate(
-            Scenario(rules: KctRule(type)), Ready with
+            Scenario(rules: CommonRule(type)), Ready with
             {
                 HasAccountMapping = hasMapping,
                 HasAnyAccountCategory = hasMapping,
@@ -878,7 +881,7 @@ public sealed class FilterScenarioValidatorTests
         Assert.Equal(expectValid, errors.Count == 0);
     }
 
-    // 決策表：清單 H 尾數樣態（合法多組、1 位邊界、12 位邊界、13 位拒、非數字拒、空清單拒）。
+    // 決策表：特定金額尾數樣態（合法多組、1 位邊界、12 位邊界、13 位拒、非數字拒、空清單拒）。
     [Theory]
     [InlineData(true, "999999", "000000")]
     [InlineData(true, "0")]
@@ -903,30 +906,30 @@ public sealed class FilterScenarioValidatorTests
     [Fact]
     public void Validate_PreparerEqualsApprover_WithCreatorAndApproverMappings_IsValid()
     {
-        // 清單 J 無 rule 參數，但 createBy／approveBy 兩個 mapping 前置都必須齊備。
+        // 編製與核准同一人無 rule 參數，但 createBy／approveBy 兩個 mapping 前置都必須齊備。
         Assert.Empty(FilterScenarioValidator.Validate(
-            Scenario(rules: KctRule(FilterRuleType.PreparerEqualsApprover)), KctMappingReady));
+            Scenario(rules: CommonRule(FilterRuleType.PreparerEqualsApprover)), CommonMappingReady));
     }
 
-    /* ---- KCT 來源豁免名稱/動機必填（manifest scenario.source）------------- */
+    /* ---- 常用篩選條件來源豁免名稱/動機必填（manifest scenario.source）------- */
 
     private const string NameRequiredError = "情境名稱必填。";
     private const string RationaleRequiredError = "篩選動機說明必填。";
 
-    // 決策表：source ∈ {null, "kct"} × name ∈ {空, 有} × rationale ∈ {空, 有}。
-    // KCT 來源 ⇒ 無論名稱/動機是否留白，皆不產生「必填」錯誤（固定方法論清單，留痕替補在落地層補）。
-    // 非 KCT 來源 ⇒ 留白才報對應的「必填」錯誤（既往行為，不得鬆動）。
+    // 決策表：source ∈ {null, "common"} × name ∈ {空, 有} × rationale ∈ {空, 有}。
+    // 常用篩選條件來源 ⇒ 無論名稱/動機是否留白，皆不產生「必填」錯誤（固定的條件清單，留痕替補在落地層補）。
+    // 其他來源 ⇒ 留白才報對應的「必填」錯誤（既往行為，不得鬆動）。
     //  source | name | rationale | 期望含名稱必填 | 期望含動機必填
     [Theory]
     [InlineData(null, "", "", true, true)]
     [InlineData(null, "情境", "", false, true)]
     [InlineData(null, "", "動機", true, false)]
     [InlineData(null, "情境", "動機", false, false)]
-    [InlineData("kct", "", "", false, false)]
-    [InlineData("kct", "情境", "", false, false)]
-    [InlineData("kct", "", "動機", false, false)]
-    [InlineData("kct", "情境", "動機", false, false)]
-    [InlineData(" kct ", "", "", false, false)]
+    [InlineData("common", "", "", false, false)]
+    [InlineData("common", "情境", "", false, false)]
+    [InlineData("common", "", "動機", false, false)]
+    [InlineData("common", "情境", "動機", false, false)]
+    [InlineData(" common ", "", "", false, false)]
     public void Validate_SourceExemptsNameAndRationale(
         string? source, string name, string rationale, bool expectNameError, bool expectRationaleError)
     {
@@ -942,7 +945,8 @@ public sealed class FilterScenarioValidatorTests
     [Fact]
     public void Validate_UnknownSource_TreatedAsAuthored_StillRequiresNameAndRationale()
     {
-        // 「非 kct 即查核員自擬」：未知來源值不得意外豁免必填（白名單只認得 "kct"）。
+        // 「非 common 即查核員自擬」：未知來源值不得意外豁免必填（白名單只認得 "common"）。
+        // 2026-10-29 以前的案件記的是另一個來源代碼，這一版不認得，也走這條路。
         var scenario = new FilterScenarioSpec(
             "  ", "  ", [new FilterGroupSpec(FilterJoin.And, [TextRule()])], Source: "adhoc");
 
@@ -953,11 +957,11 @@ public sealed class FilterScenarioValidatorTests
     }
 
     [Fact]
-    public void Validate_KctSource_DoesNotSuppressOtherErrors()
+    public void Validate_CommonSource_DoesNotSuppressOtherErrors()
     {
-        // 豁免只限名稱/動機兩項：KCT 來源仍須通過其餘所有驗證（此處用未知 field 觸發）。
+        // 豁免只限名稱/動機兩項：常用篩選條件來源仍須通過其餘所有驗證（此處用未知 field 觸發）。
         var scenario = new FilterScenarioSpec(
-            "", "", [new FilterGroupSpec(FilterJoin.And, [TextRule(field: "no_such_field")])], Source: "kct");
+            "", "", [new FilterGroupSpec(FilterJoin.And, [TextRule(field: "no_such_field")])], Source: "common");
 
         var errors = FilterScenarioValidator.Validate(scenario, Ready);
 

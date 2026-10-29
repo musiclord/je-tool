@@ -91,9 +91,10 @@ function filterJourney({ saved = [] } = {}) {
   return { ...f, requestsOf: action => f.requests.filter(request => request.action === action) };
 }
 
+// 本檔點的「空白摘要」卡 2026-10-29 改用代號識別（原本以當時的卡片字母找卡片）。第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
 async function draftVoucherList(f, rows = [{ documentNumber: 'SYN-B', postDate: '2025-01-02', hitRowCount: 1, totalRowCount: 2, voucherTotal: 1234.5 },
   { documentNumber: 'SYN-A', postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 1, voucherTotal: -10 }]) {
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="preview-scenario"]');
+  f.click('[data-common-card="blankDescription"]'); f.click('[data-action="preview-scenario"]');
   f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 2, summaryRowCount: 2, populationScope: 'auditPeriod' } }); await settle();
   const first = f.request('queryFilterVoucherPage');
   first.resolve({ queryRevision: 'q1', rows, nextCursor: 'v-next' }); await settle();
@@ -288,7 +289,7 @@ test('step five voucher list sorts, searches and clears on the backend from the 
 });
 
 test('step five saved scenario lists read two hundred vouchers and two hundred entries per page', async () => {
-  const f = filterJourney({ saved: [F.savedG()] });
+  const f = filterJourney({ saved: [F.savedBlankDescription()] });
   f.click('[data-action="toggle-scenario"][data-index="0"]');
   f.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, summaryRowCount: 2, populationScope: 'auditPeriod' } }); await settle();
   // 已儲存情境的傳票清單一頁 200 張（字面值），帶情境位置與版本。
@@ -303,7 +304,7 @@ test('step five saved scenario lists read two hundred vouchers and two hundred e
 
 test('voucher pages replace 200 rows, restore the previous page and retry a failed whole-result sort', async () => {
   const f = filterJourney();
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="preview-scenario"]');
+  f.click('[data-common-card="blankDescription"]'); f.click('[data-action="preview-scenario"]');
   f.request('filterPreview').resolve({ scenario: { count: 201, voucherCount: 201, summaryRowCount: 201, populationScope: 'auditPeriod' } }); await settle();
   const rows = Array.from({ length: 200 }, (_, i) => ({ documentNumber: 'V-' + (i + 1), postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 1, voucherTotal: i + 1 }));
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows, nextCursor: 'after-200', totalCount: 201 }); await settle();
@@ -335,7 +336,7 @@ test('voucher pages replace 200 rows, restore the previous page and retry a fail
 // 2026-10-16：第五步傳票清單的續頁同樣不回總筆數；換頁後仍顯示第一頁算出的總頁數。
 test('a voucher continuation page without a total keeps the first page count', async () => {
   const f = filterJourney();
-  f.click('[data-kct-letter="G"]'); f.click('[data-action="preview-scenario"]');
+  f.click('[data-common-card="blankDescription"]'); f.click('[data-action="preview-scenario"]');
   f.request('filterPreview').resolve({ scenario: { count: 401, voucherCount: 401, summaryRowCount: 401, populationScope: 'auditPeriod' } }); await settle();
   const rows = start => Array.from({ length: 200 }, (_, i) => ({ documentNumber: 'V-' + (start + i), postDate: '2025-01-01', hitRowCount: 1, totalRowCount: 1, voucherTotal: 1 }));
   f.request('queryFilterVoucherPage').resolve({ queryRevision: 'q1', rows: rows(1), nextCursor: 'after-200', totalCount: 401 }); await settle();
@@ -376,7 +377,7 @@ for (const outcome of ['success', 'failure']) test('voucher in-flight ' + outcom
 // 原本前半段核對「完整命中分錄」表：只在後端沒有回傳傳票清單時才出現，正式後端一律回傳，所以走不到。
 // 使用者 2026-10-19 裁定刪除這段畫面，這裡的檢查一併移除。第一次失敗：20261019-090901211-9e9ec7ffcbf34596ae2d8476cf613b45。
 test('step five risk matrix tables sort and search on the backend from the first page', async () => {
-  const f = filterJourney({ saved: [F.savedG()] });
+  const f = filterJourney({ saved: [F.savedBlankDescription()] });
 
   // 高風險條件矩陣的傳票表：一打開就讀第一頁，排序與查看都從第一頁重讀。
   f.click('[data-action="toggle-matrix"]');
@@ -396,7 +397,7 @@ test('step five risk matrix tables sort and search on the backend from the first
 
 test('risk matrix retains the full long scenario title and has no entry-detail tab or row query', async () => {
   const name = '合成的長條件名稱用來確認標題仍可完整閱讀與安全轉義 <b>條件</b> ' + '跨期間傳票篩選條件'.repeat(12);
-  const f = filterJourney({ saved: [F.savedG(name)] });
+  const f = filterJourney({ saved: [F.savedBlankDescription(name)] });
   f.click('[data-action="toggle-matrix"]');
   f.request('queryTagMatrixScenarios').resolve({ scenarios: [{ position: 1, name, voucherHitCount: 201, rowHitCount: 401, summaryRowCount: 401 }] });
   await settle();
@@ -554,7 +555,7 @@ test('money shows two decimals on step five voucher lists, entry details and ris
   assert.doesNotMatch(rows[1].textContent, /0\.00/);
 
   // 已儲存情境：條件讀回保留審計員輸入的值，不加千分位、不補小數；矩陣金額照畫面格式。
-  const s = F.savedG('合成金額'); s.source = 'custom'; delete s.editorOrigins;
+  const s = F.savedBlankDescription('合成金額'); s.source = 'custom'; delete s.editorOrigins;
   s.groups = [{ join: 'AND', matchScope: 'row', rules: [{ type: 'numRange', join: 'AND', from: '1234.5', to: '' }] }];
   const g = filterJourney({ saved: [s] });
   const readback = g.dom.content.textContent;

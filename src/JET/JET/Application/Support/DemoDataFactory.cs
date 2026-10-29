@@ -76,7 +76,7 @@ public static class DemoDataFactory
     public const int SuspiciousKeywordVouchers = 25;
     public const int UnexpectedPairVouchers = 30;
     // 賒銷（Receivables 借＋Revenue 貸）：unexpected_account_pair 否定面「不命中」的對照組
-    // （有正常對方 → 不命中 R3、亦不命中 KCT C），並供 specialAccountCategoryPair drAndCr
+    // （有正常對方 → 不命中 R3、亦不命中「收入無一般對方科目」），並供 specialAccountCategoryPair drAndCr
     // 的 demo 母體。與 UnexpectedPairVouchers 並存驗證否定面。
     public const int CreditSaleVouchers = 12;
     public const int TrailingZerosVouchers = 15;

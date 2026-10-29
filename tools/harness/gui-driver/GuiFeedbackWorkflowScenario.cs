@@ -237,7 +237,7 @@ internal static partial class GuiScenarios
         await Idle();
         await Click("[data-bind=step-nav] [data-step-index='4']");
         // 這個 seed 只有已驗證資料，沒有已保存情境；先透過畫面真正建立情境再匯出。
-        // 使用者 2026-10-08 要求重新設計自訂篩選條件：範例改在右側「從範例開始」。
+        // 範例在「常用篩選條件」分頁下半的「情境範例」；2026-10-29 以前收在「從範例開始」。
         // 前面重新確認了 TB 欄位配對，依使用者 2026-10-08 裁定科目配對跟著清除，需要科目分類的「借現金、貸非現金」範例因此停用
         // （2026-10-14 實跑查到）。這裡只需要一個能存的情境，改用不依賴任何配對的「金額大於 100」。
         await AddCustomConditionAsync(cdp, "field:amount", Click, ct);

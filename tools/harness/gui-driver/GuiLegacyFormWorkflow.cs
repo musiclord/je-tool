@@ -7,7 +7,7 @@ namespace Jet.GuiDriver;
 
 internal static partial class GuiScenarios
 {
-    // 使用者 2026-10-08 要求重新設計自訂篩選條件：這個情境保留原名稱，改成操作新的「常用查核條件」與「從範例開始」。
+    // 使用者 2026-10-08 要求重新設計自訂篩選條件：這個情境保留原名稱，改成操作新的依審計目的條件（當時叫「常用查核條件」）與情境範例（2026-10-29 起放在「常用篩選條件」分頁）。
     // 原本另有 legacy-form-catalog 逐一加入每項常用查核條件；使用者 2026-10-15 在勾選頁選 S4，改由前端測試
     // （frontend-journey-filter-build 的「every common check is added by its own button…」）涵蓋後刪除。
     // 名稱、型別與預期筆數都逐字寫在這裡，不從畫面推導。
@@ -29,7 +29,8 @@ internal static partial class GuiScenarios
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
-        await Click("[data-condition-source=custom]");
+        // 情境範例 2026-10-29 併進「常用篩選條件」分頁，開啟第五步就在這個分頁，不用先切到自訂篩選條件、再展開範例清單；
+        // 第一個範例預覽後才切到自訂篩選條件看分類，第二個範例再切回來。操作從 47 次減為 44 次，由腳本逐步推算，待 Gui 實跑確認。
         outcome.RecordStage("custom_examples_and_trailing_zeros");
         // Independent fixed answers from DemoDataFactory's synthetic population and the GUI department column:
         // weekend manual reversal descriptions: none; manual department entries: 679 baseline vouchers, one department-matching
@@ -60,7 +61,8 @@ internal static partial class GuiScenarios
             await Check("!!preview && preview.count===" + count);
             if (i == 0)
             {
-                // 切換常用查核條件的分類只改畫面，不清除草稿或預覽。
+                // 切到自訂篩選條件、切換依審計目的的分類都只改畫面，不清除草稿或預覽。
+                await Click("[data-condition-source=custom]");
                 await Click("[data-check-category=amounts]");
                 await Check("!!preview && draft.groups[0].rules.length===3 && document.querySelector('[data-check-category=amounts]').getAttribute('aria-expanded')==='true'");
                 await CaptureScreenshotAsync(cdp, outcome, ct);

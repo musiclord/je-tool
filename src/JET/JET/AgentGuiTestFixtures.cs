@@ -46,7 +46,7 @@ internal sealed class AgentGuiTestFixtures
         "seed-mapping-ready-project";
     internal const string FillTemplateAfterAutoExportId = "fill-template-after-auto-export";
     internal const string MinimumWindow125Id = "minimum-window-125";
-    internal const string LegacyKctScenarioId = "legacy-kct-scenario";
+    internal const string LegacyCardScenarioId = "legacy-card-scenario";
     internal const string DataRecoverySourceId = "data-recovery-source";
     internal const string LegacyFormSourceId = "legacy-form-source";
     internal const string FailNullSearchOnceId = "fail-null-search-once";
@@ -147,7 +147,7 @@ internal sealed class AgentGuiTestFixtures
             or SeedMappingReadyProjectId
             or FillTemplateAfterAutoExportId
             or MinimumWindow125Id
-            or LegacyKctScenarioId
+            or LegacyCardScenarioId
             or DataRecoverySourceId
             or LegacyFormSourceId
             or FailNullSearchOnceId
@@ -314,11 +314,13 @@ internal sealed class AgentGuiTestFixtures
 
             var validation = await DispatchAsync(
                 dispatcher, "validate.run", new { }, cancellationToken).ConfigureAwait(false);
-            if (IsEnabled(LegacyKctScenarioId))
+            // 2026-10-29 以前儲存的情境：編輯來源是第 1 版，逐條記卡片字母；這一版對應不回卡片，編輯時顯示舊版說明。
+            if (IsEnabled(LegacyCardScenarioId))
                 await DispatchAsync(dispatcher, "filter.commit", new
                 {
-                    scenarios = new[] { new { source = "kct", name = "LEGACY-KCT", rationale = "Synthetic legacy source",
-                        groups = new[] { new { rules = new[] { new { type = "prescreen", prescreenKey = "blankDescription" } } } } } }
+                    scenarios = new[] { new { name = "LEGACY-CARDS", rationale = "Synthetic legacy card origins",
+                        groups = new[] { new { rules = new[] { new { type = "prescreen", prescreenKey = "blankDescription" } } } },
+                        editorOrigins = new { version = 1, groups = new[] { new { letters = new[] { "G" } } } } } }
                 }, cancellationToken).ConfigureAwait(false);
             if (seed.CompleteLifecycle)
             {

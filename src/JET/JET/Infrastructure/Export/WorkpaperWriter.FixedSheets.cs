@@ -136,12 +136,19 @@ public sealed partial class WorkpaperWriter
                 allRows.Select(row => row.DecimalPlaces?.ToString(CultureInfo.InvariantCulture)))),
             FieldInfoAutoFitWidth(new[] { headers[4] }.Concat(allRows.Select(row => row.ActualFieldName)))
         };
+        widths[0] = Math.Min(widths[0], FormalFieldInfoAppearance.NameColumnMaxWidth);
 
         var glHeaderRow = checked((uint)projection.TbRows.Count + 7U);
         using var sheet = session.OpenSheet(
             WorkpaperSheetCatalog.FieldInfo,
             FieldInfoAppearance(glHeaderRow));
-        sheet.SetDefaultRowHeight(18);
+        var headerHeight = FormalWorkbookTypography.RowHeight(FormalFieldInfoAppearance.HeaderFontSize);
+        sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize));
+        sheet.SetRowHeight(1, FormalWorkbookTypography.RowHeight(FormalFieldInfoAppearance.VersionFontSize));
+        sheet.SetRowHeight(3, headerHeight);
+        sheet.SetRowHeight(glHeaderRow, headerHeight);
+        SetWrappedFieldNameHeights(sheet, projection.TbRows, firstRow: 4, widths[0]);
+        SetWrappedFieldNameHeights(sheet, projection.GlRows, firstRow: glHeaderRow + 1, widths[0]);
         for (uint column = 1; column <= 5; column++)
         {
             sheet.SetColumnWidth(column, column, widths[column - 1], bestFit: true);
@@ -168,7 +175,7 @@ public sealed partial class WorkpaperWriter
         foreach (var row in projection.TbRows)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            WriteCanonicalFieldInfoRow(sheet, rowIndex++, row);
+            WriteCanonicalFieldInfoRow(sheet, rowIndex++, row, widths[0]);
         }
 
         sheet.WriteFixedRow(rowIndex++, []);
@@ -188,11 +195,29 @@ public sealed partial class WorkpaperWriter
         foreach (var row in projection.GlRows)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            WriteCanonicalFieldInfoRow(sheet, rowIndex++, row);
+            WriteCanonicalFieldInfoRow(sheet, rowIndex++, row, widths[0]);
         }
 
         sheet.Protect();
         AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
+    }
+
+    private static void SetWrappedFieldNameHeights(
+        SheetWriter sheet,
+        IReadOnlyList<FieldInfoRow> rows,
+        uint firstRow,
+        double nameColumnWidth)
+    {
+        for (var index = 0; index < rows.Count; index++)
+        {
+            var lines = FormalFieldInfoAppearance.NameLineCount(rows[index].DisplayName, nameColumnWidth);
+            if (lines > 1)
+            {
+                sheet.SetRowHeight(
+                    checked(firstRow + (uint)index),
+                    FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize, lines));
+            }
+        }
     }
 
     private static void WriteCanonicalFieldInfoHeader(
@@ -211,11 +236,14 @@ public sealed partial class WorkpaperWriter
     private static void WriteCanonicalFieldInfoRow(
         SheetWriter sheet,
         uint rowIndex,
-        FieldInfoRow row)
+        FieldInfoRow row,
+        double nameColumnWidth)
     {
         var cells = new List<Cell>
         {
-            sheet.TextCell(rowIndex, 1, row.DisplayName),
+            FormalFieldInfoAppearance.NameLineCount(row.DisplayName, nameColumnWidth) > 1
+                ? sheet.TextCell(rowIndex, 1, row.DisplayName, WorkpaperStyles.Wrap)
+                : sheet.TextCell(rowIndex, 1, row.DisplayName),
             sheet.TextCell(rowIndex, 2, row.FieldType),
             row.TextLength is { } textLength
                 ? sheet.NumberCell(rowIndex, 3, textLength)
@@ -527,7 +555,7 @@ public sealed partial class WorkpaperWriter
         bool autoFit)
     {
         ArgumentOutOfRangeException.ThrowIfNotEqual(widths.Count, 3);
-        sheet.SetDefaultRowHeight(18);
+        sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize));
         for (var index = 0; index < widths.Count; index++)
         {
             var column = checked((uint)index + 1);
@@ -541,7 +569,7 @@ public sealed partial class WorkpaperWriter
         bool autoFit)
     {
         ArgumentOutOfRangeException.ThrowIfNotEqual(widths.Count, 3);
-        sheet.SetDefaultRowHeight(18);
+        sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize));
         for (var index = 0; index < widths.Count; index++)
         {
             var column = checked((uint)index + 1);

@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// KCT 條件 A 的季底與查核期末視窗：前端讀回顯示自己計算視窗，必須和後端 <see cref="QuarterEndWindows"/>
+/// 季末前借記收入的季底與查核期末視窗：前端讀回顯示自己計算視窗，必須和後端 <see cref="QuarterEndWindows"/>
 /// 對同一張邊界表格給出相同答案；前端那一半在 tools/tests/frontend-workflow.test.cjs 讀同一個檔案。
 /// </summary>
 public sealed class QuarterEndWindowsFrontendParityTests

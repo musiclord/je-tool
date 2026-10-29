@@ -352,11 +352,13 @@ function batch9TreeDom(options = {}) {
   return { element, content, document };
 }
 
-// ---- copied from tools/tests/frontend-workflow.test.cjs:4310 (savedG) ----
-const savedG = (name = 'G') => ({ name, rationale: 'G：空白摘要', source: 'kct',
-  // 第九節 G2 的現行 G 卡；舊情境測試另用原始 JSON，不由這個夾具轉換。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+// ---- copied from tools/tests/frontend-workflow.test.cjs:4310（原名 savedG） ----
+// 空白摘要卡存成的情境。2026-10-29 卡片改用代號、編輯來源改存第 2 版，名稱與動機改成新的自動寫法，來源代碼改成 common；
+// 原本是第 1 版字母來源，正式後端已不回這種形狀。第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+const savedBlankDescription = (name = '空白摘要') => ({ name, rationale: '空白摘要', source: 'common',
+  // 第九節 G2 的現行空白摘要卡；舊情境測試另用原始 JSON，不由這個夾具轉換。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
   groups: [{ join: 'AND', matchScope: 'row', rules: [{ type: 'fieldValue', join: 'AND', field: 'description', operator: 'isBlank', includeBlank: false }] }],
-  editorOrigins: { version: 1, legacyKctSource: false, nameIsAutomatic: true, rationaleIsAutomatic: true, groups: [{ letters: ['G'] }] } });
+  editorOrigins: { version: 2, nameIsAutomatic: true, rationaleIsAutomatic: true, groups: [{ cards: ['blankDescription'] }] } });
 
 // ---- copied from tools/tests/frontend-workflow.test.cjs:4315 (usageJourneyFixture) ----
 // 合成回應只控制邊界；步驟繪製、事件處理與 Store 均執行正式腳本。
@@ -383,7 +385,7 @@ function usageJourneyFixture(step = 'export', fixtureOptions = {}) {
   const store = window.JetStore, state = store.getState();
   store.setProject({ projectId: 'usage-synthetic', periodStart: '2025-01-01', periodEnd: '2025-11-30', lastPeriodStart: '2025-11-20' });
   store.setLastRun('validate', { resultRef: { runId: 'v1' }, completenessTest: { eligibility: { isEligible: true } } });
-  store.setSavedScenarios([savedG('第一個'), savedG('第二個'), savedG('第三個')]);
+  store.setSavedScenarios([savedBlankDescription('第一個'), savedBlankDescription('第二個'), savedBlankDescription('第三個')]);
   store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' });
   const $ = selector => dom.content.querySelector(selector);
   function draw(next = step) { step = next; window.JetUi.renderStep(step, dom.content, store.getState()); return dom.content; }
@@ -431,7 +433,8 @@ function filterOperationFixture({ saved = [] } = {}) {
   function click(selector) { const node = $(selector); assert.ok(node, 'missing ' + selector); node.fire('click'); }
   function choose(selector, value) { const node = $(selector); assert.ok(node, 'missing ' + selector); node.value = value; node.fire('change'); }
   function type(selector, value) { const node = $(selector); assert.ok(node, 'missing ' + selector); node.value = value; node.fire('input'); }
-  const pressed = letter => $('[data-kct-letter="' + letter + '"]').getAttribute('aria-pressed') === 'true';
+  // 卡片改用代號識別（2026-10-29 拿掉卡片字母；原本以當時的卡片字母屬性找卡片）。第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
+  const pressed = card => $('[data-common-card="' + card + '"]').getAttribute('aria-pressed') === 'true';
   const messages = () => store.getState().messages.map(m => m.text);
   const notice = () => { const node = $('[data-bind="scenario-notice"]'); return node && !node.hidden ? node.textContent : ''; };
   return { window, store, dom, context, commits, $, click, choose, type, pressed, messages, notice, draft: () => store.getState().filter.draft };
@@ -1022,7 +1025,7 @@ module.exports = {
   // 假 DOM
   batch9TreeDom, batch7Dom, batch7ControlDom,
   // 合成資料
-  savedG, validationFixture, batch8ValidationData, batch8Artifacts, remapPaper, remapPrescreen, profile,
+  savedBlankDescription, validationFixture, batch8ValidationData, batch8Artifacts, remapPaper, remapPrescreen, profile,
   // 從 wf、mp 複製的夾具
   usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, remapAppFixture, overviewDialogFixture, batch8Fixture, mappingFixture,
   // 第 0 批新增的夾具

@@ -196,7 +196,7 @@ public abstract class GlRuleSqlEquivalenceTests
         Assert.Equal(expectedDocs, await HitDocumentsAsync(rule));
     }
 
-    // KCT 清單 H 尾數比對＝整數化金額末 k 位與樣態相等（＝legacy @Right(@Str(@int(x),1,0),k)）；k≥2 須整數 ≥ 10^(k-1)。
+    // 特定金額尾數比對＝整數化金額末 k 位與樣態相等（＝legacy @Right(@Str(@int(x),1,0),k)）；k≥2 須整數 ≥ 10^(k-1)。
     // 000000（k=6，下界 10^5）：D06=2,000,000 整數末 6 位 = 000000 → 命中；D09 的次單位金額（0.50／0，整數 0）
     //   位數 < 6、字串短於樣態、長度不符不相等 → 不命中。
     // 000333：D10 整數 333 僅 3 位 < 6 → 不相等 → 空集合。跨 provider 由 [SqlServerTheory] 包裝在真 SQL Server 上同步驗證。

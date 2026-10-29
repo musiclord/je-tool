@@ -401,7 +401,7 @@ public sealed partial class WorkpaperWriter
         SheetWriter sheet,
         IReadOnlyList<double> dataWidths)
     {
-        sheet.SetDefaultRowHeight(18);
+        sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize));
         sheet.SetColumnWidth(1, 1, 12);
         ApplyDisplayWidths(sheet, firstColumn: 2, widths: dataWidths);
         sheet.SetRowHeight(19, 44);
@@ -411,7 +411,7 @@ public sealed partial class WorkpaperWriter
         SheetWriter sheet,
         IReadOnlyList<double> dataWidths)
     {
-        sheet.SetDefaultRowHeight(18);
+        sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize));
         sheet.SetColumnWidth(1, 1, 8);
         ApplyDisplayWidths(sheet, firstColumn: 2, widths: dataWidths);
         sheet.SetRowHeight(11, 48);
@@ -421,7 +421,7 @@ public sealed partial class WorkpaperWriter
         SheetWriter sheet,
         IReadOnlyList<double> dataWidths)
     {
-        sheet.SetDefaultRowHeight(18);
+        sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkpaperStyles.RegularFontSize));
         sheet.SetColumnWidth(1, 1, 8);
         ApplyDisplayWidths(sheet, firstColumn: 2, widths: dataWidths);
         sheet.SetRowHeight(16, 42);

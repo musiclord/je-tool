@@ -173,7 +173,7 @@
         "screenshotBudget": 2
       },
       {
-        "name": "filter-kct-editing",
+        "name": "filter-common-editing",
         "timeoutSeconds": 240,
         "actionBudget": 75,
         "expectedActionCount": 75,
@@ -194,7 +194,7 @@
         "screenshotBudget": 1
       },
       {
-        "name": "kct-remap-recovery",
+        "name": "common-remap-recovery",
         "timeoutSeconds": 240,
         "actionBudget": 48,
         "expectedActionCount": 48,
@@ -245,8 +245,8 @@
       {
         "name": "legacy-form-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 47,
-        "expectedActionCount": 47,
+        "actionBudget": 44,
+        "expectedActionCount": 44,
         "screenshotBudget": 2
       }
     ]

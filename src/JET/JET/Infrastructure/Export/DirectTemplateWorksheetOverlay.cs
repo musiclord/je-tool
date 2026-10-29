@@ -18,7 +18,8 @@ internal sealed record DirectTemplateWorksheetOverlayPlan(
     Func<uint, uint, bool> UseSourceCellStyle,
     Func<uint, uint, uint, uint>? MapTemplateCellStyle = null,
     Func<uint, uint, uint?, uint, uint>? MergeCellStyle = null,
-    Func<uint, uint, uint>? MapTemplateRowStyle = null);
+    Func<uint, uint, uint>? MapTemplateRowStyle = null,
+    Func<uint, bool>? UseSourceRowHeight = null);
 
 /// <summary>
 /// 接受 emitter 逐列產生的 XML，直接 forward-only 覆寫一個既有範本 worksheet part。
@@ -191,6 +192,10 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
 
         var merged = new XElement(_templateRow);
         MapTemplateCellStyles(merged, sourceIndex);
+        if (_plan.UseSourceRowHeight?.Invoke(sourceIndex) == true)
+        {
+            CopyCustomRowHeight(merged, sourceRow);
+        }
         ClearDynamicCells(merged, sourceIndex, _plan.IsDynamicCell);
         OverlayDynamicCells(
             merged,
@@ -477,6 +482,18 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
         {
             target.Add(CloneNode(child));
         }
+    }
+
+    // 產生端為換行的內容指定了列高時，蓋過範本同一列的高度；產生端沒有指定時，保留範本原本的列高。
+    private static void CopyCustomRowHeight(XElement target, XElement source)
+    {
+        if ((string?)source.Attribute("customHeight") is not ("1" or "true")
+            || source.Attribute("ht") is not { } height)
+        {
+            return;
+        }
+        target.SetAttributeValue("ht", height.Value);
+        target.SetAttributeValue("customHeight", "1");
     }
 
     private static void ClearCellValue(XElement cell)

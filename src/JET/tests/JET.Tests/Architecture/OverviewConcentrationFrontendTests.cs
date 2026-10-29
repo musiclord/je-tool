@@ -77,7 +77,11 @@ public sealed class OverviewConcentrationFrontendTests
     {
         var source = ReadFrontend("js", "overview-bi.js");
 
-        Assert.Contains("此為分布描述，非風險評估。", source, StringComparison.Ordinal);
+        // 三張圖說原本各自寫一次「此為分布描述，非風險評估。」。使用者 2026-10-29 指出常駐說明太多，改成同一句話在同一個畫面只說一次，
+        // 改由流程總覽底部的定位說明說一次；這條原本鎖住圖說裡的句子，改版後依預期失敗，
+        // 首敗收據 20261029-040132519-63b6b682d8554f9796feeccf6fbaf7ef。意圖不變：總覽說明這是分布描述，判斷留給審計員。
+        Assert.DoesNotContain("此為分布描述", source, StringComparison.Ordinal);
+        Assert.Contains("Ui.esc(positioning.overviewGuidance)", ReadFrontend("js", "app.js"), StringComparison.Ordinal);
         Assert.DoesNotContain("風險評分", source, StringComparison.Ordinal);
         Assert.DoesNotContain("風險等級", source, StringComparison.Ordinal);
         Assert.DoesNotContain("異常", source, StringComparison.Ordinal);

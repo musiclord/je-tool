@@ -43,7 +43,7 @@ public static partial class SupportPayloadShape
         ["categoryMode"] = Codes("is", "isNot", "absent"),
         ["quantifier"] = Codes("any", "all", "none"),
         ["prescreenKey"] = Codes(PrescreenRuleKeys.FilterableKeys),
-        ["source"] = Codes(FilterScenarioSources.Kct),
+        ["source"] = Codes(FilterScenarioSources.Common),
         ["populationScope"] = Codes(GlPopulationScopeValues.AuditPeriod),
         // 條件的文字比對方式，以及匯入的取代或附加。
         ["mode"] = Codes("contains", "exact", "notContains", "notExact", "replace", "append"),

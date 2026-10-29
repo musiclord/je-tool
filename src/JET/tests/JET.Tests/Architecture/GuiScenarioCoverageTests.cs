@@ -5,8 +5,8 @@ using System.Text.Json;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// Gui 情境的涵蓋範圍：匯出情境讀回底稿的人工或自動欄為文字；KCT 卡 A 到 E 的預設動機與 B 卡的條件、
-/// 每項常用查核條件的「加入」與加入條件後的選取狀態，2026-10-15 起改由前端點擊測試核對，Gui 不再重複。
+/// Gui 情境的涵蓋範圍：匯出情境讀回底稿的人工或自動欄為文字；常用篩選條件前五張卡的預設動機與固定資產那張卡的條件、
+/// 每項依審計目的條件的「加入」與加入條件後的選取狀態，2026-10-15 起改由前端點擊測試核對，Gui 不再重複。
 /// 不開桌面即可檢查 Gui 程式與操作次數設定，Gui 本身仍只在提交或交付前執行。
 /// </summary>
 public sealed class GuiScenarioCoverageTests
@@ -38,29 +38,31 @@ public sealed class GuiScenarioCoverageTests
     // 使用者 2026-10-15 在待決事項勾選頁選 S5（另有 S2、S4）：這些核對搬到前端點擊測試，刪掉 Gui 的 10 次操作。
     // 改成確認前端測試仍在、Gui 不再重複這段。首次失敗：Focused 20261015-075841706-f76d7d50908a45bca6e8ef478cb1e041。
     [Fact]
-    public void KctCardsAndCommonChecksAreClickedInFrontendTestsAndGuiReadsBackExportedManualFlags()
+    public void CommonCardsAndPurposeChecksAreClickedInFrontendTestsAndGuiReadsBackExportedManualFlags()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "tools/harness/gui-driver"))) directory = directory.Parent;
         Assert.NotNull(directory);
         var root = Path.Combine(directory.FullName, "tools/harness/gui-driver");
         var filter = File.ReadAllText(Path.Combine(root, "GuiFilterWorkflowScenarios.cs"));
-        Assert.DoesNotContain("kct_a_to_e_default_rationales", filter);
+        // 2026-10-29 Gui 的階段名稱拿掉舊的小組前綴，這裡改成不論前綴都不能有這兩種階段（比原本只擋一個名稱更嚴）。
+        Assert.DoesNotContain("default_rationales", filter);
         var filterBuild = File.ReadAllText(Path.Combine(directory.FullName, "tools/tests/frontend-journey-filter-build.test.cjs"));
         Assert.Contains("every common check is added by its own button with the exact type, opens only its category and can be removed", filterBuild);
         Assert.Contains("a condition added from the custom pane stays selected after every pending timer has run", filterBuild);
         var export = File.ReadAllText(Path.Combine(root, "GuiSideMonthWorkflow.cs"));
         Assert.Contains("GuiWorkpaperInspection.RequireManualAutoText", export);
         using var lanes = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory.FullName, "tools/harness/lanes.json")));
-        var scenario = FindKct(lanes.RootElement);
+        var scenario = FindCommonEditing(lanes.RootElement);
         // 使用情境補測後搬移單次修改段落；首次失敗 8bf859309a2c475d9f56ac3d92c6c7a4。
-        Assert.DoesNotContain("kct_duplicate_name_suffix", filter);
+        Assert.DoesNotContain("duplicate_name_suffix", filter);
         Assert.DoesNotContain("matrix-after-copy", filter);
         Assert.DoesNotContain("matrix-after-remove", filter);
         var frontend = File.ReadAllText(Path.Combine(directory.FullName, "tools/tests/frontend-workflow.test.cjs"));
-        Assert.Contains("F1 an automatic KCT name already used by a saved scenario gets a number and saves", frontend);
+        // 前端測試的名稱 2026-10-29 跟著拿掉小組名稱與卡片字母，核對的內容不變。
+        Assert.Contains("F1 an automatic card name already used by a saved scenario gets a number and saves", frontend);
         Assert.Contains("copying identical conditions and removing the copy resets and reloads matrix columns", frontend);
-        Assert.Contains("clicking each KCT card A to E alone fills its own rationale, B adds its account category pair, and clicking again removes it", frontend);
+        Assert.Contains("clicking each card with a default rationale alone fills its own rationale, the fixed-asset card adds its account category pair, and clicking again removes it", frontend);
         // 使用者 2026-10-08 要求重新設計自訂篩選條件：加條件改點欄位按鈕與常用查核條件，操作從 98 次減為 93 次。
         // 首次失敗：Public 20261008-065804895-15c22e99fade4191aea38be9769c0523。93 由情境腳本逐步推算，待 Gui 實跑確認。
         // 2026-10-14 Gui 實跑為 94 次：開啟已存情境時草稿還有未儲存的內容，JET 先詢問，情境選「不儲存，直接開啟」多點一次。
@@ -73,19 +75,20 @@ public sealed class GuiScenarioCoverageTests
         // 2026-10-16 使用者要求縮短套用預篩選條件的操作：預篩選條件改從條件總覽的「預篩選」分頁直接加入，
         // 不再先展開常用查核條件的「預篩選結果」分類，這一步從點三次變成點兩次，減為 75 次。
         // 首次失敗：完整 Gui 20261016-054955308-2f29806b7e5b48d3a7f332ac7c4ddad8，實跑 75 次，情境本身的檢查都通過。
+        // 2026-10-29 情境改名為 filter-common-editing（拿掉舊的小組名稱），只換卡片的選取方式與名稱期望值，操作次數不變。
         Assert.Equal(75, scenario.GetProperty("actionBudget").GetInt32());
         Assert.Equal(75, scenario.GetProperty("expectedActionCount").GetInt32());
     }
 
-    private static JsonElement FindKct(JsonElement value)
+    private static JsonElement FindCommonEditing(JsonElement value)
     {
         if (value.ValueKind == JsonValueKind.Object)
         {
-            if (value.TryGetProperty("name", out var name) && name.GetString() == "filter-kct-editing") return value;
-            foreach (var property in value.EnumerateObject()) { var found = FindKct(property.Value); if (found.ValueKind != JsonValueKind.Undefined) return found; }
+            if (value.TryGetProperty("name", out var name) && name.GetString() == "filter-common-editing") return value;
+            foreach (var property in value.EnumerateObject()) { var found = FindCommonEditing(property.Value); if (found.ValueKind != JsonValueKind.Undefined) return found; }
         }
         if (value.ValueKind == JsonValueKind.Array)
-            foreach (var child in value.EnumerateArray()) { var found = FindKct(child); if (found.ValueKind != JsonValueKind.Undefined) return found; }
+            foreach (var child in value.EnumerateArray()) { var found = FindCommonEditing(child); if (found.ValueKind != JsonValueKind.Undefined) return found; }
         return default;
     }
 }

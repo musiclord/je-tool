@@ -17,7 +17,7 @@
 // 預期值一律寫死，不讀正式常數；action payload 用 deepEqual 精確比對。
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { remapAppFixture, settle, plain, savedG, batch8ValidationData } = require('./support/frontend-fixtures.cjs');
+const { remapAppFixture, settle, plain, savedBlankDescription, batch8ValidationData } = require('./support/frontend-fixtures.cjs');
 
 const committedMapping = { gl: { mapping: {}, amountMode: 'dual', committedUtc: '2026-01-02T03:04:00Z' },
   tb: { mapping: {}, changeMode: 'debitCredit', committedUtc: '2026-01-02T03:05:00Z' } };
@@ -173,7 +173,7 @@ test('reopening a case brings back the saved scenario version and report list, a
     ...loadResponse('resume-synthetic', 'sqlite'),
     importState: importedState, mapping: committedMapping,
     latestRuns: { validate: { resultRef: { runId: 'v9' }, completenessTest: { eligibility: { isEligible: true } } }, prescreen: null },
-    filterScenarios: [savedG('甲'), savedG('乙')],
+    filterScenarios: [savedBlankDescription('甲'), savedBlankDescription('乙')],
     filterResultRef: { revision: 'r9', populationScope: 'auditPeriod' },
     reportArtifacts: [paper, report]
   });
@@ -209,7 +209,7 @@ test('reopening a case whose saved result used a retired scope keeps step six lo
     ...loadResponse('old-scope-synthetic', 'sqlite'),
     importState: importedState, mapping: committedMapping,
     latestRuns: { validate: { resultRef: { runId: 'v9' }, completenessTest: { eligibility: { isEligible: true } } }, prescreen: null },
-    filterScenarios: [savedG('甲')],
+    filterScenarios: [savedBlankDescription('甲')],
     filterResultRef: { revision: 'r-old', populationScope: 'allProjected' }
   });
   assert.equal(f.state.filter.populationScope, 'auditPeriod');

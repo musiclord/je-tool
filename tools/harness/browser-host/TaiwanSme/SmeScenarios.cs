@@ -6,7 +6,7 @@ namespace Jet.Harness.TaiwanSme;
 internal sealed record SmeScenario(string Name, JsonObject Wire, Func<SmeOracle, HashSet<string>> Expected);
 
 /// <summary>
-/// 兩組情境：KCT 十項（SQLite 案件）與審計員自訂的十項（DuckDB 案件）。條件形狀比照前端
+/// 兩組情境：常用篩選條件的十項（SQLite 案件）與審計員自訂的十項（DuckDB 案件）。條件形狀比照前端
 /// newFilterRule 的預設欄位與送出前的整理，讓存進案件的定義和在畫面上操作存下的一樣。
 /// categoryIds 依分類名稱查表，分類 ID 由後端在分類設定儲存時產生。
 /// </summary>
@@ -14,59 +14,59 @@ internal static class SmeScenarios
 {
     private static readonly string KeywordText = string.Join(",", SmeOracle.DefaultKeywords);
 
-    public static IReadOnlyList<SmeScenario> Kct(IReadOnlyDictionary<string, string> categoryIds)
+    public static IReadOnlyList<SmeScenario> Common(IReadOnlyDictionary<string, string> categoryIds)
     {
         string Id(string label) => categoryIds[label];
         return
         [
-            KctScenario("KCT A 季底前 10 天借記收入",
+            CommonScenario("季底前 10 天借記收入",
                 "季底與期末前 10 天內收入科目有借方分錄，可能是認列後的不當迴轉；案件團隊依客戶退貨週期訂為 10 天。",
-                [Rule("revenueDebitNearQuarterEnd", rule => rule["windowDays"] = "10")], ["A"],
+                [Rule("revenueDebitNearQuarterEnd", rule => rule["windowDays"] = "10")], ["revenueDebitNearQuarterEnd"],
                 oracle => oracle.Select(line => oracle.Role(line) == "revenue" && line.Debit > 0m && SmeOracle.NearQuarterEnd(line.PostDate, 10))),
-            KctScenario("KCT B 借記固定資產且貸記費用",
+            CommonScenario("借記固定資產且貸記費用",
                 "借固定資產、貸營業費用或製造費用的組合不符合正常營業流程，可能把費用不當資本化；在建工程另列分類，不在固定資產底下。",
                 [Rule("specialAccountCategoryPair", rule =>
                 {
                     rule["debitCategoryIds"] = new JsonArray(Id(SmeChart.FixedAssets));
                     rule["creditCategoryIds"] = new JsonArray(Id(SmeChart.OperatingExpenses), Id(SmeChart.ManufacturingOverhead));
-                })], ["B"],
+                })], ["fixedAssetDebitExpenseCredit"],
                 oracle => oracle.Select(line => oracle.DebitAndCredit(line,
                     [SmeChart.FixedAssets], [SmeChart.OperatingExpenses, SmeChart.ManufacturingOverhead]))),
-            KctScenario("KCT C 貸記收入但借方非應收或預收",
+            CommonScenario("貸記收入但借方非應收或預收",
                 "收入貸方的對方不是應收票據、應收帳款或預收款項，屬於不尋常的收入過帳；現金銷貨也會列入，由審計員覆核。",
-                [Rule("revenueWithoutNormalCounterpart")], ["C"],
+                [Rule("revenueWithoutNormalCounterpart")], ["revenueWithoutNormalCounterpart"],
                 oracle => oracle.Select(line => oracle.RevenueCreditWithout(line, ["receivables", "receipt_in_advance"]))),
-            KctScenario("KCT D 收入之人工分錄",
+            CommonScenario("收入之人工分錄",
                 "這家公司的銷貨收入由 ERP 銷貨單自動拋轉，人工收入分錄不屬於正常流程。",
-                [Rule("manualRevenueEntry")], ["D"],
+                [Rule("manualRevenueEntry")], ["manualRevenueEntry"],
                 oracle => oracle.Select(line => oracle.Role(line) == "revenue" && line.IsManual)),
-            KctScenario("KCT E 總經理與財務經理建立之分錄",
+            CommonScenario("總經理與財務經理建立之分錄",
                 "高階主管不預期會自己編製傳票，且有能力直接或間接操縱會計紀錄。",
-                [FieldValue("createBy", "in", values: [SmePeople.GeneralManager, SmePeople.FinanceManager])], ["E"],
+                [FieldValue("createBy", "in", values: [SmePeople.GeneralManager, SmePeople.FinanceManager])], ["specificPreparer"],
                 oracle => oracle.Select(line => line.CreatedBy is SmePeople.GeneralManager or SmePeople.FinanceManager)),
-            KctScenario("KCT F 特定摘要（預設字詞加更正、補登）",
+            CommonScenario("特定摘要（預設字詞加更正、補登）",
                 "摘要出現調整、迴轉、沖銷、更正、補登等字詞的分錄，常是期末調整或事後補記。",
-                [FieldValue("description", "contains", values: (KeywordText + ",更正,補登").Split(','))], ["F"],
+                [FieldValue("description", "contains", values: (KeywordText + ",更正,補登").Split(','))], ["specificKeywords"],
                 oracle => oracle.Select(line => SmeOracle.ContainsAny(line.Description, SmeOracle.DefaultKeywords.Append("更正").Append("補登")))),
-            KctScenario("KCT G 空白摘要之人工分錄",
+            CommonScenario("空白摘要之人工分錄",
                 "人工分錄沒有寫摘要，無法從帳上看出交易內容；系統拋轉的空白摘要另行排除。",
-                [FieldValue("description", "isBlank"), Rule("manualAuto")], ["G", null],
+                [FieldValue("description", "isBlank"), Rule("manualAuto")], ["blankDescription", null],
                 oracle => oracle.Select(line => SmeOracle.IsBlank(line.Description) && line.IsManual)),
-            KctScenario("KCT H 金額尾數 000000 或 999999",
+            CommonScenario("金額尾數 000000 或 999999",
                 "整數百萬或刻意落在門檻下的金額，常見於估計或人為安排的分錄。",
-                [FieldValue("amount", "endsWithDigits", value: "000000,999999")], ["H"],
+                [FieldValue("amount", "endsWithDigits", value: "000000,999999")], ["specificTrailingDigits"],
                 oracle => oracle.Select(line =>
                 {
                     var whole = SmeOracle.WholeAmount(line);
                     return whole >= 100_000 && (whole % 1_000_000 == 0 || whole % 1_000_000 == 999_999);
                 })),
-            KctScenario("KCT I 非營業日之分錄",
+            CommonScenario("非營業日之分錄",
                 "週末與國定假日入帳的分錄；2 月 8 日補班日照常上班，不列入。",
-                [NonBusinessDayGroup()], ["I"],
+                [NonBusinessDayGroup()], ["nonBusinessDay"],
                 oracle => oracle.Select(line => SmeCalendar.IsNonBusinessDay(line.PostDate))),
-            KctScenario("KCT J 編製與核准同一人",
+            CommonScenario("編製與核准同一人",
                 "同一人編製並核准傳票，缺少職能分工。",
-                [Rule("preparerEqualsApprover")], ["J"],
+                [Rule("preparerEqualsApprover")], ["preparerEqualsApprover"],
                 oracle => oracle.Select(line => SmeOracle.SamePerson(line.CreatedBy, line.ApprovedBy))),
         ];
     }
@@ -256,7 +256,7 @@ internal static class SmeScenarios
         ["type"] = "group", ["join"] = "AND", ["rules"] = new JsonArray(rules.Select(rule => (JsonNode)rule).ToArray())
     };
 
-    /// <summary>KCT I 的條件括號：總帳日期是非營業日（排除補班日）。</summary>
+    /// <summary>非營業日卡片的條件括號：總帳日期是非營業日（排除補班日）。</summary>
     private static JsonObject NonBusinessDayGroup() => new()
     {
         ["type"] = "group",
@@ -272,8 +272,8 @@ internal static class SmeScenarios
         ["quantifier"] = quantifier,
     };
 
-    private static SmeScenario KctScenario(
-        string name, string rationale, JsonObject[] rules, string?[] letters, Func<SmeOracle, HashSet<string>> expected)
+    private static SmeScenario CommonScenario(
+        string name, string rationale, JsonObject[] rules, string?[] cards, Func<SmeOracle, HashSet<string>> expected)
     {
         var wire = new JsonObject
         {
@@ -284,8 +284,8 @@ internal static class SmeScenarios
                 ["join"] = "AND",
                 ["rules"] = new JsonArray(rules.Select(rule => (JsonNode)rule).ToArray()),
             }),
-            ["editorOrigins"] = Origins([letters]),
-            ["source"] = "kct",
+            ["editorOrigins"] = Origins([cards]),
+            ["source"] = "common",
         };
         return new SmeScenario(name, wire, expected);
     }
@@ -318,15 +318,15 @@ internal static class SmeScenarios
         return new SmeScenario(name, wire, expected);
     }
 
-    private static JsonObject Origins(string?[][] letters) => new()
+    // 編輯來源第 2 版（2026-10-29 起）：逐條記帶入它的常用篩選條件卡片代號，沒有卡片的條件記 null。
+    private static JsonObject Origins(string?[][] cards) => new()
     {
-        ["version"] = 1,
-        ["legacyKctSource"] = false,
+        ["version"] = 2,
         ["nameIsAutomatic"] = false,
         ["rationaleIsAutomatic"] = false,
-        ["groups"] = new JsonArray(letters.Select(group => (JsonNode)new JsonObject
+        ["groups"] = new JsonArray(cards.Select(group => (JsonNode)new JsonObject
         {
-            ["letters"] = new JsonArray(group.Select(letter => letter is null ? null : (JsonNode)JsonValue.Create(letter)!).ToArray()),
+            ["cards"] = new JsonArray(group.Select(card => card is null ? null : (JsonNode)JsonValue.Create(card)!).ToArray()),
         }).ToArray()),
     };
 }

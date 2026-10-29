@@ -117,7 +117,7 @@ public sealed class TerminologyUnificationFrontendTests
     [Fact]
     public void W10_SaveWording_UsesStoreVerb_AndBlankSummaryIsOneName()
     {
-        // 使用者裁定以「已儲存」為準；KCT G 卡片與空值項目已經叫「空白摘要」。
+        // 使用者裁定以「已儲存」為準；空白摘要卡片與空值項目已經叫「空白摘要」。
         var filter = ProductSources.FilterStepFrontend();
         Assert.Contains("'已儲存「' + Ui.esc(draft.name) + '」。' : '條件或說明已變更，尚未儲存。'", filter, StringComparison.Ordinal);
         Assert.Contains("(editing ? '儲存變更' : '儲存情境')", filter, StringComparison.Ordinal);

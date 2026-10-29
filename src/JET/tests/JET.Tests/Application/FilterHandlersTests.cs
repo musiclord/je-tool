@@ -1509,12 +1509,12 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal("invalid_payload", ex.Code);
     }
 
-    /* ---- KCT 小組條件（清單 A/C/D/H/J）的 wire 端到端 --------------------- */
+    /* ---- 常用篩選條件專用的型別與特定金額尾數的 wire 端到端 ---------------- */
 
     [Fact]
     public async Task FilterPreview_TrailingDigits_MatchesControlledHits()
     {
-        // 清單 H 端到端（型別字串解析 + keywords 承載尾數樣態 + 述詞執行）；尾數無需科目配對。
+        // 特定金額尾數端到端（型別字串解析 + keywords 承載尾數樣態 + 述詞執行）；尾數無需科目配對。
         // MoneyScale 預設 10000：1,999,999.00 主單位整數 1,999,999 尾數 999999；500.00 不符。
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder => builder
@@ -1535,7 +1535,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     [Theory]
     [InlineData("revenueWithoutNormalCounterpart", 30L, 30L)]
     [InlineData("manualRevenueEntry", 0L, 0L)]
-    public async Task FilterPreview_KctParameterlessType_RunsEndToEnd(string type, long expectedCount, long expectedVouchers)
+    public async Task FilterPreview_CommonParameterlessType_RunsEndToEnd(string type, long expectedCount, long expectedVouchers)
     {
         // 第 9 批中低 13：原 count >= 0 永遠成立，改鎖正式 demo 的手算答案。
         // 30 張 Others 借、Revenue 貸各命中一列；12 張應收借、Revenue 貸不命中。
@@ -1550,7 +1550,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task FilterPreview_RevenueDebitNearQuarterEnd_WithoutAccountMapping_ThrowsInvalidScenario()
     {
-        // 清單 A 閘控：科目配對未匯入時 validator 必須擋下（自建 host 關閉科目配對匯入）。
+        // 季末前借記收入的閘控：科目配對未匯入時 validator 必須擋下（自建 host 關閉科目配對匯入）。
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
 
@@ -1582,13 +1582,15 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal("invalid_scenario", ex.Code);
     }
 
-    /* ---- KCT 來源情境豁免名稱/動機必填（manifest scenario.source）-------- */
+    /* ---- 常用篩選條件來源的情境豁免名稱/動機必填（manifest scenario.source）---- */
 
-    // KCT 來源、名稱與動機皆留空；測 metadata 時用不需 mapping 前置的清單 H，
-    // D/E/G/J 前置與命中另由 provider matrix 精確驗證。
-    private static object KctScenario(params object[] rules) => new
+    // 2026-10-29 卡片改稱常用篩選條件、拿掉字母（使用者裁定程式內部一起改）：來源代碼改成 common，名稱、輔助函式與案例改用卡片代號，斷言不變。
+    // 第一次失敗：Build 收據 20261029-055859529-4f7e4a2a4d624199811e82719d4b37ad（還引用舊常數，編譯不過）。
+    // 常用篩選條件來源、名稱與動機皆留空；測 metadata 時用不需 mapping 前置的特定金額尾數，
+    // 其他卡片的前置與命中另由 provider matrix 精確驗證。
+    private static object CommonScenario(params object[] rules) => new
     {
-        source = "kct",
+        source = "common",
         name = "",
         rationale = "",
         groups = new object[] { new { join = "AND", rules } }
@@ -1621,11 +1623,11 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_KctSourceWithEmptyNameAndRationale_IsAccepted()
+    public async Task FilterPreview_CommonSourceWithEmptyNameAndRationale_IsAccepted()
     {
-        // source:"kct" 豁免名稱/動機必填——即便兩者皆空也不應擲 invalid_scenario。
+        // source:"common" 豁免名稱/動機必填——即便兩者皆空也不應擲 invalid_scenario。
         // trailingDigits 不需額外 mapping 前置，能把本測試焦點收斂在 source metadata。
-        var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(KctScenario(
+        var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(CommonScenario(
             TailRule("000000"))));
 
         // 第 9 批中低 13：原 count >= 0 永遠成立。Demo 只有 15 張金額 2,000,000 的傳票
@@ -1635,7 +1637,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_NonKctSourceWithEmptyNameAndRationale_PreviewsButCannotSave()
+    public async Task FilterPreview_NonCommonSourceWithEmptyNameAndRationale_PreviewsButCannotSave()
     {
         // 回歸：未標 source（查核員自擬）且名稱/動機皆空時，必填檢查仍須擋下。
         var payload = PreviewPayload(new
@@ -1657,16 +1659,16 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterCommit_KctSourceWithEmptyNameAndRationale_PersistsNonEmptyAuditTrail()
+    public async Task FilterCommit_CommonSourceWithEmptyNameAndRationale_PersistsNonEmptyAuditTrail()
     {
-        // 落地替補：KCT 來源、名稱/動機留空 → commit 後 project.load 回傳的情境
+        // 落地替補：常用篩選條件來源、名稱/動機留空 → commit 後 project.load 回傳的情境
         // 名稱與動機皆為非空（config_filter_scenario.name/.rationale NOT NULL 的留痕不變量）。
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
 
         await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
         {
-            scenarios = new object[] { KctScenario(TailRule("000000")) }
+            scenarios = new object[] { CommonScenario(TailRule("000000")) }
         }));
 
         var loaded = await host.DispatchAsync(
@@ -1675,10 +1677,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var scenarios = loaded.GetProperty("filterScenarios");
         Assert.Equal(1, scenarios.GetArrayLength());
         Assert.False(string.IsNullOrWhiteSpace(scenarios[0].GetProperty("name").GetString()),
-            "KCT 留痕名稱不得為空");
+            "常用篩選條件情境的留痕名稱不得為空");
         Assert.False(string.IsNullOrWhiteSpace(scenarios[0].GetProperty("rationale").GetString()),
-            "KCT 留痕動機不得為空");
-        Assert.Equal("kct", scenarios[0].GetProperty("source").GetString());
+            "常用篩選條件情境的留痕動機不得為空");
+        Assert.Equal("common", scenarios[0].GetProperty("source").GetString());
 
         // project.load summary 經 wire 重存後 source 仍須保留，不能退化成一般情境。
         await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
@@ -1697,18 +1699,18 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var reloaded = await host.DispatchAsync(
             "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
         Assert.Equal(
-            "kct",
+            "common",
             reloaded.GetProperty("filterScenarios")[0].GetProperty("source").GetString());
     }
 
     [Fact]
-    public async Task FilterCommit_PaddedKctSource_ReturnsAndLoadsCanonicalSource()
+    public async Task FilterCommit_PaddedCommonSource_ReturnsAndLoadsCanonicalSource()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
         var scenario = new
         {
-            source = " kct ",
+            source = " common ",
             name = "",
             rationale = "",
             groups = new object[]
@@ -1728,19 +1730,19 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             "filter.commit",
             JsonSerializer.Serialize(new { scenarios = new[] { scenario } }));
         Assert.Equal(
-            FilterScenarioSources.Kct,
+            FilterScenarioSources.Common,
             committed.GetProperty("scenarios")[0].GetProperty("source").GetString());
 
         var loaded = await host.DispatchAsync(
             "project.load",
             JsonSerializer.Serialize(new { projectId = context.ProjectId }));
         Assert.Equal(
-            FilterScenarioSources.Kct,
+            FilterScenarioSources.Common,
             loaded.GetProperty("filterScenarios")[0].GetProperty("source").GetString());
     }
 
     [Fact]
-    public async Task FilterCommit_TwoKctScenariosWithEmptyMetadata_UsesPositionUniqueStableNames()
+    public async Task FilterCommit_TwoCommonScenariosWithEmptyMetadata_UsesPositionUniqueStableNames()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -1749,8 +1751,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         {
             scenarios = new object[]
             {
-                KctScenario(TailRule("999999")),
-                KctScenario(TailRule("000000"))
+                CommonScenario(TailRule("999999")),
+                CommonScenario(TailRule("000000"))
             }
         }));
 
@@ -1759,12 +1761,12 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var scenarios = loaded.GetProperty("filterScenarios");
 
         Assert.Equal(2, scenarios.GetArrayLength());
-        Assert.Equal("KCT 小組方法論檢核條件（第 1 項）", scenarios[0].GetProperty("name").GetString());
-        Assert.Equal("KCT 小組方法論檢核條件（第 2 項）", scenarios[1].GetProperty("name").GetString());
+        Assert.Equal("常用篩選條件（第 1 項）", scenarios[0].GetProperty("name").GetString());
+        Assert.Equal("常用篩選條件（第 2 項）", scenarios[1].GetProperty("name").GetString());
         Assert.All(
             scenarios.EnumerateArray(),
             scenario => Assert.Equal(
-                FilterScenarioSources.KctDefaultRationale,
+                FilterScenarioSources.CommonDefaultRationale,
                 scenario.GetProperty("rationale").GetString()));
     }
 }

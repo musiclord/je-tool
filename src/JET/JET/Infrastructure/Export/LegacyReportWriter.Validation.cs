@@ -351,9 +351,9 @@ public sealed partial class LegacyReportWriter
     {
         var defaultStyle = styles.Map(FormalFieldInfoStyles.Default);
         var boldStyle = styles.Map(FormalFieldInfoStyles.Bold);
-        var versionStyle = editor.StylePatcher.Patch(
-            boldStyle,
-            FormalFieldInfoAppearance.Version);
+        var wrappedStyle = styles.Map(FormalFieldInfoStyles.Wrapped);
+        // 驗證報告其他頁都是 10 點、沒有藍底橫幅，版本列跟著所在報告只用粗體（使用者 2026-10-29 裁定）。
+        var versionStyle = boldStyle;
         var tbHeaderStyle = editor.StylePatcher.Patch(
             boldStyle,
             FormalFieldInfoAppearance.TbHeader);
@@ -379,6 +379,8 @@ public sealed partial class LegacyReportWriter
                     AutoFitWidth(new[] { headers[3] }.Concat(allRows.Select(row => row.DecimalPlaces?.ToString(CultureInfo.InvariantCulture)))),
                     AutoFitWidth(new[] { headers[4] }.Concat(allRows.Select(row => row.ActualFieldName)))
                 };
+                widths[0] = Math.Min(widths[0], FormalFieldInfoAppearance.NameColumnMaxWidth);
+                var headerHeight = FormalWorkbookTypography.RowHeight(FormalFieldInfoAppearance.HeaderFontSize);
                 using var sheet = new ReportSheetWriter(
                     MappingMetadataFormat.WorksheetName,
                     part,
@@ -392,7 +394,7 @@ public sealed partial class LegacyReportWriter
                     ],
                     new ReportSheetOptions(
                         PageMargins: StandardMargins,
-                        DefaultRowHeight: 18D));
+                        DefaultRowHeight: FormalWorkbookTypography.RowHeight(FormalFieldInfoStyles.BaseFontSize)));
                 sheet.AddMerge("A1:E1");
                 var firstRow = new List<Cell>
                 {
@@ -410,12 +412,12 @@ public sealed partial class LegacyReportWriter
                 sheet.AddMerge("A2:E2");
                 sheet.WriteFixedRow(2,
                     [sheet.TextCell(2, 1, "TB檔案配對前後欄位對照表", boldStyle)]);
-                WriteFieldInfoHeader(sheet, 3, headers, tbHeaderStyle);
+                WriteFieldInfoHeader(sheet, 3, headers, tbHeaderStyle, headerHeight);
                 uint rowIndex = 4;
                 foreach (var row in projection.TbRows)
                 {
                     ct.ThrowIfCancellationRequested();
-                    WriteFieldInfoRow(sheet, rowIndex++, row, defaultStyle);
+                    WriteFieldInfoRow(sheet, rowIndex++, row, defaultStyle, wrappedStyle, widths[0]);
                 }
 
                 // 原有報表格式在這裡有兩列實體空白列；必須真的寫出 Row，
@@ -426,11 +428,11 @@ public sealed partial class LegacyReportWriter
                 sheet.AddMerge($"A{glTitleRow}:E{glTitleRow}");
                 sheet.WriteFixedRow(glTitleRow,
                     [sheet.TextCell(glTitleRow, 1, "GL檔案配對前後欄位對照表", boldStyle)]);
-                WriteFieldInfoHeader(sheet, rowIndex++, headers, glHeaderStyle);
+                WriteFieldInfoHeader(sheet, rowIndex++, headers, glHeaderStyle, headerHeight);
                 foreach (var row in projection.GlRows)
                 {
                     ct.ThrowIfCancellationRequested();
-                    WriteFieldInfoRow(sheet, rowIndex++, row, defaultStyle);
+                    WriteFieldInfoRow(sheet, rowIndex++, row, defaultStyle, wrappedStyle, widths[0]);
                 }
                 sheet.Protect();
                 result = sheet.CloseAndSummarize(ct) with
@@ -446,21 +448,26 @@ public sealed partial class LegacyReportWriter
         ReportSheetWriter sheet,
         uint rowIndex,
         IReadOnlyList<string> headers,
-        uint style) =>
+        uint style,
+        double height) =>
         sheet.WriteFixedRow(
             rowIndex,
             headers.Select((header, index) =>
-                sheet.TextCell(rowIndex, (uint)index + 1, header, style)).ToArray());
+                sheet.TextCell(rowIndex, (uint)index + 1, header, style)).ToArray(),
+            height: height);
 
     private static void WriteFieldInfoRow(
         ReportSheetWriter sheet,
         uint rowIndex,
         FieldInfoRow row,
-        uint style)
+        uint style,
+        uint wrappedStyle,
+        double nameColumnWidth)
     {
+        var nameLines = FormalFieldInfoAppearance.NameLineCount(row.DisplayName, nameColumnWidth);
         var cells = new List<Cell>
         {
-            sheet.TextCell(rowIndex, 1, row.DisplayName, style),
+            sheet.TextCell(rowIndex, 1, row.DisplayName, nameLines > 1 ? wrappedStyle : style),
             sheet.TextCell(rowIndex, 2, row.FieldType, style)
         };
         cells.Add(row.TextLength is { } textLength
@@ -470,7 +477,12 @@ public sealed partial class LegacyReportWriter
             ? sheet.NumberCell(rowIndex, 4, decimals, style)
             : sheet.BlankCell(rowIndex, 4, style));
         cells.Add(sheet.TextCell(rowIndex, 5, row.ActualFieldName, style));
-        sheet.WriteDataRow(rowIndex, cells);
+        sheet.WriteDataRow(
+            rowIndex,
+            cells,
+            height: nameLines > 1
+                ? FormalWorkbookTypography.RowHeight(FormalFieldInfoStyles.BaseFontSize, nameLines)
+                : null);
     }
 
     private static double AutoFitWidth(IEnumerable<string?> values)
@@ -795,7 +807,7 @@ public sealed partial class LegacyReportWriter
                             rowIndex,
                             checked((uint)index + 1U),
                             value,
-                            LegacyReportStyles.RawBody)).ToArray());
+                            LegacyReportStyles.ExportDatabaseText)).ToArray());
                 rowIndex++;
                 ReportIntermediateRows(stats, sheetName, rowIndex - 2, progress);
             }
@@ -815,7 +827,7 @@ public sealed partial class LegacyReportWriter
                 sheets,
                 name,
                 columns,
-                new ReportSheetOptions(PageMargins: StandardMargins, DefaultRowHeight: 12.5D),
+                new ReportSheetOptions(PageMargins: StandardMargins, DefaultRowHeight: LegacyReportStyles.ExportDatabaseRowHeight),
                 legacyStyles.Map);
             writer.WriteFixedRow(
                 1,
@@ -824,7 +836,7 @@ public sealed partial class LegacyReportWriter
                         1,
                         checked((uint)index + 1U),
                         header,
-                        LegacyReportStyles.RawHeader)).ToArray());
+                        LegacyReportStyles.ExportDatabaseText)).ToArray());
             return writer;
         }
 
@@ -931,7 +943,7 @@ public sealed partial class LegacyReportWriter
                     sheet.NumberCell(row, 3, ParseAutoFitAmount(values[2]), columnStyles[2]),
                     sheet.NumberCell(row, 4, ParseAutoFitAmount(values[3]), columnStyles[3]),
                     sheet.NumberCell(row, 5, ParseAutoFitAmount(values[4]), columnStyles[4])
-                ], height: 18D);
+                ]);
                 row++;
                 ReportIntermediateRows(stats, sheetName, (long)row - 2, progress);
             }
@@ -979,7 +991,7 @@ public sealed partial class LegacyReportWriter
                 RawSheetAutoFitMode.LegacyFirstTwenty),
             new ReportSheetOptions(
                 PageMargins: StandardMargins,
-                DefaultRowHeight: 18D),
+                DefaultRowHeight: LegacyReportStyles.ExportDatabaseRowHeight),
             legacyStyles.Map);
         uint[] headerStyles =
         [
@@ -991,7 +1003,7 @@ public sealed partial class LegacyReportWriter
         ];
         sheet.WriteFixedRow(1, headers.Select((header, index) =>
                 sheet.TextCell(1, checked((uint)index + 1U), header, headerStyles[index]))
-            .ToArray(), height: 18D);
+            .ToArray());
         return sheet;
     }
 

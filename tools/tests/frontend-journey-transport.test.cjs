@@ -28,7 +28,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { readWwwroot, plain, settle, usageJourneyFixture, savedG } = require('./support/frontend-fixtures.cjs');
+const { readWwwroot, plain, settle, usageJourneyFixture, savedBlankDescription } = require('./support/frontend-fixtures.cjs');
 
 // 已退場的英文原文（ScreenBehaviorReviewFrontendTests.FrontendTransportErrors_… 的 W19 清單，原樣搬來）。
 const RETIRED_ENGLISH = ['JET bridge request failed.', 'JET host bridge is not available.', 'JET host bridge was unloaded'];
@@ -211,7 +211,7 @@ test('primitives: a saved scenario name with quotes stays inside its HTML attrib
   // 假 DOM 用瀏覽器的序列化（文字不把引號轉成 &quot;），屬性值照 HTML 解析；Ui.esc 漏掉雙引號時屬性會被截斷。
   const name = '合成"情境\'<甲>&乙';
   const f = usageJourneyFixture('filter', { serialization: 'browser' });
-  f.store.setSavedScenarios([savedG(name)]);
+  f.store.setSavedScenarios([savedBlankDescription(name)]);
   f.draw('filter');
   // 2026-10-19 使用者要求同功能的元件只留一套，「操作」從 <details> 改成共用選單的按鈕，選單本身也帶同一個名稱，
   // 所以改找共用選單的按鈕，並逐一列出它應有的屬性（第一次失敗：FrontendMapping 收據 20261019-095317346-4d75b1d78d9a4296a887c2e7cfb720df）。

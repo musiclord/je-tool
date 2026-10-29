@@ -50,7 +50,7 @@ const BASE = `http://127.0.0.1:${port}`;
 const OUT = path.resolve(options.out || path.join(repoRoot, 'artifacts', 'browser-host-claude-qa', 'interleaving',
   new Date().toISOString().replace(/[:.]/g, '-')));
 const ONLY = String(options.only || '').split(',').filter(Boolean);
-const KCT = '台灣中小企業-KCT 情境（SQLite）';
+const COMMON = '台灣中小企業-常用篩選情境（SQLite）';
 const CUSTOM = '台灣中小企業-自訂情境（DuckDB）';
 const { chromium } = require(findPlaywrightCore());
 fs.mkdirSync(OUT, { recursive: true });
@@ -71,7 +71,7 @@ async function snapshot(page) {
       busy: s.busy,
       busyLabel: s.busyLabel,
       saved: ((s.filter && s.filter.savedScenarios) || []).map(x => x.name),
-      draftLetters: s.filter && s.filter.draft && (s.filter.draft.groups || []).map(g => (g.rules || []).map(r => r.__kctLetter || r.type)),
+      draftCards: s.filter && s.filter.draft && (s.filter.draft.groups || []).map(g => (g.rules || []).map(r => r.__commonCard || r.type)),
       stale: s.staleState,
       prescreen: prescreen && Object.fromEntries(Object.entries(prescreen)
         .filter(([, v]) => v && typeof v === 'object' && 'count' in v)
@@ -209,11 +209,11 @@ async function run(page, name, body) {
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /^開啟案件 / }).first().waitFor({ timeout: 30000 });
 
-  await run(page, '01-open-kct', async ({ check }) => {
-    await openCase(page, KCT);
+  await run(page, '01-open-common', async ({ check }) => {
+    await openCase(page, COMMON);
     const s = await snapshot(page);
     check('開啟後停在第六步', s.step === 5, s.step);
-    check('已儲存 10 個 KCT 情境（測試主機的案件是剛重建的）', s.saved.length === 10, s.saved.length);
+    check('已儲存 10 個常用篩選情境（測試主機的案件是剛重建的）', s.saved.length === 10, s.saved.length);
     check('沒有任何結果過期', s.stale && !s.stale.filter && !s.stale.prescreen && !s.stale.validation, s.stale);
   });
 
@@ -223,14 +223,14 @@ async function run(page, name, body) {
     await menuAction(page, '[data-action="edit-scenario"][data-index="0"]');
     await page.waitForTimeout(600);
     await editorPane(page).catch(() => {});
-    await click(page, 'button[data-kct-letter="J"]');
+    await click(page, 'button[data-common-card="preparerEqualsApprover"]');
     await page.waitForTimeout(400);
     const before = await snapshot(page);
     await goStep(page, 3);
     await goStep(page, 4);
     const after = await snapshot(page);
-    note('編輯 KCT A 並加入 J：' + JSON.stringify(before.draftLetters) + '；切到第四步再回來：' + JSON.stringify(after.draftLetters));
-    check('切換步驟後未儲存的草稿仍在', JSON.stringify(before.draftLetters) === JSON.stringify(after.draftLetters), after.draftLetters);
+    note('編輯第 1 個情境並加入「編製人員與核准人員相同」：' + JSON.stringify(before.draftCards) + '；切到第四步再回來：' + JSON.stringify(after.draftCards));
+    check('切換步驟後未儲存的草稿仍在', JSON.stringify(before.draftCards) === JSON.stringify(after.draftCards), after.draftCards);
     check('已儲存情境沒有被未儲存的修改改變', after.saved.length === 10, after.saved);
     const cancel = page.locator('[data-action="cancel-edit-scenario"]').filter({ visible: true }).first();
     if (await cancel.isVisible().catch(() => false)) { await cancel.click(); await page.waitForTimeout(400); }
@@ -301,11 +301,11 @@ async function run(page, name, body) {
     await page.click('[data-action="app-back-picker"]').catch(() => {});
     await page.waitForTimeout(300);
     await toPicker(page).catch(() => {});
-    await openCase(page, KCT);
+    await openCase(page, COMMON);
     s = await snapshot(page);
-    check('切回 KCT 案件後顯示 KCT 的準備日', s.lastPeriodStart === '2026-01-20', s.lastPeriodStart);
-    check('KCT 案件沒有帶入 DuckDB 案件的情境', s.saved.length === 0, s.saved);
-    check('KCT 案件驗證筆數正確', s.validateRows === 30479, s.validateRows);
+    check('切回常用篩選案件後顯示它的準備日', s.lastPeriodStart === '2026-01-20', s.lastPeriodStart);
+    check('常用篩選案件沒有帶入 DuckDB 案件的情境', s.saved.length === 0, s.saved);
+    check('常用篩選案件驗證筆數正確', s.validateRows === 30479, s.validateRows);
     await openCase(page, CUSTOM);
     s = await snapshot(page);
     check('DuckDB 案件情境仍是 10 個', s.saved.length === 10, s.saved.length);
@@ -330,7 +330,7 @@ async function run(page, name, body) {
     const firstBefore = await savedJson(0), thirdBefore = await savedJson(2);
     await openSaved(0);
     await editorPane(page).catch(() => {});
-    await click(page, 'button[data-kct-letter="J"]');
+    await click(page, 'button[data-common-card="preparerEqualsApprover"]');
     await page.waitForTimeout(300);
     const edited = await snapshot(page);
     const names = edited.saved;
@@ -347,13 +347,13 @@ async function run(page, name, body) {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     let s = await snapshot(page);
-    check('按 Esc 等於留在這裡，修改還在', !(await asking()) && JSON.stringify(s.draftLetters) === JSON.stringify(edited.draftLetters), s.draftLetters);
+    check('按 Esc 等於留在這裡，修改還在', !(await asking()) && JSON.stringify(s.draftCards) === JSON.stringify(edited.draftCards), s.draftCards);
 
     await openSaved(1);
     await modal.locator('.modal__actions [data-pending-choice="stay"]').click();
     await page.waitForTimeout(300);
     s = await snapshot(page);
-    check('選「留在這裡」後修改還在', !(await asking()) && JSON.stringify(s.draftLetters) === JSON.stringify(edited.draftLetters), s.draftLetters);
+    check('選「留在這裡」後修改還在', !(await asking()) && JSON.stringify(s.draftCards) === JSON.stringify(edited.draftCards), s.draftCards);
 
     await openSaved(1);
     await modal.locator('.modal__actions [data-pending-choice="continue"]').click();
@@ -368,7 +368,7 @@ async function run(page, name, body) {
     check('換成第 3 個情境', draft.name === names[2] && draft.editing === 2, draft);
 
     await editorPane(page).catch(() => {});
-    await click(page, 'button[data-kct-letter="J"]');
+    await click(page, 'button[data-common-card="preparerEqualsApprover"]');
     await page.waitForTimeout(300);
     const commitsBefore = phaseActions().filter(a => a.action === 'filter.scenario.save').length;
     await openSaved(3);
@@ -380,7 +380,7 @@ async function run(page, name, body) {
     check('選「儲存並開啟」先送出一次儲存', commits === 1, commits);
     check('存好後換成第 4 個情境', draft.name === names[3] && draft.editing === 3, draft);
     const thirdAfter = await savedJson(2);
-    check('第 3 個情境存進了 KCT J', thirdAfter !== thirdBefore && /preparerEqualsApprover/.test(thirdAfter), thirdAfter && thirdAfter.slice(0, 160));
+    check('第 3 個情境存進了「編製人員與核准人員相同」', thirdAfter !== thirdBefore && /preparerEqualsApprover/.test(thirdAfter), thirdAfter && thirdAfter.slice(0, 160));
     s = await snapshot(page);
     check('情境仍是 10 個', s.saved.length === 10, s.saved.length);
     note(`詢問內容：${body}`);
@@ -392,7 +392,7 @@ async function run(page, name, body) {
   await run(page, '08-scenario-limit-and-double-save', async ({ check, note }) => {
     await goStep(page, 4);
     await editorPane(page).catch(() => {});
-    await click(page, 'button[data-kct-letter="J"]');
+    await click(page, 'button[data-common-card="preparerEqualsApprover"]');
     await page.waitForTimeout(400);
     await click(page, '[data-action="save-scenario"]');
     await page.waitForTimeout(600);
@@ -410,7 +410,7 @@ async function run(page, name, body) {
     s = await snapshot(page);
     check('移除第 10 個後剩 9 個', s.saved.length === 9, s.saved.length);
     await editorPane(page).catch(() => {});
-    if (!JSON.stringify(s.draftLetters || []).includes('J')) await click(page, 'button[data-kct-letter="J"]');
+    if (!JSON.stringify(s.draftCards || []).includes('preparerEqualsApprover')) await click(page, 'button[data-common-card="preparerEqualsApprover"]');
     await page.waitForTimeout(400);
     const save = page.locator('[data-action="save-scenario"]').filter({ visible: true }).first();
     const before = phaseActions().filter(a => a.action === 'filter.scenario.save').length;
@@ -424,7 +424,7 @@ async function run(page, name, body) {
     check('儲存後共 10 個情境，名稱沒有重複', s.saved.length === 10 && new Set(s.saved).size === 10, s.saved);
   });
 
-  await run(page, '09-taxonomy-change-then-new-kct', async ({ check }) => {
+  await run(page, '09-taxonomy-change-then-new-common', async ({ check }) => {
     await goStep(page, 3);
     const toggle = page.locator('[data-action="toggle-taxonomy"]').filter({ visible: true }).first();
     if (await toggle.isVisible().catch(() => false)) await toggle.click();
@@ -445,16 +445,16 @@ async function run(page, name, body) {
     check('分類設定儲存後預篩選標成需要重算', s.stale && s.stale.prescreen === true, s.stale);
     await goStep(page, 4);
     await editorPane(page).catch(() => {});
-    await click(page, 'button[data-kct-letter="J"]');
+    await click(page, 'button[data-common-card="preparerEqualsApprover"]');
     await page.waitForTimeout(300);
     await page.waitForTimeout(400);
     await click(page, '[data-action="save-scenario"]');
     await page.waitForTimeout(500);
     await waitIdle(page);
     s = await snapshot(page);
-    check('KCT J 情境儲存成功', s.saved.length === 1, s.saved);
+    check('「編製人員與核准人員相同」情境儲存成功', s.saved.length === 1, s.saved);
     const hits = await countHits(page, 1).catch(error => 'error: ' + error);
-    check('KCT J 命中 189 筆（和建案比對的答案相同）', hits === 189, hits);
+    check('「編製人員與核准人員相同」命中 189 筆（和建案比對的答案相同）', hits === 189, hits);
   });
 
   await run(page, '10-reload-during-export', async ({ check, note }) => {
@@ -513,7 +513,7 @@ async function run(page, name, body) {
   });
 
   await run(page, '12-clear-authorized-list', async ({ check }) => {
-    await openCase(page, KCT);
+    await openCase(page, COMMON);
     await goStep(page, 1);
     await importRowAction(page, '授權編製人員清單', '[data-action="clear-authorized-preparer"]');
     await page.waitForTimeout(500);

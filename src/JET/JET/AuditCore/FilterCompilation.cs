@@ -254,26 +254,26 @@ internal sealed partial class GlFilterWhereBuilder(
                     rule.MaxEntries!.Value, null, context, schemaPrefix);
 
             case FilterRuleType.RevenueDebitNearQuarterEnd:
-                // KCT 清單 A：季底視窗由 Domain 純函式自查核期間 + windowDays 算出（識別字不來自使用者）。
+                // 季末前借記收入：季底視窗由 Domain 純函式自查核期間 + windowDays 算出（識別字不來自使用者）。
                 return predicates.RevenueDebitNearQuarterEnd(
                     parameters,
                     QuarterEndWindows.Compute(context.PeriodStart, context.PeriodEnd, rule.WindowDays!.Value),
                     schemaPrefix);
 
             case FilterRuleType.RevenueWithoutNormalCounterpart:
-                // KCT 清單 C：unexpected_account_pair 的否定面（不含 Cash 為一般對方科目）。
+                // 收入無一般對方科目：unexpected_account_pair 的否定面（不含 Cash 為一般對方科目）。
                 return predicates.RevenueWithoutNormalCounterpart(parameters, context, schemaPrefix);
 
             case FilterRuleType.ManualRevenueEntry:
-                // KCT 清單 D：科目 = Revenue ∧ is_manual = 1。
+                // 收入之人工分錄：科目 = Revenue ∧ is_manual = 1。
                 return predicates.ManualRevenueEntry(parameters, schemaPrefix);
 
             case FilterRuleType.TrailingDigits:
-                // KCT 清單 H：尾數樣態重用 Keywords；顯示金額主單位整數尾數比對。
+                // 特定金額尾數：尾數樣態重用 Keywords；顯示金額主單位整數尾數比對。
                 return predicates.TrailingDigits(parameters, rule.Keywords, context.MoneyScale);
 
             case FilterRuleType.PreparerEqualsApprover:
-                // KCT 清單 J：created_by = approved_by（皆非空）。
+                // 編製與核准同一人：created_by = approved_by（皆非空）。
                 return predicates.PreparerEqualsApprover();
 
             case FilterRuleType.TypedField:

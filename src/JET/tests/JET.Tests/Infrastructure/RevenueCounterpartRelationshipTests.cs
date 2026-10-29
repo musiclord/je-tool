@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// R3（unexpected_account_pair，否定面）與 KCT 條件 C（revenue_without_normal_counterpart）的
+/// R3（unexpected_account_pair，否定面）與「收入無一般對方科目」（revenue_without_normal_counterpart）的
 /// 重疊關係不變式（2026-07-08 spec §1.3）。兩者都挑「貸 Revenue 且同傳票無正常對方借方」，
 /// 差別只在對方集合：R3 含 Cash、C 不含。故 R3 條件較嚴 → 命中集 ⊆ C。
 ///
@@ -114,13 +114,13 @@ public sealed class RevenueCounterpartRelationshipTests : IDisposable
     }
 
     [Fact]
-    public async Task ZeroAmountNormalCounterpart_OnlyBreaksR3_NotKctCounterpartRule()
+    public async Task ZeroAmountNormalCounterpart_OnlyBreaksR3_NotRevenueCounterpartRule()
     {
         var r3 = await HitDocumentsAsync(FilterRuleType.Prescreen, PrescreenRuleKeys.UnexpectedAccountPair);
         var c = await HitDocumentsAsync(FilterRuleType.RevenueWithoutNormalCounterpart, null);
 
         // 零元邊界只屬於 unexpected_account_pair：0 元應收借方不足以消解「收入貸記缺正常對方」，
-        // 但 KCT 條件 C 維持 `>= 0` 的既有借方判定，因此同一張傳票不命中 C。
+        // 但「收入無一般對方科目」維持 `>= 0` 的既有借方判定，因此同一張傳票不命中它。
         Assert.Contains("ZERO", r3);
         Assert.DoesNotContain("ZERO", c);
     }

@@ -5,10 +5,12 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 2026-10-02 使用者裁定移除「情境層級」：當時的 KCT I 由獨立組改成組內條件括號。
-/// 符合原因照一般條件寫「第 N 組條件 M」。舊版把 I 存成獨立條件組並在 editorOrigins 帶 presetGroup；
+/// 2026-10-02 使用者裁定移除「情境層級」：當時的非營業日卡片（字母 I）由獨立組改成組內條件括號。
+/// 符合原因照一般條件寫「第 N 組條件 M」。舊版把非營業日卡片存成獨立條件組並在 editorOrigins 帶 presetGroup；
 /// 使用者裁定不轉換舊情境，這裡確認這兩種歷史形狀仍能儲存、重開、預覽與重新儲存，命中相同。
 /// 2026-10-04 第 7 批 R5 的新版另排除補班日；本測試不把歷史 AST 換成新版。
+/// 兩種形狀都是 2026-10-29 以前存下的資料，source 與第 1 版編輯來源照當時原樣；現在讀回時舊的來源代碼不認得，
+/// 當成查核員手寫，名稱與動機本來就有，照樣能存回。
 /// </summary>
 public sealed class FilterNonBusinessDayWorkflowTests
 {

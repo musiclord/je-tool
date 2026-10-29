@@ -163,7 +163,7 @@ test('usage journey options queue timers, record intervals and redraw only when 
   const drawn = f.drawCount();
   f.store.addMessage('合成訊息', 'info');
   assert.equal(f.drawCount(), drawn, 'a message alone does not change contentVersion and does not redraw');
-  f.store.setSavedScenarios([support.savedG('合成情境')]);
+  f.store.setSavedScenarios([support.savedBlankDescription('合成情境')]);
   assert.equal(f.drawCount(), drawn + 1, 'a data change redraws the step once');
   const id = f.window.setInterval(() => {}, 45000);
   f.window.clearInterval(id);

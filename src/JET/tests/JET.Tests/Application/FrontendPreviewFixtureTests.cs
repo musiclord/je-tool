@@ -59,11 +59,13 @@ public sealed class FrontendPreviewFixtureTests
                 mappingProfiles.Add(new JsonObject { ["payload"] = JsonNode.Parse(payload.GetRawText()), ["response"] = JsonNode.Parse(comparison.GetRawText()) });
             }
         }
+        // 2026-10-29 編輯來源改成第 2 版：前端預覽用的這份情境改成現行前端送出的形狀。這次改的是測試資料，不是因為測試失敗；
+        // 第 1 版的資料仍能讀回，由 FilterNonBusinessDayWorkflowTests 核對。
         var draft = JsonNode.Parse("""
             {"name":"日期與金額","rationale":"合成設計情境","groups":[{"join":"OR","matchScope":"row","rules":[
               {"type":"fieldValue","field":"postDate","operator":"between","from":"2025-12-25","to":"2025-12-31","join":"AND","includeBlank":false},
               {"type":"fieldValue","field":"amount","operator":"between","from":"200","to":"800","amountBasis":"absolute","join":"AND","includeBlank":false}
-            ]}],"editorOrigins":{"version":1,"legacyKctSource":false,"groups":[{"presetGroup":false,"letters":[null,null]}]}}
+            ]}],"editorOrigins":{"version":2,"groups":[{"cards":[null,null]}]}}
             """)!;
         var fixtures = new JsonArray();
         foreach (var empty in new[] { false, true })

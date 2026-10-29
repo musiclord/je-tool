@@ -10,9 +10,9 @@ public sealed class FilterSinglePurposeListLimitTests
     [Theory]
     [InlineData("createBy", "in", "傳票建立人員")]
     [InlineData("description", "isBlank", "傳票摘要")]
-    public void KctFieldPresets_KeepTheirExistingMappedFieldRequirement(string field, string op, string label)
+    public void CommonCardFieldPresets_KeepTheirExistingMappedFieldRequirement(string field, string op, string label)
     {
-        var json = JsonSerializer.SerializeToElement(new { source = "kct", name = "", rationale = "", groups = new[] {
+        var json = JsonSerializer.SerializeToElement(new { source = "common", name = "", rationale = "", groups = new[] {
             new { rules = new[] { new { type = "fieldValue", field, @operator = op, values = new[] { "Synthetic" } } } } } });
         var node = System.Text.Json.Nodes.JsonNode.Parse(json.GetRawText())!;
         if (op == "isBlank") node["groups"]![0]!["rules"]![0]!.AsObject().Remove("values");

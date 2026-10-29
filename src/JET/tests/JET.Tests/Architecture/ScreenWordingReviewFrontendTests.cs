@@ -26,16 +26,18 @@ public sealed class ScreenWordingReviewFrontendTests
     }
 
     [Fact]
-    public void KctSourceTab_UsesThePlainKctTitle()
+    public void CommonSourceTab_UsesThePlainCommonTitle()
     {
-        // 2026-10-03 主線在瀏覽器主機重測 S9 時發現：第五步工作區把 KCT 區塊標頭整個藏起來
-        // （app.css 的 .filter-workspace .filter-entry .condition-picker__head），審計員實際看到的是左側分頁鈕。
-        // 使用者 2026-10-08 裁定分頁鈕只寫「KCT 條件」：原話「請改名 `KCT條件A到J` 改為 `KCT 條件` 就好」。
+        // 2026-10-03 主線在瀏覽器主機重測 S9 時發現：第五步工作區把卡片區塊的標頭整個藏起來，審計員實際看到的是左側分頁鈕。
+        // 使用者 2026-10-08 裁定分頁鈕只寫小組名稱加「條件」；2026-10-29 改裁定：這個分頁和「從範例開始」合併成「常用篩選條件」，
+        // 畫面與程式都不再出現小組名稱，因為 JET 給所有審計員使用（原話見 docs/history/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md）。
+        // 原本斷言舊的分頁鍵與名稱，第一次失敗：Focused 收據 20261029-062123410-6be7ae8a47f140af98c112c94ca35612。
         var filter = ProductSources.FilterStepFrontend();
 
-        Assert.Contains("sourceButton('kct', 'KCT 條件')", filter, StringComparison.Ordinal);
-        Assert.DoesNotContain("KCT 條件 A 到 J", filter, StringComparison.Ordinal);
-        Assert.DoesNotContain("'KCT條件'", filter, StringComparison.Ordinal);
+        Assert.Contains("sourceButton('common', '常用篩選條件')", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("從範例開始", filter, StringComparison.Ordinal);
+        Assert.DoesNotContain("KCT", filter, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("KCT", ReadFrontend("js", "ui-core.js"), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

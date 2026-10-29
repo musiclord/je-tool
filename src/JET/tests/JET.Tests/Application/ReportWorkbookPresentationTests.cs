@@ -207,12 +207,23 @@ public sealed class ReportWorkbookPresentationTests(ReportArtifactExportFixture 
         var validationStyles = VisibleFieldInfoStyles(validation);
         var workpaperStyles = VisibleFieldInfoStyles(workpaper);
 
+        // 2026-08 使用者確認兩頁外觀一致；2026-10-29 改裁定為跟著所在報告：驗證報告 10 點、版本列不加藍底，
+        // 底稿 11 點、保留藍底紅字的版本列。兩頁仍是同樣的儲存格、黃色表頭、框線與對齊，所以除了版本列，
+        // 只把字級拿掉後比對；字級與版本列另外各自檢查。第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
         Assert.Equal(workpaperStyles.Keys, validationStyles.Keys);
-        foreach (var reference in workpaperStyles.Keys)
+        foreach (var reference in workpaperStyles.Keys.Where(reference => reference != "A1"))
         {
-            Assert.Equal(workpaperStyles[reference], validationStyles[reference]);
+            Assert.Equal(WithoutFontSize(workpaperStyles[reference]), WithoutFontSize(validationStyles[reference]));
         }
+        Assert.Contains("<x:sz val=\"10\" />", validationStyles["A4"], StringComparison.Ordinal);
+        Assert.Contains("<x:sz val=\"11\" />", workpaperStyles["A4"], StringComparison.Ordinal);
+        Assert.Contains("<x:sz val=\"12\" />", validationStyles["A3"], StringComparison.Ordinal);
+        Assert.DoesNotContain("solid", validationStyles["A1"].Split('\u001f')[1], StringComparison.Ordinal);
+        Assert.Contains("solid", workpaperStyles["A1"].Split('\u001f')[1], StringComparison.Ordinal);
     }
+
+    private static string WithoutFontSize(string signature) =>
+        System.Text.RegularExpressions.Regex.Replace(signature, "<x:sz val=\"[^\"]*\" />", string.Empty);
 
     private static IReadOnlyDictionary<string, string> VisibleFieldInfoStyles(
         SpreadsheetDocument document) =>

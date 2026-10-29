@@ -170,11 +170,16 @@ public sealed class WorkpaperWriterProgressAndCancellationTests
         var step3 = workbook.Worksheet(Step3Sheet);
         Assert.Equal(longScenarioName, step3.Cell("C19").GetString());
         Assert.Equal(longScenarioRationale, step3.Cell("D19").GetString());
-        AssertFullDataWidth(step3, 3, longScenarioName);
-        AssertFullDataWidth(step3, 4, longScenarioRationale);
+        // step3 的條件與原因欄原本依最長的一段撐開。使用者 2026-10-29 要求工作表外觀對齊舊流程後，
+        // 兩欄分別以 60 與 50 為上限並換行：56 個全形字約 112 字寬，扣掉留白後每行約 50 字寬，換成 3 行，
+        // 11 點字每行 16.5 點，所以第 19 列是 49.5 點。數量欄與 step4 的長文字仍依全部資料決定欄寬。
+        // 第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
+        Assert.InRange(step3.Column(3).Width, 60D - 1.5D, 60D + 1.5D);
+        Assert.InRange(step3.Column(4).Width, 50D - 1.5D, 50D + 1.5D);
+        Assert.True(step3.Cell("C19").Style.Alignment.WrapText);
+        Assert.True(step3.Cell("D19").Style.Alignment.WrapText);
+        Assert.Equal(49.5D, step3.Row(19).Height);
         AssertSafeCountColumn(step3, 5);
-        AssertSingleLine(step3.Cell("C19"));
-        AssertSingleLine(step3.Cell("D19"));
         AssertSingleLine(step3.Cell("E19"));
 
         var step4 = workbook.Worksheet(Step4Sheet);

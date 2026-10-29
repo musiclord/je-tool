@@ -490,11 +490,15 @@ public sealed partial class WorkpaperWriter
                     || row is >= 53 and <= 111 && column >= 1,
                 [(1U, 1U), (2U, 1U), (51U, 12U)],
                 WorkpaperSourceProtection),
+            // 條件或原因換行的列由 EmitStep3 依行數加高；其他列沿用範本的列高。
             WorkpaperSheetCatalog.Step3 => RowsAndCells(
                 row => row >= 19,
                 (row, column) => row >= 19 && column is >= 2 and <= 5,
                 [(1U, 1U), (2U, 1U), (7U, 2U), (9U, 2U)],
-                sourcePostElements: null),
+                sourcePostElements: null) with
+            {
+                UseSourceRowHeight = static row => row >= Step3FirstDataRow
+            },
             WorkpaperSheetCatalog.Step4 => RowsAndCells(
                 row => row >= 13,
                 (row, column) => row >= 13

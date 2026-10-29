@@ -6,8 +6,8 @@ using static JET.Tests.Application.TaiwanSmeScenarioSupport;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 科目分類條件：KCT B（借記固定資產、貸記營業費用，不含在建工程）與收入的非預期對方科目
-/// （KCT C、預篩選「未預期借貸組合」、KCT A）。預期值依 docs/jet-guide.md 第 6 節與
+/// 科目分類條件：借記固定資產且貸記費用的卡片（貸記營業費用，不含在建工程）與收入的非預期對方科目
+/// （收入無一般對方科目、預篩選「未預期借貸組合」、季末前借記收入）。預期值依 docs/jet-guide.md 第 6 節與
 /// docs/action-contract-manifest.md 的條件目錄手算。
 /// </summary>
 public sealed class TaiwanSmeAccountCategoryTests
@@ -15,7 +15,7 @@ public sealed class TaiwanSmeAccountCategoryTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task KctB_PpeDebitWithExpenseCredit_UsesSubtreeAndExcludesConstructionInProgress(string provider)
+    public async Task FixedAssetDebitExpenseCredit_UsesSubtreeAndExcludesConstructionInProgress(string provider)
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, b => b
@@ -66,13 +66,13 @@ public sealed class TaiwanSmeAccountCategoryTests
 
         JsonObject Pair(string name, string selection) => OneRule(name,
             $$"""{"type":"specialAccountCategoryPair","pairMode":"drAndCr","categorySelection":"{{selection}}","debitCategoryIds":["{{ppe}}"],"creditCategoryIds":["{{opex}}"]}""");
-        var subtree = Pair("KCT B 包含下層", "subtree");
-        var node = Pair("KCT B 僅分類本身", "node");
-        var role = Pair("KCT B 相同分類用途", "role");
+        var subtree = Pair("固定資產與費用 包含下層", "subtree");
+        var node = Pair("固定資產與費用 僅分類本身", "node");
+        var role = Pair("固定資產與費用 相同分類用途", "role");
         var noExpenseCredit = OneRule("貸方整張沒有營業費用",
             // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Preserve the fixed whole-voucher answers with explicit absence.
             $$"""{"type":"voucher","quantifier":"none","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categorySelection":"subtree","categoryIds":["{{opex}}"]}]}""");
-        // KCT B 預設包含下層：B1、B2、B6 三張。
+        // 這張卡預設包含下層：B1、B2、B6 三張。
         Assert.Equal((6L, 3L), await PreviewAsync(host, subtree));
         var hits = await CommitAndReadHitsAsync(host, subtree, node, role, noExpenseCredit);
         // 包含下層：固定資產 = {1521, 1551}，營業費用 = {6112, 6125}。
@@ -139,13 +139,13 @@ public sealed class TaiwanSmeAccountCategoryTests
 
         var hits = await CommitAndReadHitsAsync(host,
             OneRule("未預期借貸組合", """{"type":"prescreen","prescreenKey":"unexpectedAccountPair"}"""),
-            OneRule("KCT C 收入無一般對方科目", """{"type":"revenueWithoutNormalCounterpart"}"""),
-            OneRule("KCT A 季底前 5 天借記收入", """{"type":"revenueDebitNearQuarterEnd","windowDays":5}"""));
+            OneRule("收入無一般對方科目", """{"type":"revenueWithoutNormalCounterpart"}"""),
+            OneRule("季底前 5 天借記收入", """{"type":"revenueDebitNearQuarterEnd","windowDays":5}"""));
         // S1 有應收、S2 有現金、S3 有預收，含銷項稅額的正常銷貨都不命中；空白號碼的 X2 不屬於任何傳票，也不命中。
         Assert.Equal(Keys("S4:2;S5:2"), hits[0]);
-        // KCT C 不把現金算一般對方科目，所以現銷 S2 也命中。
+        // 「收入無一般對方科目」不把現金算成一般對方科目，所以現銷 S2 也命中。
         Assert.Equal(Keys("S2:2;S4:2;S5:2"), hits[1]);
-        // KCT A：3/31 前 5 天是 3/27 到 3/31，S6 的 3/28 借記收入命中；S8 在 5/10，不在任何季底視窗。
+        // 季末前借記收入：3/31 前 5 天是 3/27 到 3/31，S6 的 3/28 借記收入命中；S8 在 5/10，不在任何季底視窗。
         Assert.Equal(Keys("S6:1"), hits[2]);
     }
 

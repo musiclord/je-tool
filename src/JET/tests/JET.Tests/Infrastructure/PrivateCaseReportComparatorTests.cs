@@ -193,13 +193,21 @@ public sealed class PrivateCaseReportComparatorTests
     }
 
     [Fact]
-    public void DifferencePolicy_CompletenessReadableRows_OnlyAcceptsTheApprovedHeightAndSheet()
+    public void DifferencePolicy_FontScaledRowHeights_OnlyAcceptsTheApprovedHeightPerSheet()
     {
-        var group = new SpreadsheetAppearanceDifferenceGroup("V_Report 5", "row", "height", "12.5", "18", 1, "V_Report 5!row:1");
-        Assert.Equal(PrivateCaseReportDifferencePolicy.ReadableCompletenessRows,
+        // 2026-10-29 使用者裁定 10 點明細頁列高 15 點、12 點頁 18 點；原本只放行 V_Report 5 的 18 點。
+        // 第一次失敗：Public 收據 20261029-033535234-ec60c658035b41ddba9416ad92c94a33。
+        var group = new SpreadsheetAppearanceDifferenceGroup("V_Report 5", "row", "height", "12.5", "15", 1, "V_Report 5!row:1");
+        Assert.Equal(PrivateCaseReportDifferencePolicy.FontScaledRowHeights,
             PrivateCaseReportDifferencePolicy.ResolveAppearance("validation-report", group, [group]));
+        Assert.Equal(PrivateCaseReportDifferencePolicy.FontScaledRowHeights,
+            PrivateCaseReportDifferencePolicy.ResolveAppearance("prescreen-report", group with { SheetName = "R3" }, [group]));
+        Assert.Null(PrivateCaseReportDifferencePolicy.ResolveAppearance("validation-report", group with { ActualValue = "18" }, [group]));
         Assert.Null(PrivateCaseReportDifferencePolicy.ResolveAppearance("validation-report", group with { ActualValue = "24" }, [group]));
-        Assert.Null(PrivateCaseReportDifferencePolicy.ResolveAppearance("validation-report", group with { SheetName = "V_Report 4" }, [group]));
+        var sample = group with { SheetName = "可靠性樣本_所有欄位", ScopeKind = "sheetFormat", Property = "defaultRowHeight" };
+        Assert.Equal(PrivateCaseReportDifferencePolicy.FontScaledRowHeights,
+            PrivateCaseReportDifferencePolicy.ResolveAppearance("inf-report", sample with { ActualValue = "18" }, [sample]));
+        Assert.Null(PrivateCaseReportDifferencePolicy.ResolveAppearance("inf-report", sample, [sample]));
     }
 
     [Theory]

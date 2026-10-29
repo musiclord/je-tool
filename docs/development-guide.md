@@ -90,7 +90,7 @@ dotnet run --project tools/harness/browser-host/BrowserHost.csproj -c Debug --no
 需要中斷點時，用 VS Code 的「JET (attach)」附加到 `Jet.BrowserHost` 程序。
 
 Claude Desktop 的 Code 另用 `JET browser host (Claude)`，網址是 `http://127.0.0.1:4245`。它建立台灣中小企業的合成案件：
-一整年的製造業總帳（一萬一千多張傳票）與 200 個科目的試算表，SQLite 案件存 KCT 十個情境，DuckDB 案件存十個自訂情境，
+一整年的製造業總帳（一萬一千多張傳票）與 200 個科目的試算表，SQLite 案件存常用篩選條件的十個情境，DuckDB 案件存十個自訂情境，
 都走完六個步驟；另一個案件只匯入檔案，停在欄位配對。`JET browser host (Claude QA)` 在 4246，給自動交錯操作檢查使用。
 兩台的案件與建置輸出各自放在 `artifacts/browser-host-claude/` 與 `artifacts/browser-host-claude-qa/`，
 環境變數與重建方式見 [`frontend-design-mode.md`](../.agents/harness/frontend-design-mode.md#台灣中小企業合成案件與交錯操作檢查)。

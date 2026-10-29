@@ -12,7 +12,7 @@
 | 全大寫小標、假順序編號、文字後裝飾箭頭 | 使用直接的中文標題；只有真正的步驟才保留序號 | Anthropic、frontend-design、PR #1806 |
 | 膠囊按鈕、單側粗彩邊 | 按鈕沿用控制項圓角；膠囊只用狀態，導覽短藍條保留 | Anthropic、impeccable、gstack |
 | 漸層文字、彩色毛玻璃卡、裝飾光暈 | Liquid Glass 只用於浮動功能層，保留細邊光與不透明退路 | Apple、使用者裁定；Anthropic、taste-skill 提供反例 |
-| 每張卡片滑入、移上去就浮起、數字跳動 | 只回應操作；可取用的 KCT 卡片保留既有輕微抬升暗示 | Apple、interface-design、impeccable |
+| 每張卡片滑入、移上去就浮起、數字跳動 | 只回應操作；可取用的常用篩選條件卡片保留既有輕微抬升暗示 | Apple、interface-design、impeccable |
 | 大數字卡片當主角、假統計或假頭像填空 | 真實摘要沿用相連統計列，資料仍是畫面主體 | frontend-design、gstack |
 | 金融就套海軍藍加金、整套 Tailwind slate | 暖紙與石板藍是已選方向，不重新按產品類型套色 | impeccable、taste-skill |
 | 改禁用清單後又換成冷灰藍、鈷藍與琥珀的組合 | 先看使用者已接受的實際畫面，避免只換一組常見配色 | PR #1806 樣本觀察，未經統計 |

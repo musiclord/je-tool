@@ -70,7 +70,7 @@ public sealed class Batch7SqlSemanticsTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task UnexpectedPairAndKctC_ExcludeBlankRevenue_WithoutChangingCashOrZeroDebitRules(string provider)
+    public async Task UnexpectedPairAndRevenueWithoutCounterpart_ExcludeBlankRevenue_WithoutChangingCashOrZeroDebitRules(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, PairSeed);
         Assert.Equal(new[] { "BAD|2", "ZERO-R|2" }, await HitsAsync(fixture,
@@ -84,7 +84,7 @@ public sealed class Batch7SqlSemanticsTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task NewKctINonBusinessDay_ExcludesMakeup_WhileWeekendPrescreenKeepsIt(string provider)
+    public async Task NewNonBusinessDayCard_ExcludesMakeup_WhileWeekendPrescreenKeepsIt(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, CalendarSeed);
         Assert.Equal(new[] { "HOLIDAY|1", "SAT|1" }, await HitsAsync(fixture,

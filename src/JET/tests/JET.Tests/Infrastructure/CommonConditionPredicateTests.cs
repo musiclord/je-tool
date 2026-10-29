@@ -7,12 +7,13 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// KCT 小組進階篩選述詞（清單 A、C、D、H、J）的正確性測試，另有 B 的自訂分類子樹與非季末期末日兩個案例。
+/// 常用篩選條件的專用述詞（季末前借記收入、收入無一般對方科目、收入之人工分錄、特定金額尾數、編製與核准同一人）的正確性測試，
+/// 另有固定資產與費用組合的自訂分類子樹與非季末期末日兩個案例。
 /// 固定答案是手算的 9 張合成傳票（每張借貸兩列）；斷言比對命中的傳票號碼，不只比筆數。
 /// 每個案例都在 SQLite 與 DuckDB 各跑一次，SQL Server 不在這裡跑。原本另有 12 個只在 SQLite 跑、內容相同的案例，
 /// 使用者 2026-10-15 裁定刪除（docs/history/specs/2026-10-15-motion-and-verification-plan.md 的 S9）。
 /// </summary>
-public sealed class KctFilterPredicateTests
+public sealed class CommonConditionPredicateTests
 {
     // MoneyScale=100、查核期間 2025 全年、期末財報準備日 2025-12-31。
     // 科目分類：4101 Revenue、1131 Receivables、2251 Receipt in advance、1101 Cash、5101 Others。
@@ -98,7 +99,7 @@ public sealed class KctFilterPredicateTests
             """;
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql + taxonomy);
         using var json = JsonDocument.Parse("""
-            {"source":"kct","name":"KCT B","rationale":"合成分類固定答案","groups":[{"rules":[{
+            {"source":"common","name":"借記固定資產且貸記費用","rationale":"合成分類固定答案","groups":[{"rules":[{
             "type":"specialAccountCategoryPair","pairMode":"drAndCr","categorySelection":"subtree",
             "debitCategoryIds":["custom.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
             "creditCategoryIds":["custom.cccccccccccccccccccccccccccccccc"]}]}]}
@@ -124,7 +125,7 @@ public sealed class KctFilterPredicateTests
     private static FilterRuleContext Context => new(MoneyScale, "2025-12-31", "2025-01-01", "2025-12-31");
 
     private static FilterScenarioSpec SingleRule(FilterRuleSpec rule) =>
-        new("KCT 述詞", "固定 fixture 的命中身分斷言", [new FilterGroupSpec(FilterJoin.And, [rule])]);
+        new("卡片述詞", "固定 fixture 的命中身分斷言", [new FilterGroupSpec(FilterJoin.And, [rule])]);
 
     private static FilterRuleSpec Rule(
         FilterRuleType type, IReadOnlyList<string>? keywords = null, int? windowDays = null) =>
@@ -134,7 +135,7 @@ public sealed class KctFilterPredicateTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task AutonomousAudit_KctBoundariesExecuteOnBothLocalDatabases(string provider)
+    public async Task AutonomousAudit_CommonCardBoundariesExecuteOnBothLocalDatabases(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);
         (FilterRuleSpec Rule, string[] Documents)[] cases =

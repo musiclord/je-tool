@@ -3,7 +3,7 @@
   前端只組裝 AST 與渲染；條件由後端轉參數化 SQL 評估，前端不計算規則。
 
   條件入口與本次篩選並排；命名在保存時出現。已保存情境和矩陣另有檢視入口。
-  純檢視狀態留在第五步的檔案裡，切換不改 AST；KCT、自訂條件與報告的業務判定由後端負責。
+  純檢視狀態留在第五步的檔案裡，切換不改 AST；常用篩選條件、自訂條件與報告的業務判定由後端負責。
 
   第五步的程式分成五個檔案，index.html 依序載入：
   filter-step-view.js（檢視狀態與資料世代）、filter-step-sources.js（條件來源的挑選）、filter-step-rules.js（條件列與摘要文字）、
@@ -28,12 +28,12 @@
   var ownRequirementNote = forward('ownRequirementNote');
   var rdeFieldValueType = forward('rdeFieldValueType');
   var prescreenRequirementNote = forward('prescreenRequirementNote');
-  var hasKctMarker = forward('hasKctMarker');
+  var hasCommonMarker = forward('hasCommonMarker');
   var scenarioSource = forward('scenarioSource');
   var requiresScenarioMetadata = forward('requiresScenarioMetadata');
   var fillSmoothly = forward('fillSmoothly');
   var smoothScroll = forward('smoothScroll');
-  var kctPickerHtml = forward('kctPickerHtml');
+  var commonPickerHtml = forward('commonPickerHtml');
   var customPickerHtml = forward('customPickerHtml');
   var prescreenPickerHtml = forward('prescreenPickerHtml');
   var effectiveRuleJoin = forward('effectiveRuleJoin');
@@ -48,7 +48,6 @@
   var filterCommitSnapshot = forward('filterCommitSnapshot');
   var acceptsFilterCommit = forward('acceptsFilterCommit');
   var completeScenarioSave = forward('completeScenarioSave');
-  var exampleListHtml = forward('exampleListHtml');
   var keywordValues = forward('keywordValues');
   var savedScenariosHtml = forward('savedScenariosHtml');
   var criteriaReportHtml = forward('criteriaReportHtml');
@@ -64,10 +63,10 @@
   var bindSavedScenarios = forward('bindSavedScenarios');
   // 其他檔案定義的常數：只讀，定義它的檔案先載入。
   var draftResponseGuard = FilterStep.draftResponseGuard;
-  var KCT_LETTER_KEY = FilterStep.KCT_LETTER_KEY;
+  var COMMON_CARD_KEY = FilterStep.COMMON_CARD_KEY;
 
   // wire 投影（單一收斂點）：把一個情境（草稿或已存）深拷貝成 filter.preview / filter.commit 的
-  // wire 形狀——{ source?:'kct', name, rationale, groups }，且 groups 內每條 rule 都遞迴剝除 __kctLetter 等
+  // wire 形狀——{ source?:'common', name, rationale, groups }，且 groups 內每條 rule 都遞迴剝除 __commonCard 等
   // 任何 UI-only 鍵。深拷貝是關鍵：淺取 groups 會讓 wire 仍指向帶標記的 rule 物件。所有送往後端的
   // scenario/draft 一律經此，確保 UI-only 標記絕不外洩到 wire；明確剝除，不假設後端會忽略多餘欄位。
   function toWireScenario(s) { return projectWireScenario(s, false); }
@@ -88,7 +87,7 @@
           rules: (g.rules || []).map(function (r) {
             var clean = {};
             Object.keys(r).forEach(function (k) {
-              // 剝除所有 __ 前綴鍵（UI-only 慣例，如 __kctLetter）——按前綴而非逐鍵點名，未來新增
+              // 剝除所有 __ 前綴鍵（UI-only 慣例，如 __commonCard）——按前綴而非逐鍵點名，未來新增
               // UI 鍵不會漏剝而洩進 wire。後端儲存時雖只留各條件類型用得到的欄位（FilterRuleWireFields.cs），
               // 預覽、查詢與草稿是否已儲存的比對也都用這份資料，畫面標記一律不送出。
               if (k.indexOf('__') !== 0) {
@@ -107,10 +106,12 @@
     var source = scenarioSource(s);
     var originGroups = ordered.filter(function (g) { return (g.rules || []).length > 0; });
     if (s.editorOrigins && !s.__restoredOrigins) { wire.editorOrigins = JSON.parse(JSON.stringify(s.editorOrigins)); }
-    else if (hasKctMarker(s) || s.__restoredOrigins || (isDraft && !s.__legacyKctSource && s.source !== 'kct')) {
-      wire.editorOrigins = { version: 1, legacyKctSource: !!s.__legacyKctSource,
+    // 第 2 版的編輯來源逐條記卡片代號（2026-10-29 起）；第 1 版記的是字母，這一版只原樣送回、不再讀取。
+    // 舊版情境重新編輯後一律改存第 2 版，卡片要審計員重新點選（見 filter-step-saved 的 editScenario）。
+    else if (hasCommonMarker(s) || s.__restoredOrigins || isDraft) {
+      wire.editorOrigins = { version: 2,
         nameIsAutomatic: !s.__nameDirty, rationaleIsAutomatic: !s.__rationaleDirty, groups: originGroups.map(function (g) {
-        return { letters: g.rules.map(function (r) { return r[KCT_LETTER_KEY] || null; }) };
+        return { cards: g.rules.map(function (r) { return r[COMMON_CARD_KEY] || null; }) };
       }) };
     }
     wire.groups.forEach(function (group) {
@@ -225,13 +226,11 @@
           paneButton('filter', '篩選與檢視') + paneButton('saved', '已儲存情境與矩陣（' + saved.length + '）') + '</div>' +
         '<section data-filter-pane="filter" id="filter-pane-filter" role="tabpanel" aria-labelledby="filter-tab-filter" data-motion-pane data-motion-key="filter-pane-filter"' + (FilterStep.viewState.workspacePane === 'filter' ? '' : ' hidden') + '>' +
           '<div class="filter-workbench"><aside class="filter-entry" tabindex="-1" aria-label="加入篩選條件">' +
-            '<div class="filter-entry-heading"><h3 class="filter-entry-title">條件總覽</h3>' +
-              '<button type="button" class="btn btn--ghost jet-disclosure" data-action="toggle-examples"' + Ui.disclosureAttributes(FilterStep.viewState.examplesOpen, 'filter-example-list') + '>從範例開始</button></div>' + conditionTargetHtml(draft) +
-            '<div class="filter-source-tabs" role="tablist" aria-label="條件來源">' + sourceButton('kct', 'KCT 條件') + sourceButton('prescreen', '預篩選') +
+            '<div class="filter-entry-heading"><h3 class="filter-entry-title">條件總覽</h3></div>' + conditionTargetHtml(draft) +
+            '<div class="filter-source-tabs" role="tablist" aria-label="條件來源">' + sourceButton('common', '常用篩選條件') + sourceButton('prescreen', '預篩選') +
               sourceButton('custom', '自訂篩選條件') + '</div>' +
             '<div class="filter-entry-scroll" data-preserve-scroll="filter-condition-catalog">' +
-            '<div class="filter-example-list" id="filter-example-list" data-example-list data-motion-key="examples" data-collapsible' + (FilterStep.viewState.examplesOpen ? '' : ' hidden') + '>' + exampleListHtml() + '</div>' +
-            '<div' + conditionPaneAttributes('kct') + '>' + kctPickerHtml(draft) + '</div>' +
+            '<div' + conditionPaneAttributes('common') + '>' + commonPickerHtml(draft) + '</div>' +
             '<div' + conditionPaneAttributes('prescreen') + '>' + prescreenPickerHtml() + '</div>' +
             '<div' + conditionPaneAttributes('custom') + '>' + customPickerHtml() + '</div>' +
           '</div></aside><div class="filter-current">' + scenarioBuilderHtml(draft) + previewPaneHtml(state.filter.preview) + '</div></div>' +
@@ -351,7 +350,7 @@
 
   // 預覽／保存前的前端引導：名稱、動機或至少一條件未補齊時，於欄位旁（紅框＋紅字）
   // 與按鈕上方（form-notice）就近提示並不送出。純呈現——後端 invalid_scenario 仍是權威。
-  // 純自訂情境名稱/動機必填；KCT 草稿只要仍有 marker 就可留白，後端保存時產生正準留痕替補。
+  // 純自訂情境名稱/動機必填；有常用篩選條件卡片的草稿只要仍有標記就可留白，後端保存時產生正準留痕替補。
   function scenarioGate(container, includeSavedScenarios, skipDuplicateName) {
     var draft = Store.getState().filter.draft;
     var nameInput = container.querySelector('[data-bind="scenario-name"]');
@@ -503,7 +502,7 @@
             draftRevision === Store.getFilterDraftRev() &&
             selectedPopulationScope(latest) === populationScope;
         });
-        // 送出剝除標記後的 wire 形狀（draft 內 KCT rule 帶 __kctLetter，絕不可外洩）。
+        // 送出剝除標記後的 wire 形狀（draft 內卡片帶入的 rule 帶 __commonCard，絕不可外洩）。
         return global.JetApi.filterPreview({
           populationScope: populationScope,
           scenario: toWireDraft(draft)
@@ -584,7 +583,7 @@
         var current = commitState.filter;
         var populationScope = selectedPopulationScope(commitState);
 
-        // 草稿過同一投影（深拷貝剝除 __kctLetter，並保留 canonical source:'kct'）。
+        // 草稿過同一投影（深拷貝剝除 __commonCard，並保留 canonical source:'common'）。
         var editingIndex = asCopy ? null : current.draft.__editingIndex;
         var authored = toWireDraft(current.draft);
         if (asCopy) {
@@ -644,7 +643,7 @@
   function bind(container) {
     Ui.bindReportArtifacts(container);
     syncSuggestedMetadata(container);
-    // 自動名稱與 KCT 身分在上一行收斂後，才記下換成這份草稿時沒有修改的內容。
+    // 自動名稱與卡片身分在上一行收斂後，才記下換成這份草稿時沒有修改的內容。
     if (FilterStep.viewState.cleanDraftKey === null) { FilterStep.viewState.cleanDraftKey = draftContentKey(Store.getState().filter.draft); }
     Ui.bindStepFooter(container);
     // 頁籤的方向鍵與「操作」選單的開關、鍵盤由 ui-core.js 的共用頁籤與選單處理。

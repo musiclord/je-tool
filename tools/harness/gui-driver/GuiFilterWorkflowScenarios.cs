@@ -105,66 +105,67 @@ internal static partial class GuiScenarios
         }
         async Task AddCustom(string subject)
         {
-            // 使用者 2026-10-08 要求重新設計自訂篩選條件：改點欄位按鈕或常用查核條件，加入後同樣選取新條件並把焦點放進去。
+            // 使用者 2026-10-08 要求重新設計自訂篩選條件：改點欄位按鈕或依審計目的的條件（當時叫常用查核條件），加入後同樣選取新條件並把焦點放進去。
             await AddCustomConditionAsync(cdp, subject, Click, ct);
             await Check("(()=>{var rows=document.querySelectorAll('.rule-row--selected'),r=rows[0];return rows.length===1 && r.querySelector('.filter-rule-selected').textContent==='選取中' && r.contains(document.activeElement) && document.activeElement.closest('.rule-row__controls') && r.getBoundingClientRect().bottom>0 && r.getBoundingClientRect().top<window.innerHeight;})()");
         }
         outcome.RecordStage(outcome.Scenario.Name);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Open();
-        if (outcome.Scenario.Name == GuiScenarioCatalog.FilterKctEditing)
+        if (outcome.Scenario.Name == GuiScenarioCatalog.FilterCommonEditing)
         {
             await Edit(0);
-            // 舊版情境的說明照使用者 2026-10-14 第三輪確認的句子：「此情境以舊版儲存，無法對應當時勾選的 KCT 卡片；…」。
-            await Check("draft.__legacyKctSource && document.querySelector('[data-kct-letter=G]').getAttribute('aria-pressed')==='false' && document.querySelector('.scenario-builder').textContent.includes('無法對應當時勾選的 KCT 卡片')");
+            // 舊版情境的說明照使用者 2026-10-14 第三輪確認的句子，2026-10-29 卡片改稱常用篩選條件：「此情境以舊版儲存，無法對應當時勾選的常用篩選條件；…」。
+            await Check("draft.__legacyCards && document.querySelector('[data-common-card=blankDescription]').getAttribute('aria-pressed')==='false' && document.querySelector('.scenario-builder').textContent.includes('無法對應當時勾選的常用篩選條件')");
             await Save();
-            await Check("saved.length===1 && saved[0].source==='kct' && !saved[0].editorOrigins");
+            // 舊版情境重新儲存後改存第 2 版編輯來源；當時的卡片對應不回來，所以記 null，也不帶來源代碼。
+            await Check("saved.length===1 && !saved[0].source && saved[0].editorOrigins.version===2 && saved[0].editorOrigins.groups[0].cards[0]===null");
             await Click("[data-filter-pane-select=\"filter\"]");
             
-            await Click("[data-condition-source=\"kct\"]");
-            // 原本這裡逐張點 A 到 E 核對單張預設動機、B 卡另外核對加入的條件，再點一次取消（10 次操作）。
-            // 使用者 2026-10-15 在勾選頁選 S5，改由 frontend-workflow 的「clicking each KCT card A to E alone…」逐張點擊核對。
-            await Click("[data-kct-letter=\"G\"]");
+            await Click("[data-condition-source=\"common\"]");
+            // 原本這裡逐張點前五張卡核對單張預設動機、固定資產與費用那張另外核對加入的條件，再點一次取消（10 次操作）。
+            // 使用者 2026-10-15 在勾選頁選 S5，改由 frontend-workflow 的「clicking each card with a default rationale alone…」逐張點擊核對。
+            await Click("[data-common-card=\"blankDescription\"]");
             await Save();
-            await Check("saved.length===2 && saved[1].editorOrigins.groups[0].letters[0]==='G'");
+            await Check("saved.length===2 && saved[1].editorOrigins.groups[0].cards[0]==='blankDescription'");
             await Click("[data-action=\"app-back-picker\"]");
             await Open();
             await Edit(1);
-            await Check("document.querySelector('[data-kct-letter=G]').getAttribute('aria-pressed')==='true'");
+            await Check("document.querySelector('[data-common-card=blankDescription]').getAttribute('aria-pressed')==='true'");
             // 9/23：保存、重開後，自動命名仍跟隨實際勾選，保存面板開著時也要更新。
-            
-            await Click("[data-kct-letter=H]");
-            await Check("draft.name==='G+H' && document.querySelector('[data-bind=scenario-name]').value==='G+H'");
-            await Click("[data-kct-letter=G]");
-            await Check("draft.name==='H' && document.querySelector('[data-bind=scenario-name]').value==='H'");
-            await Click("[data-kct-letter=G]");
-            await Click("[data-kct-letter=H]");
-            await Check("draft.name==='G' && document.querySelector('[data-bind=scenario-name]').value==='G'");
+            // 自動名稱和自訂條件同一種寫法：卡片帶入的條件用卡片名稱，前兩項用「、」接起來（2026-10-29 起不再用字母）。
+            await Click("[data-common-card=specificTrailingDigits]");
+            await Check("draft.name==='空白摘要、特定尾數(如 999999/000000 結尾)' && document.querySelector('[data-bind=scenario-name]').value==='空白摘要、特定尾數(如 999999/000000 結尾)'");
+            await Click("[data-common-card=blankDescription]");
+            await Check("draft.name==='特定尾數(如 999999/000000 結尾)' && document.querySelector('[data-bind=scenario-name]').value==='特定尾數(如 999999/000000 結尾)'");
+            await Click("[data-common-card=blankDescription]");
+            await Click("[data-common-card=specificTrailingDigits]");
+            await Check("draft.name==='空白摘要' && document.querySelector('[data-bind=scenario-name]').value==='空白摘要'");
             
             // 2026-10-16 起從「預篩選」分頁加入（取代「沿用第四步預篩選規則」），仍在條件卡片的下拉改選一次，結果同樣是空白摘要。
             await AddCustom("prescreen:suspiciousKeywords");
             await Choose(".rule-row[data-gi=\"0\"][data-ri=\"1\"] [data-pattern-subject]", "prescreen:blankDescription");
             await Click("[data-filter-pane-select=\"filter\"]");
-            await Click("[data-condition-source=\"kct\"]");
-            await Click("[data-kct-letter=\"G\"]");
-            await Check("draft.groups[0].rules.length===1 && !draft.groups[0].rules[0].__kctLetter && draft.groups[0].rules[0].prescreenKey==='blankDescription'");
-            // I 仍加入目前條件組，成為第 2 條條件括號，不另成一組；第 7 批 R5 改用排除補班日的單一條件。
+            await Click("[data-condition-source=\"common\"]");
+            await Click("[data-common-card=\"blankDescription\"]");
+            await Check("draft.groups[0].rules.length===1 && !draft.groups[0].rules[0].__commonCard && draft.groups[0].rules[0].prescreenKey==='blankDescription'");
+            // 非營業日卡片仍加入目前條件組，成為第 2 條條件括號，不另成一組；第 7 批 R5 改用排除補班日的單一條件。
             // 舊週末或假日預期首次失敗：20261004-113610760-9237607e6f23439fb80b30e872446291。
-            await Click("[data-kct-letter=\"I\"]");
+            await Click("[data-common-card=\"nonBusinessDay\"]");
             await Save();
-            await Check("saved.length===2 && saved[1].groups.length===1 && saved[1].groups[0].rules[1].type==='group' && saved[1].groups[0].rules[1].rules.length===1 && saved[1].groups[0].rules[1].rules[0].type==='fieldValue' && saved[1].groups[0].rules[1].rules[0].field==='postDate' && saved[1].groups[0].rules[1].rules[0].operator==='isNonBusinessDay' && saved[1].editorOrigins.groups[0].letters.join()===',I' && !('presetGroup' in saved[1].editorOrigins.groups[0])");
+            await Check("saved.length===2 && saved[1].groups.length===1 && saved[1].groups[0].rules[1].type==='group' && saved[1].groups[0].rules[1].rules.length===1 && saved[1].groups[0].rules[1].rules[0].type==='fieldValue' && saved[1].groups[0].rules[1].rules[0].field==='postDate' && saved[1].groups[0].rules[1].rules[0].operator==='isNonBusinessDay' && saved[1].editorOrigins.groups[0].cards.join()===',nonBusinessDay' && !('presetGroup' in saved[1].editorOrigins.groups[0])");
             await Edit(1);
-            await Check("document.querySelector('[data-kct-letter=I]').getAttribute('aria-pressed')==='true' && draft.groups.length===1 && draft.groups[0].rules[1].__kctLetter==='I' && draft.groups[0].rules[1].type==='group' && draft.groups[0].rules[1].rules.length===1 && draft.groups[0].rules[1].rules[0].type==='fieldValue' && draft.groups[0].rules[1].rules[0].field==='postDate' && draft.groups[0].rules[1].rules[0].operator==='isNonBusinessDay' && draft.groups[0].rules[0].prescreenKey==='blankDescription' && !document.querySelector('.scenario-builder').textContent.includes('情境層級') && document.querySelector('.scenario-readback__expr').textContent.includes('非營業日（排除補班日）')");
+            await Check("document.querySelector('[data-common-card=nonBusinessDay]').getAttribute('aria-pressed')==='true' && draft.groups.length===1 && draft.groups[0].rules[1].__commonCard==='nonBusinessDay' && draft.groups[0].rules[1].type==='group' && draft.groups[0].rules[1].rules.length===1 && draft.groups[0].rules[1].rules[0].type==='fieldValue' && draft.groups[0].rules[1].rules[0].field==='postDate' && draft.groups[0].rules[1].rules[0].operator==='isNonBusinessDay' && draft.groups[0].rules[0].prescreenKey==='blankDescription' && !document.querySelector('.scenario-builder').textContent.includes('情境層級') && document.querySelector('.scenario-readback__expr').textContent.includes('非營業日（排除補班日）')");
             await FindControlPointAsync(cdp,process,".rule-row--compound[data-gi=\"0\"][data-ri=\"1\"]",ct, value => outcome.LastFilterProbe = value.Clone());
             await Click("[data-action=\"overview-open\"]");
             await Check("(()=>{var cells=Array.from(document.querySelectorAll('.overview-pop__kpi-value'));return cells.length>=4 && cells.every(e=>getComputedStyle(e).fontFamily.includes('Noto Sans TC') && getComputedStyle(e).fontVariantNumeric==='tabular-nums');})()");
             await FindControlPointAsync(cdp,process,".overview-pop__grid",ct);
             await CaptureScreenshotAsync(cdp,outcome,ct);
             await Click(".overview-modal__card [data-action=\"overview-close\"]");
-            await Click("[data-kct-letter=\"I\"]");
-            await Check("draft.groups.length===1 && draft.groups[0].rules.length===1 && !draft.groups[0].rules[0].__kctLetter");
+            await Click("[data-common-card=\"nonBusinessDay\"]");
+            await Check("draft.groups.length===1 && draft.groups[0].rules.length===1 && !draft.groups[0].rules[0].__commonCard");
             await Click("[data-action=\"cancel-edit-scenario\"]");
-            await Check("saved[1].groups.length===1 && saved[1].groups[0].rules[1].type==='group' && saved[0].source==='kct' && !saved[0].editorOrigins");
+            await Check("saved[1].groups.length===1 && saved[1].groups[0].rules[1].type==='group' && !saved[0].source && saved[0].editorOrigins.version===2");
             await Click("[data-filter-pane-select=\"saved\"]");
             await Click(".saved-scenario:nth-of-type(1) .jet-menu__toggle");
             await Click("[data-action=\"remove-scenario\"][data-index=\"0\"]");
@@ -330,7 +331,7 @@ internal static partial class GuiScenarios
             outcome.RecordStage("desktop-sized");
             await Check("window.innerWidth>=1200 && window.innerWidth<=1260");
             await Click("[data-action=\"cancel-edit-scenario\"]");
-            await Click("[data-condition-source=\"kct\"]");
+            await Click("[data-condition-source=\"common\"]");
             // 條件卡片用主題的工作面顏色（--color-surface）。原本寫死 2026-10-08 主題的 #fdfcf8，之後配色調整改成 #fffefb，
             // 所以改成和主題變數比對（第一次失敗收據 20261014-063958820-b984bcfa564a4f1aa8dc0a653a28d278）。
             await Check("window.innerWidth>=1200 && window.innerWidth<=1260 && getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns.split(' ').length===2 && (()=>{var probe=document.createElement('div');probe.style.backgroundColor='var(--color-surface)';document.body.appendChild(probe);var surface=getComputedStyle(probe).backgroundColor;probe.remove();return getComputedStyle(document.querySelector('.filter-workspace .rule-card')).backgroundColor===surface;})()");

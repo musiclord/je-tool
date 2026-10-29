@@ -631,7 +631,7 @@
             '<h2 class="picker-panel__title">選擇案件</h2>' +
             '<p class="picker-panel__hint">選擇案件繼續作業，或建立新案件。</p>' +
           '</div>' +
-          '<button type="button" class="btn btn--add picker-panel__new" data-action="picker-new">新增案件</button>' +
+          '<button type="button" class="btn btn--ghost btn--add picker-panel__new" data-action="picker-new">新增案件</button>' +
         '</div>' +
         pickerFeedbackHtml(state.pickerFeedback, state.pickerFeedbackContext, state.pickerFeedbackLevel) +
         '<section class="picker-section">' +
@@ -3178,7 +3178,7 @@
   var Motion = (function () {
     // 舊複本只留下樣式用得到的 data- 屬性，其餘拿掉，程式與測試才找不到它。樣式要用的識別優先掛在 class 上；
     // app.css 用到這裡沒留的屬性時，架構測試 DesignIntegrationFrontendTests 會失敗（使用者 2026-10-15 指出複本露出原形）。
-    var KEEP_ON_LEAVING = /^data-(?:motion$|motion-key$|kct-letter$|step-index$|child-|join$|period-end-days$)/;
+    var KEEP_ON_LEAVING = /^data-(?:motion$|motion-key$|common-card$|step-index$|child-|join$|period-end-days$)/;
     var DROP_ON_LEAVING = ['id', 'name', 'for', 'form', 'aria-controls', 'aria-describedby', 'aria-labelledby',
       'aria-owns', 'aria-activedescendant', 'aria-live', 'tabindex'];
     var BLOCK = ['height', 'paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth', 'marginTop', 'marginBottom'];
@@ -4501,7 +4501,7 @@
   global.JetMotion = Motion;
 
   /* ---- 加入的東西從哪裡來、到了哪裡（純呈現） ---------------------------------------------------
-     使用者 2026-10-11 第三次調整時要求多參考 Apple 的設計思路，所以第五步按 KCT 卡片、欄位按鈕或「加入」時，
+     使用者 2026-10-11 第三次調整時要求多參考 Apple 的設計思路，所以第五步按常用篩選條件的卡片、欄位按鈕或「加入」時，
      看得到條件從按下的地方移進目前的條件組（Apple 的空間一致性）。使用者 2026-10-12 認為原本的做法像廉價的套版：
      一塊白板從卡片的大小一路長成整列的大小、字在半路淡掉、目的地先以霧狀出現，整個過程很突兀。所以改成拿起、帶過去、放下：
      - 按下時，一片小小的玻璃標籤在按下的名稱上浮起來，上面寫的就是新的一列的標題；
@@ -4515,10 +4515,10 @@
      飛行途中使用者自己捲動時，標籤改跟著新的一列走，不再搶捲軸。減少動態或 Windows 高對比佈景時不飛，也不捲。
      這裡只畫一個不接收滑鼠的標籤與帶著中欄捲動，不改 state、不送 action，也不移動任何元件的位置。 */
   var ARRIVAL_SOURCES = [
-    { trigger: '.filter-entry [data-kct-letter]', label: '.picker-card__label' },
+    { trigger: '.filter-entry [data-common-card]', label: '.picker-card__label' },
     { trigger: '.filter-entry [data-add-field]' },
     { trigger: '.filter-entry [data-add-check]', within: '.filter-check', label: '.filter-check__label' },
-    // 2026-10-16 加入的「預篩選」分頁沿用常用查核條件的列，按「加入」時同樣看得到標籤移進條件組。
+    // 2026-10-16 加入的「預篩選」分頁沿用依審計目的的條件列，按「加入」時同樣看得到標籤移進條件組。
     { trigger: '.filter-entry [data-add-prescreen]', within: '.filter-check', label: '.filter-check__label' }
   ];
   var ARRIVAL_ROWS = '.filter-workspace .scenario-flat__list > .rule-row';
@@ -4769,7 +4769,7 @@
      使用者 2026-10-13 要求移除或清除東西時，要拿掉的東西先輕微快速地晃一下再收起來（見上面 JetMotion 的 removing）。
      移除鈕放在要拿掉的東西裡面時，在這裡記下：按下的那一刻找出按鈕外層的 scope，記下它的 data-motion-key；
      inside 為 true 表示拿掉的是 scope 裡面的東西（例如清除一組的條件），only 再限定是哪一種。
-     按鈕不在要拿掉的東西裡面（例如再按一次 KCT 卡片），或要先確認、等 JetApi 回來才重繪（例如刪除案件）時，
+     按鈕不在要拿掉的東西裡面（例如再按一次常用篩選條件的卡片），或要先確認、等 JetApi 回來才重繪（例如刪除案件）時，
      由畫面程式在確認的那一刻呼叫 JetMotion.removing。這裡只記下，不改 state、不送 action。 */
   var REMOVAL_SOURCES = [
     // 第五步：移除一條條件或子條件組、清除一組的條件、移除整組、移除舊情境的排除區，以及確認移除已儲存的情境（等 JetApi 回來才重繪）。

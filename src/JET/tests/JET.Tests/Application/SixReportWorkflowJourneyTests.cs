@@ -242,9 +242,11 @@ public sealed class SixReportWorkflowJourneyTests
             Assert.Equal(Path.Combine(projectDirectory, artifact.GetProperty("fileName").GetString()!),
                 artifact.GetProperty("fullPath").GetString());
         });
+        // V_Report 5 在 2026-09 依使用者要求加高到 18 點，因為字被切到。2026-10-29 使用者裁定所有 10 點明細頁統一
+        // 為 15 點，V_Report 5 跟著改；15 點仍不會切到微軟正黑體 10 點。第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
         using var readableValidation = new XLWorkbook(validationPath);
-        Assert.Equal(18D, readableValidation.Worksheet("V_Report 5").RowHeight);
-        Assert.All(readableValidation.Worksheet("V_Report 5").RowsUsed(), row => Assert.Equal(18D, row.Height));
+        Assert.Equal(15D, readableValidation.Worksheet("V_Report 5").RowHeight);
+        Assert.All(readableValidation.Worksheet("V_Report 5").RowsUsed(), row => Assert.Equal(15D, row.Height));
 
     }
 

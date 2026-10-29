@@ -114,7 +114,7 @@ public static class FilterConditionLabels
                 static field => field.MappingSlots.Single(static slot => slot.IncludeInFieldInfo).Label,
                 StringComparer.Ordinal);
 
-    /// <summary>排除補班日的非營業日條件括號讀回（前端 <c>FILTER_KCT_ATOM_LABELS.kctNonBusinessDay</c> 鏡像）。</summary>
+    /// <summary>排除補班日的非營業日條件括號讀回（前端 <c>FILTER_COMMON_ATOM_LABELS.nonBusinessDay</c> 鏡像）。</summary>
     public const string NonBusinessDayAtom = "非營業日（排除補班日）";
 
     /// <summary>sameVoucher 第一條規則的輸出列標籤（前端 read-back 鏡像）。</summary>

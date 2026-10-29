@@ -308,7 +308,7 @@ test('journey 18: the overview title is the client name, or the case name when n
   assert.match(f.text(f.fact('project.case-id')), /合成案件甲/, 'the case name is written next to the period');
   assert.ok(head().querySelector('[data-overview-fact-key="project.case-id"]'), 'the case name sits in the heading');
   // 小標逐字：使用者 2026-10-03 對 O8「總覽標題用「—」連接公司名稱與「分錄測試」：要修」，實作紀錄寫明改成小標「分錄測試流程總覽」
-  // （docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md 的 O8 兩處）；KCT 需求計畫 docs/history/specs/2026-10-06-kct-gl-requirements-plan.md
+  // （docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md 的 O8 兩處）；2026-10-06 的需求計畫 docs/history/specs/2026-10-06-kct-gl-requirements-plan.md
   // 記為「先前裁定的畫面用語」，保留不改。
   // O8 的第一次失敗收據：20261003-065529947-9b08f413915748fe812bdead0a6d6d89（原寫在已刪除的
   // UserFeedbackStepsOneToFourFrontendTests.CreateForm_OnlyCollectsOptionalCaseMetadataAndDoesNotCollectOperator，2026-10-14 第一波整併搬來）。
@@ -466,7 +466,10 @@ test('journey 19: the prescreen result distribution keeps not-applicable rules o
   assert.doesNotMatch(tip, /母體/);
   const note = content().querySelector('.overview-bi__note').textContent;
   assert.match(note, /GL 分錄數 1,000 筆/, 'the denominator is the GL entry count');
-  assert.match(note, /非風險評估/, 'the note says this describes a distribution, not a risk assessment');
+  // 「此為分布描述，非風險評估。」原本每張圖說各寫一次；使用者 2026-10-29 指出常駐說明太多，改成同一句話在同一個畫面只說一次，
+  // 由總覽底部的定位說明說一次。這裡原本比對圖說裡的句子，改版後依預期失敗，首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。
+  assert.doesNotMatch(note, /非風險評估/, 'the chart note no longer repeats the positioning');
+  assert.match(f.card().querySelector('.overview__disclaimer').textContent, /分布.*由審計員判斷/, 'the overview says it once at the bottom');
   assert.doesNotMatch(note, /不代表 0%/);
 
   // GL 為 0 筆：比例都沒有，說明寫出 GL 為 0 筆、以「—」表示、不代表 0%（GL 逐字，句子只比對意思）。

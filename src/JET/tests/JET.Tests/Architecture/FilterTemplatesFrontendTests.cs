@@ -6,7 +6,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 常用情境範本（FILTER_SCENARIO_TEMPLATES）的守衛：每筆範本的規則型別都是後端認得的 wire 型別、模式在 Domain
-/// 標籤表內，範本與常用查核條件不另寫前置條件。範本的套用入口與組合卡，2026-10-14 起改由
+/// 標籤表內，範本與依審計目的條件不另寫前置條件。範本的套用入口與組合卡，2026-10-14 起改由
 /// <c>tools/tests/frontend-journey-filter-build.test.cjs</c> 的行為測試核對；這裡只留前後端型別與模式的原始碼比對。
 /// </summary>
 public sealed class FilterTemplatesFrontendTests
@@ -53,15 +53,16 @@ public sealed class FilterTemplatesFrontendTests
     }
 
     [Fact]
-    public void CommonChecks_UseKnownRuleTypesOperatorsAndRequirements()
+    public void PurposeChecks_UseKnownRuleTypesOperatorsAndRequirements()
     {
-        // 使用者 2026-10-08 要求重新設計自訂篩選條件：常用查核條件與範例做同樣的型別與比較方式檢查，不新增運算子或規則型別。
+        // 使用者 2026-10-08 要求重新設計自訂篩選條件：依審計目的條件（當時叫常用查核條件）與範例做同樣的型別與比較方式檢查，不新增運算子或規則型別。
         var core = Read("js", "ui-core.js");
-        var match = Regex.Match(core, @"FILTER_COMMON_CHECK_GROUPS\s*=\s*\[(?<body>.*?)\n  \];", RegexOptions.Singleline);
-        Assert.True(match.Success, "ui-core.js 找不到 FILTER_COMMON_CHECK_GROUPS");
+        // 2026-10-29 常用查核條件改稱依審計目的，常數跟著改名，比對的內容不變。第一次失敗：Focused 收據 20261029-062123410-6be7ae8a47f140af98c112c94ca35612。
+        var match = Regex.Match(core, @"FILTER_PURPOSE_CHECK_GROUPS\s*=\s*\[(?<body>.*?)\n  \];", RegexOptions.Singleline);
+        Assert.True(match.Success, "ui-core.js 找不到 FILTER_PURPOSE_CHECK_GROUPS");
         var body = match.Groups["body"].Value;
-        AssertKnownRuleShapes(body, "常用查核條件");
-        // 同一階段拿掉常用查核條件上的 requires，前置條件改由條件內容查同一張需求表（第一次失敗：同上收據）。
+        AssertKnownRuleShapes(body, "依審計目的");
+        // 同一階段拿掉依審計目的條件上的 requires，前置條件改由條件內容查同一張需求表（第一次失敗：同上收據）。
         Assert.DoesNotContain("requires:", body, StringComparison.Ordinal);
         foreach (Match key in Regex.Matches(body, @"prescreenKey:\s*'(?<key>[^']+)'"))
         {

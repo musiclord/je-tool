@@ -3,27 +3,40 @@
   'use strict';
   var Ui = global.JetUi, Api = global.JetApi;
   function count(value) { return Number(value || 0).toLocaleString(); }
+  function positionsText(positions) {
+    return positions.map(function (position) { return '第 ' + position.group + ' 組條件 ' + position.rule; }).join('、');
+  }
+  // 狀態欄只寫符合哪一組的哪一條，條件的完整讀回放在滑鼠停留的提示；長條件不再把每一列撐高，
+  // 也不和上方的篩選條件重複（使用者 2026-10-29 指出常駐說明太多）。位置與說明都來自後端，畫面不自己判斷命中。
   function matchStatusHtml(row) {
     // Only mirror the backend's declared match scope; do not infer new per-row hit semantics.
     var voucherMatch = row.isHit && /傳票條件成立/.test(row.matchDescription || '') && !/^符合條件的分錄/.test(row.matchDescription || '');
     var label = row.isHit ? (voucherMatch ? '傳票條件成立' : '符合條件的分錄') : '參考分錄';
-    return row.matchDescription
-      ? '<div class="filter-match-reason"><strong>' + label + '</strong><p>' + Ui.esc(row.matchDescription) + '</p></div>'
-      : label;
+    var where = [['主要', row.primaryConditions], ['佐證', row.evidenceConditions], ['傳票條件', row.voucherConditions]]
+      .filter(function (pair) { return pair[1] && pair[1].length; })
+      .map(function (pair) { return pair[0] + '：' + positionsText(pair[1]); });
+    var detail = where.length ? where.join('；') : (row.matchDescription || '');
+    if (detail.indexOf(label) >= 0) { detail = ''; }
+    if (!detail && !row.matchDescription) { return label; }
+    return '<div class="filter-match-reason"' + (row.matchDescription ? ' title="' + Ui.esc(row.matchDescription) + '"' : '') + '><strong>' + label + '</strong>' +
+      (detail ? '<p>' + Ui.esc(detail) + '</p>' : '') + '</div>';
   }
   // 使用者 2026-10-16 依過往底稿要求分開顯示「符合條件的傳票數量」與「符合條件的分錄筆數」。分錄筆數用後端的
   // summaryRowCount，口徑與條件篩選報告的摘要相同：只用「未預期借貸組合」一個條件時是整張傳票的分錄數，畫面不自己換算。
+  // 統計列的數字從 28px 縮成 18px；情境之間由整列標題與下凹的底槽分開，數字比標題大也看得出屬於哪個情境。分錄筆數的口徑寫在那一格的提示裡；和一般情形不同時，
+  // 才在統計列下方說一次（使用者 2026-10-29 指出常駐說明太多；定義放在用到的地方）。
+  var WHOLE_VOUCHER_ROWS_NOTE = '只用「未預期借貸組合」一個條件時，分錄筆數包含整張傳票的分錄。';
   function summary(preview) {
-    function stat(label, value) {
-      return '<div class="stat-card"><span class="stat-card__value">' + count(value) + '</span>' +
+    function stat(label, value, tip) {
+      return '<div class="stat-card"' + (tip ? ' title="' + Ui.esc(tip) + '"' : '') + '><span class="stat-card__value">' + count(value) + '</span>' +
         '<span class="stat-card__label">' + label + '</span></div>';
     }
-    var note = preview.countsWholeVoucherRows
-      ? '只用「未預期借貸組合」一個條件時，整張傳票的分錄都計入分錄筆數，與條件篩選報告及工作底稿相同。'
-      : '標示為參考的分錄不計入分錄筆數。';
-    return '<div class="stats-bar stats-bar--flush">' + stat('符合條件的傳票數量', preview.voucherCount) +
-      stat('符合條件的分錄筆數', preview.summaryRowCount) + '</div>' +
-      (Number(preview.voucherCount) > 0 ? '<p class="rule-card__sub">展開傳票可查看查核期間內的全部分錄。' + note + '</p>' : '') +
+    return '<div class="stats-bar stats-bar--flush stats-bar--compact">' + stat('符合條件的傳票數量', preview.voucherCount) +
+      stat('符合條件的分錄筆數', preview.summaryRowCount,
+        preview.countsWholeVoucherRows ? WHOLE_VOUCHER_ROWS_NOTE : '標示為參考的分錄不計入分錄筆數。') + '</div>' +
+      (preview.countsWholeVoucherRows && Number(preview.voucherCount) > 0
+        ? '<p class="filter-count-note">' + Ui.esc(WHOLE_VOUCHER_ROWS_NOTE) + '</p>'
+        : '') +
       '<div class="filter-voucher-host"></div>';
   }
   // app.js 的 JetMotion 比對用的識別：跟著同一份預覽結果，不用位置；草稿預覽與各個已存情境的清單可能同時在畫面上，各自一組。
@@ -108,9 +121,18 @@
           page = Object.assign({}, page, { totalCount: view.detail.totalCount });
         }
         view.open = documentNumber; view.detail = page; view.detailCursor = cursor;
-        focus('.voucher-details h4');
+        focus('[data-detail-close]');
       });
     }
+    // 收起分錄：列上的「查看分錄」與明細標題都是同一個開關，收起後焦點回到那一列的按鈕。
+    function closeDetails() {
+      var index = view.page.rows.findIndex(function (row) { return row.documentNumber === view.open; });
+      view.open = null; view.detail = null; redraw();
+      if (index >= 0) { focus('[data-voucher-open="' + index + '"]'); }
+    }
+    function detailsPanelId() { return id + '-details'; }
+    // 分錄明細的標題「傳票 X 的分錄」本身就是收合開關，箭頭在字前面，和其他整列標題的展開相同；
+    // 原本收合是明細底部另一顆按鈕，使用者 2026-10-29 指出和展開的位置割裂後拿掉。
     function detailHtml() {
       if (!view.detail) { return ''; }
       var extra = (view.detail.columns || []).filter(function (column) { return column.isCustom; });
@@ -119,17 +141,19 @@
       function cellHtml(text, className) {
         return '<td' + (className ? ' class="' + className + '"' : '') + '>' + Ui.esc(text == null ? '' : text) + '</td>';
       }
-      return '<div class="voucher-details" data-motion-key="' + Ui.esc(id + '-details-' + view.open) + '"><h4 tabindex="-1">傳票 ' + Ui.esc(view.open) + ' 的分錄</h4><div class="preview-table__wrap"><table class="preview-table"><thead><tr>' +
+      return '<div class="voucher-details" id="' + Ui.esc(detailsPanelId()) + '" data-motion-key="' + Ui.esc(id + '-details-' + view.open) + '">' +
+        '<h4 class="voucher-details__title"><button type="button" class="voucher-details__toggle" data-detail-close' +
+          Ui.disclosureAttributes(true, detailsPanelId()) + '>傳票 ' + Ui.esc(view.open) + ' 的分錄</button></h4>' +
+        '<div class="preview-table__wrap"><table class="preview-table"><thead><tr>' +
         ['狀態', '傳票文件項次', '總帳日期', '傳票核准日', '科目編號', '科目名稱', '金額', '摘要'].concat(extra.map(function (column) { return column.label; })).map(function (label) { return '<th>' + Ui.esc(label) + '</th>'; }).join('') + '</tr></thead><tbody>' +
         view.detail.rows.map(function (row) { return '<tr class="' + (row.isHit ? 'filter-hit-row' : '') + '"><td>' + matchStatusHtml(row) + '</td>' +
           [row.lineItem, row.postDate, row.approvalDate, row.accountCode, row.accountName].map(function (value) { return cellHtml(value); }).join('') +
           cellHtml(Ui.money(row.amount), 'preview-table__amount') + cellHtml(row.description) +
           extraCells.map(function (column) { return cellHtml(column.cell(row), column.className); }).join('') + '</tr>'; }).join('') +
-        '</tbody></table></div><div class="panel__actions panel__actions--start">' +
+        '</tbody></table></div>' +
         Ui.pageControlsHtml(view.detailHistory.length + 1, view.detail.totalCount, {
           previousAttribute: 'data-detail-previous', nextAttribute: 'data-detail-next', canNext: !!view.detail.nextCursor, busy: view.loading
-        }) +
-        '<button type="button" class="btn btn--ghost" data-detail-close>收合分錄</button></div></div>';
+        }) + '</div>';
     }
     function headHtml() {
       var cells = Ui.sortableHeadCellsHtml('query.filterVoucherPage', [
@@ -179,24 +203,34 @@
       host.innerHTML = searchHtml + errorHtml +
         '<div class="preview-table__wrap" data-motion-key="' + Ui.esc(id + '-page') + '"><table class="preview-table" aria-busy="' + !!view.loading + '"><thead>' + headHtml() + '</thead><tbody>' +
         // 筆數與金額靠右，表頭統一靠左。
-        page.rows.map(function (row, index) { return '<tr><td>' + Ui.esc(row.documentNumber) + '</td><td>' + Ui.esc(row.postDate || '') + '</td><td class="preview-table__amount">' + count(row.hitRowCount) + '</td><td class="preview-table__amount">' + count(row.totalRowCount) +
-          '</td><td class="preview-table__amount">' + Ui.money(row.voucherTotal) + '</td><td><button type="button" class="btn btn--ghost btn--tiny" data-voucher-open="' + index + '">展開分錄</button></td></tr>'; }).join('') +
+        // 「查看分錄」是開關：展開中的那一列標示出來，箭頭朝下，再按一次收起。
+        page.rows.map(function (row, index) {
+          var open = !!view.detail && view.open === row.documentNumber;
+          return '<tr' + (open ? ' class="voucher-row--open"' : '') + '><td>' + Ui.esc(row.documentNumber) + '</td><td>' + Ui.esc(row.postDate || '') + '</td><td class="preview-table__amount">' + count(row.hitRowCount) + '</td><td class="preview-table__amount">' + count(row.totalRowCount) +
+            '</td><td class="preview-table__amount">' + Ui.money(row.voucherTotal) + '</td><td><button type="button" class="btn btn--ghost btn--tiny jet-disclosure" data-voucher-open="' + index + '"' +
+            Ui.disclosureAttributes(open, open ? detailsPanelId() : null) + ' aria-label="查看傳票 ' + Ui.esc(row.documentNumber) + ' 的分錄">查看分錄</button></td></tr>';
+        }).join('') +
         '</tbody></table></div>' + Ui.pageControlsHtml(view.history.length + 1, page.totalCount, {
           previousAttribute: 'data-voucher-previous', nextAttribute: 'data-voucher-next', canNext: !!page.nextCursor, busy: view.loading
         }) + detailHtml();
       bindSortAndSearch();
       var retry = host.querySelector('[data-voucher-retry]');
       if (retry) { retry.onclick = view.retry; }
-      host.querySelectorAll('[data-voucher-open]').forEach(function (button) { button.onclick = function () { details(page.rows[Number(button.dataset.voucherOpen)].documentNumber, null, true); }; });
+      host.querySelectorAll('[data-voucher-open]').forEach(function (button) {
+        button.onclick = function () {
+          var documentNumber = page.rows[Number(button.dataset.voucherOpen)].documentNumber;
+          if (view.detail && view.open === documentNumber) { closeDetails(); return; }
+          details(documentNumber, null, true);
+        };
+      });
       host.querySelector('[data-voucher-next]').onclick = function () { voucherPage(page.nextCursor, false); };
       host.querySelector('[data-voucher-previous]').onclick = function () { voucherPage(view.history[view.history.length - 1], true); };
       if (view.detail) {
-        host.querySelector('[data-detail-next]').onclick = function () { details(view.open, view.detail.nextCursor, false); };
-        host.querySelector('[data-detail-previous]').onclick = function () { details(view.open, view.detailHistory[view.detailHistory.length - 1], true); };
-        host.querySelector('[data-detail-close]').onclick = function () {
-          var index = page.rows.findIndex(function (row) { return row.documentNumber === view.open; });
-          view.open = null; view.detail = null; redraw(); focus('[data-voucher-open="' + index + '"]');
-        };
+        var detailNext = host.querySelector('[data-detail-next]');
+        var detailPrevious = host.querySelector('[data-detail-previous]');
+        if (detailNext) { detailNext.onclick = function () { details(view.open, view.detail.nextCursor, false); }; }
+        if (detailPrevious) { detailPrevious.onclick = function () { details(view.open, view.detailHistory[view.detailHistory.length - 1], true); }; }
+        host.querySelector('[data-detail-close]').onclick = closeDetails;
       }
     }
     draw();

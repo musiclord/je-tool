@@ -141,7 +141,7 @@
   /* 圓角依角色：表格直角，控制項 6px，工作面與對話框 12px，狀態標籤膠囊，流程節點圓形。
      包住控制項的框和控制項同心：外圓角 = 內圓角 + 內距，例如頂部操作組與選單 10px、內距 4px、裡面的按鈕 6px。 */
   --radius-control: 6px;
-  --radius-card: 8px;      /* 可點的卡片，例如 KCT 條件與案件列 */
+  --radius-card: 8px;      /* 可點的卡片，例如常用篩選條件與案件列 */
   --radius-group: calc(var(--radius-control) + 4px);
   --radius-surface: 12px;
   --radius-pill: 999px;
@@ -836,6 +836,8 @@ button, input, select, textarea {
 .overview__analysis-summary::before,
 .overview__technical > summary::before,
 .filter-check-group__toggle::before,
+.saved-scenario__toggle::before,
+.voucher-details__toggle::before,
 .filter-workspace details > summary::before,
 .data-preview details > summary::before,
 .jet-disclosure::after,
@@ -860,6 +862,8 @@ button, input, select, textarea {
 .overview__analysis[open] > .overview__analysis-summary::before,
 .overview__technical[open] > summary::before,
 .filter-check-group__toggle[aria-expanded="true"]::before,
+.saved-scenario__toggle[aria-expanded="true"]::before,
+.voucher-details__toggle[aria-expanded="true"]::before,
 .filter-workspace details[open] > summary::before,
 .data-preview details[open] > summary::before,
 .jet-disclosure[aria-expanded="true"]::after,
@@ -1176,10 +1180,11 @@ button, input, select, textarea {
   box-shadow: none;
 }
 
+/* 說明換成兩行時，按鈕和標題對齊第一行，不放在兩行中間。 */
 .report-output__head,
 .scenario-export-selection__head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: var(--space-3) var(--space-5);
@@ -1214,7 +1219,6 @@ button, input, select, textarea {
   font-size: var(--text-md);
 }
 
-.report-output__hint,
 .scenario-export-selection__hint {
   margin: 0;
 }
@@ -2544,7 +2548,7 @@ dl.kv-list .kv-list__row:last-child {
   font-variant-numeric: tabular-nums;
 }
 
-/* 行尾單一動作鈕：和 .btn--tiny 同規格，28px 高；平時沒有外框，顏色與滑鼠移上的樣子由下方 M10 的低調按鈕規則決定。 */
+/* 行尾單一動作鈕：和 .btn--tiny 同規格，28px 高的白底細框按鍵；展開中往下凹的樣子和 .btn--tiny 共用同一條規則。 */
 .import-task__action {
   flex: none;
   min-height: var(--control-height-sm);
@@ -2610,7 +2614,7 @@ dl.kv-list .kv-list__row:last-child {
 .panel--mapping { padding: 0; border: 0; border-radius: 0; background: transparent; }
 
 /* ---- 分段切換：全介面同一種畫法 -------------------------------------------
-   淺灰底槽，選中的一格白底細框加粗，沿用使用者 2026-10-09 肯定的「KCT 條件／自訂篩選條件」樣式。
+   淺灰底槽，選中的一格白底細框加粗，沿用使用者 2026-10-09 肯定的第五步條件來源分頁樣式。
    簡易清單與對照表格、金額格式、矩陣切換與總覽圖表切換都用這一種；整組 32px 高。
    金額格式保留原生單選鈕，桌面測試會直接點它。 */
 .seg-toggle,
@@ -3126,6 +3130,24 @@ dl.kv-list .kv-list__row:last-child {
   padding-left: 0;
 }
 
+/* 精簡統計列：第五步預覽與已儲存情境裡的傳票數量與分錄筆數固定 18px，流程總覽與第四步仍是 28px；情境之間由整列標題與下凹的底槽分開。
+   fitStatRows 縮級時加上的 class 也一併蓋過；數字仍放不下時，照常改成較少的格數（使用者 2026-10-29 指出情境名稱比統計數字小，情境之間分不清）。 */
+.stats-bar--compact > .stat-card {
+  padding-block: var(--space-2);
+}
+
+.stats-bar--compact .stat-card__value,
+.stats-bar--compact:is(.stat-fit--xl, .stat-fit--lg) .stat-card__value {
+  font-size: var(--text-lg);
+}
+
+/* 分錄筆數的口徑和一般情形不同時才出現的一句。 */
+.filter-count-note {
+  margin: calc(-1 * var(--space-1)) 0 var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
 /* 工作面：白底、淡框加極淡落影、12px 圓角、24px 內距；工作面之間留 24px。 */
 .rule-card {
   margin-bottom: var(--surface-gap);
@@ -3174,12 +3196,12 @@ dl.kv-list .kv-list__row:last-child {
 }
 
 /* ---- 進階條件篩選（Step 4）------------------------------------------------
-   兩階段流程：先在兩個「選取區塊」（.condition-picker）挑條件——KCT 固定清單可複選
+   兩階段流程：先在兩個「選取區塊」（.condition-picker）挑條件——常用篩選條件的卡片可複選
    toggle、自訂條件可重複加入——再到下方「建立篩選情境」彙總區（.scenario-builder）
    設定數值並保存。選取與調整刻意以 macro whitespace 分隔，視覺上分屬兩階段。
    外框用 1px 細線，只有選取狀態使用重點色。 */
 
-/* 選取區塊外殼：兩塊（KCT／自訂）共用同一基底，差異只用修飾類表達（消重，Linus）。
+/* 選取區塊外殼：兩塊（常用篩選條件／自訂）共用同一基底，差異只用修飾類表達（消重，Linus）。
    不用較強外框或頂條——讓「卡片網格」自己成為視覺主體，區塊本身保持平面。 */
 .condition-picker {
   margin-bottom: 14px;
@@ -3189,42 +3211,9 @@ dl.kv-list .kv-list__row:last-child {
   border-radius: var(--radius-surface);
 }
 
-/* 自訂面板精簡（#2）：整體內距收斂、小一圈（KCT 面板不受影響）。 */
+/* 自訂面板精簡（#2）：整體內距收斂、小一圈（常用篩選條件面板不受影響）。 */
 .condition-picker--custom {
   padding: 10px 14px 6px;
-}
-
-.condition-picker__head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-
-.condition-picker__title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--color-ink);
-}
-
-/* 作用中組已選 N 項即時計數（僅 KCT）：中性小標籤，與 .check-item__count 同語彙，
-   給複選 toggle 一個輕量的「已選了幾張」回饋，與標題並列。 */
-.condition-picker__count {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 2px 10px;
-  color: var(--color-text);
-  background: var(--color-surface-sunken);
-  border-radius: var(--radius-control);
-  white-space: nowrap;
-}
-
-.condition-picker__intro {
-  margin: 0 0 10px;
-  font-size: var(--text-xs);
-  line-height: 1.6;
-  color: var(--color-muted);
 }
 
 /* 自訂區塊的審計分組包裹（重複四次）：小標題在上、卡片網格在下。 */
@@ -3241,14 +3230,14 @@ dl.kv-list .kv-list__row:last-child {
 }
 
 /* 卡片網格基底：等寬欄 + cell stretch ⇒ 同網格內卡片等寬等高，無需 JS 量測。
-   auto-fill + minmax(...,1fr) 讓欄數隨容器寬自適應；KCT 與自訂只是最小欄寬不同。 */
+   auto-fill + minmax(...,1fr) 讓欄數隨容器寬自適應；常用篩選條件與自訂只是最小欄寬不同。 */
 .condition-picker__grid {
   display: grid;
   gap: 10px;
 }
 
-/* KCT 十卡：沿用原本約 220px 級距（桌面通常 2–3 欄）。 */
-.condition-picker__grid--kct {
+/* 常用篩選條件的十張卡：沿用原本約 220px 級距（桌面通常 2–3 欄）。 */
+.condition-picker__grid--common {
   grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
 }
 
@@ -3259,15 +3248,15 @@ dl.kv-list .kv-list__row:last-child {
 
 /* 窄版面：兩種網格皆降為單欄堆疊。 */
 @media (max-width: 720px) {
-  .condition-picker__grid--kct,
+  .condition-picker__grid--common,
   .condition-picker__grid--custom {
     grid-template-columns: 1fr;
   }
 }
 
-/* 卡片基底（KCT 與自訂共用）：內部用 grid 排版，靠 align-items:stretch（grid cell 預設）
-   等高、靠 1fr 欄等寬。內部結構固定為 mark→(letter)→label(→note)，故已選/未選或 mark
-   內容變動都不改卡片尺寸（mark 為固定方框、letter 跨行佔位、label 撐高度）。 */
+/* 卡片基底（常用篩選條件與自訂共用）：內部用 grid 排版，靠 align-items:stretch（grid cell 預設）
+   等高、靠 1fr 欄等寬。內部結構固定為 (mark)→label(→note)，故已選/未選或 mark
+   內容變動都不改卡片尺寸（mark 為固定方框、label 撐高度）。 */
 .picker-card {
   display: grid;
   align-content: start;
@@ -3313,42 +3302,22 @@ dl.kv-list .kv-list__row:last-child {
   overflow: hidden;
 }
 
-/* ---- KCT 卡（toggle）：grid = [mark | letter | label / note]，letter 跨兩行置中 ---- */
-.picker-card--kct {
-  grid-template-columns: 26px 1fr;
-}
-
-/* 字母索引：中性圓形，選取時改成重點色實心；跨兩行置中。 */
-.picker-card__letter {
-  grid-row: 1 / span 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--color-heading);
-  background: var(--color-surface-hover);
-  border-radius: 50%;
-  border: 1px solid transparent;
-}
-
-.picker-card--kct .picker-card__label {
-  grid-column: 2;
+/* ---- 常用篩選條件的卡片（toggle）：單欄，名稱在上，停用原因與「也在其他組」接在下方。
+   2026-10-29 拿掉卡片前面的字母，原本放字母的那一欄一起拿掉。 ---- */
+.picker-card--common {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* 停用原因標註（Phase 2 / 需科目配對未匯入）：小字，置於標籤下方第二行。 */
 .picker-card__note {
-  grid-column: 2;
+  grid-column: 1 / -1;
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   color: var(--color-muted);
 }
 
 /* 未選且未停用時：滑鼠移上去只加強邊框，不加陰影。 */
-.picker-card--kct:not(.picker-card--disabled):not(.picker-card--selected):hover {
+.picker-card--common:not(.picker-card--disabled):not(.picker-card--selected):hover {
   border-color: var(--color-border-strong);
 }
 
@@ -3359,12 +3328,6 @@ dl.kv-list .kv-list__row:last-child {
   border-color: var(--color-accent);
 }
 
-.picker-card--selected .picker-card__letter {
-  color: var(--color-on-accent);
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
 /* 「也在其他組」：藍邊無底（vs 已選的藍邊＋淡藍底）＋小字標記——該訊號用於別組、但作用中組沒有，
    維持全局意識而不誤導為「已在作用中組」。 */
 .picker-card--elsewhere {
@@ -3372,13 +3335,13 @@ dl.kv-list .kv-list__row:last-child {
 }
 
 .picker-card__elsewhere {
-  grid-column: 2;
+  grid-column: 1 / -1;
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   color: var(--color-accent);
 }
 
-/* 停用態（B = Phase 2 佔位；或需科目配對未匯入）：降透明、虛線邊、hover 不變、不可點。
+/* 停用態（前置資料不足，例如科目配對未匯入）：降透明、虛線邊、hover 不變、不可點。
    虛線 + 半透明是「此處有東西但暫不可用」的既有語彙。 */
 .picker-card--disabled {
   cursor: not-allowed;
@@ -3392,12 +3355,6 @@ dl.kv-list .kv-list__row:last-child {
   border-color: var(--color-border);
   box-shadow: none;
   transform: none;
-}
-
-.picker-card--disabled .picker-card__letter {
-  color: var(--color-muted);
-  background: var(--color-surface-sunken);
-  border-color: var(--color-border-strong);
 }
 
 /* 停用卡 label 收為 1 行：與啟用卡 2 行 label 等高（停用卡另有註記行），整列不被撐高。 */
@@ -3429,11 +3386,7 @@ dl.kv-list .kv-list__row:last-child {
   border-color: var(--color-border-strong);
 }
 
-/* 自訂面板分組與網格收斂：群距小、欄較窄較密（KCT 不受影響）。 */
-.condition-picker--custom .condition-picker__intro {
-  margin-bottom: 8px;
-}
-
+/* 自訂面板分組與網格收斂：群距小、欄較窄較密（常用篩選條件不受影響）。 */
 .condition-picker--custom .condition-picker__group {
   margin-bottom: 8px;
 }
@@ -3474,17 +3427,6 @@ dl.kv-list .kv-list__row:last-child {
   margin: 0;
   font-size: var(--text-lg);
   color: var(--color-ink);
-}
-
-.population-scope__hint,
-.population-scope__definition {
-  margin: 2px 0 0;
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-}
-
-.population-scope__definition {
-  margin-top: 10px;
 }
 
 .population-scope__toggle {
@@ -4084,10 +4026,12 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 .table-pager__arrow--next { transform: rotate(45deg); }
 .data-preview__note > .table-pager { margin-inline: var(--space-4); }
 
-/* 已儲存情境：工作面裡以細線分隔的一列一個情境，不再一個情境一個框。 */
+/* 已儲存情境：工作面裡以細線分隔的一列一個情境，不再一個情境一個框。整列標題就是開關，箭頭在名稱前面，
+   再點一次標題就收起；「操作」選單留在右側。展開的內容放進和第四步明細同一種下凹的淺灰底槽，標題留在槽外，
+   和下一個情境分得出來（使用者 2026-10-29 指出情境之間只有細線、名稱比統計數字小，區塊分不清）。 */
 .saved-scenario {
   margin: 0;
-  padding: var(--space-3) 0;
+  padding: var(--space-2) 0;
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--color-border);
@@ -4100,17 +4044,56 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   gap: var(--space-2);
 }
 
-.saved-scenario__name {
+.saved-scenario__toggle {
+  display: flex;
   flex: 1 1 auto;
-  font-size: var(--text-md);
-  font-weight: 600;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: var(--space-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.saved-scenario__toggle::before,
+.voucher-details__toggle::before {
+  color: var(--color-muted);
+}
+
+.saved-scenario__toggle:hover::before,
+.voucher-details__toggle:hover::before {
   color: var(--color-ink);
 }
 
+.saved-scenario__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
 .saved-scenario__body {
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border-row);
+  margin: var(--space-1) 0 var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-sunken);
+  border: 0;
+  border-radius: var(--radius-control);
+}
+
+/* 審計員自己寫的動機：條件上方一句一般內文。自動產生的動機只是把條件再念一次，不顯示。 */
+.saved-scenario__rationale {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
 .saved-scenario__confirm {
@@ -4217,9 +4200,18 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   color: var(--color-ink);
 }
 
-/* 說明最多約 60 個字一行：寬視窗時清單列變長，狀態仍靠右，說明不跟著拉成一整條難讀的長行。 */
-.rule-item__desc {
+/* 規則在做什麼寫在展開的明細最上方一次，最多約 60 個字一行；並排的兩項彙總把明細放在清單下方時，
+   另寫是哪一項（使用者 2026-10-29 指出常駐說明太多）。 */
+.rule-detail__title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.rule-detail__about {
   max-width: 60em;
+  margin: 0 0 var(--space-3);
   font-size: var(--text-xs);
   line-height: 1.6;
   color: var(--color-muted);
@@ -4291,27 +4283,6 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   border-radius: 0;
 }
 
-.prescreen-primary__head {
-  margin-bottom: var(--space-3);
-}
-
-.prescreen-primary__eyebrow {
-  display: block;
-  margin-bottom: var(--space-1);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-}
-
-.prescreen-primary__title {
-  margin: 0 0 var(--space-1);
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
-  color: var(--color-ink);
-  font-weight: 600;
-}
-
-.prescreen-primary__guidance,
 .prescreen-signals__guidance {
   margin: 0;
   font-size: var(--text-xs);
@@ -4346,9 +4317,20 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   }
 }
 
-/* 彙總較窄：狀態與「檢視」一律放在說明下方，兩項排法一致。 */
+/* 兩項彙總各自只有標題、狀態與「檢視」，並排時靠上對齊；按「檢視」後明細接在兩格下方、佔滿整寬，
+   另一格不會被撐高，內容也不會被推到中間（使用者 2026-10-29 指出較窄視窗展開右欄時，左欄被撐開而置中）。 */
+.prescreen-primary > .rule-detail {
+  margin: 0 0 var(--space-4);
+}
+
+/* 兩格較窄，右格的狀態也比較長：狀態與「檢視」一律放在標題下方，兩格排法一致。兩格同高，中間的分隔線貫穿整列；
+   內容一律從格子頂端排起，不因另一格較高而往下移。 */
 .prescreen-primary .rule-item__main {
   flex-basis: 100%;
+}
+
+.prescreen-primary .rule-list > .rule-item {
+  align-content: flex-start;
 }
 
 .prescreen-signals {
@@ -4480,13 +4462,6 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   background: var(--color-surface-sunken);
   border: 0;
   border-radius: var(--radius-control);
-}
-
-/* 展開中的〔檢視〕鈕轉作用中樣式，讓使用者一眼看出哪一列是開著的。 */
-.rule-item__toggle[aria-expanded="true"] {
-  color: var(--color-ink);
-  background: var(--color-surface-sunken);
-  border-color: var(--color-border-strong);
 }
 
 /* 已儲存情境詳情內的命中預覽（前 10 筆 grid）與條件 pills 隔開。 */
@@ -5608,7 +5583,6 @@ body.is-resizing-preview .data-preview {
 }
 
 .overview-stage__location {
-  margin-top: auto;
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -6754,11 +6728,12 @@ body.is-resizing-preview .data-preview {
   padding-top: 0;
   border-top: 0;
 }
+/* 標題、說明與按鈕對齊第一行的基線：說明換成兩行時，標題與按鈕不被推到中間（使用者 2026-10-29 指出濫用垂直置中會讓並排的區塊對不齊）。 */
 .account-mapping-workflow__part {
   display: grid;
   grid-template-columns: 9em minmax(0, 1fr) auto;
   column-gap: var(--space-4);
-  align-items: center;
+  align-items: baseline;
   min-width: 0;
   padding: var(--space-4) 0;
 }
@@ -6873,7 +6848,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 .taxonomy-guide[hidden], .taxonomy-row__advanced[hidden] { display: none; }
 .report-output__head > .report-output__actions {
-  display: flex; flex: 0 1 auto; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center;
+  display: flex; flex: 0 1 auto; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center;
 }
 .report-output__actions .btn { white-space: nowrap; text-align: center; }
 .map-grid__shared { display: block; font-weight: 600; }
@@ -6978,6 +6953,11 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .value-editor .value-editor__date-error { flex-basis: 100%; }
 .filter-hit-row { background: var(--color-accent-subtle); }
 .voucher-details { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--color-border-strong); }
+/* 明細標題本身就是收合鈕：箭頭朝下表示打開中，再點一次收起，不在明細底部另放「收合分錄」（使用者 2026-10-29 要求）。 */
+.voucher-details__title { margin: 0 0 var(--space-2); font-size: var(--text-sm); font-weight: 600; }
+.voucher-details__toggle { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-height); padding: 0; border: 0; background: transparent; color: var(--color-ink); font: inherit; text-align: left; cursor: pointer; }
+/* 明細打開中的那一列用淺灰底標出，和展開中的按鈕往下凹同一種中性色；淡藍只留給符合條件的分錄列。 */
+.preview-table tr.voucher-row--open > td { background: var(--color-surface-sunken); }
 /* 第五步：條件選單、本次篩選與已保存結果各有固定位置。 */
 .filter-workspace { --filter-accent: var(--color-ink); --filter-border: var(--color-border); color: var(--color-ink); container: filter-workspace / inline-size; }
 .filter-workspace [hidden] { display: none !important; }
@@ -6994,7 +6974,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-work-tabs button { margin-bottom: -1px; padding: var(--space-2) 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--color-muted); cursor: pointer; font: inherit; font-weight: 500; line-height: 20px; }
 .filter-work-tabs button:hover { color: var(--color-ink); }
 .filter-work-tabs button[aria-selected="true"] { color: var(--filter-accent); border-bottom-color: var(--color-accent); font-weight: 600; }
-/* KCT 條件、預篩選與自訂篩選條件撐滿左欄寬度；外觀見共用的「分段切換」。2026-10-16 加入「預篩選」成為三格，
+/* 常用篩選條件、預篩選與自訂篩選條件撐滿左欄寬度；外觀見共用的「分段切換」。2026-10-16 加入「預篩選」成為三格，
    三格等寬會把「自訂篩選條件」擠成兩行，所以依字數分配寬度、不換行。三格的完整名稱排成一列約需 228px，
    1100px 以下改用小一階的字約需 191px；左欄寬度依此訂，名稱不省略。
    選中的白色按鍵由 app.js 的 bindGlide 量實際寬度移動。 */
@@ -7005,15 +6985,12 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workbench { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; align-items: start; }
 .filter-current, .filter-entry { min-width: 0; }
 .filter-workspace .filter-entry .condition-picker { border: 0; background: transparent; padding: 16px 0; margin: 0; }
-.filter-workspace .condition-picker__head { display: block; }
-.filter-workspace .condition-picker__count { display: block; margin: 6px 0; padding: 0; font-size: var(--text-xs); background: transparent; color: var(--color-muted); }
-.filter-workspace .condition-picker__intro { margin: 10px 0 14px; line-height: 1.7; }
 .filter-workspace .condition-picker__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-.filter-workspace .picker-card { min-height: 44px; height: auto; text-align: left; padding: 10px; border: 1px solid transparent; background: transparent; grid-template-columns: 24px minmax(0, 1fr); border-radius: var(--radius-control); }
+.filter-workspace .picker-card { min-height: 44px; height: auto; text-align: left; padding: 10px; border: 1px solid transparent; background: transparent; grid-template-columns: minmax(0, 1fr); border-radius: var(--radius-control); }
 .filter-workspace .picker-card:not(.picker-card--disabled):not(.picker-card--selected):hover { background: var(--color-surface-hover); border-color: transparent; }
 .filter-workspace .picker-card__label { display: block; -webkit-line-clamp: unset; overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.5; }
 .filter-workspace .picker-card--selected { background: var(--color-accent-subtle); border-color: var(--color-accent); }
-/* 「尚不可用」的 KCT 條件：淺灰底、虛線框，名稱與原因維持可讀的對比，不疊半透明。 */
+/* 「尚不可用」的常用篩選條件：淺灰底、虛線框，名稱與原因維持可讀的對比，不疊半透明。 */
 .filter-workspace .picker-card--disabled { opacity: 1; background: var(--color-surface-sunken); color: var(--color-muted); }
 .filter-workspace .picker-card--disabled .picker-card__label { color: var(--color-muted); }
 .filter-workspace .picker-card--template { display: block; }
@@ -7056,11 +7033,11 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workspace .filter-match-reason > p { width: 240px; margin: 8px 0 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.7; }
 @media (max-width: 900px) {
   .filter-workbench { grid-template-columns: minmax(0, 1fr); gap: 18px; }
-  .filter-workspace .condition-picker__grid--kct { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filter-workspace .condition-picker__grid--common { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 600px) {
   .filter-workspace .rule-card { padding: var(--space-4); }
-  .filter-workspace .condition-picker__grid--kct { grid-template-columns: minmax(0, 1fr); }
+  .filter-workspace .condition-picker__grid--common { grid-template-columns: minmax(0, 1fr); }
   .filter-work-tabs button { padding: var(--space-2) 0; }
 }
 
@@ -7073,9 +7050,10 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 @media (min-width: 901px) and (min-height: 600px) {
   .filter-workspace .filter-entry { position: static; max-height: none; }
 }
-/* 左欄 220px 扣掉左右內距後剩 196px，放得下條件來源三格的完整名稱（2026-10-16 量到需要 190.4px；原本 208px 只剩 184px）。 */
+/* 左欄 240px 扣掉左右內距後剩 216px，放得下條件來源三格的完整名稱。2026-10-16 量到需要 190.4px，當時定 220px；
+   2026-10-29 第一格改名「常用篩選條件」後量到需要 212px，220px 只剩 196px，第三格會擠到第二行，所以加寬。 */
 @media (min-width: 901px) and (max-width: 1100px) {
-  .filter-workbench { grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-4); }
+  .filter-workbench { grid-template-columns: 240px minmax(0, 1fr); gap: var(--space-4); }
   .filter-workspace .rule-card { padding: var(--space-4); }
   .filter-source-tabs button { padding: 4px var(--space-1); font-size: var(--text-xs); }
 }
@@ -7086,10 +7064,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workspace .population-scope { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-5); padding: var(--space-3) 0; margin-bottom: var(--space-2); }
 .filter-workspace .population-scope__head { margin: 0; }
 .filter-workspace .population-scope__title { font-size: var(--text-sm); margin: 0; }
-.filter-workspace .population-scope__definition { font-size: var(--text-xs); margin: 0; }
 .filter-workspace .population-scope__status { flex-basis: 100%; }
-.filter-workspace .filter-entry .condition-picker__head,
-.filter-workspace .filter-entry .condition-picker--custom > .condition-picker__title { display: none; }
 
 /* 第二輪易用性調整：一條條件是一個可直接編輯及移除的單位。 */
 .filter-workspace .rule-row { display: block; padding: var(--space-3); }
@@ -7168,7 +7143,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   .filter-workspace .filter-entry { position: static; max-height: none; }
   .filter-entry-scroll { overflow: visible; }
   .filter-workspace .filter-primary-actions { position: relative; }
-  .filter-workspace .condition-picker__grid--kct { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filter-workspace .condition-picker__grid--common { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* 規則的計算說明不是錯誤。 */
@@ -7179,7 +7154,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* 操作說明共用一個字級與行高，原有類別只保留各自的版面間距。 */
 .help-text, .rule-field__hint, .map-options__hint, .map-options__note, .mode-group__note, .rule-explanation,
-.rule-card__gate, .rule-card__sub, .scenario-export-selection__hint, .filter-check__note, .report-output__hint {
+.rule-card__gate, .rule-card__sub, .scenario-export-selection__hint, .filter-check__note {
   color: var(--color-muted);
   font-size: var(--text-sm);
   line-height: 1.6;
@@ -7227,14 +7202,15 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .report-output > .report-output__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
 /* 預篩選的「篩選結果」下緣已有細線，接著的報告區不再畫第二條。 */
 .filter-entry .condition-picker__grid { grid-template-columns: minmax(0, 1fr); }
-.filter-entry .picker-card:not(.picker-card--kct) { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; text-align: left; }
-.filter-entry .picker-card:not(.picker-card--kct) :is(.picker-card__label, .picker-card__note) { grid-column: 1; display: block; min-width: 0; white-space: normal; overflow: visible; -webkit-line-clamp: unset; overflow-wrap: anywhere; }
+.filter-entry .picker-card:not(.picker-card--common) { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; text-align: left; }
+.filter-entry .picker-card:not(.picker-card--common) :is(.picker-card__label, .picker-card__note) { grid-column: 1; display: block; min-width: 0; white-space: normal; overflow: visible; -webkit-line-clamp: unset; overflow-wrap: anywhere; }
 .filter-entry .form__row { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); }
 .filter-entry .form__row select { width: 100%; min-width: 0; max-width: 100%; }
-/* 自訂篩選條件：欄位按鈕三列、常用查核條件手風琴。攸關資料元素欄位用虛線框和核心欄位區分。 */
-.filter-custom-block { padding: var(--space-1) 0 var(--space-4); }
-.filter-custom-block + .filter-custom-block { border-top: 1px solid var(--filter-border); padding-top: var(--space-4); }
-.filter-custom-block__title { margin: 0 0 var(--space-2); font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 600; color: var(--color-ink); }
+/* 條件總覽分頁裡的區塊：常用篩選條件分成單項條件與情境範例，自訂篩選條件分成依欄位設定與依審計目的。
+   小標題在上，區塊之間一條細線；依欄位設定是欄位按鈕三列，依審計目的是手風琴，攸關資料元素欄位用虛線框和核心欄位區分。 */
+.filter-source-block { padding: var(--space-1) 0 var(--space-4); }
+.filter-source-block + .filter-source-block { border-top: 1px solid var(--filter-border); padding-top: var(--space-4); }
+.filter-source-block__title { margin: 0 0 var(--space-2); font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 600; color: var(--color-ink); }
 .filter-chip-row { display: grid; grid-template-columns: 2.5em minmax(0, 1fr); gap: var(--space-2); align-items: start; margin-bottom: var(--space-2); }
 .filter-chip-row__label { padding-top: var(--space-1); font-size: var(--text-xs); color: var(--color-muted); }
 .filter-chip-row__chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
@@ -7247,7 +7223,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-chip:disabled::before { background: currentColor; }
 .filter-check-group { border-bottom: 1px solid var(--filter-border); }
 .filter-check-group__heading { margin: 0; font: inherit; }
-/* 常用查核條件的分類列：和其他展開說明一樣，細箭頭在左。 */
+/* 依審計目的的分類列：和其他展開說明一樣，細箭頭在左。 */
 .filter-check-group__toggle { display: flex; justify-content: flex-start; align-items: center; gap: var(--space-2); width: 100%; padding: var(--space-2) 0; border: 0; background: transparent; color: var(--color-text); font: inherit; font-size: var(--text-sm); font-weight: 600; text-align: left; cursor: pointer; }
 .filter-check-group__toggle::before { color: var(--color-muted); }
 .filter-check-group__toggle:hover { color: var(--color-ink); }
@@ -7255,9 +7231,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-check { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-2); align-items: center; padding: var(--space-1) 0; font-size: var(--text-sm); }
 .filter-check__label { min-width: 0; overflow-wrap: anywhere; }
 .filter-check__note { grid-column: 1 / -1; margin: 0; }
-/* 「從範例開始」清單與每組的「⋯」選單。範例清單在左欄的暖紙底上，用一塊白色工作面承托。 */
+/* 情境範例與每組的「⋯」選單。情境範例和同一分頁的單項條件一樣直接排在托盤上，不另外加框（2026-10-29 併進常用篩選條件分頁）。 */
 .filter-group-tools { gap: var(--space-2); flex-wrap: wrap; }
-.filter-example-list { margin: 0 0 var(--space-4); padding: var(--space-3); border: 1px solid var(--filter-border); border-radius: var(--radius-control); background: var(--color-surface); }
 .filter-example-list__hint { margin: 0 0 var(--space-2); font-size: var(--text-xs); color: var(--color-muted); }
 .filter-example-list__items { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 6px; }
 .filter-example { min-width: 0; }
@@ -7298,7 +7273,6 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* 第四、五步：選取工具對齊，較少用的設定與說明按需展開。 */
 .account-editor__selection { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: var(--control-height); font-size: var(--text-sm); }
 .account-editor__selection .account-editor__clear { margin: 0; }
-.filter-entry .filter-example-list { margin: 0 0 var(--space-4); }
 .filter-workspace .filter-group-actions { flex-wrap: wrap; }
 .filter-workspace .filter-group-scope { display: inline-block; margin-left: var(--space-2); color: var(--color-muted); font-size: var(--text-sm); font-weight: 400; }
 .filter-workspace .filter-rule-help { margin-top: var(--space-3); padding-top: var(--space-1); border-top: 1px solid var(--color-border); font-size: var(--text-sm); }
@@ -7321,7 +7295,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   grid-template-columns: auto minmax(0, 1fr) auto;
   column-gap: var(--space-4);
   row-gap: 0;
-  align-items: center;
+  /* 組名、組內條件設定與按鈕對齊第一行的基線，設定換行時不被推到中間。 */
+  align-items: baseline;
   margin: 0;
   padding: var(--space-4) var(--space-4) var(--space-2);
   border: 0;
@@ -7445,10 +7420,10 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .map-options__source:empty { display: none; }
 .map-options__source .value-assign { padding: var(--space-3) 0; gap: var(--space-3); }
 .map-options__source .value-assign__modes { width: auto; margin-left: var(--space-3); gap: var(--space-4); }
-.filter-workspace .picker-card[data-kct-letter]:not(.picker-card--selected):not(.picker-card--disabled) { background: var(--color-surface); border-color: var(--color-border-strong); border-bottom-color: var(--color-border-control-strong); }
-.filter-workspace .picker-card[data-kct-letter]:not(.picker-card--selected):not(.picker-card--disabled):hover { background: var(--color-surface-hover); }
-.filter-workspace .picker-card[data-kct-letter] { padding: var(--space-3); column-gap: var(--space-3); }
-.filter-workspace .picker-card[data-kct-letter] .picker-card__label { line-height: 1.6; }
+.filter-workspace .picker-card[data-common-card]:not(.picker-card--selected):not(.picker-card--disabled) { background: var(--color-surface); border-color: var(--color-border-strong); border-bottom-color: var(--color-border-control-strong); }
+.filter-workspace .picker-card[data-common-card]:not(.picker-card--selected):not(.picker-card--disabled):hover { background: var(--color-surface-hover); }
+.filter-workspace .picker-card[data-common-card] { padding: var(--space-3); column-gap: var(--space-3); }
+.filter-workspace .picker-card[data-common-card] .picker-card__label { line-height: 1.6; }
 @media (max-width: 640px) {
   .case-summary__details { flex-direction: column; gap: var(--space-1); }
 }
@@ -7458,60 +7433,48 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* ---- 改版檢查後的修正（2026-10-11 獨立檢查） --------------------------------- */
 
-/* M3：第五步左欄的標題和右欄工作面標題同一條基線；KCT 清單借出焦點用的 3px 內距，卡片邊緣對齊左欄標題。 */
+/* M3：第五步左欄的標題和右欄工作面標題同一條基線；常用篩選條件的卡片借出焦點用的 3px 內距，卡片邊緣對齊左欄標題。 */
 .filter-workspace .filter-entry { padding-top: calc(var(--surface-pad) + 1px); }
 .filter-workspace .filter-entry-scroll { margin-inline: -3px; }
 
 /* M9：統計格一律標籤在上、數字在下，和流程總覽相同。 */
 .stat-card__label { order: -1; }
 
-/* M10：每列重複出現的動作（移除、檢視、列出科目、操作）用低調按鈕：平時沒有外框，
-   滑鼠移上或取得焦點時才出現底色；工作面層級的次要動作仍是細框按鈕，主要動作是藍色實心。
-   使用者 2026-10-11 第三次調整時指出灰字的「加入」像一般文字，所以低調按鈕的字改用重點色：
-   Apple 的無框按鈕一直用 tint 色表示「這可以按」，一般文字則不上色。 */
+/* 中間工作區的按鈕只有兩種：每個工作面唯一的主要動作是藍色實心，其他按鈕一律是白底深字的按鍵，
+   和「依欄位設定」的欄位按鈕同一種樣子：細框、下緣略深，停用時灰底灰字。形狀本身就看得出可以按，
+   所以列內的「移除」「檢視」「操作」等不再用藍字（使用者 2026-10-11 指出灰字的「加入」像一般文字；
+   2026-10-29 認為強調色用在左側流程很好，中間操作區不需要到處用）。 */
 .btn--tiny,
-.btn--ghost.btn--tiny,
-.filter-workspace .rule-row__remove,
-.import-task__action {
-  color: var(--color-accent);
-  background: transparent;
-  border-color: transparent;
-  border-bottom-color: transparent;
+.btn--ghost.btn--tiny {
   font-weight: 500;
-}
-.btn--tiny:hover,
-.btn--ghost.btn--tiny:hover,
-.filter-workspace .rule-row__remove:hover,
-.import-task__action:hover,
-.import-task__action[aria-expanded="true"],
-.btn--tiny.jet-menu__toggle[aria-expanded="true"] {
-  color: var(--color-accent-hover);
-  background: var(--color-accent-subtle);
-  border-color: transparent;
-  border-bottom-color: transparent;
-}
-/* 已儲存情境每列的「操作」和旁邊的「查看結果」同一種低調按鈕（使用者 2026-10-13 選擇整理）：同為 28px、12px 字，
-   選單打開時保留淡藍底，看得出選單是從這裡打開的。 */
-.filter-workspace .rule-row__remove:hover { color: var(--color-danger); }
-.btn--tiny:disabled,
-.btn--tiny:disabled:hover { color: var(--color-disabled); background: transparent; border-color: transparent; }
-/* 放在淺灰條件組裡的低調按鈕，滑鼠移上時用白底。 */
-.filter-workspace .scenario-set .btn--tiny:hover,
-.filter-workspace .scenario-set .rule-row__remove:hover { background: var(--color-surface-raised); }
-/* 提示框與狀態區裡的按鈕是那一區唯一的下一步，維持白底細框，不做成低調按鈕。 */
-.form-notice .btn--tiny,
-.population-scope__status .btn--tiny {
   color: var(--color-text);
   background: var(--color-surface-raised);
   border-color: var(--color-border-control);
   border-bottom-color: var(--color-border-control-strong);
 }
-.form-notice .btn--tiny:hover,
-.population-scope__status .btn--tiny:hover {
+.btn--tiny:hover,
+.btn--ghost.btn--tiny:hover {
   color: var(--color-ink);
   background: var(--color-surface-sunken);
-  border-color: var(--color-border-control);
+  border-color: var(--color-border-rule);
   border-bottom-color: var(--color-border-control-strong);
+}
+/* 展開中的按鈕往下凹：灰底、深字、上緣一道內陰影，一眼看出內容是從這裡打開的，不用淡藍底。 */
+.btn--tiny[aria-expanded="true"],
+.import-task__action[aria-expanded="true"],
+.rule-item__toggle[aria-expanded="true"] {
+  color: var(--color-ink);
+  background: var(--color-surface-sunken);
+  border-color: var(--color-border-strong);
+  box-shadow: inset 0 1px 2px rgba(24, 51, 72, 0.12);
+}
+.filter-workspace .rule-row__remove:hover { color: var(--color-danger); }
+.btn--tiny:disabled,
+.btn--tiny:disabled:hover {
+  color: var(--color-disabled);
+  background: var(--color-surface-sunken);
+  border-color: var(--color-border-control);
+  box-shadow: none;
 }
 
 /* H4（只改呈現）：已完成的必要來源，「必要」改成灰字，紅字只留給還沒完成的必要項目。 */
@@ -7542,21 +7505,12 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* 低 15：核取方塊和文字之間留一點距離。 */
 .filter-workspace .value-editor__main > label:has(> input[type="checkbox"]) { display: inline-flex; align-items: center; gap: 6px; }
 
-/* 低 12：KCT 說明的行高和內文一致。 */
+/* 低 12：卡片說明的行高和內文一致。 */
 .picker-card__note { line-height: 1.6; }
 
 /* 分類清單為了焦點框留 4px 內距，往外借出同樣距離，輸入框左緣對齊工作面標題。 */
 .account-classification .taxonomy-list { margin-inline: -4px; }
 
-/* 緊鄰輸入框的按鈕（例如「查看」「清除」）維持細框，和輸入框成對；低調按鈕只用在每列重複的動作。 */
-.page-search .btn--tiny,
-.page-search .btn--tiny:hover {
-  color: var(--color-text);
-  background: var(--color-surface-raised);
-  border-color: var(--color-border-control);
-  border-bottom-color: var(--color-border-control-strong);
-}
-.page-search .btn--tiny:hover { background: var(--color-surface-sunken); }
 
 /* 步驟層級的提示框和工作面同一套內距，提示文字和工作面內文對齊同一條左緣。 */
 .stepflow-item__body .panel > .form-notice { padding-inline: calc(var(--surface-pad) + 1px); }
@@ -7739,7 +7693,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* ---- 按鍵與按下的回應 ---------------------------------------------------------------------------
    使用者 2026-10-12 要求整個 JE Tool 帶有 Liquid Glass 的質感，甚至有擬物化復興的感覺。按鈕是內容層的實體按鍵：
    - 實心的藍色與紅色按鈕上緣接到一道光、底部有厚度，影子帶一點同色；白色的次要按鈕上緣一道光，底下貼著淺影；
-     會新增東西的淡藍按鈕也是同一種按鍵。光只在 1px 的邊上，不做上半部的亮面，也不用漸層填色。停用的按鈕是平的。
+     會新增東西的按鈕也是白色按鍵。光只在 1px 的邊上，不做上半部的亮面，也不用漸層填色。停用的按鈕是平的。
    - 按下時立刻再深一階並稍微鼓起，放開後彈回原本的大小（macOS 27 替玻璃控制項加的回饋，Apple 提醒一點點就夠）。
      只放大不縮小，按在邊緣的點擊也仍然落在按鈕上。每列重複的低調按鈕只是字，不鼓起。
    - 藍色主要按鈕被按下時，光從按下的位置亮起來，放開後淡掉（Liquid Glass 的回饋：材質從裡面亮起來）。
@@ -7828,7 +7782,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* 紙面卡片在滑鼠移上去時只暗一點點、邊框加深；不整張變灰又拿掉邊框，免得像停用。 */
 .filter-workspace .picker-card:not(.picker-card--disabled):not(.picker-card--selected):hover,
-.filter-workspace .picker-card[data-kct-letter]:not(.picker-card--selected):not(.picker-card--disabled):hover {
+.filter-workspace .picker-card[data-common-card]:not(.picker-card--selected):not(.picker-card--disabled):hover {
   background: var(--color-surface-lit);
   border-color: var(--color-border-rule);
   border-bottom-color: var(--color-border-control-strong);
@@ -7984,7 +7938,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
    - 產出是做完之後拿到的文件：工作面底部一塊低一階的托盤，每份檔案是一張文件卡，和上面的測試項目分開。
    - 分類的上下層用連續的線接起來，像在紙上畫的樹；內建分類標出「內建」，說明它為什麼沒有「移除分類」。
    - 會新增東西的按鈕是淡藍底、藍字加號；每列重複的低調按鈕用藍字。看得出能按，又不搶實心的主要按鈕。
-   - 第五步：條件總覽是一個凹下去的托盤，KCT 卡片放在上面，滑鼠移上去像被拿起來一點；
+   - 第五步：條件總覽是一個凹下去的托盤，常用篩選條件的卡片放在上面，滑鼠移上去像被拿起來一點；
      條件組也是托盤，組裡的條件寫在一張白紙上；條件從總覽飛進條件組，見 app.js 的 bindArrival。 */
 
 /* ---- 產出：做完之後拿到的文件 -------------------------------------------------------------------- */
@@ -8186,35 +8140,16 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* ---- 會新增東西的按鈕 ---------------------------------------------------------------------------
-   「加入」「新增條件組」「新增分類」：淡藍底、藍字，前面一個加號（Apple 的 tinted 按鈕）。
-   看得出是按鈕，又比實心藍色的主要按鈕低一階；一個區塊仍只有一個實心主要按鈕。
+   「加入」「新增條件組」「新增分類」「新增案件」：和其他次要按鈕同樣是白底深字的按鍵，名稱前一個灰色加號，
+   和「依欄位設定」的欄位按鈕一樣；滑鼠移上時加號轉深。原本是淡藍底藍字，使用者 2026-10-29 要求中間工作區
+   不要到處用強調色後改成這樣。標記上一律同時有 btn--ghost，按鍵的材質與按下的回饋和其他白色按鍵相同。
    樣式掛在 .btn--add 上，不掛在 data-action：JetMotion 收起或淡掉的舊複本會拿掉 data-action，
-   掛在屬性上時複本會變回白底（使用者 2026-10-15 指出切換第五步頁籤時「新增條件組」露出原形）。 */
+   掛在屬性上時複本會露出原形（使用者 2026-10-15 指出切換第五步頁籤時「新增條件組」露出原形）。 */
 .btn.btn--add {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  color: var(--color-accent);
-  background: var(--color-accent-subtle);
-  border-color: transparent;
-  border-bottom-color: transparent;
-  font-weight: 600;
-}
-
-.btn.btn--add:not(:disabled) {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 0 0 0.5px rgba(31, 108, 159, 0.24), 0 1px 2px rgba(31, 108, 159, 0.14);
-}
-
-.btn.btn--add:not(:disabled):hover {
-  color: var(--color-accent-hover);
-  background: var(--color-accent-tint);
-  border-color: transparent;
-  border-bottom-color: transparent;
-}
-
-.btn.btn--add:not(:disabled):active {
-  background: var(--color-accent-tint-pressed);
 }
 
 .btn.btn--add::before {
@@ -8223,14 +8158,14 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   width: 16px;
   height: 16px;
   margin-left: -2px;
-  background: currentColor;
+  background: var(--color-muted);
   -webkit-mask: url("../assets/icons/fluent/add_20_regular.svg") center / contain no-repeat;
   mask: url("../assets/icons/fluent/add_20_regular.svg") center / contain no-repeat;
 }
 
-.btn.btn--add:disabled {
-  color: var(--color-disabled);
-  background: var(--color-surface-sunken);
+.btn.btn--add:not(:disabled):hover::before,
+.btn.btn--add:disabled::before {
+  background: currentColor;
 }
 
 /* 依欄位設定的欄位按鈕也是加入條件：名稱前一個小加號。 */
@@ -8265,7 +8200,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   box-shadow: inset 0 0 0 1px var(--color-border-strong), var(--recess);
 }
 
-/* 托盤和分段切換的底同色，所以托盤上的「KCT 條件／自訂篩選條件」底槽再低一階，用軌道色；未選的字仍有 5:1。 */
+/* 托盤和分段切換的底同色，所以托盤上的條件來源分頁底槽再低一階，用軌道色；未選的字仍有 5:1。 */
 .filter-workspace .filter-entry .filter-source-tabs {
   background: var(--color-track);
 }
@@ -8281,9 +8216,9 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   font-size: var(--text-md);
 }
 
-/* KCT 卡片是放在托盤上的卡片：白紙、細框、貼著托盤的接觸影。滑鼠移上去時影子變長，像被拿起來一點，
+/* 常用篩選條件的卡片是放在托盤上的卡片：白紙、細框、貼著托盤的接觸影。滑鼠移上去時影子變長，像被拿起來一點，
    表示可以拿去用（iPadOS 的 lift）；不移動位置，免得點在邊緣時點擊落空。按下時立刻貼回托盤。 */
-.filter-workspace .filter-entry .picker-card[data-kct-letter]:not(.picker-card--disabled) {
+.filter-workspace .filter-entry .picker-card[data-common-card]:not(.picker-card--disabled) {
   background: var(--color-surface);
   border-color: var(--color-border-strong);
   border-bottom-color: var(--color-border-control-strong);
@@ -8294,19 +8229,19 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
     background-color 150ms var(--ease-soft);
 }
 
-.filter-workspace .filter-entry .picker-card[data-kct-letter]:not(.picker-card--disabled):not(.picker-card--selected):hover {
+.filter-workspace .filter-entry .picker-card[data-common-card]:not(.picker-card--disabled):not(.picker-card--selected):hover {
   background: var(--color-surface);
   border-color: var(--color-border-rule);
   border-bottom-color: var(--color-border-control-strong);
   box-shadow: var(--shadow-float);
 }
 
-.filter-workspace .filter-entry .picker-card[data-kct-letter]:not(.picker-card--disabled):active {
+.filter-workspace .filter-entry .picker-card[data-common-card]:not(.picker-card--disabled):active {
   box-shadow: var(--shadow-surface);
   transition-duration: 0s;
 }
 
-.filter-workspace .filter-entry .picker-card--selected[data-kct-letter] {
+.filter-workspace .filter-entry .picker-card--selected[data-common-card] {
   background: var(--color-accent-subtle);
   border-color: var(--color-accent);
 }
@@ -8315,7 +8250,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   gap: var(--space-2);
 }
 
-/* 常用查核條件：每個分類展開後是一張白紙清單，一列一個條件，右邊是「加入」。
+/* 依審計目的：每個分類展開後是一張白紙清單，一列一個條件，右邊是「加入」。
    白紙的底色、細框與影子在收起的過程中也留著，跟著整張一起淡掉與收回；只寫在打開的狀態時，一按收起就先少了一層，看起來會閃一下。 */
 .filter-workspace .filter-check-group {
   border-bottom: 0;
@@ -8348,7 +8283,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* 條件組是托盤：「第 N 組」與組的操作在托盤上，組裡的條件寫在一張白紙上，條件之間細線分開。
-   這張白紙就是 KCT 卡片與「加入」把條件放進去的地方；還沒有條件時是一個虛線框，表示條件會放在這裡。 */
+   這張白紙就是卡片與「加入」把條件放進去的地方；還沒有條件時是一個虛線框，表示條件會放在這裡。 */
 .filter-workspace .scenario-set > .scenario-flat__list {
   margin-top: var(--space-3);
   padding: 0 var(--space-3);
@@ -8482,8 +8417,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* ---- 原地展開與收起的區塊 ----------------------------------------------------------------------
-   用按鈕切換 hidden 的區塊標 data-collapsible，例如常用查核條件的分類、範例清單、儲存情境、查看結果、矩陣與第四步的檢視。
-   打開時從標題長出來、字晚一點淡入，收起時字先淡掉、再收回標題，兩個方向都有。使用者 2026-10-12 指出切換常用查核條件時
+   用按鈕切換 hidden 的區塊標 data-collapsible，例如依審計目的的分類、儲存情境、查看結果、矩陣與第四步的檢視。
+   打開時從標題長出來、字晚一點淡入，收起時字先淡掉、再收回標題，兩個方向都有。使用者 2026-10-12 指出切換當時叫「常用查核條件」的分類時
    畫面閃動，因為原本只有打開有動畫、收起是一瞬間；現在一類收起、一類打開同時進行，下面的內容跟著平順移動。
    頁籤底下原地切換的窗格標 data-motion-pane，只淡入、不改高度，舊的直接收起。窗格重新出現時帶 data-motion-revealing
    （見 app.js 的 JetMotion.setShown），裡面原本就打開的展開區保持原樣，不因為窗格出現而再長一次。
@@ -8762,7 +8697,7 @@ html.window-inactive .messages {
     background: CanvasText;
   }
 
-  /* 文件卡、條件組裡的白紙與常用查核條件清單原本用影子畫邊，高對比佈景會拿掉影子，改用系統色的細框。 */
+  /* 文件卡、條件組裡的白紙與依審計目的的清單原本用影子畫邊，高對比佈景會拿掉影子，改用系統色的細框。 */
   .report-output .report-artifact,
   .report-output:not(.rule-card > .report-output),
   .filter-workspace .scenario-set,

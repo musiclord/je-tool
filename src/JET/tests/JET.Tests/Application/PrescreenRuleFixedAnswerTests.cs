@@ -6,7 +6,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 預篩選收斂計畫階段九（使用者 2026-10-22 裁定「一條規則一個定義」）：十四條預篩選規則在 SQLite 與 DuckDB 各有一份固定答案。
-/// 同一個合成母體，第四步 prescreen.run、第五步「預篩選」分頁的條件，以及常用查核條件與 KCT 卡用欄位條件寫的版本，都要算出同一個數字；
+/// 同一個合成母體，第四步 prescreen.run、第五步「預篩選」分頁的條件，以及依審計目的條件與常用篩選條件卡片用欄位條件寫的版本，都要算出同一個數字；
 /// 以前的等價測試只比對兩種寫法相等，這裡改成每種寫法都對照寫死的答案。
 /// 第一次執行：收據 20261024-190913880-a45e823f31e745139f977c5c3481bdb3（這一則在改程式前就通過，固定答案不是由程式算出來的，見檔內的母體說明）。
 /// </summary>
@@ -112,21 +112,21 @@ public sealed class PrescreenRuleFixedAnswerTests
             Expect("filter.preview prescreen " + key, expected, await PreviewCountAsync(host, new { type = "prescreen", prescreenKey = key }));
         }
 
-        // 常用查核條件與 KCT 卡用欄位條件寫的版本，以及低頻人員與低頻科目的統計條件寫法：答案相同。
+        // 依審計目的條件與常用篩選條件卡片用欄位條件寫的版本，以及低頻人員與低頻科目的統計條件寫法：答案相同。
         var endsWithSixZeros = new { type = "fieldValue", field = "amount", operator_ = "endsWithDigits", values = new[] { "000000" }, amountBasis = "absolute" };
         var forms = new (string Label, object Rule, long Expected)[]
         {
-            ("摘要含特定字詞（常用查核條件、KCT F）", Rule(new { type = "fieldValue", field = "description", operator_ = "contains", values = SuspiciousKeywords }), RowTagAnswers["suspiciousKeywords"]),
-            ("空白摘要（常用查核條件、KCT G）", Rule(new { type = "fieldValue", field = "description", operator_ = "isBlank" }), RowTagAnswers["blankDescription"]),
-            ("金額尾數連續六個 0（KCT H）", Rule(endsWithSixZeros), RowTagAnswers["trailingZeros"]),
-            ("金額尾數連續六個 0 加金額大於或等於 1（常用查核條件）", new
+            ("摘要含特定字詞（依審計目的、特定摘要卡片）", Rule(new { type = "fieldValue", field = "description", operator_ = "contains", values = SuspiciousKeywords }), RowTagAnswers["suspiciousKeywords"]),
+            ("空白摘要（依審計目的、空白摘要卡片）", Rule(new { type = "fieldValue", field = "description", operator_ = "isBlank" }), RowTagAnswers["blankDescription"]),
+            ("金額尾數連續六個 0（特定尾數卡片）", Rule(endsWithSixZeros), RowTagAnswers["trailingZeros"]),
+            ("金額尾數連續六個 0 加金額大於或等於 1（依審計目的）", new
             {
                 type = "group",
                 rules = new object[] { Rule(endsWithSixZeros), Rule(new { type = "fieldValue", field = "amount", operator_ = "greaterThanOrEqual", value = "1", amountBasis = "absolute" }) }
             }, RowTagAnswers["trailingZeros"]),
-            ("總帳日期在週末（常用查核條件）", Rule(new { type = "fieldValue", field = "postDate", operator_ = "isWeekend" }), RowTagAnswers["weekendPosting"]),
+            ("總帳日期在週末（依審計目的）", Rule(new { type = "fieldValue", field = "postDate", operator_ = "isWeekend" }), RowTagAnswers["weekendPosting"]),
             ("傳票核准日在週末", Rule(new { type = "fieldValue", field = "docDate", operator_ = "isWeekend" }), RowTagAnswers["weekendApproval"]),
-            ("總帳日期在國定假日（常用查核條件）", Rule(new { type = "fieldValue", field = "postDate", operator_ = "isHoliday" }), RowTagAnswers["holidayPosting"]),
+            ("總帳日期在國定假日（依審計目的）", Rule(new { type = "fieldValue", field = "postDate", operator_ = "isHoliday" }), RowTagAnswers["holidayPosting"]),
             ("傳票核准日在國定假日", Rule(new { type = "fieldValue", field = "docDate", operator_ = "isHoliday" }), RowTagAnswers["holidayApproval"]),
             ("編製分錄較少的人員（統計條件）", new { type = "entityFrequency", field = "createBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = 11 }, RowTagAnswers["lowFrequencyPreparer"]),
             ("較少使用的科目（統計條件）", new { type = "entityFrequency", field = "accNum", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = 11 }, RowTagAnswers["lowFrequencyAccount"])

@@ -18,8 +18,8 @@
   var keepMotionKey = forward('keepMotionKey');
   var requirementNote = forward('requirementNote');
   var ownRequirementNote = forward('ownRequirementNote');
-  var isPatternMenuKctType = forward('isPatternMenuKctType');
-  var availableKctTypes = forward('availableKctTypes');
+  var isPatternMenuCommonType = forward('isPatternMenuCommonType');
+  var availableCommonTypes = forward('availableCommonTypes');
   var rdeFieldOptions = forward('rdeFieldOptions');
   var rdeFieldValueType = forward('rdeFieldValueType');
   var availablePrescreenKeys = forward('availablePrescreenKeys');
@@ -30,7 +30,7 @@
   var activeEditableGroup = forward('activeEditableGroup');
   var setActiveGroup = forward('setActiveGroup');
   var refreshAutomaticMetadata = forward('refreshAutomaticMetadata');
-  var kctPickerHtml = forward('kctPickerHtml');
+  var commonCardsHtml = forward('commonCardsHtml');
   var disclosureAttributes = forward('disclosureAttributes');
   var savedFeedbackText = forward('savedFeedbackText');
   var softRefreshGate = forward('softRefreshGate');
@@ -40,7 +40,7 @@
   var EMPTY_FIRST_GROUP = FilterStep.EMPTY_FIRST_GROUP;
   var UNMAPPED_OPTION_SUFFIX = FilterStep.UNMAPPED_OPTION_SUFFIX;
   var RETIRED_TYPE_NOTE = FilterStep.RETIRED_TYPE_NOTE;
-  var KCT_LETTER_KEY = FilterStep.KCT_LETTER_KEY;
+  var COMMON_CARD_KEY = FilterStep.COMMON_CARD_KEY;
   var OUTPUT_ANCHOR_LABEL = FilterStep.OUTPUT_ANCHOR_LABEL;
   var SAME_VOUCHER_EXPLANATION = FilterStep.SAME_VOUCHER_EXPLANATION;
 
@@ -82,12 +82,12 @@
      情境＝一個或多個「條件組(set)」，每組就是一塊淡底 well：頂部 AND/OR 組合器段控（該組 ≥2 條件才顯示）
      ＋條件清單。一組時就是乾淨一塊（看不到「組」字）；「＋ 另一組條件」是常駐普通按鈕（非模式）。≥2 組時
      組間出現一條水平軌道、藍色段控「組間 AND/OR」（父／情境層，與組內中性段控做出層級對比）。一組一種
-     組合器，要混就再開組；組內可用「條件括號」再組合一層（非營業日 I 保留一條括號，日期條件排除補班日）。
-     新手層：教學空狀態＋行內布林 read-back＋4 拍提示；KCT 名稱/動機自動帶入且可留白，純自訂情境必填。
+     組合器，要混就再開組；組內可用「條件括號」再組合一層（非營業日卡片保留一條括號，日期條件排除補班日）。
+     新手層：教學空狀態＋行內布林 read-back＋4 拍提示；有常用篩選條件卡片時名稱/動機自動帶入且可留白，純自訂情境必填。
      兩層 AST 不變；空群組於 toWireScenario 送出時略過（建到一半不報錯）。
      ============================================================================ */
 
-  // 新 KCT I 僅辨識明確排除補班日的日期條件；舊的週末或假日 AST 不改寫。
+  // 非營業日卡片的括號僅辨識明確排除補班日的日期條件；舊的週末或假日 AST 不改寫。
   function isNonBusinessDayBracket(rule) {
     var children = rule && rule.type === 'group' ? rule.rules || [] : [];
     return children.length === 1 && children[0].type === 'fieldValue' && children[0].field === 'postDate' &&
@@ -105,7 +105,7 @@
   // 組標頭「第 N 組」旁（組內中性段控，與組間藍色段控分層）；single 時段控放 well 頂端、前綴白話 lead
   // 「條件之間」。
   // 一組＝一句標頭「符合以下 [全部/任一] 條件，條件在 [同一分錄/同一傳票]」＋條件列＋「＋」列。
-  // 標頭在單組時也顯示（一致的閱讀順序）；多組時多「第 N 組」、作用中徽章（只影響 KCT 卡的落點）與移除。
+  // 標頭在單組時也顯示（一致的閱讀順序）；多組時多「第 N 組」、作用中徽章（只影響卡片與加入按鈕的落點）與移除。
   function setWellHtml(group, gi, setNumber, multi, isActive) {
     var comb = group && group.rules.length ? groupCombinator(group) : 'AND';
     var combinator = group && group.rules.length > 1
@@ -290,10 +290,10 @@
     var totalRules = draft.groups.reduce(function (n, g) { return n + g.rules.reduce(function (sum, rule) { return sum + ruleCount(rule); }, 0); }, 0);
     var editing = typeof draft.__editingIndex === 'number';
     var groupCount = Math.max(1, draft.groups.length);
-    var metadataMark = requiresScenarioMetadata(draft) ? '<em class="form__req">*</em>' : '<span class="form__optional">（KCT 條件可選填）</span>';
+    var metadataMark = requiresScenarioMetadata(draft) ? '<em class="form__req">*</em>' : '<span class="form__optional">（常用篩選條件可選填）</span>';
     return '<section class="rule-card scenario-builder" data-builder-title tabindex="-1" aria-label="條件組合">' +
       (editing ? '<div class="filter-builder-heading" data-motion-key="editing-heading"><h3 class="rule-card__title" data-bind="editing-scenario-name">編輯情境：' + Ui.esc(draft.name) + '</h3></div>' : '') +
-      (draft.__legacyKctSource ? '<p class="form-notice form-notice--info" data-motion-key="legacy-note">此情境以舊版儲存，無法對應當時勾選的 KCT 卡片；條件已全部保留，可以直接編輯。</p>' : '') +
+      (draft.__legacyCards ? '<p class="form-notice form-notice--info" data-motion-key="legacy-note">此情境以舊版儲存，無法對應當時勾選的常用篩選條件；條件已全部保留，可以直接編輯。</p>' : '') +
       // 編輯情境時「編輯情境：名稱」是工作面標題，「條件組合」降一層。
       '<div class="filter-builder-heading filter-builder-heading--composition"><div>' +
         (editing ? '<h4 class="filter-entry-title">條件組合</h4>' : '<h3 class="filter-entry-title">條件組合</h3>') +
@@ -343,15 +343,16 @@
           (family === 'legacy' ? '<strong>' + Ui.esc((Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === rule.type; }) || {}).label || '既有篩選條件') + '</strong>' : '') +
           '<button type="button" class="rule-row__remove" data-action="remove-rule" aria-label="移除這條條件" title="移除這條條件">移除</button></div>' +
         '<div class="rule-row__controls">' +
-          ruleSubjectHtml(rule, family) + ((rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') ? categorySelectionHtml(rule) : '') + ruleControlsHtml(rule, gi, ri, String(ri).indexOf('.') >= 0) + ((rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') ? '' : kctDescriptionHtml(rule) + legacyRulePolicyHtml(rule)) +
+          ruleSubjectHtml(rule, family) + ((rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') ? categorySelectionHtml(rule) : '') + ruleControlsHtml(rule, gi, ri, String(ri).indexOf('.') >= 0) + ((rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') ? '' : commonDescriptionHtml(rule) + legacyRulePolicyHtml(rule)) +
         '</div>' +
       '</div>'
     );
   }
 
-  function kctDescriptionHtml(rule) {
-    var item = Ui.FILTER_KCT_CHECKLIST.find(function (card) {
-      return card.letter === rule[KCT_LETTER_KEY] || (card.kind === 'type' && card.ref === rule.type);
+  // 卡片的說明在加入後的條件列寫一次；同型別的條件不論從哪裡加入都顯示（卡片上不重複，使用者 2026-10-29 裁定）。
+  function commonDescriptionHtml(rule) {
+    var item = Ui.FILTER_COMMON_CONDITIONS.find(function (card) {
+      return card.key === rule[COMMON_CARD_KEY] || (card.kind === 'type' && card.ref === rule.type);
     });
     return item && item.description ? '<p class="rule-explanation">' + Ui.esc(item.description) + '</p>' : '';
   }
@@ -404,20 +405,20 @@
     if (family === 'pattern') {
       var selected = rule.type === 'prescreen' ? 'prescreen:' + rule.prescreenKey : rule.type;
       function option(value, label) { return '<option value="' + value + '"' + (value === selected ? ' selected' : '') + '>' + Ui.esc(label) + '</option>'; }
-      var kct = availableKctTypes();
+      var commonTypes = availableCommonTypes();
       var known = availablePrescreenKeys().some(function (o) { return 'prescreen:' + o.value === selected; }) ||
-        patternTypeOptions(rule).concat(kct).some(function (item) { return item.value === selected; });
+        patternTypeOptions(rule).concat(commonTypes).some(function (item) { return item.value === selected; });
       // 目前這條條件不能用時，選單照樣寫它的名稱，原因寫在卡片上（requirementHintHtml）；類型已停用時選單寫停用的說明。
       var current = rule.type === 'prescreen'
         ? Ui.PRESCREEN_RULES.find(function (o) { return o.value === rule.prescreenKey; })
-        : Ui.FILTER_RULE_TYPES.find(function (t) { return t.value === rule.type && isPatternMenuKctType(t.value); });
+        : Ui.FILTER_RULE_TYPES.find(function (t) { return t.value === rule.type && isPatternMenuCommonType(t.value); });
       var placeholder = !known ? '<option value="' + Ui.esc(selected) + '" selected disabled>' +
         Ui.esc(current ? current.label : RETIRED_TYPE_NOTE) + '</option>' : '';
       // 左邊的家族小標已經寫「樣態」，下拉不再重複一次標題。
       return '<select data-pattern-subject aria-label="樣態">' + placeholder +
         '<optgroup label="預篩選條件">' + availablePrescreenKeys().map(function (o) { return option('prescreen:' + o.value, o.label); }).join('') + '</optgroup>' +
         '<optgroup label="自訂條件">' + patternTypeOptions(rule).map(function (t) { return option(t.value, t.label); }).join('') + '</optgroup>' +
-        (kct.length ? '<optgroup label="KCT 專屬">' + kct.map(function (t) { return option(t.value, t.label); }).join('') + '</optgroup>' : '') +
+        (commonTypes.length ? '<optgroup label="常用篩選條件">' + commonTypes.map(function (t) { return option(t.value, t.label); }).join('') + '</optgroup>' : '') +
       '</select>';
     }
     return '';
@@ -456,7 +457,7 @@
   function bindCompoundRule(row, siblings, index, gi) {
     var rule = siblings[index];
     function own(selector) { return Array.from(row.querySelectorAll(selector)).filter(function (el) { return el.closest('.rule-row') === row; }); }
-    // 括號內加入、移除子條件或移除整個括號算增減條件；其他設定只確認 KCT 身分並更新自動名稱。
+    // 括號內加入、移除子條件或移除整個括號算增減條件；其他設定只確認卡片身分並更新自動名稱。
     function changed(structural) {
       var draft = Store.getState().filter.draft;
       refreshAutomaticMetadata(draft, !!structural);
@@ -667,7 +668,7 @@
           (showDebit ? categoryMultiSelect('debitCategoryIds', rule.pairMode === 'notDrCr' ? '整張傳票不得有這些借方分類' : '借方分類') : '') +
           (showCredit ? categoryMultiSelect('creditCategoryIds', rule.pairMode === 'drNotCr' ? '整張傳票不得有這些貸方分類' : '貸方分類') : '') +
           '<details class="filter-rule-help" data-rule-help' + disclosureAttributes('rule-help-' + motionKey(rule, 'rule')) + '><summary>查找說明</summary><p class="filter-pair-result">' + (rule.pairMode === 'drNotCr' ? '結果列出符合的借方分錄。' : rule.pairMode === 'notDrCr' ? '結果列出符合的貸方分錄。' :
-            rule.pairMode === 'debitAnchor' ? '結果列出符合的借方分錄及同傳票全部貸方分錄。' : rule.pairMode === 'creditAnchor' ? '結果列出符合的貸方分錄及同傳票全部借方分錄。' : '結果列出同傳票符合分類的借方與貸方分錄。') + '</p>' + kctDescriptionHtml(rule) + legacyRulePolicyHtml(rule) + '</details></div>';
+            rule.pairMode === 'debitAnchor' ? '結果列出符合的借方分錄及同傳票全部貸方分錄。' : rule.pairMode === 'creditAnchor' ? '結果列出符合的貸方分錄及同傳票全部借方分錄。' : '結果列出同傳票符合分類的借方與貸方分錄。') + '</p>' + commonDescriptionHtml(rule) + legacyRulePolicyHtml(rule) + '</details></div>';
       }
 
       case 'typed': {
@@ -831,7 +832,7 @@
     switch (rule.type) {
       case 'group':
       case 'voucher': {
-        if (isNonBusinessDayBracket(rule)) { return prefix + Ui.FILTER_KCT_ATOM_LABELS.kctNonBusinessDay; }
+        if (isNonBusinessDayBracket(rule)) { return prefix + Ui.FILTER_COMMON_ATOM_LABELS.nonBusinessDay; }
         if (isLegacyWeekendHolidayBracket(rule)) { return prefix + '（週末過帳 或 假日過帳）'; }
         var expr = '';
         (rule.rules || []).forEach(function (child) {
@@ -1005,16 +1006,15 @@
         well.setAttribute('aria-current', String(active));
         well.querySelector('.filter-group-selected').hidden = !active;
       });
-      // 沿用原本的 KCT 呈現函式；保留按鈕節點與事件，僅更新該組的勾選及「也在其他組」。
+      // 沿用卡片的呈現函式；保留按鈕節點與事件，僅更新該組的勾選及「也在其他組」。
       var template = document.createElement('template');
-      template.innerHTML = kctPickerHtml(draft);
-      container.querySelectorAll('.filter-entry [data-kct-letter]').forEach(function (button) {
-        var updated = template.content.querySelector('[data-kct-letter="' + button.dataset.kctLetter + '"]');
+      template.innerHTML = commonCardsHtml(draft);
+      container.querySelectorAll('.filter-entry [data-common-card]').forEach(function (button) {
+        var updated = template.content.querySelector('[data-common-card="' + button.dataset.commonCard + '"]');
         button.className = updated.className;
         button.setAttribute('aria-pressed', updated.getAttribute('aria-pressed'));
         button.innerHTML = updated.innerHTML;
       });
-      container.querySelector('.condition-picker__count').textContent = template.content.querySelector('.condition-picker__count').textContent;
     }
     // 「＋ 另一組條件」：新增一個可編輯群組（一個 set）。新組 join 繼承有效組間運算子——畫面上只有
     // 一個情境層運算子，硬編碼 'OR' 會在使用者已改 AND 時打破「全組一致」不變量（段控顯示 AND、
@@ -1170,7 +1170,7 @@
         });
       });
 
-      // 換掉這一列的規則（家族內換對象時用）：保留 join；新規則不帶 KCT 身分，換掉條件後重算命名。
+      // 換掉這一列的規則（家族內換對象時用）：保留 join；新規則不帶卡片身分，換掉條件後重算命名。
       function replaceRule(build) {
         var draft = Store.getState().filter.draft;
         var old = currentRules[ri];
@@ -1188,7 +1188,7 @@
       }
       Ui.FilterValues.bind(row.querySelector('.value-editor'), currentRule, Store.getState(), function (structural) {
         if (structural) {
-          // 比較方式改變可能讓 KCT 卡帶入的條件變成別的條件，例如 I 括號內改成週末。
+          // 比較方式改變可能讓卡片帶入的條件變成別的條件，例如非營業日括號內改成週末。
           var structuralDraft = Store.getState().filter.draft;
           refreshAutomaticMetadata(structuralDraft, false);
           Store.setFilterDraft(structuralDraft);
@@ -1196,7 +1196,7 @@
         else { patchCurrent({}); softRefreshReadback(container); softExpirePreviewPane(container); softRefreshGate(container); }
       });
 
-      // 風險樣態：預篩選條件只換 key；換成尾數、張數或 KCT 專屬條件則重建那一列。
+      // 風險樣態：預篩選條件只換 key；換成尾數、張數或常用篩選條件專用的型別則重建那一列。
       var patternSubject = row.querySelector('[data-pattern-subject]');
       if (patternSubject) {
         patternSubject.addEventListener('change', function () {
@@ -1258,7 +1258,7 @@
             var fresh = Ui.newFilterRule(parts[0]);
             fresh.join = old.join; fresh.pairMode = parts[1]; fresh.categorySelection = old.categorySelection;
             fresh.debitCategoryIds = (old.debitCategoryIds || []).slice(); fresh.creditCategoryIds = (old.creditCategoryIds || []).slice();
-            if (old[KCT_LETTER_KEY]) { fresh[KCT_LETTER_KEY] = old[KCT_LETTER_KEY]; }
+            if (old[COMMON_CARD_KEY]) { fresh[COMMON_CARD_KEY] = old[COMMON_CARD_KEY]; }
             keepMotionKey(old, fresh);
             currentRules[ri] = fresh;
             if (FilterStep.selectedRule === old) { FilterStep.selectedRule = fresh; }
@@ -1320,7 +1320,7 @@
   FilterStep.legacyExclusionsHtml = legacyExclusionsHtml;
   FilterStep.scenarioBuilderHtml = scenarioBuilderHtml;
   FilterStep.ruleRowHtml = ruleRowHtml;
-  FilterStep.kctDescriptionHtml = kctDescriptionHtml;
+  FilterStep.commonDescriptionHtml = commonDescriptionHtml;
   FilterStep.compoundRuleHtml = compoundRuleHtml;
   FilterStep.requirementHintHtml = requirementHintHtml;
   FilterStep.ruleSubjectHtml = ruleSubjectHtml;
